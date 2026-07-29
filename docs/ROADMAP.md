@@ -346,9 +346,11 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
 
 ### Near-term (prioritized)
 
-> ### ⛔ 0. Usage documentation — a GATE, not a queue position (set 2026-07-29)
-> **No net-new feature starts until the usage documentation is current.** In this list that holds **item 3
-> (MIDI control)**, the one net-new capability left; hardening items are unaffected.
+> ### ✅ 0. Usage documentation — the gate, and it is now OPEN (closed 2026-07-29)
+> **No net-new feature starts until the usage documentation is current.** It held **item 3 (MIDI
+> control)**; that hold is **released** — all five conditions are met and `npm run verify` enforces them
+> with 11 documentation checks. **The rule does not expire:** a net-new feature ships its usage docs in
+> the same commits. What changed is that the debt is paid.
 > Plan: [`plans/documentation-wiki.md`](../plans/documentation-wiki.md) · gate conditions:
 > [`plans/SEQUENCING.md`](../plans/SEQUENCING.md) ▸ *The documentation gate*.
 >
@@ -366,7 +368,7 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
    pushes machine-made history onto an **uncapped** stack. Plan: [`plans/timeline-undo.md`](../plans/timeline-undo.md).
 3. **MIDI control** — a new `plugins/midi` (control surface → cue/transport/state-machine). Net-new
    capability, not started. Plan: [`plans/midi-control.md`](../plans/midi-control.md).
-   ⛔ **Held by the documentation gate above** — being net-new is exactly what holds it.
+   ✅ **Unblocked** — the documentation gate closed 2026-07-29. It ships its usage docs with it.
 4. **Projector polish** (the sampling/blend cluster):
    - **WebGL strict per-surface sampling — Phase 2** (Phase 1 shipped: force-WebGL + banner; Phase 2 was
      deferred pending a decision — [`plans/webgl-strict-per-surface-sampling.md`](../plans/webgl-strict-per-surface-sampling.md));

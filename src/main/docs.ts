@@ -190,6 +190,13 @@ export async function searchIndex(): Promise<DocChunk[]> {
       let fenced = false;
       let heading = '';
       let buf: string[] = [];
+      // Audience toggles, not wrappers: `<!-- audience:contributor -->` switches everything after it,
+      // until an `<!-- audience:operator -->` switches back. A toggle is ONE line to insert at the seam
+      // rather than an open/close pair per region, and it still expresses a doc that interleaves (
+      // STATE-MACHINE alternates seven times). A page with no markers is entirely operator, which is
+      // what makes the 10 `usage`-tagged pages need no edit at all.
+      let audience: DocChunk['audience'] = 'operator';
+      let pending: DocChunk['audience'] | null = null;
       const flush = () => {
         const text = plainText(buf.join('\n'));
         buf = [];
@@ -199,6 +206,7 @@ export async function searchIndex(): Promise<DocChunk[]> {
           docId: entry.id,
           doc: entry.title,
           heading,
+          audience,
           section: section.title,
           // Cap the stored prose: the whole index crosses an IPC boundary in one message, and a
           // 700-line chapter's worth of body text buys no extra matching power over its first ~1200
@@ -209,9 +217,17 @@ export async function searchIndex(): Promise<DocChunk[]> {
 
       for (const line of lines) {
         if (/^\s*```/.test(line)) fenced = !fenced;
+        const mark = !fenced && line.match(/^\s*<!--\s*audience:(operator|contributor)\s*-->\s*$/);
+        if (mark) {
+          // Held until the next heading, because the marker sits immediately BEFORE the heading it
+          // applies to — applying it now would retag the chunk that is still being accumulated.
+          pending = mark[1] as DocChunk['audience'];
+          continue;
+        }
         const h = !fenced && line.match(/^(#{1,4})\s+(.+?)\s*$/);
         if (h) {
           flush();
+          if (pending) { audience = pending; pending = null; }
           heading = h[2].replace(/[`*_]/g, '').trim();
         } else buf.push(line);
       }

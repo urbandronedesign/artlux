@@ -30,6 +30,8 @@ windows never open a camera — they receive detection snapshots over the projec
 the markers themselves. The engine is **refcounted** by the content source's `acquire`/`release`: it
 starts on the first `MEDIAPIPE` surface and stops when the last one goes away.
 
+<!-- audience:contributor -->
+
 ## Files
 
 | File | Purpose |
@@ -53,6 +55,8 @@ Core edits are minimal (persisted enum/fields stay core, behavior lives in the p
 `SourceType.MEDIAPIPE` + a `poseSkeleton` field (`renderer/types.ts`), `Scene3D.mediapipeViz`
 (`shared/protocol.ts`), a picker button (`ContentEditor.tsx`) and menu item (`MenuBar.tsx`).
 Plugin-local prefs live under `AppSettings.plugins.mediapipe` (no core field).
+
+<!-- audience:operator -->
 
 ## Offline model + WASM assets (required)
 
@@ -105,6 +109,8 @@ preview on the 3D floor.
 accurately; a **jumping** person is momentarily off-plane. Webcam lens distortion is ignored (fine for a
 quick calibration; re-mark corners if the edges look bowed). This is **display only** in this
 iteration — surface/DMX content still positions people in image space.
+
+<!-- audience:contributor -->
 
 ## Scope + roadmap
 

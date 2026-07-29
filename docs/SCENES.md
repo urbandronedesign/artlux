@@ -244,6 +244,8 @@ FSM action ─────────┤→ cueBus (requestRecall | requestFire
 OSC ────────────────┘     → App resolves id/name → commit target + start render-free fade
 ```
 
+<!-- audience:contributor -->
+
 ## Not in this version (future work)
 
 Red-overlay edit mode (click any control in the Inspector/Stage to cue it — currently authored via

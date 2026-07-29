@@ -158,10 +158,13 @@ remembered between sessions), a **per-function entry** for every control that ca
 a result is the paragraph that answers you rather than a 700-line page to go hunting in.
 
 Type to search all three at once; **Esc** closes. So one query for *blade* returns both the **Blade
-tool** control and the *Editing clips* section that explains it, and a word that appears only in prose
-— *gray code*, *phase spread* — now finds its page instead of nothing. Documentation results carry a
-📖 book icon; pick one and **Open in Docs** takes you to that exact heading. Contextual help for
-whatever you hover stays live in the status bar.
+tool** control and the *Editing clips* section that explains it — and a term that appears only in prose,
+like a calibration pattern or a spread mode, now finds its page instead of nothing. Documentation
+results carry a 📖 book icon; pick one and **Open in Docs** takes you to that exact heading. Contextual
+help for whatever you hover stays live in the status bar.
+
+Documentation written for whoever *builds* ArtLux is still searchable, but it always ranks below the
+operator pages — so a search answers with how to use the thing before it answers with how it is made.
 
 ### Searching the docs directly
 

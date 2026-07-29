@@ -83,6 +83,9 @@ Save with **Ctrl/Cmd+S**.
 | 13 | [Tracking](13-tracking.md) | LiDAR / camera (MediaPipe) / Augmenta sources, blobs in 3D, trigger zones, takes |
 | 14 | [Show / state machine](14-show-state-machine.md) | The Show graph over scenes: states, transitions, hold, cold‑start, Show context + tablet |
 | 15 | [Keyboard & mouse reference](15-keyboard-reference.md) | Every shortcut, by context |
+| 16 | [Moving lights & light shows](16-moving-lights.md) | The *other* kind of fixture: profiles, placing heads in 3D, pose keys, cues, precedence |
+| 17 | [Installing ArtLux](17-installing.md) | The Launcher, the SmartScreen warning, the preflight, and verifying a venue install |
+| 18 | [Running unattended](18-unattended.md) | Broadcast mode, the watchdog, schedules & playlists, the pre-flight before you leave |
 
 For engine internals and protocol details, see the other files in [`docs/`](../) (ARCHITECTURE,
 SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE, ASSETS, CALIBRATION, OSC, MONITORING).

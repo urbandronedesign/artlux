@@ -191,6 +191,8 @@ delivered, the network head still outputting correctly, and one log line —
   implementations; the DMX wire itself runs at 250 kbaud on the widget's far side. Confirm against a
   real Pro before a show, and see ENTTEC's API spec v1.44 if the Mk2's second port is ever needed.
 
+<!-- audience:contributor -->
+
 ## For developers / architecture
 
 ### Data model — `Controller.drives`

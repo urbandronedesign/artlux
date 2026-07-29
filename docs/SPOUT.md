@@ -27,6 +27,8 @@ main-process native receiver + a refcounted renderer content source.
    changes.
 4. Map fixtures onto that surface as usual — Spout frames sample per-LED like any other content.
 
+<!-- audience:contributor -->
+
 ## Architecture (brief)
 
 - **Main:** `spoutManager` (in `@artlux/plugin-spout/main`) owns the native `spout-receiver` addon and
@@ -39,11 +41,15 @@ main-process native receiver + a refcounted renderer content source.
   `renderer/types.ts` (persisted projects need zero migration); only the *behaviour* lives in the
   plugin.
 
+<!-- audience:operator -->
+
 ## Related
 
 - [NDI.md](NDI.md) — network video (cross-machine), the Spout sibling.
 - [SURFACES.md](SURFACES.md) — the content/mapping model.
 - [PLUGINS.md](PLUGINS.md) / [SDK.md](SDK.md) — the plugin + content-source contribution architecture.
+
+<!-- audience:contributor -->
 
 ## Source map
 

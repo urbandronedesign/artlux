@@ -14,6 +14,8 @@ one-click recalibration, camera/projector masking, exposure controls, colour/bla
 
 ---
 
+<!-- audience:contributor -->
+
 ## The governing architectural truth
 
 NVAPI scanout warp is a **2D framebuffer resample** of a display — it **cannot** render view-dependent
@@ -97,6 +99,8 @@ Forensics live in `userData/artlux-calibration.log`.
 
 ---
 
+<!-- audience:operator -->
+
 ## Using the Auto-Align wizard (Phase 0)
 
 Open **Outputs → Calibrate** on an output, then toggle **Board → Auto-Align** in the wizard header.
@@ -123,6 +127,8 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
 > 640×480** is marginal for precise work; prefer the 4K IPEVO or an industrial camera.
 
 ---
+
+<!-- audience:contributor -->
 
 ## Continuing on the Quadro (hardware session)
 

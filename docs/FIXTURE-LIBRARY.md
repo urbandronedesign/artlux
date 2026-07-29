@@ -63,6 +63,8 @@ the fixture's **modes**. None of that could be expressed, so none of it could be
 
 A **`FixtureProfile`** ([shared/protocol.ts](../shared/protocol.ts)) is that description.
 
+<!-- audience:contributor -->
+
 ## The model
 
 | Type | What it is |
@@ -221,6 +223,8 @@ behaviour. What `unknown` must never mean is *dropped*. `Hue`/`Saturation` are d
 unknown: upstream types them `Generic`, so the only signal is the name, and nothing consumes a hue
 role yet.
 
+<!-- audience:operator -->
+
 ## GDTF — the manufacturer's own file
 
 The bundled library has the channels and **no meshes**. A `.gdtf` has both, so importing one is how a
@@ -280,6 +284,8 @@ then render in the 3D scene from userData at 59 fps.
 no pan or tilt channels — the importer correctly reports that nothing will articulate. Confirm the
 pan/tilt hinging with a moving-head GDTF before relying on it.
 
+<!-- audience:contributor -->
+
 ## Resolution order at runtime
 
 [src/main/fixtureLibrary.ts](../src/main/fixtureLibrary.ts) serves the library over
@@ -297,6 +303,8 @@ for everything after it.
 The renderer never imports the library — main reads it off disk (`process.resourcesPath` when packaged,
 `resources/` in dev) and hands over the small index plus one manufacturer at a time. Several MB of JSON
 does not belong in a bundle that hot-reloads.
+
+<!-- audience:operator -->
 
 ## `verified: false` — drafts
 

@@ -57,19 +57,22 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | Build log (chronological) | [docs/PROGRESS.md](docs/PROGRESS.md), [CHANGELOG.md](CHANGELOG.md) |
 | Historical / superseded docs | [docs/archive/](docs/archive/) (pre-Electron `ARCHITECTURE_PLAN`, `UI_REFACTOR`, audio acceptance/plans) |
 
-## ⛔ THE DOCUMENTATION GATE — read before starting any net-new feature
+## THE DOCUMENTATION RULE — a net-new feature ships its usage docs with it
 
-**No net-new feature starts until the usage documentation is current** (owner's rule, 2026-07-29). If you
-are asked to build something net-new, say the gate holds it and point at
-[plans/documentation-wiki.md](plans/documentation-wiki.md); the five conditions that open it are in
-[plans/SEQUENCING.md](plans/SEQUENCING.md) ▸ *The documentation gate*. First thing held:
-[plans/midi-control.md](plans/midi-control.md). **Not gated:** bug fixes, hardening, and rework of
-something already shipped *and* already documented.
+**No net-new feature starts until the usage documentation is current** (owner's rule, 2026-07-29). The
+backlog behind it was paid off the same day — [plans/documentation-wiki.md](plans/documentation-wiki.md)
+Phases 0–2 — so **the gate is open and nothing is held**. The rule itself stands: write the usage page in
+the *same commits* as the feature, and let `npm run verify` say so. **Not covered:** bug fixes, hardening,
+and rework of something already shipped *and* already documented.
 
 **Scope is USAGE only.** Engine internals, the SDK, build/release and `plans/` stay repo-only and never
-enter the operator-facing docs. The real usage corpus is small — `docs/user-guide/` + `examples/**/tuto/`
-(~4 300 lines) plus the 226 in-app help entries — while **~18 of the 41 `docs/*.md` are "architecture *&*
-usage" hybrids whose operator half is not marked off.**
+enter the operator-facing docs. `docs/manifest.json` tags every page **`usage` (9) / `hybrid` (23) /
+`code` (9)**, and the 23 hybrids — "architecture *&* usage" in one file — carry
+`<!-- audience:contributor -->` / `<!-- audience:operator -->` **toggles** at the seam. A toggle switches
+everything after it until the next one, so a one-line insert marks a seam and an interleaved page
+(STATE-MACHINE alternates seven times) still works. **A page with no markers is entirely operator**,
+which is why the 9 `usage` pages need no edit. Contributor slices are **demoted in search, not hidden** —
+still true, still findable, never the first answer to an operator.
 
 **How docs stay true in a repo that commits ~2.6×/day — the three rules.** The shell was rebuilt three
 times and the guide's *prose* survived all three while every *screenshot* went stale, so write by half-life:
@@ -77,9 +80,10 @@ times and the guide's *prose* survived all three while every *screenshot* went s
    and settings lists are **generated** into `<!-- generated:x -->` blocks. Chapter 15 is the cautionary
    tale: hand-maintained, edited as recently as 2026-07-28, and *still* documenting a static shortcut list
    that `SHORTCUTS.md` says was replaced. It was not neglected — it was maintained **and still wrong**.
-2. **Single-source: mark, don't move.** A hybrid doc's operator half is wrapped in
-   `<!-- audience:operator -->` **in place** and the build assembles the operator view. Never copy usage
-   prose into a second file — two copies drift the first time a feature lands.
+2. **Single-source: mark, don't move.** A hybrid doc's seam is marked **in place** and the search index
+   reads it. Never copy usage prose into a second file — two copies drift the first time a feature lands.
+   `verify:docs` fails a `hybrid` page that marks no contributor region, because an unmarked hybrid is
+   not neutral: it silently declares its whole implementation half to be operator documentation.
 3. **Cap and stamp the pictures.** 22 screenshots is a ceiling; prefer hand-authored SVG diagrams (shell-
    independent) and let `capture-docs.cjs`'s version stamp render the staleness banner automatically.
 

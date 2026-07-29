@@ -146,6 +146,8 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 
 ---
 
+<!-- audience:contributor -->
+
 ## Architecture
 
 > **LiDAR tracking is now the `@artlux/plugin-lidar-tracking` plugin** — the store, 3D viz, smoothing,
@@ -198,6 +200,8 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
   context; a stale array → out-of-bounds read → GPU-process crash).
 
 ---
+
+<!-- audience:operator -->
 
 ## Recording & replaying the blob feed
 

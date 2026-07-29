@@ -35,6 +35,8 @@ timeline was a context of its own — losing zoom, scroll and clip selection). C
 > `playing` itself, only emits `TransportIntent`s that `App` turns into React state (App stays the
 > single transport writer). Video sampling/compositing is otherwise untouched.
 
+<!-- audience:contributor -->
+
 ## Where it lives
 
 ```
@@ -233,6 +235,8 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
   {passive:false})` (React `onWheel` is passive and can't `preventDefault`). It preserves the
   time-under-cursor by setting `scrollLeft` in a `requestAnimationFrame` after the new width lays out,
   using the same `GUTTER` offset as `clientXToTime`.
+
+<!-- audience:operator -->
 
 ## Infinite navigation, looping & the end-stop (v0.12.0; clock bounded again in Wave A)
 
@@ -455,6 +459,8 @@ the tracking store). Takes are recorded from the **Takes** strip, placed as `kin
 (rendered with a `BlobSparkline` instead of a Filmstrip), and replayed into the tracking store as the
 playhead crosses them. Full design in [TRACKING_TAKES.md](TRACKING_TAKES.md); takes are managed in the
 [asset library](ASSETS.md).
+
+<!-- audience:contributor -->
 
 ## Verify
 

@@ -68,6 +68,8 @@ the operator's back. It only wraps (global loop on) or parks (global loop off) �
 
 Full reset table (every transport event × both clocks): **[TIMELINE.md → The show clock](TIMELINE.md#the-show-clock-wave-b--one-transport-two-playheads)**.
 
+<!-- audience:contributor -->
+
 ## Data model (`src/renderer/types.ts`)
 
 ```ts
@@ -199,6 +201,8 @@ possible. The preloader keeps a small **sliding window of warmth** that follows 
   are released, so we never hold N network streams at once. Steady-state decode/GPU/network load equals
   a single-timeline app regardless of how many states exist.
 
+<!-- audience:operator -->
+
 ## "Play everywhere" (projector + broadcast)
 
 - **Projector windows** receive the timeline over the existing MessagePort bridge
@@ -231,6 +235,8 @@ fresh timeline to fill.
   and an **Edit timeline** action that enters author mode on that state.
 - **Scenes/Cues panel:** each scene cell gets an **Edit** (film) action beside **GO**, an accent dot,
   and **hover-preloads** the scene's media.
+
+<!-- audience:contributor -->
 
 ## Key design decisions (read before extending)
 

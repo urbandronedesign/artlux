@@ -190,12 +190,16 @@ test). Only the wave-independent ones are written ahead.
 | Wiring Rescue · Hello Projector · Patch & Prove (autopatch) | Wave 2 | fixture-segments · content-source + projector-blend · autopatch |
 | Audio tutorial · Motion-Graphics audio chapter | Wave 3 | the audio subsystem |
 
-## ⛔ THE DOCUMENTATION GATE — usage docs are current *before* the next net-new feature
+## ✅ THE DOCUMENTATION GATE — **OPEN as of 2026-07-29** (all five conditions met)
 
 **Rule (set 2026-07-29, owner's call): no net-new feature starts until the usage documentation is caught
-up.** Concretely this gates **[`feat-midi-control`](midi-control.md)** — the one still-active net-new plan
-— and any net-new work queued behind it. It does **not** gate bug fixes, hardening, or a rework of
-something already shipped and already documented.
+up.** It gated **[`feat-midi-control`](midi-control.md)**, the one still-active net-new plan. It does
+**not** gate bug fixes, hardening, or a rework of something already shipped and already documented.
+
+> **The backlog item is done — `feat-midi-control` is UNBLOCKED.** All five conditions below are met and
+> `npm run verify` enforces them (**11 doc checks**). **The rule itself does not expire:** a net-new
+> feature ships its usage documentation *in the same commits*, and the checks are what say so. What
+> changed is that the debt is paid, not that the standard was lowered.
 
 Plan: **[documentation-wiki.md](documentation-wiki.md)** (audit + phases + the options that were rejected).
 
@@ -226,7 +230,7 @@ tick in a table.
 | **2** | The four developer pages are out of the operator's in-app sidebar | ✅ **done** — nav derived from the manifest |
 | **3** | Chapter 15 is **generated** from the keymap registry and says shortcuts are rebindable | ✅ **done** — `npm run docs:gen` |
 | **4** | The in-app Docs Browser has search, merged with the F1 help modal's 226 entries | ✅ **done** — 723 chunks, one shared scorer |
-| **5** | The 18 hybrid docs carry `<!-- audience:operator -->` regions and the build assembles the operator view from them; the three genuinely missing chapters exist (moving lights, install/Launcher, unattended operation) | Phase 2 |
+| **5** | The hybrid docs carry `<!-- audience:… -->` regions and the search index reads them; the three genuinely missing chapters exist (moving lights, install/Launcher, unattended operation) | ✅ **done** — 68 markers / 23 pages, guide now 19 chapters |
 
 **≈ 3–4 days total.** Phases 0–1 are ~1.5 days and unblock nothing else; Phase 2 is ~1.5–2.5.
 
@@ -282,8 +286,8 @@ else is on the critical path; everything else is post-merge.
    🟢 low. (No longer blocked — `wave-3-audio` has merged, so `TimelineToolbar.tsx` is free.)
 4. **[Usage documentation](documentation-wiki.md)** (`docs-usage-wiki`) — parallel-safe with everything above,
    and **⛔ a hard gate on item 5**. See *The documentation gate*.
-5. **MIDI control** — ⛔ **held until item 4's Phases 0–2 are done** (it is the next net-new feature).
-   Otherwise independent and parallel-safe.
+5. **MIDI control** — ✅ **unblocked** (the documentation gate closed 2026-07-29). Independent and
+   parallel-safe; ships its usage docs with it.
 
 ## Verification gate (what "done, ready to test" means, per wave)
 
@@ -321,8 +325,8 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
 | 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☐ not started (Drafts — both plans written 2026-07-12, surfaced by Wave B's adversarial review). **`timeline-undo` first** (the last-good-document edge). Highest-value single item in the whole backlog for an unattended install: **the watchdog cannot see a white screen.** |
 | — | `feat-transport-skip` | transport-edit-point-navigation | ☐ not started (Draft — plan written 2026-07-13). The `⏮`/`⏭` buttons were **in the Wave A sketch and never entered the Wave A plan**; the capability (prev/next edit point) does not exist at all. Held until `wave-3-audio` merges — same file. |
-| — | `docs-usage-wiki` | [documentation-wiki](documentation-wiki.md) — **⛔ gates every net-new feature** | ◑ **Phases 0 + 1 DONE 2026-07-29.** **P0:** `docs/manifest.json` (10 usage / 22 hybrid / 9 code), `verify:docs` (**10 checks**, in `npm run verify`), `docs:gen` (chapter 15 generated from the keymap registry), the operator sidebar derived from the manifest, `build-docs-html.cjs`'s dead hand-list retired — **four defects fixed, three found by the new checks**. **P1:** in-app search — **723 chunks from 66 pages in 203 ms**, one shared scorer for both surfaces, the F1 modal gained a documentation tier, the Docs Browser gained a search field, results land on the heading. **Live-tested in the app, which caught that `"gray code"` returned nothing** (the docs write *Gray-code*). **Remaining: Phase 2 only** — mark the 22 hybrids in place + 3 missing chapters (~1.5–2.5 d). Phase 3 (public site) is optional and **not** part of the gate. |
-| — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written). ⛔ **HELD by the documentation gate** — it is the next *net-new* feature, so it starts once Phases 0–2 above are done. |
+| — | `docs-usage-wiki` | [documentation-wiki](documentation-wiki.md) — the gate | ☑ **DONE 2026-07-29 — GATE OPEN.** **P0:** `docs/manifest.json` (9 usage / 23 hybrid / 9 code), `verify:docs` (**11 checks**, in `npm run verify`), `docs:gen` (chapter 15 generated from the keymap registry), the operator sidebar derived from the manifest, `build-docs-html.cjs`'s dead hand-list retired — **four defects fixed, three found by the new checks**. **P1:** in-app search — **752 chunks from 69 pages in ~215 ms**, one shared scorer, the F1 modal gained a documentation tier, the Docs Browser gained a search field, results land on the heading. **P2:** **68 audience markers across all 23 hybrids** (toggles, read into `DocChunk.audience`, contributor prose demoted not hidden) + **three new chapters** (moving lights, installing, running unattended) → guide is **19 chapters**. **Live-tested at every phase, and it paid twice:** `"gray code"` returned *nothing* (the docs write *Gray-code*), then returned *Building the native addon* until the markers landed; it now returns *Projector Calibration*. Phase 3 (public site) is optional and was never part of the gate. |
+| — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written). ✅ **UNBLOCKED 2026-07-29** — the documentation gate is open. It ships its own usage docs with it. |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
 *Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. As of

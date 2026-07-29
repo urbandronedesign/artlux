@@ -34,6 +34,8 @@ app's single OSC listener** — it does *not* open its own port. Point the box's
 OSC listen port; the `/au/…` messages fall through the host control router (which only claims the
 `/artlux` prefix) to the plugin. **No main-process half, no native crate, no transport changes.**
 
+<!-- audience:contributor -->
+
 ## Files
 
 | File | Purpose |
@@ -53,6 +55,8 @@ Core edits are minimal (persisted enum/fields stay core, behavior lives in the p
 `SourceType.AUGMENTA` (`renderer/types.ts`), `Scene3D.augmentaViz` (`shared/protocol.ts`), a picker
 button (`ContentEditor.tsx`), a 3D toggle (`ScenePanel3D.tsx`), and a menu item (`MenuBar.tsx`). No
 plugin-local settings — Augmenta reuses the core OSC / Tracking receive settings.
+
+<!-- audience:operator -->
 
 ## The OSC protocol
 
@@ -101,6 +105,8 @@ node scripts/augmenta-emitter.cjs [host] [port] [nObjects]   # default 127.0.0.1
 
 Point it at the app's OSC listen port; each object orbits the field so motion / smoothing / heading /
 trails are visible.
+
+<!-- audience:contributor -->
 
 ## Scope + roadmap
 

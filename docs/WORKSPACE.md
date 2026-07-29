@@ -36,6 +36,8 @@ arbitrary widths uniformly, with zero token refactor. Owner: [`src/main/uiScale.
   pixels; calibration canvases use DPR). The only render fix here was two react-three-fiber previews that
   were pinned `dpr={1}` → `dpr={[1,2]}` (`Simulator3D.tsx`, calibration `ProjectorScene.tsx`).
 
+<!-- audience:contributor -->
+
 ## Workspace layout state
 
 Layout lives in a module-singleton pub/sub store (the `cueBus`/`helpBus` idiom):
@@ -373,6 +375,8 @@ transitive** — which is why dissolving `timeline` also meant repointing `media
 leaving it aimed at an id that no longer exists. Orphaned `contexts[id]` slices are never pruned and are
 harmless.
 
+<!-- audience:operator -->
+
 ## How to…
 
 - **Add a persisted layout field:** add it to `WorkspaceLayout` + `DEFAULT_LAYOUT`, read via `useLayout()`,
@@ -514,6 +518,8 @@ All three were reported by the operator within minutes of real use, and all thre
 ### What stays out of the tree
 
 The **bottom drawer** (its 28px strip, `Ctrl+T` and never-remounting fixed position are the fix that killed the lost-zoom bug), the context rail, the action bar, the palette, and the help and shortcut editors. **Split view** is still a layout flag rather than a tree node — it is a runtime toggle, so it cannot be compiled into a shipped tree; it becomes redundant once a viewport can simply be dragged into a pane.
+
+<!-- audience:contributor -->
 
 ## Regression guards
 

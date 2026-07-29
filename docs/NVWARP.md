@@ -19,6 +19,8 @@ and NVAPI's jobs are:
 ArtLux also has a **GLSL warp/blend** engine; the addon is **optional**. When NVAPI is unavailable
 (non-pro GPU, no driver, or a stub build), `available()` returns false and ArtLux uses GLSL instead.
 
+<!-- audience:contributor -->
+
 ## Stub vs real build
 
 The addon is a Rust/napi wrapper over a small C++ NVAPI shim (`native/nvwarp/src/shim.cpp`). The build

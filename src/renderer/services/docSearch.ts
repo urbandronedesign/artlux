@@ -45,6 +45,14 @@ export interface DocHit {
 const BODY_BASE = 240;   // below every heading hit, above a scattered one — body matches are weaker evidence
 const PHRASE_BONUS = 40; // the words adjacent, exactly as typed, is better evidence than merely co-present
 
+// ── AND WHY CONTRIBUTOR PROSE IS DEMOTED RATHER THAN HIDDEN ───────────────────────────────────────────
+// ~22 reference pages are "architecture and usage" in one file, and before their seams were marked, a
+// search for "gray code" answered with *Building the native addon* and *Key files* — true, present, and
+// useless to someone standing at a projector. But hiding those slices outright would be wrong: they are
+// still correct, and the person configuring a venue PC is sometimes exactly who needs them. So they sink
+// below every operator hit instead of disappearing — findable when nothing else matches, never first.
+const CONTRIBUTOR_PENALTY = 220;
+
 // ── AND WHY A MULTI-WORD QUERY IS TOKENISED (found by searching the running app) ───────────────────────
 // The first build matched the whole query as one literal substring, and **"gray code" returned nothing** —
 // because the documentation writes "Gray-code", 15 times, and never once with a space. A reader who types
@@ -91,6 +99,7 @@ export function searchDocs(chunks: DocChunk[], q: string, limit = 40): DocHit[] 
       if (s < 0) continue;
     }
 
+    if (chunk.audience === 'contributor') s -= CONTRIBUTOR_PENALTY;
     hits.push({ chunk, s, excerpt: excerptAround(chunk.text, multi ? tokens : [lower]) });
   }
   hits.sort((a, b) => b.s - a.s || a.chunk.doc.localeCompare(b.chunk.doc));

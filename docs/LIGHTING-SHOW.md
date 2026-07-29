@@ -154,6 +154,8 @@ Within the lighting layer, overlapping clips merge **HTP for intensity-like role
 emitters) and **LTP for everything else**. Two clips raising a dimmer should not fight; two clips
 aiming a head must not average into a position neither asked for.
 
+<!-- audience:contributor -->
+
 ## Why a separate overlay
 
 [lightingOverlay.ts](../src/renderer/services/lightingOverlay.ts) is a nested map keyed by fixture and
@@ -161,6 +163,8 @@ role, double-buffered and rewritten each frame — not dot-paths like
 [automationOverlay](../src/renderer/services/automationOverlay.ts). A clip addresses a whole group by
 role; writing forty fixtures × twenty roles as freshly-built path strings every frame would be pure
 garbage generation on the hot path.
+
+<!-- audience:operator -->
 
 ## Playback
 
@@ -265,6 +269,8 @@ Two things the shape of the data forced:
 Or skip all of it and press **Store Key** — case 3 above builds the lane, the clip and the sequence
 for you.
 
+<!-- audience:contributor -->
+
 ## Verified
 
 Four MAC 250s in one group, a sine on pan (centre 270°, swing ±120°, period 4 s), phase 1 s per head
@@ -290,6 +296,8 @@ after it, byte for byte — ranges `113,113,113,113`, correlation `-0.06, -1.00,
 A sequence was proved the same way, headless and with no UI: pan 150°→390° landed on **DMX 71..184**
 with a phase stagger of `173/144/116/88` ≈ the 28.25 predicted. And a pose cue beating a running
 clip, on the wire: `[71,71]` → fire → `[184,184]`.
+
+<!-- audience:operator -->
 
 ## Recording
 
@@ -373,6 +381,8 @@ peak time relative to fixture 0 ... 0.000s  0.250s  0.500s  0.750s   (exactly th
 
 Plus reduction fidelity on a jittered 10 s pan sine: 600 samples → 66 points, worst error 0.98°.
 
+<!-- audience:contributor -->
+
 ## Storage
 
 Takes are stored **inline in the project**, not as sidecar files the way LiDAR takes are: a
@@ -397,6 +407,8 @@ default. But a project saved by this build is **read incompletely** by a build f
 - `ProjectData.lightingPoses`, `Timeline.lightingSequences`, `Cue.lighting` → silently ignored;
 - `Controller.drives` → that rig reverts to `controllers[0]` patching.
 
+<!-- audience:operator -->
+
 ## Related
 
 - [FIXTURE-LIBRARY.md](FIXTURE-LIBRARY.md) — profiles, roles, and why pan/tilt are degrees
@@ -407,6 +419,8 @@ default. But a project saved by this build is **read incompletely** by a build f
 - [plans/lighting-rework-status.md](../plans/lighting-rework-status.md) — what was built, how each
   claim was proved, and the three places building contradicted the plan. **This feature set is
   expected to be reworked**; treat the decisions as revisable and the findings as facts
+
+<!-- audience:contributor -->
 
 ## Is lighting a plugin?
 

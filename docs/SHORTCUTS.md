@@ -32,6 +32,8 @@ direct workspace jumps, and **Esc-to-cancel/close** everywhere. These are not sh
 View. The View-menu entry shows the label but does not register the accelerator, so a rebind takes
 effect. See [WORKSPACE.md](WORKSPACE.md#the-full-width-bottom-drawer-workspacecontextbottom).)
 
+<!-- audience:contributor -->
+
 ## For developers — how it works
 
 Canonical module: [`src/renderer/shortcuts/`](../src/renderer/shortcuts/).

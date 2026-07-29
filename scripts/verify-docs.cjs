@@ -264,6 +264,38 @@ const GUIDE_DIR = path.join(ROOT, ...manifest.guideDir.split('/'));
   pass('the Docs Browser and the F1 help modal share one search implementation');
 }
 
+// ── 10. Every hybrid page marks where its operator half ends ──────────────────────────────────────────
+// A `hybrid` page is "architecture AND usage" in one file. The seam is marked IN PLACE with
+// `<!-- audience:… -->` toggles rather than by copying the operator half into a second file, because two
+// copies of one claim drift the first time a feature lands — and this repo commits ~2.6×/day.
+//
+// An UNMARKED hybrid is therefore not a neutral state: it silently declares its whole implementation
+// half to be operator documentation, and that is what put "Building the native addon" at the top of an
+// operator's search for "gray code". A new hybrid page must be marked, or the build says so.
+{
+  const hybrids = Object.entries(manifest.reference).filter(([, t]) => t === 'hybrid').map(([f]) => f);
+  let markers = 0;
+  for (const f of hybrids) {
+    const src = read(path.join(ROOT, 'docs', f));
+    const found = [...src.matchAll(/<!--\s*audience:(operator|contributor)\s*-->/g)];
+    markers += found.length;
+    if (!found.some((m) => m[1] === 'contributor')) {
+      fail('audience-regions', `docs/${f} is tagged "hybrid" but marks no contributor region — add <!-- audience:contributor --> at the seam, or retag it "usage"`);
+    }
+  }
+  // Anything malformed — a typo'd audience, or the wrapper form someone might reach for by habit.
+  for (const f of Object.keys(manifest.reference)) {
+    const src = read(path.join(ROOT, 'docs', f));
+    for (const m of src.matchAll(/<!--\s*\/?\s*audience:?([^>]*)-->/g)) {
+      const v = m[1].replace(/-->/, '').trim();
+      if (v !== 'operator' && v !== 'contributor') {
+        fail('audience-regions', `docs/${f} has a malformed audience marker "${m[0].trim()}" — only <!-- audience:operator --> and <!-- audience:contributor --> are read`);
+      }
+    }
+  }
+  pass(`every hybrid page marks its operator/contributor seam (${hybrids.length} pages, ${markers} markers)`);
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────────────────────────────
 for (const c of checks) console.log(`\x1b[32m✓\x1b[0m ${c}`);
 if (errors.length) {

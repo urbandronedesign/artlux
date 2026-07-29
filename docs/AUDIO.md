@@ -32,6 +32,8 @@ tutorial.
 
 ---
 
+<!-- audience:contributor -->
+
 ## Where it lives
 
 ```
@@ -72,6 +74,8 @@ types (`src/renderer/types.ts`) that core persists and normalizes and never list
 is in `plugins/audio/`.
 
 ---
+
+<!-- audience:operator -->
 
 ## The signal path
 
@@ -350,6 +354,8 @@ default.
 
 ---
 
+<!-- audience:contributor -->
+
 ## Invariants (break these and it is audible)
 
 > **These are NAMED, not numbered — deliberately.** The codebase already cites numbered invariants
@@ -380,6 +386,8 @@ default.
   number that is in range (`boundGain`).
 
 ---
+
+<!-- audience:operator -->
 
 ## See also
 

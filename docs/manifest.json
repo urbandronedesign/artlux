@@ -40,7 +40,10 @@
     "12-preferences-monitoring.md",
     "13-tracking.md",
     "14-show-state-machine.md",
-    "15-keyboard-reference.md"
+    "15-keyboard-reference.md",
+    "16-moving-lights.md",
+    "17-installing.md",
+    "18-unattended.md"
   ],
   "guideExclude": ["PLAN.md"],
 

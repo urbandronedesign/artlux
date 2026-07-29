@@ -21,6 +21,8 @@ universe/address allocation and a multi-controller routing spreadsheet.
 - **Controller** (S5) — a physical output device `{ id, name, protocol, ip, broadcast, priority?,
   startUniverse? }`. Fixtures are assigned to one and auto-patched.
 
+<!-- audience:contributor -->
+
 ## Decisions (locked)
 1. **Strict per-surface textures** — a linked fixture samples ONLY its surface, regardless of overlap.
 2. **Effects on surfaces** — an effect is a surface content type rendered 2D into the surface; the

@@ -45,6 +45,8 @@ It is a **hybrid** of two independent solves:
 - The native calibration addon (`native/calib/calib.node`) present. It ships as a committed prebuilt;
   see below to (re)build it.
 
+<!-- audience:contributor -->
+
 ## Building the native addon
 
 The solver is a Rust/napi addon wrapping OpenCV (`native/calib`). Building it requires **OpenCV 4.11**
@@ -68,6 +70,8 @@ once so its bindings regenerate. If the addon is missing the app still runs; the
 checklist row shows it as unavailable.
 
 ---
+
+<!-- audience:operator -->
 
 ## Using the wizard
 
@@ -148,6 +152,8 @@ Index"). Everything downstream — board detect, Gray-code capture, solve — is
 
 ---
 
+<!-- audience:contributor -->
+
 ## How it works (architecture)
 
 ```
@@ -193,6 +199,8 @@ Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`**
 | Embedded 3D split | `src/renderer/App.tsx` (split layout), `useModelUrls.ts` |
 
 ---
+
+<!-- audience:operator -->
 
 ## Troubleshooting
 

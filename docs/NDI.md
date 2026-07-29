@@ -41,6 +41,8 @@ the rest of the app is unaffected.
 
 ---
 
+<!-- audience:contributor -->
+
 ## For developers — build & maintenance
 
 The real NDI addon (`native/ndi/ndi.node`) is **committed as a prebuilt** (Windows x64), built once
@@ -98,6 +100,8 @@ machines still compile the crate.)
 ### Packaging
 `win.extraResources` ships `native/ndi/ndi.node` (Windows only — NDI is Windows-first). `build/installer.nsh`
 is a template to silently install the NDI Runtime during install/update once you bundle the redist.
+
+<!-- audience:operator -->
 
 ## Troubleshooting
 - **“NDI runtime not found” in the app** → install NDI Tools/Runtime; the addon links

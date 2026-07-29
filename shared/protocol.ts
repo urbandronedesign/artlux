@@ -1211,6 +1211,16 @@ export interface DocChunk {
   section: string;
   /** The prose under the heading, flattened and truncated — enough to match and to preview. */
   text: string;
+  /**
+   * Who this slice is for, from the `<!-- audience:… -->` toggles in the markdown.
+   *
+   * ~22 of the reference pages are "architecture **and** usage" in one file. Rather than copying their
+   * operator half into second files that would drift (this repo commits ~2.6×/day), the seam is marked
+   * IN PLACE and read here. Contributor slices stay findable — they are still true, and an integrator
+   * may want them — but they rank below operator prose, so searching "gray code" stops answering with
+   * "Building the native addon".
+   */
+  audience: 'operator' | 'contributor';
 }
 
 export interface ArtluxApi {

@@ -1,7 +1,8 @@
 # Plan — a searchable usage wiki for ArtLux
 
-> **Status:** planned 2026-07-29, not started. **⛔ This is a GATE on every net-new feature** — nothing
-> net-new starts until Phases 0–2 are done. Registered in
+> **Status: Phases 0, 1 and 2 all DONE 2026-07-29 — the gate is OPEN.** Phase 3 (the public site) is
+> optional and was never part of it. **⛔ The rule stands for future work:** a net-new feature ships its
+> usage documentation with it, and `npm run verify` (11 doc checks) is what says so. Registered in
 > [SEQUENCING.md](SEQUENCING.md) ▸ *The documentation gate* (conditions + status tracker),
 > [plans/README.md](README.md) ▸ Active plans, and [docs/ROADMAP.md](../docs/ROADMAP.md) ▸ Near-term.
 > First thing it holds: **[midi-control](midi-control.md)**.
@@ -172,8 +173,8 @@ silently re-broken — which is precisely what happened to Wave 3's gate 2.
 
 ### Phase 0 — classify and stop the drift ✅ **DONE 2026-07-29**
 
-> **Shipped:** `docs/manifest.json` (the one index — **10 usage / 22 hybrid / 9 code**; the earlier "~18
-> hybrids" was an estimate, the count is 22) · `scripts/verify-docs.cjs` (**9 checks**, wired into
+> **Shipped:** `docs/manifest.json` (the one index — **9 usage / 23 hybrid / 9 code**; the earlier "~18
+> hybrids" was an estimate, the count is 23 (SPOUT reads as a hybrid, not usage)) · `scripts/verify-docs.cjs` (**9 checks**, wired into
 > `npm run verify`) · `scripts/gen-docs-data.cjs` + `npm run docs:gen` · `src/main/docs.ts` derives the
 > operator sidebar from the manifest · `build-docs-html.cjs` reads it too, so its dead hand-list is gone.
 >
@@ -248,6 +249,33 @@ silently re-broken — which is precisely what happened to Wave 3's gate 2.
 
 </details>
 
+### Phase 2 — mark the hybrids in place, then fill the gaps ✅ **DONE 2026-07-29**
+
+> **Shipped:** **68 `<!-- audience:… -->` toggles across all 23 hybrid pages**, read by the chunker into
+> `DocChunk.audience` and demoted (not hidden) in search · a `verify:docs` check that fails any hybrid
+> marking no contributor region · **three new chapters** — [16 Moving lights & light
+> shows](../docs/user-guide/16-moving-lights.md), [17 Installing ArtLux](../docs/user-guide/17-installing.md),
+> [18 Running unattended](../docs/user-guide/18-unattended.md). The guide is **19 pages**.
+>
+> **Toggles, not wrappers.** `<!-- audience:contributor -->` switches everything after it until an
+> `<!-- audience:operator -->` switches back. One line per seam instead of an open/close pair per region,
+> and an interleaved page still works — STATE-MACHINE alternates **seven** times. A page with no markers
+> is entirely operator, which is why the 9 `usage` pages needed no edit at all.
+>
+> **Demoted, not hidden.** Contributor prose is still true and an integrator sometimes needs it, so it
+> sinks below every operator hit rather than disappearing. That is what stops "gray code" answering with
+> *Building the native addon*.
+>
+> **Correction:** the count is **9 usage / 23 hybrid / 9 code**, not the 10/22/9 stated in Phase 0 —
+> SPOUT.md carries an *Architecture (brief)* and a *Source map*, so it is a hybrid. The manifest was
+> right and the plan's original table was wrong.
+>
+> ⚠ **The three new chapters have no screenshots**, deliberately — the guide's existing 22 are
+> pre-workbench and re-capture is one whole-guide pass (open question §7.1). Prose-only is the honest
+> state, not an oversight.
+
+<details><summary>Original Phase 2 scope</summary>
+
 ### Phase 2 — mark the hybrids in place, then fill the gaps (~1.5–2.5 days) ⟵ *revised*
 
 **Was: "extract the usage half into new chapters" (3–5 days). That was wrong for a repo moving 2.6
@@ -268,7 +296,9 @@ updates the wiki for free.**
   expected to be reworked — so write its **concepts** (what a take/pose/role *is*, which survives) and leave
   its control-by-control detail to the in-app help layer, which is anchored to the controls themselves.
 
-### Phase 3 — the public site + machine-readable (~1–2 days)
+</details>
+
+### Phase 3 — the public site + machine-readable (~1–2 days) · **optional, not part of the gate**
 
 - Astro **Starlight** in `site/`, sidebar generated from `docs/manifest.json`, **operator content only** —
   contributor docs stay on GitHub where devs already read them, so the audience problem disappears rather

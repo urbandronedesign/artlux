@@ -33,6 +33,8 @@ replay:   engine.subscribe(playhead) ─► trackingPlayback ─► trackingStor
   stops there — control messages are unaffected). Past the clip, playback clears the blobs
   (`applySnapshot({surfaces:[]})`) and calls `setReplaySource(false)` so the live tracker resumes.
 
+<!-- audience:contributor -->
+
 ## Where it lives
 
 ```
@@ -72,6 +74,8 @@ stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and
 - `mapAssetPaths` (main/`projectFolder.ts`) already visits `trackingTakes[].path` and tracking clip
   paths, so save/relativize/resolve/Collect-Assets all handle takes.
 
+<!-- audience:operator -->
+
 ## Usage
 
 1. **Record.** Pull the timeline drawer up (**Ctrl+T**). In the **Takes** strip under the toolbar press
@@ -84,6 +88,8 @@ stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and
    the 3D Scene and any TRACKING projector outputs. Past the clip's end the blobs clear.
 4. **Mixing with a live tracker.** While a take plays, the live feed is globally suppressed; it
    resumes automatically when no take is under the playhead.
+
+<!-- audience:contributor -->
 
 ## Verify
 

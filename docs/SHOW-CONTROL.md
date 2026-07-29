@@ -52,6 +52,8 @@ client is watching" rule — the sampler stays free when nobody is looking.
    remote and pairs automatically via a `?pin=` URL), the connect URL + PIN, a **Lock** that
    freezes/kicks remotes mid-show, and the paired-device list with per-device kick.
 
+<!-- audience:contributor -->
+
 ## Architecture
 
 ```
@@ -82,6 +84,8 @@ project show model (state machine + scenes + cue banks + schedule) and command i
 in `src/renderer/App.tsx` (mirrors the existing `host.settings` wiring). Renderer-only contract; no
 persisted-type change beyond `ProjectData.schedule?`.
 
+<!-- audience:operator -->
+
 ## Scheduling — two independent layers
 
 | Layer | Where it runs | What it does | Persistence |
@@ -111,6 +115,8 @@ PIN pairing → per-device bearer token; unpaired sockets/POSTs are rejected (40
 freezes all remotes (423) and can kick devices. The server binds `0.0.0.0` (LAN); it is only reachable
 while enabled.
 
+<!-- audience:contributor -->
+
 ## Files
 
 `plugins/show-control/src/`: `types.ts` · `server.ts` · `clientHtml.ts` (the PWA) · `auth.ts` ·
@@ -128,11 +134,15 @@ Three series stream as structured JSON over SSE (~1 Hz; only while a tablet is c
 `ctx.onRenderStats` context hook that mirrors `onPlayhead`), and **system** (main-process
 `process`/`perf_hooks`). No Prometheus/Grafana required, no loopback `/metrics` exposure.
 
+<!-- audience:operator -->
+
 ## QR onboarding
 
 The operator panel renders a QR (dependency-free encoder, `qr.ts` — byte mode, RS core verified against
 the published QR-spec vector) of a `http://<ip>:<port>/?pin=<pin>` URL. Scanning opens the PWA, which
 reads `?pin=` and **pairs automatically** — one scan, no typing.
+
+<!-- audience:contributor -->
 
 ## Status / not yet
 

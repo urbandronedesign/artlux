@@ -46,6 +46,8 @@ It is modelled on **AutomataUI** (nodes = looks, edges = transitions, a "lock ti
 
 ---
 
+<!-- audience:contributor -->
+
 ## Data model (`src/renderer/types.ts`)
 
 The whole machine is plain, persisted data on `ProjectData.stateMachine` — **zero migration** (it is
@@ -94,6 +96,8 @@ SmRegion  { id, name, x, y, w, h, color? }   // resizable box that moves its mem
 `normalizeStateMachine()` fills missing fields on load, so old/partial saves open cleanly.
 
 ---
+
+<!-- audience:operator -->
 
 ## Triggers — when a transition fires
 
@@ -327,6 +331,8 @@ for the current state's `manual` transitions, so you can drive the show without 
 
 ---
 
+<!-- audience:contributor -->
+
 ## Runtime semantics (`src/renderer/services/stateMachine.ts`)
 
 A pure-ish module singleton, driven by the engine's frame loop (`services/timeline.ts` calls
@@ -353,6 +359,8 @@ transport over the bridge, they don't run the FSM).
   / `subscribeSmFired` / `enterSmState` / `triggerSmTransition`.
 
 ---
+
+<!-- audience:operator -->
 
 ## The cold start — the show waits for its content (`services/bootGate.ts`)
 
@@ -537,6 +545,8 @@ manual transitions for touch control, plus a scheduler that can drive the machin
 
 ---
 
+<!-- audience:contributor -->
+
 ## Persistence & migration
 
 - Saved as `ProjectData.stateMachine` in the `.artlux` file (project scope). It's plain JSON — readable
@@ -546,6 +556,8 @@ manual transitions for touch control, plus a scheduler that can drive the machin
   action. Everything used app-wide (types/enums) stays core, so there is **no project-file migration**.
 
 ---
+
+<!-- audience:operator -->
 
 ## Worked patterns
 
@@ -560,6 +572,8 @@ source state. To make (say) a **blackout** reachable everywhere, add a `manual` 
 it (or drive `requestEnter`/OSC). Regions group such states visually but don't wire them.
 
 ---
+
+<!-- audience:contributor -->
 
 ## Source map
 

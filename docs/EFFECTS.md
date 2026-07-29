@@ -71,6 +71,8 @@ the shader samples by `(colorIndex, paletteId)`.
   **effectId** and **paletteId** are discrete and **snap**. Plan transitions accordingly (fade the
   brightness/intensity, accept the palette/effect change is instant). See [SCENES.md](SCENES.md).
 
+<!-- audience:contributor -->
+
 ## Adding a new effect or palette
 
 - **New effect:** add its name to `EFFECT_NAMES` (`gpu/effects.ts`) — its index is the `effectId` — then

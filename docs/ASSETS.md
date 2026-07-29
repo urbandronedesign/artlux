@@ -13,6 +13,8 @@ Assets) rather than replacing it.
 > (`Timeline.trackingTakes`); the library **aggregates** them for display. Usage is computed by
 > path-equality against every place an asset path can be referenced.
 
+<!-- audience:contributor -->
+
 ## Data model
 
 ```ts
@@ -95,6 +97,8 @@ Because import copies into the project folder, **New Project** now always prompt
 scaffolds `assets/`, and saves immediately (`handleNewProject`). The old separate "New Project
 Folder…" menu item is merged away.
 
+<!-- audience:operator -->
+
 ## Usage
 
 - **Open the library:** left sidebar → **Media** tab (toggle **Scene ⇄ Media**).
@@ -114,6 +118,8 @@ Folder…" menu item is merged away.
   **Relink** a moved/missing file (rewrites every reference at the old path), **Reveal in folder**,
   **Remove** (confirms if used), and **Consolidate** (re-runs Collect Assets to copy any external/
   missing media into the folder and relativize paths).
+
+<!-- audience:contributor -->
 
 ## Verify
 
