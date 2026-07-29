@@ -275,6 +275,97 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   look exactly like a bug on next launch. `Get-Process ArtLux,electron | Stop-Process -Force` between
   tests; several instances also contend over the shared `userData` GPU cache (`Access is denied`).
 
+## Profiling — finding a bottleneck from OUTSIDE the app
+The app measures itself in two places: `services/perfMonitor` (frame interval + in-frame work, always
+on) and `services/uiPerfMonitor` (long tasks always on, React commits opt-in), both surfaced in the
+Performance panel and pushed to `/metrics`. **Neither can say what a frame was blocked BY**, because
+both measure the frame from inside it — and neither sees the GPU at all. For that, use external tools.
+Nothing below requires a build mode or a code change; profiling that alters the app measures the
+instrument. A visual map of what runs where is
+[plans/engine-decoupling-execution-map.html](../plans/engine-decoupling-execution-map.html).
+
+**Three questions, three tools. Do them in that order — the first one is five minutes and often ends
+the investigation.**
+
+### 1. Is the GPU saturated, or starving? → Intel PresentMon
+Open source (Intel), no instrumentation, real-time overlay. Its **GPU Busy** counter is the time the
+GPU actually spent executing the commands for a frame; put it beside CPU frame time and the balance
+reads directly. GPU Busy well under frame time means the GPU is *starving* and the bottleneck is on
+the CPU — which, given the frame pipeline is one thread, is the expected answer and worth confirming
+before spending an afternoon anywhere else. Works on NVIDIA and AMD despite the name.
+
+The app itself cannot answer this: it requests no `timestamp-query` feature, so there is **no GPU
+timing anywhere in `src/`**. Until that changes, PresentMon is the only source for it.
+
+### 2. What is the renderer main thread doing? → Chromium tracing + Perfetto
+```bash
+# 1. launch with the debugging port open — dev OR packaged, editor OR headless
+$env:ARTLUX_CDP_PORT=9333; npm run dev     # in the sandbox: env -u ELECTRON_RUN_AS_NODE (see gotchas)
+# 2. capture (a separate terminal); exercise the app during the countdown
+npm run profile:trace -- --duration 15 --label context-switch
+# 3. drag the written .traces/*.json onto https://ui.perfetto.dev  (stays on your machine)
+```
+**Budget the disk and the wait.** Measured at the default categories: **~11 MB and ~60k events per
+second** of recording (8 s of an *idle* editor → 483,680 events, 86 MB), and the buffer drain after
+`Tracing.end` takes roughly as long again as the recording did. 15 s is a big capture; 30 s is a very
+big one. `.traces/` is gitignored — a trace is one machine on one day, never a fact about the tree.
+`scripts/trace-cdp.cjs` attaches over the DevTools protocol and drives the **browser-level** `Tracing`
+domain, so the capture spans every Chromium process. You get one timeline with `CrRendererMain`,
+`CrGpuMain`, `Compositor` and the raster pool as separate tracks — which is how you *see* rather than
+infer that `frameEngine.tick`, the timeline transport, the projector pump, the 3D scene and React are
+five `requestAnimationFrame` loops queued end-to-end on one thread.
+
+- Look first at **`CrRendererMain` → the `FireAnimationFrame` slices**, back to back. Their widths are
+  the real version of the execution map's estimates.
+- Anything marked **`Forced reflow`** is a synchronous layout — the cost WP-0.M measured at a context
+  switch (~70–105 ms, ~40 of them) but could not attribute.
+- `--js` adds the V8 sampling profiler (a real JS flame chart, heavier); `--heavy` adds task-queue and
+  V8 execute detail — keep those captures short or the buffer overflows.
+- The script **refuses to write a trace with zero events** and prints the threads it captured, warning
+  loudly if `CrRendererMain` is missing. That is deliberate: see the traps below.
+
+**What a healthy idle capture looks like**, so you can tell a boring trace from a broken one: 44
+threads, `CrGpuMain` and `CrRendererMain` the two busiest, and **3,401 `FireAnimationFrame` slices in
+8 s — p50 0.09 ms, p99 2.06 ms, max 15.18 ms**. Two `CrRendererMain` tracks is normal (the editor plus
+a second renderer); the rAF count is well above 8 × 60 because several loops share the thread. If your
+capture is missing the rAF slices entirely, `devtools.timeline` was rejected — check the spelling
+before reading anything into the result.
+
+### 3. Which GPU dispatch? → RenderDoc
+Only when you need per-dispatch detail. It captures WebGPU through Dawn, with sharp edges: **D3D12
+only** on Windows (press **F11** to switch the capture API from D3D11), and it captures *every* WebGPU
+frame rather than on demand. Launch with
+`--enable-dawn-features=use_user_defined_labels_in_backend,emit_hlsl_debug_symbols,disable_symbol_renaming`
+or the shaders arrive unlabelled. Right tool for a fill-rate question; wrong tool for daily use.
+
+### What none of them see
+Chromium tracing captures **Chromium** threads. The Rust Art-Net pacer, the ENTTEC serial writers and
+the JUCE audio callback emit no trace events and will never appear. They are also the threads that
+have never been the problem — and they are already covered by `artlux_output_fps/pps/universes` on
+`/metrics`. Two gauges there are worth a Grafana panel and cost nothing today:
+**`artlux_nodejs_eventloop_lag_p99`** (already exported by `collectDefaultMetrics`) is the direct
+signal for Spout/NDI/OSC/tablet contention on the main-process loop, and nobody is watching it.
+For one timeline spanning native *and* Chromium threads you would need ETW (WPR/WPA) — free, but not
+open source.
+
+### ⚠ The traps — every one of these produced a confident lie before it was caught
+- **`ARTLUX_CDP_PORT` forces a paint.** Harmless for profiling, fatal for anything else: a profiling
+  run can *never* double as a window-visibility check (see Testing above).
+- **A profiler that is off reports `0`, and `0` is indistinguishable from "free".** Assert the
+  instrument is live before believing a number. `?uiperf=1` does **not** survive the app's startup
+  navigation — use `localStorage['artlux.uiPerf']='1'` and reload.
+- **`artlux_ui_blocked_ms` under-reports and lags** — it showed **101 ms for a 900 ms freeze**, in the
+  sample 1.4 s later. Read it as *evidence of blocking*, never as proof of a quiet thread. Prefer
+  `frameMax` / `longFrames` from `perfMonitor` as the primary signal.
+- **A page-context `import()` of `uiPerfMonitor` gives a SECOND instance** that reports zero forever.
+  Read `/metrics` or the Performance panel's own rows.
+- **Measuring commit *counts* misses cost.** The Profiler reports its whole subtree and App rebuilds
+  its wrapper every render, so a count can sit at 1 → 1 while the time goes 1.2 ms → 0.
+- **A reload can restore a full-page route** (Preferences) that unmounts the whole shell, so nothing
+  is profiled.
+- **This dev machine routes to an ENTTEC USB widget**, so no Art-Net appears on the wire on *any*
+  build — use `artlux_output_*` rather than a `dgram` listener when checking output here.
+
 ## Release process
 A `v*` tag drives `.github/workflows/build.yml` (matrix: windows/macos/ubuntu) → per-OS installers +
 `latest*.yml` auto-update metadata → a published GitHub Release (`softprops/action-gh-release`).

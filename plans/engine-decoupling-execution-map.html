@@ -322,6 +322,24 @@
   .stat .v { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; margin-top: 2px; }
   .stat .n { font-size: 12.5px; color: var(--ink-2); }
 
+  /* ── Tools ────────────────────────────────────────────────────────────── */
+  .tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1px;
+           background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .tool { background: var(--surface-1); padding: 20px 22px 22px; }
+  .tool-q {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+    color: var(--exec-js); margin-bottom: 8px;
+  }
+  .tool h3 { font-size: 19px; margin: 0; }
+  .tool-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .tool p { margin: 11px 0 0; font-size: 14px; color: var(--ink-2); }
+  .tool-ev {
+    margin-top: 12px; padding: 11px 13px; border-radius: 4px;
+    background: var(--surface-2); font-family: var(--mono); font-size: 11.5px;
+    line-height: 1.5; color: var(--ink-2);
+  }
+  .tool-gap { margin-top: 18px; font-size: 14px; color: var(--ink-2); max-width: 82ch; }
+
   /* ── Findings ─────────────────────────────────────────────────────────── */
   .findings { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .find { background: var(--surface-1); padding: 20px 22px; display: grid; grid-template-columns: 6px 1fr; gap: 0 18px; }
@@ -441,7 +459,7 @@
     <p>
       The block <em>order</em>, the row each one sits on, and the fact that the top row is one
       unbroken queue are all read directly out of the source. The block <em>widths</em> are
-      proportional estimates chosen to make the serialisation legible — the repo has no per-block
+      proportional estimates chosen to make the serialisation legible — the app has no per-block
       profiler. Every number quoted in the readouts and the findings below <em>is</em> measured, and
       says where it came from.
     </p>
@@ -450,6 +468,67 @@
       pass writes to a staging buffer and <code>mapAsync</code> resolves later, so
       <code>mapper.read()</code> returns the <em>previous</em> frame's LED bytes. The pipeline is one
       frame deep by design, and universe packing never waits on the GPU.
+    </p>
+  </section>
+
+  <section>
+    <div class="eyebrow" style="margin-bottom:14px">Replacing the estimates with measurements</div>
+    <div class="tools">
+
+      <article class="tool">
+        <div class="tool-q">Is the GPU saturated, or starving?</div>
+        <h3>Intel PresentMon</h3>
+        <div class="tool-meta">open source · overlay · no instrumentation</div>
+        <p>
+          Its <b>GPU Busy</b> counter is the time the GPU actually spent executing a frame's commands.
+          Beside CPU frame time, the balance reads directly: GPU Busy well under frame time means the
+          GPU is <em>starving</em> and the bottleneck is the queue in the top row. Five minutes, and it
+          often ends the investigation. Nothing in the app can answer this — it requests no
+          <code>timestamp-query</code> feature, so there is no GPU timing anywhere in
+          <code>src/</code>.
+        </p>
+      </article>
+
+      <article class="tool">
+        <div class="tool-q">What is the renderer main thread doing?</div>
+        <h3>Chromium tracing → Perfetto</h3>
+        <div class="tool-meta">open source · attaches over CDP · changes nothing in the app</div>
+        <p>
+          <code>npm run profile:trace -- --duration 15 --label context-switch</code> drives the
+          browser-level <code>Tracing</code> domain and writes a file
+          <code>ui.perfetto.dev</code> opens. You get every Chromium thread on one timeline — so the top
+          row of this diagram stops being an argument from source and becomes something you read off a
+          flame chart, with each <code>FireAnimationFrame</code> named and every forced synchronous
+          layout marked.
+        </p>
+        <div class="tool-ev">
+          <b>First capture, 2026-07-29</b> — 8 s of an idle dev editor: 483,680 events across 44
+          threads, <b>3,401 <code>FireAnimationFrame</code> slices</b> at <b>p50 0.09 ms · p99 2.06 ms
+          · max 15.18 ms</b>. That is the per-callback resolution the block widths above are standing
+          in for. Budget ~11 MB per second of recording.
+        </div>
+      </article>
+
+      <article class="tool">
+        <div class="tool-q">Which GPU dispatch?</div>
+        <h3>RenderDoc</h3>
+        <div class="tool-meta">open source · deep dive only</div>
+        <p>
+          Captures WebGPU through Dawn, with sharp edges: D3D12 only on Windows, F11 to switch the
+          capture API, and it captures <em>every</em> frame rather than on demand. Right tool for a
+          fill-rate question — which is what the beam budget turned out to be — and the wrong tool for
+          anything routine.
+        </p>
+      </article>
+
+    </div>
+    <p class="tool-gap">
+      <b>None of the three sees the native threads.</b> The Rust pacer, the ENTTEC writers and the JUCE
+      audio callback are not Chromium threads and emit no trace events; they are also the threads that
+      have never been the problem, and <code>artlux_output_*</code> on <code>/metrics</code> already
+      covers them. One timeline spanning native <em>and</em> Chromium threads would mean ETW — free,
+      but not open source. Full runbook, including the seven ways profiling has lied in this repo:
+      <code>docs/DEVELOPMENT.md</code> → <em>Profiling</em>.
     </p>
   </section>
 
@@ -709,8 +788,11 @@
       <b>Measured numbers</b> — frame p99, long-frame counts, React commit cost, packets per second
       during the freeze, context-switch and clip-drag cost — come from the work-package tracker in
       <code>plans/engine-decoupling.md</code> (WP-0.M, WP-3.M and the Phase-0 series, through
-      2026-07-29). <b>Block widths in the trace are illustrative</b>; there is no per-block profiler
-      in the repo.
+      2026-07-29). The <b>rAF callback percentiles</b> are from the first Chromium trace taken with
+      <code>scripts/trace-cdp.cjs</code> on 2026-07-29 — 8 s of an <em>idle dev editor on this
+      machine</em>, which is a narrow sample and labelled as one, not a show under load.
+      <b>Block widths in the trace are illustrative</b>; the app still has no per-block profiler, and
+      the section above is how you replace them with real ones.
     </p>
   </section>
 
@@ -750,6 +832,7 @@
         ['frame p99', '21 ms', 'measured, after the Phase-0 work — about one frame, so no tail at all'],
         ['long frames', '0 / 240', 'was 18 / 240 before the timeline stopped putting a clock in React state'],
         ['React commit', '0.0 ms/s', 'measured on the operator’s real project — every sample zero'],
+        ['rAF callback p99', '2.06 ms', 'measured 2026-07-29 by Chromium tracing — 3,401 slices in 8 s, p50 0.09, max 15.18'],
       ],
       blocks: [
         b('main', 0, 0.9, 'atlas + submit', 'Compose each surface’s drawable into the atlas canvas, upload it in one copyExternalImageToTexture, write params, dispatch. With no output enabled the packing loop below is skipped entirely. — gpu/WebGPUMapper.ts renderSurfaces()'),

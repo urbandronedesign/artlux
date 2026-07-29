@@ -38,6 +38,7 @@
     "docs:capture": "node scripts/capture-docs.cjs",
     "docs:gen": "node scripts/gen-docs-data.cjs",
     "docs:html": "node scripts/build-docs-html.cjs",
+    "profile:trace": "node scripts/trace-cdp.cjs",
     "test:docktree": "tsc scripts/test-docktree.ts --outDir .tmp-docktree --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-docktree/scripts/test-docktree.js",
     "test:logic": "tsc -p scripts/tsconfig.test.json",
     "test:blend": "npm run test:logic && node .tmp-tests/scripts/test-blend.js",
