@@ -170,7 +170,26 @@ silently re-broken — which is precisely what happened to Wave 3's gate 2.
 
 ## 5. The plan
 
-### Phase 0 — classify and stop the drift (~4 h, no new dependency)
+### Phase 0 — classify and stop the drift ✅ **DONE 2026-07-29**
+
+> **Shipped:** `docs/manifest.json` (the one index — **10 usage / 22 hybrid / 9 code**; the earlier "~18
+> hybrids" was an estimate, the count is 22) · `scripts/verify-docs.cjs` (**9 checks**, wired into
+> `npm run verify`) · `scripts/gen-docs-data.cjs` + `npm run docs:gen` · `src/main/docs.ts` derives the
+> operator sidebar from the manifest · `build-docs-html.cjs` reads it too, so its dead hand-list is gone.
+>
+> **Four defects fixed, three of them surfaced by the new checks:**
+> 1. the built HTML guide was silently missing **Tracking** and **Show / state machine** — now 16 pages;
+> 2. chapter 15 is generated, says shortcuts are rebindable, and no longer heads itself `# 13.`;
+> 3. **`/scene/recall` and `/cue/fire`** were handled in `oscController.ts` and documented **nowhere**;
+> 4. the four contributor pages left the operator sidebar — and **four operator pages that the hand-kept
+>    list had simply forgotten went in**: `INSTALL`, `LAUNCHER`, `USER_GUIDE`, `SHORTCUTS`. A venue tech
+>    could not reach the install guide from inside the app.
+>
+> Net: the sidebar holds 32 pages either way, **zero operator pages lost**.
+> ⚠ **Not yet exercised in the running app** — `tsc` + `npm run build` are clean and the derivation was
+> checked directly against the manifest, but nobody has opened the in-app Docs Browser since the change.
+
+<details><summary>Original Phase 0 scope</summary>
 
 - One `docs/manifest.json`: every markdown file tagged `usage | hybrid | code`, plus chapter order.
   It replaces **six** hand-maintained lists (`CLAUDE.md` table, guide README table, `examples/README.md`,
@@ -188,6 +207,8 @@ silently re-broken — which is precisely what happened to Wave 3's gate 2.
   which stops being prose), the effects catalog, the OSC address table, the settings reference.
 - Fix chapter 15 *by generating it*, and have it say shortcuts are rebindable in *Preferences ▸ Edit
   shortcuts…* — plus its heading, which still reads `# 13.` in the file named `15-`.
+
+</details>
 
 ### Phase 1 — search in the app (~1 day) ← *the ask, where it counts*
 

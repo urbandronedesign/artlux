@@ -222,9 +222,9 @@ tick in a table.
 
 | # | Condition | Where |
 |---|---|---|
-| **1** | `npm run verify` fails on a doc that is unlisted, dead-linked or untagged, on a **generated block that no longer regenerates identically**, and on a **`▸ Menu ▸ Item` path that no longer exists in source** (48 of them today); `docs/manifest.json` replaces the six hand-kept indexes | Phase 0 |
-| **2** | The four developer pages are out of the operator's in-app sidebar | Phase 0 |
-| **3** | Chapter 15 is **generated** from the keymap registry and says shortcuts are rebindable | Phase 0 |
+| **1** | `npm run verify` fails on a doc that is unlisted, dead-linked or untagged, on a **generated block that no longer regenerates identically**, and on a **`▸ Menu ▸ Item` path that no longer exists in source**; `docs/manifest.json` replaces the six hand-kept indexes | ✅ **`verify:docs`, 9 checks** |
+| **2** | The four developer pages are out of the operator's in-app sidebar | ✅ **done** — nav derived from the manifest |
+| **3** | Chapter 15 is **generated** from the keymap registry and says shortcuts are rebindable | ✅ **done** — `npm run docs:gen` |
 | **4** | The in-app Docs Browser has search, merged with the F1 help modal's 226 entries | Phase 1 |
 | **5** | The 18 hybrid docs carry `<!-- audience:operator -->` regions and the build assembles the operator view from them; the three genuinely missing chapters exist (moving lights, install/Launcher, unattended operation) | Phase 2 |
 
@@ -321,7 +321,7 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
 | 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☐ not started (Drafts — both plans written 2026-07-12, surfaced by Wave B's adversarial review). **`timeline-undo` first** (the last-good-document edge). Highest-value single item in the whole backlog for an unattended install: **the watchdog cannot see a white screen.** |
 | — | `feat-transport-skip` | transport-edit-point-navigation | ☐ not started (Draft — plan written 2026-07-13). The `⏮`/`⏭` buttons were **in the Wave A sketch and never entered the Wave A plan**; the capability (prev/next edit point) does not exist at all. Held until `wave-3-audio` merges — same file. |
-| — | `docs-usage-wiki` | [documentation-wiki](documentation-wiki.md) — **⛔ gates every net-new feature** | ☐ not started (Planned 2026-07-29). Phase 0 (manifest + `verify-docs.cjs` + the three defects) → Phase 1 (in-app search, merged with the F1 modal) → **Phase 2, the real cost: extract the usage half of 9 hybrid docs + 3 missing chapters**. Phase 3 (public Starlight site) is optional and **not** part of the gate. Parallel-safe with any hardening work. |
+| — | `docs-usage-wiki` | [documentation-wiki](documentation-wiki.md) — **⛔ gates every net-new feature** | ◑ **Phase 0 DONE 2026-07-29** — `docs/manifest.json` (10 usage / 22 hybrid / 9 code), `verify:docs` (**9 checks**, in `npm run verify`), `docs:gen` (chapter 15 is now generated from the keymap registry), the operator sidebar derived from the manifest, and `build-docs-html.cjs`'s dead hand-list retired. **Four defects fixed, three of them found by the new checks.** Next: **Phase 1** (in-app search, merged with the F1 modal) → **Phase 2** (mark the hybrids in place + 3 missing chapters). Phase 3 (public site) is optional and **not** part of the gate. |
 | — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written). ⛔ **HELD by the documentation gate** — it is the next *net-new* feature, so it starts once Phases 0–2 above are done. |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 

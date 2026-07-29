@@ -106,7 +106,12 @@ npm run build:audio           # JUCE audio engine (native/audio-engine, cmake-js
                               # Close the app first — a running Electron locks the .node (LNK1104 → stale addon).
 npm run dev                   # electron-vite dev + launch the app (hot-reloads the renderer)
 ```
-- **Check your work (do this — there's no test suite):** `npm run verify` = **invariant guards + typecheck**.
+- **Check your work (do this — there's no test suite):** `npm run verify` = **invariant guards + doc
+  guards + typecheck**. `verify:docs` (`scripts/verify-docs.cjs`) is the documentation half — it holds
+  `docs/manifest.json` (the ONE index) against the tree, keeps contributor pages out of the operator's
+  in-app sidebar, resolves every doc link, regenerates every `<!-- generated:x -->` block and fails on a
+  diff (`npm run docs:gen` rewrites them), and checks that what the guide asserts about the UI — OSC
+  addresses, effect names, every `▸ Control` path — still exists in source.
   `verify:invariants` (`scripts/verify-invariants.cjs`) asserts the rules a typechecker cannot see —
   every one encodes a bug we shipped, where the code compiled, the app booted, nothing threw, and the
   symptom was "I can't select my fixtures" or "Art-Net stopped". It reads source, so it is instant,

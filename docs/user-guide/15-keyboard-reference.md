@@ -1,69 +1,193 @@
-# 13. Keyboard & mouse reference
+# 15. Keyboard & mouse reference
 
-Typing in a text field suppresses these shortcuts. On macOS, **Ctrl** = **Cmd**.
+Typing in a text field suppresses the keyboard shortcuts. On macOS, **Ctrl** = **Cmd** — the two are one
+binding, so a shortcut written `Ctrl+Z` is `Cmd+Z` on a Mac.
 
-## Global (anywhere in the editor)
+> ## ⌨ Every shortcut below is **rebindable**
+>
+> Open **Preferences ▸ Edit shortcuts…** for the full-page editor: search an action, click its binding and
+> press the keys you want. Your changes are saved with your preferences, so they follow you between
+> projects. A key can be reused in two different places (a timeline-only key and a global one do not
+> collide, because the timeline only listens while it has focus) — the editor blocks a clash only *within*
+> the same scope, which is what the **When** heading on each group below tells you.
+>
+> The one exception is the **native menu accelerators** further down: those belong to the application menu
+> and are fixed.
+
+---
+
+## Rebindable shortcuts
+
+<!-- generated:keymap — DO NOT EDIT BY HAND. Regenerate with: npm run docs:gen -->
+
+### Global
+
+Live anywhere in the editor, and suppressed while you are typing in a field.
+
+**Editing**
 
 | Shortcut | Action |
-|----------|--------|
-| Ctrl/Cmd+Z | Undo |
-| Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y | Redo |
-| Ctrl/Cmd+A | Select all fixtures |
-| Ctrl/Cmd+N | New project (prompts for a folder) |
-| Ctrl/Cmd+O | Open project |
-| Ctrl/Cmd+Shift+O | Open project folder |
-| Ctrl/Cmd+S | Save |
-| Ctrl/Cmd+Shift+S | Save As |
-| Ctrl/Cmd+, | Preferences |
-| Ctrl/Cmd+Shift+M | OSC Monitor (LiDAR feed sniffer) |
-| F1 | Toggle the searchable Help modal |
-| Ctrl/Cmd+Shift+Q | Quit (also quits broadcast mode) |
-| Ctrl/Cmd+R | Reload |
-| Esc | Close the open dialog |
+|---|---|
+| `Ctrl+Z` | Undo |
+| `Ctrl+Shift+Z` or `Ctrl+Y` | Redo |
+| `Ctrl+A` | Select all fixtures |
 
-## 2D stage (surfaces & fixtures)
+**View**
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Alt+P` | Open Performance dock |
+| `Ctrl+T` | Show / hide the timeline drawer |
+| `Ctrl+Shift+W` | Clear all NV warp/blend |
+
+**Navigation**
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Tab` | Next workspace |
+| `Ctrl+Shift+Tab` | Previous workspace |
+
+### Timeline
+
+Live only while the timeline drawer is hovered or focused (`Ctrl+T` opens it).
+
+**Transport**
+
+| Shortcut | Action |
+|---|---|
+| `Space` | Play / pause |
+| `L` | Play |
+| `Shift+L` | Toggle loop |
+| `K` or `J` | Pause |
+| `Home` | Seek to start |
+| `End` | Seek to end |
+
+**View**
+
+| Shortcut | Action |
+|---|---|
+| `F` | Maximize timeline |
+| `+` or `=` | Zoom in |
+| `-` or `_` | Zoom out |
+
+**Tools**
+
+| Shortcut | Action |
+|---|---|
+| `B` | Blade tool |
+| `V` | Select tool |
+| `S` or `N` | Toggle snapping |
+
+**Editing**
+
+| Shortcut | Action |
+|---|---|
+| `C` | Blade at playhead |
+| `M` | Add marker |
+| `I` | Set in point |
+| `O` | Set out point |
+| `Delete` or `Backspace` | Delete selected (ripple) — Hold Shift to lift (no ripple) |
+
+### Show state-graph editor
+
+Live only while the Show graph has focus.
+
+**Editing**
+
+| Shortcut | Action |
+|---|---|
+| `Delete` or `Backspace` | Delete state / transition / region |
+
+### Projector window
+
+Live only in a projector window's warp-edit mode.
+
+**Warp**
+
+| Shortcut | Action |
+|---|---|
+| `R` | Reset warp handle |
+| `Up` | Nudge handle up |
+| `Down` | Nudge handle down |
+| `Left` | Nudge handle left |
+| `Right` | Nudge handle right — Hold Shift for a ×10 step |
+
+<!-- /generated:keymap -->
+
+---
+
+## Not rebindable
+
+These live in the **application menu** (or are universal dialog keys), not in the shortcut registry.
+
+| Shortcut | Action | Menu |
+|---|---|---|
+| `Ctrl+N` | New Project… | File |
+| `Ctrl+O` | Open… | File |
+| `Ctrl+Shift+O` | Open Project Folder… | File |
+| `Ctrl+S` | Save | File |
+| `Ctrl+Shift+S` | Save As… | File |
+| `Ctrl+,` | Preferences… | File |
+| `Ctrl+Shift+Q` | Quit (also quits broadcast mode) | File |
+| `Ctrl+R` | Reload | View |
+| `Ctrl+Shift+I` | Toggle Developer Tools | View |
+| `Ctrl+Shift+M` | OSC Monitor… | View |
+| `F1` | Toggle the searchable Help modal | — |
+| `Esc` | Close the open dialog | — |
+
+`Ctrl+1`…`Ctrl+9` jump straight to a workbench on the left rail — nine numbered variants of one behaviour
+rather than nine separate actions, so they are not listed individually in the editor.
+
+---
+
+## Pointer & gestures
+
+Mouse behaviour is not rebindable.
+
+### 2D stage (surfaces & fixtures)
 
 | Input | Action |
-|-------|--------|
-| Drag body | Move surface/fixture |
+|---|---|
+| Drag body | Move surface / fixture |
 | Drag corner handle | Resize (corner = both axes; side handles on fixtures = one axis) |
 | Drag top handle | Rotate (snaps to 45° with snapping on) |
-| Click fixture + Ctrl/Cmd or Shift | Add/remove from multi‑selection |
+| Click fixture + `Ctrl` or `Shift` | Add / remove from multi-selection |
 | Click empty space | Deselect |
 | Mouse wheel | Zoom (toward cursor) |
-| Shift + wheel | Pan horizontally |
-| Middle‑drag (or Shift+drag) | Pan the view |
-| Magnet / grid buttons (stage top‑right) | Toggle snapping / grid; reset view |
+| `Shift` + wheel | Pan horizontally |
+| Middle-drag (or `Shift`+drag) | Pan the view |
+| Magnet / grid buttons (stage top-right) | Toggle snapping / grid; reset view |
 
-## Timeline
-
-| Shortcut | Action | Shortcut | Action |
-|----------|--------|----------|--------|
-| Space | Play/pause | M | Add marker |
-| L / K / J | Play / pause / (pause) | I / O | Set in / out |
-| Shift+L | Toggle loop region | B / V | Blade / select tool |
-| F | Maximize / restore | S / N | Toggle snapping |
-| C | Blade at playhead | Delete | Ripple‑delete (Shift = lift) |
-| + / − / wheel | Zoom in / out | Home / End | Seek start / content end |
-| Shift+wheel | Scroll horizontally | Middle‑drag | Pan both axes |
-
-## 3D Scene
+### Timeline
 
 | Input | Action |
-|-------|--------|
-| Left‑drag | Orbit camera |
-| Middle/right‑drag | Pan camera |
+|---|---|
+| Wheel | Zoom toward the cursor |
+| `Shift` + wheel | Scroll horizontally |
+| Middle-drag | Pan both axes |
+
+### 3D scene
+
+| Input | Action |
+|---|---|
+| Left-drag | Orbit camera |
+| Middle / right-drag | Pan camera |
 | Wheel | Zoom camera |
-| W / E / R | Move / rotate / scale the selected fixture |
+| `W` / `E` / `R` | Move / rotate / scale the selected fixture |
 | Click empty space | Deselect |
 
-## Projector alignment (on the projector window)
+A fixture in 3D is picked by its **body** (the slim housing), not by its individual LEDs — a 12 mm LED
+sphere is not a target you can reliably hit.
+
+### Projector alignment (in the projector window)
 
 | Input | Action |
-|-------|--------|
+|---|---|
 | Drag handle | Move a corner / control point |
-| Arrow keys | Nudge selected handle (Shift = ×10) |
-| R | Reset corners/warp |
-| Esc | Finish aligning |
+| `Esc` | Finish aligning |
+
+Arrow-key nudging and `R` to reset are in the rebindable **Projector window** group above.
+
+---
 
 ⬅ Back to the [User Guide index](README.md)

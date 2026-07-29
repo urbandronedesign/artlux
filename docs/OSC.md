@@ -40,6 +40,8 @@ Under the control prefix (default `/artlux`):
 | `/artlux/transport/loop` | `i` 0/1 | toggle the loop region |
 | `/artlux/state/trigger` | `s` id | fire a named state-machine transition |
 | `/artlux/state/<id>` | — | same, id in the address |
+| `/artlux/scene/recall` | `s` id | recall a scene by id (the same path the cue bus uses) |
+| `/artlux/cue/fire` | `s` id | fire a cue by id |
 
 Transport messages flow through the same intent path the timeline's state-machine uses, so the app
 stays the single writer of play/pause.

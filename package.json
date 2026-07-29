@@ -15,8 +15,9 @@
     "dev:broadcast": "electron-vite build && electron . --broadcast",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "verify": "npm run verify:invariants && npx tsc -p tsconfig.json --noEmit",
+    "verify": "npm run verify:invariants && npm run verify:docs && npx tsc -p tsconfig.json --noEmit",
     "verify:invariants": "node scripts/verify-invariants.cjs",
+    "verify:docs": "node scripts/verify-docs.cjs",
     "verify:plugins": "node scripts/verify-plugins.cjs",
     "verify:resources": "node scripts/verify-package-resources.cjs",
     "preflight": "powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1 -Mode all",
@@ -35,6 +36,7 @@
     "gen:brand": "node scripts/gen-wordmark.cjs && node scripts/gen-icon.cjs",
     "gen:icon": "node scripts/gen-icon.cjs",
     "docs:capture": "node scripts/capture-docs.cjs",
+    "docs:gen": "node scripts/gen-docs-data.cjs",
     "docs:html": "node scripts/build-docs-html.cjs",
     "test:docktree": "tsc scripts/test-docktree.ts --outDir .tmp-docktree --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-docktree/scripts/test-docktree.js",
     "test:logic": "tsc -p scripts/tsconfig.test.json",
@@ -125,7 +127,8 @@
         "from": "docs",
         "to": "docs",
         "filter": [
-          "*.md"
+          "*.md",
+          "manifest.json"
         ]
       },
       {

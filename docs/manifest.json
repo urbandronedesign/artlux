@@ -1,0 +1,132 @@
+{
+  "$comment": [
+    "THE SINGLE INDEX OF THE DOCUMENTATION. Phase 0 of plans/documentation-wiki.md.",
+    "",
+    "This file replaces six hand-maintained lists that had drifted apart: the CLAUDE.md index table,",
+    "docs/user-guide/README.md's contents table, examples/README.md, src/main/docs.ts's REFERENCE_PAGES",
+    "(the in-app operator sidebar), scripts/build-docs-html.cjs's PAGES, and the future site sidebar.",
+    "Every one of them was a place a new chapter could be forgotten, and at least one of them was already",
+    "wrong: build-docs-html.cjs's list ended at '13-keyboard-reference.md', a file that does not exist, so",
+    "the built guide silently dropped the Tracking and Show chapters.",
+    "",
+    "scripts/verify-docs.cjs enforces this file against the tree, and it runs inside `npm run verify`.",
+    "",
+    "AUDIENCE TAGS -- the operator/contributor split, which is the whole point:",
+    "  usage   the page is written for whoever RUNS a show. Ships in the app, goes on the site.",
+    "  hybrid  the page is 'architecture AND usage' in one file. Ships in the app today; Phase 2 marks",
+    "          its operator regions with <!-- audience:operator --> so the operator view can be assembled",
+    "          from it WITHOUT copying the prose into a second file that would then drift.",
+    "  code    written for whoever BUILDS ArtLux. NEVER reachable from the in-app operator sidebar and",
+    "          never on the site. Four of these (ARCHITECTURE, DEVELOPMENT, PLUGINS, SDK) were being",
+    "          shipped to venue techs until 2026-07-29.",
+    "",
+    "Adding a doc? Add it here, or `npm run verify` fails. That is the point."
+  ],
+
+  "guideDir": "docs/user-guide",
+  "guide": [
+    "README.md",
+    "01-interface-tour.md",
+    "02-surfaces-and-content.md",
+    "03-fixtures.md",
+    "04-patching-and-routing.md",
+    "05-color-effects-groups-scenes.md",
+    "06-timeline.md",
+    "07-audio.md",
+    "08-projector-outputs.md",
+    "09-3d-scene.md",
+    "10-calibration.md",
+    "11-projects-media-broadcast.md",
+    "12-preferences-monitoring.md",
+    "13-tracking.md",
+    "14-show-state-machine.md",
+    "15-keyboard-reference.md"
+  ],
+  "guideExclude": ["PLAN.md"],
+
+  "examples": ["audio", "lidar-tracking", "state-machine"],
+
+  "$referenceOrder": [
+    "KEY ORDER IS THE READING ORDER, and src/main/docs.ts renders the operator sidebar in it. Do not",
+    "sort this block alphabetically or group it by tag: the previous hand-kept list opened with the",
+    "Feature & Usage Guide, and the first tag-grouped version of this file opened the sidebar with",
+    "'Video codecs — HAP & MP4/WebCodecs', which is not where anyone starts. The order below is the",
+    "arc an operator actually travels: orient -> install -> the workspace -> content -> time -> the",
+    "show -> outputs -> fixtures -> projectors -> protocols -> tracking -> running it unattended."
+  ],
+  "reference": {
+    "FEATURES.md": "usage",
+    "USER_GUIDE.md": "usage",
+    "INSTALL.md": "usage",
+    "LAUNCHER.md": "usage",
+    "WORKSPACE.md": "hybrid",
+    "SHORTCUTS.md": "hybrid",
+
+    "SURFACES.md": "hybrid",
+    "EFFECTS.md": "hybrid",
+    "ASSETS.md": "hybrid",
+    "CODECS.md": "usage",
+
+    "TIMELINE.md": "hybrid",
+    "AUDIO.md": "hybrid",
+    "SCENES.md": "hybrid",
+    "SCENE-TIMELINES.md": "hybrid",
+    "STATE-MACHINE.md": "hybrid",
+    "SHOW-CONTROL.md": "hybrid",
+
+    "OUTPUTS.md": "hybrid",
+    "FIXTURE-LIBRARY.md": "hybrid",
+    "LIGHTING-SHOW.md": "hybrid",
+    "LEDMAP.md": "usage",
+
+    "CALIBRATION.md": "hybrid",
+    "AUTO-ALIGN.md": "hybrid",
+    "NVWARP.md": "hybrid",
+
+    "OSC.md": "hybrid",
+    "NDI.md": "hybrid",
+    "SPOUT.md": "hybrid",
+
+    "AUGMENTA.md": "hybrid",
+    "MEDIAPIPE.md": "hybrid",
+    "TRACKING_TAKES.md": "hybrid",
+    "TRACKING_SYNC.md": "usage",
+
+    "MONITORING.md": "usage",
+    "WATCHDOG.md": "usage",
+
+    "ARCHITECTURE.md": "code",
+    "CALIB-OPTIMIZATIONS.md": "code",
+    "DESIGN-SYSTEM.md": "code",
+    "DEVELOPMENT.md": "code",
+    "PLUGINS.md": "code",
+    "PROGRESS.md": "code",
+    "ROADMAP.md": "code",
+    "SDK.md": "code",
+    "UI-UX-AUDIT.md": "code"
+  },
+
+  "generated": [
+    {
+      "block": "keymap",
+      "target": "docs/user-guide/15-keyboard-reference.md",
+      "source": "src/renderer/shortcuts/registry.ts",
+      "why": "Chapter 15 was hand-typed, was edited as recently as 2026-07-28, and STILL documented the static list SHORTCUTS.md says was replaced. Re-typing a registry loses that race every time."
+    }
+  ],
+
+  "verifiedAgainstSource": [
+    {
+      "what": "OSC control addresses",
+      "doc": "docs/OSC.md",
+      "source": "src/renderer/services/oscController.ts",
+      "why": "The doc table carries argument types and prose the switch does not, so it is CHECKED both ways rather than generated. That check found /scene/recall and /cue/fire handled in source and documented nowhere."
+    },
+    {
+      "what": "Effect names",
+      "doc": "docs/EFFECTS.md",
+      "source": "src/renderer/gpu/effects.ts",
+      "why": "EFFECT_NAMES has only the names; the doc adds what each speed/intensity knob does. Generating it would DELETE information, so it is checked, not generated."
+    }
+  ]
+}

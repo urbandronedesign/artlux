@@ -37,14 +37,28 @@ const REFERENCE_ID = 'docs';
 // ⚠ THE LIST CURATES THE **NAV**, NOT THE **ACCESS**. readDoc() below admits ANY `docs/*.md`, so a link to
 // an unlisted page still opens — it simply does not clutter the tree. Curation must never become a broken
 // link; that is the bug this whole section exists to fix.
-const REFERENCE_PAGES = [
-  'FEATURES.md', 'AUDIO.md', 'TIMELINE.md', 'SCENES.md', 'SCENE-TIMELINES.md', 'STATE-MACHINE.md',
-  'SHOW-CONTROL.md', 'SURFACES.md', 'EFFECTS.md', 'ASSETS.md', 'CODECS.md', 'OUTPUTS.md',
-  'FIXTURE-LIBRARY.md', 'LIGHTING-SHOW.md', 'LEDMAP.md',
-  'CALIBRATION.md', 'AUTO-ALIGN.md', 'NVWARP.md', 'OSC.md', 'NDI.md', 'SPOUT.md', 'AUGMENTA.md',
-  'MEDIAPIPE.md', 'TRACKING_TAKES.md', 'TRACKING_SYNC.md', 'MONITORING.md', 'WATCHDOG.md', 'WORKSPACE.md',
-  'PLUGINS.md', 'SDK.md', 'ARCHITECTURE.md', 'DEVELOPMENT.md',
-];
+//
+// ── AND THE CURATION IS NO LONGER HAND-KEPT (2026-07-29) ─────────────────────────────────────────────
+// The list used to live here as a literal, and it had exactly the failure the paragraph above warns
+// about, in the other direction: it correctly kept PROGRESS / ROADMAP / UI-UX-AUDIT out, and then let
+// **ARCHITECTURE, DEVELOPMENT, PLUGINS and SDK** in. A venue tech opening the sidebar was being handed
+// the plugin SDK reference. It is now derived from `docs/manifest.json` — the single documentation index
+// (see plans/documentation-wiki.md) — taking every page tagged `usage` or `hybrid` and none tagged
+// `code`. `scripts/verify-docs.cjs` fails the build if a `code` page is even NAMED in this file.
+async function referencePages(root: string): Promise<string[]> {
+  try {
+    const raw = await readFile(join(root, 'docs', 'manifest.json'), 'utf8');
+    const ref = (JSON.parse(raw) as { reference?: Record<string, string> }).reference || {};
+    const pages = Object.entries(ref).filter(([, tag]) => tag !== 'code').map(([f]) => f);
+    if (pages.length) return pages;
+  } catch { /* fall through */ }
+  // Graceful degrade: if the manifest did not ship, show EVERY docs/*.md rather than none. Handing an
+  // operator four pages meant for contributors is a small harm; handing them an empty reference section
+  // is the exact bug this whole block exists to fix, and it is the one they cannot work around with no
+  // internet. `verify:resources` asserts the manifest is in extraResources so this should be unreachable.
+  console.warn('[docs] manifest.json unavailable — falling back to every docs/*.md');
+  return mdFiles(join(root, REFERENCE));
+}
 
 // First markdown H1 as a human title, else a prettified filename.
 async function titleOf(abs: string, fallback: string): Promise<string> {
@@ -110,14 +124,14 @@ export async function listDocs(): Promise<DocSection[]> {
   }
 
   // Finally the REFERENCE pages — last, because they are what you reach for once the guide and the
-  // tutorials have stopped answering the question. In the CURATED order (see REFERENCE_PAGES), not
+  // tutorials have stopped answering the question. In the manifest's order (see referencePages), not
   // alphabetical: the order is the reading order, and `Audio` sitting under `Architecture` would be an
   // accident of the alphabet rather than a decision.
   const refDir = join(root, REFERENCE);
   if (existsSync(refDir)) {
     const present = new Set(await mdFiles(refDir));   // readdir is NOT recursive ⇒ user-guide/ is untouched
     const entries: DocEntry[] = [];
-    for (const f of REFERENCE_PAGES) {
+    for (const f of await referencePages(root)) {
       if (!present.has(f)) continue;                  // a curated page that has been renamed simply drops out
       entries.push({ id: `${REFERENCE_ID}/${f}`, title: await titleOf(join(refDir, f), pretty(f)) });
     }

@@ -14,18 +14,20 @@ const IMG = path.join(DIR, 'images');
 const OUT = path.join(DIR, 'artlux-user-guide.html');
 const REPO_DOCS = 'https://github.com/urbandronedesign/artlux/blob/main/docs';
 
-// Page order (README first, then numbered pages).
-const PAGES = [
-    'README.md', '01-interface-tour.md', '02-surfaces-and-content.md', '03-fixtures.md',
-    '04-patching-and-routing.md', '05-color-effects-groups-scenes.md', '06-timeline.md',
-    '07-audio.md',
-    '08-projector-outputs.md', '09-3d-scene.md', '10-calibration.md',
-    '11-projects-media-broadcast.md', '12-preferences-monitoring.md', '13-keyboard-reference.md',
-];
-// ⚠ THIS LIST IS HAND-MAINTAINED AND IT FAILS SILENTLY. A page missing from it is simply ABSENT from the
-// built HTML — no error, no warning. (The in-app docs browser does NOT share this list: src/main/docs.ts
-// sorts the directory alphabetically, so it picks up a new chapter on its own. The two can therefore
-// disagree, and only this one will be wrong.) Add every new chapter here.
+// Page order (README first, then numbered pages) — read from docs/manifest.json.
+//
+// ⚠ THIS LIST USED TO BE HAND-MAINTAINED HERE, AND IT FAILED EXACTLY AS ITS OWN WARNING PREDICTED.
+// The warning read: "A page missing from it is simply ABSENT from the built HTML — no error, no
+// warning." By 2026-07-29 the list ended at `'13-keyboard-reference.md'`, **a file that no longer
+// existed** — the guide had grown 13-tracking, 14-show-state-machine and 15-keyboard-reference — so the
+// built guide silently dropped the Tracking and Show/state-machine chapters and emitted one dead entry.
+// Nobody noticed, because a silent omission looks exactly like a complete document.
+//
+// It now comes from docs/manifest.json, the single documentation index, and scripts/verify-docs.cjs
+// fails `npm run verify` if that manifest and the directory disagree. A comment warning you to keep two
+// lists in sync is not a mechanism; this is.
+const MANIFEST = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'docs', 'manifest.json'), 'utf8'));
+const PAGES = MANIFEST.guide;
 
 const slug = (s) => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, '')
     .replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
