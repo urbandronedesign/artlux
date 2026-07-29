@@ -152,10 +152,23 @@ live **FPS** + a **LIVE** output indicator on the right.
 ## Help
 
 Open it with **F1**, a tooltip's **? Learn more** link, or **Help ▸ Help…**. One searchable modal
-over two tiers of content: the coarse **topic guides** (with an **EN / FR** toggle that is
-remembered between sessions) and a **per-function entry** for every control that carries a tooltip.
-Type to search both at once; **Esc** closes. Contextual help for whatever you hover stays live in
-the status bar.
+over **three** tiers of content: the coarse **topic guides** (with an **EN / FR** toggle that is
+remembered between sessions), a **per-function entry** for every control that carries a tooltip, and
+**the documentation itself** — this guide, the tutorials and the reference pages, split by heading so
+a result is the paragraph that answers you rather than a 700-line page to go hunting in.
+
+Type to search all three at once; **Esc** closes. So one query for *blade* returns both the **Blade
+tool** control and the *Editing clips* section that explains it, and a word that appears only in prose
+— *gray code*, *phase spread* — now finds its page instead of nothing. Documentation results carry a
+📖 book icon; pick one and **Open in Docs** takes you to that exact heading. Contextual help for
+whatever you hover stays live in the status bar.
+
+### Searching the docs directly
+
+The **Docs & Tutorials** browser (**Help ▸ Documentation**, or detach it to its own window) has the
+same search at the top of its tree. Type and the tree is replaced by matching sections, each showing
+its page and a snippet; click one to open that page scrolled to the heading. Clear the box to get the
+tree back. This works with no internet, which is the point — it is the copy that ships with the app.
 
 ---
 

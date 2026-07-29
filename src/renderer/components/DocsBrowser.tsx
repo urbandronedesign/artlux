@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { X, ChevronDown, ChevronRight, FileText, ExternalLink } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, ChevronDown, ChevronRight, FileText, ExternalLink, Search, CornerDownLeft } from 'lucide-react';
 import { marked } from 'marked';
-import type { DocSection, DocEntry } from '../../../shared/protocol';
+import type { DocSection, DocEntry, DocChunk } from '../../../shared/protocol';
 import { useResizable } from '../hooks/useResizable';
+import { loadDocIndex, searchDocs } from '../services/docSearch';
 
 // Right-side dockable Docs Browser. Lists the shipped example/tutorial sets + the user guide (from the
 // main-side docs.ts index) and renders one page's markdown. Links are delegated: external → browser,
@@ -44,9 +45,24 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
   const paneRef = useRef<HTMLDivElement>(null);
   const onResizeDown = useResizable({ axis: 'x', invert: true, value: width, min: 360, max: 900, onChange: onResize ?? (() => {}) });
 
-  const load = (e: DocEntry) => {
+  // ── SEARCH ──────────────────────────────────────────────────────────────────────────────────────
+  // This panel was a tree with no search at all — and it is the documentation surface a venue tech can
+  // actually reach, offline, at night. Ctrl+F searched the open page only, so answering "where is
+  // blade explained" meant guessing which of 66 pages to open. The index is heading-sized slices built
+  // in main (see docs.ts) and ranked by the SAME scorer the F1 help modal uses (services/docSearch).
+  const [q, setQ] = useState('');
+  const [chunks, setChunks] = useState<DocChunk[]>([]);
+  useEffect(() => { let alive = true; loadDocIndex().then((c) => { if (alive) setChunks(c); }); return () => { alive = false; }; }, []);
+  const hits = useMemo(() => searchDocs(chunks, q, 60), [chunks, q]);
+
+  // A heading to scroll to once the next page has rendered. Set when a search result or a deep link
+  // names one; consumed by the effect below. A ref, not state: it must not trigger a render of its own.
+  const pendingHeading = useRef<string | null>(null);
+
+  const load = (e: DocEntry, heading?: string) => {
     setSelected(e.id);
     setLoading(true);
+    pendingHeading.current = heading ?? null;
     window.artlux.docsRead(e.id).then((doc) => {
       setLoading(false);
       if (!doc) { setHtml('<p>Could not load this document.</p>'); setDir(''); return; }
@@ -56,6 +72,22 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
     });
   };
 
+  // Jump to the heading a search result named. Matched by TEXT, not by a generated id: `marked` does
+  // not emit heading ids here, and inventing a slug on both sides would give two slug functions to keep
+  // in agreement — the exact class of drift this whole documentation effort is about. The heading text
+  // is already in the chunk, so compare that.
+  useEffect(() => {
+    const want = pendingHeading.current;
+    if (!want || !html) return;
+    pendingHeading.current = null;
+    const pane = paneRef.current;
+    if (!pane) return;
+    const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+    const target = [...pane.querySelectorAll('h1, h2, h3, h4')]
+      .find((el) => norm(el.textContent || '') === norm(want));
+    target?.scrollIntoView({ block: 'start' });
+  }, [html]);
+
   useEffect(() => {
     let alive = true;
     window.artlux.docsList().then((t) => {
@@ -63,8 +95,11 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
       const list = t ?? [];
       setTree(list);
       const all = list.flatMap((s) => s.entries.map((e) => ({ sec: s.id, e })));
-      const target = (initialId && all.find((x) => x.e.id === initialId)) || (list[0]?.entries[0] ? { sec: list[0].id, e: list[0].entries[0] } : null);
-      if (target) { setOpen(new Set([target.sec])); load(target.e); }
+      // `initialId` may carry an anchor — "docs/user-guide/06-timeline.md#Blade tool" — because the F1
+      // help modal deep-links a SEARCH RESULT here, and a result is a heading, not a page.
+      const [wantId, wantHeading] = (initialId ?? '').split('#');
+      const target = (wantId && all.find((x) => x.e.id === wantId)) || (list[0]?.entries[0] ? { sec: list[0].id, e: list[0].entries[0] } : null);
+      if (target) { setOpen(new Set([target.sec])); load(target.e, wantHeading || undefined); }
     });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,8 +176,55 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        {/* Tree */}
+        {/* Tree — or, while searching, the results that replace it */}
         <nav className="w-52 shrink-0 overflow-y-auto border-r border-line-1 py-1.5 text-xs">
+          {/* Search box. Sticky, because the results below it can be long and losing the field you are
+              typing in when you scroll is the small indignity that makes people stop using search. */}
+          <div className="sticky top-0 z-10 bg-surface-1 px-2 pb-1.5">
+            <div className="flex items-center gap-1.5 px-2 h-7 rounded bg-surface-2 border border-line-1 focus-within:border-accent/60">
+              <Search size={12} className="text-fg-3 shrink-0" />
+              <input
+                value={q}
+                onChange={(ev) => setQ(ev.target.value)}
+                onKeyDown={(ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); setQ(''); } }}
+                placeholder="Search the docs…"
+                aria-label="Search the documentation"
+                className="flex-1 min-w-0 bg-transparent outline-none text-xs text-fg-1 placeholder:text-fg-3"
+              />
+              {q && (
+                <button onClick={() => setQ('')} title="Clear" aria-label="Clear search" className="text-fg-3 hover:text-fg-1 shrink-0">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {q ? (
+            <div className="pt-0.5">
+              <div className="px-3 py-1 text-micro uppercase tracking-wider text-fg-3">
+                {hits.length === 0 ? 'No match' : `${hits.length} result${hits.length === 1 ? '' : 's'}`}
+              </div>
+              {hits.map((h) => {
+                const entry = tree.flatMap((s) => s.entries).find((e) => e.id === h.chunk.docId);
+                return (
+                  <button
+                    key={h.chunk.id}
+                    onClick={() => { if (entry) load(entry, h.chunk.heading || undefined); }}
+                    title={`${h.chunk.doc}${h.chunk.heading ? ' ▸ ' + h.chunk.heading : ''}`}
+                    className="w-full flex flex-col items-start gap-0.5 px-3 py-1.5 text-left hover:bg-surface-2 text-fg-2 hover:text-fg-1"
+                  >
+                    <span className="flex items-center gap-1 w-full">
+                      <CornerDownLeft size={10} className="shrink-0 opacity-50" />
+                      <span className="truncate">{h.chunk.heading || h.chunk.doc}</span>
+                    </span>
+                    <span className="text-micro text-fg-3 truncate w-full">{h.chunk.doc}</span>
+                    <span className="text-micro text-fg-3 line-clamp-2 leading-snug opacity-80">{h.excerpt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+          <>
           {tree.length === 0 && <div className="px-3 py-2 text-fg-3 italic">No docs found.</div>}
           {tree.map((s) => {
             const isOpen = open.has(s.id);
@@ -169,6 +251,8 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
               </div>
             );
           })}
+          </>
+          )}
         </nav>
 
         {/* Reading pane */}

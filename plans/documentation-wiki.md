@@ -210,7 +210,32 @@ silently re-broken — which is precisely what happened to Wave 3's gate 2.
 
 </details>
 
-### Phase 1 — search in the app (~1 day) ← *the ask, where it counts*
+### Phase 1 — search in the app ✅ **DONE 2026-07-29** ← *the ask, where it counts*
+
+> **Shipped:** `DocChunk` + `docs:search-index` IPC · `searchIndex()` in `src/main/docs.ts` (heading-split,
+> cached, built from the same `listDocs()` sections so search and nav cannot disagree) ·
+> `services/docSearch.ts` (**the one scorer**, now shared — `HelpBrowser`'s local copy is gone and
+> `verify:docs` fails if either surface grows its own) · a search field in `DocsBrowser` that replaces the
+> tree with matching sections · **the F1 modal gained a third tier**, so one query returns the control and
+> the chapter.
+>
+> **Measured in the running app:** **723 chunks from 66 pages, built in 203 ms**, 669 KB, one IPC per
+> window. *(A first reading of 13.5 s was startup contention, not the index — worth stating because it
+> nearly bought a pointless optimisation.)*
+>
+> **Two things the live test found that no amount of reading would have:**
+> 1. **`"gray code"` returned nothing.** The docs write **"Gray-code"** — 15 times, never with a space.
+>    Matching the query as one literal substring meant a reader who typed what they *say* got silence
+>    while the answer sat in CALIBRATION.md. Multi-word queries are now tokenised (all tokens must be
+>    present, adjacency is a bonus).
+> 2. Clicking a result had to land on the **heading**, not the page top — verified: *"phase spread"* → 7
+>    hits → click → scrolled to that exact heading.
+>
+> **Known limit, and it is Phase 2's job:** hybrid pages are indexed whole, so `"gray code"` currently
+> surfaces *Building the native addon* and *Key files* — implementation headings from CALIBRATION/
+> AUTO-ALIGN. Marking operator regions is what will drop those out of an operator's results.
+
+<details><summary>Original Phase 1 scope</summary>
 
 - Build step emits `docs-index.json`: per-heading chunks (`file`, `anchor`, `title`, `text`) over
   user-guide + examples + `usage`-tagged reference. Shipped as `extraResources` beside the markdown.
@@ -220,6 +245,8 @@ silently re-broken — which is precisely what happened to Wave 3's gate 2.
   (chapter). `HelpBrowser` indexes the doc chunks beside the registry; a doc hit opens the Docs window at
   that anchor through the existing `helpNav.openHelp` path.
   → **The wiki is the search box operators already press F1 for.** No sixth surface.
+
+</details>
 
 ### Phase 2 — mark the hybrids in place, then fill the gaps (~1.5–2.5 days) ⟵ *revised*
 

@@ -2,7 +2,7 @@ import { app } from 'electron';
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, sep, normalize, extname } from 'node:path';
-import type { DocSection, DocEntry, DocContent, DocAsset } from '../../shared/protocol';
+import type { DocSection, DocEntry, DocContent, DocAsset, DocChunk } from '../../shared/protocol';
 
 // Main-side backend for the in-app Docs Browser. Enumerates the shipped example/tutorial sets
 // (examples/<set>/README.md + tuto/*.md) and the illustrated user guide (docs/user-guide/*.md) into a
@@ -139,6 +139,89 @@ export async function listDocs(): Promise<DocSection[]> {
   }
 
   return sections;
+}
+
+// ── THE SEARCH INDEX ──────────────────────────────────────────────────────────────────────────────────
+// The in-app Docs Browser was a TREE WITH NO SEARCH — the one documentation surface a venue tech can
+// reach offline at 2am, and the one with the worst findability. Ctrl+F searched the open page only.
+//
+// The unit of a result is a HEADING, not a file. "Which of these 66 pages mentions blade?" is the
+// question the tree already answered badly; "here is the paragraph about the blade tool, open it" is
+// the one an operator has. Chunking by heading is what turns the corpus from 66 documents into ~700
+// answers.
+//
+// Built from the SAME sections listDocs() returns, deliberately: search and navigation then cannot
+// disagree about what exists, and contributor pages stay out of the index for free rather than by a
+// second filter that could drift from the first (which is exactly how four dev pages ended up in the
+// sidebar in the first place).
+let indexCache: DocChunk[] | null = null;
+
+// Markdown → plain text, enough for matching and for a preview line. Not a parser: strips fences,
+// images, link chrome, table pipes, and inline marks. Deliberately lossy — this text is never rendered
+// as markup, it is only searched and previewed, so a stray artefact costs nothing and a dependency would.
+function plainText(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, ' ')                 // fenced code
+    .replace(/^\s*\|.*\|\s*$/gm, (r) => r.replace(/\|/g, ' '))   // table rows → words
+    .replace(/^\s*[-:|\s]+$/gm, ' ')                 // table rules
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')           // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')         // links → their text
+    .replace(/<!--[\s\S]*?-->/g, ' ')                // html comments (incl. our generated markers)
+    .replace(/[`*_>#]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export async function searchIndex(): Promise<DocChunk[]> {
+  if (indexCache) return indexCache;
+  const t0 = Date.now();
+  let pages = 0;
+  const chunks: DocChunk[] = [];
+
+  for (const section of await listDocs()) {
+    for (const entry of section.entries) {
+      const content = await readDoc(entry.id);
+      if (!content) continue;
+      pages++;
+      const lines = content.markdown.split('\n');
+
+      // Split on ATX headings. A fenced block can contain a line starting with '#', so track fences —
+      // without this, a shell comment inside a code sample becomes a phantom section title.
+      let fenced = false;
+      let heading = '';
+      let buf: string[] = [];
+      const flush = () => {
+        const text = plainText(buf.join('\n'));
+        buf = [];
+        if (!text && !heading) return;
+        chunks.push({
+          id: heading ? `${entry.id}#${heading}` : entry.id,
+          docId: entry.id,
+          doc: entry.title,
+          heading,
+          section: section.title,
+          // Cap the stored prose: the whole index crosses an IPC boundary in one message, and a
+          // 700-line chapter's worth of body text buys no extra matching power over its first ~1200
+          // characters. Keeps the payload near 1 MB rather than several.
+          text: text.slice(0, 1200),
+        });
+      };
+
+      for (const line of lines) {
+        if (/^\s*```/.test(line)) fenced = !fenced;
+        const h = !fenced && line.match(/^(#{1,4})\s+(.+?)\s*$/);
+        if (h) {
+          flush();
+          heading = h[2].replace(/[`*_]/g, '').trim();
+        } else buf.push(line);
+      }
+      flush();
+    }
+  }
+
+  indexCache = chunks;
+  console.log(`[docs] search index built: ${chunks.length} chunks from ${pages} pages in ${Date.now() - t0}ms`);
+  return chunks;
 }
 
 // Read one doc by tree id. The id is a POSIX-relative path under examples/ or docs/; resolve + validate

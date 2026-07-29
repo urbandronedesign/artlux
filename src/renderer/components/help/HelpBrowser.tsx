@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, HelpCircle } from 'lucide-react';
+import { Search, HelpCircle, BookOpen, ArrowUpRight } from 'lucide-react';
 import { allHelpEntries, type HelpEntry } from '../../help/registry';
 import { HELP_TOPICS } from '../../help/helpContent';
 import { helpNav } from '../../services/helpNav';
+import { score, searchDocs, loadDocIndex, type DocHit } from '../../services/docSearch';
+import type { DocChunk } from '../../../../shared/protocol';
 import type { HelpLang } from '../../services/helpBus';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
@@ -24,21 +26,23 @@ import { Segmented } from '../ui';
 // owners is the bug — if the native accelerator consumed the key, toggle-to-close would silently
 // die (a menu click can only open); if it didn't, one press would fire both and open-then-close.
 
-// Subsequence fuzzy match, mirrored from CommandPalette.score(): exact prefix > substring > scattered.
-// -1 means no match; higher is better.
-function score(needle: string, hay: string): number {
-  if (!needle) return 0;
-  const n = needle.toLowerCase();
-  const h = hay.toLowerCase();
-  if (h.startsWith(n)) return 1000;
-  const direct = h.indexOf(n);
-  if (direct >= 0) return 500 - direct;
-  let i = 0, gaps = 0, last = -1;
-  for (let j = 0; j < h.length && i < n.length; j++) {
-    if (h[j] === n[i]) { if (last >= 0) gaps += j - last - 1; last = j; i++; }
-  }
-  return i === n.length ? 100 - Math.min(99, gaps) : -1;
-}
+// ── THE THIRD TIER: THE SHIPPED DOCUMENTATION (2026-07-29) ───────────────────────────────────────────
+// This modal searched two stores that both describe CONTROLS — the coarse Guides and the 226
+// per-function entries. The 66 pages of actual documentation (user guide, tutorials, reference) were
+// searchable nowhere in the app: the Docs Browser was a tree, and Ctrl+F reached only the open page.
+// An operator does not know which store holds their answer; they know the word "blade". So one query
+// now returns the control AND the chapter, and picking a chapter opens it in the Docs window.
+//
+// `score()` moved to services/docSearch.ts so both surfaces rank identically — two rankers would order
+// the same query two ways and the interleave would be arbitrary. See that file for why body text is
+// matched by substring only.
+//
+// A doc row is a `doc:`-prefixed id, which cannot collide with `topic.` or the dotted registry ids.
+const DOC_TIE_BREAK = 10;   // a control outranks a chapter at equal score: it is the more precise answer
+
+type Row =
+  | { kind: 'entry'; id: string; title: string; group?: string; s: number; entry: HelpEntry }
+  | { kind: 'doc'; id: string; title: string; group: string; s: number; hit: DocHit };
 
 // The Guides tier: each coarse HELP_TOPICS entry adapted into a registry-shaped entry for the
 // language in effect. `topic.` cannot collide with the dotted area ids, so one list serves both
@@ -115,6 +119,12 @@ const HelpBrowserBody: React.FC<{
 
   const entries = useMemo(() => [...topicEntries(lang), ...allHelpEntries()], [lang]);
 
+  // The doc index is pulled once, lazily, when the modal first opens — not at app start. It is a
+  // megabyte of prose that most sessions never search, and the service caches it for the window (and
+  // main caches it across windows), so the cost is paid once by whoever actually asks.
+  const [docs, setDocs] = useState<DocChunk[]>([]);
+  useEffect(() => { let alive = true; loadDocIndex().then((c) => { if (alive) setDocs(c); }); return () => { alive = false; }; }, []);
+
   // ESC closes from ANYWHERE in the overlay, not just the search input: clicking a result moves focus
   // to that button, so an input-only handler leaves ESC dead the moment you pick something. A global
   // keydown while mounted is the reliable close (matches the overlay's click-outside-to-close).
@@ -128,13 +138,19 @@ const HelpBrowserBody: React.FC<{
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const results = useMemo(() => {
+  const results = useMemo<Row[]>(() => {
     // Empty query = declaration order: Guides first, then the per-area authoring order — a table of
-    // contents, not an alphabetized word heap (localeCompare on ~300 titles reads as noise).
-    if (!q) return entries;
-    const scored = entries
+    // contents, not an alphabetized word heap (localeCompare on ~300 titles reads as noise). Docs are
+    // NOT listed here: ~700 chunks would bury the contents list this view exists to be.
+    if (!q) return entries.map((e) => ({ kind: 'entry' as const, id: e.id, title: e.title, group: e.group, s: 0, entry: e }));
+
+    const rows: Row[] = entries
       .map((e) => ({
-        e,
+        kind: 'entry' as const,
+        id: e.id,
+        title: e.title,
+        group: e.group,
+        entry: e,
         s: Math.max(
           score(q, e.title),
           score(q, `${e.group ?? ''} ${e.title}`) - 50,
@@ -142,13 +158,25 @@ const HelpBrowserBody: React.FC<{
         ),
       }))
       .filter((x) => x.s >= 0);
-    scored.sort((a, b) => b.s - a.s || a.e.title.localeCompare(b.e.title));
-    return scored.map((x) => x.e);
-  }, [entries, q]);
+
+    for (const hit of searchDocs(docs, q, 30)) {
+      rows.push({
+        kind: 'doc',
+        id: `doc:${hit.chunk.id}`,
+        title: hit.chunk.heading || hit.chunk.doc,
+        group: hit.chunk.section,
+        s: hit.s - DOC_TIE_BREAK,
+        hit,
+      });
+    }
+
+    rows.sort((a, b) => b.s - a.s || a.title.localeCompare(b.title));
+    return rows;
+  }, [entries, docs, q]);
 
   // Keep a valid selection: prefer the requested id, else the top result.
-  const selected: HelpEntry | undefined =
-    (selId ? entries.find((e) => e.id === selId) : undefined) ?? results[0];
+  const selected: Row | undefined =
+    (selId ? results.find((r) => r.id === selId) : undefined) ?? results[0];
 
   // When a deep-link lands, bring the selected row into view.
   useEffect(() => {
@@ -190,37 +218,60 @@ const HelpBrowserBody: React.FC<{
             {results.length === 0 && (
               <div className="px-3 py-6 text-center text-fg-3 text-mini italic">No match.</div>
             )}
-            {results.map((e) => (
+            {results.map((r) => (
               <button
-                key={e.id}
-                data-entry={e.id}
-                onClick={() => setSelId(e.id)}
+                key={r.id}
+                data-entry={r.id}
+                onClick={() => setSelId(r.id)}
                 className={`w-full flex flex-col items-start gap-0.5 px-3 py-1.5 text-left ${
-                  selected?.id === e.id ? 'bg-accent/15 text-fg-1' : 'text-fg-2'
+                  selected?.id === r.id ? 'bg-accent/15 text-fg-1' : 'text-fg-2'
                 }`}
               >
-                <span className="text-xs truncate w-full">{e.title}</span>
-                {e.group && <span className="text-micro text-fg-3">{e.group}</span>}
+                <span className="text-xs truncate w-full flex items-center gap-1.5">
+                  {/* The icon is the tier: a page of documentation reads differently from a control. */}
+                  {r.kind === 'doc' && <BookOpen size={11} className="shrink-0 opacity-60" />}
+                  <span className="truncate">{r.title}</span>
+                </span>
+                {r.group && <span className="text-micro text-fg-3 truncate w-full">{r.group}</span>}
               </button>
             ))}
           </div>
 
           {/* Reading pane */}
           <div className="flex-1 min-w-0 overflow-y-auto p-5">
-            {selected ? (
+            {selected?.kind === 'doc' ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <BookOpen size={16} className="text-accent shrink-0" />
+                  <h2 className="text-base font-semibold text-fg-1">{selected.hit.chunk.heading || selected.hit.chunk.doc}</h2>
+                </div>
+                <div className="text-micro uppercase tracking-wider text-fg-3 mb-3">
+                  {selected.hit.chunk.section} · {selected.hit.chunk.doc}
+                </div>
+                <p className="text-sm leading-relaxed text-fg-2 whitespace-pre-line">{selected.hit.chunk.text}</p>
+                {/* The excerpt is a preview, not the page. The Docs window is where you READ — it renders
+                    real markdown with tables and images, which this pane deliberately does not. */}
+                <button
+                  onClick={() => window.artlux.openDocsWindow(selected.hit.chunk.id)}
+                  className="mt-4 inline-flex items-center gap-1.5 text-xs text-accent border border-line-2 rounded px-2.5 py-1.5"
+                >
+                  Open in Docs <ArrowUpRight size={13} />
+                </button>
+              </>
+            ) : selected ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
                   <HelpCircle size={16} className="text-accent shrink-0" />
                   <h2 className="text-base font-semibold text-fg-1">{selected.title}</h2>
-                  {selected.shortcut && (
-                    <kbd className="text-micro text-fg-3 border border-line-2 rounded px-1 ml-auto">{selected.shortcut}</kbd>
+                  {selected.entry.shortcut && (
+                    <kbd className="text-micro text-fg-3 border border-line-2 rounded px-1 ml-auto">{selected.entry.shortcut}</kbd>
                   )}
                 </div>
                 {selected.group && (
                   <div className="text-micro uppercase tracking-wider text-fg-3 mb-3">{selected.group}</div>
                 )}
                 <p className="text-sm leading-relaxed text-fg-2 whitespace-pre-line">
-                  {selected.body ?? selected.short}
+                  {selected.entry.body ?? selected.entry.short}
                 </p>
               </>
             ) : (

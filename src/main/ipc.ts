@@ -144,6 +144,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         }
     });
     ipcMain.handle(IPC.DOCS_LIST, () => docs.listDocs());
+    ipcMain.handle(IPC.DOCS_SEARCH_INDEX, () => docs.searchIndex());
     ipcMain.handle(IPC.DOCS_READ, (_e, id: string) => docs.readDoc(id));
     ipcMain.handle(IPC.DOCS_READ_ASSET, (_e, absPath: string) => docs.readDocAsset(absPath));
     ipcMain.handle(IPC.SAVE_TRACKING_TAKE, (_e, id: string, json: string) => persistence.saveTrackingTake(id, json));

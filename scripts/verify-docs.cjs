@@ -245,6 +245,25 @@ const GUIDE_DIR = path.join(ROOT, ...manifest.guideDir.split('/'));
   } else pass('docs/manifest.json is packaged, so the operator sidebar cannot silently fall back');
 }
 
+// ── 9. The two in-app search surfaces share ONE scorer ────────────────────────────────────────────────
+// The Docs Browser's search field and the F1 help modal answer the same question over one merged result
+// list. If either grows its own `score()` again — HelpBrowser had a local copy until Phase 1 — the two
+// halves of a single list get ranked on two incomparable scales and the interleave becomes arbitrary,
+// silently: nothing throws, results just quietly stop making sense.
+{
+  const help = read(path.join(ROOT, 'src', 'renderer', 'components', 'help', 'HelpBrowser.tsx'));
+  const docsPanel = read(path.join(ROOT, 'src', 'renderer', 'components', 'DocsBrowser.tsx'));
+  for (const [name, src] of [['HelpBrowser.tsx', help], ['DocsBrowser.tsx', docsPanel]]) {
+    if (/function\s+score\s*\(/.test(src)) {
+      fail('search', `${name} defines its own score() — both in-app search surfaces must import it from services/docSearch, or one merged list gets two ranking scales`);
+    }
+    if (!/from\s+'[^']*services\/docSearch'/.test(src)) {
+      fail('search', `${name} no longer imports services/docSearch — the two search surfaces have stopped sharing an implementation`);
+    }
+  }
+  pass('the Docs Browser and the F1 help modal share one search implementation');
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────────────────────────────
 for (const c of checks) console.log(`\x1b[32m✓\x1b[0m ${c}`);
 if (errors.length) {

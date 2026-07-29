@@ -126,6 +126,7 @@ const api: ArtluxApi = {
     listSerialDevices: () => ipcRenderer.invoke(IPC.SERIAL_DEVICES),
     importGdtf: () => ipcRenderer.invoke(IPC.FIXTURE_IMPORT_GDTF),
     docsList: () => ipcRenderer.invoke(IPC.DOCS_LIST),
+    docsSearchIndex: () => ipcRenderer.invoke(IPC.DOCS_SEARCH_INDEX),
     docsRead: (id: string) => ipcRenderer.invoke(IPC.DOCS_READ, id),
     docsReadAsset: (absPath: string) => ipcRenderer.invoke(IPC.DOCS_READ_ASSET, absPath),
     openDocsWindow: (id?: string) => ipcRenderer.send(IPC.DOCS_OPEN_WINDOW, id),

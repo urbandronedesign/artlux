@@ -98,6 +98,8 @@ export const IPC = {
   READ_FILE: 'app:read-file',
   /** Renderer → main (invoke): list the in-app docs tree (example sets + tutorials + user guide). */
   DOCS_LIST: 'docs:list',
+  /** Renderer → main (invoke): every heading-sized slice of the shipped docs, for in-app search. */
+  DOCS_SEARCH_INDEX: 'docs:search-index',
   /** Renderer → main (invoke): read one doc's markdown by tree id → { markdown, dir }. */
   DOCS_READ: 'docs:read',
   /** Renderer → main (invoke): read a sibling image referenced by a doc (validated) → { mime, data }. */
@@ -1188,6 +1190,28 @@ export interface DocSection { id: string; title: string; entries: DocEntry[]; }
 export interface DocContent { markdown: string; dir: string; }
 /** Raw bytes + MIME of a doc-referenced image, read from disk in main (renderer wraps it in a Blob). */
 export interface DocAsset { mime: string; data: Uint8Array; }
+/**
+ * One searchable slice of documentation: the prose under a single heading.
+ *
+ * The unit is a HEADING, not a file — a 700-line chapter is not a search result anyone can use, and
+ * "which page mentions this" is the question the tree already answered badly. Built in main from the
+ * same entries `listDocs()` returns, so search and navigation cannot disagree about what exists, and
+ * so `code`-audience pages are excluded by construction rather than by a second filter.
+ */
+export interface DocChunk {
+  /** `"<docId>#<heading>"` — unique, and carries everything needed to navigate to it. */
+  id: string;
+  /** The owning page's tree id, i.e. what `docsRead` / `openDocsWindow` take. */
+  docId: string;
+  /** The page's H1 ("Timeline (NLE) — architecture & usage"). */
+  doc: string;
+  /** The heading this slice sits under. Empty for the preamble above the first heading. */
+  heading: string;
+  /** Section label for grouping in the UI ("User guide", "Reference", "Tutorial — Audio"). */
+  section: string;
+  /** The prose under the heading, flattened and truncated — enough to match and to preview. */
+  text: string;
+}
 
 export interface ArtluxApi {
   configureOutput(cfg: OutputConfig): void;
@@ -1294,6 +1318,8 @@ export interface ArtluxApi {
   /** Pick and import a .gdtf → a user profile carrying the manufacturer's own channels and meshes. */
   importGdtf(): Promise<{ id: string; model: string; notes: string[] } | null>;
   docsList(): Promise<DocSection[]>;
+  /** Every heading-sized slice of the shipped docs, for in-app search. Built once and cached in main. */
+  docsSearchIndex(): Promise<DocChunk[]>;
   docsRead(id: string): Promise<DocContent | null>;
   /** Read a sibling image referenced by a doc (absolute path, validated under the docs roots). */
   docsReadAsset(absPath: string): Promise<DocAsset | null>;
