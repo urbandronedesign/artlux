@@ -222,15 +222,22 @@ tick in a table.
 
 | # | Condition | Where |
 |---|---|---|
-| **1** | `npm run verify` fails on a doc that is unlisted, dead-linked, or untagged; `docs/manifest.json` replaces the six hand-kept indexes | Phase 0 |
+| **1** | `npm run verify` fails on a doc that is unlisted, dead-linked or untagged, on a **generated block that no longer regenerates identically**, and on a **`▸ Menu ▸ Item` path that no longer exists in source** (48 of them today); `docs/manifest.json` replaces the six hand-kept indexes | Phase 0 |
 | **2** | The four developer pages are out of the operator's in-app sidebar | Phase 0 |
-| **3** | Chapter 15 documents rebinding | Phase 0 |
+| **3** | Chapter 15 is **generated** from the keymap registry and says shortcuts are rebindable | Phase 0 |
 | **4** | The in-app Docs Browser has search, merged with the F1 help modal's 226 entries | Phase 1 |
-| **5** | The usage half of the high-value hybrid docs is extracted into guide chapters — **TIMELINE, AUDIO, STATE-MACHINE, OUTPUTS, CALIBRATION, LIGHTING-SHOW, FIXTURE-LIBRARY, SHOW-CONTROL, OSC** — plus the three missing chapters (moving lights, install/Launcher, unattended operation) | Phase 2 |
+| **5** | The 18 hybrid docs carry `<!-- audience:operator -->` regions and the build assembles the operator view from them; the three genuinely missing chapters exist (moving lights, install/Launcher, unattended operation) | Phase 2 |
 
-Phases 0–1 are ~1.5 days and unblock nothing else; **Phase 2 is 3–5 days of writing and is the gate's real
-cost.** Two owner decisions are open in §7 of the plan (the stale screenshots, and whether French is a goal)
-— the screenshot call is the one that can move Phase 2's size.
+**≈ 3–4 days total.** Phases 0–1 are ~1.5 days and unblock nothing else; Phase 2 is ~1.5–2.5.
+
+> ⚠ **Phase 2 was re-scoped 2026-07-29 from "extract the usage half into new chapters" (3–5 days) to "mark
+> it in place" (~1.5–2.5).** Extraction would have created a **second copy of every operator claim in a
+> repo committing 2.6×/day** — the drift this gate exists to prevent. Marking single-sources it: one file,
+> two views, and a feature commit that updates the doc updates the wiki for free. See the plan ▸ *Keeping
+> it true while the app moves*.
+
+Two owner decisions are open in §7 of the plan (the stale screenshots, and whether French is a goal) — the
+screenshot call is the one that can still move Phase 2's size.
 
 > ⚠ **The public site (Phase 3) is NOT part of this gate.** It is a separate, optional target; shipping it
 > is not what makes the documentation current, and holding a feature for a website would be theatre.

@@ -68,8 +68,23 @@ something already shipped *and* already documented.
 
 **Scope is USAGE only.** Engine internals, the SDK, build/release and `plans/` stay repo-only and never
 enter the operator-facing docs. The real usage corpus is small — `docs/user-guide/` + `examples/**/tuto/`
-(~4 300 lines) plus the 226 in-app help entries — but **~18 of the 41 `docs/*.md` are "architecture *&*
-usage" hybrids whose operator half was never extracted.** That extraction is the work, not tooling.
+(~4 300 lines) plus the 226 in-app help entries — while **~18 of the 41 `docs/*.md` are "architecture *&*
+usage" hybrids whose operator half is not marked off.**
+
+**How docs stay true in a repo that commits ~2.6×/day — the three rules.** The shell was rebuilt three
+times and the guide's *prose* survived all three while every *screenshot* went stale, so write by half-life:
+1. **Never hand-write what the source already knows.** Shortcut tables, the effects catalog, OSC addresses
+   and settings lists are **generated** into `<!-- generated:x -->` blocks. Chapter 15 is the cautionary
+   tale: hand-maintained, edited as recently as 2026-07-28, and *still* documenting a static shortcut list
+   that `SHORTCUTS.md` says was replaced. It was not neglected — it was maintained **and still wrong**.
+2. **Single-source: mark, don't move.** A hybrid doc's operator half is wrapped in
+   `<!-- audience:operator -->` **in place** and the build assembles the operator view. Never copy usage
+   prose into a second file — two copies drift the first time a feature lands.
+3. **Cap and stamp the pictures.** 22 screenshots is a ceiling; prefer hand-authored SVG diagrams (shell-
+   independent) and let `capture-docs.cjs`'s version stamp render the staleness banner automatically.
+
+Corollary for prose you write: describe **verbs and destinations**, never panel coordinates — that is what
+let the text survive three shell rewrites.
 
 **Why it is a gate and not a backlog item:** docs written after a feature don't get written here. Wave 3's
 gate 2 (*"It is documented"*) was ticked ✅ and then silently re-broken by `473d259`. Three defects live in

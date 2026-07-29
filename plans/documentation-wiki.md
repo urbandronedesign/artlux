@@ -75,6 +75,60 @@ Two constraints decide the shape:
 **Reframed goal:** *one operator corpus in git → one search index → three targets (in-app, website, PDF),
 with the usage half of the hybrid docs extracted, and machine-checked indexes so nothing drifts silently.*
 
+### Keeping it true while the app moves — the shape that survives churn
+
+**"Wait until it settles" is not available.** 594 commits in 7½ months (~2.6/day), and the last 60 days
+alone: `services` **127**, `components/timeline` **60**, `plugins/audio` **50**, `Simulator3D` **32**,
+`contexts` **25**, `transport` **21**, `shell` **18**. Nothing here is about to stop moving, and
+`plans/lighting-rework-status.md` says outright that a whole shipped subsystem is expected to be reworked.
+
+**But the repo already ran the experiment, and it has an answer.** The shell was rebuilt three times
+(fixed shell → workbenches → dockable), and after all three the guide README states: *"The **text** on
+every page describes the app as it is now"* — while every screenshot is stale. **Prose survived three
+rewrites; pictures survived none.** So the question is not *when* to write, it is *what kind of thing* to
+write. The cost of a doc is not writing it — it is **re-verifying it** — so the whole design goal is to
+shrink the surface that ever needs re-verification.
+
+**Stratify by half-life, and use a different mechanism per layer:**
+
+| Layer | Half-life | Examples | Mechanism | Re-verify cost |
+|---|---|---|---|---|
+| **1 · Concepts** | very long | signal flow, what a surface/fixture/scene *is*, the two fixture kinds, one-transport-two-playheads | hand-written prose | ~never |
+| **2 · Tasks** | long | "first light in 5 steps", patch a rig, calibrate a projector, author a state | hand-written prose, phrased as **verbs + destinations**, never panel coordinates | rare |
+| **3 · Reference data** | **short** | the shortcut tables, effects catalog, OSC addresses, settings lists, fixture-profile counts | **GENERATED from source** into marked blocks | **zero** |
+| **4 · Chrome** | **shortest** | 22 screenshots, 21 image refs, **48 hand-written `▸ Menu ▸ Item` paths** | captured + budgeted + version-stamped; paths **grep-checked** against source strings | automated |
+
+**Layer 3 is where the docs actually died.** Chapter 15 is a hand-copied shortcut table — it was edited as
+recently as **2026-07-28** and *still* documents a static list that `SHORTCUTS.md` says was replaced, and
+still carries the heading `# 13.` in the file named `15-`. It was not neglected; **it was maintained and
+still wrong**, because a human re-typing data that exists in a registry loses that race every time. The
+answer is not more diligence, it is to stop hand-writing layer 3 at all.
+
+**Three rules that follow, and they are the whole strategy:**
+
+1. **Never hand-write what the source already knows.** Generate layer 3 into `<!-- generated:x -->` blocks;
+   `verify-docs` regenerates and fails on a diff. Chapter 15 becomes output, not prose.
+2. **Single-source layer 1–2 — mark, don't move.** *(This replaces the "extract into new chapters" design.)*
+   Copying the usage half of 18 hybrid docs into guide chapters creates a **second copy of the same claim in
+   a repo that changes 2.6×/day** — the exact drift this plan exists to kill. Instead, mark regions **in
+   place** and let the build assemble the operator view:
+   ```markdown
+   <!-- audience:operator -->
+   ## Using it …
+   <!-- /audience -->
+   ```
+   One copy, two views. Phase 2 becomes **marking + filling gaps**, not rewriting — and a doc updated by a
+   feature commit updates the wiki for free, with no second file to remember.
+3. **Cap and stamp layer 4.** 22 screenshots is the ceiling, not a floor. Prefer **hand-authored SVG
+   diagrams** for concepts (shell-independent — the tutorial sets already do this) and reserve photos for
+   what genuinely cannot be said in words. `capture-docs.cjs` writes a stamp (app version + shell hash) and
+   the build **auto-renders the staleness banner**, so nobody has to remember to write one.
+
+**And this is what lets the gate close.** "Documentation is current" stops being a judgement call and
+becomes `npm run verify` passing: every generated block regenerates identically, every `▸` path exists in
+source, every link resolves, no doc untagged. A gate a human has to *feel* is a gate that gets ticked ✅ and
+silently re-broken — which is precisely what happened to Wave 3's gate 2.
+
 ---
 
 ## 3. State of the art, mid-2026
@@ -126,8 +180,14 @@ with the usage half of the hybrid docs extracted, and machine-checked indexes so
   2. no file is untagged;
   3. **no `code`-tagged file is reachable from the in-app browser** *(drops ARCHITECTURE / DEVELOPMENT /
      PLUGINS / SDK from an operator's sidebar)*;
-  4. every relative `.md` link resolves on disk.
-- Fix chapter 15: document *Preferences ▸ Edit shortcuts…* and rebinding.
+  4. every relative `.md` link resolves on disk;
+  5. **every generated block regenerates byte-identically** *(layer 3 can never drift again)*;
+  6. **every hand-written `▸ Menu ▸ Item` path exists as a literal string in source** — 48 of them today,
+     and a rename currently breaks all of them silently.
+- `scripts/gen-docs-data.cjs` emits the layer-3 blocks from source: the **keymap registry** (→ chapter 15,
+  which stops being prose), the effects catalog, the OSC address table, the settings reference.
+- Fix chapter 15 *by generating it*, and have it say shortcuts are rebindable in *Preferences ▸ Edit
+  shortcuts…* — plus its heading, which still reads `# 13.` in the file named `15-`.
 
 ### Phase 1 — search in the app (~1 day) ← *the ask, where it counts*
 
@@ -140,17 +200,25 @@ with the usage half of the hybrid docs extracted, and machine-checked indexes so
   that anchor through the existing `helpNav.openHelp` path.
   → **The wiki is the search box operators already press F1 for.** No sixth surface.
 
-### Phase 2 — extract the usage half of the hybrids (~3–5 days, writing)
+### Phase 2 — mark the hybrids in place, then fill the gaps (~1.5–2.5 days) ⟵ *revised*
 
-Per hybrid doc, one of two moves:
-- **Split** — the usage half becomes (or joins) a guide chapter; the implementation half stays in `docs/`
-  for contributors, cross-linked. Prime candidates by size and operator value: **TIMELINE, AUDIO,
-  STATE-MACHINE, OUTPUTS, CALIBRATION, LIGHTING-SHOW, FIXTURE-LIBRARY, SHOW-CONTROL, OSC**.
-- **Section** — smaller docs (NDI, SPOUT, AUGMENTA, MEDIAPIPE, EFFECTS, LEDMAP) get an explicit
-  *"Using it"* / *"How it works"* split in place, and only the first half is tagged `usage`.
+**Was: "extract the usage half into new chapters" (3–5 days). That was wrong for a repo moving 2.6
+commits/day** — it would have made a second copy of every claim, and the two copies drift the first time a
+feature lands. **Now: single-source.** Per hybrid doc, wrap its operator regions in
+`<!-- audience:operator -->` and let the build assemble the guide/site/search index from them. The doc stays
+one file, the contributor half stays where contributors read it, and **a feature commit that updates the doc
+updates the wiki for free.**
 
-New chapters the probe says are missing: **moving lights & lighting shows** (a whole subsystem behind a
-116-line fixtures chapter), **installing & the Launcher**, **unattended / watchdog operation**.
+- **Mark** (~half a day for all 18): TIMELINE, AUDIO, STATE-MACHINE, OUTPUTS, CALIBRATION, LIGHTING-SHOW,
+  FIXTURE-LIBRARY, SHOW-CONTROL, OSC, then the smaller NDI, SPOUT, AUGMENTA, MEDIAPIPE, EFFECTS, LEDMAP,
+  SCENES, SCENE-TIMELINES, WORKSPACE. Several already have a clean `## Using it` / `## How it works` seam;
+  the rest need one H2 boundary moved.
+- **Then write only what marking cannot produce** — the genuine gaps: **moving lights & lighting shows**
+  (a whole subsystem behind a 116-line fixtures chapter), **installing & the Launcher**, **unattended /
+  watchdog operation**. These are layer 1–2 prose, so they are the durable kind.
+- **Deprioritise the churning surfaces.** `plans/lighting-rework-status.md` says the lighting subsystem is
+  expected to be reworked — so write its **concepts** (what a take/pose/role *is*, which survives) and leave
+  its control-by-control detail to the in-app help layer, which is anchored to the controls themselves.
 
 ### Phase 3 — the public site + machine-readable (~1–2 days)
 
