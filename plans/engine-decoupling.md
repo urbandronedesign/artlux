@@ -2,7 +2,12 @@
 
 > **Deliverable:** this document. It is the **canonical source** for the engine-decoupling programme; every
 > execution session starts by reading the tracker below.
-> **Status:** Approved 2026-07-26 · **Placement:** **Core** (new `renderer/engine/`, `Stage.tsx` split,
+> **Status:** ☑ **SHIPPED through Phase 1** (confirmed 2026-07-29) — `renderer/engine/frameEngine.ts`
+> exists (`0e34015`), the engine owns the rAF and the DOM gates are deleted (`4a95626`, WP-1.2: *"the
+> decorrelation is proven"*), and the Phase-0 UI thread is closed by WP-0.M. **Phase 3 (Worker) is
+> deliberately PARKED** with WP-3.M's measurement as the reason — no `*.worker.ts` in the tree.
+> *(Header read "Approved 2026-07-26" until the reconciliation; the WP tracker below was already
+> accurate — read it, not this line, for per-WP detail.)* · **Placement:** **Core** (new `renderer/engine/`, `Stage.tsx` split,
 > `App.tsx`, later `preload` + `main/ipc.ts` + four media plugins) · **Risk:** 🟠 Medium-high overall, but
 > **staged so each work package is individually 🟢/🟡** and independently revertible · **Breaking changes:**
 > none to the `.artlux` schema, prefs, or the plugin SDK through Phase 3; **two invariants are deleted and

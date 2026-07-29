@@ -156,7 +156,8 @@ src/renderer/        React UI + the frame-generation loop
   state/             EditorStore — what shell panels read instead of props (App still owns the state)
   services/          engine singletons: contentSource, surfaceMedia, timeline, stateMachine,
                      cueBus, dmxSignal, addressing, mediaCache, …
-  gpu/               WebGPUMapper (WGSL compute), GPUMapper (WebGL fallback), surfaceFx, palettes
+  gpu/               WebGPUMapper (WGSL compute), surfaceFx, effects, palettes
+                     (the WebGL fallback GPUMapper + IPixelMapper live in services/, not here)
   projector/         per-surface fullscreen output window (ProjectorApp) + MessagePort bridge
   calib/             projector-calibration logic (structured light, gray code, pose, blend) — see ROADMAP
   host/              renderer-side plugin registries + activation

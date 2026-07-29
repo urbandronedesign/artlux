@@ -1,7 +1,11 @@
 # R5b — There is no undo for any timeline edit (and no document history to wire it into)
 
 > **Deliverable:** this document, saved as `plans/timeline-undo.md` and indexed in `plans/README.md`.
-> **Status:** Draft · **Placement:** **Core** (`src/renderer/hooks/useHistory.ts`, `src/renderer/App.tsx`, both menu mirrors) · **Risk:** 🔴 **High** — this widens the one history primitive from a single array to the whole document, and it adds a snapshot to the commit path that Timeline.tsx already calls *"THE EXPENSIVE PATH"* ([Timeline.tsx:472-475](../src/renderer/components/timeline/Timeline.tsx#L472)) · **Breaking changes:** no schema change, no IPC change; **two loud behavior removals** (a scene recall / cue GO stops being undoable) and **one loud behavior addition** (Ctrl+Z now reverts documents, not just fixtures)
+> **Status:** ☑ **SHIPPED** — confirmed against the tree 2026-07-29. `DocSnapshot` and the `SHOW_ENGINE`
+> gate are in `App.tsx`, and `scripts/verify-invariants.cjs` carries a dedicated *"Undo/redo: the
+> document-history safety rules"* block that cites this plan and asserts the `MAX_DEPTH` cap plus "the
+> show never records". *(This header read "Draft" until the reconciliation; the plan text below is the
+> original proposal and has not been rewritten to past tense.)* · **Placement:** **Core** (`src/renderer/hooks/useHistory.ts`, `src/renderer/App.tsx`, both menu mirrors) · **Risk:** 🔴 **High** — this widens the one history primitive from a single array to the whole document, and it adds a snapshot to the commit path that Timeline.tsx already calls *"THE EXPENSIVE PATH"* ([Timeline.tsx:472-475](../src/renderer/components/timeline/Timeline.tsx#L472)) · **Breaking changes:** no schema change, no IPC change; **two loud behavior removals** (a scene recall / cue GO stops being undoable) and **one loud behavior addition** (Ctrl+Z now reverts documents, not just fixtures)
 
 ---
 

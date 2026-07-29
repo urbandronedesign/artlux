@@ -361,11 +361,17 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
 > two chapters via a dead page name; and the in-app Docs Browser ships `ARCHITECTURE`/`DEVELOPMENT`/
 > `PLUGINS`/`SDK` to venue techs while having **no search at all**.
 
-1. **Renderer error containment** — *hardening, highest operational value.* Today the watchdog is blind to
-   a white screen: a first-render throw means the heartbeat never fires, so an unattended venue install can
-   sit dead until someone drives out. Plan: [`plans/renderer-error-containment.md`](../plans/renderer-error-containment.md).
-2. **Timeline undo** — there is no undo for any timeline edit, and the show engine (FSM/OSC/cues/scheduler)
-   pushes machine-made history onto an **uncapped** stack. Plan: [`plans/timeline-undo.md`](../plans/timeline-undo.md).
+1. **Renderer error containment** — *hardening, highest operational value, and **still not started***
+   (re-confirmed 2026-07-29: no `services/faultReporter.ts`, no fault channel in `shared/protocol.ts`, no
+   pre-first-heartbeat arming in `watchdog.ts`). Today the watchdog is blind to a white screen: a
+   first-render throw means the heartbeat never fires, so an unattended venue install can sit dead until
+   someone drives out. ⚠ `components/ErrorBoundary.tsx` exists but is **not** this work — it came from an
+   a11y commit and wraps a dock *panel*, which the plan's §1 says would have caught neither shipped
+   white-screen. Plan: [`plans/renderer-error-containment.md`](../plans/renderer-error-containment.md).
+2. ~~**Timeline undo**~~ ✅ **SHIPPED** (confirmed against the tree 2026-07-29) — `DocSnapshot` + the
+   `SHOW_ENGINE` gate are in `App.tsx`, and `verify-invariants.cjs` carries an *"Undo/redo: the
+   document-history safety rules"* block asserting the `MAX_DEPTH` cap and that the show engine never
+   records. Plan: [`plans/timeline-undo.md`](../plans/timeline-undo.md).
 3. **MIDI control** — a new `plugins/midi` (control surface → cue/transport/state-machine). Net-new
    capability, not started. Plan: [`plans/midi-control.md`](../plans/midi-control.md).
    ✅ **Unblocked** — the documentation gate closed 2026-07-29. It ships its usage docs with it.
