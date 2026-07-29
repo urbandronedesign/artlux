@@ -23,6 +23,13 @@
 own MessagePort. Proven by deleting the Stage's canvas *and* container out of a running app while the
 native engine held 61 Hz — and re-provable any time with `node scripts/test-engine-output.cjs`.
 
+**Companion — [engine-decoupling-execution-map.html](engine-decoupling-execution-map.html)** (open it in a
+browser; self-contained, no build step). An interactive trace of one frame across every executor in the
+app — renderer main thread, GPU, the Node event loop, and the native Rust/JUCE/libuv threads — with four
+scenarios including the WP-3.M freeze drill. It exists to make one thing legible at a glance: the top row
+is a single unbroken queue, and every measured number on the page is quoted from the tracker below.
+Structure is read from source; **block widths are illustrative** — there is no per-block profiler here.
+
 **The three things that need a human, in priority order:**
 1. **C1 — the rig.** Real fixtures on the wire, a broadcast/projector run, a longer soak. Never done.
 2. **C2 — three media sources this machine has none of:** a Spout sender, an NDI source, a working

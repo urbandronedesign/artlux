@@ -1,0 +1,1019 @@
+<title>ArtLux — What runs where during a show</title>
+
+<style>
+  /* ── Tokens ───────────────────────────────────────────────────────────────
+     Neutrals carry a warm bias (the amber of the hot lane), so the greys read
+     as chosen rather than inherited. Executor hues are the validated
+     categorical slots 2/1/3/4 in that visual order — every lane is directly
+     labelled, which is what relieves the sub-3:1 fills in light mode. */
+  :root {
+    color-scheme: light;
+    --surface-0:  #f1f0ec;
+    --surface-1:  #fcfcfb;
+    --surface-2:  #e8e6df;
+    --line:       #dcdad2;
+    --line-soft:  #eceae3;
+    --ink:        #0b0b0b;
+    --ink-2:      #52514e;
+    --ink-3:      #7c7a73;
+
+    --exec-js:     #eb6834;  --on-js:     #ffffff;
+    --exec-gpu:    #2a78d6;  --on-gpu:    #ffffff;
+    --exec-native: #1baf7a;  --on-native: #06301f;
+    --exec-node:   #eda100;  --on-node:   #2e2000;
+
+    --st-good:     #0ca30c;
+    --st-warning:  #fab219;
+    --st-serious:  #ec835a;
+    --st-critical: #d03b3b;
+
+    --wait:        #cfcdc4;
+    --on-wait:     #57554e;
+
+    --shadow: 0 1px 2px rgb(11 11 11 / .06), 0 8px 24px -12px rgb(11 11 11 / .18);
+
+    --display: Bahnschrift, "DIN Alternate", "Roboto Condensed", "Segoe UI Semibold", system-ui, sans-serif;
+    --body: system-ui, "Segoe UI", Roboto, sans-serif;
+    --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, "SF Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0:  #111110;
+      --surface-1:  #1a1a19;
+      --surface-2:  #232320;
+      --line:       #34332e;
+      --line-soft:  #26251f;
+      --ink:        #ffffff;
+      --ink-2:      #c3c2b7;
+      --ink-3:      #8d8b81;
+
+      --exec-js:     #d95926;  --on-js:     #ffffff;
+      --exec-gpu:    #3987e5;  --on-gpu:    #ffffff;
+      --exec-native: #199e70;  --on-native: #ffffff;
+      --exec-node:   #c98500;  --on-node:   #1a1200;
+
+      --wait:        #33322d;
+      --on-wait:     #97958a;
+
+      --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -14px rgb(0 0 0 / .7);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0:  #111110;
+    --surface-1:  #1a1a19;
+    --surface-2:  #232320;
+    --line:       #34332e;
+    --line-soft:  #26251f;
+    --ink:        #ffffff;
+    --ink-2:      #c3c2b7;
+    --ink-3:      #8d8b81;
+
+    --exec-js:     #d95926;  --on-js:     #ffffff;
+    --exec-gpu:    #3987e5;  --on-gpu:    #ffffff;
+    --exec-native: #199e70;  --on-native: #ffffff;
+    --exec-node:   #c98500;  --on-node:   #1a1200;
+
+    --wait:        #33322d;
+    --on-wait:     #97958a;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -14px rgb(0 0 0 / .7);
+  }
+
+  /* ── Base ─────────────────────────────────────────────────────────────── */
+  body {
+    background: var(--surface-0);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(28px, 5vw, 64px) clamp(16px, 4vw, 40px) 96px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(36px, 5vw, 60px);
+  }
+  h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; letter-spacing: .01em; }
+  p { max-width: 68ch; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--exec-js); outline-offset: 2px; border-radius: 3px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* ── Masthead ─────────────────────────────────────────────────────────── */
+  .masthead h1 {
+    font-size: clamp(34px, 6vw, 60px);
+    line-height: 1.02;
+    margin: 12px 0 0;
+    letter-spacing: -.005em;
+  }
+  .masthead .stand {
+    margin-top: 18px;
+    font-size: clamp(16px, 1.6vw, 18.5px);
+    color: var(--ink-2);
+  }
+
+  /* ── Verdict ──────────────────────────────────────────────────────────── */
+  .verdict {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .vcell { background: var(--surface-1); padding: 22px 22px 20px; }
+  .vcell .num {
+    font-family: var(--display);
+    font-size: 46px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+  .vcell .num small { font-size: 17px; color: var(--ink-3); font-family: var(--mono); }
+  .vcell .cap { margin-top: 10px; font-size: 13.5px; color: var(--ink-2); line-height: 1.4; }
+  .vcell.hot .num { color: var(--exec-js); }
+
+  /* ── Panels ───────────────────────────────────────────────────────────── */
+  .panel {
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+  }
+  .panel-hd {
+    padding: 18px 22px 16px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .panel-hd h2 { font-size: 21px; margin: 0; }
+  .panel-hd .sub { font-size: 13px; color: var(--ink-3); font-family: var(--mono); }
+
+  /* ── Scenario switch ──────────────────────────────────────────────────── */
+  .scenarios { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 18px; border-bottom: 1px solid var(--line-soft); }
+  .scn {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 7px 13px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-2);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .scn[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--surface-1);
+  }
+
+  /* ── Trace ────────────────────────────────────────────────────────────── */
+  .trace-wrap { overflow-x: auto; }
+  .trace { --gutter: 216px; min-width: 760px; padding: 20px 22px 8px; }
+
+  .axis {
+    display: grid;
+    grid-template-columns: var(--gutter) 1fr;
+    gap: 0 14px;
+    align-items: end;
+    margin-bottom: 6px;
+  }
+  .axis-label { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .1em; }
+  .axis-track { position: relative; height: 20px; border-bottom: 1px solid var(--line); }
+  .tick { position: absolute; bottom: 0; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .tick::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 1px; height: 4px; background: var(--line); }
+
+  .grp { --gutter: 216px; margin-top: 16px; }
+  .grp-hd {
+    display: grid;
+    grid-template-columns: var(--gutter) 1fr;
+    gap: 0 14px;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  .grp-name {
+    font-family: var(--display);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .swatch { width: 11px; height: 11px; border-radius: 2px; background: var(--hue); flex: none; }
+  .grp-note { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+  .lane {
+    display: grid;
+    grid-template-columns: var(--gutter) 1fr;
+    gap: 0 14px;
+    align-items: center;
+    margin-bottom: 3px;
+  }
+  .lane-name {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-2);
+    text-align: right;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .lane-name b { display: block; font-weight: 600; color: var(--ink); font-size: 12px; }
+  .track {
+    position: relative;
+    height: var(--h, 26px);
+    background: var(--surface-2);
+    border-radius: 3px;
+  }
+  .lane.tall { --h: 40px; }
+
+  .blk {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    border: 0;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: var(--hue);
+    color: var(--on-hue);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1;
+    letter-spacing: -.01em;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer;
+    text-align: left;
+    box-shadow: 0 0 0 2px var(--surface-2);
+  }
+  .blk:hover, .blk:focus-visible { filter: brightness(1.08) saturate(1.1); z-index: 3; }
+  .blk[data-kind="wait"] { background: var(--wait); color: var(--on-wait); }
+  .blk[data-kind="blocked"] {
+    background: repeating-linear-gradient(135deg, var(--st-critical) 0 7px, color-mix(in srgb, var(--st-critical) 68%, #000) 7px 14px);
+    color: #fff;
+  }
+  .blk[data-kind="ghost"] { background: transparent; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--hue); }
+
+  .playhead {
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    width: 1px;
+    background: var(--ink);
+    opacity: .55;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .grp .track { overflow: hidden; }
+  .sweeper { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .sweeper i {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .5;
+    animation: sweep 4.6s linear infinite;
+  }
+  @keyframes sweep { from { left: 0 } to { left: 100% } }
+  @media (prefers-reduced-motion: reduce) { .sweeper i { animation: none; left: 0; opacity: .25 } }
+
+  /* ── Inspector ────────────────────────────────────────────────────────── */
+  .inspector {
+    border-top: 1px solid var(--line);
+    padding: 16px 22px 18px;
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    gap: 0 12px;
+    min-height: 92px;
+    align-content: start;
+  }
+  .insp-bar { border-radius: 2px; background: var(--hue, var(--line)); }
+  .insp-t { font-family: var(--display); font-size: 17px; }
+  .insp-m { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+  .insp-d { font-size: 14.5px; color: var(--ink-2); margin-top: 8px; max-width: 78ch; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0 22px 18px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 10px; border-radius: 2px; display: block; }
+
+  .scn-note {
+    padding: 0 22px 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px 24px;
+  }
+  .stat .k { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); }
+  .stat .v { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .stat .n { font-size: 12.5px; color: var(--ink-2); }
+
+  /* ── Findings ─────────────────────────────────────────────────────────── */
+  .findings { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .find { background: var(--surface-1); padding: 20px 22px; display: grid; grid-template-columns: 6px 1fr; gap: 0 18px; }
+  .find .stripe { border-radius: 3px; background: var(--sev); }
+  .find h3 { font-size: 18px; margin: 0 0 2px; }
+  .find .where { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  .find p { margin: 9px 0 0; font-size: 14.5px; color: var(--ink-2); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em;
+    padding: 3px 8px; border-radius: 3px; border: 1px solid var(--sev);
+    color: var(--sev); margin-bottom: 8px;
+  }
+  .chip b { font-weight: 700; }
+  .ev { margin-top: 10px; font-family: var(--mono); font-size: 12px; color: var(--ink-2); border-left: 2px solid var(--line); padding-left: 12px; }
+  .ev em { font-style: normal; color: var(--ink-3); }
+
+  /* ── Table ────────────────────────────────────────────────────────────── */
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--ink-3); border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  td.mono, td .mono { font-family: var(--mono); font-size: 12px; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); white-space: nowrap; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 7px; vertical-align: 1px; }
+
+  /* ── Prose blocks ─────────────────────────────────────────────────────── */
+  .note { border-left: 2px solid var(--exec-js); padding: 2px 0 2px 18px; }
+  .note h2 { font-size: 22px; margin: 0 0 10px; }
+  .note p + p { margin-top: 12px; }
+  .prov { font-size: 13px; color: var(--ink-3); }
+  .prov b { color: var(--ink-2); font-weight: 600; }
+  code { font-family: var(--mono); font-size: .9em; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="eyebrow">ArtLux · execution map · v0.25.x</div>
+    <h1>What actually runs on the CPU and the GPU while a show is playing</h1>
+    <p class="stand">
+      ArtLux is a multi-process application with seven kinds of OS thread — and one of them does
+      almost all of the work. This page traces a single frame across every executor in the app, so
+      you can see which work is genuinely parallel, which is queued behind something else, and which
+      lane runs out of budget first.
+    </p>
+  </header>
+
+  <section class="verdict" aria-label="Headline findings">
+    <div class="vcell hot">
+      <div class="num">1</div>
+      <div class="cap">CPU core the per-frame content pipeline can use. Composite, atlas, GPU submit,
+        universe packing, encode, the timeline transport, the projector pump, the 3D scene and every
+        React commit all execute on the renderer's <em>single</em> main thread. There are no workers.</div>
+    </div>
+    <div class="vcell">
+      <div class="num">7 <small>kinds</small></div>
+      <div class="cap">Genuinely concurrent executors: renderer main thread, GPU, Node main-process
+        loop, the libuv pool, the Rust send thread, per-port serial writers, and the JUCE audio
+        thread — plus one main thread per projector window.</div>
+    </div>
+    <div class="vcell">
+      <div class="num">900 <small>ms</small></div>
+      <div class="cap">Renderer freeze the wire survived unchanged: 178 packets/s against 226 idle,
+        worst gap 45 ms. Art-Net does not depend on the UI thread — the Rust pacer re-sends the last
+        frame. The <em>picture</em> stops; the show does not go dark.</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-hd">
+      <div>
+        <h2>One frame, every executor</h2>
+        <div class="sub">horizontal axis = wall-clock time · each row = one OS execution context</div>
+      </div>
+      <div class="sub" id="windowLabel">window: 16.67 ms (one frame @ 60 Hz)</div>
+    </div>
+
+    <div class="scenarios" role="group" aria-label="Scenario">
+      <button class="scn" type="button" data-scn="idle" aria-pressed="false">Editor idle</button>
+      <button class="scn" type="button" data-scn="show" aria-pressed="true">Show running</button>
+      <button class="scn" type="button" data-scn="interact" aria-pressed="false">Operator interacting</button>
+      <button class="scn" type="button" data-scn="freeze" aria-pressed="false">Main thread frozen</button>
+    </div>
+
+    <div class="trace-wrap">
+      <div class="trace" id="trace"></div>
+    </div>
+
+    <div class="inspector" id="inspector">
+      <div class="insp-bar"></div>
+      <div>
+        <div class="insp-t">Hover or tab through any block</div>
+        <div class="insp-m">the trace is interactive</div>
+        <div class="insp-d">Each block names one unit of work, where it executes, and the source that
+          owns it. Blocks on the same row cannot overlap — that is the whole point of the diagram.</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--exec-js)"></i> renderer main thread (JS)</span>
+      <span><i style="background:var(--exec-gpu)"></i> GPU</span>
+      <span><i style="background:var(--exec-node)"></i> main process event loop (Node)</span>
+      <span><i style="background:var(--exec-native)"></i> native OS threads (Rust / C++ / libuv)</span>
+      <span><i style="background:var(--wait)"></i> idle or waiting</span>
+      <span><i style="background:repeating-linear-gradient(135deg,var(--st-critical) 0 5px,#8d2626 5px 10px)"></i> blocked</span>
+    </div>
+
+    <div class="scn-note" id="scnStats"></div>
+  </section>
+
+  <section class="note">
+    <h2>Read the shape, not the widths</h2>
+    <p>
+      The block <em>order</em>, the row each one sits on, and the fact that the top row is one
+      unbroken queue are all read directly out of the source. The block <em>widths</em> are
+      proportional estimates chosen to make the serialisation legible — the repo has no per-block
+      profiler. Every number quoted in the readouts and the findings below <em>is</em> measured, and
+      says where it came from.
+    </p>
+    <p>
+      The one thing the diagram cannot show is that the GPU readback is asynchronous. The compute
+      pass writes to a staging buffer and <code>mapAsync</code> resolves later, so
+      <code>mapper.read()</code> returns the <em>previous</em> frame's LED bytes. The pipeline is one
+      frame deep by design, and universe packing never waits on the GPU.
+    </p>
+  </section>
+
+  <section>
+    <div class="eyebrow" style="margin-bottom:14px">Ranked by how much headroom they cost</div>
+    <div class="findings">
+
+      <article class="find" style="--sev:var(--st-critical)">
+        <div class="stripe"></div>
+        <div>
+          <span class="chip"><b>Critical</b> · structural</span>
+          <h3>The renderer main thread is the pipeline</h3>
+          <div class="where">src/renderer/engine/frameEngine.ts · services/timeline.ts · App.tsx · Simulator3D/</div>
+          <p>
+            Five independent <code>requestAnimationFrame</code> loops — the frame engine, the timeline
+            transport, the projector pump, the 3D scene and React's own work — share one thread with
+            style, layout and paint. Nothing here runs in parallel with anything else here. There are
+            no <code>*.worker.ts</code> files in the tree: the worker phase is deliberately parked.
+          </p>
+          <div class="ev">
+            <em>measured (WP-0.M, 2026-07-29):</em> under UI load frame p99 <b>168 ms</b>, long frames
+            <b>47 / 240</b> — and moving React's cost to zero left it unchanged (155 → 168). The
+            load-case hitching is the context switch plus forced synchronous layout, not React commits.
+            <br><em>measured:</em> a context switch costs <b>70–105 ms</b>, once; a timeline clip drag
+            still costs <b>330–380 ms/s</b>, of which ~10 ms per render is Timeline's own element tree.
+          </div>
+        </div>
+      </article>
+
+      <article class="find" style="--sev:var(--st-serious)">
+        <div class="stripe"></div>
+        <div>
+          <span class="chip"><b>Serious</b> · measured</span>
+          <h3>GPU texture upload and fill rate, not draw calls</h3>
+          <div class="where">src/renderer/gpu/WebGPUMapper.ts · Simulator3D/</div>
+          <p>
+            Every LED sample is one WGSL compute dispatch — cheap. What costs is getting pixels
+            <em>to</em> the GPU: each <code>copyExternalImageToTexture</code> is a fixed GPU-process
+            sync stall, and under projector contention those stalls dominated. The fix was to compose
+            all surfaces into one atlas on the CPU and upload once, collapsing N uploads and N submits
+            into one of each.
+          </p>
+          <div class="ev">
+            <em>recorded history:</em> the surface-atlas change took the app 16 → 60 fps. The moving-light
+            beam budget turned out to be <b>fill rate</b>, not draw calls — the CPU was optimised first
+            and made it worse. HAP decode once collapsed 61 → 22 → 61 fps.
+          </div>
+        </div>
+      </article>
+
+      <article class="find" style="--sev:var(--st-serious)">
+        <div class="stripe"></div>
+        <div>
+          <span class="chip"><b>Serious</b> · structural</span>
+          <h3>The projector pump allocates an ImageBitmap per surface, per window, on the hot thread</h3>
+          <div class="where">src/renderer/App.tsx — the 33 ms pump</div>
+          <p>
+            Every streamed surface is re-encoded with <code>createImageBitmap</code> — roughly 8 MB at
+            1080p — then transferred to each projector window's MessagePort. It runs on the same thread
+            as the frame engine, at up to 30 Hz, multiplied by the number of open outputs. Three
+            guards keep it from compounding: an <code>inFlight</code> set for back-pressure, a
+            <code>sentGen</code> map keyed by generation <em>and</em> port so repeated frames are
+            skipped, and a once-per-transition idle notice.
+          </p>
+          <div class="ev">
+            <em>structural:</em> cost scales with (streamed surfaces × open projector windows), and every
+            byte of it is paid on the one thread that also packs universes.
+          </div>
+        </div>
+      </article>
+
+      <article class="find" style="--sev:var(--st-warning)">
+        <div class="stripe"></div>
+        <div>
+          <span class="chip"><b>Warning</b> · unverified</span>
+          <h3>HAP decode shares a FIFO pool that may still be four threads wide</h3>
+          <div class="where">src/main/threadpool.ts · native/hap/src/lib.rs</div>
+          <p>
+            Native HAP decode runs as napi-rs <code>AsyncTask</code>s on the libuv pool. Node's default
+            is four threads and the pool is FIFO and shared, so six 1080p HAP surfaces at three
+            in-flight decodes each can queue ~18 jobs behind one another — surfacing as a decode-ahead
+            ring missing its exact frame, not as an error. The pool is requested at 12.
+          </p>
+          <div class="ev">
+            <em>caveat recorded in the source:</em> libuv fixes the pool size at first use, so if anything
+            in Electron's startup touched it first the request silently does nothing, and it is not
+            observable through any API. The honest check is a 6-source soak comparing
+            <code>missRate</code> at 4 versus 12.
+          </div>
+        </div>
+      </article>
+
+      <article class="find" style="--sev:var(--st-warning)">
+        <div class="stripe"></div>
+        <div>
+          <span class="chip"><b>Warning</b> · structural</span>
+          <h3>Live video receive is polled on the same event loop that serves the tablet</h3>
+          <div class="where">plugins/spout · plugins/ndi · src/main/transport/</div>
+          <p>
+            Spout and NDI are each drained by a 16 ms <code>setInterval</code> in the main process,
+            then copied across IPC into the renderer. That loop is also handling Art-Net input, OSC —
+            including the 61 fps LiDAR blob protocol — the show-control HTTP and SSE server, the
+            metrics endpoint and the watchdog's 1 Hz health tick. It is a second single thread, and
+            two live sources plus a tablet remote all contend for it.
+          </p>
+          <div class="ev">
+            <em>structural:</em> a receive path that misses its poll drops a frame quietly; there is no
+            back-pressure signal from the renderer.
+          </div>
+        </div>
+      </article>
+
+      <article class="find" style="--sev:var(--st-good)">
+        <div class="stripe"></div>
+        <div>
+          <span class="chip"><b>Healthy</b> · measured</span>
+          <h3>The wire is already immune to the UI</h3>
+          <div class="where">native/output-engine/src/lib.rs · serial.rs</div>
+          <p>
+            A dedicated Rust thread owns the UDP socket and paces transmission, woken by a condvar
+            when JS pushes a frame; <code>push_frame</code> is one memcpy. It re-sends the last frame
+            as keep-alive, so a stalled renderer costs picture, not output. Each ENTTEC USB port gets
+            its own writer thread behind a single-slot mailbox, so a slow or unplugged widget can
+            never stall the network pacer.
+          </p>
+          <div class="ev">
+            <em>measured (WP-3.M):</em> during a deliberate 900 ms main-thread freeze — <b>172 packets over
+            967 ms</b> (178/s vs 226/s idle), worst inter-packet gap <b>45 ms</b>. Three rounds of full
+            context tours plus forced reflow produced <b>zero</b> gaps over 100 ms.
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-hd">
+      <div>
+        <h2>Thread inventory</h2>
+        <div class="sub">every execution context a running show touches</div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Executor</th><th>Count</th><th>Rate</th><th>What it does</th><th>Owner</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-js)"></span><b>Renderer main thread</b></td>
+            <td class="num">1</td>
+            <td class="num">60 Hz</td>
+            <td>Composite, atlas assembly, GPU submit, universe packing, frame encode, timeline
+              transport, projector pump, 3D scene, React, style, layout, paint</td>
+            <td class="mono">src/renderer/</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-js)"></span>Projector window main thread</td>
+            <td class="num">1 per output</td>
+            <td class="num">display</td>
+            <td>Receives ImageBitmaps over a MessagePort; warp, blend and present</td>
+            <td class="mono">renderer/projector/</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-gpu)"></span><b>GPU</b></td>
+            <td class="num">1 device</td>
+            <td class="num">per submit</td>
+            <td>WGSL compute pass — one invocation per LED at surface-local UVs; texture upload;
+              buffer readback; WebGL2 for the 3D scene, HAP decode and projector warp; hardware video decode</td>
+            <td class="mono">gpu/WebGPUMapper.ts</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-node)"></span><b>Main process event loop</b></td>
+            <td class="num">1</td>
+            <td class="num">~60 Hz</td>
+            <td>Receives packed frames and hands them to the native engine; polls Spout and NDI;
+              Art-Net/sACN input; OSC and LiDAR; show-control HTTP + SSE; metrics; watchdog</td>
+            <td class="mono">src/main/</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-native)"></span>libuv thread pool</td>
+            <td class="num">12 requested</td>
+            <td class="num">on demand</td>
+            <td>Native HAP decode jobs (3 in flight per source) and file I/O — FIFO and shared</td>
+            <td class="mono">main/threadpool.ts</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-native)"></span><b>Rust Art-Net / sACN sender</b></td>
+            <td class="num">1</td>
+            <td class="num">44 Hz</td>
+            <td>Paces UDP transmission, builds ArtDmx and sACN packets, keep-alive re-send, ArtSync</td>
+            <td class="mono">native/output-engine</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-native)"></span>Rust serial writer</td>
+            <td class="num">1 per port</td>
+            <td class="num">40 Hz</td>
+            <td>ENTTEC USB DMX framing and write, behind a latest-frame-wins mailbox</td>
+            <td class="mono">output-engine/serial.rs</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-native)"></span><b>JUCE audio callback</b></td>
+            <td class="num">1</td>
+            <td class="num">buffer</td>
+            <td>Real-time: ambisonic encode, insert chains, HRTF or speaker-array decode. Must never block</td>
+            <td class="mono">native/audio-engine</td>
+          </tr>
+          <tr>
+            <td><span class="dot" style="background:var(--exec-native)"></span>JUCE disk reader</td>
+            <td class="num">1</td>
+            <td class="num">on demand</td>
+            <td><code>artlux-audio-read</code> — a TimeSliceThread streaming clips off disk so the
+              audio callback never touches the filesystem</td>
+            <td class="mono">audio-engine/engine.cpp</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="note">
+    <h2>So: are we multithreaded?</h2>
+    <p>
+      Yes at the process level, and no where it counts. The parts of the app that <em>protect the
+      show</em> are properly isolated on their own OS threads — the wire, USB DMX, audio, and HAP
+      decode all keep running through anything the UI does, which is why a 900 ms freeze cost 45 ms
+      of jitter and nothing else.
+    </p>
+    <p>
+      The parts that <em>make the picture</em> are not. Everything from reading a video frame to
+      putting bytes in a universe buffer runs on one core, and adding surfaces, projector outputs,
+      3D fixtures or timeline complexity all draws from the same 16.67 ms. That is the ceiling, and
+      it is the reason the measured load-case p99 did not move when React's cost was taken to zero:
+      the queue is the problem, not any one thing in it.
+    </p>
+    <p>
+      The known way off it is the parked worker phase, and it is blocked by one concrete fact rather
+      than by the platform: a Worker in this Electron build already has WebGPU with an acquirable
+      device, OffscreenCanvas, VideoFrame, VideoDecoder and WebGL2. What it cannot have is a
+      <code>&lt;video&gt;</code> element, which is still the fallback producer for both surfaces and
+      timeline layers. The measurement taken at that fork says a worker would buy <em>smoother
+      content under load</em>, not show survival — the native pacer already provides survival.
+    </p>
+  </section>
+
+  <section class="prov">
+    <div class="eyebrow" style="margin-bottom:10px">Provenance</div>
+    <p>
+      <b>Structural claims</b> — which thread owns what, the order of work inside a frame, the
+      absence of workers — are read from <code>renderer/engine/frameEngine.ts</code>,
+      <code>gpu/WebGPUMapper.ts</code>, <code>App.tsx</code>, <code>main/threadpool.ts</code>,
+      <code>native/output-engine/src/{lib,serial}.rs</code>, <code>native/audio-engine/src/engine.cpp</code>
+      and the Spout/NDI plugin managers.
+      <b>Measured numbers</b> — frame p99, long-frame counts, React commit cost, packets per second
+      during the freeze, context-switch and clip-drag cost — come from the work-package tracker in
+      <code>plans/engine-decoupling.md</code> (WP-0.M, WP-3.M and the Phase-0 series, through
+      2026-07-29). <b>Block widths in the trace are illustrative</b>; there is no per-block profiler
+      in the repo.
+    </p>
+  </section>
+
+</div>
+
+<script>
+(() => {
+  const GROUPS = [
+    { id: 'js',     name: 'Renderer main thread', hue: 'var(--exec-js)', on: 'var(--on-js)',
+      note: 'one thread · one queue · no workers',
+      lanes: [{ id: 'main', title: 'main thread', sub: 'rAF loops + React + layout', tall: true }] },
+    { id: 'gpu',    name: 'GPU', hue: 'var(--exec-gpu)', on: 'var(--on-gpu)',
+      note: 'runs while the CPU continues',
+      lanes: [
+        { id: 'compute', title: 'WebGPU compute', sub: 'LED sampling + readback' },
+        { id: 'gl',      title: 'WebGL2', sub: '3D scene · projector warp' },
+        { id: 'dec',     title: 'video decode', sub: 'hardware' } ] },
+    { id: 'node',   name: 'Main process event loop', hue: 'var(--exec-node)', on: 'var(--on-node)',
+      note: 'Node · also single-threaded',
+      lanes: [{ id: 'loop', title: 'event loop', sub: 'IPC · receive polls · services' }] },
+    { id: 'native', name: 'Native OS threads', hue: 'var(--exec-native)', on: 'var(--on-native)',
+      note: 'genuinely parallel · protect the show',
+      lanes: [
+        { id: 'pacer',  title: 'Rust: Art-Net pacer', sub: '44 Hz' },
+        { id: 'serial', title: 'Rust: ENTTEC writer', sub: '40 Hz, per port' },
+        { id: 'uv',     title: 'libuv pool', sub: 'HAP decode jobs' },
+        { id: 'audio',  title: 'JUCE: audio callback', sub: 'real-time' } ] },
+  ];
+
+  const b = (lane, t0, t1, label, detail, kind) => ({ lane, t0, t1, label, detail, kind: kind || 'work' });
+
+  const SCENARIOS = {
+    idle: {
+      label: 'Editor idle', window: 16.67, step: 4,
+      axis: 'window: 16.67 ms (one frame @ 60 Hz)',
+      stats: [
+        ['frame p99', '21 ms', 'measured, after the Phase-0 work — about one frame, so no tail at all'],
+        ['long frames', '0 / 240', 'was 18 / 240 before the timeline stopped putting a clock in React state'],
+        ['React commit', '0.0 ms/s', 'measured on the operator’s real project — every sample zero'],
+      ],
+      blocks: [
+        b('main', 0, 0.9, 'atlas + submit', 'Compose each surface’s drawable into the atlas canvas, upload it in one copyExternalImageToTexture, write params, dispatch. With no output enabled the packing loop below is skipped entirely. — gpu/WebGPUMapper.ts renderSurfaces()'),
+        b('main', 0.9, 1.6, 'preview blit', 'The 512² composite is drawn only because someone is looking at it, and only at 30 Hz — on the WebGPU path it feeds the operator’s picture and nothing else. Broadcast and headless skip it completely. — frameEngine.tick()'),
+        b('main', 1.6, 2.3, 'timeline rAF', 'The transport tick. Idle, the playhead is not moving and clip evaluation short-circuits. — services/timeline.ts'),
+        b('main', 2.3, 16.67, 'idle', 'This is the headroom the Phase-0 work bought back. Before it, a 100 ms setInterval inside Timeline.tsx re-rendered the whole panel ten times a second — toolbar, ruler, every track header, every clip — in eight of the nine contexts, forever, whether or not the transport was moving.', 'wait'),
+        b('compute', 1.0, 1.7, 'compute pass', 'One WGSL invocation per LED, sampling its own surface at surface-local UVs. Workgroups = ceil(totalLeds / WORKGROUP).'),
+        b('compute', 1.7, 2.1, 'readback → next frame', 'copyBufferToBuffer into a free staging buffer, then mapAsync. It resolves after this frame, so read() always returns the previous frame’s bytes.', 'ghost'),
+        b('gl', 2.4, 4.6, '3D scene', 'react-three-fiber draws the venue: instanced LED spheres, one InstancedMesh of fixture bodies sharing a unit cylinder, beams. Idle it still redraws every frame.'),
+        b('loop', 3.0, 3.4, 'watchdog + metrics', 'The 1 Hz health tick, the Prometheus endpoint (pull-only, nothing between scrapes) and the show-control SSE heartbeat.'),
+        b('pacer', 6.0, 6.8, 'keep-alive send', 'No new frame arrived, so the pacer re-sends the last one. This is what keeps a rig lit when the renderer has nothing to say. — native/output-engine/src/lib.rs'),
+        b('audio', 0, 1.1, 'device callback', 'The bed rides the show clock and keeps playing regardless of what the editor is doing.'),
+        b('audio', 5.6, 6.7, 'device callback', 'One callback per audio buffer. Never blocks, never touches the filesystem — a dropout resuming mid-waveform is a step discontinuity, which is a click.'),
+        b('audio', 11.2, 12.3, 'device callback', 'One callback per audio buffer, driven by the audio device’s own clock — not by the frame loop.'),
+      ],
+    },
+
+    show: {
+      label: 'Show running', window: 16.67, step: 4,
+      axis: 'window: 16.67 ms (one frame @ 60 Hz)',
+      stats: [
+        ['renderer', '61 fps', 'measured on the operator’s real project, dev and packaged'],
+        ['native output', '61 Hz · 4 universes', 'packaged ArtLux.exe with no CDP port — 4345 ArtDmx packets sniffed'],
+        ['main-thread budget', '~75% used', 'illustrative: the sum of five rAF callbacks against 16.67 ms'],
+      ],
+      blocks: [
+        b('main', 0, 0.95, 'composite 512²', 'Every surface’s drawable drawn into the engine’s own 512² canvas in z-order, with per-surface opacity. On the WebGL fallback this canvas IS the sampling source and cannot be throttled; on WebGPU it is preview-only and capped at 30 Hz. — frameEngine.tick()'),
+        b('main', 0.95, 1.85, 'atlas compose', 'Each surface is drawn into its own packed rect in one scratch canvas, sized to that surface’s LED density. This replaced N per-surface uploads — each a fixed GPU-process sync stall — with one. — WebGPUMapper.renderSurfaces()'),
+        b('main', 1.85, 2.3, 'GPU submit', 'copyExternalImageToTexture for the atlas, writeBuffer for params and the zeroed output buffer, dispatchWorkgroups, submit. The CPU does not wait for the result.'),
+        b('main', 2.3, 4.0, 'universe packing', 'Per fixture, per LED: colour-order remap, gamma LUT, channels-per-pixel, spanning the 512 boundary. Profiled moving lights pack named parameters from authored values instead, through the five-level precedence stack. — frameEngine.packAndPublish()'),
+        b('main', 4.0, 4.4, 'encode + post', 'dmxSignal.publish for the in-app consumers (DMX monitor, 3D scene, lighting recorder), then encodeFrame and postMessage to main — the last step of the frame, not a subscriber. Throttled to ~44 Hz.'),
+        b('main', 4.4, 5.3, 'timeline rAF', 'Transport advance, clip evaluation against the playhead and the show clock, the layer video pool, state-machine transitions. — services/timeline.ts'),
+        b('main', 5.3, 8.7, 'projector pump', 'createImageBitmap per streamed surface — roughly 8 MB at 1080p — transferred to each projector window’s port. Gated at 33 ms, back-pressured by an inFlight set, and skipped when the source generation has not advanced for THIS port. — App.tsx'),
+        b('main', 8.7, 11.6, '3D scene rAF', 'The venue simulator: instanceColor writes for every LED, fixture bodies as one InstancedMesh, beam geometry. Costly enough that its budget turned out to be fill rate, not draw calls.'),
+        b('main', 11.6, 12.9, 'React + layout', 'Whatever the shell needs this frame, plus Chromium’s style, layout and paint on the same thread.'),
+        b('main', 12.9, 16.67, 'headroom', 'What is left of the 16.67 ms. Every surface, projector output, 3D fixture and timeline lane you add comes out of this.', 'wait'),
+        b('compute', 2.4, 3.2, 'LED compute pass', 'One WGSL invocation per LED at strict surface-local UVs. The output buffer is cleared each frame so unlinked LEDs go black.'),
+        b('compute', 3.2, 3.7, 'readback → next frame', 'copyBufferToBuffer into the staging ring, then mapAsync. Resolves after this frame — the pipeline is deliberately one frame deep.', 'ghost'),
+        b('gl', 8.9, 12.1, '3D scene draw', 'WebGL2 draw calls issued by the 3D rAF above. Hundreds of fixtures cost one draw call each for bodies and LEDs; beams cost fill rate.'),
+        b('gl', 12.1, 14.0, 'projector warp + present', 'Each projector window’s own context: warp mesh, edge blend, present.'),
+        b('dec', 5.2, 9.4, 'hardware decode', 'WebCodecs decodes MP4 on the GPU where the format allows — open() calls isConfigSupported() first, so an HEVC or 10-bit track declines cleanly and the <video> fallback takes over.'),
+        b('loop', 0.5, 0.85, 'frame → pushFrame', 'The packed frame arrives and is handed to the native engine: one memcpy into the slot plus a condvar notify. The Rust thread does the rest.'),
+        b('loop', 4.7, 5.5, 'Spout / NDI poll', 'Both receivers are drained by a 16 ms setInterval here, then copied across IPC into the renderer. Two live sources and a tablet remote all contend for this one loop.'),
+        b('loop', 9.2, 9.7, 'OSC in', 'External control plus the custom LiDAR blob protocol on port 10000, which arrives at 61 fps.'),
+        b('loop', 13.8, 14.3, 'HTTP + SSE', 'The show-control server: the tablet PWA’s transport, scene and state-machine traffic, and the scheduler tick.'),
+        b('pacer', 6.4, 7.3, 'build + sendto', 'Builds ArtDmx or sACN packets for every destination and writes them to the socket, paced independently of the renderer. Woken by the condvar, but it fires on its own clock either way.'),
+        b('serial', 10.2, 10.9, 'ENTTEC write', 'One writer thread per port behind a single-slot mailbox. If the widget is slow, the previous frame is overwritten and lost — correct, because DMX is a state protocol, not a stream.'),
+        b('uv', 0.4, 7.0, 'HAP decode job', 'A napi-rs AsyncTask on the libuv pool. Up to 3 in flight per source, FIFO across all sources.'),
+        b('uv', 3.1, 9.8, 'HAP decode job', 'A second decode running truly in parallel with the first — this row is the only place in the diagram where two blocks legitimately overlap in the same lane group.'),
+        b('audio', 0, 1.15, 'device callback', 'Ambisonic encode of every source, insert chains, then binaural or speaker-array decode.'),
+        b('audio', 5.6, 6.75, 'device callback', 'Driven by the audio device’s clock, not the frame loop. The bed rides the show clock; a scene recall does not touch it.'),
+        b('audio', 11.2, 12.35, 'device callback', 'Real-time constraints: no allocation, no locks, no file I/O — disk streaming is handed to the artlux-audio-read TimeSliceThread.'),
+      ],
+    },
+
+    interact: {
+      label: 'Operator interacting', window: 200, step: 50,
+      axis: 'window: 200 ms (a context switch — note the axis change)',
+      stats: [
+        ['frame p99', '168 ms', 'measured under UI load — and it was 155 ms BEFORE React’s cost went to zero'],
+        ['long frames', '47 / 240', 'the tail the Phase-0 work did not touch'],
+        ['output', '54.7 Hz', 'worst second 50 Hz, 141 packets/s throughout — the wire dips in rate but never stops'],
+      ],
+      blocks: [
+        b('main', 0, 8, 'frame', 'A normal frame, immediately before the operator acts.'),
+        b('main', 8, 96, 'context switch', 'Changing the whole workbench: the dock tree recompiles, panels mount and unmount, and the harness measured about 40 forced synchronous layouts per switch. Measured at 70–105 ms, once, for a real event a person asked for.'),
+        b('main', 96, 128, 'React commit + layout', 'The shell reconciles and Chromium re-lays-out on the same thread. Memoising this does not help — that was measured, twice.'),
+        b('main', 128, 141, 'catch-up frame', 'The frame engine finally gets the thread back. Everything queued behind the switch — composite, packing, the projector pump — happens now, at once.'),
+        b('main', 141, 154, 'frame', 'Back to normal cadence.'),
+        b('main', 154, 167, 'frame', 'Back to normal cadence.'),
+        b('main', 167, 180, 'frame', 'Back to normal cadence.'),
+        b('main', 180, 200, 'frame', 'Back to normal cadence.', 'wait'),
+        b('compute', 2, 6, 'pass', 'A compute pass, before the switch.'),
+        b('compute', 129, 134, 'pass', 'The GPU had nothing to do for ~120 ms — not because it was busy, but because nothing on the CPU got round to submitting work. The GPU is idle through the worst part of this trace.'),
+        b('compute', 142, 146, 'pass', 'Cadence restored.'),
+        b('compute', 168, 172, 'pass', 'Cadence restored.'),
+        b('gl', 8, 96, 'reflow → repaint', 'The 3D canvas and every panel that changed size are re-rastered. GPU work here is a consequence of the layout, not of the show.'),
+        b('loop', 20, 26, 'Spout / NDI poll', 'The main process is unaffected by the renderer’s stall — it keeps draining receivers on schedule. The frames it hands over simply queue up.'),
+        b('loop', 70, 76, 'Spout / NDI poll', 'Still on schedule. This is a different thread from the one that is struggling.'),
+        b('loop', 120, 126, 'Spout / NDI poll', 'Still on schedule.'),
+        b('loop', 170, 176, 'Spout / NDI poll', 'Still on schedule.'),
+        b('pacer', 5, 12, 'send', 'The pacer runs on its own 44 Hz clock.'),
+        b('pacer', 28, 35, 'send', 'Measured across three rounds of full context tours plus forced reflow: zero gaps over 100 ms, worst gap 68 ms.'),
+        b('pacer', 51, 58, 'send', 'Re-sending the last frame it was given, because the renderer has not produced a new one.'),
+        b('pacer', 74, 81, 'send', 'Re-sending the last frame it was given.'),
+        b('pacer', 97, 104, 'send', 'Re-sending the last frame it was given.'),
+        b('pacer', 120, 127, 'send', 'Re-sending the last frame it was given.'),
+        b('pacer', 143, 150, 'send', 'A fresh frame has arrived; back to live data.'),
+        b('pacer', 166, 173, 'send', 'A fresh frame has arrived; back to live data.'),
+        b('pacer', 189, 196, 'send', 'A fresh frame has arrived; back to live data.'),
+        b('audio', 0, 14, 'callback', 'Audio is on a real-time thread and does not care what the UI is doing.'),
+        b('audio', 28, 42, 'callback', 'Audio is on a real-time thread and does not care what the UI is doing.'),
+        b('audio', 56, 70, 'callback', 'Uninterrupted through the whole context switch.'),
+        b('audio', 84, 98, 'callback', 'Uninterrupted through the whole context switch.'),
+        b('audio', 112, 126, 'callback', 'Uninterrupted through the whole context switch.'),
+        b('audio', 140, 154, 'callback', 'Uninterrupted through the whole context switch.'),
+        b('audio', 168, 182, 'callback', 'Uninterrupted through the whole context switch.'),
+      ],
+    },
+
+    freeze: {
+      label: 'Main thread frozen', window: 1000, step: 200,
+      axis: 'window: 1000 ms (a deliberate 900 ms main-thread freeze — the measured drill)',
+      stats: [
+        ['packets during freeze', '178 / s', 'measured: 172 packets over 967 ms, against 226/s idle'],
+        ['worst inter-packet gap', '45 ms', 'the pacer re-sending the last frame — the wire never went quiet'],
+        ['what actually stopped', 'the picture', 'content stops advancing; the rig stays lit at its last state'],
+      ],
+      blocks: [
+        b('main', 0, 20, 'frame', 'The last normal frame before the stall.'),
+        b('main', 20, 920, 'BLOCKED — 900 ms', 'A synthetic long task holding the renderer main thread. Every rAF loop on it — frame engine, timeline, projector pump, 3D scene — stops together, because they are the same thread. This is the failure mode the worker phase exists to remove.', 'blocked'),
+        b('main', 920, 960, 'catch-up', 'The queue drains. Note that the app self-reported only 101 ms of blocking for this 900 ms freeze, and reported it 1.4 s late — the longtask gauge under-reports and lags, so 0 ms/s means no evidence of blocking, not no blocking.'),
+        b('main', 960, 1000, 'frame', 'Normal cadence resumes.'),
+        b('compute', 4, 14, 'pass', 'The last compute pass before the stall.'),
+        b('compute', 925, 935, 'pass', 'The GPU sat idle for 900 ms. Nothing was wrong with it — no one submitted any work.'),
+        b('compute', 965, 975, 'pass', 'Normal cadence resumes.'),
+        b('loop', 100, 118, 'poll + services', 'The main process is a different thread and a different process. It keeps polling receivers, serving the tablet and running the watchdog throughout.'),
+        b('loop', 300, 318, 'poll + services', 'The watchdog’s 1 Hz health tick is here, and it is what notices a renderer that has stopped reporting.'),
+        b('loop', 500, 518, 'poll + services', 'Unaffected.'),
+        b('loop', 700, 718, 'poll + services', 'Unaffected.'),
+        b('loop', 900, 918, 'poll + services', 'Unaffected.'),
+        b('pacer', 30, 48, 'send', 'Live frame.'),
+        b('pacer', 130, 148, 'keep-alive', 'No new frame has arrived, so the last one is re-sent. Measured worst gap across the whole freeze: 45 ms.'),
+        b('pacer', 250, 268, 'keep-alive', 'The rig holds its last state rather than going dark. This is the single most important property in the diagram.'),
+        b('pacer', 370, 388, 'keep-alive', 'Still sending.'),
+        b('pacer', 490, 508, 'keep-alive', 'Still sending.'),
+        b('pacer', 610, 628, 'keep-alive', 'Still sending.'),
+        b('pacer', 730, 748, 'keep-alive', 'Still sending.'),
+        b('pacer', 850, 868, 'keep-alive', 'Still sending.'),
+        b('pacer', 940, 958, 'send', 'Live data again.'),
+        b('serial', 200, 216, 'ENTTEC write', 'Its own thread, its own 40 Hz clock, its own mailbox.'),
+        b('serial', 450, 466, 'ENTTEC write', 'Unaffected by the renderer.'),
+        b('serial', 700, 716, 'ENTTEC write', 'Unaffected by the renderer.'),
+        b('serial', 950, 966, 'ENTTEC write', 'Unaffected by the renderer.'),
+        b('uv', 60, 340, 'HAP decode job', 'Decode jobs already queued keep running on the pool — but nothing on the frozen thread is there to consume the results.'),
+        b('uv', 380, 660, 'HAP decode job', 'Decoding into a ring nobody is reading. Work done, frames wasted.'),
+        b('audio', 0, 70, 'callback', 'Sound continues perfectly through all of it.'),
+        b('audio', 140, 210, 'callback', 'Sound continues perfectly through all of it.'),
+        b('audio', 280, 350, 'callback', 'The audio thread is real-time and entirely independent.'),
+        b('audio', 420, 490, 'callback', 'The audio thread is real-time and entirely independent.'),
+        b('audio', 560, 630, 'callback', 'The audio thread is real-time and entirely independent.'),
+        b('audio', 700, 770, 'callback', 'The audio thread is real-time and entirely independent.'),
+        b('audio', 840, 910, 'callback', 'The audio thread is real-time and entirely independent.'),
+        b('audio', 950, 1000, 'callback', 'The audio thread is real-time and entirely independent.'),
+      ],
+    },
+  };
+
+  const traceEl = document.getElementById('trace');
+  const inspEl = document.getElementById('inspector');
+  const statsEl = document.getElementById('scnStats');
+  const winEl = document.getElementById('windowLabel');
+  const fmt = n => (n >= 100 ? String(Math.round(n)) : n.toFixed(n % 1 ? 1 : 0));
+
+  function render(key) {
+    const scn = SCENARIOS[key];
+    traceEl.textContent = '';
+    winEl.textContent = scn.axis;
+
+    // Axis
+    const axis = document.createElement('div');
+    axis.className = 'axis';
+    const al = document.createElement('div');
+    al.className = 'axis-label';
+    al.textContent = 'time → ms';
+    const at = document.createElement('div');
+    at.className = 'axis-track';
+    for (let t = 0; t <= scn.window + 0.001; t += scn.step) {
+      const tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.style.left = (t / scn.window * 100) + '%';
+      tick.textContent = fmt(t);
+      at.appendChild(tick);
+    }
+    axis.append(al, at);
+    traceEl.appendChild(axis);
+
+    for (const g of GROUPS) {
+      const grp = document.createElement('div');
+      grp.className = 'grp';
+      grp.style.setProperty('--hue', g.hue);
+      grp.style.setProperty('--on-hue', g.on);
+
+      const hd = document.createElement('div');
+      hd.className = 'grp-hd';
+      const nm = document.createElement('div');
+      nm.className = 'grp-name';
+      const sw = document.createElement('i');
+      sw.className = 'swatch';
+      nm.append(sw, document.createTextNode(g.name));
+      const nt = document.createElement('div');
+      nt.className = 'grp-note';
+      nt.textContent = g.note;
+      hd.append(nm, nt);
+      grp.appendChild(hd);
+
+      for (const lane of g.lanes) {
+        const row = document.createElement('div');
+        row.className = 'lane' + (lane.tall ? ' tall' : '');
+        const nameEl = document.createElement('div');
+        nameEl.className = 'lane-name';
+        const bEl = document.createElement('b');
+        bEl.textContent = lane.title;
+        nameEl.append(bEl, document.createTextNode(lane.sub));
+        const track = document.createElement('div');
+        track.className = 'track';
+
+        for (const blk of scn.blocks) {
+          if (blk.lane !== lane.id) continue;
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'blk';
+          el.dataset.kind = blk.kind;
+          el.style.left = (blk.t0 / scn.window * 100) + '%';
+          el.style.width = Math.max(0.35, (blk.t1 - blk.t0) / scn.window * 100) + '%';
+          el.textContent = blk.label;
+          el.setAttribute('aria-label',
+            g.name + ' — ' + blk.label + ', ' + fmt(blk.t0) + ' to ' + fmt(blk.t1) + ' ms');
+          const show = () => {
+            inspEl.style.setProperty('--hue', blk.kind === 'blocked' ? 'var(--st-critical)' : g.hue);
+            inspEl.children[1].children[0].textContent = blk.label;
+            inspEl.children[1].children[1].textContent =
+              g.name + '  ·  ' + lane.title + '  ·  ' +
+              fmt(blk.t0) + '–' + fmt(blk.t1) + ' ms  (' + fmt(blk.t1 - blk.t0) + ' ms)';
+            inspEl.children[1].children[2].textContent = blk.detail;
+          };
+          el.addEventListener('mouseenter', show);
+          el.addEventListener('focus', show);
+          track.appendChild(el);
+        }
+
+        if (lane.tall) {
+          const sweep = document.createElement('div');
+          sweep.className = 'sweeper';
+          sweep.appendChild(document.createElement('i'));
+          track.appendChild(sweep);
+        }
+
+        row.append(nameEl, track);
+        grp.appendChild(row);
+      }
+      traceEl.appendChild(grp);
+    }
+
+    // Scenario readouts
+    statsEl.textContent = '';
+    for (const [k, v, n] of scn.stats) {
+      const s = document.createElement('div');
+      s.className = 'stat';
+      const kk = document.createElement('div'); kk.className = 'k'; kk.textContent = k;
+      const vv = document.createElement('div'); vv.className = 'v'; vv.textContent = v;
+      const nn = document.createElement('div'); nn.className = 'n'; nn.textContent = n;
+      s.append(kk, vv, nn);
+      statsEl.appendChild(s);
+    }
+  }
+
+  document.querySelectorAll('.scn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.scn').forEach(o => o.setAttribute('aria-pressed', String(o === btn)));
+      render(btn.dataset.scn);
+    });
+  });
+
+  render('show');
+})();
+</script>
