@@ -27,7 +27,7 @@ import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { MenuBar } from './components/MenuBar';
 import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
-import { WorkspaceShell } from './components/shell/WorkspaceShell';
+import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
@@ -3836,10 +3836,14 @@ const App: React.FC = () => {
             ?? 'Map content onto surfaces, then patch fixtures. Open the 3D Scene for venue layout.'}
           lang={settings.helpLang}
           connected={isBridgeConnected}
+          // Column toggles only on the fallback shell. `showLeft`/`showRight` are read by the
+          // hand-built branch of WorkspaceShell and by NOTHING else, so under docking (the default)
+          // these buttons flipped a flag, lit up, and left the screen exactly as it was. Passing no
+          // handler removes them; the dock tree's own group chevrons are the real control there.
           leftOpen={showLeftPanel}
-          onToggleLeft={() => setShowLeftPanel(!showLeftPanel)}
+          onToggleLeft={isDockingOn(L) ? undefined : () => setShowLeftPanel(!showLeftPanel)}
           rightOpen={showRightPanel}
-          onToggleRight={() => setShowRightPanel(!showRightPanel)}
+          onToggleRight={isDockingOn(L) ? undefined : () => setShowRightPanel(!showRightPanel)}
           targetIp={settings.artNetIp}
           stateMachine={stateMachine}
       />

@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
 import { contextRegistry, panelRegistry, appliesToSelection } from '../../host/registries';
-import { layoutStore, DEFAULT_LAYOUT } from '../../services/layoutStore';
+import { layoutStore, DEFAULT_LAYOUT, type WorkspaceLayout } from '../../services/layoutStore';
 import { keymap } from '../../shortcuts/keymapStore';
 import { formatChord } from '../../shortcuts/chord';
 import { useLayout } from '../../hooks/useLayout';
@@ -54,6 +54,15 @@ export const SCENE_3D_VIEWPORT = 'core.viewport.scene3d';
 const DOCKING_FORCED_OFF: boolean = (() => {
   try { return localStorage.getItem('artlux.docking') === '0'; } catch { return false; }
 })();
+
+/**
+ * Is the DOCKABLE path the one that renders? Exported because `showLeft`/`showRight` are read by the
+ * hand-built branch below and by nothing else: under docking a column exists because the dock tree
+ * says so, and the two flags are inert. Anything that drives them (the status bar's column toggles)
+ * has to ask this first, or it ships a control that lights up and moves nothing.
+ */
+export const isDockingOn = (layout: WorkspaceLayout): boolean =>
+  !layout.dockingOff && !DOCKING_FORCED_OFF && PERSISTENT_LAYER_ENABLED;
 
 // Height of the bottom drawer's title strip — its height when closed. Matches the Dock's collapsed
 // bar closely enough to read as the same kind of thing.
@@ -161,7 +170,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
   // Dockable unless someone turned it off: the operator in Preferences (`dockingOff`), or this
   // machine (`localStorage['artlux.docking'] = '0'`). Both paths ship for one release, so a
   // regression found in a venue is one toggle away from the shell that was there before.
-  const docking = !layout.dockingOff && !DOCKING_FORCED_OFF && PERSISTENT_LAYER_ENABLED;
+  const docking = isDockingOn(layout);
   const dockTree = React.useMemo(() => {
     if (!docking || !context) return null;
     // ensureTree is the single door: sanitize what was saved, else compile the shipped arrangement from

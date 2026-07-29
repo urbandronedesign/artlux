@@ -1564,6 +1564,37 @@ check(
   },
 );
 
+// ── Shell: a fallback-only control never renders under docking ────────────────────────────────
+check(
+  'the status bar\'s column toggles are fallback-shell only',
+  'showLeft/showRight are read by the hand-built branch of WorkspaceShell and by NOTHING else — ' +
+  'under docking a browser or inspector column exists because the dock tree has one, and each dock ' +
+  'group carries its own collapse chevron. The two StatusBar buttons kept flipping those flags, ' +
+  'persisting them, banking them per context and recolouring themselves to match, while the screen ' +
+  'did not move. Docking is ON BY DEFAULT, so that was every operator: a control that answers but ' +
+  'does nothing is read as the app being broken, not as the button being obsolete. App must gate ' +
+  'them on isDockingOn(), and StatusBar must render each one only when it has a handler.',
+  () => {
+    const A = 'src/renderer/App.tsx';
+    const B = 'src/renderer/components/StatusBar.tsx';
+    const S = 'src/renderer/components/shell/WorkspaceShell.tsx';
+    const problems = [];
+    if (!/export const isDockingOn/.test(read(S)))
+      problems.push(`${S} no longer exports isDockingOn() — the one place that decides which shell renders`);
+    const app = read(A);
+    for (const side of ['Left', 'Right']) {
+      if (!new RegExp(`onToggle${side}=\\{isDockingOn\\(`).test(app))
+        problems.push(`${A} passes onToggle${side} unconditionally — the button is dead under docking`);
+    }
+    const bar = read(B);
+    for (const side of ['Left', 'Right']) {
+      if (!new RegExp(`\\{onToggle${side} &&`).test(bar))
+        problems.push(`${B} renders the ${side.toLowerCase()} column toggle unconditionally`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Fixtures: a LIGHT is one emitter — ledCount stays pinned to 1 ─────────────────────────────
 check(
   'a light fixture\'s ledCount is pinned on the update funnel',

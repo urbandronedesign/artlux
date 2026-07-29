@@ -18,10 +18,15 @@ interface Props {
   // renderFps + outputStats are deliberately NOT props: they tick once a second, and taking them from
   // App made every App render (and therefore every panel, viewport and the 3D scene) rebuild twice a
   // second at idle. They are read from services/telemetry below, so only this bar re-renders for them.
-  leftOpen: boolean;
-  onToggleLeft: () => void;
-  rightOpen: boolean;
-  onToggleRight: () => void;
+  // The two column toggles are FALLBACK-SHELL ONLY, and they are rendered only when a handler is
+  // passed. Under the dockable workspace (the default) `showLeft`/`showRight` are read by nothing:
+  // a browser or inspector column exists because the dock tree has one, and each dock group carries
+  // its own collapse chevron. The buttons kept flipping the flags, recolouring themselves and moving
+  // nothing — a control that answers is worse than no control. App passes them only with docking off.
+  leftOpen?: boolean;
+  onToggleLeft?: () => void;
+  rightOpen?: boolean;
+  onToggleRight?: () => void;
   targetIp: string;
   stateMachine: StateMachine; // project-level show machine — current state + elapsed readout
 }
@@ -100,28 +105,32 @@ export const StatusBar: React.FC<Props> = ({ help, lang, connected, leftOpen, on
   return (
   <div className="h-7 shrink-0 bg-surface-1 border-t border-line-1 flex items-center justify-between px-3 text-xs text-fg-2 select-none">
     <div className="flex items-center gap-3 min-w-0">
-      <Tooltip id="general.toggle-left-panel">
-        <button
-          onClick={onToggleLeft}
-          title="Toggle left panel"
-          aria-label="Toggle left panel"
-          className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
-          {...helpTip('general.toggle-left-panel')}
-        >
-          <PanelLeft size={13} />
-        </button>
-      </Tooltip>
-      <Tooltip id="general.toggle-right-panel">
-        <button
-          onClick={onToggleRight}
-          title="Toggle right panel"
-          aria-label="Toggle right panel"
-          className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
-          {...helpTip('general.toggle-right-panel')}
-        >
-          <PanelRight size={13} />
-        </button>
-      </Tooltip>
+      {onToggleLeft && (
+        <Tooltip id="general.toggle-left-panel">
+          <button
+            onClick={onToggleLeft}
+            title="Toggle left panel"
+            aria-label="Toggle left panel"
+            className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
+            {...helpTip('general.toggle-left-panel')}
+          >
+            <PanelLeft size={13} />
+          </button>
+        </Tooltip>
+      )}
+      {onToggleRight && (
+        <Tooltip id="general.toggle-right-panel">
+          <button
+            onClick={onToggleRight}
+            title="Toggle right panel"
+            aria-label="Toggle right panel"
+            className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
+            {...helpTip('general.toggle-right-panel')}
+          >
+            <PanelRight size={13} />
+          </button>
+        </Tooltip>
+      )}
       <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ? hint[lang] : help}</span>
     </div>
 
