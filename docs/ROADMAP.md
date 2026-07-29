@@ -346,6 +346,19 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
 
 ### Near-term (prioritized)
 
+> ### ⛔ 0. Usage documentation — a GATE, not a queue position (set 2026-07-29)
+> **No net-new feature starts until the usage documentation is current.** In this list that holds **item 3
+> (MIDI control)**, the one net-new capability left; hardening items are unaffected.
+> Plan: [`plans/documentation-wiki.md`](../plans/documentation-wiki.md) · gate conditions:
+> [`plans/SEQUENCING.md`](../plans/SEQUENCING.md) ▸ *The documentation gate*.
+>
+> The audit behind it found the usage corpus is **~4 300 lines** (`docs/user-guide/` + `examples/**/tuto/`)
+> plus 226 in-app help entries — while ~18 of the 41 files in `docs/` are *"architecture **&** usage"*
+> hybrids whose operator half was never extracted. It also found three live defects: chapter 15 documents
+> the **static** shortcut list that `SHORTCUTS.md` says was replaced; `build-docs-html.cjs` silently drops
+> two chapters via a dead page name; and the in-app Docs Browser ships `ARCHITECTURE`/`DEVELOPMENT`/
+> `PLUGINS`/`SDK` to venue techs while having **no search at all**.
+
 1. **Renderer error containment** — *hardening, highest operational value.* Today the watchdog is blind to
    a white screen: a first-render throw means the heartbeat never fires, so an unattended venue install can
    sit dead until someone drives out. Plan: [`plans/renderer-error-containment.md`](../plans/renderer-error-containment.md).
@@ -353,6 +366,7 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
    pushes machine-made history onto an **uncapped** stack. Plan: [`plans/timeline-undo.md`](../plans/timeline-undo.md).
 3. **MIDI control** — a new `plugins/midi` (control surface → cue/transport/state-machine). Net-new
    capability, not started. Plan: [`plans/midi-control.md`](../plans/midi-control.md).
+   ⛔ **Held by the documentation gate above** — being net-new is exactly what holds it.
 4. **Projector polish** (the sampling/blend cluster):
    - **WebGL strict per-surface sampling — Phase 2** (Phase 1 shipped: force-WebGL + banner; Phase 2 was
      deferred pending a decision — [`plans/webgl-strict-per-surface-sampling.md`](../plans/webgl-strict-per-surface-sampling.md));

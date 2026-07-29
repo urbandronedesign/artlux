@@ -57,6 +57,29 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | Build log (chronological) | [docs/PROGRESS.md](docs/PROGRESS.md), [CHANGELOG.md](CHANGELOG.md) |
 | Historical / superseded docs | [docs/archive/](docs/archive/) (pre-Electron `ARCHITECTURE_PLAN`, `UI_REFACTOR`, audio acceptance/plans) |
 
+## ⛔ THE DOCUMENTATION GATE — read before starting any net-new feature
+
+**No net-new feature starts until the usage documentation is current** (owner's rule, 2026-07-29). If you
+are asked to build something net-new, say the gate holds it and point at
+[plans/documentation-wiki.md](plans/documentation-wiki.md); the five conditions that open it are in
+[plans/SEQUENCING.md](plans/SEQUENCING.md) ▸ *The documentation gate*. First thing held:
+[plans/midi-control.md](plans/midi-control.md). **Not gated:** bug fixes, hardening, and rework of
+something already shipped *and* already documented.
+
+**Scope is USAGE only.** Engine internals, the SDK, build/release and `plans/` stay repo-only and never
+enter the operator-facing docs. The real usage corpus is small — `docs/user-guide/` + `examples/**/tuto/`
+(~4 300 lines) plus the 226 in-app help entries — but **~18 of the 41 `docs/*.md` are "architecture *&*
+usage" hybrids whose operator half was never extracted.** That extraction is the work, not tooling.
+
+**Why it is a gate and not a backlog item:** docs written after a feature don't get written here. Wave 3's
+gate 2 (*"It is documented"*) was ticked ✅ and then silently re-broken by `473d259`. Three defects live in
+the tree right now — guide chapter 15 documents the *static* shortcut list `SHORTCUTS.md` says was replaced;
+`scripts/build-docs-html.cjs`'s hand-kept `PAGES` ends at a file that no longer exists, silently dropping
+two chapters; and `src/main/docs.ts` ships ARCHITECTURE/DEVELOPMENT/PLUGINS/SDK to venue techs while the
+in-app Docs Browser has **no search at all**. So the gate is machine-checked (a `verify-docs.cjs` in
+`npm run verify`), not a tick in a table. **When you touch a documented behaviour, update its usage page in
+the same commit.**
+
 ## Commands & the working loop
 
 ```bash

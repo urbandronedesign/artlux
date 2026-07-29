@@ -190,6 +190,51 @@ test). Only the wave-independent ones are written ahead.
 | Wiring Rescue · Hello Projector · Patch & Prove (autopatch) | Wave 2 | fixture-segments · content-source + projector-blend · autopatch |
 | Audio tutorial · Motion-Graphics audio chapter | Wave 3 | the audio subsystem |
 
+## ⛔ THE DOCUMENTATION GATE — usage docs are current *before* the next net-new feature
+
+**Rule (set 2026-07-29, owner's call): no net-new feature starts until the usage documentation is caught
+up.** Concretely this gates **[`feat-midi-control`](midi-control.md)** — the one still-active net-new plan
+— and any net-new work queued behind it. It does **not** gate bug fixes, hardening, or a rework of
+something already shipped and already documented.
+
+Plan: **[documentation-wiki.md](documentation-wiki.md)** (audit + phases + the options that were rejected).
+
+**Why a gate and not a backlog item.** Docs written *after* the feature are docs written against a shipped
+UI by someone who no longer remembers which parts were confusing — and this repo has now proven three times
+that they simply do not get written at all:
+
+- **`15-keyboard-reference.md` documents a system that changed.** Shortcuts became rebindable
+  (`docs/SHORTCUTS.md`: *"This replaced the old static list"*), and **0 of 15 guide chapters** mention
+  rebinding or *Preferences ▸ Edit shortcuts…*.
+- **`scripts/build-docs-html.cjs`'s hand-kept `PAGES` list ends at `'13-keyboard-reference.md'`, a file that
+  no longer exists** — so the built guide silently drops **Tracking** and **Show / state machine** entirely.
+  The file's own comment predicted exactly this failure and it happened anyway.
+- **The in-app Docs Browser ships developer docs to venue techs** — `src/main/docs.ts`'s curated
+  `REFERENCE_PAGES` correctly excluded PROGRESS/ROADMAP/UI-UX-AUDIT, then let `ARCHITECTURE.md`,
+  `DEVELOPMENT.md`, `PLUGINS.md` and `SDK.md` through.
+
+This is the same failure mode as **Wave 3's gate 2** (*"It is documented"*), which was marked ✅, then
+**silently re-broken by `473d259`**, and only caught by the merge review. A gate whose subject is *"the docs
+are true"* cannot be closed once and left — so this one has a machine check behind it (Phase 0 below), not a
+tick in a table.
+
+**What must be true to open the gate:**
+
+| # | Condition | Where |
+|---|---|---|
+| **1** | `npm run verify` fails on a doc that is unlisted, dead-linked, or untagged; `docs/manifest.json` replaces the six hand-kept indexes | Phase 0 |
+| **2** | The four developer pages are out of the operator's in-app sidebar | Phase 0 |
+| **3** | Chapter 15 documents rebinding | Phase 0 |
+| **4** | The in-app Docs Browser has search, merged with the F1 help modal's 226 entries | Phase 1 |
+| **5** | The usage half of the high-value hybrid docs is extracted into guide chapters — **TIMELINE, AUDIO, STATE-MACHINE, OUTPUTS, CALIBRATION, LIGHTING-SHOW, FIXTURE-LIBRARY, SHOW-CONTROL, OSC** — plus the three missing chapters (moving lights, install/Launcher, unattended operation) | Phase 2 |
+
+Phases 0–1 are ~1.5 days and unblock nothing else; **Phase 2 is 3–5 days of writing and is the gate's real
+cost.** Two owner decisions are open in §7 of the plan (the stale screenshots, and whether French is a goal)
+— the screenshot call is the one that can move Phase 2's size.
+
+> ⚠ **The public site (Phase 3) is NOT part of this gate.** It is a separate, optional target; shipping it
+> is not what makes the documentation current, and holding a feature for a website would be theatre.
+
 ## ⛔ THE WAVE 3 MERGE GATE — what must be true before `wave-3-audio` → `main`
 
 Wave 3 is the largest wave to date and the only one that adds a **non-Rust native module**. It is fully
@@ -228,7 +273,10 @@ else is on the critical path; everything else is post-merge.
 2. The two loose bugs above, and the webgl-strict Phase 2 decision.
 3. **[Transport prev/next edit point](transport-edit-point-navigation.md)** (`feat-transport-skip`) — half a day,
    🟢 low. (No longer blocked — `wave-3-audio` has merged, so `TimelineToolbar.tsx` is free.)
-5. **MIDI control** (independent, parallel-safe at any point).
+4. **[Usage documentation](documentation-wiki.md)** (`docs-usage-wiki`) — parallel-safe with everything above,
+   and **⛔ a hard gate on item 5**. See *The documentation gate*.
+5. **MIDI control** — ⛔ **held until item 4's Phases 0–2 are done** (it is the next net-new feature).
+   Otherwise independent and parallel-safe.
 
 ## Verification gate (what "done, ready to test" means, per wave)
 
@@ -266,7 +314,8 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
 | 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☐ not started (Drafts — both plans written 2026-07-12, surfaced by Wave B's adversarial review). **`timeline-undo` first** (the last-good-document edge). Highest-value single item in the whole backlog for an unattended install: **the watchdog cannot see a white screen.** |
 | — | `feat-transport-skip` | transport-edit-point-navigation | ☐ not started (Draft — plan written 2026-07-13). The `⏮`/`⏭` buttons were **in the Wave A sketch and never entered the Wave A plan**; the capability (prev/next edit point) does not exist at all. Held until `wave-3-audio` merges — same file. |
-| — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written) |
+| — | `docs-usage-wiki` | [documentation-wiki](documentation-wiki.md) — **⛔ gates every net-new feature** | ☐ not started (Planned 2026-07-29). Phase 0 (manifest + `verify-docs.cjs` + the three defects) → Phase 1 (in-app search, merged with the F1 modal) → **Phase 2, the real cost: extract the usage half of 9 hybrid docs + 3 missing chapters**. Phase 3 (public Starlight site) is optional and **not** part of the gate. Parallel-safe with any hardening work. |
+| — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written). ⛔ **HELD by the documentation gate** — it is the next *net-new* feature, so it starts once Phases 0–2 above are done. |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
 *Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. As of
