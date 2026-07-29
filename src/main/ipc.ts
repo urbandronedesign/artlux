@@ -1,7 +1,7 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand, type RendererFault } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
@@ -45,6 +45,19 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.RENDER_STATS, (_e, stats: metrics.RenderTimingStats) => {
         metrics.updateRenderStats(stats);
         watchdog.noteRenderStats(stats); // heartbeat: renderer frame loop alive (render-stall detector)
+    });
+
+    // An uncaught renderer error — the white screen. See services/faultReporter.ts for why nothing
+    // else in the watchdog can see this.
+    //
+    // SENDER IDENTITY IS LOAD-BEARING. A projector or docs window shares this preload and this
+    // channel; a throw in one of those must be AUDITED but must never relaunch the show, and must
+    // never be logged as the main window's. (cf. the WINDOW_COMMAND handler below, which resolved
+    // getWindow() regardless of sender until this wave — that is how the docs window's close button
+    // came to close the editor.)
+    ipcMain.on(IPC.RENDERER_FAULT, (e, fault: RendererFault) => {
+        const from = BrowserWindow.fromWebContents(e.sender) === getWindow() ? 'main' : 'aux';
+        watchdog.noteRendererFault(fault, from);
     });
 
     // ---- Unattended watchdog (self-healing; Tier-1 lives in ./watchdog, armed in index.ts) ----
@@ -170,8 +183,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     });
 
     // ---- Custom title bar: window controls + menu roles (frameless window) ----
-    ipcMain.on(IPC.WINDOW_COMMAND, (_e, cmd: WindowCommand) => {
-        const win = getWindow();
+    ipcMain.on(IPC.WINDOW_COMMAND, (e, cmd: WindowCommand) => {
+        // Act on the window that ASKED, not on the main window. This handler used to resolve
+        // getWindow() unconditionally, so the detached Docs window's close button (docs.tsx) closed
+        // the EDITOR — and the crash-recovery ladder now rides this same channel, which is not a
+        // place to keep a sender-blind handler. Fall back to the main window for a sender we cannot
+        // resolve, which is the old behaviour for the only caller that ever relied on it.
+        const win = BrowserWindow.fromWebContents(e.sender) ?? getWindow();
         if (!win) return;
         const wc = win.webContents;
         switch (cmd) {

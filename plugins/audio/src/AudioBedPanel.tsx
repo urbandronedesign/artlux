@@ -780,8 +780,9 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const seekLockTitle = 'Scrub Global to move the bed — a seek inside a scene does not move the show clock.';
   // ⚠ vec3, NOT the raw field. `!!spatial` gates the whole positioner block below, and `spatial.y` feeds a
   // Fader whose readout is `v.toFixed(1)` — so a `"spatial": true` or a y-less `{"x":0,"z":1}` loaded clean,
-  // passed the truthy gate, and threw `undefined.toFixed` IN RENDER the moment the clip was SELECTED. No
-  // ErrorBoundary sits above a plugin panel: that is a white-screened Audio Bed, mid-show, from a click.
+  // passed the truthy gate, and threw `undefined.toFixed` IN RENDER the moment the clip was SELECTED. The
+  // host wraps every plugin render site now, so that costs the Audio Bed and not the editor — but losing
+  // the bed's controls mid-show, from a click, is still the bug. Coerce.
   // (`padX ?? 0` did not save it either — `??` does not catch a present-but-non-numeric `"0"`.)
   const spatial = vec3(selClip?.spatial);
   const padX = padDraft?.x ?? spatial?.x ?? 0;

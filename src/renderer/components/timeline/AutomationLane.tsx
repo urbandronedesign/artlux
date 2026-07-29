@@ -105,9 +105,12 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   // silently discard the user's curve — and simply re-renders through the "target missing" branch below.
   //
   // With the memo sitting after that early return, THAT render called one FEWER HOOK than the last one,
-  // and React throws `Rendered fewer hooks than expected` — IN RENDER. There is no ErrorBoundary anywhere
-  // in this renderer, so React 19 unmounts the tree: white screen, black projector, silent room, from
-  // deleting a clip. Hoisting the hooks makes the hook count constant across both branches.
+  // and React throws `Rendered fewer hooks than expected` — IN RENDER, from deleting a clip. Hoisting
+  // the hooks makes the hook count constant across both branches.
+  //
+  // (There ARE boundaries now — this lane's panel is wrapped, and the fault reaches the watchdog — so
+  // the blast radius is a recovery card rather than the whole editor. Containment is not a licence to
+  // stop hoisting: the shipped symptom was the timeline dying while an operator was cutting to it.)
   const min = def?.min ?? 0;
   const max = def?.max ?? 1;
   const log = def?.log ?? false;
@@ -145,7 +148,8 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   //
   // ⚠ THESE HOOKS SIT **ABOVE** THE `!def` BAIL, for the reason spelled out below it: `def` goes
   // defined → undefined under a mounted lane in ordinary use, and a render that calls fewer hooks than
-  // the last one throws in render — with no ErrorBoundary in this renderer, that is a white screen.
+  // the last one throws in render — which now costs the timeline panel, not the whole app, but still
+  // costs it mid-cut.
   const liveRef = useRef<HTMLDivElement>(null);
   // Refs, not closure captures: the subscription is made once and must see TODAY's keyframes (the DRAFT
   // while a key is being dragged), today's axis, and today's clock.

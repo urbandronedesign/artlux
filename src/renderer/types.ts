@@ -1224,8 +1224,9 @@ export const normalizeAudioMix = (a: Partial<AudioMix> | null | undefined): Audi
 // junk container straight through to:
 //   · StateLane.tsx:24-25 — `sm.transitions.filter(t => … t.trigger.kind …)`, in a lane that is rendered
 //     UNCONDITIONALLY (Timeline.tsx, "always-present state-machine control lane"). `.filter is not a
-//     function` IN RENDER, and there is no ErrorBoundary in this renderer — React 19 unmounts the tree:
-//     WHITE SCREEN ON LOAD, black projector, silent room, with nothing opened and nobody in the venue.
+//     function` IN RENDER, on the ordinary boot path, with nothing opened and nobody in the venue. The
+//     root boundary contains that now (and reports it, so an unattended install relaunches instead of
+//     sitting dead and silent) — but a contained load-path throw is still a show that did not start.
 //   · services/stateMachine.ts:156 — `for (const tr of sm.transitions)`. tick()'s re-init branch RETURNS
 //     BEFORE that loop, so the initial recall SUCCEEDS and only subsequent frames throw — into the
 //     try/catch at services/timeline.ts's fsm.tick call. Net: the machine enters state 1, recalls scene 1,
@@ -1680,14 +1681,15 @@ export const defaultCueBank = (id: string, name = 'Bank 1'): CueBank => ({
 // `Scene.audio` is the one Scene field with no normalizer in front of it: applyProjectData loads scenes
 // with a spread (`{ ...s, accent, timeline }`), so whatever a hand-edited .artlux carries here reaches the
 // recall path verbatim. And a `for…of` over a non-iterable ({} , 7, "x") THROWS — inside handleRecallScene,
-// i.e. inside a GO, with no ErrorBoundary above it: a black show from a stray brace. Coerce, do not drop.
+// i.e. inside a GO — OUTSIDE render, where no boundary can help: a black show from a stray brace, and the
+// containment layer never sees it. Coerce, do not drop.
 //
 // ⚠ THE ARRAY GUARD IS NOT ENOUGH — A BAD *ELEMENT* IS THE SAME BLACK SHOW. Every consumer's first act is to
 // dereference `e.path`: applyAudioEntries' `isFadeablePath(e.path)` (→ `path.split`) inside a GO, and the ♪
 // inspector's `labelForPath(e.path)` / `isFadeablePath(e.path)` inside a RENDER. So `[null]`, `[{value:1}]`
 // and `[{path:7}]` each throw — one on the next GO, one the moment the operator opens the list. React 19
-// unmounts the tree on a throw in render and there is no ErrorBoundary above either: white screen, black
-// projector, silent bed. Filter the ELEMENTS, not just the container: an entry needs an object shape and a
+// The GO one is outside render, where no boundary reaches; the RENDER one costs the inspector's panel.
+// Either way the bed goes silent. Filter the ELEMENTS, not just the container: an entry needs an object shape and a
 // string `path` to be addressable at all. (`value` is left to the consumer — applyAudioEntries wants a
 // number, the inspector will happily display and re-type anything.)
 //
@@ -1715,8 +1717,8 @@ export const sceneAudioEntries = (s: Scene | null | undefined): CueEntry[] => cu
 // document data with no normalizer in front of it", and left the list's OWNER unguarded. Same doctrine,
 // one level up.
 //
-//   · IN RENDER (a throw here = React 19 unmounts the tree = WHITE SCREEN ON LOAD; there is no
-//     ErrorBoundary in this renderer): App's OWN render does `cueBanks.flatMap(b => b.cues.map(...))` to
+//   · IN RENDER (a throw here unmounts the tree — contained by the ROOT boundary only, since nothing
+//     inside App can catch App's own render body): App's OWN render does `cueBanks.flatMap(b => b.cues.map(...))` to
 //     build the timeline's cue list — that is NOT gated on a dock tab, it runs on the ordinary boot path.
 //     CueBankPanel then does `Math.max(bank.cols, ...bank.cues.map(c => c.col + 2), ...)` — its `if
 //     (!bank)` bail catches a MISSING bank, never a bank whose `cues` is `{"0":…}`.

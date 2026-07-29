@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+### The watchdog can see a white screen
+
+An unattended install had one way to die completely quietly. A single bad value in a project file can
+make the interface throw while it is drawing; when that happens the whole UI unmounts and the window
+goes blank — but the process **stays alive, stays responsive, and keeps its event loop turning.** Every
+detector the watchdog had was looking for something that *stopped*, and nothing had. The output
+engine's keep-alive kept re-transmitting, so the rig held its last look and the wire looked busy. The
+projectors were the same lie: a video output froze on its final frame, while a generative one carried
+on animating off its own clock and looked perfectly healthy.
+
+So the venue showed a plausible picture, nothing alarmed, and nobody found out until the client called.
+The one detector that *could* have seen it — the render-loop heartbeat — was armed only once the
+interface had run at least one frame, which meant **a project that crashed while opening was never
+detected at all.** Dead, silent, and invisible to every tier, indefinitely.
+
+Three changes, each covering the others' blind spot:
+
+- **The UI reports its own crashes** to the process that can do something about it. Every window
+  reports; every fault is written to the watchdog's audit log — **including with the watchdog switched
+  off**, which is how an editor install gets a record too. Armed broadcast installs relaunch.
+- **A UI that never appears is now a fault.** The stall clock starts when the window finishes loading,
+  not when the first frame arrives, so a project that crashes on load is treated like one that froze.
+  Cold starts get a longer allowance than mid-show stalls, so a slow venue is not relaunched for being
+  slow. This works even if the crash-reporting path is itself what broke.
+- **Projectors stop lying.** If the main window goes quiet for ~5 s, each output goes black and re-shows
+  its "Waiting for the main window…" caption. ⚠ **A venue unknowingly running on a frozen frame will
+  now visibly go dark** — that is the fault becoming legible, not a new one.
+
+Crash-on-load still ends with the circuit breaker tripping and the install down. The difference is that
+it is now a dark install that **alarmed, wrote an audit trail, and reads `breaker tripped`** in
+Preferences and on the tablet.
+
+**And an operator gets a way out instead of a relaunch.** A crash that takes the whole interface now
+shows a recovery screen rather than a blank window. If the *same project* fails to open **twice**, the
+app offers **Start in Safe Mode**: it opens empty, with the default layout, and **does not reopen the
+last project** — the autoload is the trap, because a project that crashes on load reopens itself every
+launch until someone edits settings by hand. **Your project file is not modified.** It stays in *File ▸
+Open Recent*, one click away once it is fixed. A crashed *panel* is not this: panels are contained
+individually, so one shows a small card while everything else, output included, keeps running. Plugin
+panels are contained too — in the editor, in Preferences, in the 3D scene and in a projector window,
+where a throwing overlay used to take the output canvas with it.
+
+Fixed alongside: closing the detached Docs window closed the editor; and a tripped circuit breaker
+no longer writes a refusal line every second into a log that is only trimmed at startup — on an install
+that has, by then, stopped starting.
+
 ### An LED fixture is no longer offered a DMX profile
 
 Selecting an LED fixture used to open its parameters column with **"Choose a DMX profile…"**. It read

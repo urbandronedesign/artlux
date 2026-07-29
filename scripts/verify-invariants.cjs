@@ -2115,6 +2115,159 @@ check(
   },
 );
 
+// ── The white screen: a dead tree in a live process must stay VISIBLE to the watchdog ─────────
+//
+// A React render throw unmounts the whole root and leaves the process alive, responsive, and still
+// turning its event loop — so four of the watchdog's five detectors are structurally blind to it and
+// the fifth was gated on a heartbeat a load-path throw never produces. The result was an unattended
+// install that was dead, silent, and invisible to every tier, forever: nobody drives to the venue
+// because nothing ever alarmed. Each check below holds one link of the chain that fixed it. They are
+// all silent failures — the app compiles and boots identically with any of them broken.
+
+check(
+  'a renderer fault reaches the watchdog',
+  'Containment without REPORTING is worthless in an unattended venue: a tidy recovery card, in a ' +
+  'window that is 1x1 at opacity 0, in a room with nobody in it. The reporter → preload → ipc → ' +
+  'watchdog chain is what lets a white screen alarm and relaunch at all.',
+  () => {
+    const bad = [];
+    const F = 'src/renderer/services/faultReporter.ts';
+    if (!exists(F)) return `${F} is gone — nothing reports a renderer fault`;
+    if (!/reportRendererFault/.test(read(F))) bad.push(`${F} no longer calls window.artlux.reportRendererFault`);
+    if (!/IPC\.RENDERER_FAULT/.test(read('src/preload/index.ts'))) bad.push('preload no longer bridges RENDERER_FAULT');
+    const ipc = read('src/main/ipc.ts');
+    if (!/IPC\.RENDERER_FAULT/.test(ipc) || !/watchdog\.noteRendererFault\(/.test(ipc))
+      bad.push('main/ipc.ts no longer feeds RENDERER_FAULT to watchdog.noteRendererFault');
+    const w = read('src/main/watchdog.ts');
+    if (!/export function noteRendererFault/.test(w)) bad.push('watchdog no longer exports noteRendererFault');
+    // The audit must happen BEFORE the armed/crashRecovery bail-out: with the watchdog disabled (the
+    // default, and every editor install) that JSONL line is the only durable record that the app
+    // white-screened at all.
+    const body = fnBody(w, 'noteRendererFault');
+    if (body && body.indexOf('logEvent(') > body.indexOf('if (!armed'))
+      bad.push('noteRendererFault audits AFTER the armed check — an unarmed install records nothing');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+check(
+  'the render-stall clock is armed at document load',
+  'render-stall is gated on `lastRenderAt > 0`, and that only ever came from a renderer heartbeat. ' +
+  'A throw during the FIRST render — a poisoned project file, the class of bug that actually ships ' +
+  '— produced no heartbeat, so the one detector that could see it was never armed. Seeding the ' +
+  'clock at did-finish-load (which always fires) is what closes that hole, and it MUST be ungated ' +
+  'by mode: broadcast is the entire point.',
+  () => {
+    const w = read('src/main/watchdog.ts');
+    if (!/export function noteRendererUp/.test(w)) return 'watchdog no longer exports noteRendererUp';
+    if (!/awaitingFirstBeat/.test(fnBody(w, 'healthTick') ?? ''))
+      return 'healthTick no longer distinguishes the boot grace from a mid-show stall — a slow cold ' +
+        'start will be relaunched into the circuit breaker';
+    const idx = read('src/main/index.ts');
+    const line = idx.split(/\r?\n/).find((l) => /watchdog\.noteRendererUp\(\)/.test(l));
+    if (!line) return 'main/index.ts never calls watchdog.noteRendererUp() — the load-path throw is invisible again';
+    if (!/did-finish-load/.test(line)) return 'noteRendererUp() is no longer wired to did-finish-load';
+    if (/\bif\s*\(/.test(line) || /HEADLESS|BROADCAST/.test(line))
+      return 'the noteRendererUp() wiring is gated by mode — broadcast is the mode that needs it';
+    return null;
+  },
+);
+
+check(
+  'every renderer entry contains and reports its own faults',
+  'Four separate React roots in four windows. A root with no boundary white-screens; a root with a ' +
+  'boundary but no global net still misses every throw in an async effect, a rAF tick or a rejected ' +
+  'promise, which is most of what this renderer actually does.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/index.tsx', 'src/renderer/projector.tsx', 'src/renderer/docs.tsx',
+                     'src/renderer/splash.tsx']) {
+      if (!exists(f)) { bad.push(`${f} (missing)`); continue; }
+      const src = read(f);
+      if (!/installGlobalNet\(/.test(src)) bad.push(`${f}: no installGlobalNet()`);
+      if (!/<ErrorBoundary/.test(src)) bad.push(`${f}: root is not wrapped in an ErrorBoundary`);
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+check(
+  'a crash fallback never heartbeats',
+  'THE most dangerous failure mode in the containment design: a fallback that keeps a rAF alive and ' +
+  'keeps pushing reportRenderStats SUPPRESSES render-stall, so the watchdog goes blind again while ' +
+  'everything feels safer. In show mode the fallback must render nothing at all — nobody is in the ' +
+  'room, and main owns the recovery.',
+  () => {
+    const F = 'src/renderer/components/ErrorBoundary.tsx';
+    const src = read(F);
+    if (!/reportFault\(/.test(fnBody(src, 'componentDidCatch') ?? src))
+      return `${F} catches without reporting — the watchdog cannot see it`;
+    // The EARLY RETURN, not the identifier: a leftover `import { SHOW_ENGINE }` would otherwise
+    // satisfy this after the guard itself had been deleted. (It did, first time out.)
+    if (!/if\s*\(SHOW_ENGINE[^)]*\)\s*return null;/.test(src))
+      return `${F} renders a recovery UI in broadcast/headless, where there is no operator`;
+    if (/requestAnimationFrame|reportRenderStats/.test(src))
+      return `${F} runs a frame loop in the fallback — that suppresses render-stall and re-blinds the watchdog`;
+    return null;
+  },
+);
+
+check(
+  'a projector never shows a frozen frame for a dead show',
+  'A projector window has its own root and its own rAF, so it outlives the main window\'s tree — by ' +
+  'lying. Streamed surfaces froze on the last ImageBitmap forever and procedural ones went right on ' +
+  'animating, so the room saw a plausible picture with no show behind it. Black with a caption is ' +
+  'the truth.',
+  () => {
+    const F = 'src/renderer/projector/ProjectorApp.tsx';
+    const src = read(F);
+    // The COMPARISON and the blackout, not the constant: a declared-but-unread timeout reads as a
+    // working detector while the projector goes right on lying.
+    if (!/>\s*PRODUCER_TIMEOUT_MS/.test(src)) return `${F} no longer tests the producer-liveness timeout`;
+    if (!/producerLostRef/.test(src)) return `${F} no longer edge-triggers the blackout on producer loss`;
+    if (!/scope: 'producer-lost'/.test(src)) return `${F} no longer reports producer loss to the audit log`;
+    if (!/lastMsgRef\.current = performance\.now\(\)/.test(src))
+      return `${F} no longer stamps inbound port messages — the liveness clock has no source`;
+    return null;
+  },
+);
+
+check(
+  'the watchdog logs a repeated refusal once, not once per second',
+  'healthTick re-fires its detectors EVERY SECOND, and both refusal paths (pacing, and a tripped ' +
+  'breaker) are by definition reached by faults that persist. Logging each one appends a JSONL line ' +
+  'per second forever AND pushes a WATCHDOG_EVENT to Preferences + the tablet at the same rate — into ' +
+  'a log that is only ever trimmed at BOOT, on an install that has stopped rebooting. Both refusals ' +
+  'need a once-per-window guard.',
+  () => {
+    const body = fnBody(read('src/main/watchdog.ts'), 'maybeRelaunch');
+    if (!body) return 'maybeRelaunch is gone';
+    if (!/if \(deferTimer\) return;/.test(body))
+      return 'the pacing refusal no longer logs once per window — it will flood at 1 Hz while pacing';
+    // The GUARD, not the identifier — a surviving `trippedNoted = true` assignment would otherwise
+    // satisfy this with the `if` around the log deleted, which is the whole bug.
+    if (!/if \(!trippedNoted\)/.test(body))
+      return 'the tripped-breaker refusal no longer logs once per process — a tripped install writes ' +
+        '1 Hz of skipped-tripped into a log nothing will trim';
+    return null;
+  },
+);
+
+check(
+  'window commands act on the window that sent them',
+  'This handler resolved getWindow() regardless of sender, so the detached Docs window\'s close ' +
+  'button closed the EDITOR. The crash-recovery ladder rides the same channel, which is not a place ' +
+  'to keep a sender-blind handler.',
+  () => {
+    const ipc = read('src/main/ipc.ts');
+    const i = ipc.indexOf('IPC.WINDOW_COMMAND');
+    if (i < 0) return 'the WINDOW_COMMAND handler is gone';
+    const body = ipc.slice(i, i + 600);
+    return /BrowserWindow\.fromWebContents\(e\.sender\)/.test(body)
+      ? null : 'WINDOW_COMMAND no longer resolves its sender — it acts on the main window whoever asked';
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

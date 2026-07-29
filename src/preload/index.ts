@@ -3,7 +3,7 @@ import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type UpdateEvent,
     type DisplayInfo, type OscConfig, type OscMessage,
-    type WindowCommand, type RenderStats, type WatchdogEvent,
+    type WindowCommand, type RenderStats, type WatchdogEvent, type RendererFault,
     type BootEntry, type BootReport,
 } from '../../shared/protocol';
 
@@ -21,6 +21,10 @@ const api: ArtluxApi = {
         return () => { ipcRenderer.removeListener(IPC.STATS, listener); };
     },
     reportRenderStats: (stats: RenderStats) => ipcRenderer.send(IPC.RENDER_STATS, stats),
+    // The white-screen channel. Deliberately `send` and not `invoke`: the reporter is called from a
+    // React error boundary and from window.onerror, i.e. from a tree that is already failing — an
+    // awaited round-trip there is one more thing that can throw.
+    reportRendererFault: (fault: RendererFault) => ipcRenderer.send(IPC.RENDERER_FAULT, fault),
     configureInput: (cfg: InputConfig) => ipcRenderer.send(IPC.INPUT_CONFIGURE, cfg),
     onDmxInput: (cb: (frames: InputFrame[]) => void) => {
         const listener = (_e: unknown, frames: InputFrame[]) => cb(frames);

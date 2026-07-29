@@ -12,6 +12,13 @@ export const IPC = {
   STATS: 'dmx:stats',
   /** Renderer → main: renderer frame-time stats (~1 Hz) → Prometheus (broadcast has no HUD). */
   RENDER_STATS: 'render:stats',
+  /**
+   * Renderer → main: an uncaught renderer error (render throw, global error, unhandled rejection).
+   * The white-screen channel: React 19 unmounts the whole root on a render throw and the PROCESS
+   * STAYS ALIVE AND RESPONSIVE, so four of the watchdog's five detectors are blind to it. This is how
+   * the renderer tells the only thing that can relaunch it. See docs/WATCHDOG.md → Renderer faults.
+   */
+  RENDERER_FAULT: 'renderer:fault',
   /** Renderer → main: start/stop Art-Net/sACN input capture. */
   INPUT_CONFIGURE: 'input:configure',
   /** Main → renderer: latest received input universes. */
@@ -1116,13 +1123,32 @@ export interface UnattendedPrefs {
   always?: boolean;              // arm the watchdog even outside --broadcast (default: broadcast only)
 }
 
+// An uncaught renderer error, reported to main so the watchdog can SEE it. A render throw leaves a
+// live, responsive process with a dead tree — invisible to render-process-gone, unresponsive,
+// child-process-gone and (thanks to the native pacer's keep-alive) output-down alike. Every renderer
+// window reports on the same channel; `window` + the sender's identity decide whether a fault is a
+// show failure (the main window) or merely auditable (a projector/docs window).
+export interface RendererFault {
+  window: 'main' | 'projector' | 'docs' | 'splash';
+  /** Which containment region caught it: 'root' | 'stage' | a panel id | 'global-error' | … */
+  scope: string;
+  /** Set when the throw came from a plugin's render, so the audit log names the culprit. */
+  pluginId?: string;
+  message: string;
+  stack?: string;
+  /** The document loaded when it threw — the difference between "the app is broken" and "this file is". */
+  projectPath?: string;
+  /** True when the renderer had not yet produced a frame: a LOAD-PATH throw, the worst kind. */
+  beforeFirstPaint?: boolean;
+}
+
 // A single watchdog detection/recovery record; appended to the userData event log and shown on the
 // tablet Metrics tab so an unattended run can be audited after the fact.
 export interface WatchdogEvent {
   ts: number;      // epoch ms
   mode: string;    // editor | broadcast | headless (process launch mode)
   project: string; // loaded project path at the time (or '')
-  trigger: string; // startup | render-process-gone | gpu-gone | unresponsive | render-stall | output-down | tripped
+  trigger: string; // startup | render-process-gone | gpu-gone | unresponsive | render-stall | output-down | renderer-fault | tripped
   detail: string;  // human-readable specifics (crash reason, seconds down, …)
   action: string;  // relaunch | skipped-debounce | tripped | none
   outcome: string; // ok | an error string
@@ -1231,6 +1257,12 @@ export interface ArtluxApi {
   onDmxStats(cb: (stats: OutputStats) => void): () => void;
   /** Renderer → main: push ~1 Hz renderer frame-time stats for the Prometheus endpoint. */
   reportRenderStats(stats: RenderStats): void;
+  /**
+   * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
+   * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-
+   * forget by design — the reporting path must never be able to take the renderer down.
+   */
+  reportRendererFault(fault: RendererFault): void;
   configureInput(cfg: InputConfig): void;
   onDmxInput(cb: (frames: InputFrame[]) => void): () => void;
   // Persistence

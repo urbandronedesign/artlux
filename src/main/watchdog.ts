@@ -1,8 +1,15 @@
 // Unattended self-healing watchdog (Tier-1, in-process). For broadcast/show installs that run for
 // days with nobody watching. It detects the ways a show goes dark — renderer crash, GPU-process
-// crash, an unresponsive window, a frozen render loop (no heartbeat), and sustained Art-Net output
-// loss — and recovers with a FULL, leak-safe process relaunch into the current --broadcast
-// --project=… (the same clean-process pattern the playlist scheduler uses; see docs/SHOW-CONTROL.md).
+// crash, an unresponsive window, a frozen render loop (no heartbeat), an uncaught renderer error
+// (the WHITE SCREEN), and sustained Art-Net output loss — and recovers with a FULL, leak-safe process
+// relaunch into the current --broadcast --project=… (the same clean-process pattern the playlist
+// scheduler uses; see docs/SHOW-CONTROL.md).
+//
+// The white screen is the subtle one and the reason for noteRendererFault + noteRendererUp below: a
+// React render throw unmounts the whole tree but leaves the process ALIVE and RESPONSIVE, so four of
+// the five detectors are structurally blind to it, and the fifth (render-stall) was gated on a
+// heartbeat that a LOAD-PATH throw never produces. A poisoned project file used to mean an install
+// that was dead, silent and invisible to every tier, forever. See services/faultReporter.ts.
 //
 // Why a relaunch and not a reload: applyProjectData has no teardown for media-cache blob URLs /
 // decode pools / undo history, so a fresh process each recovery avoids accumulated leaks — exactly
@@ -21,7 +28,7 @@ import { app, type BrowserWindow } from 'electron';
 import { appendFileSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
-import type { OutputStats, UnattendedPrefs, WatchdogEvent, WatchdogStatus } from '../../shared/protocol';
+import type { OutputStats, RendererFault, UnattendedPrefs, WatchdogEvent, WatchdogStatus } from '../../shared/protocol';
 
 export const WATCHDOG_DEFAULTS: UnattendedPrefs = {
   enabled: false,
@@ -34,6 +41,13 @@ export const WATCHDOG_DEFAULTS: UnattendedPrefs = {
 
 const TASK_NAME = 'ArtLux Watchdog';
 const HOUR_MS = 3_600_000;
+// How long a freshly-loaded document may take to produce its FIRST heartbeat before we call it dead.
+// Deliberately not renderStallSec: that pref answers "the frame loop froze mid-show", where 10 s is
+// generous. First paint in broadcast is a different question — plugin activation, a project read off
+// a cold network share, a first-run shader compile — and re-using the same 10 s would relaunch a
+// merely-slow venue into a loop that trips the breaker. A floor, not a replacement: an operator who
+// raises renderStallSec raises this with it.
+const BOOT_GRACE_FLOOR_SEC = 30;
 const RING_CAP = 500; // events kept in memory / on disk before trimming
 const LOG_TRIM_AT = 2000; // rewrite the on-disk log once it exceeds this many lines
 
@@ -43,8 +57,10 @@ let project = '';
 let armed = false; // enabled && (broadcast || always) — set once at start()
 let relaunching = false; // in-process guard: once we decide to relaunch, ignore further triggers
 let deferTimer: ReturnType<typeof setTimeout> | null = null; // pending paced relaunch (minRelaunchGapSec)
+let trippedNoted = false; // breaker refusal logged once this process (a persistent fault re-fires at 1 Hz)
 let healthTimer: ReturnType<typeof setInterval> | null = null;
-let lastRenderAt = 0; // epoch ms of the last renderer heartbeat (0 until the first one)
+let lastRenderAt = 0; // epoch ms of the last renderer heartbeat, or of the document load that owes us the first one
+let awaitingFirstBeat = false; // true between did-finish-load and the first heartbeat (→ the longer boot grace)
 let everUp = false; // output was live at least once (so "down" means it died, not never-configured)
 let outputDownSince: number | null = null;
 let ring: WatchdogEvent[] = []; // chronological; tail of the persistent log
@@ -130,6 +146,50 @@ export function noteEngineStats(stats: OutputStats | null): void {
 export function noteRenderStats(_stats?: unknown): void {
   if (!armed) return;
   lastRenderAt = Date.now();
+  awaitingFirstBeat = false; // the renderer painted: from here the tighter render-stall window applies
+}
+
+/**
+ * The document finished loading — start the clock on its FIRST heartbeat.
+ *
+ * This is the fix for the blind spot. `render-stall` is gated on `lastRenderAt > 0`, and that value
+ * only ever came from a heartbeat, which only ever comes from a mounted App. So a renderer that threw
+ * on its very first render — a poisoned project file, i.e. the exact class of bug that ships — never
+ * armed the one detector that could have seen it, and the install sat dead and silent forever.
+ * Seeding the clock at 'did-finish-load' (which ALWAYS fires; main/index.ts already leans on that for
+ * the reveal backstop) means a renderer that never paints stalls like one that stopped painting.
+ *
+ * This is belt to the fault reporter's braces, and it is the half that still works when the boundary,
+ * the reporter or the preload bridge is itself what broke.
+ */
+export function noteRendererUp(): void {
+  if (!armed) return;
+  lastRenderAt = Date.now();
+  awaitingFirstBeat = true;
+}
+
+/**
+ * An uncaught renderer error, forwarded from ipc.ts. `from` is the SENDER's identity, not the
+ * fault's self-description: a projector or docs window shares this channel and must never be able to
+ * relaunch the show.
+ */
+export function noteRendererFault(f: RendererFault, from: 'main' | 'aux'): void {
+  try {
+    const who = `${from}/${f?.window ?? '?'}:${f?.scope ?? '?'}${f?.pluginId ? '/' + f.pluginId : ''}`;
+    const when = f?.beforeFirstPaint ? ' (before first paint)' : '';
+    // ALWAYS audit, even unarmed. With the watchdog off — the default, and every editor install —
+    // this JSONL log in userData is the only durable record that the app white-screened at all.
+    logEvent('renderer-fault', `${who}${when} ${f?.message ?? ''}`.trim(), 'none', 'reported');
+    if (!armed || !cfg.crashRecovery) return;
+    if (from !== 'main') return;        // a projector/docs fault is auditable, not a show failure
+    // A CONTAINED region is not a dead show: the shell's panel boundaries keep Stage and the wire
+    // running, and relaunching an operator's editor because one panel card appeared is its own kind
+    // of unattended failure. Only a fault that took the root (or Stage, the frame source) is one.
+    if (f?.scope !== 'root' && f?.scope !== 'stage') return;
+    maybeRelaunch('renderer-fault', `${f.scope}: ${f.message ?? 'uncaught renderer error'}`);
+  } catch (e) {
+    console.error('[watchdog] noteRendererFault failed', e);
+  }
 }
 
 // ─── Detection ────────────────────────────────────────────────────────────────────────────────
@@ -139,9 +199,15 @@ function healthTick(): void {
   try {
     const now = Date.now();
     // Frozen render loop: the tick stopped pushing heartbeats. Catches WebGPU/JS stalls inside the
-    // compositor that never fire 'unresponsive' (e.g. a device-lost spin). Only after the first beat.
-    if (cfg.crashRecovery && lastRenderAt > 0 && now - lastRenderAt > cfg.renderStallSec * 1000) {
-      maybeRelaunch('render-stall', `no render heartbeat ${Math.round((now - lastRenderAt) / 1000)}s`);
+    // compositor that never fire 'unresponsive' (e.g. a device-lost spin) — AND, since noteRendererUp
+    // seeds the clock at did-finish-load, a renderer that threw on its first render and so never
+    // produced a beat at all. Those two deserve different patience, hence the boot grace.
+    const stallMs = (awaitingFirstBeat ? Math.max(cfg.renderStallSec, BOOT_GRACE_FLOOR_SEC) : cfg.renderStallSec) * 1000;
+    if (cfg.crashRecovery && lastRenderAt > 0 && now - lastRenderAt > stallMs) {
+      const secs = Math.round((now - lastRenderAt) / 1000);
+      maybeRelaunch('render-stall', awaitingFirstBeat
+        ? `no first render heartbeat ${secs}s after load (boot grace ${Math.round(stallMs / 1000)}s)`
+        : `no render heartbeat ${secs}s`);
       return;
     }
     // Sustained output loss after the wire was live. Keep-alive means the native pacer holds fps > 0
@@ -159,10 +225,22 @@ function healthTick(): void {
 function maybeRelaunch(trigger: string, detail: string): void {
   if (relaunching) return;
   try {
-    if (existsSync(trippedFlag())) { logEvent(trigger, detail, 'skipped-tripped', 'breaker engaged'); return; }
+    // Refuse ONCE per process, not once per detection. healthTick re-fires render-stall EVERY SECOND
+    // for as long as the fault persists, and a tripped breaker is by definition a fault that persists
+    // — so logging each refusal appended a JSONL line per second, forever, and pushed a WATCHDOG_EVENT
+    // to Preferences and the tablet metrics stream at the same rate. Found by running the real thing:
+    // a poisoned renderer in broadcast tripped the breaker and then wrote 1 Hz of `skipped-tripped`
+    // into a log that is only ever trimmed at BOOT — and a tripped install does not boot again. This
+    // is the same trap the pacing branch below already guards with `if (deferTimer) return`.
+    if (existsSync(trippedFlag())) {
+      if (!trippedNoted) { trippedNoted = true; logEvent(trigger, detail, 'skipped-tripped', 'breaker engaged'); }
+      return;
+    }
     const recent = pruneRelaunchTimes();
     if (recent.length >= cfg.maxRelaunchesPerHour) {
       try { writeFileSync(trippedFlag(), new Date().toISOString(), 'utf-8'); } catch { /* ignore */ }
+      // The trip itself is the record; the refusals that follow it in THIS process add nothing.
+      trippedNoted = true;
       logEvent(trigger, `${detail}; ${recent.length} relaunches/h`, 'tripped', 'circuit breaker — giving up');
       return;
     }

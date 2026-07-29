@@ -9,6 +9,7 @@ import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
 import { outputToNvwarp, toBlendMap } from './projector/nvwarpApply';
 import { OutputsPanel } from './components/OutputsPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { isLight } from './services/fixtureKind';
@@ -36,6 +37,7 @@ import {
 import { contextLayoutOf, goToContext } from './contexts/nav';
 import { configureOutput, addStatusListener } from './services/mockSocketService';
 import { perfMonitor } from './services/perfMonitor';
+import { notePainted, setFaultProject, SAFE_MODE } from './services/faultReporter';
 import { uiPerfMonitor } from './services/uiPerfMonitor';
 import { telemetry } from './services/telemetry';
 import { useStableHandlers } from './hooks/useStableHandlers';
@@ -556,6 +558,11 @@ const App: React.FC = () => {
         // The UI-cost numbers ride the same message: a late frame and a blocked main thread are the
         // same second of wall clock, and reading them apart is what made "the UI stalled the engine"
         // an argument rather than a measurement.
+        // This second of wall clock is also the proof that the renderer PAINTED. It clears the
+        // Safe-Mode boot-failure counter (this boot was healthy) and downgrades any later fault from
+        // "this project cannot load" to "it ran and then broke" — which is the difference between
+        // offering Safe Mode and offering a reload. Idempotent; only the first call does anything.
+        notePainted();
         const ps = perfMonitor.stats();
         const us = uiPerfMonitor.stats();
         window.artlux?.reportRenderStats?.({
@@ -702,6 +709,11 @@ const App: React.FC = () => {
   };
   const projectorOutputsRef = useRef(projectorOutputs); projectorOutputsRef.current = projectorOutputs; // live mirror for plugin host services
   const currentProjectPathRef = useRef(currentProjectPath); currentProjectPathRef.current = currentProjectPath; // ditto — host.project.path()
+  // Name the loaded document on every crash report. Written during render, not in an effect, because
+  // the throws that matter most happen ON the load path — an effect would not have run yet, and the
+  // fault would say '' exactly when "which file did this?" is the only question worth answering. It
+  // is also what keys the boot-failure counter, so opening a DIFFERENT project starts a fresh count.
+  setFaultProject(currentProjectPath);
 
   // --- Spanning one surface across several projectors (grid math: services/outputSpan.ts) ---
   //
@@ -1183,7 +1195,7 @@ const App: React.FC = () => {
       // ⚠ THE SHAPE CHECK COMES FIRST, AND `path` BEFORE `value`. These entries are DOCUMENT data — a
       // hand-edited or tool-generated .artlux reaches here verbatim (Scene.audio has no normalizer) — and
       // isFadeablePath does `path.split('.')`, which throws on a missing or non-string path. This runs
-      // INSIDE A GO, with no ErrorBoundary above it: one bad entry would be a white screen mid-show.
+      // INSIDE A GO — outside render, where no boundary reaches: one bad entry kills the GO mid-show.
       // sceneAudioEntries already drops the unaddressable ones at the door; this is the second lock, and
       // the one that also covers Cue.entries.
       if (!e || typeof e.path !== 'string' || typeof e.value !== 'number' || !isFadeablePath(e.path)) continue;
@@ -1696,8 +1708,8 @@ const App: React.FC = () => {
     let next: StateView = { surfaces, fixtures, globalBrightness };
     const legs: transitions.FadeLeg[] = [];
     // cueEntries(): the container AND the elements. `Cue.entries` has no normalizer, so a `for…of` over a
-    // non-array throws and a bad element throws on the very next line — inside a GO, with no ErrorBoundary
-    // above it. Coerce, do not drop the show.
+    // non-array throws and a bad element throws on the very next line — inside a GO, outside render, where
+    // no boundary reaches. Coerce, do not drop the show.
     for (const cue of cues) for (const e of cueEntries(cue.entries)) {
       if (isPluginHeadEntry(e)) continue;            // audio.* — handled below; `next` would DROP it anyway
       if (isFadeablePath(e.path) && typeof e.value === 'number') {
@@ -3403,6 +3415,7 @@ const App: React.FC = () => {
   // is also the ONLY contract an external program has for "open this project" (no file association,
   // no protocol handler), so it has to work in the mode a human is actually watching.
   useEffect(() => {
+      if (SAFE_MODE) { console.warn('[safe-mode] skipping --project= autoload'); return; }
       if (SHOW_ENGINE || !QUERY_PROJECT) return;
       // Logged like the show-engine loader above: when an EXTERNAL program spawns us with a project
       // and the operator says "nothing opened", this line is the only thing that distinguishes "the
@@ -3454,7 +3467,10 @@ const App: React.FC = () => {
               localStorage.removeItem('artlux.splitView');
               localStorage.removeItem('artlux.splitRatio');
           }
-          layoutStore.hydrate(savedLayout);
+          // Safe Mode hydrates DEFAULTS, not the banked layout: the tab an operator left open is the
+          // tab that mounts at next boot, so a poisoned panel re-crashes the app every launch. This
+          // is the other half of breaking that cycle (the autoload skip below is the first).
+          layoutStore.hydrate(SAFE_MODE ? undefined : savedLayout);
           // …then put the active context's own panel sizes back on. See enterActiveContext().
           layoutStore.enterActiveContext(contextLayoutOf(layoutStore.get().activeContext));
           // Adopt the user's keyboard-shortcut overrides (absent → registry defaults). Migrated keydown
@@ -3464,11 +3480,31 @@ const App: React.FC = () => {
           // Reopen the last project — UNLESS an explicit --project= was given, which owns the load in
           // its own effect above. Without this guard the two race and the document is whichever IPC
           // happened to resolve last, so `--project=X` intermittently lands on the previous project.
-          if (prefs.lastProjectPath && !QUERY_PROJECT && !QUERY_NEW_PROJECT) {
+          //
+          // …or unless this is a Safe-Mode boot. THIS AUTOLOAD IS THE TRAP: a project that throws on
+          // load re-opens itself at every launch, so the app is unusable until someone edits prefs by
+          // hand. Rung 3 of the crash-recovery ladder exists to break exactly that cycle — the last
+          // path stays in prefs (so re-opening it is one click away once it is fixed), it is just not
+          // loaded automatically. Nothing here writes the project file.
+          if (prefs.lastProjectPath && !QUERY_PROJECT && !QUERY_NEW_PROJECT && !SAFE_MODE) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
               if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); }
           }
       })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Safe Mode: say so, once, and say the one thing a panicking operator needs to hear — that an empty
+  // editor is NOT data loss. `toast.error` because it is the only sticky kind (KIND_META hold: 0):
+  // this must still be on screen when they come back from checking the project folder.
+  useEffect(() => {
+      if (!SAFE_MODE || SHOW_ENGINE) return;
+      toast.error(
+          'Opened in Safe Mode',
+          'ARTLux crashed twice while opening the last project, so it started empty with the default '
+          + 'workspace. Your project file on disk has not been modified — open it again from File ▸ '
+          + 'Open Recent to retry.',
+      );
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3856,8 +3892,14 @@ const App: React.FC = () => {
           onClose={() => setAudioWarnDismissed(true)}
       />
       {/* Plugin modal panels (e.g. LiDAR OSC Monitor) — mounted only while open, toggled by menu action. */}
+      {/* Plugin modals are the one plugin surface that renders OUTSIDE the shell's panel boundaries,
+          so until now a throw in one unmounted the whole editor — the project loads clean and
+          OPENING THE AUDIO BED PANEL is what kills it. The host owns the blast radius here; the
+          plugin does not opt in and cannot opt out. `pluginId` names the culprit in the audit log. */}
       {panelRegistry.byMount('modal').map((p) => openModals.has(p.id)
-        ? <p.Component key={p.id} onClose={() => setOpenModals((s) => { const n = new Set(s); n.delete(p.id); return n; })} />
+        ? <ErrorBoundary key={p.id} variant="panel" scope={`plugin:${p.id}`} pluginId={p.id} label={p.title ?? p.id}>
+            <p.Component onClose={() => setOpenModals((s) => { const n = new Set(s); n.delete(p.id); return n; })} />
+          </ErrorBoundary>
         : null)}
 
       {update && (

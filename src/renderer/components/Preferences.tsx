@@ -6,6 +6,7 @@ import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
+import { ErrorBoundary } from './ErrorBoundary';
 import { layoutStore } from '../services/layoutStore';
 import { useLayout } from '../hooks/useLayout';
 
@@ -381,10 +382,15 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
         {/* Plugin-contributed settings sections (e.g. the mp4 plugin's "Video"). Each owns its fields;
             the host passes the shared settings + onChange. Keeps plugin settings out of core. They tile
             with the core ones — a plugin's section is not a second-class citizen here. */}
+        {/* Contained INSIDE the section, so a throwing plugin settings panel leaves the rest of
+            Preferences usable — including the Unattended/Watchdog section, which is where an
+            operator goes when things are already going wrong. */}
         {settingsSectionRegistry.all().map((s) => (
           <Tile key={s.id}>
             <Section title={s.title} icon={s.icon ?? <Cpu size={12} />}>
-              <s.Component settings={settings} onChange={onChange} />
+              <ErrorBoundary variant="panel" scope={`plugin:${s.id}`} pluginId={s.id} label={s.title}>
+                <s.Component settings={settings} onChange={onChange} />
+              </ErrorBoundary>
             </Section>
           </Tile>
         ))}

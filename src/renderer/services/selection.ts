@@ -33,8 +33,9 @@ export function setSelection(s: TimelineSelection): void {
   // ISOLATE THE SUBSCRIBERS. The house buses (cueBus, stateMachine, timeline) notify bare, but every one of
   // those is core waking core. This is the first store whose subscribers are THIRD-PARTY PLUGIN code and
   // whose notify site is a React effect — a subscriber that throws would propagate synchronously out of
-  // setSelection, out of Timeline's effect, and with no ErrorBoundary above Timeline React 19 unmounts the
-  // whole root: clicking a clip BLANKS THE EDITOR, in a venue, with nobody there. A bad plugin may break
+  // setSelection and out of Timeline's EFFECT — where a boundary cannot follow it, because boundaries catch
+  // render and lifecycle, not what an effect's callback throws. Unisolated, clicking a clip blanks the
+  // editor, in a venue, with nobody there. A bad plugin may break
   // itself; it may not take the show's editor down with it.
   subs.forEach(cb => {
     try { cb(current); } catch (e) { console.error('[selection] subscriber threw', e); }

@@ -28,6 +28,7 @@ import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 
@@ -216,7 +217,14 @@ const Simulator3D: React.FC<Props> = ({
         {placing && <PlacementPlane onPlace={place} />}
         {/* Plugin-contributed 3D overlays (e.g. LiDAR blob viz). Each plugin registers a scene-viz
             component + an `enabled` gate; the host stays agnostic of what they draw. */}
-        {sceneVizRegistry.all().map((v) => (v.enabled?.(scene3D) ?? true) ? <v.Component key={v.id} scene3D={scene3D} /> : null)}
+        {/* `silent` — this is INSIDE the R3F <Canvas>, where a DOM fallback is illegal (the same
+            reason ModelBoundary renders null). A throwing scene-viz plugin drops its own objects and
+            the rest of the scene keeps rendering, instead of taking the canvas with it. */}
+        {sceneVizRegistry.all().map((v) => (v.enabled?.(scene3D) ?? true)
+          ? <ErrorBoundary key={v.id} scope={`plugin:${v.id}`} pluginId={v.id} silent>
+              <v.Component scene3D={scene3D} />
+            </ErrorBoundary>
+          : null)}
         {models.map((m) => m.kind === 'plane' ? (
           <PlaneObject
             key={m.id}

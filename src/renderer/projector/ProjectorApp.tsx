@@ -11,6 +11,8 @@ import { activateRendererPlugins } from '../host/plugins';
 import { keymap } from '../shortcuts/keymapStore';
 import { eventToChord } from '../shortcuts/chord';
 import { projectorChannelRegistry, projectorPanelRegistry } from '../host/registries';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { reportFault } from '../services/faultReporter';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 
 // IMAGE (one cheap decode) + EFFECT (procedural) render locally. Everything HW-decoded —
@@ -20,6 +22,11 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 // are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
 const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
 const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+// Silence on the port for this long means the main window is no longer producing — see the liveness
+// check in the render loop for why a frozen picture is worse than a black one. Generous next to the
+// ~30 Hz frame rate and the transport/config traffic that punctuates an idle output, because a false
+// positive blacks out a live show: this must only fire when the producer is genuinely gone.
+const PRODUCER_TIMEOUT_MS = 5000;
 // A SLICE shows another surface's picture, so it is classified by that surface's type, not its own —
 // a slice of an EFFECT still renders here at display rate, a slice of a VIDEO is still streamed
 // (already cropped to this output's region, so it is SMALLER than an unsliced push, not larger).
@@ -57,6 +64,12 @@ export const ProjectorApp: React.FC = () => {
   // Ticks once per streamed frame received from main. Handed to ProjectorGL.draw so an unchanged
   // generation skips the texture upload — frames arrive at ~30 fps but we draw at display rate.
   const frameGenRef = useRef(0);
+  // Producer liveness. `lastMsgRef` is stamped by EVERY inbound port message (the one choke point);
+  // `producerLostRef` edge-triggers the blackout + its single report, so the rAF neither re-reports
+  // at 60 Hz nor re-renders React on every frame of an outage. Seeded now, which gives the handshake
+  // one full timeout's grace before this window can declare a producer it has never heard from dead.
+  const lastMsgRef = useRef(performance.now());
+  const producerLostRef = useRef(false);
   // Memoized Bézier render mesh: tessellateBezier is a pure function of (warp, RENDER_TESS) and the
   // warp only changes when a config arrives or a handle is dragged, but this ran EVERY frame in
   // EVERY output window. Keyed on the warp object identity (warpRef is reassigned, never mutated).
@@ -166,6 +179,9 @@ export const ProjectorApp: React.FC = () => {
       portRef.current = port;
       port.onmessage = (ev: MessageEvent) => {
         const m = ev.data as MainToProjector;
+        // The single choke point for everything the main window says to this output — so it is also
+        // the only honest liveness signal we have about the producer. See PRODUCER_TIMEOUT_MS.
+        lastMsgRef.current = performance.now();
         if (m.t === 'config') {
           surfaceRef.current = m.surface;
           playingRef.current = m.playing;
@@ -226,6 +242,7 @@ export const ProjectorApp: React.FC = () => {
       };
       port.start();
       (port.postMessage as (m: ProjectorToMain) => void)({ t: 'ready' });
+      lastMsgRef.current = performance.now(); // the producer is alive as of the handshake
     };
     window.addEventListener('message', onMsg);
     window.postMessage('artlux:projector-ready', '*');
@@ -262,6 +279,32 @@ export const ProjectorApp: React.FC = () => {
       // ⚠ The sign is DOM, so an NDI send of this output carries the BLACK, not the words. That is the
       // right way round — an NDI consumer is another machine's input, not a person to be told things.
       if (bootingRef.current) { gl.draw(null, opts); return; }
+      // ── PRODUCER LIVENESS — do not let a dead show LOOK healthy ─────────────────────────────────
+      // This window has its own root and its own rAF, so it survives the main window's tree dying. It
+      // used to survive it by lying: `frameRef` holds the last ImageBitmap and is only replaced by a
+      // newer one, so a STREAMED surface froze on its final frame indefinitely, while a SELF_RENDER
+      // surface (IMAGE/EFFECT/TRACKING) went right on animating off this window's own clock and
+      // looked completely fine. The room saw a plausible picture with no show behind it — and on the
+      // wire the native pacer's keep-alive held the rig at its last look, so that lied too.
+      //
+      // Nothing punctuates the port at a guaranteed rate except frames (~30 Hz) and transport/config
+      // messages, so silence past PRODUCER_TIMEOUT_MS means the producer is gone. Drop the held frame
+      // (black, not frozen) and re-show the existing "Waiting for the main window…" caption. A black
+      // projector with a legible caption is the truth. Reported once per outage, as an 'aux' fault:
+      // audited, never a relaunch — the main window's own detectors own that decision, and two
+      // windows racing to relaunch the show is a bug.
+      if (now - lastMsgRef.current > PRODUCER_TIMEOUT_MS) {
+        if (!producerLostRef.current) {
+          producerLostRef.current = true;
+          setConnected(false);
+          if (frameRef.current) { frameRef.current.close(); frameRef.current = null; frameGenRef.current++; }
+          reportFault({ window: 'projector', scope: 'producer-lost',
+            message: `no message from the main window for ${Math.round((now - lastMsgRef.current) / 1000)}s (output "${surfaceRef.current?.name ?? '?'}")` });
+        }
+        gl.draw(null, opts);
+        return;
+      }
+      if (producerLostRef.current) { producerLostRef.current = false; setConnected(true); }
       // A projector channel may GPU-render this surface's content itself (e.g. LiDAR tracking): the
       // plugin composites a source texture, we warp it — no CPU canvas, no host knowledge of content.
       const rch = s ? projectorChannelRegistry.all().find((c) => c.renderSource && c.appliesTo?.(s)) : undefined;
@@ -405,8 +448,13 @@ export const ProjectorApp: React.FC = () => {
       {/* Projector-panel plugins: full-window overlays on top of the base canvas (e.g. calibration's
           structured-light pattern / pose crosshair / render-from-projector). They own their own modes
           via the message stream — inert until their plugin gets a relevant message. */}
+      {/* Contained, and `silent`: THE CANVAS ABOVE MUST SURVIVE. A throw in one of these unmounted
+          ProjectorApp and took the <canvas> out of the DOM with it — the only path this app had to a
+          genuinely black projector, from a plugin overlay that is inert most of the time. */}
       {projectorPanelRegistry.all().map((p) => (
-        <p.Component key={p.id} ctx={panelCtx} size={size} />
+        <ErrorBoundary key={p.id} scope={`plugin:${p.id}`} pluginId={p.id} faultWindow="projector" silent>
+          <p.Component ctx={panelCtx} size={size} />
+        </ErrorBoundary>
       ))}
 
       {!connected && <div style={overlayCenter}>Waiting for the main window… {name}</div>}

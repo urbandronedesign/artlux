@@ -1,7 +1,7 @@
 # Renderer error containment: a thrown component must not be able to require a drive to the venue
 
 > **Deliverable:** this document, saved as `plans/renderer-error-containment.md` and indexed in `plans/README.md`.
-> **Status:** Draft · **Lifts:** R5a (adversarial review of Wave B — pre-existing structural gap, deliberately NOT smuggled into an audio wave) · **Placement:** **Core** (renderer entries + `App.tsx` + `main/watchdog.ts` + one new IPC channel) · **Risk:** 🟠 Medium — the diff is mostly additive wrappers, but it edits the four React roots, the watchdog's arming logic, and the plugin render sites: a mistake here is a *silent* loss of recovery, which is exactly the failure it exists to prevent · **Breaking changes:** none to `.artlux` schema, prefs, or the SDK; **one additive IPC channel**; **one behavior change to the watchdog** (a renderer that never reaches first paint now relaunches, where today it hangs forever)
+> **Status:** ✅ **BUILT 2026-07-29** — see §11 for what shipped, what changed against this draft, and how the open questions were answered. · **Lifts:** R5a (adversarial review of Wave B — pre-existing structural gap, deliberately NOT smuggled into an audio wave) · **Placement:** **Core** (renderer entries + `App.tsx` + `main/watchdog.ts` + one new IPC channel) · **Risk:** 🟠 Medium — the diff is mostly additive wrappers, but it edits the four React roots, the watchdog's arming logic, and the plugin render sites: a mistake here is a *silent* loss of recovery, which is exactly the failure it exists to prevent · **Breaking changes:** none to `.artlux` schema, prefs, or the SDK; **one additive IPC channel**; **one behavior change to the watchdog** (a renderer that never reaches first paint now relaunches, where today it hangs forever)
 
 ## 1. Context — what actually happens when the renderer throws
 
@@ -372,3 +372,120 @@ Land in this order; each step is independently shippable and independently valua
 5. **Should `@artlux/sdk` expose an ErrorBoundary to plugin authors?** This plan says **no**: the host wraps every plugin render site (WS6) and the plugin cannot opt out of containment. A plugin that *wants* finer-grained internal recovery can write its own React boundary today with no SDK help. **Confirm we are happy that plugin containment is a host guarantee, not a plugin responsibility.**
 6. **Does a fault report need to reach Prometheus** (`main/metrics.ts` already gauges render stats, `ipc.ts:44`)? A `artlux_renderer_faults_total` counter would let a venue's existing monitoring alarm on this without reading the JSONL. Cheap, additive, out of scope as written. **Worth one line?**
 7. **Is there a last-known-good document worth keeping?** The ladder deliberately recovers to *empty* (Safe Mode) rather than to a snapshot, because none exists (`useHistory` holds only `Fixture[]`, `App.tsx:117`) and `applyProjectData` has no teardown (`watchdog.ts:6-9`). The sibling undo plan (R5b) widens history to a document snapshot — **if it lands first, a boundary could recover to the last good document instead of an empty one.** That is a strictly better rung 3, and it is a real dependency edge between the two plans. **Sequence R5b first?**
+
+---
+
+## 11. What actually shipped (2026-07-29)
+
+**The thesis held and is now closed: the watchdog can see a white screen.** WS1/WS2 landed first and
+alone, exactly as §9 prescribed, and were verified against the running app before anything else was
+built on them.
+
+### Deviations from the draft above — read these, the tree moved under it
+
+- **§1's "Stage is the sole Art-Net producer" is obsolete.** [engine-decoupling](engine-decoupling.md)
+  shipped in the meantime: the frame loop is a self-starting singleton in `renderer/engine/frameEngine.ts`,
+  and `App` returns `null` in show mode. So there is **no `scope: 'stage'` boundary to place** — a render
+  throw no longer stops output at all, it stops the *document* feeding it. `noteRendererFault` still
+  accepts `'stage'` alongside `'root'` (cheap, and it documents the intent), but only `'root'` can fire
+  today. The white screen is now "the show stopped being updated", not "the wire went quiet" — which is
+  precisely why it stayed invisible.
+- **The line numbers in §1 and §3 are stale** (`App.tsx` is ~3.9 kloc and the shell was rebuilt into
+  contexts + docking). The *reasoning* survived; the coordinates did not. Read them as claims about
+  mount discipline, not as addresses.
+- **WS3's region boundaries were already there.** `ErrorBoundary` existed as an a11y-era panel boundary
+  and the shell wraps every panel in both render paths (`WorkspaceShell` **and** `DockRenderer`). What
+  was missing was the half that made containment *visible* — so the work was to make the existing
+  boundary **report**, not to add boundaries to `App.tsx`. That is why the diff is small there.
+- **WS4's rung 1 (per-fault layout reset) was NOT shipped as specified.** Resetting an operator's banked
+  layout on any panel fault is a large, silent, persisted side effect for a card that says "this panel
+  stopped" — and panels are already contained, so nothing forces it. The reset instead happens **inside
+  Safe Mode**, where the operator has explicitly asked to start clean. Rungs 0/2/3 shipped as written.
+- **`headless.tsx` is already gone**, so WS7's note about it is moot. The fourth root is `splash.tsx`,
+  which the draft missed and which is now covered — a throw there leaves the splash up forever with no
+  boot report, whose only symptom is "it never opened".
+- **`window.location.reload()` / `location.replace()` are used for rungs 2–3**, not
+  `windowCommand('reload')`. No IPC on the failing path, and it sidesteps the sender-blind channel
+  entirely. §10 Q4's fix was still made (below), because the bug is real on its own.
+
+### The open questions, answered
+
+1. **Contained fault → relaunch?** **No.** Only `root`/`stage`. A contained region is not a dead show,
+   and over-relaunching an operator's editor is its own unattended failure.
+2. **A "Reset Workspace Layout…" menu item?** **Not added.** Out of scope, and it would have to be made
+   in *both* hand-mirrored menus (which are already divergent — still true, still worth fixing).
+3. **First-heartbeat deadline.** **Its own grace, not `renderStallSec`** — `BOOT_GRACE_FLOOR_SEC = 30`,
+   applied as `max(renderStallSec, 30)` and only while awaiting the first beat. Reusing 10 s conflates
+   "the frame loop froze" with "the app has not finished booting", and Risk #4 (a slow cold start
+   relaunched into the breaker) is the one that reaches a real venue. Costs no pref and no schema.
+4. **Fix `docs.tsx` closing the editor?** **Yes, done.** `WINDOW_COMMAND` now resolves
+   `BrowserWindow.fromWebContents(e.sender)` (falling back to the main window), and an invariant guards it.
+5. **Ship an SDK ErrorBoundary?** **No.** The host wraps all four plugin render sites; a plugin cannot
+   opt out of containment.
+6. **Prometheus counter?** Not done. Still cheap, still additive, still worth one line later.
+7. **Recover to a last-known-good document?** No — Safe Mode still recovers to *empty*. R5b did not
+   widen history to a document snapshot, so there is nothing better to recover to.
+
+### Verification actually performed
+
+Driven against the running app (CDP), not just typechecked:
+
+- a real page-script **throw** and a real **unhandled rejection** both reach `artlux-watchdog.log` as
+  `renderer-fault`, naming the loaded project and whether it was before first paint;
+- **armed**, a `root` fault logs the audit line *and* `action: "relaunch"`, and the process relaunches;
+- **unarmed** (the default, and every editor install), the same fault is still audited with
+  `action: "none"` — and the app stays alive, because the fault was contained;
+- ⚠ **harness trap for whoever tests this next:** a rejection injected via CDP `Runtime.evaluate` does
+  **not** surface as a `window` `unhandledrejection` event — not even to a listener the probe registers
+  itself. It is reported to the inspector instead. Inject through a real `<script>` element or you will
+  conclude the global net is broken when it is not. (Also: clear `ELECTRON_RUN_AS_NODE` from the child
+  env, or Electron boots as plain node — it is the standing sandbox gotcha.)
+
+**Six invariant checks** were added to `scripts/verify-invariants.cjs`, each verified to FAIL when its
+rule is deliberately broken. Two of them were vacuous on the first attempt — one matched a leftover
+`import { SHOW_ENGINE }` after the guard it was meant to assert had been deleted, the same failure mode
+the `ledUnderPointer(` check documents. Assert the **call or the statement**, never the identifier.
+
+### Broadcast — the mode this exists for (run 2026-07-29, not simulated)
+
+`electron . --broadcast --project=<example>`, watchdog armed by **`enabled` alone** (`always: false`),
+so arming-by-mode is part of what is under test.
+
+| Phase | Setup | Result |
+|---|---|---|
+| **1 · cold-start false positive** (§8 test 6) | healthy project, **defaults** | armed `mode=broadcast`; **0 relaunches in 75 s**. The 30 s boot grace does not kill a normal cold start. |
+| **2 · never paints** (§8 test 5 — WS2 in isolation) | the BUILT entry in `out/` patched to throw at module scope: React never mounts, no heartbeat is ever sent, and the global net is never installed either, so **nothing reports** | `render-stall` → *"no first render heartbeat 31s after load (boot grace 30s)"* → relaunch → relaunch → **breaker tripped**, flag written, stood down. **The belt works with the braces removed.** |
+| **3 · root fault** (WS1 in broadcast) | healthy renderer, heartbeat flowing, then the exact report the root boundary sends on a render throw | audited (`action: none`) **and** relaunched (`action: relaunch`), and the fresh process logged its own `startup` — recovery is a loop, not a one-way exit. |
+
+Phase 2 is the one that matters: **before this wave that scenario produced no event, no relaunch and no
+record, indefinitely.** Its whole audit trail is now six lines that read like a sentence —
+`startup → stall/relaunch → startup → stall/relaunch → startup → stall/tripped`.
+
+#### A bug phase 2 found, that only running it could find
+
+The first run trailed **13 `skipped-tripped` lines and counting — one per second, forever.** `healthTick`
+re-fires every second, a tripped breaker is by definition a fault that persists, and every refusal was
+logged: a JSONL line per second into a file that is **only trimmed at boot**, on an install that has by
+then stopped booting — plus a `WATCHDOG_EVENT` pushed to Preferences and the tablet metrics stream at the
+same rate. Pre-existing (a mid-show stall that tripped would do it too), but this wave made it far more
+reachable, because a never-painting renderer re-fires forever. The pacing branch already guarded exactly
+this with `if (deferTimer) return` **and said so in a comment**; the tripped branch did not. Now refused
+once per process, guarded by an invariant — and the re-run trails one line.
+
+#### Harness traps for whoever runs this next
+
+- A rejection injected via CDP `Runtime.evaluate` does **not** surface as a `window` `unhandledrejection`
+  event — not even to a listener the probe registers itself; it is reported to the inspector instead.
+  Inject through a real `<script>` element, or you will conclude the global net is broken when it is not.
+- Clear `ELECTRON_RUN_AS_NODE` from the child env or Electron boots as plain node (`electron.app` is
+  `undefined`) — the standing sandbox gotcha.
+- Kill stray `electron.exe` between runs: the single-instance lock makes the next launch exit silently,
+  which reads exactly like "the app failed to start".
+- Poison the **built** entry in `out/` (gitignored), never source — it gives a genuinely never-painting
+  renderer without shipping a test hook in the app.
+
+### Not done, deliberately
+
+- **No Prometheus counter** for renderer faults (§10 Q6).
+- **No last-known-good document** (§10 Q7) — Safe Mode recovers to empty.
+- **The two divergent menus** (WS7) are still divergent.

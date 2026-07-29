@@ -170,6 +170,13 @@ function createWindow(): void {
     // frame-engine worker — see main/enginePort.ts.
     mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) openEnginePort(mainWindow); });
 
+    // Start the watchdog's clock on the renderer's FIRST heartbeat. UNGATED by mode, unlike the
+    // reveal/scale handler above — broadcast is precisely the mode this exists for. Until this call,
+    // 'render-stall' was armed only by a heartbeat, so a renderer that threw during its first render
+    // never armed it and the install sat dead, silent and undetected. No-op unless the watchdog is
+    // armed. See src/main/watchdog.ts → noteRendererUp and docs/WATCHDOG.md.
+    mainWindow.webContents.on('did-finish-load', () => watchdog.noteRendererUp());
+
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];
     if (HEADLESS) {

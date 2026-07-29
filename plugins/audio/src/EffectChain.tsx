@@ -109,9 +109,9 @@ export const EffectChain: React.FC<{
   // ⚠ SHAPE-GUARD THE CHAIN AT THE RENDER, because the document does not guarantee it. normalizeAudioMix
   // (types.ts) coerces the bed's tracks and clips but its BUSES are a shape guard only — its own comment
   // says so — so a hand-edited or bad-import `buses: [{ id: 'master', effects: "x" }]` SURVIVES load with
-  // `effects` a string. `.map` on a string is a TypeError, thrown inside a plugin panel that has no
-  // ErrorBoundary above it: the project loads clean and OPENING THE AUDIO BED PANEL is what dies, which is
-  // the worst possible place to learn about it. Fall back to an empty chain — the operator sees "no
+  // `effects` a string. `.map` on a string is a TypeError thrown inside a plugin panel: the project loads
+  // clean and OPENING THE AUDIO BED PANEL is what dies, which is the worst possible place to learn about
+  // it. (The host's plugin boundary now contains that to this panel; it does not make it acceptable.) Fall back to an empty chain — the operator sees "no
   // effects" and adding one writes a real array back, repairing the document. (The proper fix is to run
   // buses through the same coercion in normalizeAudioMix; that is a persist-a-coercion call and belongs
   // with the fade work, not here. This guard costs nothing and cannot regress valid data.)
