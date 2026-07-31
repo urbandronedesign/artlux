@@ -83,6 +83,29 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['program', 'composite', 'timeline', 'tl'],
   },
   {
+    id: 'scene3d.model-uvs',
+    title: 'UV source',
+    short: 'Texture the mesh with its own UVs, or UVs projected from a viewpoint.',
+    body: 'Mesh UVs uses the TEXCOORD map authored in the GLB — if the file has none (common for CAD '
+      + 'exports), the layer collapses to a single flat color. Projected from view bakes UVs by '
+      + 'projecting the mesh through a captured 3D viewpoint, like a virtual projector: from that '
+      + 'viewpoint the layer reads as a fullscreen image. Switching back to Mesh UVs keeps the baked '
+      + 'viewpoint, so the two can be compared freely.',
+    group: '3D Scene',
+    keywords: ['uv', 'texture', 'projection', 'projected', 'mapping', 'texcoord'],
+  },
+  {
+    id: 'scene3d.model-uv-bake',
+    title: 'Project UVs from view',
+    short: 'Bake projected UVs from the current 3D camera position.',
+    body: 'Captures the current viewpoint and re-projects the layer texture onto the mesh from it. '
+      + 'Frame the mesh the way the content should land, then bake. The texture stays glued to the '
+      + 'mesh if it is moved afterwards — bake again to re-project. Faces the viewpoint cannot see '
+      + 'get stretched, exactly as with a real projector.',
+    group: '3D Scene',
+    keywords: ['uv', 'bake', 'project', 'view', 'camera', 'reproject'],
+  },
+  {
     id: 'scene3d.model-fit',
     title: 'Fit to size',
     short: 'Scale the mesh so its longest dimension matches the given size.',

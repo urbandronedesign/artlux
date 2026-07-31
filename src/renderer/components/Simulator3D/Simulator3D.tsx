@@ -16,6 +16,7 @@ import { ProjectorFrustum } from './ProjectorFrustum';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
 import { setSnapHover } from './vertexSnap';
+import { registerViewerCamera } from './viewerCamera';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureBodies } from './FixtureBodies';
 import { FixtureGizmo } from './FixtureGizmo';
@@ -101,6 +102,16 @@ const Exposure: React.FC<{ value: number }> = ({ value }) => {
 const NEAR_FRAC = 0.005;                     // near = 0.5% of the orbit distance
 const NEAR_MIN = 1e-4, NEAR_MAX = 0.1;
 const FAR_FRAC = 50, FAR_MIN = 1000;
+// Expose the viewport camera to the Model panel (UV projection bake) — see viewerCamera.ts.
+const ViewerCameraBridge: React.FC = () => {
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    registerViewerCamera(camera);
+    return () => registerViewerCamera(null);
+  }, [camera]);
+  return null;
+};
+
 const AdaptiveClipping: React.FC = () => {
   useFrame(({ camera, controls }) => {
     const cam = camera as THREE.PerspectiveCamera;
@@ -256,6 +267,7 @@ const Simulator3D: React.FC<Props> = ({
       >
         <color attach="background" args={['#0d0d0d']} />
         <AdaptiveClipping />
+        <ViewerCameraBridge />
         <Exposure value={scene3D.exposure ?? 1} />
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}

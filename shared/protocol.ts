@@ -629,6 +629,13 @@ export interface SceneModel {
   scale: number;                      // uniform (1 = GLB units are meters); legacy fallback
   scaleXYZ?: [number, number, number]; // per-axis scale; when set it supersedes `scale`
   visible: boolean;
+  // Mesh UV source for the layer texture. Absent/'authored' = the GLB's own TEXCOORD_0 (may not
+  // exist — a CAD export without UVs then samples one texel, a flat color). 'projected' = UVs baked
+  // by projecting each vertex through the viewer camera captured in `uvProjView` — the frame looks
+  // exactly like a fullscreen image from that viewpoint. Toggling back to 'authored' KEEPS the baked
+  // matrix, so present-vs-projected can be A/B compared without re-baking.
+  uvMode?: 'authored' | 'projected';
+  uvProjView?: number[];              // 16 floats, THREE.Matrix4.toArray() of proj * viewInverse at bake
 }
 
 // Effective per-axis scale for a model: the per-axis vector when set, else the uniform `scale`.

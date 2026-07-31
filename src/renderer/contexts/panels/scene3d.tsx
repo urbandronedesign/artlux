@@ -8,6 +8,7 @@ import { help } from '../../services/helpBus';
 import { Button, NumberField } from '../../components/ui';
 import * as layout from '../../services/fixtureLayout';
 import { isLight } from '../../services/fixtureKind';
+import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -307,6 +308,41 @@ export const ModelTransformPanel: React.FC = () => {
           >TL</button>
         </Tooltip>
       </div>
+      {/* UV source for the layer texture — meshes only (planes own their full-frame UVs). 'Projected'
+          bakes UVs through the CURRENT viewer camera (viewerCamera.ts), so it needs the 3D viewport
+          mounted; picking it with no bake yet captures one immediately. The baked matrix survives a
+          switch back to Mesh UVs, so present-vs-projected is a two-click A/B. */}
+      {m.kind !== 'plane' && m.layerId && (
+        <div className="flex items-center gap-1.5 text-mini">
+          <span className="text-fg-2 shrink-0">UVs</span>
+          <Tooltip id="scene3d.model-uvs">
+            <select
+              value={m.uvMode === 'projected' ? 'projected' : 'authored'}
+              onChange={(e) => {
+                if (e.target.value === 'projected') {
+                  const vp = m.uvProjView?.length === 16 ? m.uvProjView : captureViewerViewProj();
+                  if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp });
+                } else {
+                  a.updateModel(m.id, { uvMode: undefined });
+                }
+              }}
+              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none"
+              {...help('scene3d.model-uvs')}
+            >
+              <option value="authored">Mesh UVs</option>
+              <option value="projected">Projected from view</option>
+            </select>
+          </Tooltip>
+          <Tooltip id="scene3d.model-uv-bake">
+            <button
+              onClick={() => { const vp = captureViewerViewProj(); if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp }); }}
+              title="Bake projected UVs from the current 3D viewpoint"
+              className="shrink-0 px-1.5 py-1 rounded text-micro border bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1"
+              {...help('scene3d.model-uv-bake')}
+            >From view</button>
+          </Tooltip>
+        </div>
+      )}
       <Vec3Row
         label="Scl" v={{ x: sx, y: sy, z: sz }} step={0.1} min={0.0001}
         onChange={(s) => a.updateModel(m.id, { scaleXYZ: [Math.max(0.0001, s.x), Math.max(0.0001, s.y), Math.max(0.0001, s.z)] })}

@@ -45,6 +45,26 @@ Lists everything in the scene under **OBJECTS** and **FIXTURES**:
 
 ---
 
+## Show timeline content on an object
+
+Select a plane or a mesh and pick a **Layer** in the Model card — a single timeline layer, or
+**★ Timeline (Program)** (the **TL** shortcut button) for the whole composite. Planes display the
+frame directly; meshes get it textured through UV coordinates, and a **UVs** selector chooses which:
+
+- **Mesh UVs** — the UV map authored in the GLB file. If the file has none (common for CAD exports),
+  there is nothing to spread the picture across and the whole mesh shows a single flat color — that
+  is the tell.
+- **Projected from view** — bakes UVs by projecting the mesh from the current 3D viewpoint, like a
+  virtual projector: orbit the camera until the mesh is framed the way the content should land, then
+  press **From view**. From that viewpoint the layer reads as a fullscreen image. The texture stays
+  glued to the mesh if it is moved afterwards; press **From view** again to re-project. Surfaces the
+  viewpoint cannot see get stretched, exactly as with a real projector.
+
+Switching back to **Mesh UVs** keeps the baked viewpoint, so comparing the two is a two-click A/B —
+nothing in the GLB file is modified either way.
+
+---
+
 ## Lighting & preview options
 
 The **LIGHTING** section controls the preview render: **Light gain**, **Exposure**, **Ambient (env)**,

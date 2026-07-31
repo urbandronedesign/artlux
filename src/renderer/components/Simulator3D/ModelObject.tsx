@@ -87,6 +87,64 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     return () => { group.remove(cloned); };
   }, [group, cloned]);
 
+  // Projected UVs: bake per-vertex UVs by pushing each vertex through the viewer camera captured in
+  // model.uvProjView (NDC → 0..1), so the layer frame reads as a fullscreen image from that viewpoint
+  // — a virtual-projector test without touching the GLB on disk. recenterClone SHARES geometry with
+  // useGLTF's cache (that sharing is what makes many placements cheap), so the baked `uv` attribute
+  // must never be written onto the shared geometry: the mesh gets a private geometry clone while
+  // projected, and 'authored' puts the shared original back — which is also the whole revert story.
+  //
+  // Deliberately NOT keyed on the model transform: the bake uses the transform current at bake time
+  // and then the texture stays glued to the mesh when it is later moved (re-pressing From view
+  // re-projects). Vertices behind the bake camera get mirror-smeared UVs, same as a real projector.
+  const origGeoms = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+  useEffect(() => {
+    const restore = () => {
+      cloned.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!(mesh as { isMesh?: boolean }).isMesh) return;
+        const orig = origGeoms.current.get(mesh.uuid);
+        if (orig) { mesh.geometry.dispose(); mesh.geometry = orig; origGeoms.current.delete(mesh.uuid); }
+      });
+    };
+    if (!(model.uvMode === 'projected' && model.uvProjView?.length === 16)) { restore(); return; }
+    // The group's transform effect may not have run yet on a fresh load — apply it here so the
+    // world matrices the bake reads are the persisted placement, not identity.
+    applyModelTransform(group, model);
+    group.updateWorldMatrix(true, true);
+    const vp = new THREE.Matrix4().fromArray(model.uvProjView!);
+    const v = new THREE.Vector3();
+    cloned.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!(mesh as { isMesh?: boolean }).isMesh) return;
+      if (!origGeoms.current.has(mesh.uuid)) {
+        origGeoms.current.set(mesh.uuid, mesh.geometry);
+        mesh.geometry = mesh.geometry.clone();
+      }
+      const geo = mesh.geometry;
+      const pos = geo.getAttribute('position');
+      const uv = new Float32Array(pos.count * 2);
+      for (let i = 0; i < pos.count; i++) {
+        // applyMatrix4 does the perspective divide — v lands in NDC.
+        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(vp);
+        uv[i * 2] = v.x * 0.5 + 0.5;
+        uv[i * 2 + 1] = v.y * 0.5 + 0.5;
+      }
+      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloned, group, model.uvMode, model.uvProjView]);
+
+  // When the clone itself goes away (file change / unmount), dispose any private baked geometries —
+  // the shared originals in the map belong to the loader cache and must NOT be disposed.
+  useEffect(() => () => {
+    cloned.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if ((mesh as { isMesh?: boolean }).isMesh && origGeoms.current.has(mesh.uuid)) mesh.geometry.dispose();
+    });
+    origGeoms.current.clear();
+  }, [cloned]);
+
   // Register the world-space group for the markerless calibration's batch raycaster (only while
   // visible). Lets the controller cast camera rays onto this venue geometry to sample 3D points.
   useEffect(() => {
