@@ -133,7 +133,13 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
         // applyMatrix4 does the perspective divide — v lands in NDC.
         v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(vp);
         uv[i * 2] = v.x * 0.5 + 0.5;
-        uv[i * 2 + 1] = v.y * 0.5 + 0.5;
+        // V IS INVERTED FROM NDC, and the anchor for that is empirical, not a derivation: the same
+        // texture on the same mesh reads upright through the model's AUTHORED UVs and upside down
+        // through this bake, in BOTH windows. Whatever the glTF exporter's V convention was, the one
+        // the rest of the app already samples with is the one the bake has to match — a projected
+        // frame that disagrees with an authored one is wrong by definition, since the whole promise
+        // of this mode is "it looks like a fullscreen image from that viewpoint".
+        uv[i * 2 + 1] = 0.5 - v.y * 0.5;
       }
       geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     });

@@ -302,6 +302,15 @@ export const ProjectorApp: React.FC = () => {
       // ⚠ The sign is DOM, so an NDI send of this output carries the BLACK, not the words. That is the
       // right way round — an NDI consumer is another machine's input, not a person to be told things.
       if (bootingRef.current) { gl.draw(null, opts); return; }
+      // ── NOTHING UNDER AN OPAQUE OVERLAY ─────────────────────────────────────────────────────────
+      // Render-from-projector mounts the calibrated 3D scene as an OPAQUE full-window layer above
+      // this canvas, so every pixel drawn here is thrown away — while still costing a full-resolution
+      // upload of the streamed frame plus the warp/blend pass, per frame, on the machine that can
+      // least afford it. Skipped rather than paused: the loop keeps running, so the moment the mode
+      // ends (or the overlay fails and unmounts) the very next frame paints normally. The liveness
+      // and cold-start gates above deliberately stay AHEAD of this — a dead producer must still black
+      // this canvas out, because the overlay above it would otherwise hold its last look forever.
+      if (calibRenderRef.current) return;
       // ── PRODUCER LIVENESS — do not let a dead show LOOK healthy ─────────────────────────────────
       // This window has its own root and its own rAF, so it survives the main window's tree dying. It
       // used to survive it by lying: `frameRef` holds the last ImageBitmap and is only replaced by a

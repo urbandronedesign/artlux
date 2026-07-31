@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { getDrawable, getSurface } from '../../services/surfaceMedia';
+import { getDrawable, getDrawableGeneration, getSurface } from '../../services/surfaceMedia';
 import { matchBitmapOrientation } from './bitmapFlip';
 
 // Keeps a THREE.Texture bound to a SURFACE's live picture — the sibling of useLayerTexture, for a
@@ -23,6 +23,7 @@ export function useSurfaceTexture(
 ): void {
   const texRef = useRef<THREE.Texture | null>(null);
   const curVid = useRef<HTMLVideoElement | null>(null);
+  const lastGen = useRef<number | undefined>(undefined);
   const cbRef = useRef(onTexture);
   cbRef.current = onTexture;
 
@@ -35,6 +36,7 @@ export function useSurfaceTexture(
     if (!d) {
       if (texRef.current || curVid.current) {
         texRef.current?.dispose(); texRef.current = null; curVid.current = null;
+        lastGen.current = undefined;
         cbRef.current(null);
       }
       return;
@@ -52,6 +54,14 @@ export function useSurfaceTexture(
       texRef.current!.needsUpdate = true;
     } else {
       curVid.current = null;
+      // SKIP REPEATS. A canvas-backed source (a HAP/MP4 codec frame) hands back the SAME canvas
+      // every frame and only repaints it when the decoder advances — but `needsUpdate` re-uploads
+      // the whole texture regardless, so a 25 fps clip was paying a full-resolution GPU upload at
+      // display rate, per view showing it. The generation is exactly the "has new pixels" signal the
+      // projector frame pump already skips on; undefined means the source cannot say, so assume yes.
+      const gen = getDrawableGeneration(s!);
+      if (gen !== undefined && gen === lastGen.current && texRef.current) return;
+      lastGen.current = gen;
       let t = texRef.current;
       if (!t || t instanceof THREE.VideoTexture) {
         t?.dispose();
