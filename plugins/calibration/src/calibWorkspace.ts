@@ -21,7 +21,7 @@
 
 import type { ProjectorCalibration } from '../../../shared/protocol';
 import * as calibNative from './calibNative';
-import { storeCalibration, getCalibration } from './calibHost';
+import { storeCalibration, getCalibration, sendToProjector } from './calibHost';
 import { reproject } from './cvCamera';
 
 let latestCrosshair: [number, number] | null = null;
@@ -92,90 +92,125 @@ export function onCrosshair(pixel: [number, number]): void {
   // every move and the pose re-solves (throttled: solving is cheap, but each store re-renders the
   // wizard and re-pushes the projector overlay, and pointermove arrives at display rate). The guard
   // re-checks the arm at fire time: a trailing update must not move a point the operator released.
-  if (state.editPixel != null && calibratingId) {
-    const i = state.editPixel;
-    throttledPixel(calibratingId, i, pixel, () => state.editPixel === i);
-  }
+  if (state.editPixel != null && calibratingId) dragPickTo(state.editPixel, { pixel });
 }
 // Enter on the projector: releases a live re-aim (commit what the crosshair shows now). With no
 // armed edit it is a no-op — pairing needs no confirmation, the 3D model click IS the gesture.
 export function onConfirm(): void {
   if (state.editPixel != null) {
-    const i = state.editPixel;
     emit({ editPixel: null });
-    if (calibratingId && latestCrosshair) updatePick(calibratingId, i, { pixel: latestCrosshair });
+    endPickDrag(); // commit where the crosshair left it, in one write
   }
 }
 
-// A placed point dragged DIRECTLY — grabbed on the projection itself or on the wizard's raster map.
-// No arm, no guard: grabbing the point IS the consent, and the trailing update after release is the
-// final position the operator dropped it at.
-export function onPointDrag(index: number, pixel: [number, number]): void {
-  if (!calibratingId) return;
-  throttledPixel(calibratingId, index, pixel);
+// ── LIVE DRAG: local while the finger is down, one document write on release ───────────────────
+//
+// THE COST THIS EXISTS TO AVOID. Every write to an output re-renders the whole app (App owns the
+// state and the tree is not memoised) AND re-pushes the full config to every projector window (the
+// re-push effect depends on `projectorOutputs`). Writing the document per drag tick therefore paid
+// both, several times a second, to move one point by a few pixels — the app's documented cure is
+// local-during-drag + commit-on-release + a render-free live channel, and this is it.
+//
+// While a drag is live the provisional picks and the pose solved from them live HERE, not in the
+// document, and the only consumer that must see them at drag rate — the projection the operator is
+// staring at — is fed straight over the bridge from this module. React is not involved at all: no
+// setState, no re-render, no config push. On release (or, as a backstop, after the drag has been
+// silent long enough that the pointerup was clearly lost) the picks are committed once and the full
+// solve — including the auto-lens — runs on where the point was actually DROPPED.
+interface LiveDrag {
+  sid: string;
+  picks: NonNullable<ProjectorCalibration['posePicks']>;
+  cal: ProjectorCalibration; // provisional: the stored lens + the pose we are re-solving as it moves
 }
+let live: LiveDrag | null = null;
+let liveTimer = 0;
+let liveSafety = 0;
+const LIVE_SOLVE_MS = 100;   // provisional solves per second while dragging
+const LIVE_LOST_MS = 900;    // no movement for this long and no release → assume the pointerup was lost
+
+function dragPickTo(index: number, patch: Partial<{ world: [number, number, number]; pixel: [number, number] }>): void {
+  const sid = calibratingId;
+  if (!sid) return;
+  const base = live && live.sid === sid ? live : null;
+  const cal = base?.cal ?? getCalibration(sid);
+  if (!cal) return;
+  const picks0 = base?.picks ?? cal.posePicks ?? [];
+  if (index < 0 || index >= picks0.length) return;
+  live = { sid, cal, picks: picks0.map((p, i) => (i === index ? { ...p, ...patch } : p)) };
+  if (!liveTimer) liveTimer = window.setTimeout(liveSolve, LIVE_SOLVE_MS);
+  if (liveSafety) window.clearTimeout(liveSafety);
+  liveSafety = window.setTimeout(endPickDrag, LIVE_LOST_MS);
+}
+
+// Pose only, from the provisional picks, straight into the channel. The auto-lens is deliberately
+// NOT run here: four native calls per tick is slow, and a focal that moves while you are judging
+// alignment against it is worse than one that is briefly stale.
+async function liveSolve(): Promise<void> {
+  liveTimer = 0;
+  const d = live;
+  if (!d || d.picks.length < 4) return;
+  const res = await bestPose(
+    d.picks.flatMap((p) => p.world), d.picks.flatMap((p) => p.pixel),
+    d.cal.intrinsics, d.cal.distortion ?? [0, 0, 0, 0, 0], d.picks.length);
+  if (!res || live !== d) return; // the drag ended (or moved on) while the solver was out
+  d.cal = { ...d.cal, rotation: res.rotation, translation: res.translation, poseRms: res.rms };
+  pushLiveOverlay(d);
+}
+
+// The projection, updated without touching React: numbered points, their leader lines and the
+// wireframe underlay all come from the provisional solve. Partial by design — CalibProjector keeps
+// its last meshLook/selected, which the wizard owns.
+function pushLiveOverlay(d: LiveDrag): void {
+  const dist = d.cal.distortion ?? [0, 0, 0, 0, 0];
+  sendToProjector(d.sid, {
+    t: 'calib', mode: 'crosshair',
+    points: d.picks.map((p) => p.pixel),
+    predicted: d.picks.map((p) => (d.cal.poseRms != null
+      ? reproject(d.cal.intrinsics, dist, d.cal.rotation, d.cal.translation as [number, number, number], p.world)
+      : null)),
+    calibration: d.cal,
+  });
+}
+
+/** Release: commit the provisional picks in ONE write and run the full solve on the final position. */
+export function endPickDrag(): void {
+  if (liveTimer) { window.clearTimeout(liveTimer); liveTimer = 0; }
+  if (liveSafety) { window.clearTimeout(liveSafety); liveSafety = 0; }
+  const d = live;
+  live = null;
+  if (!d) return;
+  storeCalibration(d.sid, { posePicks: d.picks });
+  if (d.picks.length >= 4) void solvePose(d.sid, d.picks);
+}
+
+/** Abandon a drag without committing (the re-aim banner's Cancel restores the original itself). */
+export function cancelPickDrag(): void {
+  if (liveTimer) { window.clearTimeout(liveTimer); liveTimer = 0; }
+  if (liveSafety) { window.clearTimeout(liveSafety); liveSafety = 0; }
+  live = null;
+}
+
+// A placed point dragged DIRECTLY — grabbed on the projection itself or on the wizard's raster map.
+// No arm, no guard: grabbing the point IS the consent.
+export function onPointDrag(index: number, pixel: [number, number]): void { dragPickTo(index, { pixel }); }
 
 // A pick's 3D marker dragged across the venue mesh (vertex-snapped world position streams in from
 // the 3D view's snap-hover channel at frame rate).
-export function movePickWorld(index: number, world: [number, number, number]): void {
-  const sid = calibratingId;
-  if (!sid) return;
-  worldArgs = { sid, i: index, world };
-  if (worldTimer) return;
-  worldTimer = window.setTimeout(() => {
-    worldTimer = 0;
-    const a = worldArgs; worldArgs = null;
-    if (a) updatePick(a.sid, a.i, { world: a.world }, true); // still dragging in 3D
-  }, 120);
-}
-let worldTimer = 0;
-let worldArgs: { sid: string; i: number; world: [number, number, number] } | null = null;
+export function movePickWorld(index: number, world: [number, number, number]): void { dragPickTo(index, { world }); }
 
-let pixTimer = 0;
-let pixArgs: { sid: string; i: number; pixel: [number, number]; guard?: () => boolean } | null = null;
-function throttledPixel(sid: string, i: number, pixel: [number, number], guard?: () => boolean): void {
-  pixArgs = { sid, i, pixel, guard };
-  if (pixTimer) return;
-  pixTimer = window.setTimeout(() => {
-    pixTimer = 0;
-    const a = pixArgs; pixArgs = null;
-    if (a && (!a.guard || a.guard())) updatePick(a.sid, a.i, { pixel: a.pixel }, true); // still dragging/re-aiming
-  }, 150);
-}
-
-/** Replace one half of an existing correspondence and re-solve from the full set.
- *
- *  `live` marks an update that is still under the operator's finger (a drag). Those get a POSE-ONLY
- *  solve: the full auto-lens runs up to four native calls (two guided calibrations plus their pose
- *  solves), which at drag rate is both slow and unstable — the focal wobbles while you are trying to
- *  judge alignment against it. The lens is re-estimated once, on the trailing edge, when the drag
- *  stops. */
+/** Replace one half of an existing correspondence and re-solve — the single-shot edits (an armed
+ *  move, a re-aim commit), which write the document once and are not part of a drag. */
 export function updatePick(
   surfaceId: string,
   index: number,
   patch: Partial<{ world: [number, number, number]; pixel: [number, number] }>,
-  live = false,
 ): void {
   const cal = getCalibration(surfaceId);
   const picks = cal?.posePicks ?? [];
   if (index >= picks.length) return;
   const next = picks.map((p, i) => (i === index ? { ...p, ...patch } : p));
   storeCalibration(surfaceId, { posePicks: next });
-  if (next.length < 4) return;
-  void solvePose(surfaceId, next, live);
-  if (live) settleSoon(surfaceId);
-}
-
-// The trailing full solve: fires once the drag has been quiet, so the lens is re-estimated from
-// where the point was DROPPED rather than from every position it passed through.
-let settleTimer = 0;
-function settleSoon(surfaceId: string): void {
-  if (settleTimer) window.clearTimeout(settleTimer);
-  settleTimer = window.setTimeout(() => {
-    settleTimer = 0;
-    const picks = getCalibration(surfaceId)?.posePicks ?? [];
-    if (picks.length >= 4) void solvePose(surfaceId, picks);
-  }, 350);
+  if (next.length >= 4) void solvePose(surfaceId, next);
 }
 
 // Live crosshair position, for the manual wizard's raster map. A getter, not state: the crosshair
@@ -310,7 +345,9 @@ export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorC
 export function removePick(surfaceId: string, index: number): void {
   const cal = getCalibration(surfaceId);
   if (!cal) return;
-  // Removal renumbers everything after it — an armed edit would land on the wrong point.
+  // Removal renumbers everything after it — an armed edit, or a drag still holding a provisional
+  // copy of the old array, would land on the wrong point.
+  cancelPickDrag();
   emit({ editWorld: null, editPixel: null });
   const picks = (cal.posePicks ?? []).filter((_, i) => i !== index);
   if (picks.length >= 4) {
@@ -325,11 +362,13 @@ export function removePick(surfaceId: string, index: number): void {
 export function poseModeChange(on: boolean): void {
   if (!on) {
     latestCrosshair = null;
+    endPickDrag(); // leaving the step must not strand a provisional drag — commit what is held
     if (state.editWorld != null || state.editPixel != null) emit({ editWorld: null, editPixel: null });
   }
 }
 
 export function clearPoses(surfaceId: string): void {
+  cancelPickDrag();
   emit({ editWorld: null, editPixel: null });
   storeCalibration(surfaceId, { posePicks: [], poseRms: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
 }

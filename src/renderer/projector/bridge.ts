@@ -88,5 +88,6 @@ export type ProjectorToMain =
   | { t: 'calibCrosshair'; pixel: [number, number] }  // current crosshair position in projector raster px (float)
   | { t: 'calibConfirm' }                             // Enter: releases a live re-aim (otherwise a no-op)
   // A placed pose pick grabbed and dragged directly ON the projection (raster px, streamed while
-  // dragging — main throttles the re-solve).
-  | { t: 'calibPointDrag'; index: number; pixel: [number, number] };
+  // dragging — main solves provisionally and commits the document once, on the release below).
+  | { t: 'calibPointDrag'; index: number; pixel: [number, number] }
+  | { t: 'calibPointDragEnd' };

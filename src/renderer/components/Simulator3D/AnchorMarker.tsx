@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { worldPerPixel } from './screenScale';
+import { getSnapHover } from './vertexSnap';
 
 // One numbered calibration anchor (a board pose pick or an Auto-Align correspondence) drawn in the
 // 3D scene.
@@ -34,9 +35,12 @@ interface Props {
   /** Press-and-drag the marker to MOVE its pick across the venue (manual/board pose picks). Grabbing
    *  the marker is the consent — this is the direct-manipulation edit, no armed mode needed. */
   onDragStart?: (i: number) => void;
+  /** This marker is the one being dragged: follow the snap cursor rather than the stored point,
+   *  which is only written once, on release (calibWorkspace's live-drag channel). */
+  live?: boolean;
 }
 
-export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect, onDragStart }) => {
+export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect, onDragStart, live }) => {
   const ref = useRef<THREE.Group>(null);
   const col = selected ? '#ffffff' : '#00e5ff';
 
@@ -46,6 +50,12 @@ export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect
   useFrame(({ camera, size }) => {
     const g = ref.current;
     if (!g) return;
+    if (live) {
+      const h = getSnapHover();
+      if (h) g.position.copy(h.point); // the position the release will commit
+    } else if (g.position.x !== world[0] || g.position.y !== world[1] || g.position.z !== world[2]) {
+      g.position.set(world[0], world[1], world[2]); // back under the stored value once released
+    }
     const cam = camera as THREE.PerspectiveCamera;
     if (!cam.isPerspectiveCamera || !size.height) return;
     const d = cam.position.distanceTo(g.getWorldPosition(_p));

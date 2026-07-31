@@ -117,6 +117,8 @@ export const plugin: RendererPlugin = {
       } else if (m.t === 'calibPointDrag') {
         const d = m as { index: number; pixel: [number, number] };
         calibWorkspace.onPointDrag(d.index, d.pixel); // a point grabbed + dragged on the projection
+      } else if (m.t === 'calibPointDragEnd') {
+        calibWorkspace.endPickDrag(); // released → commit the provisional picks in one write
       }
     });
   },

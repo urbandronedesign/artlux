@@ -181,6 +181,37 @@ check(
   },
 );
 
+// ── Dragging a calibration point must not write the document per tick ─────────────────────────
+check(
+  'a live calibration drag stays out of the document',
+  'Every write to an output re-renders the whole app (App owns the state, the tree is not memoised) ' +
+  'AND re-pushes the full config to every projector window (the re-push effect depends on ' +
+  'projectorOutputs). Writing per drag tick paid both several times a second to move one point, and ' +
+  'it also re-uploaded each window\'s blend maps. The provisional position and pose must live in ' +
+  'calibWorkspace\'s live-drag channel and reach the projection over the bridge; the document is ' +
+  'written ONCE, on release. Symptom when broken: "it works but it is super laggy" — nothing throws.',
+  () => {
+    const src = read('plugins/calibration/src/calibWorkspace.ts');
+    const problems = [];
+    for (const fn of ['dragPickTo', 'liveSolve']) {
+      const body = fnBody(src, fn);
+      if (!body) { problems.push(`${fn} is gone — the live-drag channel has been dismantled`); continue; }
+      if (/storeCalibration\s*\(/.test(body)) problems.push(`${fn} writes the document mid-drag (storeCalibration)`);
+    }
+    const end = fnBody(src, 'endPickDrag');
+    if (!end) problems.push('endPickDrag is gone — a drag would never be committed');
+    else if (!/storeCalibration\s*\(/.test(end)) problems.push('endPickDrag no longer commits the picks');
+    // The release has to be reachable from all three surfaces a point can be dragged on.
+    if (!/calibPointDragEnd/.test(read('plugins/calibration/src/plugin.renderer.ts'))) {
+      problems.push('the projector-window release (calibPointDragEnd) is not routed — a drag there would only commit on the safety timeout');
+    }
+    if (!/onMovePickEnd/.test(read('src/renderer/App.tsx'))) {
+      problems.push('the 3D marker release (onMovePickEnd) is not wired from App');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Selection: the two 3D selections must clear each other ────────────────────────────────────
 check(
   'fixture/model selection is symmetric',

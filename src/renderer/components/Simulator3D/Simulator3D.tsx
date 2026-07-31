@@ -88,6 +88,8 @@ interface Props {
   onSelectPick?: (i: number) => void;                 // click a numbered marker → select it for editing
   /** Drag a numbered marker across the venue to MOVE its pick (vertex-snapped, streamed live). */
   onMovePick?: (i: number, world: [number, number, number]) => void;
+  /** Released — the holder of the provisional position commits it (see calibWorkspace.endPickDrag). */
+  onMovePickEnd?: () => void;
   /**
    * Stop rendering without unmounting. The workspace shell keeps this canvas MOUNTED across context
    * switches (remounting it would rebuild the WebGL context and reload every model), so while it is
@@ -201,7 +203,7 @@ const Simulator3D: React.FC<Props> = ({
   fixtures, selectedFixtureId, selectedFixtureIds = [], scene3D = defaultScene3D(), modelUrls = {},
   selectedModelId = null,
   fixtureProfiles = EMPTY_PROFILES, onSelectFixture, onSelectFixtures, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory, onSceneConfig,
-  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick, onMovePick,
+  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick, onMovePick, onMovePickEnd,
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
@@ -216,9 +218,10 @@ const Simulator3D: React.FC<Props> = ({
   const [dragPick, setDragPick] = useState<number | null>(null);
   useEffect(() => {
     if (dragPick == null) return;
-    const up = () => setDragPick(null);
+    const up = () => { setDragPick(null); onMovePickEnd?.(); };
     window.addEventListener('pointerup', up);
     return () => window.removeEventListener('pointerup', up);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragPick]);
   useEffect(() => { if (!calibPickMode) setDragPick(null); }, [calibPickMode]);
   // ── CLICK-TO-PLACE ────────────────────────────────────────────────────────────────────────
@@ -415,7 +418,10 @@ const Simulator3D: React.FC<Props> = ({
             an edit handler is wired (markerless), so selecting from the 3D side mirrors selecting from
             the camera/list; display-only in the board flow. */}
         {activePicks.map((p, i) => (
+          // `live` on the dragged one: its committed world point stays put until release now (the
+          // document is written once, not per tick), so the marker follows the snap cursor itself.
           <AnchorMarker key={`apick-${i}`} world={p.world} index={i} selected={selectedPick === i} onSelect={onSelectPick}
+            live={dragPick === i}
             onDragStart={calibPickMode && onMovePick ? ((idx) => { setDragPick(idx); onSelectPick?.(idx); }) : undefined} />
         ))}
         {dragPick != null && onMovePick && <PickDragRunner index={dragPick} onMove={onMovePick} />}

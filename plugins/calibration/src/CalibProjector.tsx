@@ -180,7 +180,10 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       }
       if (e.type === 'pointerdown' || e.buttons === 1) place(e.clientX, e.clientY);
     };
-    const onUp = () => { dragPointRef.current = null; };
+    const onUp = () => {
+      if (dragPointRef.current != null) send({ t: 'calibPointDragEnd' }); // release → main commits once
+      dragPointRef.current = null;
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') { e.preventDefault(); send({ t: 'calibConfirm' }); return; }
       const dir: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };

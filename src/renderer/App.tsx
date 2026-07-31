@@ -3812,6 +3812,7 @@ const App: React.FC = () => {
                                 selectedPick={calib.flow === 'board' ? null : calib.selectedPick}
                                 onSelectPick={calib.flow === 'board' ? undefined : ((i: number) => calibWorkspace.selectPick(i))}
                                 onMovePick={calib.flow === 'auto' ? undefined : ((i: number, world: [number, number, number]) => calibWorkspace.movePickWorld(i, world))}
+                                onMovePickEnd={calib.flow === 'auto' ? undefined : (() => calibWorkspace.endPickDrag())}
                                 paused={!scene3dVisible}
                             />
                             </div>

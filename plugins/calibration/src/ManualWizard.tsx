@@ -415,10 +415,12 @@ export const ManualWizard: React.FC<Props> = (props) => {
               <div className="flex items-start gap-1.5 text-accent text-micro leading-snug border border-accent/40 bg-accent/10 rounded px-2 py-1.5">
                 <Crosshair size={12} className="shrink-0 mt-0.5" />
                 <span className="flex-1">Point <b>#{editPixel + 1}</b> follows the crosshair <b>live</b> — move it into place on the projector (the solve tracks it), then Done. Enter on the projector also finishes.</span>
-                <button onClick={() => calibWorkspace.armEditPixel(null)} className="text-ok hover:text-fg-1 shrink-0 font-medium">Done</button>
+                <button onClick={() => { calibWorkspace.armEditPixel(null); calibWorkspace.endPickDrag(); }}
+                  className="text-ok hover:text-fg-1 shrink-0 font-medium">Done</button>
                 <button onClick={() => {
                   const i = editPixel, orig = reaimOrig.current;
                   calibWorkspace.armEditPixel(null);
+                  calibWorkspace.cancelPickDrag(); // drop the provisional position, keep the stored one
                   if (orig) calibWorkspace.updatePick(surfaceId, i, { pixel: orig });
                 }} className="text-fg-2 hover:text-fg-1 shrink-0">Cancel</button>
               </div>
@@ -551,6 +553,11 @@ const RasterMap: React.FC<{
   const statusRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const dragIdx = useRef<number | null>(null);
+  // Where the dragged dot IS while the finger is down. The document only learns the new position on
+  // release now (calibWorkspace's live drag), so without this the dot would sit at its old place
+  // until the drop — the one thing a drag must never do. Local state: it re-renders this map, not
+  // the wizard, and never the app.
+  const [dragPos, setDragPos] = useState<{ i: number; px: [number, number] } | null>(null);
   const dragToPixel = (e: React.PointerEvent): [number, number] | null => {
     const r = boxRef.current?.getBoundingClientRect();
     if (!r || r.width === 0) return null;
@@ -599,15 +606,23 @@ const RasterMap: React.FC<{
         {picks.map((p, i) => {
           const err = errors?.[i];
           const band = err != null && isFinite(err) ? poseBand(err) : null;
-          const pos = { left: `${(p.pixel[0] / raster.w) * 100}%`, top: `${(p.pixel[1] / raster.h) * 100}%` };
+          const px = dragPos?.i === i ? dragPos.px : p.pixel;
+          const pos = { left: `${(px[0] / raster.w) * 100}%`, top: `${(px[1] / raster.h) * 100}%` };
           return (
             <React.Fragment key={i}>
               {/* Grab-and-drag moves the pick's pixel directly (pointer capture keeps the moves
                   coming even when the cursor outruns the 12px dot); a plain press just selects. */}
               <button
                 onPointerDown={onMovePixel ? ((e) => { e.preventDefault(); (e.target as Element).setPointerCapture(e.pointerId); dragIdx.current = i; onSelect(i); }) : undefined}
-                onPointerMove={onMovePixel ? ((e) => { if (dragIdx.current !== i) return; const px = dragToPixel(e); if (px) onMovePixel(i, px); }) : undefined}
-                onPointerUp={onMovePixel ? ((e) => { if (dragIdx.current !== i) return; dragIdx.current = null; const px = dragToPixel(e); if (px) onMovePixel(i, px); }) : undefined}
+                onPointerMove={onMovePixel ? ((e) => { if (dragIdx.current !== i) return; const px = dragToPixel(e); if (px) { setDragPos({ i, px }); onMovePixel(i, px); } }) : undefined}
+                onPointerUp={onMovePixel ? ((e) => {
+                  if (dragIdx.current !== i) return;
+                  dragIdx.current = null;
+                  const px = dragToPixel(e);
+                  if (px) onMovePixel(i, px);
+                  setDragPos(null);
+                  calibWorkspace.endPickDrag(); // released → one document write
+                }) : undefined}
                 onClick={onMovePixel ? undefined : (() => onSelect(selected === i ? null : i))}
                 aria-label={`Point ${i + 1}`} title={`#${i + 1}${err != null && isFinite(err) ? ` — ${err.toFixed(1)} px` : ''} — drag to move`}
                 className={`absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full border no-press ${onMovePixel ? 'cursor-grab' : ''} ${band ? bandDot[band] : 'bg-accent'} ${selected === i ? 'border-fg-1 scale-150' : 'border-black/40'}`}
