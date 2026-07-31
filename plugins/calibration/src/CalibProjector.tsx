@@ -22,6 +22,19 @@ import { setSurfaceFrame, clearSurfaceFrame } from './surfaceFrameChannel';
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
+// Value equality for the blend look. `blend` is compared by IDENTITY on purpose: it is a solved map
+// of thousands of numbers that only ever changes by being re-solved, so a deep compare would cost
+// more than the texture upload it is protecting against.
+const sameTriple = (a?: readonly number[], b?: readonly number[]): boolean =>
+  a === b || (!!a && !!b && a[0] === b[0] && a[1] === b[1] && a[2] === b[2]);
+function sameLook(a: BlendLook, b: BlendLook): boolean {
+  const x = a.softEdge, y = b.softEdge;
+  const softSame = x === y || (!!x && !!y && x.left === y.left && x.right === y.right
+    && x.top === y.top && x.bottom === y.bottom && x.gamma === y.gamma);
+  return softSame && sameTriple(a.colorGain, b.colorGain) && sameTriple(a.blackLift, b.blackLift)
+    && (a.blend ?? null) === (b.blend ?? null);
+}
+
 export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: number; h: number } }> = ({ ctx, size }) => {
   const send = (m: ProjectorToMain) => ctx.send(m);
 
@@ -88,10 +101,15 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
         setScene3D(m.scene3D);
       } else if (m.t === 'config') {
         surfaceIdRef.current = m.surface.id; // which surface this window IS — the mesh binding target
-        // New object identity per config push is fine — config arrives on an operator edit, never
-        // per frame, and BlendEffect rebuilds its textures only when this changes.
+        // ONLY ON A REAL CHANGE OF LOOK. This used to take the new object every time, on the stated
+        // assumption that "config arrives on an operator edit, never per frame" — and BlendEffect
+        // rebuilds its textures whenever this identity changes. Dragging a calibration point breaks
+        // that assumption: it writes the document at pointer rate, every write re-pushes config to
+        // every projector window, and each push re-uploaded the blend maps for a look nobody
+        // touched. Comparing by value costs a handful of numbers and restores the invariant.
         const r = m.render;
-        setLook({ softEdge: r.softEdge, colorGain: r.colorGain, blackLift: r.blackLift, blend: r.blend ?? null });
+        const next: BlendLook = { softEdge: r.softEdge, colorGain: r.colorGain, blackLift: r.blackLift, blend: r.blend ?? null };
+        setLook((prev) => (sameLook(prev, next) ? prev : next));
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,7 +251,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
           deliberate: high contrast beats the faint content for aiming. */}
       {calibMode === 'crosshair' && meshLook !== 'shaded' && calibration?.poseRms != null && scene3D && (
         <div style={{ position: 'absolute', inset: 0 }}>
-          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} meshLook={meshLook} />
+          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} meshLook={meshLook} frameloop="demand" />
         </div>
       )}
 

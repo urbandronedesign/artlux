@@ -76,9 +76,16 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
           : new THREE.Mesh(m.geometry, wireMatRef.current!);
         line.applyMatrix4(mat);
         root.add(line);
-        const dots = new THREE.Points(m.geometry, ptsMatRef.current!);
-        dots.applyMatrix4(mat);
-        root.add(dots);
+        // Dots on the CREASE endpoints, not on every vertex. Drawing a point per mesh vertex is a
+        // few hundred thousand sprites per frame on a real CAD venue — it was the single most
+        // expensive thing on screen, and it also drew a dot on every tessellation vertex in the
+        // middle of a flat panel, which is not a point anybody picks. The crease set IS the corners.
+        // (Wireframe mode gets none: every vertex is already an edge junction there.)
+        if (geo) {
+          const dots = new THREE.Points(geo, ptsMatRef.current!);
+          dots.applyMatrix4(mat);
+          root.add(dots);
+        }
       }
       for (const c of obj.children) walk(c, mat);
     };
@@ -87,6 +94,7 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
   }, [cloned, meshLook]);
 
   // EdgesGeometry allocates per mesh — release the ones this look built when it changes/unmounts.
+  // Points SHARE the LineSegments' geometry, so dispose once per line and never per point.
   useEffect(() => () => {
     wireClone?.traverse((o) => {
       const l = o as THREE.LineSegments;
@@ -159,6 +167,14 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
       {wireClone && <primitive object={wireClone} />}
     </group>
   );
+};
+
+// In 'demand' mode R3F draws only when asked. A new solve arrives as a prop, not as scene-graph
+// churn, so ask explicitly — otherwise the underlay would freeze at whatever it last drew.
+const RedrawOn: React.FC<{ dep: unknown }> = ({ dep }) => {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => { invalidate(); }, [dep, invalidate]);
+  return null;
 };
 
 // Drives the R3F camera from the calibration each frame (overrides R3F's fov/aspect projection with
@@ -335,12 +351,18 @@ export const ProjectorScene: React.FC<{
   look?: BlendLook;
   /** Verify look: the venue's materials, its crease edges, or a full wireframe (see wireClone). */
   meshLook?: MeshLook;
-}> = ({ scene3D, modelUrls, calibration, look, meshLook }) => {
+  /** 'demand' renders only when something changes — correct for the PICKING underlay, whose picture
+   *  moves only when the solve does (a few times a second while dragging, never while thinking).
+   *  Render mode stays 'always': it plays content. Left as a prop rather than inferred, because
+   *  getting it wrong in the show direction would freeze a projector. */
+  frameloop?: 'always' | 'demand';
+}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always' }) => {
   const meshes = (scene3D.models ?? []).filter(m => m.kind !== 'plane' && modelUrls[m.id]);
   const hasDistortion = !!calibration.distortion?.some(v => v !== 0);
   const wantsBlend = !!look && needsBlendPass(look);
   return (
-    <Canvas gl={{ powerPreference: 'high-performance', antialias: true }} dpr={[1, 2]} style={{ width: '100%', height: '100%' }}>
+    <Canvas frameloop={frameloop} gl={{ powerPreference: 'high-performance', antialias: true }} dpr={[1, 2]} style={{ width: '100%', height: '100%' }}>
+      {frameloop === 'demand' && <RedrawOn dep={calibration} />}
       <color attach="background" args={['#000']} />
       {/* Same rig as Simulator3D's Lighting (env look) — ambient alone left standard materials darker
           here than in the editor, which read as "the render shows nothing" on dim GLBs. */}

@@ -34,11 +34,22 @@ export class SurfaceEffect {
     this.img = this.ctx.createImageData(FW, FH);
   }
 
+  // Rendering the SAME effect at the SAME time twice is pure waste, and it stopped being
+  // hypothetical the moment a surface could also texture a 3D object: the frame engine asks for the
+  // drawable, then the 3D view asks again in its own loop, and this whole per-pixel loop plus a
+  // putImageData ran twice per frame per consumer. The canvas is already the cached result — hand it
+  // back when nothing that determines its pixels has moved. (`fire` advances a heat buffer per call,
+  // so repeating it is not even idempotent — it ran the simulation at double speed.)
+  private last: { eff: number; pid: number; speed: number; intensity: number; t: number } | null = null;
+
   render(c: SurfaceContent, t: number): HTMLCanvasElement {
     const eff = c.effectId ?? 0;
     const pid = c.paletteId ?? 0;
     const speed = c.speed ?? 0.5;
     const intensity = c.intensity ?? 0.5;
+    const p = this.last;
+    if (p && p.eff === eff && p.pid === pid && p.speed === speed && p.intensity === intensity && p.t === t) return this.canvas;
+    this.last = { eff, pid, speed, intensity, t };
     const d = this.img.data;
 
     if (eff === 4) {

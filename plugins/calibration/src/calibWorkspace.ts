@@ -125,7 +125,7 @@ export function movePickWorld(index: number, world: [number, number, number]): v
   worldTimer = window.setTimeout(() => {
     worldTimer = 0;
     const a = worldArgs; worldArgs = null;
-    if (a) updatePick(a.sid, a.i, { world: a.world });
+    if (a) updatePick(a.sid, a.i, { world: a.world }, true); // still dragging in 3D
   }, 120);
 }
 let worldTimer = 0;
@@ -139,18 +139,43 @@ function throttledPixel(sid: string, i: number, pixel: [number, number], guard?:
   pixTimer = window.setTimeout(() => {
     pixTimer = 0;
     const a = pixArgs; pixArgs = null;
-    if (a && (!a.guard || a.guard())) updatePick(a.sid, a.i, { pixel: a.pixel });
+    if (a && (!a.guard || a.guard())) updatePick(a.sid, a.i, { pixel: a.pixel }, true); // still dragging/re-aiming
   }, 150);
 }
 
-/** Replace one half of an existing correspondence and re-solve from the full set. */
-export function updatePick(surfaceId: string, index: number, patch: Partial<{ world: [number, number, number]; pixel: [number, number] }>): void {
+/** Replace one half of an existing correspondence and re-solve from the full set.
+ *
+ *  `live` marks an update that is still under the operator's finger (a drag). Those get a POSE-ONLY
+ *  solve: the full auto-lens runs up to four native calls (two guided calibrations plus their pose
+ *  solves), which at drag rate is both slow and unstable — the focal wobbles while you are trying to
+ *  judge alignment against it. The lens is re-estimated once, on the trailing edge, when the drag
+ *  stops. */
+export function updatePick(
+  surfaceId: string,
+  index: number,
+  patch: Partial<{ world: [number, number, number]; pixel: [number, number] }>,
+  live = false,
+): void {
   const cal = getCalibration(surfaceId);
   const picks = cal?.posePicks ?? [];
   if (index >= picks.length) return;
   const next = picks.map((p, i) => (i === index ? { ...p, ...patch } : p));
   storeCalibration(surfaceId, { posePicks: next });
-  if (next.length >= 4) void solvePose(surfaceId, next);
+  if (next.length < 4) return;
+  void solvePose(surfaceId, next, live);
+  if (live) settleSoon(surfaceId);
+}
+
+// The trailing full solve: fires once the drag has been quiet, so the lens is re-estimated from
+// where the point was DROPPED rather than from every position it passed through.
+let settleTimer = 0;
+function settleSoon(surfaceId: string): void {
+  if (settleTimer) window.clearTimeout(settleTimer);
+  settleTimer = window.setTimeout(() => {
+    settleTimer = 0;
+    const picks = getCalibration(surfaceId)?.posePicks ?? [];
+    if (picks.length >= 4) void solvePose(surfaceId, picks);
+  }, 350);
 }
 
 // Live crosshair position, for the manual wizard's raster map. A getter, not state: the crosshair
@@ -226,7 +251,7 @@ async function bestPose(obj: number[], img: number[], k: number[], dist: number[
     ?? await calibNative.calibSolvePnp(obj, img, k, dist);
 }
 
-export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorCalibration['posePicks']>): Promise<void> {
+export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorCalibration['posePicks']>, poseOnly = false): Promise<void> {
   const cal = getCalibration(surfaceId);
   if (!cal) return;
   const n = picks.length;
@@ -247,7 +272,7 @@ export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorC
   // but it is only conditioned when the picks are genuinely non-coplanar, which is why it is offered
   // as a candidate and kept on merit rather than made the rule. Both are measured the same way: the
   // pose they produce must fit the picks better than the lens already in hand.
-  if (state.flow === 'manual' && state.lensAuto && cal.intrinsicsSource !== 'board' && n >= 6 && cal.imageSize[0] > 0) {
+  if (!poseOnly && state.flow === 'manual' && state.lensAuto && cal.intrinsicsSource !== 'board' && n >= 6 && cal.imageSize[0] > 0) {
     const [w, h] = cal.imageSize;
     const fixed = await bestPose(obj, img, cal.intrinsics, dist, n);
     let best: { k: number[]; rms: number; pose: NonNullable<Awaited<ReturnType<typeof bestPose>>> } | null = null;
