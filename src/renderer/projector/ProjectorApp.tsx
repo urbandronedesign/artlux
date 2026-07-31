@@ -170,6 +170,18 @@ export const ProjectorApp: React.FC = () => {
   // LiDAR tracking snapshot → its store) runs here before any pluginData messages arrive.
   useEffect(() => { activateRendererPlugins('projector'); }, []);
 
+  // The mirror's local decode set has two independent contributors: the surface config (this
+  // window's own layer / tracking background) and — while render-from-projector is on — the layers
+  // bound to the 3D scene's venue meshes, so a locally-decodable codec clip on a mesh runs at
+  // display rate instead of the ~30 fps streamed fallback. Merged here because whichever message
+  // arrives last must not clobber the other's contribution.
+  const configLocalRef = useRef<string[]>([]);
+  const sceneLayersRef = useRef<string[]>([]);
+  const calibRenderRef = useRef(false);
+  const applyLocalLayers = () => {
+    engine.setLocalLayers([...new Set([...configLocalRef.current, ...(calibRenderRef.current ? sceneLayersRef.current : [])])]);
+  };
+
   // --- MessagePort handshake ---
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -204,7 +216,8 @@ export const ProjectorApp: React.FC = () => {
           const local: string[] = [];
           if (eff.content.type === SourceType.LAYER && eff.content.layerId) local.push(eff.content.layerId);
           if (eff.content.type === SourceType.TRACKING && eff.content.bgLayerId) local.push(eff.content.bgLayerId);
-          engine.setLocalLayers(local);
+          configLocalRef.current = local;
+          applyLocalLayers();
           if (!STREAMED.has(eff.content.type)) { frameRef.current?.close(); frameRef.current = null; }
         } else if (m.t === 'frame') {
           frameRef.current?.close();
@@ -217,7 +230,17 @@ export const ProjectorApp: React.FC = () => {
           frameRef.current = null;
           frameGenRef.current++;
         } else if (m.t === 'layerFrame') {
-          engine.setLayerBitmap(m.layerId, m.bitmap); // TRACKING background video
+          engine.setLayerBitmap(m.layerId, m.bitmap); // TRACKING background / render-mode mesh layer
+        } else if (m.t === 'scene') {
+          // Venue-mesh layer bindings, for the render-mode local decode set (the panel plugins get
+          // the same message via the fan-out below — this is the window's own bookkeeping).
+          sceneLayersRef.current = (m.scene3D.models ?? [])
+            .filter((x) => x.kind !== 'plane' && x.visible && x.layerId)
+            .map((x) => x.layerId!);
+          applyLocalLayers();
+        } else if (m.t === 'calib') {
+          calibRenderRef.current = m.mode === 'render';
+          applyLocalLayers();
         } else if (m.t === 'timeline') {
           engine.setData(m.timeline);
         } else if (m.t === 'transport') {

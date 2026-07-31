@@ -278,7 +278,9 @@ Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`**
 ## Caveats / follow-ups
 
 - **Distortion convention** may need a sign flip validated on a real lens (identity for zero distortion).
-- **Content on mesh** in the projector output currently shows GLB materials + locally-decoded layers;
-  streaming arbitrary timeline-layer frames to render-mode projectors is a follow-up. (Assign a
-  timeline layer to a mesh via the Scene panel — it textures the mesh via its UVs.)
+- **Content on mesh** plays in the projector output: a timeline layer bound to a mesh (Scene panel;
+  it textures the mesh via its UVs) is decoded once in the main window and streamed to render-mode
+  projectors at ~30 fps, while locally-decodable codec clips (HAP/MP4) decode in the window itself at
+  display rate. Exception: a mesh bound to the **program composite** stays dark on the projector — a
+  mirror window cannot resolve the composite locally.
 - The wizard's "Polished" tier excludes **auto-capture** and **resume/persist** (the "Maximum" tier).

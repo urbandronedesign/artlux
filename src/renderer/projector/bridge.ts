@@ -54,7 +54,7 @@ export type MainToProjector =
   // so a finished clip stayed frozen on the projector for the rest of the show. Sent once on the
   // transition, not per frame.
   | { t: 'frameIdle' }
-  | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame (TRACKING content background; decoded once in main)
+  | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame, decoded once in main (TRACKING content background + layers bound to venue meshes in render-from-projector)
   | { t: 'pluginData'; channel: string; payload: unknown }    // generic per-frame plugin channel (see ProjectorChannel) — e.g. LiDAR tracking snapshots
   // --- calibration (physical-projector calibration: structured light + pose) ---
   // mode gates what the projector draws: 'pattern' = a Gray-code/flat field (SL intrinsics capture),

@@ -44,7 +44,7 @@ import { useStableHandlers } from './hooks/useStableHandlers';
 import { frameEngine, EMPTY_PROFILES as ENGINE_EMPTY_PROFILES } from './engine/frameEngine';
 import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
-import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
+import { timeline as timelineEngine, GLOBAL_POOL, PROGRAM_LAYER_ID } from './services/timeline';
 import * as fixtureSignal from './services/fixtureSignal';
 import { planStoreKey, poseForGroup, upsertKey } from './services/lightingStoreKey';
 import * as lightingCue from './services/lightingCue';
@@ -3088,6 +3088,35 @@ const App: React.FC = () => {
               // stayed black: 'SLICE' is in neither set below, so the tick fell through the STREAMED
               // gate and returned. getDrawable(surface) still takes the SLICE (it returns the crop).
               const eff = resolveSource(surface, surfacesRef.current) ?? surface;
+              // RENDER-FROM-PROJECTOR: a window drawing the 3D scene needs the frames of every layer
+              // bound to a venue mesh — decoded HERE once, like everything else this pump ships, and
+              // landed by the mirror engine (setLayerBitmap) for ProjectorScene's useLayerTexture.
+              // Streamed while the output opts in with a solved pose, or while its calibration
+              // session is open (the wizard's test projection). A layer the window decodes locally
+              // (HAP/codec — see ProjectorApp's local-layer set) simply wins over this stream in the
+              // mirror's getLayerDrawable, so redundancy costs a bitmap, never a wrong picture. The
+              // PROGRAM composite is skipped: a mirror cannot resolve it (no active-clip predicate),
+              // so streaming it would freeze its last frame on the mesh forever.
+              {
+                  const out = projectorOutputsRef.current.find(o => o.surfaceId === surfaceId);
+                  const renderActive = (out?.useCalibration && out.calibration?.poseRms != null)
+                      || calibWorkspace.getState().target === surfaceId;
+                  if (renderActive) {
+                      for (const mdl of (scene3DRef.current?.models ?? [])) {
+                          if (mdl.kind === 'plane' || !mdl.visible || !mdl.layerId || mdl.layerId === PROGRAM_LAYER_ID) continue;
+                          const layerId = mdl.layerId;
+                          const key = `${surfaceId}:scene:${layerId}`;
+                          if (inFlight.has(key)) continue;
+                          const d = timelineEngine.getLayerDrawable(layerId);
+                          if (!d) continue;
+                          inFlight.add(key);
+                          createImageBitmap(d as CanvasImageSource)
+                              .then(bitmap => { try { port.postMessage({ t: 'layerFrame', layerId, bitmap }, [bitmap]); } catch { bitmap.close(); } })
+                              .catch(() => {})
+                              .finally(() => inFlight.delete(key));
+                      }
+                  }
+              }
               // TRACKING self-renders its blobs in the projector, but its optional background
               // timeline layer (a video) must be decoded here and streamed as a layer frame.
               if (eff.content.type === SourceType.TRACKING) {
