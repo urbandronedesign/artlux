@@ -212,6 +212,36 @@ check(
   },
 );
 
+// ── A streamed frame must not arrive upside down on the projector ─────────────────────────────
+check(
+  'every 3D texture fed a streamed frame compensates for ImageBitmap',
+  'three IGNORES Texture.flipY when the source is an ImageBitmap (WebGLTextures sets the unpack ' +
+  'flags inside `if (isImageBitmap === false)`). The editor 3D view samples the live canvas/video ' +
+  'and gets the flip; a projector window is streamed ImageBitmaps and does not. Miss the ' +
+  'compensation and the content is upside down ON THE REAL PROJECTOR while the editor looks right — ' +
+  'geometry perfectly aligned, picture mirrored, which reads like a broken calibration and is not ' +
+  'one. matchBitmapOrientation (bitmapFlip.ts) does it with the texture matrix, which every source ' +
+  'honours; fixing it at the bitmap instead would invert the 2D output that shares the same frame.',
+  () => {
+    const files = [
+      'src/renderer/components/Simulator3D/useLayerTexture.ts',
+      'src/renderer/components/Simulator3D/useSurfaceTexture.ts',
+      'plugins/calibration/src/ProjectorScene.tsx',
+    ];
+    const problems = [];
+    for (const f of files) {
+      const src = read(f);
+      // Only the paths that assign a raw source to `.image` are at risk (a VideoTexture is not).
+      if (!/\.image\s*=/.test(src)) continue;
+      if (!/matchBitmapOrientation\s*\(/.test(src)) problems.push(`${f} assigns texture.image without matchBitmapOrientation`);
+    }
+    if (!read('src/renderer/components/Simulator3D/bitmapFlip.ts').includes('repeat.y')) {
+      problems.push('bitmapFlip no longer compensates via the texture matrix');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Selection: the two 3D selections must clear each other ────────────────────────────────────
 check(
   'fixture/model selection is symmetric',

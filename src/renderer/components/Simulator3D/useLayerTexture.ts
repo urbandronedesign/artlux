@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { timeline as engine, PROGRAM_LAYER_ID } from '../../services/timeline';
+import { matchBitmapOrientation } from './bitmapFlip';
 
 // Keeps a THREE.Texture bound to a timeline layer's live frame — a streamed ImageBitmap in the Scene
 // window (decoded once in main), or a <video> on the legacy path. `layerId === PROGRAM_LAYER_ID`
@@ -65,6 +66,7 @@ export function useLayerTexture(
         cbRef.current(t);
       }
       t.image = d as unknown as HTMLImageElement;
+      matchBitmapOrientation(t); // a mirror window is fed ImageBitmaps, which ignore flipY
       t.needsUpdate = true;
     }
   });

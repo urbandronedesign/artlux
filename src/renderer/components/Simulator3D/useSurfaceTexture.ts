@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getDrawable, getSurface } from '../../services/surfaceMedia';
+import { matchBitmapOrientation } from './bitmapFlip';
 
 // Keeps a THREE.Texture bound to a SURFACE's live picture — the sibling of useLayerTexture, for a
 // venue mesh textured by `SceneModel.surfaceId`.
@@ -63,6 +64,7 @@ export function useSurfaceTexture(
         cbRef.current(t);
       }
       t.image = d as unknown as HTMLImageElement;
+      matchBitmapOrientation(t); // same source-dependent flip as useLayerTexture
       t.needsUpdate = true;
     }
   });

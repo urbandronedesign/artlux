@@ -8,6 +8,7 @@ import type { Scene3D, SceneModel, ProjectorCalibration, ProjectorBlend, SoftEdg
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
+import { matchBitmapOrientation } from '@/components/Simulator3D/bitmapFlip';
 import { getSurfaceFrame } from './surfaceFrameChannel';
 import { recenterClone } from '@/components/Simulator3D/venuePlacement';   // host helper — same seam
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
@@ -142,6 +143,10 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
       applyTex(t);
     }
     t.image = mine.bitmap as unknown as HTMLImageElement;
+    // Streamed frames are ImageBitmaps, and three drops flipY for those — without this the content
+    // is upside down on the REAL PROJECTOR while the editor's 3D view (fed the canvas directly) is
+    // the right way up. See bitmapFlip.
+    matchBitmapOrientation(t);
     t.needsUpdate = true;
   });
   useEffect(() => () => { surfTexRef.current?.dispose(); surfTexRef.current = null; }, []);
