@@ -8,11 +8,16 @@ import type { Scene3D, SceneModel, ProjectorCalibration, ProjectorBlend, SoftEdg
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
+import { getSurfaceFrame } from './surfaceFrameChannel';
 import { recenterClone } from '@/components/Simulator3D/venuePlacement';   // host helper — same seam
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
 
 const DEG = Math.PI / 180;
 const NEAR = 0.05, FAR = 200;
+
+/** How the venue is drawn from the projector: its materials, its crease edges, or every triangle. */
+export type MeshLook = 'shaded' | 'edges' | 'wireframe';
+
 
 // Renders the venue 3D scene from the matched virtual projector (true projection mapping). The camera
 // is driven exactly from the calibration (position/orientation + an exact intrinsic projection matrix
@@ -21,11 +26,17 @@ const NEAR = 0.05, FAR = 200;
 // otherwise the existing 2D-warp path is used. Models are placed identically to Simulator3D (recenter
 // to bbox + transform) so world coords match the pose solve.
 
-// One GLB venue mesh, placed to match Simulator3D exactly; optional timeline-layer texture (Phase A).
-const ProjectorModel: React.FC<{ model: SceneModel; url: string; wireframe?: boolean }> = ({ model, url, wireframe }) => {
+// How far two faces must diverge before their shared edge counts as a real edge of the object.
+// 25° keeps a curved surface's tessellation quiet while every chamfer, panel seam and corner survives.
+const CREASE_DEG = 25;
+
+// One GLB venue mesh, placed to match Simulator3D exactly; optional timeline-layer texture (Phase A)
+// or SURFACE texture — see `surfaceFrame`, which is this window's own streamed picture.
+const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: MeshLook }> = ({ model, url, meshLook = 'shaded' }) => {
   const { scene } = useGLTF(url);
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  // One material for both looks: LineSegments and a wireframe Mesh both draw lines from it.
   const wireMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!wireMatRef.current) wireMatRef.current = new THREE.MeshBasicMaterial({ color: '#00ffaa', wireframe: true, toneMapped: false });
   // Vertex dots on the wire look: the 3D-side pick snaps to vertices, so lighting the vertices on the
@@ -36,34 +47,104 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; wireframe?: boo
   // Same recentre as ModelObject → identical world coords, because it is literally the same function.
   const cloned = useMemo(() => recenterClone(scene), [scene]);
 
-  // The verify look: a second clone (geometry shared, materials replaced) drawn INSTEAD of the shaded
-  // one. Materials are legitimately near-black here — a bound content layer isn't streamed to
-  // render-mode windows, and metallic CAD GLBs go dark without an environment — and verify is about
-  // edges landing on edges, which bright wireframe shows regardless of what the mesh is made of.
+  // The verify look, drawn INSTEAD of the shaded mesh. Materials are legitimately near-black here —
+  // a bound content layer isn't streamed to render-mode windows, and metallic CAD GLBs go dark
+  // without an environment — and verify is about edges landing on edges, which bright lines show
+  // regardless of what the mesh is made of.
+  //
+  // 'edges' (the default) draws only CREASE edges — the object's actual silhouette and panel lines.
+  // A full wireframe of a tessellated CAD mesh is a haze of triangles you cannot align anything to;
+  // the outline is what the eye matches against the real object. 'wireframe' keeps the old look for
+  // meshes so coarse that every triangle IS an edge.
+  //
+  // Built as a flat group of line objects with each source mesh's matrix baked in, rather than a
+  // clone with swapped materials: EdgesGeometry replaces the geometry, so there is nothing to swap.
+  // The matrix is accumulated down from `cloned` (NOT matrixWorld) because this group is mounted as
+  // its sibling — matrixWorld would apply the outer model transform a second time.
   const wireClone = useMemo(() => {
-    if (!wireframe) return null;
-    const c = cloned.clone(true);
-    const meshes: THREE.Mesh[] = [];
-    c.traverse((o) => { const m = o as THREE.Mesh; if ((m as { isMesh?: boolean }).isMesh) meshes.push(m); });
-    for (const m of meshes) {
-      m.material = wireMatRef.current!;
-      m.add(new THREE.Points(m.geometry, ptsMatRef.current!)); // added AFTER the traverse — no mid-walk mutation
-    }
-    return c;
-  }, [cloned, wireframe]);
+    if (meshLook === 'shaded') return null;
+    const root = new THREE.Group();
+    const walk = (obj: THREE.Object3D, parentMat: THREE.Matrix4) => {
+      const mat = parentMat.clone().multiply(obj.matrix);
+      const m = obj as THREE.Mesh;
+      if ((m as { isMesh?: boolean }).isMesh && m.geometry) {
+        const geo = meshLook === 'edges'
+          ? new THREE.EdgesGeometry(m.geometry as THREE.BufferGeometry, CREASE_DEG)
+          : null;
+        const line = geo
+          ? new THREE.LineSegments(geo, wireMatRef.current!)
+          : new THREE.Mesh(m.geometry, wireMatRef.current!);
+        line.applyMatrix4(mat);
+        root.add(line);
+        const dots = new THREE.Points(m.geometry, ptsMatRef.current!);
+        dots.applyMatrix4(mat);
+        root.add(dots);
+      }
+      for (const c of obj.children) walk(c, mat);
+    };
+    walk(cloned, new THREE.Matrix4());
+    return root;
+  }, [cloned, meshLook]);
 
-  useLayerTexture(model.layerId, (tex) => {
+  // EdgesGeometry allocates per mesh — release the ones this look built when it changes/unmounts.
+  useEffect(() => () => {
+    wireClone?.traverse((o) => {
+      const l = o as THREE.LineSegments;
+      if ((l as { isLineSegments?: boolean }).isLineSegments) l.geometry.dispose();
+    });
+  }, [wireClone]);
+
+  const applyTex = (tex: THREE.Texture | null) => {
     const mat = layerMatRef.current!;
     mat.map = tex; mat.color.set(tex ? '#ffffff' : '#161616'); mat.needsUpdate = true;
+  };
+  useLayerTexture(model.layerId, applyTex);
+
+  // SURFACE binding: this window's picture is ALREADY streamed to it, so a mesh bound to that
+  // surface costs nothing beyond one texture upload — see surfaceFrameChannel for the ownership and
+  // why it is polled here rather than pushed through props. A mesh bound to some OTHER surface stays
+  // dark: this window is only sent its own, and asking main to stream a second full-size source per
+  // output is a real cost that should be asked for, not assumed.
+  const wantsSurface = !model.layerId && !!model.surfaceId;
+  const surfTexRef = useRef<THREE.Texture | null>(null);
+  const lastGen = useRef(-1);
+  useFrame(() => {
+    if (!wantsSurface) return;
+    const f = getSurfaceFrame();
+    const mine = f && f.surfaceId === model.surfaceId ? f : null;
+    if (!mine || mine.gen === lastGen.current) {
+      // No frame for this mesh at all (wrong surface / nothing sent yet) — drop any texture we hold
+      // so a stale picture never outlives its source. A repeat generation is simply "no news".
+      if (!mine && surfTexRef.current) { surfTexRef.current.dispose(); surfTexRef.current = null; lastGen.current = -1; applyTex(null); }
+      return;
+    }
+    lastGen.current = mine.gen;
+    if (!mine.bitmap) {
+      // The source went idle (clip ended, live source dropped) — better black than the last frame
+      // frozen on the object for the rest of the show.
+      if (surfTexRef.current) { surfTexRef.current.dispose(); surfTexRef.current = null; applyTex(null); }
+      return;
+    }
+    let t = surfTexRef.current;
+    if (!t) {
+      t = new THREE.Texture();
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+      surfTexRef.current = t;
+      applyTex(t);
+    }
+    t.image = mine.bitmap as unknown as HTMLImageElement;
+    t.needsUpdate = true;
   });
+  useEffect(() => () => { surfTexRef.current?.dispose(); surfTexRef.current = null; }, []);
 
   useEffect(() => {
-    const layered = !!model.layerId;
+    const layered = !!model.layerId || wantsSurface;
     cloned.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if ((mesh as { isMesh?: boolean }).isMesh && layered) mesh.material = layerMatRef.current!;
     });
-  }, [cloned, model.layerId]);
+  }, [cloned, model.layerId, wantsSurface]);
 
   useEffect(() => () => { layerMatRef.current?.dispose(); wireMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
 
@@ -74,7 +155,7 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; wireframe?: boo
       rotation={[model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG]}
       scale={modelScaleXYZ(model)}
     >
-      <primitive object={cloned} visible={!wireframe} />
+      <primitive object={cloned} visible={meshLook === 'shaded'} />
       {wireClone && <primitive object={wireClone} />}
     </group>
   );
@@ -252,9 +333,9 @@ export const ProjectorScene: React.FC<{
   calibration: ProjectorCalibration;
   /** Soft edge / colour match / solved rig blend for THIS output. Absent = no blend pass. */
   look?: BlendLook;
-  /** Verify look: bright mesh edges instead of materials (see ProjectorModel.wireClone). */
-  wireframe?: boolean;
-}> = ({ scene3D, modelUrls, calibration, look, wireframe }) => {
+  /** Verify look: the venue's materials, its crease edges, or a full wireframe (see wireClone). */
+  meshLook?: MeshLook;
+}> = ({ scene3D, modelUrls, calibration, look, meshLook }) => {
   const meshes = (scene3D.models ?? []).filter(m => m.kind !== 'plane' && modelUrls[m.id]);
   const hasDistortion = !!calibration.distortion?.some(v => v !== 0);
   const wantsBlend = !!look && needsBlendPass(look);
@@ -266,7 +347,7 @@ export const ProjectorScene: React.FC<{
       <ambientLight intensity={0.8} />
       <hemisphereLight intensity={0.7} groundColor="#101010" />
       <CalibCamera calibration={calibration} />
-      {meshes.map(m => <ProjectorModel key={m.id} model={m} url={modelUrls[m.id]} wireframe={wireframe} />)}
+      {meshes.map(m => <ProjectorModel key={m.id} model={m} url={modelUrls[m.id]} meshLook={meshLook} />)}
       {/* Distortion FIRST, blend LAST. Distortion maps the ideal pinhole render onto the real optics,
           so only after it does the framebuffer hold physical raster pixels — which is the space the
           blend map is indexed in. Reversing these puts the ramp a few pixels off the footprint edge,

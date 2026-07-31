@@ -18,6 +18,7 @@ import type { MainToProjector, ProjectorToMain } from '@/projector/bridge'; // h
 import type { Scene3D, ProjectorCalibration } from '../../../shared/protocol';
 import { fillPattern, type CalibPatternKind } from './graycode';
 import { ProjectorScene, type BlendLook } from './ProjectorScene';
+import { setSurfaceFrame, clearSurfaceFrame } from './surfaceFrameChannel';
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
@@ -38,8 +39,10 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
   // Placed pose picks (raster px) + which one is being edited, pushed by the wizard so the operator
   // sees the already-anchored features numbered ON the projection itself.
   const [points, setPoints] = useState<[number, number][]>([]);
+  const [predicted, setPredicted] = useState<([number, number] | null)[]>([]);
   const [selectedPt, setSelectedPt] = useState<number | null>(null);
-  const [wireframe, setWireframe] = useState(false); // render mode: bright edges instead of materials
+  const [meshLook, setMeshLook] = useState<'shaded' | 'edges' | 'wireframe'>('shaded');
+  const surfaceIdRef = useRef<string | null>(null); // which surface this window renders (from `config`)
   // The output's blend look. Read off the SAME `config` message the base window uses — this panel
   // already sees every main→projector message and simply ignored that one. Without it, render mode
   // (an opaque overlay above the base canvas) drops the soft edge the operator set. See ProjectorScene.
@@ -57,8 +60,9 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
         if (m.mode !== 'pattern') patternRef.current = null;
         if (m.calibration !== undefined) setCalibration(m.calibration);
         if (m.points !== undefined) setPoints(m.points);
+        if (m.predicted !== undefined) setPredicted(m.predicted);
         if (m.selected !== undefined) setSelectedPt(m.selected);
-        if (m.wireframe !== undefined) setWireframe(m.wireframe);
+        if (m.meshLook !== undefined) setMeshLook(m.meshLook);
         // Jump the crosshair (re-aiming an existing point starts FROM that point, not from wherever
         // the crosshair last was) and report it, so main's pending aim matches what is on screen.
         if (m.crosshair) {
@@ -72,9 +76,18 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
         }
       } else if (m.t === 'calibPattern') {
         patternRef.current = { kind: m.kind, index: m.index, rgb: m.rgb, dots: m.dots };
+      } else if (m.t === 'frame') {
+        // This window's own surface picture. ProjectorApp has already taken it for the base canvas
+        // (panels are fanned out after its own handling) and owns closing it — we only publish the
+        // current reference so a mesh BOUND to this surface can texture from it. See
+        // surfaceFrameChannel: no React state, this arrives ~30×/s.
+        if (surfaceIdRef.current) setSurfaceFrame(surfaceIdRef.current, m.bitmap);
+      } else if (m.t === 'frameIdle') {
+        if (surfaceIdRef.current) setSurfaceFrame(surfaceIdRef.current, null);
       } else if (m.t === 'scene') {
         setScene3D(m.scene3D);
       } else if (m.t === 'config') {
+        surfaceIdRef.current = m.surface.id; // which surface this window IS — the mesh binding target
         // New object identity per config push is fine — config arrives on an operator edit, never
         // per frame, and BlendEffect rebuilds its textures only when this changes.
         const r = m.render;
@@ -83,6 +96,9 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The channel outlives React, so a closed window must not leave a dead bitmap reference behind.
+  useEffect(() => () => clearSurfaceFrame(), []);
 
   // Structured-light: draw the requested pattern raw (no GL warp/gamma — bits must be pixel-exact) into
   // an opaque 2D overlay at native resolution, then ack patternShown after it is actually on screen
@@ -197,7 +213,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       {/* Render-from-projector: the venue 3D scene from the matched virtual projector (true mapping). */}
       {calibMode === 'render' && calibration && scene3D && (
         <div style={{ position: 'absolute', inset: 0 }}>
-          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} wireframe={wireframe} />
+          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} meshLook={meshLook} />
         </div>
       )}
 
@@ -215,9 +231,9 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
           dots) so the operator sees, on the real object, where the model currently thinks its vertices
           are — every added or edited point visibly pulls it into alignment. Opaque (black bg) is
           deliberate: high contrast beats the faint content for aiming. */}
-      {calibMode === 'crosshair' && wireframe && calibration?.poseRms != null && scene3D && (
+      {calibMode === 'crosshair' && meshLook !== 'shaded' && calibration?.poseRms != null && scene3D && (
         <div style={{ position: 'absolute', inset: 0 }}>
-          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} wireframe />
+          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} meshLook={meshLook} />
         </div>
       )}
 
@@ -230,8 +246,21 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
               const x = p[0] / dpr, y = p[1] / dpr;
               const sel = i === selectedPt;
               const col = sel ? '#ffffff' : '#00e5ff'; // same palette as the 3D AnchorMarker
+              // The residual, drawn where you can see it: a leader line from the pick to where the
+              // CURRENT solve puts that vertex. Its length IS this point's reprojection error — a
+              // long line on the object says "this pair disagrees with the other pairs", which a
+              // number in a list on another screen never conveys while you are standing at the wall.
+              const q = predicted[i];
+              const dx = q ? q[0] / dpr - x : 0, dy = q ? q[1] / dpr - y : 0;
+              const showLead = q != null && Math.hypot(dx, dy) > 2;
               return (
                 <g key={i}>
+                  {showLead && (
+                    <>
+                      <line x1={x} y1={y} x2={q![0] / dpr} y2={q![1] / dpr} stroke="#ff4d4d" strokeWidth={1.5} strokeDasharray="4 3" />
+                      <circle cx={q![0] / dpr} cy={q![1] / dpr} r={3} fill="none" stroke="#ff4d4d" strokeWidth={1.5} />
+                    </>
+                  )}
                   <circle cx={x} cy={y} r={sel ? 9 : 7} fill="none" stroke={col} strokeWidth={sel ? 2 : 1.5} />
                   <circle cx={x} cy={y} r={1.5} fill={col} />
                   <text x={x + 11} y={y - 8} fill={col} style={{ font: 'bold 13px system-ui', paintOrder: 'stroke', stroke: '#000', strokeWidth: 3 }}>{i + 1}</text>

@@ -22,6 +22,7 @@
 import type { ProjectorCalibration } from '../../../shared/protocol';
 import * as calibNative from './calibNative';
 import { storeCalibration, getCalibration } from './calibHost';
+import { reproject } from './cvCamera';
 
 let latestCrosshair: [number, number] | null = null;
 let markerlessPick: ((world: [number, number, number], source?: string) => void) | null = null;
@@ -176,17 +177,45 @@ export function pick(world: [number, number, number], source?: string): void {
     return;
   }
   if (state.editPixel != null) return; // a live re-aim is running — a model click is not a new pair
-  const pixel = latestCrosshair;
-  if (!pixel) return; // the crosshair has never been aimed on the projector
   const cal = getCalibration(sid);
   if (!cal) return;
+  // PREDICTED-POSITION SEEDING (the mapamok gesture). Once a pose exists, the solve already has an
+  // opinion about where this vertex lands on the projector — so seed the new pick THERE instead of
+  // at the crosshair, and the operator drags it from the model's guess to the truth. Past the first
+  // four points that turns every additional pick from "hunt for the pixel" into a short nudge, and
+  // the error you are correcting is exactly the residual you can see on the object.
+  const predicted = cal.poseRms != null
+    ? reproject(cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0], cal.rotation, cal.translation as [number, number, number], world)
+    : null;
+  const inRaster = predicted != null && cal.imageSize[0] > 0
+    && predicted[0] >= 0 && predicted[0] <= cal.imageSize[0]
+    && predicted[1] >= 0 && predicted[1] <= cal.imageSize[1];
+  // Off-raster (or behind the lens) means the prediction is useless for aiming — fall back to the
+  // crosshair rather than seeding a point the operator cannot see to drag.
+  const pixel = inRaster ? predicted! : latestCrosshair;
+  if (!pixel) return; // no prediction and the crosshair has never been aimed on the projector
   // An unmoved crosshair means this model click is almost certainly a stray (two world points cannot
-  // share a projector pixel) — dropping it beats poisoning the solve with a degenerate pair.
+  // share a projector pixel) — dropping it beats poisoning the solve with a degenerate pair. Only
+  // applies to crosshair-seeded picks: two predictions CAN legitimately coincide.
   const last = cal.posePicks?.[cal.posePicks.length - 1];
-  if (last && last.pixel[0] === pixel[0] && last.pixel[1] === pixel[1]) return;
+  if (!inRaster && last && last.pixel[0] === pixel[0] && last.pixel[1] === pixel[1]) return;
   const picks = [...(cal.posePicks ?? []), { world, pixel }];
   storeCalibration(sid, { posePicks: picks });
+  // A seeded pick's next gesture is a DRAG, so hand it to the operator already selected — the marker
+  // reads as picked-up in all four views and the wizard names it in the edit bar.
+  if (inRaster) markerlessSelect?.(picks.length - 1);
   if (picks.length >= 4) void solvePose(sid, picks);
+}
+
+// Do the picks have enough DEPTH to constrain a free principal point? Thickness ÷ largest extent of
+// their bounding box: a set lying on one wall is ~0 and any cx/cy the solver reports there is fitted
+// noise, while points taken around a real 3D object clear this easily. A crude test on purpose —
+// it only decides whether to OFFER the free-cx/cy candidate, and the fit comparison still judges it.
+function nonCoplanar(picks: NonNullable<ProjectorCalibration['posePicks']>): boolean {
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const p of picks) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p.world[a]); hi[a] = Math.max(hi[a], p.world[a]); }
+  const ext = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]].sort((a, b) => b - a);
+  return ext[0] > 1e-6 && ext[2] / ext[0] >= 0.08;
 }
 
 // Hand-placed picks carry click error; from 6 points RANSAC can afford to vote one outlier down
@@ -207,29 +236,42 @@ export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorC
 
   // AUTO-LENS (manual flow): the operator should not need to KNOW the throw ratio — PnP absorbs a
   // wrong focal into distance, so instead of asking them to measure and iterate, re-estimate the
-  // focal from the picks themselves on every solve (single-view calibrateCamera seeded with the
-  // current K; principal point + aspect held — one view cannot constrain them). VALIDATED, never
-  // blind: the joint solve is ill-conditioned when the points lack depth spread, so the refined lens
-  // is adopted only if its focal is a physically plausible throw ratio AND it fits the picks at
-  // least as well as the current lens; otherwise the entered lens silently stands (and the wizard
-  // shows which one is in play). Never touches a board-measured lens.
+  // lens from the picks themselves on every solve (single-view calibrateCamera seeded with the
+  // current K). VALIDATED, never blind: the joint solve is ill-conditioned when the points lack
+  // depth spread, so a candidate is adopted only if its focal is a physically plausible throw ratio
+  // AND it fits the picks at least as well as the current lens; otherwise the entered lens silently
+  // stands (and the wizard shows which one is in play). Never touches a board-measured lens.
+  //
+  // TWO candidates, principal point HELD and FREE. Freeing cx/cy is what recovers LENS SHIFT without
+  // asking for it — mapamok leaves it free by default and has a decade of field use behind that —
+  // but it is only conditioned when the picks are genuinely non-coplanar, which is why it is offered
+  // as a candidate and kept on merit rather than made the rule. Both are measured the same way: the
+  // pose they produce must fit the picks better than the lens already in hand.
   if (state.flow === 'manual' && state.lensAuto && cal.intrinsicsSource !== 'board' && n >= 6 && cal.imageSize[0] > 0) {
     const [w, h] = cal.imageSize;
-    const guided = await calibNative.calibCalibrateGuided(obj, img, [n], w, h, cal.intrinsics, true, true);
-    const tr = guided ? guided.k[0] / w : 0;
-    if (guided && tr >= 0.2 && tr <= 6) {
+    const fixed = await bestPose(obj, img, cal.intrinsics, dist, n);
+    let best: { k: number[]; rms: number; pose: NonNullable<Awaited<ReturnType<typeof bestPose>>> } | null = null;
+    // Free-cx/cy first ONLY when the spread can support it; ties go to the held solve below.
+    for (const freePP of nonCoplanar(picks) ? [true, false] : [false]) {
+      const guided = await calibNative.calibCalibrateGuided(obj, img, [n], w, h, cal.intrinsics, !freePP, true);
+      if (!guided) continue;
+      const tr = guided.k[0] / w;
+      if (tr < 0.2 || tr > 6) continue;
+      // A principal point outside the raster is not a lens, it is the solver running away.
+      if (freePP && (guided.k[2] < -w || guided.k[2] > 2 * w || guided.k[5] < -h || guided.k[5] > 2 * h)) continue;
       // Single-view distortion estimates are noise — keep the focal, drop the distortion.
-      const refined = await bestPose(obj, img, guided.k, [0, 0, 0, 0, 0], n);
-      const fixed = await bestPose(obj, img, cal.intrinsics, dist, n);
-      if (refined && (!fixed || refined.rms <= fixed.rms + 0.01)) {
-        storeCalibration(surfaceId, {
-          intrinsics: guided.k, distortion: [0, 0, 0, 0, 0], intrinsicsRms: guided.rms, intrinsicsSource: 'refined',
-          rotation: refined.rotation, translation: refined.translation, poseRms: refined.rms,
-        });
-        return;
-      }
-      if (fixed) { storeCalibration(surfaceId, { rotation: fixed.rotation, translation: fixed.translation, poseRms: fixed.rms }); return; }
+      const pose = await bestPose(obj, img, guided.k, [0, 0, 0, 0, 0], n);
+      if (!pose) continue;
+      if (!best || pose.rms < best.rms) best = { k: guided.k, rms: pose.rms, pose };
     }
+    if (best && (!fixed || best.rms <= fixed.rms + 0.01)) {
+      storeCalibration(surfaceId, {
+        intrinsics: best.k, distortion: [0, 0, 0, 0, 0], intrinsicsRms: best.rms, intrinsicsSource: 'refined',
+        rotation: best.pose.rotation, translation: best.pose.translation, poseRms: best.pose.rms,
+      });
+      return;
+    }
+    if (fixed) { storeCalibration(surfaceId, { rotation: fixed.rotation, translation: fixed.translation, poseRms: fixed.rms }); return; }
   }
 
   const res = await bestPose(obj, img, cal.intrinsics, dist, n);

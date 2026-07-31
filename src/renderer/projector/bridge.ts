@@ -62,13 +62,15 @@ export type MainToProjector =
   // crosshair (raster px) JUMPS the aim crosshair — used when re-aiming an already-placed point.
   // points (raster px) are the placed pose picks, drawn numbered on the projection so the operator
   // sees which physical features are already anchored; selected highlights the one being edited.
-  // wireframe: render mode draws the venue as bright edges instead of its materials — the verify look.
-  // In crosshair mode (with a solved `calibration`) it is the PICKING underlay: the live wireframe +
-  // vertex dots projected while the operator places points, so alignment is visible as it improves.
-  // Materials can be legitimately near-black (a bound content layer is not streamed to render-mode
-  // windows; metallic CAD GLBs go dark without an environment), and verify is about GEOMETRY: edges
-  // landing on edges is readable on the real object when a shaded render is not.
-  | { t: 'calib'; mode: 'idle' | 'pattern' | 'crosshair' | 'render'; crosshair?: [number, number]; calibration?: ProjectorCalibration | null; points?: [number, number][]; selected?: number | null; wireframe?: boolean }
+  // meshLook: how render mode draws the venue. 'shaded' = its materials; 'edges' = crease/silhouette
+  // edges only (the alignment look — a full wireframe of a dense CAD mesh is noise, and materials can
+  // be legitimately near-black: a bound content layer is not streamed to render-mode windows and
+  // metallic GLBs go dark without an environment); 'wireframe' = every triangle. In crosshair mode
+  // (with a solved `calibration`) the same look is the PICKING underlay, projected live so the
+  // operator watches alignment converge as points land.
+  // predicted (raster px, parallel to `points`) is where the CURRENT solve reprojects each pick's
+  // world point. Drawn as a leader line from the pick — the residual, visible in place on the object.
+  | { t: 'calib'; mode: 'idle' | 'pattern' | 'crosshair' | 'render'; crosshair?: [number, number]; calibration?: ProjectorCalibration | null; points?: [number, number][]; selected?: number | null; meshLook?: 'shaded' | 'edges' | 'wireframe'; predicted?: ([number, number] | null)[] }
   // Set the current structured-light pattern; the projector renders it raw (no warp/gamma) and acks.
   // 'fill' projects a flat RGB field at `rgb` (0..255) — used for camera-based gamma/colour measurement.
   // 'dots' additionally carries the projector-raster points to light (the drift check's probes).

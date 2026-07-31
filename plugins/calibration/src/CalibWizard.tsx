@@ -10,6 +10,8 @@ import { defaultBoardConfig, type BoardConfig } from './calibController';
 import * as calibNative from './calibNative';
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
+import type { MeshLook } from './ProjectorScene';
+import { reproject } from './cvCamera';
 
 interface Props {
   surfaceId: string;
@@ -83,7 +85,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [log, setLog] = useState<string[]>([]);
   const [detect, setDetect] = useState<Detect>({ found: false });
   const [testProj, setTestProj] = useState(false);
-  const [wireframe, setWireframe] = useState(false); // verify: bright mesh edges instead of materials
+  const [meshLook, setMeshLook] = useState<MeshLook>('shaded'); // verify look (see ProjectorScene)
   const [camError, setCamError] = useState<string | null>(null);
   const [camBlank, setCamBlank] = useState(false); // camera opened but frames are all-black (contended/replug)
   const [camMode, setCamMode] = useState({ w: 1280, h: 720, fps: 60 }); // requested capture mode (resolution/fps)
@@ -145,23 +147,29 @@ export const CalibWizard: React.FC<Props> = (props) => {
       onSetCalibPickMode(true); onPoseModeChange(surfaceId, true);
     } else if (step === 'verify') {
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
-      if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal, wireframe }); }
+      if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal, meshLook }); }
       else send({ t: 'calib', mode: 'idle' });
     } else { // prereq — show a white field so the operator can confirm the output window is alive + targeted
       send({ t: 'calib', mode: 'pattern' }); showWhite();
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, testProj, wireframe]);
+  }, [step, testProj, meshLook]);
 
   // Numbered preview of the placed pose picks ON the projection (same as the manual flow) — pushed
   // whenever they change while the crosshair is up, so the operator sees which physical features are
   // already anchored.
   useEffect(() => {
     if (step !== 'pose') return;
-    send({ t: 'calib', mode: 'crosshair', points: (cal?.posePicks ?? []).map((p) => p.pixel) });
+    const picks = cal?.posePicks ?? [];
+    // Leader lines here too: the board flow's pose step places the same correspondences, so a bad
+    // pair is worth seeing on the object rather than only in the RMS badge.
+    const predicted = picks.map((p) => (cal?.poseRms != null
+      ? reproject(cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0], cal.rotation, cal.translation as [number, number, number], p.world)
+      : null));
+    send({ t: 'calib', mode: 'crosshair', points: picks.map((p) => p.pixel), predicted });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, cal?.posePicks]);
+  }, [step, cal?.posePicks, cal?.poseRms]);
 
   // Live RGB preview + board-detect overlay (camera/intrinsics steps, paused during a capture). Both
   // sources grab colour → the big viewport (left). Board detection runs throttled (~3 Hz) on the luma
@@ -455,10 +463,18 @@ export const CalibWizard: React.FC<Props> = (props) => {
               <input type="checkbox" checked={testProj} onChange={(e) => setTestProj(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
               <MonitorUp size={12} className="text-fg-3" /> Test projection (render venue from projector)
             </label>
-            <label className={`flex items-center gap-1.5 cursor-pointer text-fg-2 ${testProj ? '' : 'opacity-40'}`}>
-              <input type="checkbox" checked={wireframe} disabled={!testProj} onChange={(e) => setWireframe(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-              <span>Wireframe <span className="text-fg-3">— bright mesh edges, readable when the materials are dark</span></span>
-            </label>
+            <div className={`flex items-center gap-1 text-micro ${testProj ? '' : 'opacity-40'}`}>
+              <span className="text-fg-3">Look</span>
+              {(['shaded', 'edges', 'wireframe'] as MeshLook[]).map((m) => (
+                <button key={m} disabled={!testProj} onClick={() => setMeshLook(m)}
+                  title={m === 'edges' ? 'Crease + outline edges only — what you align against the real object'
+                    : m === 'wireframe' ? 'Every triangle — only useful on very coarse meshes'
+                    : 'The venue materials as the show will render them'}
+                  className={`px-1.5 py-0.5 rounded border ${meshLook === m ? 'bg-accent/20 border-accent text-fg-1' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'} disabled:opacity-60`}>
+                  {m === 'shaded' ? 'Shaded' : m === 'edges' ? 'Edges' : 'Wireframe'}
+                </button>
+              ))}
+            </div>
           </>
         )}
 

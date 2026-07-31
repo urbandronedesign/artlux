@@ -7,7 +7,8 @@ import * as calibWorkspace from './calibWorkspace';
 import * as ctl from './calibController';
 import * as calibNative from './calibNative';
 import { manualK, lensFromK, reprojectionErrors } from './manualLens';
-import { cameraCenter } from './cvCamera';
+import { cameraCenter, reproject } from './cvCamera';
+import type { MeshLook } from './ProjectorScene';
 
 interface Props {
   surfaceId: string;
@@ -55,8 +56,10 @@ export const ManualWizard: React.FC<Props> = (props) => {
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [testProj, setTestProj] = useState(false);
-  const [wireframe, setWireframe] = useState(true); // verify look: edges beat materials that may be near-black
-  const [wireOverlay, setWireOverlay] = useState(true); // Points step: project the live wireframe while picking
+  // Verify look. 'edges' by default: crease edges read on the real object where a shaded render (dark
+  // materials) and a full wireframe (triangle haze) both fail.
+  const [meshLook, setMeshLook] = useState<MeshLook>('edges');
+  const [wireOverlay, setWireOverlay] = useState(true); // Points step: project the live edges while picking
   const [selected, setSelected] = useState<number | null>(null);
   const [prevLens, setPrevLens] = useState<LensSnapshot | null>(null); // refine's undo slot
   const addLog = (s: string) => setLog((l) => [s, ...l].slice(0, 6));
@@ -129,9 +132,14 @@ export const ManualWizard: React.FC<Props> = (props) => {
   // the posePicks array identity and would otherwise never push the new pose.
   useEffect(() => {
     if (step !== 'pose') return;
-    send({ t: 'calib', mode: 'crosshair', points: picks.map((p) => p.pixel), selected, calibration: cal ?? null, wireframe: wireOverlay });
+    // `predicted` = where the current solve puts each pick's world point, for the leader lines. Null
+    // per pick until a pose exists (nothing to predict from) or when it falls behind the lens.
+    const predicted = picks.map((p) => (cal?.poseRms != null
+      ? reproject(cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0], cal.rotation, cal.translation as [number, number, number], p.world)
+      : null));
+    send({ t: 'calib', mode: 'crosshair', points: picks.map((p) => p.pixel), predicted, selected, calibration: cal ?? null, meshLook: wireOverlay ? meshLook : 'shaded' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, cal, selected, wireOverlay]);
+  }, [step, cal, selected, wireOverlay, meshLook]);
 
   // Drive projector + scene modes per step (same contract as CalibWizard's step effect).
   useEffect(() => {
@@ -140,14 +148,14 @@ export const ManualWizard: React.FC<Props> = (props) => {
       onSetCalibPickMode(true); calibWorkspace.poseModeChange(true);
     } else if (step === 'verify') {
       onSetCalibPickMode(false); calibWorkspace.poseModeChange(false);
-      if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal, wireframe }); }
+      if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal, meshLook }); }
       else send({ t: 'calib', mode: 'idle' });
     } else { // prereq + lens — white field so the operator can see the output is alive + targeted
       send({ t: 'calib', mode: 'pattern' }); showWhite();
       onSetCalibPickMode(false); calibWorkspace.poseModeChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, testProj, wireframe]);
+  }, [step, testProj, meshLook]);
 
   const applyLens = () => {
     const r = raster.w > 0 ? raster : ctl.projectorRaster();
@@ -224,7 +232,11 @@ export const ManualWizard: React.FC<Props> = (props) => {
   // Enable render-from-projector and save the document in place — a calibration is venue work an
   // operator must not lose to a crash between now and their next manual save. Best-effort: an
   // unsaved (pathless) project returns false and never raises a dialog.
-  const finish = () => { calibHost.setUseCalibration(surfaceId, true); void calibHost.saveProject(); onClose(); };
+  const finish = () => {
+    calibHost.setUseCalibration(surfaceId, true);
+    void calibHost.saveProject();
+    onClose();
+  };
 
   const pct = (v: number) => Math.round(v * 100);
 
@@ -328,7 +340,11 @@ export const ManualWizard: React.FC<Props> = (props) => {
 
         {step === 'pose' && (
           <>
-            <p className="text-fg-3 leading-relaxed">On the <b>projector</b>, put the crosshair on a distinct physical feature (click or arrow keys — a corner, an edge), then click the same point on the model in the <b>3D view (right)</b> — the model click pairs with wherever the crosshair is, no confirmation needed. It snaps to the nearest vertex (hold <b>Alt</b> for free pick). ≥4 points solve the position{lensAuto ? <>; from <b>6</b>, the lens solves itself too</> : null} — spread them across the raster <b>and across depth</b>.</p>
+            {poseSolved ? (
+              <p className="text-fg-3 leading-relaxed">Now that a pose exists, just <b>click a vertex on the model</b> (3D view, right): the new point lands where the solve <i>predicts</i> that vertex is on the projection — then <b>drag it</b> onto the real feature and watch the fit tighten. Keep spreading points across the raster <b>and across depth</b>.</p>
+            ) : (
+              <p className="text-fg-3 leading-relaxed">On the <b>projector</b>, put the crosshair on a distinct physical feature (click or arrow keys — a corner, an edge), then click the same point on the model in the <b>3D view (right)</b> — the model click pairs with wherever the crosshair is, no confirmation needed. It snaps to the nearest vertex (hold <b>Alt</b> for free pick). ≥4 points solve the position{lensAuto ? <>; from <b>6</b>, the lens solves itself too</> : null} — spread them across the raster <b>and across depth</b>.</p>
+            )}
             {!hasModel && (
               <div className="flex items-center gap-2">
                 <span className="text-danger flex items-center gap-1"><AlertTriangle size={12} /> No venue model — the pose has nothing to anchor to.</span>
@@ -340,7 +356,7 @@ export const ManualWizard: React.FC<Props> = (props) => {
             )}
             <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
               <input type="checkbox" checked={wireOverlay} onChange={(e) => setWireOverlay(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-              <span>Project wireframe while picking <span className="text-fg-3">— after the first solve, the mesh edges + vertex dots appear on the object and follow every point you add or fix</span></span>
+              <span>Project the model while picking <span className="text-fg-3">— after the first solve, the mesh edges + vertex dots appear on the object and follow every point you add or fix</span></span>
             </label>
             <div className="border-t border-line-1 pt-2 space-y-1">
               <div className="text-fg-2">Points: <span className="num text-fg-1">{picks.length}</span> <span className="text-fg-3">/ ≥4</span></div>
@@ -353,7 +369,7 @@ export const ManualWizard: React.FC<Props> = (props) => {
               )}
             </div>
             {picks.length > 0 && (
-              <p className="text-fg-3 text-micro leading-snug">To fix a point, <b>drag it</b>: its marker in the 3D view (snaps to vertices), its dot on the raster map (right), or the numbered point on the projection itself — the solve follows live.</p>
+              <p className="text-fg-3 text-micro leading-snug">To fix a point, <b>drag it</b>: its marker in the 3D view (snaps to vertices), its dot on the raster map (right), or the numbered point on the projection itself — the solve follows live. A <span className="text-danger">red leader line</span> on the projection points from a pick to where the solve thinks it belongs; its length is that point's error.</p>
             )}
             {picks.length > 0 && (
               <div className="space-y-0.5">
@@ -447,10 +463,22 @@ export const ManualWizard: React.FC<Props> = (props) => {
               <input type="checkbox" checked={testProj} onChange={(e) => setTestProj(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
               <MonitorUp size={12} className="text-fg-3" /> Test projection (render venue from projector)
             </label>
-            <label className={`flex items-center gap-1.5 cursor-pointer text-fg-2 ${testProj ? '' : 'opacity-40'}`}>
-              <input type="checkbox" checked={wireframe} disabled={!testProj} onChange={(e) => setWireframe(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-              <span>Wireframe <span className="text-fg-3">— bright mesh edges (readable even when the materials are dark); untick for the shaded render</span></span>
-            </label>
+            {/* Choosing WHAT plays on the mesh is scene work, not calibration work — it lives in the
+                3D Scene context (select the model ▸ Content), which is also where the projector's
+                own view can be looked through. This step stays about whether the SOLVE is right. */}
+            <p className="text-fg-3 text-micro leading-snug border-t border-line-1 pt-2">To put content on the venue mesh, go to <b>3D Scene</b>, select the model and pick a <b>Content</b> source — you can also look through this projector from there.</p>
+            <div className={`flex items-center gap-1 text-micro ${testProj ? '' : 'opacity-40'}`}>
+              <span className="text-fg-3">Look</span>
+              {(['edges', 'wireframe', 'shaded'] as MeshLook[]).map((m) => (
+                <button key={m} disabled={!testProj} onClick={() => setMeshLook(m)}
+                  title={m === 'edges' ? 'Crease + outline edges only — what you align against the real object'
+                    : m === 'wireframe' ? 'Every triangle — only useful on very coarse meshes'
+                    : 'The venue materials as the show will render them'}
+                  className={`px-1.5 py-0.5 rounded border ${meshLook === m ? 'bg-accent/20 border-accent text-fg-1' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'} disabled:opacity-60`}>
+                  {m === 'edges' ? 'Edges' : m === 'wireframe' ? 'Wireframe' : 'Shaded'}
+                </button>
+              ))}
+            </div>
           </>
         )}
 
