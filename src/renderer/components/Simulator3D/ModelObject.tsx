@@ -6,6 +6,7 @@ import { ledUnderPointer } from './pickPriority';
 import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
 import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
+import { useSurfaceTexture } from './useSurfaceTexture';
 import { recenterClone, applyModelTransform } from './venuePlacement';
 import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
 
@@ -56,15 +57,19 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
   const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
 
-  useLayerTexture(model.layerId, (tex) => {
+  const applyTex = (tex: THREE.Texture | null) => {
     const mat = layerMatRef.current!;
     mat.map = tex;
     mat.color.set(tex ? '#ffffff' : '#161616');
     mat.needsUpdate = true;
-  });
+  };
+  // Two sources, one material. A layer binding wins when both are somehow set (see SceneModel), and
+  // each hook is inert when its own id is absent — so exactly one of them ever writes the map.
+  useLayerTexture(model.layerId, applyTex);
+  useSurfaceTexture(model.layerId ? undefined : model.surfaceId, applyTex);
 
   useEffect(() => {
-    const layered = !!model.layerId;
+    const layered = !!model.layerId || !!model.surfaceId;
     const layerMat = layerMatRef.current!;
     cloned.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -77,7 +82,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
         if (orig) { mesh.material = orig; origMats.current.delete(mesh.uuid); }
       }
     });
-  }, [cloned, model.layerId]);
+  }, [cloned, model.layerId, model.surfaceId]);
 
   useEffect(() => () => { layerMatRef.current?.dispose(); }, []);
 

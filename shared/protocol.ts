@@ -633,6 +633,13 @@ export interface SceneModel {
   kind?: 'mesh' | 'plane';            // default 'mesh' (back-compat)
   path: string;                       // GLB/glTF file path (mesh); '' for planes
   layerId?: string;                   // plane: which timeline track to show
+  // Texture this model with a SURFACE's live picture instead of a timeline layer — whatever that
+  // surface is playing (video, image, camera, NDI, Spout, effect, a timeline layer, the program
+  // composite) lands on the mesh through its UVs. This is what makes "the projector paints the
+  // object" work end to end: bind the venue mesh to the surface routed to the calibrated output and
+  // render-from-projector shows the show on the real geometry. Mutually exclusive with layerId
+  // (the panel clears one when setting the other); layerId wins if both are somehow set.
+  surfaceId?: string;
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number }; // degrees
   scale: number;                      // uniform (1 = GLB units are meters); legacy fallback
@@ -811,6 +818,13 @@ export interface Scene3D {
   // hazed-up version.
   hazeDensity?: number;
   reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
+  // LOOK THROUGH A CALIBRATED PROJECTOR. The surfaceId of a projector output whose pose has solved,
+  // or absent/'' for the free editor camera. The 3D viewport then renders from that projector's
+  // exact recovered camera (pose + intrinsic projection, letterboxed to the pane), so an operator
+  // can see what the projector covers — and what the content on the mesh looks like from it —
+  // without a physical projector switched on. Persisted with the scene because it is a saved
+  // VIEWPOINT of this venue, not a transient UI mode; it survives reopening the project.
+  viewFrom?: string;
   trackingViz?: boolean;              // overlay the LiDAR SOL/MUR zones + live blob markers
   trackingSmoothing?: number;         // 0 = raw, 1 = heavy (One-Euro min-cutoff)
   trackingPredictMs?: number;         // blob prediction horizon, ms (0 = off)

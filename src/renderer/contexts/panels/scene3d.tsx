@@ -273,7 +273,7 @@ export const FixtureArrangePanel: React.FC = () => {
 };
 
 export const ModelTransformPanel: React.FC = () => {
-  const { scene3D, selectedModelId, timeline, modelNaturalSizes } = useEditor();
+  const { scene3D, selectedModelId, timeline, modelNaturalSizes, surfaces } = useEditor();
   const a = useEditorActions();
   const [fitMeters, setFitMeters] = useState(5);
   const m = (scene3D.models ?? []).find((x) => x.id === selectedModelId) ?? null;
@@ -285,18 +285,34 @@ export const ModelTransformPanel: React.FC = () => {
       {/* Timeline-layer texture: planes display it; meshes get it UV-mapped onto their GLB. This reads
           the BOUND timeline, not the global one — a model shows what the engine is PLAYING, which while
           authoring a scene is that scene's own document. */}
+      {/* One picker, two binding kinds — a timeline layer OR a whole surface. A surface is what the
+          operator actually routes to a projector, so binding the venue mesh to one is how "the show
+          plays on the object" is expressed; it also covers every source type in a single path
+          (video / image / camera / NDI / Spout / effect / a layer / the program composite). The two
+          ids are mutually exclusive, so setting either clears the other. */}
       <div className="flex items-center gap-1.5 text-mini">
-        <span className="text-fg-2 shrink-0">Layer</span>
+        <span className="text-fg-2 shrink-0">Content</span>
         <Tooltip id="scene3d.model-layer">
           <select
-            value={m.layerId ?? ''}
-            onChange={(e) => a.updateModel(m.id, { layerId: e.target.value || undefined })}
+            value={m.surfaceId ? `s:${m.surfaceId}` : m.layerId ?? ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v.startsWith('s:')) a.updateModel(m.id, { surfaceId: v.slice(2), layerId: undefined });
+              else a.updateModel(m.id, { layerId: v || undefined, surfaceId: undefined });
+            }}
             className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none"
             {...help('scene3d.model-layer')}
           >
             <option value="">{m.kind === 'plane' ? '— no layer —' : '— GLB materials —'}</option>
             <option value={PROGRAM_LAYER_ID}>★ Timeline (Program)</option>
-            {timeline.layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            {surfaces.length > 0 && (
+              <optgroup label="Surfaces">
+                {surfaces.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.name}</option>)}
+              </optgroup>
+            )}
+            <optgroup label="Timeline layers">
+              {timeline.layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </optgroup>
           </select>
         </Tooltip>
         <Tooltip id="scene3d.model-program">
@@ -312,7 +328,7 @@ export const ModelTransformPanel: React.FC = () => {
           bakes UVs through the CURRENT viewer camera (viewerCamera.ts), so it needs the 3D viewport
           mounted; picking it with no bake yet captures one immediately. The baked matrix survives a
           switch back to Mesh UVs, so present-vs-projected is a two-click A/B. */}
-      {m.kind !== 'plane' && m.layerId && (
+      {m.kind !== 'plane' && (m.layerId || m.surfaceId) && (
         <div className="flex items-center gap-1.5 text-mini">
           <span className="text-fg-2 shrink-0">UVs</span>
           <Tooltip id="scene3d.model-uvs">

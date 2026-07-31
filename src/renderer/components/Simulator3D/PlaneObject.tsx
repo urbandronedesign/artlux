@@ -7,6 +7,7 @@ import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
 import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { ModelTransform } from './ModelObject';
 import { useLayerTexture } from './useLayerTexture';
+import { useSurfaceTexture } from './useSurfaceTexture';
 
 const DEG = Math.PI / 180;
 
@@ -31,14 +32,17 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const controls = useRef<any>(null);
 
-  // Bind the layer's live frame to the plane's material (shared with GLB meshes via the hook).
-  useLayerTexture(model.layerId, (tex) => {
+  // Bind the live frame to the plane's material — from a timeline layer or a whole surface (shared
+  // with GLB meshes via the two hooks; a layer binding wins, and each hook is inert without its id).
+  const applyTex = (tex: THREE.Texture | null) => {
     const mat = matRef.current;
     if (!mat) return;
     mat.map = tex;
     mat.color.set(tex ? '#ffffff' : '#161616');
     mat.needsUpdate = true;
-  });
+  };
+  useLayerTexture(model.layerId, applyTex);
+  useSurfaceTexture(model.layerId ? undefined : model.surfaceId, applyTex);
 
   useEffect(() => {
     group.position.set(model.position.x, model.position.y, model.position.z);

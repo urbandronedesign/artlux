@@ -45,11 +45,19 @@ Lists everything in the scene under **OBJECTS** and **FIXTURES**:
 
 ---
 
-## Show timeline content on an object
+## Show content on an object
 
-Select a plane or a mesh and pick a **Layer** in the Model card — a single timeline layer, or
-**★ Timeline (Program)** (the **TL** shortcut button) for the whole composite. Planes display the
-frame directly; meshes get it textured through UV coordinates, and a **UVs** selector chooses which:
+Select a plane or a mesh and pick a **Content** source in the Model card:
+
+- a **Surface** — the object then shows whatever that surface is playing (a video, an image, a
+  camera, NDI, Spout, an effect, a timeline layer, the whole timeline). This is the one to use for
+  projection mapping: bind the venue mesh to the surface routed to your projector and the show lands
+  on the real object.
+- a **Timeline layer** — a single track of the NLE, or **★ Timeline (Program)** (the **TL** shortcut
+  button) for the whole composite.
+
+Planes display the frame directly; meshes get it textured through UV coordinates, and a **UVs**
+selector chooses which:
 
 - **Mesh UVs** — the UV map authored in the GLB file. If the file has none (common for CAD exports),
   there is nothing to spread the picture across and the whole mesh shows a single flat color — that
@@ -62,6 +70,22 @@ frame directly; meshes get it textured through UV coordinates, and a **UVs** sel
 
 Switching back to **Mesh UVs** keeps the baked viewpoint, so comparing the two is a two-click A/B —
 nothing in the GLB file is modified either way.
+
+---
+
+## Look through a calibrated projector
+
+Once a projector output has been calibrated (see [Projector calibration](10-calibration.md)), a
+**view selector** (camera icon) appears in the 3D toolbar. Pick a projector and the viewport renders
+from *its* viewpoint, using the lens and position the calibration recovered — letterboxed to the
+pane, never stretched, so what you see is honestly what that projector covers. It is the fastest way
+to check framing and to see the content on the mesh as the projector will show it, with no projector
+switched on.
+
+While a projector view is active the camera is driven by the calibration, so orbiting is off (and
+that projector's own frustum is hidden — you are inside it). Choose **Editor camera** to go back.
+The selection is saved with the project, and it is *not* captured into scenes: recalling a scene
+never moves your viewpoint.
 
 ---
 

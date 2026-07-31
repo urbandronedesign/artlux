@@ -148,6 +148,12 @@ function sliceDrawable(s: Surface): Drawable | null {
 
 // Natural aspect ratio (w/h) of a surface's current content once it's loaded, or null
 // if unknown / not applicable. Used by the Stage to fit the surface rect to its media.
+/** The synced surface with this id, for consumers that hold only an id (a venue mesh bound to a
+ *  surface — see Simulator3D/useSurfaceTexture). Undefined until the first syncSurfaces. */
+export function getSurface(id: string | undefined | null): Surface | undefined {
+  return id ? byId.get(id) : undefined;
+}
+
 export function getContentAspect(s: Surface): number | null {
   // A slice is as wide as its crop of the source, so a 3-wide span of a 16:9 video gives three ~16:5
   // surfaces — which is what the Stage should fit each piece to.
