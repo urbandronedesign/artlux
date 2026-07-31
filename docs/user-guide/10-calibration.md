@@ -73,6 +73,9 @@ lens and then anchor the projector by clicking matched point pairs. Four steps:
    - In the **3D view**, click the same feature on the model — the click pairs with wherever the
      crosshair is, no confirmation needed. It snaps to the nearest mesh vertex (hold **Alt** to pick
      freely).
+   - **Once the pose has solved, it gets easier:** just click a vertex on the model and the new point
+     appears where the solve *predicts* that vertex sits on the projection — then drag it onto the
+     real feature. Past the first four points you're nudging, not hunting.
    - Repeat with at least **4** pairs — more is better — spread across the image **and across depth**
      (not all on one flat face). The pose solves automatically from 4 pairs on.
    - Every placed point is drawn **numbered on the projection itself**, in the right‑pane raster map,
@@ -83,9 +86,11 @@ lens and then anchor the projector by clicking matched point pairs. Four steps:
      thinks its vertices are versus where they really are, and every point you add or fix visibly
      pulls the wireframe into alignment. Aim the crosshair at a physical corner, click the matching
      (lit) vertex in 3D, watch it converge.
-   - Once solved, each point in the list shows its own error in pixels — fix the worst one instead of
-     starting over. Editing is direct: **drag the point** wherever you see it, and the solve (and the
-     projected wireframe) follows live —
+   - Once solved, each point shows its own error in pixels in the list — and on the projection a
+     **red dashed leader line** runs from each point to where the solve thinks it belongs. A long
+     line is a point that disagrees with the others; fix that one first.
+   - Editing is direct: **drag the point** wherever you see it, and the solve (and the projected
+     model) follows live —
      - drag its **marker in the 3D view** across the mesh (still snaps to vertices);
      - drag its **dot on the raster map** (right pane);
      - grab and drag the **numbered point on the projection itself**.
@@ -97,9 +102,11 @@ lens and then anchor the projector by clicking matched point pairs. Four steps:
      are too flat to support it, the entered lens silently stands, so add points at different depths.
      With auto‑solve off, a manual **Refine lens** button (≥8 points) and **Revert lens** do the same
      on demand.
-4. **Verify** — enable **Test projection** and check the render lands on the real object. It starts
-   in **Wireframe** (bright mesh edges — readable even when the model's materials are dark); untick
-   it for the shaded render. The panel also shows the **solved projector distance** — compare it to
+4. **Verify** — enable **Test projection** and check the render lands on the real object. The **Look**
+   buttons pick how the venue is drawn: **Edges** (the default — only the model's outline and panel
+   creases, which is what you actually align against, and it reads even when the materials are dark),
+   **Wireframe** (every triangle; useful only on very coarse models), or **Shaded** (the materials as
+   the show will render them). The panel also shows the **solved projector distance** — compare it to
    the real throw distance: if it's off by some factor, your throw ratio is off by the same factor,
    so multiply the throw ratio by *real ÷ solved* in the Lens step and re‑apply (the pose re‑solves
    from your points automatically). Then **Apply & finish**.
@@ -107,6 +114,29 @@ lens and then anchor the projector by clicking matched point pairs. Four steps:
 **Apply & finish** saves the project and switches the output to **render‑from‑projector**: from then
 on, in the normal show (not just the wizard), that projector renders the 3D venue from its own solved
 viewpoint — content mapped onto the mesh lands on the real object, like any projection‑mapping setup.
+
+Putting **content** on the mesh is done in the **3D Scene** context, not here — calibration only
+solves where the projector is. In 3D Scene, select the model and pick a **Content** source: any
+surface (so whatever that surface plays — video, camera, NDI, an effect, a timeline layer, the whole
+timeline — is textured onto the mesh) or a single timeline layer. Bind it to the surface routed to
+this projector and the show lands on the real object.
+
+**Moving a calibrated output to another display** is just the **Display** dropdown on that output's
+row in Outputs — the calibration, warp, blend and *Render from projector* all belong to the output,
+not to the display, so they come along. A change of **resolution** alone needs nothing (the solve is
+resolution‑independent: a 1280×720 calibration renders identically at 1920×1080). A change of
+**shape** does: if the new display's aspect ratio differs, the row shows **⚠ re‑calibrate**, because
+the render would be stretched on the real object while the calibration still looked good. Re-run the
+manual flow on the new display — your picked points are kept, so it re-solves in seconds.
+
+The 3D Scene toolbar also has a **view selector** (camera icon) listing every calibrated projector:
+pick one and the viewport renders from that projector's own recovered viewpoint, letterboxed to the
+pane — so you can check coverage and see the content on the mesh exactly as the projector will,
+without a projector switched on. The choice is saved with the scene; **Editor camera** returns to
+free orbit.
+
+> If the mesh shows one flat colour, its GLB has no UVs. Set **3D Scene ▸ UVs** to *Projected from
+> view*, aim the 3D viewport the way you want the content to land, and press **From view**.
 The **Render from projector** toggle on the output row turns it on/off later; the calibration itself
 stays saved in the project.
 

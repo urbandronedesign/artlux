@@ -142,6 +142,21 @@ export const OutputsPanel: React.FC<Props> = ({
               const enabled = !!o?.enabled;
               const displayId = o?.displayId ?? null;
               const live = enabled && displayId != null && (displayId === WINDOWED_DISPLAY || displays.some((d) => d.id === displayId));
+              // MOVING A CALIBRATED OUTPUT TO A DIFFERENT-SHAPED DISPLAY SILENTLY MISRENDERS IT.
+              // The recovered intrinsics are pixels of the raster they were solved in, and the GL
+              // projection built from them is a ratio (2fx/W, 2fy/H) — so a pure RESOLUTION change
+              // is exactly invariant (1280×720 → 1920×1080 renders identically, nothing to do), but
+              // a changed ASPECT does not cancel: the render stretches, on the real object, with the
+              // calibration still reading as good. Nothing else notices, so say it here.
+              const calibAspectOff = (() => {
+                const cal = o?.calibration;
+                const d = displayId != null && displayId !== WINDOWED_DISPLAY ? displays.find((x) => x.id === displayId) : undefined;
+                if (!cal || cal.poseRms == null || !d || !cal.imageSize?.[0] || !cal.imageSize[1]) return null;
+                const calAR = cal.imageSize[0] / cal.imageSize[1];
+                const dispAR = d.bounds.width / d.bounds.height;
+                if (Math.abs(calAR - dispAR) / dispAR <= 0.01) return null;
+                return `Calibrated for a ${cal.imageSize[0]}×${cal.imageSize[1]} raster (${calAR.toFixed(2)}:1) but this display is ${dispAR.toFixed(2)}:1 — the calibrated render will be stretched. Re-run the calibration on this display (the picked points are kept, so it re-solves quickly).`;
+              })();
               const soft = o?.softEdge ?? defaultSoftEdge();
               const isOpen = expanded === s.id && live;
               return (
@@ -169,8 +184,9 @@ export const OutputsPanel: React.FC<Props> = ({
                     <option value={WINDOWED_DISPLAY}>Windowed (this screen)</option>
                     {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
                   </select>
-                  <span className={`text-micro truncate ${live ? 'text-ok' : 'text-fg-3'}`}>
-                    {live ? 'Live' : enabled ? 'Pick a display' : 'Idle'}
+                  <span className={`text-micro truncate ${calibAspectOff ? 'text-warn' : live ? 'text-ok' : 'text-fg-3'}`}
+                    title={calibAspectOff ?? undefined}>
+                    {calibAspectOff ? '⚠ re-calibrate' : live ? 'Live' : enabled ? 'Pick a display' : 'Idle'}
                   </span>
                   <div className="flex items-center gap-1 justify-self-end">
                     <Tooltip id="outputs.align">

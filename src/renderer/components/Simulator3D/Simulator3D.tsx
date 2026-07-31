@@ -3,7 +3,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -13,6 +13,7 @@ import * as placement from '../../services/fixturePlacement';
 import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
+import { cameraPose, glProjectionMatrix } from '@artlux/plugin-calibration/renderer';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
 import { setSnapHover, getSnapHover } from './vertexSnap';
@@ -81,7 +82,7 @@ interface Props {
   /** Projector calibration: pose-pick mode + frustum overlays. */
   calibPickMode?: boolean;
   onCalibPick?: (world: [number, number, number], source?: string) => void;
-  projectorCalibs?: Array<{ surfaceId: string; calibration: ProjectorCalibration }>;
+  projectorCalibs?: Array<{ surfaceId: string; name?: string; calibration: ProjectorCalibration }>;
   activePicks?: Array<{ world: [number, number, number] }>;
   selectedPick?: number | null;                       // highlight the correspondence being edited
   onSelectPick?: (i: number) => void;                 // click a numbered marker → select it for editing
@@ -131,8 +132,38 @@ const ViewerCameraBridge: React.FC = () => {
   return null;
 };
 
-const AdaptiveClipping: React.FC = () => {
+// LOOK THROUGH A CALIBRATED PROJECTOR (Scene3D.viewFrom). Drives the viewport camera from the solved
+// calibration each frame — the same pose + exact intrinsic projection the projector window itself
+// uses (cvCamera), so what you see here is what that projector covers, including the content on the
+// mesh. Everything else in the scene keeps working: picking, gizmos and the calibration overlays all
+// read this camera.
+//
+// THE PROJECTION IS REFITTED, NOT REUSED VERBATIM. The projector's matrix maps its own raster; a
+// pane with a different aspect would stretch the image and quietly lie about coverage. Scaling the
+// axis that has spare room letterboxes it instead — the picture stays the projector's, with slack
+// around it (the toolbar draws the raster frame so the slack is legible as slack).
+const ProjectorView: React.FC<{ calibration: ProjectorCalibration }> = ({ calibration }) => {
+  useFrame(({ camera, size }) => {
+    const { position, quaternion } = cameraPose(calibration.rotation, calibration.translation as [number, number, number]);
+    camera.position.set(position[0], position[1], position[2]);
+    camera.quaternion.set(quaternion[0], quaternion[1], quaternion[2], quaternion[3]);
+    camera.updateMatrixWorld(true);
+    const [rw, rh] = calibration.imageSize;
+    const m = glProjectionMatrix(calibration.intrinsics, calibration.imageSize, 0.05, 500);
+    if (rw > 0 && rh > 0 && size.width > 0 && size.height > 0) {
+      const rasterAR = rw / rh, viewAR = size.width / size.height;
+      if (viewAR > rasterAR) { const s = rasterAR / viewAR; m[0] *= s; m[8] *= s; } // pane wider → fit height
+      else { const s = viewAR / rasterAR; m[5] *= s; m[9] *= s; }                    // pane taller → fit width
+    }
+    camera.projectionMatrix.fromArray(m);
+    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  });
+  return null;
+};
+
+const AdaptiveClipping: React.FC<{ off?: boolean }> = ({ off }) => {
   useFrame(({ camera, controls }) => {
+    if (off) return; // a projector view owns the projection matrix — see ProjectorView
     const cam = camera as THREE.PerspectiveCamera;
     if (!cam.isPerspectiveCamera) return;
     // OrbitControls is `makeDefault`, so its target is the point the operator is working around —
@@ -169,7 +200,7 @@ const ToolBtn: React.FC<{ active: boolean; title: string; helpId?: string; onCli
 const Simulator3D: React.FC<Props> = ({
   fixtures, selectedFixtureId, selectedFixtureIds = [], scene3D = defaultScene3D(), modelUrls = {},
   selectedModelId = null,
-  fixtureProfiles = EMPTY_PROFILES, onSelectFixture, onSelectFixtures, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
+  fixtureProfiles = EMPTY_PROFILES, onSelectFixture, onSelectFixtures, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory, onSceneConfig,
   calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick, onMovePick,
   paused = false,
 }) => {
@@ -245,6 +276,12 @@ const Simulator3D: React.FC<Props> = ({
     () => fixtures.filter(f => !gdtfFixtures.includes(f)),
     [fixtures, gdtfFixtures],
   );
+  // The stored projector viewpoint (Scene3D.viewFrom), resolved against the calibrated outputs. A
+  // saved id whose output was un-calibrated or deleted simply falls back to the editor camera rather
+  // than freezing the view — the selector then shows "Editor camera" and the scene is orbitable again.
+  const viewFrom = useMemo(
+    () => (scene3D.viewFrom ? projectorCalibs.find((p) => p.surfaceId === scene3D.viewFrom) ?? null : null),
+    [scene3D.viewFrom, projectorCalibs]);
   // Model gizmos only understand the three transform modes. 'select' is a fixture-marquee tool, so
   // models fall back to translate rather than the mode type leaking into their props.
   const transformMode = mode === 'select' ? 'translate' : mode;
@@ -260,6 +297,24 @@ const Simulator3D: React.FC<Props> = ({
         <ToolBtn active={mode === 'scale'} title="Scale (R)" helpId="scene3d.gizmo-scale" onClick={() => setMode('scale')}><Maximize size={14} /></ToolBtn>
         <div className="w-px h-4 bg-line-1 mx-1" />
         <ToolBtn active={mode === 'select'} title="Box select (Q) — drag to select fixtures; hold Shift to add" helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
+        {/* LOOK THROUGH A PROJECTOR. Only calibrated outputs can offer a viewpoint, so the control
+            appears once one exists rather than sitting there empty. The choice is stored on the
+            scene (Scene3D.viewFrom), so it is still the view you left when the project reopens. */}
+        {projectorCalibs.length > 0 && (
+          <>
+            <div className="w-px h-4 bg-line-1 mx-1" />
+            <Video size={13} className={viewFrom ? 'text-accent' : 'text-fg-3'} />
+            <select
+              value={viewFrom?.surfaceId ?? ''}
+              onChange={(e) => onSceneConfig?.({ viewFrom: e.target.value || undefined })}
+              title="Render the scene from a calibrated projector's own viewpoint"
+              className={`bg-surface-0 border rounded px-1 py-0.5 text-micro focus:outline-none ${viewFrom ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
+            >
+              <option value="">Editor camera</option>
+              {projectorCalibs.map((p) => <option key={p.surfaceId} value={p.surfaceId}>{p.name ?? 'Projector'}</option>)}
+            </select>
+          </>
+        )}
         {selectionCount > 1 && (
           <span className="ml-2 text-mini text-fg-3 tabular-nums">{selectionCount} selected</span>
         )}
@@ -298,7 +353,8 @@ const Simulator3D: React.FC<Props> = ({
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}
       >
         <color attach="background" args={['#0d0d0d']} />
-        <AdaptiveClipping />
+        <AdaptiveClipping off={!!viewFrom} />
+        {viewFrom && <ProjectorView calibration={viewFrom.calibration} />}
         <ViewerCameraBridge />
         <Exposure value={scene3D.exposure ?? 1} />
         <Lighting env={scene3D.environment} />
@@ -347,7 +403,9 @@ const Simulator3D: React.FC<Props> = ({
             </Suspense>
           </ModelBoundary>
         ) : null)}
-        {projectorCalibs.map(({ surfaceId, calibration }) => (
+        {/* The frustum you are looking THROUGH is skipped: from its own apex it collapses to lines
+            radiating out of the camera, drawn over everything it is meant to help you judge. */}
+        {projectorCalibs.filter((p) => p.surfaceId !== viewFrom?.surfaceId).map(({ surfaceId, calibration }) => (
           <ProjectorFrustum key={surfaceId} calibration={calibration} />
         ))}
         {/* Calibration anchor markers — one numbered marker per placed correspondence (board pose picks
@@ -403,8 +461,9 @@ const Simulator3D: React.FC<Props> = ({
           />
         )}
         {/* The marquee owns the left button while it is active, so orbit keeps only pan/zoom. */}
-        {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit. */}
-        <OrbitControls makeDefault enabled={dragPick == null} enableRotate={mode !== 'select'} />
+        {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit — and
+            while looking through a projector, whose camera is driven from the calibration. */}
+        <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select'} />
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
           <GizmoViewport labelColor="white" axisHeadScale={1} />
         </GizmoHelper>

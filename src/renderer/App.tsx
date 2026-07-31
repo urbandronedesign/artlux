@@ -1279,7 +1279,10 @@ const App: React.FC = () => {
     // never travels; what DOES travel is `activeZoneIds` — which of the room's zones this look listens
     // to — because that genuinely is part of the look. See handleRecallScene, which preserves the live
     // list on the way back in, and docs/TRACKING_SYNC.md.
-    scene3D: { ...scene3D, trackingZones: undefined },
+    // `viewFrom` is stripped for the same reason as trackingZones: it is where the OPERATOR is
+    // looking in the editor, not part of the look. Captured, it would ride every scene and a GO
+    // would yank the 3D viewport to whichever projector was selected when that scene was stored.
+    scene3D: { ...scene3D, trackingZones: undefined, viewFrom: undefined },
     projectorOutputs,
   });
   const handleCaptureScene = () => {
@@ -1353,7 +1356,7 @@ const App: React.FC = () => {
     // carries its own copy in the file, so this must not simply assign `scene.scene3D`. Keeping the live
     // list is both the migration and the invariant: a GO can change WHICH zones a look listens to
     // (activeZoneIds, which does travel), never which zones exist.
-    if (scene.scene3D) setScene3D(prev => ({ ...scene.scene3D!, trackingZones: prev.trackingZones }));
+    if (scene.scene3D) setScene3D(prev => ({ ...scene.scene3D!, trackingZones: prev.trackingZones, viewFrom: prev.viewFrom }));
     if (scene.projectorOutputs) setProjectorOutputs(scene.projectorOutputs);
     setSelectedFixtureId(null);
     setSelectedFixtureIds([]);
@@ -3802,7 +3805,7 @@ const App: React.FC = () => {
                                 onRecordHistory={recordHistory}
                                 calibPickMode={calib.pickMode}
                                 onCalibPick={(world, source) => calibWorkspace.pick(world, source)}
-                                projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration! }))}
+                                projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, name: surfaces.find(s => s.id === o.surfaceId)?.name, calibration: o.calibration! }))}
                                 activePicks={calib.flow === 'auto'
                                     ? calib.picks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}

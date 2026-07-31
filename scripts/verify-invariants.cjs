@@ -160,12 +160,20 @@ check(
   'r3f defaults the near plane to a fixed 0.1 world units. The scene has no fixed scale, so on a ' +
   'small venue model that is a wall you cannot get past: you zoom in to place a calibration anchor ' +
   'and the mesh is sliced away before it fills the viewport. Nothing throws and nothing logs — the ' +
-  'model just disappears as you approach it.',
+  'model just disappears as you approach it. It may be suspended for exactly ONE reason — a camera ' +
+  'whose projection is driven from elsewhere (ProjectorView, looking through a calibrated ' +
+  'projector), where adapting near/far would fight the intrinsic matrix every frame.',
   () => {
     const src = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
     const problems = [];
     if (!src.includes('AdaptiveClipping')) return 'AdaptiveClipping is gone — the near plane is fixed again';
-    if (!/<AdaptiveClipping\s*\/>/.test(src)) problems.push('AdaptiveClipping is defined but never mounted inside the Canvas');
+    const mount = src.match(/<AdaptiveClipping\b([^>]*)\/>/);
+    if (!mount) problems.push('AdaptiveClipping is defined but never mounted inside the Canvas');
+    // Mounted with props = it can be turned off. The only sanctioned reason is a driven camera, so
+    // require that path to exist — otherwise this is a silent way to pin the near plane again.
+    else if (mount[1].trim() && !/const ProjectorView/.test(src)) {
+      problems.push('AdaptiveClipping is mounted conditionally but there is no driven-camera path (ProjectorView) to justify it');
+    }
     if (!/updateProjectionMatrix\(\)/.test(src)) problems.push('writes near/far without updateProjectionMatrix() — the change never reaches the projection');
     // A literal near/far on the Canvas camera would silently win at creation time.
     if (/camera=\{\{[^}]*\bnear:/.test(src)) problems.push('the Canvas camera pins `near` literally');

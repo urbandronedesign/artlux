@@ -116,16 +116,27 @@ too small/complex for a board.
    centered on the lens axis; +100% vertical = image entirely above it — the common fixed-lens case),
    then **Apply lens**. With **Auto-solve lens from the points** on (default), these are only a
    seed: from 6 points every solve re-estimates the focal (single-view `calibrateCamera` seeded with
-   the current K, principal point + aspect held), adopting it only when it is a plausible throw
-   ratio AND fits the picks at least as well — a flat point spread falls back to the entered lens
-   rather than exploding. So a rough throw ratio is genuinely fine.
+   the current K), adopting a candidate only when it is a plausible throw ratio AND fits the picks at
+   least as well — a flat point spread falls back to the entered lens rather than exploding. So a
+   rough throw ratio is genuinely fine. Two candidates are tried: principal point **held**, and —
+   when the picks are measurably non-coplanar (bounding-box thickness ≥ 8% of its longest extent) —
+   principal point **free**, which is what recovers **lens shift without being told it**. The free
+   solve is rejected outright if cx/cy leaves the raster's neighbourhood, and otherwise wins only on
+   fit. (mapamok frees the principal point unconditionally; that works because it is always pointed
+   at a real 3D object. Making it conditional keeps a near-planar screen from fitting noise.)
 3. **Points** — identical gesture to the board flow's Pose step: crosshair on a physical feature →
    click the matching vertex on the model (vertex-snapped; **Alt** picks freely) — the model click
-   pairs with the current crosshair, there is no confirm step. ≥4
+   pairs with the current crosshair, there is no confirm step. **Once a pose exists the seed flips:**
+   a model click places its pick at the *reprojection* of that vertex under the current solve, ready
+   to drag onto the real feature (mapamok's gesture — past the first four points every pick is a
+   nudge, and the offset you are correcting is that point's residual). Falls back to the crosshair
+   when the prediction lands off-raster or behind the lens. ≥4
    pairs solve the pose (RANSAC from 6, so one bad click gets voted down); spread them across the
    raster **and across depth**. Every placed pick is drawn **numbered on the projection itself**, on
    the right-pane raster map and on the 3D markers — one numbering across all three views. Once
-   solved each point lists its **own reprojection error**; fix the worst instead of clearing
+   solved each point lists its **own reprojection error** — and the projection draws a red dashed
+   **leader line** from every pick to its reprojection, so the residual is legible in place on the
+   object instead of only as a number on another screen. Fix the worst instead of clearing
    everything — editing is direct manipulation: **drag the point** where you see it (its 3D marker
    across the mesh, vertex-snapped; its dot on the raster map; or the numbered point grabbed on the
    projection itself) and the solve follows live. The selected point's **Move 3D point** /
@@ -152,7 +163,20 @@ visibly reaches the venue it lights; the wireframe option also exists on the boa
 
 **After Apply & finish** the project is saved in place and the output renders the venue from the
 solved projector in the normal show (`useCalibration` — the *Render from projector* toggle in
-Outputs). **Multi-projector:** calibrate each output manually against the same venue model — the
+Outputs). **What plays on the mesh is scene work and lives in the 3D Scene context**, deliberately
+not in this wizard: a model can be bound to a **surface** (`SceneModel.surfaceId`) so that surface's
+live picture — any source type, including a timeline layer or the program composite — textures it
+through its UVs, or to a single timeline layer (`layerId`). In the projector window a surface
+binding costs nothing extra, because the window is already sent that surface's frames for its base
+canvas (`surfaceFrameChannel`); a mesh bound to a *different* surface stays dark by design rather
+than making every output stream a second source.
+
+The 3D viewport can also **look through a calibrated projector** (`Scene3D.viewFrom`, a surfaceId):
+its camera is driven from the solved pose + intrinsics exactly as the projector window's is, with
+the projection refitted to the pane's aspect (letterboxed, never stretched — a stretched preview
+would misreport coverage). Orbit is disabled while it is active and that projector's own frustum is
+hidden. The choice is persisted with the scene but **stripped from scene snapshots**, for the same
+reason `trackingZones` is: it is where the operator is looking, not part of the look. **Multi-projector:** calibrate each output manually against the same venue model — the
 model is the shared metric reference, so all solves share one world frame by construction — then
 solve the **Rig blend** from the Outputs panel. A manually-calibrated output needs no Auto-Align
 scan for that: its dense projector-pixel→3D map is **traced** from the calibration by raycasting the
