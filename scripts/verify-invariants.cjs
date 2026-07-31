@@ -137,6 +137,25 @@ check(
 );
 
 check(
+  'an orbit drag does not place a calibration anchor',
+  'r3f fires onClick on any press/release pair over an object, however far the pointer travelled in ' +
+  'between, and applies no movement threshold of its own — it hands you `delta` and leaves it to you. ' +
+  'Without that gate every drag that orbited the camera while starting and ending on the venue dropped ' +
+  'an anchor nobody asked for, silently corrupting the pose solve.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/components/Simulator3D/ModelObject.tsx',
+                     'src/renderer/components/Simulator3D/PlaneObject.tsx']) {
+      if (!exists(f)) { bad.push(`${f} (missing)`); continue; }
+      const src = read(f);
+      if (!src.includes('onCalibPick(')) continue;   // no pick path here to guard
+      if (!/\.delta\s*>/.test(src)) bad.push(f);
+    }
+    return bad.length ? `places a calibration pick without a drag threshold on e.delta: ${bad.join(', ')}` : null;
+  },
+);
+
+check(
   'the 3D near plane follows the orbit distance',
   'r3f defaults the near plane to a fixed 0.1 world units. The scene has no fixed scale, so on a ' +
   'small venue model that is a wall you cannot get past: you zoom in to place a calibration anchor ' +

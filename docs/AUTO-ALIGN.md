@@ -113,10 +113,19 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
    model** (right split); repeat **≥4** well-spread, non-coplanar → RANSAC solvePnP camera pose. Each
    pair drops a **numbered marker** on both sides (cyan crosshair on the preview, matching numbered
    marker in the 3D scene; a dashed orange ring marks a camera point still awaiting its model match) so
-   correspondences are easy to verify. To **fix** a placed pair, select it (list row, camera marker or
-   3D sphere) and drag / arrow-nudge its camera marker; to move its 3D point, press **move 3D point** in
-   the editing bar and then click the model — one click, and only while that is lit. Clicking the model
-   at any other time always *places* a new point, never moves an existing one.
+   correspondences are easy to verify. Each pick lists **both** halves — `#1 cam(435,13) ▸ 0.557, 0.172,
+   1.566` — and the log names the surface every model click landed on, so a pair that is *not* the same
+   physical point shows up without re-deriving it.
+   - **The model click snaps to the nearest vertex.** Move toward a corner and an **amber dot** appears
+     on it — faint while it is just the nearest candidate, **solid** once it will capture the click. The
+     anchor then lands exactly on that vertex, so the model half of the pair is the same nameable
+     feature as the camera half. A mid-face click stays a mid-face point, and **holding Alt** gives the
+     exact surface point. Corners make the best anchors for this reason: you can hit the same one in
+     both views. Orbiting the camera never places a point, however the drag starts or ends.
+   - To **fix** a placed pair, select it (list row, camera marker or 3D sphere) and drag / arrow-nudge its
+     camera marker; to move its 3D point, press **move 3D point** in the editing bar and then click the
+     model — one click, and only while that is lit. Clicking the model at any other time always *places*
+     a new point, never moves an existing one.
 4. **Scan** — *dim the room*, **Scan venue**: Gray-code → dense decode → (optional) **self-calibrate
    the camera lens from the scan** → re-solve pose → raycast the venue mesh → resection the projector.
 5. **Verify** — **residual heatmap** (green good / red ≥4 px — speckle = decode noise, *structured =

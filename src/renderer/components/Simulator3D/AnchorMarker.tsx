@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { worldPerPixel } from './screenScale';
 
 // One numbered calibration anchor (a board pose pick or an Auto-Align correspondence) drawn in the
 // 3D scene.
@@ -45,8 +46,7 @@ export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect
     const cam = camera as THREE.PerspectiveCamera;
     if (!cam.isPerspectiveCamera || !size.height) return;
     const d = cam.position.distanceTo(g.getWorldPosition(_p));
-    const worldPerPx = (2 * d * Math.tan((cam.fov * Math.PI / 180) / 2)) / size.height;
-    g.scale.setScalar(Math.max(1e-6, (selected ? MARKER_PX_SEL : MARKER_PX) * worldPerPx));
+    g.scale.setScalar(Math.max(1e-6, (selected ? MARKER_PX_SEL : MARKER_PX) * worldPerPixel(cam, size.height, d)));
   });
 
   return (

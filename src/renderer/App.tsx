@@ -3772,7 +3772,7 @@ const App: React.FC = () => {
                                 onSceneConfig={handleSceneConfig}
                                 onRecordHistory={recordHistory}
                                 calibPickMode={calib.pickMode}
-                                onCalibPick={(world) => calibWorkspace.pick(world)}
+                                onCalibPick={(world, source) => calibWorkspace.pick(world, source)}
                                 projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration! }))}
                                 activePicks={calib.flow === 'auto'
                                     ? calib.picks.map(world => ({ world }))

@@ -14,6 +14,8 @@ import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
 import { AnchorMarker } from './AnchorMarker';
+import { SnapCursor } from './SnapCursor';
+import { setSnapHover } from './vertexSnap';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureBodies } from './FixtureBodies';
 import { FixtureGizmo } from './FixtureGizmo';
@@ -60,7 +62,7 @@ interface Props {
   onRecordHistory: () => void;
   /** Projector calibration: pose-pick mode + frustum overlays. */
   calibPickMode?: boolean;
-  onCalibPick?: (world: [number, number, number]) => void;
+  onCalibPick?: (world: [number, number, number], source?: string) => void;
   projectorCalibs?: Array<{ surfaceId: string; calibration: ProjectorCalibration }>;
   activePicks?: Array<{ world: [number, number, number] }>;
   selectedPick?: number | null;                       // highlight the correspondence being edited
@@ -142,6 +144,9 @@ const Simulator3D: React.FC<Props> = ({
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
+  // Leaving pick mode drops the snap preview. It lives outside React (pointer-rate channel), so
+  // unmounting SnapCursor would otherwise leave a stale vertex behind for the next session.
+  useEffect(() => { if (!calibPickMode) setSnapHover(null); return () => setSnapHover(null); }, [calibPickMode]);
   // ── CLICK-TO-PLACE ────────────────────────────────────────────────────────────────────────
   // Armed from outside (adding a light from the library), consumed by one click on the pick plane.
   // Subscribed rather than read as a prop so arming does not re-render App and the whole 3D tree.
@@ -226,6 +231,14 @@ const Simulator3D: React.FC<Props> = ({
             >Esc to cancel</button>
           </div>
         )}
+        {/* Calibration picking is an armed mode too, and snapping silently moves the point you clicked
+            — so both have to be on screen. Same rule as `placing` above. */}
+        {calibPickMode && !placing && (
+          <div className="ml-auto flex items-center gap-1.5 text-mini text-fg-3">
+            <span className="text-accent">Click the model to place an anchor</span>
+            <span>· the <span style={{ color: '#ffd400' }}>amber dot</span> is the vertex it will snap to — solid means it captures the click · hold <strong>Alt</strong> for the exact surface point</span>
+          </div>
+        )}
       </div>
 
       {/* Canvas region — fills the pane below the header. The inspector overlays only this area. */}
@@ -302,6 +315,8 @@ const Simulator3D: React.FC<Props> = ({
         {activePicks.map((p, i) => (
           <AnchorMarker key={`apick-${i}`} world={p.world} index={i} selected={selectedPick === i} onSelect={onSelectPick} />
         ))}
+        {/* The vertex the next click will snap to. Mounted only while picking — see vertexSnap.ts. */}
+        {calibPickMode && <SnapCursor />}
         <FixtureLights fixtures={fixtures} scene3D={scene3D} />
         {/* The housing goes in FIRST so the LEDs draw over it. It is also the click target — see
             FixtureBodies: a 12mm sphere is not something an operator can reliably hit. */}

@@ -23,7 +23,7 @@ import { storeCalibration, getCalibration } from './calibHost';
 
 let latestCrosshair: [number, number] | null = null;
 let pendingPixel: [number, number] | null = null;
-let markerlessPick: ((world: [number, number, number]) => void) | null = null;
+let markerlessPick: ((world: [number, number, number], source?: string) => void) | null = null;
 let markerlessSelect: ((i: number) => void) | null = null;
 let calibratingId: string | null = null; // the output whose board pose is being captured
 
@@ -69,14 +69,14 @@ export function onCrosshair(pixel: [number, number]): void { latestCrosshair = p
 export function onConfirm(): void { pendingPixel = latestCrosshair; }
 
 // The markerless wizard registers/clears its own pick + select handlers (was App refs via props).
-export function registerMarkerlessPick(cb: ((world: [number, number, number]) => void) | null): void { markerlessPick = cb; }
+export function registerMarkerlessPick(cb: ((world: [number, number, number], source?: string) => void) | null): void { markerlessPick = cb; }
 export function registerMarkerlessSelect(cb: ((i: number) => void) | null): void { markerlessSelect = cb; }
 export function selectPick(i: number): void { markerlessSelect?.(i); } // 3D marker click → select in the wizard
 
 // A model pick from the embedded 3D view. Markerless takes precedence when its wizard step is active;
 // otherwise pair with the confirmed projector crosshair pixel → board pose correspondence.
-export function pick(world: [number, number, number]): void {
-  if (markerlessPick) { markerlessPick(world); return; }
+export function pick(world: [number, number, number], source?: string): void {
+  if (markerlessPick) { markerlessPick(world, source); return; }
   const sid = calibratingId, pixel = pendingPixel;
   if (!sid || !pixel) return; // operator must confirm a crosshair on the projector first
   pendingPixel = null;

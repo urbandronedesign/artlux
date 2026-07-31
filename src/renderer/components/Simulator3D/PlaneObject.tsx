@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
-import type { ThreeEvent } from '@react-three/fiber';
+import { useThree, type ThreeEvent } from '@react-three/fiber';
 import { ledUnderPointer } from './pickPriority';
+import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
 import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { ModelTransform } from './ModelObject';
 import { useLayerTexture } from './useLayerTexture';
@@ -18,13 +19,14 @@ interface Props {
   onRecordHistory: () => void;
   /** Projector pose-pick mode: clicks report the world hit point instead of selecting. */
   calibPickMode?: boolean;
-  onCalibPick?: (world: [number, number, number]) => void;
+  onCalibPick?: (world: [number, number, number], source?: string) => void;
 }
 
 // A flat screen/projection plane that displays a timeline video layer (model.layerId).
 // Mirrors ModelObject's stable-group + gizmo pattern. The texture is bound to whatever
 // <video> the timeline engine currently drives for that layer (null when no clip is live).
 export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, onCommit, onRecordHistory, calibPickMode, onCalibPick }) => {
+  const size = useThree((s) => s.size); // css pixels — the snap gate is a SCREEN distance
   const group = useMemo(() => new THREE.Group(), []);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const controls = useRef<any>(null);
@@ -83,9 +85,19 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
           // A SCREEN IS A PICKABLE SURFACE TOO. Only ModelObject took the calibration pick, so a click
           // on a venue plane — which is usually the nearest thing to the camera and always stops
           // propagation — was consumed as a model selection: no anchor appeared, and nothing said why.
-          if (calibPickMode && onCalibPick) { onCalibPick([e.point.x, e.point.y, e.point.z]); return; }
+          if (calibPickMode && onCalibPick) {
+            // An orbit is not a click — see ModelObject for why r3f needs this and does not do it.
+            if (e.delta > 2) return;
+            // A screen's four corners are the most nameable points on it, so it snaps like a mesh.
+            const snap = snapToVertex(e, size.width, size.height);
+            setSnapHover(null);
+            onCalibPick(snap.point, `screen ${model.name || model.id}${snap.snapped ? ' ▸ vertex' : ''}`);
+            return;
+          }
           onSelect(model.id);
         }}
+        onPointerMove={calibPickMode ? ((e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); updateSnapHover(e as unknown as ThreeEvent<MouseEvent>, size.width, size.height); }) : undefined}
+        onPointerOut={calibPickMode ? (() => setSnapHover(null)) : undefined}
       >
         <mesh>
           <planeGeometry args={[16 / 9, 1]} />

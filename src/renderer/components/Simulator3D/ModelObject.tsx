@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ledUnderPointer } from './pickPriority';
+import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
 import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
 import { recenterClone, applyModelTransform } from './venuePlacement';
@@ -28,7 +30,8 @@ interface Props {
   onNaturalSize?: (id: string, maxDim: number) => void;
   /** Projector pose-pick mode: clicks report the world hit point instead of selecting. */
   calibPickMode?: boolean;
-  onCalibPick?: (world: [number, number, number]) => void;
+  /** `source` names the surface the ray actually landed on — see the call site for why it matters. */
+  onCalibPick?: (world: [number, number, number], source?: string) => void;
 }
 
 // A single GLB mesh with its own move/rotate/scale gizmo when selected. The container
@@ -37,6 +40,7 @@ interface Props {
 // same file can be placed many times (clones share geometry + materials = cheap).
 export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSelect, onCommit, onRecordHistory, onNaturalSize, calibPickMode, onCalibPick }) => {
   const { scene } = useGLTF(url);
+  const size = useThree((s) => s.size); // css pixels — the snap gate is a SCREEN distance
   const group = useMemo(() => new THREE.Group(), []);
   const controls = useRef<any>(null);
 
@@ -143,9 +147,30 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
           // a pose pick wants the point on the MESH, which is the whole purpose of that mode.
           if (!calibPickMode && ledUnderPointer(e)) return;
           e.stopPropagation();
-          if (calibPickMode && onCalibPick) onCalibPick([e.point.x, e.point.y, e.point.z]);
-          else onSelect(model.id);
+          if (calibPickMode && onCalibPick) {
+            // AN ORBIT IS NOT A CLICK. r3f fires onClick on any press/release pair over the object,
+            // however far the pointer travelled in between — so every drag that orbited the camera
+            // while starting and ending on the venue dropped an anchor nobody asked for. r3f hands us
+            // the travel in `delta` (css px) and leaves the threshold to the caller; it never applied
+            // one of its own. This is the whole reason moving the camera placed points.
+            if (e.delta > 2) return;
+            // Snap to the nearest vertex when the cursor is on one — see
+            // vertexSnap.ts. Report WHICH surface carried the hit, and whether it snapped: an anchor
+            // that lands somewhere unexpected is otherwise undiagnosable, because a world point alone
+            // cannot tell you whether you hit the venue mesh, a screen plane in front of it, or a
+            // stray sub-mesh of the GLB.
+            const snap = snapToVertex(e, size.width, size.height);
+            setSnapHover(null);
+            const where = `${model.name || model.id}${e.object?.name ? ` / ${e.object.name}` : ''}`;
+            onCalibPick(snap.point, `${where}${snap.snapped ? ' ▸ vertex' : ''}`);
+            return;
+          }
+          onSelect(model.id);
         }}
+        // Only while calibrating: a move handler makes r3f raycast this mesh on every pointer move,
+        // which is not a cost a venue GLB should carry when nobody is placing anchors.
+        onPointerMove={calibPickMode ? ((e: any) => { e.stopPropagation(); updateSnapHover(e, size.width, size.height); }) : undefined}
+        onPointerOut={calibPickMode ? (() => setSnapHover(null)) : undefined}
       />
       {selected && !calibPickMode && <TransformControls ref={controls} object={group} mode={mode} size={0.8} />}
     </>

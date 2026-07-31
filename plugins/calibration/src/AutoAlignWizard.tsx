@@ -50,6 +50,10 @@ function nominalK(w: number, h: number, hfovDeg: number): number[] {
   return [fx, 0, w / 2, 0, fx, h / 2, 0, 0, 1];
 }
 
+// A world point at millimetre resolution — enough to see two anchors that should differ but don't.
+const fmtWorld = (w: readonly [number, number, number]): string =>
+  `${w[0].toFixed(3)}, ${w[1].toFixed(3)}, ${w[2].toFixed(3)}`;
+
 // Markerless camera-driven auto-align (Phase 0 geometry): self-contained sibling of CalibWizard.
 // No board — the loaded venue model is the metric reference. Setup → Camera → Anchor (camera-image↔
 // model picks → camera pose) → Scan (Gray-code → dense decode → raycast venue → resection) → Verify
@@ -155,7 +159,13 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   // camera-image pixel → a camera↔model correspondence.
   useEffect(() => {
     if (step !== 'pose') { onRegisterMarkerlessPick(null); setReplaceArmed(false); return; }
-    onRegisterMarkerlessPick((world) => {
+    onRegisterMarkerlessPick((world, source) => {
+      // EVERY model click reports where the ray actually landed, whatever it goes on to do with it.
+      // A correspondence is two points and the log only ever recorded one of them, so "the anchor is
+      // in the wrong place" was undiagnosable from the log: you could not tell a bad click from a bad
+      // ray from a bad pairing. Three clicks now show three world points — or the same one, which is
+      // itself the answer.
+      addLog(`model point (${fmtWorld(world)})${source ? ` on ${source}` : ''}`);
       // Registration: the pending point is a detected marker's centroid → store id↔3D in the marker map.
       if (regMarkerRef.current != null) {
         const id = regMarkerRef.current;
@@ -586,7 +596,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                       <div key={i} role="button" tabIndex={0} onClick={() => selectPick(i)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPick(i); } }}
                         className={`flex items-center justify-between gap-1 text-micro px-1 py-0.5 rounded cursor-pointer ${on ? 'bg-accent/20 text-fg-1 border border-accent' : 'text-fg-3 hover:bg-surface-2 border border-transparent'}`}>
-                        <span className="num">#{i + 1} cam({p.camPx[0].toFixed(0)},{p.camPx[1].toFixed(0)})</span>
+                        {/* BOTH halves of the correspondence. Showing only the camera pixel made a
+                            wrong pairing invisible in the one place an operator looks to check it. */}
+                        <span className="num truncate">#{i + 1} cam({p.camPx[0].toFixed(0)},{p.camPx[1].toFixed(0)}) ▸ {fmtWorld(p.world)}</span>
                         <button onClick={(e) => { e.stopPropagation(); removePick(i); }} className="text-danger hover:text-fg-1 shrink-0">remove</button>
                       </div>
                     );
