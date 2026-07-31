@@ -19,6 +19,10 @@ export interface RigScan {
   capturedAt: string;
   /** True when this came off disk rather than from a scan in this session — surfaced in the UI. */
   fromDisk?: boolean;
+  /** True when this was TRACED from the calibration (raycast into the venue mesh) rather than
+   *  measured by a camera scan. Traced maps derive from the calibration, so a recalibration makes
+   *  them stale — solveRig re-traces instead of reusing them. Never persisted as an artifact. */
+  synthetic?: boolean;
 }
 
 const scans = new Map<string, RigScan>();

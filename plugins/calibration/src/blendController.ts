@@ -12,6 +12,8 @@ import * as blendStore from './blendStore';
 import * as calibNative from './calibNative';
 import { getHost, storeBlend } from './calibHost';
 import * as calibWorkspace from './calibWorkspace';
+import { cameraPixelRayWorld } from './cvCamera';
+import { raycastVenueBatch, hasVenueMeshes } from './venueRaycast';
 
 export interface SolveReport {
   ok: boolean;
@@ -67,6 +69,42 @@ export async function loadScan(surfaceId: string): Promise<boolean> {
   return true;
 }
 
+// A dense map WITHOUT a camera: trace it from the solved calibration by raycasting a grid of
+// projector pixels into the venue mesh — the same regeneration the MPCDI exporter uses
+// (regionFromCalibration). This is what lets manually- and board-calibrated projectors, which have
+// no Auto-Align scan, join a rig blend. Session-only, never written as an artifact: it derives FROM
+// the calibration, so persisting it would cache something regenerable — and a recalibrated output
+// must not blend against its old trace (solveRig re-traces when the calibration is newer).
+const TRACE_GRID_W = 96;
+function traceScan(o: ProjectorOutput): boolean {
+  const cal = o.calibration;
+  if (!cal || cal.poseRms == null || !hasVenueMeshes()) return false;
+  const [pw, ph] = cal.imageSize;
+  if (!pw || !ph) return false;
+  projectFile(); // notice a project switch BEFORE the put, or the put would be wiped by the clear
+  const gw = TRACE_GRID_W, gh = Math.max(2, Math.round((gw * ph) / pw));
+  const dist = cal.distortion ?? [0, 0, 0, 0, 0];
+  const t = cal.translation as [number, number, number];
+  const rays = new Array<{ origin: [number, number, number]; dir: [number, number, number] }>(gw * gh);
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    rays[y * gw + x] = cameraPixelRayWorld(cal.intrinsics, dist, cal.rotation, t, ((x + 0.5) / gw) * pw, ((y + 0.5) / gh) * ph);
+  }
+  const hits = raycastVenueBatch(rays);
+  const proj: number[] = [], world: number[] = [];
+  for (let i = 0; i < hits.length; i++) {
+    const h = hits[i];
+    if (!h) continue;
+    const x = i % gw, y = (i / gw) | 0;
+    proj.push(((x + 0.5) / gw) * pw, ((y + 0.5) / gh) * ph);
+    world.push(h[0], h[1], h[2]);
+  }
+  if (proj.length < 60) return false; // the frustum barely touches the venue — nothing to blend with
+  blendStore.put(o.surfaceId, {
+    raster: [pw, ph], denseMap: { proj, world }, capturedAt: new Date().toISOString(), synthetic: true,
+  });
+  return true;
+}
+
 /** The outputs a rig blend is about: enabled, and carrying a full calibration (pose actually solved). */
 // The SDK types the outputs service generically (the host supplies the concrete type), so the cast
 // here is the same one calibHost makes — not a papering-over.
@@ -109,7 +147,15 @@ export async function solveRig(): Promise<SolveReport> {
   const inputs: ProjectorBlendInput[] = [];
   const missing: string[] = [];
   for (const o of rig) {
-    if (!(await loadScan(o.surfaceId))) { missing.push(o.surfaceId); continue; }
+    let ok = await loadScan(o.surfaceId);
+    // A traced map derives from the calibration — a recalibrated output must not blend against its
+    // old trace, so re-trace when the calibration is newer than the map. (A camera SCAN measures the
+    // geometry independently of the projector calibration, so it stays valid across a re-solve.)
+    const prior = ok ? blendStore.get(o.surfaceId) : undefined;
+    if (prior?.synthetic && o.calibration?.calibratedAt
+      && Date.parse(o.calibration.calibratedAt) > Date.parse(prior.capturedAt)) ok = false;
+    if (!ok) ok = traceScan(o);
+    if (!ok) { missing.push(o.surfaceId); continue; }
     const s = blendStore.get(o.surfaceId)!;
     if (s.denseMap.proj.length < 60) { missing.push(o.surfaceId); continue; } // a scan that decoded ~nothing
     inputs.push({ surfaceId: o.surfaceId, raster: s.raster, denseMap: s.denseMap });
@@ -117,7 +163,7 @@ export async function solveRig(): Promise<SolveReport> {
   if (missing.length) {
     return {
       ok: false, solved: [], missing,
-      message: `no usable scan for ${missing.length} calibrated output(s) — re-run Auto-Align on them, then solve`,
+      message: `no usable 3D map for ${missing.length} calibrated output(s) — load the venue model in the 3D scene (the map is traced from the calibration), or re-run Auto-Align on them`,
     };
   }
 
