@@ -101,6 +101,19 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const pendingRef = useRef<[number, number] | null>(null); // mirror for the pick handler closure
   const [selectedPick, setSelectedPick] = useState<number | null>(null); // correspondence being edited
   const selectedPickRef = useRef<number | null>(null); selectedPickRef.current = selectedPick;
+  // RE-PLACING A PLACED ANCHOR'S 3D POINT IS ARMED, NEVER IMPLIED. v0.16.0 made a model click mean
+  // "move the selected pick's 3D point" whenever a pick was selected and no camera point was pending —
+  // but selection is a SIDE EFFECT of three ordinary actions (a press within 12 px of a camera marker,
+  // a click on the 3D anchor sphere, a list row), none of which reads as "enter edit mode". The next
+  // click on the model then silently MOVED an already-placed anchor to where you clicked instead of
+  // creating a point there, announcing it only as one line in a 60-line scrolling log. Same rule the 3D
+  // click-to-place mode already states in Simulator3D: an armed mode with no indicator is a trap.
+  const [replaceArmed, setReplaceArmed] = useState(false);
+  const replaceArmedRef = useRef(false); replaceArmedRef.current = replaceArmed;
+  // Mirror of the reactive scene for the pick handler, which is registered per STEP and would otherwise
+  // read a scene3D captured when the step changed — registering a second marker against a stale
+  // markerMap drops the first one.
+  const scene3DRef = useRef(scene3D); scene3DRef.current = scene3D;
 
   // Feed the placed anchor world points up to App so the 3D scene shows a matching marker per pick.
   useEffect(() => { onPicksChange?.(picks.map((p) => p.world)); }, [picks]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -113,7 +126,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   useEffect(() => () => { cam.stop(); slCapture.endScan(); onRegisterMarkerlessPick(null); onSetCalibPickMode(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Report the edited correspondence up so the 3D scene highlights it; register a select handler so a
   // click on a 3D marker selects the same pick (mirror of clicking its camera marker).
-  useEffect(() => { onSelectionChange?.(selectedPick); }, [selectedPick]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Selecting a different correspondence (or deselecting) always disarms — an arm belongs to the pick
+  // it was armed for, and carrying it across would move the wrong point.
+  useEffect(() => { onSelectionChange?.(selectedPick); setReplaceArmed(false); }, [selectedPick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     onRegisterMarkerlessSelect?.(step === 'pose' ? (i: number) => setSelectedPick(i) : null);
     return () => onRegisterMarkerlessSelect?.(null);
@@ -139,12 +154,12 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   // Register the model-pick handler during Anchor: pair the next model world point with the pending
   // camera-image pixel → a camera↔model correspondence.
   useEffect(() => {
-    if (step !== 'pose') { onRegisterMarkerlessPick(null); return; }
+    if (step !== 'pose') { onRegisterMarkerlessPick(null); setReplaceArmed(false); return; }
     onRegisterMarkerlessPick((world) => {
       // Registration: the pending point is a detected marker's centroid → store id↔3D in the marker map.
       if (regMarkerRef.current != null) {
         const id = regMarkerRef.current;
-        const prev = scene3D.markerMap;
+        const prev = scene3DRef.current.markerMap;
         const commit = (m: FiducialMarker) => {
           regMarkerRef.current = null; regCornersRef.current = []; setRegCorners(0);
           pendingRef.current = null; setPendingCamPx(null);
@@ -180,10 +195,14 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         return;
       }
       const camPx = pendingRef.current;
-      // Edit mode: a correspondence is selected and there's no pending camera point → the model click
-      // re-places that pick's 3D point. (Pending always wins so an in-progress new pick still pairs.)
-      if (!camPx && selectedPickRef.current != null) {
+      // Edit: re-place the selected pick's 3D point — ONLY when the operator armed it from the editing
+      // banner, and only for one click. Selection alone is not consent: it happens as a side effect of
+      // clicking a camera marker, a 3D sphere or a list row, and the silent version of this branch
+      // moved an already-placed anchor to wherever the next model click landed. (Pending still wins, so
+      // an in-progress new pick always pairs.)
+      if (!camPx && selectedPickRef.current != null && replaceArmedRef.current) {
         const i = selectedPickRef.current;
+        setReplaceArmed(false);
         setPicks((prev) => {
           if (i >= prev.length) return prev;
           const next = prev.map((p, j) => (j === i ? { ...p, world } : p));
@@ -193,7 +212,14 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         addLog(`✎ point ${i + 1}: 3D point updated`);
         return;
       }
-      if (!camPx) { addLog('click a point in the camera image first, then the model'); return; }
+      // No camera point pending → there is nothing to pair with, and (now) nothing armed to move. Say
+      // which of the two the operator is missing rather than doing something they did not ask for.
+      if (!camPx) {
+        addLog(selectedPickRef.current != null
+          ? `click a point in the camera image first — or press "move 3D point" to re-place point ${selectedPickRef.current + 1}`
+          : 'click a point in the camera image first, then the model');
+        return;
+      }
       pendingRef.current = null; setPendingCamPx(null);
       setPicks((prev) => {
         const nextPicks = [...prev, { camPx, world }];
@@ -240,6 +266,8 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   // with it (handled by the registered markerless-pick callback).
   const onPick = (p: [number, number]) => {
     if (step !== 'pose') return;
+    // Starting a new correspondence ends any edit: the operator is placing, not fixing.
+    setSelectedPick(null);
     pendingRef.current = p; setPendingCamPx(p);
     addLog(`camera point (${p[0].toFixed(0)},${p[1].toFixed(0)}) — now click the matching point on the model`);
   };
@@ -335,6 +363,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
     if (!det) return;
     const ps = camPicksFromAruco(det, map);
     if (ps.length < 4) { addLog(`only ${ps.length} marker-corner picks (need ≥4) — show more registered markers`); return; }
+    // The whole list is replaced, so any selection now indexes a DIFFERENT correspondence than the one
+    // the operator was looking at. Drop it rather than let it point somewhere it never meant to.
+    setSelectedPick(null);
     setPicks(ps);
     await resolvePose(ps);
   };
@@ -562,9 +593,19 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                   })}
                 </div>
                 {selectedPick != null && (
-                  <div className="flex items-center justify-between text-micro text-accent bg-accent/10 border border-accent/40 rounded px-1.5 py-1">
-                    <span>Editing point {selectedPick + 1} — drag/arrows on camera · click model for 3D</span>
-                    <button onClick={() => setSelectedPick(null)} className="text-fg-3 hover:text-fg-1">done</button>
+                  <div className={`flex items-center justify-between gap-1.5 text-micro rounded px-1.5 py-1 border ${replaceArmed ? 'text-warn bg-warn/10 border-warn/50' : 'text-accent bg-accent/10 border-accent/40'}`}>
+                    <span>{replaceArmed
+                      ? `Point ${selectedPick + 1} — click the model to move its 3D point`
+                      : `Editing point ${selectedPick + 1} — drag/arrows on camera`}</span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      {/* Explicit, one-shot, and cancellable. A model click moves this point ONLY while
+                          this is lit; otherwise the model stays a place-a-new-point surface. */}
+                      <button onClick={() => setReplaceArmed((v) => !v)}
+                        className={`px-1.5 py-0.5 rounded-sm border ${replaceArmed ? 'border-warn text-fg-1 bg-warn/20' : 'border-line-1 text-fg-2 hover:text-fg-1'}`}>
+                        {replaceArmed ? 'cancel' : 'move 3D point'}
+                      </button>
+                      <button onClick={() => setSelectedPick(null)} className="text-fg-3 hover:text-fg-1">done</button>
+                    </span>
                   </div>
                 )}
                 {picks.length >= 4 && <button onClick={() => resolvePose(picks)} className="text-micro text-accent hover:underline">re-solve pose</button>}

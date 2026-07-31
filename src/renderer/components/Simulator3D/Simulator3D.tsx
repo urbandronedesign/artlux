@@ -1,7 +1,8 @@
 import React, { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, GizmoHelper, GizmoViewport, Html } from '@react-three/drei';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import type * as THREE from 'three';
 import { Move3d, Rotate3d, Maximize, BoxSelect } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
@@ -12,6 +13,7 @@ import * as placement from '../../services/fixturePlacement';
 import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
+import { AnchorMarker } from './AnchorMarker';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureBodies } from './FixtureBodies';
 import { FixtureGizmo } from './FixtureGizmo';
@@ -80,6 +82,38 @@ type Mode = 'translate' | 'rotate' | 'scale' | 'select';
 const Exposure: React.FC<{ value: number }> = ({ value }) => {
   const gl = useThree((s) => s.gl);
   gl.toneMappingExposure = value;
+  return null;
+};
+
+// THE CLIP PLANES FOLLOW THE ORBIT DISTANCE, because the scene has no fixed scale. r3f's default near
+// plane is a fixed 0.1 world units — fine for a 12 m venue, a wall you cannot get past on a 20 cm
+// model: you zoom in to place a calibration anchor precisely and the mesh is sliced away before it
+// fills the viewport. Tying near to how far the camera is from what it is orbiting makes "close" mean
+// the same thing at every scale.
+//
+// NEAR_MAX is today's fixed 0.1, so this can only ever clip LESS than before, and FAR_MIN is today's
+// fixed 1000, so nothing that renders today stops rendering. The far/near ratio does widen at extreme
+// close range; that costs depth precision only for things hundreds of units away, which is not what
+// you are looking at when you have zoomed to 2 cm. (drei's Grid is `infiniteGrid` and fades at 22
+// units, so it is never what pins the far plane.)
+const NEAR_FRAC = 0.005;                     // near = 0.5% of the orbit distance
+const NEAR_MIN = 1e-4, NEAR_MAX = 0.1;
+const FAR_FRAC = 50, FAR_MIN = 1000;
+const AdaptiveClipping: React.FC = () => {
+  useFrame(({ camera, controls }) => {
+    const cam = camera as THREE.PerspectiveCamera;
+    if (!cam.isPerspectiveCamera) return;
+    // OrbitControls is `makeDefault`, so its target is the point the operator is working around —
+    // a better reference than the origin, which they may have panned far away from.
+    const target = (controls as { target?: THREE.Vector3 } | null)?.target;
+    const d = Math.max(1e-5, target ? cam.position.distanceTo(target) : cam.position.length());
+    const near = Math.min(NEAR_MAX, Math.max(NEAR_MIN, d * NEAR_FRAC));
+    const far = Math.max(FAR_MIN, d * FAR_FRAC);
+    // Only rebuild the projection matrix on a real change — this runs every frame.
+    if (Math.abs(cam.near - near) > near * 0.02 || Math.abs(cam.far - far) > far * 0.02) {
+      cam.near = near; cam.far = far; cam.updateProjectionMatrix();
+    }
+  });
   return null;
 };
 
@@ -208,6 +242,7 @@ const Simulator3D: React.FC<Props> = ({
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}
       >
         <color attach="background" args={['#0d0d0d']} />
+        <AdaptiveClipping />
         <Exposure value={scene3D.exposure ?? 1} />
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
@@ -234,6 +269,8 @@ const Simulator3D: React.FC<Props> = ({
             onSelect={(id) => onSelectModel?.(id)}
             onCommit={(id, t) => onCommitModel?.(id, t)}
             onRecordHistory={onRecordHistory}
+            calibPickMode={calibPickMode}
+            onCalibPick={onCalibPick}
           />
         ) : modelUrls[m.id] ? (
           <ModelBoundary key={m.id}>
@@ -258,26 +295,13 @@ const Simulator3D: React.FC<Props> = ({
         ))}
         {/* Calibration anchor markers — one numbered marker per placed correspondence (board pose picks
             or Auto-Align anchors). Rendered independently of a solved calibration so they appear as you
-            place them, and depth-test off so a far wall pick isn't hidden by the model. Cyan + number
-            match the camera-preview markers. */}
-        {activePicks.map((p, i) => {
-          const on = selectedPick === i;
-          const col = on ? '#ffffff' : '#00e5ff';
-          return (
-            <group key={`apick-${i}`} position={p.world}>
-              {/* Clickable when an edit handler is wired (markerless), so selecting from the 3D side
-                  mirrors selecting from the camera/list. Otherwise non-raycasting (board flow). */}
-              <mesh renderOrder={999} raycast={onSelectPick ? undefined : () => null}
-                onClick={onSelectPick ? (e) => { e.stopPropagation(); onSelectPick(i); } : undefined}>
-                <sphereGeometry args={[on ? 0.055 : 0.04, 16, 16]} />
-                <meshBasicMaterial color={col} depthTest={false} transparent opacity={0.95} />
-              </mesh>
-              <Html center style={{ pointerEvents: 'none' }}>
-                <div style={{ transform: 'translateY(-15px)', font: 'bold 11px sans-serif', color: col, textShadow: '0 0 3px #000,0 0 3px #000', whiteSpace: 'nowrap' }}>{i + 1}</div>
-              </Html>
-            </group>
-          );
-        })}
+            place them. Cyan + number match the camera-preview markers, and so does their SIZE: see
+            AnchorMarker on why a world-sized marker made a small mesh unpickable. Clickable only when
+            an edit handler is wired (markerless), so selecting from the 3D side mirrors selecting from
+            the camera/list; display-only in the board flow. */}
+        {activePicks.map((p, i) => (
+          <AnchorMarker key={`apick-${i}`} world={p.world} index={i} selected={selectedPick === i} onSelect={onSelectPick} />
+        ))}
         <FixtureLights fixtures={fixtures} scene3D={scene3D} />
         {/* The housing goes in FIRST so the LEDs draw over it. It is also the click target — see
             FixtureBodies: a 12mm sphere is not something an operator can reliably hit. */}

@@ -113,7 +113,10 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
    model** (right split); repeat **≥4** well-spread, non-coplanar → RANSAC solvePnP camera pose. Each
    pair drops a **numbered marker** on both sides (cyan crosshair on the preview, matching numbered
    marker in the 3D scene; a dashed orange ring marks a camera point still awaiting its model match) so
-   correspondences are easy to verify.
+   correspondences are easy to verify. To **fix** a placed pair, select it (list row, camera marker or
+   3D sphere) and drag / arrow-nudge its camera marker; to move its 3D point, press **move 3D point** in
+   the editing bar and then click the model — one click, and only while that is lit. Clicking the model
+   at any other time always *places* a new point, never moves an existing one.
 4. **Scan** — *dim the room*, **Scan venue**: Gray-code → dense decode → (optional) **self-calibrate
    the camera lens from the scan** → re-solve pose → raycast the venue mesh → resection the projector.
 5. **Verify** — **residual heatmap** (green good / red ≥4 px — speckle = decode noise, *structured =

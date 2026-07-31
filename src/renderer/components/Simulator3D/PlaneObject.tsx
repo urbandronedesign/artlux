@@ -16,12 +16,15 @@ interface Props {
   onSelect: (id: string) => void;
   onCommit: (id: string, t: ModelTransform) => void;
   onRecordHistory: () => void;
+  /** Projector pose-pick mode: clicks report the world hit point instead of selecting. */
+  calibPickMode?: boolean;
+  onCalibPick?: (world: [number, number, number]) => void;
 }
 
 // A flat screen/projection plane that displays a timeline video layer (model.layerId).
 // Mirrors ModelObject's stable-group + gizmo pattern. The texture is bound to whatever
 // <video> the timeline engine currently drives for that layer (null when no clip is live).
-export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, onCommit, onRecordHistory }) => {
+export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, onCommit, onRecordHistory, calibPickMode, onCalibPick }) => {
   const group = useMemo(() => new THREE.Group(), []);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const controls = useRef<any>(null);
@@ -73,9 +76,14 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
         object={group}
         onClick={(e: ThreeEvent<MouseEvent>) => {
           // Yield to a fixture under the same pointer: not stopping propagation lets r3f carry the
-          // click through to the LED mesh behind this screen. See pickPriority.ts.
-          if (ledUnderPointer(e)) return;
+          // click through to the LED mesh behind this screen. See pickPriority.ts. NOT while
+          // calibrating: a pose pick wants the point on the SURFACE, which is the purpose of that mode.
+          if (!calibPickMode && ledUnderPointer(e)) return;
           e.stopPropagation();
+          // A SCREEN IS A PICKABLE SURFACE TOO. Only ModelObject took the calibration pick, so a click
+          // on a venue plane — which is usually the nearest thing to the camera and always stops
+          // propagation — was consumed as a model selection: no anchor appeared, and nothing said why.
+          if (calibPickMode && onCalibPick) { onCalibPick([e.point.x, e.point.y, e.point.z]); return; }
           onSelect(model.id);
         }}
       >
@@ -84,7 +92,9 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
           <meshBasicMaterial ref={matRef} side={THREE.DoubleSide} toneMapped={false} color="#161616" />
         </mesh>
       </primitive>
-      {selected && <TransformControls ref={controls} object={group} mode={mode} size={0.8} />}
+      {/* Hidden while calibrating — the gizmo sits over the very surface being picked and would eat
+          the clicks. Mirrors ModelObject. */}
+      {selected && !calibPickMode && <TransformControls ref={controls} object={group} mode={mode} size={0.8} />}
     </>
   );
 };

@@ -112,6 +112,48 @@ check(
     ? null : 'src/renderer/components/Simulator3D/FixtureBodies.tsx is gone'),
 );
 
+// ── 3D: an overlay pick target must be sized in PIXELS, not world units ───────────────────────
+check(
+  'calibration anchor markers are screen-constant',
+  'The anchor marker was a 0.04-world-unit sphere: a 4 cm dot on a 12 m venue, and a blot the size ' +
+  'of the model on a 30 cm one — because you zoom in to work on a small mesh and the marker grows ' +
+  'with it. It raycasts and stops propagation, so once it covered the model every click aimed at the ' +
+  'SURFACE hit an already-placed marker instead, and the mesh became unpickable after the first ' +
+  'anchor. Scale it per frame from the camera distance; keep the geometry a unit sphere so the pick ' +
+  'target tracks what is drawn.',
+  () => {
+    const f = 'src/renderer/components/Simulator3D/AnchorMarker.tsx';
+    if (!exists(f)) return `${f} is gone — anchor markers must not be inlined back into Simulator3D`;
+    const src = read(f);
+    const problems = [];
+    if (!src.includes('useFrame')) problems.push('does not rescale per frame (no useFrame)');
+    if (!/sphereGeometry args=\{\[1\s*,/.test(src)) problems.push('geometry is not a unit sphere, so the drawn and pickable sizes can diverge');
+    if (!/setScalar/.test(src)) problems.push('never writes a scale');
+    // A world-unit radius creeping back into the scene file is the exact regression.
+    const sim = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
+    if (/activePicks[\s\S]{0,600}?sphereGeometry/.test(sim)) problems.push('Simulator3D draws the anchor geometry itself again');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the 3D near plane follows the orbit distance',
+  'r3f defaults the near plane to a fixed 0.1 world units. The scene has no fixed scale, so on a ' +
+  'small venue model that is a wall you cannot get past: you zoom in to place a calibration anchor ' +
+  'and the mesh is sliced away before it fills the viewport. Nothing throws and nothing logs — the ' +
+  'model just disappears as you approach it.',
+  () => {
+    const src = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
+    const problems = [];
+    if (!src.includes('AdaptiveClipping')) return 'AdaptiveClipping is gone — the near plane is fixed again';
+    if (!/<AdaptiveClipping\s*\/>/.test(src)) problems.push('AdaptiveClipping is defined but never mounted inside the Canvas');
+    if (!/updateProjectionMatrix\(\)/.test(src)) problems.push('writes near/far without updateProjectionMatrix() — the change never reaches the projection');
+    // A literal near/far on the Canvas camera would silently win at creation time.
+    if (/camera=\{\{[^}]*\bnear:/.test(src)) problems.push('the Canvas camera pins `near` literally');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Selection: the two 3D selections must clear each other ────────────────────────────────────
 check(
   'fixture/model selection is symmetric',
