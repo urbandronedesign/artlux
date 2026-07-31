@@ -3777,8 +3777,9 @@ const App: React.FC = () => {
                                 activePicks={calib.flow === 'auto'
                                     ? calib.picks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
-                                selectedPick={calib.flow === 'auto' ? calib.selectedPick : null}
-                                onSelectPick={calib.flow === 'auto' ? ((i: number) => calibWorkspace.selectPick(i)) : undefined}
+                                selectedPick={calib.flow === 'board' ? null : calib.selectedPick}
+                                onSelectPick={calib.flow === 'board' ? undefined : ((i: number) => calibWorkspace.selectPick(i))}
+                                onMovePick={calib.flow === 'auto' ? undefined : ((i: number, world: [number, number, number]) => calibWorkspace.movePickWorld(i, world))}
                                 paused={!scene3dVisible}
                             />
                             </div>

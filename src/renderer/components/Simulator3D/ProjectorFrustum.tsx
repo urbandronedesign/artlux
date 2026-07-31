@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import type { ProjectorCalibration } from '../../../../shared/protocol';
-import { frustumCorners } from '@artlux/plugin-calibration/renderer';
+import { frustumCorners, cameraCenter } from '@artlux/plugin-calibration/renderer';
 
 // Draws the recovered virtual projector's frustum in the 3D scene: optical center + the four
 // image-corner rays + the far rectangle. A correctly-solved pose puts the apex at the real projector's
@@ -13,11 +13,20 @@ export const ProjectorFrustum: React.FC<{
   depth?: number;
   color?: string;
   picks?: Array<{ world: [number, number, number] }>;
-}> = ({ calibration, depth = 3, color = '#00ffaa', picks }) => {
-  const { center, corners } = useMemo(
-    () => frustumCorners(calibration.intrinsics, calibration.rotation, calibration.translation as [number, number, number], calibration.imageSize, depth),
-    [calibration, depth],
-  );
+}> = ({ calibration, depth, color = '#00ffaa', picks }) => {
+  const { center, corners } = useMemo(() => {
+    // The drawn cone must REACH the venue, or the operator reads a good solve as a wrong one (a fixed
+    // 3 m stopped short of any projector standing farther back). Its one known target is the set of
+    // pose picks — world points the projector demonstrably lights — so extend just past the farthest.
+    let d = depth;
+    if (d == null) {
+      const C = cameraCenter(calibration.rotation, calibration.translation as [number, number, number]);
+      const far = (calibration.posePicks ?? []).reduce(
+        (m, p) => Math.max(m, Math.hypot(p.world[0] - C[0], p.world[1] - C[1], p.world[2] - C[2])), 0);
+      d = far > 0 ? far * 1.15 : 3;
+    }
+    return frustumCorners(calibration.intrinsics, calibration.rotation, calibration.translation as [number, number, number], calibration.imageSize, d);
+  }, [calibration, depth]);
   const C = new THREE.Vector3(...center);
   const cs = corners.map(c => new THREE.Vector3(...c));
   const edges: [THREE.Vector3, THREE.Vector3][] = [

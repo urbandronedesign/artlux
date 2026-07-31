@@ -22,8 +22,13 @@ It is a **hybrid** of two independent solves:
 
 > **Markerless successor:** a camera-automated, **board-free** flow (the venue model is the reference)
 > with multi-projector blend, NVAPI hardware warp/blend, and MPCDI interchange now exists — see
-> [AUTO-ALIGN.md](AUTO-ALIGN.md). Open it from this same wizard via the **Board ↔ Auto-Align** header
-> toggle. The board flow below remains the validated, hardware-tested path.
+> [AUTO-ALIGN.md](AUTO-ALIGN.md). Open it from this same wizard via the **Board ↔ Auto-Align ↔
+> Manual** header toggle. The board flow below remains the validated, hardware-tested path.
+
+> **No camera at all?** The **Manual** flow needs only the projector and the venue model: the lens is
+> entered from the spec sheet (throw ratio + lens shift) instead of measured, and the pose comes from
+> the same crosshair↔model point pairs as the board flow's Pose step — see
+> [The Manual flow](#the-manual-flow-no-board-no-camera).
 
 ---
 
@@ -87,16 +92,73 @@ wizard is a left rail; the main window shows the **2D stage (left) + 3D scene (r
    **Capture** each; the **coverage grid** shows which frame regions + distances you've covered. At ≥3
    poses press **Solve lens** — the RMS badge should read *good* (< 1 px). More + more-varied poses
    improve it.
-4. **Pose** — on the **projector**, drag/arrow the crosshair onto a distinct venue feature and press
-   **Enter** (Shift ×10 px, Shift+Alt ×0.1 px fine); then click the **same** feature on the model in
-   the **3D view (right)**. Repeat **≥4** well-spread, non-coplanar points. The pose solves
-   automatically; the frustum appears in the 3D scene and the pose-RMS badge updates.
+4. **Pose** — on the **projector**, put the crosshair on a distinct venue feature (drag or arrows;
+   Shift ×10 px, Shift+Alt ×0.1 px fine); then click the **same** feature on the model in the
+   **3D view (right)** — the model click pairs with wherever the crosshair is, no confirmation
+   needed. Repeat **≥4** well-spread, non-coplanar points. The pose solves automatically; the
+   frustum appears in the 3D scene and the pose-RMS badge updates.
 5. **Verify** — review fx/fy/cx/cy + both RMS values; toggle **Test projection** to render the venue
    from the matched projector and confirm alignment on the real surface. **Apply & finish** enables
    render-from-projector for the output.
 
 The result is cached on the output's `calibration` and persisted with the project. The **Render from
 projector** toggle (Outputs → output settings) turns the calibrated 3D render on/off afterwards.
+
+## The Manual flow (no board, no camera)
+
+Switch with the **Manual** button in the wizard header. It replaces the measured lens with a
+spec-sheet one and keeps the pose machinery — useful when there is no camera on site, or the object is
+too small/complex for a board.
+
+1. **Setup** — engine installed, output live, venue model loaded. The model is the **only metric
+   reference** here: it must match the real object's true dimensions.
+2. **Lens** — enter the **throw ratio** (throw distance ÷ image width) and **lens shift** (0% =
+   centered on the lens axis; +100% vertical = image entirely above it — the common fixed-lens case),
+   then **Apply lens**. With **Auto-solve lens from the points** on (default), these are only a
+   seed: from 6 points every solve re-estimates the focal (single-view `calibrateCamera` seeded with
+   the current K, principal point + aspect held), adopting it only when it is a plausible throw
+   ratio AND fits the picks at least as well — a flat point spread falls back to the entered lens
+   rather than exploding. So a rough throw ratio is genuinely fine.
+3. **Points** — identical gesture to the board flow's Pose step: crosshair on a physical feature →
+   click the matching vertex on the model (vertex-snapped; **Alt** picks freely) — the model click
+   pairs with the current crosshair, there is no confirm step. ≥4
+   pairs solve the pose (RANSAC from 6, so one bad click gets voted down); spread them across the
+   raster **and across depth**. Every placed pick is drawn **numbered on the projection itself**, on
+   the right-pane raster map and on the 3D markers — one numbering across all three views. Once
+   solved each point lists its **own reprojection error**; fix the worst instead of clearing
+   everything — editing is direct manipulation: **drag the point** where you see it (its 3D marker
+   across the mesh, vertex-snapped; its dot on the raster map; or the numbered point grabbed on the
+   projection itself) and the solve follows live. The selected point's **Move 3D point** /
+   **Re-aim projector pixel** buttons remain as click-based alternatives; a stray click never moves
+   a point — moving always starts ON the point (a grab) or from an explicit button. From the first solve,
+   **Project wireframe while picking** (default on) projects the live mesh edges + vertex dots onto
+   the object, so the residual alignment error is visible in place and every added/edited point pulls
+   it in. The panel names the lens in play (*auto-solved from the points* / *entered value*) with
+   the current throw ratio. With auto-solve off, **Refine lens** (≥8 pairs) and **Revert lens** do
+   the same estimation on demand.
+4. **Verify** — **Test projection**, defaulting to a **wireframe** look (bright mesh edges — a bound
+   content layer or a dark CAD material would otherwise render near-black and read as "nothing"),
+   plus the **solved projector distance**. That distance is the lens gauge: PnP absorbs a wrong focal
+   into distance, so *real throw distance ÷ solved distance* is exactly the factor to multiply the
+   throw ratio by (Lens step → re-apply; the pose re-solves from the kept points). Then
+   **Apply & finish**.
+
+Expect a good fit at and between the picked points and small drift far outside them — the spec-sheet
+lens has no distortion model. A later board calibration on the same output replaces the lens and keeps
+the picked points (the pose re-solves under the better lens).
+
+The 3D scene's projector **frustum** extends just past the farthest pose pick, so a solved projector
+visibly reaches the venue it lights; the wireframe option also exists on the board flow's Verify step.
+
+**After Apply & finish** the project is saved in place and the output renders the venue from the
+solved projector in the normal show (`useCalibration` — the *Render from projector* toggle in
+Outputs). **Multi-projector:** calibrate each output manually against the same venue model — the
+model is the shared metric reference, so all solves share one world frame by construction — then
+solve the **Rig blend** from the Outputs panel. A manually-calibrated output needs no Auto-Align
+scan for that: its dense projector-pixel→3D map is **traced** from the calibration by raycasting the
+venue mesh (the same regeneration MPCDI export uses), so the only requirement is that the venue
+model is loaded when solving. Traced maps are session-only and re-trace automatically after a
+recalibration; camera-scanned maps, which measure geometry independently, are reused as before.
 
 ---
 

@@ -530,6 +530,15 @@ export interface ProjectorCalibration {
   // projector can re-solve pose without redoing structured light.
   posePicks?: Array<{ world: [number, number, number]; pixel: [number, number] }>;
   calibratedAt?: string;       // ISO timestamp
+  // Manual-lens flow (no board, no camera): K is built analytically from the projector's spec-sheet
+  // optics instead of structured light. The raw operator entries are kept — not just the K they
+  // produce — so the lens form re-opens populated and a later refine has its seed to revert to.
+  throwRatio?: number;              // throw distance ÷ image width (spec-sheet number) → fx = TR·raster width
+  lensShift?: [number, number];     // [h, v] principal-point offset as a fraction of raster w/h; 0 = centered,
+                                    // v = +0.5 puts the optical axis on the BOTTOM edge (a fully "up-shifted"
+                                    // projector, the common fixed-lens case)
+  intrinsicsSource?: 'board' | 'manual' | 'refined'; // how K was obtained ('refined' = manual seed +
+                                                     // single-view calibrateCamera over the pose picks)
 }
 
 // A solved world-space blend map for one projector in a multi-projector rig — the SAVED result of

@@ -59,7 +59,16 @@ export type MainToProjector =
   // --- calibration (physical-projector calibration: structured light + pose) ---
   // mode gates what the projector draws: 'pattern' = a Gray-code/flat field (SL intrinsics capture),
   // 'crosshair' = faint content + an aim crosshair (pose capture), 'render' = render-from-projector.
-  | { t: 'calib'; mode: 'idle' | 'pattern' | 'crosshair' | 'render'; crosshair?: [number, number]; calibration?: ProjectorCalibration | null }
+  // crosshair (raster px) JUMPS the aim crosshair — used when re-aiming an already-placed point.
+  // points (raster px) are the placed pose picks, drawn numbered on the projection so the operator
+  // sees which physical features are already anchored; selected highlights the one being edited.
+  // wireframe: render mode draws the venue as bright edges instead of its materials — the verify look.
+  // In crosshair mode (with a solved `calibration`) it is the PICKING underlay: the live wireframe +
+  // vertex dots projected while the operator places points, so alignment is visible as it improves.
+  // Materials can be legitimately near-black (a bound content layer is not streamed to render-mode
+  // windows; metallic CAD GLBs go dark without an environment), and verify is about GEOMETRY: edges
+  // landing on edges is readable on the real object when a shaded render is not.
+  | { t: 'calib'; mode: 'idle' | 'pattern' | 'crosshair' | 'render'; crosshair?: [number, number]; calibration?: ProjectorCalibration | null; points?: [number, number][]; selected?: number | null; wireframe?: boolean }
   // Set the current structured-light pattern; the projector renders it raw (no warp/gamma) and acks.
   // 'fill' projects a flat RGB field at `rgb` (0..255) — used for camera-based gamma/colour measurement.
   // 'dots' additionally carries the projector-raster points to light (the drift check's probes).
@@ -75,4 +84,7 @@ export type ProjectorToMain =
   // --- calibration ---
   | { t: 'patternShown'; index: number; projW: number; projH: number } // ack: pattern on screen (raster reported so main knows projector resolution)
   | { t: 'calibCrosshair'; pixel: [number, number] }  // current crosshair position in projector raster px (float)
-  | { t: 'calibConfirm' };                            // operator confirmed the crosshair is on the target (Enter)
+  | { t: 'calibConfirm' }                             // Enter: releases a live re-aim (otherwise a no-op)
+  // A placed pose pick grabbed and dragged directly ON the projection (raster px, streamed while
+  // dragging — main throttles the re-solve).
+  | { t: 'calibPointDrag'; index: number; pixel: [number, number] };

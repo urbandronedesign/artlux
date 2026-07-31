@@ -31,9 +31,12 @@ interface Props {
   selected: boolean;
   /** Wired only in the markerless flow — the board flow's markers are display-only (no raycast). */
   onSelect?: (i: number) => void;
+  /** Press-and-drag the marker to MOVE its pick across the venue (manual/board pose picks). Grabbing
+   *  the marker is the consent — this is the direct-manipulation edit, no armed mode needed. */
+  onDragStart?: (i: number) => void;
 }
 
-export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect }) => {
+export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect, onDragStart }) => {
   const ref = useRef<THREE.Group>(null);
   const col = selected ? '#ffffff' : '#00e5ff';
 
@@ -54,8 +57,9 @@ export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect
     // sphere for that frame is a cyan blot across the viewport every time a marker is placed.
     <group ref={ref} position={world} scale={0.0001}>
       {/* Depth test off so a pick on a far wall isn't hidden by the model in front of it. */}
-      <mesh renderOrder={999} raycast={onSelect ? undefined : () => null}
-        onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(index); } : undefined}>
+      <mesh renderOrder={999} raycast={onSelect || onDragStart ? undefined : () => null}
+        onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(index); } : undefined}
+        onPointerDown={onDragStart ? (e) => { e.stopPropagation(); onDragStart(index); } : undefined}>
         <sphereGeometry args={[1, 16, 16]} />
         <meshBasicMaterial color={col} depthTest={false} transparent opacity={0.95} />
       </mesh>

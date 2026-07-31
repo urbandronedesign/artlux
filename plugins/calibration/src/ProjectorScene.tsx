@@ -22,13 +22,35 @@ const NEAR = 0.05, FAR = 200;
 // to bbox + transform) so world coords match the pose solve.
 
 // One GLB venue mesh, placed to match Simulator3D exactly; optional timeline-layer texture (Phase A).
-const ProjectorModel: React.FC<{ model: SceneModel; url: string }> = ({ model, url }) => {
+const ProjectorModel: React.FC<{ model: SceneModel; url: string; wireframe?: boolean }> = ({ model, url, wireframe }) => {
   const { scene } = useGLTF(url);
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  const wireMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  if (!wireMatRef.current) wireMatRef.current = new THREE.MeshBasicMaterial({ color: '#00ffaa', wireframe: true, toneMapped: false });
+  // Vertex dots on the wire look: the 3D-side pick snaps to vertices, so lighting the vertices on the
+  // REAL object shows the operator exactly which physical spots have a model counterpart to aim at.
+  const ptsMatRef = useRef<THREE.PointsMaterial | null>(null);
+  if (!ptsMatRef.current) ptsMatRef.current = new THREE.PointsMaterial({ color: '#ffcc00', size: 5, sizeAttenuation: false, toneMapped: false });
 
   // Same recentre as ModelObject → identical world coords, because it is literally the same function.
   const cloned = useMemo(() => recenterClone(scene), [scene]);
+
+  // The verify look: a second clone (geometry shared, materials replaced) drawn INSTEAD of the shaded
+  // one. Materials are legitimately near-black here — a bound content layer isn't streamed to
+  // render-mode windows, and metallic CAD GLBs go dark without an environment — and verify is about
+  // edges landing on edges, which bright wireframe shows regardless of what the mesh is made of.
+  const wireClone = useMemo(() => {
+    if (!wireframe) return null;
+    const c = cloned.clone(true);
+    const meshes: THREE.Mesh[] = [];
+    c.traverse((o) => { const m = o as THREE.Mesh; if ((m as { isMesh?: boolean }).isMesh) meshes.push(m); });
+    for (const m of meshes) {
+      m.material = wireMatRef.current!;
+      m.add(new THREE.Points(m.geometry, ptsMatRef.current!)); // added AFTER the traverse — no mid-walk mutation
+    }
+    return c;
+  }, [cloned, wireframe]);
 
   useLayerTexture(model.layerId, (tex) => {
     const mat = layerMatRef.current!;
@@ -43,7 +65,7 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string }> = ({ model, u
     });
   }, [cloned, model.layerId]);
 
-  useEffect(() => () => { layerMatRef.current?.dispose(); }, []);
+  useEffect(() => () => { layerMatRef.current?.dispose(); wireMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
 
   if (!model.visible) return null;
   return (
@@ -52,7 +74,8 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string }> = ({ model, u
       rotation={[model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG]}
       scale={modelScaleXYZ(model)}
     >
-      <primitive object={cloned} />
+      <primitive object={cloned} visible={!wireframe} />
+      {wireClone && <primitive object={wireClone} />}
     </group>
   );
 };
@@ -229,16 +252,21 @@ export const ProjectorScene: React.FC<{
   calibration: ProjectorCalibration;
   /** Soft edge / colour match / solved rig blend for THIS output. Absent = no blend pass. */
   look?: BlendLook;
-}> = ({ scene3D, modelUrls, calibration, look }) => {
+  /** Verify look: bright mesh edges instead of materials (see ProjectorModel.wireClone). */
+  wireframe?: boolean;
+}> = ({ scene3D, modelUrls, calibration, look, wireframe }) => {
   const meshes = (scene3D.models ?? []).filter(m => m.kind !== 'plane' && modelUrls[m.id]);
   const hasDistortion = !!calibration.distortion?.some(v => v !== 0);
   const wantsBlend = !!look && needsBlendPass(look);
   return (
     <Canvas gl={{ powerPreference: 'high-performance', antialias: true }} dpr={[1, 2]} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={['#000']} />
-      <ambientLight intensity={1} />
+      {/* Same rig as Simulator3D's Lighting (env look) — ambient alone left standard materials darker
+          here than in the editor, which read as "the render shows nothing" on dim GLBs. */}
+      <ambientLight intensity={0.8} />
+      <hemisphereLight intensity={0.7} groundColor="#101010" />
       <CalibCamera calibration={calibration} />
-      {meshes.map(m => <ProjectorModel key={m.id} model={m} url={modelUrls[m.id]} />)}
+      {meshes.map(m => <ProjectorModel key={m.id} model={m} url={modelUrls[m.id]} wireframe={wireframe} />)}
       {/* Distortion FIRST, blend LAST. Distortion maps the ideal pinhole render onto the real optics,
           so only after it does the framebuffer hold physical raster pixels — which is the space the
           blend map is indexed in. Reversing these puts the ramp a few pixels off the footprint edge,

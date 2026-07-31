@@ -22,7 +22,7 @@ export * as calibNative from './calibNative';
 // Flat named symbols the host imports directly.
 export { defaultBoardConfig, type BoardConfig } from './calibController';
 export { measureGamma } from './gammaController';
-export { reproject, frustumCorners, cameraPose, glProjectionMatrix } from './cvCamera';
+export { reproject, frustumCorners, cameraPose, cameraCenter, glProjectionMatrix } from './cvCamera';
 export { fillPattern, type CalibPatternKind } from './graycode';
 export type { BlendMap } from './blendCompute';
 // The rig blend: capture/solve/apply + the staleness rule. Host UI (OutputsPanel) drives this — as

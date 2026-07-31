@@ -4,6 +4,7 @@ import type { DisplayInfo, ProjectorOutput, Scene3D } from '../../../shared/prot
 import { WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { CalibWizard } from './CalibWizard';
 import { AutoAlignWizard } from './AutoAlignWizard';
+import { ManualWizard } from './ManualWizard';
 import * as ws from './calibWorkspace';
 import { getHost } from './calibHost';
 
@@ -83,5 +84,7 @@ export const CalibViewport: React.FC = () => {
 
   return state.flow === 'auto'
     ? <AutoAlignWizard {...common} onPicksChange={ws.setPicks} onSelectionChange={ws.setSelectedPick} />
+    : state.flow === 'manual'
+    ? <ManualWizard {...common} />
     : <CalibWizard {...common} />;
 };

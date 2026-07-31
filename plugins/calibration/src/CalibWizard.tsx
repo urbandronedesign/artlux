@@ -22,7 +22,7 @@ interface Props {
   // ./calibHost, and the pose-pairing logic (poseModeChange/clearPoses) via ./calibWorkspace — not
   // props. The remaining props are reactive data + the App-owned 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
-  onSwitchFlow?: (flow: 'board' | 'auto') => void; // board (this) ↔ markerless auto-align
+  onSwitchFlow?: (flow: 'board' | 'auto' | 'manual') => void; // board (this) ↔ auto-align ↔ manual point-pick
   onClose: () => void;
 }
 
@@ -83,6 +83,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [log, setLog] = useState<string[]>([]);
   const [detect, setDetect] = useState<Detect>({ found: false });
   const [testProj, setTestProj] = useState(false);
+  const [wireframe, setWireframe] = useState(false); // verify: bright mesh edges instead of materials
   const [camError, setCamError] = useState<string | null>(null);
   const [camBlank, setCamBlank] = useState(false); // camera opened but frames are all-black (contended/replug)
   const [camMode, setCamMode] = useState({ w: 1280, h: 720, fps: 60 }); // requested capture mode (resolution/fps)
@@ -144,14 +145,23 @@ export const CalibWizard: React.FC<Props> = (props) => {
       onSetCalibPickMode(true); onPoseModeChange(surfaceId, true);
     } else if (step === 'verify') {
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
-      if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal }); }
+      if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal, wireframe }); }
       else send({ t: 'calib', mode: 'idle' });
     } else { // prereq — show a white field so the operator can confirm the output window is alive + targeted
       send({ t: 'calib', mode: 'pattern' }); showWhite();
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, testProj]);
+  }, [step, testProj, wireframe]);
+
+  // Numbered preview of the placed pose picks ON the projection (same as the manual flow) — pushed
+  // whenever they change while the crosshair is up, so the operator sees which physical features are
+  // already anchored.
+  useEffect(() => {
+    if (step !== 'pose') return;
+    send({ t: 'calib', mode: 'crosshair', points: (cal?.posePicks ?? []).map((p) => p.pixel) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, cal?.posePicks]);
 
   // Live RGB preview + board-detect overlay (camera/intrinsics steps, paused during a capture). Both
   // sources grab colour → the big viewport (left). Board detection runs throttled (~3 Hz) on the luma
@@ -228,8 +238,14 @@ export const CalibWizard: React.FC<Props> = (props) => {
     setBusy(null);
     if ('error' in r) { addLog(`✗ ${r.error}`); return; }
     const raster = ctl.projectorRaster();
-    onStoreCalibration(surfaceId, { intrinsics: r.k, distortion: r.dist, intrinsicsRms: r.rms, imageSize: [raster.w, raster.h] });
+    // intrinsicsSource stamps who measured this lens — without it, a board solve on top of a manual
+    // one would keep claiming "manual (spec sheet)" in the manual wizard's Verify step.
+    onStoreCalibration(surfaceId, { intrinsics: r.k, distortion: r.dist, intrinsicsRms: r.rms, imageSize: [raster.w, raster.h], intrinsicsSource: 'board' });
     addLog(`✓ lens solved — RMS ${r.rms.toFixed(3)} px`);
+    // A pose solved under the previous lens (e.g. a manual spec-sheet one) is stale under this one —
+    // the picks are kept precisely so the pose can re-solve without re-aiming anything.
+    const picks = cal?.posePicks ?? [];
+    if (picks.length >= 4) void calibWorkspace.solvePose(surfaceId, picks);
   };
 
   // --- step gating ---
@@ -245,7 +261,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const canNext = gate[step].ok;
   const next = () => { if (idx < STEPS.length - 1) setStep(STEPS[idx + 1].id); };
   const back = () => { if (idx > 0) setStep(STEPS[idx - 1].id); };
-  const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
+  // Save in place too — a calibration must not be lost to a crash before the next manual save.
+  // Best-effort: an unsaved (pathless) project returns false and never raises a dialog.
+  const finish = () => { onSetUseCalibration(surfaceId, true); void calibHost.saveProject(); onClose(); };
 
   return (
     // The context's viewport: wizard rail + camera, side by side. The camera used to be PORTALED into a
@@ -261,6 +279,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
             <div className="flex items-center rounded border border-line-1 overflow-hidden text-micro">
               <span className="px-1.5 py-0.5 bg-accent/20 text-fg-1">Board</span>
               <button onClick={() => onSwitchFlow('auto')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to markerless camera auto-align">Auto-Align</button>
+              <button onClick={() => onSwitchFlow('manual')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to manual point-pick (no board, no camera)">Manual</button>
             </div>
           )}
           <button onClick={onClose} aria-label="Close" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
@@ -291,6 +310,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
         {step === 'prereq' && (
           <>
             <p className="text-fg-3 leading-relaxed">This wizard recovers the projector's lens + position so the 3D scene can be projected onto the real surface. You'll need a <b>printed checkerboard</b>, a <b>camera</b>, and a <b>darkened room</b>.</p>
+            {onSwitchFlow && (
+              <p className="text-fg-3 leading-relaxed">No board or camera? Use the <button onClick={() => onSwitchFlow('manual')} className="text-accent hover:underline no-press">Manual flow</button> — enter the lens specs and pick matching points directly.</p>
+            )}
             <PrereqRow ok={addonOk} label="Calibration engine installed">
               {addonOk === false && <span className="text-fg-3">Run <span className="num">npm run build:calib</span> on an OpenCV host.</span>}
             </PrereqRow>
@@ -402,7 +424,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
         {step === 'pose' && (
           <>
-            <p className="text-fg-3 leading-relaxed">Anchor the projector in the venue. On the <b>projector</b>, drag/arrow the crosshair onto a distinct feature and press <b>Enter</b>; then click the same point on the model in the <b>3D view (right)</b>. Repeat ≥4 well-spread, non-coplanar points.</p>
+            <p className="text-fg-3 leading-relaxed">Anchor the projector in the venue. On the <b>projector</b>, put the crosshair on a distinct feature (click or arrow keys); then click the same point on the model in the <b>3D view (right)</b> — the model click pairs with wherever the crosshair is. Repeat ≥4 well-spread, non-coplanar points.</p>
             {!hasModel && (
               <div className="flex items-center gap-2">
                 <span className="text-danger flex items-center gap-1"><AlertTriangle size={12} /> No venue model — the pose has nothing to anchor to.</span>
@@ -432,6 +454,10 @@ export const CalibWizard: React.FC<Props> = (props) => {
             <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
               <input type="checkbox" checked={testProj} onChange={(e) => setTestProj(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
               <MonitorUp size={12} className="text-fg-3" /> Test projection (render venue from projector)
+            </label>
+            <label className={`flex items-center gap-1.5 cursor-pointer text-fg-2 ${testProj ? '' : 'opacity-40'}`}>
+              <input type="checkbox" checked={wireframe} disabled={!testProj} onChange={(e) => setWireframe(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+              <span>Wireframe <span className="text-fg-3">— bright mesh edges, readable when the materials are dark</span></span>
             </label>
           </>
         )}

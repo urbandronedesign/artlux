@@ -29,7 +29,7 @@ interface Props {
   // not props. Remaining props are reactive data + the App-owned 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
   onPicksChange?: (worlds: [number, number, number][]) => void; // report anchor world points → 3D markers
-  onSwitchFlow?: (flow: 'board' | 'auto') => void;
+  onSwitchFlow?: (flow: 'board' | 'auto' | 'manual') => void;
   onSelectionChange?: (i: number | null) => void; // report the edited correspondence for 3D highlight
   onClose: () => void;
 }
@@ -449,6 +449,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             <div className="flex items-center rounded border border-line-1 overflow-hidden text-micro">
               <button onClick={() => onSwitchFlow('board')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to board structured-light">Board</button>
               <span className="px-1.5 py-0.5 bg-accent/20 text-fg-1">Auto-Align</span>
+              <button onClick={() => onSwitchFlow('manual')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to manual point-pick (no board, no camera)">Manual</button>
             </div>
           )}
           <button onClick={onClose} aria-label="Close" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>

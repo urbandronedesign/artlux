@@ -15,7 +15,7 @@ import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../..
 import { ProjectorFrustum } from './ProjectorFrustum';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
-import { setSnapHover } from './vertexSnap';
+import { setSnapHover, getSnapHover } from './vertexSnap';
 import { registerViewerCamera } from './viewerCamera';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureBodies } from './FixtureBodies';
@@ -36,6 +36,23 @@ import { sceneVizRegistry } from '../../host/registries';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
+
+// Streams the dragged anchor's new position while a marker drag is live: the venue meshes update the
+// snap-hover channel on every pointermove (ModelObject/PlaneObject), so the drag target is simply
+// "whatever the cursor snaps to right now" — identical preview + snap rules as placing a new anchor.
+// Skips unchanged frames; the workspace throttles the store/solve behind onMove.
+const PickDragRunner: React.FC<{ index: number; onMove: (i: number, world: [number, number, number]) => void }> = ({ index, onMove }) => {
+  const last = React.useRef('');
+  useFrame(() => {
+    const h = getSnapHover();
+    if (!h) return; // cursor is off the venue — the pick stays where it last was
+    const key = `${h.point.x},${h.point.y},${h.point.z}`;
+    if (key === last.current) return;
+    last.current = key;
+    onMove(index, [h.point.x, h.point.y, h.point.z]);
+  });
+  return null;
+};
 
 interface Props {
   fixtures: Fixture[];
@@ -68,6 +85,8 @@ interface Props {
   activePicks?: Array<{ world: [number, number, number] }>;
   selectedPick?: number | null;                       // highlight the correspondence being edited
   onSelectPick?: (i: number) => void;                 // click a numbered marker → select it for editing
+  /** Drag a numbered marker across the venue to MOVE its pick (vertex-snapped, streamed live). */
+  onMovePick?: (i: number, world: [number, number, number]) => void;
   /**
    * Stop rendering without unmounting. The workspace shell keeps this canvas MOUNTED across context
    * switches (remounting it would rebuild the WebGL context and reload every model), so while it is
@@ -151,13 +170,26 @@ const Simulator3D: React.FC<Props> = ({
   fixtures, selectedFixtureId, selectedFixtureIds = [], scene3D = defaultScene3D(), modelUrls = {},
   selectedModelId = null,
   fixtureProfiles = EMPTY_PROFILES, onSelectFixture, onSelectFixtures, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
-  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick,
+  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick, onMovePick,
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
   // Leaving pick mode drops the snap preview. It lives outside React (pointer-rate channel), so
   // unmounting SnapCursor would otherwise leave a stale vertex behind for the next session.
   useEffect(() => { if (!calibPickMode) setSnapHover(null); return () => setSnapHover(null); }, [calibPickMode]);
+  // ── DRAG-A-PICK ───────────────────────────────────────────────────────────────────────────
+  // Direct manipulation of a calibration anchor: press ON its marker and drag across the venue —
+  // the pick follows the snap-hover position (vertex-snapped, same preview as placing). Grabbing
+  // the marker IS the consent, so this needs no armed mode (the trap was selection-implies-move,
+  // not drag-implies-move). Orbit is suspended for the gesture; pointerup anywhere ends it.
+  const [dragPick, setDragPick] = useState<number | null>(null);
+  useEffect(() => {
+    if (dragPick == null) return;
+    const up = () => setDragPick(null);
+    window.addEventListener('pointerup', up);
+    return () => window.removeEventListener('pointerup', up);
+  }, [dragPick]);
+  useEffect(() => { if (!calibPickMode) setDragPick(null); }, [calibPickMode]);
   // ── CLICK-TO-PLACE ────────────────────────────────────────────────────────────────────────
   // Armed from outside (adding a light from the library), consumed by one click on the pick plane.
   // Subscribed rather than read as a prop so arming does not re-render App and the whole 3D tree.
@@ -325,8 +357,10 @@ const Simulator3D: React.FC<Props> = ({
             an edit handler is wired (markerless), so selecting from the 3D side mirrors selecting from
             the camera/list; display-only in the board flow. */}
         {activePicks.map((p, i) => (
-          <AnchorMarker key={`apick-${i}`} world={p.world} index={i} selected={selectedPick === i} onSelect={onSelectPick} />
+          <AnchorMarker key={`apick-${i}`} world={p.world} index={i} selected={selectedPick === i} onSelect={onSelectPick}
+            onDragStart={calibPickMode && onMovePick ? ((idx) => { setDragPick(idx); onSelectPick?.(idx); }) : undefined} />
         ))}
+        {dragPick != null && onMovePick && <PickDragRunner index={dragPick} onMove={onMovePick} />}
         {/* The vertex the next click will snap to. Mounted only while picking — see vertexSnap.ts. */}
         {calibPickMode && <SnapCursor />}
         <FixtureLights fixtures={fixtures} scene3D={scene3D} />
@@ -369,7 +403,8 @@ const Simulator3D: React.FC<Props> = ({
           />
         )}
         {/* The marquee owns the left button while it is active, so orbit keeps only pan/zoom. */}
-        <OrbitControls makeDefault enableRotate={mode !== 'select'} />
+        {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit. */}
+        <OrbitControls makeDefault enabled={dragPick == null} enableRotate={mode !== 'select'} />
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
           <GizmoViewport labelColor="white" axisHeadScale={1} />
         </GizmoHelper>

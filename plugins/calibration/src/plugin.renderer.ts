@@ -113,7 +113,10 @@ export const plugin: RendererPlugin = {
       } else if (m.t === 'calibCrosshair') {
         calibWorkspace.onCrosshair((m as { pixel: [number, number] }).pixel); // projector aim → pending pose pixel
       } else if (m.t === 'calibConfirm') {
-        calibWorkspace.onConfirm(); // operator confirmed the crosshair is on target
+        calibWorkspace.onConfirm(); // Enter: releases a live re-aim
+      } else if (m.t === 'calibPointDrag') {
+        const d = m as { index: number; pixel: [number, number] };
+        calibWorkspace.onPointDrag(d.index, d.pixel); // a point grabbed + dragged on the projection
       }
     });
   },
