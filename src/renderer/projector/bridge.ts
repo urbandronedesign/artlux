@@ -55,6 +55,21 @@ export type MainToProjector =
   // transition, not per frame.
   | { t: 'frameIdle' }
   | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame, decoded once in main (TRACKING content background + layers bound to venue meshes in render-from-projector)
+  // ANOTHER surface's picture, for a venue mesh bound to it in render-from-projector mode. Distinct
+  // from `frame` (this window's OWN surface, which is also the base canvas's picture and whose bitmap
+  // ProjectorApp owns): these are transferred to the calibration panel's channel, which owns closing
+  // them. Sent only for surfaces a render-active output's VISIBLE geometry actually references — a
+  // calibrated window is otherwise streamed nothing, because its base canvas is not what it displays.
+  | { t: 'surfaceFrame'; surfaceId: string; bitmap: ImageBitmap }
+  // That surface has nothing to show. Same reason `frameIdle` exists: the pump simply stops sending,
+  // and a mesh that trusted the last frame would hold a finished clip for the rest of the show.
+  | { t: 'surfaceFrameIdle'; surfaceId: string }
+  // Main has stopped streaming this layer. A mirror normally expires a held frame ITSELF by
+  // re-deriving activeClip() from the timeline + playhead it already has, which is why layerFrame
+  // needs no idle for ordinary layers — but PROGRAM_LAYER_ID has no clips, so its composite would be
+  // un-expirable. Sent on the stream-stopping transition (binding removed, model hidden, output left
+  // render mode), which also fixes the ordinary case of a mesh unbound mid-show holding its picture.
+  | { t: 'layerFrameIdle'; layerId: string }
   | { t: 'pluginData'; channel: string; payload: unknown }    // generic per-frame plugin channel (see ProjectorChannel) — e.g. LiDAR tracking snapshots
   // --- calibration (physical-projector calibration: structured light + pose) ---
   // mode gates what the projector draws: 'pattern' = a Gray-code/flat field (SL intrinsics capture),

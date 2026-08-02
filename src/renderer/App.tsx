@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExtern
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
-import { calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
+import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect } from '../../shared/protocol';
 import { spanTiles, tileName } from './services/outputSpan';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
@@ -3078,11 +3078,34 @@ const App: React.FC = () => {
       // Surfaces we've already told to go black, so the idle notice is sent once per transition
       // rather than every tick.
       const idle = new Set<string>();
+      // A render-active output is streamed the surfaces its VISIBLE GEOMETRY references, which can be
+      // several per window and the same one to several windows. A transferred ImageBitmap is consumed
+      // by one postMessage, so it genuinely costs (referenced surfaces × windows) createImageBitmap
+      // calls per tick and cannot be shared. Bounded here rather than left to the operator's mesh
+      // count: a mesh degrading to 15 fps is a legitimate trade, a stalled pump is not.
+      //
+      // The cursor makes it starvation-free — each tick resumes where the last stopped, so with more
+      // work than budget every pair still gets served in rotation instead of the first N winning
+      // forever. Tune EXTRA_PER_TICK against a real multi-projector rig; 6 is a starting point, not a
+      // measured constant.
+      const EXTRA_PER_TICK = 6;
+      let extraCursor = 0;
+      // A venue mesh that stays black looks identical whether its surface was deleted or is simply
+      // empty, and neither is visible from the wall. Said ONCE per (output, surface) and cleared when
+      // the picture comes back — a per-frame log would be useless and expensive at 30 Hz.
+      const diagWarned = new Set<string>();
+      // (output, layerId) pairs streamed to a venue mesh on the previous tick. The transition OUT of
+      // this set is what triggers `layerFrameIdle` — see the scene-layer block.
+      const sceneStreamed = new Set<string>();
       let raf = 0; let last = 0;
       const tick = (now: number) => {
           raf = requestAnimationFrame(tick);
           if (now - last < 33) return;
           last = now;
+          // Collected in the port loop, issued after it under EXTRA_PER_TICK. Held rather than sent
+          // inline so the budget is global across windows — spending it all on the first output would
+          // starve the third projector of a wall.
+          const wantSurface: { port: MessagePort; outId: string; refId: string }[] = [];
           for (const [surfaceId, port] of projectorPortsRef.current) {
               const surface = surfacesRef.current.find(s => s.id === surfaceId);
               if (!surface) continue;
@@ -3097,20 +3120,50 @@ const App: React.FC = () => {
               // Streamed while the output opts in with a solved pose, or while its calibration
               // session is open (the wizard's test projection). A layer the window decodes locally
               // (HAP/codec — see ProjectorApp's local-layer set) simply wins over this stream in the
-              // mirror's getLayerDrawable, so redundancy costs a bitmap, never a wrong picture. The
-              // PROGRAM composite is skipped: a mirror cannot resolve it (no active-clip predicate),
-              // so streaming it would freeze its last frame on the mesh forever.
+              // mirror's getLayerDrawable, so redundancy costs a bitmap, never a wrong picture.
+              //
+              // The PROGRAM composite rides the same channel under its sentinel id. It used to be
+              // skipped because a mirror expires a held frame by re-deriving activeClip(), and the
+              // sentinel has no clips — so a streamed composite could never expire. That is fixed
+              // with an explicit `layerFrameIdle` on the stream-stopping transition below, which also
+              // fixes the ordinary case: a mesh unbound mid-show used to hold its last frame, because
+              // activeClip still reported a live clip on the layer it was no longer bound to.
+              const out = projectorOutputsRef.current.find(o => o.surfaceId === surfaceId);
+              const renderActive = !!(out?.useCalibration && out.calibration?.poseRms != null)
+                  || calibWorkspace.getState().target === surfaceId;
+              // SURFACE-BOUND MESHES. A mesh can be bound to ANY surface, not only this output's own,
+              // and until it was streamed one it simply stayed dark. What makes the extra streams
+              // affordable is the other half of this change: a render-active window is no longer sent
+              // its own surface unconditionally (see the gate further down). Its base canvas is not
+              // what it displays — the 3D scene is — so those frames were being decoded, transferred
+              // and thrown away, ~750 MB/s on three 1080p projectors. The own surface is now simply
+              // one more entry in the referenced set, and it stays FREE when referenced because the
+              // base canvas is already being sent it (surfaceFrameChannel holds that one non-owning).
+              let ownReferenced = false;
+              if (renderActive) {
+                  const refs = new Set<string>();
+                  for (const mdl of (scene3DRef.current?.models ?? [])) {
+                      // layerId wins over surfaceId (SceneModel's documented precedence), and a layer
+                      // binding is served by the layerFrame pump below instead.
+                      if (!mdl.visible || mdl.layerId || !mdl.surfaceId) continue;
+                      if (mdl.surfaceId === surfaceId) { ownReferenced = true; continue; } // arrives as `frame`
+                      refs.add(mdl.surfaceId);
+                  }
+                  for (const refId of refs) wantSurface.push({ port, outId: surfaceId, refId });
+              }
               {
-                  const out = projectorOutputsRef.current.find(o => o.surfaceId === surfaceId);
-                  const renderActive = (out?.useCalibration && out.calibration?.poseRms != null)
-                      || calibWorkspace.getState().target === surfaceId;
+                  const live = new Set<string>();
                   if (renderActive) {
                       for (const mdl of (scene3DRef.current?.models ?? [])) {
-                          if (mdl.kind === 'plane' || !mdl.visible || !mdl.layerId || mdl.layerId === PROGRAM_LAYER_ID) continue;
+                          if (!mdl.visible || !mdl.layerId) continue;
                           const layerId = mdl.layerId;
+                          live.add(layerId);
                           const key = `${surfaceId}:scene:${layerId}`;
                           if (inFlight.has(key)) continue;
-                          const d = timelineEngine.getLayerDrawable(layerId);
+                          // The sentinel resolves to the whole composite; every other id is one track.
+                          const d = layerId === PROGRAM_LAYER_ID
+                              ? timelineEngine.getProgramDrawable()
+                              : timelineEngine.getLayerDrawable(layerId);
                           if (!d) continue;
                           inFlight.add(key);
                           createImageBitmap(d as CanvasImageSource)
@@ -3119,6 +3172,20 @@ const App: React.FC = () => {
                               .finally(() => inFlight.delete(key));
                       }
                   }
+                  // Say ONCE when a layer stops being streamed to this window, so the mirror drops the
+                  // held frame instead of showing it for the rest of the show. A mirror can expire an
+                  // ordinary layer itself (it re-derives activeClip from the timeline + playhead it
+                  // holds) — but not one it is no longer BOUND to, and never the PROGRAM sentinel,
+                  // which has no clips at all.
+                  const pfx = `${surfaceId}:scene:`;
+                  for (const k of [...sceneStreamed]) {
+                      if (!k.startsWith(pfx)) continue;
+                      const layerId = k.slice(pfx.length);
+                      if (live.has(layerId)) continue;
+                      sceneStreamed.delete(k);
+                      try { port.postMessage({ t: 'layerFrameIdle', layerId }); } catch { /* window closing */ }
+                  }
+                  for (const layerId of live) sceneStreamed.add(pfx + layerId);
               }
               // TRACKING self-renders its blobs in the projector, but its optional background
               // timeline layer (a video) must be decoded here and streamed as a layer frame.
@@ -3136,6 +3203,13 @@ const App: React.FC = () => {
                       .finally(() => inFlight.delete(key));
                   continue;
               }
+              // A render-active output DISPLAYS THE 3D SCENE, not its own surface, so stream that
+              // surface only when a visible mesh is actually bound to it. Everything else here was
+              // being decoded, transferred and then discarded — ProjectorApp returns before the draw
+              // (or, with a residual warp, draws the panel canvas instead). Dropping the sentGen entry
+              // is what makes leaving render mode re-send immediately even on a PAUSED source, whose
+              // generation never advances and would otherwise be skipped forever.
+              if (renderActive && !ownReferenced) { sentGen.delete(surfaceId); continue; }
               if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
               if (!STREAMED.has(eff.content.type)) continue;
               const drawable = getDrawable(surface);
@@ -3161,6 +3235,55 @@ const App: React.FC = () => {
                   .catch(() => { sentGen.delete(surfaceId); }) // failed → don't treat this gen as shipped
                   .finally(() => inFlight.delete(surfaceId));
           }
+          // --- Referenced surfaces for render-active outputs, under the global per-tick budget ---
+          // Same three mechanisms as the own-surface path above, keyed per (output, surface) pair:
+          // back-pressure so decodes don't pile up, generation dedup so a 25 fps clip on a 30 fps pump
+          // doesn't re-ship identical frames, and a one-shot idle so a mesh goes black instead of
+          // holding a finished clip. The only addition is the rotating cursor.
+          for (let n = 0, i = 0; n < wantSurface.length && i < EXTRA_PER_TICK; n++) {
+              const w = wantSurface[(extraCursor + n) % wantSurface.length];
+              const key = `${w.outId}:surf:${w.refId}`;
+              if (inFlight.has(key)) continue;
+              const refSurface = surfacesRef.current.find(s => s.id === w.refId);
+              if (!refSurface) {
+                  if (!diagWarned.has(key)) {
+                      diagWarned.add(key);
+                      console.warn(`[projector] a venue mesh is bound to surface ${w.refId}, which no longer exists — it will stay black`);
+                  }
+                  continue;
+              }
+              const refDrawable = getDrawable(refSurface);
+              if (!refDrawable && !diagWarned.has(key)) {
+                  diagWarned.add(key);
+                  console.warn(`[projector] surface "${refSurface.name}" (${refSurface.content.type}) has nothing to draw — the mesh bound to it stays black until it does`);
+              }
+              if (refDrawable) diagWarned.delete(key);
+              if (!refDrawable) {
+                  if (!idle.has(key)) {
+                      idle.add(key);
+                      sentGen.delete(key);
+                      try { w.port.postMessage({ t: 'surfaceFrameIdle', surfaceId: w.refId }); } catch { /* closing */ }
+                  }
+                  continue;
+              }
+              idle.delete(key);
+              const refGen = getDrawableGeneration(refSurface);
+              const refPrev = sentGen.get(key);
+              if (refGen !== undefined && refPrev && refPrev.port === w.port && refPrev.gen === refGen) continue;
+              // Only a pair that actually SPENDS budget advances the cursor's count — skipping a
+              // deduped or in-flight pair must not consume someone else's turn.
+              i++;
+              inFlight.add(key);
+              if (refGen !== undefined) sentGen.set(key, { port: w.port, gen: refGen });
+              createImageBitmap(refDrawable as CanvasImageSource)
+                  .then(bitmap => {
+                      try { w.port.postMessage({ t: 'surfaceFrame', surfaceId: w.refId, bitmap }, [bitmap]); }
+                      catch { bitmap.close(); }
+                  })
+                  .catch(() => { sentGen.delete(key); })
+                  .finally(() => inFlight.delete(key));
+          }
+          if (wantSurface.length > 0) extraCursor = (extraCursor + EXTRA_PER_TICK) % wantSurface.length;
       };
       raf = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(raf);
@@ -3183,6 +3306,35 @@ const App: React.FC = () => {
       const d = displays.find(x => x.id === out.displayId);
       return !!d && !d.internal; // never warp the operator's built-in panel
   };
+
+  // THE SOLVED PROJECTORS, MEMOIZED — and this memo is load-bearing, not tidiness.
+  //
+  // It was built inline in the Simulator3D props, so it was a new array of new objects on EVERY App
+  // render — and this renderer repaints per frame during playback. Everything downstream that keys on
+  // it then recomputes 60×/s, and once projected mapping started deriving its matrices from these it
+  // was reallocating every SceneModel in the scene every frame: the 3D view dropped to ~14 fps and
+  // the cause was three files away from the symptom. If you add a consumer of this, keep it stable.
+  const projectorCalibs = useMemo(
+      () => projectorOutputs
+          .filter(o => o.calibration?.poseRms != null)
+          .map(o => ({ surfaceId: o.surfaceId, name: surfaces.find(s => s.id === o.surfaceId)?.name, calibration: o.calibration! })),
+      [projectorOutputs, surfaces]);
+
+  // KEEP THE PROGRAM COMPOSITE ALIVE FOR A VENUE MESH.
+  //
+  // buildProgram only runs while something has retained it, and the only retainers were a surface
+  // routed to SourceType.PROGRAM and a mounted 3D view. So a project whose ONLY program consumer is a
+  // mesh bound to ★ Timeline (Program) — in --broadcast, or with the 3D viewport simply not open —
+  // had programActive false, the composite was never built, and getProgramDrawable returned null IN
+  // MAIN. The mesh then stayed black no matter what the projector side did, which reads exactly like
+  // the feature not working. Outside the frame pump on purpose: a retain/release per tick would
+  // thrash programConsumers 30×/s.
+  useEffect(() => {
+      const wanted = (scene3D.models ?? []).some(m => m.visible && m.layerId === PROGRAM_LAYER_ID)
+          && (projectorOutputs.some(o => o.useCalibration && o.calibration?.poseRms != null)
+              || calibratingOutputId != null);
+      if (wanted) timelineEngine.retainProgram('venue-mesh'); else timelineEngine.releaseProgram('venue-mesh');
+  }, [scene3D, projectorOutputs, calibratingOutputId]);
 
   // Push the current config (surface + corner-pin + transport) to one projector window.
   const pushProjectorStateRef = useRef<(surfaceId: string) => void>(() => {});
@@ -3232,7 +3384,11 @@ const App: React.FC = () => {
       if (surfaceId !== calibratingOutputId) {
           const posed = out?.useCalibration && out.calibration?.poseRms != null;
           if (posed) {
-              port.postMessage({ t: 'scene', scene3D });
+              // Resolve live projected mapping HERE: a projector window is sent only its own
+              // calibration, so a mesh projected from another output could never be resolved inside
+              // it. Never written back into the document — the projector's pose is the source of
+              // truth, and a baked copy would silently disagree after a re-solve.
+              port.postMessage({ t: 'scene', scene3D: resolveProjectedScene(scene3D, projectorOutputs) });
               port.postMessage({ t: 'calib', mode: 'render', calibration: out!.calibration });
           } else {
               port.postMessage({ t: 'calib', mode: 'idle' });
@@ -3805,7 +3961,7 @@ const App: React.FC = () => {
                                 onRecordHistory={recordHistory}
                                 calibPickMode={calib.pickMode}
                                 onCalibPick={(world, source) => calibWorkspace.pick(world, source)}
-                                projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, name: surfaces.find(s => s.id === o.surfaceId)?.name, calibration: o.calibration! }))}
+                                projectorCalibs={projectorCalibs}
                                 activePicks={calib.flow === 'auto'
                                     ? calib.picks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}

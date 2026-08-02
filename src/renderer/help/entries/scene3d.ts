@@ -87,21 +87,45 @@ export const scene3dHelp: HelpEntry[] = [
     title: 'UV source',
     short: 'Texture the mesh with its own UVs, or UVs projected from a viewpoint.',
     body: 'Mesh UVs uses the TEXCOORD map authored in the GLB — if the file has none (common for CAD '
-      + 'exports), the layer collapses to a single flat color. Projected from view bakes UVs by '
-      + 'projecting the mesh through a captured 3D viewpoint, like a virtual projector: from that '
-      + 'viewpoint the layer reads as a fullscreen image. Switching back to Mesh UVs keeps the baked '
-      + 'viewpoint, so the two can be compared freely.',
+      + 'exports) the content collapses to a single flat color, and if the exporter flipped V it '
+      + 'arrives upside down. Projecting sidesteps both, because the mapping comes from a matrix '
+      + 'rather than from the file. Projected from view freezes the current 3D viewpoint. Projected '
+      + 'from a projector is the live option: it follows that calibrated projector, so re-solving it '
+      + 'or moving the mesh re-projects instead of leaving a stale mapping behind — content lands on '
+      + 'the real object the way that projector actually sees it.',
     group: '3D Scene',
-    keywords: ['uv', 'texture', 'projection', 'projected', 'mapping', 'texcoord'],
+    keywords: ['uv', 'texture', 'projection', 'projected', 'mapping', 'texcoord', 'projector'],
+  },
+  {
+    id: 'scene3d.model-uv-soft',
+    title: 'Projected edge falloff',
+    short: 'Fade the projected content out at the edge of the frustum.',
+    body: 'Softens the boundary of the projected footprint, in normalized units (0 = a hard edge, '
+      + '0.5 = fading across half the frame). With two projectors covering one object this is what '
+      + 'makes their content cross-fade instead of meeting at a visible cookie edge. It affects only '
+      + 'where the content lands on the geometry, not the rig blend that balances projector brightness.',
+    group: '3D Scene',
+    keywords: ['uv', 'projected', 'soft', 'edge', 'falloff', 'feather', 'frustum'],
+  },
+  {
+    id: 'scene3d.model-uv-cull',
+    title: 'Cull back faces',
+    short: 'Do not project onto faces turned away from the projector.',
+    body: 'A real projector cannot light the far side of an object, so this drops faces pointing away '
+      + 'from it — without this the content wraps around and appears mirrored on the back. It is NOT '
+      + 'occlusion: a nearer surface still does not shadow a farther one, so on a concave venue '
+      + 'content can reach geometry the projector genuinely cannot see. Best on closed, convex objects.',
+    group: '3D Scene',
+    keywords: ['uv', 'projected', 'cull', 'back face', 'backface', 'occlusion'],
   },
   {
     id: 'scene3d.model-uv-bake',
     title: 'Project UVs from view',
-    short: 'Bake projected UVs from the current 3D camera position.',
-    body: 'Captures the current viewpoint and re-projects the layer texture onto the mesh from it. '
-      + 'Frame the mesh the way the content should land, then bake. The texture stays glued to the '
-      + 'mesh if it is moved afterwards — bake again to re-project. Faces the viewpoint cannot see '
-      + 'get stretched, exactly as with a real projector.',
+    short: 'Freeze a projection from the current 3D camera position.',
+    body: 'Captures the current viewpoint and projects the content onto the mesh from it. Frame the '
+      + 'mesh the way the content should land, then press it. This viewpoint is FROZEN — it does not '
+      + 'follow the camera, and it clears any live projector source. To have the mapping track a real '
+      + 'projector instead, pick that projector in the UVs list.',
     group: '3D Scene',
     keywords: ['uv', 'bake', 'project', 'view', 'camera', 'reproject'],
   },

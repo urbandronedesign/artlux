@@ -273,10 +273,15 @@ export const FixtureArrangePanel: React.FC = () => {
 };
 
 export const ModelTransformPanel: React.FC = () => {
-  const { scene3D, selectedModelId, timeline, modelNaturalSizes, surfaces } = useEditor();
+  const { scene3D, selectedModelId, timeline, modelNaturalSizes, surfaces, projectorOutputs } = useEditor();
   const a = useEditorActions();
   const [fitMeters, setFitMeters] = useState(5);
   const m = (scene3D.models ?? []).find((x) => x.id === selectedModelId) ?? null;
+  // Only a SOLVED projector can project — an output with no pose has no matrix to offer, and listing
+  // it would read as "this does nothing".
+  const projectors = (projectorOutputs ?? [])
+    .filter((o) => o.calibration?.poseRms != null)
+    .map((o) => ({ surfaceId: o.surfaceId, name: surfaces.find((s) => s.id === o.surfaceId)?.name ?? o.surfaceId }));
   if (!m) return null;
   const [sx, sy, sz] = modelScaleXYZ(m);
   return (
@@ -333,13 +338,19 @@ export const ModelTransformPanel: React.FC = () => {
           <span className="text-fg-2 shrink-0">UVs</span>
           <Tooltip id="scene3d.model-uvs">
             <select
-              value={m.uvMode === 'projected' ? 'projected' : 'authored'}
+              value={m.uvProjFrom ? `p:${m.uvProjFrom}` : m.uvMode === 'projected' ? 'projected' : 'authored'}
               onChange={(e) => {
-                if (e.target.value === 'projected') {
+                const v = e.target.value;
+                if (v.startsWith('p:')) {
+                  // LIVE from a real projector: store only the SOURCE. The matrix is derived on every
+                  // publish (resolveProjectedScene), so re-solving that projector or moving the mesh
+                  // re-projects instead of leaving a stale bake behind.
+                  a.updateModel(m.id, { uvMode: 'projected', uvProjFrom: v.slice(2) });
+                } else if (v === 'projected') {
                   const vp = m.uvProjView?.length === 16 ? m.uvProjView : captureViewerViewProj();
-                  if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp });
+                  if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp, uvProjFrom: undefined });
                 } else {
-                  a.updateModel(m.id, { uvMode: undefined });
+                  a.updateModel(m.id, { uvMode: undefined, uvProjFrom: undefined });
                 }
               }}
               className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none"
@@ -347,15 +358,49 @@ export const ModelTransformPanel: React.FC = () => {
             >
               <option value="authored">Mesh UVs</option>
               <option value="projected">Projected from view</option>
+              {projectors.length > 0 && (
+                <optgroup label="Projected from a projector">
+                  {projectors.map((p) => <option key={p.surfaceId} value={`p:${p.surfaceId}`}>{p.name}</option>)}
+                </optgroup>
+              )}
             </select>
           </Tooltip>
           <Tooltip id="scene3d.model-uv-bake">
             <button
-              onClick={() => { const vp = captureViewerViewProj(); if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp }); }}
-              title="Bake projected UVs from the current 3D viewpoint"
+              onClick={() => { const vp = captureViewerViewProj(); if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp, uvProjFrom: undefined }); }}
+              title="Freeze projected UVs from the current 3D viewpoint"
               className="shrink-0 px-1.5 py-1 rounded text-micro border bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1"
               {...help('scene3d.model-uv-bake')}
             >From view</button>
+          </Tooltip>
+        </div>
+      )}
+      {/* Footprint controls — only meaningful while something is being projected. Soft edge fades the
+          content out at the edge of the projector's frustum so two projectors covering one object
+          cross-fade instead of meeting at a hard cookie edge; cull drops faces turned away from it.
+          NOTE cull is not occlusion — a nearer surface does not shadow a farther one. */}
+      {m.kind !== 'plane' && (m.layerId || m.surfaceId) && m.uvMode === 'projected' && (
+        <div className="flex items-center gap-1.5 text-mini">
+          <span className="text-fg-2 shrink-0">Edge</span>
+          <Tooltip id="scene3d.model-uv-soft">
+            <input
+              type="number" min={0} max={0.5} step={0.02}
+              value={m.uvProjSoft ?? 0}
+              onChange={(e) => a.updateModel(m.id, { uvProjSoft: Math.max(0, Math.min(0.5, Number(e.target.value) || 0)) })}
+              className="w-16 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 num text-micro focus:border-accent focus:outline-none"
+              {...help('scene3d.model-uv-soft')}
+            />
+          </Tooltip>
+          <Tooltip id="scene3d.model-uv-cull">
+            <label className="flex items-center gap-1.5 cursor-pointer text-fg-2" {...help('scene3d.model-uv-cull')}>
+              <input
+                type="checkbox"
+                checked={!!m.uvProjCull}
+                onChange={(e) => a.updateModel(m.id, { uvProjCull: e.target.checked || undefined })}
+                className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
+              />
+              Cull back faces
+            </label>
           </Tooltip>
         </div>
       )}

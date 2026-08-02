@@ -8,8 +8,8 @@ import type { Scene3D, SceneModel, ProjectorCalibration, ProjectorBlend, SoftEdg
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
-import { matchBitmapOrientation } from '@/components/Simulator3D/bitmapFlip';
-import { getSurfaceFrame } from './surfaceFrameChannel';
+import { useStreamedSurfaceTexture } from './useStreamedSurfaceTexture';
+import { makeProjectedMaterial, usesProjectedUv, type ProjectedMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
 import { recenterClone } from '@/components/Simulator3D/venuePlacement';   // host helper — same seam
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
 
@@ -19,6 +19,17 @@ const NEAR = 0.05, FAR = 200;
 /** How the venue is drawn from the projector: its materials, its crease edges, or every triangle. */
 export type MeshLook = 'shaded' | 'edges' | 'wireframe';
 
+
+// Hands this Canvas's DOM element to the projector window's base GL stage, so an operator can put a
+// residual warp on the calibrated render — a solve is never perfect in a real venue, and the warp
+// handles live in the host, not here. Lives INSIDE the Canvas on purpose: `useThree` sees the real
+// element, and an effect gives a genuine unmount hook. An `onCreated` callback would say when the
+// canvas appears and never when it goes away, leaving the host warping a dead element.
+const PublishCanvas: React.FC<{ onCanvas: (c: HTMLCanvasElement | null) => void }> = ({ onCanvas }) => {
+  const el = useThree((s) => s.gl.domElement) as HTMLCanvasElement;
+  useEffect(() => { onCanvas(el); return () => onCanvas(null); }, [el, onCanvas]);
+  return null;
+};
 
 // Renders the venue 3D scene from the matched virtual projector (true projection mapping). The camera
 // is driven exactly from the calibration (position/orientation + an exact intrinsic projection matrix
@@ -31,12 +42,94 @@ export type MeshLook = 'shaded' | 'edges' | 'wireframe';
 // 25° keeps a curved surface's tessellation quiet while every chamfer, panel seam and corner survives.
 const CREASE_DEG = 25;
 
+// THE CONTENT MATERIAL, shared by every kind of venue object.
+//
+// A screen and a GLB differ in exactly one thing — where the geometry comes from (generated vs loaded
+// from `path`). Content binding, the authored/projected material pair, the ImageBitmap flip and the
+// projector uniforms are identical, so they live here once rather than being written twice. The
+// `kind` field stays in the project file as the geometry selector; only BEHAVIOUR is unified.
+function useContentMaterial(model: SceneModel): { material: THREE.MeshBasicMaterial; hasContent: boolean } {
+  const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, side: THREE.DoubleSide });
+  // The projected-UV twin, from the SAME shared module the editor uses — one definition of the
+  // projection maths and of the V convention, so the two windows cannot disagree.
+  const projMatRef = useRef<ProjectedMaterial | null>(null);
+  if (!projMatRef.current) projMatRef.current = makeProjectedMaterial();
+  const projected = usesProjectedUv(model);
+
+  const applyTex = (tex: THREE.Texture | null) => {
+    for (const mat of [layerMatRef.current!, projMatRef.current!.material]) {
+      mat.map = tex; mat.color.set(tex ? '#ffffff' : '#161616'); mat.needsUpdate = true;
+    }
+    // Fragment-computed UVs bypass three's vertex-stage texture matrix, which is where
+    // matchBitmapOrientation's ImageBitmap flip compensation lives. Mirror it into the uniforms or the
+    // content lands upside down ON THE REAL PROJECTOR with the geometry perfectly aligned.
+    projMatRef.current!.syncMapTransform(tex);
+  };
+  useLayerTexture(model.layerId, applyTex);
+
+  // SURFACE binding: ANY surface, not just this window's own. Main streams a render-active output
+  // exactly what its visible geometry references (see App's frame pump) — the output's own surface is
+  // simply one more entry in that set, and it stays free because the base canvas is already sent it.
+  // A layer binding wins when both are somehow set, and the hook is inert without an id, so exactly
+  // one of the two ever writes the map. Mirrors ModelObject's pair in the editor.
+  const wantsSurface = !model.layerId && !!model.surfaceId;
+  useStreamedSurfaceTexture(wantsSurface ? model.surfaceId : undefined, applyTex);
+
+  // The projecting camera arrives already resolved on the `scene` message (App runs
+  // resolveProjectedScene — a projector window holds only its OWN calibration and could never resolve
+  // another output's). So this is an effect, not a useFrame: it changes at operator rate.
+  useEffect(() => {
+    if (!projected) return;
+    const pm = projMatRef.current!;
+    pm.setProjector(new THREE.Matrix4().fromArray(model.uvProjView!),
+      new THREE.Vector3(...(model.uvProjEye ?? [0, 0, 0])));
+    pm.setLook(model.uvProjSoft ?? 0, !!model.uvProjCull);
+    // Keyed on the projection FIELDS, not on the model object: a re-render that only moved the mesh
+    // must not rebuild uniforms, and nothing here should depend on the caller keeping model identity
+    // stable. resolveProjectedScene returns models by identity when unchanged, so these are stable.
+  }, [projected, model.uvProjView, model.uvProjEye, model.uvProjSoft, model.uvProjCull]);
+
+  useEffect(() => () => { layerMatRef.current?.dispose(); projMatRef.current?.dispose(); }, []);
+
+  return {
+    material: projected ? projMatRef.current!.material : layerMatRef.current!,
+    hasContent: !!model.layerId || wantsSurface,
+  };
+}
+
+// A flat screen. Geometry and sizing lifted verbatim from the editor's PlaneObject — the 16:9 base
+// times the per-axis scale IS the convention, so re-deriving it would land a different size here than
+// the operator sees in the 3D view. DoubleSide because a screen viewed from behind should still show.
+// No material restore: a plane has no authored materials to put back.
+const ProjectorPlane: React.FC<{ model: SceneModel; meshLook?: MeshLook }> = ({ model, meshLook = 'shaded' }) => {
+  const { material } = useContentMaterial(model);
+  const wireMatRef = useRef<THREE.LineBasicMaterial | null>(null);
+  if (!wireMatRef.current) wireMatRef.current = new THREE.LineBasicMaterial({ color: '#00ffaa', toneMapped: false });
+  // A screen's four borders are a genuinely useful alignment reference — it is already a first-class
+  // calibration pick target — so the verify looks must not leave a hole where the screen is.
+  const border = useMemo(() => new THREE.EdgesGeometry(new THREE.PlaneGeometry(16 / 9, 1)), []);
+  useEffect(() => () => { border.dispose(); wireMatRef.current?.dispose(); }, [border]);
+
+  if (!model.visible) return null;
+  return (
+    <group
+      position={[model.position.x, model.position.y, model.position.z]}
+      rotation={[model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG]}
+      scale={modelScaleXYZ(model)}
+    >
+      {meshLook === 'shaded'
+        ? <mesh material={material}><planeGeometry args={[16 / 9, 1]} /></mesh>
+        : <lineSegments geometry={border} material={wireMatRef.current!} />}
+    </group>
+  );
+};
+
 // One GLB venue mesh, placed to match Simulator3D exactly; optional timeline-layer texture (Phase A)
 // or SURFACE texture — see `surfaceFrame`, which is this window's own streamed picture.
 const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: MeshLook }> = ({ model, url, meshLook = 'shaded' }) => {
   const { scene } = useGLTF(url);
-  const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
-  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  const { material, hasContent } = useContentMaterial(model);
   // One material for both looks: LineSegments and a wireframe Mesh both draw lines from it.
   const wireMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!wireMatRef.current) wireMatRef.current = new THREE.MeshBasicMaterial({ color: '#00ffaa', wireframe: true, toneMapped: false });
@@ -103,63 +196,26 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
     });
   }, [wireClone]);
 
-  const applyTex = (tex: THREE.Texture | null) => {
-    const mat = layerMatRef.current!;
-    mat.map = tex; mat.color.set(tex ? '#ffffff' : '#161616'); mat.needsUpdate = true;
-  };
-  useLayerTexture(model.layerId, applyTex);
-
-  // SURFACE binding: this window's picture is ALREADY streamed to it, so a mesh bound to that
-  // surface costs nothing beyond one texture upload — see surfaceFrameChannel for the ownership and
-  // why it is polled here rather than pushed through props. A mesh bound to some OTHER surface stays
-  // dark: this window is only sent its own, and asking main to stream a second full-size source per
-  // output is a real cost that should be asked for, not assumed.
-  const wantsSurface = !model.layerId && !!model.surfaceId;
-  const surfTexRef = useRef<THREE.Texture | null>(null);
-  const lastGen = useRef(-1);
-  useFrame(() => {
-    if (!wantsSurface) return;
-    const f = getSurfaceFrame();
-    const mine = f && f.surfaceId === model.surfaceId ? f : null;
-    if (!mine || mine.gen === lastGen.current) {
-      // No frame for this mesh at all (wrong surface / nothing sent yet) — drop any texture we hold
-      // so a stale picture never outlives its source. A repeat generation is simply "no news".
-      if (!mine && surfTexRef.current) { surfTexRef.current.dispose(); surfTexRef.current = null; lastGen.current = -1; applyTex(null); }
-      return;
-    }
-    lastGen.current = mine.gen;
-    if (!mine.bitmap) {
-      // The source went idle (clip ended, live source dropped) — better black than the last frame
-      // frozen on the object for the rest of the show.
-      if (surfTexRef.current) { surfTexRef.current.dispose(); surfTexRef.current = null; applyTex(null); }
-      return;
-    }
-    let t = surfTexRef.current;
-    if (!t) {
-      t = new THREE.Texture();
-      t.colorSpace = THREE.SRGBColorSpace;
-      t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
-      surfTexRef.current = t;
-      applyTex(t);
-    }
-    t.image = mine.bitmap as unknown as HTMLImageElement;
-    // Streamed frames are ImageBitmaps, and three drops flipY for those — without this the content
-    // is upside down on the REAL PROJECTOR while the editor's 3D view (fed the canvas directly) is
-    // the right way up. See bitmapFlip.
-    matchBitmapOrientation(t);
-    t.needsUpdate = true;
-  });
-  useEffect(() => () => { surfTexRef.current?.dispose(); surfTexRef.current = null; }, []);
-
+  // Swap in the content material — and swap the GLB's own materials BACK when the binding clears.
+  // The restore half was missing: clearing a binding left the mesh on the flat #161616 material for
+  // the rest of the session. Invisible while bindings were static, immediately visible now that an
+  // operator can change one and watch the projector. Mirrors ModelObject's origMats.
+  const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
   useEffect(() => {
-    const layered = !!model.layerId || wantsSurface;
     cloned.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if ((mesh as { isMesh?: boolean }).isMesh && layered) mesh.material = layerMatRef.current!;
+      if (!(mesh as { isMesh?: boolean }).isMesh) return;
+      if (hasContent) {
+        if (!origMats.current.has(mesh.uuid)) origMats.current.set(mesh.uuid, mesh.material);
+        mesh.material = material;
+      } else {
+        const orig = origMats.current.get(mesh.uuid);
+        if (orig) { mesh.material = orig; origMats.current.delete(mesh.uuid); }
+      }
     });
-  }, [cloned, model.layerId, wantsSurface]);
+  }, [cloned, hasContent, material]);
 
-  useEffect(() => () => { layerMatRef.current?.dispose(); wireMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
+  useEffect(() => () => { wireMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
 
   if (!model.visible) return null;
   return (
@@ -361,12 +417,32 @@ export const ProjectorScene: React.FC<{
    *  Render mode stays 'always': it plays content. Left as a prop rather than inferred, because
    *  getting it wrong in the show direction would freeze a projector. */
   frameloop?: 'always' | 'demand';
-}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always' }) => {
+  /** Offer this Canvas to the projector window's base GL stage so a residual warp can be applied to
+   *  the calibrated render (see PublishCanvas). Set ONLY for render mode — never for the crosshair
+   *  underlay, whose pixels are an aiming reference that must stay in true projector raster. */
+  onCanvas?: (c: HTMLCanvasElement | null) => void;
+}> = ({ scene3D, modelUrls, calibration, look, meshLook, frameloop = 'always', onCanvas }) => {
+  // A screen authored as a projection PLANE used to be filtered out here entirely, so nothing bound
+  // to one could ever appear on a calibrated output — on a venue built mostly of flat screens the
+  // render was simply empty. `modelUrls` still gates meshes only: a GLB that has not loaded yet must
+  // not mount, whereas a plane has no file to wait for.
   const meshes = (scene3D.models ?? []).filter(m => m.kind !== 'plane' && modelUrls[m.id]);
+  const planes = (scene3D.models ?? []).filter(m => m.kind === 'plane');
   const hasDistortion = !!calibration.distortion?.some(v => v !== 0);
   const wantsBlend = !!look && needsBlendPass(look);
   return (
-    <Canvas frameloop={frameloop} gl={{ powerPreference: 'high-performance', antialias: true }} dpr={[1, 2]} style={{ width: '100%', height: '100%' }}>
+    <Canvas
+      frameloop={frameloop}
+      // preserveDrawingBuffer ONLY when the host may read this canvas. A WebGL drawing buffer is
+      // cleared once presented to the compositor, and the host's loop and this Canvas run on two
+      // INDEPENDENT rAFs with no ordering between them — without it the host intermittently samples a
+      // cleared buffer and the projector flickers black, which reads as a dead producer rather than a
+      // warp bug. It costs a stable copy, so it stays off on the path that is never read.
+      gl={{ powerPreference: 'high-performance', antialias: true, preserveDrawingBuffer: !!onCanvas }}
+      dpr={[1, 2]}
+      style={{ width: '100%', height: '100%' }}
+    >
+      {onCanvas && <PublishCanvas onCanvas={onCanvas} />}
       {frameloop === 'demand' && <RedrawOn dep={calibration} />}
       <color attach="background" args={['#000']} />
       {/* Same rig as Simulator3D's Lighting (env look) — ambient alone left standard materials darker
@@ -375,6 +451,7 @@ export const ProjectorScene: React.FC<{
       <hemisphereLight intensity={0.7} groundColor="#101010" />
       <CalibCamera calibration={calibration} />
       {meshes.map(m => <ProjectorModel key={m.id} model={m} url={modelUrls[m.id]} meshLook={meshLook} />)}
+      {planes.map(m => <ProjectorPlane key={m.id} model={m} meshLook={meshLook} />)}
       {/* Distortion FIRST, blend LAST. Distortion maps the ideal pinhole render onto the real optics,
           so only after it does the framebuffer hold physical raster pixels — which is the space the
           blend map is indexed in. Reversing these puts the ramp a few pixels off the footprint edge,

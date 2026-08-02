@@ -38,5 +38,9 @@ export { computeResiduals, type ResidualStats } from './residuals';
 export type { DriftScore } from './driftScore';
 export { regionFromCalibration } from './mpcdiData';
 export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
+// Live projected mapping: turns a model's `uvProjFrom` (a calibrated output's surfaceId) into the
+// matrix + eye the shared shader consumes. Called by App at the scene push and by Simulator3D — main
+// holds every calibration, and a projector window holds only its own, so this cannot run there.
+export { resolveProjectedScene } from './projectedScene';
 export type { ColorFrame } from './calibCapture';
 export * from './markerlessController';

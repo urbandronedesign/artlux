@@ -12,13 +12,14 @@
 // It talks to main over the projector bridge via the panel context (onMessage / send) — the same
 // MessagePort the base window uses — so nothing here goes through the host.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 import type { MainToProjector, ProjectorToMain } from '@/projector/bridge'; // host bridge types — transitional
 import type { Scene3D, ProjectorCalibration } from '../../../shared/protocol';
 import { fillPattern, type CalibPatternKind } from './graycode';
 import { ProjectorScene, type BlendLook } from './ProjectorScene';
-import { setSurfaceFrame, clearSurfaceFrame } from './surfaceFrameChannel';
+import { setSurfaceFrame, clearSurfaceFrame, clearOwnedSurfaceFrames } from './surfaceFrameChannel';
+import { hasResidualWarp } from '@/projector/warp'; // host predicate — the ONE definition
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
@@ -60,6 +61,8 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
   // already sees every main→projector message and simply ignored that one. Without it, render mode
   // (an opaque overlay above the base canvas) drops the soft edge the operator set. See ProjectorScene.
   const [look, setLook] = useState<BlendLook>({});
+  // True only while this output carries a residual warp — see the `config` handler.
+  const [warpSource, setWarpSource] = useState(false);
   const [modelUrls, setModelUrls] = useState<Record<string, string>>({});
   const urlCacheRef = useRef<Record<string, string>>({});
 
@@ -92,11 +95,18 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       } else if (m.t === 'frame') {
         // This window's own surface picture. ProjectorApp has already taken it for the base canvas
         // (panels are fanned out after its own handling) and owns closing it — we only publish the
-        // current reference so a mesh BOUND to this surface can texture from it. See
-        // surfaceFrameChannel: no React state, this arrives ~30×/s.
-        if (surfaceIdRef.current) setSurfaceFrame(surfaceIdRef.current, m.bitmap);
+        // current reference so a mesh BOUND to this surface can texture from it. Hence owned=false.
+        // See surfaceFrameChannel: no React state, this arrives ~30×/s.
+        if (surfaceIdRef.current) setSurfaceFrame(surfaceIdRef.current, m.bitmap, false);
       } else if (m.t === 'frameIdle') {
-        if (surfaceIdRef.current) setSurfaceFrame(surfaceIdRef.current, null);
+        if (surfaceIdRef.current) setSurfaceFrame(surfaceIdRef.current, null, false);
+      } else if (m.t === 'surfaceFrame') {
+        // ANOTHER surface, for a mesh bound to it. Transferred to this channel alone, so we own it.
+        // One lookup path serves both kinds, which is what keeps a mesh bound to this window's OWN
+        // surface free — it reads the bitmap the base canvas was already sent.
+        setSurfaceFrame(m.surfaceId, m.bitmap, true);
+      } else if (m.t === 'surfaceFrameIdle') {
+        setSurfaceFrame(m.surfaceId, null, true);
       } else if (m.t === 'scene') {
         setScene3D(m.scene3D);
       } else if (m.t === 'config') {
@@ -110,6 +120,10 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
         const r = m.render;
         const next: BlendLook = { softEdge: r.softEdge, colorGain: r.colorGain, blackLift: r.blackLift, blend: r.blend ?? null };
         setLook((prev) => (sameLook(prev, next) ? prev : next));
+        // Does the host need to READ this window's scene canvas (to put a residual warp on it)?
+        // Only then is preserveDrawingBuffer worth paying for — it makes Chromium copy the backbuffer
+        // every frame instead of swapping it, and an output nobody has warped should not pay that.
+        setWarpSource(hasResidualWarp(r.cornerPin, r.warp ?? null));
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,6 +131,17 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
 
   // The channel outlives React, so a closed window must not leave a dead bitmap reference behind.
   useEffect(() => () => clearSurfaceFrame(), []);
+
+  // Main only streams the referenced surfaces while this output is render-active, so leaving render
+  // mode would strand the bitmaps we own — one per surface the venue geometry referenced, held until
+  // the window closed. Nothing is rendering them by then either: ProjectorScene has unmounted.
+  useEffect(() => { if (calibMode !== 'render') clearOwnedSurfaceFrames(); }, [calibMode]);
+
+  // Offer the render-mode scene canvas to the host's base GL stage, so the ordinary warp handles can
+  // finalise a mapping the solve got close but not exact. Stable identity on purpose: PublishCanvas
+  // keys its effect on this callback, and a fresh function each render would withdraw and re-publish
+  // the canvas on every re-render of this panel — which at crosshair-drag rates is every pointer move.
+  const publishCanvas = useCallback((c: HTMLCanvasElement | null) => { ctx.setRenderSource?.(c); }, [ctx]);
 
   // Structured-light: draw the requested pattern raw (no GL warp/gamma — bits must be pixel-exact) into
   // an opaque 2D overlay at native resolution, then ack patternShown after it is actually on screen
@@ -234,7 +259,15 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       {/* Render-from-projector: the venue 3D scene from the matched virtual projector (true mapping). */}
       {calibMode === 'render' && calibration && scene3D && (
         <div style={{ position: 'absolute', inset: 0 }}>
-          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} meshLook={meshLook} />
+          {/* `key` forces a fresh Canvas when the warp source toggles, because preserveDrawingBuffer
+              is a context-creation option that r3f cannot change in place. That costs one blink, at
+              the moment an operator starts (or clears) an alignment — never during a running show —
+              and in exchange an un-warped output never pays for the preserved backbuffer at all. */}
+          <ProjectorScene
+            key={warpSource ? 'warp' : 'plain'}
+            scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} meshLook={meshLook}
+            onCanvas={warpSource ? publishCanvas : undefined}
+          />
         </div>
       )}
 

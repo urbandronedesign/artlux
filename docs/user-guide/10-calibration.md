@@ -118,8 +118,27 @@ viewpoint — content mapped onto the mesh lands on the real object, like any pr
 Putting **content** on the mesh is done in the **3D Scene** context, not here — calibration only
 solves where the projector is. In 3D Scene, select the model and pick a **Content** source: any
 surface (so whatever that surface plays — video, camera, NDI, an effect, a timeline layer, the whole
-timeline — is textured onto the mesh) or a single timeline layer. Bind it to the surface routed to
-this projector and the show lands on the real object.
+timeline — is textured onto the mesh) or a single timeline layer.
+
+**Any surface works, not just the one routed to this projector.** That matters on a rig: the usual
+shape is one content surface covering the venue geometry, with two or three calibrated projectors all
+rendering that same geometry from their own viewpoints. Bind every mesh to the one content surface and
+each projector paints its share of it.
+
+Binding a mesh to the surface routed to *this* projector is still the cheapest option (the window is
+already being sent that picture), but it is no longer the only one that works. Each additional surface
+a projector's visible geometry references is one more stream to that window — so if a heavily-bound
+scene starts to feel uneven, that is the thing to reduce.
+
+**Screens count as venue geometry too.** A flat screen authored as a projection plane is rendered on a
+calibrated output exactly like an imported mesh, and takes the same Content bindings. (It used to be
+skipped entirely, so a venue built mostly of screens showed nothing.)
+
+**★ Timeline (Program)** also works on a calibrated output — the whole composite, every contributing
+layer z‑ordered, on the geometry. It is sized to the largest source feeding it rather than to a fixed
+720p, so on 1080p projectors it no longer arrives upscaled and soft. If your show is a single video on
+geometry, binding the mesh to that **layer** (or to a surface playing it) is still sharper than going
+through the composite, because it skips a resize.
 
 **Moving a calibrated output to another display** is just the **Display** dropdown on that output's
 row in Outputs — the calibration, warp, blend and *Render from projector* all belong to the output,
@@ -154,6 +173,37 @@ use the **Rig blend** strip in the Outputs panel: with two or more calibrated ou
 no double brightness). No camera scan is needed — the blend traces each projector's coverage from its
 calibration and the venue model (the model must be loaded in the 3D scene when you solve).
 Recalibrating a projector marks the blend **stale** — re‑solve it when convenient.
+
+### Finalising the mapping — nudging a calibrated output
+
+A solve is rarely perfect on a real wall. Manual mode drifts away from the points you picked, a board
+calibration can be a few pixels out at the edges, and venues move. So a calibrated output can still be
+**warped by hand**, on top of its calibration.
+
+Press **Align** on the output row exactly as you would for an uncalibrated one and drag the corners —
+or tick **Bézier warp** first for the 16‑point mesh. The handles now bend the *calibrated render*: the
+venue, drawn from the solved projector, moves with them.
+
+Three things worth knowing:
+
+- **Calibrate first, warp last.** The warp is a *residual* — it sits on top of whatever the solve
+  produces. Re‑solving does not clear it, so after a better calibration press the **↺** button on the
+  output row to clear the residual and see the raw solve before deciding whether it still needs one.
+  That button never touches the calibration itself.
+- **Once warped, the projection deliberately disagrees with the 3D model.** What is on the wall is no
+  longer exactly what the calibrated scene says it is, so the 3D view remains true to the model rather
+  than to the wall. This is the same trade every projection‑mapping tool makes; it is worth using the
+  smallest nudge that fixes what you can see.
+- **It costs something.** An output only pays while it actually carries a warp — leave one at its
+  default and it is exactly as cheap as before. If several 4K projectors feel heavy, the **FPS cap**
+  in the Outputs panel is the first thing to reach for.
+
+On an NVIDIA rig with **hardware warp** enabled the handles do nothing in the window, because the
+graphics card is applying warp and blend at the scanout instead — that is the correct behaviour, not
+a bug, and it is what stops the correction being applied twice.
+
+**NDI:** an output sending NDI while rendering from a calibrated projector used to publish black.
+It now carries the picture.
 
 ArtLux also imports/exports **MPCDI** for interchange with other warping tools, and can camera‑measure
 projector **gamma**. Full details, the optimization passes (ArUco one‑click recal, masking, exposure,

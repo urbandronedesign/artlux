@@ -13,7 +13,7 @@ import * as placement from '../../services/fixturePlacement';
 import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
-import { cameraPose, glProjectionMatrix } from '@artlux/plugin-calibration/renderer';
+import { cameraPose, glProjectionMatrix, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
 import { setSnapHover, getSnapHover } from './vertexSnap';
@@ -288,7 +288,12 @@ const Simulator3D: React.FC<Props> = ({
   // Model gizmos only understand the three transform modes. 'select' is a fixture-marquee tool, so
   // models fall back to translate rather than the mode type leaking into their props.
   const transformMode = mode === 'select' ? 'translate' : mode;
-  const models: SceneModel[] = scene3D.models ?? [];
+  // Resolve any LIVE projected-mapping source (a model's uvProjFrom → that projector's solved matrix)
+  // before rendering. The same call runs at App's scene push for the projector windows, so the editor
+  // and the wall are driven by one function rather than two implementations of the same matrix.
+  const models: SceneModel[] = useMemo(
+    () => resolveProjectedScene(scene3D, projectorCalibs).models ?? [],
+    [scene3D, projectorCalibs]);
 
   return (
     <div className="flex flex-col w-full h-full bg-surface-0">

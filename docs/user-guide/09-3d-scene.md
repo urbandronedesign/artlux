@@ -51,25 +51,51 @@ Select a plane or a mesh and pick a **Content** source in the Model card:
 
 - a **Surface** — the object then shows whatever that surface is playing (a video, an image, a
   camera, NDI, Spout, an effect, a timeline layer, the whole timeline). This is the one to use for
-  projection mapping: bind the venue mesh to the surface routed to your projector and the show lands
-  on the real object.
+  projection mapping. **Any** surface works, not only the one routed to this projector: the usual rig
+  is one content surface covering the venue with two or three calibrated projectors all painting it
+  from their own viewpoints. Binding to the projector's own surface is the cheapest option, because
+  that window is already being sent that picture.
 - a **Timeline layer** — a single track of the NLE, or **★ Timeline (Program)** (the **TL** shortcut
-  button) for the whole composite.
+  button) for the whole composite, z-ordered across every contributing layer.
+
+All of these reach a **calibrated projector output**, not just the editor's 3D view — and screens
+authored as planes are venue geometry like any imported mesh. For a show that is one video on
+geometry, binding the **layer** (or a surface playing it) is sharper than the Program, which composites
+into its own frame and resizes once on the way through.
 
 Planes display the frame directly; meshes get it textured through UV coordinates, and a **UVs**
 selector chooses which:
 
-- **Mesh UVs** — the UV map authored in the GLB file. If the file has none (common for CAD exports),
-  there is nothing to spread the picture across and the whole mesh shows a single flat color — that
-  is the tell.
-- **Projected from view** — bakes UVs by projecting the mesh from the current 3D viewpoint, like a
-  virtual projector: orbit the camera until the mesh is framed the way the content should land, then
-  press **From view**. From that viewpoint the layer reads as a fullscreen image. The texture stays
-  glued to the mesh if it is moved afterwards; press **From view** again to re-project. Surfaces the
-  viewpoint cannot see get stretched, exactly as with a real projector.
+- **Mesh UVs** — the UV map authored in the GLB file. Two things go wrong here and both are the
+  file's doing, not yours: if it has no UV map (common for CAD exports) there is nothing to spread
+  the picture across and the whole mesh shows a single flat color, and if the exporter flipped the V
+  axis the content arrives **upside down**. Projecting sidesteps both, because the mapping then comes
+  from a matrix rather than from the file.
+- **Projected from view** — projects the mesh from a **frozen** 3D viewpoint: orbit the camera until
+  the mesh is framed the way the content should land, then press **From view**. From that viewpoint
+  the content reads as a fullscreen image. The viewpoint does not follow the camera afterwards; press
+  **From view** again to re-capture.
+- **Projected from a projector** — the live option, and the one that matches how disguise, VIOSO and
+  Modulo Pi work. Pick one of your **calibrated projectors** and the content is thrown onto the
+  geometry from exactly where that projector really is. It **follows** the projector: re-solve the
+  calibration or move the mesh and the mapping updates itself, with nothing to re-bake. Only
+  projectors with a solved pose are listed.
 
-Switching back to **Mesh UVs** keeps the baked viewpoint, so comparing the two is a two-click A/B —
-nothing in the GLB file is modified either way.
+Both projected modes handle geometry the authored path cannot: faces behind the projector are left
+dark rather than smeared with a mirrored copy, and a mesh with no UV map at all works normally.
+
+Two extra controls appear while projecting:
+
+- **Edge** — fades the content out at the edge of the projector's frustum (0 = a hard boundary). With
+  two projectors covering one object this is what makes them cross-fade instead of meeting at a
+  visible cookie edge.
+- **Cull back faces** — drops faces turned away from the projector, so content does not wrap around
+  and appear mirrored on the far side. **This is not occlusion:** a nearer surface still does not
+  shadow a farther one, so on a concave venue content can reach geometry the projector genuinely
+  cannot see. It is best on closed, convex objects.
+
+Switching back to **Mesh UVs** keeps the captured viewpoint, so comparing the two is a two-click A/B —
+nothing in the GLB file is modified by any of this.
 
 ---
 

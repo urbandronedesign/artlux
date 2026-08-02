@@ -227,18 +227,101 @@ check(
       'src/renderer/components/Simulator3D/useLayerTexture.ts',
       'src/renderer/components/Simulator3D/useSurfaceTexture.ts',
       'plugins/calibration/src/ProjectorScene.tsx',
+      // The projector window's surface-texture path, extracted OUT of ProjectorScene when a mesh
+      // gained the ability to bind any surface. A list that is not extended when the code moves
+      // goes quietly vacuous: the check skips files with no `.image =`, so the entry above would
+      // still pass while the assignment it was written for lives somewhere unguarded.
+      'plugins/calibration/src/useStreamedSurfaceTexture.ts',
     ];
     const problems = [];
+    let guarded = 0;
     for (const f of files) {
       const src = read(f);
       // Only the paths that assign a raw source to `.image` are at risk (a VideoTexture is not).
       if (!/\.image\s*=/.test(src)) continue;
+      guarded++;
       if (!/matchBitmapOrientation\s*\(/.test(src)) problems.push(`${f} assigns texture.image without matchBitmapOrientation`);
     }
+    // The whole list going vacuous is the failure this cannot otherwise see — if every streamed-frame
+    // assignment has moved to a file nobody listed, the check passes while guarding nothing.
+    if (guarded === 0) problems.push('no listed file assigns texture.image any more — the streamed-frame path moved and this list was not updated');
     if (!read('src/renderer/components/Simulator3D/bitmapFlip.ts').includes('repeat.y')) {
       problems.push('bitmapFlip no longer compensates via the texture matrix');
     }
     return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Projected UV mapping: one definition, and it honours the ImageBitmap flip ─────────────────
+check(
+  'a projected UV honours the ImageBitmap flip, and its V convention has one definition',
+  'Projected mapping computes the texture coordinate in the FRAGMENT stage. three applies a ' +
+  'texture\'s repeat/offset in the VERTEX stage (into vMapUv), so a fragment-computed UV bypasses it ' +
+  'completely — including matchBitmapOrientation\'s compensation for ImageBitmap\'s ignored flipY. ' +
+  'Miss it and content is upside down ON THE REAL PROJECTOR while the geometry stays perfectly ' +
+  'aligned and the editor looks right: unfalsifiable from a screenshot, and it gets blamed on the ' +
+  'lens or the solve. The V flip itself is empirically anchored, not derived, so a second copy of it ' +
+  'anywhere would drift and put one window upside down relative to the other.',
+  () => {
+    const M = 'src/renderer/components/Simulator3D/projectedMapping.ts';
+    if (!exists(M)) return `${M} is gone — nothing owns the projected-UV maths`;
+    const m = read(M);
+    // The flip compensation must be read back off the texture, not re-derived.
+    for (const u of ['uMapRepeat', 'uMapOffset']) {
+      if (!m.includes(u)) return `${M}'s fragment chunk no longer applies ${u} — the ImageBitmap flip is bypassed`;
+    }
+    if (!/artluxUv\s*=\s*artluxUv\s*\*\s*uMapRepeat\s*\+\s*uMapOffset/.test(m))
+      return `${M} declares the map-transform uniforms but no longer applies them to the projected UV`;
+    // Behind-the-projector rejection: without it those fragments get a mirrored, smeared copy.
+    if (!/vProjPos\.w\s*<=\s*0\.0/.test(m))
+      return `${M} no longer rejects fragments behind the projector — they will mirror-smear`;
+    // Every installer of the chunk must mirror the texture transform when the texture changes.
+    for (const f of ['src/renderer/components/Simulator3D/ModelObject.tsx', 'plugins/calibration/src/ProjectorScene.tsx']) {
+      const src = read(f);
+      if (!/makeProjectedMaterial\s*\(/.test(src)) continue; // not an installer (yet)
+      if (!/syncMapTransform\s*\(/.test(src))
+        return `${f} installs the projected material without calling syncMapTransform — its content ` +
+          `will be upside down wherever the texture is a streamed ImageBitmap`;
+    }
+    // ONE definition of the NDC→UV V inversion. A second copy is how the two windows disagree.
+    const others = ['src/renderer/components/Simulator3D/ModelObject.tsx', 'src/renderer/components/Simulator3D/PlaneObject.tsx', 'plugins/calibration/src/ProjectorScene.tsx'];
+    for (const f of others) {
+      if (!exists(f)) continue;
+      if (/0\.5\s*-\s*[A-Za-z_.]*\.?y\s*\*\s*0\.5/.test(read(f)))
+        return `${f} computes a UV from NDC again — the V convention must exist only in ${M}`;
+    }
+    return null;
+  },
+);
+
+// ── The 3D scene's derived inputs are stable across a repaint ─────────────────────────────────
+check(
+  'projectorCalibs is memoized, and resolveProjectedScene is identity-stable',
+  'This renderer REPAINTS PER FRAME during playback, so a prop built inline in JSX is a new array of ' +
+  'new objects 60×/s. `projectorCalibs` was built that way, which was harmless while nothing derived ' +
+  'from it — and then projected mapping started deriving every model\'s matrix from it, so the scene ' +
+  'reallocated every SceneModel every frame and the 3D view fell to ~14 fps. The symptom was three ' +
+  'files from the cause and looked like the shader was expensive; it was not. Two independent ' +
+  'guards, because either alone would have prevented it: the prop is memoized, AND the resolver ' +
+  'returns models by identity when nothing changed, so correctness never depends on a caller.',
+  () => {
+    const A = 'src/renderer/App.tsx';
+    const a = read(A);
+    if (/projectorCalibs=\{projectorOutputs/.test(a))
+      return `${A} builds projectorCalibs inline in the Simulator3D props again — that is a new array ` +
+        `per repaint, and everything derived from it recomputes at frame rate`;
+    if (!/const projectorCalibs = useMemo\(/.test(a))
+      return `${A} no longer memoizes projectorCalibs`;
+    const R = 'plugins/calibration/src/projectedScene.ts';
+    if (!exists(R)) return `${R} is gone — nothing resolves live projected mapping`;
+    const r = read(R);
+    // The early-out and the per-model identity check are the two halves of "idempotent".
+    if (!/return scene;/.test(r))
+      return `${R} no longer returns the SAME scene when there is nothing to resolve`;
+    if (!/sameNums\(m\.uvProjView/.test(r))
+      return `${R} reallocates a SceneModel even when the resolved matrix is unchanged — a per-frame ` +
+        `caller will then churn the identity of every 3D object`;
+    return null;
   },
 );
 
@@ -2229,6 +2312,66 @@ check(
     if (!/gl_FragCoord\.x \/ resolution\.x/.test(s))
       return `${S} derives its blend uv from the effect's uv again — that is the DISTORTED lookup ` +
         `coordinate, not the panel pixel the blend map is indexed by`;
+    return null;
+  },
+);
+
+// ── A structured-light pattern is never warped ────────────────────────────────────────────────
+check(
+  'a calibration pattern reaches the projector unwarped, and the residual warp stays opt-in',
+  'A calibrated output can now carry a RESIDUAL WARP: the operator nudges the calibrated 3D render ' +
+  'with the ordinary corner-pin/Bezier handles to finish a mapping the solve got close but not exact, ' +
+  'and ProjectorApp feeds the panel\'s canvas through ProjectorGL to do it. That makes one thing ' +
+  'newly dangerous. If a structured-light PATTERN ever went through the same GL stage, the camera ' +
+  'would photograph a warped pattern, the decode would attribute the warp to the projector\'s optics, ' +
+  'and calibrateProjector would BAKE IT INTO THE INTRINSICS. The projector then calibrates ' +
+  '"successfully" and is wrong, with nothing thrown and nothing logged — and every later solve ' +
+  'inherits it. Patterns must keep writing their own raw 2D canvas at native raster. ' +
+  'The second half guards the cost: the calib branch must stay gated on a residual-warp predicate, ' +
+  'because running it unconditionally puts a full-resolution upload plus a mesh pass on EVERY ' +
+  'calibrated output at all times — the exact cost the early return was written to avoid.',
+  () => {
+    const C = 'plugins/calibration/src/CalibProjector.tsx';
+    const P = 'src/renderer/projector/ProjectorApp.tsx';
+    const W = 'src/renderer/projector/warp.ts';
+    const c = read(C);
+    // The pattern path: its own 2D context, raw pixels, no GL.
+    if (!/createImageData\(/.test(c) || !/fillPattern\(/.test(c))
+      return `${C} no longer draws structured-light patterns as raw ImageData — if they now go ` +
+        `through ProjectorGL, the solve will learn the residual warp and bake it into the intrinsics`;
+    if (/ProjectorGL/.test(c))
+      return `${C} references ProjectorGL — a calibration pattern must never reach the warp stage`;
+    // The pattern canvas must stay a plain 2D canvas the panel owns, NOT something offered to the
+    // host as a render source (setRenderSource is for the calibrated RENDER only).
+    if (/patternCanvasRef[\s\S]{0,400}?setRenderSource/.test(c))
+      return `${C} offers the pattern canvas to the host's warp stage — patterns must stay unwarped`;
+    const p = read(P);
+    if (!/hasResidualWarp\(/.test(p))
+      return `${P}'s calibrated-render branch no longer gates on hasResidualWarp — every calibrated ` +
+        `output now pays a full-resolution upload and a warp pass per frame for no visible change`;
+    // The residual warp is GEOMETRY ONLY. ProjectorScene's composer has already applied the soft
+    // edge, the solved blend, the colour gain and the black lift to those pixels, so handing this
+    // draw the full `opts` squares the blend alpha — a dark band at every overlap that reads as a
+    // mis-set blend gamma. Same hazard hwOwnsGeometry guards on the NVAPI side, one layer down.
+    const calibDraw = /gl\.draw\(src,\s*\{([^}]*)\}\)/.exec(p);
+    if (!calibDraw)
+      return `${P}'s calibrated-render branch no longer draws the panel canvas with an explicit ` +
+        `opts literal — spreading the shared opts re-applies the blend the panel already applied`;
+    if (/\.\.\.opts/.test(calibDraw[1]))
+      return `${P} spreads the shared opts into the calibrated warp draw — the soft edge and solved ` +
+        `blend are applied TWICE (alpha squared: a dark seam at every projector overlap)`;
+    if (!/softEdge:\s*NO_FEATHER/.test(calibDraw[1]))
+      return `${P}'s calibrated warp draw no longer forces an identity feather — the panel's soft ` +
+        `edge and this stage's would both apply`;
+    const w = read(W);
+    if (!/export function hasResidualWarp\(/.test(w))
+      return `${W} no longer exports hasResidualWarp — the gate above has nothing to ask`;
+    // It must answer for an identity BEZIER net too, not just a null one: converting a corner-pin to
+    // a net without dragging anything produces a non-null identity net, and treating that as "warped"
+    // silently moves the output onto the expensive path.
+    if (!/IDENTITY_NET/.test(w))
+      return `${W}'s hasResidualWarp no longer compares against the identity control net — a ` +
+        `converted-but-untouched Bezier warp will read as a residual`;
     return null;
   },
 );

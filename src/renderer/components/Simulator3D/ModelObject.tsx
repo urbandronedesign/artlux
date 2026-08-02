@@ -8,6 +8,7 @@ import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
 import { recenterClone, applyModelTransform } from './venuePlacement';
+import { makeProjectedMaterial, usesProjectedUv, type ProjectedMaterial } from './projectedMapping';
 import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
 
 const DEG = Math.PI / 180;
@@ -55,13 +56,23 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // UVs); restore the original GLB materials when cleared. Shares the binding path with planes.
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  // The projected-UV twin. A SECOND instance rather than a patch toggled on the one above — see
+  // makeProjectedMaterial for why (three's program cache would otherwise hand back the wrong shader).
+  const projMatRef = useRef<ProjectedMaterial | null>(null);
+  if (!projMatRef.current) projMatRef.current = makeProjectedMaterial();
   const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
 
+  const projected = usesProjectedUv(model);
   const applyTex = (tex: THREE.Texture | null) => {
-    const mat = layerMatRef.current!;
-    mat.map = tex;
-    mat.color.set(tex ? '#ffffff' : '#161616');
-    mat.needsUpdate = true;
+    for (const mat of [layerMatRef.current!, projMatRef.current!.material]) {
+      mat.map = tex;
+      mat.color.set(tex ? '#ffffff' : '#161616');
+      mat.needsUpdate = true;
+    }
+    // The projected path computes its UV in the FRAGMENT stage and so bypasses the texture matrix
+    // three would normally apply in the vertex stage — including matchBitmapOrientation's flip
+    // compensation. Mirror it into the uniforms here, right where the texture identity changes.
+    projMatRef.current!.syncMapTransform(tex);
   };
   // Two sources, one material. A layer binding wins when both are somehow set (see SceneModel), and
   // each hook is inert when its own id is absent — so exactly one of them ever writes the map.
@@ -70,21 +81,21 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
 
   useEffect(() => {
     const layered = !!model.layerId || !!model.surfaceId;
-    const layerMat = layerMatRef.current!;
+    const want = projected ? projMatRef.current!.material : layerMatRef.current!;
     cloned.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!(mesh as { isMesh?: boolean }).isMesh) return;
       if (layered) {
         if (!origMats.current.has(mesh.uuid)) origMats.current.set(mesh.uuid, mesh.material);
-        mesh.material = layerMat;
+        mesh.material = want;
       } else {
         const orig = origMats.current.get(mesh.uuid);
         if (orig) { mesh.material = orig; origMats.current.delete(mesh.uuid); }
       }
     });
-  }, [cloned, model.layerId, model.surfaceId]);
+  }, [cloned, model.layerId, model.surfaceId, projected]);
 
-  useEffect(() => () => { layerMatRef.current?.dispose(); }, []);
+  useEffect(() => () => { layerMatRef.current?.dispose(); projMatRef.current?.dispose(); }, []);
 
   // Mount the cloned mesh into the stable group.
   useEffect(() => {
@@ -92,69 +103,24 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     return () => { group.remove(cloned); };
   }, [group, cloned]);
 
-  // Projected UVs: bake per-vertex UVs by pushing each vertex through the viewer camera captured in
-  // model.uvProjView (NDC → 0..1), so the layer frame reads as a fullscreen image from that viewpoint
-  // — a virtual-projector test without touching the GLB on disk. recenterClone SHARES geometry with
-  // useGLTF's cache (that sharing is what makes many placements cheap), so the baked `uv` attribute
-  // must never be written onto the shared geometry: the mesh gets a private geometry clone while
-  // projected, and 'authored' puts the shared original back — which is also the whole revert story.
+  // Projected UVs, in the SHADER — see projectedMapping.ts for the maths and for why the V flip and
+  // the ImageBitmap compensation both live there. Drives the same chunks the projector window
+  // interpolates, so the editor and the wall cannot disagree.
   //
-  // Deliberately NOT keyed on the model transform: the bake uses the transform current at bake time
-  // and then the texture stays glued to the mesh when it is later moved (re-pressing From view
-  // re-projects). Vertices behind the bake camera get mirror-smeared UVs, same as a real projector.
-  const origGeoms = useRef<Map<string, THREE.BufferGeometry>>(new Map());
+  // This replaced a per-vertex bake that wrote a `uv` attribute onto a private geometry clone (the
+  // clone existed only so the loader's SHARED geometry was never poisoned). The shader needs no clone,
+  // no revert bookkeeping, handles vertices behind the projector — which the bake mirror-smeared —
+  // and RE-PROJECTS LIVE, so moving the mesh or re-solving the projector updates the mapping instead
+  // of leaving it glued to wherever things were at bake time.
   useEffect(() => {
-    const restore = () => {
-      cloned.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (!(mesh as { isMesh?: boolean }).isMesh) return;
-        const orig = origGeoms.current.get(mesh.uuid);
-        if (orig) { mesh.geometry.dispose(); mesh.geometry = orig; origGeoms.current.delete(mesh.uuid); }
-      });
-    };
-    if (!(model.uvMode === 'projected' && model.uvProjView?.length === 16)) { restore(); return; }
-    // The group's transform effect may not have run yet on a fresh load — apply it here so the
-    // world matrices the bake reads are the persisted placement, not identity.
-    applyModelTransform(group, model);
-    group.updateWorldMatrix(true, true);
-    const vp = new THREE.Matrix4().fromArray(model.uvProjView!);
-    const v = new THREE.Vector3();
-    cloned.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!(mesh as { isMesh?: boolean }).isMesh) return;
-      if (!origGeoms.current.has(mesh.uuid)) {
-        origGeoms.current.set(mesh.uuid, mesh.geometry);
-        mesh.geometry = mesh.geometry.clone();
-      }
-      const geo = mesh.geometry;
-      const pos = geo.getAttribute('position');
-      const uv = new Float32Array(pos.count * 2);
-      for (let i = 0; i < pos.count; i++) {
-        // applyMatrix4 does the perspective divide — v lands in NDC.
-        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(vp);
-        uv[i * 2] = v.x * 0.5 + 0.5;
-        // V IS INVERTED FROM NDC, and the anchor for that is empirical, not a derivation: the same
-        // texture on the same mesh reads upright through the model's AUTHORED UVs and upside down
-        // through this bake, in BOTH windows. Whatever the glTF exporter's V convention was, the one
-        // the rest of the app already samples with is the one the bake has to match — a projected
-        // frame that disagrees with an authored one is wrong by definition, since the whole promise
-        // of this mode is "it looks like a fullscreen image from that viewpoint".
-        uv[i * 2 + 1] = 0.5 - v.y * 0.5;
-      }
-      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloned, group, model.uvMode, model.uvProjView]);
-
-  // When the clone itself goes away (file change / unmount), dispose any private baked geometries —
-  // the shared originals in the map belong to the loader cache and must NOT be disposed.
-  useEffect(() => () => {
-    cloned.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if ((mesh as { isMesh?: boolean }).isMesh && origGeoms.current.has(mesh.uuid)) mesh.geometry.dispose();
-    });
-    origGeoms.current.clear();
-  }, [cloned]);
+    if (!usesProjectedUv(model)) return;
+    const pm = projMatRef.current!;
+    pm.setProjector(new THREE.Matrix4().fromArray(model.uvProjView!),
+      new THREE.Vector3(...(model.uvProjEye ?? [0, 0, 0])));
+    pm.setLook(model.uvProjSoft ?? 0, !!model.uvProjCull);
+    // Keyed on the projection FIELDS, not the model object — moving the mesh must not rebuild
+    // uniforms, and this must not depend on the caller keeping model identity stable.
+  }, [projected, model.uvProjView, model.uvProjEye, model.uvProjSoft, model.uvProjCull]);
 
   // Register the world-space group for the markerless calibration's batch raycaster (only while
   // visible). Lets the controller cast camera rays onto this venue geometry to sample 3D points.

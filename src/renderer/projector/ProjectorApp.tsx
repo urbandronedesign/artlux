@@ -5,7 +5,7 @@ import { syncSurfaces, getDrawable, resolveSource } from '../services/surfaceMed
 import { timeline as engine } from '../services/timeline';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
-import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
+import { makeBezierWarp, tessellateBezier, evalBezier, hasResidualWarp, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
 import { activateRendererPlugins } from '../host/plugins';
 import { keymap } from '../shortcuts/keymapStore';
@@ -39,6 +39,8 @@ const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
 const RENDER_TESS = 24; // patch → render mesh subdivisions per axis
+// Identity feather, hoisted so the calibrated-warp path does not allocate one per frame per window.
+const NO_FEATHER = defaultSoftEdge();
 const NDI_MAX_W = 1280, NDI_MAX_H = 720; // cap NDI capture for light readback + IPC
 const NDI_BCAST_W = 1920, NDI_BCAST_H = 1080; // broadcast mode: send NDI at up to 1080p
 
@@ -89,6 +91,12 @@ export const ProjectorApp: React.FC = () => {
   const lastNdiRef = useRef(0);
   const draggingRef = useRef<number | null>(null);
   const commitTimer = useRef<number | null>(null);
+  // A full-window projector panel (calibration's render-from-projector) can offer ITS canvas as this
+  // window's picture — see the panel context's setRenderSource and the calib branch of the frame loop.
+  // `consumingPanelRef` tracks whether we are currently warping it, so the visibility write below
+  // happens on the transition rather than once per frame.
+  const panelSourceRef = useRef<HTMLCanvasElement | null>(null);
+  const consumingPanelRef = useRef(false);
 
   // Calibration's projector-window rendering (structured-light pattern / pose crosshair / render-from-
   // projector) is a plugin projector-panel contribution now — see the panel-context + mount below.
@@ -125,6 +133,16 @@ export const ProjectorApp: React.FC = () => {
   const panelCtx = useMemo<ProjectorPanelContext>(() => ({
     onMessage: (cb) => { panelMsgSubs.current.add(cb); return () => { panelMsgSubs.current.delete(cb); }; },
     send: (m) => portRef.current?.postMessage(m as ProjectorToMain),
+    setRenderSource: (c) => {
+      const prev = panelSourceRef.current;
+      if (prev === c) return;
+      // Hand the outgoing canvas its visibility back. Without this, a panel that unmounts while we
+      // were warping it leaves an invisible element behind, and its NEXT mount reuses the node —
+      // the projector then shows black with nothing in the logs to say why.
+      if (prev) prev.style.visibility = '';
+      panelSourceRef.current = c;
+      consumingPanelRef.current = false; // re-decided on the next frame against the new canvas
+    },
   }), []);
   const commit = () => { if (warpRef.current) send({ t: 'warp', warp: warpRef.current }); else send({ t: 'cornerPin', cornerPin: pinRef.current }); };
   const commitDebounced = () => {
@@ -231,11 +249,15 @@ export const ProjectorApp: React.FC = () => {
           frameGenRef.current++;
         } else if (m.t === 'layerFrame') {
           engine.setLayerBitmap(m.layerId, m.bitmap); // TRACKING background / render-mode mesh layer
+        } else if (m.t === 'layerFrameIdle') {
+          engine.clearLayerBitmap(m.layerId); // main stopped sending — don't hold the last frame
         } else if (m.t === 'scene') {
           // Venue-mesh layer bindings, for the render-mode local decode set (the panel plugins get
           // the same message via the fan-out below — this is the window's own bookkeeping).
           sceneLayersRef.current = (m.scene3D.models ?? [])
-            .filter((x) => x.kind !== 'plane' && x.visible && x.layerId)
+            // Planes included: a screen bound to a locally-decodable codec clip (HAP/MP4) should
+            // decode in this window at display rate like any mesh, not ride the ~30 fps stream.
+            .filter((x) => x.visible && x.layerId)
             .map((x) => x.layerId!);
           applyLocalLayers();
         } else if (m.t === 'calib') {
@@ -279,6 +301,19 @@ export const ProjectorApp: React.FC = () => {
     let gl: ProjectorGL;
     try { gl = new ProjectorGL(canvas); } catch (err) { console.error(err); return; }
     glRef.current = gl;
+    // Publish this output as NDI (~30 fps, capped resolution) when enabled. Extracted from the tail of
+    // the loop because the calibrated-warp branch returns early and must still send — a calibrated
+    // output's NDI feed was black for exactly that reason.
+    const captureNdi = (now: number) => {
+      if (!ndiSendRef.current || now - lastNdiRef.current < 33) return;
+      lastNdiRef.current = now;
+      const id = surfaceRef.current?.id;
+      if (!id) return;
+      const mw = ndiFullResRef.current ? NDI_BCAST_W : NDI_MAX_W;
+      const mh = ndiFullResRef.current ? NDI_BCAST_H : NDI_MAX_H;
+      const shot = gl.captureRGBA(mw, mh);
+      if (shot) window.artlux?.pluginSend?.('ndi:send-frame', id, shot.width, shot.height, shot.data.buffer as ArrayBuffer);
+    };
     let raf = 0; let lastDraw = -1e9;
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
@@ -302,15 +337,61 @@ export const ProjectorApp: React.FC = () => {
       // ⚠ The sign is DOM, so an NDI send of this output carries the BLACK, not the words. That is the
       // right way round — an NDI consumer is another machine's input, not a person to be told things.
       if (bootingRef.current) { gl.draw(null, opts); return; }
-      // ── NOTHING UNDER AN OPAQUE OVERLAY ─────────────────────────────────────────────────────────
+      // ── NOTHING UNDER AN OPAQUE OVERLAY — UNLESS THERE IS A RESIDUAL WARP ───────────────────────
       // Render-from-projector mounts the calibrated 3D scene as an OPAQUE full-window layer above
       // this canvas, so every pixel drawn here is thrown away — while still costing a full-resolution
       // upload of the streamed frame plus the warp/blend pass, per frame, on the machine that can
       // least afford it. Skipped rather than paused: the loop keeps running, so the moment the mode
-      // ends (or the overlay fails and unmounts) the very next frame paints normally. The liveness
-      // and cold-start gates above deliberately stay AHEAD of this — a dead producer must still black
-      // this canvas out, because the overlay above it would otherwise hold its last look forever.
-      if (calibRenderRef.current) return;
+      // ends (or the overlay fails and unmounts) the very next frame paints normally.
+      //
+      // EXCEPT: neither manual nor auto calibration lands perfect in a real venue, so an operator has
+      // to be able to nudge the result to finalise the mapping — and the warp stage lives HERE, not in
+      // the panel. When a residual warp exists, the panel's canvas stops being an overlay and becomes
+      // this stage's SOURCE, so the ordinary corner-pin / Bézier handles (and gamma, brightness, colour
+      // gain) apply to the calibrated render exactly as they do to a flat output. One warp
+      // representation, one handle editor, both paths.
+      //
+      // The identity case keeps the original early-return: no upload, no pass, nothing read — so an
+      // output nobody has nudged is pixel-identical and cost-identical to before this existed. That is
+      // the whole safety property; see hasResidualWarp for why it is not just `warp == null`.
+      if (calibRenderRef.current) {
+        const src = panelSourceRef.current;
+        const consume = !!src && hasResidualWarp(pinRef.current, warpRef.current);
+        if (consume !== consumingPanelRef.current) {
+          consumingPanelRef.current = consume;
+          // Transition only, and `visibility` rather than `display`: a display:none canvas has no
+          // layout box, so its drawing buffer collapses and we would sample a blank texture the frame
+          // after we started warping. Hidden keeps it laid out and still rendering — it is the source
+          // now, not the picture.
+          if (src) src.style.visibility = consume ? 'hidden' : '';
+        }
+        if (!consume || !src) return;
+        // ⚠ GEOMETRY ONLY — every photometric stage stays identity here, and NOT passing `opts`
+        // wholesale is the point.
+        //
+        // The panel's composer has ALREADY applied the soft edge, the solved rig blend, the colour
+        // gain and the black lift to these pixels (see ProjectorScene's BlendEffect / BlendLook).
+        // Re-applying them here would square the blend alpha — a dark band at every projector overlap
+        // that reads exactly like a mis-set blend gamma, which is the hardest thing to diagnose on a
+        // wall at 2am. This is the same double-apply hazard `hwOwnsGeometry` guards on the NVAPI side.
+        //
+        // Gamma and brightness are identity for a different reason: they do not apply on this path
+        // TODAY (the whole stage was skipped), so honouring them only for warped outputs would make
+        // the master brightness work on some calibrated projectors and not others. Whether they
+        // should apply to a calibrated render at all is a separate question from bending it.
+        //
+        // aa:1 — the panel's canvas is already antialiased (its 3D geometry edges are the ones that
+        // matter); this stage's MSAA would only smooth the warp mesh's outer boundary, which the soft
+        // edge and blend already feather. At 1080p that is 2.1 M samples instead of 8.3 M per frame.
+        //
+        // No `srcGen`: a live canvas mutates in place, so it must re-upload every frame — the same
+        // rule as a locally-decoded drawable below.
+        gl.draw(src, { cornerPin: pinRef.current, warp: mesh, softEdge: NO_FEATHER, aa: 1 });
+        // An NDI send of a calibrated output used to be BLACK, because the capture below sat after the
+        // early return. Warping restores it.
+        captureNdi(now);
+        return;
+      }
       // ── PRODUCER LIVENESS — do not let a dead show LOOK healthy ─────────────────────────────────
       // This window has its own root and its own rAF, so it survives the main window's tree dying. It
       // used to survive it by lying: `frameRef` holds the last ImageBitmap and is only replaced by a
@@ -363,17 +444,7 @@ export const ProjectorApp: React.FC = () => {
         }
         gl.draw(src as TexImageSource | null, opts, srcGen);
       }
-      // Publish this output as NDI (~30 fps, capped resolution) when enabled.
-      if (ndiSendRef.current && now - lastNdiRef.current >= 33) {
-        lastNdiRef.current = now;
-        const id = surfaceRef.current?.id;
-        if (id) {
-          const mw = ndiFullResRef.current ? NDI_BCAST_W : NDI_MAX_W;
-          const mh = ndiFullResRef.current ? NDI_BCAST_H : NDI_MAX_H;
-          const shot = gl.captureRGBA(mw, mh);
-          if (shot) window.artlux?.pluginSend?.('ndi:send-frame', id, shot.width, shot.height, shot.data.buffer as ArrayBuffer);
-        }
-      }
+      captureNdi(now);
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); gl.dispose(); glRef.current = null; frameRef.current?.close(); frameRef.current = null; };

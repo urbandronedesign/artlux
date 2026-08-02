@@ -142,6 +142,12 @@ export const OutputsPanel: React.FC<Props> = ({
               const enabled = !!o?.enabled;
               const displayId = o?.displayId ?? null;
               const live = enabled && displayId != null && (displayId === WINDOWED_DISPLAY || displays.some((d) => d.id === displayId));
+              // Render-from-projector: the picture is the calibrated 3D render, not the surface. Align
+              // and Reset still drive the SAME warp — it is applied on top of that render, as the
+              // residual an imperfect solve leaves behind — but "fullscreen" is the wrong word for what
+              // Reset returns to, and an operator reading it as "this will undo my calibration" will
+              // not touch the one control that finishes the job.
+              const calibrated = !!o?.useCalibration && o?.calibration?.poseRms != null;
               // MOVING A CALIBRATED OUTPUT TO A DIFFERENT-SHAPED DISPLAY SILENTLY MISRENDERS IT.
               // The recovered intrinsics are pixels of the raster they were solved in, and the GL
               // projection built from them is a ratio (2fx/W, 2fy/H) — so a pure RESOLUTION change
@@ -193,7 +199,7 @@ export const OutputsPanel: React.FC<Props> = ({
                       <button
                         onClick={() => onToggleEdit(s.id)}
                         disabled={!live}
-                        title="Align corners/mesh on the projector"
+                        title={calibrated ? 'Nudge the calibrated render — drag corners/mesh on the projector' : 'Align corners/mesh on the projector'}
                         {...help('outputs.align')}
                         className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-40 ${
                           editingOutputIds.includes(s.id) ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
@@ -205,7 +211,7 @@ export const OutputsPanel: React.FC<Props> = ({
                     <button
                       onClick={() => onResetCorners(s.id)}
                       disabled={!live}
-                      title="Reset warp to fullscreen"
+                      title={calibrated ? 'Clear the residual warp — back to the raw calibrated render (does not touch the calibration)' : 'Reset warp to fullscreen'}
                       className="p-1 rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-40"
                     >
                       <Undo2 size={12} />

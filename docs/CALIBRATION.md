@@ -166,10 +166,18 @@ solved projector in the normal show (`useCalibration` — the *Render from proje
 Outputs). **What plays on the mesh is scene work and lives in the 3D Scene context**, deliberately
 not in this wizard: a model can be bound to a **surface** (`SceneModel.surfaceId`) so that surface's
 live picture — any source type, including a timeline layer or the program composite — textures it
-through its UVs, or to a single timeline layer (`layerId`). In the projector window a surface
-binding costs nothing extra, because the window is already sent that surface's frames for its base
-canvas (`surfaceFrameChannel`); a mesh bound to a *different* surface stays dark by design rather
-than making every output stream a second source.
+through its UVs, or to a single timeline layer (`layerId`). **Any surface works, not only the output's
+own** — a render-active window is streamed exactly the surfaces its *visible geometry references*
+(`surfaceFrame` / `surfaceFrameIdle`, landed in the keyed `surfaceFrameChannel`).
+
+The extra streams are paid for by the other half of that change: a render-active output is **no longer
+sent its own surface unconditionally**, because its base canvas is not what it displays — the 3D scene
+is. Those frames were decoded, transferred and discarded, which on three 1080p projectors is ~750 MB/s
+of pure waste. The own surface is now simply one more entry in the referenced set, and it remains free
+when referenced (the base canvas is already being sent it, held non-owning). A bitmap is consumed by
+one `postMessage` and cannot be shared across windows, so the genuine cost is
+(referenced surfaces × render-active windows) per tick; it is bounded by `EXTRA_PER_TICK` with a
+rotating cursor, which is starvation-free rather than first-N-wins. Tune it against a real rig.
 
 The 3D viewport can also **look through a calibrated projector** (`Scene3D.viewFrom`, a surfaceId):
 its camera is driven from the solved pose + intrinsics exactly as the projector window's is, with
@@ -268,6 +276,40 @@ Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`**
   `fx≠fy` and the principal point — validated to 1e-13 px vs OpenCV).
 - **Render-from-projector** — `plugins/calibration/src/ProjectorScene.tsx` renders the venue models from
   that camera, with a lens-distortion post-pass (`@react-three/postprocessing`).
+- **Residual warp** — the operator can still bend a calibrated output by hand, because no solve is
+  exact on a real wall. `ProjectorScene` offers its canvas to the host through the panel context
+  (`setRenderSource`), and `ProjectorApp`'s loop feeds it to the ordinary `ProjectorGL` stage — so the
+  corner-pin homography, the Bézier mesh and the handle editor are the *same* ones the flat 2D path
+  uses. There is one warp representation and one editor.
+
+  **It is GEOMETRY ONLY**, and that is load-bearing: `ProjectorScene`'s composer has already applied
+  the soft edge, the solved blend, the colour gain and the black lift to those pixels, so the draw
+  passes an explicit opts literal with an identity feather rather than spreading the shared `opts`.
+  Spreading it squares the blend alpha — a dark band at every overlap that reads exactly like a
+  mis-set blend gamma. (Gamma and brightness are identity for a different reason: they do not apply
+  on this path today, and honouring them only for *warped* outputs would make the master brightness
+  work on some calibrated projectors and not others.) Guarded by `verify:invariants`.
+
+  **Full chain: scene → distortion → solved blend → residual warp.** The warp is applied *after* the
+  blend, which is the opposite of what the 2D path's hand-placed `softEdge` would suggest, and the
+  reason is that `ProjectorOutput.blend` is **derived from the solve**: it is a world-space partition
+  of unity pushed through the recovered pose. If the pose is off by δ — the entire reason a residual
+  exists — the blend ramp is off by the same δ in the same direction as the content, so correcting
+  both with one warp keeps them consistent and lands the crossfade where the content actually falls.
+  (`softEdge`, by contrast, is raster-intrinsic and must never move.) If a rig ever shows seams
+  drifting as the residual grows, the fallback is a warp pass *inside* the composer, between
+  distortion and blend — do not build both.
+
+  **The identity case is free.** `hasResidualWarp()` (`src/renderer/projector/warp.ts`) gates the whole
+  branch, so an output nobody has nudged keeps the original early-return: no canvas upload, no mesh
+  pass, pixel- and cost-identical to before the feature existed. It deliberately answers *false* for a
+  Bézier net converted from a corner-pin but never dragged, which is a non-null identity net.
+  Two consequences that are guarded by `verify:invariants`: structured-light **patterns must never
+  reach this stage** (a warped pattern is photographed, decoded, and baked into the intrinsics — the
+  projector then calibrates "successfully" and is wrong), and NVAPI rigs are already safe because
+  `hwOwnsGeometry` zeroes the warp at push time, so the predicate reads identity there.
+  Side effect worth knowing: **NDI send from a calibrated output used to publish black** (the capture
+  sat after the early return) and now carries the picture.
 
 ### Key files
 
@@ -302,9 +344,13 @@ Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`**
 ## Caveats / follow-ups
 
 - **Distortion convention** may need a sign flip validated on a real lens (identity for zero distortion).
-- **Content on mesh** plays in the projector output: a timeline layer bound to a mesh (Scene panel;
-  it textures the mesh via its UVs) is decoded once in the main window and streamed to render-mode
-  projectors at ~30 fps, while locally-decodable codec clips (HAP/MP4) decode in the window itself at
-  display rate. Exception: a mesh bound to the **program composite** stays dark on the projector — a
-  mirror window cannot resolve the composite locally.
+- **Content on mesh** plays in the projector output: a timeline layer bound to a mesh or a **screen
+  plane** (Scene panel) is decoded once in the main window and streamed to render-mode projectors at
+  ~30 fps, while locally-decodable codec clips (HAP/MP4) decode in the window itself at display rate.
+  **★ Timeline (Program)** works too — the composite rides the same channel under its sentinel id,
+  with an explicit `layerFrameIdle` on the stream-stopping transition, because a mirror expires held
+  frames by re-deriving `activeClip()` and the sentinel has no clips of its own. That idle also fixes
+  the ordinary case: a mesh unbound mid-show used to hold its last frame forever.
+  The composite is **sized to its largest contributing source** (1280 floor, 3840 ceiling, 16:9) —
+  it was pinned at 1280×720, which arrived upscaled and soft on 1080p projectors.
 - The wizard's "Polished" tier excludes **auto-capture** and **resume/persist** (the "Maximum" tier).

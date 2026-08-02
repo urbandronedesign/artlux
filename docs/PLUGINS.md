@@ -135,8 +135,12 @@ it's in). It has two independent halves — use either or both:
 
 A third seam — the **`ProjectorPanelContribution`** (`ctx.projectorPanels`) — is for content that isn't a
 source-texture-to-warp: a plugin contributes a full-window **React** overlay the projector window mounts
-over its base canvas, with a bidirectional `ProjectorPanelContext` = `{ onMessage, send }` (the projector's
-MessagePort bridge) + a reactive `size`. `ProjectorApp` mounts every registered panel and fans the
+over its base canvas, with a bidirectional `ProjectorPanelContext` = `{ onMessage, send, setRenderSource }`
+(the projector's MessagePort bridge) + a reactive `size`. `setRenderSource(canvas)` lets a panel that draws
+the **whole** output offer its canvas as the window's picture, so the host can put it through the base
+warp stage instead of leaving it on top as an opaque overlay — that is how a calibrated output stays
+nudgeable with the ordinary warp handles. The host reads it only while a residual warp exists, so the
+un-warped case still costs nothing; pass `null` to withdraw. `ProjectorApp` mounts every registered panel and fans the
 main→projector message stream to them; the panel owns its own React tree, input, and back-channel acks.
 Calibration uses it (`CalibProjector.tsx`) for the structured-light pattern (raw pixel-exact 2D canvas,
 **bypassing** the GL warp), the pose crosshair (pointer/key capture → `calibCrosshair`/`calibConfirm`), and

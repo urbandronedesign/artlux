@@ -64,7 +64,13 @@ const layerBitmaps = new Map<string, ImageBitmap>();
 // Sentinel layerId: a 3D plane/mesh (SceneModel.layerId) set to this shows the whole timeline
 // program instead of a single layer — see useLayerTexture.
 export const PROGRAM_LAYER_ID = '__program__';
-const PROGRAM_W = 1280, PROGRAM_H = 720;
+// The composite is sized to its biggest contributing source (see buildProgram), between these bounds.
+// The floor is the historic fixed size, so a show that never had a source bigger than 720p renders
+// byte-identically to before. The ceiling is a cost bound, not a quality one: every drawImage in the
+// composite scales with the area, once per frame, in the main window — the same window running the
+// frame engine.
+const PROGRAM_MIN_W = 1280, PROGRAM_MAX_W = 3840;
+let programW = PROGRAM_MIN_W, programH = 720;
 let programCanvas: HTMLCanvasElement | null = null;
 let programCtx: CanvasRenderingContext2D | null = null;
 const programConsumers = new Set<string>(); // surfaces + 3D planes that want the program built
@@ -959,16 +965,54 @@ function drawableAspect(d: CanvasImageSource | null): number | null {
 
 // Composite all contributing layers into the program canvas (bottom of the track list = back, top =
 // front). enabled/muted/solo gate contribution; per-layer opacity + blendMode drive the mix.
+// Intrinsic pixel width of whatever a drawable currently holds, or 0 when it cannot say. Same ordered
+// probe as drawableAspect, and for the same reason: on an HTMLVideoElement `width` is the DISPLAY
+// attribute, so videoWidth has to win.
+function drawableWidth(d: CanvasImageSource | null): number {
+  if (!d) return 0;
+  const a = d as unknown as { videoWidth?: number; naturalWidth?: number; width?: number };
+  return a.videoWidth || a.naturalWidth || a.width || 0;
+}
+
+// How often buildProgram re-probes its sources for a size (in builds, so ~1/s at 30 fps).
+//
+// Probing every frame would mean walking every layer's drawable twice per build, and — far worse —
+// a source that momentarily reports 0 (a <video> between clips, a codec canvas mid-swap) would drop
+// the computed size to the floor and then back, RESIZING THE CANVAS on alternate frames. Assigning
+// canvas.width reallocates the backing store and clears it, so that thrash is far more expensive
+// than the upscale it was meant to avoid. Throttled AND monotonic within a document: it only ever
+// grows here, and setData resets it when the timeline itself changes.
+const PROGRAM_PROBE_EVERY = 30;
+let programProbeTick = 0;
+
 function buildProgram(): void {
   if (!programCanvas) {
     programCanvas = document.createElement('canvas');
-    programCanvas.width = PROGRAM_W; programCanvas.height = PROGRAM_H;
+    programCanvas.width = programW; programCanvas.height = programH;
     programCtx = programCanvas.getContext('2d');
   }
   const ctx = programCtx;
   if (!ctx) return;
+  // SIZE THE COMPOSITE TO ITS BIGGEST SOURCE, not to a constant. This was pinned at 1280×720, which
+  // was fine while the program fed a preview and the LED sampler — and quietly wrong the moment it
+  // became the content for a venue mesh on 1080p projectors, where it arrived upscaled 1.5× and soft
+  // with nothing to say why. Still 16:9 (layers are stretched to fill, so the frame's aspect is a
+  // choice, not a property of the sources) and still floored at 720p so nothing regresses.
+  // Re-allocated only when the maximum actually moves — never per frame.
+  if (programProbeTick++ % PROGRAM_PROBE_EVERY === 0) {
+    let maxW = 0;
+    for (const l of data.layers) {
+      if (clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram || l.enabled === false || l.muted) continue;
+      maxW = Math.max(maxW, drawableWidth(layerDrawable(l.id)));
+    }
+    const wantW = Math.max(programW, Math.min(PROGRAM_MAX_W, maxW)); // grow only — see PROGRAM_PROBE_EVERY
+    if (wantW !== programW) {
+      programW = wantW; programH = Math.round(wantW * 9 / 16);
+      programCanvas.width = programW; programCanvas.height = programH;
+    }
+  }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  ctx.clearRect(0, 0, PROGRAM_W, PROGRAM_H);
+  ctx.clearRect(0, 0, programW, programH);
   const anySolo = data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
   for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
     const l = data.layers[i];
@@ -978,7 +1022,7 @@ function buildProgram(): void {
     if (!d) continue;
     ctx.globalAlpha = Math.max(0, Math.min(1, l.opacity ?? 1));
     ctx.globalCompositeOperation = blendOp(l.blendMode);
-    try { ctx.drawImage(d, 0, 0, PROGRAM_W, PROGRAM_H); } catch { /* drawable not ready this frame */ }
+    try { ctx.drawImage(d, 0, 0, programW, programH); } catch { /* drawable not ready this frame */ }
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   programReady = true;
@@ -991,6 +1035,14 @@ export const timeline = {
   // layers. Tracking-take clips (.lblob) aren't video — trackingPlayback handles them.
   setData(t: Timeline): void {
     data = t;
+    // The program size only ever GROWS while a document is playing (a momentarily-unmeasurable source
+    // must not shrink it and thrash the canvas). A new document is where it is allowed to come back
+    // down, so a show whose sources are all 720p does not keep a 4K composite from the last one.
+    programProbeTick = 0;
+    if (programW !== PROGRAM_MIN_W) {
+      programW = PROGRAM_MIN_W; programH = 720;
+      if (programCanvas) { programCanvas.width = programW; programCanvas.height = programH; }
+    }
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
     // A DOCUMENT EDIT MUST NEVER SYNTHESISE A TRANSPORT EVENT — the whole argument lives on
     // clampPlayheadIntoDoc above. setData is its ONLY caller: swap()'s click case is 'reconverge', which
@@ -1361,6 +1413,14 @@ export const timeline = {
     if (prev && prev !== bmp) prev.close();
     layerBitmaps.set(layerId, bmp);
   },
+  // Main has stopped streaming this layer (the binding went away, the model was hidden, the output
+  // left render mode). Needed because the mirror's own expiry re-derives activeClip(), and
+  // PROGRAM_LAYER_ID has no clips of its own — a streamed composite would otherwise be un-expirable
+  // and hold its last frame on the mesh for the rest of the show.
+  clearLayerBitmap(layerId: string): void {
+    const b = layerBitmaps.get(layerId);
+    if (b) { b.close(); layerBitmaps.delete(layerId); }
+  },
   // The live drawable for a layer: a streamed ImageBitmap in mirror windows, else the HAP
   // canvas (HAP clips) or the decoding <video>. Null when nothing is under the playhead / ready.
   getLayerDrawable(layerId?: string): CanvasImageSource | null {
@@ -1392,9 +1452,15 @@ export const timeline = {
   // routed to SourceType.PROGRAM, or a 3D plane bound to PROGRAM_LAYER_ID). Build only when wanted.
   retainProgram(key: string): void { programConsumers.add(key); programActive = true; },
   releaseProgram(key: string): void { programConsumers.delete(key); if (programConsumers.size === 0) { programActive = false; programReady = false; } },
-  // The composited program drawable (main window only; mirror windows stream it as a surface frame).
-  getProgramDrawable(): CanvasImageSource | null { return !external && programReady && programCanvas ? programCanvas : null; },
-  programSize(): { w: number; h: number } { return { w: PROGRAM_W, h: PROGRAM_H }; },
+  // The composited program drawable. A MIRROR cannot build it — buildProgram reads `layerVideos`,
+  // which a projector window does not have, and would composite black — so main decodes the composite
+  // once and streams it under the PROGRAM_LAYER_ID sentinel. Resolving it here rather than in
+  // useLayerTexture keeps that hook identical in both windows.
+  getProgramDrawable(): CanvasImageSource | null {
+    if (external) return layerBitmaps.get(PROGRAM_LAYER_ID) ?? null;
+    return programReady && programCanvas ? programCanvas : null;
+  },
+  programSize(): { w: number; h: number } { return { w: programW, h: programH }; },
   // Natural aspect (w/h) of what this layer is currently showing, or null when nothing is under the
   // playhead / it isn't measurable yet. Exists so a SURFACE fed by a timeline track can auto-fit its
   // rect the same way a direct VIDEO surface does — contentSource can't answer for LAYER (the

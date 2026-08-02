@@ -331,6 +331,33 @@ a second renderer); the rAF count is well above 8 × 60 because several loops sh
 capture is missing the rAF slices entirely, `devtools.timeline` was rejected — check the spelling
 before reading anything into the result.
 
+### 2b. "Everything is slow and the profiler blames `(program)`" → you are GPU-bound
+
+A V8 CPU profile that attributes 70–80% of the renderer to **`(program)`** with almost no idle is not
+telling you the JS is slow. `(program)` is V8's bucket for time the thread spent outside JavaScript,
+and the usual cause here is that it was **parked in a blocking IPC wait for the GPU process**. The
+Chromium trace names it where the CPU profile cannot:
+
+| Where | What you see when the GPU is the wall |
+|---|---|
+| `CrRendererMain` | **`Receive mojo reply`** dominating (measured: 58% of a 10 s window) |
+| `CrGpuMain` | occupancy at or near **100%**, with `WebGL`, `CommandBuffer::Flush`, `SwapBuffers` and `DXGISwapChainImageBacking::Present` as the top slices |
+
+When those two line up, stop optimising the renderer — it is idle-blocked, not busy. Confirmed on an
+**Intel Iris Xe** driving the editor's 3D scene *and* a calibrated projector window (two independent
+3D scenes, a distortion+blend composer, WebGPU sampling and two 1080p presents): GPU process 99.3%,
+renderer 58% in `Receive mojo reply`, ~22 fps. **The same measurement with a whole feature branch
+stashed was also ~22 fps** — which is the point of taking it: a stash-and-remeasure separates "my diff
+regressed this" from "this configuration costs this much", and here it was entirely the latter.
+
+Two amplifiers worth ruling out before blaming the app:
+- **Remote desktop.** A `Parsec Virtual Display Adapter` (or similar) in `Get-CimInstance
+  Win32_VideoController` means the screen is being **encoded on the same GPU** the app is competing
+  for. Benchmark locally, or you are measuring the encoder.
+- **Integrated graphics.** `[nvwarp] NVAPI unavailable (stub build / non-pro GPU)` in the boot log is
+  a reliable tell that this is not the target hardware — and it also means the scanout warp/blend path
+  is inert, so the GPU is doing work it would not have to on a workstation card.
+
 ### 3. Which GPU dispatch? → RenderDoc
 Only when you need per-dispatch detail. It captures WebGPU through Dawn, with sharp edges: **D3D12
 only** on Windows (press **F11** to switch the capture API from D3D11), and it captures *every* WebGPU

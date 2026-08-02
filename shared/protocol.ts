@@ -652,6 +652,16 @@ export interface SceneModel {
   // matrix, so present-vs-projected can be A/B compared without re-baking.
   uvMode?: 'authored' | 'projected';
   uvProjView?: number[];              // 16 floats, THREE.Matrix4.toArray() of proj * viewInverse at bake
+  // LIVE projection source: the surfaceId of a calibrated ProjectorOutput. When set, `uvProjView` and
+  // `uvProjEye` are DERIVED from that output's solved pose + intrinsics every time the scene is
+  // published, so re-solving the projector or moving the mesh re-projects — the disguise/VIOSO
+  // behaviour. Absent = the frozen bake captured from the viewer camera, which stays glued to the mesh.
+  // Resolution happens on the way OUT (see projectedMapping.resolveProjectedScene); the derived values
+  // are never written back into the document, because the projector's pose is the source of truth.
+  uvProjFrom?: string;
+  uvProjEye?: [number, number, number]; // projector position in world space — for the back-face test
+  uvProjSoft?: number;                // edge falloff of the projected footprint, in NDC (0 = hard)
+  uvProjCull?: boolean;               // reject faces turned away from the projector
 }
 
 // Effective per-axis scale for a model: the per-axis vector when set, else the uniform `scale`.

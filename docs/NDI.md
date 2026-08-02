@@ -39,6 +39,11 @@ the rest of the app is unaffected.
    **NDI Studio Monitor** / your receiver. In **Broadcast mode** (`--broadcast`) the cap lifts to
    ≤1080p for full-HD show output (the editor keeps ≤720p for lighter preview).
 
+> An output **rendering from a calibrated projector** used to publish black here. It now carries the
+> picture — but only once the output has a residual warp, because that is what puts the calibrated
+> render through the stage NDI captures from. See
+> [Finalising the mapping](user-guide/10-calibration.md#finalising-the-mapping--nudging-a-calibrated-output).
+
 ---
 
 <!-- audience:contributor -->

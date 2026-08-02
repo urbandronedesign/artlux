@@ -492,6 +492,13 @@ export interface ContextRegistry<Layout = unknown> {
 export interface ProjectorPanelContext<In = unknown, Out = unknown> {
   onMessage(cb: (msg: In) => void): () => void; // main→projector stream for this window; returns unsub
   send(msg: Out): void;                          // projector→main (acks: patternShown / crosshair / confirm)
+  // Offer this panel's own canvas as the window's PICTURE, so the host can put it through the base
+  // warp/gamma stage instead of letting it sit on top as an opaque overlay. A panel that draws the
+  // whole output (calibration's render-from-projector) needs this because a solve is never perfect in
+  // a real venue: the operator must still be able to nudge the result with the ordinary warp handles,
+  // and the host owns that stage. The host only consumes it while there IS something to apply — an
+  // un-warped output keeps the free compositor path and never reads the canvas. Pass null to withdraw.
+  setRenderSource?(canvas: HTMLCanvasElement | null): void;
 }
 
 export interface ProjectorPanelContribution {
