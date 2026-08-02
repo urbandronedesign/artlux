@@ -140,9 +140,17 @@ recreates or loses them.
 <!-- TODO screenshot: the 3D (Venue & Rig) workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields — capture via scripts/capture-docs.cjs -->
 *The Trigger Zones panel: draw zones on the tracking map, set People needed per zone, and toggle the per‑scene eye. Live blobs are drawn **raw** (not merged) so the two‑blobs‑per‑person is visible.*
 
-**Author them** in the **3D** (Venue & Rig) workbench → **Trigger Zones** dock tab. (There used to
-be a separate *Tracking* workbench; it merged into 3D — being *in* the 3D scene, where the live
-blobs are drawn, is the better version of what it offered.)
+**Author them** in the **3D** (Venue & Rig) workbench, on the **Trigger Zones** dock tab. Three ways
+to it, all landing on the same tab — use whichever you are nearest:
+
+- the **Trigger Zones** button on the Venue & Rig action bar (top of the window, beside *Pose Floor
+  Calibration…*);
+- **Draw trigger zones…** at the top of the **Tracking** section in the right‑hand parameter column —
+  where the dwell and merge settings below it already live;
+- **View ▸ Trigger Zones**, from anywhere in the app — it switches to the venue workbench for you.
+
+(There used to be a separate *Tracking* workbench; it merged into 3D — being *in* the 3D scene, where
+the live blobs are drawn, is the better version of what it offered.)
 
 - **drag on empty space** to draw a zone; **click** to select, **drag the body** to move, **drag a
   corner** to resize.

@@ -35,6 +35,10 @@ import {
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
 } from './contexts';
 import { contextLayoutOf, goToContext } from './contexts/nav';
+import {
+  ensureTree, findGroupOf, addPanel, setActive, toggleCollapsed, groups as dockGroups,
+  type DockManifest,
+} from './services/dockTree';
 import { configureOutput, addStatusListener } from './services/mockSocketService';
 import { perfMonitor } from './services/perfMonitor';
 import { notePainted, setFaultProject, SAFE_MODE } from './services/faultReporter';
@@ -94,6 +98,13 @@ const ROUTING_PANEL = 'core.dock.routing';
 // Open a dock panel by id from outside the shell (a keyboard shortcut, a launch flag). Not every
 // context carries every dock panel, so if the active one doesn't, switch to the first context that
 // does — otherwise the shortcut would open the dock onto a tab that isn't there.
+//
+// ⚠ IT HAS TO WRITE THE TREE, NOT JUST `dockPanel` — AND THAT IS THE HALF THAT WAS MISSING.
+// `contexts[id].dockPanel` is read by the hand-built shell every render, but under DOCKING (the
+// default) it is only a COMPILE-TIME hint: `defaultTreeOf` consults it once, when a context has no
+// banked tree yet, and `mergePluginPanels` never looks at it at all. So every reveal — View ▸ OSC
+// Monitor, View ▸ DMX Monitor, `?perf=1` — switched to the right workbench and then left the dock on
+// whatever tab it was already showing, which reads exactly like "that panel does not exist".
 function openDockPanel(panelId: string): void {
   const L = layoutStore.get();
   const active = contextRegistry.get(L.activeContext);
@@ -106,6 +117,25 @@ function openDockPanel(panelId: string): void {
     dockOpen: true,
     contexts: { ...now.contexts, [now.activeContext]: { ...now.contexts[now.activeContext], dockPanel: panelId } },
   });
+  if (!isDockingOn(now)) return;   // the fallback shell renders `dockPanel` directly — nothing more to do
+  const ctx = contextRegistry.get(now.activeContext);
+  if (!ctx) return;
+  const l = layoutStore.get();
+  // ensureTree is the single door (never `layout.dockTrees[id]` raw): sanitize what was banked, else
+  // compile the shipped arrangement — with this panel as the dock's active tab either way.
+  let tree = ensureTree(l.dockTrees?.[ctx.id], ctx as unknown as DockManifest, {
+    leftWidth: l.leftWidth, rightWidth: l.rightWidth, dockHeight: l.dockHeight, dockPanel: panelId,
+  });
+  // The operator may have CLOSED this tab (it then sits in `removed[]`, which merge deliberately
+  // respects). Asking for it by name is them asking for it back, so put it in the dock group.
+  if (!findGroupOf(tree, panelId)) {
+    tree = addPanel(tree, panelId, dockGroups(tree).find((g) => g.region === 'dock')?.id);
+  }
+  const g = findGroupOf(tree, panelId);
+  if (!g) return;
+  tree = setActive(tree, g.id, panelId);
+  if (g.collapsed) tree = toggleCollapsed(tree, g.id);
+  layoutStore.setDockTree(ctx.id, tree);
 }
 
 // Broadcast (show) mode: launched hidden via `--broadcast` (see main/index.ts). Renders only

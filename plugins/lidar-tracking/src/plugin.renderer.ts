@@ -8,7 +8,8 @@
 // bridge, timeline take record/replay, smoothing config, recording UI) is still driven by host
 // code that imports this package's modules transitionally — see the plan's "pragmatic seam".
 
-import type { ComponentType } from 'react';
+import { createElement, type ComponentType } from 'react';
+import { Scan } from 'lucide-react';
 import type { RendererPlugin, RendererPluginContext, ProjectorChannel } from '@artlux/sdk/renderer';
 import type { SurfaceContent, VideoClip, Surface } from '@/types';
 import type { TrackingZone } from '../../../shared/protocol';
@@ -44,11 +45,29 @@ export const plugin: RendererPlugin = {
     ctx.panels.register({ id: 'osc-monitor', mount: 'dock', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
     // Trigger Zones: where the venue's interactive areas are drawn. Same seam as the monitor above —
     // the host declares the `3d` context, the plugin appends its own tab to it.
-    ctx.panels.register({ id: 'zone-editor', mount: 'dock', title: 'Trigger Zones', Component: ZonePanel });
+    //
+    // `menuAction` is not decoration. This is the AUTHORING surface for zones — the thing an operator
+    // goes looking for by name — and being the fourth unlabelled text tab in a six-tab dock strip is
+    // not being findable: the feature reads as missing. Every other panel that a person hunts for
+    // (OSC Monitor, Pose Monitor, Augmenta Monitor) declares one; the host resolves it to "go to the
+    // owning context and select that tab", so this one entry serves the View menu AND the action below.
+    ctx.panels.register({ id: 'zone-editor', mount: 'dock', menuAction: 'zone-editor', title: 'Trigger Zones', Component: ZonePanel });
     // '3d', not the old 'tracking' context: that one merged into the 3D scene, which is where these
     // monitors' blobs are actually drawn. An extend() against an unknown id queues forever in silence,
     // so verify:invariants checks every target resolves.
-    ctx.contexts.extend('3d', { dock: ['osc-monitor', 'zone-editor'] });
+    //
+    // The ACTION rides along in the host's existing `tracking` group (beside Pose Floor Calibration —
+    // groups are matched by name, so appending here joins that cluster rather than starting a new one):
+    // the venue workbench is where zones are drawn, so the way in belongs at the top of it, not only
+    // in a menu three levels deep.
+    ctx.contexts.extend('3d', {
+      dock: ['osc-monitor', 'zone-editor'],
+      actions: [{
+        id: 'zones', label: 'Trigger Zones', group: 'tracking',
+        icon: createElement(Scan, { size: 13 }),
+        menuAction: 'zone-editor',
+      }],
+    });
 
     // TRACKING content: the host compositor dispatches unknown content types through the registry.
     ctx.contentSources.register({

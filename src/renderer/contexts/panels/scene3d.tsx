@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, Radar } from 'lucide-react';
+import { panelRegistry } from '../../host/registries';
 import { PROGRAM_LAYER_ID } from '../../services/timeline';
 import { modelScaleXYZ } from '../../../../shared/protocol';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
@@ -22,6 +23,11 @@ import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera
 // can't reset the field mid-keystroke. Kept verbatim from ScenePanel3D.
 
 const numCls = 'w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-mini focus:border-accent focus:outline-none';
+
+// The menu action the LiDAR plugin's Trigger Zones panel declares. A STRING, deliberately: core owns
+// no zone code and must not import the plugin — this is the same soft coupling the View menu uses, and
+// the one place it appears in a parameter column (see SceneTrackingPanel).
+const ZONE_EDITOR_ACTION = 'zone-editor';
 
 const NumInput: React.FC<{ value: number; step?: number; title?: string; min?: number; className?: string; onChange: (v: number) => void }> =
 ({ value, step = 1, title, min, className, onChange }) => {
@@ -470,8 +476,20 @@ export const SceneLightingPanel: React.FC = () => {
 export const SceneTrackingPanel: React.FC = () => {
   const { scene3D } = useEditor();
   const a = useEditorActions();
+  // THE WAY TO THE AUTHORING SURFACE, from the place an operator is already standing when they think
+  // about zones. Everything else in this section VIEWS or TUNES them; the rectangles themselves are
+  // drawn in a dock tab, and this column is where people came looking for it.
+  //
+  // Gated on a panel actually declaring that action, so with the tracking plugin disabled the button is
+  // absent rather than dead — core names a plugin's action id here and nothing else about it.
+  const hasZoneEditor = panelRegistry.all().some((p) => p.menuAction === ZONE_EDITOR_ACTION);
   return (
     <>
+      {hasZoneEditor && (
+        <Button size="sm" variant="ghost" className="w-full" onClick={() => a.menuAction(ZONE_EDITOR_ACTION)}>
+          <Radar size={12} /> Draw trigger zones…
+        </Button>
+      )}
       <Toggle label="Tracking zones (LiDAR)" checked={scene3D.trackingViz ?? false} helpId="scene3d.tracking-viz" onChange={(v) => a.sceneConfig({ trackingViz: v })} />
       {scene3D.trackingViz && (
         <div className="pl-2 border-l border-line-1 space-y-2">

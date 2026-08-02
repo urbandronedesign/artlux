@@ -94,6 +94,10 @@ function buildMenus(recents: string[]): Menu[] {
         // Pose Floor Calibration opens a modal flow and keeps its ellipsis.
         { label: 'OSC Monitor', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },
         { label: 'DMX Monitor', action: 'dmx-monitor' },
+        // Where trigger zones are DRAWN. Listed beside the monitors because it is reached the same
+        // way — a dock tab in the venue workbench — and because a panel nobody can find is a feature
+        // nobody has.
+        { label: 'Trigger Zones', action: 'zone-editor' },
         { label: 'Pose Monitor', action: 'pose-monitor' },
         { label: 'Pose Floor Calibration…', action: 'pose-calibrate' },
         { label: 'Augmenta Monitor', action: 'augmenta-monitor' },
