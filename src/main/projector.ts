@@ -54,6 +54,33 @@ function placeOnDisplay(win: BrowserWindow, display: Display): void {
   win.setFullScreen(true);
 }
 
+// A WINDOW THAT MUST APPEAR NEVER DEPENDS ON ready-to-show ALONE.
+//
+// `ready-to-show` does not always fire in a packaged build. The editor window has known this since
+// v0.19.2 and reveals on THREE paths (main/index.ts); the splash shipped the single-event version in
+// v0.25.0 and was invisible on packaged Windows. A projector window had the same single-event reveal
+// and it is the worst place for it: in broadcast these windows are the ONLY thing on screen, so a
+// missing event gives a venue a running process and a black wall. The window is created, loads, wires
+// its bridge on 'did-finish-load' — and is simply never shown. Nothing throws and nothing logs.
+//
+// So reveal on 'ready-to-show', again on 'did-finish-load' (which always fires — it is already the
+// trigger for the bridge below), and a backstop timer for the configuration where neither does.
+//
+// `show` MUST be idempotent: all three paths normally fire. It is called only while the window is
+// still hidden, which is also what keeps a late path from re-running placeOnDisplay's
+// setFullScreen(false)→setFullScreen(true) cycle on an output that is already up on the wall.
+const REVEAL_BACKSTOP_MS = 4000; // same budget the editor's backstop uses
+
+function revealOnEveryPath(win: BrowserWindow, show: () => void): void {
+  const attempt = (): void => {
+    if (win.isDestroyed() || win.isVisible()) return;
+    show();
+  };
+  win.once('ready-to-show', attempt);
+  win.webContents.once('did-finish-load', attempt);
+  setTimeout(attempt, REVEAL_BACKSTOP_MS);
+}
+
 // --- Windowed-output layout ---------------------------------------------------------------------
 // EVERY windowed output used to be created at the same spot (primary + 80,80 at 1280×720), so with
 // more than one they landed on top of each other — the OS nudges the second one a little, but at
@@ -189,12 +216,14 @@ function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, d
   windows.set(surfaceId, { win, displayId });
   if (windowed) {
     // Re-lay ALL windowed outputs now this one has joined, so they never open stacked on each other.
-    // After 'ready-to-show' rather than immediately: showInactive() on Windows can nudge a window's
+    // After the reveal rather than immediately: showInactive() on Windows can nudge a window's
     // position, so the layout has to be the last thing applied or it gets partly undone.
-    win.once('ready-to-show', () => { win.showInactive(); layoutWindowedOutputs(); });
+    revealOnEveryPath(win, () => { win.showInactive(); layoutWindowedOutputs(); });
   } else {
     const display = findDisplay(displayId) ?? screen.getPrimaryDisplay();
-    win.once('ready-to-show', () => placeOnDisplay(win, findDisplay(displayId) ?? display));
+    // Re-resolve the display at reveal time: a backstop firing seconds later must target the monitor
+    // that is present THEN, not the one enumerated when the window was created.
+    revealOnEveryPath(win, () => placeOnDisplay(win, findDisplay(displayId) ?? display));
   }
 }
 

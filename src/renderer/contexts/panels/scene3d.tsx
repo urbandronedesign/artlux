@@ -328,7 +328,18 @@ export const ModelTransformPanel: React.FC = () => {
         </Tooltip>
         <Tooltip id="scene3d.model-program">
           <button
-            onClick={() => a.updateModel(m.id, { layerId: m.layerId === PROGRAM_LAYER_ID ? undefined : PROGRAM_LAYER_ID })}
+            // CLEARS surfaceId — the two ids are mutually exclusive (see the note above the select),
+            // and this button used to set `layerId` while leaving `surfaceId` behind. That left the two
+            // halves disagreeing in OPPOSITE directions: the select's value prefers `surfaceId`, so the
+            // panel went on naming the surface, while ModelObject binds
+            // `useSurfaceTexture(model.layerId ? undefined : model.surfaceId)` — layerId wins — so the
+            // surface hook was inert and the mesh showed the program (or `#161616` for "no texture").
+            // Picking a surface from the select afterwards then appeared to do nothing at all, because
+            // the stale layerId still outranked it. The UI claimed one binding and the engine served
+            // another; toggling TL off was the only way out, and nothing said so.
+            onClick={() => a.updateModel(m.id, m.layerId === PROGRAM_LAYER_ID
+              ? { layerId: undefined }
+              : { layerId: PROGRAM_LAYER_ID, surfaceId: undefined })}
             title="Show the whole timeline (Program composite) on this screen"
             className={`shrink-0 px-1.5 py-1 rounded text-micro border ${m.layerId === PROGRAM_LAYER_ID ? 'bg-accent text-black border-transparent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
             {...help('scene3d.model-program')}

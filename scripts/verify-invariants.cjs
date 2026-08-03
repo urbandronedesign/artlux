@@ -294,6 +294,48 @@ check(
   },
 );
 
+// ── A venue mesh binds to a SURFACE or a timeline LAYER — never both ──────────────────────────────
+check(
+  'every writer of a model content binding clears the other id',
+  'SceneModel carries `surfaceId` AND `layerId`, and they are mutually exclusive — but the two ' +
+  'readers break the tie in OPPOSITE directions. The panel\'s select shows `m.surfaceId ? ... : ' +
+  'm.layerId` (surface wins) while ModelObject binds `useSurfaceTexture(model.layerId ? undefined : ' +
+  'model.surfaceId)` (layer wins). So a model holding both is not merely ambiguous: the panel names ' +
+  'one binding while the engine serves the other, and picking a surface from the select then appears ' +
+  'to do NOTHING because the stale layerId still outranks it. The mesh sits at the "no texture" ' +
+  'colour and nothing on screen explains why. The ★ Timeline (Program) button shipped exactly that ' +
+  'bug: it set layerId and left surfaceId behind. Whichever id a writer sets, it must clear the other ' +
+  'in the SAME update — the tie is then unreachable and neither reader\'s precedence can matter.',
+  () => {
+    const f = 'src/renderer/contexts/panels/scene3d.tsx';
+    const src = read(f);
+    const problems = [];
+    // Paren-match each updateModel( call so a multi-line / ternary argument is read whole — a plain
+    // regex stops at the first ')' and would silently pass the very shape this guards.
+    for (let i = src.indexOf('updateModel('); i !== -1; i = src.indexOf('updateModel(', i + 1)) {
+      const open = src.indexOf('(', i);
+      let depth = 0, end = -1;
+      for (let j = open; j < src.length; j++) {
+        if (src[j] === '(') depth++;
+        else if (src[j] === ')') { depth--; if (depth === 0) { end = j; break; } }
+      }
+      if (end === -1) continue;
+      const call = src.slice(i, end + 1);
+      const touchesLayer = /\blayerId\b/.test(call);
+      const touchesSurface = /\bsurfaceId\b/.test(call);
+      if (!touchesLayer && !touchesSurface) continue; // an unrelated model update (transform, name, …)
+      if (touchesLayer && touchesSurface) continue;   // sets one, clears the other — correct
+      const line = src.slice(0, i).split('\n').length;
+      problems.push(
+        `${f}:${line} updateModel writes ${touchesLayer ? 'layerId' : 'surfaceId'} without clearing ` +
+        `${touchesLayer ? 'surfaceId' : 'layerId'} — the model can hold both and the panel will ` +
+        `disagree with what the engine renders`,
+      );
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── The 3D scene's derived inputs are stable across a repaint ─────────────────────────────────
 check(
   'projectorCalibs is memoized, and resolveProjectedScene is identity-stable',
@@ -1571,14 +1613,39 @@ check(
   'event never arrived, showInactive() never ran, and the window existed while being invisible — and ' +
   'because its close deadlines are measured from the show time, `Date.now() - 0` read as "long past" ' +
   'and destroyed it silently. Nothing throws, nothing logs an error, the feature is simply absent.',
+  // THIS CHECK WAS ITSELF THE BUG, TWICE OVER, and that is why it now works per reveal SITE.
+  //
+  // It used to iterate a hardcoded ['splashWindow.ts', 'index.ts'] and regex each file AS A WHOLE. Both
+  // halves were holes. (1) `src/main/projector.ts` was never in the list — the one window whose entire
+  // purpose is to be seen in a venue, and in broadcast the ONLY thing on screen. It revealed on
+  // `ready-to-show` alone at two sites and the guard never looked. (2) `index.ts` PASSED while its
+  // broadcast branch was just as exposed, because the editor's `did-finish-load` and
+  // `setTimeout(revealEditor, …)` live in the same file and satisfied a whole-file regex on the
+  // broadcast branch's behalf. A guard that cannot fail is worse than no guard: CLAUDE.md cites this
+  // one as the reason the rule is safe to rely on.
+  //
+  // So: every `ready-to-show` registration anywhere in src/main must hand it a NAMED handler, and that
+  // same handler must also be reachable from `did-finish-load` and from a `setTimeout` backstop. Naming
+  // it is what makes the other two paths possible, which is why an inline arrow fails outright.
   () => {
     const problems = [];
-    for (const f of ['src/main/splashWindow.ts', 'src/main/index.ts']) {
+    const files = walk('src/main').filter((f) => /\.(?:ts|tsx|cjs)$/.test(f) && /ready-to-show/.test(read(f)));
+    for (const f of files) {
       const src = read(f);
-      if (!/ready-to-show/.test(src)) continue; // this file doesn't reveal a window
-      if (!/did-finish-load/.test(src)) problems.push(`${f} reveals on ready-to-show with no did-finish-load path`);
-      if (!/setTimeout\(\s*reveal|setTimeout\(\s*revealEditor|setTimeout\(revealEditor|setTimeout\(reveal/.test(src)) {
-        problems.push(`${f} has no backstop timer for the case ready-to-show never fires`);
+      const rel = f.replace(/\\/g, '/').replace(/^.*?(src\/main\/)/, '$1');
+      for (const m of src.matchAll(/\.(?:on|once)\(\s*['"]ready-to-show['"]\s*,\s*([^)]*?)\s*\)/g)) {
+        const handler = m[1].trim();
+        if (!/^[A-Za-z_$][\w$]*$/.test(handler)) {
+          problems.push(`${rel}: ready-to-show is given an inline function — name it, so the did-finish-load and backstop paths can reveal the same window`);
+          continue;
+        }
+        // Reached from did-finish-load: either as the handler itself or called inside one.
+        if (!new RegExp(`did-finish-load[\\s\\S]{0,160}?\\b${handler}\\b`).test(src)) {
+          problems.push(`${rel}: '${handler}' reveals on ready-to-show but is never reached from did-finish-load (the event that ALWAYS fires)`);
+        }
+        if (!new RegExp(`setTimeout\\(\\s*${handler}\\b`).test(src)) {
+          problems.push(`${rel}: '${handler}' has no backstop timer for the case ready-to-show never fires`);
+        }
       }
     }
     return problems.length ? problems.join('; ') : null;

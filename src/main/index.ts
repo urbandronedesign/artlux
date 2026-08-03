@@ -146,12 +146,22 @@ function createWindow(): void {
     // A never-shown window throttles its rAF/WebGL (starving the projector → laggy output), so
     // we SHOW it but at opacity 0 + click-through + off the taskbar: the compositor keeps it
     // full-speed while nothing is visible. (Headless does pure compute and stays fully hidden.)
-    if (BROADCAST) mainWindow.on('ready-to-show', () => {
-        mainWindow?.setOpacity(0);
-        mainWindow?.setIgnoreMouseEvents(true);
-        mainWindow?.setSkipTaskbar(true);
-        mainWindow?.showInactive();
-    });
+    //
+    // THREE PATHS, for the same reason the editor above has three: ready-to-show does not always
+    // fire. This one hung off that event alone, so on a build where it went missing the broadcast
+    // window was never shown at all — and an unshown window is exactly the throttled state this
+    // block exists to avoid, which starves the projectors it is supposed to be feeding.
+    const revealBroadcast = () => {
+        if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return;
+        mainWindow.setOpacity(0);
+        mainWindow.setIgnoreMouseEvents(true);
+        mainWindow.setSkipTaskbar(true);
+        mainWindow.showInactive();
+    };
+    if (BROADCAST) {
+        mainWindow.on('ready-to-show', revealBroadcast);
+        setTimeout(revealBroadcast, 4000); // backstop: never leave broadcast with an unshown window
+    }
     mainWindow.on('closed', () => { closeAllProjectors(); closeEnginePort(); mainWindow = null; });
     // Unattended self-heal: wire the crash/hang detectors to this window. No-op unless the watchdog
     // armed itself in whenReady (unattended.enabled + broadcast/always).
@@ -163,6 +173,9 @@ function createWindow(): void {
     // Apply the persisted (or auto-detected) UI scale. setZoomFactor doesn't survive a reload, so
     // re-run on every load. Headless/broadcast have no visible chrome, so scale is a no-op there.
     if (!HEADLESS && !BROADCAST) mainWindow.webContents.on('did-finish-load', () => { applyUiScale(mainWindow); revealEditor(); });
+    // The broadcast half of the same rule. UI scale is deliberately not applied (no visible chrome),
+    // but the reveal is: did-finish-load ALWAYS fires, which is what makes it the reliable path.
+    if (BROADCAST) mainWindow.webContents.on('did-finish-load', revealBroadcast);
 
     // Hand the renderer its end of the output MessagePort on EVERY load, in every mode. On every load
     // because a reload kills the old port with the old page; in every mode because headless and
