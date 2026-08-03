@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DEPTH_PACK_GLSL, DEPTH_FAR } from './projectorDepth';
 
 // PROJECTED UV MAPPING — content thrown onto venue geometry from a virtual projector, rather than
 // sampled through the mesh's authored UVs.
@@ -43,9 +44,14 @@ uniform float uProjSoft;
 uniform float uProjCull;
 uniform vec2 uMapRepeat;
 uniform vec2 uMapOffset;
+uniform sampler2D uProjDepth;
+uniform float uHasDepth;
+uniform float uProjBias;
+uniform float uDepthFar;
 varying vec4 vProjPos;
 varying vec3 vProjWorld;
 varying vec3 vProjNrm;
+${DEPTH_PACK_GLSL}
 `;
 
 // Replaces <map_fragment> wholesale. Guarded by USE_MAP, so with no texture bound the material keeps
@@ -77,11 +83,31 @@ const BODY_FRAG = /* glsl */`
   float artluxIx = 1.0 - smoothstep(1.0 - artluxE, 1.0, abs(artluxNdc.x));
   float artluxIy = 1.0 - smoothstep(1.0 - artluxE, 1.0, abs(artluxNdc.y));
   artluxVis *= artluxIx * artluxIy * step(abs(artluxNdc.z), 1.0);
-  // Faces turned away from the projector. Optional because it is only right for closed geometry;
-  // NOTE this is not occlusion — a nearer surface does not shadow a farther one. Concave venues
-  // still spray through, which needs a depth pass from the projector (deliberately out of scope).
-  float artluxFace = step(0.0, dot(normalize(vProjNrm), normalize(uProjEye - vProjWorld)));
-  artluxVis *= mix(1.0, artluxFace, uProjCull);
+  // Faces turned away from the projector. Still optional and still only exact on closed geometry —
+  // but it is no longer the only thing between the content and geometry the projector cannot see.
+  // Keep it for a closed convex mesh, where it is exact and costs nothing; the depth test below is
+  // what a concave venue actually needs.
+  float artluxNdl = dot(normalize(vProjNrm), normalize(uProjEye - vProjWorld));
+  artluxVis *= mix(1.0, step(0.0, artluxNdl), uProjCull);
+  // OCCLUSION. Everything above only decides whether the fragment is inside the projector's cone;
+  // this decides whether the projector can actually SEE it. Without it a nearer surface does not
+  // shadow a farther one, so a concave venue sprays content onto walls standing behind the ones in
+  // front, and a closed mesh wears the picture on its far side.
+  //
+  // Compared in METRES along the projector's view axis (projectorDepth.ts has the argument for why
+  // not the hardware depth buffer). The bias GROWS ON GRAZING FACES, because there one depth texel
+  // spans a long run of surface and no constant offset can cover it: too small and the surface
+  // self-shadows in stripes, too large and content creeps past a silhouette onto what is behind it.
+  // artluxNdl is the same dot product the back-face test just used, so the grazing term is free.
+  if (uHasDepth > 0.5 && artluxVis > 0.0) {
+    // NOT artluxUv: that one is V-flipped for the content bitmap and carries the texture's
+    // repeat/offset. The depth map is rendered by GL into a render target, so it is plain NDC→UV —
+    // reusing artluxUv here would sample the map upside down and shadow the wrong half of the venue.
+    vec2 artluxDepthUv = artluxNdc.xy * 0.5 + 0.5;
+    float artluxSeen = artluxUnpackDepth(texture2D(uProjDepth, artluxDepthUv)) * uDepthFar;
+    float artluxBias = uProjBias * (1.0 + 4.0 * (1.0 - abs(artluxNdl)));
+    if (vProjPos.w > artluxSeen + artluxBias) artluxVis = 0.0;
+  }
   vec4 sampledDiffuseColor = texture2D(map, artluxUv);
   diffuseColor *= sampledDiffuseColor;
   diffuseColor.rgb *= artluxVis;
@@ -95,7 +121,31 @@ export interface ProjectedMaterial {
   /** Mirror the texture's repeat/offset into the shader — call after matchBitmapOrientation. */
   syncMapTransform(tex: THREE.Texture | null): void;
   setLook(softNdc: number, cull: boolean): void;
+  /**
+   * The projector's depth map (projectorDepth.ts) and the self-shadow bias in METRES. Pass null to
+   * turn occlusion off — the material then behaves exactly as it did before the depth pass existed.
+   */
+  setOcclusion(depth: THREE.Texture | null, biasMeters: number): void;
   dispose(): void;
+}
+
+/**
+ * Self-shadow bias in metres, when a model does not carry its own. 2 cm holds on venue-scale geometry
+ * (the world is metres by convention — see SceneModel.scale) without letting content leak past a
+ * silhouette by anything an audience can see.
+ */
+export const DEFAULT_BIAS_M = 0.02;
+
+// One shared 1×1 "infinitely far" texel, for materials with no depth map bound. White, because that
+// is what an empty texel of a real map is — see DEPTH_PACK_GLSL. Lazy + shared: this is a placeholder
+// for a disabled feature and must not cost an upload per model.
+let farTex: THREE.DataTexture | null = null;
+function farDepthTexture(): THREE.DataTexture {
+  if (!farTex) {
+    farTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    farTex.needsUpdate = true;
+  }
+  return farTex;
 }
 
 // A SECOND material instance rather than a toggled patch on the shared one. Toggling onBeforeCompile
@@ -111,6 +161,13 @@ export function makeProjectedMaterial(): ProjectedMaterial {
     uProjCull: { value: 0 },
     uMapRepeat: { value: new THREE.Vector2(1, 1) },
     uMapOffset: { value: new THREE.Vector2(0, 0) },
+    // A 1×1 white stand-in rather than null: a sampler uniform left unbound reads texture unit 0,
+    // which is whatever the CONTENT texture happens to be — the map would then "occlude" according
+    // to the picture being projected. uHasDepth gates the test, but the binding must still be valid.
+    uProjDepth: { value: farDepthTexture() as THREE.Texture },
+    uHasDepth: { value: 0 },
+    uProjBias: { value: DEFAULT_BIAS_M },
+    uDepthFar: { value: DEPTH_FAR },
   };
   const material = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
   material.onBeforeCompile = (shader) => {
@@ -144,6 +201,11 @@ export function makeProjectedMaterial(): ProjectedMaterial {
       uniforms.uProjSoft.value = softNdc;
       uniforms.uProjCull.value = cull ? 1 : 0;
     },
+    setOcclusion(depth, biasMeters) {
+      uniforms.uProjDepth.value = depth ?? farDepthTexture();
+      uniforms.uHasDepth.value = depth ? 1 : 0;
+      uniforms.uProjBias.value = biasMeters;
+    },
     dispose() { material.dispose(); },
   };
 }
@@ -151,4 +213,19 @@ export function makeProjectedMaterial(): ProjectedMaterial {
 /** Is this model asking for the projected path, and does it have a matrix to use? */
 export function usesProjectedUv(m: { uvMode?: string; uvProjView?: number[] }): boolean {
   return m.uvMode === 'projected' && m.uvProjView?.length === 16;
+}
+
+/**
+ * Should this model's projection be occluded by the rest of the venue?
+ *
+ * ABSENCE MEANS ON, and the persisted field is named for the OFF polarity on purpose — the same
+ * trick as `layout.dockingOff`. Occlusion is what a projector physically does, so it is the correct
+ * default; naming the key `uvProjOcclude` would have made every project saved before the depth pass
+ * existed opt out of it forever, and the operator would have had to find a checkbox to get the
+ * behaviour they already expected.
+ */
+export function usesProjectedOcclusion(
+  m: { uvMode?: string; uvProjView?: number[]; uvProjOccludeOff?: boolean },
+): boolean {
+  return usesProjectedUv(m) && !m.uvProjOccludeOff;
 }

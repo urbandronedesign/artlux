@@ -8,7 +8,8 @@ import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
 import { recenterClone, applyModelTransform } from './venuePlacement';
-import { makeProjectedMaterial, usesProjectedUv, type ProjectedMaterial } from './projectedMapping';
+import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from './projectedMapping';
+import { registerDepthCaster, unregisterDepthCaster, setDepthRequest } from './projectorDepth';
 import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
 
 const DEG = Math.PI / 180;
@@ -121,6 +122,32 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     // Keyed on the projection FIELDS, not the model object — moving the mesh must not rebuild
     // uniforms, and this must not depend on the caller keeping model identity stable.
   }, [projected, model.uvProjView, model.uvProjEye, model.uvProjSoft, model.uvProjCull]);
+
+  // OCCLUSION — this mesh both CASTS into the projector's depth map and READS it. Casting is
+  // unconditional (a mesh with no content of its own still stands in front of one that has some, and
+  // must shadow it); reading is what the model's own occlusion setting controls.
+  //
+  // The caster is `cloned`, not the outer group: its world matrix already carries the group's
+  // transform, and re-registering when the GLB swaps is exactly what tells the pass to redraw.
+  useEffect(() => {
+    registerDepthCaster(model.id, cloned);
+    return () => unregisterDepthCaster(model.id);
+  }, [model.id, cloned]);
+
+  useEffect(() => {
+    const pm = projMatRef.current!;
+    const bias = model.uvProjBias ?? DEFAULT_BIAS_M;
+    if (!usesProjectedOcclusion(model)) {
+      setDepthRequest(model.id, null);
+      pm.setOcclusion(null, bias);
+      return;
+    }
+    setDepthRequest(model.id, {
+      viewProj: model.uvProjView!,
+      accept: (tex) => pm.setOcclusion(tex, model.uvProjBias ?? DEFAULT_BIAS_M),
+    });
+    return () => setDepthRequest(model.id, null);
+  }, [model.id, projected, model.uvProjView, model.uvProjOccludeOff, model.uvProjBias]);
 
   // Register the world-space group for the markerless calibration's batch raycaster (only while
   // visible). Lets the controller cast camera rays onto this venue geometry to sample 3D points.

@@ -84,15 +84,28 @@ selector chooses which:
 Both projected modes handle geometry the authored path cannot: faces behind the projector are left
 dark rather than smeared with a mirrored copy, and a mesh with no UV map at all works normally.
 
-Two extra controls appear while projecting:
+Four extra controls appear while projecting:
 
 - **Edge** — fades the content out at the edge of the projector's frustum (0 = a hard boundary). With
   two projectors covering one object this is what makes them cross-fade instead of meeting at a
   visible cookie edge.
 - **Cull back faces** — drops faces turned away from the projector, so content does not wrap around
-  and appear mirrored on the far side. **This is not occlusion:** a nearer surface still does not
-  shadow a farther one, so on a concave venue content can reach geometry the projector genuinely
-  cannot see. It is best on closed, convex objects.
+  and appear mirrored on the far side. It answers only *is this face turned away?*, never *is
+  something else in the way?* — on a closed, convex object it is exact and costs nothing.
+- **Occlude** — the general case, and **on by default**. A real projector cannot light what it cannot
+  see, so a nearer surface shadows a farther one exactly as the light itself would: content stops at
+  the silhouette of whatever is in front, instead of carrying on through onto the wall behind. This
+  is what a concave venue needs — a pillar in front of a wall, a mesh with a recess, a screen hung in
+  front of the set. Everything visible in the 3D scene casts a shadow, including screens and meshes
+  with no content of their own, so hiding a mesh with the eye toggle also removes it from the
+  shadows. Turn it off to light the whole frustum through, which is how projection behaved before
+  this control existed.
+- **Bias** — the margin, **in metres**, that the occlusion test allows before it calls a surface
+  hidden. Only two things go wrong and each has one direction: too small and a surface **shadows
+  itself** — stripes or speckle across flat geometry, worst where the projector rakes across it at a
+  shallow angle; too large and content **creeps a little past a silhouette** onto what is behind it.
+  The default 0.02 m suits venue-scale geometry. If you see stripes, raise it a couple of centimetres
+  at a time and stop at the first value that is clean.
 
 Switching back to **Mesh UVs** keeps the captured viewpoint, so comparing the two is a two-click A/B —
 nothing in the GLB file is modified by any of this.
@@ -117,9 +130,35 @@ never moves your viewpoint.
 
 ## Lighting & preview options
 
-The **LIGHTING** section controls the preview render: **Light gain**, **Exposure**, **Ambient (env)**,
-**Reflective floor**, **Grid**, plus **Tracking zones (LiDAR)** and **Merge people** for visualizing
-live tracking in 3D.
+The **LIGHTING** section controls the preview render: **Light gain**, **Ambient (env)**, **Reflective
+floor**, **Glow (bloom)**, **Grid**, plus **Tracking zones (LiDAR)** and **Merge people** for
+visualizing live tracking in 3D.
+
+The viewport applies **no tone mapping**: colours are shown as they were authored, with no filmic
+roll-off on the highlights. That is deliberate — you are judging whether the preview matches the
+wall, and a tone curve would misreport it. (There was an **Exposure** control here; it never had any
+effect, because there was no tone curve for it to drive, and it has been removed rather than left
+looking like it worked.)
+
+### Making this viewport cheap
+
+The 3D view is a preview, and three of its options cost far more than the rest. If the viewport feels
+heavy — or you simply want the frame budget spent on the show instead — these are the ones to reach
+for, in order of how much they give back:
+
+- **Glow (bloom)** — off by default. It is a full-screen pass plus a blur every frame at viewport
+  resolution. It makes a rig of LEDs and beams look like light; it does nothing for a venue mesh
+  carrying video, so leave it off while you are mapping.
+- **Light gain → 0** — this does more than dim the preview. Simulated fixture lights are **removed
+  from the scene** at zero gain rather than merely turned down, which takes real per-pixel lighting
+  work out of every surface in the venue. If your look comes from content on geometry rather than
+  from simulated fixtures, this is close to free performance.
+- **Reflective floor** — off by default. It renders the scene a second time and blurs the result.
+
+What remains at that point is close to a self-lit scene: LEDs, beams and any mesh carrying content
+are drawn unlit already, and only the venue's own materials still need the ambient fill. Turning
+**Ambient (env)** off as well dims those further, but is not worth much on its own — and taking the
+base light away entirely would leave fixture bodies and the grid unreadable.
 
 See [SCENES.md](../SCENES.md) for the full 3D model.
 

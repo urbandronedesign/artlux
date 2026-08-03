@@ -8,6 +8,7 @@ import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { ModelTransform } from './ModelObject';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
+import { registerDepthCaster, unregisterDepthCaster } from './projectorDepth';
 
 const DEG = Math.PI / 180;
 
@@ -43,6 +44,14 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
   };
   useLayerTexture(model.layerId, applyTex);
   useSurfaceTexture(model.layerId ? undefined : model.surfaceId, applyTex);
+
+  // A screen CASTS into the projector depth map even though it never reads one (a plane has no
+  // projected-UV mode of its own). It is usually the nearest thing to the projector, so leaving it
+  // out would let content land on the wall behind a screen that is physically blocking the light.
+  useEffect(() => {
+    registerDepthCaster(model.id, group);
+    return () => unregisterDepthCaster(model.id);
+  }, [model.id, group]);
 
   useEffect(() => {
     group.position.set(model.position.x, model.position.y, model.position.z);

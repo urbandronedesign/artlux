@@ -77,9 +77,24 @@ Projected mapping bypasses authored UVs entirely.
 4. Rotate the mesh 180° with **Cull back faces** on → the far side goes black, not mirrored.
 5. A GLB with **no UV map at all** must now texture correctly (it used to show one flat colour).
 
-**Known limitation, expected, not a bug:** this is not occlusion. A nearer surface does not shadow a
-farther one, so a concave venue will spray content onto geometry the projector cannot see. The depth
-pass is Phase 6 and deliberately unbuilt; the uniform slots (`uProjDepth`/`uHasDepth`) are stubbed.
+**Occlusion — Phase 6, now BUILT (unverified on hardware).** A nearer surface now shadows a farther
+one: `renderProjectorDepth` (`Simulator3D/projectorDepth.ts`) renders a packed linear-distance map
+from each projector, once per projector rather than once per mesh, and only when the venue or the
+projector moved. `Occlude` in the model panel is **on unless the model opts out** (`uvProjOccludeOff`
+— named for the off polarity so projects saved before the pass existed get the behaviour their
+operator already expects), and `Bias` is the self-shadow margin **in metres**. Verify:
+
+6. A mesh standing in front of another must **cut a hard silhouette** into the content on the one
+   behind — in the editor *and* in the projector window, identically. Disagreement between the two
+   windows means the pass is not mounted in one of them, which `verify:invariants` also guards.
+7. Stripes or speckle across a flat face = **bias too low**. Raise it a couple of cm. Worst on faces
+   the projector rakes across, which is what the grazing term in the shader is compensating.
+8. Content creeping past a silhouette = **bias too high**.
+9. Untick **Occlude** → the old spray-through behaviour returns exactly, with no other change.
+10. Hide a mesh with the eye toggle → its shadow must disappear with it (casters unregister).
+
+The one thing to watch for on real hardware is a 1024² map at 4K: a silhouette that reads as *stepped*
+rather than soft is the map's resolution, not the bias — `DEPTH_SIZE` in `projectorDepth.ts`.
 
 ## 3. Phase 1 — any surface on any mesh ⚠ *unverified*
 
@@ -131,7 +146,7 @@ warp+blend to the scanout. Only after those would it be worth optimising code.
   `registerVenueMesh` remains mesh-only and **markerless auto-align cannot see screen planes at all**.
   On a screen-heavy venue that reads as "auto-align does not work here". Worth doing if auto-align
   quality matters.
-- **Phase 6** — the occlusion depth pass (above).
+- ~~**Phase 6** — the occlusion depth pass.~~ **BUILT** — see §2. Still needs the hardware pass.
 - **A per-model Flip V toggle** — projected mapping routes *around* flipped authored UVs rather than
   fixing them. If keeping authored UVs matters, this is the smaller, more direct fix.
 - **Projector-window crash recovery** — unrelated to this work and a live venue risk: `watchdog.attach`

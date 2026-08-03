@@ -2680,6 +2680,48 @@ check(
   },
 );
 
+// ── Projector occlusion: the depth pass is mounted, and it cannot be poisoned ─────────────────
+check(
+  'projected mapping occludes in BOTH windows, off a map nothing else can corrupt',
+  'Occlusion is a shadow map rendered from the projector, and every way it breaks is silent. If the ' +
+  'pass is not mounted in a window, that window alone keeps spraying content through solid geometry ' +
+  '— the editor and the wall then disagree, which is unfalsifiable from a screenshot and gets blamed ' +
+  'on the solve. If scene.background is left set, three paints it into the depth target and the ' +
+  'projector window\'s black background unpacks as "a surface 0 m away", so EVERY fragment tests as ' +
+  'occluded and all projected content simply goes dark, with no error. If the map is sampled with ' +
+  'the content UV it is read V-flipped and through the texture\'s repeat/offset, so the shadows land ' +
+  'on the wrong half of the venue. And LINEAR filtering averages the BYTES of two packed distances, ' +
+  'which unpacks to a distance between nonsense and the far plane — a shimmering halo on every edge.',
+  () => {
+    const D = 'src/renderer/components/Simulator3D/projectorDepth.ts';
+    if (!exists(D)) return `${D} is gone — nothing renders the projector depth map`;
+    const d = read(D);
+    if (!/scene\.background\s*=\s*null/.test(d))
+      return `${D} no longer clears scene.background for the pass — the background is painted into ` +
+        `the depth map and every fragment reads as occluded`;
+    if (!/saved\.background/.test(d))
+      return `${D} clears scene.background without restoring it — the viewport loses its background`;
+    for (const f of ['NearestFilter'])
+      if (!d.includes(f)) return `${D}'s depth target no longer uses ${f} — packed bytes would be interpolated`;
+    // The pass must actually run in every window that renders projected content.
+    for (const f of ['src/renderer/components/Simulator3D/Simulator3D.tsx', 'plugins/calibration/src/ProjectorScene.tsx']) {
+      const src = read(f);
+      if (!/<ProjectorDepthPass\s*\/>/.test(src))
+        return `${f} renders projected content but does not mount <ProjectorDepthPass /> — occlusion ` +
+          `is silently off in that window while the other one shadows correctly`;
+    }
+    // The depth lookup is its own UV, never the content one.
+    const M = 'src/renderer/components/Simulator3D/projectedMapping.ts';
+    const m = read(M);
+    if (!/texture2D\(uProjDepth,\s*artluxDepthUv\)/.test(m))
+      return `${M} no longer samples the depth map with its own NDC-derived UV — sampling it with ` +
+        `artluxUv would apply the content's V flip and repeat/offset to a data texture`;
+    if (!/uHasDepth/.test(m))
+      return `${M} lost the uHasDepth gate — a material with no map bound would test against unit 0`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

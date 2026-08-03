@@ -10,6 +10,7 @@ import { Button, NumberField } from '../../components/ui';
 import * as layout from '../../services/fixtureLayout';
 import { isLight } from '../../services/fixtureKind';
 import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera';
+import { DEFAULT_BIAS_M } from '../../components/Simulator3D/projectedMapping';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -364,8 +365,15 @@ export const ModelTransformPanel: React.FC = () => {
                   // re-projects instead of leaving a stale bake behind.
                   a.updateModel(m.id, { uvMode: 'projected', uvProjFrom: v.slice(2) });
                 } else if (v === 'projected') {
-                  const vp = m.uvProjView?.length === 16 ? m.uvProjView : captureViewerViewProj();
-                  if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp, uvProjFrom: undefined });
+                  // Keep an existing bake rather than silently re-capturing from wherever the camera
+                  // happens to be right now — the two-click A/B against Mesh UVs depends on the
+                  // matrix surviving the round trip.
+                  if (m.uvProjView?.length === 16) {
+                    a.updateModel(m.id, { uvMode: 'projected', uvProjFrom: undefined });
+                  } else {
+                    const cap = captureViewerViewProj();
+                    if (cap) a.updateModel(m.id, { uvMode: 'projected', uvProjView: cap.view, uvProjEye: cap.eye, uvProjFrom: undefined });
+                  }
                 } else {
                   a.updateModel(m.id, { uvMode: undefined, uvProjFrom: undefined });
                 }
@@ -384,7 +392,9 @@ export const ModelTransformPanel: React.FC = () => {
           </Tooltip>
           <Tooltip id="scene3d.model-uv-bake">
             <button
-              onClick={() => { const vp = captureViewerViewProj(); if (vp) a.updateModel(m.id, { uvMode: 'projected', uvProjView: vp, uvProjFrom: undefined }); }}
+              // Captures the eye as well as the matrix: the back-face test and the occlusion bias
+              // both need to know where the projector IS, and a bake used to store only the matrix.
+              onClick={() => { const cap = captureViewerViewProj(); if (cap) a.updateModel(m.id, { uvMode: 'projected', uvProjView: cap.view, uvProjEye: cap.eye, uvProjFrom: undefined }); }}
               title="Freeze projected UVs from the current 3D viewpoint"
               className="shrink-0 px-1.5 py-1 rounded text-micro border bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1"
               {...help('scene3d.model-uv-bake')}
@@ -392,11 +402,13 @@ export const ModelTransformPanel: React.FC = () => {
           </Tooltip>
         </div>
       )}
-      {/* Footprint controls — only meaningful while something is being projected. Soft edge fades the
-          content out at the edge of the projector's frustum so two projectors covering one object
-          cross-fade instead of meeting at a hard cookie edge; cull drops faces turned away from it.
-          NOTE cull is not occlusion — a nearer surface does not shadow a farther one. */}
+      {/* Footprint + occlusion controls — only meaningful while something is being projected. Soft
+          edge fades the content out at the edge of the projector's frustum so two projectors covering
+          one object cross-fade instead of meeting at a hard cookie edge; cull drops faces turned away
+          from it; Occlude is the general case — it stops content reaching geometry that something
+          else is standing in front of, which cull cannot answer. */}
       {m.kind !== 'plane' && (m.layerId || m.surfaceId) && m.uvMode === 'projected' && (
+        <>
         <div className="flex items-center gap-1.5 text-mini">
           <span className="text-fg-2 shrink-0">Edge</span>
           <Tooltip id="scene3d.model-uv-soft">
@@ -420,6 +432,34 @@ export const ModelTransformPanel: React.FC = () => {
             </label>
           </Tooltip>
         </div>
+        <div className="flex items-center gap-1.5 text-mini">
+          <Tooltip id="scene3d.model-uv-occlude">
+            <label className="flex items-center gap-1.5 cursor-pointer text-fg-2" {...help('scene3d.model-uv-occlude')}>
+              <input
+                type="checkbox"
+                // ABSENCE MEANS ON — see SceneModel.uvProjOccludeOff for why the persisted field is
+                // named for the OFF polarity. `|| undefined` keeps a default-on model's record clean.
+                checked={!m.uvProjOccludeOff}
+                onChange={(e) => a.updateModel(m.id, { uvProjOccludeOff: !e.target.checked || undefined })}
+                className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
+              />
+              Occlude
+            </label>
+          </Tooltip>
+          <span className="text-fg-2 shrink-0">Bias</span>
+          <Tooltip id="scene3d.model-uv-bias">
+            <input
+              type="number" min={0} max={1} step={0.01}
+              value={m.uvProjBias ?? DEFAULT_BIAS_M}
+              onChange={(e) => a.updateModel(m.id, { uvProjBias: Math.max(0, Math.min(1, Number(e.target.value) || 0)) })}
+              disabled={!!m.uvProjOccludeOff}
+              className="w-16 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 num text-micro focus:border-accent focus:outline-none disabled:opacity-40"
+              {...help('scene3d.model-uv-bias')}
+            />
+          </Tooltip>
+          <span className="text-fg-3 shrink-0">m</span>
+        </div>
+        </>
       )}
       <Vec3Row
         label="Scl" v={{ x: sx, y: sy, z: sz }} step={0.1} min={0.0001}
@@ -464,7 +504,6 @@ export const SceneLightingPanel: React.FC = () => {
   return (
     <>
       <NumRow label="Light gain" value={scene3D.lightIntensity} step={0.1} helpId="scene3d.light-gain" onChange={(v) => a.sceneConfig({ lightIntensity: Math.max(0, v) })} />
-      <NumRow label="Exposure" value={scene3D.exposure} step={0.05} helpId="scene3d.exposure" onChange={(v) => a.sceneConfig({ exposure: Math.max(0.1, v) })} />
       {/* Haze is what makes a beam visible at all. Turning it to 0 shows the room as it will look
           WITHOUT atmosphere — pools of light on surfaces and no beams in the air — which is the
           honest preview for a venue that is not hazing. */}
@@ -472,6 +511,7 @@ export const SceneLightingPanel: React.FC = () => {
         onChange={(v) => a.sceneConfig({ hazeDensity: Math.max(0, Math.min(1, v)) })} />
       <Toggle label="Ambient (env)" checked={scene3D.environment} helpId="scene3d.ambient-env" onChange={(v) => a.sceneConfig({ environment: v })} />
       <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} helpId="scene3d.reflective-floor" onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
+      <Toggle label="Glow (bloom)" checked={scene3D.glow === true} helpId="scene3d.glow" onChange={(v) => a.sceneConfig({ glow: v || undefined })} />
       <Toggle label="Grid" checked={scene3D.gridVisible} helpId="scene3d.grid" onChange={(v) => a.sceneConfig({ gridVisible: v })} />
     </>
   );

@@ -9,7 +9,8 @@ import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
 import { useStreamedSurfaceTexture } from './useStreamedSurfaceTexture';
-import { makeProjectedMaterial, usesProjectedUv, type ProjectedMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
+import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
+import { ProjectorDepthPass, registerDepthCaster, unregisterDepthCaster, setDepthRequest } from '@/components/Simulator3D/projectorDepth'; // host module — the ONE depth pass
 import { recenterClone } from '@/components/Simulator3D/venuePlacement';   // host helper — same seam
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
 
@@ -90,6 +91,25 @@ function useContentMaterial(model: SceneModel): { material: THREE.MeshBasicMater
     // stable. resolveProjectedScene returns models by identity when unchanged, so these are stable.
   }, [projected, model.uvProjView, model.uvProjEye, model.uvProjSoft, model.uvProjCull]);
 
+  // OCCLUSION — ask the depth pass for this projector's map. The CASTING half is registered by the
+  // geometry components below, because only they hold the object; this half is the same in both.
+  // The pass is the host's, so the wall and the editor shadow identically — the same reason the
+  // projection maths itself is imported rather than re-typed.
+  useEffect(() => {
+    const pm = projMatRef.current!;
+    const bias = model.uvProjBias ?? DEFAULT_BIAS_M;
+    if (!usesProjectedOcclusion(model)) {
+      setDepthRequest(model.id, null);
+      pm.setOcclusion(null, bias);
+      return;
+    }
+    setDepthRequest(model.id, {
+      viewProj: model.uvProjView!,
+      accept: (tex) => pm.setOcclusion(tex, model.uvProjBias ?? DEFAULT_BIAS_M),
+    });
+    return () => setDepthRequest(model.id, null);
+  }, [model.id, projected, model.uvProjView, model.uvProjOccludeOff, model.uvProjBias]);
+
   useEffect(() => () => { layerMatRef.current?.dispose(); projMatRef.current?.dispose(); }, []);
 
   return {
@@ -104,8 +124,17 @@ function useContentMaterial(model: SceneModel): { material: THREE.MeshBasicMater
 // No material restore: a plane has no authored materials to put back.
 const ProjectorPlane: React.FC<{ model: SceneModel; meshLook?: MeshLook }> = ({ model, meshLook = 'shaded' }) => {
   const { material } = useContentMaterial(model);
+  const groupRef = useRef<THREE.Group>(null);
   const wireMatRef = useRef<THREE.LineBasicMaterial | null>(null);
   if (!wireMatRef.current) wireMatRef.current = new THREE.LineBasicMaterial({ color: '#00ffaa', toneMapped: false });
+  // A screen casts into the depth map: it is usually the nearest thing to the projector, so without
+  // it content would land on the wall behind a screen that is physically blocking the light.
+  useEffect(() => {
+    const g = groupRef.current;
+    if (!g || !model.visible) return;
+    registerDepthCaster(model.id, g);
+    return () => unregisterDepthCaster(model.id);
+  }, [model.id, model.visible, meshLook]);
   // A screen's four borders are a genuinely useful alignment reference — it is already a first-class
   // calibration pick target — so the verify looks must not leave a hole where the screen is.
   const border = useMemo(() => new THREE.EdgesGeometry(new THREE.PlaneGeometry(16 / 9, 1)), []);
@@ -114,6 +143,7 @@ const ProjectorPlane: React.FC<{ model: SceneModel; meshLook?: MeshLook }> = ({ 
   if (!model.visible) return null;
   return (
     <group
+      ref={groupRef}
       position={[model.position.x, model.position.y, model.position.z]}
       rotation={[model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG]}
       scale={modelScaleXYZ(model)}
@@ -140,6 +170,17 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
 
   // Same recentre as ModelObject → identical world coords, because it is literally the same function.
   const cloned = useMemo(() => recenterClone(scene), [scene]);
+
+  // Casts into the projector depth map. Unconditional, and independent of whether THIS mesh reads
+  // one: a mesh with no content of its own still stands in front of one that has some, and must
+  // shadow it. `cloned` rather than the outer group, so re-registering on a GLB swap is what tells
+  // the pass to redraw. (In the wire verify looks `cloned` is hidden, so nothing casts — correct:
+  // those looks draw edges, not content, and there is nothing to occlude.)
+  useEffect(() => {
+    if (!model.visible) return;
+    registerDepthCaster(model.id, cloned);
+    return () => unregisterDepthCaster(model.id);
+  }, [model.id, model.visible, cloned]);
 
   // The verify look, drawn INSTEAD of the shaded mesh. Materials are legitimately near-black here —
   // a bound content layer isn't streamed to render-mode windows, and metallic CAD GLBs go dark
@@ -450,6 +491,9 @@ export const ProjectorScene: React.FC<{
       <ambientLight intensity={0.8} />
       <hemisphereLight intensity={0.7} groundColor="#101010" />
       <CalibCamera calibration={calibration} />
+      {/* Renders the depth maps that make projected mapping occlude — the host's pass, so the wall
+          and the editor shadow identically. Only draws when the venue or a projector moved. */}
+      <ProjectorDepthPass />
       {meshes.map(m => <ProjectorModel key={m.id} model={m} url={modelUrls[m.id]} meshLook={meshLook} />)}
       {planes.map(m => <ProjectorPlane key={m.id} model={m} meshLook={meshLook} />)}
       {/* Distortion FIRST, blend LAST. Distortion maps the ideal pinhole render onto the real optics,

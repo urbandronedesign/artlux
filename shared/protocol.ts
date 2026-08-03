@@ -662,6 +662,15 @@ export interface SceneModel {
   uvProjEye?: [number, number, number]; // projector position in world space — for the back-face test
   uvProjSoft?: number;                // edge falloff of the projected footprint, in NDC (0 = hard)
   uvProjCull?: boolean;               // reject faces turned away from the projector
+  // OCCLUSION — do not light geometry the projector cannot see, because something else is in the way
+  // (renderer/components/Simulator3D/projectorDepth.ts renders the depth map that answers this).
+  //
+  // NAMED FOR THE **OFF** POLARITY, deliberately, exactly as `layout.dockingOff` is. Occlusion is
+  // what a real projector does, so it is the right default — and a field called `uvProjOcclude` would
+  // be absent in every project saved before the depth pass existed, silently opting all of them out
+  // of the behaviour their operator already expects. Absence means ON.
+  uvProjOccludeOff?: boolean;
+  uvProjBias?: number;                // self-shadow bias in METRES (absent = DEFAULT_BIAS_M, 0.02)
 }
 
 // Effective per-axis scale for a model: the per-axis vector when set, else the uniform `scale`.
@@ -818,7 +827,12 @@ export interface Scene3D {
   models: SceneModel[];
   lightIntensity: number;             // per-fixture venue light gain
   environment: boolean;               // ambient/HDR base lighting
-  exposure: number;                   // tone-mapping exposure
+  // REMOVED: `exposure`. The 3D viewport renders with NO tone mapping (the Canvas's `flat` prop), and
+  // NoToneMapping ignores `toneMappingExposure` — so the control had never done anything, in any
+  // build. Nothing in this view wants a tone curve: LEDs, beams and content-bearing meshes are unlit
+  // materials showing the colour they were authored in, and a filmic roll-off would misreport what
+  // the wall is about to look like. Old projects keep the key in their JSON; it is simply ignored,
+  // and dropped on the next save. Do not reinstate it without reinstating a tone curve to drive.
   gridVisible: boolean;
   // ATMOSPHERE — how much haze the room has, 0..1 (absent ⇒ a modest default).
   //
@@ -828,6 +842,11 @@ export interface Scene3D {
   // hazed-up version.
   hazeDensity?: number;
   reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
+  // BLOOM. Off unless asked for, and the polarity is the point: the glow is a full-screen
+  // render-to-texture plus a mipmap blur chain every frame, on a viewport that may be 4K, and it was
+  // previously unconditional. It flatters a rig of LEDs and beams; it does nothing for a venue mesh
+  // carrying content, which is what the mapping workflow actually looks at.
+  glow?: boolean;
   // LOOK THROUGH A CALIBRATED PROJECTOR. The surfaceId of a projector output whose pose has solved,
   // or absent/'' for the free editor camera. The 3D viewport then renders from that projector's
   // exact recovered camera (pose + intrinsic projection, letterboxed to the pane), so an operator
@@ -881,9 +900,9 @@ export const defaultScene3D = (): Scene3D => ({
   models: [],
   lightIntensity: 1,
   environment: true,
-  exposure: 1,
   gridVisible: true,
   reflectiveFloor: false,
+  glow: false,
   trackingViz: false,
   augmentaViz: false,
   trackingSmoothing: 0.6,

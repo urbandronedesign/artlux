@@ -112,11 +112,37 @@ export const scene3dHelp: HelpEntry[] = [
     title: 'Cull back faces',
     short: 'Do not project onto faces turned away from the projector.',
     body: 'A real projector cannot light the far side of an object, so this drops faces pointing away '
-      + 'from it — without this the content wraps around and appears mirrored on the back. It is NOT '
-      + 'occlusion: a nearer surface still does not shadow a farther one, so on a concave venue '
-      + 'content can reach geometry the projector genuinely cannot see. Best on closed, convex objects.',
+      + 'from it — without this the content wraps around and appears mirrored on the back. It answers '
+      + 'only "is this face turned away?", never "is something else in the way?" — that is what '
+      + 'Occlude is for. On a closed convex object this is exact and free; on a concave venue you '
+      + 'want Occlude as well.',
     group: '3D Scene',
-    keywords: ['uv', 'projected', 'cull', 'back face', 'backface', 'occlusion'],
+    keywords: ['uv', 'projected', 'cull', 'back face', 'backface'],
+  },
+  {
+    id: 'scene3d.model-uv-occlude',
+    title: 'Occlude',
+    short: 'Do not light geometry another surface is standing in front of.',
+    body: 'A real projector cannot light what it cannot see. With this on, a nearer surface shadows a '
+      + 'farther one exactly as the light itself would: content stops at the silhouette of whatever '
+      + 'is in front, instead of carrying on through onto the wall behind. Everything visible in the '
+      + '3D scene casts, including screens and meshes with no content of their own. Turn it off to '
+      + 'get the old behaviour, where the whole frustum is lit through. If a surface breaks up into '
+      + 'shadow stripes, raise Bias.',
+    group: '3D Scene',
+    keywords: ['uv', 'projected', 'occlusion', 'occlude', 'shadow', 'hidden', 'depth', 'concave'],
+  },
+  {
+    id: 'scene3d.model-uv-bias',
+    title: 'Occlusion bias',
+    short: 'How much closer than the blocker a surface may be and still be lit, in metres.',
+    body: 'The margin the occlusion test allows before it calls a surface hidden, in metres. Too '
+      + 'small and a surface shadows itself — you get stripes or a speckled pattern across flat '
+      + 'geometry, worst where the projector rakes across it at a shallow angle. Too large and '
+      + 'content creeps a little past a silhouette onto what is behind it. The default of 0.02 m '
+      + 'suits venue-scale geometry; raise it a few centimetres at a time until the stripes go.',
+    group: '3D Scene',
+    keywords: ['uv', 'projected', 'occlusion', 'bias', 'acne', 'stripes', 'shadow', 'depth'],
   },
   {
     id: 'scene3d.model-uv-bake',
@@ -160,14 +186,6 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['haze', 'fog', 'atmosphere', 'beam', 'volumetric', 'smoke'],
   },
   {
-    id: 'scene3d.exposure',
-    title: 'Exposure',
-    short: 'Tone-mapping exposure of the 3D view.',
-    body: 'Brightens or darkens the whole rendered image without changing light placement. Use it to balance a bright bloom or a dim scene.',
-    group: '3D Scene',
-    keywords: ['exposure', 'tone mapping', 'brightness'],
-  },
-  {
     id: 'scene3d.ambient-env',
     title: 'Ambient (env)',
     short: 'Toggle image-based ambient environment lighting.',
@@ -182,6 +200,19 @@ export const scene3dHelp: HelpEntry[] = [
     body: 'Renders reflections of the scene on the floor for a showroom look. Costs extra GPU, so disable it on weaker hardware.',
     group: '3D Scene',
     keywords: ['floor', 'reflection', 'mirror', 'ground'],
+  },
+  {
+    id: 'scene3d.glow',
+    title: 'Glow (bloom)',
+    short: 'Bleed light out of bright pixels — LEDs and beams glow.',
+    body: 'Adds a soft halo around anything bright, which is what makes a rig of LEDs and beams read '
+      + 'as light rather than as coloured dots. It is off by default because it costs a full-screen '
+      + 'pass plus a blur every frame, at whatever resolution the viewport is — one of the more '
+      + 'expensive things in this view, and it does nothing for a venue mesh carrying video, which is '
+      + 'what projection mapping spends its time looking at. Turn it on for a rig you want to show '
+      + 'off; leave it off while mapping or on weaker hardware.',
+    group: '3D Scene',
+    keywords: ['glow', 'bloom', 'halo', 'performance', 'fps', 'postprocessing'],
   },
   {
     id: 'scene3d.grid',

@@ -29,6 +29,7 @@ import { MoverLights } from './MoverLights';
 import { FixtureLights } from './FixtureLights';
 import { ModelObject, ModelTransform } from './ModelObject';
 import { PlaneObject } from './PlaneObject';
+import { ProjectorDepthPass } from './projectorDepth';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
@@ -104,11 +105,7 @@ interface Props {
 // taken by orbit and pan.
 type Mode = 'translate' | 'rotate' | 'scale' | 'select';
 
-const Exposure: React.FC<{ value: number }> = ({ value }) => {
-  const gl = useThree((s) => s.gl);
-  gl.toneMappingExposure = value;
-  return null;
-};
+// NO TONE MAPPING — see the Canvas's `flat` prop below.
 
 // THE CLIP PLANES FOLLOW THE ORBIT DISTANCE, because the scene has no fixed scale. r3f's default near
 // plane is a fixed 0.1 world units — fine for a 12 m venue, a wall you cannot get past on a 20 cm
@@ -294,6 +291,9 @@ const Simulator3D: React.FC<Props> = ({
   const models: SceneModel[] = useMemo(
     () => resolveProjectedScene(scene3D, projectorCalibs).models ?? [],
     [scene3D, projectorCalibs]);
+  // Does the venue want SIMULATED fixture lighting at all? Absent gain means 1 (the historical
+  // default), so only an explicit 0 turns the real lights off — see the two mount sites below.
+  const venueLit = (scene3D.lightIntensity ?? 1) > 0;
 
   return (
     <div className="flex flex-col w-full h-full bg-surface-0">
@@ -356,6 +356,18 @@ const Simulator3D: React.FC<Props> = ({
       <Canvas
         frameloop={paused ? 'never' : 'always'}
         dpr={[1, 2]}
+        // `flat` = NO TONE MAPPING, and it is r3f's own switch for it: without it r3f installs
+        // ACESFilmic. That matters more than it looks, because @react-three/postprocessing's
+        // EffectComposer forces NoToneMapping while mounted and RESTORES whatever it found on
+        // unmount — so with the default, toggling Glow off would have swung the whole viewport
+        // through a tone curve as a side effect of a library's lifecycle, three files away. With
+        // `flat` both states are NoToneMapping and the composer's save/restore is a no-op.
+        //
+        // Nothing here needs a tone curve: LEDs, beams and content-bearing meshes are all unlit
+        // MeshBasicMaterial rendered at the colour they were authored in, and what an operator is
+        // judging is whether the picture matches the wall — a filmic roll-off on the highlights
+        // would actively lie about that. `Scene3D.exposure` was removed with this (see protocol.ts).
+        flat
         gl={{ powerPreference: 'high-performance', antialias: true }}
         camera={{ position: [0, 1.2, 3], fov: 50 }}
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}
@@ -364,7 +376,6 @@ const Simulator3D: React.FC<Props> = ({
         <AdaptiveClipping off={!!viewFrom} />
         {viewFrom && <ProjectorView calibration={viewFrom.calibration} />}
         <ViewerCameraBridge />
-        <Exposure value={scene3D.exposure ?? 1} />
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
         {scene3D.gridVisible !== false && <GroundGrid />}
@@ -381,6 +392,11 @@ const Simulator3D: React.FC<Props> = ({
               <v.Component scene3D={scene3D} />
             </ErrorBoundary>
           : null)}
+        {/* Renders the projector depth maps that make projected mapping occlude, once per frame and
+            only when the venue or a projector actually moved. Must be INSIDE the Canvas — it borrows
+            this renderer and this scene. Without it the models still register, nothing ever draws,
+            and occlusion is silently off. See projectorDepth.ts. */}
+        <ProjectorDepthPass />
         {models.map((m) => m.kind === 'plane' ? (
           <PlaneObject
             key={m.id}
@@ -432,7 +448,15 @@ const Simulator3D: React.FC<Props> = ({
         {dragPick != null && onMovePick && <PickDragRunner index={dragPick} onMove={onMovePick} />}
         {/* The vertex the next click will snap to. Mounted only while picking — see vertexSnap.ts. */}
         {calibPickMode && <SnapCursor />}
-        <FixtureLights fixtures={fixtures} scene3D={scene3D} />
+        {/* A LIGHT AT INTENSITY 0 IS NOT A FREE LIGHT. three forward-renders every MOUNTED light for
+            every fragment of every lit material and the intensity only scales the result, so at
+            "Light gain 0" the 12 point lights here and the 8 spots in MoverLights were still being
+            evaluated per pixel, and still forcing a lights-heavy shader permutation on every
+            MeshStandardMaterial in the venue. Unmounting them at zero gain is provably free of visual
+            change — both components multiply by this exact gain — and it is the single biggest saving
+            available to a scene that drives its look from content rather than from simulated fixtures.
+            The cost of the switch is one shader recompile when the gain leaves or returns to 0. */}
+        {venueLit && <FixtureLights fixtures={fixtures} scene3D={scene3D} />}
         {/* The housing goes in FIRST so the LEDs draw over it. It is also the click target — see
             FixtureBodies: a 12mm sphere is not something an operator can reliably hit. */}
         {/* Pixel fixtures get a bar sized from their LED run; PROFILED fixtures get an articulated
@@ -454,8 +478,9 @@ const Simulator3D: React.FC<Props> = ({
         {/* Tier 1 of the beam budget: every lit fixture's volumetric cone, in ONE draw call. */}
         <Beams fixtures={fixtures} profiles={fixtureProfiles} hazeDensity={scene3D.hazeDensity} />
         {/* Tier 2: a few REAL spotlights so the brightest beams actually light the room. Capped —
-            see MoverLights on why lights are not additive in cost. */}
-        <MoverLights fixtures={fixtures} profiles={fixtureProfiles} gain={scene3D.lightIntensity} />
+            see MoverLights on why lights are not additive in cost — and skipped outright at zero
+            gain, for the reason spelled out on FixtureLights above. */}
+        {venueLit && <MoverLights fixtures={fixtures} profiles={fixtureProfiles} gain={scene3D.lightIntensity} />}
         <InstancedLeds fixtures={fixtures} onSelectFixture={onSelectFixture} />
         {mode !== 'select' && <FixtureGizmo
           fixtures={gizmoFixtures}
@@ -478,9 +503,18 @@ const Simulator3D: React.FC<Props> = ({
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
           <GizmoViewport labelColor="white" axisHeadScale={1} />
         </GizmoHelper>
-        <EffectComposer>
-          <Bloom luminanceThreshold={0.1} intensity={0.6} mipmapBlur />
-        </EffectComposer>
+        {/* GLOW — opt-in, and the composer is skipped ENTIRELY rather than left mounted with the
+            Bloom disabled. Mounting an EffectComposer at all costs a full-screen render-to-texture
+            plus a copy back every frame even when it does nothing, which is the same reasoning that
+            put `needsBlendPass` in front of the projector window's composer. Bloom itself adds the
+            mipmap blur chain on top, at viewport resolution.
+            It flatters a rig of LEDs and beams; it does nothing for a venue mesh carrying content,
+            which is what the projection-mapping workflow spends its time looking at. */}
+        {scene3D.glow === true && (
+          <EffectComposer>
+            <Bloom luminanceThreshold={0.1} intensity={0.6} mipmapBlur />
+          </EffectComposer>
+        )}
       </Canvas>
 
       {marquee && (
