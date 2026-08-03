@@ -145,15 +145,21 @@ guide. It touches **no wave subsystem** (build config, a new window entry, a mar
 menu/IPC), so it can be built on its own branch `feat-docs-browser` **in parallel with any wave** and
 merged whenever tested. Recommended alongside Wave 0/1 so the tutorials become viewable in-app early.
 
-## Independent track — MIDI control (parallel-safe)
+## ⛔ Independent track — MIDI control — **DROPPED 2026-08-03, not planned**
 
-[midi-control](midi-control.md) — a renderer-only `plugins/midi` (MIDI-learn + remappable bindings) that
-drives scenes / cues / states / transport and continuous params through the **same buses OSC uses**. It
-touches **no wave subsystem**: two tiny core touches (a Web-MIDI permission grant in `src/main/index.ts`,
-and an additive `ProjectData.midiBindings?`), otherwise plugin-local — so it builds on its own branch
-`feat-midi-control` **in parallel with any wave**. Pairs naturally with **show-control** (Wave 0), both
-being external-control front-ends; its continuous-CC → param path also gains audio targets once Wave 3's
-`audio.*` `paramPath` namespace lands (a synergy, not a dependency).
+[midi-control](midi-control.md) is **not being built** (owner's decision). It was never started —
+no `plugins/midi`, no `ProjectData.midiBindings`, no permission grant — so the branch
+`feat-midi-control` was never cut and nothing needs unwinding. **External control stays OSC-only**
+(`services/oscController.ts`) plus the show-control tablet.
+
+Worth recording, because the shape of the decision matters more than the feature: this was the **one**
+plan the documentation gate ever held. The gate opened 2026-07-29 and named it unblocked; it was dropped
+five days later **with nothing standing in its way**. The hold was not the reason it died.
+
+The plan file is kept unbuilt as a rejection record — the same treatment as **DXV** and **DDS image
+sequences** in [docs/ROADMAP.md](../docs/ROADMAP.md). Read it before proposing *any* control-surface
+work: it documents a live `grantMediaPermissions()` gap and the adapter shape every external trigger
+source in this app already shares.
 
 ## Independent track — Transport prev/next edit point (small; land after Wave 3)
 
@@ -185,7 +191,7 @@ test). Only the wave-independent ones are written ahead.
 | **LiDAR blobs without a LiDAR** | **now** (wave-independent) | touches OSC/tracking/takes — no plan modifies these |
 | Media-Free Motion Graphics (core) | now / after Wave 2 | video story stable; add an audio+automation chapter after Wave 3 |
 | Operator Remote · Ship It (watchdog) | Wave 0 | show-control tablet parity · watchdog throttle |
-| MIDI control (map a controller) | after the MIDI plugin | learn + remap a pad/fader to scenes/params — wave-independent |
+| ~~MIDI control (map a controller)~~ | ⛔ **cancelled 2026-08-03** | the plugin is not being built; there is nothing to write a tutorial against |
 | Cue Deck · Patch & Prove (DMX) · Pack & Hand Off · Composite Stage · Ship It (headless) | Wave 1 | cue-authoring · dmx-io · asset-ops · webgl-strict · headless-plugin-host |
 | Wiring Rescue · Hello Projector · Patch & Prove (autopatch) | Wave 2 | fixture-segments · content-source + projector-blend · autopatch |
 | Audio tutorial · Motion-Graphics audio chapter | Wave 3 | the audio subsystem |
@@ -193,13 +199,18 @@ test). Only the wave-independent ones are written ahead.
 ## ✅ THE DOCUMENTATION GATE — **OPEN as of 2026-07-29** (all five conditions met)
 
 **Rule (set 2026-07-29, owner's call): no net-new feature starts until the usage documentation is caught
-up.** It gated **[`feat-midi-control`](midi-control.md)**, the one still-active net-new plan. It does
-**not** gate bug fixes, hardening, or a rework of something already shipped and already documented.
+up.** It does **not** gate bug fixes, hardening, or a rework of something already shipped and already
+documented.
 
-> **The backlog item is done — `feat-midi-control` is UNBLOCKED.** All five conditions below are met and
-> `npm run verify` enforces them (**11 doc checks**). **The rule itself does not expire:** a net-new
+> **The backlog item is done, and the gate now holds nothing.** All five conditions below are met and
+> `npm run verify` enforces them (**12 doc checks**). **The rule itself does not expire:** a net-new
 > feature ships its usage documentation *in the same commits*, and the checks are what say so. What
 > changed is that the debt is paid, not that the standard was lowered.
+>
+> ⚠ **The one plan this gate ever held — [`feat-midi-control`](midi-control.md) — was UNBLOCKED here on
+> 2026-07-29 and then DROPPED on 2026-08-03**, by choice, with nothing standing in its way. Recorded
+> because it would be easy to read this gate as the reason MIDI never shipped. It is not: the gate
+> released it, and the owner declined it afterwards.
 
 Plan: **[documentation-wiki.md](documentation-wiki.md)** (audit + phases + the options that were rejected).
 
@@ -284,10 +295,10 @@ else is on the critical path; everything else is post-merge.
 2. The two loose bugs above, and the webgl-strict Phase 2 decision.
 3. **[Transport prev/next edit point](transport-edit-point-navigation.md)** (`feat-transport-skip`) — half a day,
    🟢 low. (No longer blocked — `wave-3-audio` has merged, so `TimelineToolbar.tsx` is free.)
-4. **[Usage documentation](documentation-wiki.md)** (`docs-usage-wiki`) — parallel-safe with everything above,
-   and **⛔ a hard gate on item 5**. See *The documentation gate*.
-5. **MIDI control** — ✅ **unblocked** (the documentation gate closed 2026-07-29). Independent and
-   parallel-safe; ships its usage docs with it.
+4. **[Usage documentation](documentation-wiki.md)** (`docs-usage-wiki`) — ☑ **done 2026-07-29**;
+   parallel-safe with everything above. See *The documentation gate*, which now holds nothing.
+5. ~~**MIDI control**~~ — ⛔ **DROPPED 2026-08-03, not planned.** Unblocked by item 4, then declined.
+   Never started. See *Independent track — MIDI control*.
 
 ## Verification gate (what "done, ready to test" means, per wave)
 
@@ -323,15 +334,16 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | 2 | `wave-2-render-output` (merged, deleted) | fixture-segments, content-source-region, projector-blend, autopatch | ◑ **partially merged + pushed 2026-07-11** — **fixture-segments** (segment gap/off; **verified live on-wire** — middle third → 0) + **autopatch** (collision detector always-on + opt-in locked-range reservation) landed. **content-source-region + projector-blend HELD behind webgl-strict Phase 2**; autopatch **Phase C (split-brain write-back) deferred**. |
 | 3 | `wave-3-audio` (**merged**) | audio-engine (P0→P6, **P6 on `p6-audio-multichannel`**) + transport-and-scoping (supersedes P5) + asset-paths | ☑ **MERGED TO `main` 2026-07-14** (`4541743`, 135 commits) — the JUCE/libspatialaudio addon, the bed, ambisonic + spatial UI, juce_dsp FX, the core automation-curve engine, Wave A (the bounded clock), Wave B (**the show clock**, audio lanes, the mixer, audio on scenes/cues), asset-paths, and the 14-task merge-blocker plan. **A 16-agent adversarial review of the full diff confirmed 39 findings (7 blockers)**; the two that decided the merge were automation-clock blockers that **snapped the master +9.6 dB on every GO and persisted it to disk** — cured by *deleting the state* (`Scene.timeline` is now required). ⚠ **BREAKING (project files):** a timeline-less scene now loads with an **empty** timeline instead of falling back to the global one. **Every merge-deciding test was run by hand and passed**, and **two of the 14 tasks were found by the USER, in the app, after the review had already passed the branch** — the mixer's faders drew the document while the engine played the automation, and New Project left the outgoing show's whole timeline behind. *A review that reads code cannot hear a room.* **P6 MERGED TO `main` 2026-07-15** (`f37f341`, its own `--no-ff` merge after the Wave 3 merge) — Tasks 1–9 + a real-time fix (5b), each written failing-sim-first and reviewed, then a whole-branch review that caught one Critical (the commissioned patch never reached the engine in broadcast/headless). Device picker grouped by driver type (WASAPI exclusive = the multichannel path), speaker patch + commissioning tone, the ambisonic decoder rebuild moved off the audio lock, ASIO behind an off-by-default flag, headless audio wired, the dead HeadlessRunner fork deleted, and **AppSettings stopped travelling in the `.artlux`** (the machine, not the show). ⚠ **GATE, NOT YET PASSED: P6 is a SYNTHETIC PASS, not a venue pass** — there is no multichannel hardware on this project (Wave-3 test 2.10), so every multichannel result is obtainable only against a virtual 8-channel device or a card switched to 7.1 Surround, and headless audio has never been audibly confirmed; see [2026-07-14-p6-acceptance.md](../docs/archive/superpowers/2026-07-14-p6-acceptance.md), unrun. **Still open: gate 4 (the JUCE licence) before any `v*` tag.** |
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
-| 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ◑ **HALF DONE — reconciled against the tree 2026-07-29** (the row said "not started" for both, and one of them had shipped). **`timeline-undo` ☑ SHIPPED** — `DocSnapshot` + the `SHOW_ENGINE` gate are in `App.tsx`, and `verify-invariants.cjs` carries a dedicated *"Undo/redo: the document-history safety rules"* block that cites this plan and asserts the `MAX_DEPTH` cap. **`renderer-error-containment` ☐ NOT STARTED** — no `services/faultReporter.ts`, no fault channel in `shared/protocol.ts`, and no pre-first-heartbeat arming in `watchdog.ts`. ⚠ **`components/ErrorBoundary.tsx` exists and is NOT this plan**: it arrived 2026-07-25 in an a11y commit and is used by `DockRenderer` to wrap a *panel* — which is precisely the "wrap the tabs" approach the plan's §1 says would have caught **neither** shipped white-screen. Its headline still stands: **the watchdog cannot see a white screen.** |
+| 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☑ **COMPLETE — both halves shipped.** **`timeline-undo` ☑ SHIPPED** — `DocSnapshot` + the `SHOW_ENGINE` gate are in `App.tsx`, and `verify-invariants.cjs` carries a dedicated *"Undo/redo: the document-history safety rules"* block that cites this plan and asserts the `MAX_DEPTH` cap. **`renderer-error-containment` ☑ SHIPPED 2026-07-29** (`48752f8`, *"the white screen becomes visible, and the venue stops dying silently"*) — `services/faultReporter.ts` exists, `RENDERER_FAULT: 'renderer:fault'` is in `shared/protocol.ts:21`, root boundaries on all four entries, the 2-strike Safe-Mode ladder, seven new invariant checks. **Verified live in BROADCAST**, not simulated. *(This row read "☐ NOT STARTED" for the second half until the 2026-08-03 audit — it was written on 2026-07-29 and the commit landed the same day.)* ⚠ The historical note is still worth keeping: **`components/ErrorBoundary.tsx` is NOT this plan** — it arrived 2026-07-25 in an a11y commit and wraps a *panel*, the approach the plan's §1 says would have caught **neither** shipped white-screen. Check for `faultReporter.ts`, not for a plausible-sounding file. |
 | — | `feat-transport-skip` | transport-edit-point-navigation | ☐ not started (Draft — plan written 2026-07-13). The `⏮`/`⏭` buttons were **in the Wave A sketch and never entered the Wave A plan**; the capability (prev/next edit point) does not exist at all. Held until `wave-3-audio` merges — same file. |
 | — | `docs-usage-wiki` | [documentation-wiki](documentation-wiki.md) — the gate | ☑ **DONE 2026-07-29 — GATE OPEN.** **P0:** `docs/manifest.json` (9 usage / 23 hybrid / 9 code), `verify:docs` (**11 checks**, in `npm run verify`), `docs:gen` (chapter 15 generated from the keymap registry), the operator sidebar derived from the manifest, `build-docs-html.cjs`'s dead hand-list retired — **four defects fixed, three found by the new checks**. **P1:** in-app search — **752 chunks from 69 pages in ~215 ms**, one shared scorer, the F1 modal gained a documentation tier, the Docs Browser gained a search field, results land on the heading. **P2:** **68 audience markers across all 23 hybrids** (toggles, read into `DocChunk.audience`, contributor prose demoted not hidden) + **three new chapters** (moving lights, installing, running unattended) → guide is **19 chapters**. **Live-tested at every phase, and it paid twice:** `"gray code"` returned *nothing* (the docs write *Gray-code*), then returned *Building the native addon* until the markers landed; it now returns *Projector Calibration*. Phase 3 (public site) is optional and was never part of the gate. |
-| — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written; no `plugins/midi` in the tree). ✅ **UNBLOCKED 2026-07-29** — the documentation gate is open. It ships its own usage docs with it. |
+| — | ~~`feat-midi-control`~~ (never cut) | [midi-control](midi-control.md) | ⛔ **DROPPED 2026-08-03 — not planned** (owner's decision). Never started: no `plugins/midi`, no `ProjectData.midiBindings`, no `'midi'` in `grantMediaPermissions()`. Unblocked by the doc gate 2026-07-29 and declined five days later, with nothing in the way. Kept unbuilt as a **rejection record** (the DXV / DDS treatment). |
 | — | `feat-help-merge` | [help-merge-and-topbar-removal](help-merge-and-topbar-removal.md) | ☑ **SHIPPED** (`4382185`, and the icon-group removal in `a22ca1b`) — `components/HelpPanel.tsx` and `components/TopBar.tsx` are both **gone** from the tree and `help/HelpBrowser.tsx` is the single surface. *Never had a row here.* |
 | — | (on `main`) | [dockable-workspace](dockable-workspace.md) | ☑ **SHIPPED 2026-07-27** (`cb09097` added `services/dockTree.ts`) — panels drag into tabs/splits per workbench, on by default, two documented ways back. *Row added 2026-07-29; the plan header still read "Planned".* |
 | — | (on `main`) | [engine-decoupling](engine-decoupling.md) | ☑ **SHIPPED 2026-07-26** (`0e34015` added `engine/frameEngine.ts`) — the frame loop left the UI; output no longer depends on a mounted component. **Phase 3 (Worker) deliberately parked** — no `*.worker.ts` in the tree, and the plan records the measurement that parked it. |
 | — | (on `main`) | [fixture-kinds](fixture-kinds.md) · [lighting-keyframes](lighting-keyframes.md) | ☑ **BUILT + pushed 2026-07-27** (`e7b7cfd` added `services/fixtureKind.ts`; `services/lightingSequence.ts` ships) — ⚠ **rework still expected**, see [lighting-rework-status.md](lighting-rework-status.md). |
-| — | (on `main`) | [multi-projector-blend](multi-projector-blend.md) | ☑ **BUILT 2026-07-28** — `plugins/calibration/src/blend{Compute,Controller,Store}.ts`. `autoApply` ships **OFF**; hardware validation outstanding. |
+| — | (on `main`) | [multi-projector-blend](multi-projector-blend.md) | ☑ **BUILT — phases A–F, 2026-07-28…31** — `projector/blendGlsl.ts` (the one shared ramp), `plugins/calibration/src/blend{Compute,Controller,Store}.ts`, `components/RigBlendStrip.tsx`, `BlendInspector.tsx`, `gammaController.ts`, and the NVAPI feed (`App.tsx:3566`). `c787632` then dropped the camera-scan prerequisite — a blend is traced from the solved calibration, so manually- and board-calibrated rigs can join one. `autoApply` ships **OFF**. **Phase G (hardware) outstanding** → [projection-mapping-verification](projection-mapping-verification.md). Still open: MPCDI export drops the blend and `importMpcdi` has no renderer caller. |
+| — | (on `main`) | [projection-mapping-verification](projection-mapping-verification.md) | ⏳ **OPEN — hardware acceptance, blocked on the RTX rig.** The disguise/VIOSO-class mapping work shipped 2026-07-30…08-02 (`8cb298d` → `582cf9c`): manual no-board/no-camera calibration, residual warp on a calibrated output via the new `ProjectorPanelContext.setRenderSource` SDK seam, any surface on any mesh (`surfaceFrameChannel` became a keyed map), planes as venue geometry, Timeline (Program) on a mesh, and **live projected mapping** replacing the frozen per-vertex UV bake. **Phases 0–5 built, only Phase 0 confirmed on hardware** — the dev laptop is an Intel Iris Xe over Parsec, measured GPU-bound at ~22 fps *with the branch stashed*, so judging quality there measures the laptop. Deliberately unbuilt: Phase 6 (occlusion depth pass), Phase 2b (`ModelObject`/`PlaneObject` unification — **markerless auto-align cannot see screen planes**), a per-model Flip V, and **projector-window crash recovery** (`watchdog.attach` has one call site; a hung projector window is neither detected nor recovered). |
 | — | (on `main`) | [documentation-wiki](documentation-wiki.md) | ☑ **DONE 2026-07-29** — see the row above and *The documentation gate*. |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
@@ -350,10 +362,24 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 > plan's **named artefacts** — `faultReporter.ts`, the `getRegion` callback, `{sx,sy,sw,sh}` — not for a
 > plausible-sounding file.
 
-**As of 2026-07-29 the genuinely open work is:** **`renderer-error-containment`** (the watchdog still
-cannot see a white screen — the highest-value item in the backlog for an unattended install),
-**`feat-transport-skip`** (no prev/next edit point exists in the tree), **`feat-midi-control`** (now
-unblocked), **`content-source-region`** (no source-region fields on `SurfaceContent`, no `getRegion`
-callback) and **`projector-blend-preview`** — the last two still behind the **webgl-strict Phase-2**
-decision. Post-ship follow-ups still open: P6's synthetic acceptance checklist (unrun — no multichannel
-hardware) and the JUCE licence election (gates the first tag).
+**As of 2026-08-03 the genuinely open work is** — re-verified by grepping for each plan's named
+artefacts, not from memory:
+
+- **`projection-mapping-verification`** ⏳ — the largest open item, and it is *verification*, not
+  building: six phases of projection mapping are on `main` with one of them confirmed on hardware.
+  **Blocked on the RTX rig**, not on a decision.
+- **`feat-transport-skip`** ☐ — still nothing: no `components/timeline/editPoints.ts`, no prev/next
+  navigation of any kind. Its "land after `wave-3-audio`" hold expired when Wave 3 merged 2026-07-14.
+- ~~**`feat-midi-control`**~~ ⛔ **DROPPED 2026-08-03 — no longer open work.** Not planned; never
+  started. External control stays OSC-only + the show-control tablet.
+- **`content-source-region`** ☐ and **`projector-blend-preview`** ☐ — confirmed absent (no
+  source-region fields on `SurfaceContent`, no `getRegion` callback, no `BlendPreviewGL.ts`). Both
+  still behind the **webgl-strict Phase-2** decision, which is itself the oldest open item here.
+- **`multi-projector-blend`** — only its MPCDI link and Phase G remain (see its row).
+
+Post-ship follow-ups still open: P6's synthetic acceptance checklist (unrun — no multichannel hardware)
+and the JUCE licence election (gates the first tag).
+
+**Everything else in this table has shipped.** Wave 4 is now complete (it read half-done here for five
+days after `renderer-error-containment` landed), and the 2026-07-29 reconciliation's trap applies to the
+newer rows too: *a file existing does not mean its plan shipped* — check for the named artefact.

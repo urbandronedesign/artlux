@@ -1,5 +1,13 @@
 # Verifying projection mapping on the RTX rig
 
+> **Status:** ⏳ **OPEN — a hardware acceptance checklist, not a design plan.** It carries no §1–§10
+> template and needs none: the code it verifies is already on `origin/main` (`8cb298d` → `582cf9c`,
+> 2026-07-30…08-02). It is also **Phase G** of
+> [multi-projector-blend.md](multi-projector-blend.md) — the hardware session that plan's phases A–F
+> were built ahead of. **Placement:** `plugins/calibration` + `renderer/projector` + `Simulator3D`.
+> **Blocked on:** the RTX machine + a projector + a camera. Nothing here can be judged on the dev laptop
+> (see below).
+
 Phases 0–5 of the disguise/VIOSO-class projection-mapping work are **built and typecheck- and
 invariant-clean, but only ONE of them has been confirmed on real hardware.** This is the checklist for
 the machine that can actually judge them.

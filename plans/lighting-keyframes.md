@@ -1,6 +1,7 @@
 # Lighting keyframes — an authorable, group-addressed encoding for a light show
 
-> **Status: E1–E6 BUILT — 2026-07-27, on `main`, NOT PUSHED.** Rework expected before release; see
+> **Status: E1–E6 BUILT — 2026-07-27, on `origin/main`** (this line said "NOT PUSHED" until the
+> 2026-08-03 audit; `origin/main..main` is empty). Rework expected before release; see
 > **[lighting-rework-status.md](lighting-rework-status.md)** for what is verified, what is open, and
 > where to resume. **Core**. Risk 🟡 Med.
 > Companion to [fixture-kinds.md](fixture-kinds.md) (it supplies the typed *light* group this addresses).

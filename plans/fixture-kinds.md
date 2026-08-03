@@ -1,6 +1,7 @@
 # Fixture kinds — dissociating **LED fixtures** from **Light fixtures**
 
-> **Status: ALL WAVES BUILT — 2026-07-27, on `main`, NOT PUSHED.** Rework expected before release; see
+> **Status: ALL WAVES BUILT — 2026-07-27, on `origin/main`** (this line said "NOT PUSHED" until the
+> 2026-08-03 audit; `origin/main..main` is empty). Rework expected before release; see
 > **[lighting-rework-status.md](lighting-rework-status.md)** for what is verified, what is open, and
 > where to resume. **Core** (no plugin). Risk 🟡 Med.
 >

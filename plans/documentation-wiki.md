@@ -5,7 +5,9 @@
 > usage documentation with it, and `npm run verify` (11 doc checks) is what says so. Registered in
 > [SEQUENCING.md](SEQUENCING.md) ▸ *The documentation gate* (conditions + status tracker),
 > [plans/README.md](README.md) ▸ Active plans, and [docs/ROADMAP.md](../docs/ROADMAP.md) ▸ Near-term.
-> First thing it holds: **[midi-control](midi-control.md)**.
+> The only thing it ever held was **[midi-control](midi-control.md)** — released 2026-07-29, then
+> **dropped by the owner 2026-08-03**. The gate now holds nothing; the rule still applies to whatever
+> comes next.
 > **Scope: how to USE the app.** Engine internals, the plugin SDK, build/release and `plans/` are
 > explicitly **out** — they stay in the repo for whoever builds ArtLux and never appear in this wiki.
 

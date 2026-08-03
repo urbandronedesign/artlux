@@ -16,7 +16,9 @@
 ## 0. Where to resume (read this first)
 
 **Phases 0 and 1 are complete. Phase 2 is code-complete. Phase 3 is PARKED at a measured fork.**
-`npm run verify` is green at 54 checks; nothing has been pushed. As of 2026-07-27.
+As of 2026-07-27; **pushed since — `origin/main..main` is empty** (this line said "nothing has been
+pushed" until the 2026-08-03 audit). `npm run verify` was green at 54 checks then; the count has grown
+with later waves, so re-run it rather than comparing to that number.
 
 **What the programme achieved:** output no longer depends on the UI. The frame loop lives in
 `renderer/engine/frameEngine.ts`, starts itself at module load, reads no DOM, and reaches main over its

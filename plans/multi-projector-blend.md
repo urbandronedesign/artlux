@@ -1,10 +1,60 @@
 # Multi-projector soft-edge blend — auto-calibrated (2 projectors, one screen)
 
-> **Status:** Draft 2026-07-28 · **Answers:** "can a 2-projector soft-edge rig be auto-calibrated in the current app?" — **no, not end-to-end; four of the five pieces exist and none of them are connected** · **Placement:** Hybrid (the persisted blend field is Core by rule; the solve + apply are `plugins/calibration`) · **Risk:** 🟠 Medium-high · **Breaking changes:** project-file additive-optional, bridge additive-optional, no SDK break
+> **Status: ☑ BUILT — Phases A–F shipped 2026-07-28…31, on `origin/main`. Phase G (the hardware
+> session) is the only one left, and it now has its own checklist:
+> [projection-mapping-verification.md](projection-mapping-verification.md).**
+> *(This header read "Draft · no, not end-to-end" until the 2026-08-03 audit. §1 below is the
+> **original** answer and is kept as the record of what was wrong — the table in §1a says what is
+> true now. Read §1a first; §1's ❌ rows are all closed except link 8.)*
+> **Placement:** Hybrid (the persisted blend field is Core by rule; the solve + apply are
+> `plugins/calibration`) · **Risk:** 🟠 Medium-high · **Breaking changes:** project-file
+> additive-optional, bridge additive-optional, no SDK break
+
+**What shipped, per phase:**
+
+| Phase | Deliverable | State |
+|---|---|---|
+| **A** | a calibrated output can be blended at all | ☑ `src/renderer/projector/blendGlsl.ts` is the one `SOFT_EDGE_GLSL` ramp; `ProjectorGL` and the plugin's `ProjectorScene` `blendFrag` both interpolate it, `nvwarpApply.buildIntensity` is the documented CPU replica |
+| **B** | the rig session keeps the dense maps | ☑ `blendController.captureScan()` at `AutoAlignWizard.tsx:401` (the map used to die with the component) + `blendStore` session store + a sidecar beside the project |
+| **C** | solve and apply | ☑ `blendController.solveRig()`; `computeBlendMaps` has callers; `ProjectorOutput.blend` persists (`shared/protocol.ts:544-582`), and `rigOutputs()`/`isStale()` are the rig concept the draft said did not exist |
+| **D** | the rig UI | ☑ `components/RigBlendStrip.tsx` (host-side, reaching the plugin **only** through `@artlux/plugin-calibration/renderer` — the barrel rule §3 warns about) + `BlendInspector.tsx` |
+| **E** | NVAPI feed + double-blend guard | ☑ `App.tsx:3566` passes `toBlendMap(o.blend)` into `outputToNvwarp`; the `if (blendMap)` and black-lift branches are live |
+| **F** | photometric match | ☑ `gammaController.ts` (`measureGamma`) |
+| **G** | the hardware session | ⏳ **outstanding** — needs the RTX rig; see [projection-mapping-verification.md](projection-mapping-verification.md) |
+
+**Landed beyond the draft** (2026-07-31, `c787632`): a rig blend no longer *requires* an Auto-Align
+camera scan. When no scan exists the dense map is **traced from the solved calibration** by raycasting
+a pixel grid into the venue mesh, so manually- and board-calibrated rigs can join a blend. Traced maps
+are session-only (they derive from the calibration, so they re-trace when it is newer); camera scans,
+which measure geometry independently, are still reused.
+
+**Still open, and it is only link 8 of §1's chain:** MPCDI export passes **no blend**
+(`AutoAlignWizard.tsx:426` sends `regionFromCalibration(...)`, and `mpcdiData.ts:39`'s optional `blend`
+→ `alpha` argument is never supplied), and `importMpcdi` still has **no renderer caller** — the preload
+(`index.ts:72`) and main (`ipc.ts:261`) halves exist and nothing applies a parsed region. Also
+`autoApply` ships **OFF** by decision.
 
 ---
 
-## 1. The limitation today — the honest answer
+## 1a. What is true now (2026-08-03)
+
+| Capability | State |
+|---|---|
+| Two outputs, two displays, one picture split with an overlap | ✅ works |
+| Soft-edge feather that is light-linear | ✅ works — and is now **one** GLSL source shared by both GPU paths |
+| Auto-calibrate each projector's geometry onto 3D venue geometry | 🟡 code-complete, **still unvalidated on hardware** |
+| Auto-derive the blend between the calibrated projectors | ✅ `solveRig()` — and it no longer needs a camera scan |
+| Apply a blend to a calibrated output | ✅ `ProjectorScene`'s `blendFrag`, and NVAPI scanout when `hwWarp` is on |
+| Carry the blend out to another system as MPCDI | ❌ export drops it; import has no caller |
+
+---
+
+## 1. The limitation *as it stood on 2026-07-28* — the honest answer at the time
+
+> ⚠ **HISTORICAL.** Everything below describes the tree **before** this plan was built. It is kept
+> verbatim because the gap chain is the reasoning that produced the design, and because links 3–7
+> name the exact failure each shipped piece exists to prevent. For the current state read §1a.
+
 
 Two questions hide inside "can it auto-calibrate a soft edge":
 

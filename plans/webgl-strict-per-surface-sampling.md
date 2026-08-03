@@ -1,6 +1,12 @@
 # WebGL fallback: strict per-surface sampling (or explicit degradation)
 
-> **Status:** Draft · **Lifts:** Tuto Set #1 (Composite Stage / SURFACES.md S1→S3) — the WebGL fallback bleeds a front surface into back-linked fixtures instead of sampling each fixture strictly from its linked surface · **Placement:** Core · **Risk:** Medium · **Breaking changes:** None (additive optional interface members + one UI-only warning state)
+> **Status:** ◑ **Phase 1 SHIPPED** (Wave 1, 2026-07-11 — the reduced-mode banner, the
+> `artlux.forceWebGL` per-machine flag now surfaced in `components/Preferences.tsx:130-144`, and the GPU
+> settings section) · **Phase 2 DEFERRED** pending the multi-machine decision in §10 — `GPUMapper` still
+> advertises no `perSurface`/`renderSurfaces` (only `WebGPUMapper` implements it), so the fallback still
+> bleeds. This gates [content-source-region](content-source-region.md) and
+> [projector-blend-preview](projector-blend-preview.md). *(Header read plain "Draft" until the 2026-08-03
+> audit, while README + SEQUENCING both already recorded Phase 1.)* · **Lifts:** Tuto Set #1 (Composite Stage / SURFACES.md S1→S3) — the WebGL fallback bleeds a front surface into back-linked fixtures instead of sampling each fixture strictly from its linked surface · **Placement:** Core · **Risk:** Medium · **Breaking changes:** None (additive optional interface members + one UI-only warning state)
 
 ## 1. The limitation today
 
@@ -51,7 +57,7 @@ Two deliverables; ship in the phase order of §9.
 `Stage.tsx`:
 - Add state `const [reducedMode, setReducedMode] = useState(false)`. In the init effect (`:172-181`), when the WebGL branch is taken, `setReducedMode(true)` **and** keep the existing `console.log`.
 - Render a non-blocking banner (distinct from the full-screen `webglError` overlay at `:875-881`) — a small top-of-stage strip: *"Reduced rendering mode: GPU compute unavailable, per-surface sampling is approximate. Fixtures may sample overlapping surfaces."* Dismissable; re-shows on next fallback.
-- Optionally surface the same flag in `TopBar.tsx` (a badge) since headless/broadcast have no visible Stage; log-only remains the signal there.
+- Optionally surface the same flag as a badge, since headless/broadcast have no visible Stage; log-only remains the signal there. *(This step named `TopBar.tsx`, which was **deleted** with the help merge — `4382185`/`a22ca1b`. The surviving equivalent is the `StatusBar`.)*
 
 No interface, IPC, schema, or SDK change. Pure additive UI state.
 
@@ -96,7 +102,7 @@ Data flow after Phase 2 is identical in shape to WebGPU: `surfaces → atlas can
 - `GPUMapper` is instantiated in exactly one place: `Stage.tsx:174`. No other consumer (`packages/`, projector, headless all clear). `led3dLayout.ts`'s match is an unrelated comment.
 - `IPixelMapper` is consumed only by `Stage.tsx` (the `mapper` ref) and implemented by `GPUMapper` + `WebGPUMapper`.
 - `renderSurfaces`/`perSurface`/`updateSource` call sites: `Stage.tsx:283,326-332` only.
-- `Stage` is mounted in exactly three hosts: broadcast/output (`App.tsx:1610`, `showPreview={false}` at `:1629`), editor (`App.tsx:1715`, `showPreview` defaults true), and headless (`HeadlessRunner.tsx:84`, `showPreview={false}` at `:102`). All three share this code path, so a regression in `GPUMapper` hits all three — but **only when WebGPU is unavailable**, which is precisely the currently-broken path. The two `showPreview={false}` hosts are also exactly where Phase 2's "skip the dead composite" behavior (§4 point 5) newly kicks in for the fallback.
+- `Stage` is mounted in exactly three hosts: broadcast/output, editor, and headless. ⚠ **The line numbers this paragraph originally carried are dead, and so is one of the files:** the `HeadlessRunner.tsx` / `headless.tsx` / `headless.html` fork was **retired in P6** (see [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)) — headless now boots the *same* `index.html` with `?headless=1` (`main/index.ts`, `App.tsx:145-149`), so there are three *modes* of one entry, not three entries. Re-grep before using this section. All three share this code path, so a regression in `GPUMapper` hits all three — but **only when WebGPU is unavailable**, which is precisely the currently-broken path. The two `showPreview={false}` hosts are also exactly where Phase 2's "skip the dead composite" behavior (§4 point 5) newly kicks in for the fallback.
 
 **Regression surface:**
 - **WebGPU path: zero risk in Phase 1** (only adds a `useState` + banner that never shows on WebGPU). Phase 2 touches only `GPUMapper` + a no-op-for-WebGPU shader/interface completion; WebGPU code is not edited.

@@ -347,10 +347,11 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
 ### Near-term (prioritized)
 
 > ### ✅ 0. Usage documentation — the gate, and it is now OPEN (closed 2026-07-29)
-> **No net-new feature starts until the usage documentation is current.** It held **item 3 (MIDI
-> control)**; that hold is **released** — all five conditions are met and `npm run verify` enforces them
-> with 11 documentation checks. **The rule does not expire:** a net-new feature ships its usage docs in
-> the same commits. What changed is that the debt is paid.
+> **No net-new feature starts until the usage documentation is current.** The only thing it ever held
+> was **item 3 (MIDI control)**; that hold was **released** — all five conditions are met and
+> `npm run verify` enforces them with 12 documentation checks. *(MIDI was then **dropped** on
+> 2026-08-03 for unrelated reasons, so the gate now holds nothing.)* **The rule does not expire:** a
+> net-new feature ships its usage docs in the same commits. What changed is that the debt is paid.
 > Plan: [`plans/documentation-wiki.md`](../plans/documentation-wiki.md) · gate conditions:
 > [`plans/SEQUENCING.md`](../plans/SEQUENCING.md) ▸ *The documentation gate*.
 >
@@ -361,20 +362,28 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
 > two chapters via a dead page name; and the in-app Docs Browser ships `ARCHITECTURE`/`DEVELOPMENT`/
 > `PLUGINS`/`SDK` to venue techs while having **no search at all**.
 
-1. **Renderer error containment** — *hardening, highest operational value, and **still not started***
-   (re-confirmed 2026-07-29: no `services/faultReporter.ts`, no fault channel in `shared/protocol.ts`, no
-   pre-first-heartbeat arming in `watchdog.ts`). Today the watchdog is blind to a white screen: a
-   first-render throw means the heartbeat never fires, so an unattended venue install can sit dead until
-   someone drives out. ⚠ `components/ErrorBoundary.tsx` exists but is **not** this work — it came from an
-   a11y commit and wraps a dock *panel*, which the plan's §1 says would have caught neither shipped
-   white-screen. Plan: [`plans/renderer-error-containment.md`](../plans/renderer-error-containment.md).
+1. ~~**Renderer error containment**~~ ✅ **SHIPPED 2026-07-29** (`48752f8`) — the watchdog can see a
+   white screen. `services/faultReporter.ts`, `RENDERER_FAULT` in `shared/protocol.ts`, root boundaries
+   on all four renderer entries, plugin boundaries at the four registry render sites, the 2-strike
+   Safe-Mode ladder, and seven new invariant checks. **Verified live in BROADCAST**, not simulated: a
+   renderer poisoned never to paint is detected off the boot grace, relaunched twice, and trips the
+   breaker — which previously produced *nothing, forever*. *(This item read "still not started" until
+   the 2026-08-03 audit; it was written the same day the work landed.)* ⚠ The historical note still
+   holds: `components/ErrorBoundary.tsx` is **not** this work — it came from an a11y commit and wraps a
+   dock *panel*. Plan: [`plans/renderer-error-containment.md`](../plans/renderer-error-containment.md).
 2. ~~**Timeline undo**~~ ✅ **SHIPPED** (confirmed against the tree 2026-07-29) — `DocSnapshot` + the
    `SHOW_ENGINE` gate are in `App.tsx`, and `verify-invariants.cjs` carries an *"Undo/redo: the
    document-history safety rules"* block asserting the `MAX_DEPTH` cap and that the show engine never
    records. Plan: [`plans/timeline-undo.md`](../plans/timeline-undo.md).
-3. **MIDI control** — a new `plugins/midi` (control surface → cue/transport/state-machine). Net-new
-   capability, not started. Plan: [`plans/midi-control.md`](../plans/midi-control.md).
-   ✅ **Unblocked** — the documentation gate closed 2026-07-29. It ships its usage docs with it.
+3. ~~**MIDI control**~~ — ⛔ **NOT PLANNED. Dropped 2026-08-03** (owner's decision), never started:
+   there is no `plugins/midi`, no `ProjectData.midiBindings`, and `'midi'`/`'midiSysex'` are still
+   absent from `grantMediaPermissions()`. It was unblocked when the documentation gate closed on
+   2026-07-29 and declined five days later **with nothing in the way** — the gate is not why it did
+   not ship. **External control stays OSC-only** ([OSC.md](OSC.md)) plus the show-control tablet
+   ([SHOW-CONTROL.md](SHOW-CONTROL.md)). The plan is kept unbuilt as a rejection record alongside DXV
+   and DDS: [`plans/midi-control.md`](../plans/midi-control.md) — **read it before proposing any
+   control-surface work**, for the `grantMediaPermissions()` gap and the adapter shape every external
+   trigger source already shares.
 4. **Projector polish** (the sampling/blend cluster):
    - **WebGL strict per-surface sampling — Phase 2** (Phase 1 shipped: force-WebGL + banner; Phase 2 was
      deferred pending a decision — [`plans/webgl-strict-per-surface-sampling.md`](../plans/webgl-strict-per-surface-sampling.md));

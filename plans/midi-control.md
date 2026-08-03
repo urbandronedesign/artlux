@@ -1,6 +1,31 @@
 # MIDI Controller Support — input mapping with MIDI-learn + remappable bindings
 
-> **Status:** Draft · **Adds:** a net-new **MIDI control-input** subsystem (a controller drives scenes/cues/states/transport + continuous params), NOT a limitation-lift · **Placement:** **Plugin** (`plugins/midi`, renderer-only — the show-control template minus the server) **+ 2 minor core touches** (a main-process permission grant; an additive `ProjectData.midiBindings?`) · **Risk:** Medium · **Breaking changes:** Project-file (additive, normalize-defaulted) + a main-process **permission** change (grants Web MIDI; needs an app restart). No IPC/SDK/compile break.
+> # ⛔ DROPPED — MIDI control is NOT planned (owner's decision, 2026-08-03)
+>
+> **Do not build this, and do not re-propose it.** The plan is kept, unbuilt, for the same reason the
+> **DXV** (2026-07-03) and **DDS image sequence** (2026-07-25) rejections are kept in
+> [docs/ROADMAP.md](../docs/ROADMAP.md) — so the next person to think "a MIDI plugin would be easy"
+> finds the decision instead of re-deriving the design. It was never started: there is **no
+> `plugins/midi`** in the tree, no `midiBindings` in `shared/protocol.ts`, and `'midi'`/`'midiSysex'`
+> are still absent from `grantMediaPermissions()`. Nothing needs unwinding.
+>
+> **This was not a blocked plan.** It was the one thing the documentation gate held, and it was
+> **unblocked** on 2026-07-29 when the gate opened — then dropped by choice five days later, with
+> nothing in the way. External control stays **OSC-only** (+ the show-control tablet).
+>
+> **Two findings below outlive the drop, and are why the file is not deleted:**
+> 1. **The permission gap is real and still there** — `grantMediaPermissions()` (`src/main/index.ts`)
+>    whitelists a `MEDIA` set for both the request *and* check handlers. Any future control substrate
+>    needing a Chromium permission hits this, and it is a **main-process change requiring an app
+>    restart**, which is easy to misdiagnose as "the API is broken".
+> 2. **Every external trigger source is already the same shape** — OSC (`services/oscController.ts`)
+>    and the tablet (`plugins/show-control/src/dispatch.ts`) are both thin React-free adapters onto
+>    `cueBus` / `timeline` / `host.show`. That is the template for *any* future control front-end,
+>    MIDI or not. §WS3 below is a worked example of it.
+>
+> ---
+>
+> **Original status (historical):** Draft · **Adds:** a net-new **MIDI control-input** subsystem (a controller drives scenes/cues/states/transport + continuous params), NOT a limitation-lift · **Placement:** **Plugin** (`plugins/midi`, renderer-only — the show-control template minus the server) **+ 2 minor core touches** (a main-process permission grant; an additive `ProjectData.midiBindings?`) · **Risk:** Medium · **Breaking changes:** Project-file (additive, normalize-defaulted) + a main-process **permission** change (grants Web MIDI; needs an app restart). No IPC/SDK/compile break.
 
 ## Context — why this, and the decided route
 

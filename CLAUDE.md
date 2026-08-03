@@ -177,8 +177,12 @@ scripts/             build/copy helpers, doc capture, lidar emitter
 ## Architecture in brief (full detail: docs/ARCHITECTURE.md)
 
 Three processes: **main** (OS access — UDP, fs, `.node` addons), **preload** (`window.artlux` over IPC),
-**renderer** (React + the GPU frame loop). Three renderer HTML entries: `index.html` (editor + embedded
-3D + timeline), `projector.html` (per-display fullscreen output), `headless.html` (compute-only).
+**renderer** (React + the GPU frame loop). Renderer HTML entries: `index.html` (editor + embedded 3D +
+timeline), `projector.html` (per-display fullscreen output), plus `docs.html` and `splash.html`.
+**There is no `headless.html`** — the `headless.html`/`headless.tsx`/`HeadlessRunner.tsx` fork was
+**retired in P6** because it had no plugin host; `--headless` now boots the *same* `index.html` with
+`?headless=1` and `App.tsx` gates on it (`main/index.ts`, `App.tsx:145-149`). Headless is a **mode of
+the main entry**, not a fourth entry.
 
 - **IPC contract:** `shared/protocol.ts` — `IPC` channel constants, the `ArtluxApi` interface, shared
   types. Imported by all three processes. `.on/.send` = fire-and-forget; `.invoke/.handle` = req/response.
