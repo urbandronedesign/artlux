@@ -152,3 +152,82 @@ warp+blend to the scanout. Only after those would it be worth optimising code.
 - **Projector-window crash recovery** — unrelated to this work and a live venue risk: `watchdog.attach`
   has exactly one call site (the main window), and `projector.ts` registers no `render-process-gone`
   or `unresponsive` handler. A crashed or hung projector window is today neither detected nor recovered.
+
+---
+
+# Appendix A — native-core Phase 0 on a GeForce box (no toolchain required)
+
+> Added 2026-08-04 for [native-core.md](native-core.md) §9 Phase 0. **This appendix needs no dev
+> environment**: install a packaged build, open a URL, save two text files. It is written for a machine
+> nobody codes on.
+
+## A.0 What this can and cannot answer on a GeForce card
+
+**NVAPI scanout warp is Quadro/RTX-pro only** ([docs/NVWARP.md](../docs/NVWARP.md) §"Real NVAPI"). A
+GeForce RTX 4090 logs `[nvwarp] NVAPI unavailable (stub build / non-pro GPU)` exactly like the Iris Xe.
+So of Phase 0's five measurements a 4090 answers 1, 2, 3 and 5, and **cannot** answer 4 (`hwWarp` on vs
+off). Kill criterion *"hwWarp alone recovers the headroom"* therefore stays untested until a pro card
+exists — record that as unknown rather than as a pass.
+
+⚠ **A 4090 is not the target hardware and its absolute fps is not the acceptance criterion.** ArtLux
+must run on weak GPUs. What a fast card gives you is the *fraction* — how much of a frame the duplicated
+work costs — which a saturated GPU cannot show you at all, because everything hides behind the queue.
+That fraction is what decides the plan; the fps number is not.
+
+## A.1 Result already in hand — measurement 5, run 2026-08-04 on the dev laptop
+
+Measurement 5 (ledger coverage) needs no hardware, only the project files, and it is **already done**:
+
+| Project | Outputs | Content | Phase-2 eligible? |
+|---|---|---|---|
+| `projetled/artlux-project.artlux` (the live show) | 1, enabled, **calibrated** | `LAYER` (timeline) | ❌ twice — `LAYER` is a ledger ❌ row *and* calibrated is Phase 4 |
+| `projetled/venue-rig.artlux` | 2, both `enabled:false`, surfaceIds not present in the file | — | orphaned; no evidence |
+
+**Phase 0 kill criterion 4 is met: the decode ledger covers none of the real outputs.** Phase 2 as
+native-core.md defines it has an empty eligible set for this show and would deliver nothing. Anything
+further is Phase 4 work (native decode, then the calibrated render path) at Phase 4 cost.
+
+What remains worth measuring is therefore not *"which outputs can go native"* but the prior question:
+**is there a ceiling at all on hardware that is not the bottleneck?**
+
+## A.2 Setup on the test machine
+
+1. Install the packaged build (`ArtLux-Setup-*.exe`). Nothing else — no Node, no Rust; every native
+   addon ships inside it.
+2. Copy the **whole `projetled` folder** across, not just the `.artlux` file — it is a portable project
+   and the HAP clips live in `assets/`.
+3. Attach a second display (any monitor; a real projector is not needed for this).
+4. Launch, open `projetled/artlux-project.artlux`, and confirm in the boot report that `hap` loaded.
+   If HAP did not load the video will not decode and every number below is void.
+
+**The instrument** is the app's own metrics endpoint, on in every build, loopback-only:
+open **`http://127.0.0.1:9464/metrics`** in a browser and save the page as a `.txt`. The fields that
+matter are `artlux_render_fps`, `artlux_render_frame_p99_ms`, `artlux_render_long_frames`,
+`artlux_output_fps`, `artlux_gpu_compute_p99_us`, `artlux_ui_blocked_ms`.
+
+## A.3 The four captures
+
+Load the project, start the transport, and let each configuration settle **30 s** before saving. Name
+the files `A.txt` … `D.txt`.
+
+| # | Configuration | Isolates |
+|---|---|---|
+| **A** | Editor on **Mapping** (3D viewport hidden), projector output **disabled** | The floor — engine + Stage only |
+| **B** | Same editor context, projector output **enabled** and bound to display 2 | The calibrated projector window: its own 3D scene, projected mapping, depth pass, composer |
+| **C** | Projector still enabled, editor switched to **Venue & Rig** (3D visible) | Worst case — two independent 3D scenes |
+| **D** | As C, with **Preferences ▸ GPU rendering ▸ 3D frame rate = 15 fps** | Whether the lever we already ship recovers C |
+
+Also note the **FPS** readout in the status bar for each, and whether the picture on display 2 looks
+correct (a calibrated output that is black or misaligned invalidates B–D).
+
+## A.4 Reading it — the decision table
+
+| Outcome | Meaning | Action |
+|---|---|---|
+| A ≈ B ≈ C, all at target | No ceiling on real hardware; the Iris Xe figure was the laptop | **Close native-core.md.** Ship the render-scale / frame-cap controls as the weak-GPU story |
+| C collapses, B fine | The *editor's* 3D scene is the cost, not the output path | Use the shipped controls; check whether D recovers it. No native core |
+| B collapses (C irrelevant) | The **calibrated projector path** is genuinely expensive | The only route is Phase 4, at Phase 4 cost. Decide explicitly, with the number in hand |
+| D ≫ C | The existing frame cap already buys back the duplicate scene | Consider defaulting it, and look at `ProjectData.projectorFpsCap`, which already exists |
+
+Whatever happens, **append the four numbers and the verdict to this file.** A measurement nobody wrote
+down gets taken again.
