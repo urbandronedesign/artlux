@@ -129,7 +129,19 @@ function pngReadGray(buf: Buffer): { w: number; h: number; data: Uint8Array } {
 }
 
 // ---- MPCDI ------------------------------------------------------------------
-export function buildMpcdi(regions: MpcdiRegion[], date = '1970-01-01T00:00:00'): Buffer {
+/**
+ * `date` defaults to NOW, and the epoch is available on purpose rather than by accident.
+ *
+ * It used to default to `1970-01-01T00:00:00` and no caller ever passed anything, so every file
+ * ArtLux has ever exported claimed the epoch. That is worse than omitting the field: a consumer
+ * cannot tell "unknown" from "genuinely stamped 1970", and this is the one line in the file that says
+ * how old a calibration is. A stale bake — venue moved, projector bumped, model re-exported — is only
+ * detectable if the file says when it was made.
+ *
+ * The fixed value stays reachable because byte-identical output is what makes a round-trip test
+ * meaningful; pass it explicitly there, not by forgetting to pass anything here.
+ */
+export function buildMpcdi(regions: MpcdiRegion[], date = new Date().toISOString().replace(/\.\d+Z$/, '')): Buffer {
   const files: { name: string; data: Buffer }[] = [];
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<MPCDI version="2.0" profile="3d" date="${date}">\n  <display>\n`;
   for (const r of regions) {

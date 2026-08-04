@@ -9,6 +9,7 @@
 import type { RendererHostServices } from '@artlux/sdk/renderer';
 import type { MainToProjector } from '@/projector/bridge';
 import type { ProjectorCalibration, ProjectorOutput, ProjectorBlend, Scene3D, CamMask, MarkerMap, CalibRig } from '../../../shared/protocol';
+import { regionsForRig } from './mpcdiData';
 
 let host: RendererHostServices | null = null;
 
@@ -48,6 +49,32 @@ export function setUseCalibration(surfaceId: string, on: boolean): void {
 // Live read of an output's current calibration (for the pose-pairing orchestration in calibWorkspace).
 export function getCalibration(surfaceId: string): ProjectorCalibration | undefined {
   return (host?.projectorOutputs.get(surfaceId) as ProjectorOutput | undefined)?.calibration ?? undefined;
+}
+
+/**
+ * Write the whole rig's calibration to an MPCDI file. Shared by every wizard, because the file is a
+ * property of the RIG and not of whichever projector you happened to finish last — see
+ * `regionsForRig`. Returns a line fit to log.
+ *
+ * The geometry is regenerated from the stored pose by raycasting the venue, so this works for a
+ * MANUAL calibration exactly as for a structured-light one: nothing here needs a camera to have been
+ * present, only a solved pose and a loaded venue mesh.
+ */
+export async function exportRigMpcdi(): Promise<string> {
+  const outs = (host?.projectorOutputs.list() ?? []) as ProjectorOutput[];
+  if (!outs.length) return '✗ MPCDI: no projector outputs';
+  const { regions, skipped } = regionsForRig(outs.map((o) => ({
+    surfaceId: o.surfaceId, calibration: o.calibration, blend: o.blend,
+  })));
+  if (!regions.length) {
+    const why = skipped.some((s) => s.why === 'no venue model loaded') ? 'no venue model loaded' : 'nothing calibrated yet';
+    return `✗ MPCDI: ${why}`;
+  }
+  const path = await window.artlux?.exportMpcdi?.(regions);
+  if (!path) return 'MPCDI export cancelled';
+  // Name the omissions. "exported 2 regions" reads the same as "exported 2 of your 4 projectors".
+  const note = skipped.length ? ` — skipped ${skipped.map((s) => `${s.surfaceId} (${s.why})`).join(', ')}` : '';
+  return `✓ MPCDI exported ${regions.length} region(s) → ${path}${note}`;
 }
 
 // Camera exclusion mask + fiducial marker map live on the 3D scene (venue), not the output.

@@ -2944,6 +2944,28 @@ check(
   },
 );
 
+// ── An exported calibration says when it was made ─────────────────────────────────────────────
+check(
+  'an exported MPCDI is stamped with a real date, not a constant',
+  'The date is the one field in the file that says how old a calibration is, and a baked calibration ' +
+  'goes stale invisibly: the venue moves, a projector is bumped, the model is re-exported, and the ' +
+  'pixels keep claiming to fit. buildMpcdi defaulted to `1970-01-01T00:00:00` and no caller ever ' +
+  'passed a date, so every file ArtLux exported claimed the epoch — worse than omitting it, because a ' +
+  'consumer cannot tell "unknown" from "stamped 1970". The fixed value stays REACHABLE (byte-identical ' +
+  'output is what makes a round-trip test meaningful); it must not be what you get by forgetting.',
+  () => {
+    const F = 'src/main/mpcdi.ts';
+    const src = stripComments(read(F));
+    const sig = src.match(/export function buildMpcdi\([^)]*\)/);
+    if (!sig) return `${F} no longer exports buildMpcdi`;
+    if (/date\s*=\s*['"`]\d{4}-/.test(sig[0]))
+      return `${F} defaults the MPCDI date to a constant — every exported calibration would claim the same day`;
+    if (!/date\s*=\s*new Date\(\)/.test(sig[0]))
+      return `${F} no longer defaults the MPCDI date to now — an unstamped calibration cannot be told from a fresh one`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

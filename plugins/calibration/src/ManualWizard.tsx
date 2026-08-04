@@ -209,6 +209,8 @@ export const ManualWizard: React.FC<Props> = (props) => {
     } finally { setAddingModel(false); }
   };
 
+  const exportRig = async () => { addLog(await calibHost.exportRigMpcdi()); };
+
   const errors = poseSolved && cal ? reprojectionErrors(cal, picks) : null;
 
   // Can these picks see a wrong lens at all? The RMS beside it cannot — see lensConstraint's header
@@ -491,6 +493,15 @@ export const ManualWizard: React.FC<Props> = (props) => {
                 3D Scene context (select the model ▸ Content), which is also where the projector's
                 own view can be looked through. This step stays about whether the SOLVE is right. */}
             <p className="text-fg-3 text-micro leading-snug border-t border-line-1 pt-2">To put content on the venue mesh, go to <b>3D Scene</b>, select the model and pick a <b>Content</b> source — you can also look through this projector from there.</p>
+            {/* EXPORT IS RIG-LEVEL, from every wizard. The geometry is regenerated from the stored
+                pose by raycasting the venue, so a manual solve exports exactly like a structured-light
+                one — no camera was ever needed to make the file, only a pose and a mesh. */}
+            <div className="border-t border-line-1 pt-2 space-y-1">
+              <button onClick={() => void exportRig()} disabled={!poseSolved || !hasModel}
+                title={!poseSolved ? 'Solve the pose first' : !hasModel ? 'The geometry is raycast against the venue model — load one first' : 'Write every calibrated projector in this rig to one .mpcdi file'}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 disabled:opacity-40"><MonitorUp size={12} /> Export calibration (.mpcdi)</button>
+              <p className="text-fg-3 text-micro leading-snug">One file for the whole rig, one region per calibrated projector — blend only means anything for the set it was solved with. Open interchange: other media servers and projectors read it.</p>
+            </div>
             <div className={`flex items-center gap-1 text-micro ${testProj ? '' : 'opacity-40'}`}>
               <span className="text-fg-3">Look</span>
               {(['edges', 'wireframe', 'shaded'] as MeshLook[]).map((m) => (

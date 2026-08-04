@@ -39,3 +39,36 @@ export function regionFromCalibration(id: string, cal: ProjectorCalibration, ble
   if (blend) region.alpha = blendToAlpha(blend);
   return region;
 }
+
+/**
+ * Every calibrated output in the rig, as MPCDI regions — the unit a calibration file should actually
+ * be written in.
+ *
+ * ⚠ ONE FILE PER RIG, NOT PER PROJECTOR. Blend is only meaningful for the exact set it was solved
+ * with — `ProjectorBlend.rigIds` exists to say so — so a per-projector file either drops the blend or
+ * ships one that silently assumes neighbours it cannot name. Geometry alone would survive being split
+ * up; the moment two projectors overlap, the file has to describe the overlap, and that is a property
+ * of the pair.
+ *
+ * Returns the regions plus the outputs that were SKIPPED and why, because "exported 2 regions" reads
+ * identically to "exported 2 of your 4 projectors" unless something says otherwise.
+ */
+export function regionsForRig(
+  outputs: Array<{ surfaceId: string; calibration?: ProjectorCalibration; blend?: { w: number; h: number; alpha: number[]; black?: number[] } }>,
+  gw = 64,
+): { regions: MpcdiRegion[]; skipped: Array<{ surfaceId: string; why: string }> } {
+  const regions: MpcdiRegion[] = [];
+  const skipped: Array<{ surfaceId: string; why: string }> = [];
+  for (const o of outputs) {
+    if (!o.calibration) { skipped.push({ surfaceId: o.surfaceId, why: 'not calibrated' }); continue; }
+    // The stored blend is a plain array on the document; BlendMap is the solver's Float32 form. Same
+    // numbers, different container — convert rather than teach regionFromCalibration two shapes.
+    const blend = o.blend
+      ? { surfaceId: o.surfaceId, w: o.blend.w, h: o.blend.h, data: Float32Array.from(o.blend.alpha) }
+      : undefined;
+    const r = regionFromCalibration(o.surfaceId, o.calibration, blend as never, gw);
+    if (!r) { skipped.push({ surfaceId: o.surfaceId, why: 'no venue model loaded' }); continue; }
+    regions.push(r);
+  }
+  return { regions, skipped };
+}

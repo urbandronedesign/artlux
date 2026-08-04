@@ -9,7 +9,6 @@ import * as calibHost from './calibHost';
 import * as calibWorkspace from './calibWorkspace';
 import * as slCapture from './slCapture';
 import { computeResiduals } from './residuals';
-import { regionFromCalibration } from './mpcdiData';
 import * as calibNative from './calibNative';
 import * as blendController from './blendController';
 import * as autoRecal from './autoRecal';
@@ -419,13 +418,10 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   };
   const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
 
-  const exportMpcdi = async () => {
-    if (!result) return;
-    const region = regionFromCalibration(surfaceId, result.calibration);
-    if (!region) { addLog('✗ MPCDI: no venue model loaded'); return; }
-    const path = await window.artlux?.exportMpcdi?.([region]);
-    addLog(path ? `✓ MPCDI exported → ${path}` : 'MPCDI export cancelled');
-  };
+  // Rig-level, via the shared helper — this used to write ONE region, which silently produced a file
+  // describing a single projector of an overlapping pair and dropped the blend that only makes sense
+  // across both. See regionsForRig.
+  const exportMpcdi = async () => { addLog(await calibHost.exportRigMpcdi()); };
 
   // Step gating.
   const gate: Record<Step, boolean> = {
