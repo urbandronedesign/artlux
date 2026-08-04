@@ -609,12 +609,15 @@ const Simulator3D: React.FC<Props> = ({
         />
       )}
 
-      {/* Say which renderer is live, the same way the Stage says when the WebGL mapper fallback is on.
-          A spike that silently ran on WebGL would produce a "WebGPU is no faster" reading that is
-          really "WebGPU never started". */}
-      {webgpuSpike && (
-        <div className={`pointer-events-none absolute left-2 bottom-2 px-1.5 py-0.5 rounded-sm border num text-micro ${glFallback ? 'bg-warn/15 border-warn text-warn' : 'bg-accent/15 border-accent text-accent'}`}>
-          {glFallback ? `3D: WebGL (WebGPU failed — ${glFallback})` : '3D: WebGPU (spike)'}
+      {/* SAY SO ONLY WHEN THIS IS NOT THE NORMAL PATH. WebGPU is the default now, so a permanent badge
+          would be chrome nobody reads — but BOTH ways of ending up on WebGL stay loud, for the same
+          reason the Stage banners the WebGL mapper fallback: on this hardware WebGL puts the GPU
+          process at 99.8% occupancy for a scene of two planes, so "why is the viewport slow" must be
+          answerable by looking at it. `glFallback` is the machine's answer (no adapter, init threw);
+          `!webgpuSpike` is the operator's (Preferences ▸ GPU rendering, or the localStorage opt-out). */}
+      {(glFallback || !webgpuSpike) && (
+        <div className="pointer-events-none absolute left-2 bottom-2 px-1.5 py-0.5 rounded-sm border num text-micro bg-warn/15 border-warn text-warn">
+          {glFallback ? `3D: WebGL (WebGPU failed — ${glFallback})` : '3D: WebGL (forced)'}
         </div>
       )}
       </div>

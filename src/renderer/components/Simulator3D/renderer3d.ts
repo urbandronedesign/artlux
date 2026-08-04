@@ -1,25 +1,57 @@
 // Which renderer backs the 3D Scene canvas.
 //
-// SPIKE (Phase 2.1 of the 3D-performance work). The scene has always been three's WebGL renderer in its
-// own context, entirely separate from the WebGPU device the pixel mapper owns — so a frame of video
-// bound to a venue mesh is uploaded to the GPU TWICE per frame: once into the mapper's atlas, once into
-// a three.js WebGL texture (useSurfaceTexture). Sharing one device is what makes that second upload
-// disappear, and it can only happen if the scene is on WebGPU too.
+// The scene used to be three's WebGL renderer in its own context, entirely separate from the WebGPU
+// device the pixel mapper owns — so a frame of video bound to a venue mesh is uploaded to the GPU TWICE
+// per frame: once into the mapper's atlas, once into a three.js WebGL texture (useSurfaceTexture).
+// Sharing one device is what makes that second upload disappear, and it can only happen if the scene is
+// on WebGPU too.
 //
 // This module is deliberately the ONLY place that knows which backend is in play, so the swap stays one
 // import deep and reverting is one flag. Sharing the mapper's GPUDevice lives here too — opt-in and
 // still unsolved; see the note at the call site.
 //
-// OFF BY DEFAULT. Opt in per machine, the same door and the same reasoning as `artlux.forceWebGL`:
-//   localStorage['artlux.scene3dWebGPU'] = '1'   (then reload — the renderer is built once, at mount)
+// ── ON BY DEFAULT, AND THE KEY IS NAMED FOR THE OPT-OUT ────────────────────────────────────────────
+//
+// It shipped opt-in (`artlux.scene3dWebGPU = '1'`) because it had been validated on one machine. Two
+// measurements closed that question:
+//
+//   1. WebGL does not merely run slower here, it SATURATES the GPU process. On this laptop, a scene
+//      holding nothing but two venue planes put `CrGpuMain` at **99.8% occupancy, 96.3% of it in
+//      `CommandBuffer::Flush`** — the WebGL command-buffer service — for 32 fps. The identical scene on
+//      WebGPU runs at 60 with the GPU process near idle. Adding the grid and 24 surfaces did not move
+//      it off 60.
+//   2. THE OPT-IN COULD NOT REACH A PACKAGED INSTALL. localStorage is per-origin; dev runs on
+//      `http://localhost:3000` and the packaged app on `file://…/index.html`. So the flag set while
+//      developing was invisible to the artifact anyone actually installs, and every packaged build was
+//      quietly taking the 99.8%-saturated path. A default that only a developer can reach is not a
+//      default.
+//
+// So absence now means ON, and the key is named for the polarity it turns OFF — the same trick, for the
+// same reason, as `layout.dockingOff` (CLAUDE.md): naming it for the opt-out is what lets the default
+// flip reach machines that already have a value stored.
+//
+//   localStorage['artlux.scene3dWebGL'] = '1'   → force the old WebGL path (then reload)
+//
+// This is a preference, not a promise: if `navigator.gpu` is missing or the renderer fails to
+// initialise, glProp falls back to WebGL by itself and reports why. The worst case is the old behaviour.
 
 import type * as THREE from 'three';
 import type { GLProps } from '@react-three/fiber';
 import { gpuDevice } from '../../gpu/gpuDevice';
 
-/** Per-machine opt-in. Read once at module load: the renderer is constructed at Canvas mount anyway. */
+/**
+ * Per-machine, and ON unless explicitly turned off. Read once at module load — the renderer is
+ * constructed at Canvas mount anyway, and the preload below depends on this being synchronous.
+ *
+ * The spike's `artlux.scene3dWebGPU='1'` is deliberately NOT read: absence already means on, so a
+ * machine that opted in during the spike gets the same answer either way, and a second key that only
+ * ever agrees with the default is a thing to keep true for no benefit.
+ */
 export function wantsWebGPU(): boolean {
-  try { return localStorage.getItem('artlux.scene3dWebGPU') === '1'; } catch { return false; }
+  try {
+    if (localStorage.getItem('artlux.scene3dWebGL') === '1') return false;
+    return true;
+  } catch { return true; } // no localStorage (rare) → take the fast path, it self-falls-back
 }
 
 // START THE IMPORT NOW, NOT AT MOUNT — this is what keeps the `gl` factory SYNCHRONOUS, and that

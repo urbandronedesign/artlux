@@ -144,7 +144,8 @@ const GpuSection: React.FC = () => {
   useEffect(() => {
     try { setForced(localStorage.getItem('artlux.forceWebGL') === '1'); } catch { /* ignore */ }
     try { setActive(localStorage.getItem('artlux.activeBackend') || ''); } catch { /* ignore */ }
-    try { setScene3dGpu(localStorage.getItem('artlux.scene3dWebGPU') === '1'); } catch { /* ignore */ }
+    // Absence means ON — the key is named for the opt-out. See renderer3d.ts for why.
+    try { setScene3dGpu(localStorage.getItem('artlux.scene3dWebGL') !== '1'); } catch { /* ignore */ }
   }, []);
 
   const toggleForce = (v: boolean) => {
@@ -155,9 +156,14 @@ const GpuSection: React.FC = () => {
   // Same door and the same storage as the flag itself (renderer3d.ts reads it SYNCHRONOUSLY at module
   // load, before prefs IPC could have answered, which is why this one knob is localStorage and not a
   // Prefs field like its two neighbours). Reload to apply: the renderer is constructed once, at mount.
+  //
+  // The stored key is the OPT-OUT (`scene3dWebGL`), so absence = WebGPU. Ticking the box therefore
+  // REMOVES a key rather than writing one. Note this is per-origin, so a value set in a dev run does
+  // not carry to a packaged install — which is exactly why the default had to flip rather than stay
+  // an opt-in nobody outside a dev build could reach.
   const toggleScene3dGpu = (v: boolean) => {
     setScene3dGpu(v);
-    try { if (v) localStorage.setItem('artlux.scene3dWebGPU', '1'); else localStorage.removeItem('artlux.scene3dWebGPU'); } catch { /* ignore */ }
+    try { if (v) localStorage.removeItem('artlux.scene3dWebGL'); else localStorage.setItem('artlux.scene3dWebGL', '1'); } catch { /* ignore */ }
   };
 
   const testWebGPU = async () => {
@@ -210,11 +216,12 @@ const GpuSection: React.FC = () => {
         slow and the render scale did not help — that means whole frames are expensive, not pixels.
       </div>
       <Toggle label="3D Scene on WebGPU" checked={scene3dGpu} onChange={toggleScene3dGpu}
-              title="Render the 3D Scene viewport with WebGPU instead of WebGL. Roughly twice the frame rate where it works. Per-machine (localStorage) — reload to apply, and it falls back to WebGL by itself if WebGPU is unavailable." />
+              title="Render the 3D Scene viewport with WebGPU instead of WebGL. ON by default — turning it off is a diagnostic. Per-machine (localStorage), reload to apply, and it falls back to WebGL by itself if WebGPU is unavailable." />
       <div className="text-micro text-fg-3 px-0.5">
-        Applies on the next reload (Ctrl+R); the viewport shows a badge while it is active. Measured at
-        about <strong>twice</strong> the frame rate here, but validated on few machines — it falls back to
-        WebGL on its own if the adapter or the renderer fails, so the worst case is today&apos;s behaviour.
+        <strong>On by default</strong>; applies on the next reload (Ctrl+R). Turn it off only to compare —
+        on the WebGL path a scene holding just two venue screens measured here at <strong>32 fps with the
+        GPU process 99.8% saturated</strong>, against 60 fps on WebGPU. If this machine has no usable
+        WebGPU adapter the viewport falls back on its own, so the worst case is the old behaviour.
       </div>
     </Section>
   );

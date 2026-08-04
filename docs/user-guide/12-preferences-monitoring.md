@@ -72,11 +72,12 @@ keep up. Like Audio, these are **per-machine** and never travel inside a project
   engine FPS regardless — it only stops the preview taking GPU time from the output. Whether that buys
   anything depends on the machine; watch the **FPS** readout in the status bar and keep the setting only
   if it moves.
-- **3D Scene on WebGPU** — render the 3D Scene viewport with WebGPU instead of WebGL, roughly **twice**
-  the frame rate where it works. Takes effect on the next reload (**Ctrl+R**), and the viewport shows a
-  badge while it is active. If the machine has no usable WebGPU adapter it falls back to WebGL on its
-  own. This is the *preview* only — it is unrelated to **Active backend** above, which is the
-  pixel-mapping engine and has always been WebGPU.
+- **3D Scene on WebGPU** — **on by default.** Renders the 3D Scene viewport with WebGPU instead of the
+  older WebGL path; measured here at **60 fps against 32**, with WebGL leaving the graphics processor
+  saturated on a scene of two venue screens. Takes effect on the next reload (**Ctrl+R**). The viewport
+  badges itself whenever it is *not* on WebGPU — turned off deliberately, or fallen back because this
+  machine has no usable adapter. This is the *preview* only — unrelated to **Active backend** above,
+  which is the pixel-mapping engine and has always been WebGPU.
 
 ---
 
