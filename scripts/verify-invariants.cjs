@@ -2907,6 +2907,43 @@ check(
   },
 );
 
+// ── The manual flow says whether its picks can see a wrong lens ───────────────────────────────
+check(
+  'the manual calibration wizard qualifies its RMS with a depth-spread gauge',
+  'Pose RMS answers "does the pose fit", never "is the lens right", and the manual flow is the one ' +
+  'where the lens is TYPED IN from a spec sheet and can simply be wrong. PnP absorbs a wrong focal ' +
+  'into a wrong distance, so with picks at one depth the two are nearly the same error. Measured ' +
+  'against ground truth (projector 6 m out, 1920x1080, throw ratio 10% wrong): coplanar picks solved ' +
+  'the projector 0.60 m from where it was and reported 0.22 px — deep inside the wizard\'s "ok" band. ' +
+  'The operator gets a green light and a pose half a metre out, and the bake inherits it. The gauge ' +
+  'flags exactly the cases the RMS misses (6% and 15% spread) and stays quiet on the ones it catches ' +
+  '(46%, 107%).',
+  () => {
+    const L = 'plugins/calibration/src/manualLens.ts';
+    const W = 'plugins/calibration/src/ManualWizard.tsx';
+    const lens = stripComments(read(L));
+    const wiz = stripComments(read(W));
+    const problems = [];
+    if (!/export function lensConstraint/.test(lens))
+      return `${L} no longer exports lensConstraint — nothing measures whether the picks constrain the lens`;
+    // Depth in the CAMERA frame is the axis the focal/distance ambiguity lives on; a spread measured
+    // in world Z would read healthy for a projector aimed along Z at a flat wall.
+    if (!/R\[6\] \* X \+ R\[7\] \* Y \+ R\[8\] \* Z \+ t\[2\]/.test(lens))
+      problems.push(`${L} no longer measures depth in the camera frame — world-axis spread does not describe the ambiguity`);
+    if (!/far - near\) \/ mean/.test(lens))
+      problems.push(`${L} no longer normalizes the spread by distance — 0.5 m is plenty at 2 m and nothing at 20 m`);
+    // The CALL, not the identifier: a substring test passed a mutation that renamed it to
+    // `lensConstraintUnused`, which is exactly the shape of "imported and never used".
+    if (!/\blensConstraint\(/.test(wiz))
+      problems.push(`${W} never calls lensConstraint() — its RMS then silently over-promises on a flat pick set`);
+    // Computed AND rendered. A gauge nobody can see is the same as no gauge, and "it is in the file"
+    // is what the substring test above already failed to distinguish.
+    if (!/\{lensGauge && \(/.test(wiz))
+      problems.push(`${W} computes the gauge but renders nothing from it — the operator still only sees the RMS`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

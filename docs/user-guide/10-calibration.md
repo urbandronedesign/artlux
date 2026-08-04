@@ -98,6 +98,16 @@ lens and then anchor the projector by clicking matched point pairs. Four steps:
      real feature. Past the first four points you're nudging, not hunting.
    - Repeat with at least **4** pairs — more is better — spread across the image **and across depth**
      (not all on one flat face). The pose solves automatically from 4 pairs on.
+   - **Why "across depth" is not just advice — and why the RMS won't tell you.** The Pose RMS says how
+     well the pose *fits*; it does **not** say whether the lens is right. When every point sits at the
+     same distance, a wrong throw ratio and a wrong distance are almost the same error — the solver
+     quietly trades one for the other and still reprojects beautifully. Measured against a known
+     answer: a throw ratio **10% wrong** put the projector **0.60 m** from where it actually was and
+     reported **0.22 px**, which the wizard shows as a healthy green. So the panel also reports a
+     **Depth spread** percentage beside the RMS. Amber or red there means *these points cannot see a
+     wrong lens* — harmless if everything this projector covers lies at that one depth (a flat screen
+     or cyclorama), and worth fixing otherwise: add points noticeably nearer or further and watch the
+     RMS. If it climbs, the lens was wrong all along.
    - Every placed point is drawn **numbered on the projection itself**, in the right‑pane raster map,
      and on the 3D model — the same number everywhere, so you can stand at the object and see which
      features are already anchored.

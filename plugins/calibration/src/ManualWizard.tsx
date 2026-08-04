@@ -6,7 +6,7 @@ import * as calibHost from './calibHost';
 import * as calibWorkspace from './calibWorkspace';
 import * as ctl from './calibController';
 import * as calibNative from './calibNative';
-import { manualK, lensFromK, reprojectionErrors } from './manualLens';
+import { manualK, lensFromK, reprojectionErrors, lensConstraint } from './manualLens';
 import { cameraCenter, reproject } from './cvCamera';
 import type { MeshLook } from './ProjectorScene';
 
@@ -211,6 +211,10 @@ export const ManualWizard: React.FC<Props> = (props) => {
 
   const errors = poseSolved && cal ? reprojectionErrors(cal, picks) : null;
 
+  // Can these picks see a wrong lens at all? The RMS beside it cannot — see lensConstraint's header
+  // for the measured table. Only meaningful once a pose exists, since depth is measured in its frame.
+  const lensGauge = poseSolved && cal ? lensConstraint(cal, picks) : null;
+
   // Where the solve PUT the projector, as a distance the operator can sanity-check against the room.
   // This is the manual flow's lens gauge: PnP absorbs a wrong focal into distance (fx k× too big →
   // projector solved k× too far), so real ÷ shown is exactly the throw-ratio correction factor.
@@ -360,7 +364,25 @@ export const ManualWizard: React.FC<Props> = (props) => {
             </label>
             <div className="border-t border-line-1 pt-2 space-y-1">
               <div className="text-fg-2">Points: <span className="num text-fg-1">{picks.length}</span> <span className="text-fg-3">/ ≥4</span></div>
-              <div className="text-fg-2">Pose RMS: {cal?.poseRms != null ? <QualityBadge value={cal.poseRms} band={poseBand(cal.poseRms)} /> : <span className="text-fg-3">—</span>}</div>
+              <div className="text-fg-2">Pose RMS: {cal?.poseRms != null ? <QualityBadge value={cal.poseRms} band={poseBand(cal.poseRms)} /> : <span className="text-fg-3">—</span>} <span className="text-fg-3">— how well the pose fits, <b>not</b> whether the lens is right</span></div>
+              {/* THE MISSING HALF OF THE RMS. A focal error hides inside the distance when every pick
+                  sits at one depth, so a flat pick set can read 0.22 px while the projector is solved
+                  0.6 m from where it is. Saying only "the lens is unverified" would over-warn a flat
+                  screen, where the ambiguity is harmless — so the copy names the case that bites. */}
+              {lensGauge && (
+                <div className="text-fg-2">
+                  Depth spread: <QualityBadge value={Math.round(lensGauge.spread * 100)} band={lensGauge.band} />
+                  <span className="text-fg-3"> % · picks {lensGauge.near.toFixed(1)}–{lensGauge.far.toFixed(1)} m out</span>
+                  {lensGauge.band !== 'ok' && (
+                    <div className="text-fg-3 text-micro leading-snug mt-0.5">
+                      These picks are nearly all at one depth, so the RMS above <b>cannot see a wrong throw ratio</b>
+                      — a lens 10% off still reads under 2 px. Fine if everything this projector covers lies at that
+                      depth (a flat screen or cyclorama). If anything stands off it, pick some points nearer or
+                      further and watch the RMS: it will rise if the lens is wrong.
+                    </div>
+                  )}
+                </div>
+              )}
               {solvedDist != null && (
                 <div className="text-fg-2">Projector solved <span className="num text-fg-1">{solvedDist.toFixed(2)} m</span> <span className="text-fg-3">from the points{lensAuto && cal?.intrinsicsSource === 'refined' ? '' : ' — check this against the room; off by ×N means the throw ratio is off by ×N.'}</span></div>
               )}
