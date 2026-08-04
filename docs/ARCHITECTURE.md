@@ -14,6 +14,37 @@ sound runs in a native **C++/JUCE** engine. It also carries a timeline NLE, a pr
 over scenes/cues, OSC control, and a 3D simulator. Stack: Electron · React 19 · TypeScript · Vite
 (electron-vite) · Tailwind · WebGPU · react-three-fiber · Rust (napi-rs) · JUCE.
 
+## Why Electron — and where Tauri *is* right (assessed three times; stop re-asking, start here)
+
+The question "should this be Tauri / a full Rust rewrite?" has now been evaluated **before the first
+line was written** ([archive/ARCHITECTURE_PLAN.md](archive/ARCHITECTURE_PLAN.md) → *Native-language
+assessment*), **during engine decoupling** ([plans/engine-decoupling.md](../plans/engine-decoupling.md)
+§4), and **in depth on 2026-08-04** (which produced [plans/native-core.md](../plans/native-core.md)).
+Same verdict each time, for reasons that are facts about this codebase, not taste:
+
+- **On Windows, Tauri is the same graphics stack.** It ships no browser; its webview is WebView2 —
+  Chromium/Blink with the same Dawn WebGPU backend and the same GPU-process architecture Electron uses.
+  The measured limiters here (`CrGpuMain` pinned by the WebGL command buffer; `CrRendererMain` blocked
+  in `Receive mojo reply` — see DEVELOPMENT.md → Profiling §2b) are properties of that shared
+  architecture. A shell swap moves neither.
+- **The multi-projector bridge has no Tauri equivalent.** Each output window is fed transferred
+  `ImageBitmap`s over a `MessageChannelMain` pair (~30 fps, ~8 MB per 1080p frame — see the frame pump
+  in `App.tsx` and `renderer/projector/bridge.ts`). Transfer-by-handle works because both ends are
+  Chromium web contexts. Tauri has no cross-window MessagePort; every frame would serialize through
+  Rust IPC, and WebView2 is its slowest platform for exactly that.
+- **Pinned Electron = pinned Chromium = guaranteed WebGPU.** INSTALL.md states the stake: *WebGPU
+  compute is the entire pixel-mapping pipeline.* Under Tauri, the venue PC's WebView2 runtime — updated
+  by Windows, outside our control — would decide whether the product runs at all.
+
+**Where Tauri IS the right tool — and we use it:** [the Launcher](LAUNCHER.md) is Tauri v2 + Rust
+(~2.4k lines of Rust behind `#[tauri::command]`, a form-and-progress-bar UI, no GPU requirement).
+The line: *Tauri is right where the webview is a form, wrong where the webview is the renderer.*
+
+The genuine half of the idea — **a Rust core** — is already this app's architecture (`native/` is ~30k
+lines of Rust/C++ against ~4.7k of Electron main) and its continuation has a staged, kill-gated plan:
+[plans/native-core.md](../plans/native-core.md) — a Rust-owned `wgpu` device for eligible projector
+outputs and, later, LED sampling, with the editor shell staying in Electron permanently.
+
 ## Processes
 - **Main** (`src/main/`): app lifecycle + window, native transport (Art-Net/sACN, ArtPoll discovery,
   Spout receiver), persistence (dialogs + userData), and the native menu (kept only for keyboard

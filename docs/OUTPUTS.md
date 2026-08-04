@@ -247,8 +247,10 @@ change to the output layer, the projector IPC, the SDK, the calibration plugin, 
 
 ### Renderer (`src/renderer/projector/`)
 - `projector.html` / `projector.tsx` → `ProjectorApp`: receives a `render` config + transport over the
-  port, **self-renders** file/effect/layer content via `services/surfaceMedia` (native res), or draws
-  transferred `ImageBitmap`s for singular sources, then warps it.
+  port, **self-renders** image/effect/tracking content via `services/surfaceMedia` (native res), or draws
+  transferred `ImageBitmap`s for everything hardware-decoded — camera/Spout/DMX-in/NDI **and** file video
+  and timeline layers — then warps it. It runs its own timeline in mirror mode and its own plugin host to
+  do so.
 - `ProjectorGL.ts`: **WebGL2** with a **4× multisampled FBO** resolved via `blitFramebuffer` (WebGL1
   `antialias` fallback). One fragment shader does warp geometry + soft-edge feather + gamma. Draw
   buffer sized by `devicePixelRatio` (= the display's `scaleFactor`) for native-res output.
@@ -261,7 +263,12 @@ change to the output layer, the projector IPC, the SDK, the calibration plugin, 
 - Holds `projectorOutputs` state + a single reconciler (`useEffect` on surfaces/outputs/displays) that
   opens/moves/closes output windows and re-matches displays by label.
 - A `projectorPortsRef` map handles each output's port; pushes the `render` config + transport; a
-  ~30 fps frame pump `createImageBitmap`s singular-source drawables and transfers them.
+  ~30 fps frame pump `createImageBitmap`s drawables and transfers them. The streamed set is
+  `{CAMERA, SPOUT, DMX_IN, NDI, VIDEO, LAYER, PROGRAM}` (`App.tsx` `STREAMED`) — i.e. **file video and
+  timeline layers stream too**, not just live singular sources, because decoding the same media per
+  window exhausts the GPU's concurrent hardware-decode sessions. Only `{IMAGE, EFFECT, TRACKING}`
+  self-render (`ProjectorApp.tsx` `SELF_RENDER`); HAP layers are the exception that decode locally in
+  mirror windows, having no hardware-session limit.
 - **Broadcast branch**: gated on the `?broadcast=1` query (set by main). It auto-loads the project,
   then renders **only the offscreen `Stage`** — every output/projector effect above still runs, so
   Art-Net flows and outputs open without any editor chrome.

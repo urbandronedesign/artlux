@@ -1,6 +1,13 @@
 # One GPU device — the 3D scene and the pixel mapper on a single WebGPU renderer
 
-> **Status:** ⬜ **NOT STARTED.** The WebGPU viewport itself shipped (`04d6c8a`, opt-in via
+> **Status:** ⬜ **NOT STARTED — and likely SUPERSEDED by [native-core.md](native-core.md)** (2026-08-04),
+> pending that plan's Phase 0 hardware gate. Its Phase 3 moves LED sampling onto a Rust-owned `wgpu`
+> device, which makes the shared-device question **disappear** rather than solving it: the reason
+> injection cannot be made to work is that a browser will not let two of its windows share a GPU device,
+> and a native core removes the boundary instead of negotiating with it. **Do not start this plan without
+> reading native-core.md §9 Phase 0 first.** Everything below stays valid as the record of what was tried.
+>
+> The WebGPU viewport itself shipped (`04d6c8a`, opt-in via
 > `artlux.scene3dWebGPU`, ~2× the frame rate). This plan is the piece that did **not** work: sharing one
 > `GPUDevice` between the pixel mapper and the scene. Injection renders a black viewport, 0/9 by repeat
 > measurement, with every plausible cause eliminated. This proposes inverting the ownership instead.
