@@ -300,13 +300,27 @@ export class WebGPUMapper implements IPixelMapper {
     try {
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) return null;
+      { const i = adapter.info as GPUAdapterInfo | undefined;
+        console.log(`[WebGPUMapper] adapter: ${[i?.vendor, i?.architecture, i?.device, i?.description].filter(Boolean).join(' / ') || '(no info)'}`); }
       // GPU timing is requested ONLY when the adapter advertises it. `requestDevice` REJECTS on an
       // unsupported requiredFeature, so asking unconditionally would take the whole mapper down —
       // and therefore all LED sampling — for the sake of a diagnostic. Ask, then verify on the
       // device: an adapter advertising a feature does not oblige the device to grant it.
       const wantTiming = adapter.features.has('timestamp-query');
-      const device = await adapter.requestDevice(wantTiming ? { requiredFeatures: ['timestamp-query'] } : {});
+      // ASK FOR EVERY FEATURE THE ADAPTER ADVERTISES — the same policy three's WebGPU backend uses when
+      // it creates its own device. That is not a coincidence: this device is SHARED with three's
+      // renderer (see gpu/gpuDevice), and a device missing a feature three would have requested for
+      // itself behaves differently in ways it never reports. The symptom was a completely black 3D
+      // viewport with zero uncaptured errors, no device loss and no exception, because a
+      // less-capable-than-expected device is a downgrade rather than a failure.
+      //
+      // Requesting the adapter's own list can never over-ask (requestDevice only rejects on features
+      // the adapter does NOT have), so this is strictly safer than naming features by hand.
+      const required: GPUFeatureName[] = [...adapter.features] as GPUFeatureName[];
+      if (wantTiming && !required.includes('timestamp-query')) required.push('timestamp-query');
+      const device = await adapter.requestDevice(required.length ? { requiredFeatures: required } : {});
       if (!device) return null;
+      console.log(`[WebGPUMapper] device features: ${[...device.features].sort().join(', ') || '(none)'}`);
       const hasTiming = wantTiming && device.features.has('timestamp-query');
       if (!hasTiming) console.log('[WebGPUMapper] no timestamp-query on this device — GPU pass time will read "unavailable", not 0');
       return new WebGPUMapper(device, hasTiming);
@@ -315,6 +329,13 @@ export class WebGPUMapper implements IPixelMapper {
       return null;
     }
   }
+
+  /**
+   * The device this mapper owns, so the 3D scene can render on the SAME one instead of standing up a
+   * second graphics stack beside it — see gpu/gpuDevice. Ownership does not transfer: three's
+   * WebGPURenderer explicitly does not destroy a device it was handed rather than acquired.
+   */
+  getDevice(): GPUDevice { return this.device; }
 
   setBrightness(value: number): void {
     this.brightness = Math.max(0, Math.min(1, value));

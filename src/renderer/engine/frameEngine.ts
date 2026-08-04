@@ -2,6 +2,7 @@ import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type OutputPr
 import { IPixelMapper } from '../services/PixelMapper';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
+import { publishGpuDevice } from '../gpu/gpuDevice';
 import { sendArtNetFrame } from '../services/mockSocketService';
 import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
@@ -192,6 +193,10 @@ class FrameEngine {
     } catch {
       m = null;
     }
+    // Publish the device — or the absence of one — before anything else. The 3D scene blocks on this
+    // to decide whether it can share (see gpu/gpuDevice); a fallback that never published would leave
+    // it waiting forever instead of building its own renderer.
+    publishGpuDevice(m instanceof WebGPUMapper ? m.getDevice() : null);
     if (!m) {
       try {
         m = new GPUMapper(512, 512);
