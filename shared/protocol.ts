@@ -1175,6 +1175,11 @@ export interface Prefs {
       what this GPU can afford, so it must not travel to the venue inside a show file. Absent = 1.
       Halving it quarters the fragment work in that viewport — the largest fill-rate lever there is. */
   scene3dRenderScale?: number;
+  /** Ceiling on how often the 3D Scene viewport redraws, in Hz. 0 / absent = the display's own rate,
+      which is what it has always done. Per-MACHINE for the same reason as scene3dRenderScale.
+      This does NOT touch the frame engine: compositing, GPU sampling and Art-Net stay at the engine
+      FPS regardless, so capping the preview GIVES the show GPU time rather than costing it any. */
+  scene3dMaxFps?: number;
   /** User keyboard-shortcut overrides, keyed by stable shortcut id → its bound chords (e.g. ["Ctrl+Z"]).
       Renderer-owned blob (the full registry of default bindings lives in the renderer, this stores only
       the deltas the user changed). Absent / missing keys = the registry default. */

@@ -33,6 +33,31 @@ function clamp(v: number): number {
   return Math.min(MAX, Math.max(MIN, v));
 }
 
+// The SECOND knob: a ceiling on how often the viewport redraws, in Hz. 0 = the display's own rate.
+//
+// This is a different lever from render scale and they do not overlap. Scale is a per-FRAGMENT cut —
+// it helps only when the viewport is fill-rate bound, and measurement said this one is not (a 16×
+// change in pixel count moved the frame rate by 0.3 fps). A rate cap cuts whole FRAMES: every draw
+// call, every state change, every content upload the scene makes, all of it, proportionally.
+//
+// The reason it is worth having even on a viewport that never reaches 60 is that the 3D scene and the
+// frame engine share one GPU and the engine is the one that feeds the wire. Measured on this project:
+// the editor ran at 17.8–19.1 fps with the 3D viewport hidden and 10.6–11.6 with it visible, so the
+// preview was taking roughly half the machine. Capping it at 15 hands most of that back to the show
+// while leaving the viewport perfectly usable for placing fixtures.
+//
+// 0 (uncapped) is the default because it is exactly today's behaviour, and because the right value is
+// a property of the machine and the rig — nothing here can guess it.
+const FPS_CHOICES = [0, 60, 30, 24, 15, 10] as const;
+const FPS_DEFAULT = 0;
+
+let maxFps: number = FPS_DEFAULT;
+
+function clampFps(v: number): number {
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return Math.min(240, Math.max(1, Math.round(v)));
+}
+
 // Read the saved value once, on first use rather than at module load. Both consumers (the Canvas and
 // the Preferences slider) call this from their own mount, so there is no boot-order coupling to get
 // wrong and no import side effect — and the 3D canvas mounts lazily anyway, so the read still lands
@@ -45,7 +70,9 @@ export function ensureLoaded(): Promise<void> {
         const p = await window.artlux?.getPrefs?.();
         const v = p?.scene3dRenderScale;
         if (typeof v === 'number') renderScale = clamp(v);
-        subs.forEach((f) => f());
+        const f = p?.scene3dMaxFps;
+        if (typeof f === 'number') maxFps = clampFps(f);
+        subs.forEach((fn) => fn());
       } catch { /* prefs unavailable — keep the default */ }
     })();
   }
@@ -72,6 +99,19 @@ export function subscribe(cb: () => void): () => void {
 export const RENDER_SCALE_MIN = MIN;
 export const RENDER_SCALE_MAX = MAX;
 
+/** 0 = uncapped (the display's rate). */
+export function getMaxFps(): number { return maxFps; }
+
+/** Set + persist. Applies live: the Canvas swaps its frameloop through useMaxFps. */
+export function setMaxFps(v: number): void {
+  const next = clampFps(v);
+  if (next === maxFps) return;
+  maxFps = next;
+  subs.forEach((f) => f());
+  void window.artlux?.setPrefs?.({ scene3dMaxFps: next });
+}
+
+export const MAX_FPS_CHOICES = FPS_CHOICES;
 
 /** React binding for the Canvas. Re-renders only the component that asks — not the tree. */
 export function useRenderScale(): number {
@@ -79,6 +119,17 @@ export function useRenderScale(): number {
   useEffect(() => {
     const off = subscribe(() => setV(getRenderScale()));
     void ensureLoaded().then(() => setV(getRenderScale()));
+    return off;
+  }, []);
+  return v;
+}
+
+/** Same binding for the rate cap. Separate hook so a slider drag on one does not re-render the other. */
+export function useMaxFps(): number {
+  const [v, setV] = useState(maxFps);
+  useEffect(() => {
+    const off = subscribe(() => setV(getMaxFps()));
+    void ensureLoaded().then(() => setV(getMaxFps()));
     return off;
   }, []);
   return v;

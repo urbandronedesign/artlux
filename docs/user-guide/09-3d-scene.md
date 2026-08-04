@@ -153,6 +153,24 @@ for, in order of how much they give back:
   and roughly halves everything the viewport spends per frame. It applies live, so drag it while
   watching the scene and stop where it still looks right. On a high-DPI screen `1.0×` already looks
   sharp; go above it only on a workstation with headroom to spare.
+- **3D frame rate** — the other half of the same idea, also in **Preferences ▸ GPU rendering**, and the
+  one to reach for **when the render scale did not help**. Render scale cuts the cost of each *pixel*;
+  this caps how many *frames* the viewport draws at all, so it cuts everything — every draw, every
+  content upload — in proportion. Set it to `30 fps`, or `15` on a weak machine; orbiting and dragging
+  stay usable well below 30, and the scene keeps animating at every setting.
+  **It never slows the show down.** Mapping, LED sampling and Art-Net run in the frame engine, which
+  keeps its own rate whatever this is set to; all that changes is how much of the GPU the preview is
+  allowed to take from the output. How much that is worth depends on how expensive your viewport
+  actually is — on a small pane already running on WebGPU it measured as no change at all, while on the
+  WebGL path the same viewport was costing the editor about half its frame rate. Treat it as the second
+  thing to try, after the render scale, and judge it by the **FPS** readout in the status bar.
+- **3D Scene on WebGPU** — also in **Preferences ▸ GPU rendering**, and worth trying before any of the
+  above: it renders this viewport with WebGPU instead of WebGL, which measured at roughly **twice** the
+  frame rate on the machine it was developed on. It applies on the next reload (`Ctrl+R`) and the
+  viewport shows a small badge while it is active. It is stored per-machine, it has been validated on
+  few machines so far, and if WebGPU is unavailable or the renderer fails to start it falls back to the
+  ordinary WebGL path by itself — so the worst case is what you already have. This changes only the 3D
+  preview; the pixel-mapping engine has always used WebGPU and is unaffected either way.
 - **Glow (bloom)** — off by default. It is a full-screen pass plus a blur every frame at viewport
   resolution. It makes a rig of LEDs and beams look like light; it does nothing for a venue mesh
   carrying video, so leave it off while you are mapping.

@@ -8,7 +8,10 @@ import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
 import { ErrorBoundary } from './ErrorBoundary';
 import { layoutStore } from '../services/layoutStore';
-import { useRenderScale, setRenderScale, RENDER_SCALE_MIN, RENDER_SCALE_MAX } from '../services/scene3dQuality';
+import {
+  useRenderScale, setRenderScale, RENDER_SCALE_MIN, RENDER_SCALE_MAX,
+  useMaxFps, setMaxFps, MAX_FPS_CHOICES,
+} from '../services/scene3dQuality';
 import { useLayout } from '../hooks/useLayout';
 
 interface Props {
@@ -134,16 +137,27 @@ const GpuSection: React.FC = () => {
   const [active, setActive] = useState('');
   const [probe, setProbe] = useState('');
   const [probing, setProbing] = useState(false);
+  const [scene3dGpu, setScene3dGpu] = useState(false);
   const renderScale = useRenderScale();
+  const maxFps = useMaxFps();
 
   useEffect(() => {
     try { setForced(localStorage.getItem('artlux.forceWebGL') === '1'); } catch { /* ignore */ }
     try { setActive(localStorage.getItem('artlux.activeBackend') || ''); } catch { /* ignore */ }
+    try { setScene3dGpu(localStorage.getItem('artlux.scene3dWebGPU') === '1'); } catch { /* ignore */ }
   }, []);
 
   const toggleForce = (v: boolean) => {
     setForced(v);
     try { if (v) localStorage.setItem('artlux.forceWebGL', '1'); else localStorage.removeItem('artlux.forceWebGL'); } catch { /* ignore */ }
+  };
+
+  // Same door and the same storage as the flag itself (renderer3d.ts reads it SYNCHRONOUSLY at module
+  // load, before prefs IPC could have answered, which is why this one knob is localStorage and not a
+  // Prefs field like its two neighbours). Reload to apply: the renderer is constructed once, at mount.
+  const toggleScene3dGpu = (v: boolean) => {
+    setScene3dGpu(v);
+    try { if (v) localStorage.setItem('artlux.scene3dWebGPU', '1'); else localStorage.removeItem('artlux.scene3dWebGPU'); } catch { /* ignore */ }
   };
 
   const testWebGPU = async () => {
@@ -181,6 +195,26 @@ const GpuSection: React.FC = () => {
       <div className="text-micro text-fg-3 px-0.5">
         Resolution the 3D Scene renders at, applied live. Cost scales with the SQUARE — 0.5× is a quarter
         of the pixels. Lower it first when the 3D view is slow. Per-machine, so it never travels with a project.
+      </div>
+      <Field label="3D frame rate" labelWidth={LBL}>
+        <Select value={String(maxFps)} onChange={(e) => setMaxFps(Number(e.target.value))}>
+          {MAX_FPS_CHOICES.map((f) => (
+            <option key={f} value={f}>{f === 0 ? 'Display rate (uncapped)' : `${f} fps`}</option>
+          ))}
+        </Select>
+      </Field>
+      <div className="text-micro text-fg-3 px-0.5">
+        Ceiling on how often the 3D Scene redraws, applied live. It does <strong>not</strong> touch the
+        show: mapping, LED sampling and Art-Net keep running at the engine FPS, so capping the preview
+        gives the output GPU time back rather than costing it any. Reach for this when the 3D view is
+        slow and the render scale did not help — that means whole frames are expensive, not pixels.
+      </div>
+      <Toggle label="3D Scene on WebGPU" checked={scene3dGpu} onChange={toggleScene3dGpu}
+              title="Render the 3D Scene viewport with WebGPU instead of WebGL. Roughly twice the frame rate where it works. Per-machine (localStorage) — reload to apply, and it falls back to WebGL by itself if WebGPU is unavailable." />
+      <div className="text-micro text-fg-3 px-0.5">
+        Applies on the next reload (Ctrl+R); the viewport shows a badge while it is active. Measured at
+        about <strong>twice</strong> the frame rate here, but validated on few machines — it falls back to
+        WebGL on its own if the adapter or the renderer fails, so the worst case is today&apos;s behaviour.
       </div>
     </Section>
   );

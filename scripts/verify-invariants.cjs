@@ -2804,6 +2804,34 @@ check(
   },
 );
 
+// ── The 3D viewport's rate cap only exists if r3f stops driving the canvas itself ────────────
+check(
+  'a capped 3D viewport hands its clock over instead of gaining a second one',
+  'The cap works by putting the Canvas in `frameloop="never"` and letting <FrameRateCap> advance it. ' +
+  'Leave frameloop at "always" and BOTH run: r3f keeps redrawing at display rate and the cap becomes a ' +
+  'setting that changes nothing — no error, no warning, the viewport simply stays as expensive as it ' +
+  'was while the preference claims otherwise. The measurement that would catch it is a WebGPU present ' +
+  'count, which nobody takes by accident. The mirror of it is as bad: mount the driver while `paused` ' +
+  'and a hidden, parked-offscreen canvas redraws at the cap rate forever.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/Simulator3D.tsx';
+    const src = stripComments(read(F));
+    const problems = [];
+    const fl = src.match(/frameloop=\{([^}]*)\}/);
+    if (!fl) problems.push('the Canvas no longer sets frameloop at all');
+    else if (!/maxFps/.test(fl[1]) || !/'never'/.test(fl[1]))
+      problems.push(`frameloop={${fl[1].trim()}} does not go to 'never' on a cap — r3f keeps its own loop and the cap is dead`);
+    // The driver itself: present, gated on a cap being set AND on not being paused.
+    const mount = src.match(/\{[^{}]*maxFps[^{}]*<FrameRateCap[^}]*\}/);
+    if (!mount) problems.push('<FrameRateCap> is not mounted under a maxFps gate — nothing advances a capped canvas');
+    else if (!/!paused/.test(mount[0]))
+      problems.push('<FrameRateCap> is mounted without a !paused gate — a hidden canvas would redraw at the cap rate');
+    if (!/requestAnimationFrame/.test(src))
+      problems.push('FrameRateCap no longer drives a rAF — a capped canvas would never advance');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

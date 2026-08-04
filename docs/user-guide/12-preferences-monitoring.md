@@ -66,6 +66,17 @@ keep up. Like Audio, these are **per-machine** and never travel inside a project
   first thing to lower when the 3D view is slow**: cost scales with the square, so `0.5×` is a quarter
   of the pixels. It affects only the 3D preview — never the projector outputs, never what goes on the
   wire. See [chapter 9 ▸ Making this viewport cheap](09-3d-scene.md).
+- **3D frame rate** — a ceiling on how often the 3D Scene viewport redraws, applied live. Try it when
+  the render scale did not help: that means whole frames are expensive rather than pixels. **Capping the
+  preview never slows the show** — mapping, LED sampling and Art-Net run in the frame engine at the
+  engine FPS regardless — it only stops the preview taking GPU time from the output. Whether that buys
+  anything depends on the machine; watch the **FPS** readout in the status bar and keep the setting only
+  if it moves.
+- **3D Scene on WebGPU** — render the 3D Scene viewport with WebGPU instead of WebGL, roughly **twice**
+  the frame rate where it works. Takes effect on the next reload (**Ctrl+R**), and the viewport shows a
+  badge while it is active. If the machine has no usable WebGPU adapter it falls back to WebGL on its
+  own. This is the *preview* only — it is unrelated to **Active backend** above, which is the
+  pixel-mapping engine and has always been WebGPU.
 
 ---
 
