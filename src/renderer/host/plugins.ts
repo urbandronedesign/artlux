@@ -26,8 +26,20 @@ import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
 import { plugin as augmenta } from '@artlux/plugin-augmenta';
 import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
 import { plugin as audio } from '@artlux/plugin-audio/renderer';
+import { CALIBRATION_ENABLED } from '../services/runProfile';
 
 const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, showControl, audio];
+
+// THE LAUNCH PROFILE DECIDES WHICH OF THESE RUN. Only calibration is gated today, and only in a
+// plain editor launch — see src/main/runProfile.ts for the measurement that motivates it (an open
+// CALIBRATED output takes the whole app from 60 fps to 17.6, because the plugin renders the venue a
+// second time over the projector's canvas; an uncalibrated one is free).
+//
+// Skipping it is the honest mechanism rather than "activate but do nothing": a plugin that registers
+// its contributions and then declines to work still puts a Calibration viewport on the rail and a
+// panel on every projector window, and the operator cannot tell why they do nothing.
+const enabled = (p: RendererPlugin): boolean =>
+  p !== calibration || CALIBRATION_ENABLED;
 
 let activated = false;
 
@@ -113,7 +125,7 @@ export function activateRendererPlugins(win: 'main' | 'projector', host: Rendere
   automationTargetRegistry.register(coreAutomationProvider);
   const ctx = makeContext(win, host);
   const report: BootEntry[] = [];
-  for (const p of FIRST_PARTY) {
+  for (const p of FIRST_PARTY.filter(enabled)) {
     const t0 = performance.now();
     try {
       p.activate(ctx);

@@ -61,6 +61,7 @@ import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
+import { CALIBRATION_ENABLED } from './services/runProfile';
 import { keymap } from './shortcuts/keymapStore';
 import { openHelp } from './services/helpNav';
 import { openShortcuts } from './services/shortcutsNav';
@@ -2567,6 +2568,16 @@ const App: React.FC = () => {
       else toast.warn('Save first', 'Save the project to a file, then launch broadcast mode.');
   };
 
+  // Enter or leave the calibration workbench. A RELAUNCH, not a toggle: the calibration plugin is
+  // activated once per window at load, in this window and in every projector window it spawns, and a
+  // half-switched pair is the shape of bug that ends with a black output at a venue. Dropping it is
+  // what keeps an open output cheap — 60 fps against 17.6 with a calibrated one on this machine.
+  const handleToggleCalibration = async () => {
+      const path = await handleSaveProject();
+      if (!path) { toast.warn('Save first', 'Save the project to a file, then switch to calibration.'); return; }
+      window.artlux?.relaunchWithCalibration?.(!CALIBRATION_ENABLED, path);
+  };
+
   // App info for the About modal.
   useEffect(() => { window.artlux?.getAppInfo?.().then((i) => setAppInfo(i ?? null)); }, []);
 
@@ -2586,6 +2597,7 @@ const App: React.FC = () => {
           case 'collect-assets': handleCollectAssets(); break;
           case 'collect-copy': handleCollectCopyToFolder(); break;
           case 'broadcast': handleLaunchBroadcast(); break;
+          case 'calibration-profile': handleToggleCalibration(); break;
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
           case 'preferences': goToContext('settings'); break;

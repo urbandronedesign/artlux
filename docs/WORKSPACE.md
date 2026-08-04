@@ -133,7 +133,7 @@ survives only as a one-time migration input (see below).
 | **Build** | `mapping` | 2D stage | surfaces **and** fixtures — placement, content, patch, DMX; media library + program monitor in the dock |
 | | `3d` | `Simulator3D` | venue layout, models, the rig, lighting, tracking overlays, lighting takes |
 | **Align** | `project` | outputs table | bind displays, warp, blend, span, gamma; previews in the dock |
-| | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside |
+| | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside. **Registered only under the calibration launch profile** — see below |
 | **Show** | `scenes` | `CueBankPanel` | capture scenes, fire them from the grid; program preview + both clocks on the left |
 | | `machine` | `StateGraphEditor` | the show graph over those scenes |
 | | `audio` | *plugin* — the mixer | bed, mix, inserts, spatial |
@@ -190,8 +190,19 @@ Seven of these are worth knowing the history of, because the shape was arrived a
 
 Three contexts have their viewport supplied by a **plugin** (`calib`, `audio`, `show`) via
 `extend({ viewport })`. The host declares the context — rail slot, title, hint, default layout — and the
-plugin owns its principal surface. With the plugin disabled the host's declared viewport is the
-fallback, so the rail never carries a dead entry.
+plugin owns its principal surface.
+
+⚠ **`calib` is not registered at all in a plain editor launch**, and the fallback viewport is the reason
+it cannot simply be left on the rail. `plugins/calibration` activates only under the calibration
+**launch profile** (`--calibrate`, and implicitly in broadcast/headless — see `src/main/runProfile.ts`),
+because a calibrated output renders the venue a second time over the projector's canvas: measured on the
+same project, a projector window carries three canvases with the profile and one without. Registering
+the context anyway would put a **Calibration** entry on the rail whose workbench falls back to the 2D
+stage — an operator clicks it, gets no wizard and no camera, and nothing says why. A rail entry that
+cannot do its job is worse than an absent one, so `registerCoreWorkspace()` gates the registration on
+the same flag the plugin host uses. `File ▸ Open Calibration Workbench…` saves and relaunches into the
+other profile; `verify:invariants` asserts every window main builds carries the profile on its URL,
+because an editor whose projector windows disagreed would put the second scene straight back.
 
 ### Where did it go? (things that moved)
 

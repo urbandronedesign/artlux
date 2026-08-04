@@ -15,6 +15,7 @@ import * as nvwarp from './nvwarpManager';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import * as persistence from './persistence';
+import { profileQuery, CALIBRATION_ENABLED } from './runProfile';
 import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
@@ -95,9 +96,12 @@ if (process.env.ARTLUX_CDP_PORT) {
 // What the editor's renderer is told to do on boot. Empty -> the untitled document, exactly as
 // before, so a plain launch is byte-identical.
 function editorQuery(): Record<string, string> | null {
-    if (NEW_PROJECT_PATH) return { newProject: NEW_PROJECT_PATH };
-    if (PROJECT_PATH) return { project: PROJECT_PATH };
-    return null;
+    // `--calibrate` brings the calibration workbench into an editor launch; without it the editor
+    // drops the plugin entirely and its outputs stay on the cheap warp path. See main/runProfile.ts.
+    const p = profileQuery();
+    if (NEW_PROJECT_PATH) return { newProject: NEW_PROJECT_PATH, ...p };
+    if (PROJECT_PATH) return { project: PROJECT_PATH, ...p };
+    return Object.keys(p).length ? p : null;
 }
 
 function createWindow(): void {
@@ -197,7 +201,8 @@ function createWindow(): void {
         // broadcast — so the plugin host + show engine + schedule tick + media playback all run.
         // App gates on HEADLESS to suppress projector/NDI output, keeping headless = hidden
         // compute + Art-Net only.
-        const query = { headless: '1', project: PROJECT_PATH };
+        // Calibration is implied by every show mode — a show's outputs ARE the calibrated ones.
+        const query = { headless: '1', project: PROJECT_PATH, ...profileQuery() };
         if (devUrl) {
             const qs = new URLSearchParams(query).toString();
             mainWindow.loadURL(`${devUrl}/?${qs}`);
@@ -207,7 +212,7 @@ function createWindow(): void {
         console.log(`[main] headless mode — project: ${PROJECT_PATH || '(last opened)'}`);
     } else if (BROADCAST) {
         // Full App in a hidden window; it renders only the Stage and opens the saved outputs.
-        const query = { broadcast: '1', project: PROJECT_PATH };
+        const query = { broadcast: '1', project: PROJECT_PATH, ...profileQuery() };
         if (devUrl) {
             const qs = new URLSearchParams(query).toString();
             mainWindow.loadURL(`${devUrl}/?${qs}`);
@@ -297,6 +302,18 @@ app.whenReady().then(() => {
     registerIpc(() => mainWindow);
     metrics.start(); // Prometheus /metrics endpoint (loopback by default; ARTLUX_METRICS=0 to disable)
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
+    // SWITCH LAUNCH PROFILE. Calibration is not a runtime toggle (plugin activation happens once per
+    // window, in the editor AND in every projector window it spawns — see runProfile.ts), so entering
+    // or leaving the calibration workbench is a relaunch. Same proven mechanism as broadcast below;
+    // `on` rather than `into` so one handler serves both directions.
+    ipcMain.on(IPC.APP_RELAUNCH_PROFILE, (_e, on: boolean, projectPath: string) => {
+        const args = app.isPackaged ? [] : [app.getAppPath()];
+        if (on) args.push('--calibrate');
+        if (projectPath) args.push(`--project=${projectPath}`);
+        releaseLockForRelaunch();
+        app.relaunch({ args });
+        app.exit(0);
+    });
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
         // app.relaunch replaces argv. When unpacked (dev), argv is [electron, appPath, …flags],
         // so we must re-pass the app path or Electron relaunches with no app (the welcome screen).

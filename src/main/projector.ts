@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, screen, MessageChannelMain } from 'electro
 import type { Display } from 'electron';
 import { join } from 'node:path';
 import { IPC, WINDOWED_DISPLAY, type DisplayInfo } from '../../shared/protocol';
+import { profileQuery } from './runProfile';
 
 // Per-Surface fullscreen projector outputs. Each enabled output gets its own frameless,
 // fullscreen BrowserWindow positioned on a chosen physical display; the surface's content
@@ -188,7 +189,11 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
   win.webContents.once('did-finish-load', () => bridge(getMain, win, surfaceId));
 
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
-  const query = { surfaceId };
+  // THE PROFILE MUST MATCH THE WINDOW THAT SPAWNED THIS ONE. A projector activates the same renderer
+  // plugins as the editor, so an editor that dropped calibration must not spawn outputs that load it
+  // — that would put the expensive render-from-projector panel back on the very windows the profile
+  // exists to keep cheap. Both read it from the URL, both from the same argv. See main/runProfile.ts.
+  const query = { surfaceId, ...profileQuery() };
   if (devUrl) win.loadURL(`${devUrl}/projector.html?${new URLSearchParams(query).toString()}`);
   else win.loadFile(join(__dirname, '../renderer/projector.html'), { query });
   return win;

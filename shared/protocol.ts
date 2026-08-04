@@ -75,6 +75,8 @@ export const IPC = {
   OPEN_EXTERNAL: 'app:open-external',
   /** Renderer → main: relaunch the app in broadcast mode with the given project path. */
   APP_RELAUNCH_BROADCAST: 'app:relaunch-broadcast',
+  /** Renderer → main: relaunch with the calibration profile on/off (`on`, `projectPath`). */
+  APP_RELAUNCH_PROFILE: 'app:relaunch-profile',
   /** Renderer → main (invoke): current watchdog status + recent self-heal events. */
   WATCHDOG_STATUS: 'watchdog:status',
   /** Renderer → main (invoke): install the Tier-2 OS supervisor (Windows Scheduled Task). */
@@ -1401,6 +1403,13 @@ export interface ArtluxApi {
   onSplashFadeOut(cb: () => void): () => void;
   /** Save-then-relaunch into broadcast mode (no editor UI; outputs + Art-Net only). */
   relaunchBroadcast(projectPath: string): void;
+  /**
+   * Save-then-relaunch with projector calibration on or off. A plain editor drops the calibration
+   * plugin entirely, which is what keeps an open output cheap (60 fps against 17.6 with a calibrated
+   * one); entering the workbench is therefore a relaunch, not a toggle — plugin activation happens
+   * once per window, and the editor's projector windows must carry the same profile.
+   */
+  relaunchWithCalibration(on: boolean, projectPath: string): void;
   // Unattended watchdog (self-healing for broadcast/show installs — see docs/WATCHDOG.md)
   /** Current watchdog arming state + circuit-breaker status + tail of the self-heal event log. */
   getWatchdogStatus(): Promise<WatchdogStatus>;

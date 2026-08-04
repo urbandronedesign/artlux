@@ -2843,6 +2843,55 @@ check(
   },
 );
 
+// ── The launch profile reaches every window, or none ──────────────────────────────────────────
+check(
+  'a projector window carries the same launch profile as the window that spawned it',
+  'Calibration is decided ONCE per window, at load, from the URL — in the editor and in every ' +
+  'projector window it opens. If main forgets the profile on one of those URLs the two disagree: an ' +
+  'editor that dropped calibration spawns outputs that still load the render-from-projector panel, ' +
+  'putting back the exact second venue render the profile exists to remove (60 fps against 17.6 ' +
+  'measured), or worse, a calibrated SHOW opens outputs that cannot render its calibration and the ' +
+  'wall goes dark. Nothing throws either way. The renderer must read it from the query string too — ' +
+  'plugin activation runs at module load, long before a prefs round-trip could answer.',
+  () => {
+    const problems = [];
+    const M = 'src/main/runProfile.ts';
+    if (!exists(M)) return `${M} is gone — the profile has no single source of truth`;
+    const prof = stripComments(read(M));
+    // Show modes are shows: their outputs ARE the calibrated ones, so they must never drop it.
+    if (!/--headless/.test(prof) || !/--broadcast/.test(prof))
+      problems.push(`${M} no longer forces the profile on in headless/broadcast — a show would open outputs it cannot calibrate`);
+
+    // Every window main builds must carry it.
+    const idx = stripComments(read('src/main/index.ts'));
+    const proj = stripComments(read('src/main/projector.ts'));
+    if (!/profileQuery\(\)/.test(proj))
+      problems.push('src/main/projector.ts does not put the profile on the projector URL — its windows would disagree with the editor');
+    const queries = idx.match(/const query = \{[^}]*\}/g) ?? [];
+    for (const q of queries) {
+      if (!/profileQuery\(\)/.test(q)) problems.push(`src/main/index.ts builds a renderer query without the profile: ${q.replace(/\s+/g, ' ').slice(0, 70)}`);
+    }
+    if (!/profileQuery\(\)/.test(idx.match(/function editorQuery[\s\S]*?\n\}/)?.[0] ?? ''))
+      problems.push('src/main/index.ts editorQuery() drops the profile — `--calibrate` would not reach the editor');
+
+    // The renderer must read it from the URL, not from prefs (which answer too late).
+    const R = 'src/renderer/services/runProfile.ts';
+    if (!exists(R)) return `${R} is gone — the renderer cannot see the profile`;
+    const rp = stripComments(read(R));
+    if (!/URLSearchParams/.test(rp) || !/calibrate/.test(rp))
+      problems.push(`${R} no longer reads the profile from the query string`);
+    if (/getPrefs|artlux\?\./.test(rp))
+      problems.push(`${R} reads prefs — plugin activation happens before IPC can answer`);
+
+    // And the two consumers that make it mean anything.
+    if (!/CALIBRATION_ENABLED/.test(read('src/renderer/host/plugins.ts')))
+      problems.push('src/renderer/host/plugins.ts ignores the profile — calibration would activate in every editor');
+    if (!/CALIBRATION_ENABLED/.test(read('src/renderer/contexts/index.tsx')))
+      problems.push('src/renderer/contexts/index.tsx ignores the profile — the Calib rail entry would open an empty workbench');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

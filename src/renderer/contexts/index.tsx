@@ -28,6 +28,7 @@ import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, MonitorDock, 
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
 import { PreferencesViewport } from './panels/adapters';
+import { CALIBRATION_ENABLED } from '../services/runProfile';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
@@ -284,7 +285,12 @@ export function registerCoreWorkspace(): void {
     ],
   });
 
-  contextRegistry.register({
+  // NOT REGISTERED WITHOUT ITS PLUGIN. `plugins/calibration` supplies this context's viewport via
+  // `contexts.extend('calib', …)`, so in a launch profile that drops the plugin (a plain editor —
+  // see services/runProfile.ts) registering it anyway would put a Calibration entry on the rail whose
+  // workbench is the 2D stage fallback: an operator clicks it, gets no wizard and no camera, and
+  // nothing says why. A rail entry that cannot do its job is worse than an absent one.
+  if (CALIBRATION_ENABLED) contextRegistry.register({
     id: 'calib', title: 'Calibration', shortTitle: 'Calib', icon: <Crosshair size={16} />,
     cluster: 'align', order: 1,
     // The calibration PLUGIN claims this viewport (wizard rail + camera). The stage below is only the

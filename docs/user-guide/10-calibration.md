@@ -1,8 +1,28 @@
 # 10. Projector calibration
 
 Calibration recovers a projector's **lens + position** so the 3D scene can be projected onto the real
-surface at 1:1. You launch it from the [Outputs panel](08-projector-outputs.md): enable an output, then
-click the **Calibrate** (target) icon on that row.
+surface at 1:1.
+
+> ### Calibration is a separate workbench — open it from **File ▸ Open Calibration Workbench…**
+>
+> The editor does **not** carry calibration by default, and the **Calib** entry is absent from the left
+> rail until you open the workbench. That is deliberate, not a missing feature.
+>
+> A calibrated output does more than warp a picture: it renders the whole venue **a second time**, in
+> its own 3D scene over the projector's canvas, so you can check the solve against the real wall. That
+> is exactly right while you are aligning, and pure cost while you are authoring. Verified on the same
+> project: with the workbench open a projector window carries three canvases; without it, one.
+>
+> Opening or leaving the workbench **saves and restarts the app** — the choice is made once when a
+> window loads, and the editor's output windows have to agree with it. You will be prompted to save
+> first if the project has never been written to a file.
+>
+> Everything that puts light on a wall keeps calibration regardless: **Broadcast** and headless launches
+> always carry it, because a show's outputs *are* the calibrated ones. You never have to think about
+> this at showtime.
+
+Inside the workbench you launch a calibration from the [Outputs panel](08-projector-outputs.md): enable
+an output, then click the **Calibrate** (target) icon on that row.
 
 > **Hardware required:** the Board and Auto-Align modes need a **camera**, a **projector**, and
 > (ideally) a darkened room. The wizard UI below is the real panel; with no camera connected the

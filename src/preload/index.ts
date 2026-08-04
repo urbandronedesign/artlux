@@ -94,6 +94,7 @@ const api: ArtluxApi = {
         return () => { ipcRenderer.removeListener(IPC.SPLASH_FADE_OUT, listener); };
     },
     relaunchBroadcast: (projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_BROADCAST, projectPath),
+    relaunchWithCalibration: (on: boolean, projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_PROFILE, on, projectPath),
     // Unattended watchdog (self-healing for broadcast/show installs)
     getWatchdogStatus: () => ipcRenderer.invoke(IPC.WATCHDOG_STATUS),
     installWatchdogTask: () => ipcRenderer.invoke(IPC.WATCHDOG_INSTALL_TASK),

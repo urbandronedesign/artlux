@@ -3,6 +3,7 @@ import { Minus, X, ChevronRight } from 'lucide-react';
 import type { WindowCommand } from '../../../shared/protocol';
 import { CONTEXT_MENU_ITEMS, contextAction } from '../../../shared/protocol';
 import { AppWordmark } from './brand/AppMark';
+import { CALIBRATION_ENABLED } from '../services/runProfile';
 
 // Custom window title bar (VSCode-style) for the frameless editor window: the ARTLux mark, the
 // File/Edit/View/Window/Help menus as app-styled dropdowns, a draggable spacer, and the
@@ -55,6 +56,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Routing…', action: 'routing' },
         { label: 'Preferences…', accel: 'Ctrl+,', action: 'preferences' },
         { sep: true },
+        { label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', action: 'calibration-profile' },
         { label: 'Launch in Broadcast Mode', action: 'broadcast' },
         { sep: true },
         { label: 'Quit', accel: 'Ctrl+Shift+Q', cmd: 'quit' },

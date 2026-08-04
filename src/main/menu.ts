@@ -1,6 +1,7 @@
 import { Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { IPC, CONTEXT_MENU_ITEMS, contextAction } from '../../shared/protocol';
 import * as persistence from './persistence';
+import { CALIBRATION_ENABLED } from './runProfile';
 
 // Native application menu. Renderer-bound commands (save/open/undo/about/…) are
 // sent over IPC.MENU_ACTION to the focused window, where App.tsx dispatches them
@@ -47,6 +48,9 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Routing…', click: () => send('routing') },
         { label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => send('preferences') },
         { type: 'separator' },
+        // Calibration is a launch profile, not a workbench you switch to — see main/runProfile.ts.
+        // The label says which way the switch goes, because the menu is the only place that knows.
+        { label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', click: () => send('calibration-profile') },
         { label: 'Launch in Broadcast Mode', click: () => send('broadcast') },
         { type: 'separator' },
         // Accelerator shown for discoverability; the real handler is the global shortcut
