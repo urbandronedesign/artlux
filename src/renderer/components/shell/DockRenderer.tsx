@@ -389,6 +389,23 @@ const Node: React.FC<{ node: DockNode; ctx: Ctx }> = ({ node, ctx }) => {
   // A layout effect with no dependency array runs after every render, so whatever a drag left behind is
   // overwritten by the arrangement the tree actually describes. Declarative styling cannot do this,
   // because "the value did not change" is precisely the case that has to be repaired.
+  //
+  // ⚠ BUT COMPARE BEFORE WRITING — the repair used to be unconditional, and it was the most expensive
+  // thing in the editor. This effect runs after EVERY render, and App re-renders every frame while the
+  // transport runs, so four blind style writes per pane became a style + layout invalidation of the
+  // whole workspace, sixty times a second. It is paid by whatever the shell happens to be holding: on a
+  // 200-fixture rig the browser column alone is ~1,200 nodes, and collapsing it measured 34 → 56 fps.
+  // A Chromium trace of the same scene showed the renderer main thread ~19% in Blink's lifecycle —
+  // Commit 8%, HitTest 4.3%, Layerize 3.8%, Paint 2.9% — inside a viewport whose 3D content was fine.
+  //
+  // Comparing against the ELEMENT rather than against props is what keeps the repair working. React
+  // could not fix a drag because its own props had not changed; the DOM had, and that is exactly what
+  // is read here. After a drag `flexGrow` is `'0'` against a target of `'1'`, so it is written; in the
+  // steady state every value already matches and nothing is touched, so Blink invalidates nothing.
+  //
+  // The old `el.style.flex = ''` is gone rather than made conditional: setting all three longhands
+  // below fully determines the shorthand a drag wrote (`flex: 0 0 1056px` IS those three), so clearing
+  // first only guaranteed a write every time.
   React.useLayoutEffect(() => {
     if (node.kind !== 'split') return;
     node.children.forEach((child, i) => {
@@ -397,10 +414,14 @@ const Node: React.FC<{ node: DockNode; ctx: Ctx }> = ({ node, ctx }) => {
       const s = child.kind === 'group' && child.collapsed
         ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' }
         : sizeToFlex(node.sizes[i], frSum);
-      el.style.flex = '';                       // drop any shorthand a drag left behind
-      el.style.flexGrow = String(s.flexGrow);
-      el.style.flexShrink = String(s.flexShrink);
-      el.style.flexBasis = String(s.flexBasis);
+      // A value the CSSOM serializes differently from what we hand it (`flexBasis: min(288px, 45%)`)
+      // simply never matches and is rewritten every render — the old behaviour, and still correct.
+      const put = (prop: 'flexGrow' | 'flexShrink' | 'flexBasis', val: string) => {
+        if (el.style[prop] !== val) el.style[prop] = val;
+      };
+      put('flexGrow', String(s.flexGrow));
+      put('flexShrink', String(s.flexShrink));
+      put('flexBasis', String(s.flexBasis));
     });
   });
 

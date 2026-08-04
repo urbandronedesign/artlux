@@ -857,8 +857,23 @@ check(
     // drag's pixel values stay on the element for good. Every pane then has grow 0, and new space goes
     // to nobody: a black strip down the edge of the workspace. "The value did not change" is exactly the
     // case that needs repairing, which is why this cannot be declarative.
-    if (!/useLayoutEffect/.test(dock) || !/el\.style\.flexGrow = /.test(dock)) {
+    // The repair must still run after EVERY render (no dep array) and must still write the longhands.
+    // It is now compare-and-set rather than unconditional — writing blind cost a style + layout
+    // invalidation of the whole workspace on every frame the transport ran (34 → 56 fps with the
+    // browser column collapsed, on a 200-fixture rig) — so what is asserted is that the write still
+    // happens against the ELEMENT's current value. Comparing against the element is the part that
+    // keeps it working where React could not: React sees unchanged props, the DOM has a drag's
+    // pixels on it, and only a DOM read can tell the difference.
+    const effect = dock.match(/React\.useLayoutEffect\(\(\) => \{[\s\S]*?\n  \}\);/);
+    if (!effect) {
       problems.push('the dock panes no longer assert their flex after every render — a splitter drag will leave pixel sizes pinned on them and new space will be distributed to nobody');
+    } else {
+      if (/\}, \[/.test(effect[0]))
+        problems.push('the dock flex repair grew a dependency array — it must run after EVERY render, because "the props did not change" is exactly the case a drag creates');
+      if (!/el\.style\[prop\] = val|el\.style\.flexGrow = /.test(effect[0]))
+        problems.push('the dock flex repair no longer writes the flex longhands onto the pane');
+      if (!/el\.style\[prop\] !== val|el\.style\.flex = ''/.test(effect[0]))
+        problems.push('the dock flex repair neither compares against the element nor clears the shorthand — it either writes blind every frame (a workspace-wide layout invalidation) or cannot undo a drag');
     }
     if (/data-dock-pane[^>]*style=\{/.test(dock)) {
       problems.push('a dock pane styles its flex declaratively again — a drag writes the same properties and React will not correct it');
