@@ -8,6 +8,7 @@ import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
 import { ErrorBoundary } from './ErrorBoundary';
 import { layoutStore } from '../services/layoutStore';
+import { useRenderScale, setRenderScale, RENDER_SCALE_MIN, RENDER_SCALE_MAX } from '../services/scene3dQuality';
 import { useLayout } from '../hooks/useLayout';
 
 interface Props {
@@ -133,6 +134,7 @@ const GpuSection: React.FC = () => {
   const [active, setActive] = useState('');
   const [probe, setProbe] = useState('');
   const [probing, setProbing] = useState(false);
+  const renderScale = useRenderScale();
 
   useEffect(() => {
     try { setForced(localStorage.getItem('artlux.forceWebGL') === '1'); } catch { /* ignore */ }
@@ -174,6 +176,12 @@ const GpuSection: React.FC = () => {
       <Toggle label="Force WebGL fallback" checked={forced} onChange={toggleForce}
               title="Force the WebGL fallback to test reduced-mode rendering on a machine that has WebGPU. Per-machine only (localStorage) — never travels with the project. Reload to apply." />
       <div className="text-micro text-fg-3 px-0.5">Force-WebGL applies on the next reload (Ctrl+R). The Stage shows a banner while the fallback is active.</div>
+      <Slider label="3D render scale" value={renderScale} min={RENDER_SCALE_MIN} max={RENDER_SCALE_MAX} step={0.05}
+              format={(v) => `${v.toFixed(2)}×`} onChange={setRenderScale} />
+      <div className="text-micro text-fg-3 px-0.5">
+        Resolution the 3D Scene renders at, applied live. Cost scales with the SQUARE — 0.5× is a quarter
+        of the pixels. Lower it first when the 3D view is slow. Per-machine, so it never travels with a project.
+      </div>
     </Section>
   );
 };

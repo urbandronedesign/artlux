@@ -50,6 +50,23 @@ These settings are **per-machine** (they describe this computer's sound card), s
 Preferences, not in the project — opening a show never re-patches the venue's audio. See
 [AUDIO.md ▸ Devices and speakers](../AUDIO.md) for the reference.
 
+**GPU rendering** — what this machine's graphics hardware is doing, and what to give up when it can't
+keep up. Like Audio, these are **per-machine** and never travel inside a project:
+
+- **Active backend** — which pixel-mapping path is live. **WebGPU (compute)** is the real one. **WebGL
+  (fallback)** is a reduced mode: it samples the whole composite rather than each surface's own pixels,
+  so overlapping surfaces are approximated and effects are ignored. If you see it on a machine that is
+  meant to run a show, the graphics driver is the thing to fix — see [chapter 17 ▸ Installing](17-installing.md).
+- **Test WebGPU support** — probes the adapter and names it. Use it to tell "no WebGPU on this machine"
+  apart from "WebGPU exists but something else went wrong".
+- **Force WebGL fallback** — deliberately run the reduced path on a machine that has WebGPU, to see what
+  an underpowered venue PC will show. Takes effect on the next reload (**Ctrl+R**); the Stage displays a
+  banner the whole time it is active, so you cannot leave it on by accident.
+- **3D render scale** — the resolution the 3D Scene viewport renders at, applied live. **This is the
+  first thing to lower when the 3D view is slow**: cost scales with the square, so `0.5×` is a quarter
+  of the pixels. It affects only the 3D preview — never the projector outputs, never what goes on the
+  wire. See [chapter 9 ▸ Making this viewport cheap](09-3d-scene.md).
+
 ---
 
 ## DMX Monitor

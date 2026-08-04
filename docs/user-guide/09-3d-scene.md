@@ -142,10 +142,17 @@ looking like it worked.)
 
 ### Making this viewport cheap
 
-The 3D view is a preview, and three of its options cost far more than the rest. If the viewport feels
+The 3D view is a preview, and a few of its options cost far more than the rest. If the viewport feels
 heavy — or you simply want the frame budget spent on the show instead — these are the ones to reach
 for, in order of how much they give back:
 
+- **3D render scale** — **reach for this first on a weak GPU.** It lives in **Preferences ▸ GPU
+  rendering**, not in this panel, because it describes what *this computer* can afford rather than what
+  the scene shows: it is stored per-machine and never travels inside a project. It sets the resolution
+  the viewport renders at, and the cost scales with the **square** — `0.5×` is a quarter of the pixels
+  and roughly halves everything the viewport spends per frame. It applies live, so drag it while
+  watching the scene and stop where it still looks right. On a high-DPI screen `1.0×` already looks
+  sharp; go above it only on a workstation with headroom to spare.
 - **Glow (bloom)** — off by default. It is a full-screen pass plus a blur every frame at viewport
   resolution. It makes a rig of LEDs and beams look like light; it does nothing for a venue mesh
   carrying video, so leave it off while you are mapping.

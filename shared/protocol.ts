@@ -1171,6 +1171,10 @@ export interface Prefs {
   /** Show the startup splash (credits + licence + the plugin/native boot console). Default: true.
       Editor mode only — headless/broadcast never open it regardless (see main/splashWindow.ts). */
   showSplash?: boolean;
+  /** Device-pixel ratio for the 3D Scene canvas (0.5–2.0). Per-MACHINE, not per-project: it describes
+      what this GPU can afford, so it must not travel to the venue inside a show file. Absent = 1.
+      Halving it quarters the fragment work in that viewport — the largest fill-rate lever there is. */
+  scene3dRenderScale?: number;
   /** User keyboard-shortcut overrides, keyed by stable shortcut id → its bound chords (e.g. ["Ctrl+Z"]).
       Renderer-owned blob (the full registry of default bindings lives in the renderer, this stores only
       the deltas the user changed). Absent / missing keys = the registry default. */

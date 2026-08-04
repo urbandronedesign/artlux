@@ -89,7 +89,16 @@ export const InstancedLeds: React.FC<Props> = ({ fixtures, onSelectFixture }) =>
       args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, total]}
       onClick={handleClick}
     >
-      <sphereGeometry args={[0.012, 8, 6]} />
+      {/* 20 triangles per LED, not 80. A UV sphere at 8×6 segments costs 80 triangles and 63 vertices,
+          and this mesh is instanced across EVERY LED in the rig — 10k pixels was 800k triangles a frame
+          for dots that are 12 mm across. The cost is not only vertex work: sub-pixel triangles are the
+          rasterizer's worst case, because each one still shades a 2×2 quad, so the wasted fill scales
+          with the triangle COUNT rather than the area covered.
+          An icosahedron at detail 0 is 20 faces and 12 vertices, and at this size it is the same dot.
+          (A camera-facing quad would be 2 triangles and rounder still, but billboarding needs a custom
+          vertex stage — worth doing in TSL when the scene moves to WebGPU, not in GLSL that gets
+          deleted then.) */}
+      <icosahedronGeometry args={[0.012, 0]} />
       <meshBasicMaterial toneMapped={false} />
     </instancedMesh>
   );
