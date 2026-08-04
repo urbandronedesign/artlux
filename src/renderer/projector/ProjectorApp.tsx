@@ -130,7 +130,12 @@ export const ProjectorApp: React.FC = () => {
   // Projector-panel plugins (e.g. calibration's pattern/crosshair/render overlay) subscribe to the
   // main→projector message stream and send acks back through this stable context.
   const panelMsgSubs = useRef(new Set<(m: unknown) => void>());
+  // State, not a ref: a panel has to RE-RENDER to change its own loop. It moves on project load, not
+  // per frame, so rebuilding the context that rarely costs nothing — the message subscriptions it
+  // carries live in a ref and survive the new identity.
+  const [panelFpsCap, setPanelFpsCap] = useState(0);
   const panelCtx = useMemo<ProjectorPanelContext>(() => ({
+    fpsCap: panelFpsCap,
     onMessage: (cb) => { panelMsgSubs.current.add(cb); return () => { panelMsgSubs.current.delete(cb); }; },
     send: (m) => portRef.current?.postMessage(m as ProjectorToMain),
     setRenderSource: (c) => {
@@ -143,7 +148,7 @@ export const ProjectorApp: React.FC = () => {
       panelSourceRef.current = c;
       consumingPanelRef.current = false; // re-decided on the next frame against the new canvas
     },
-  }), []);
+  }), [panelFpsCap]);
   const commit = () => { if (warpRef.current) send({ t: 'warp', warp: warpRef.current }); else send({ t: 'cornerPin', cornerPin: pinRef.current }); };
   const commitDebounced = () => {
     if (commitTimer.current) window.clearTimeout(commitTimer.current);
@@ -161,6 +166,10 @@ export const ProjectorApp: React.FC = () => {
     colorGainRef.current = r.colorGain ?? [1, 1, 1];
     blackLiftRef.current = r.blackLift ?? [0, 0, 0];
     fpsCapRef.current = r.fpsCap ?? 0;
+    // A panel that draws the whole picture runs its own loop, so it cannot be throttled from here —
+    // it has to be told. Without this, "performance mode" capped the warp/blend stage and left the
+    // calibrated 3D scene above it running at display rate, which is the expensive half.
+    setPanelFpsCap(r.fpsCap ?? 0);
     // Hand the render config to any projector channel that applies to this surface (e.g. LiDAR reads
     // trackingSmoothing/PredictMs). The host no longer knows which fields are plugin-specific.
     const cs = surfaceRef.current;

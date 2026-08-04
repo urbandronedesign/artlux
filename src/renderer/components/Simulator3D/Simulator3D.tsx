@@ -36,6 +36,7 @@ import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
 import { useRenderScale, useMaxFps } from '../../services/scene3dQuality';
+import { FrameRateCap } from './FrameRateCap';
 import { glProp, wantsWebGPU } from './renderer3d';
 import { AxisTriad } from './AxisTriad';
 import { ErrorBoundary } from '../ErrorBoundary';
@@ -163,56 +164,18 @@ const ProjectorView: React.FC<{ calibration: ProjectorCalibration }> = ({ calibr
   return null;
 };
 
-// THE VIEWPORT'S RATE CAP. Mounted only when one is set; the Canvas is `frameloop='never'` then, so
-// this is the only thing that makes a 3D frame happen.
+// The viewport's rate cap lives in FrameRateCap.tsx — SHARED with the calibrated projector's scene,
+// which can saturate this machine the same way. Its own header carries the why and the vsync-rounding
+// subtlety. What was measured HERE, for this Canvas:
 //
-// Why the viewport gets its own clock at all: the 3D scene and the frame engine share one GPU, and the
-// engine is the half that feeds the wire. On the WebGL path this viewport cost the engine about half the
-// machine — 17.8–19.1 fps with it hidden against 10.6–11.6 with it visible, measured on this project.
-// Nothing here touches the engine: it keeps its own rAF (renderer/engine/frameEngine.ts), and output
-// does not depend on this component or on any frame it draws. This is the preview declining GPU time,
-// not the loop moving into the UI.
-//
-// ⚠ WHAT THIS WAS MEASURED TO DO, AND WHAT IT WAS NOT. The throttle itself is exact: WebGPU presents
-// fall linearly with the setting (60/s uncapped → 25/s at 10 fps; the 10-against-15 ratio came out 0.675
-// against a predicted 0.667) and the scene keeps animating at every step. But on THIS machine, with the
-// pane at 705x217 and the viewport already on WebGPU, capping did NOT measurably raise the engine's own
-// rate: 20.4/20.6 fps uncapped against 21.2/24.0 capped is inside the run-to-run noise, and one pair of
-// runs collapsed to 8.1 fps at BOTH settings, which is how noisy it is. Read that as the WebGPU swap
-// having already bought back what this would have. The lever still matters where the viewport is
-// genuinely expensive — a maximized pane, a hiDPI panel, a machine on the WebGL fallback — which is why
-// it defaults to uncapped instead of guessing a value on the operator's behalf.
-//
-// `frameloop='never'` rather than `'demand'` deliberately. Under 'demand' every drei `invalidate()`
-// still renders — and OrbitControls invalidates on each pointermove, so an orbit drag would run
-// uncapped, which is exactly the moment a weak GPU is already struggling. 'never' means the cap holds
-// everywhere; damping and every `useFrame` still run, just on our tick.
-const FrameRateCap: React.FC<{ hz: number }> = ({ hz }) => {
-  const advance = useThree((s) => s.advance);
-  useEffect(() => {
-    if (!(hz > 0)) return;
-    const period = 1000 / hz;
-    let raf = 0, next = 0, prev = 0;
-    // A rAF cannot fire between vsyncs, so a cap is really a choice of WHICH vsyncs to draw on.
-    // Testing `elapsed >= period` exactly would miss the 33.3 ms deadline on a 60 Hz panel about half
-    // the time (it arrives as 33.29) and drop to every third frame — a 30 Hz cap delivering 20. Letting
-    // through the frame that is within half a display interval of the deadline picks the NEAREST vsync
-    // instead. `next` then advances by whole periods rather than resetting to `t`, so the cap does not
-    // drift late by the rounding it just forgave; `Math.max(t, next)` stops it trying to catch up a
-    // burst of frames after a stall.
-    const tick = (t: number) => {
-      raf = requestAnimationFrame(tick);
-      const display = prev ? t - prev : 16.7;
-      prev = t;
-      if (t < next - display / 2) return;
-      next = Math.max(t, next) + period;
-      advance(t);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [hz, advance]);
-  return null;
-};
+// The throttle is exact: WebGPU presents fall linearly with the setting (60/s uncapped → 25/s at
+// 10 fps; the 10-against-15 ratio came out 0.675 against a predicted 0.667) and the scene keeps
+// animating at every step. But with the pane at 705x217 and the viewport already on WebGPU, capping did
+// NOT measurably raise the engine's own rate: 20.4/20.6 fps uncapped against 21.2/24.0 capped is inside
+// the run-to-run noise, and one pair of runs collapsed to 8.1 fps at BOTH settings. Read that as the
+// WebGPU swap having already bought back what this would have. The lever still matters where the
+// viewport is genuinely expensive — a maximized pane, a hiDPI panel, a machine forced onto WebGL —
+// which is why it defaults to uncapped instead of guessing a value on the operator's behalf.
 
 const AdaptiveClipping: React.FC<{ off?: boolean }> = ({ off }) => {
   useFrame(({ camera, controls }) => {

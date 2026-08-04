@@ -506,6 +506,18 @@ export interface ProjectorPanelContext<In = unknown, Out = unknown> {
   // and the host owns that stage. The host only consumes it while there IS something to apply — an
   // un-warped output keeps the free compositor path and never reads the canvas. Pass null to withdraw.
   setRenderSource?(canvas: HTMLCanvasElement | null): void;
+  /**
+   * The output's frame-rate ceiling (`ProjectData.projectorFpsCap`; 0 = uncapped). A panel that draws
+   * the whole picture owns its own render loop, so the host cannot throttle it from outside — it has
+   * to be told.
+   *
+   * This is not a nicety. The host's warp/blend stage already honoured the cap, but a panel that
+   * renders a 3D scene (calibration's render-from-projector) did not, so "performance mode" throttled
+   * the cheap half and left the expensive half running flat out. Measured on the dev laptop: with a
+   * calibrated output open, the whole app sat at 17.6 fps — including the editor contexts that draw no
+   * 3D at all — against 60 with it closed.
+   */
+  fpsCap?: number;
 }
 
 export interface ProjectorPanelContribution {

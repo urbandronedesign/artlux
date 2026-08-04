@@ -266,6 +266,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
           <ProjectorScene
             key={warpSource ? 'warp' : 'plain'}
             scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} meshLook={meshLook}
+            fpsCap={ctx.fpsCap ?? 0}
             onCanvas={warpSource ? publishCanvas : undefined}
           />
         </div>

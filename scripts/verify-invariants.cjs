@@ -2826,8 +2826,19 @@ check(
     if (!mount) problems.push('<FrameRateCap> is not mounted under a maxFps gate — nothing advances a capped canvas');
     else if (!/!paused/.test(mount[0]))
       problems.push('<FrameRateCap> is mounted without a !paused gate — a hidden canvas would redraw at the cap rate');
-    if (!/requestAnimationFrame/.test(src))
-      problems.push('FrameRateCap no longer drives a rAF — a capped canvas would never advance');
+    // The driver itself lives in its own module now, SHARED with the calibrated projector's scene.
+    const CAP = 'src/renderer/components/Simulator3D/FrameRateCap.tsx';
+    if (!exists(CAP)) return `${CAP} is gone — nothing advances a capped canvas in either window`;
+    const cap = stripComments(read(CAP));
+    if (!/requestAnimationFrame/.test(cap))
+      problems.push(`${CAP} no longer drives a rAF — a capped canvas would never advance`);
+    if (!/advance\(/.test(cap))
+      problems.push(`${CAP} never calls advance() — under frameloop='never' nothing would ever render`);
+    // Both consumers must import the one implementation. A second copy is how a 30 fps cap silently
+    // becomes 20 in one window and not the other (see the vsync-rounding note in that file).
+    for (const f of [F, 'plugins/calibration/src/ProjectorScene.tsx']) {
+      if (!/FrameRateCap/.test(read(f))) problems.push(`${f} does not use the shared FrameRateCap`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

@@ -73,7 +73,13 @@ the rest without touching the others.
 - **Anti-aliasing**: outputs render with 4× **MSAA** and at the display's native resolution (crisp on
   4K).
 - **Performance mode**: the Outputs header has an **FPS cap** (Off / 60 / 30 / 24) that throttles all
-  projector output windows — the biggest easy GPU saving for multi-projector / 4K rigs.
+  projector output windows — the biggest easy GPU saving for multi-projector / 4K rigs. It now covers a
+  **calibrated** output's 3D render too, which it did not before: the cap used to throttle only the
+  warp/blend stage while the venue re-render above it ran at display rate, so on a calibrated rig it was
+  throttling the cheap half. Measured on the laptop, capping a calibrated output took the editor from
+  17.3 to ~20 fps — **real, but small next to simply not having the output open, which is worth 60**.
+  15 and 30 measured the same, so if the cap is not buying you anything, the cost is the window
+  existing rather than the rate it draws at.
 
 ### Content that works
 File **video / image**, **effects**, and **timeline layers** render independently in each projector at
