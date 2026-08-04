@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
+import { isWebGPURenderer } from './renderer3d';
 import * as THREE from 'three';
 import { ledUnderPointer } from './pickPriority';
 import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
@@ -60,7 +61,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // The projected-UV twin. A SECOND instance rather than a patch toggled on the one above — see
   // makeProjectedMaterial for why (three's program cache would otherwise hand back the wrong shader).
   const projMatRef = useRef<ProjectedMaterial | null>(null);
-  if (!projMatRef.current) projMatRef.current = makeProjectedMaterial();
+  // From THIS Canvas's renderer, never from module state — see makeProjectedMaterial.
+  const glNodes = isWebGPURenderer(useThree((st) => st.gl));
+  if (!projMatRef.current) projMatRef.current = makeProjectedMaterial(glNodes);
   const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
 
   const projected = usesProjectedUv(model);

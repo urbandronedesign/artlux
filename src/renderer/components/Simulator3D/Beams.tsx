@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { nodes, isWebGPURenderer } from './renderer3d';
 import { Fixture, FixtureProfile } from '../../types';
 import { effectivePos, effectiveRot } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
@@ -140,22 +141,67 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity }) => {
   const count = movers.length;
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
 
-  const material = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader: VERT,
-    fragmentShader: FRAG,
-    uniforms: { uHaze: { value: 0.35 } },
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    // Beams must not occlude one another or the geometry behind them — they are volume, not surface.
-    depthWrite: false,
-    // …but they DO respect depth, so a beam passing behind a truss is correctly hidden by it.
-    depthTest: true,
-    side: THREE.DoubleSide,
-    toneMapped: false,
-  }), []);
+  // ONE LOOK, TWO SHADING LANGUAGES. The GLSL above is the definition; the node build below is the
+  // same maths for the WebGPU renderer, which rejects a raw ShaderMaterial outright ("NodeBuilder:
+  // Material ShaderMaterial is not compatible") and drew no beams at all. Read the comments above
+  // VERT/FRAG for WHY any of it is shaped this way — this branch repeats none of that reasoning, so
+  // there is one place to change a decision.
+  // The RENDERER decides, not module availability — the same trap that blacked out the projector
+  // window's output once the TSL modules started preloading. See makeProjectedMaterial.
+  const useNodes = isWebGPURenderer(useThree((st) => st.gl));
+  const { material, setHaze } = useMemo(() => {
+    const mods = useNodes ? nodes() : null;
+    if (!mods) {
+      const m = new THREE.ShaderMaterial({
+        vertexShader: VERT,
+        fragmentShader: FRAG,
+        uniforms: { uHaze: { value: 0.35 } },
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        // Beams must not occlude one another or the geometry behind them — they are volume, not surface.
+        depthWrite: false,
+        // …but they DO respect depth, so a beam passing behind a truss is correctly hidden by it.
+        depthTest: true,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
+      return { material: m as THREE.Material, setHaze: (v: number) => { m.uniforms.uHaze.value = v; } };
+    }
+
+    const { MeshBasicNodeMaterial } = mods.webgpu;
+    const { uniform, float, vec3, positionLocal, positionView, normalView, normalize, abs, dot, clamp, smoothstep, Discard, attribute } = mods.tsl;
+    const uHaze = uniform(0.35);
+    const m = new MeshBasicNodeMaterial();
+    m.transparent = true;
+    m.blending = THREE.AdditiveBlending;
+    m.depthWrite = false;
+    m.depthTest = true;
+    m.side = THREE.DoubleSide;
+    m.toneMapped = false;
+
+    // The node path needs no hand-written instancing: three applies instanceMatrix itself, and
+    // `normalView` is already the correctly un-skewed normal — which is precisely the fiddly part the
+    // GLSL has to do by hand (see the inverse-scale comment in VERT).
+    const t = clamp(positionLocal.z.negate(), float(0), float(1));
+    const facing = abs(dot(normalize(normalView), normalize(positionView.negate())));
+    const fall = float(1).sub(t).mul(float(1).sub(t));
+    const throat = smoothstep(float(0), float(0.05), t);
+    const a = facing.mul(fall).mul(throat).mul(uHaze);
+    Discard(a.lessThanEqual(float(0.002)));
+
+    // Per-instance tint read straight off the `instanceColor` attribute that setColorAt writes below —
+    // the node equivalent of the GLSL's USE_INSTANCING_COLOR branch. The seeding effect further down
+    // is what makes the attribute exist at all; without it this reads garbage rather than white.
+    // `attribute()` is typed as AttributeNode<string> whatever type string you pass, so the vec3 ops
+    // are not visible on it. One cast here rather than loosening every operator downstream.
+    const tint = vec3(attribute('instanceColor', 'vec3') as never);
+    m.colorNode = tint.mul(a);
+    m.opacityNode = a;
+    return { material: m as THREE.Material, setHaze: (v: number) => { uHaze.value = v; } };
+  }, []);
 
   useEffect(() => () => material.dispose(), [material]);
-  useEffect(() => { material.uniforms.uHaze.value = hazeDensity ?? 0.35; }, [material, hazeDensity]);
+  useEffect(() => { setHaze(hazeDensity ?? 0.35); }, [setHaze, hazeDensity]);
 
   // Seed instanceColor so three defines USE_INSTANCING_COLOR — without a first setColorAt the
   // attribute does not exist and the shader's tint branch silently compiles to white.

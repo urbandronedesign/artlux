@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import type { ProjectorCalibration } from '../../../../shared/protocol';
 import { frustumCorners, cameraCenter } from '@artlux/plugin-calibration/renderer';
@@ -29,13 +28,38 @@ export const ProjectorFrustum: React.FC<{
   }, [calibration, depth]);
   const C = new THREE.Vector3(...center);
   const cs = corners.map(c => new THREE.Vector3(...c));
-  const edges: [THREE.Vector3, THREE.Vector3][] = [
-    [C, cs[0]], [C, cs[1]], [C, cs[2]], [C, cs[3]],
-    [cs[0], cs[1]], [cs[1], cs[2]], [cs[2], cs[3]], [cs[3], cs[0]],
-  ];
+
+  // ONE LineSegments for all eight edges, not eight drei <Line>s.
+  //
+  // drei's Line is a fat-line (Line2/LineMaterial) and that has two costs here. It is a mesh per line,
+  // so a frustum was eight draw calls and a rig of three projectors twenty-four; and LineMaterial is a
+  // WebGL-only material that three's node renderer rejects outright ("NodeBuilder: Material
+  // LineMaterial is not compatible"), which is why every frustum vanished on the WebGPU path. A plain
+  // LineBasicMaterial renders on both backends and is visually identical at `lineWidth={1}` — the only
+  // thing fat lines add is widths above 1, which this never used.
+  const positions = useMemo(() => {
+    const pairs: THREE.Vector3[][] = [
+      [C, cs[0]], [C, cs[1]], [C, cs[2]], [C, cs[3]],
+      [cs[0], cs[1]], [cs[1], cs[2]], [cs[2], cs[3]], [cs[3], cs[0]],
+    ];
+    const a = new Float32Array(pairs.length * 6);
+    pairs.forEach(([p, q], i) => {
+      a.set([p.x, p.y, p.z, q.x, q.y, q.z], i * 6);
+    });
+    return a;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center, corners]);
+
   return (
     <group>
-      {edges.map((e, i) => <Line key={i} points={[e[0], e[1]]} color={color} lineWidth={1} />)}
+      {/* `key` on the geometry: a BufferAttribute is not re-uploaded just because its array changed
+          identity, so without it a re-solved calibration would keep drawing the old frustum. */}
+      <lineSegments raycast={() => null}>
+        <bufferGeometry key={positions.length + ':' + positions[0]}>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        </bufferGeometry>
+        <lineBasicMaterial color={color} toneMapped={false} />
+      </lineSegments>
       <mesh position={C} raycast={() => null}>
         <sphereGeometry args={[0.04, 12, 12]} />
         <meshBasicMaterial color={color} />

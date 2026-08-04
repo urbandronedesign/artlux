@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { DEPTH_PACK_GLSL, DEPTH_FAR } from './projectorDepth';
+import { DEPTH_PACK_GLSL, DEPTH_FAR, DEPTH_PACK_COEFFS } from './projectorDepth';
+import { nodes } from './renderer3d';
 
 // PROJECTED UV MAPPING — content thrown onto venue geometry from a virtual projector, rather than
 // sampled through the mesh's authored UVs.
@@ -114,8 +115,19 @@ const BODY_FRAG = /* glsl */`
 #endif
 `;
 
+/**
+ * What both implementations of the projected material have in common, and all either consumer touches:
+ * they assign it to `mesh.material`, write `.map`, and set `.color`. Structural rather than
+ * `MeshBasicMaterial`, because the WebGPU twin is a `MeshBasicNodeMaterial` — a sibling of it, not a
+ * subclass.
+ */
+export type ProjectedBasicMaterial = THREE.Material & {
+  map: THREE.Texture | null;
+  color: THREE.Color;
+};
+
 export interface ProjectedMaterial {
-  material: THREE.MeshBasicMaterial;
+  material: ProjectedBasicMaterial;
   /** World view-projection of the projecting camera, plus its position (for the facing test). */
   setProjector(viewProj: THREE.Matrix4, eye: THREE.Vector3): void;
   /** Mirror the texture's repeat/offset into the shader — call after matchBitmapOrientation. */
@@ -153,7 +165,26 @@ function farDepthTexture(): THREE.DataTexture {
 // two instances make that impossible to get wrong, at the cost of one material per model. And patching
 // MeshBasicMaterial rather than writing a ShaderMaterial keeps the sRGB decode, tone-mapping flag, fog
 // and clipping chunks identical to the authored-UV path — which is what stops the two looks drifting.
-export function makeProjectedMaterial(): ProjectedMaterial {
+/**
+ * @param useNodes  Is THIS window's renderer a node (WebGPU) renderer? Pass
+ *                  `isWebGPURenderer(useThree(s => s.gl))` — never infer it from module state.
+ *
+ * A node material can only render on the node renderer, and the GLSL one only on a WebGLRenderer, so
+ * the choice is forced by which renderer the calling Canvas actually built.
+ *
+ * ⚠ IT MUST COME FROM THE RENDERER, NOT FROM `nodes()`. This used to ask whether the TSL modules were
+ * loaded, which was true only inside the WebGPU factory — until they started being preloaded at module
+ * load, at which point "modules present" meant nothing more than "the flag is set somewhere in this
+ * origin". localStorage is shared across windows, so the CALIBRATION PROJECTOR WINDOW — which builds
+ * its own WebGL renderer and never consults that flag — started getting node materials it cannot
+ * render. The projector output went black while the editor looked perfect.
+ */
+export function makeProjectedMaterial(useNodes: boolean): ProjectedMaterial {
+  if (useNodes && nodes()) return makeProjectedNodeMaterial();
+  return makeProjectedGlslMaterial();
+}
+
+function makeProjectedGlslMaterial(): ProjectedMaterial {
   const uniforms = {
     uProjViewProj: { value: new THREE.Matrix4() },
     uProjEye: { value: new THREE.Vector3() },
@@ -208,6 +239,141 @@ export function makeProjectedMaterial(): ProjectedMaterial {
     },
     dispose() { material.dispose(); },
   };
+}
+
+/**
+ * THE WEBGPU TWIN of makeProjectedGlslMaterial. Same maths, same conventions, expressed as nodes.
+ *
+ * Read the GLSL above for WHY any of this is the way it is — the V flip, the repeat/offset mirror, the
+ * behind-the-projector test, the grazing-angle bias. This function deliberately carries no rationale of
+ * its own, so there is one place to change a decision rather than two places to disagree.
+ *
+ * The one structural difference: GLSL patches `MeshBasicMaterial` through `onBeforeCompile` and
+ * replaces `<map_fragment>`, inheriting three's sRGB decode and tone-mapping chunks. Here the whole
+ * colour is a `colorNode`; the sRGB decode still happens, because a TSL texture node honours its
+ * texture's own `colorSpace`.
+ */
+function makeProjectedNodeMaterial(): ProjectedMaterial {
+  const mods = nodes();
+  if (!mods) throw new Error('projectedMapping: node modules unavailable');
+  const { MeshBasicNodeMaterial } = mods.webgpu;
+  const {
+    uniform, texture, vec2, vec3, vec4, float, positionWorld, normalLocal, modelWorldMatrix,
+    smoothstep, step, mix, abs, dot, normalize, max,
+  } = mods.tsl;
+
+  // Uniform nodes — the node equivalent of the `uniforms` object above; `.value` is written by the
+  // same setters, so the two implementations are driven identically.
+  const uProjViewProj = uniform(new THREE.Matrix4());
+  const uProjEye = uniform(new THREE.Vector3());
+  const uProjSoft = uniform(0);
+  const uProjCull = uniform(0);
+  const uMapRepeat = uniform(new THREE.Vector2(1, 1));
+  const uMapOffset = uniform(new THREE.Vector2(0, 0));
+  const uHasDepth = uniform(0);
+  const uProjBias = uniform(DEFAULT_BIAS_M);
+  const uDepthFar = uniform(DEPTH_FAR);
+  const uHasMap = uniform(0);
+
+  const world = positionWorld;
+  const projPos = uProjViewProj.mul(vec4(world, float(1)));
+  const ndc = projPos.xyz.div(max(projPos.w, float(1e-6)));
+
+  // Content UV: V inverted from NDC, then the texture's repeat/offset applied by hand because this UV
+  // is computed in the fragment stage and never passes through three's vertex texture matrix.
+  const uv = vec2(ndc.x.mul(0.5).add(0.5), float(0.5).sub(ndc.y.mul(0.5))).mul(uMapRepeat).add(uMapOffset);
+
+  // A texture node whose `.value` is swapped in syncMapTransform — the same call the GLSL path already
+  // uses to mirror repeat/offset, which is exactly when the texture identity changes.
+  const mapNode = texture(farDepthTexture(), uv);
+  const depthNode = texture(farDepthTexture(), vec2(ndc.x.mul(0.5).add(0.5), ndc.y.mul(0.5).add(0.5)));
+
+  // Inside the cone: soft edge ramp on x and y, hard clip on z, nothing behind the projector.
+  const e = max(uProjSoft, float(1e-4));
+  const inX = float(1).sub(smoothstep(float(1).sub(e), float(1), abs(ndc.x)));
+  const inY = float(1).sub(smoothstep(float(1).sub(e), float(1), abs(ndc.y)));
+  const inFront = step(float(1e-6), projPos.w); // w <= 0 is behind → 0
+  let vis = inX.mul(inY).mul(step(abs(ndc.z), float(1))).mul(inFront);
+
+  // Facing test — same non-inverse-transpose normal as the GLSL, and for the same reason (sign only).
+  const nrm = modelWorldMatrix.mul(vec4(normalLocal, float(0))).xyz;
+  const ndl = dot(normalize(nrm), normalize(uProjEye.sub(world)));
+  vis = vis.mul(mix(float(1), step(float(0), ndl), uProjCull));
+
+  // Occlusion. Unpack the packed metres, add the grazing-angle-grown bias, hide what the projector
+  // cannot see. `step(seen + bias, projPos.w)` is 1 when the fragment is FARTHER than what was seen,
+  // i.e. occluded — so it is subtracted from visibility, gated by uHasDepth.
+  const seen = artluxUnpackDepthTSL(mods.tsl, depthNode).mul(uDepthFar);
+  const bias = uProjBias.mul(float(1).add(float(4).mul(float(1).sub(abs(ndl)))));
+  const occluded = step(seen.add(bias), projPos.w).mul(uHasDepth);
+  vis = vis.mul(float(1).sub(occluded));
+
+  const mat = new MeshBasicNodeMaterial();
+  mat.toneMapped = false;
+  mat.color = new THREE.Color('#161616');
+  // mix on a 0/1 uniform rather than a branch: exact at both endpoints and it keeps one compiled
+  // shader, matching the GLSL path's `#ifdef USE_MAP` behaviour of falling back to the flat colour.
+  mat.colorNode = mix(vec3(mat.color.r, mat.color.g, mat.color.b), mapNode.rgb.mul(vis), uHasMap);
+
+  const material = mat as unknown as ProjectedBasicMaterial;
+
+  return {
+    material,
+    setProjector(viewProj, eye) {
+      uProjViewProj.value.copy(viewProj);
+      uProjEye.value.copy(eye);
+    },
+    syncMapTransform(tex) {
+      // ALSO the texture binding, not just its transform. The consumers write `material.map` and then
+      // call this; a node material samples through its own node, so this is where the two are joined.
+      swapTexture(mat, mapNode, tex ?? farDepthTexture());
+      uHasMap.value = tex ? 1 : 0;
+      if (tex) {
+        uMapRepeat.value.set(tex.repeat.x, tex.repeat.y);
+        uMapOffset.value.set(tex.offset.x, tex.offset.y);
+      } else {
+        uMapRepeat.value.set(1, 1);
+        uMapOffset.value.set(0, 0);
+      }
+    },
+    setLook(softNdc, cull) {
+      uProjSoft.value = softNdc;
+      uProjCull.value = cull ? 1 : 0;
+    },
+    setOcclusion(depth, biasMeters) {
+      swapTexture(mat, depthNode, depth ?? farDepthTexture());
+      uHasDepth.value = depth ? 1 : 0;
+      uProjBias.value = biasMeters;
+    },
+    dispose() { mat.dispose(); },
+  };
+}
+
+type TslNs = NonNullable<ReturnType<typeof nodes>>['tsl'];
+/** Whatever TSL itself accepts as a node argument — taken from dot()'s own signature, never `any`. */
+type TslNode = Parameters<TslNs['dot']>[0];
+
+/**
+ * Point a texture node at a different texture, and make the material notice.
+ *
+ * Assigning `.value` alone is not enough on the node renderer: the bind group is cached per material
+ * and keeps the OLD texture. When the old one has since been disposed — which happens every time the
+ * depth pass drops a map, or a clip changes the content texture — the next submit fails with
+ * "Destroyed texture used in a submit", followed by a crash inside createBindGroup reading
+ * `mipLevelCount` of an undefined GPU texture. Only flag it when the identity actually changed;
+ * `needsUpdate` on every frame would rebuild the material at frame rate.
+ */
+function swapTexture(mat: { needsUpdate: boolean }, node: { value: THREE.Texture }, tex: THREE.Texture): void {
+  if (node.value === tex) return;
+  node.value = tex;
+  mat.needsUpdate = true;
+}
+
+/** The reader half of DEPTH_PACK_GLSL, in nodes. Same four coefficients — see DEPTH_PACK_COEFFS. */
+function artluxUnpackDepthTSL(tsl: TslNs, packed: TslNode) {
+  const { dot, vec4 } = tsl;
+  const [a, b, c, d] = DEPTH_PACK_COEFFS;
+  return dot(packed, vec4(1 / a, 1 / b, 1 / c, 1 / d));
 }
 
 /** Is this model asking for the projected path, and does it have a matrix to use? */

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Line, Html } from '@react-three/drei';
+import { Html } from '@react-three/drei';
+import { PolyLine } from '@/components/Simulator3D/PolyLine'; // host module — one line impl for both backends
 import * as THREE from 'three';
 import { Scene3D } from '../../../shared/protocol';
 import * as tracking from './trackingStore';
@@ -98,11 +99,13 @@ const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
         const centre = corner(z.surface, (u0 + u1) / 2, (v0 + v1) / 2);
         return (
           <group key={z.id}>
-            <Line points={rect([
+            {/* Occupancy reads as SOLID vs dashed. It used to also thicken the line, which no longer
+                survives (see PolyLine), but solid-vs-dashed was always the stronger signal. */}
+            <PolyLine points={rect([
               corner(z.surface, u0, v0), corner(z.surface, u1, v0),
               corner(z.surface, u1, v1), corner(z.surface, u0, v1),
-            ])} color={col} lineWidth={occupied ? 3.5 : 1.4} dashed={!occupied} dashSize={0.12} gapSize={0.08}
-              transparent opacity={inScene ? 1 : 0.35} />
+            ])} color={col} dashed={!occupied} dashSize={0.12} gapSize={0.08}
+              opacity={inScene ? 1 : 0.35} />
             {/* THE MARKER. Positioned through the same blobPosition() mapping as the corners above, so
                 the label can never drift from the rectangle it names. DOM via drei Html (offline-safe,
                 uses the app's fonts) — the same pattern as the per-blob #id labels below. */}
@@ -218,14 +221,14 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
   return (
     <group>
       {/* SOL — floor zone */}
-      <Line points={floorRect} color={ZONE_COLOR} lineWidth={1.6} />
+      <PolyLine points={floorRect} color={ZONE_COLOR} />
       <mesh position={[0, 0.001, D / 2]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
         <planeGeometry args={[W, D]} />
         <meshBasicMaterial color={ZONE_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
 
       {/* MUR — wall zone */}
-      <Line points={wallRect} color={ZONE_COLOR} lineWidth={1.6} />
+      <PolyLine points={wallRect} color={ZONE_COLOR} />
       <mesh position={[0, H / 2, 0]} raycast={() => null}>
         <planeGeometry args={[W, H]} />
         <meshBasicMaterial color={ZONE_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />

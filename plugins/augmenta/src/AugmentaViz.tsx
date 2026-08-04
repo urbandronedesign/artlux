@@ -1,6 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Line } from '@react-three/drei';
+import { PolyLine } from '@/components/Simulator3D/PolyLine'; // host module — one line impl for both backends
 import * as THREE from 'three';
 import { Scene3D } from '../../../shared/protocol';
 import * as augmentaStore from './augmentaStore';
@@ -63,7 +63,7 @@ const AugmentaViz: React.FC<{ scene3D: Scene3D }> = () => {
 
   return (
     <group>
-      <Line points={geom.line} color={FIELD_COLOR} lineWidth={1.4} />
+      <PolyLine points={geom.line} color={FIELD_COLOR} />
       <mesh position={geom.plane.pos} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
         <planeGeometry args={geom.plane.args} />
         <meshBasicMaterial color={FIELD_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />

@@ -35,6 +35,9 @@ import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
+import { useRenderScale } from '../../services/scene3dQuality';
+import { glProp, wantsWebGPU } from './renderer3d';
+import { AxisTriad } from './AxisTriad';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -204,6 +207,14 @@ const Simulator3D: React.FC<Props> = ({
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
+  // Per-machine render scale (Preferences › GPU rendering). Subscribed here rather than passed down,
+  // so a slider drag re-renders this component and nothing else — see services/scene3dQuality.
+  const renderScale = useRenderScale();
+  // The renderer is built ONCE, at Canvas mount. Memoized with no deps on purpose: r3f only reads `gl`
+  // when it has no renderer yet, and handing it a new factory later would do nothing but churn.
+  const [glFallback, setGlFallback] = useState<string | null>(null);
+  const glConfig = useMemo(() => glProp(setGlFallback), []);
+  const webgpuSpike = useMemo(() => wantsWebGPU(), []);
   // Leaving pick mode drops the snap preview. It lives outside React (pointer-rate channel), so
   // unmounting SnapCursor would otherwise leave a stale vertex behind for the next session.
   useEffect(() => { if (!calibPickMode) setSnapHover(null); return () => setSnapHover(null); }, [calibPickMode]);
@@ -355,7 +366,12 @@ const Simulator3D: React.FC<Props> = ({
 
       <Canvas
         frameloop={paused ? 'never' : 'always'}
-        dpr={[1, 2]}
+        // NOT `[1, 2]`. That range let a hiDPI panel render this viewport at twice the linear
+        // resolution — four times the pixels, and four times every per-fragment cost in it (the
+        // ground grid's full-screen shader plane, additive beam overdraw, every textured screen) —
+        // with no way for an operator on a weak GPU to decline. It is now a per-machine preference
+        // that defaults to 1; see services/scene3dQuality for why it is a pref and not a Scene3D field.
+        dpr={renderScale}
         // `flat` = NO TONE MAPPING, and it is r3f's own switch for it: without it r3f installs
         // ACESFilmic. That matters more than it looks, because @react-three/postprocessing's
         // EffectComposer forces NoToneMapping while mounted and RESTORES whatever it found on
@@ -368,7 +384,9 @@ const Simulator3D: React.FC<Props> = ({
         // judging is whether the picture matches the wall — a filmic roll-off on the highlights
         // would actively lie about that. `Scene3D.exposure` was removed with this (see protocol.ts).
         flat
-        gl={{ powerPreference: 'high-performance', antialias: true }}
+        // WebGL config object, or — when this machine opted into the WebGPU spike — an async factory
+        // r3f awaits so `renderer.init()` can complete. See renderer3d.ts for the flag and the why.
+        gl={glConfig}
         camera={{ position: [0, 1.2, 3], fov: 50 }}
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}
       >
@@ -500,8 +518,12 @@ const Simulator3D: React.FC<Props> = ({
         {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit — and
             while looking through a projector, whose camera is driven from the calibration. */}
         <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select'} />
+        {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,
+            which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that
+            happens inside the Canvas it takes the whole viewport down rather than just the widget. The
+            GizmoHelper frame itself is fine on both, so only the viewport contents are swapped. */}
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
-          <GizmoViewport labelColor="white" axisHeadScale={1} />
+          {webgpuSpike ? <AxisTriad /> : <GizmoViewport labelColor="white" axisHeadScale={1} />}
         </GizmoHelper>
         {/* GLOW — opt-in, and the composer is skipped ENTIRELY rather than left mounted with the
             Bloom disabled. Mounting an EffectComposer at all costs a full-screen render-to-texture
@@ -510,7 +532,12 @@ const Simulator3D: React.FC<Props> = ({
             mipmap blur chain on top, at viewport resolution.
             It flatters a rig of LEDs and beams; it does nothing for a venue mesh carrying content,
             which is what the projection-mapping workflow spends its time looking at. */}
-        {scene3D.glow === true && (
+        {/* @react-three/postprocessing v3 is a WebGL library — its EffectComposer reaches for
+            WebGLRenderTarget and the renderer's GL state directly, so under the WebGPU spike it is
+            skipped rather than mounted and left to throw inside the canvas. Porting Glow means three's
+            own PostProcessing + a TSL bloom node; it is opt-in and off by default, so it is not what
+            blocks the swap. */}
+        {scene3D.glow === true && !webgpuSpike && (
           <EffectComposer>
             <Bloom luminanceThreshold={0.1} intensity={0.6} mipmapBlur />
           </EffectComposer>
@@ -522,6 +549,15 @@ const Simulator3D: React.FC<Props> = ({
           className="pointer-events-none absolute border border-accent bg-accent/15"
           style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
         />
+      )}
+
+      {/* Say which renderer is live, the same way the Stage says when the WebGL mapper fallback is on.
+          A spike that silently ran on WebGL would produce a "WebGPU is no faster" reading that is
+          really "WebGPU never started". */}
+      {webgpuSpike && (
+        <div className={`pointer-events-none absolute left-2 bottom-2 px-1.5 py-0.5 rounded-sm border num text-micro ${glFallback ? 'bg-warn/15 border-warn text-warn' : 'bg-accent/15 border-accent text-accent'}`}>
+          {glFallback ? `3D: WebGL (WebGPU failed — ${glFallback})` : '3D: WebGPU (spike)'}
+        </div>
       )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { isWebGPURenderer } from '@/components/Simulator3D/renderer3d'; // host module — which renderer THIS window built
 import { useGLTF } from '@react-three/drei';
 import { EffectComposer } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
@@ -9,7 +10,7 @@ import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
 import { useStreamedSurfaceTexture } from './useStreamedSurfaceTexture';
-import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
+import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial, type ProjectedBasicMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
 import { ProjectorDepthPass, registerDepthCaster, unregisterDepthCaster, setDepthRequest } from '@/components/Simulator3D/projectorDepth'; // host module — the ONE depth pass
 import { recenterClone } from '@/components/Simulator3D/venuePlacement';   // host helper — same seam
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
@@ -49,13 +50,19 @@ const CREASE_DEG = 25;
 // from `path`). Content binding, the authored/projected material pair, the ImageBitmap flip and the
 // projector uniforms are identical, so they live here once rather than being written twice. The
 // `kind` field stays in the project file as the geometry selector; only BEHAVIOUR is unified.
-function useContentMaterial(model: SceneModel): { material: THREE.MeshBasicMaterial; hasContent: boolean } {
+// ProjectedBasicMaterial, not MeshBasicMaterial: the projected twin is a MeshBasicNodeMaterial on the
+// WebGPU path — a sibling class, not a subclass. Both satisfy what a mesh and this file actually need.
+function useContentMaterial(model: SceneModel): { material: ProjectedBasicMaterial; hasContent: boolean } {
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, side: THREE.DoubleSide });
   // The projected-UV twin, from the SAME shared module the editor uses — one definition of the
   // projection maths and of the V convention, so the two windows cannot disagree.
   const projMatRef = useRef<ProjectedMaterial | null>(null);
-  if (!projMatRef.current) projMatRef.current = makeProjectedMaterial();
+  // This window builds its OWN WebGL renderer, so it must say so — inferring from module state is
+  // what turned the projector output black once the TSL modules began preloading. See
+  // makeProjectedMaterial.
+  const glNodes = isWebGPURenderer(useThree((st) => st.gl));
+  if (!projMatRef.current) projMatRef.current = makeProjectedMaterial(glNodes);
   const projected = usesProjectedUv(model);
 
   const applyTex = (tex: THREE.Texture | null) => {

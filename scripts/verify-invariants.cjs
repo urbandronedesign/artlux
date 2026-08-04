@@ -2722,6 +2722,88 @@ check(
   },
 );
 
+check(
+  'a WebGPU renderer reports its own errors',
+  'WebGPU FAILS SILENTLY. Validation errors go to the device\'s `uncapturederror` event and device ' +
+  'loss to `device.lost`, and neither three nor r3f surfaces either — so an illegal pass just stops ' +
+  'producing pixels with a completely clean console. That cost most of a day on the projector depth ' +
+  'pass: the 3D view went black, nothing threw, and bisecting from the outside ruled out five wrong ' +
+  'suspects before the listeners were attached and named four real bugs in minutes.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/renderer3d.ts';
+    const src = read(F);
+    if (!/new WebGPURenderer\(/.test(src)) return null; // the swap was reverted — nothing to guard
+    if (!/uncapturederror/.test(src))
+      return `${F} builds a WebGPURenderer without listening for 'uncapturederror' — validation ` +
+        'failures will be invisible and the symptom will be "the 3D view is black"';
+    if (!/device\.lost|\.lost\.then/.test(src))
+      return `${F} builds a WebGPURenderer without listening for device.lost — a lost device will ` +
+        'look identical to a frozen scene';
+    return null;
+  },
+);
+
+check(
+  'the depth packing has one set of coefficients, whatever the shading language',
+  'projectorDepth owns the packing convention that the depth WRITER and the projected-UV READER ' +
+  'both depend on, and its own comment is that a second copy drifts — the symptom being content ' +
+  'occluding at the wrong distance, which reads as a bad calibration rather than a shader bug. Once ' +
+  'one window renders GLSL and the other renders nodes the rule cannot be met literally, so the two ' +
+  'expressions must at least share the constants.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/projectorDepth.ts';
+    const src = read(F);
+    if (!/DEPTH_PACK_COEFFS/.test(src)) return null; // node path removed — GLSL is the only definition
+    const m = src.match(/DEPTH_PACK_COEFFS\s*=\s*\[([^\]]+)\]/);
+    if (!m) return `${F} no longer declares DEPTH_PACK_COEFFS as a literal array`;
+    const coeffs = m[1].split(',').map((x) => x.trim());
+    // Every coefficient must still appear in the GLSL vec4, or the two halves pack differently.
+    const glsl = (src.match(/vec4 artluxEnc = fract\([^;]+;/) || [''])[0];
+    for (const c of coeffs) {
+      if (!glsl.includes(c)) {
+        return `${F}: DEPTH_PACK_COEFFS has ${c} but the GLSL packer does not — the WebGL and ` +
+          'WebGPU depth maps now encode distance differently';
+      }
+    }
+    if (!/artluxPackDepthTSL/.test(src))
+      return `${F} declares DEPTH_PACK_COEFFS but has no TSL packer using them`;
+    return null;
+  },
+);
+
+check(
+  'a material picks its shading language from the RENDERER, not from module state',
+  'A NodeMaterial cannot render on a WebGLRenderer and a raw ShaderMaterial cannot render on the ' +
+  'node renderer, and this app runs BOTH at once: the editor viewport can be WebGPU while the ' +
+  'calibration projector window always builds its own WebGL renderer. Deciding from "are the TSL ' +
+  'modules loaded" looked equivalent while they were imported inside the WebGPU factory, and stopped ' +
+  'being equivalent the moment they were preloaded at module load — localStorage is shared across ' +
+  'windows, so the projector window started getting node materials it cannot draw. THE PROJECTOR ' +
+  'OUTPUT WENT BLACK while the editor looked perfect, which is the worst possible split.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/projectedMapping.ts';
+    const src = read(F);
+    if (!/export function makeProjectedMaterial\(\s*useNodes/.test(src)) {
+      return `${F}: makeProjectedMaterial no longer takes the renderer's verdict — it must be told ` +
+        'whether THIS window is a node renderer, never infer it';
+    }
+    // Every call site must pass something; a bare call is the regression.
+    for (const f of ['src/renderer/components/Simulator3D/ModelObject.tsx',
+                     'plugins/calibration/src/ProjectorScene.tsx']) {
+      if (/makeProjectedMaterial\(\s*\)/.test(read(f))) {
+        return `${f} calls makeProjectedMaterial() with no argument — it would silently take the ` +
+          'node path in every window as soon as the WebGPU flag is set anywhere in this origin';
+      }
+    }
+    // Beams carries the same dual-path choice and the same hazard.
+    const B = read('src/renderer/components/Simulator3D/Beams.tsx');
+    if (/const mods = nodes\(\);/.test(B)) {
+      return 'Beams.tsx chooses its material from nodes() alone — it must gate on isWebGPURenderer(gl)';
+    }
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
