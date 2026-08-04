@@ -415,7 +415,13 @@ async function main() {
 
     const bin = path.join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-vite.cmd' : 'electron-vite');
     console.log(`[capture] launching dev (CDP :${CDP_PORT}) …`);
-    const child = spawn(bin, ['dev'], {
+    // ⚠ --calibrate, ALWAYS. The guide has a calibration chapter, and a plain editor launch does not
+    // carry that workbench at all (src/main/runProfile.ts): the Calib rail entry is absent, so
+    // `13-calibration.png` silently captured whatever context happened to be open — it shot the
+    // Mapping workbench once, and nothing failed, because a screenshot of the wrong screen is still
+    // a screenshot. The docs shoot the SUPERSET of what the app can show, so every chapter has a
+    // subject; chapters that document the plain editor are unaffected by the extra rail entry.
+    const child = spawn(bin, ['dev', '--', '--calibrate'], {
         cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'],
         shell: process.platform === 'win32', detached: process.platform !== 'win32',
     });
@@ -528,9 +534,27 @@ async function main() {
 
         // 13. Calibration wizard (structured light). Open it, then close the Outputs
         //     overlay so the wizard is shown on its own.
+        // The wizard is a PLUGIN surface, and the plugin is a launch profile (see the --calibrate note
+        // at the spawn above). Assert it is really here: without it this step still "succeeds" and
+        // writes a picture of whatever context was open, which is how the Mapping workbench once ended
+        // up filed as the calibration chapter.
+        const hasCalib = await page.evaluate(() => [...document.querySelectorAll('button')]
+            .some((b) => /^Calibration/.test(b.getAttribute('title') || '')));
+        if (!hasCalib) throw new Error('the Calibration workbench is absent — launch the capture with --calibrate, or 13-calibration.png will document the wrong screen');
         await safeShoot(page, '13-calibration.png', async () => {
             await clickTitle(page, 'Calibrate projector (structured light + pose)');
             await clickTitle(page, 'Close outputs', { optional: true });
+            // ⚠ ASSERT THE WIZARD, NOT THE CLICK. The Calibrate button is GATED — it does nothing
+            // unless the output is enabled AND bound to a live display — so on a machine with no
+            // second display the click is silently inert and this step writes a picture of whatever
+            // workbench was already open. It filed the Mapping context as the calibration chapter
+            // twice before this check existed, with a ✓ on both runs. A wrong screenshot is worse
+            // than a stale one: staleness is at least visible in the shell signature.
+            const wizard = await page.evaluate(() => {
+                const t = document.body.innerText || '';
+                return /Auto[- ]Align/i.test(t) && /Setup/i.test(t);
+            });
+            if (!wizard) throw new Error('the calibration wizard did not open — the Calibrate button is gated on an output bound to a live display; connect one, or this chapter cannot be captured on this machine');
         });
 
         // Reset all transient overlays (wizard + windowed output) with a clean reload.
