@@ -950,6 +950,22 @@ function layerDrawable(layerId: string): CanvasImageSource | null {
   return lv.el.readyState >= 2 ? lv.el : (lv.hold ?? null);
 }
 
+// "Has this layer got NEW pixels since last time?" — the layer twin of contentSource's
+// getDrawableGeneration, dispatched over exactly the same modes as layerDrawable above so the two
+// can never disagree about what they are describing. undefined means "cannot say, assume it changed",
+// which is the safe answer and the one every consumer already handles.
+function layerGeneration(layerId: string): number | undefined {
+  const lv = layerVideos.get(layerId);
+  if (!lv || !lv.clipId) return undefined;
+  if (lv.mode === 'content') return lv.content ? contentSource.getDrawableGeneration(layerKey(layerId), lv.content) : undefined;
+  // The codec keys layer state by layerId — the same key it was handed in syncCodecLayer.
+  if (lv.mode === 'codec') return lv.codec ? videoCodecRegistry.get(lv.codec.codecId)?.layerGeneration?.(layerId) : undefined;
+  if (lv.mode !== 'video') return undefined;
+  // currentTime is a <video>'s natural frame identity; a repeated value means a repeated frame. While
+  // holding (`lv.hold`, readyState < 2) we cannot say — the hold canvas has no clock of its own.
+  return lv.el.readyState >= 2 ? lv.el.currentTime : undefined;
+}
+
 // Natural w/h of whatever a layer is showing right now, or null when nothing is under the playhead
 // / it isn't measurable yet. A layer's drawable is a <video>, a codec canvas or a content drawable,
 // and each reports its intrinsic size under a different property — hence the ordered probe.
@@ -1447,6 +1463,15 @@ export const timeline = {
       return layerBitmaps.get(layerId) ?? null;
     }
     return layerDrawable(layerId);
+  },
+  // Companion to getLayerDrawable for consumers that pay per frame (the 3D texture upload). See
+  // layerGeneration. Two cases answer undefined on purpose rather than guessing:
+  //  • a MIRROR window is fed a freshly transferred ImageBitmap per frame — identity already changes
+  //    every frame, so there is nothing to skip and nothing to know;
+  //  • the PROGRAM composite is rebuilt from N layers each frame, so it has no single source clock.
+  getLayerGeneration(layerId?: string): number | undefined {
+    if (!layerId || external || layerId === PROGRAM_LAYER_ID) return undefined;
+    return layerGeneration(layerId);
   },
   // Refcount consumers that want the whole-timeline program composite built each frame (a surface
   // routed to SourceType.PROGRAM, or a 3D plane bound to PROGRAM_LAYER_ID). Build only when wanted.

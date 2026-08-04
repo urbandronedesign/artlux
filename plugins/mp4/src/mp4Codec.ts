@@ -42,12 +42,17 @@ export const mp4Codec: VideoCodecContribution = {
     return true;
   },
   surfaceFrame: (path) => dec.frame(path, clock),
+  // The decoded frame's own timestamp — changes only when the decoder actually advanced. Consumers
+  // that pay per frame (the 3D texture upload, the projector pump's createImageBitmap) skip repeats
+  // on it; see mp4Decoder.generation.
+  surfaceGeneration: (path) => dec.generation(path),
   closeSurface: (path) => { surfaces.delete(path); dec.close(path); },
 
   // Timeline layer: playhead-exact, on a DEDICATED per-layer decoder (keyed by layerKey) so a scrub
   // seeks frame-exactly without disturbing the playing surface's decoder, and layers scrub independently.
   layerFrame: (layerKey, path, clipTimeSec) => dec.layerFrame(layerKey, path, clipTimeSec),
   releaseLayer: (layerKey) => dec.releaseLayer(layerKey),
+  layerGeneration: (layerKey) => dec.layerGeneration(layerKey),
 
   setPlaying: (p) => { if (p === playing) return; playing = p; if (p) clockOriginMs = performance.now() - clock * 1000; },
   preWarm: (path) => { void dec.ensureOpen(path); },

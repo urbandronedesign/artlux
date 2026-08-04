@@ -38,6 +38,9 @@ export const hapCodec: VideoCodecContribution = {
     return st.canvas;
   },
   releaseLayer: (layerKey) => { hapGL.release(layerKey); layerState.delete(layerKey); },
+  // The decoded index already tracked above — it advances only on the `got.index !== st.index` branch
+  // that actually re-uploads, which is precisely "the canvas has new pixels".
+  layerGeneration: (layerKey) => { const st = layerState.get(layerKey); return st && st.index >= 0 ? st.index : undefined; },
 
   setPlaying: (p) => hapPlayer.setPlaying(p),
   preWarm: (path) => { void hapDecode.ensureOpen(path); },

@@ -68,6 +68,7 @@ class FileDecoder {
   private fedAbs = -1;     // last absolute index fed to the decoder since the last seek
   private wantUs = 0;      // latest requested ABSOLUTE presentation time (µs)
   private lastWantUs = -Infinity; // previous frame()'s wantUs — detects a backward jump (timeline loop / scrub)
+  lastFrameTs: number | null = null; // ABSOLUTE ts of the frame frame() last handed out — the generation
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
@@ -273,6 +274,11 @@ class FileDecoder {
       if (f.timestamp <= this.wantUs + 1000) { if (!best || f.timestamp > best.timestamp) best = f; }
     }
     if (!best) for (const f of this.buffer) { if (!best || f.timestamp < best.timestamp) best = f; }
+    // Remember WHICH decoded frame this was, so consumers can tell a fresh frame from a repeat — a
+    // 25 fps clip sampled by a 60 Hz loop is more than half repeats. Absolute-monotonic across loop
+    // wraps because tsOfAbs() folds the loop count into the timestamp, so it never goes backward
+    // during playback and a repeat is exactly an equal value. See generation() below.
+    this.lastFrameTs = best ? best.timestamp : null;
     return best;
   }
 
@@ -280,7 +286,7 @@ class FileDecoder {
     for (const f of this.buffer) f.close();
     this.buffer = [];
     try { if (this.decoder && this.decoder.state !== 'closed') this.decoder.close(); } catch { /* */ }
-    this.decoder = null; this.segAbs = -1; this.fedAbs = -1; this.lastWantUs = -Infinity;
+    this.decoder = null; this.segAbs = -1; this.fedAbs = -1; this.lastWantUs = -Infinity; this.lastFrameTs = null;
   }
 }
 
@@ -318,6 +324,18 @@ export function ensureOpen(path: string): Promise<Info | null> {
 export function probed(path: string): boolean | undefined { return results.get(path); }
 export function frame(path: string, timeSec: number): VideoFrame | null { return decoders.get(path)?.frame(timeSec, true) ?? null; }
 export function aspect(path: string): number | null { return decoders.get(path)?.aspect() ?? null; }
+// "Has this surface got NEW pixels?" — the absolute timestamp of the frame the last frame() call
+// returned, or undefined before the first one. Only the SURFACE pool (`decoders`) is asked; layer and
+// thumbnail decoders have their own playheads and no consumer of this.
+//
+// This is what lets the repeat-skips downstream actually fire: without it every consumer must assume
+// every frame is new, so a 25 fps clip pays a full-resolution GPU upload per view AND a whole-surface
+// createImageBitmap per projector window at display rate. HAP has always reported one; WebCodecs did
+// not, so the optimisation was dead for every .mp4 — which is the default codec.
+export function generation(path: string): number | undefined {
+  const ts = decoders.get(path)?.lastFrameTs;
+  return ts === null || ts === undefined ? undefined : ts;
+}
 export function close(path: string): void { decoders.get(path)?.close(); decoders.delete(path); results.delete(path); }
 
 // Timeline layer: a dedicated, non-looping (seekable) decoder per layerId. Lazily opened; returns null
@@ -332,6 +350,13 @@ export function layerFrame(layerId: string, path: string, clipTimeSec: number): 
     layerOpening.set(layerId, p);
   }
   return null; // opening
+}
+
+// Layer twin of generation(): the same per-decoder lastFrameTs, read off the LAYER pool. Non-looping,
+// so it is plainly monotonic while playing and jumps on a scrub — either way, equal means a repeat.
+export function layerGeneration(layerId: string): number | undefined {
+  const ts = layerDecoders.get(layerId)?.dec.lastFrameTs;
+  return ts === null || ts === undefined ? undefined : ts;
 }
 
 export function releaseLayer(layerId: string): void {

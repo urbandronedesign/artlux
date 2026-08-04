@@ -16,6 +16,7 @@ export function useLayerTexture(
 ): void {
   const texRef = useRef<THREE.Texture | null>(null);
   const curVid = useRef<HTMLVideoElement | null>(null);
+  const lastGen = useRef<number | undefined>(undefined);
   const cbRef = useRef(onTexture);
   cbRef.current = onTexture;
   const uid = useId();
@@ -35,6 +36,7 @@ export function useLayerTexture(
     if (!d) {
       if (texRef.current || curVid.current) {
         texRef.current?.dispose(); texRef.current = null; curVid.current = null;
+        lastGen.current = undefined;
         cbRef.current(null);
       }
       return;
@@ -54,6 +56,13 @@ export function useLayerTexture(
       // Streamed ImageBitmap: reuse one plain texture, swap its image each frame (a new transferred
       // bitmap arrives per frame). Match VideoTexture filtering (no mipmaps, linear) — cheap + NPOT-safe.
       curVid.current = null;
+      // SKIP REPEATS — same reasoning as useSurfaceTexture: `needsUpdate` re-uploads the whole texture
+      // whether or not the pixels moved, so a 25 fps clip on a mesh paid a full-resolution upload at
+      // display rate, per view showing it. In a MIRROR window the generation is deliberately undefined
+      // (a fresh bitmap really does arrive every frame), so this costs those windows nothing.
+      const gen = engine.getLayerGeneration(layerId ?? undefined);
+      if (gen !== undefined && gen === lastGen.current && texRef.current) return;
+      lastGen.current = gen;
       let t = texRef.current;
       if (!t || t instanceof THREE.VideoTexture) {
         t?.dispose();

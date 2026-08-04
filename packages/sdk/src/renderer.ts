@@ -228,6 +228,13 @@ export interface VideoCodecContribution {
   layerFrame(layerKey: string, path: string, clipTimeSec: number): CanvasImageSource | null;
   releaseLayer(layerKey: string): void;
 
+  // OPTIONAL. `surfaceGeneration`'s twin for the LAYER path, and it needs its own method because a
+  // layer is keyed by layerKey, not by path: the same file can be a playing surface and a scrubbing
+  // clip at once, on two decoders with two playheads. Scoping it to the path would answer for the
+  // wrong one. Same contract otherwise — changes only when layerFrame() would return new pixels,
+  // omit it and callers assume every frame is new.
+  layerGeneration?(layerKey: string): number | undefined;
+
   setPlaying(playing: boolean): void;      // affects surface playback clocks
   preWarm(path: string): void;             // open/probe ahead of playback
 
