@@ -51,6 +51,8 @@ const NDI_BCAST_W = 1920, NDI_BCAST_H = 1080; // broadcast mode: send NDI at up 
 export const ProjectorApp: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const glRef = useRef<ProjectorGL | null>(null);
+  // A baked calibration map, held until the draw loop can upload it (see the 'bakedMap' handler).
+  const bakedRef = useRef<{ w: number; h: number; uv: Float32Array; uploaded: boolean } | null>(null);
   const portRef = useRef<MessagePort | null>(null);
   const surfaceRef = useRef<Surface | null>(null);
   // Content type this window actually renders: the surface's own, or — when it is a SLICE — the type
@@ -269,6 +271,13 @@ export const ProjectorApp: React.FC = () => {
             .filter((x) => x.visible && x.layerId)
             .map((x) => x.layerId!);
           applyLocalLayers();
+        } else if (m.t === 'bakedMap') {
+          // Held as DATA, not uploaded here: this handler can run before the canvas has a GL context
+          // (the port is bridged on did-finish-load, the renderer builds the context in an effect),
+          // and a map dropped on the floor would leave the output on the mesh warp with nothing
+          // saying why. The draw loop uploads it on the next frame it can.
+          bakedRef.current = m.map ? { ...m.map, uploaded: false } : null;
+          if (!m.map) glRef.current?.clearBakedMap();
         } else if (m.t === 'calib') {
           calibRenderRef.current = m.mode === 'render';
           applyLocalLayers();
@@ -451,7 +460,20 @@ export const ProjectorApp: React.FC = () => {
             if (!src) { src = frameRef.current; srcGen = frameGenRef.current; }
           }
         }
-        gl.draw(src as TexImageSource | null, opts, srcGen);
+        // ── THE BAKED PATH, PREFERRED WHEN A CALIBRATION FILE IS LOADED ────────────────────────
+        // A baked map already encodes everything the mesh warp plus a render-from-projector scene
+        // would have computed: the unwrap, the occlusion, the footprint edge. So it REPLACES the warp
+        // rather than composing with it — running both would bend an already-bent picture.
+        //
+        // Uploaded here rather than in the message handler because the GL context only exists inside
+        // this loop's closure, and the map can arrive before the canvas has one.
+        const baked = bakedRef.current;
+        if (baked && !baked.uploaded) baked.uploaded = gl.setBakedMap(baked.w, baked.h, baked.uv);
+        // Falls through to the mesh path when drawBaked declines (WebGL1, no map, link failure), so a
+        // machine that cannot take this path keeps exactly the output it had before.
+        if (!(baked?.uploaded && gl.drawBaked(src as TexImageSource | null, opts, srcGen))) {
+          gl.draw(src as TexImageSource | null, opts, srcGen);
+        }
       }
       captureNdi(now);
     };

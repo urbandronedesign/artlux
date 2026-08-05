@@ -91,7 +91,17 @@ export type MainToProjector =
   // 'dots' additionally carries the projector-raster points to light (the drift check's probes).
   | { t: 'calibPattern'; kind: 'plane' | 'white' | 'black' | 'off' | 'fill' | 'dots'; index: number; rgb?: [number, number, number]; dots?: [number, number][] }
   // The 3D venue scene (models) for render-from-projector mode.
-  | { t: 'scene'; scene3D: Scene3D };
+  | { t: 'scene'; scene3D: Scene3D }
+  // A BAKED CALIBRATION MAP for this output — the imported-file path (plugins/calibration bakedStore).
+  //
+  // `uv` is w*h*3, (u, v, spare) per projector pixel, NaN where the projector has no content. The
+  // window uploads it once and then warps every frame through it, which is the whole point: it stops
+  // needing the venue model, the 3D scene and the depth pass that render-from-projector requires.
+  //
+  // Sent ONCE per import, not per frame — it is ~10 MB at native raster, and the buffer is transferred
+  // rather than copied. `null` withdraws it and returns the window to the mesh warp; without that,
+  // clearing a calibration would leave the output silently frozen on the last map it was given.
+  | { t: 'bakedMap'; map: { w: number; h: number; uv: Float32Array } | null };
 
 export type ProjectorToMain =
   | { t: 'ready' }                           // window mounted; (re)send config

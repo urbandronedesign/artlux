@@ -19,6 +19,7 @@ import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
 import { CalibViewport } from './CalibViewport';
 import { CalibProjector } from './CalibProjector';
+import * as baked from './bakedStore';
 import { RecalPanel } from './RecalPanel';
 import * as venueRegistrar from './venueRegistrar';
 import * as autoRecal from './autoRecal';
@@ -53,6 +54,12 @@ export const plugin: RendererPlugin = {
     // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
     // projector). Projector windows mount every registered panel; the editor window ignores this registry.
     ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
+
+    // A baked calibration map has to reach a window that OPENS LATER. Importing a venue's file and
+    // then enabling its outputs is the ordinary order of events, and without this the map would be
+    // sent to windows that did not exist yet and never to the ones that do. Edge-triggered on the
+    // outputs list, not polled — a map is ~10 MB and this only has to fire when the rig changes.
+    if (ctx.window === 'main') ctx.host.projectorOutputs.subscribe(() => baked.pushToProjectors());
 
     // The calibration WORKBENCH (ROADMAP Stage 2b, closed 2026-07-23). The wizards lived here all
     // along but App mounted them and held their state, because a Stage-coupled workspace had no mount

@@ -1,4 +1,5 @@
 import type { MpcdiRegion } from '../../../shared/protocol';
+import { getHost, sendToProjector } from './calibHost';
 
 // IMPORTED CALIBRATION MAPS — the other half of the baked-file design.
 //
@@ -54,7 +55,34 @@ export function regionFor(surfaceId: string): MpcdiRegion | undefined {
   return rig?.regions.find((r) => r.id === surfaceId);
 }
 
-export function set(next: ImportedRig | null): void { rig = next; emit(); }
+export function set(next: ImportedRig | null): void { rig = next; emit(); pushToProjectors(); }
+
+/**
+ * Hand each output's map to its projector window — and hand a `null` to every output that has none,
+ * which is the half that is easy to forget: withdrawing a calibration has to reach the window too, or
+ * it keeps warping through the map it was last given and the operator sees a change that did not take.
+ *
+ * Called on every store change AND whenever an output appears, because a window opened after the
+ * import would otherwise never be told. That is not a hypothetical: outputs are enabled from the
+ * Outputs panel long after a venue's file is loaded.
+ *
+ * A map is ~10 MB at native raster, so this is deliberately edge-triggered — once per change, never
+ * per frame.
+ */
+export function pushToProjectors(): void {
+  const outs = (getHost()?.projectorOutputs.list() ?? []) as Array<{ surfaceId: string }>;
+  for (const o of outs) {
+    const r = regionFor(o.surfaceId);
+    // Only a 'uv' region is playable here. A 'world' map parses and describes real geometry, but the
+    // projector has no venue to resolve it against — sending it would silently do nothing, so it is
+    // withdrawn instead and `describe()` says why.
+    const playable = r && r.geo.kind === 'uv';
+    sendToProjector(o.surfaceId, {
+      t: 'bakedMap',
+      map: playable ? { w: r.geo.w, h: r.geo.h, uv: r.geo.xyz } : null,
+    });
+  }
+}
 
 /**
  * A short, honest description of what was loaded. Reports COVERAGE per region — how many projector
