@@ -2989,10 +2989,17 @@ check(
     const sim = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
     if (!/<ProjectorBakePass \/>/.test(sim))
       problems.push('Simulator3D does not mount <ProjectorBakePass /> — every bake silently times out into the coarse fallback');
-    // And the export must prefer it.
+    // And the export must use it — and ONLY it.
     const md = stripComments(read('plugins/calibration/src/mpcdiData.ts'));
     if (!/requestBake\(/.test(md))
-      problems.push('mpcdiData no longer requests a GPU bake — exports would always take the raycast path');
+      problems.push('mpcdiData no longer requests a GPU bake — nothing would produce geometry for an export');
+    // ⚠ NO CPU FALLBACK. The raycast read a DIFFERENT registry (registerVenueMesh, visible-only) from
+    // the bake (registerDepthCaster, unconditional, resolved GLB), so it was not a coarser version of
+    // the same answer — it was another answer. Measured on one project minutes apart: raycast claimed
+    // a 0.46 m patch at 100% coverage, bake reported the real venue at 17%. Both files parsed. A
+    // fallback that silently files different geometry as a calibration is worse than a failed export.
+    if (/raycastVenueBatch|cameraPixelRayWorld/.test(md))
+      problems.push('mpcdiData raycasts again — that reads a different geometry registry than the bake and silently writes a file describing something else');
     return problems.length ? problems.join('; ') : null;
   },
 );

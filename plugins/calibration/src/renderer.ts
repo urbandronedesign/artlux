@@ -36,7 +36,6 @@ export * as autoRecal from './autoRecal';
 export { validateSolve, type Verdict, type RejectReason } from './validateSolve';
 export { computeResiduals, type ResidualStats } from './residuals';
 export type { DriftScore } from './driftScore';
-export { regionFromCalibration } from './mpcdiData';
 export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
 // Live projected mapping: turns a model's `uvProjFrom` (a calibrated output's surfaceId) into the
 // matrix + eye the shared shader consumes. Called by App at the scene push and by Simulator3D — main
