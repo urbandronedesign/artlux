@@ -56,14 +56,16 @@ export function getCalibration(surfaceId: string): ProjectorCalibration | undefi
  * property of the RIG and not of whichever projector you happened to finish last — see
  * `regionsForRig`. Returns a line fit to log.
  *
- * The geometry is regenerated from the stored pose by raycasting the venue, so this works for a
- * MANUAL calibration exactly as for a structured-light one: nothing here needs a camera to have been
- * present, only a solved pose and a loaded venue mesh.
+ * The geometry is regenerated from the stored pose — GPU bake at the projector's native raster, CPU
+ * raycast on a coarse grid only if that cannot run — so this works for a MANUAL calibration exactly as
+ * for a structured-light one: nothing here needs a camera to have been present, only a solved pose and
+ * a loaded venue mesh. Measured on the dev laptop: 1264×681 = 860,784 samples in ~250 ms, against
+ * 2,176 samples from the raycast in about three times that.
  */
 export async function exportRigMpcdi(): Promise<string> {
   const outs = (host?.projectorOutputs.list() ?? []) as ProjectorOutput[];
   if (!outs.length) return '✗ MPCDI: no projector outputs';
-  const { regions, skipped } = regionsForRig(outs.map((o) => ({
+  const { regions, skipped, baked } = await regionsForRig(outs.map((o) => ({
     surfaceId: o.surfaceId, calibration: o.calibration, blend: o.blend,
   })));
   if (!regions.length) {
@@ -74,7 +76,12 @@ export async function exportRigMpcdi(): Promise<string> {
   if (!path) return 'MPCDI export cancelled';
   // Name the omissions. "exported 2 regions" reads the same as "exported 2 of your 4 projectors".
   const note = skipped.length ? ` — skipped ${skipped.map((s) => `${s.surfaceId} (${s.why})`).join(', ')}` : '';
-  return `✓ MPCDI exported ${regions.length} region(s) → ${path}${note}`;
+  // Say WHICH path produced the geometry. A silent fall back to the CPU raycast writes a usable file
+  // at a fortieth of the resolution, and the difference only shows up as soft silhouettes on a wall.
+  const how = baked === regions.length ? 'GPU bake, native raster'
+    : baked === 0 ? '⚠ CPU raycast fallback, coarse grid — is the 3D viewport open?'
+    : `⚠ ${baked}/${regions.length} GPU-baked, rest coarse`;
+  return `✓ MPCDI exported ${regions.length} region(s) [${how}] → ${path}${note}`;
 }
 
 // Camera exclusion mask + fiducial marker map live on the 3D scene (venue), not the output.

@@ -11,8 +11,9 @@ import { nodes, isWebGPURenderer } from './renderer3d';
 // which would drag the WebGL type back in through the one member that has to be shared.
 // Declared as METHODS (not function-typed properties) so TS's bivariance lets both real renderers
 // satisfy it; `render` covers WebGPURenderer returning a promise.
-type DepthRenderer = {
+export type DepthRenderer = {
   setRenderTarget(target: THREE.WebGLRenderTarget | null): void;
+  clear(color?: boolean, depth?: boolean, stencil?: boolean): void;
   getRenderTarget(): THREE.WebGLRenderTarget | null;
   render(scene: THREE.Scene, camera: THREE.Camera): void | Promise<void>;
   getClearColor(target: THREE.Color): THREE.Color;
@@ -158,6 +159,16 @@ export function registerDepthCaster(id: string, object: THREE.Object3D): void {
   if (prev) detachProxies(prev.object);
   casters.set(id, { object, seen: new Float32Array(16) });
   casterEpoch++;
+}
+
+/**
+ * The venue objects currently registered as casters — the same set this pass shadows from, reused by
+ * the one-shot bake (projectorBake.ts) so a calibration file describes exactly the geometry the
+ * editor occludes against. Two registries would drift, and the symptom would be a baked map that
+ * disagrees with the preview about what is in front of what.
+ */
+export function registeredCasters(): THREE.Object3D[] {
+  return [...casters.values()].map((c) => c.object);
 }
 
 export function unregisterDepthCaster(id: string): void {

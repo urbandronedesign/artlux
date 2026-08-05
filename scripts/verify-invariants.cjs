@@ -2966,6 +2966,37 @@ check(
   },
 );
 
+// ── A calibration bakes on the GPU, and something is mounted to service it ────────────────────
+check(
+  'the projector bake is serviced inside a Canvas, and reads back with the right signature',
+  'The bake renders the venue from a projector pose to answer "which point does each of my pixels ' +
+  'land on" — the geometry a calibration FILE is made of. It can only run inside a Canvas, so if ' +
+  'ProjectorBakePass is not mounted every request times out into the CPU raycast fallback: a usable ' +
+  'file at a fortieth of the resolution (2,176 samples against 860,784), silently, showing up only as ' +
+  'soft silhouettes on a wall. The readback is the other trap: WebGL fills a buffer you pass, WebGPU ' +
+  'RETURNS one and takes a texture index in that argument slot. Passing the WebGL shape threw ' +
+  '"Invalid value used as weak map key" from deep inside three, naming nothing in our code.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/projectorBake.ts';
+    if (!exists(F)) return `${F} is gone — exports fall back to the coarse raycast grid`;
+    const src = stripComments(read(F));
+    const problems = [];
+    if (!/readRenderTargetPixelsAsync\(rt, 0, 0, w, h\)/.test(src))
+      problems.push('the WebGPU readback is not called with (rt,x,y,w,h) — passing a buffer where it wants a texture index throws inside three, from a stack that names nothing here');
+    if (!/registeredCasters\(\)/.test(src))
+      problems.push(`${F} no longer bakes the depth pass's caster set — two registries would drift, and the file would disagree with the preview about what occludes what`);
+    // Mounted, or nothing ever services a request.
+    const sim = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
+    if (!/<ProjectorBakePass \/>/.test(sim))
+      problems.push('Simulator3D does not mount <ProjectorBakePass /> — every bake silently times out into the coarse fallback');
+    // And the export must prefer it.
+    const md = stripComments(read('plugins/calibration/src/mpcdiData.ts'));
+    if (!/requestBake\(/.test(md))
+      problems.push('mpcdiData no longer requests a GPU bake — exports would always take the raycast path');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

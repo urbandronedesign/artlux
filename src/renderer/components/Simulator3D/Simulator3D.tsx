@@ -30,6 +30,7 @@ import { FixtureLights } from './FixtureLights';
 import { ModelObject, ModelTransform } from './ModelObject';
 import { PlaneObject } from './PlaneObject';
 import { ProjectorDepthPass } from './projectorDepth';
+import { ProjectorBakePass } from './projectorBake';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
@@ -436,6 +437,9 @@ const Simulator3D: React.FC<Props> = ({
             this renderer and this scene. Without it the models still register, nothing ever draws,
             and occlusion is silently off. See projectorDepth.ts. */}
         <ProjectorDepthPass />
+        {/* Services one-shot calibration bakes — see projectorBake.ts. Without it every bake times
+            out into the CPU raycast fallback, silently and at a fortieth of the resolution. */}
+        <ProjectorBakePass />
         {models.map((m) => m.kind === 'plane' ? (
           <PlaneObject
             key={m.id}
