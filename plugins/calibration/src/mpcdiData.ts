@@ -23,7 +23,8 @@
 import type { MpcdiRegion, ProjectorCalibration } from '../../../shared/protocol';
 import * as THREE from 'three';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
-import { requestBake } from '@/components/Simulator3D/projectorBake'; // host module — the GPU bake
+import { requestBake, type UvSource } from '@/components/Simulator3D/projectorBake'; // host module — the GPU bake
+import { getScene } from './calibHost';
 import type { BlendMap } from './blendCompute';
 
 function blendToAlpha(b: BlendMap): { w: number; h: number; data: Uint8Array } {
@@ -58,9 +59,12 @@ export async function regionsForRig(
     const [pw, ph] = o.calibration.imageSize;
     if (pw > 0 && ph > 0) {
       const viewProj = projectorViewProj(o.calibration);
-      const map = viewProj ? await requestBake(viewProj, pw, ph) : null;
+      const map = viewProj ? await requestBake(viewProj, pw, ph, uvSourceFor) : null;
       if (map && map.hits > 0) {
-        const region: MpcdiRegion = { id: o.surfaceId, projW: pw, projH: ph, geo: { w: map.w, h: map.h, xyz: map.xyz } };
+        const region: MpcdiRegion = {
+          id: o.surfaceId, projW: pw, projH: ph,
+          geo: { w: map.w, h: map.h, xyz: map.uv, kind: 'uv' },
+        };
         if (o.blend) region.alpha = blendToAlpha({ surfaceId: o.surfaceId, w: o.blend.w, h: o.blend.h, data: Float32Array.from(o.blend.alpha) } as never);
         regions.push(region);
         continue;
@@ -69,6 +73,23 @@ export async function regionsForRig(
     skipped.push({ surfaceId: o.surfaceId, why: 'GPU bake unavailable — is the 3D viewport open?' });
   }
   return { regions, skipped };
+}
+
+/**
+ * How each venue model turns a fragment into a content coordinate — read from the DOCUMENT, because
+ * that is where the operator set it (3D Scene ▸ model ▸ UVs).
+ *
+ * `usesProjectedUv`'s rule, restated: projected mode needs BOTH `uvMode === 'projected'` and a
+ * 16-float matrix. A model carrying a stale `uvProjView` from an old "From view" bake while sitting
+ * on Mesh UVs is the common case — the matrix survives the switch back on purpose, so that
+ * present-vs-projected stays a two-click A/B — and baking it as projected would silently apply a
+ * mapping the operator turned off.
+ */
+function uvSourceFor(modelId: string): UvSource {
+  const m = (getScene().models ?? []).find((x) => x.id === modelId);
+  return m && m.uvMode === 'projected' && m.uvProjView?.length === 16
+    ? { mode: 'projected', matrix: m.uvProjView }
+    : { mode: 'authored' };
 }
 
 /**

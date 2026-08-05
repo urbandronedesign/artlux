@@ -57,19 +57,23 @@ void main() {
 // The other way to put content on a venue, and the one a calibration FILE describes.
 //
 // The mesh path above answers "where on the screen does this corner of my picture go". This one
-// answers a different question, per pixel: "which point of the VENUE does this projector pixel land
-// on, and what content belongs at that point". The first half is baked — a texture of world positions
-// produced by projectorBake.ts and shipped in the .mpcdi. The second half is the same matrix multiply
-// projectedMapping does in the 3D scene.
+// answers it per PIXEL, from a map baked by projectorBake.ts and shipped in the .mpcdi: for each
+// projector pixel, which texel of the content belongs there.
+//
+// The map stores the content UV directly, so there is no matrix here and no venue geometry. It used
+// to store world positions and resolve them with the model's `uvProjView`, which only works when the
+// mesh is in PROJECTED uv mode; a mesh on its own authored UVs has an arbitrary unwrap that no matrix
+// recovers, and this path rendered black on exactly that case.
 //
 // Which is why this exists at all: replaying a calibration used to mean rendering the entire venue a
 // second time, from the projector's viewpoint, in its own react-three-fiber scene — measured at
 // roughly half this machine's frame rate. With the geometry baked, the same picture costs one
 // fullscreen pass and two texture reads, and the show machine needs no venue model at all.
 //
-// WEBGL2 ONLY: the map is RGBA32F. There is no sane byte encoding for world metres — a venue tens of
-// metres across, with negative coordinates — and the WebGL1 fallback has no float textures. A build
-// that lands on WebGL1 keeps the mesh path, which is what it had before this existed.
+// WEBGL2 ONLY: the map is RGBA32F, and the WebGL1 fallback has no float textures. Eight bits per
+// channel would give 256 addressable texels across a 1920-wide source — every seam in the venue would
+// land on a visibly wrong column. A build that lands on WebGL1 keeps the mesh path, which is what it
+// had before this existed.
 const VERT_BAKED = `
 attribute vec2 aPos;        // clip-space fullscreen triangle pair
 varying vec2 vRaster;       // 0..1 across the projector's own raster
@@ -79,11 +83,10 @@ void main() {
 }`;
 
 const FRAG_BAKED = `
-precision highp float;      // mediump would quantise world metres to centimetres at venue scale
+precision highp float;      // mediump uv would quantise the source to a few hundred texels
 varying vec2 vRaster;
 uniform sampler2D uTex;     // the content
-uniform sampler2D uMap;     // RGB = world XYZ at this projector pixel, A = 1 where geometry was hit
-uniform mat4 uProjViewProj; // world → content-projector clip (SceneModel.uvProjView)
+uniform sampler2D uMap;     // RG = content uv for this projector pixel, A = 1 where geometry was hit
 uniform vec4 uSoft;
 uniform float uBlendGamma;
 uniform float uGamma;
@@ -93,16 +96,12 @@ uniform vec3 uBlackLift;
 ${SOFT_EDGE_GLSL}
 void main() {
   vec4 m = texture2D(uMap, vRaster);
-  // A pixel that saw no geometry emits BLACK, not the edge of the content. A projector lighting past
-  // the object it maps must go dark there, or the surround gets a smear of clamped texels.
+  // A pixel with no content behind it emits BLACK, not the edge of the picture. The bake already
+  // folded both reasons into this one flag: no geometry under the pixel, and geometry that fell
+  // outside the content's footprint. A projector overshooting the object it maps must go dark, or
+  // the surround gets a smear of clamped texels.
   if (m.a < 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  vec4 clip = uProjViewProj * vec4(m.rgb, 1.0);
-  if (clip.w <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }  // behind the content projector
-  vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
-  // Outside the content's frustum is unlit too — the projected footprint has an edge, and repeating
-  // or clamping it would paint the venue with a stretched border pixel.
-  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  vec4 c = texture2D(uTex, uv);
+  vec4 c = texture2D(uTex, m.rg);
   // ⚠ THE BLEND IS INDEXED IN RASTER SPACE, NOT CONTENT SPACE. A soft edge describes where THIS
   // PROJECTOR's light stops overlapping its neighbour's — a property of the physical footprint. Feed
   // it the content uv and the ramp would slide around with the mapping and stop matching the rig.
@@ -278,28 +277,29 @@ export class ProjectorGL {
   hasBakedMap(): boolean { return !!this.mapTex && this.mapW > 0; }
 
   /**
-   * Upload a baked world-position map. `xyz` is w*h*3 with NaN where the projector saw no geometry —
-   * exactly what comes out of an .mpcdi — and is repacked to RGBA32F here, hit flag in alpha.
+   * Upload a baked content-uv map. `uv` is w*h*3 — (u, v, spare) — with NaN where the projector has
+   * no content, exactly what comes out of an .mpcdi region whose profile is 2d. Repacked to RGBA32F
+   * here, hit flag in alpha.
    *
    * NaN is converted rather than uploaded: a NaN texel compares false against every threshold, so it
    * would pass an `a < 0.5` test on some drivers and fail it on others. Turning "no geometry" into an
    * explicit 0 alpha makes the miss a value rather than a hope.
    *
-   * NEAREST filtering, and that is not a quality compromise: neighbouring texels are world positions
-   * on opposite sides of a silhouette, and averaging them yields a point floating in mid-air between
-   * the object and the wall behind it. The same reason the depth map is NEAREST.
+   * NEAREST filtering, and that is not a quality compromise: neighbouring texels are coordinates on
+   * opposite sides of a silhouette, and averaging them samples content from halfway between two
+   * unrelated parts of the picture. The same reason the depth map is NEAREST.
    */
-  setBakedMap(w: number, h: number, xyz: Float32Array): boolean {
+  setBakedMap(w: number, h: number, uv: Float32Array): boolean {
     const gl2 = this.gl2;
     if (!gl2) return false;   // WebGL1: no float textures, keep the mesh path
     const gl = this.gl;
     const packed = new Float32Array(w * h * 4);
     for (let i = 0, n = w * h; i < n; i++) {
-      const x = xyz[i * 3], y = xyz[i * 3 + 1], z = xyz[i * 3 + 2];
-      const hit = Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
-      packed[i * 4] = hit ? x : 0;
-      packed[i * 4 + 1] = hit ? y : 0;
-      packed[i * 4 + 2] = hit ? z : 0;
+      const u = uv[i * 3], v = uv[i * 3 + 1];
+      const hit = Number.isFinite(u) && Number.isFinite(v);
+      packed[i * 4] = hit ? u : 0;
+      packed[i * 4 + 1] = hit ? v : 0;
+      packed[i * 4 + 2] = 0;
       packed[i * 4 + 3] = hit ? 1 : 0;
     }
     if (!this.mapTex) this.mapTex = gl.createTexture();
@@ -326,7 +326,7 @@ export class ProjectorGL {
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.warn('[ProjectorGL] baked link:', gl.getProgramInfoLog(p)); return false; }
     this.bakedProg = p;
     this.bakedAPos = gl.getAttribLocation(p, 'aPos');
-    for (const n of ['uTex', 'uMap', 'uProjViewProj', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift']) {
+    for (const n of ['uTex', 'uMap', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift']) {
       this.bakedU[n] = gl.getUniformLocation(p, n);
     }
     this.quadBuf = gl.createBuffer();
@@ -336,17 +336,17 @@ export class ProjectorGL {
   }
 
   /**
-   * Draw content through the baked map. `uvProjView` is the CONTENT projector's world→clip matrix —
-   * `SceneModel.uvProjView`, the same 16 floats the 3D scene's projected mapping uses — so this and
-   * the live render-from-projector describe the same picture by construction. If they ever disagree,
-   * one of them is reading a different matrix, not a different algorithm.
+   * Draw content through the baked map: one texture read to get this pixel's content coordinate, one
+   * to fetch the texel. The map already encodes everything the 3D scene would have computed — the
+   * mesh's unwrap or its projection, the occlusion, the footprint edge — so this and the live
+   * render-from-projector describe the same picture by construction.
    *
    * Returns false when it could not draw (no WebGL2, no map, no program), so the caller can fall
    * back to the mesh path rather than presenting a blank output.
    */
-  drawBaked(src: TexImageSource | null, uvProjView: number[], o: DrawOpts, srcGen?: number): boolean {
+  drawBaked(src: TexImageSource | null, o: DrawOpts, srcGen?: number): boolean {
     const gl = this.gl;
-    if (!this.hasBakedMap() || !this.ensureBakedProgram() || uvProjView.length !== 16) return false;
+    if (!this.hasBakedMap() || !this.ensureBakedProgram()) return false;
 
     if (src) {
       const fresh = srcGen === undefined || srcGen !== this.lastSrcGen || this.lastSrcGen === null;
@@ -373,7 +373,6 @@ export class ProjectorGL {
     gl.uniform1i(this.bakedU['uMap'] ?? null, 1);
     gl.activeTexture(gl.TEXTURE0);
 
-    gl.uniformMatrix4fv(this.bakedU['uProjViewProj'] ?? null, false, new Float32Array(uvProjView));
     const soft = o.softEdge;
     gl.uniform4f(this.bakedU['uSoft'] ?? null, soft?.left ?? 0, soft?.right ?? 0, soft?.top ?? 0, soft?.bottom ?? 0);
     gl.uniform1f(this.bakedU['uBlendGamma'] ?? null, Math.max(0.1, soft?.gamma ?? 2.2));

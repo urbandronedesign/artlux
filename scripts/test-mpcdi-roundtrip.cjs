@@ -61,6 +61,24 @@ if (r) {
   }
 }
 check('the date we passed is the date written', /date="2026-08-05T12:00:00"/.test(buf.toString('latin1', 0, 400)), 'provenance is the point of the field');
+check('a world map declares the 3D profile', /profile="3d"/.test(buf.toString('latin1', 0, 400)), 'and parses back as world');
+check('kind round-trips as world', r && r.geo.kind === 'world', r ? String(r.geo.kind) : '-');
+
+// ── 1b. the UV profile, which is what ArtLux actually writes now ───────────────────────────────
+// The profile is not decoration: it tells a reader whether the three floats are a source coordinate
+// or a point in the room. A consumer that guesses maps content to the wrong place, and both files
+// parse, so only an explicit check catches a writer and reader drifting apart.
+const uvRegion = { id: 'proj-B', projW: 1264, projH: 681, geo: { w: 4, h: 3, xyz: Float32Array.from({ length: 36 }, (_, i) => (i % 3 === 2 ? 0 : (i % 7) / 7)), kind: 'uv' } };
+const uvBuf = buildMpcdi([uvRegion], '2026-08-05T12:00:00');
+const uvBack = parseMpcdi(uvBuf)[0];
+console.log('\nuv profile');
+check('declares the 2D profile', /profile="2d"/.test(uvBuf.toString('latin1', 0, 400)), 'MPCDI 2d = output pixel -> source coordinate');
+check('kind round-trips as uv', !!uvBack && uvBack.geo.kind === 'uv', uvBack ? String(uvBack.geo.kind) : 'no region');
+if (uvBack) {
+  let e = 0;
+  for (let i = 0; i < uvRegion.geo.xyz.length; i++) e = Math.max(e, Math.abs(uvRegion.geo.xyz[i] - uvBack.geo.xyz[i]));
+  check('uv values survive exactly', e === 0, `max |Δ| = ${e}`);
+}
 
 // ── 2. a real exported file, if one is offered ────────────────────────────────────────────────
 const real = process.argv[2];

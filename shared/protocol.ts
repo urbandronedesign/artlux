@@ -317,7 +317,16 @@ export interface CameraSelfCal {
 export interface MpcdiRegion {
   id: string;
   projW: number; projH: number;
-  geo: { w: number; h: number; xyz: Float32Array };
+  /**
+   * Per-projector-pixel map, row-major, top-left origin, three floats each (a PFM carries 1 or 3
+   * channels, never 2). `kind` says what the triplet MEANS, because the two profiles are not
+   * interchangeable and a consumer that guesses will map content to the wrong place:
+   *   'uv'    — (u, v, 0), the source coordinate to sample. MPCDI's 2D profile. What ArtLux writes.
+   *   'world' — (x, y, z) in venue space. MPCDI's 3D profile. Readable, but only replayable by a
+   *             consumer that also holds the venue geometry and its content projection.
+   * Absent = 'world', so a file written before this distinction existed still parses as what it was.
+   */
+  geo: { w: number; h: number; xyz: Float32Array; kind?: 'uv' | 'world' };
   alpha?: { w: number; h: number; data: Uint8Array };
 }
 

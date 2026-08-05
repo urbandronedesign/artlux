@@ -4,8 +4,12 @@
 // pixel 3D surface map — exactly our dense map) + per-region PNG alpha (the blend). Self-contained
 // (minimal ZIP/PFM/PNG via node:zlib) so it adds no dependency and round-trips in plain node.
 //
-// We emit the 3D profile (componentDepth=3 → world XYZ per projector pixel), matching ArtLux's
-// surface-painted model. Cross-tool conformance of the exact XML schema is best-effort; the round-trip
+// PROFILE FOLLOWS THE DATA. ArtLux bakes a per-projector-pixel CONTENT UV, which is MPCDI's **2D**
+// profile — output pixel → source coordinate — so that is what the XML declares. The 3D profile
+// (world XYZ per pixel) is still expressible and still parsed, because a file from another tool may
+// carry it, but it is not what we write: a world map is only replayable by a consumer that also holds
+// the venue geometry AND its content projection, and for a mesh on authored UVs no such projection
+// exists. Declaring 3d over uv data would be a lie a conforming reader would act on. Cross-tool conformance of the exact XML schema is best-effort; the round-trip
 // (our export → our import) is exact.
 
 import zlib from 'node:zlib';
@@ -143,7 +147,11 @@ function pngReadGray(buf: Buffer): { w: number; h: number; data: Uint8Array } {
  */
 export function buildMpcdi(regions: MpcdiRegion[], date = new Date().toISOString().replace(/\.\d+Z$/, '')): Buffer {
   const files: { name: string; data: Buffer }[] = [];
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<MPCDI version="2.0" profile="3d" date="${date}">\n  <display>\n`;
+  // THE PROFILE FOLLOWS THE DATA. Mixed kinds in one file would need per-region profiles, which MPCDI
+  // puts at the document level; every region ArtLux writes comes from one bake, so the first region's
+  // kind is the document's. Declaring 3d over uv data would be a lie a conforming reader acts on.
+  const kind = regions[0]?.geo.kind ?? 'world';
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<MPCDI version="2.0" profile="${kind === 'uv' ? '2d' : '3d'}" date="${date}">\n  <display>\n`;
   for (const r of regions) {
     const geoName = `${r.id}_geo.pfm`;
     files.push({ name: geoName, data: pfmWrite(r.geo.w, r.geo.h, 3, r.geo.xyz) });
@@ -166,6 +174,9 @@ export function parseMpcdi(buf: Buffer): MpcdiRegion[] {
   if (!xmlBuf) throw new Error('mpcdi.xml missing');
   const xml = xmlBuf.toString('utf8');
   const regions: MpcdiRegion[] = [];
+  // The profile tells a reader what the three floats MEAN. Absent or anything else → 'world', which
+  // is what every file written before ArtLux baked UVs contains.
+  const kind: 'uv' | 'world' = /profile="2d"/.test(xml) ? 'uv' : 'world';
   const regionRe = /<region\s+id="([^"]+)"[^>]*?xresolution="(\d+)"\s+yresolution="(\d+)"[^>]*>([\s\S]*?)<\/region>/g;
   let m: RegExpExecArray | null;
   while ((m = regionRe.exec(xml))) {
@@ -175,7 +186,7 @@ export function parseMpcdi(buf: Buffer): MpcdiRegion[] {
     const geoBuf = zip.get(geoPath);
     if (!geoBuf) continue;
     const pf = pfmRead(geoBuf);
-    const region: MpcdiRegion = { id, projW, projH, geo: { w: pf.w, h: pf.h, xyz: pf.data } };
+    const region: MpcdiRegion = { id, projW, projH, geo: { w: pf.w, h: pf.h, xyz: pf.data, kind } };
     const alphaPath = /<alphaMap>[\s\S]*?<path>([^<]+)<\/path>/.exec(body)?.[1];
     const alphaBuf = alphaPath ? zip.get(alphaPath) : undefined;
     if (alphaBuf) { const pn = pngReadGray(alphaBuf); region.alpha = { w: pn.w, h: pn.h, data: pn.data }; }

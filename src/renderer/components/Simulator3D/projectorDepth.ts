@@ -167,8 +167,8 @@ export function registerDepthCaster(id: string, object: THREE.Object3D): void {
  * editor occludes against. Two registries would drift, and the symptom would be a baked map that
  * disagrees with the preview about what is in front of what.
  */
-export function registeredCasters(): THREE.Object3D[] {
-  return [...casters.values()].map((c) => c.object);
+export function registeredCasters(): Array<{ id: string; object: THREE.Object3D }> {
+  return [...casters.entries()].map(([id, c]) => ({ id, object: c.object }));
 }
 
 export function unregisterDepthCaster(id: string): void {

@@ -18,11 +18,21 @@ import type { MpcdiRegion } from '../../../shared/protocol';
 //
 // ── WHAT A REGION HOLDS, AND WHAT IT DOES NOT ───────────────────────────────────────────────────
 //
-// `geo.xyz` is WORLD position per projector pixel (NaN where the projector sees no geometry), which is
-// MPCDI's own 3D profile and what makes the file readable by other media servers. It is deliberately
-// NOT a content UV: a UV would bake in whichever content projection happened to be configured at
-// export time, and that is show data, not install data. Turning world → UV happens at playback, from
-// the project's own `uvProjView`, so re-mapping content never invalidates a calibration.
+// `geo.xyz` holds three floats per projector pixel and `geo.kind` says what they mean:
+//
+//   'uv'    — (u, v, spare): the content coordinate to sample. MPCDI's 2D profile, and what ArtLux
+//             writes. Playable by anything that can sample a texture.
+//   'world' — (x, y, z) in venue space. MPCDI's 3D profile. Parsed because another tool may send one,
+//             but only replayable by a consumer that ALSO holds the venue geometry and its content
+//             projection.
+//
+// NaN marks a pixel with nothing behind it — no geometry, or geometry outside the content footprint.
+//
+// The store used to insist on 'world', on the theory that a UV bakes in the content mapping and is
+// therefore show data rather than install data. True, and it is still the cost of the 2D profile —
+// re-unwrapping the mesh means re-baking. But the recovery it assumed only works in PROJECTED uv
+// mode: a mesh on its own authored UVs has an arbitrary unwrap that no matrix reproduces from a
+// position, and that is what real venue GLBs use.
 
 export interface ImportedRig {
   /** Where it came from, so the UI can say so and a reload can find it again. */
@@ -61,6 +71,9 @@ export function describe(r: ImportedRig): string[] {
     const density = g.projW && g.geo.w ? (g.geo.w / g.projW) : 0;
     // A grid far coarser than the raster interpolates across silhouettes — see projectorBake.ts.
     const note = density >= 0.9 ? 'native raster' : `${g.geo.w}×${g.geo.h} grid — coarse, edges will soften`;
-    return `${g.id}: ${g.projW}×${g.projH}, ${pct}% covered (${note})`;
+    // Kind is not a detail: a 'world' map cannot be played without the venue, so an operator who
+    // imported one needs to know before wondering why the output is black.
+    const kind = g.geo.kind === 'uv' ? 'uv map' : 'world map — needs the venue to replay';
+    return `${g.id}: ${g.projW}×${g.projH}, ${pct}% covered (${note}, ${kind})`;
   });
 }
