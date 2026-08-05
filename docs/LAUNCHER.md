@@ -421,10 +421,17 @@ CI: [`.github/workflows/launcher.yml`](../.github/workflows/launcher.yml), trigg
 vice versa; the two tag patterns cannot match each other.
 
 ```bash
-# bump `version` in BOTH launcher/package.json and launcher/src-tauri/Cargo.toml
-#   (Tauri reads the former for the bundle, Cargo the latter for own_version())
-git tag -a launcher-v0.1.1 -m "…" && git push origin launcher-v0.1.1
+# bump `version` in FOUR files — the two sources and the two lockfiles that quote them:
+#   launcher/package.json            Tauri reads this for the bundle filename
+#   launcher/package-lock.json       twice: the root, and packages."" 
+#   launcher/src-tauri/Cargo.toml    Cargo reads this for own_version()
+#   launcher/src-tauri/Cargo.lock    the artlux-launcher entry
+git tag -a launcher-v0.1.2 -m "…" && git push origin launcher-v0.1.2
 ```
+
+> The lockfiles are easy to forget and say nothing when you do: `package-lock.json` sat at 0.1.0
+> through the whole 0.1.1 release without CI complaining. `cargo check --locked` catches the Cargo
+> half; nothing catches the npm half, so it is written down here.
 
 > ⚠ **Launcher releases are published as PRE-RELEASES, and that is load-bearing.** GitHub's
 > `/releases/latest` returns whichever release went out most recently, whatever it is — and **ArtLux's

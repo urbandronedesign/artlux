@@ -1,6 +1,6 @@
 [package]
 name = "artlux-launcher"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "ArtLux Launcher ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â installs ArtLux, checks the machine, and opens projects."
 authors = ["Zaki Jawhari", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©renger Recoules"]
