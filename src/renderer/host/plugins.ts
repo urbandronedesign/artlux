@@ -26,20 +26,30 @@ import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
 import { plugin as augmenta } from '@artlux/plugin-augmenta';
 import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
 import { plugin as audio } from '@artlux/plugin-audio/renderer';
-import { CALIBRATION_ENABLED } from '../services/runProfile';
 
 const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, showControl, audio];
 
-// THE LAUNCH PROFILE DECIDES WHICH OF THESE RUN. Only calibration is gated today, and only in a
-// plain editor launch — see src/main/runProfile.ts for the measurement that motivates it (an open
-// CALIBRATED output takes the whole app from 60 fps to 17.6, because the plugin renders the venue a
-// second time over the projector's canvas; an uncalibrated one is free).
+// EVERY PLUGIN ACTIVATES. The launch profile no longer decides that, because calibration is two
+// halves and only one of them is expensive:
 //
-// Skipping it is the honest mechanism rather than "activate but do nothing": a plugin that registers
-// its contributions and then declines to work still puts a Calibration viewport on the rail and a
-// panel on every projector window, and the operator cannot tell why they do nothing.
-const enabled = (p: RendererPlugin): boolean =>
-  p !== calibration || CALIBRATION_ENABLED;
+//   PLAYBACK  — import a baked .mpcdi and hand it to the projector windows. No camera, no solve, no
+//               second venue render; the output warps through one fragment shader. Belongs in EVERY
+//               launch, and gating it here is what left a plain editor unable to display a calibrated
+//               output at all — the launch you would most want it in.
+//   AUTHORING — wizards, camera, OpenCV, structured light, and the venue render a projector window
+//               draws while you align it. That is the cost, and the plugin gates it internally on the
+//               same `?calibrate=1` every window carries (see plugin.renderer.ts isAuthoringLaunch).
+//
+// The gate moved INTO the plugin rather than disappearing: the old comment here argued that skipping
+// is more honest than "activate but do nothing", and it is right — a Calibration viewport on the rail
+// and a panel on every projector window that both decline to work is worse than their absence. What
+// changed is that the split is no longer all-or-nothing, and only the plugin knows where the seam is.
+//
+// ⚠ The figure that comment cited — "60 fps to 17.6" — was a comparison of two DIFFERENT projects.
+// Controlled, on one project, it was 38.9 against 34.4. The real cost was never activation; it was
+// render-from-projector mounting a second 3D scene per projector window, which a baked map now
+// supersedes outright (ProjectorApp.applyCalibMode).
+const enabled = (_p: RendererPlugin): boolean => true;
 
 let activated = false;
 

@@ -19,6 +19,7 @@ import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
 import { CalibViewport } from './CalibViewport';
 import { CalibProjector } from './CalibProjector';
+import { ImportPanel } from './ImportPanel';
 import * as baked from './bakedStore';
 import { RecalPanel } from './RecalPanel';
 import * as venueRegistrar from './venueRegistrar';
@@ -43,6 +44,20 @@ function isShowEngineWindow(): boolean {
   } catch { return false; }
 }
 
+// Does this launch carry the AUTHORING half — wizards, camera, OpenCV, the workbench? Read from the
+// query string for the same reason isShowEngineWindow does: activation runs during module load, long
+// before an IPC round-trip could answer, and every window main opens carries the same param.
+//
+// The PLAYBACK half is not gated by this and never should be. Importing a baked map is not
+// calibrating: no camera, no solve, no second venue render — the projector plays the file through one
+// fragment shader. Gating it too is what made a plain editor launch unable to display a calibrated
+// output at all, which is the launch you would most want it in.
+function isAuthoringLaunch(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('calibrate') === '1';
+  } catch { return false; }
+}
+
 export const plugin: RendererPlugin = {
   manifest: { id: 'calibration', name: 'Projector Calibration', version: '0.0.0' },
 
@@ -51,15 +66,30 @@ export const plugin: RendererPlugin = {
     // through this instead of App callback props). Harmless in projector windows (inert host).
     setHost(ctx.host);
 
-    // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
-    // projector). Projector windows mount every registered panel; the editor window ignores this registry.
-    ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
-
+    // ── PLAYBACK — always on, in every launch profile ───────────────────────────────────────────
+    //
     // A baked calibration map has to reach a window that OPENS LATER. Importing a venue's file and
     // then enabling its outputs is the ordinary order of events, and without this the map would be
     // sent to windows that did not exist yet and never to the ones that do. Edge-triggered on the
     // outputs list, not polled — a map is ~10 MB and this only has to fire when the rig changes.
     if (ctx.window === 'main') ctx.host.projectorOutputs.subscribe(() => baked.pushToProjectors());
+
+    // The door to that, in the context the outputs already live in — so a plain editor launch can load
+    // a venue's calibration without the authoring half existing at all. See ImportPanel.
+    ctx.panels.register({ id: 'calibration.import', mount: 'dock', title: 'Calibration File', Component: ImportPanel });
+    ctx.contexts.extend('project', { dock: ['calibration.import'] });
+
+    // ── AUTHORING — only under --calibrate (and every show mode, which implies it) ───────────────
+    //
+    // Everything below produces a calibration rather than playing one: the wizards, the camera, the
+    // structured-light patterns, the pose solve, the venue render the projector window draws while you
+    // align it. Skipped rather than registered-and-inert, because a Calibration viewport on the rail
+    // and a panel on every projector window that both decline to work is worse than their absence.
+    if (!isAuthoringLaunch()) return;
+
+    // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
+    // projector). Projector windows mount every registered panel; the editor window ignores this registry.
+    ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
 
     // The calibration WORKBENCH (ROADMAP Stage 2b, closed 2026-07-23). The wizards lived here all
     // along but App mounted them and held their state, because a Stage-coupled workspace had no mount

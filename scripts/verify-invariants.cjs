@@ -2864,8 +2864,8 @@ check(
   'Calibration is decided ONCE per window, at load, from the URL — in the editor and in every ' +
   'projector window it opens. If main forgets the profile on one of those URLs the two disagree: an ' +
   'editor that dropped calibration spawns outputs that still load the render-from-projector panel, ' +
-  'putting back the exact second venue render the profile exists to remove (60 fps against 17.6 ' +
-  'measured), or worse, a calibrated SHOW opens outputs that cannot render its calibration and the ' +
+  'putting back the exact second venue render the profile exists to remove, or worse, a calibrated ' +
+  'SHOW opens outputs that cannot render its calibration and the ' +
   'wall goes dark. Nothing throws either way. The renderer must read it from the query string too — ' +
   'plugin activation runs at module load, long before a prefs round-trip could answer.',
   () => {
@@ -2898,9 +2898,12 @@ check(
     if (/getPrefs|artlux\?\./.test(rp))
       problems.push(`${R} reads prefs — plugin activation happens before IPC can answer`);
 
-    // And the two consumers that make it mean anything.
-    if (!/CALIBRATION_ENABLED/.test(read('src/renderer/host/plugins.ts')))
-      problems.push('src/renderer/host/plugins.ts ignores the profile — calibration would activate in every editor');
+    // And the consumers that make it mean anything. The plugin host no longer gates calibration —
+    // the gate moved INSIDE the plugin, because only its authoring half is expensive and gating the
+    // whole thing took playback down with it (see the playback-split check). So the assertion is that
+    // the AUTHORING half is still gated somewhere, not that the host is where.
+    if (!/isAuthoringLaunch/.test(read('plugins/calibration/src/plugin.renderer.ts')))
+      problems.push('the calibration plugin ignores the profile — wizards, camera and the render-from-projector panel would load in every plain editor launch');
     if (!/CALIBRATION_ENABLED/.test(read('src/renderer/contexts/index.tsx')))
       problems.push('src/renderer/contexts/index.tsx ignores the profile — the Calib rail entry would open an empty workbench');
     return problems.length ? problems.join('; ') : null;
@@ -3043,6 +3046,45 @@ check(
     const cp = stripComments(read('plugins/calibration/src/CalibProjector.tsx'));
     if (!/calibMode === 'render' &&/.test(cp))
       problems.push('CalibProjector no longer gates its venue scene on calibMode === render — it would cover a baked map unconditionally');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Playing a calibration is not authoring one, and only one of them is gated ──────────────────
+check(
+  'calibration PLAYBACK survives a launch profile that drops the authoring half',
+  'A baked .mpcdi is played by one fragment shader — no camera, no solve, no OpenCV, no second venue ' +
+  'render. The expensive half is the wizards and the render-from-projector scene. Gating the whole ' +
+  'plugin on --calibrate therefore took the cheap half down with the dear one, and a plain editor ' +
+  'launch could not load or display a calibrated output at all — the launch you would most want it ' +
+  'in, since the import IS how a show machine gets a calibrated rig without ever running a wizard. ' +
+  'The seam is an early return inside the plugin, so what protects it is ORDER: anything registered ' +
+  'after that return is authoring-only, and moving a playback line below it disables it silently in ' +
+  'every plain launch while every test on a --calibrate machine still passes.',
+  () => {
+    const H = 'src/renderer/host/plugins.ts';
+    const P = 'plugins/calibration/src/plugin.renderer.ts';
+    const problems = [];
+    const host = stripComments(read(H));
+    // The host must not re-gate the whole plugin — that is the regression this replaced.
+    if (/p !== calibration \|\| CALIBRATION_ENABLED|calibration.*CALIBRATION_ENABLED/.test(host))
+      problems.push(`${H} gates the calibration plugin wholesale again — that disables the playback half too`);
+    const src = stripComments(read(P));
+    const gate = src.indexOf('if (!isAuthoringLaunch()) return;');
+    if (gate < 0) { problems.push(`${P} no longer gates its authoring half — the wizards, camera and venue render would load in every plain editor launch`); return problems.join('; '); }
+    // ⚠ ORDER, not presence. Both of these must be registered BEFORE the early return.
+    for (const [needle, what] of [
+      ['baked.pushToProjectors()', 'the push to projector windows'],
+      ["ctx.contexts.extend('project'", 'the import panel’s door in Projection Outputs'],
+    ]) {
+      const at = src.indexOf(needle);
+      if (at < 0) problems.push(`${P} no longer wires ${what}`);
+      else if (at > gate) problems.push(`${what} is registered AFTER the authoring gate — it would vanish from every plain editor launch, silently`);
+    }
+    // The workbench's copy and the dock's copy must stay one component.
+    const v = stripComments(read('plugins/calibration/src/CalibViewport.tsx'));
+    if (/importMpcdi/.test(v))
+      problems.push('CalibViewport has its own import flow again — two copies drift the first time one learns something');
     return problems.length ? problems.join('; ') : null;
   },
 );
