@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { Aperture } from 'lucide-react';
+import { Aperture, Download } from 'lucide-react';
 import type { DisplayInfo, ProjectorOutput, Scene3D } from '../../../shared/protocol';
 import { WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { CalibWizard } from './CalibWizard';
@@ -7,6 +7,8 @@ import { AutoAlignWizard } from './AutoAlignWizard';
 import { ManualWizard } from './ManualWizard';
 import * as ws from './calibWorkspace';
 import { getHost } from './calibHost';
+import * as baked from './bakedStore';
+import { describe } from './bakedStore';
 
 // The `calib` workspace context's viewport — the calibration workbench.
 //
@@ -47,6 +49,18 @@ export const CalibViewport: React.FC = () => {
   // Displays come straight from the core API (same door OscMonitor uses for the OSC stream) — the
   // "is this output actually on a screen" test needs them and they change only on replug.
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
+  const imported = useSyncExternalStore(baked.subscribe, baked.get);
+  const [importNote, setImportNote] = useState<string | null>(null);
+
+  // Import is a MAIN-process dialog + parse; the regions arrive as plain structured-cloned data.
+  const importRig = async () => {
+    setImportNote(null);
+    const res = await window.artlux?.importMpcdi?.();
+    if (!res) { setImportNote('Import cancelled, or the file could not be read.'); return; }
+    if (!res.regions.length) { setImportNote('That file parsed but declares no regions.'); return; }
+    baked.set({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
+  };
+
   useEffect(() => { void window.artlux?.listDisplays?.().then((d) => setDisplays(d ?? [])); }, [state.target]);
 
   const target = state.target;
@@ -58,6 +72,23 @@ export const CalibViewport: React.FC = () => {
         <div className="text-micro max-w-[420px]">
           Go to Projection Outputs and press <span className="text-fg-2">Calibrate</span> on the output you want to
           align. The camera view opens here and the 3D venue scene sits alongside for placing correspondences.
+        </div>
+        {/* THE OTHER WAY IN. A venue that has already been calibrated does not need a wizard at all —
+            it needs its file. This is the no-session screen precisely because importing is what you do
+            INSTEAD of starting a session, not during one. */}
+        <div className="mt-3 pt-3 border-t border-line-1 flex flex-col items-center gap-1.5 w-full max-w-[420px]">
+          <button onClick={() => void importRig()}
+            title="Load a calibration file (.mpcdi) exported from here or another media server"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">
+            <Download size={12} /> Import calibration (.mpcdi)
+          </button>
+          {imported && (
+            <div className="text-micro text-fg-3 text-left w-full">
+              <div className="text-fg-2">Loaded {imported.regions.length} region(s) — {imported.path.split(/[\\/]/).pop()}</div>
+              {describe(imported).map((l) => <div key={l} className="num">· {l}</div>)}
+            </div>
+          )}
+          {importNote && <div className="text-micro text-warn">{importNote}</div>}
         </div>
       </div>
     );

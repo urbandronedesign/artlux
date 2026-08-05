@@ -258,7 +258,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const opts = { title: 'Import MPCDI', filters: [{ name: 'MPCDI', extensions: ['mpcdi'] }], properties: ['openFile' as const] };
         const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
         if (res.canceled || !res.filePaths[0]) return null;
-        try { return parseMpcdi(readFileSync(res.filePaths[0])); }
+        try { return { path: res.filePaths[0], regions: parseMpcdi(readFileSync(res.filePaths[0])) }; }
         catch (err) { console.warn('[mpcdi] import failed:', (err as Error)?.message ?? err); return null; }
     });
 

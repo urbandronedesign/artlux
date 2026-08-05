@@ -1384,7 +1384,12 @@ export interface ArtluxApi {
   /** Export projector warp+blend regions as an .mpcdi file (save dialog) → path, or null if cancelled. */
   exportMpcdi(regions: MpcdiRegion[]): Promise<string | null>;
   /** Import an .mpcdi file (open dialog) → regions, or null if cancelled/failed. */
-  importMpcdi(): Promise<MpcdiRegion[] | null>;
+  /**
+   * Open an .mpcdi and return its regions WITH the path they came from. The path is not decoration:
+   * a calibration describes an install and goes stale invisibly when the venue moves, so the one
+   * thing an operator must be able to see is which file is loaded. Null when cancelled or unreadable.
+   */
+  importMpcdi(): Promise<{ path: string; regions: MpcdiRegion[] } | null>;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;
