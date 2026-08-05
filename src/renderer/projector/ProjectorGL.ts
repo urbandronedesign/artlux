@@ -52,6 +52,67 @@ void main() {
   gl_FragColor = vec4(c.rgb, 1.0);
 }`;
 
+// ── THE BAKED-MAP PATH ──────────────────────────────────────────────────────────────────────────
+//
+// The other way to put content on a venue, and the one a calibration FILE describes.
+//
+// The mesh path above answers "where on the screen does this corner of my picture go". This one
+// answers a different question, per pixel: "which point of the VENUE does this projector pixel land
+// on, and what content belongs at that point". The first half is baked — a texture of world positions
+// produced by projectorBake.ts and shipped in the .mpcdi. The second half is the same matrix multiply
+// projectedMapping does in the 3D scene.
+//
+// Which is why this exists at all: replaying a calibration used to mean rendering the entire venue a
+// second time, from the projector's viewpoint, in its own react-three-fiber scene — measured at
+// roughly half this machine's frame rate. With the geometry baked, the same picture costs one
+// fullscreen pass and two texture reads, and the show machine needs no venue model at all.
+//
+// WEBGL2 ONLY: the map is RGBA32F. There is no sane byte encoding for world metres — a venue tens of
+// metres across, with negative coordinates — and the WebGL1 fallback has no float textures. A build
+// that lands on WebGL1 keeps the mesh path, which is what it had before this existed.
+const VERT_BAKED = `
+attribute vec2 aPos;        // clip-space fullscreen triangle pair
+varying vec2 vRaster;       // 0..1 across the projector's own raster
+void main() {
+  vRaster = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const FRAG_BAKED = `
+precision highp float;      // mediump would quantise world metres to centimetres at venue scale
+varying vec2 vRaster;
+uniform sampler2D uTex;     // the content
+uniform sampler2D uMap;     // RGB = world XYZ at this projector pixel, A = 1 where geometry was hit
+uniform mat4 uProjViewProj; // world → content-projector clip (SceneModel.uvProjView)
+uniform vec4 uSoft;
+uniform float uBlendGamma;
+uniform float uGamma;
+uniform float uBrightness;
+uniform vec3 uColorGain;
+uniform vec3 uBlackLift;
+${SOFT_EDGE_GLSL}
+void main() {
+  vec4 m = texture2D(uMap, vRaster);
+  // A pixel that saw no geometry emits BLACK, not the edge of the content. A projector lighting past
+  // the object it maps must go dark there, or the surround gets a smear of clamped texels.
+  if (m.a < 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  vec4 clip = uProjViewProj * vec4(m.rgb, 1.0);
+  if (clip.w <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }  // behind the content projector
+  vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
+  // Outside the content's frustum is unlit too — the projected footprint has an edge, and repeating
+  // or clamping it would paint the venue with a stretched border pixel.
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  vec4 c = texture2D(uTex, uv);
+  // ⚠ THE BLEND IS INDEXED IN RASTER SPACE, NOT CONTENT SPACE. A soft edge describes where THIS
+  // PROJECTOR's light stops overlapping its neighbour's — a property of the physical footprint. Feed
+  // it the content uv and the ramp would slide around with the mapping and stop matching the rig.
+  float pa = blendSignal(softEdgeShare(vRaster, uSoft), uBlendGamma);
+  c.rgb = c.rgb * pa * uColorGain + uBlackLift * (1.0 - pa);
+  c.rgb *= uBrightness;
+  c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / uGamma));
+  gl_FragColor = vec4(c.rgb, 1.0);
+}`;
+
 function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader {
   const sh = gl.createShader(type)!;
   gl.shaderSource(sh, src);
@@ -100,6 +161,14 @@ export class ProjectorGL {
   // already holds these pixels. undefined = a live drawable (video/canvas) that mutates in place
   // with no generation to compare, so it must always be uploaded.
   private lastSrcGen: number | null = null;
+
+  // ── Baked-map path (WebGL2 only) — built lazily, because most outputs never take it ────────────
+  private bakedProg: WebGLProgram | null = null;
+  private bakedAPos = -1;
+  private bakedU: Record<string, WebGLUniformLocation | null> = {};
+  private mapTex: WebGLTexture | null = null;
+  private mapW = 0; private mapH = 0;
+  private quadBuf: WebGLBuffer | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl2 = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -203,6 +272,126 @@ export class ProjectorGL {
       this.lastSrcGen = srcGen ?? null;
     }
     this.warpFromTexture(this.tex, o);
+  }
+
+  /** True once a baked map is resident — the projector can draw from a calibration file. */
+  hasBakedMap(): boolean { return !!this.mapTex && this.mapW > 0; }
+
+  /**
+   * Upload a baked world-position map. `xyz` is w*h*3 with NaN where the projector saw no geometry —
+   * exactly what comes out of an .mpcdi — and is repacked to RGBA32F here, hit flag in alpha.
+   *
+   * NaN is converted rather than uploaded: a NaN texel compares false against every threshold, so it
+   * would pass an `a < 0.5` test on some drivers and fail it on others. Turning "no geometry" into an
+   * explicit 0 alpha makes the miss a value rather than a hope.
+   *
+   * NEAREST filtering, and that is not a quality compromise: neighbouring texels are world positions
+   * on opposite sides of a silhouette, and averaging them yields a point floating in mid-air between
+   * the object and the wall behind it. The same reason the depth map is NEAREST.
+   */
+  setBakedMap(w: number, h: number, xyz: Float32Array): boolean {
+    const gl2 = this.gl2;
+    if (!gl2) return false;   // WebGL1: no float textures, keep the mesh path
+    const gl = this.gl;
+    const packed = new Float32Array(w * h * 4);
+    for (let i = 0, n = w * h; i < n; i++) {
+      const x = xyz[i * 3], y = xyz[i * 3 + 1], z = xyz[i * 3 + 2];
+      const hit = Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
+      packed[i * 4] = hit ? x : 0;
+      packed[i * 4 + 1] = hit ? y : 0;
+      packed[i * 4 + 2] = hit ? z : 0;
+      packed[i * 4 + 3] = hit ? 1 : 0;
+    }
+    if (!this.mapTex) this.mapTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.mapTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl2.texImage2D(gl.TEXTURE_2D, 0, gl2.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, packed);
+    this.mapW = w; this.mapH = h;
+    return true;
+  }
+
+  clearBakedMap(): void { this.mapW = 0; this.mapH = 0; }
+
+  private ensureBakedProgram(): boolean {
+    if (this.bakedProg) return true;
+    const gl = this.gl;
+    if (!this.gl2) return false;
+    const p = gl.createProgram()!;
+    gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, VERT_BAKED));
+    gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, FRAG_BAKED));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.warn('[ProjectorGL] baked link:', gl.getProgramInfoLog(p)); return false; }
+    this.bakedProg = p;
+    this.bakedAPos = gl.getAttribLocation(p, 'aPos');
+    for (const n of ['uTex', 'uMap', 'uProjViewProj', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift']) {
+      this.bakedU[n] = gl.getUniformLocation(p, n);
+    }
+    this.quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); // one big triangle
+    return true;
+  }
+
+  /**
+   * Draw content through the baked map. `uvProjView` is the CONTENT projector's world→clip matrix —
+   * `SceneModel.uvProjView`, the same 16 floats the 3D scene's projected mapping uses — so this and
+   * the live render-from-projector describe the same picture by construction. If they ever disagree,
+   * one of them is reading a different matrix, not a different algorithm.
+   *
+   * Returns false when it could not draw (no WebGL2, no map, no program), so the caller can fall
+   * back to the mesh path rather than presenting a blank output.
+   */
+  drawBaked(src: TexImageSource | null, uvProjView: number[], o: DrawOpts, srcGen?: number): boolean {
+    const gl = this.gl;
+    if (!this.hasBakedMap() || !this.ensureBakedProgram() || uvProjView.length !== 16) return false;
+
+    if (src) {
+      const fresh = srcGen === undefined || srcGen !== this.lastSrcGen || this.lastSrcGen === null;
+      if (fresh) {
+        try {
+          gl.bindTexture(gl.TEXTURE_2D, this.tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+          this.lastSrcGen = srcGen ?? null;
+        } catch { this.lastSrcGen = null; }
+      }
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.disable(gl.BLEND);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.bakedProg);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.uniform1i(this.bakedU['uTex'] ?? null, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.mapTex);
+    gl.uniform1i(this.bakedU['uMap'] ?? null, 1);
+    gl.activeTexture(gl.TEXTURE0);
+
+    gl.uniformMatrix4fv(this.bakedU['uProjViewProj'] ?? null, false, new Float32Array(uvProjView));
+    const soft = o.softEdge;
+    gl.uniform4f(this.bakedU['uSoft'] ?? null, soft?.left ?? 0, soft?.right ?? 0, soft?.top ?? 0, soft?.bottom ?? 0);
+    gl.uniform1f(this.bakedU['uBlendGamma'] ?? null, Math.max(0.1, soft?.gamma ?? 2.2));
+    gl.uniform1f(this.bakedU['uGamma'] ?? null, Math.max(0.1, o.gamma ?? 1));
+    gl.uniform1f(this.bakedU['uBrightness'] ?? null, Math.max(0, o.brightness ?? 1));
+    const cg = o.colorGain ?? [1, 1, 1], bl = o.blackLift ?? [0, 0, 0];
+    gl.uniform3f(this.bakedU['uColorGain'] ?? null, cg[0], cg[1], cg[2]);
+    gl.uniform3f(this.bakedU['uBlackLift'] ?? null, bl[0], bl[1], bl[2]);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+    gl.enableVertexAttribArray(this.bakedAPos);
+    gl.vertexAttribPointer(this.bakedAPos, 2, gl.FLOAT, false, 8, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // Leave no enabled attrib arrays behind — the mesh path and any plugin blob pass share this
+    // context, and a stale array pointing at a smaller buffer reads out of bounds and kills the GPU
+    // process. Same rule as warpFromTexture.
+    gl.disableVertexAttribArray(this.bakedAPos);
+    return true;
   }
 
   private ensureSrcFBO(w: number, h: number): void {
