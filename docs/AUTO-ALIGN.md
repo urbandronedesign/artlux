@@ -46,7 +46,7 @@ is a clean future extension into the LiDAR tracking.)
 | **1** | `native/nvwarp` NVAPI scanout warp/blend addon + ArtLux plumbing | **real build + on-hardware validated** (RTX 6000 Ada, 2026-06-29): `available()`/warp/intensity/clear all OK; renderer per-output apply (`hwWarp`, `nvwarpApply.ts`) + double-warp guard + panic-clear **wired**. Pending: warped geometry + multi-display mapping with a projector attached |
 | **2** | World-space multi-projector **blend computation** + **apply** | **wired end-to-end 2026-07-28.** Scans are kept (`blendStore` + a sidecar under `<project>/calib/`), `solveRig` feeds `computeBlendMaps`, the result persists as `ProjectorOutput.blend` and is applied by the GPU **or** the scanout — never both. `npm run test:blend` |
 | **3** | **One-click recalibration** via physical markers + unattended self-recalibration | **built 2026-07-28** (was "not started"): per-corner marker registration, a persisted camera profile, a ~5 s dot-based drift check, a conservative validate-better gate, rollback, scheduler/tablet triggers, Prometheus + JSONL audit. **`autoApply` ships OFF.** `npm run test:recal` |
-| **4** | **MPCDI** export/import codec | export code-complete; **round-trip node-validated**; import-to-**apply** pending |
+| **4** | **MPCDI** export/import codec + **baked playback** | **closed 2026-08-05.** Export bakes the projector's view on the GPU at native raster and supersamples the silhouette for coverage; import hands the map to the projector window, which warps content through it and **supersedes render-from-projector** — no venue model, no 3D scene, no depth pass at showtime. The path is remembered per machine so a `--broadcast` install boots calibrated. See [Playing a calibration](#playing-a-calibration-the-baked-map) |
 
 What's proven without hardware: the **blend partition-of-unity** (Σα ≈ 1 in overlaps → no seam) and the
 **MPCDI round-trip** (geometry + alpha exact). Everything else compiles, typechecks, and boots.
@@ -140,6 +140,78 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
 
 ---
 
+## Playing a calibration (the baked map)
+
+Calibrating and *running* a calibration are two different jobs, and after 2026-08-05 they need two
+different things from the machine. Aligning needs a camera, the venue model and the wizards. Playing
+needs a **file**.
+
+### What the file is
+
+**Export calibration (.mpcdi)** from the wizard's **Verify** step bakes, for every pixel of every
+projector, which point of the content belongs there — computed on the GPU at the projector's own
+resolution, with occlusion, the object's silhouette and the content's footprint edge already resolved
+into it. A 1264×681 output is 860,784 samples, about 10 MB per projector.
+
+That is why playback is cheap: the projector window samples a picture through a map. It needs **no
+venue model, no 3D scene and no depth pass**, which is the entire cost that render-from-projector
+used to pay at showtime.
+
+The export is slower than it looks like it should be — the silhouette is rendered at 2× and resolved
+down, so that partly-covered edge pixels carry a real coverage fraction instead of an on/off flag.
+That is what stops the projected outline stair-casing on a big wall.
+
+### Loading one
+
+**Projection Outputs ▸ Calibration File ▸ Import calibration (.mpcdi)**. The summary tells you what
+you actually got, per output:
+
+```
+wbdkpezgt: 1264×681, 17% covered (native raster, uv map)
+```
+
+- **`% covered`** is the number that separates a usable map from a file that parsed cleanly and
+  describes nothing. A map can be well-formed, correctly sized and 0% covered — that means the pose
+  was wrong, or the venue moved after the bake.
+- **`native raster`** means the map is as dense as the projector. A coarse grid interpolates across
+  silhouettes and softens edges.
+- **`uv map`** is playable here. A **`world map`** is legitimate MPCDI and describes real geometry,
+  but this player has no venue to resolve it against, so it is withdrawn rather than silently
+  ignored.
+
+The output switches to the map immediately, and **it replaces render-from-projector** rather than
+composing with it — both describe the same thing, and running both would bend an already-bent
+picture. Your corner-pin / Bézier nudge still applies on top, so a hand correction made after
+calibrating is not lost.
+
+### It survives a restart, and that is the point
+
+The path is remembered **per machine** (not in the project — a calibration describes the *room*, so
+one file serves every show you run there, and re-aligning must not mean re-saving twelve `.artlux`
+files). On the next start the file is re-read from disk.
+
+This is what lets an unattended install work at all. `--broadcast` renders the show and its outputs
+and **no editor chrome** — there is no import panel and nobody to click it — so without the
+remembered path a baked calibration could never reach the one mode that exists to run it. A file
+that has moved or lives on an unmounted drive logs one warning and leaves the outputs on their own
+warp: a show that starts and looks wrong, rather than a show that does not start.
+
+### ⚠ Unload before you re-calibrate that output
+
+A loaded map supersedes render-from-projector, and a wizard's **Verify** step *is*
+render-from-projector. So verifying a fresh solve on an output that already has a map imported shows
+you **the map**, not the new solve. Press **Unload** first — it is next to Import, and it also
+forgets the remembered path so the next start does not quietly reload what you just withdrew.
+
+### You no longer need the calibration build to play one
+
+Importing and playing work in a **plain launch**. Only *authoring* — the wizards, the camera, OpenCV,
+and the live venue render you align against — lives behind `--calibrate`, which is why a plain editor
+has no Calibration entry on the rail but still has the Calibration File panel under Projection
+Outputs.
+
+---
+
 <!-- audience:contributor -->
 
 ## Continuing on the Quadro (hardware session)
@@ -150,7 +222,9 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
 2. **Validate Phase 0** — run Auto-Align against a loaded venue GLB in a dim room; confirm the
    render-from-projector lands on the real surface and the residual heatmap is speckle (not structured).
 3. **Then** wire the remaining apply/integration (Phase 1 distortion push, Phase 2 blend apply, multi-
-   projector capture, Phase 3 markers, MPCDI import-apply) — each benefits from being seen on hardware.
+   projector capture, Phase 3 markers) — each benefits from being seen on hardware. MPCDI
+   import-apply is no longer on this list: it closed on 2026-08-05 and was validated on the dev
+   laptop, end to end, including a `--broadcast` boot.
 
 ---
 
