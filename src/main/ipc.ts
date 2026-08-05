@@ -19,6 +19,11 @@ import * as watchdog from './watchdog';
 import { rebuildAppMenu } from './menu';
 import { activateMainPlugins } from './host/plugins';
 
+// READ_FILE accounting for the cold-open bench (metric D — bytes read vs. bytes actually shown).
+// Module-level, not per-registerIpc: the counter must survive for the process's life and there is
+// exactly one main process. Reset by PERF_OPEN_ARMED (the renderer's boot gate arming).
+const readStats = { calls: 0, bytes: 0, ms: 0, maxBytes: 0, maxPath: '' };
+
 // Wire renderer IPC to the native Art-Net transport and report status back.
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const sendStatus = (connected: boolean) => {
@@ -128,8 +133,29 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         } catch (err) { console.error('[scene] read model failed', err); return null; }
     });
     ipcMain.handle(IPC.READ_FILE, async (_e, path: string) => {
-        try { return new Uint8Array(await readFile(path)); }
+        const t0 = performance.now();
+        try {
+            const bytes = new Uint8Array(await readFile(path));
+            // Metric D of the preload plan: every byte crossing this channel is a whole file loaded
+            // into renderer RAM (mediaCache → Blob). The counter is what turns "the open felt slow"
+            // into "we read 226 MB nobody looked at" — logged + reset when the boot gate arms below.
+            readStats.calls++;
+            readStats.bytes += bytes.byteLength;
+            readStats.ms += performance.now() - t0;
+            if (bytes.byteLength > readStats.maxBytes) { readStats.maxBytes = bytes.byteLength; readStats.maxPath = path; }
+            return bytes;
+        }
         catch (err) { console.error('[ipc] read file failed', err); return null; }
+    });
+    ipcMain.on(IPC.PERF_OPEN_ARMED, () => {
+        const mb = (n: number) => (n / 1048576).toFixed(1);
+        // One line, parseable — scripts/bench-open.cjs reads it from main's stdout, and a venue log
+        // reads it the morning after. maxPath names the file worth converting/relocating first.
+        console.log(
+            `[ipc] read-file totals since last open: ${readStats.calls} call(s), ${mb(readStats.bytes)} MB, ` +
+            `${readStats.ms.toFixed(0)} ms, largest ${mb(readStats.maxBytes)} MB (${readStats.maxPath || 'n/a'}) — reset`,
+        );
+        readStats.calls = 0; readStats.bytes = 0; readStats.ms = 0; readStats.maxBytes = 0; readStats.maxPath = '';
     });
 
     // In-app Docs Browser: enumerate the example/tutorial + user-guide tree, and read one doc by id.

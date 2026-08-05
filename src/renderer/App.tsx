@@ -57,6 +57,7 @@ import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
 import * as timelinePreloader from './services/timelinePreloader';
 import * as bootGate from './services/bootGate';
+import * as openTrace from './services/openTrace';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
@@ -1893,6 +1894,11 @@ const App: React.FC = () => {
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
   const applyProjectData = (data: any) => {
+      // Cold-open trace: a fresh table per open (see services/openTrace.ts). The main-side half —
+      // read/parse/resolve — logs its own `[open]` line; this covers the renderer half through to
+      // bootGate's 'gate-armed'. It is how "a heavy project opens slowly" becomes "WHICH phase grew".
+      openTrace.begin();
+      openTrace.mark('apply-start');
       // Opening a project CLEARS the undo stack — this document has no shared history with the outgoing
       // one. Without this, one Ctrl+Z after File→Open would restore the PREVIOUS project's whole document
       // over the just-opened one (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
@@ -1958,6 +1964,9 @@ const App: React.FC = () => {
         return { ...s, accent, timeline: normalizeTimeline(s.timeline) };
       });
       setScenes(loadedScenes);
+      // This mark is metric B's needle: the per-scene normalize above is the one open cost that grows
+      // with scene count (plans: preload optimization, phase 6). If its delta is flat, phase 6 is done.
+      openTrace.mark('scenes-normalized');
       // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
       // older (pre-cues) projects open with their scenes already on the grid.
       //
@@ -2018,9 +2027,11 @@ const App: React.FC = () => {
       transitions.cancel();
       for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
       timelinePreloader.warm(curKey, curTl);
+      openTrace.mark('warm-issued'); // fire-and-forget issuance — the DECODE cost lands in the gate span
       // Opening a project RESETS the show clock (the bed's time restarts with the show); a scene recall
       // never does. Both reach swap() with transport:'restart' and cannot be told apart in there.
       timelineEngine.swap(curKey, curTl, { transport: 'restart', showClock: 'reset' });
+      openTrace.mark('swap-done');
       // ── WAIT FOR THE CONTENT, THEN PLAY ────────────────────────────────────────────────────────
       // HOLD the state machine until the look above is actually decoded. warm()/swap() are
       // fire-and-forget: without this the FSM would initialize on the very next frame, enter its
@@ -2070,6 +2081,7 @@ const App: React.FC = () => {
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
+      openTrace.mark('apply-end');
   };
 
   const refreshRecents = async () => {

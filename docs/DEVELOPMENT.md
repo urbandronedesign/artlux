@@ -342,6 +342,37 @@ a second renderer); the rAF count is well above 8 × 60 because several loops sh
 capture is missing the rAF slices entirely, `devtools.timeline` was rejected — check the spelling
 before reading anything into the result.
 
+### Measuring a cold open (heavy-project bench)
+
+The preload work is judged on four numbers — time-to-arm, time-to-arm **as a function of scene count**,
+peak memory during the open, and bytes read vs. bytes actually shown. None existed before; three seams
+now report them on every open, and two scripts make them a repeatable experiment:
+
+```bash
+# 1. generate a project whose size is a knob (real clips exercise decode; --synthetic is read-path only)
+node scripts/gen-heavy-project.cjs --out .traces/bench/heavy --scenes 60 --media D:\clips
+# 2. the bench must run the BUILT app — under the dev server, vite's cost is measured as ours
+npm run build
+# 3. open it headless N times, wait for the gate, collect all four metrics, print medians
+node scripts/bench-open.cjs --project .traces/bench/heavy/project.artlux --runs 3
+# 4. after a change: same command with --baseline .traces/bench/open-<label>-<stamp>.json → signed deltas
+```
+
+- **`[open] read/parse/resolve` (main log)** — `persistence.ts` times the three main-side terms
+  separately because they scale on different axes; the async-read/worker-parse decisions are gated on
+  which one dominates, not on intuition.
+- **`[ipc] read-file totals … — reset` (main log)** — every byte crossing `READ_FILE` is a whole file
+  loaded into renderer RAM; the counter resets when the boot gate arms, so one open's I/O is
+  attributable to that open. This is the "did we read 226 MB nobody looked at" number.
+- **`[open-trace] …` (renderer log) / `window.__artluxOpenTrace()`** — named marks from `apply-start`
+  through `scenes-normalized` (the per-scene cost) to `gate-armed`. `window.__artluxBootGate()` says
+  *why* the gate released (`ready`/`timeout`/`manual`).
+- A **`--synthetic`** project's videos are filler bytes: the gate always times out (nothing decodes),
+  so time-to-arm is pinned at `bootPreloadSec` by construction — use it for the read-path and
+  parse-vs-scenes questions, and real `--media` clips for anything about decode or arming.
+- The generator deliberately shapes the FSM to hit known preloader bugs (a 10-spoke hub state, a
+  `fromAny` edge) so their fixes are measurable — see `plans/` (preload optimization).
+
 ### 2b. "Everything is slow and the profiler blames `(program)`" → you are GPU-bound
 
 A V8 CPU profile that attributes 70–80% of the renderer to **`(program)`** with almost no idle is not

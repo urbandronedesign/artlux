@@ -32,6 +32,7 @@
 
 import { timeline as engine } from './timeline';
 import * as surfaceMedia from './surfaceMedia';
+import * as openTrace from './openTrace';
 import type { Surface, Timeline } from '../types';
 
 // A readiness contributor. `pending` names what is still missing (shown in the status chip and in the
@@ -128,6 +129,12 @@ function finish(byTimeout: boolean, elapsedSec: number): void {
   const more = pending.length - outstanding.length;
   timedOut = byTimeout;
   armedBy = byTimeout ? 'timeout' : 'ready';
+  // The whole open span is only known here — log the per-phase table (parse/apply/warm/…, see
+  // services/openTrace.ts) and tell main to report + reset its READ_FILE byte counter, so one open's
+  // I/O is attributable to that open and not smeared across a session.
+  openTrace.mark('gate-armed');
+  openTrace.logTable();
+  window.artlux?.perfOpenArmed?.();
   if (byTimeout) {
     // ERROR, not warn: the show is about to open on a hole. This line is what the venue log will be
     // read for the morning after.
@@ -156,6 +163,7 @@ function release(): void {
 // so this one call site covers all of them. Re-holding while already holding restarts the wait against
 // the new project, which is exactly right for a playlist switch.
 export function hold(next: { poolKey: string; timeline: Timeline; surfaces: Surface[] }): void {
+  openTrace.mark('gate-held');
   spec = next;
   startMs = performance.now();
   measured = false;
@@ -188,3 +196,10 @@ export function subscribe(cb: (p: BootProgress) => void): () => void {
 
 export const get = (): BootProgress => progress();
 export const isBooting = (): boolean => !!spec;
+
+// The cold-open bench (scripts/bench-open.cjs) reads armedBy/timedOut over CDP — renderer console
+// lines never reach main's stdout, so this is the only honest way for it to know WHY the gate
+// released. Same window-guarded pattern as openTrace / hapDecode's __artluxHapStats.
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxBootGate'] = get;
+}
