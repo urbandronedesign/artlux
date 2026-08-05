@@ -23,6 +23,7 @@ import { IPC } from '../../shared/protocol';
 import * as bootReport from './bootReport';
 import * as persistence from './persistence';
 import { clampUiScale } from './uiScale';
+import { rendererDevUrl } from './runProfile';
 
 const APP_PRELOAD = join(__dirname, '../preload/index.js');
 
@@ -218,7 +219,7 @@ export function open(): void {
     destroy();
   }, HARD_MS);
 
-  const devUrl = process.env['ELECTRON_RENDERER_URL'];
+  const devUrl = rendererDevUrl();
   if (devUrl) win.loadURL(`${devUrl}/splash.html`);
   else win.loadFile(join(__dirname, '../renderer/splash.html'));
 }

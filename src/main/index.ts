@@ -1,5 +1,5 @@
 import './threadpool'; // MUST stay first — sizes the libuv pool before anything can initialise it
-import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme } from 'electron';
+import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme, dialog } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
 import { openEnginePort, closeEnginePort } from './enginePort';
@@ -15,10 +15,17 @@ import * as nvwarp from './nvwarpManager';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import * as persistence from './persistence';
-import { profileQuery, CALIBRATION_ENABLED } from './runProfile';
+import { profileQuery, CALIBRATION_ENABLED, rendererDevUrl, relaunchArgs, missingBuiltRenderer } from './runProfile';
 import { IPC } from '../../shared/protocol';
 
-const APP_ICON = join(__dirname, '../../build/icon.png');
+// THE SHIPPED COPY, not the repo's. electron-builder's `files` is `out/**/*`, so `build/` — where the
+// icon sources live for the installer — is not in the asar at all. This pointed at `../../build/icon.png`,
+// which resolves in dev and NEVER in a packaged build, and the one caller that can fail wraps itself in
+// a try/catch: so packaged broadcast logged "[broadcast] tray failed" and ran on with no tray icon —
+// in the one mode that has no window and no menu, leaving Ctrl+Shift+Q as the operator's only way out.
+// `out/renderer/icon.png` is the Vite public asset every HTML entry already uses as its favicon, so it
+// is rebuilt on every `npm run build` and is inside `out/**/*`. Same relative path in both worlds.
+const APP_ICON = join(__dirname, '../renderer/icon.png');
 
 let mainWindow: BrowserWindow | null = null;
 let broadcastTray: Tray | null = null;
@@ -102,6 +109,26 @@ function editorQuery(): Record<string, string> | null {
     if (NEW_PROJECT_PATH) return { newProject: NEW_PROJECT_PATH, ...p };
     if (PROJECT_PATH) return { project: PROJECT_PATH, ...p };
     return Object.keys(p).length ? p : null;
+}
+
+/**
+ * Dev-only gate in front of an operator-initiated relaunch. True = refused, caller must return.
+ *
+ * A relaunch out of `npm run dev` lands on the BUILT renderer (see runProfile → --built-renderer),
+ * so if nobody has run `npm run build` there is nothing for the successor to load. Refusing here
+ * keeps the editor the developer is standing in alive and says why; the alternative is exiting into
+ * an invisible process that can never draw, which is the failure this whole path exists to end.
+ * Unpackaged only — a venue never sees it, and the unattended relaunch sites never call it.
+ */
+function refuseRelaunchWithoutBuild(what: string): boolean {
+    const missing = missingBuiltRenderer();
+    if (!missing) return false;
+    const msg = `Relaunching into ${what} loads the BUILT renderer, not the dev server — `
+        + `electron-vite shuts the dev server down when this process exits, so the new one could `
+        + `never reach it.\n\nRun "npm run build" once, then try again.\n\nMissing: ${missing}`;
+    console.error(`[main] relaunch into ${what} refused — ${missing} is missing (run npm run build)`);
+    dialog.showErrorBox('Build the renderer first', msg);
+    return true;
 }
 
 function createWindow(): void {
@@ -194,8 +221,30 @@ function createWindow(): void {
     // armed. See src/main/watchdog.ts → noteRendererUp and docs/WATCHDOG.md.
     mainWindow.webContents.on('did-finish-load', () => watchdog.noteRendererUp());
 
-    // electron-vite provides the dev server URL; fall back to the built file.
-    const devUrl = process.env['ELECTRON_RENDERER_URL'];
+    // A LOAD THAT FAILS MUST SAY SO — every reveal path above hangs off ready-to-show or
+    // did-finish-load, and NEITHER fires when the load itself fails. So a renderer that never
+    // arrives leaves the process alive with no window, no output and not one log line: exactly the
+    // "process alive, nothing on screen" state the reveal comments legislate against, reached from
+    // the other side. The watchdog cannot cover it either — it arms on did-finish-load (see
+    // noteRendererUp below), so a load that never finished never arms it.
+    mainWindow.webContents.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+        if (!isMainFrame) return;  // a subframe failing is not the app failing to boot
+        if (code === -3) return;   // ERR_ABORTED: a superseded or cancelled navigation, not a failure
+        console.error(`[main] RENDERER FAILED TO LOAD (${code} ${desc}) — ${url}`);
+        // In a show mode the window is invisible by design, so this is otherwise completely silent:
+        // the process would linger holding the metrics port, the Art-Net socket and the audio device
+        // while putting nothing on any wall. Exit non-zero and let the supervisor decide. The editor
+        // is left alone — its window is visible, Chromium renders its own error page, and a developer
+        // can just fix the dev server rather than have the app vanish from under them.
+        if (HEADLESS || BROADCAST) {
+            console.error('[main] no renderer means no output — exiting rather than lingering invisibly.');
+            app.exit(1);
+        }
+    });
+
+    // Where the renderer comes from. NOT process.env — a relaunched process inherits a dev-server URL
+    // whose server its own exit killed. runProfile.rendererDevUrl() is the single arbiter; see there.
+    const devUrl = rendererDevUrl();
     if (HEADLESS) {
         // Headless boots the FULL App entry (index.html) with ?headless=1, exactly like
         // broadcast — so the plugin host + show engine + schedule tick + media playback all run.
@@ -307,7 +356,8 @@ app.whenReady().then(() => {
     // or leaving the calibration workbench is a relaunch. Same proven mechanism as broadcast below;
     // `on` rather than `into` so one handler serves both directions.
     ipcMain.on(IPC.APP_RELAUNCH_PROFILE, (_e, on: boolean, projectPath: string) => {
-        const args = app.isPackaged ? [] : [app.getAppPath()];
+        if (refuseRelaunchWithoutBuild('the calibration workbench')) return;
+        const args = relaunchArgs();
         if (on) args.push('--calibrate');
         if (projectPath) args.push(`--project=${projectPath}`);
         releaseLockForRelaunch();
@@ -315,9 +365,8 @@ app.whenReady().then(() => {
         app.exit(0);
     });
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
-        // app.relaunch replaces argv. When unpacked (dev), argv is [electron, appPath, …flags],
-        // so we must re-pass the app path or Electron relaunches with no app (the welcome screen).
-        const args = app.isPackaged ? [] : [app.getAppPath()];
+        if (refuseRelaunchWithoutBuild('broadcast mode')) return;
+        const args = relaunchArgs();
         args.push('--broadcast');
         if (projectPath) args.push(`--project=${projectPath}`);
         releaseLockForRelaunch();

@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { IPC } from '../../shared/protocol';
+import { rendererDevUrl } from './runProfile';
 
 // Detached Docs & Tutorials window — a single normal framed window reusing the app preload so
 // window.artlux (docsList/docsRead/openExternal/docsOpenExample) works there. Static content, so plain
@@ -27,7 +28,7 @@ function open(initialId?: string): void {
   win.setMenuBarVisibility(false);
   win.on('closed', () => { win = null; });
 
-  const devUrl = process.env['ELECTRON_RENDERER_URL'];
+  const devUrl = rendererDevUrl();
   const q = initialId ? `?id=${encodeURIComponent(initialId)}` : '';
   if (devUrl) win.loadURL(`${devUrl}/docs.html${q}`);
   else win.loadFile(join(__dirname, '../renderer/docs.html'), initialId ? { query: { id: initialId } } : undefined);

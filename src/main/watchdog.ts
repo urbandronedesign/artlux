@@ -29,6 +29,7 @@ import { appendFileSync, readFileSync, writeFileSync, existsSync, unlinkSync } f
 import { join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import type { OutputStats, RendererFault, UnattendedPrefs, WatchdogEvent, WatchdogStatus } from '../../shared/protocol';
+import { relaunchArgs } from './runProfile';
 
 export const WATCHDOG_DEFAULTS: UnattendedPrefs = {
   enabled: false,
@@ -266,9 +267,10 @@ function maybeRelaunch(trigger: string, detail: string): void {
     saveRelaunchTimes(recent);
     logEvent(trigger, detail, 'relaunch', 'ok');
 
-    // Mirror the proven relaunch pattern (index.ts APP_RELAUNCH_BROADCAST / scheduler.ts): re-pass the
-    // app path when unpacked or Electron relaunches with no app; carry the current project forward.
-    const args = app.isPackaged ? [] : [app.getAppPath()];
+    // ONE relaunch argv builder for the whole app (runProfile.relaunchArgs): re-passes the app path
+    // when unpacked, and carries --built-renderer so the successor does not inherit a dev-server URL
+    // whose server this exit is about to kill. Carry the current project forward on top of it.
+    const args = relaunchArgs();
     args.push('--broadcast');
     if (project) args.push(`--project=${project}`);
     console.log('[watchdog] relaunch →', trigger, detail);

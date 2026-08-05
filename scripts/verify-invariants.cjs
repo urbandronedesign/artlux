@@ -3254,6 +3254,90 @@ check(
   },
 );
 
+// ── A relaunch must not inherit a dev-server URL whose server its own exit kills ───────────────
+check(
+  'window builders read the renderer URL through runProfile',
+  'In dev the app is a child of `electron-vite dev`, which exports ELECTRON_RENDERER_URL. Every ' +
+  'relaunch does `app.relaunch(); app.exit(0)`, app.relaunch hands the successor THIS process\'s ' +
+  'environment, and the exit(0) is exactly what makes electron-vite tear that dev server down. A ' +
+  'builder reading the env var directly therefore points the successor at a dead port for the rest ' +
+  'of its life. Nothing throws: main boots, argv is right, metrics answer mode="broadcast" — and ' +
+  'the renderer never paints, so no projector output is ever opened and "Launch in Broadcast Mode" ' +
+  'silently does nothing while the invisible process holds the ports. rendererDevUrl() is the one ' +
+  'sanctioned reader.',
+  () => {
+    const bad = [];
+    for (const f of walk('src/main').concat(walk('plugins'))) {
+      if (f === 'src/main/runProfile.ts') continue; // the arbiter itself
+      if (read(f).includes("ELECTRON_RENDERER_URL")) bad.push(f);
+    }
+    return bad.length ? `reads ELECTRON_RENDERER_URL directly instead of runProfile.rendererDevUrl(): ${bad.join(', ')}` : null;
+  },
+);
+
+check(
+  'every relaunch site builds argv with relaunchArgs()',
+  'Four sites relaunch the app (broadcast, calibration profile, watchdog self-heal, playlist ' +
+  'switch) and each used to hand-roll `app.isPackaged ? [] : [app.getAppPath()]`, every one ' +
+  'commented "mirror the proven relaunch pattern". They must also carry --built-renderer so the ' +
+  'successor does not chase the dev server this exit killed — and a hand-rolled copy is precisely ' +
+  'the one that will not, in the mode where nobody is watching.',
+  () => {
+    const bad = [];
+    for (const f of walk('src/main').concat(walk('plugins'))) {
+      if (f === 'src/main/runProfile.ts') continue; // where relaunchArgs() legitimately builds it
+      const src = read(f);
+      if (!src.includes('app.relaunch(')) continue;
+      if (/app\.isPackaged\s*\?\s*\[\]\s*:\s*\[\s*app\.getAppPath\(\)/.test(src) || !src.includes('relaunchArgs('))
+        bad.push(f);
+    }
+    return bad.length ? `relaunches with hand-rolled argv instead of runProfile.relaunchArgs(): ${bad.join(', ')}` : null;
+  },
+);
+
+check(
+  'a show-mode window reports a failed renderer load',
+  'ready-to-show and did-finish-load BOTH stay silent when the load itself fails, and the watchdog ' +
+  'arms on did-finish-load — so a renderer that never arrives leaves broadcast/headless alive with ' +
+  'no window, no output, no log line and nothing armed to notice, holding the metrics port, the ' +
+  'Art-Net socket and the audio device. That is the same "process alive, nothing on screen" state ' +
+  'the three reveal paths exist to prevent, reached from the other side.',
+  () => {
+    const src = read('src/main/index.ts');
+    const problems = [];
+    if (!src.includes("'did-fail-load'")) problems.push('main window has no did-fail-load handler');
+    else {
+      if (!src.includes('isMainFrame')) problems.push('did-fail-load does not filter subframes, so a subframe 404 would read as a boot failure');
+      if (!/code\s*===\s*-3/.test(src)) problems.push('did-fail-load does not ignore ERR_ABORTED (-3), so a superseded navigation would read as a failure');
+      if (!/app\.exit\(1\)/.test(src)) problems.push('a failed load in a show mode does not exit non-zero — it would linger invisibly holding ports');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── A runtime path that escapes out/ must have a packaged counterpart ─────────────────────────
+check(
+  'main-process asset paths survive packaging',
+  'electron-builder packs `files: ["out/**/*"]`, so ONLY out/ is inside the asar. A ' +
+  '`join(__dirname, "../../x")` therefore resolves in dev and never in a shipped build. The tray ' +
+  'icon did exactly this — `../../build/icon.png`, which is where the INSTALLER\'s icon sources ' +
+  'live, not the app\'s — and `new Tray()` is wrapped in a try/catch, so packaged broadcast logged ' +
+  'one line and ran on with no tray: in the single mode that has no window and no menu, which left ' +
+  'Ctrl+Shift+Q as the operator\'s only way to quit a live show. Escape out/ only alongside a ' +
+  'process.resourcesPath branch (how every native addon and the docs/fixture-library do it).',
+  () => {
+    const bad = [];
+    for (const f of walk('src/main')) {
+      const src = read(f);
+      const escapes = src.match(/join\(__dirname,\s*'\.\.\/\.\.\/[^']*'/g);
+      if (!escapes) continue;
+      if (src.includes('process.resourcesPath')) continue; // has the packaged branch
+      bad.push(`${f} (${escapes.join(', ')})`);
+    }
+    return bad.length ? `runtime path escapes out/ with no process.resourcesPath fallback: ${bad.join('; ')}` : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

@@ -9,6 +9,7 @@
 // it only reports status. The operator explicitly starts the playlist in broadcast (startBroadcast).
 
 import { app } from 'electron';
+import { relaunchArgs } from '../../../src/main/runProfile'; // host relaunch seam (main-side, in-process)
 import { getPlaylist, resolve, minuteOfWeek } from './playlist';
 import type { PlaylistStatus } from './types';
 
@@ -24,12 +25,13 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let onStatus: ((s: PlaylistStatus) => void) | null = null;
 let relaunching = false;
 
-// Relaunch the app into broadcast mode loading `projectPath`. Mirrors main/index.ts's
-// APP_RELAUNCH_BROADCAST: re-pass the app path when unpacked, else Electron relaunches with no app.
+// Relaunch the app into broadcast mode loading `projectPath`. The argv base comes from the host's
+// ONE relaunch builder (re-passes the app path when unpacked; carries --built-renderer so the
+// successor does not inherit a dev-server URL whose server this exit kills).
 export function relaunchBroadcast(projectPath: string): void {
   if (relaunching) return;
   relaunching = true;
-  const args = app.isPackaged ? [] : [app.getAppPath()];
+  const args = relaunchArgs();
   args.push('--broadcast');
   if (projectPath) args.push(`--project=${projectPath}`);
   console.log('[show-control] relaunch → broadcast', projectPath);

@@ -284,7 +284,28 @@ change to the output layer, the projector IPC, the SDK, the calibration plugin, 
   `setupBroadcastControls()` (Tray + `globalShortcut` Ctrl/Cmd+Shift+Q). `before-quit` unregisters the
   shortcut, destroys the tray, and `closeAllProjectors()`.
 - File-menu **Launch in Broadcast Mode** → App saves, then `relaunchBroadcast(path)` IPC
-  (`APP_RELAUNCH_BROADCAST` → `app.relaunch({args:['--broadcast','--project='+path]}); app.exit(0)`).
+  (`APP_RELAUNCH_BROADCAST` → `app.relaunch({args: [...relaunchArgs(), '--broadcast', '--project='+path]});
+  app.exit(0)`).
+- **All four relaunch sites** (this one, the calibration profile, the watchdog self-heal and the
+  playlist switch) build argv with **`runProfile.relaunchArgs()`** — never by hand. It re-passes the app
+  path when unpacked *and* adds **`--built-renderer`**, which every window builder honours through
+  `runProfile.rendererDevUrl()` instead of reading `ELECTRON_RENDERER_URL` itself.
+
+  **Why (this bit is load-bearing in dev).** `app.relaunch` spawns the successor with *this* process's
+  environment — there is no `env` option — so it inherits electron-vite's `ELECTRON_RENDERER_URL`. But
+  the `app.exit(0)` is exactly what makes electron-vite tear that dev server down. Without the flag the
+  successor points at a dead port for its whole life: main boots, argv is right, the tray appears,
+  `/metrics` answers `mode="broadcast"` — and the renderer never paints, so **no projector output ever
+  opens and the menu item looks like it did nothing**. Out of `npm run dev`, broadcast therefore runs the
+  **built** renderer, so `npm run build` must be current for it to reflect your renderer edits (main
+  refuses the relaunch with a dialog if `out/renderer/index.html` is missing). Guarded by
+  `npm run verify:invariants`.
+- **A failed renderer load is fatal in a show mode.** `did-fail-load` (main frame, ignoring
+  `ERR_ABORTED`) logs and calls `app.exit(1)` under `--broadcast`/`--headless`: those windows are
+  invisible by design, `ready-to-show`/`did-finish-load` never fire on a failed load, and the watchdog
+  arms on `did-finish-load` — so without this the process lingers with no output, no log and nothing
+  armed to notice, holding the metrics port, the Art-Net socket and the audio device. The editor is left
+  alone (visible window, Chromium's own error page).
 
 ### Build
 `electron.vite.config.ts` adds the `projector` HTML rollup input (alongside `index` and `docs`).

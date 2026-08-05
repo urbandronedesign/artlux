@@ -13,6 +13,17 @@ the system fits together and [PROGRESS.md](PROGRESS.md) for the running build lo
 6. **Release** = bump version + CHANGELOG, commit, **tag `vX.Y.Z`**, push the tag → CI builds + publishes
    (see Release process).
 
+> **Testing broadcast (or the calibration profile) out of `npm run dev` runs the BUILT renderer.**
+> Both are *relaunches*, and a relaunch cannot use the dev server: `app.relaunch` hands the successor
+> this process's environment (including `ELECTRON_RENDERER_URL`), but the `app.exit(0)` that follows is
+> what makes electron-vite shut that server down. So the relaunch carries `--built-renderer` and loads
+> `out/renderer/` from disk — **run `npm run build` first, or you will be testing your last build's
+> renderer, not your edits.** Main refuses the relaunch with a dialog if there is no build at all. Left
+> unhandled this was silent: the app relaunched into an invisible broadcast process that never painted a
+> frame, so no projector output opened, the menu item looked inert, and the dead process went on holding
+> the metrics port and the audio device — which then broke the *next* `npm run dev`. If broadcast shows
+> nothing, check stderr for `[main] RENDERER FAILED TO LOAD`. See OUTPUTS.md → Broadcast launch.
+
 The **3D scene** lives in the main mapping window (`index.html`/`App.tsx`) as a split-view pane —
 the `Simulator3D` canvas plus the `ScenePanel3D` outliner (OBJECTS / FIXTURES / transform / LIGHTING),
 toggled from the Stage toolbar. It reads live LED data, the timeline engine, and tracking in-process,
