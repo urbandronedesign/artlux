@@ -69,7 +69,7 @@ const api: ArtluxApi = {
     nvwarpClear: (electronDisplayId: number) => ipcRenderer.send(IPC.NVWARP_CLEAR, electronDisplayId),
     // MPCDI interchange
     exportMpcdi: (regions: unknown[]) => ipcRenderer.invoke(IPC.MPCDI_EXPORT, regions),
-    importMpcdi: () => ipcRenderer.invoke(IPC.MPCDI_IMPORT),
+    importMpcdi: (path?: string) => ipcRenderer.invoke(IPC.MPCDI_IMPORT, path),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

@@ -3131,6 +3131,43 @@ check(
   },
 );
 
+// ── A show machine boots calibrated, with nobody there to load anything ───────────────────────
+check(
+  'an imported calibration is remembered and restored on boot',
+  'The map is venue state, so its PATH lives in prefs (per machine, never in the project - one file ' +
+  'serves every show run in that room) and its ~10 MB of pixels are re-read at startup rather than ' +
+  'persisted. Without the remembered path the import survived only until the process did, which is ' +
+  'fine for an editor and wrong for an install: `--broadcast` renders the Stage and its outputs and ' +
+  'NO editor chrome, so there is no panel to import from and no operator to click it. A baked ' +
+  'calibration was therefore unreachable in the one mode that exists to run it, and the failure is ' +
+  'silent - the show starts, the wall is simply wrong. Two halves, and either alone is useless: ' +
+  'writing the path on import, and reading it back when the plugin activates.',
+  () => {
+    const problems = [];
+    if (!/calibrationFile\?: string/.test(read('shared/protocol.ts')))
+      problems.push('Prefs has no calibrationFile — there is nowhere to remember a venue calibration');
+    // Boot-time restore must not need a dialog: nobody is there to answer one.
+    const ipc = stripComments(read('src/main/ipc.ts'));
+    if (!/MPCDI_IMPORT, async \(e, path\?: string\)/.test(ipc))
+      problems.push('the MPCDI import handler takes no path — a show machine would have to answer a file dialog to be calibrated');
+    const panel = stripComments(read('plugins/calibration/src/ImportPanel.tsx'));
+    if (!/setPrefs\?\.\(\{ calibrationFile: res\.path \}\)/.test(panel))
+      problems.push('importing no longer remembers the path — the calibration would be lost on the next start');
+    if (!/setPrefs\?\.\(\{ calibrationFile: '' \}\)/.test(panel))
+      problems.push('unloading no longer forgets the path — the next start would silently re-load what was just withdrawn');
+    const plug = stripComments(read('plugins/calibration/src/plugin.renderer.ts'));
+    if (!/getPrefs\?\.\(\)\)\?\.calibrationFile/.test(plug))
+      problems.push('the plugin never reads the remembered path — a broadcast install would boot uncalibrated with nothing to say so');
+    // ⚠ The restore must sit in the PLAYBACK half. Below the authoring gate it still works under
+    // --broadcast (which implies it) and silently does nothing in a plain editor launch.
+    const gate = plug.indexOf('if (!isAuthoringLaunch()) return;');
+    const restore = plug.indexOf('calibrationFile');
+    if (gate >= 0 && restore > gate)
+      problems.push('the boot restore sits below the authoring gate — a plain editor launch would never reload its venue calibration');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

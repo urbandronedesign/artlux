@@ -25,12 +25,24 @@ export const ImportPanel: React.FC = () => {
   const [note, setNote] = useState<string | null>(null);
 
   // Import is a MAIN-process dialog + parse; the regions arrive as plain structured-cloned data.
+  //
+  // The PATH is remembered in prefs — per machine, never in the project, because a calibration
+  // describes the room rather than the show. That is also the only thing that makes a baked map reach
+  // a `--broadcast` install, which has no chrome to import from and nobody to click it. The pixels are
+  // never persisted: ~10 MB per projector, re-read from this path at startup.
   const importRig = async (): Promise<void> => {
     setNote(null);
     const res = await window.artlux?.importMpcdi?.();
     if (!res) { setNote('Import cancelled, or the file could not be read.'); return; }
     if (!res.regions.length) { setNote('That file parsed but declares no regions.'); return; }
     baked.set({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
+    void window.artlux?.setPrefs?.({ calibrationFile: res.path });
+  };
+
+  const unload = (): void => {
+    baked.set(null);
+    // Forget the path too, or the next start would silently re-load what was just withdrawn.
+    void window.artlux?.setPrefs?.({ calibrationFile: '' });
   };
 
   return (
@@ -45,7 +57,7 @@ export const ImportPanel: React.FC = () => {
           // Withdrawing has to be as reachable as loading: a stale map keeps warping the output through
           // geometry the venue no longer has, and re-calibrating an output means clearing its import
           // first (a wizard's Verify step renders live, and a loaded map supersedes exactly that).
-          <button onClick={() => baked.set(null)}
+          <button onClick={unload}
             title="Unload the calibration and return every output to its own warp"
             className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-surface-2 border border-line-1 text-fg-2">
             <X size={12} /> Unload

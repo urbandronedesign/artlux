@@ -32,6 +32,9 @@ type PatternShown = { t: 'patternShown'; index: number; projW: number; projH: nu
 
 let msgUnsub: (() => void) | null = null;
 let venueUnsub: (() => void) | null = null;
+// Playback-half subscriptions — see the two events in activate().
+let outsUnsub: (() => void) | null = null;
+let readyUnsub: (() => void) | null = null;
 let cmdUnsubs: (() => void)[] = [];
 
 // A hidden show-engine window (--broadcast / --headless). App renders null there, so Simulator3D —
@@ -68,11 +71,41 @@ export const plugin: RendererPlugin = {
 
     // ── PLAYBACK — always on, in every launch profile ───────────────────────────────────────────
     //
-    // A baked calibration map has to reach a window that OPENS LATER. Importing a venue's file and
-    // then enabling its outputs is the ordinary order of events, and without this the map would be
-    // sent to windows that did not exist yet and never to the ones that do. Edge-triggered on the
-    // outputs list, not polled — a map is ~10 MB and this only has to fire when the rig changes.
-    if (ctx.window === 'main') ctx.host.projectorOutputs.subscribe(() => baked.pushToProjectors());
+    // A baked map reaches its window on TWO events, because neither one alone is enough.
+    //
+    //   the outputs list changed — a map was imported, withdrawn, or the rig was re-patched. Sweeps
+    //   every output, and is the only thing that can WITHDRAW one. Edge-triggered, not polled: a map
+    //   is ~10 MB and this only has to fire when the rig changes.
+    //
+    //   a window said `ready` — it exists and its bridge port is up. The list subscription fires when
+    //   an output is ENABLED, which is strictly earlier: the window is still opening and the send
+    //   lands on nothing. Enabling an output after loading a venue's file is the ordinary order of
+    //   events, so without this the projector plays undeformed content while the import panel
+    //   correctly reports the map as loaded — a pairing with nothing in it that looks like a lie.
+    if (ctx.window === 'main') {
+      outsUnsub = ctx.host.projectorOutputs.subscribe(() => baked.pushToProjectors());
+      readyUnsub = ctx.host.projectors.onMessage((surfaceId, msg) => {
+        if ((msg as { t?: string }).t === 'ready') baked.pushToProjector(surfaceId);
+      });
+      // BOOT-TIME RESTORE — what makes a show machine come back calibrated.
+      //
+      // The map is venue state, so its PATH lives in prefs (per machine) and its pixels are re-read
+      // here rather than persisted. Without this the import survived only until the process did, which
+      // is fine for an editor and wrong for an install: `--broadcast` has no chrome to import from and
+      // no operator, so a baked calibration could never reach the one mode that exists to run it.
+      //
+      // Failure is deliberately quiet and non-fatal — a moved file or an unmounted drive leaves the
+      // rig empty and every output on its own warp, which is a show that starts and looks wrong rather
+      // than a show that does not start.
+      void (async () => {
+        const p = (await window.artlux?.getPrefs?.())?.calibrationFile;
+        if (!p) return;
+        const res = await window.artlux?.importMpcdi?.(p);
+        if (!res?.regions.length) { console.warn(`[calibration] remembered calibration could not be loaded: ${p}`); return; }
+        console.info(`[calibration] restored ${res.regions.length} region(s) from ${p}`);
+        baked.set({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
+      })();
+    }
 
     // The door to that, in the context the outputs already live in — so a plain editor launch can load
     // a venue's calibration without the authoring half existing at all. See ImportPanel.
@@ -163,6 +196,8 @@ export const plugin: RendererPlugin = {
   deactivate(): void {
     msgUnsub?.(); msgUnsub = null;
     venueUnsub?.(); venueUnsub = null;
+    outsUnsub?.(); outsUnsub = null;
+    readyUnsub?.(); readyUnsub = null;
     for (const u of cmdUnsubs) u();
     cmdUnsubs = [];
   },

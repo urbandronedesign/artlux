@@ -1186,6 +1186,18 @@ export interface Prefs {
       what this GPU can afford, so it must not travel to the venue inside a show file. Absent = 1.
       Halving it quarters the fragment work in that viewport — the largest fill-rate lever there is. */
   scene3dRenderScale?: number;
+  /** Path to the baked projector calibration (.mpcdi) this MACHINE plays, reloaded on boot.
+   *
+   *  Per-machine and not per-project on purpose: a calibration describes the ROOM. One file serves
+   *  every project run in that venue, and re-aligning must not mean re-saving twelve `.artlux` files.
+   *  The pixels themselves are never persisted anywhere — ~10 MB per projector, loaded from this path
+   *  into memory at startup.
+   *
+   *  ⚠ It is the ONLY way a show machine can be calibrated by a baked map. `--broadcast` renders the
+   *  Stage and its outputs and no editor chrome at all, so there is no panel to import from and no
+   *  operator to click it; without a remembered path the map was an editor-only feature, unreachable
+   *  in the mode it exists for. Absent = no baked calibration, outputs use their own warp. */
+  calibrationFile?: string;
   /** Ceiling on how often the 3D Scene viewport redraws, in Hz. 0 / absent = the display's own rate,
       which is what it has always done. Per-MACHINE for the same reason as scene3dRenderScale.
       This does NOT touch the frame engine: compositing, GPU sampling and Art-Net stay at the engine
@@ -1398,7 +1410,9 @@ export interface ArtluxApi {
    * a calibration describes an install and goes stale invisibly when the venue moves, so the one
    * thing an operator must be able to see is which file is loaded. Null when cancelled or unreadable.
    */
-  importMpcdi(): Promise<{ path: string; regions: MpcdiRegion[] } | null>;
+  /** Read a baked calibration. With `path`, reads it directly; without, asks the operator for one.
+   *  The path form is what boot-time restore uses — a show machine has nobody to answer a dialog. */
+  importMpcdi(path?: string): Promise<{ path: string; regions: MpcdiRegion[] } | null>;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

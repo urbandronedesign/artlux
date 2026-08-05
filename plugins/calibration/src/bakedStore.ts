@@ -71,17 +71,31 @@ export function set(next: ImportedRig | null): void { rig = next; emit(); pushTo
  */
 export function pushToProjectors(): void {
   const outs = (getHost()?.projectorOutputs.list() ?? []) as Array<{ surfaceId: string }>;
-  for (const o of outs) {
-    const r = regionFor(o.surfaceId);
-    // Only a 'uv' region is playable here. A 'world' map parses and describes real geometry, but the
-    // projector has no venue to resolve it against — sending it would silently do nothing, so it is
-    // withdrawn instead and `describe()` says why.
-    const playable = r && r.geo.kind === 'uv';
-    sendToProjector(o.surfaceId, {
-      t: 'bakedMap',
-      map: playable ? { w: r.geo.w, h: r.geo.h, uv: r.geo.xyz } : null,
-    });
-  }
+  for (const o of outs) pushToProjector(o.surfaceId);
+}
+
+/**
+ * One output's map — or an explicit `null` if it has none.
+ *
+ * Separate from the sweep above because the two triggers are different EVENTS, and the difference is
+ * what made an imported calibration silently not arrive: the outputs-list subscription fires when an
+ * output is ENABLED, which is before its window exists and before its bridge port is up, so the map is
+ * sent into nothing. A window announces it can receive by saying `ready`, and that is when this runs.
+ *
+ * Enabling an output after loading a venue's file is the ordinary order of events, so without the
+ * per-window push a show machine's projector plays undeformed content and the import panel still
+ * reports the map as loaded — true, and useless.
+ */
+export function pushToProjector(surfaceId: string): void {
+  const r = regionFor(surfaceId);
+  // Only a 'uv' region is playable here. A 'world' map parses and describes real geometry, but the
+  // projector has no venue to resolve it against — sending it would silently do nothing, so it is
+  // withdrawn instead and `describe()` says why.
+  const playable = r && r.geo.kind === 'uv';
+  sendToProjector(surfaceId, {
+    t: 'bakedMap',
+    map: playable ? { w: r.geo.w, h: r.geo.h, uv: r.geo.xyz } : null,
+  });
 }
 
 /**

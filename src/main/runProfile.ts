@@ -9,12 +9,20 @@
 // a depth pass and two postprocessing effects — because a solve has to be verified against the real
 // wall. That is correct for calibrating and for running a show, and ruinous while authoring.
 //
-// Measured on the dev laptop (Intel Iris Xe), same project, same build:
-//   • output open, NOT calibrated → the editor holds 60 fps (render 59.9, Art-Net 56)
-//   • output open, calibrated     → the WHOLE app falls to 17.6 fps, including editor contexts that
-//                                   draw no 3D at all
-// Capping the calibrated scene helps a little and cannot close that gap: the cost is the second
-// scene existing, not the rate it draws at (caps of 15 and 30 measured the same).
+// ⚠ CORRECTED. This block used to read "60 fps against 17.6, same project, same build". It was not
+// the same project — the two figures came from two different ones, and the gap was mostly the
+// projects. Controlled, on ONE project, it measured 38.9 uncalibrated against 34.4 calibrated: real,
+// worth avoiding while authoring, and nowhere near a 3.4× cliff. The claim is left here rather than
+// deleted because it was quoted onward into `renderer/host/plugins.ts` and into an invariant's
+// rationale before anyone re-measured it, and a number that travels that far deserves a correction
+// that travels with it. Capping the calibrated scene does not close even the real gap: the cost is
+// the second scene EXISTING, not the rate it draws at (caps of 15 and 30 measured the same).
+//
+// Since then a baked calibration map supersedes that second scene outright (ProjectorApp's
+// applyCalibMode), so a calibrated output that plays a map costs one fragment shader. What remains
+// behind this profile is AUTHORING — the wizards, the camera, OpenCV, and the live venue render you
+// align against — which the calibration plugin now gates itself (isAuthoringLaunch), so that playing
+// a calibration no longer requires the machinery for making one.
 //
 // So the editor drops it, and everything that actually puts light on a wall keeps it:
 //   editor      → OFF unless --calibrate

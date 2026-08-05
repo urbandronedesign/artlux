@@ -253,13 +253,24 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         try { writeFileSync(res.filePath, buildMpcdi(regions)); return res.filePath; }
         catch (err) { console.warn('[mpcdi] export failed:', (err as Error)?.message ?? err); return null; }
     });
-    ipcMain.handle(IPC.MPCDI_IMPORT, async (e) => {
-        const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined;
-        const opts = { title: 'Import MPCDI', filters: [{ name: 'MPCDI', extensions: ['mpcdi'] }], properties: ['openFile' as const] };
-        const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
-        if (res.canceled || !res.filePaths[0]) return null;
-        try { return { path: res.filePaths[0], regions: parseMpcdi(readFileSync(res.filePaths[0])) }; }
-        catch (err) { console.warn('[mpcdi] import failed:', (err as Error)?.message ?? err); return null; }
+    // With a path, read it; without, ask. The path form serves BOOT-TIME RESTORE, which is the only
+    // way a `--broadcast` machine is ever calibrated by a baked map: it renders no editor chrome, so
+    // there is no import panel and no operator to answer a dialog. It is also what makes the whole
+    // path testable without driving a native file picker.
+    ipcMain.handle(IPC.MPCDI_IMPORT, async (e, path?: string) => {
+        let file = path;
+        if (!file) {
+            const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+            const opts = { title: 'Import MPCDI', filters: [{ name: 'MPCDI', extensions: ['mpcdi'] }], properties: ['openFile' as const] };
+            const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+            if (res.canceled || !res.filePaths[0]) return null;
+            file = res.filePaths[0];
+        }
+        // A remembered path can go stale — the venue file moved, the drive is not mounted, someone
+        // tidied up. Say so once and return null; the caller treats it exactly like a cancelled
+        // dialog, so a show still boots and simply runs uncalibrated rather than failing to start.
+        try { return { path: file, regions: parseMpcdi(readFileSync(file)) }; }
+        catch (err) { console.warn(`[mpcdi] import failed (${file}):`, (err as Error)?.message ?? err); return null; }
     });
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
