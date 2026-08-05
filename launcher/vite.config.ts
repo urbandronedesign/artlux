@@ -7,7 +7,18 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
-  server: { port: 5173, strictPort: true },
+  server: {
+    port: 5173,
+    strictPort: true,
+    // DO NOT WATCH THE RUST BUILD TREE. `tauri dev` starts this server as its beforeDevCommand and
+    // *then* runs cargo in the same folder, so chokidar walks into src-tauri/target and opens a
+    // watch on the launcher binary while the linker is still writing it. Windows answers EBUSY,
+    // chokidar re-emits that as an unhandled 'error' on the FSWatcher, Vite dies — and Tauri then
+    // aborts with "The beforeDevCommand terminated with a non-zero status code", which names the
+    // wrong culprit entirely. It only bites on a run that actually links, i.e. the first `npm start`
+    // after any Rust edit, which is exactly when you need it to work.
+    watch: { ignored: ['**/src-tauri/**'] },
+  },
   build: { outDir: 'dist', emptyOutDir: true, target: 'esnext' },
   // POSTCSS OFF, EXPLICITLY. Vite searches UPWARD for a postcss config and finds the APP's
   // postcss.config.js at the repo root, which requires tailwindcss — a dependency of the app's
