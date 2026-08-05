@@ -339,16 +339,84 @@ function syncContentLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: num
 
 // --- Per-scene timeline swap helpers (main window only) ------------------------------------------
 
-// Warm shared, path-keyed media for a timeline's clips (blob URLs + codec sessions). Idempotent and
-// cheap — mediaCache and codec preWarm both dedupe by path. Shared by setData (cold) and warmPool.
-function warmMedia(t: Timeline): void {
-  for (const c of t.clips) {
-    if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video / lazy content
-    const codec = videoCodecRegistry.forPath(c.path);
-    if (codec) codec.preWarm(c.path);
-    else ensureBlob(c.path);
+// ── WARMING IS A RELEVANCE WINDOW, NOT THE WHOLE DOCUMENT ────────────────────────────────────────
+// warmMedia used to loop EVERY clip of the timeline and read each one's whole file over IPC — at
+// project open, on every GO, and for every FSM look-ahead state. A 40-clip scene was 40 whole-file
+// reads for material that might play twenty minutes from now, and it was the single largest share of
+// a heavy project's open I/O (measured with scripts/bench-open.cjs — metric D). Now it warms only
+// what a promoted pool can actually SHOW soon:
+//   · the start clip of every layer — exactly the set warmPoolVideos seeks and poolReadiness judges,
+//     so the boot gate's contract is unchanged;
+//   · plus clips intersecting the next WARM_AHEAD_SEC of playback, a window frame() advances ahead
+//     of the playhead while playing (and mainSeek re-bases on every jump).
+// Everything else loads ON DEMAND, which already works and is why this is safe: syncVideoLayer calls
+// ensureBlob the moment an unwarmed clip becomes active, and poolReadiness re-drives warmPoolVideos
+// every gate poll. The fallback existed before this window did — the window only stops the flood.
+//
+// WARM_AHEAD_SEC is generous ON PURPOSE: until media streams (the artlux-media:// protocol phase), a
+// miss here is a whole-file IPC read DURING the show — a documented ~20-dropped-frame event
+// (docs/TIMELINE.md). Shrink it only after reads stop being whole-file.
+const WARM_AHEAD_SEC = 20;
+
+// Blob reads are issued through a small FIFO, ≤ WARM_INFLIGHT outstanding (mirrors hapDecode's
+// MAX_INFLIGHT and the reasoning there): an unbounded burst of whole-file reads stalls main's event
+// loop and starves the read the FIRST frame is actually waiting on. Start clips queue at the FRONT —
+// they are what the gate holds the show for. Codec preWarm (mp4 demux, HAP open) is NOT run through
+// this queue: the SDK contract is fire-and-forget (`preWarm(path): void`, nothing to await), so the
+// window bounds its COUNT and the codec's own pipeline bounds its concurrency.
+const WARM_INFLIGHT = 3;
+const warmQueue: string[] = [];
+const warmQueued = new Set<string>();
+let warmActive = 0;
+
+function pumpWarmQueue(): void {
+  while (warmActive < WARM_INFLIGHT && warmQueue.length) {
+    const path = warmQueue.shift()!;
+    warmQueued.delete(path);
+    if (getBlobUrl(path)) continue; // landed (or was read by someone else) while queued
+    warmActive++;
+    void ensureBlobUrl(path, 'video/mp4').finally(() => { warmActive--; pumpWarmQueue(); });
   }
 }
+
+function queueWarm(path: string, front = false): void {
+  if (!path || getBlobUrl(path) || warmQueued.has(path)) return;
+  warmQueued.add(path);
+  if (front) warmQueue.unshift(path); else warmQueue.push(path);
+  pumpWarmQueue();
+}
+
+// Queue warm-ups for every video clip intersecting [fromSec, fromSec + WARM_AHEAD_SEC). Idempotent —
+// mediaCache, the queue's dedupe set and codec preWarm are all path-keyed.
+function warmWindow(t: Timeline, fromSec: number): void {
+  for (const c of t.clips) {
+    if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video / lazy content
+    if (c.start >= fromSec + WARM_AHEAD_SEC || c.start + c.duration <= fromSec) continue; // outside the window
+    const codec = videoCodecRegistry.forPath(c.path);
+    if (codec) codec.preWarm(c.path);
+    else queueWarm(c.path);
+  }
+}
+
+// Warm what a pool needs to PROMOTE cleanly: each layer's start clip (front of the queue — the gate
+// waits on these) plus the opening window. Shared by setData (cold), warmPool (standby) and swap.
+function warmMedia(t: Timeline): void {
+  const startT = timelineStart(t);
+  for (const l of t.layers) {
+    if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
+    const sc = startClip(t, l.id);
+    if (!sc || isContentClip(sc.clip)) continue;
+    const codec = videoCodecRegistry.forPath(sc.clip.path);
+    if (codec) codec.preWarm(sc.clip.path);
+    else queueWarm(sc.clip.path, true);
+  }
+  warmWindow(t, startT);
+}
+
+// How far ahead of the ACTIVE document's playhead media has been queued. -Infinity forces the next
+// frame to re-warm around wherever the playhead now is — set on every seek/swap/edit, because a jump
+// invalidates the window and re-scanning t.clips once is cheaper than being wrong about it.
+let warmHorizon = -Infinity;
 
 // The clip visible at a timeline's start on a given layer — the frame a clean restart shows. Uses the
 // GUARDED start (timelineStart), not the raw in-point: a junk `inPoint` would make startT NaN, match no
@@ -477,6 +545,7 @@ function mainSeek(sec: number): void {
   originMs = performance.now() - clamped * 1000;
   prevPlayhead = clamped;
   endLatched = false; // a deliberate jump re-arms the end
+  warmHorizon = -Infinity; // the warm window was built around the OLD playhead — re-base next frame
 }
 
 // The show clock's mainSeek — the ONLY thing that moves showTime from outside the frame loop.
@@ -908,6 +977,14 @@ function frame(now: number): void {
       //
       // Mirror windows never reach here (`!external`), so they still cannot emit intents.
       if (pausePending && endLatched) emitIntent({ kind: 'pause' });
+    }
+    // ADVANCE THE WARM WINDOW ahead of a running playhead — the other half of warmMedia's relevance
+    // window. One comparison per frame; the rescan runs only when the playhead crosses the half-window
+    // boundary (every WARM_AHEAD_SEC/2 of playback) or after a seek/swap reset the horizon. Mirror
+    // windows never warm (no blobs to manage there — see `external` above).
+    if (!external && playing && playhead + WARM_AHEAD_SEC / 2 > warmHorizon) {
+      warmWindow(data, playhead);
+      warmHorizon = playhead + WARM_AHEAD_SEC;
     }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.

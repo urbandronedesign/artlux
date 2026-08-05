@@ -1102,6 +1102,35 @@ check(
   },
 );
 
+// ── Preload: warming reads what plays next, not the whole document ────────────────────────────
+check(
+  'warmMedia warms a relevance window, not every clip',
+  'warmMedia used to loop EVERY clip of a timeline and read each one\'s whole file over IPC — at ' +
+  'project open, on every GO, and once per FSM look-ahead state. A 40-clip scene was 40 whole-file ' +
+  'reads for material that might play twenty minutes later, and on a heavy show it was the largest ' +
+  'single share of the open\'s I/O (metric D, scripts/bench-open.cjs). The fix is a window: each ' +
+  'layer\'s START clip (the set poolReadiness judges, so the gate\'s contract is unchanged) plus the ' +
+  'next WARM_AHEAD_SEC, advanced by frame() while playing. It reverts silently — the app still runs, ' +
+  'the show still plays, and only the open gets slow again — so it is asserted here.',
+  () => {
+    const src = read('src/renderer/services/timeline.ts');
+    const problems = [];
+    const body = fnBody(src, 'warmMedia');
+    if (!body) return 'warmMedia() not found in services/timeline.ts';
+    // The window is built from each layer's start clip, never from a bare walk of t.clips.
+    if (!body.includes('startClip(')) problems.push('warmMedia no longer warms per-layer start clips (startClip) — the gate waits on exactly those');
+    if (/for \(const c of t\.clips\)/.test(body)) problems.push('warmMedia walks every clip in the document again — that is the flood this check exists to prevent');
+    // The look-ahead half, and the bound on issuance.
+    if (!src.includes('WARM_AHEAD_SEC')) problems.push('WARM_AHEAD_SEC is gone — there is no look-ahead window');
+    if (!src.includes('WARM_INFLIGHT')) problems.push('WARM_INFLIGHT is gone — blob reads are issued unbounded again');
+    // The window must ADVANCE, or a clip past the opening window never warms until it is already live.
+    if (!fnBody(src, 'frame')?.includes('warmWindow(')) problems.push('frame() no longer advances the warm window — clips past the opening window warm only once they are on screen');
+    // A seek/swap invalidates a window built around the old playhead.
+    if (!fnBody(src, 'mainSeek')?.includes('warmHorizon')) problems.push('mainSeek does not reset warmHorizon — after a jump the window still describes the OLD playhead');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Timeline: one track, one clip at a time ───────────────────────────────────────────────────
 check(
   'clips cannot be stacked on a track',

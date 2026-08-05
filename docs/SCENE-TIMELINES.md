@@ -183,9 +183,16 @@ possible. The preloader keeps a small **sliding window of warmth** that follows 
 
 | Tier | Count | Decoder | Live sources (NDI/cam/Spout/DMX) | Blobs |
 |---|---|---|---|---|
-| **ACTIVE** | exactly 1 | playing | acquired | resident |
-| **WARM** (standby) | ≤ `MAX_WARM` (≈2) | paused, pre-seeked (~0 CPU) | **not** connected | resident |
+| **ACTIVE** | exactly 1 | playing | acquired | window-resident (see below) |
+| **WARM** (standby) | ≤ `MAX_WARM` (≈2) | paused, pre-seeked (~0 CPU) | **not** connected | opening window only |
 | **COLD** | the rest | none (torn down) | none | evictable |
+
+**What "resident" means for a pool — a window, not a whole timeline.** Warming a pool does *not* load
+every clip in its timeline; that flood was the largest share of a heavy project's open I/O. It loads
+each layer's **start clip** (precisely what the cold-start gate waits on) plus everything inside the
+next `WARM_AHEAD_SEC` (20 s), at most `WARM_INFLIGHT` (3) reads in flight, with the ACTIVE pool's
+window advancing ahead of its playhead as the show runs. A clip outside the window loads on demand the
+moment it becomes active — `syncVideoLayer` already did that, which is what makes a bounded window safe.
 
 - `warm(poolKey, tl)` warms one scene and trims to budget; `predict(entries)` warms a set;
   `evictExcess(protect)` demotes least-recently-used standby pools past `MAX_WARM` (never the active /

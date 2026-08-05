@@ -211,6 +211,13 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
      `ensureBlobUrl` a clip's own source to draw its soundtrack — for a 1 GB HAP `.mov` that meant a 2.3 s
      whole-file read, main's RSS from 125 MB to 3.7 GB, and its event loop stalled 1.7 s. A video's sound
      belongs to the audio plugin's conform (main-side demux → cached WAV), not to a waveform.
+  **And the show's own warming follows the same logic** (`warmMedia`, services/timeline.ts). Preparing a
+  timeline used to read **every clip in it** — whole files, over IPC, at project open, on every GO and
+  once per look-ahead state. A 40-clip scene meant 40 whole-file reads for material that might play
+  twenty minutes later. It now warms a **relevance window**: each layer's *start* clip (exactly what the
+  cold-start gate waits on) plus everything in the next 20 s, advanced ahead of the playhead as the show
+  runs, with at most three reads in flight. Anything outside the window loads on demand when it becomes
+  active — the path that already existed, and the reason the window is safe to be small.
 - **Ephemeral vs persisted.** Tool mode, snapping toggle, selection, zoom, hover, and the live drag
   draft are **component state** — they must not enter `Timeline` (it broadcasts to the Scene/projector
   on every change and dirties the project). Only data fields persist.
