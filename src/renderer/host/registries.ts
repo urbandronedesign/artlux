@@ -61,17 +61,37 @@ export const automationTargetRegistry: AutomationTargetRegistry = {
   all() { return [...new Set(automationProviders.values())]; }, // a provider owning N heads appears once
 };
 
+// ── ONE REGISTRATION PER ID, IN EVERY LIST-BACKED REGISTRY ──────────────────────────────────
+// The Map-backed registries below key on something (content type, clip kind, channel) and so replace
+// by construction. The list-backed ones did not, and only `panels` was ever given the check — so a
+// second `register` of the same id APPENDED, and every consumer that maps over `all()` mounted the
+// contribution twice.
+//
+// Reached today only by activating a plugin twice, which `activated` in host/plugins.ts prevents in a
+// packaged build but HMR does on every edit. That makes it a development-time fault, and the reason to
+// fix it anyway is that it corrupts the instrument: a projector window accumulated eighteen canvases
+// during one session's edits, and canvas count was exactly what I was using to tell which render path
+// was live. A registry that quietly doubles makes a diagnostic lie about the thing it is measuring.
+//
+// Replace-and-warn rather than ignore-the-second, matching `panels`: a plugin deliberately replacing
+// another's contribution is a supported move, and an accident should be visible rather than silent.
+function upsertById<T extends { id: string }>(list: T[], item: T, what: string): void {
+  const i = list.findIndex((x) => x.id === item.id);
+  if (i >= 0) { console.warn(`[${what}] "${item.id}" re-registered — replacing the earlier one`); list[i] = item; }
+  else list.push(item);
+}
+
 // ── Settings sections ─────────────────────────────────────────────────────────────────────
 const settingsSections: SettingsSection<AppSettings>[] = [];
 export const settingsSectionRegistry: SettingsSectionRegistry<AppSettings> = {
-  register(s) { settingsSections.push(s); },
+  register(s) { upsertById(settingsSections, s, 'settings'); },
   all() { return settingsSections.slice(); },
 };
 
 // ── Scene-viz (3D overlays) ─────────────────────────────────────────────────────────────────
 const sceneVizzes: SceneVizContribution<Scene3D>[] = [];
 export const sceneVizRegistry: SceneVizRegistry<Scene3D> = {
-  register(v) { sceneVizzes.push(v); },
+  register(v) { upsertById(sceneVizzes, v, 'scene-viz'); },
   all() { return sceneVizzes.slice(); },
 };
 
@@ -91,7 +111,7 @@ export const smTriggerRegistry: SmTriggerRegistry = {
 // ── Video codecs (pluggable decoders for non-<video> file content, e.g. HAP) ────────────────
 const videoCodecs: VideoCodecContribution[] = [];
 export const videoCodecRegistry: VideoCodecRegistry = {
-  register(c) { videoCodecs.push(c); },
+  register(c) { upsertById(videoCodecs, c, 'video-codec'); },
   all() { return videoCodecs.slice(); },
   forPath(path) { return videoCodecs.find((c) => c.canDecode(path)); },
   get(id) { return videoCodecs.find((c) => c.id === id); },
@@ -100,7 +120,7 @@ export const videoCodecRegistry: VideoCodecRegistry = {
 // ── Projector panels (full-window overlays in projector output windows) ─────────────────────
 const projectorPanels: ProjectorPanelContribution[] = [];
 export const projectorPanelRegistry: ProjectorPanelRegistry = {
-  register(p) { projectorPanels.push(p); },
+  register(p) { upsertById(projectorPanels, p, 'projector-panel'); },
   all() { return projectorPanels.slice(); },
 };
 
@@ -110,11 +130,7 @@ export const projectorPanelRegistry: ProjectorPanelRegistry = {
 // earlier one so a plugin can deliberately replace a core panel, and warns so an accident is visible.
 const panels: PanelContribution[] = [];
 export const panelRegistry: PanelRegistry = {
-  register(p) {
-    const i = panels.findIndex((x) => x.id === p.id);
-    if (i >= 0) { console.warn(`[panels] "${p.id}" re-registered — replacing the earlier one`); panels[i] = p; }
-    else panels.push(p);
-  },
+  register(p) { upsertById(panels, p, 'panels'); },
   all() { return panels.slice(); },
   get(id) { return panels.find((p) => p.id === id); },
   byMount(mount) { return panels.filter((p) => p.mount === mount); },
@@ -130,12 +146,32 @@ const contexts = new Map<string, WorkspaceContext<WorkspaceLayout>>();
 type ContextPatch = Parameters<ContextRegistry<WorkspaceLayout>['extend']>[1];
 const pendingExtends = new Map<string, ContextPatch[]>();
 
+// Appending is the right merge — a plugin adds to what the owner declared — but it must be
+// IDEMPOTENT, for the same reason the registries above are. A context's browser/dock/inspector are
+// lists of panel IDS, so a repeated extend used to name the same panel twice and the workbench built
+// two of it; `actions` are objects with ids and behaved the same way. A panel id that appears twice in
+// a manifest is never what anyone meant, so dedupe is safe as well as correct.
+const dedupe = (xs: string[]): string[] => [...new Set(xs)];
+// Last wins, matching upsertById — an extend that re-declares an action means to replace it — while
+// keeping the original relative order, so a context's action bar does not reshuffle on a re-extend.
+const dedupeById = <T extends { id: string }>(xs: T[]): T[] => {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (let i = xs.length - 1; i >= 0; i--) {
+    const x = xs[i];
+    if (seen.has(x.id)) continue;
+    seen.add(x.id);
+    out.unshift(x);
+  }
+  return out;
+};
+
 function applyExtend(c: WorkspaceContext<WorkspaceLayout>, patch: ContextPatch): void {
   if (patch.viewport) c.viewport = patch.viewport; // replaces — a context has one main work area
-  if (patch.browser) c.browser = [...(c.browser ?? []), ...patch.browser];
-  if (patch.dock) c.dock = [...(c.dock ?? []), ...patch.dock];
-  if (patch.inspector) c.inspector = [...(c.inspector ?? []), ...patch.inspector];
-  if (patch.actions) c.actions = [...(c.actions ?? []), ...patch.actions];
+  if (patch.browser) c.browser = dedupe([...(c.browser ?? []), ...patch.browser]);
+  if (patch.dock) c.dock = dedupe([...(c.dock ?? []), ...patch.dock]);
+  if (patch.inspector) c.inspector = dedupe([...(c.inspector ?? []), ...patch.inspector]);
+  if (patch.actions) c.actions = dedupeById([...(c.actions ?? []), ...patch.actions]);
 }
 
 const CLUSTER_ORDER = { build: 0, align: 1, show: 2, app: 3 } as const;

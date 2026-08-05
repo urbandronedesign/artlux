@@ -3089,6 +3089,48 @@ check(
   },
 );
 
+// ── A contribution registers ONCE, however many times its plugin activates ─────────────────────
+check(
+  'list-backed contribution registries replace by id instead of appending',
+  'The Map-backed registries key on something and replace by construction; the list-backed ones did ' +
+  'not, and only `panels` was ever given the check. So a second register() of the same id APPENDED ' +
+  'and every consumer that maps over all() mounted the contribution twice — a projector window grew ' +
+  'to eighteen canvases over one session of edits. `activated` in host/plugins.ts keeps a packaged ' +
+  'build to one activation, so this is a development-time fault; it is guarded anyway because it ' +
+  'corrupts the INSTRUMENT. Canvas count is how you tell which render path a projector window is on, ' +
+  'and a registry that silently doubles makes that measurement lie about the thing being measured. ' +
+  'Context extends are the same fault one level up: browser/dock/inspector are lists of panel ids, ' +
+  'and a repeated extend named the same panel twice.',
+  () => {
+    const F = 'src/renderer/host/registries.ts';
+    const src = stripComments(read(F));
+    const problems = [];
+    // Anchored on the generic's `<`, not the bare name: `upsertByIdX` contains `upsertById`, and a
+    // loose test passes while the helper every registry calls no longer exists.
+    if (!/function upsertById</.test(src))
+      problems.push(`${F} lost upsertById — the list-backed registries have nothing keeping ids unique`);
+    // Every list-backed registry must go through it. A bare push into one of these is the regression.
+    for (const [list, what] of [
+      ['settingsSections', 'settings sections'],
+      ['sceneVizzes', 'scene-viz overlays'],
+      ['videoCodecs', 'video codecs'],
+      ['projectorPanels', 'projector panels'],
+      ['panels', 'panels'],
+    ]) {
+      if (new RegExp(`${list}\\.push\\(`).test(src))
+        problems.push(`${what} register with a bare push — a second activation appends a duplicate instead of replacing`);
+    }
+    // And the same rule for a context's panel-id lists.
+    const ext = src.match(/function applyExtend[\s\S]*?\n\}/)?.[0] ?? '';
+    if (!ext) problems.push(`${F} has no applyExtend`);
+    else for (const k of ['browser', 'dock', 'inspector']) {
+      if (!new RegExp(`${k} = dedupe\\(`).test(ext))
+        problems.push(`applyExtend appends to \`${k}\` without dedupe — a repeated extend names the same panel twice and the workbench builds two of it`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
