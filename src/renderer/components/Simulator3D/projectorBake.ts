@@ -263,7 +263,17 @@ export async function bakeContentUv(
   if (!casters.length) return null;
   const webgpu = isWebGPURenderer(gl);
 
-  const rt = new THREE.WebGLRenderTarget(w, h, {
+  // ── SUPERSAMPLE, SO THE SILHOUETTE CARRIES COVERAGE ─────────────────────────────────────────
+  // Rendered at SS× and resolved below to a coverage fraction per output texel. Without it the hit
+  // flag is binary and the projector has no way to antialias its own outline: a downstream blur can
+  // soften the step but cannot know where inside the pixel the edge actually fell — and a distance
+  // field derived from a same-resolution binary mask gives back exactly the binary answer.
+  //
+  // 2 rather than 4: quarter-pixel coverage steps are past what a projector resolves on a wall, and
+  // this is 4x the render and 4x the readback (~11M float4 at native raster) already.
+  const SS = 2;
+  const rw = w * SS, rh = h * SS;
+  const rt = new THREE.WebGLRenderTarget(rw, rh, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     format: THREE.RGBAFormat,
@@ -324,24 +334,44 @@ export async function bakeContentUv(
     let buf: Float32Array;
     const webgpuRead = gl as unknown as { readRenderTargetPixelsAsync?: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number) => Promise<ArrayBufferView> };
     if (webgpuRead.readRenderTargetPixelsAsync) {
-      buf = await webgpuRead.readRenderTargetPixelsAsync(rt, 0, 0, w, h) as Float32Array;
+      buf = await webgpuRead.readRenderTargetPixelsAsync(rt, 0, 0, rw, rh) as Float32Array;
     } else {
-      buf = new Float32Array(w * h * 4);
-      (gl as unknown as { readRenderTargetPixels: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number, out: Float32Array) => void }).readRenderTargetPixels(rt, 0, 0, w, h, buf);
+      buf = new Float32Array(rw * rh * 4);
+      (gl as unknown as { readRenderTargetPixels: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number, out: Float32Array) => void }).readRenderTargetPixels(rt, 0, 0, rw, rh, buf);
     }
-    if (!buf || buf.length < w * h * 4) { console.warn('[bake] short readback', buf?.length, 'expected', w * h * 4); return null; }
+    if (!buf || buf.length < rw * rh * 4) { console.warn('[bake] short readback', buf?.length, 'expected', rw * rh * 4); return null; }
 
     // Flip to a top-left origin and drop the misses. GL reads bottom-up; MPCDI's PFM and every
     // consumer of this map index from the top, and a vertically mirrored calibration is the kind of
     // wrong that looks almost right.
+    // RESOLVE SS x SS -> one texel: (mean uv of the subsamples that hit, coverage fraction).
+    //
+    // The uv is averaged over HITS ONLY. Including a miss would drag the coordinate toward whatever
+    // the cleared buffer holds, which is not a point on the venue at all — the same reason the map is
+    // sampled NEAREST downstream. A partially covered texel therefore carries a real coordinate from
+    // the covered part of itself, which is exactly what a fringe pixel needs in order to be dimmed
+    // rather than invented.
+    //
+    // Coverage rides in the third channel — declared spare by this format and ignored by any reader
+    // that does not know about it, so a file with it stays readable by one that does not.
     const out = new Float32Array(w * h * 3);
     let hits = 0;
+    const inv = 1 / (SS * SS);
     for (let y = 0; y < h; y++) {
-      const src = (h - 1 - y) * w;
       for (let x = 0; x < w; x++) {
-        const s = (src + x) * 4, d = (y * w + x) * 3;
-        if (buf[s + 3] > 0.5) {
-          out[d] = buf[s]; out[d + 1] = buf[s + 1]; out[d + 2] = 0;
+        let su = 0, sv = 0, n = 0;
+        for (let sy = 0; sy < SS; sy++) {
+          // GL reads bottom-up; MPCDI's PFM and every consumer of this map index from the top, and a
+          // vertically mirrored calibration is the kind of wrong that looks almost right.
+          const ry = rh - 1 - (y * SS + sy);
+          for (let sx = 0; sx < SS; sx++) {
+            const s = (ry * rw + (x * SS + sx)) * 4;
+            if (buf[s + 3] > 0.5) { su += buf[s]; sv += buf[s + 1]; n++; }
+          }
+        }
+        const d = (y * w + x) * 3;
+        if (n) {
+          out[d] = su / n; out[d + 1] = sv / n; out[d + 2] = n * inv;   // coverage 0<c<=1
           hits++;
         } else {
           out[d] = NaN; out[d + 1] = NaN; out[d + 2] = NaN;

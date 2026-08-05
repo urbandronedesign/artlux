@@ -2984,7 +2984,9 @@ check(
     if (!exists(F)) return `${F} is gone — exports fall back to the coarse raycast grid`;
     const src = stripComments(read(F));
     const problems = [];
-    if (!/readRenderTargetPixelsAsync\(rt, 0, 0, w, h\)/.test(src))
+    // The SHAPE of the call, not the identifiers — the target is supersampled now, so the size args
+    // are named rw/rh. What must never come back is a buffer in that last slot.
+    if (!/readRenderTargetPixelsAsync\(rt, 0, 0, \w+, \w+\)/.test(src))
       problems.push('the WebGPU readback is not called with (rt,x,y,w,h) — passing a buffer where it wants a texture index throws inside three, from a stack that names nothing here');
     if (!/registeredCasters\(\)/.test(src))
       problems.push(`${F} no longer bakes the depth pass's caster set — two registries would drift, and the file would disagree with the preview about what occludes what`);
@@ -3164,6 +3166,55 @@ check(
     const restore = plug.indexOf('calibrationFile');
     if (gate >= 0 && restore > gate)
       problems.push('the boot restore sits below the authoring gate — a plain editor launch would never reload its venue calibration');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── The baked map is read UNFILTERED, and its silhouette still gets coverage ───────────────────
+check(
+  'the baked map is sampled NEAREST, and its edge is antialiased by explicit taps',
+  'Two failures meet on this texture. Its texels are COORDINATES: neighbours sit on opposite sides ' +
+  'of a silhouette, so interpolating them samples content from halfway between two unrelated parts ' +
+  'of the picture. And it is RGBA32F, which a LINEAR sampler cannot filter without ' +
+  'OES_texture_float_linear — without that extension the texture is INCOMPLETE and every fetch ' +
+  'returns (0,0,0,1), so alpha reads 1 everywhere, every pixel passes the hit test, and the whole ' +
+  'output becomes one flat colour with nothing logged. That shipped for exactly one run here. ' +
+  'Meanwhile the hit flag is binary, so the outline needs coverage from somewhere: explicit ' +
+  'neighbour taps, which need no extension and cannot be silently unfilterable. MSAA is not an ' +
+  'option and never was — the edge is made by a branch in a fragment shader, so every sample in a ' +
+  'pixel takes the same side of it.',
+  () => {
+    const F = 'src/renderer/projector/ProjectorGL.ts';
+    const src = read(F);
+    const problems = [];
+    const setter = src.match(/setBakedMap\([\s\S]*?\n  \}/)?.[0] ?? '';
+    if (!setter) problems.push(`${F} has no setBakedMap`);
+    else {
+      if (!/TEXTURE_MIN_FILTER, gl\.NEAREST/.test(setter) || !/TEXTURE_MAG_FILTER, gl\.NEAREST/.test(setter))
+        problems.push('the baked map is no longer NEAREST — a filtered uv interpolates across silhouettes, and RGBA32F may not be filterable at all');
+      if (!/packed\[i \+ 1\] = sv \/ n/.test(setter))
+        problems.push('setBakedMap no longer dilates uv into the fringe — antialiased edge pixels would sample the content’s (0,0) corner');
+    }
+    // Coverage is MEASURED at bake time by supersampling — the only stage that holds real geometry.
+    // A distance field or a blur derived from the finished binary mask cannot recover where inside a
+    // pixel the edge fell, because that information was never sampled.
+    const bake = stripComments(read('src/renderer/components/Simulator3D/projectorBake.ts'));
+    if (!/const SS = [2-9]/.test(bake))
+      problems.push('the bake no longer supersamples — the silhouette goes back to a binary hit flag and no downstream filter can recover sub-pixel coverage');
+    if (!/out\[d \+ 2\] = n \* inv/.test(bake))
+      problems.push('the bake no longer writes coverage into the spare channel — the projector would fall back to blurring a binary mask forever');
+    const frag = src.match(/const FRAG_BAKED = `[\s\S]*?`;/)?.[0] ?? '';
+    if (!frag) problems.push(`${F} has no FRAG_BAKED`);
+    else {
+      // Coverage must come from a NEIGHBOURHOOD. One tap is the binary edge again.
+      const taps = (frag.match(/texture2D\(uMap,/g) ?? []).length;
+      if (taps < 5)
+        problems.push(`FRAG_BAKED reads the map ${taps}x — coverage needs a neighbourhood, and one tap is the binary silhouette that stair-cased every slanted edge`);
+      if (!/gl_FragColor = vec4\(c\.rgb \* cov, 1\.0\)/.test(frag))
+        problems.push('FRAG_BAKED no longer applies coverage to the output — the edge would be binary again');
+      if (/sampler2D uMapLin|LINEAR/.test(frag))
+        problems.push('FRAG_BAKED reintroduces a LINEAR read of the map — that needs OES_texture_float_linear, and without it every fetch returns alpha 1 and the output goes flat');
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

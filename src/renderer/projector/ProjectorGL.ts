@@ -87,6 +87,8 @@ precision highp float;      // mediump uv would quantise the source to a few hun
 varying vec2 vRaster;
 uniform sampler2D uTex;     // the content
 uniform sampler2D uMap;     // RG = content uv for this projector pixel, A = 1 where geometry was hit
+uniform vec2 uMapTexel;     // 1/mapW, 1/mapH
+uniform float uHasCoverage; // 1 when the map's .b carries real coverage (see below)
 uniform vec4 uSoft;
 uniform float uBlendGamma;
 uniform float uGamma;
@@ -96,11 +98,55 @@ uniform vec3 uBlackLift;
 ${SOFT_EDGE_GLSL}
 void main() {
   vec4 m = texture2D(uMap, vRaster);
+  // ── SILHOUETTE COVERAGE — the map's own edge, antialiased ────────────────────────────────────
+  //
+  // The hit flag is BINARY: a pixel is on the object or it is not, so the outline stepped 0 to full
+  // in one pixel and stair-cased along every slanted edge. MSAA cannot touch it — this edge is made
+  // by a branch in a fragment shader, not by geometry, so every sample in a pixel takes the same
+  // side. The mesh path got its outline antialiased for free by drawing an actual warp mesh into a
+  // multisampled buffer, which is why replacing it with a map LOOKED like a downgrade in quality.
+  //
+  // So coverage is measured instead: a 3x3 tent over the hit flag, sampled with the SAME NEAREST
+  // sampler. uMap must stay NEAREST — neighbouring texels are coordinates on opposite sides of a
+  // silhouette, and averaging THOSE samples content from halfway between two unrelated parts of the
+  // picture — so the taps are explicit rather than filtered.
+  //
+  // ⚠ NOT hardware filtering, and that is deliberate twice over. A single bilinear tap at vRaster
+  // would do nothing (the map is 1:1 with the framebuffer, so a filtered fetch at a pixel centre
+  // lands on a texel centre and returns it unchanged). And a LINEAR sampler on RGBA32F needs
+  // OES_texture_float_linear: without it the texture is INCOMPLETE and every fetch returns
+  // (0,0,0,1) — alpha 1, coverage 1 everywhere, the whole output one flat colour. That is a silent,
+  // total failure gated on a GPU extension, which is not something to ship into a venue.
+  vec2 t = uMapTexel;
+  float cov;
+  if (uHasCoverage > 0.5) {
+    // TRUE AREA COVERAGE, measured at bake time by supersampling the silhouette (projectorBake.ts)
+    // and carried in the map's third channel. One fetch — the same one that produced the uv — and it
+    // is correct rather than merely soft: an axis-aligned edge stays crisp, a diagonal gets the
+    // fraction of the pixel the object actually covers, and corners keep their shape.
+    cov = clamp(m.b, 0.0, 1.0);
+  } else {
+    // FALLBACK for a map with no coverage — anything exported before the supersampled bake, or written
+    // by another tool. A 3x3 tent over the binary hit flag. It is a blur, not coverage: it softens
+    // edges that should be crisp and rounds corners, but it removes the stair-stepping, and an old
+    // file must not suddenly look worse than it did.
+    cov = (
+        4.0 *  texture2D(uMap, vRaster).a
+      + 2.0 * (texture2D(uMap, vRaster + vec2( t.x, 0.0)).a + texture2D(uMap, vRaster + vec2(-t.x, 0.0)).a
+             + texture2D(uMap, vRaster + vec2(0.0,  t.y)).a + texture2D(uMap, vRaster + vec2(0.0, -t.y)).a)
+      +        texture2D(uMap, vRaster + vec2( t.x,  t.y)).a + texture2D(uMap, vRaster + vec2(-t.x,  t.y)).a
+      +        texture2D(uMap, vRaster + vec2( t.x, -t.y)).a + texture2D(uMap, vRaster + vec2(-t.x, -t.y)).a
+    ) / 16.0;
+  }
   // A pixel with no content behind it emits BLACK, not the edge of the picture. The bake already
   // folded both reasons into this one flag: no geometry under the pixel, and geometry that fell
   // outside the content's footprint. A projector overshooting the object it maps must go dark, or
   // the surround gets a smear of clamped texels.
-  if (m.a < 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  //
+  // Tested on COVERAGE, not on the centre texel: a miss that touches hits is a fringe pixel and owes
+  // the wall its fraction of the light. Its uv came from the dilation in setBakedMap, so the colour
+  // it carries is a real neighbour's rather than the (0,0) corner of the picture.
+  if (cov <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   // ⚠ V IS FLIPPED HERE, AND THE FILE IS NOT WRONG — the two ends just count v from opposite edges.
   // The map is baked from GEOMETRY: uv is the mesh's own attribute and the projected mode is NDC
   // mapped to [0,1], both y-UP, so v=0 is the bottom of the picture. This texture is uploaded with
@@ -120,7 +166,9 @@ void main() {
   c.rgb = c.rgb * pa * uColorGain + uBlackLift * (1.0 - pa);
   c.rgb *= uBrightness;
   c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / uGamma));
-  gl_FragColor = vec4(c.rgb, 1.0);
+  // Coverage last, AFTER gamma: it is a geometric fraction of the pixel, not a light level, so
+  // encoding it and then raising it to 1/gamma would widen every outline by a predictable error.
+  gl_FragColor = vec4(c.rgb * cov, 1.0);
 }`;
 
 function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader {
@@ -178,6 +226,7 @@ export class ProjectorGL {
   private bakedU: Record<string, WebGLUniformLocation | null> = {};
   private mapTex: WebGLTexture | null = null;
   private mapW = 0; private mapH = 0;
+  private mapHasCoverage = false;
   private quadBuf: WebGLBuffer | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -310,9 +359,35 @@ export class ProjectorGL {
       const hit = Number.isFinite(u) && Number.isFinite(v);
       packed[i * 4] = hit ? u : 0;
       packed[i * 4 + 1] = hit ? v : 0;
-      packed[i * 4 + 2] = 0;
+      packed[i * 4 + 2] = hit ? (Number.isFinite(uv[i * 3 + 2]) ? uv[i * 3 + 2] : 1) : 0;
       packed[i * 4 + 3] = hit ? 1 : 0;
     }
+    // ── DILATE UV INTO THE FRINGE ────────────────────────────────────────────────────────────────
+    // A miss keeps alpha 0 — it is still outside the object, and coverage must say so — but it takes
+    // the mean uv of its hit neighbours. Without this, a fringe pixel drawn at partial coverage would
+    // sample the packed (0,0) it was given, i.e. the top-left corner of the content, and every
+    // antialiased outline would be fringed with whatever colour happens to live there.
+    //
+    // One ring is enough because coverage only ever reaches one texel beyond the silhouette (a 3x3
+    // tent). Read from `packed` and write to a copy, so a dilated texel cannot seed another.
+    const src2 = packed.slice();
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (src2[i + 3] > 0) continue;         // a hit already has its own uv
+        let su = 0, sv = 0, n = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy; if (yy < 0 || yy >= h) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx; if (xx < 0 || xx >= w) continue;
+            const j = (yy * w + xx) * 4;
+            if (src2[j + 3] > 0) { su += src2[j]; sv += src2[j + 1]; n++; }
+          }
+        }
+        if (n) { packed[i] = su / n; packed[i + 1] = sv / n; } // alpha stays 0 — still a miss
+      }
+    }
+
     if (!this.mapTex) this.mapTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.mapTex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -320,6 +395,15 @@ export class ProjectorGL {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl2.texImage2D(gl.TEXTURE_2D, 0, gl2.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, packed);
+    // Does this map carry coverage at all? A pre-supersampling export wrote 0 into every spare
+    // channel, so "any hit with 0 < c < 1" is the honest test — a map of nothing but 1s is a binary
+    // silhouette wearing coverage's clothes, and the tent serves it better.
+    let partial = false;
+    for (let i = 0, n = w * h; i < n && !partial; i++) {
+      const c = packed[i * 4 + 2];
+      if (packed[i * 4 + 3] > 0 && c > 0 && c < 0.999) partial = true;
+    }
+    this.mapHasCoverage = partial;
     this.mapW = w; this.mapH = h;
     return true;
   }
@@ -347,8 +431,14 @@ export class ProjectorGL {
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.warn('[ProjectorGL] baked link:', gl.getProgramInfoLog(p)); return false; }
     this.bakedProg = p;
     this.bakedAPos = gl.getAttribLocation(p, 'aPos');
-    for (const n of ['uTex', 'uMap', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift']) {
+    for (const n of ['uTex', 'uMap', 'uMapTexel', 'uHasCoverage', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift']) {
       this.bakedU[n] = gl.getUniformLocation(p, n);
+    }
+    // An unresolved sampler uniform does not throw — it silently reads texture unit 0, which here is
+    // the CONTENT, and the output becomes one flat colour with no error anywhere. Say which one.
+    {
+      const missing = Object.keys(this.bakedU).filter((k) => !this.bakedU[k]);
+      if (missing.length) console.warn(`[ProjectorGL] baked uniforms unresolved: ${missing.join(', ')} — a sampler among these reads unit 0 (the content) instead`);
     }
     this.quadBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
@@ -392,6 +482,9 @@ export class ProjectorGL {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.mapTex);
     gl.uniform1i(this.bakedU['uMap'] ?? null, 1);
+    // Texel size for the coverage taps in FRAG_BAKED — they are explicit neighbours, not filtering.
+    gl.uniform1f(this.bakedU['uHasCoverage'] ?? null, this.mapHasCoverage ? 1 : 0);
+    gl.uniform2f(this.bakedU['uMapTexel'] ?? null, 1 / Math.max(1, this.mapW), 1 / Math.max(1, this.mapH));
     gl.activeTexture(gl.TEXTURE0);
 
     const soft = o.softEdge;
