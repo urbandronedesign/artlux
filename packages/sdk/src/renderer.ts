@@ -257,6 +257,22 @@ export interface VideoCodecContribution {
    * Omit it and the host only waits for the first frame, exactly as before.
    */
   preRoll?(path: string, atSec: number, aheadSec: number): boolean;
+  /**
+   * OPTIONAL — roughly how much memory this decoder is holding for `path`, in bytes.
+   *
+   * The host's residency budget (services/codecResidency) evicts warm standby pools, and counting
+   * POOLS is a poor proxy for the cost of one: two pools can be two 720p layers or twenty 4K ones.
+   * A decoder knows its own footprint — mp4 holds every compressed sample of the track, HAP holds a
+   * ring of decoded frames — and nothing outside it can.
+   *
+   * BEST-EFFORT, AND SAY SO. Report what you can account for; you cannot see GPU-side VideoFrames or
+   * driver allocations, so this legitimately under-reports. That is fine for a budget and would not
+   * be fine for a number someone sizes a venue machine by, which is why the host labels it as such.
+   *
+   * Omit it and the host falls back to counting open decoders — exactly as `preRoll`'s absence falls
+   * back to waiting for a first frame.
+   */
+  residentBytes?(path: string): number;
   // One-shot frame at a source time (seconds) for the thumbnail cache (bypasses the playback
   // prefetch ring; uses its own shared GL context so it never disturbs a live layer's decode).
   thumbnail(path: string, timeSec: number): Promise<CanvasImageSource | null>;

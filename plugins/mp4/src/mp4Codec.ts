@@ -56,6 +56,10 @@ export const mp4Codec: VideoCodecContribution = {
 
   setPlaying: (p) => { if (p === playing) return; playing = p; if (p) clockOriginMs = performance.now() - clock * 1000; },
   preWarm: (path) => { void dec.ensureOpen(path); },
+  // What this file is holding, for the host's residency budget. Mostly the encoded samples: open()
+  // keeps the whole track resident so seeks are instant, so one warm mp4 clip can be tens or hundreds
+  // of megabytes — the difference a pool-counting budget was blind to.
+  residentBytes: (path) => dec.residentBytes(path),
   // Thumbnails use a DEDICATED decoder (dec.thumbnail) so a filmstrip scrub never reseeks the playing
   // surface's decoder out from under it — that contention was the old cause of stutter.
   thumbnail: (path, timeSec) => dec.thumbnail(path, timeSec),

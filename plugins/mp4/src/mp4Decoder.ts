@@ -138,6 +138,15 @@ class FileDecoder {
     });
   }
 
+  // Resident bytes: the encoded samples this decoder is holding (the dominant, exactly-known term)
+  // plus a nominal 4:2:0 estimate for the decoded frames in flight. See the module-level residentBytes.
+  residentBytes(): number {
+    let n = 0;
+    for (const s of this.samples) n += s.data?.byteLength ?? 0;
+    const px = this.info ? this.info.width * this.info.height : 0;
+    return n + this.buffer.length * px * 1.5;
+  }
+
   getInfo(): Info | null { return this.info; }
   aspect(): number | null { return this.info && this.info.width > 0 ? this.info.width / this.info.height : null; }
 
@@ -322,6 +331,20 @@ export function ensureOpen(path: string): Promise<Info | null> {
 }
 
 export function probed(path: string): boolean | undefined { return results.get(path); }
+
+// Roughly what is held for `path` across the three pools, for the host's residency budget
+// (services/codecResidency). The dominant term is `samples` — open() keeps EVERY encoded sample of
+// the track resident so seeks are instant, which for a long clip is most of the file. That is exactly
+// what a pool-counting budget could not see: one warm pool can be tens of megabytes or hundreds.
+// Decoded VideoFrames are counted at their nominal 4:2:0 size; the real GPU allocation is opaque.
+export function residentBytes(path: string): number {
+  let n = 0;
+  const add = (d: FileDecoder | undefined) => { if (d) n += d.residentBytes(); };
+  add(decoders.get(path));
+  add(thumbDecoders.get(path));
+  for (const { dec, path: p } of layerDecoders.values()) if (p === path) add(dec);
+  return n;
+}
 export function frame(path: string, timeSec: number): VideoFrame | null { return decoders.get(path)?.frame(timeSec, true) ?? null; }
 export function aspect(path: string): number | null { return decoders.get(path)?.aspect() ?? null; }
 // "Has this surface got NEW pixels?" — the absolute timestamp of the frame the last frame() call

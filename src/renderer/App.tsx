@@ -56,6 +56,7 @@ import { usageForPath, normPath, libraryItems, type ProjectRefs } from './servic
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
 import * as timelinePreloader from './services/timelinePreloader';
+import { reachableNext } from './services/smLookahead';
 import * as bootGate from './services/bootGate';
 import * as openTrace from './services/openTrace';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
@@ -2708,16 +2709,20 @@ const App: React.FC = () => {
       lightingPlayback.setData(activeTimeline);  // …and lighting clips, which drive fixtures by role
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: activeTimeline });
   }, [activeTimeline, activeSceneId]);
-  // FSM look-ahead preloading: when the machine enters a state, warm the timelines of every reachable
-  // next state so a transition into one is hitless. The warm window follows the show's path (§tiers).
+  // FSM look-ahead preloading: when the machine enters a state, warm the timelines it can reach
+  // SOONEST, so a transition into a likely-next state is hitless. The warm window follows the show's
+  // path (§tiers).
+  //
+  // RANKED AND TRIMMED TO THE BUDGET — reachableNext orders candidates by how soon their edge can
+  // fire and includes `fromAny` global rules (which the old `t.from === stateId` filter could never
+  // match, so the edge most likely to fire in an interactive show was the one never preloaded). The
+  // slice is what keeps the protect set inside MAX_WARM: handing evictExcess more keys than the
+  // budget allows is not something it can resolve — it can only refuse to evict them.
   useEffect(() => timelineEngine.subscribeSmState((stateId) => {
       if (!stateId) return;
-      const sm = stateMachineRef.current;
-      const nextSceneIds = sm.transitions.filter(t => t.from === stateId)
-        .map(t => sm.states.find(s => s.id === t.to)?.sceneId)
-        .filter((v): v is string => !!v);
-      const entries = nextSceneIds
-        .map(sid => ({ key: sid, tl: scenesRef.current.find(s => s.id === sid)?.timeline }))
+      const entries = reachableNext(stateMachineRef.current, stateId)
+        .slice(0, timelinePreloader.MAX_WARM)
+        .map(e => ({ key: e.sceneId, tl: scenesRef.current.find(s => s.id === e.sceneId)?.timeline }))
         .filter(e => !!e.tl);
       if (entries.length) timelinePreloader.predict(entries);
   }), []);

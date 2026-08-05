@@ -63,6 +63,19 @@ function getPipe(path: string): Pipe {
   return p;
 }
 
+// Roughly what this source's decode ring is holding, in bytes — for the host's residency budget
+// (services/codecResidency), which evicts warm standby pools and cannot otherwise tell a pool of two
+// 1080p layers from one of twenty 4K ones. Measured from the frames actually cached rather than from
+// the format, because the ring's depth is what varies: LEAD_MS of a 60 fps source is ~18 frames, of a
+// 24 fps source ~7. Under-reports whatever the GPU holds after upload — see the SDK's note.
+export function residentBytes(path: string): number {
+  const p = pipes.get(path);
+  if (!p) return 0;
+  let n = 0;
+  for (const f of p.cache.values()) n += f.data?.byteLength ?? 0;
+  return n;
+}
+
 // ⚠ A FAILED DECODE MUST BE REMEMBERED, OR IT BECOMES A FULL-SPEED RETRY LOOP.
 // `fill()` runs from getFrame() on EVERY rAF. Nothing cached the failure, so a frame that could not be
 // decoded was re-requested the very next frame — three concurrent decodes per frame, forever, each

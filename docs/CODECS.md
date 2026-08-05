@@ -71,6 +71,22 @@ any future `.mov` codec should inherit both:
   background layer, which it wants at display rate). Before this, a projector showing an `IMAGE`
   decoded the whole timeline's video anyway. Guarded by `npm run verify:invariants`.
 
+### Who closes a decoder — `residentBytes` and the residency budget
+
+A codec keys its surface decoder by **path**, so N surfaces on one file cost one decode — and
+`closeSurface(path)` therefore may only run when the *last* holder lets go. `services/codecResidency`
+is that refcount, for the whole app: surface consumers **and** the timeline's warm pools share one
+owner vocabulary, because two independent counts over the same decoder is how warm pools came to hold
+decoders that were never freed.
+
+`VideoCodecContribution.residentBytes?(path)` is the optional other half — roughly what a decoder is
+holding, so the preloader's budget can bound standby pools by cost rather than by count. HAP reports
+its decode ring (raw BC blocks, ~1 MB per 1080p DXT1 frame, ~4 MB per 4K DXT5); mp4 reports the
+encoded samples it keeps resident for instant seeking, which for a long clip is most of the file.
+Both **under-report** — neither can see GPU-side frames or driver allocations — and the host labels
+the number as best-effort for that reason. Omit the method and the budget falls back to counting open
+decoders, exactly as omitting `preRoll` falls back to waiting for a first frame.
+
 ## MP4 / WebCodecs (`@artlux/plugin-mp4`)
 
 Frame-accurate `.mp4` decode via the browser **WebCodecs** API + `mp4box` demux — an alternative to the

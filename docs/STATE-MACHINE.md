@@ -277,6 +277,12 @@ state with **no** `sceneId` and **no** entry actions is a harmless no-op waypoin
 - Because a Scene may own its **own timeline**, entering a state can also **warm-swap the playback
   engine** to that state's timeline. Details + the per-state authoring loop:
   [SCENE-TIMELINES.md](SCENE-TIMELINES.md).
+- Entering a state also **preloads where the show can go next**, ranked by how soon each outgoing edge
+  could fire: a short `afterDelay` first, then longer ones, then `onTimelineEnd`, then triggers that
+  wait on the world (`plugin`) or on a person (`manual`). Only the top few are warmed, because warm
+  standby costs decoders — so a **hub state with ten exits** warms the two most imminent rather than
+  all ten. `fromAny` rules are included in that ranking but demoted: reachable from everywhere means
+  always a candidate, never evidence of imminence.
 
 Entry is **idempotent and repeatable**: re-entering the same state restarts it identically (its
 timeline seeks to the first frame), which matters for shows that re-enter a state many times.

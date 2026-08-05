@@ -195,11 +195,22 @@ window advancing ahead of its playhead as the show runs. A clip outside the wind
 moment it becomes active — `syncVideoLayer` already did that, which is what makes a bounded window safe.
 
 - `warm(poolKey, tl)` warms one scene and trims to budget; `predict(entries)` warms a set;
-  `evictExcess(protect)` demotes least-recently-used standby pools past `MAX_WARM` (never the active /
-  global / protected keys).
-- **FSM look-ahead:** an `App` effect subscribes to state changes and `predict()`s the timelines of all
-  **reachable-next** states, so a transition into any likely-next state is hitless. The **Scenes/Cues**
-  panel warms a scene on hover.
+  `evictExcess(protect)` demotes least-recently-used standby pools (never the active or global one).
+- **The budget has two dimensions, and protected pools count against both.** `MAX_WARM` bounds how
+  many standby pools exist; `MAX_RESIDENT_BYTES` bounds what they cost, summed from each codec's
+  `residentBytes(path)` — a count of pools cannot tell two 720p `<video>`s from twenty 4K HAP layers
+  whose rings hold ~4 MB a frame. Byte reporting is best-effort and under-reports GPU-side frames; it
+  is a backstop against the pathological case, not an allocator.
+- **FSM look-ahead:** an `App` effect subscribes to state changes and `predict()`s the timelines the
+  machine can reach **soonest** — ranked by how imminent each edge's trigger is (a 2 s `afterDelay`
+  outranks a 30 s one, which outranks `onTimelineEnd`, which outranks a `plugin` or `manual` edge),
+  deduped by scene and trimmed to `MAX_WARM`. **`fromAny` global rules are included** and demoted one
+  tier: reachable from everywhere means always a candidate, never evidence of imminence. The
+  **Scenes/Cues** panel warms a scene on hover.
+- **A demoted pool releases the decoders its warming opened.** Warming opens a decoder per *path*, and
+  only `closeSurface()` frees one; `services/codecResidency` refcounts those across pools **and**
+  surfaces so a file still shown elsewhere survives a neighbour's eviction. One refcount for the whole
+  app — two independent ones over the same shared decoder is what let a "COLD" pool stay resident.
 - **Key fact:** `mediaCache` blob URLs and codec `preWarm` are **path-keyed and globally shared**, so
   warming shared media across states costs ~nothing — only the per-layer `<video>` pool is per-scene.
   Warming is async IPC + `createObjectURL` + decode-init — all **off the rAF/compute path**, so the

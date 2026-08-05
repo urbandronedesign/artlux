@@ -1,6 +1,7 @@
 import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as contentSource from './contentSource';
+import * as codecResidency from './codecResidency';
 import { clipKindRegistry, videoCodecRegistry, smTriggerRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
@@ -388,29 +389,35 @@ function queueWarm(path: string, front = false): void {
 
 // Queue warm-ups for every video clip intersecting [fromSec, fromSec + WARM_AHEAD_SEC). Idempotent —
 // mediaCache, the queue's dedupe set and codec preWarm are all path-keyed.
-function warmWindow(t: Timeline, fromSec: number): void {
+//
+// `owner` is the POOL KEY that will hold the decoders this opens. Every codec.preWarm here creates a
+// path-keyed decoder that only closeSurface() can free, and for a long time nothing did: releasePool
+// freed a pool's <video>s and its layer-keyed codec state while the path decoders it had opened
+// stayed resident for the session, so a "COLD" pool was not cold. Retaining under the pool key is
+// what gives releasePool something to release. See services/codecResidency.
+function warmWindow(t: Timeline, fromSec: number, owner: string): void {
   for (const c of t.clips) {
     if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video / lazy content
     if (c.start >= fromSec + WARM_AHEAD_SEC || c.start + c.duration <= fromSec) continue; // outside the window
     const codec = videoCodecRegistry.forPath(c.path);
-    if (codec) codec.preWarm(c.path);
+    if (codec) { codec.preWarm(c.path); codecResidency.retain(c.path, owner, codec.id); }
     else queueWarm(c.path);
   }
 }
 
 // Warm what a pool needs to PROMOTE cleanly: each layer's start clip (front of the queue — the gate
 // waits on these) plus the opening window. Shared by setData (cold), warmPool (standby) and swap.
-function warmMedia(t: Timeline): void {
+function warmMedia(t: Timeline, owner: string): void {
   const startT = timelineStart(t);
   for (const l of t.layers) {
     if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
     const sc = startClip(t, l.id);
     if (!sc || isContentClip(sc.clip)) continue;
     const codec = videoCodecRegistry.forPath(sc.clip.path);
-    if (codec) codec.preWarm(sc.clip.path);
+    if (codec) { codec.preWarm(sc.clip.path); codecResidency.retain(sc.clip.path, owner, codec.id); }
     else queueWarm(sc.clip.path, true);
   }
-  warmWindow(t, startT);
+  warmWindow(t, startT, owner);
 }
 
 // How far ahead of the ACTIVE document's playhead media has been queued. -Infinity forces the next
@@ -983,7 +990,7 @@ function frame(now: number): void {
     // boundary (every WARM_AHEAD_SEC/2 of playback) or after a seek/swap reset the horizon. Mirror
     // windows never warm (no blobs to manage there — see `external` above).
     if (!external && playing && playhead + WARM_AHEAD_SEC / 2 > warmHorizon) {
-      warmWindow(data, playhead);
+      warmWindow(data, playhead, activeKey);
       warmHorizon = playhead + WARM_AHEAD_SEC;
     }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
@@ -1141,7 +1148,7 @@ export const timeline = {
     // clampPlayheadIntoDoc above. setData is its ONLY caller: swap()'s click case is 'reconverge', which
     // carries its own copy of the latch-without-pulse guard.
     clampPlayheadIntoDoc(t);
-    warmMedia(t);
+    warmMedia(t, activeKey); // this document IS the active pool's — retain under its key
     pruneStaleLayers(layerVideos, t);
     compileAutomation();
   },
@@ -1151,7 +1158,7 @@ export const timeline = {
     if (external) return;
     let pool = pools.get(poolKey);
     if (!pool) { pool = new Map(); pools.set(poolKey, pool); }
-    warmMedia(t);
+    warmMedia(t, poolKey);
     warmPoolVideos(pool, t);
   },
   // Promote a (warm, ideally) pool to ACTIVE — the seamless per-scene timeline swap. Only ONE pool is
@@ -1181,7 +1188,7 @@ export const timeline = {
     const prevKey = activeKey;
     data = t;
     let pool = pools.get(poolKey);
-    if (!pool) { pool = new Map(); pools.set(poolKey, pool); warmMedia(t); warmPoolVideos(pool, t); } // cold fallback
+    if (!pool) { pool = new Map(); pools.set(poolKey, pool); warmMedia(t, poolKey); warmPoolVideos(pool, t); } // cold fallback
     activeKey = poolKey;
     layerVideos = pool;
     // One transport at a time: pause the outgoing pool's videos (kept warm; preloader evicts later).
@@ -1190,7 +1197,7 @@ export const timeline = {
     // timeline had but the new one doesn't).
     for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) contentSource.release(layerKey(l.id)); }
     pruneStaleLayers(pool, t);
-    warmMedia(t);
+    warmMedia(t, poolKey);
     // Clean first-frame start — via the GUARDED start, never the raw in-point. mainSeek() feeds `playhead`,
     // `originMs` and `prevPlayhead` from this one number, so a scene whose timeline carries a junk inPoint
     // (hand-edit, bad import, plugin-written project — normalizeTimeline does not coerce it) would NaN the
@@ -1255,6 +1262,14 @@ export const timeline = {
       lv.el.pause(); lv.el.removeAttribute('src');
       if (!data.layers.find(l => l.id === id)) { for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); }
     }
+    // …AND THE PATH-KEYED DECODERS THIS POOL'S WARMING OPENED. Everything above is keyed by LAYER,
+    // which is why demoting a pool used to leave it holding decoders: warmMedia opens a decoder per
+    // PATH (mp4 keeps every compressed sample of the track; HAP a ring of decoded frames) and only
+    // closeSurface() frees one. A pool the LRU had demoted to COLD therefore kept the heaviest thing
+    // it owned, for the life of the session — the tier table in docs/SCENE-TIMELINES.md described a
+    // teardown that never happened. codecResidency refcounts them across pools AND surfaces, so a
+    // file still shown somewhere else survives this.
+    codecResidency.releaseOwner(poolKey);
     pools.delete(poolKey);
   },
   // Which pool keys currently hold decoders (active + warm standby) — for the preloader's LRU budget.

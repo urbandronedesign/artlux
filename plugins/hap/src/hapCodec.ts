@@ -47,6 +47,9 @@ export const hapCodec: VideoCodecContribution = {
   // Cold start: fill the decode-ahead ring before the host lets the show run, so playback does not
   // open on an empty buffer (see hapDecode.preRoll and the SDK's contract).
   preRoll: (path, atSec, aheadSec) => hapDecode.preRoll(path, atSec, aheadSec),
+  // What this file's decode ring is holding, for the host's residency budget. Raw BC blocks:
+  // ~1 MB per 1080p DXT1 frame, ~4 MB per 4K DXT5 — a few of these outweigh a whole pool of <video>s.
+  residentBytes: (path) => hapDecode.residentBytes(path),
 
   // One-shot decode (bypasses the playback prefetch ring) onto a single dedicated GL canvas — used by
   // the thumbnail cache so scrubbing thumbnails never re-centers a live layer's decode-ahead window.
