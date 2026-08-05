@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileS
 import { dirname, join } from 'node:path';
 import type { ProjectData, RigData, Prefs, OpenProjectResult } from '../../shared/protocol';
 import { relativizeAssets, resolveAssets } from './projectFolder';
+import * as mediaAccess from './mediaAccess';
 
 // All file I/O lives in main (the renderer is sandboxed with no fs access).
 // Projects/rigs use native Open/Save dialogs; preferences (settings + recent
@@ -67,6 +68,11 @@ function openProjectTimed(path: string): ProjectData | null {
   const t2 = performance.now();
   const resolved = resolveAssets(data, dirname(path));
   const t3 = performance.now();
+  // ADMIT THIS PROJECT'S MEDIA TO THE SCHEME, AND FORGET THE LAST ONE'S. Rebuilt from scratch here so
+  // closing a project stops its assets being readable and a playlist does not accumulate the union of
+  // every show it has played. Fed the RESOLVED document because absolute paths are what the renderer
+  // will ask for. See src/main/mediaAccess.
+  mediaAccess.setProject(path, resolved, app.getPath('userData'));
   // ProjectData keeps timeline/scenes deliberately loose (`unknown` — the renderer owns those shapes),
   // so the counts peek structurally. A malformed document yields 0s here and fails loudly later.
   const clipsOf = (t: unknown): number => {

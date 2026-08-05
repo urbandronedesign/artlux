@@ -16,7 +16,14 @@ import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import * as persistence from './persistence';
 import { profileQuery, CALIBRATION_ENABLED, rendererDevUrl, relaunchArgs, missingBuiltRenderer } from './runProfile';
+import { registerMediaScheme, registerMediaProtocol } from './mediaProtocol';
 import { IPC } from '../../shared/protocol';
+
+// ⚠ MODULE SCOPE, BEFORE app.whenReady() — NOT inside it. Chromium fixes its scheme registry during
+// startup: registered late, `artlux-media://` either throws or comes up without the privileges
+// (`standard`/`secure`/`stream`/`supportFetch`) that make it usable at all, and the symptom is every
+// video in the show silently failing to load. Guarded by npm run verify:invariants.
+registerMediaScheme();
 
 // THE SHIPPED COPY, not the repo's. electron-builder's `files` is `out/**/*`, so `build/` — where the
 // icon sources live for the installer — is not in the asar at all. This pointed at `../../build/icon.png`,
@@ -348,6 +355,9 @@ app.whenReady().then(() => {
     // is already loading while the main plugins activate, and so it catches their report as it fills.
     splash.registerSplash();
     if (!HEADLESS && !BROADCAST && persistence.getPrefs().showSplash !== false) splash.open();
+    // The handler half of `artlux-media://` (the scheme itself was registered at module scope above).
+    // Before the first window loads, so a renderer can never race it with a media request.
+    registerMediaProtocol();
     registerIpc(() => mainWindow);
     metrics.start(); // Prometheus /metrics endpoint (loopback by default; ARTLUX_METRICS=0 to disable)
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }

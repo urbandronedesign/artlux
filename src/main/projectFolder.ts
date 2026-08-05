@@ -174,8 +174,25 @@ function mapAssetPaths(data: ProjectData, map: PathMap): ProjectData {
 
 const toPosix = (p: string) => p.split(sep).join('/');
 
+/**
+ * EVERY asset path the document references — for the media scheme's allowlist (src/main/mediaAccess).
+ *
+ * Deliberately built on `mapAssetPaths`, the same visitor `resolveAssets` uses, rather than as its own
+ * walk: the allowlist must admit exactly what the loader resolves, and a second traversal would drift
+ * the first time an asset-bearing field was added. Failure by drift here means "the operator's video
+ * is silently black", which is the kind of bug that costs a show. Sharing the visitor makes a new
+ * field reach both places in one edit, or neither.
+ *
+ * The map function is the identity — we are here for the side effect of being shown every path.
+ */
+export function collectAssetPaths(data: ProjectData): string[] {
+  const seen = new Set<string>();
+  mapAssetPaths(data, (p) => { if (p) seen.add(p); return p; });
+  return [...seen];
+}
+
 // Within `root`? (and not escaping via ..)
-function isInside(root: string, abs: string): boolean {
+export function isInside(root: string, abs: string): boolean {
   const rel = relative(root, abs);
   return !!rel && !rel.startsWith('..') && !isAbsolute(rel);
 }

@@ -50,7 +50,10 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   Spout receiver), persistence (dialogs + userData), and the native menu (kept only for keyboard
   accelerators — the editor window is **frameless** and draws its own title bar/menus in the renderer,
   `components/MenuBar.tsx`, backed by `window:command` IPC for min/maximize/close + menu roles). Owns
-  all OS access (UDP, fs, `.node` addons) — the renderer is sandboxed.
+  all OS access (UDP, fs, `.node` addons) — the renderer is sandboxed. Media is the one path that does
+  not travel as IPC messages: main serves it over the `artlux-media://` scheme (Range-streamed, from an
+  allowlist) so a decoder reads windows instead of the renderer holding whole files — see
+  [Media transport](#media-transport-srcmainmediaprotocolts--sharedmediaurlts).
 - **Preload** (`src/preload/index.ts`): `contextBridge` exposes a typed `window.artlux` API over IPC.
 - **Renderer** (`src/renderer/`): the React UI + the frame-generation loop (Stage + GPU mapper).
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
@@ -217,8 +220,37 @@ Request/response `invoke`/`handle`: `project:save`/`open`/`load-path`,
 - **Projector windows** talk to the main window over a **MessagePort** bridge
   (`renderer/projector/bridge.ts`), *not* IPC.
 
+## Media transport (`src/main/mediaProtocol.ts` · `shared/mediaUrl.ts`)
+**Media does not cross IPC.** The renderer builds an `artlux-media://f/<base64url(absPath)>` URL and
+hands it straight to a `<video>`, an `<img>` or `fetch` — main answers it from a read stream with full
+HTTP **Range** support, so a decoder pulls the byte windows it wants and nothing holds a file in
+memory. Before this, every clip was read whole into a `Uint8Array`, structure-cloned over IPC and
+wrapped in a `Blob`: a 1 GB HAP `.mov` measured 2.3 s of read, main RSS 125 MB → 3.7 GB and a 1.7 s
+event-loop stall, for a few megabytes of actual want.
+
+Three things are load-bearing and guarded by `npm run verify:invariants`:
+- **The scheme is privileged at module scope, before `app.whenReady()`.** Chromium fixes its scheme
+  registry during startup; registered late it comes up without `standard`/`secure`/`stream` and every
+  video silently fails to load.
+- **Every response carries `Access-Control-Allow-Origin`.** Both `<video>` factories set
+  `crossOrigin="anonymous"` — inert under `blob:`, but a custom scheme makes each load a CORS request.
+  The attribute cannot simply be dropped either: it is what keeps frames **untainted** so the 2D
+  composite and the WebGPU LED sampler may read them.
+- **A path is served only if `mediaAccess` admits it** — the open project's folder, `userData`,
+  directories the operator chose in a dialog, plus the exact set of paths the project references
+  (harvested with the same visitor `resolveAssets` uses, so the two cannot drift). Anything else is a
+  `403`, logged once. The allowlist is rebuilt on every project open, so closing a show revokes it.
+
+Base64url rather than a percent-encoded path is deliberate: Chromium normalizes standard-scheme URLs
+(backslashes, `..`, `%2e%2e`, unicode), and every one of those transformations is also a traversal
+primitive. Base64url contains nothing the URL parser will touch.
+
+`mediaCache`'s blob path still exists for the few consumers that genuinely need bytes in hand — audio
+peak analysis, the audio conform hand-off, and GLB venue models.
+
 ## Persistence (`src/main/persistence.ts`)
-All file I/O is in main (renderer is sandboxed). Projects are `.artlux` JSON — `ProjectData` in
+All **project/preferences** file I/O is in main (the renderer is sandboxed; media is the exception
+above, and it is still main that opens the file). Projects are `.artlux` JSON — `ProjectData` in
 `shared/protocol.ts`: `{ version, fixtures, surfaces, controllers, globalBrightness, groups, scenes,
 cueBanks, scene3D, timeline, stateMachine, schedule, audio, assets, projectorOutputs, outputSpans, … }`.
 Note **`settings` was removed (P6)** — `AppSettings` is *the machine, not the show*, so it lives in

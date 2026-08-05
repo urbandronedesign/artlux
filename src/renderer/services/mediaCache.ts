@@ -1,7 +1,18 @@
 // Shared file-path → blob-URL cache for the sandboxed renderer. Asset paths stored in a
 // project are absolute file paths; the renderer can't read them directly, so it asks main
-// for the bytes (IPC) and wraps them in a Blob URL. Both the timeline engine and surface
-// media use this so a given path is read once and reused.
+// for the bytes (IPC) and wraps them in a Blob URL.
+//
+// ⚠ THIS IS NO LONGER THE PATH FOR VIDEO OR IMAGES. Anything a <video>, <img> or a demuxer loads now
+// goes through `artlux-media://` (shared/mediaUrl + src/main/mediaProtocol), which STREAMS with Range
+// support instead of reading whole files into renderer memory — a 1 GB HAP `.mov` used to cost 2.3 s
+// of read and take main's RSS from 125 MB to 3.7 GB for a few megabytes of actual want. What remains
+// here is the handful of consumers that genuinely need the BYTES in hand: audio peak analysis
+// (decodeAudioData), the audio conform hand-off, and GLB venue models (drei wants a URL).
+//
+// Note there is still no eviction and no revokeObjectURL — see the plan's phase 4. That was survivable
+// only because the big consumers have left; do not bring one back.
+
+import { mediaUrl, mimeForPath } from '../../../shared/mediaUrl';
 
 const cache = new Map<string, string>(); // file path -> blob: url
 // In-flight reads, keyed by path. This holds the PROMISE, not just the path: a concurrent caller
@@ -11,29 +22,13 @@ const cache = new Map<string, string>(); // file path -> blob: url
 // the second one permanently black. Exactly the case that shows up with one clip on several surfaces.
 const loading = new Map<string, Promise<string | undefined>>();
 
-// Already-usable urls (in-session blob/http/data) need no file read.
-export const isLiveUrl = (url: string): boolean => /^(blob:|https?:|data:)/i.test(url);
+// Already-usable urls (in-session blob/http/data, and our own streaming scheme) need no file read.
+export const isLiveUrl = (url: string): boolean => /^(blob:|https?:|data:|artlux-media:)/i.test(url);
 
-export function mimeForPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  switch (ext) {
-    case 'mp4': case 'mov': case 'mkv': return 'video/mp4';
-    case 'webm': return 'video/webm';
-    case 'png': return 'image/png';
-    case 'jpg': case 'jpeg': return 'image/jpeg';
-    case 'gif': return 'image/gif';
-    case 'webp': return 'image/webp';
-    case 'bmp': return 'image/bmp';
-    case 'svg': return 'image/svg+xml';
-    case 'wav': return 'audio/wav';
-    case 'aiff': case 'aif': return 'audio/aiff';
-    case 'flac': return 'audio/flac';
-    case 'ogg': return 'audio/ogg';
-    case 'mp3': return 'audio/mpeg';
-    case 'aac': case 'm4a': return 'audio/aac';
-    default: return 'application/octet-stream';
-  }
-}
+// The mime table moved to shared/mediaUrl so main — which must answer the media protocol with a
+// Content-Type — and the renderer share one copy. Re-exported here because a dozen call sites import
+// it from this module and the table is not what changed.
+export { mimeForPath };
 
 // Synchronous lookup of an already-resolved blob url (undefined if not loaded yet).
 export const getBlobUrl = (path: string): string | undefined => cache.get(path);
@@ -64,9 +59,13 @@ export function ensureBlobUrl(path: string, mime: string): Promise<string | unde
   return read;
 }
 
-// Resolve any media url to one an <video>/<img> can load: live urls pass through; file
-// paths are read into a blob url (falls back to the raw path if the read fails).
-export async function resolveMediaUrl(url: string, mime: string): Promise<string> {
+// Resolve any media url to one a <video>/<img> can load.
+//
+// SYNCHRONOUS NOW, and that is the point: a file path becomes an `artlux-media://` url by string
+// construction, so there is no window in which a source "has not landed yet". That state used to be
+// real and load-bearing — timeline.warmPoolVideos carried a long comment about a pool promoting on an
+// element whose blob had not arrived, i.e. the show opening on black. It is now unrepresentable.
+export function resolveMediaUrl(url: string): string {
   if (!url || isLiveUrl(url)) return url;
-  return (await ensureBlobUrl(url, mime)) ?? url;
+  return mediaUrl(url);
 }

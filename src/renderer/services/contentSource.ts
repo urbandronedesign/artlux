@@ -61,11 +61,16 @@ let playing = true;
 // `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
 function makeVideo(url: string): HTMLVideoElement {
   const v = document.createElement('video');
+  // ⚠ crossOrigin is LOAD-BEARING, in both directions. It is what keeps frames UNTAINTED so the 2D
+  // composite and the WebGPU LED sampler may read them — drop it and the whole output pipeline throws
+  // SecurityError. Under `blob:` it was inert (same origin); under artlux-media:// it makes every load
+  // a CORS request, which is why the protocol handler answers with Access-Control-Allow-Origin on
+  // every response. Change one without the other and every video in the show goes black.
   v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous';
-  void resolveMediaUrl(url, 'video/mp4').then((src) => {
-    v.src = src; v.load();
-    if (playing) v.play().catch(() => {});
-  });
+  // Synchronous — a path becomes a streaming url by string construction, so there is no "not loaded
+  // yet" window to schedule around any more.
+  v.src = resolveMediaUrl(url); v.load();
+  if (playing) v.play().catch(() => {});
   return v;
 }
 /**
@@ -81,8 +86,10 @@ function makeImage(key: string, url: string): Entry {
   const entry: Entry = { type: 'IMAGE', bmp: null, url };
   void (async () => {
     try {
-      const src = await resolveMediaUrl(url, mimeForPath(url));
+      const src = resolveMediaUrl(url);
       if (!src) return;
+      // ONE copy now, streamed: the file used to be read whole over IPC into a Blob and then fetched
+      // BACK out of that blob — two full copies of every image in renderer memory before decode.
       const blob = await (await fetch(src)).blob();
       const bmp = await createImageBitmap(blob);
       const cur = media.get(key);

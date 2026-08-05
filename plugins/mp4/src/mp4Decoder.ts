@@ -72,8 +72,13 @@ class FileDecoder {
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
-    const url = await resolveMediaUrl(path, 'video/mp4');
+    const url = resolveMediaUrl(path);
     if (!url) return null;
+    // ONE copy of the file, not two. This used to fetch out of a Blob that main had already read
+    // whole over IPC — so opening a 300 MB clip cost 600 MB of renderer memory before a frame was
+    // decoded. Streaming the demux itself (progressive appendBuffer, with a tail Range fetch for a
+    // non-faststart `moov`) is the next step; this removes the duplication first because it is one
+    // line and cannot change behaviour.
     let buf: ArrayBuffer;
     try { buf = await (await fetch(url)).arrayBuffer(); } catch { return null; }
 

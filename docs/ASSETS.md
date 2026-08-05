@@ -51,7 +51,26 @@ src/renderer/App.tsx        assets state, import/remove/relink/use handlers, dra
    (A separate full-screen `AssetManager.tsx` existed until 2026-07-23; it duplicated the same grid, so
     it was deleted and its detail pane folded into MediaPanel. See docs/WORKSPACE.md.)
 src/renderer/components/Stage.tsx   onDropAsset: hit-tests the drop against surface rects
+src/main/mediaAccess.ts     the allowlist deciding which paths artlux-media:// will serve
 ```
+
+### What the app is allowed to read
+
+Media reaches the UI over the `artlux-media://` scheme rather than being read whole into memory (see
+[ARCHITECTURE.md → Media transport](ARCHITECTURE.md#media-transport-srcmainmediaprotocolts--sharedmediaurlts)),
+and that scheme serves **only** what the open project needs:
+
+- everything inside the **project folder** and the app's own `userData`;
+- any folder you picked in an **Import / Open** dialog this session;
+- the **exact files this project references**, wherever they live — which is why a show that points at
+  a media library on another drive keeps working. Assets outside the project folder are stored as
+  absolute paths on purpose (that is what `relativizeAssets` preserves), and they are admitted
+  individually rather than by opening up their whole directory.
+
+The list is rebuilt from scratch each time a project opens, so **closing a show revokes access to its
+media**, and a playlist stepping through shows never accumulates the union of everything it has
+played. A refused path is logged once as `[media] refused (not in the open project)` — if a clip is
+unexpectedly black, that line in the log is the thing to look for.
 
 ### IPC
 | Channel | Direction | Purpose |

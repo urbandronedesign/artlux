@@ -1125,13 +1125,17 @@ check(
 // ── Preload: warming reads what plays next, not the whole document ────────────────────────────
 check(
   'warmMedia warms a relevance window, not every clip',
-  'warmMedia used to loop EVERY clip of a timeline and read each one\'s whole file over IPC — at ' +
-  'project open, on every GO, and once per FSM look-ahead state. A 40-clip scene was 40 whole-file ' +
-  'reads for material that might play twenty minutes later, and on a heavy show it was the largest ' +
-  'single share of the open\'s I/O (metric D, scripts/bench-open.cjs). The fix is a window: each ' +
-  'layer\'s START clip (the set poolReadiness judges, so the gate\'s contract is unchanged) plus the ' +
-  'next WARM_AHEAD_SEC, advanced by frame() while playing. It reverts silently — the app still runs, ' +
-  'the show still plays, and only the open gets slow again — so it is asserted here.',
+  'warmMedia used to loop EVERY clip of a timeline and open/read each one — at project open, on every ' +
+  'GO, and once per FSM look-ahead state. A 40-clip scene was 40 whole-file reads for material that ' +
+  'might play twenty minutes later, and on a heavy show it was the largest single share of the open\'s ' +
+  'I/O (metric D, scripts/bench-open.cjs). The fix is a window: each layer\'s START clip (the set ' +
+  'poolReadiness judges, so the gate\'s contract is unchanged) plus the next WARM_AHEAD_SEC, advanced ' +
+  'by frame() while playing. It reverts silently — the app still runs, the show still plays, and only ' +
+  'the open gets slow again — so it is asserted here. ' +
+  'NOTE: this check once also required a WARM_INFLIGHT bound on concurrent BLOB READS. That clause was ' +
+  'removed when media moved to artlux-media:// — there are no whole-file reads left on this path to ' +
+  'bound, so requiring the bound would have forced dead code. The window itself still matters, and now ' +
+  'bounds how many DECODERS get opened ahead of time rather than how many files get read.',
   () => {
     const src = read('src/renderer/services/timeline.ts');
     const problems = [];
@@ -1140,13 +1144,53 @@ check(
     // The window is built from each layer's start clip, never from a bare walk of t.clips.
     if (!body.includes('startClip(')) problems.push('warmMedia no longer warms per-layer start clips (startClip) — the gate waits on exactly those');
     if (/for \(const c of t\.clips\)/.test(body)) problems.push('warmMedia walks every clip in the document again — that is the flood this check exists to prevent');
-    // The look-ahead half, and the bound on issuance.
     if (!src.includes('WARM_AHEAD_SEC')) problems.push('WARM_AHEAD_SEC is gone — there is no look-ahead window');
-    if (!src.includes('WARM_INFLIGHT')) problems.push('WARM_INFLIGHT is gone — blob reads are issued unbounded again');
     // The window must ADVANCE, or a clip past the opening window never warms until it is already live.
     if (!fnBody(src, 'frame')?.includes('warmWindow(')) problems.push('frame() no longer advances the warm window — clips past the opening window warm only once they are on screen');
     // A seek/swap invalidates a window built around the old playhead.
     if (!fnBody(src, 'mainSeek')?.includes('warmHorizon')) problems.push('mainSeek does not reset warmHorizon — after a jump the window still describes the OLD playhead');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Media streams; it is never read whole into the renderer ───────────────────────────────────
+check(
+  'media loads over artlux-media://, with the scheme privileged before app-ready',
+  'Media used to cross IPC as one Uint8Array and become a Blob: a 1 GB HAP .mov measured 2.3 s of ' +
+  'read, main RSS 125 MB -> 3.7 GB and a 1.7 s event-loop stall, for a file the decoder wanted a few ' +
+  'MB of. Streaming it back onto that path is invisible in dev (small files, warm cache) and fatal in ' +
+  'a venue. THREE THINGS MUST HOLD TOGETHER: (1) the scheme is privileged at MODULE SCOPE — Chromium ' +
+  'fixes its scheme registry during startup, so registering inside whenReady yields a scheme without ' +
+  'standard/secure/stream and every video silently fails to load; (2) the handler answers Range AND ' +
+  'sends Access-Control-Allow-Origin, because both <video> factories set crossOrigin=anonymous (inert ' +
+  'under blob:, mandatory under a custom scheme) and that attribute is also what keeps frames ' +
+  'UNTAINTED for canvas/WebGPU sampling — i.e. the LED pipeline; (3) the handler aborts its stream, ' +
+  'or a scrubbing <video> leaks an fd per cancelled range until the process dies of EMFILE.',
+  () => {
+    const problems = [];
+    if (!exists('src/main/mediaProtocol.ts')) return 'src/main/mediaProtocol.ts is gone — media is no longer streamed';
+    const proto = read('src/main/mediaProtocol.ts');
+    const index = read('src/main/index.ts');
+    // (1) privileged before ready. The call must not sit inside the whenReady callback.
+    const readyAt = index.indexOf('app.whenReady()');
+    const regAt = index.indexOf('registerMediaScheme()');
+    if (regAt < 0) problems.push('src/main/index.ts never calls registerMediaScheme() — the scheme has no privileges');
+    else if (readyAt >= 0 && regAt > readyAt) problems.push('registerMediaScheme() is called after app.whenReady() — too late for Chromium to grant standard/secure/stream');
+    for (const priv of ['standard', 'secure', 'supportFetchAPI', 'stream']) {
+      if (!new RegExp(`${priv}:\\s*true`).test(proto)) problems.push(`the media scheme is missing the \`${priv}\` privilege`);
+    }
+    // (2) range + CORS on the responses.
+    if (!proto.includes('Content-Range')) problems.push('the handler never sends Content-Range — seeking a <video> will refetch from zero or hang');
+    if (!proto.includes('Accept-Ranges')) problems.push('the handler never sends Accept-Ranges — clients will not attempt to seek');
+    if (!proto.includes('Access-Control-Allow-Origin')) problems.push('the handler never sends Access-Control-Allow-Origin — crossOrigin=anonymous makes EVERY media load fail');
+    // (3) the fd-leak guard.
+    if (!/signal\?*\.addEventListener\('abort'/.test(proto)) problems.push('the handler does not destroy its stream on abort — a scrubbing <video> will leak file descriptors');
+    // …and the allowlist is what stops the scheme being an arbitrary-file-read for the renderer.
+    if (!proto.includes('mediaAccess.isAllowed(')) problems.push('the handler serves without asking mediaAccess.isAllowed — the renderer can read any file on disk');
+    // The renderer must not have crept back onto whole-file reads for pictures.
+    for (const f of ['src/renderer/services/timeline.ts', 'src/renderer/services/contentSource.ts', 'src/renderer/services/thumbnailCache.ts', 'src/renderer/components/AssetChip.tsx']) {
+      if (/\bensureBlobUrl\s*\(/.test(read(f))) problems.push(`${f} blob-reads media again — that is the whole-file path this check exists to prevent`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

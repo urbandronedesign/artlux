@@ -1,4 +1,4 @@
-import { ensureBlobUrl, mimeForPath } from './mediaCache';
+import { resolveMediaUrl } from './mediaCache';
 import { videoCodecRegistry } from '../host/registries';
 import * as bootGate from './bootGate';
 import { timeline as engine } from './timeline';
@@ -80,9 +80,12 @@ class VideoLoader {
   constructor(public path: string) {
     this.v.muted = true; this.v.preload = 'auto'; this.v.crossOrigin = 'anonymous';
     this.ready = (async () => {
-      const url = await ensureBlobUrl(path, mimeForPath(path));
-      if (!url) return false;
-      this.v.src = url;
+      // Streams now (artlux-media://) instead of blob-reading the whole file to grab one frame. That
+      // read is what the housekeeping rules below were written around — one measured startup pulled
+      // 99 MB + 127 MB of library video for filmstrips nobody was looking at, at ~20 dropped frames
+      // per file. The rules still stand (they also bound decode and GPU work), but their worst input
+      // is gone.
+      this.v.src = resolveMediaUrl(path);
       await new Promise<void>(res => { this.v.onloadeddata = () => res(); this.v.onerror = () => res(); });
       return this.v.readyState >= 1;
     })();
@@ -117,17 +120,24 @@ function getLoader(path: string): VideoLoader {
 }
 
 function pumpVideo(): void {
-  // The <video> path is the EXPENSIVE one: its loader blob-reads the WHOLE FILE over IPC to seek in it
-  // (99 MB + 127 MB of library video in one measured startup). While a show is running it takes the
-  // same one-job-at-a-time, one-per-second budget as the codec path — see nextJobDelay.
+  // The <video> path is still the expensive one — a decode + a GPU readback per frame, on the same
+  // hardware the show is using. While a show is running it takes the same one-job-at-a-time,
+  // one-per-second budget as the codec path — see nextJobDelay.
   while (videoBusy < (engine.isPlaying() ? 1 : VIDEO_MAX) && videoQueue.length) {
     const wait = nextJobDelay();
     if (wait > 0) { setTimeout(pumpVideo, wait); return; }
-    // ⚠ NO WHOLE-FILE READ WHILE THE SHOW IS RUNNING. Throttling this one does not help, because the
-    // cost is not the RATE, it is the SINGLE JOB: opening a loader blob-reads the entire file over IPC
-    // (99 MB and 127 MB in a measured startup), which stalls the main process mid-read and cost ~20
-    // dropped frames per file even at one job per second. A loader that already exists is free to
-    // re-seek, so strips that were built while stopped keep filling. The rest wait for the transport.
+    // ⚠ NO NEW LOADER WHILE THE SHOW IS RUNNING.
+    //
+    // The ORIGINAL reason was that opening one blob-read the entire file over IPC — 99 MB and 127 MB
+    // in a measured startup — which stalled main mid-read and cost ~20 dropped frames per file even
+    // at one job per second. That specific cost is GONE: loaders stream (artlux-media://) and read
+    // only the ranges they seek to.
+    //
+    // The rule stays, for the reason that survives: a new loader is a new decoder and a new demux of
+    // an unfamiliar file, which is a burst of decode + IPC + GPU work at the one moment the frame
+    // budget has none to give. An EXISTING loader is free to re-seek, so strips built while stopped
+    // keep filling; the rest wait for the transport. Revisit only with a measurement, not by reading
+    // the paragraph above and concluding the rule expired with it.
     if (engine.isPlaying() && !loaders.has(videoQueue[0].path)) { setTimeout(pumpVideo, PLAYING_GAP_MS); return; }
     const job = videoQueue.shift()!;
     lastJob = performance.now();

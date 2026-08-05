@@ -37,13 +37,18 @@ const attempts = new Map<string, number>();      // see MAX_ATTEMPTS
 const retryAfter = new Map<string, number>();    // path → the wall-clock ms before which a retry is NOT an attempt
 const subs = new Set<() => void>();
 
-// ensureBlobUrl DOES NOT WAIT ON A CONCURRENT LOAD — it returns `undefined` the moment another caller is
-// already reading the same path (mediaCache: `if (loading.has(path)) return undefined`). On a drop we probe
-// the duration and render the lane in the same tick, so that race is the NORMAL case, not an exotic one.
-// Treating a missing url as "undecodable" would therefore blacklist a perfectly good file forever: flat
-// waveform, and — far worse — `sourceDurationFor` stuck at null, which pins the right-trim cap to the
-// clip's current duration for the rest of the session. So a missing url is RETRIED, and only a bounded
-// number of times, so a genuinely unreadable path cannot storm IPC on every render either.
+// ⚠ THE ORIGINAL REASON FOR THIS RETRY IS DEAD. It said: `ensureBlobUrl` does not wait on a concurrent
+// load, it returns `undefined` the moment another caller is already reading the same path
+// (`if (loading.has(path)) return undefined`) — so on a drop, where we probe the duration and render the
+// lane in the same tick, losing that race was the NORMAL case. mediaCache now JOINS the in-flight read
+// and returns the same promise to every caller, so that race no longer exists.
+//
+// THE RETRY STAYS ANYWAY, on a narrower and still-true claim: a read can fail for ordinary reasons (a
+// file being written, a network volume blinking, a permission hiccup), and treating one failure as
+// "undecodable" blacklists a good file for the session — flat waveform, and far worse
+// `sourceDurationFor` stuck at null, which pins the right-trim cap to the clip's current duration.
+// A bounded retry costs nothing when reads succeed and rescues the transient case. Keep it; just do
+// not repeat the dead premise to justify it.
 //
 // ⚠ THE BUDGET MUST BE SPENT IN WALL-CLOCK TIME, NOT IN FRAMES. `ensurePeaks` can be reached from EVERY
 // POINTERMOVE OF A DRAG (Timeline.tsx's onAudioDragMove → sourceDurationFor, on any clip with no
