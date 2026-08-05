@@ -3219,6 +3219,41 @@ check(
   },
 );
 
+// ── Content is minified onto a venue, so it is mipped — through ONE upload door ────────────────
+check(
+  'projector content uploads through one path that keeps its mip chain complete',
+  'Content mapped onto a venue is almost always MINIFIED — a 1080p clip landing on a few hundred ' +
+  'projector pixels of an object — and bilinear samples one 2x2 of a footprint covering dozens of ' +
+  'texels. What it misses beats against the sampling grid and CRAWLS as the video plays, which on a ' +
+  'large projection is a show stopper in a way a static jagged edge is not. ⚠ The improvement is ' +
+  'NOT measured: an A/B against a PLAYING video compared different frames, and the same build ' +
+  'measured 1.0 and 5.8 on two runs, so content dominates that metric entirely. A clean number ' +
+  'needs the transport paused at a fixed playhead. THE TRAP is that MIN_FILTER is now LINEAR_MIPMAP_LINEAR, so a ' +
+  'texture whose base level is replaced without regenerating the chain is INCOMPLETE and samples as ' +
+  '(0,0,0,1) — an upload site that forgets it does not look slightly wrong, that output goes BLACK. ' +
+  'There are two draw paths (mesh warp and baked map) and both fill the same texture, so the upload ' +
+  'lives behind one method rather than being repeated.',
+  () => {
+    const F = 'src/renderer/projector/ProjectorGL.ts';
+    const src = stripComments(read(F));
+    const problems = [];
+    if (!/private uploadContent\(/.test(src))
+      problems.push(`${F} has no uploadContent — the two draw paths would each have to remember to regenerate the mip chain`);
+    if (!/generateMipmap\(gl\.TEXTURE_2D\)/.test(src))
+      problems.push('nothing regenerates the content mip chain — with a mipmap MIN_FILTER the texture is incomplete and the output goes black');
+    // Exactly one place may fill the content texture. A second is the regression.
+    const fills = (src.match(/texImage2D\(gl\.TEXTURE_2D, 0, gl\.RGBA, gl\.RGBA, gl\.UNSIGNED_BYTE, src\)/g) ?? []).length;
+    if (fills > 1)
+      problems.push(`the content texture is filled from ${fills} places — every one of them must regenerate the mip chain, and the one that forgets renders black`);
+    if (!/LINEAR_MIPMAP_LINEAR/.test(src))
+      problems.push('the content texture is no longer mipped — minified content aliases and crawls as it plays');
+    // WebGL1 cannot mip NPOT: mipping there would make the texture incomplete instead of prettier.
+    if (!/this\.canMip = !!this\.gl2/.test(src))
+      problems.push('mipping is no longer gated on WebGL2 — a WebGL1 fallback cannot mip a non-power-of-two texture and would render black');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

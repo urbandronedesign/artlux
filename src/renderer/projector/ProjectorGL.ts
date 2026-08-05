@@ -227,6 +227,8 @@ export class ProjectorGL {
   private mapTex: WebGLTexture | null = null;
   private mapW = 0; private mapH = 0;
   private mapHasCoverage = false;
+  private canMip = false;
+  private maxAniso = 0;
   private quadBuf: WebGLBuffer | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -255,8 +257,31 @@ export class ProjectorGL {
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    // ── MINIFICATION: TRILINEAR + ANISOTROPIC ────────────────────────────────────────────────────
+    // Content mapped onto a venue is almost always MINIFIED — a 1080p clip landing on a few hundred
+    // projector pixels of an object — and bilinear takes one 2x2 sample of a footprint that covers
+    // dozens of texels. What it misses does not merely blur: it beats against the sampling grid and
+    // CRAWLS as the video plays. Moving aliasing on a large projection is far more objectionable than
+    // a static jagged edge, and unlike the silhouette it costs nothing in the file to fix.
+    //
+    // Anisotropy is the half that matters here specifically. Projection onto an angled surface
+    // compresses one axis far more than the other, and isotropic trilinear has to choose a mip for the
+    // WORST axis — so a surface at a glancing angle goes soft in the direction that was still sharp.
+    // The extension is requested once; where it is absent this degrades to plain trilinear.
+    this.canMip = !!this.gl2;   // WebGL1 cannot mip a non-power-of-two texture (incomplete → black)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, this.canMip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    // ⚠ BOUNDS THE SILHOUETTE HALO. uv comes from a texture, so across an edge — the object's outline,
+    // or the seam between two faces with unrelated unwraps — neighbouring fragments sample unrelated
+    // parts of the picture and the implicit derivative explodes, selecting the coarsest mip. Capping
+    // the chain keeps that worst case to a bounded softness instead of a 1x1 average of the whole
+    // frame. The real fix is explicit clamped gradients, which needs a GLSL ES 3.00 shader.
+    if (this.gl2) this.gl2.texParameteri(gl.TEXTURE_2D, this.gl2.TEXTURE_MAX_LEVEL, 4);
+    const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+    if (aniso) {
+      this.maxAniso = Math.min(8, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number);
+      gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, this.maxAniso);
+    }
     // DOM image/video rows are already top-first + our UVs put v=0 at top → do NOT flip.
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
     gl.clearColor(0, 0, 0, 1);
@@ -319,14 +344,33 @@ export class ProjectorGL {
   // a new frame is pushed (the ImageBitmap streamed from main) so an unchanged generation skips the
   // texImage2D — at 1080p that is ~8 MB of upload per skipped frame, per output window. Omit it for
   // a live <video>/<canvas> that mutates in place: those must be re-uploaded every frame.
+
+  /**
+   * Upload one frame of content — the ONLY place this.tex is filled.
+   *
+   * Single door on purpose: MIN_FILTER is LINEAR_MIPMAP_LINEAR, and a texture whose base level is
+   * replaced without regenerating the chain is INCOMPLETE. An incomplete texture samples as
+   * (0,0,0,1), so an upload site that forgot this would not look slightly wrong — that output would
+   * go BLACK, and only on the path that missed it.
+   *
+   * Throws are the caller's to handle: a video frame that is not decodable this instant is normal.
+   */
+  private uploadContent(src: TexImageSource): void {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    // Per frame, because the content IS per frame. ~1/3 extra texels over the base level, which buys
+    // a correctly filtered minification — the cheapest quality in this whole path.
+    if (this.canMip) gl.generateMipmap(gl.TEXTURE_2D);
+  }
+
   draw(src: TexImageSource | null, o: DrawOpts, srcGen?: number): void {
     const gl = this.gl;
     if (!src) { this.lastSrcGen = null; this.warpFromTexture(null, o); return; }
     const fresh = srcGen === undefined || srcGen !== this.lastSrcGen || this.lastSrcGen === null;
     if (fresh) {
       try {
-        gl.bindTexture(gl.TEXTURE_2D, this.tex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+        this.uploadContent(src);
       } catch { this.lastSrcGen = null; this.warpFromTexture(null, o); return; } // not decodable this frame
       this.lastSrcGen = srcGen ?? null;
     }
@@ -463,8 +507,7 @@ export class ProjectorGL {
       const fresh = srcGen === undefined || srcGen !== this.lastSrcGen || this.lastSrcGen === null;
       if (fresh) {
         try {
-          gl.bindTexture(gl.TEXTURE_2D, this.tex);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+          this.uploadContent(src);
           this.lastSrcGen = srcGen ?? null;
         } catch { this.lastSrcGen = null; }
       }
