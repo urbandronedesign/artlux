@@ -94,8 +94,12 @@ export type MainToProjector =
   | { t: 'scene'; scene3D: Scene3D }
   // A BAKED CALIBRATION MAP for this output — the imported-file path (plugins/calibration bakedStore).
   //
-  // `uv` is w*h*3, (u, v, spare) per projector pixel, NaN where the projector has no content. The
-  // window uploads it once and then warps every frame through it, which is the whole point: it stops
+  // `uv` is w*h*3, (u, v, spare) per projector pixel, NaN where the projector has no content. V is
+  // Y-UP (v=0 is the bottom of the picture) because the bake measures it off geometry — the mesh's own
+  // uv attribute, or NDC mapped to [0,1]. A consumer sampling a top-row-first texture must flip it;
+  // ProjectorGL's baked shader does, and says why there.
+  //
+  // The window uploads it once and then warps every frame through it, which is the whole point: it stops
   // needing the venue model, the 3D scene and the depth pass that render-from-projector requires.
   //
   // Sent ONCE per import, not per frame — it is ~10 MB at native raster, and the buffer is transferred

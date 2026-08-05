@@ -3004,6 +3004,49 @@ check(
   },
 );
 
+// ── An imported baked map beats the live venue render, in the window AND in its panels ────────
+check(
+  'a baked calibration map supersedes render-from-projector',
+  'They are two answers to one question — where this projector\'s content lands on the venue — and ' +
+  'the map is that answer already computed. Render mode is TWO cooperating pieces: the frame loop ' +
+  'skips its own draw, and the calibration panel mounts an opaque full-window 3D scene on top. So ' +
+  'the map drew underneath a scene that covered it, and an imported calibration silently never ' +
+  'reached a pixel. It LOOKED right, which is why this is a guard and not a comment: the map is ' +
+  'baked from that same scene, so both paths draw the same silhouette — a screenshot agreed to ' +
+  '0.25% while the wrong one was on screen. Only usability may take the decision, and only for ' +
+  "'render': suppressing the venue scene for a map the context cannot upload leaves a flat warp " +
+  'and no calibration at all.',
+  () => {
+    const F = 'src/renderer/projector/ProjectorApp.tsx';
+    const src = stripComments(read(F));
+    const problems = [];
+    if (!/applyCalibMode\s*=/.test(src))
+      problems.push(`${F} has no applyCalibMode — nothing decides between the baked map and the venue render`);
+    // The panels must hear the EFFECTIVE mode. If the raw 'calib' branch falls through to the generic
+    // fan-out, a panel mounts the venue scene from the raw 'render' and never learns it lost.
+    if (/m\.t === 'calib'\)\s*\{\s*calibRenderRef\.current\s*=/.test(src))
+      problems.push("the 'calib' handler sets calibRenderRef directly — the panels then never hear the effective mode and the venue scene covers the map");
+    // ⚠ Anchored to the DECISION, not to the string. `bakedRef.current?.uploaded` also appears in the
+    // draw branch below, so a looser test stays green while the decision itself has been weakened to
+    // the map's mere presence — which is precisely the mutation that has to fail here.
+    if (!/mode === 'render' && bakedRef\.current\?\.uploaded/.test(src))
+      problems.push('the supersede decision does not read `uploaded` — deciding on the map\'s presence suppresses the venue render on a machine that cannot draw the map, leaving a flat warp and no calibration');
+    // ⚠ ORDER. The upload is what makes `uploaded` knowable, so it must run BEFORE the branch it
+    // releases. Below it, the render branch returns first and the map is never uploaded — the exact
+    // deadlock this shape is prone to.
+    const up = src.indexOf('gl.setBakedMap(');
+    const branch = src.indexOf('if (calibRenderRef.current)');
+    if (up < 0) problems.push(`${F} never uploads a baked map`);
+    else if (branch >= 0 && up > branch)
+      problems.push('the baked map uploads AFTER the render-from-projector branch — that branch returns first, so the map is never uploaded and never supersedes anything');
+    // The panel is the half that covers the picture; it must gate on the mode it is told.
+    const cp = stripComments(read('plugins/calibration/src/CalibProjector.tsx'));
+    if (!/calibMode === 'render' &&/.test(cp))
+      problems.push('CalibProjector no longer gates its venue scene on calibMode === render — it would cover a baked map unconditionally');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

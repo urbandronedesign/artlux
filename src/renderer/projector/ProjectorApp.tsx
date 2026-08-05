@@ -52,7 +52,10 @@ export const ProjectorApp: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const glRef = useRef<ProjectorGL | null>(null);
   // A baked calibration map, held until the draw loop can upload it (see the 'bakedMap' handler).
-  const bakedRef = useRef<{ w: number; h: number; uv: Float32Array; uploaded: boolean } | null>(null);
+  // `tried` separates "not uploaded yet" from "cannot be uploaded here", which are opposite answers to
+  // the question applyCalibMode asks — the first must not yet supersede the venue render, the second
+  // must never do so.
+  const bakedRef = useRef<{ w: number; h: number; uv: Float32Array; uploaded: boolean; tried: boolean } | null>(null);
   const portRef = useRef<MessagePort | null>(null);
   const surfaceRef = useRef<Surface | null>(null);
   // Content type this window actually renders: the surface's own, or — when it is a SLICE — the type
@@ -207,8 +210,43 @@ export const ProjectorApp: React.FC = () => {
   const configLocalRef = useRef<string[]>([]);
   const sceneLayersRef = useRef<string[]>([]);
   const calibRenderRef = useRef(false);
+  // The calib mode as REQUESTED by main, before the baked-map override in applyCalibMode(). Kept
+  // because the override can flip long after the mode arrived — a venue file is imported while an
+  // output is already rendering — and the panels then have to be told the effective mode again.
+  const lastCalibRef = useRef<Extract<MainToProjector, { t: 'calib' }> | null>(null);
   const applyLocalLayers = () => {
     engine.setLocalLayers([...new Set([...configLocalRef.current, ...(calibRenderRef.current ? sceneLayersRef.current : [])])]);
+  };
+
+  // ── A BAKED MAP SUPERSEDES RENDER-FROM-PROJECTOR ────────────────────────────────────────────────
+  //
+  // Both describe the same thing — where this projector's content lands on the venue — and a baked map
+  // is that answer already computed: the unwrap, the occlusion and the footprint edge are in its
+  // pixels. Running both would be a second, redundant scene render whose output is thrown away.
+  //
+  // It has to be decided HERE, in the window, and it has to reach the PANELS, because render mode is
+  // two cooperating pieces: this window's frame loop skips its own draw (see the calibRenderRef branch
+  // below), and the calibration panel mounts an opaque full-window 3D scene ON TOP. Suppressing only
+  // the first leaves the map drawing underneath a scene that covers it — which is exactly the bug this
+  // fixes, and why the map appeared to work: both paths draw the same silhouette, so the wrong one
+  // looked right.
+  //
+  // Main is NOT the place for this decision. It drives render mode from `useCalibration + poseRms`
+  // (App's pushProjectorState), and whether a baked map exists is the calibration PLUGIN's state —
+  // core asking a plugin what to render would put the plugin boundary the wrong way round. The window
+  // already receives both facts, so it is the one place that needs no new channel.
+  //
+  // Only 'render' is superseded. 'pattern' and 'crosshair' are authoring modes — an operator running a
+  // wizard is re-solving, and must see the projector itself, not a map. ⚠ The corollary: a wizard's
+  // Verify step on an output that already HAS an imported map shows the map, not the live solve.
+  // Withdraw the import before re-calibrating that output.
+  const applyCalibMode = (): void => {
+    const req = lastCalibRef.current;
+    if (!req) return;
+    const eff = req.mode === 'render' && bakedRef.current?.uploaded ? { ...req, mode: 'idle' as const } : req;
+    calibRenderRef.current = eff.mode === 'render';
+    applyLocalLayers();
+    panelMsgSubs.current.forEach((cb) => cb(eff));
   };
 
   // --- MessagePort handshake ---
@@ -276,11 +314,17 @@ export const ProjectorApp: React.FC = () => {
           // (the port is bridged on did-finish-load, the renderer builds the context in an effect),
           // and a map dropped on the floor would leave the output on the mesh warp with nothing
           // saying why. The draw loop uploads it on the next frame it can.
-          bakedRef.current = m.map ? { ...m.map, uploaded: false } : null;
+          bakedRef.current = m.map ? { ...m.map, uploaded: false, tried: false } : null;
           if (!m.map) glRef.current?.clearBakedMap();
+          // Arriving or being withdrawn CHANGES THE MODE — see applyCalibMode.
+          applyCalibMode();
         } else if (m.t === 'calib') {
-          calibRenderRef.current = m.mode === 'render';
-          applyLocalLayers();
+          lastCalibRef.current = m;
+          applyCalibMode();
+          // applyCalibMode fans the EFFECTIVE message to the panels itself, so this must not also
+          // fall through to the raw fan-out at the bottom — a panel that saw both would mount the
+          // venue scene from the raw 'render' and never hear that it lost.
+          return;
         } else if (m.t === 'timeline') {
           engine.setData(m.timeline);
         } else if (m.t === 'transport') {
@@ -355,6 +399,28 @@ export const ProjectorApp: React.FC = () => {
       // ⚠ The sign is DOM, so an NDI send of this output carries the BLACK, not the words. That is the
       // right way round — an NDI consumer is another machine's input, not a person to be told things.
       if (bootingRef.current) { gl.draw(null, opts); return; }
+      // ── UPLOAD THE BAKED MAP, ONCE, BEFORE THE BRANCH IT DECIDES ────────────────────────────────
+      // Done here rather than in the message handler because the GL context only exists inside this
+      // loop's closure, and a map can arrive before the canvas has one. Done BEFORE the
+      // render-from-projector branch below because whether the map is USABLE is what releases that
+      // branch — deciding on the map's presence instead would suppress the venue render on a machine
+      // that then cannot draw the map, leaving a flat warp and no calibration at all.
+      //
+      // One attempt, not per frame: both failure modes are permanent (see ProjectorGL.canDrawBaked)
+      // and the upload repacks ~10 MB into RGBA32F, which is not something to retry at 60 Hz.
+      {
+        const b = bakedRef.current;
+        if (b && !b.tried) {
+          b.tried = true;
+          b.uploaded = gl.setBakedMap(b.w, b.h, b.uv) && gl.canDrawBaked();
+          // Say which path is live, once. Two paths that draw the SAME silhouette is what made the
+          // shadowed map look like it worked, and an operator at a venue has even less to go on than
+          // a screenshot — so the window states it rather than leaving it to be inferred.
+          if (b.uploaded) console.log(`[projector] baked calibration map ACTIVE — ${b.w}×${b.h}, render-from-projector superseded`);
+          else console.warn('[projector] baked map unusable in this context — keeping the mesh path');
+          applyCalibMode(); // usability is only knowable now, and it may release the venue render
+        }
+      }
       // ── NOTHING UNDER AN OPAQUE OVERLAY — UNLESS THERE IS A RESIDUAL WARP ───────────────────────
       // Render-from-projector mounts the calibrated 3D scene as an OPAQUE full-window layer above
       // this canvas, so every pixel drawn here is thrown away — while still costing a full-resolution
@@ -467,11 +533,10 @@ export const ProjectorApp: React.FC = () => {
         //
         // Uploaded here rather than in the message handler because the GL context only exists inside
         // this loop's closure, and the map can arrive before the canvas has one.
-        const baked = bakedRef.current;
-        if (baked && !baked.uploaded) baked.uploaded = gl.setBakedMap(baked.w, baked.h, baked.uv);
-        // Falls through to the mesh path when drawBaked declines (WebGL1, no map, link failure), so a
-        // machine that cannot take this path keeps exactly the output it had before.
-        if (!(baked?.uploaded && gl.drawBaked(src as TexImageSource | null, opts, srcGen))) {
+        // Uploaded above, before the render-from-projector branch — see the note there for why the
+        // order matters. Still falls through to the mesh path if drawBaked declines, so a machine that
+        // cannot take this path keeps exactly the output it had before.
+        if (!(bakedRef.current?.uploaded && gl.drawBaked(src as TexImageSource | null, opts, srcGen))) {
           gl.draw(src as TexImageSource | null, opts, srcGen);
         }
       }

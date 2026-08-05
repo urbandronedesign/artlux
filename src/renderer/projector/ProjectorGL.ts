@@ -101,7 +101,18 @@ void main() {
   // outside the content's footprint. A projector overshooting the object it maps must go dark, or
   // the surround gets a smear of clamped texels.
   if (m.a < 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  vec4 c = texture2D(uTex, m.rg);
+  // ⚠ V IS FLIPPED HERE, AND THE FILE IS NOT WRONG — the two ends just count v from opposite edges.
+  // The map is baked from GEOMETRY: uv is the mesh's own attribute and the projected mode is NDC
+  // mapped to [0,1], both y-UP, so v=0 is the bottom of the picture. This texture is uploaded with
+  // UNPACK_FLIP_Y_WEBGL = 0 (see setSource), so its v=0 is the FIRST ROW — the picture's top. Without
+  // the flip the output is vertically mirrored: content still lands inside the right silhouette, at
+  // the right size, on the right object, which is what makes this hard to see on an abstract clip and
+  // obvious on one with a horizon in it.
+  //
+  // Corrected at the CONSUMER, not at the bake, so the exported file keeps storing the coordinate in
+  // the space it was measured in — MPCDI's PFM payload is itself a bottom-up format, and a file
+  // written to suit one renderer's upload flag is a file no other tool can read.
+  vec4 c = texture2D(uTex, vec2(m.r, 1.0 - m.g));
   // ⚠ THE BLEND IS INDEXED IN RASTER SPACE, NOT CONTENT SPACE. A soft edge describes where THIS
   // PROJECTOR's light stops overlapping its neighbour's — a property of the physical footprint. Feed
   // it the content uv and the ramp would slide around with the mapping and stop matching the rig.
@@ -314,6 +325,16 @@ export class ProjectorGL {
   }
 
   clearBakedMap(): void { this.mapW = 0; this.mapH = 0; }
+
+  /**
+   * Can this context play a baked map at all? Both failure modes are PERMANENT — WebGL1 has no float
+   * textures, and the program either links on first use or never — so the caller asks once and keeps
+   * the answer. It matters beyond this class: a window that supersedes render-from-projector on the
+   * strength of an imported map, and then cannot draw it, would fall through to the flat warp and lose
+   * the calibrated picture entirely. Usability, not the map's mere presence, is what may take that
+   * decision (see ProjectorApp's applyCalibMode).
+   */
+  canDrawBaked(): boolean { return !!this.gl2 && this.ensureBakedProgram(); }
 
   private ensureBakedProgram(): boolean {
     if (this.bakedProg) return true;
