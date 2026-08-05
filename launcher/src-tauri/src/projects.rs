@@ -90,6 +90,13 @@ pub struct Config {
     pub library_roots: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_dir: Option<String>,
+    /// Which ArtLux a project opens in. REMEMBERED rather than reset per session, because the
+    /// machine that needs the calibration workbench needs it every time somebody sits down at it —
+    /// re-picking on each launch is how an operator ends up aligning in the ordinary editor and
+    /// wondering where the Calib rail entry went. Absent = Normal, so an existing config file means
+    /// exactly what it did before this field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launch_mode: Option<crate::runner::LaunchMode>,
 }
 
 pub fn config_path() -> PathBuf {

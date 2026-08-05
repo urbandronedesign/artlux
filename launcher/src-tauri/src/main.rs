@@ -278,10 +278,31 @@ async fn create_project(exe: String, name: String) -> Result<projects::NewProjec
     Ok(made)
 }
 
-/// Open a project in the installed ArtLux.
+/// Open a project in the installed ArtLux, in the chosen launch mode.
+///
+/// `version` is the registry DisplayVersion the UI already holds for this install: `--calibrate`
+/// arrived in 0.25.1 and an older app drops an unknown flag in silence, so the gate needs it. Empty
+/// (an install found by path guess) stands the gate down rather than blocking on a guess.
 #[tauri::command]
-fn open_project(exe: String, project: String) -> runner::OpenOutcome {
-    runner::open_project(&exe, &project)
+fn open_project(exe: String, project: String, mode: runner::LaunchMode, version: String) -> runner::OpenOutcome {
+    runner::open_project(&exe, &project, mode, &version)
+}
+
+/// The remembered launch mode. Absent in the config = Normal, which is what every existing config
+/// file means.
+#[tauri::command]
+fn get_launch_mode() -> runner::LaunchMode {
+    projects::load_config().launch_mode.unwrap_or_default()
+}
+
+/// Remember the launch mode. Granular, like `set_workspace` — never a wholesale `set_config` from
+/// the UI, which would let a stale in-page copy of the config overwrite the library roots.
+#[tauri::command]
+fn set_launch_mode(mode: runner::LaunchMode) -> Result<runner::LaunchMode, String> {
+    let mut cfg = projects::load_config();
+    cfg.launch_mode = Some(mode);
+    projects::save_config(&cfg)?;
+    Ok(mode)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -418,6 +439,8 @@ fn main() {
             cancel_scan,
             recent_projects,
             open_project,
+            get_launch_mode,
+            set_launch_mode,
             create_project,
             list_examples,
             get_workspace,

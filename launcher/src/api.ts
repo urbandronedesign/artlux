@@ -68,12 +68,27 @@ export interface ScanResult {
   scanned: number;
 }
 
+/**
+ * Which ArtLux a project opens in. `normal` adds no flags at all, so an ordinary open is exactly
+ * what it was before modes existed; `calibrate` adds `--calibrate`, which ArtLux reads once at
+ * window load (it is a launch profile, not a runtime toggle — see src/main/runProfile.ts).
+ */
+export type LaunchMode = 'normal' | 'calibrate';
+
 export interface LauncherConfig {
   library_roots?: string[] | null;
   workspace_dir?: string | null;
+  launch_mode?: LaunchMode | null;
 }
 
-export interface OpenOutcome { ok: boolean; message: string; started_new: boolean }
+export interface OpenOutcome {
+  ok: boolean;
+  message: string;
+  started_new: boolean;
+  /** Did it open in the mode that was asked for? A THIRD outcome, not a shade of `ok` — a running
+   *  ArtLux takes the project and keeps its own mode, which is neither failure nor success. */
+  mode_applied: boolean;
+}
 
 export const getConfig = () => invoke<LauncherConfig>('get_config');
 export const setConfig = (config: LauncherConfig) => invoke<void>('set_config', { config });
@@ -81,7 +96,16 @@ export const getEffectiveRoots = () => invoke<string[]>('get_effective_roots');
 export const scanProjects = () => invoke<ScanResult>('scan_projects');
 export const cancelScan = () => invoke<void>('cancel_scan');
 export const recentProjects = () => invoke<ProjectEntry[]>('recent_projects');
-export const openProject = (exe: string, project: string) => invoke<OpenOutcome>('open_project', { exe, project });
+/**
+ * Open a project. `version` is the install's registry version, which the Rust needs to refuse
+ * calibration on an ArtLux older than 0.25.1 — an older one drops the flag in silence and opens the
+ * ordinary editor, which is indistinguishable from having worked.
+ */
+export const openProject = (exe: string, project: string, mode: LaunchMode, version: string) =>
+  invoke<OpenOutcome>('open_project', { exe, project, mode, version });
+
+export const getLaunchMode = () => invoke<LaunchMode>('get_launch_mode');
+export const setLaunchMode = (mode: LaunchMode) => invoke<LaunchMode>('set_launch_mode', { mode });
 
 export interface NewProject { dir: string; project_file: string; renamed: boolean; message: string }
 /** Makes the FOLDER and asks ArtLux to write the project into it. The launcher never writes one. */

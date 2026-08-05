@@ -8,14 +8,20 @@
 // without it is broken, and with it you have copied the set anyway. You choose which one opens.
 
 import { useCallback, useEffect, useState } from 'react';
-import { copyExample, getWorkspace, listExamples, mb, openProject, pickFolder, setWorkspace, type ExampleSet, type InstallInfo } from './api';
+import { copyExample, getWorkspace, listExamples, mb, openProject, pickFolder, setWorkspace, type ExampleSet, type InstallInfo, type LaunchMode } from './api';
+import { LaunchModeNote, LaunchModePicker, ModeNotAppliedBand } from './LaunchModePicker';
 
-export function Examples({ install }: { install: InstallInfo | null }) {
+export function Examples({ install, mode, onModeChange }: {
+  install: InstallInfo | null;
+  mode: LaunchMode;
+  onModeChange: (m: LaunchMode) => void;
+}) {
   const [sets, setSets] = useState<ExampleSet[]>([]);
   const [workspace, setWorkspace2] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [modeMiss, setModeMiss] = useState('');
 
   const load = useCallback(async () => {
     if (!install) { setSets([]); return; }
@@ -33,12 +39,16 @@ export function Examples({ install }: { install: InstallInfo | null }) {
 
   const use = async (set: ExampleSet, project: string) => {
     if (!install) return;
-    setBusy(set.id); setNote(''); setError('');
+    setBusy(set.id); setNote(''); setError(''); setModeMiss('');
     try {
       const r = await copyExample(install.dir, set.id, project);
       setNote(r.message);
-      const o = await openProject(install.exe, r.project);
-      setNote(`${r.message} ${o.message}`);
+      const o = await openProject(install.exe, r.project, mode, install.version);
+      // The copy always happened and is worth saying — so unlike Projects, the note stays and only
+      // the OPEN half moves into the band. Same rule underneath: each fact is stated once.
+      const missed = o.ok && !o.mode_applied && mode !== 'normal';
+      setNote(missed ? r.message : `${r.message} ${o.message}`);
+      setModeMiss(missed ? o.message : '');
       if (!o.ok) setError(o.message);
     } catch (e) {
       setError(String(e));
@@ -71,6 +81,18 @@ export function Examples({ install }: { install: InstallInfo | null }) {
         </div>
       </section>
 
+      {/* The same control as the Projects tab, over the same state — not a second setting. An
+          example opened here starts ArtLux exactly as a project row does, so hiding the choice on
+          one of the two tabs would just mean opening an example in whatever was picked elsewhere. */}
+      <section className="panel">
+        <div className="row" style={{ marginBottom: 8 }}>
+          <span className="panel-title">Open projects in</span>
+          <span className="grow" />
+          <LaunchModePicker mode={mode} onChange={onModeChange} disabled={!!busy} />
+        </div>
+        <LaunchModeNote mode={mode} />
+      </section>
+
       {sets.map((s) => (
         <section key={s.id} className="panel">
           <div className="row" style={{ alignItems: 'baseline', marginBottom: 4 }}>
@@ -95,6 +117,7 @@ export function Examples({ install }: { install: InstallInfo | null }) {
         </section>
       ))}
 
+      {modeMiss && <ModeNotAppliedBand>{modeMiss}</ModeNotAppliedBand>}
       {note && !error && (
         <section className="panel panel-ok panel-tight">
           <div className="text-mini fw-semi" style={{ color: 'var(--ok)' }}>✓ {note}</div>

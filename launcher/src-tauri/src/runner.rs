@@ -20,7 +20,7 @@
 //! And success is never claimed from an exit code alone -- we re-read the registry and confirm
 //! ArtLux.exe is really where it should be.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::os::windows::process::CommandExt;
 use std::process::Command;
 use windows::core::HSTRING;
@@ -38,6 +38,65 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// Windows: "this needs elevation" — see run_elevated for why CreateProcess returns it rather than
 /// raising a prompt.
 const ERROR_ELEVATION_REQUIRED: i32 = 740;
+
+/// The first ArtLux release that parses `--calibrate`. Not a guess: the flag arrived with the commit
+/// that made calibration a launch profile (src/main/runProfile.ts), and `git tag --contains` puts
+/// that commit in v0.25.1 and no earlier tag. An older app IGNORES an unknown flag entirely — it
+/// opens the project, in the ordinary editor, looking exactly like success — so this is checked
+/// before the spawn rather than discovered at the venue.
+const MIN_CALIBRATE_VERSION: &str = "0.25.1";
+
+/// WHICH ARTLUX A PROJECT OPENS IN.
+///
+/// Calibration is a **launch profile** in ArtLux, not a preference and not a runtime toggle: the
+/// calibration plugin is activated once per window at load, in the editor AND in every projector
+/// window it spawns, so a mid-session switch would leave the two disagreeing (src/main/runProfile.ts
+/// carries the full reasoning). The app's own File ▸ Open Calibration Workbench… therefore *saves
+/// and restarts itself*. Choosing the mode out here means a machine that is going to be aligned
+/// starts aligned — one launch instead of a launch and a restart.
+///
+/// Normal contributes NO flags, so an ordinary open stays byte-identical to what it was before this
+/// existed. That is deliberate: the default path must not change shape because a second option
+/// appeared beside it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LaunchMode {
+    /// The editor as it ships. No calibration plugin, so an open projector output stays cheap.
+    #[default]
+    Normal,
+    /// `--calibrate`: the alignment workbench — the wizards, the camera, OpenCV, and the live venue
+    /// render you align a solve against.
+    Calibrate,
+}
+
+impl LaunchMode {
+    /// The argv this mode adds after `--project=`. Public so the self-test can assert the rule that
+    /// Normal adds nothing, rather than restating it and drifting.
+    pub fn flags(self) -> &'static [&'static str] {
+        match self {
+            LaunchMode::Normal => &[],
+            LaunchMode::Calibrate => &["--calibrate"],
+        }
+    }
+
+    /// What to call it in a sentence an operator reads.
+    fn label(self) -> &'static str {
+        match self {
+            LaunchMode::Normal => "the editor",
+            LaunchMode::Calibrate => "the calibration workbench",
+        }
+    }
+
+    /// Is this install too old to understand the mode? Empty/unparseable versions answer **false**:
+    /// an install found by path guess carries no version, and blocking the operator on a guess is
+    /// worse than letting a flag be ignored. Same doctrine as `is_newer` and `artlux_running`.
+    pub fn too_old(self, installed: &str) -> bool {
+        match self {
+            LaunchMode::Normal => false,
+            LaunchMode::Calibrate => crate::releases::is_newer(MIN_CALIBRATE_VERSION, installed),
+        }
+    }
+}
 
 /// Outcome of asking the shell to run something elevated.
 enum Elevated {
@@ -133,40 +192,91 @@ pub struct OpenOutcome {
     pub message: String,
     /// False when an ArtLux was already up and we retargeted it instead of starting one.
     pub started_new: bool,
+    /// Did the project actually open in the mode that was asked for?
+    ///
+    /// SEPARATE FROM `ok` ON PURPOSE. "The project opened, but not in the mode you picked" is a real
+    /// third outcome, and folding it into either of the other two loses it: as a failure it hides
+    /// that the project is open, and as a success it hides that the workbench is not there. The UI
+    /// shows it as a warning beside a result that otherwise worked.
+    pub mode_applied: bool,
 }
 
-/// Open a project in ArtLux.
+/// Open a project in ArtLux, in a chosen mode.
 ///
-/// `ArtLux.exe --project=<abs>` is the ONLY contract for this -- there is no file association and no
-/// protocol handler (docs/LAUNCHER.md). It also did not work in editor mode until the change that
-/// preceded this launcher: main parsed the flag, forwarded it, and the renderer dropped it, so the
-/// editor opened empty with nothing in any log to say why.
+/// `ArtLux.exe --project=<abs> [--calibrate]` is the ONLY contract for this -- there is no file
+/// association and no protocol handler (docs/LAUNCHER.md). `--project=` also did not work in editor
+/// mode until the change that preceded this launcher: main parsed the flag, forwarded it, and the
+/// renderer dropped it, so the editor opened empty with nothing in any log to say why.
 ///
 /// A plain (unelevated) spawn, unlike the installer: ArtLux is not manifested for elevation, so
 /// CreateProcess is correct here and a UAC prompt would be wrong.
 ///
-/// WHEN ARTLUX IS ALREADY RUNNING the single-instance lock swallows this process and it EXITS 0 --
-/// an exit code proves nothing either way. So we look first and report which of the two things
-/// happened, rather than reporting success we did not observe.
-pub fn open_project(exe: &str, project: &str) -> OpenOutcome {
+/// TWO WAYS A MODE SILENTLY DOES NOT HAPPEN, both checked here rather than left to be discovered at
+/// a venue. Neither produces an error, a log line, or a window state that distinguishes it from
+/// having worked -- which is precisely why they are worth code:
+///
+///   1. **A RUNNING ARTLUX SWALLOWS IT.** The single-instance lock hands the incoming argv to the
+///      live process's `second-instance` handler, which routes `--project=` and DISCARDS the rest;
+///      this process then exits 0, so an exit code proves nothing either way. The project really
+///      does open -- in whatever mode the running copy was launched in. That is not a failure and
+///      not a success, so it is reported as itself (see `mode_applied`).
+///   2. **AN ARTLUX OLDER THAN 0.25.1 IGNORES `--calibrate`.** Unknown flags are dropped in silence,
+///      exactly as `--new-project=` is on 0.25.0. There is no artifact to watch for here the way
+///      `new_project` watches for the project file, so this one is a version gate -- and it does not
+///      have to guess which release carried the flag, because that is recorded (MIN_CALIBRATE_VERSION).
+///
+/// `installed_version` is the registry's DisplayVersion for this install, as scanned. Pass "" when
+/// it is unknown and the gate stands down rather than blocking on a guess.
+pub fn open_project(exe: &str, project: &str, mode: LaunchMode, installed_version: &str) -> OpenOutcome {
     if !std::path::Path::new(exe).is_file() {
-        return OpenOutcome { ok: false, message: format!("ArtLux is not where it should be: {exe}"), started_new: false };
+        return OpenOutcome { ok: false, message: format!("ArtLux is not where it should be: {exe}"), started_new: false, mode_applied: false };
     }
     if !std::path::Path::new(project).is_file() {
-        return OpenOutcome { ok: false, message: format!("That project file is gone: {project}"), started_new: false };
+        return OpenOutcome { ok: false, message: format!("That project file is gone: {project}"), started_new: false, mode_applied: false };
     }
+    // (2). Refused, not attempted: spawning would open the project in the ordinary editor and look
+    // like it worked, and the operator would go looking for a Calib rail entry that is not there.
+    if mode.too_old(installed_version) {
+        return OpenOutcome {
+            ok: false,
+            message: format!(
+                "This ArtLux ({installed_version}) cannot be launched into {} — it needs {MIN_CALIBRATE_VERSION} or newer. \
+                 Update it from the Install tab, or open the project normally and use File ▸ Open Calibration Workbench… inside ArtLux.",
+                mode.label(),
+            ),
+            started_new: false,
+            mode_applied: false,
+        };
+    }
+
     let was_running = artlux_running();
-    match Command::new(exe).arg(format!("--project={project}")).spawn() {
+    let mut cmd = Command::new(exe);
+    cmd.arg(format!("--project={project}"));
+    cmd.args(mode.flags());
+    match cmd.spawn() {
+        // (1). Attempted, and then described honestly. Retargeting is still the right thing to do --
+        // opening the project is what was asked for and it is what happens -- so this is `ok`, with
+        // the part that did not happen named beside it rather than folded into the same word.
         Ok(_) => OpenOutcome {
             ok: true,
-            message: if was_running {
-                "ArtLux was already running — it switched to this project.".into()
+            message: if !was_running {
+                match mode {
+                    LaunchMode::Normal => "Opening in ArtLux…".into(),
+                    LaunchMode::Calibrate => "Opening in ArtLux, with the calibration workbench…".into(),
+                }
+            } else if mode == LaunchMode::Normal {
+                // Still worth saying: a copy launched into calibration stays there, so "normal"
+                // was not honoured here either. Silence would make that look chosen.
+                "ArtLux was already running — it switched to this project, keeping the mode it was launched in.".into()
             } else {
-                "Opening in ArtLux…".into()
+                "ArtLux was already running — it switched to this project, but a launch mode cannot be changed \
+                 in a copy that is already up. Close ArtLux and open this again, or use File ▸ Open Calibration Workbench… inside it."
+                    .into()
             },
             started_new: !was_running,
+            mode_applied: !was_running,
         },
-        Err(e) => OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false },
+        Err(e) => OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false, mode_applied: false },
     }
 }
 
@@ -203,9 +313,13 @@ pub fn spawn_installer_detached(path: &str) -> Result<(), String> {
 /// Unelevated, like open_project: ArtLux is not manifested for elevation. And the same
 /// single-instance caveat applies -- a running copy swallows this and exits 0 -- so the caller is
 /// told which of the two happened rather than being handed a meaningless exit code.
+///
+/// ALWAYS THE ORDINARY EDITOR, whatever launch mode is selected elsewhere in the launcher. A project
+/// created a second ago has no surfaces, no outputs and no venue model, so there is nothing to align
+/// a projector against; opening it in the calibration workbench would be a workbench with no work.
 pub fn new_project(exe: &str, folder: &str, project_file: &str) -> OpenOutcome {
     if !std::path::Path::new(exe).is_file() {
-        return OpenOutcome { ok: false, message: format!("ArtLux is not where it should be: {exe}"), started_new: false };
+        return OpenOutcome { ok: false, message: format!("ArtLux is not where it should be: {exe}"), started_new: false, mode_applied: false };
     }
     let was_running = artlux_running();
     if was_running {
@@ -215,10 +329,11 @@ pub fn new_project(exe: &str, folder: &str, project_file: &str) -> OpenOutcome {
             ok: false,
             message: "ArtLux is already running. Close it first - a second launch cannot create a project in the copy that is open.".into(),
             started_new: false,
+            mode_applied: false,
         };
     }
     if let Err(e) = Command::new(exe).arg(format!("--new-project={folder}")).spawn() {
-        return OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false };
+        return OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false, mode_applied: false };
     }
 
     // WAIT FOR THE FILE, do not assume it. `--new-project=` exists only in ArtLux builds newer than
@@ -234,12 +349,13 @@ pub fn new_project(exe: &str, folder: &str, project_file: &str) -> OpenOutcome {
     for _ in 0..60 {
         std::thread::sleep(std::time::Duration::from_secs(1));
         if target.is_file() {
-            return OpenOutcome { ok: true, message: "Created, and open in ArtLux.".into(), started_new: true };
+            return OpenOutcome { ok: true, message: "Created, and open in ArtLux.".into(), started_new: true, mode_applied: true };
         }
     }
     OpenOutcome {
         ok: false,
         started_new: true,
+        mode_applied: false,
         // Concatenated literals, not a backslash continuation: the continuation kept the source
         // indentation and the operator got this sentence with a corridor of blanks through it.
         message: concat!(

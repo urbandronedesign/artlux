@@ -97,6 +97,34 @@ redirected to OneDrive is still found — six levels deep, skipping system folde
 build output. A directory containing `project.artlux` is a **portable project**: it is listed once,
 under the folder's name, and not descended into.
 
+**Open projects in — Normal, or Calibration.** A segmented control above the list decides which
+ArtLux a project opens in, and it applies to the Examples tab too.
+
+| Mode | What opens |
+|---|---|
+| **Normal** | The editor as it ships. Projector outputs use the cheap warp path. |
+| **Calibration** | The editor *plus* the alignment workbench — the calibration wizards, the camera, and the live venue render you check a solve against. The **Calib** entry appears in the left rail. |
+
+The choice is **remembered**, because the machine that needs the workbench needs it every time
+somebody sits down at it. It has no effect on **Create**: a project made a second ago has no
+surfaces, no outputs and no venue model, so there would be nothing to align.
+
+> **Why this is worth a control rather than a menu item inside ArtLux.** Calibration is a *launch
+> profile*, not a preference: the plugin is activated once, when a window loads, in the editor and in
+> every projector window it spawns — so **File ▸ Open Calibration Workbench…** inside the app has to
+> save and restart it. Choosing out here means a machine that is going to be aligned comes up aligned,
+> in one launch instead of a launch and a restart.
+
+Two ways a mode can *silently* not happen, both refused or named rather than left to be found at the
+venue:
+
+- **ArtLux is already running.** The single-instance lock hands the incoming argv to the live process,
+  which routes `--project=` and discards the rest — so the project really does open, in whatever mode
+  that copy was launched in. The launcher says so instead of reporting a mode it did not deliver.
+- **The installed ArtLux is older than 0.25.1.** `--calibrate` arrived with that release, and an older
+  build drops an unknown flag in silence and opens the ordinary editor. That launch is refused with
+  the version named, rather than spawned and reported as success.
+
 **New projects start here too.** Type a name beside **Create** and the launcher makes the folder in
 your workspace, then asks ArtLux to write the project into it.
 
@@ -177,7 +205,7 @@ ArtLuxLauncher.exe            Tauri: a Rust core with a WebView2 UI
 │   ├─ install.rs    find every ArtLux install (registry, then labelled fallbacks)
 │   ├─ releases.rs   GitHub releases → tag → latest.yml → version, asset, sha512
 │   ├─ download.rs   streamed download, progress, cancel, sha512 verify
-│   ├─ runner.rs     elevate the installer, and spawn ArtLux --project=
+│   ├─ runner.rs     elevate the installer, and spawn ArtLux --project= [--calibrate]
 │   ├─ projects.rs   library roots, the disk walk, ArtLux's recents
 │   ├─ examples.rs   derive the sets, copy one to the workspace
 │   ├─ preflight.rs  run the machine check, parse it honestly
@@ -224,6 +252,7 @@ it breaks a shipped product that this repository does not build. Treat each as a
 ```
 ArtLux.exe --project=<absolute path to a .artlux file>      # open an existing project
 ArtLux.exe --new-project=<absolute path to a folder>        # lay it out and write a clean project
+ArtLux.exe --project=<…> --calibrate                        # …in the calibration workbench
 ```
 
 The **only** contract for "open this project": there is no file association and no protocol handler.
@@ -239,6 +268,22 @@ Parsed in [`src/main/index.ts`](../src/main/index.ts), consumed by an editor-mod
 
 - `--new-project=` is **newer than 0.25.0**. An ArtLux without it ignores the flag silently, so a
   caller must watch for `project.artlux` to appear rather than trust the spawn.
+
+- `--calibrate` is **0.25.1 or newer** — the release that made calibration a launch profile
+  ([`src/main/runProfile.ts`](../src/main/runProfile.ts)). It is a *modifier*, not a mode of its own:
+  pair it with `--project=`. Three things make it a contract rather than a flag:
+  - **An older ArtLux drops it in silence** and opens the ordinary editor, which is indistinguishable
+    from having worked. There is no artifact to watch for the way `--new-project=` has one, so this
+    one is a **version gate** — and it does not have to guess which release carried the flag, because
+    `git tag --contains` answers that once and the answer is recorded in `runner.rs`.
+  - **`second-instance` routes `--project=` and nothing else.** A mode handed to a running copy is
+    dropped, so a caller must probe first and report which of the two happened.
+  - **The show modes imply it.** `--broadcast` and `--headless` carry calibration always — a show's
+    outputs *are* the calibrated ones — so `--calibrate` is only ever needed for an editor launch.
+
+  Guarded end to end (argv → `calibrate=1` on the renderer query → the registration that puts the
+  workbench on screen) by the same `verify-invariants.cjs` check as `--project=`, because all three
+  flags are spelled literally in a product this repository does not build.
 
 Guarded by the `--project= reaches the document in every run mode` check in
 [`scripts/verify-invariants.cjs`](../scripts/verify-invariants.cjs) — which also asserts that both
@@ -413,6 +458,8 @@ inert while it is unused.
 | "Installation did not happen: the … prompt was declined" | Exactly that — nothing was installed. Run again and choose Yes. |
 | "ArtLux is running. Close it first" | An installer cannot replace files in use. |
 | "Two installs are present" | The legacy per-user install alongside the per-machine one. Remove the per-user one; Windows will not do it for you. |
+| "ArtLux was already running — … a launch mode cannot be changed in a copy that is already up" | Exactly that: the project opened, in the mode the running copy started in. Close ArtLux and open it again, or switch inside the app with **File ▸ Open Calibration Workbench…**. |
+| "This ArtLux (…) cannot be launched into the calibration workbench" | The install predates 0.25.1, which is where `--calibrate` arrived. Update from the Install tab. |
 | Projects tab is empty | Nothing was found in the search folders. Check the "Where it looked" list. |
 | The scan says it stopped early | It hit the 4000-project or 20-second limit. Narrow the search folders. |
 | Examples tab says ArtLux is not installed | The examples ship inside the app; install it first. |

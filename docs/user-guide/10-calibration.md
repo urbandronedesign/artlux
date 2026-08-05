@@ -17,6 +17,11 @@ surface at 1:1.
 > window loads, and the editor's output windows have to agree with it. You will be prompted to save
 > first if the project has never been written to a file.
 >
+> **Skip the restart: start there.** The [Launcher](17-installing.md#the-easy-path-the-launcher)'s
+> Projects tab has an **Open projects in** control — set it to **Calibration** and the project opens
+> with the workbench already loaded. On a machine whose job is alignment that is the better route: one
+> launch instead of a launch and a restart, and the setting is remembered for next time.
+>
 > Everything that puts light on a wall keeps calibration regardless: **Broadcast** and headless launches
 > always carry it, because a show's outputs *are* the calibrated ones. You never have to think about
 > this at showtime.

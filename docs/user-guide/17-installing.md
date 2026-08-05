@@ -20,9 +20,23 @@ Four tabs:
 | Tab | What it is for |
 |---|---|
 | **Install** | see every ArtLux on this machine, and install or upgrade in one click |
-| **Projects** | everything on the machine ArtLux can open, with **Create** for a new one |
-| **Check** | the preflight — can this machine run a show? |
-| **Settings** | where the launcher looks for projects, and which release channel to use |
+| **Projects** | everything on the machine ArtLux can open, with **Create** for a new one — and which mode they open in |
+| **Examples** | the example sets ArtLux ships, copied somewhere you can actually save |
+| **Health** | the preflight — can this machine run a show? |
+
+**Which mode a project opens in** is chosen on the Projects tab, above the list, and applies to the
+Examples tab too:
+
+- **Normal** — the editor as it ships.
+- **Calibration** — the editor *plus* the projector‑alignment workbench, so a machine you are about
+  to align comes up ready. This is the same thing as **File ▸ Open Calibration Workbench…** inside
+  ArtLux, except that the in‑app route has to save and restart the app to get there, and this one
+  does not. See [Projector calibration](10-calibration.md).
+
+The choice is remembered. It needs ArtLux **0.25.1 or newer**; on an older install the launcher says
+so rather than opening the ordinary editor and letting you hunt for the missing **Calib** rail entry.
+And a mode can only be chosen for an ArtLux that is *starting* — if one is already running, the
+project opens in it, in whatever mode that copy was launched in, and the launcher tells you so.
 
 Three things the Install tab does that are worth knowing:
 

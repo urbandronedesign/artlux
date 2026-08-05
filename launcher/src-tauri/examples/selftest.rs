@@ -283,6 +283,36 @@ async fn main() {
     let rec = projects::recents();
     println!("   ArtLux recents still on disk: {}", rec.len());
 
+    // The launch-mode rules, asserted without hardware: both are things that fail SILENTLY in the
+    // field (an unknown flag is dropped, a normal open that grew a flag is invisible), so neither is
+    // safe to leave to the --open path that only runs when someone remembers to pass it.
+    line();
+    println!("6b. LAUNCH MODES");
+    line();
+    if !runner::LaunchMode::Normal.flags().is_empty() {
+        println!("   !! Normal contributes argv — an ordinary open must stay byte-identical");
+        failures += 1;
+    }
+    if runner::LaunchMode::Calibrate.flags() != ["--calibrate"] {
+        println!("   !! Calibrate does not pass --calibrate: {:?}", runner::LaunchMode::Calibrate.flags());
+        failures += 1;
+    }
+    // The version gate. 0.25.1 is the first ArtLux that parses --calibrate; older ones ignore it and
+    // open the ordinary editor looking exactly like success.
+    for (v, want) in [("0.24.9", true), ("0.25.0", true), ("0.25.1", false), ("0.26.0", false), ("", false)] {
+        let got = runner::LaunchMode::Calibrate.too_old(v);
+        let shown = if v.is_empty() { "(unknown)" } else { v };
+        println!("   calibrate on {shown:<9} -> {}", if got { "refused" } else { "allowed" });
+        if got != want {
+            println!("   !! expected {}", if want { "refused" } else { "allowed" });
+            failures += 1;
+        }
+    }
+    if runner::LaunchMode::Normal.too_old("0.1.0") {
+        println!("   !! the ordinary editor must never be version-gated");
+        failures += 1;
+    }
+
     if std::env::args().any(|a| a == "--open") {
         line();
         println!("7. OPEN A PROJECT IN ARTLUX");
@@ -292,10 +322,14 @@ async fn main() {
                 println!("   exe    : {}", inst.exe);
                 println!("   project: {}", proj.path);
                 // Cold: nothing running, so this must START ArtLux.
-                let a = runner::open_project(&inst.exe, &proj.path);
-                println!("   cold  -> ok={} started_new={} : {}", a.ok, a.started_new, a.message);
+                let a = runner::open_project(&inst.exe, &proj.path, runner::LaunchMode::Normal, &inst.version);
+                println!("   cold  -> ok={} started_new={} mode_applied={} : {}", a.ok, a.started_new, a.mode_applied, a.message);
                 if !a.ok || !a.started_new {
                     println!("   !! expected a fresh start when ArtLux was not running");
+                    failures += 1;
+                }
+                if !a.mode_applied {
+                    println!("   !! a cold start chooses the mode — it must never report otherwise");
                     failures += 1;
                 }
                 // Wait for it to actually be up, then open again: the single-instance lock should
@@ -307,10 +341,16 @@ async fn main() {
                 }
                 println!("   artlux up: {up}");
                 if up {
-                    let b = runner::open_project(&inst.exe, &proj.path);
-                    println!("   warm  -> ok={} started_new={} : {}", b.ok, b.started_new, b.message);
+                    // ...and asking for a MODE while it is up must not claim to have applied one:
+                    // second-instance routes --project= and discards the rest of the argv.
+                    let b = runner::open_project(&inst.exe, &proj.path, runner::LaunchMode::Calibrate, &inst.version);
+                    println!("   warm  -> ok={} started_new={} mode_applied={} : {}", b.ok, b.started_new, b.mode_applied, b.message);
                     if b.started_new {
                         println!("   !! claimed a fresh start while ArtLux was already running");
+                        failures += 1;
+                    }
+                    if b.mode_applied {
+                        println!("   !! claimed a launch mode was applied to an ArtLux that was already up");
                         failures += 1;
                     }
                 }
@@ -447,7 +487,7 @@ async fn main() {
         let _ = std::fs::create_dir_all(&probe);
         let probe_s = probe.to_string_lossy().into_owned();
 
-        let mut cfg = projects::Config { library_roots: Some(defaults.clone()), workspace_dir: None };
+        let mut cfg = projects::Config { library_roots: Some(defaults.clone()), ..Default::default() };
         cfg.library_roots.as_mut().unwrap().push(probe_s.clone());
         projects::save_config(&cfg).ok();
         let after_add = projects::effective_roots(&projects::load_config());
@@ -459,7 +499,7 @@ async fn main() {
 
         // Removing everything must persist as an EMPTY list, not read back as "never configured".
         // That distinction is the whole reason Config stores Option<Vec<_>>.
-        projects::save_config(&projects::Config { library_roots: Some(vec![]), workspace_dir: None }).ok();
+        projects::save_config(&projects::Config { library_roots: Some(vec![]), ..Default::default() }).ok();
         let emptied = projects::effective_roots(&projects::load_config());
         println!("   after removing all: {} folders (must be 0, NOT the defaults)", emptied.len());
         if !emptied.is_empty() {
@@ -469,11 +509,25 @@ async fn main() {
 
         // Reset clears the field rather than writing the defaults into it, so a later change of
         // Documents location is still followed.
-        projects::save_config(&projects::Config { library_roots: None, workspace_dir: None }).ok();
+        projects::save_config(&projects::Config { library_roots: None, ..Default::default() }).ok();
         let reset = projects::load_config();
         println!("   after reset : field cleared={} -> {} folders", reset.library_roots.is_none(), projects::effective_roots(&reset).len());
         if reset.library_roots.is_some() {
             println!("   !! reset wrote the defaults in instead of clearing the field");
+            failures += 1;
+        }
+
+        // The launch mode is remembered, and an absent field still means the ordinary editor — so a
+        // config written before the field existed cannot read back as "calibration".
+        if reset.launch_mode.unwrap_or_default() != runner::LaunchMode::Normal {
+            println!("   !! a config with no launch_mode did not read back as Normal");
+            failures += 1;
+        }
+        projects::save_config(&projects::Config { launch_mode: Some(runner::LaunchMode::Calibrate), ..Default::default() }).ok();
+        let kept = projects::load_config().launch_mode.unwrap_or_default();
+        println!("   launch mode : round-trips as {kept:?}");
+        if kept != runner::LaunchMode::Calibrate {
+            println!("   !! the launch mode did not survive a save/load round trip");
             failures += 1;
         }
 

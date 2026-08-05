@@ -8,8 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addLibraryRoot, cancelScan, createProject, getConfig, getEffectiveRoots, onScanProgress,
   openProject, pickFolder, recentProjects, removeLibraryRoot, resetLibraryRoots, scanProjects, when,
-  type InstallInfo, type ProjectEntry, type ScanProgress, type ScanResult,
+  type InstallInfo, type LaunchMode, type ProjectEntry, type ScanProgress, type ScanResult,
 } from './api';
+import { LaunchModeNote, LaunchModePicker, ModeNotAppliedBand } from './LaunchModePicker';
 
 /**
  * Where a project sits, when its NAME alone is ambiguous.
@@ -56,7 +57,11 @@ const STOPPED: Record<string, string> = {
   cancelled: 'Cancelled — this list is incomplete.',
 };
 
-export function Projects({ install }: { install: InstallInfo | null }) {
+export function Projects({ install, mode, onModeChange }: {
+  install: InstallInfo | null;
+  mode: LaunchMode;
+  onModeChange: (m: LaunchMode) => void;
+}) {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [recents, setRecents] = useState<ProjectEntry[]>([]);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
@@ -70,6 +75,9 @@ export function Projects({ install }: { install: InstallInfo | null }) {
   const [edited, setEdited] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  // "The project opened, but not in the mode you picked" — kept apart from `note` because it is a
+  // different kind of thing and must not be one more grey sentence in the same box.
+  const [modeMiss, setModeMiss] = useState('');
   const unlisten = useRef<(() => void) | null>(null);
 
   const rescan = useCallback(async () => {
@@ -105,10 +113,14 @@ export function Projects({ install }: { install: InstallInfo | null }) {
   }, [rescan]);
 
   // The launcher picks WHERE; ArtLux writes WHAT. Nothing here knows the shape of a project file.
+  //
+  // A new project always opens in the ordinary editor, whatever the launch mode says — it has no
+  // surfaces, no outputs and no venue model, so the alignment workbench would have nothing to align.
+  // That rule is enforced in Rust (runner::new_project), not by remembering to pass a flag here.
   const create = async () => {
     if (!install) { setNote('ArtLux is not installed yet - install it from the Install tab first.'); return; }
     if (!newName.trim() || creating) return;
-    setCreating(true); setNote('');
+    setCreating(true); setNote(''); setModeMiss('');
     try {
       const r = await createProject(install.exe, newName.trim());
       setNote(r.message + ' ArtLux is opening it.');
@@ -124,8 +136,19 @@ export function Projects({ install }: { install: InstallInfo | null }) {
 
   const open = async (p: ProjectEntry) => {
     if (!install) { setNote('ArtLux is not installed yet — install it from the Install tab first.'); return; }
-    const r = await openProject(install.exe, p.path);
-    setNote(r.message);
+    // install.version, not a guess: the Rust refuses calibration on an ArtLux older than 0.25.1,
+    // which would otherwise drop the flag in silence and open the ordinary editor.
+    const r = await openProject(install.exe, p.path, mode, install.version);
+    // ONE place says it: the band carries the message when the mode was missed, the note carries it
+    // otherwise. Both at once reads as two separate things having happened.
+    //
+    // Raised only for a mode the operator went and chose. A retarget into a running ArtLux never
+    // applies a mode — `mode_applied` says so truthfully for Normal too — but banner-ing the
+    // ordinary "it switched to this project" is how a warning becomes something people learn to
+    // scroll past. The note still says the running copy kept its own mode.
+    const missed = r.ok && !r.mode_applied && mode !== 'normal';
+    setModeMiss(missed ? r.message : '');
+    setNote(missed ? '' : r.message);
   };
 
   // Recents the scan already found are not shown twice. Compared case-insensitively because Windows
@@ -164,6 +187,18 @@ export function Projects({ install }: { install: InstallInfo | null }) {
         <div className="caption" style={{ marginTop: 8 }}>
           Searched 6 levels deep. System folders, node_modules and build output are skipped.
         </div>
+      </section>
+
+      {/* ITS OWN PANEL, above the list. It changes what every row in that list does, so it cannot be
+          one more control in the filter row — and putting it above means it is read before a project
+          is clicked rather than discovered after the wrong thing opened. */}
+      <section className="panel">
+        <div className="row" style={{ marginBottom: 8 }}>
+          <span className="panel-title">Open projects in</span>
+          <span className="grow" />
+          <LaunchModePicker mode={mode} onChange={onModeChange} />
+        </div>
+        <LaunchModeNote mode={mode} />
       </section>
 
       <section className="panel">
@@ -245,6 +280,7 @@ export function Projects({ install }: { install: InstallInfo | null }) {
         ))}
       </section>
 
+      {modeMiss && <ModeNotAppliedBand>{modeMiss}</ModeNotAppliedBand>}
       {note && (
         <section className="panel panel-tight">
           <div className="text-mini fg-2">{note}</div>

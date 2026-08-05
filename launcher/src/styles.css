@@ -189,6 +189,39 @@ button {
   font-weight: 600;
 }
 
+/* §5 Segmented — one-of-N. The active segment is NOT tint alone: it takes a raised surface, an
+ * inset accent ring, the brighter text tier and a heavier weight, so the choice survives a
+ * monochrome screen and a colour-blind operator. Same rule as .rail-item's active state. */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.seg-item {
+  /* A TRANSPARENT border, not none: the active ring below is a border-colour change, so every
+   * segment must already reserve the pixel or selecting one would nudge the row. And it leaves
+   * box-shadow free for the hover/press film — an inset ring drawn with box-shadow would out-
+   * specify that zero-weight :where() rule, and the selected segment would be the one control in
+   * the launcher that stops responding to the pointer. */
+  border: 1px solid transparent;
+  padding: 3px 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-mini);
+  font-weight: 500;
+  color: var(--text-2);
+  background: transparent;
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+.seg-item[aria-checked='true'] {
+  background: var(--surface-3);
+  border-color: var(--accent);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
 .input {
   background: var(--surface-2);
   border: 1px solid var(--line-2);

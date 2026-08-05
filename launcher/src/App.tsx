@@ -11,9 +11,10 @@ import { Projects } from './Projects';
 import { Examples } from './Examples';
 import { Health } from './Health';
 import {
-  artluxRunning, cancelDownload, downloadInstaller, isNewer, launcherLatest, launcherVersion, mb,
-  onProgress, resolveLatest, runInstaller, scanInstalls, uninstallInstall, updateLauncher,
-  type InstallScan, type Progress, type ReleaseInfo,
+  artluxRunning, cancelDownload, downloadInstaller, getLaunchMode, isNewer, launcherLatest,
+  launcherVersion, mb, onProgress, resolveLatest, runInstaller, scanInstalls, setLaunchMode,
+  uninstallInstall, updateLauncher,
+  type InstallScan, type LaunchMode, type Progress, type ReleaseInfo,
 } from './api';
 import './styles.css';
 
@@ -37,6 +38,10 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [ownVersion, setOwnVersion] = useState('');
+  // Which ArtLux a project opens in. HELD HERE, not in either tab: Projects and Examples both start
+  // the app, and two copies of this state would let one tab show "Normal" while the other launched
+  // into calibration. Persisted in Rust — see LaunchModePicker for why it is remembered at all.
+  const [mode, setMode] = useState<LaunchMode>('normal');
   const [selfUpdate, setSelfUpdate] = useState<ReleaseInfo | null>(null);
   const [updatingSelf, setUpdatingSelf] = useState(false);
   const unlisten = useRef<(() => void) | null>(null);
@@ -46,8 +51,17 @@ export default function App() {
     setRunning(await artluxRunning());
   }, []);
 
+  // Write-through: the state changes immediately so the control never lags a click, and the config
+  // is updated behind it. A failed write is not worth a banner — the worst case is the mode is not
+  // remembered next session, and the control still shows the truth about this one.
+  const chooseMode = useCallback((m: LaunchMode) => {
+    setMode(m);
+    setLaunchMode(m).catch(() => {});
+  }, []);
+
   useEffect(() => {
     refresh();
+    getLaunchMode().then(setMode).catch(() => {});
     onProgress(setProgress).then((u) => { unlisten.current = u; });
     (async () => {
       const mine = await launcherVersion();
@@ -143,8 +157,8 @@ export default function App() {
         </nav>
 
         <main className="stack-3" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 20 }}>
-          {tab === 'projects' && <Projects install={primary} />}
-          {tab === 'examples' && <Examples install={primary} />}
+          {tab === 'projects' && <Projects install={primary} mode={mode} onModeChange={chooseMode} />}
+          {tab === 'examples' && <Examples install={primary} mode={mode} onModeChange={chooseMode} />}
           {tab === 'health' && <Health install={primary} />}
 
           {tab === 'install' && <>

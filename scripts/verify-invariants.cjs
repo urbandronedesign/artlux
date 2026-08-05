@@ -1679,7 +1679,9 @@ check(
   'is no file association and no protocol handler — so the editor path is the one that must work. ' +
   'Same class on the second-instance handler: it discarded the incoming argv and the second process ' +
   'exited 0, so launching a project against a running copy brought the existing window forward still ' +
-  'showing the OLD project and reported success to whoever spawned it.',
+  'showing the OLD project and reported success to whoever spawned it. Covers the whole launcher CLI ' +
+  'contract — `--project=`, `--new-project=` and `--calibrate` — because all three are spelled ' +
+  'literally in a product this repository does not build or typecheck.',
   () => {
     const problems = [];
     const src = read('src/main/index.ts');
@@ -1737,6 +1739,28 @@ check(
     }
     if (!/SHOW_ENGINE\s*\|\|\s*!QUERY_PROJECT|!QUERY_PROJECT\s*\|\|\s*SHOW_ENGINE/.test(app)) {
       problems.push('App.tsx has no editor-mode QUERY_PROJECT path (expected an early return on `SHOW_ENGINE || !QUERY_PROJECT`)');
+    }
+
+    // 5. `--calibrate` is the second half of the same contract: the launcher's Projects and Examples
+    //    tabs spell it literally when starting a machine that is going to be aligned. Renaming it
+    //    would typecheck, boot, and break a SHIPPED SEPARATE PRODUCT that this repo does not build,
+    //    with no signal anywhere — the launcher would spawn the flag, ArtLux would drop it the way it
+    //    drops any unknown argument, and the operator would get the ordinary editor with no Calib
+    //    rail entry and nothing to explain why. The whole chain is asserted, not just the parse:
+    //    argv → the renderer query → the registration that puts the workbench on screen.
+    const prof = read('src/main/runProfile.ts');
+    if (!/'--calibrate'/.test(prof)) {
+      problems.push("runProfile.ts no longer parses '--calibrate' — the launcher's calibration launch is dead");
+    }
+    if (!/calibrate:\s*'1'/.test(prof)) {
+      problems.push('profileQuery() no longer emits calibrate=1 — the flag would parse and never reach a window');
+    }
+    const rprof = read('src/renderer/services/runProfile.ts');
+    if (!/QS\.get\('calibrate'\)/.test(rprof)) {
+      problems.push('the renderer no longer reads the calibrate query param');
+    }
+    if (!/if\s*\(CALIBRATION_ENABLED\)\s*contextRegistry\.register/.test(read('src/renderer/contexts/index.tsx'))) {
+      problems.push('the Calib workspace context is no longer gated on CALIBRATION_ENABLED — a launch into calibration would show nothing');
     }
     return problems.length ? problems.join('; ') : null;
   },
