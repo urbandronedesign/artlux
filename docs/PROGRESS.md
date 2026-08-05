@@ -804,6 +804,40 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   splitter drag whose pixel values stayed pinned, because React rewrites a style property only when
   its own props change. All three are guarded; the reasoning is in docs/WORKSPACE.md.
 
+## v0.25.1 — a relaunch cannot inherit a dev server, and a packaged tray needs a packaged icon (2026-08-05)
+
+Two independent defects, both in broadcast mode, both silent, found in one session.
+
+**The relaunch.** `app.relaunch` spawns the successor with the current process's environment — there is
+no `env` option — so it inherited electron-vite's `ELECTRON_RENDERER_URL`. The `app.exit(0)` that
+follows is precisely what makes electron-vite tear that dev server down, so the successor spent its
+whole life loading a port nobody was listening on. **Nothing threw**: main booted, argv was right, the
+plugins activated, the tray appeared, `/metrics` answered `mode="broadcast"` — and the renderer never
+painted, so `App` never ran and no projector output opened. Broadcast keeps its editor window at
+opacity 0 and off the taskbar, so the dead process stayed invisible while holding the metrics port, the
+Art-Net socket and the audio device, which then broke the *next* `npm run dev` and read as an unrelated
+fault. Diagnosed off the live process itself: `mode="broadcast"` with `artlux_render_fps 0` — main up,
+renderer never painted a frame. Four sites relaunch the app (broadcast, calibration profile, watchdog
+self-heal, playlist switch), each hand-rolling the same argv under a comment claiming it mirrored the
+proven pattern; `runProfile` now owns both halves (`relaunchArgs()` / `rendererDevUrl()`).
+
+**Why it was silent, which mattered more than the bug.** `did-fail-load` was not handled anywhere.
+`ready-to-show` and `did-finish-load` both stay quiet when the load *fails*, and the watchdog arms on
+`did-finish-load` — so the one tier that could have caught it was armed by the very event that never
+came. This is the same "process alive, nothing on screen" state the three reveal paths exist to
+prevent, reached from the other side.
+
+**The tray icon** pointed at `build/icon.png`, but electron-builder packs `files: ["out/**/*"]` —
+`build/` holds the *installer's* icon sources and is not in the asar. It resolved in dev and never in a
+shipped build, and `new Tray()` sits in a `try/catch`, so packaged broadcast logged one line and ran on
+with no tray: in the one mode with no window and no menu, leaving `Ctrl+Shift+Q` as the operator's only
+way to quit a live show. **Only visible by launching the packaged app** — `npm run dev` cannot see it,
+the same trap as the `ready-to-show` rule two entries up.
+
+Four invariants added, each negative-tested. Verified one variable at a time in dev *and* packaged;
+the packaged run was driven through the real relaunch from the editor (pid changed, successor carried
+`--broadcast` and correctly no `--built-renderer`, `render_fps` 59.9 at `mode="broadcast"`).
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

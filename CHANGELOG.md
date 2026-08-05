@@ -1,6 +1,26 @@
 # Changelog
 
-## Unreleased
+## v0.25.1
+
+### Broadcast mode starts, and says so when it cannot
+
+**The tray icon is back.** Broadcast is the one mode with no window and no menu, so the tray — and its
+**Quit Broadcast** item — is the operator's way out of a running show. In an installed build it was
+never there: the icon it loaded lives with the *installer's* artwork, which is not shipped inside the
+app, so the tray silently failed to appear on every packaged run and left `Ctrl+Shift+Q` as the only
+way to stop a show. It loads the app's own icon now.
+
+**A show that cannot start no longer pretends to run.** If the interface fails to load at all, a
+`--broadcast` or `--headless` install used to stay alive with no window, no output and nothing in the
+log — holding the network ports and the audio device, invisible, indefinitely. Every check that could
+have noticed was waiting for the interface to *finish* loading, which is exactly what had not happened.
+It now reports the failure and exits, so a supervisor or the watchdog can act on it.
+
+*For developers:* **Launch in Broadcast Mode** did nothing when run from `npm run dev`, and the process
+it left behind broke the next run. A relaunch inherits the dev-server address but the exit that
+performs it is what shuts that server down, so the new process loaded a port nobody was serving.
+Broadcast and the calibration profile now run the **built** renderer — run `npm run build` first. See
+[DEVELOPMENT.md](docs/DEVELOPMENT.md) and [OUTPUTS.md](docs/OUTPUTS.md).
 
 ### The watchdog can see a white screen
 
