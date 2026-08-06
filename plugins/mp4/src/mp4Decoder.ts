@@ -253,6 +253,22 @@ class FileDecoder {
     this.fedAbs = absKf - 1;
   }
 
+  // ── REFILLING MUST NOT DEPEND ON BEING ASKED ────────────────────────────────────────────────────
+  // `pump()` used to run ONLY from `frame()`, so the rate at which this decoder refilled was the rate
+  // at which some consumer happened to ask it for a picture. That coupling is invisible until the ask
+  // rate changes: v0.25.2 capped the engine at 30 Hz and a cold clip entry — buffer empty, everything
+  // to decode at once — took twice as long to produce a presentable frame, which on the wall reads as
+  // most of a second of missing video.
+  //
+  // `topUp()` re-runs the feed at the playhead already requested, from this module's own rAF. Safe to
+  // call between frame()s by construction: `wantUs` has not moved, so `wentBackward` is false and no
+  // branch re-seeks — it only tops the queue back up toward TARGET_AHEAD as decoded frames drain.
+  topUp(): void {
+    const a = this.lastPump;
+    if (a) this.pump(a.loop, a.loopCount, a.localUs);
+  }
+  private lastPump: { loop: boolean; loopCount: number; localUs: number } | null = null;
+
   // Feed the decoder (in DECODE order, across the loop boundary when `loop`) to keep ~TARGET_AHEAD frames
   // decoded-or-in-flight past the playhead. Re-seeks ONLY on a backward jump (scrub) or a big forward jump.
   private pump(loop: boolean, loopCount: number, localUs: number): void {
@@ -316,6 +332,7 @@ class FileDecoder {
       this.wantUs = localUs;
     }
     this.pump(loop && this.durUs > 0, loopCount, localUs);
+    this.lastPump = { loop: loop && this.durUs > 0, loopCount, localUs };
     this.lastWantUs = this.wantUs; // for next call's backward-jump detection
 
     // Prefer the latest decoded frame at/just-before the playhead (never show a future frame); if none is
@@ -349,6 +366,22 @@ class FileDecoder {
 //  • per-PATH thumbnails — a filmstrip scrubs to scattered times; isolated from the playing surface.
 const decoders = new Map<string, FileDecoder>();
 const opening = new Map<string, Promise<Info | null>>();
+
+// ── THE SELF-PUMP ───────────────────────────────────────────────────────────────────────────────
+// Keeps every open surface/layer decoder topped up on this module's own clock instead of on whatever
+// rate its consumer happens to ask at. Thumbnail decoders are excluded on purpose: a filmstrip is
+// scrubbed, not played, so there is no playhead running away from its buffer.
+//
+// Runs only while a decoder is open, and does nothing per decoder once the queue is at TARGET_AHEAD —
+// the `while` in pump() exits immediately — so the idle cost is a map walk per frame.
+let pumpRaf = 0;
+function selfPump(): void {
+  pumpRaf = 0;
+  for (const d of decoders.values()) d.topUp();
+  for (const { dec } of layerDecoders.values()) dec.topUp();
+  if (decoders.size || layerDecoders.size) pumpRaf = requestAnimationFrame(selfPump);
+}
+function ensurePump(): void { if (!pumpRaf && (decoders.size || layerDecoders.size)) pumpRaf = requestAnimationFrame(selfPump); }
 const results = new Map<string, boolean>(); // probed: true = decodable MP4, false = not (fall back to <video>)
 
 const layerDecoders = new Map<string, { dec: FileDecoder; path: string }>(); // key = layerId
@@ -383,7 +416,7 @@ export function ensureOpen(path: string): Promise<Info | null> {
   if (decoders.has(path)) return Promise.resolve(decoders.get(path)!.getInfo());
   const d = new FileDecoder();
   const p = d.open(path).then((info) => {
-    if (info) decoders.set(path, d); else d.close();
+    if (info) { decoders.set(path, d); ensurePump(); } else d.close();
     results.set(path, info !== null);
     opening.delete(path);
     return info;
@@ -451,7 +484,7 @@ export function ensureLayerOpen(layerId: string, path: string): void {
   if (cur) { cur.dec.close(); layerDecoders.delete(layerId); } // clip on this layer changed file
   if (layerOpening.has(layerId)) return;
   const nd = new FileDecoder();
-  const p = nd.open(path).then((info) => { if (info) layerDecoders.set(layerId, { dec: nd, path }); else nd.close(); layerOpening.delete(layerId); return info; });
+  const p = nd.open(path).then((info) => { if (info) { layerDecoders.set(layerId, { dec: nd, path }); ensurePump(); } else nd.close(); layerOpening.delete(layerId); return info; });
   layerOpening.set(layerId, p);
 }
 

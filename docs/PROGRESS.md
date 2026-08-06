@@ -856,6 +856,45 @@ this machine. Both paths typecheck and are invariant-guarded, but this release c
 are produced. Exercise a fullscreen output and watch a real node before it drives a show.
 
 
+### …and the four places that assumed the engine ran at display rate
+
+Capping the engine did not just change a number — it invalidated an assumption four unrelated places had
+baked in, and every one of them was invisible in the editor preview. Found by running a **fullscreen
+projector output in broadcast mode**, which is the path the rest of this release could not exercise.
+
+**Three producer/consumer seams, all gated at 33 ms.** Each was written when the engine always ran faster
+than it was sampled, so "every other tick" was stable. Against a 30 Hz producer they alias: sub-millisecond
+jitter drops a whole update.
+
+| Seam | Symptom on the wall |
+|---|---|
+| Transport → projector | The playhead arrived 33, 33, **66**, 33 ms apart. A projector decoding a HAP layer *locally* uses it as its time base → a visible hitch |
+| Frame pump → projector | A codec's drawable generation only advances when the engine asks, so pump and producer beat against each other and frames were held |
+| mp4 refill | `pump()` ran only from `frame()` — **the decoder refilled only when asked**. Half the asks, half the refill rate at a cold clip entry → most of a second of missing video |
+
+The gates are now finer than any selectable producer period (15 ms passes every tick at both 30 and 60 Hz),
+and the mp4 decoder tops itself up from its **own** rAF. Shipping did not get more expensive: the generation
+dedup still decides when a bitmap is made. The consumers that *cannot* dedup — live sources with no
+generation, the render-from-projector layer streams, the referenced-surface budget — explicitly keep the
+original cadence.
+
+**The fourth was the tablet's health tiles**, which is the one nobody would have reported. Both thresholds
+were absolute (`fps < 50`, `p99 > 25 ms`), written when 60 Hz was the only possibility. A perfectly healthy
+30 Hz show reads 30 fps with a ~33 ms p99 — so an unattended venue's remote would have sat **permanently
+amber**, which is worse than no indicator: it teaches the operator to ignore the colour. Now judged against
+the show's own frame period. The long-frames tile needed no change; it was already relative (`p50 × factor`),
+which is the pattern the other two should have followed.
+
+Verified in broadcast on a real fullscreen output, after resetting every counter so the window contains no
+boot noise: **0 gap events across 5 clip switches, 0 HAP ring misses in 3055 asks, 5442 pump ships with 0
+aliased skips**, frame delivery 33.3 ms median / 33.5 p95 / 66.5 max. The same run before the reset — which
+included boot — showed 492 gaps and an 816 ms pump stall.
+
+**And the Art-Net question is now measured, not argued:** `artlux_render_fps 30.12` with
+`artlux_output_fps 61`, live in broadcast. A slower engine does not starve the wire; the native pacer sends
+at its own rate with keep-alive.
+
+
 ## v0.25.1 — a relaunch cannot inherit a dev server, and a packaged tray needs a packaged icon (2026-08-05)
 
 Two independent defects, both in broadcast mode, both silent, found in one session.

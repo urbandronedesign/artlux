@@ -3078,13 +3078,25 @@ const App: React.FC = () => {
   }, [scene3D.trackingSmoothing, scene3D.trackingPredictMs]);
   // Drop temporal person tracks when merging is off so a re-enable starts with fresh person ids.
   useEffect(() => { if (!scene3D.trackingMergePeople) resetPeopleTracking(); }, [scene3D.trackingMergePeople]);
-  // Stream transport (playing + playhead) to the projector windows ~30 fps so their video/layer
-  // content stays in sync with the main clock.
+  // Stream transport (playing + playhead) to the projector windows so their video/layer content stays
+  // in sync with the main clock.
+  //
+  // ── THE GATE MUST BE FINER THAN THE PRODUCER'S PERIOD ───────────────────────────────────────────
+  // This fires once per engine tick, and the gate used to be 33 ms — written when the engine always
+  // ran at display rate, so "every other tick" was stable. v0.25.2 capped the engine at 30 Hz and
+  // that assumption inverted: a 33.3 ms producer against a 33 ms gate is decided by sub-millisecond
+  // jitter, so updates came 33, 33, 66, 33 … and a projector that decodes a HAP layer LOCALLY uses
+  // this playhead as its time base — the dropped update is a visible hitch on the wall, invisible in
+  // the editor preview (which reads the engine directly and never crosses this seam).
+  //
+  // 15 ms passes every tick at BOTH 30 Hz (33.3 ms) and 60 Hz (16.7 ms), so it cannot alias with a
+  // rate anyone can select; it only guards against a 120 Hz display flooding the port. The message is
+  // three numbers — the send is not what costs, the aliasing was.
   useEffect(() => {
       let last = 0;
       const unsub = timelineEngine.subscribe((playhead) => {
           const now = performance.now();
-          if (now - last < 33) return;
+          if (now - last < 15) return;
           last = now;
           const msg = { t: 'transport' as const, playing: timelineEngine.isPlaying(), playhead, showTime: timelineEngine.getShowTime() };
           for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
@@ -3179,11 +3191,43 @@ const App: React.FC = () => {
       // (output, layerId) pairs streamed to a venue mesh on the previous tick. The transition OUT of
       // this set is what triggers `layerFrameIdle` — see the scene-layer block.
       const sceneStreamed = new Set<string>();
-      let raf = 0; let last = 0;
+      let raf = 0; let last = 0; let lastCoarse = 0;
+      // ── MEASURE-ONLY: is this pump actually delivering at its nominal rate? ──────────────────────
+      // The pump gates itself at ~30 Hz and then dedups on the drawable GENERATION, which for a codec
+      // only advances when something ASKS the decoder — i.e. on the engine tick. Two independently
+      // phased gates at the same nominal rate alias: sample just before the producer and you ship
+      // nothing, so the projector holds its last frame for another period. `ships` vs `sameGen` and
+      // the interval histogram are what tell those apart. `window.__artluxProjPump()`.
+      const pumpStat = new Map<string, { ships: number; sameGen: number; idle: number; last: number; gaps: number[] }>();
+      const pumpOf = (id: string) => {
+          let s = pumpStat.get(id);
+          if (!s) { s = { ships: 0, sameGen: 0, idle: 0, last: 0, gaps: [] }; pumpStat.set(id, s); }
+          return s;
+      };
+      (window as any).__artluxProjPump = () => Object.fromEntries([...pumpStat].map(([id, s]) => {
+          const g = s.gaps.slice().sort((a, b) => a - b);
+          const pct = (p: number) => (g.length ? Math.round(g[Math.min(g.length - 1, Math.floor(g.length * p))] * 10) / 10 : 0);
+          return [id, { ships: s.ships, sameGen: s.sameGen, idle: s.idle, gapMed: pct(0.5), gapP95: pct(0.95), gapMax: g.length ? Math.round(g[g.length - 1] * 10) / 10 : 0 }];
+      }));
+      (window as any).__artluxProjPumpReset = () => { pumpStat.clear(); };
       const tick = (now: number) => {
           raf = requestAnimationFrame(tick);
-          if (now - last < 33) return;
+          // ── FINE TICK, COARSE BUDGET ────────────────────────────────────────────────────────────
+          // Same lesson as the transport stream above: a 33 ms gate cannot sample a 30 Hz producer.
+          // A codec's drawable GENERATION only advances when something asks the decoder — i.e. on the
+          // engine tick — so once the engine was capped at 30 Hz this gate and its producer beat
+          // against each other and the projector held a frame for an extra period at irregular
+          // intervals. 15 ms passes on every tick at 30 and at 60.
+          //
+          // Shipping does NOT get more expensive: the generation dedup below is what decides whether a
+          // bitmap is made, and it only says yes when there really are new pixels. The two consumers
+          // that CANNOT dedup keep the old cadence — a live source with no generation (camera, Spout,
+          // effects: `coarse` below) and the render-from-projector layer streams, whose EXTRA_PER_TICK
+          // budget is per tick and would otherwise more than double.
+          if (now - last < 15) return;
           last = now;
+          const coarse = now - lastCoarse >= 33;
+          if (coarse) lastCoarse = now;
           // Collected in the port loop, issued after it under EXTRA_PER_TICK. Held rather than sent
           // inline so the budget is global across windows — spending it all on the first output would
           // starve the third projector of a wall.
@@ -3233,7 +3277,13 @@ const App: React.FC = () => {
                   }
                   for (const refId of refs) wantSurface.push({ port, outId: surfaceId, refId });
               }
-              {
+              // COARSE, AND AS ONE PIECE. Layer streams have no generation to dedup on and their
+              // EXTRA_PER_TICK budget is spent per tick, so they keep the cadence that budget was tuned
+              // against. The streaming and the idle reconciliation must be gated TOGETHER: `live` is
+              // what decides which layers stopped being streamed, so running the reconciliation on a
+              // tick that never populated it would report every live layer as idle, drop the mirror's
+              // frame, and re-send it 33 ms later — a flicker on the wall, from a pure throttle change.
+              if (coarse) {
                   const live = new Set<string>();
                   if (renderActive) {
                       for (const mdl of (scene3DRef.current?.models ?? [])) {
@@ -3274,6 +3324,7 @@ const App: React.FC = () => {
               if (eff.content.type === SourceType.TRACKING) {
                   const layerId = eff.content.bgLayerId;
                   if (!layerId) continue;
+                  if (!coarse) continue; // no generation to dedup on — keep the original cadence
                   const key = `${surfaceId}:bg`;
                   if (inFlight.has(key)) continue;
                   const bg = timelineEngine.getLayerDrawable(layerId);
@@ -3300,6 +3351,7 @@ const App: React.FC = () => {
                   // otherwise the window goes on drawing the last frame it was sent, forever.
                   if (!idle.has(surfaceId)) {
                       idle.add(surfaceId);
+                      pumpOf(surfaceId).idle++;
                       sentGen.delete(surfaceId); // a resume must re-send even if the generation repeats
                       try { port.postMessage({ t: 'frameIdle' }); } catch { /* window closing */ }
                   }
@@ -3308,8 +3360,14 @@ const App: React.FC = () => {
               idle.delete(surfaceId);
               // Skip sources that haven't produced a new frame since we last shipped one to THIS port.
               const gen = getDrawableGeneration(surface);
+              // A source that cannot say whether its pixels changed (live receivers, effects, plugin
+              // sources) has no dedup to protect it, so it keeps the pump's original ~30 Hz cadence
+              // rather than riding the fine tick — otherwise the finer gate would double its
+              // createImageBitmap cost for no new pictures.
+              if (gen === undefined && !coarse) continue;
               const prev = sentGen.get(surfaceId);
-              if (gen !== undefined && prev && prev.port === port && prev.gen === gen) continue;
+              if (gen !== undefined && prev && prev.port === port && prev.gen === gen) { pumpOf(surfaceId).sameGen++; continue; }
+              { const st = pumpOf(surfaceId); st.ships++; if (st.last) { st.gaps.push(now - st.last); if (st.gaps.length > 4000) st.gaps.shift(); } st.last = now; }
               inFlight.add(surfaceId);
               if (gen !== undefined) sentGen.set(surfaceId, { port, gen });
               createImageBitmap(drawable as CanvasImageSource)
@@ -3322,7 +3380,11 @@ const App: React.FC = () => {
           // back-pressure so decodes don't pile up, generation dedup so a 25 fps clip on a 30 fps pump
           // doesn't re-ship identical frames, and a one-shot idle so a mesh goes black instead of
           // holding a finished clip. The only addition is the rotating cursor.
-          for (let n = 0, i = 0; n < wantSurface.length && i < EXTRA_PER_TICK; n++) {
+          // EXTRA_PER_TICK is a per-TICK budget tuned against the original ~30 Hz cadence, and the
+          // rotating cursor's fairness is defined in ticks too — so this whole section stays coarse.
+          // Running it on the fine tick would silently more than double the ceiling on a multi-
+          // projector wall, which is the one rig that can least afford it.
+          for (let n = 0, i = 0; coarse && n < wantSurface.length && i < EXTRA_PER_TICK; n++) {
               const w = wantSurface[(extraCursor + n) % wantSurface.length];
               const key = `${w.outId}:surf:${w.refId}`;
               if (inFlight.has(key)) continue;
@@ -3365,7 +3427,10 @@ const App: React.FC = () => {
                   .catch(() => { sentGen.delete(key); })
                   .finally(() => inFlight.delete(key));
           }
-          if (wantSurface.length > 0) extraCursor = (extraCursor + EXTRA_PER_TICK) % wantSurface.length;
+          // Advanced only when the budget was actually spent — a fine tick serves none of these, and
+          // rotating the cursor anyway would skip whole (output, surface) pairs instead of starving
+          // none of them, which is the exact property the cursor exists to provide.
+          if (coarse && wantSurface.length > 0) extraCursor = (extraCursor + EXTRA_PER_TICK) % wantSurface.length;
       };
       raf = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(raf);

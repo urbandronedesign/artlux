@@ -359,8 +359,15 @@ export const CLIENT_HTML = `<!doctype html>
     h+=tile('Packets/s', e?fmt(e.pps):'&mdash;','pps',hist.pps);
     h+=tile('Universes', e?e.universes:'&mdash;','');
     h+='</div><h3>Renderer</h3><div class="grid">';
-    h+=tile('Render FPS', r?fmt(r.fps):'&mdash;','fps',hist.rfps, r&&r.fps>0&&r.fps<50?'var(--warn)':'var(--fg)');
-    h+=tile('Frame p99', r?fmt(r.frameP99):'&mdash;','ms',hist.fp99, r&&r.frameP99>25?'var(--warn)':'var(--fg)');
+    // ⚠ THESE THRESHOLDS MUST NOT ASSUME A 60 Hz ENGINE. Both were absolute (fps<50, p99>25ms) and
+    // both cried wolf the moment the engine gained a configurable rate: a perfectly healthy 30 Hz show
+    // reads 30 fps with a ~33 ms p99, so an unattended venue's health tiles sat permanently amber —
+    // which is worse than no indicator, because it teaches the operator to ignore the colour.
+    // Judged against the show's OWN period instead: a p99 past two frame periods is real hitching at
+    // any rate, and the rate itself is only alarming when the loop has actually stopped (fps 0, which
+    // the watchdog owns). The long-frames tile below needed no change: already relative (p50×factor).
+    h+=tile('Render FPS', r?fmt(r.fps):'&mdash;','fps',hist.rfps);
+    h+=tile('Frame p99', r?fmt(r.frameP99):'&mdash;','ms',hist.fp99, r&&r.fps>0&&r.frameP99>2000/r.fps?'var(--warn)':'var(--fg)');
     h+=tile('Work p99', r?fmt(r.workP99):'&mdash;','ms',hist.wp99);
     h+=tile('Long frames', r?r.longFrames:'&mdash;','',null, r&&r.longFrames>3?'var(--bad)':'var(--fg)');
     h+='</div><h3>System</h3><div class="grid">';
