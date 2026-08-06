@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { gridWindow } from './mediaGridWindow';
 import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search, RefreshCw, X, LayoutGrid, Grid3x3, List, Loader2 } from 'lucide-react';
 import { AssetEntry, AssetType, MediaView, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
@@ -106,6 +107,38 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
   const filtered = items.filter(a =>
     (filter === 'all' || a.type === filter) &&
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
+
+  // ── Windowing (see the grid below) ────────────────────────────────────────────────────────────
+  // Row geometry is MEASURED, not assumed: the column is resizable and the grid is `auto-fill`, so
+  // how many tiles fit per row is the browser's answer, not ours. We read the container's width and
+  // derive it — wrong-by-one is harmless (it only changes how much overscan there is), whereas a
+  // hard-coded column count would mis-place every spacer the moment someone dragged the splitter.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportH, setViewportH] = useState(0);
+  const onScroll = () => setScrollTop(scrollRef.current?.scrollTop ?? 0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setViewportH(el.clientHeight));
+    ro.observe(el);
+    setViewportH(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+  // Tile heights are approximate ON PURPOSE — the spacers use the same numbers, so the scrollbar stays
+  // consistent with itself even if a tile is a pixel off. The arithmetic lives in mediaGridWindow so it
+  // can be asserted (scripts/test-mediagrid.ts); this hook only supplies measurements.
+  const pad = useMemo(() => gridWindow({
+    count: filtered.length,
+    width: scrollRef.current?.clientWidth ?? 0,
+    height: viewportH,
+    scrollTop,
+    tileW: view === 'large' ? 132 : 74,
+    rowH: view === 'list' ? 29 : view === 'large' ? 111 : 61,
+    gap: view === 'list' ? 1 : 8,
+    padX: 16,                       // p-2 either side
+    single: view === 'list',
+  }), [filtered.length, view, scrollTop, viewportH]);
 
   const selected = items.find(a => a.id === selectedId) ?? null;
   // One index built per render (not one usageForPath() scan per asset) — MediaPanel is an
@@ -219,7 +252,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
       </div>
 
       {/* grid / list */}
-      <div className="flex-1 min-h-0 overflow-auto p-2">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-2" onScroll={onScroll}>
         {filtered.length === 0 ? (
           <div className="text-fg-3 italic text-mini px-1 py-2">
             {items.length ? 'No media matches this filter.' : 'No media. Import files, scan the assets folder, or record a take.'}
@@ -228,14 +261,23 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
           // auto-fill rather than a fixed column count: the browser column is resizable, so a fixed
           // `grid-cols-2` meant tiny tiles when narrow and two absurd ones when wide. Tile WIDTH is what
           // the view picks; how many fit is the column's business.
-          <div className={view === 'list' ? 'flex flex-col gap-px' : 'grid gap-2'}
-            style={view === 'list' ? undefined : { gridTemplateColumns: `repeat(auto-fill, minmax(${view === 'large' ? 132 : 74}px, 1fr))` }}>
-            {filtered.map(a => (
-              <AssetChip key={a.id} asset={a} usageCount={usageOf(a)} missing={missing.has(normPath(a.path))}
-                selected={selectedId === a.id} view={view}
-                onClick={() => setSelectedId(a.id)}
-                onDoubleClick={() => { if ((a.type === 'video' || a.type === 'image') && selectedSurfaceId) onUseOnSurface(a); }} />
-            ))}
+          //
+          // ── WINDOWED: only the rows on screen are mounted ──────────────────────────────────────
+          // Every chip that mounts schedules a thumbnail — a decode, on the same hardware the show is
+          // using. Mounting all of them meant a 300-asset library queued 300 jobs the moment the tab
+          // opened, for tiles nobody had scrolled to. The spacers above and below keep the scrollbar
+          // honest (and `auto-fill` intact, so a resized column still reflows), and OVERSCAN rows are
+          // mounted beyond the viewport so a scroll reveals filled tiles rather than blanks.
+          <div style={{ paddingTop: pad.top, paddingBottom: pad.bottom }}>
+            <div className={view === 'list' ? 'flex flex-col gap-px' : 'grid gap-2'}
+              style={view === 'list' ? undefined : { gridTemplateColumns: `repeat(auto-fill, minmax(${view === 'large' ? 132 : 74}px, 1fr))` }}>
+              {filtered.slice(pad.from, pad.to).map(a => (
+                <AssetChip key={a.id} asset={a} usageCount={usageOf(a)} missing={missing.has(normPath(a.path))}
+                  selected={selectedId === a.id} view={view}
+                  onClick={() => setSelectedId(a.id)}
+                  onDoubleClick={() => { if ((a.type === 'video' || a.type === 'image') && selectedSurfaceId) onUseOnSurface(a); }} />
+              ))}
+            </div>
           </div>
         )}
       </div>

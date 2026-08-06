@@ -3,6 +3,7 @@ import { Surface, SourceType } from '../types';
 import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, type SoftEdge } from '../../../shared/protocol';
 import { syncSurfaces, getDrawable, resolveSource } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
+import type { BootPhase } from '../services/bootGate'; // type-only — erased, no module edge
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, hasResidualWarp, BEZIER_CORNERS } from './warp';
@@ -116,7 +117,7 @@ export const ProjectorApp: React.FC = () => {
   // The main window's cold-start hold, mirrored here (see bridge.ts 'boot'). The REF is what the frame
   // loop reads — it must not wait for a React commit to stop drawing — and the state drives the sign.
   const bootingRef = useRef(false);
-  const [boot, setBoot] = useState<{ booting: boolean; ready: number; total: number }>({ booting: false, ready: 0, total: 0 });
+  const [boot, setBoot] = useState<{ booting: boolean; ready: number; total: number; phase?: BootPhase }>({ booting: false, ready: 0, total: 0 });
 
   // Re-register this window's surfaces with surfaceMedia. Media is only ACQUIRED for content this
   // window renders itself; a slice and its source own no media, so they are always safe to register
@@ -667,7 +668,7 @@ export const ProjectorApp: React.FC = () => {
           <div style={{ textAlign: 'center', color: '#8a8f98' }}>
             <div style={{ font: '600 clamp(18px, 3.2vw, 54px) system-ui', letterSpacing: '0.14em' }}>PRELOADING SHOW</div>
             <div style={{ marginTop: '1.2em', font: '400 clamp(11px, 1.1vw, 18px) system-ui', color: '#5a5f68' }}>
-              {name}{boot.total > 0 ? ` · ${boot.ready}/${boot.total}` : ''}
+              {name}{boot.total > 0 ? ` · ${boot.ready}/${boot.total} · ${boot.phase}` : ''}
             </div>
           </div>
         </div>

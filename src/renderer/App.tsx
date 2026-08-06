@@ -56,7 +56,9 @@ import { usageForPath, normPath, libraryItems, type ProjectRefs } from './servic
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
 import * as timelinePreloader from './services/timelinePreloader';
+import { reachableNext } from './services/smLookahead';
 import * as bootGate from './services/bootGate';
+import * as openTrace from './services/openTrace';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
@@ -522,6 +524,8 @@ const App: React.FC = () => {
       protocol: settings.protocol,
       outputEnabled: settings.outputEnabled,
       artNetPort: settings.artNetPort,
+      // Engine tick rate — and therefore the decode ask rate. See AppSettings.engineFps.
+      engineFps: settings.engineFps ?? 30,
       engineRunning: true,
       videoPlaying: isVideoPlaying,
       // Broadcast/headless have no visible composite, and compositing is dead work there on the
@@ -1435,6 +1439,9 @@ const App: React.FC = () => {
     swapTimelineForScene(scene);
     setActiveSceneId(scene.id);
   };
+  // Scenes already reported as recalled-cold. Once per scene, not once per recall: an FSM cycling a
+  // show for a week must not fill a venue's console with the same line a million times.
+  const coldEntryLogged = useRef(new Set<string>());
   // Warm-swap the playback engine to a scene's timeline, preloading its media first (hitless), and
   // bridge the new timeline to the projector windows. Keyed by scene.id (a per-scene pool), so
   // activePoolKey stays == activeSceneId.
@@ -1444,6 +1451,16 @@ const App: React.FC = () => {
     // reason isGlobalDocBound() had to exist as a question distinct from clocksCoincident().
     const tl = normalizeTimeline(scene.timeline);
     timelinePreloader.warm(scene.id, tl);
+    // WAS THIS CUT HITLESS? docs/SCENE-TIMELINES.md has claimed a "60 fps warm-swap (still to be
+    // measured)" since the tier was written. Ask before promoting — poolReady answers exactly "would
+    // this put a picture on stage, or black" — and say so ONCE per scene, so an operator who sees a
+    // flash has a line naming it and the residency budget has real evidence rather than a design
+    // intention. After the swap it would always read ready (the pool is live by then), which is why
+    // this sits here and not below.
+    if (!coldEntryLogged.current.has(scene.id) && !timelineEngine.poolReady(scene.id, tl).ready) {
+      coldEntryLogged.current.add(scene.id);
+      console.warn(`[scene] "${scene.name}" was recalled before its content was ready — the cut may show a partial first frame`);
+    }
     timelineEngine.swap(scene.id, tl, { transport: 'restart', holdMs: (scene.fadeSec ?? 0) * 1000 });
     for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: tl });
   };
@@ -1893,6 +1910,11 @@ const App: React.FC = () => {
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
   const applyProjectData = (data: any) => {
+      // Cold-open trace: a fresh table per open (see services/openTrace.ts). The main-side half —
+      // read/parse/resolve — logs its own `[open]` line; this covers the renderer half through to
+      // bootGate's 'gate-armed'. It is how "a heavy project opens slowly" becomes "WHICH phase grew".
+      openTrace.begin();
+      openTrace.mark('apply-start');
       // Opening a project CLEARS the undo stack — this document has no shared history with the outgoing
       // one. Without this, one Ctrl+Z after File→Open would restore the PREVIOUS project's whole document
       // over the just-opened one (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
@@ -1958,6 +1980,9 @@ const App: React.FC = () => {
         return { ...s, accent, timeline: normalizeTimeline(s.timeline) };
       });
       setScenes(loadedScenes);
+      // This mark is metric B's needle: the per-scene normalize above is the one open cost that grows
+      // with scene count (plans/preload-optimization.md §4). If its delta is flat, phase 6 is done.
+      openTrace.mark('scenes-normalized');
       // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
       // older (pre-cues) projects open with their scenes already on the grid.
       //
@@ -2018,9 +2043,11 @@ const App: React.FC = () => {
       transitions.cancel();
       for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
       timelinePreloader.warm(curKey, curTl);
+      openTrace.mark('warm-issued'); // fire-and-forget issuance — the DECODE cost lands in the gate span
       // Opening a project RESETS the show clock (the bed's time restarts with the show); a scene recall
       // never does. Both reach swap() with transport:'restart' and cannot be told apart in there.
       timelineEngine.swap(curKey, curTl, { transport: 'restart', showClock: 'reset' });
+      openTrace.mark('swap-done');
       // ── WAIT FOR THE CONTENT, THEN PLAY ────────────────────────────────────────────────────────
       // HOLD the state machine until the look above is actually decoded. warm()/swap() are
       // fire-and-forget: without this the FSM would initialize on the very next frame, enter its
@@ -2070,6 +2097,7 @@ const App: React.FC = () => {
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
+      openTrace.mark('apply-end');
   };
 
   const refreshRecents = async () => {
@@ -2696,16 +2724,20 @@ const App: React.FC = () => {
       lightingPlayback.setData(activeTimeline);  // …and lighting clips, which drive fixtures by role
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: activeTimeline });
   }, [activeTimeline, activeSceneId]);
-  // FSM look-ahead preloading: when the machine enters a state, warm the timelines of every reachable
-  // next state so a transition into one is hitless. The warm window follows the show's path (§tiers).
+  // FSM look-ahead preloading: when the machine enters a state, warm the timelines it can reach
+  // SOONEST, so a transition into a likely-next state is hitless. The warm window follows the show's
+  // path (§tiers).
+  //
+  // RANKED AND TRIMMED TO THE BUDGET — reachableNext orders candidates by how soon their edge can
+  // fire and includes `fromAny` global rules (which the old `t.from === stateId` filter could never
+  // match, so the edge most likely to fire in an interactive show was the one never preloaded). The
+  // slice is what keeps the protect set inside MAX_WARM: handing evictExcess more keys than the
+  // budget allows is not something it can resolve — it can only refuse to evict them.
   useEffect(() => timelineEngine.subscribeSmState((stateId) => {
       if (!stateId) return;
-      const sm = stateMachineRef.current;
-      const nextSceneIds = sm.transitions.filter(t => t.from === stateId)
-        .map(t => sm.states.find(s => s.id === t.to)?.sceneId)
-        .filter((v): v is string => !!v);
-      const entries = nextSceneIds
-        .map(sid => ({ key: sid, tl: scenesRef.current.find(s => s.id === sid)?.timeline }))
+      const entries = reachableNext(stateMachineRef.current, stateId)
+        .slice(0, timelinePreloader.MAX_WARM)
+        .map(e => ({ key: e.sceneId, tl: scenesRef.current.find(s => s.id === e.sceneId)?.timeline }))
         .filter(e => !!e.tl);
       if (entries.length) timelinePreloader.predict(entries);
   }), []);
@@ -2964,6 +2996,14 @@ const App: React.FC = () => {
     boot: {
       registerProbe: (id, probe) => bootGate.registerProbe(id, probe),
       isBooting: () => bootGate.isBooting(),
+      elapsedSec: () => bootGate.get().elapsedSec,
+    },
+    preload: {
+      // The warm-window seam: a plugin keeps its own per-scene resources alive for as long as the host
+      // keeps that scene's pictures warm. See services/timelinePreloader.
+      registerParticipant: (p) => timelinePreloader.registerParticipant(
+        p as { warm(k: string, tl: Timeline): void; release(k: string): void },
+      ),
     },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
@@ -3420,7 +3460,7 @@ const App: React.FC = () => {
       // The cold-start hold. Sent HERE as well as on every gate change because a window can open INTO a
       // preload — broadcast opens its outputs from the same project load that started the wait — and a
       // window that missed the change event would put a half-loaded look on a real projector.
-      { const b = bootGate.get(); port.postMessage({ t: 'boot', booting: b.booting, ready: b.ready, total: b.total }); }
+      { const b = bootGate.get(); port.postMessage({ t: 'boot', booting: b.booting, ready: b.ready, total: b.total, phase: b.phase }); }
       // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
       // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
       if (surfaceId !== calibratingOutputId) {
@@ -3495,7 +3535,7 @@ const App: React.FC = () => {
   // SHOW" instead of a half-decoded look; the release message is what puts the real picture up. Fires at
   // the gate's poll rate for the second or two it is holding, and never again after that.
   useEffect(() => bootGate.subscribe((p) => {
-      const msg: MainToProjector = { t: 'boot', booting: p.booting, ready: p.ready, total: p.total };
+      const msg: MainToProjector = { t: 'boot', booting: p.booting, ready: p.ready, total: p.total, phase: p.phase };
       for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
   }), []);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.

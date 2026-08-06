@@ -85,6 +85,7 @@ let unsubTick: (() => void) | null = null;
 let unsubMix: (() => void) | null = null;
 let unsubCfg: (() => void) | null = null;
 let unsubBoot: (() => void) | null = null; // cold-start readiness probe (host.boot)
+let unsubPreload: (() => void) | null = null; // warm-scene participation (host.preload)
 
 // The fallbacks for a junk container, as SHARED FROZEN CONSTANTS — never fresh literals. readTlAudio runs
 // EVERY FRAME and pruneOrphans gates on the clip array's IDENTITY, so a fresh `[]` per call would defeat
@@ -94,6 +95,12 @@ let unsubBoot: (() => void) | null = null; // cold-start readiness probe (host.b
 // promise held against a host that hands us something worse than undefined. Frozen: the driver only ever
 // reads and spreads these.)
 const EMPTY_CLIPS = Object.freeze([]) as unknown as BedClip[];
+
+// How long the cold-start gate may be held waiting for a video clip's soundtrack to be CONFORMED.
+// Sized for a cache hit (one IPC round-trip) plus slack, not for the transcode: producing a conform
+// takes minutes, and holding a show for it meant every video-heavy project armed by timeout. See the
+// long note at the boot probe — the work still finishes in the background either way.
+const CONFORM_WAIT_SEC = 2.5;
 const EMPTY_TRACKS = Object.freeze([]) as unknown as BedTrack[];
 const EMPTY_BUSES = Object.freeze([]) as unknown as BedBus[];
 
@@ -283,7 +290,34 @@ export const plugin: RendererPlugin = {
     // UI (bed ids are minted fresh; structuredClone only ever clones a TIMELINE, never into the bed).
     // Aliasing across a RECALL is a different question, and `srcPath` + the content-keyed re-pushes are
     // what answer it.
+    // ── THE PRELOAD TIER — a WARM scene's sound stays loaded ─────────────────────────────────────
+    // Residency used to track only the two LIVE containers, so leaving a scene unloaded its clips and
+    // re-entering DECODED THEM AGAIN. reconcileContainer starts a clip at `inPoint + tLocal` — wherever
+    // the playhead has reached by the time the source lands — so a clip at start=0 lost its first few
+    // milliseconds on every entry. For a percussive sting that is its attack, and an installation
+    // cycling scenes re-decoded the same files forever.
+    //
+    // The host already keeps a couple of scenes' pictures WARM for exactly this reason and now offers
+    // that window to plugins (host.preload). We hold those scenes' clips too: residency becomes
+    // "the live containers ∪ every warm scene's clips", so a cut into a warm scene is sample-accurate.
+    // Nothing here decides WHICH scenes are warm — that follows the state machine's shape and is the
+    // host's call, which is why the driver could never fix this alone.
+    // ⚠ WARM IS A RESIDENCY SET, NOT A LIVENESS SET — and conflating them is a loud bug, not a subtle
+    // one. `allClips()` answers "what belongs to the show right now": it decides which sounding clips
+    // get STOPPED when the containers move (a clip that vanishes from it is stopped) and which get
+    // parameter updates. Fold warm scenes into it and leaving a scene stops nothing — the departed
+    // scene's sting keeps playing over the new one. So `allClips()` stays exactly as it was, and only
+    // the RESIDENCY pass looks wider.
+    const warmClips = new Map<string, BedClip[]>();       // poolKey → that scene's audio clips
     const allClips = (): BedClip[] => [...bed.clips, ...tlAudio.clips, ...vidAudio.clips];
+    /** What must be LOADED: everything live, plus every warm scene's clips. Deduped by id — a scene
+     *  captured from the global doc shares its clip ids verbatim (see srcPath). */
+    const residentClips = (): BedClip[] => {
+      const out = new Map<string, BedClip>();
+      for (const c of allClips()) out.set(c.id, c);
+      for (const list of warmClips.values()) for (const c of list) if (!out.has(c.id)) out.set(c.id, c);
+      return [...out.values()];
+    };
     const loaded = new Map<string, ClipMeta>();   // clip source loaded in the engine
     const loading = new Set<string>();            // loads in flight (dedupe overlapping syncLoaded runs)
     const failed = new Set<string>();             // sources that failed to decode (don't retry every bed edit)
@@ -458,7 +492,9 @@ export const plugin: RendererPlugin = {
     // nobody left to pick it up. Bail before you start, never after.
     const syncLoaded = async () => {
       const myGen = ++loadGen;
-      const clips = allClips();
+      // RESIDENCY, so warm scenes keep their sources — see residentClips(). Liveness (what stops, what
+      // gets parameter pushes) still comes from allClips() everywhere else.
+      const clips = residentClips();
       // id → path. A clip whose PATH changed is NOT the same source, even though it is the same id — see
       // `srcPath`. Treat it as removed (unload) so the loop below reloads it from the new file.
       const wanted = new Map<string, string>();
@@ -488,10 +524,11 @@ export const plugin: RendererPlugin = {
           const meta = await audioClient.loadClip(clip.id, clip.path);
           engineAbsent = !meta; // see the no-meta branch below — null means the ENGINE is missing, not the file
           if (meta) {
-            // Re-check against a FRESH allClips(): the containers can have changed across the await (a
-            // scene recall swapped the bound timeline out from under this load). Same id AND same path —
-            // an id re-pointed mid-decode is not the source we just decoded.
-            const live = allClips().find((c) => c.id === clip.id);
+            // Re-check against a FRESH residentClips(): the containers can have changed across the await
+            // (a scene recall swapped the bound timeline out from under this load). Same id AND same path
+            // — an id re-pointed mid-decode is not the source we just decoded. Resident, not live: a clip
+            // that has since become WARM was still worth decoding, which is the whole point of the tier.
+            const live = residentClips().find((c) => c.id === clip.id);
             if (live && live.path === clip.path) {
               loaded.set(clip.id, meta);
               // Push THIS clip's position + effects immediately, before awaiting the next load. The
@@ -889,6 +926,41 @@ export const plugin: RendererPlugin = {
     // report ready on the first poll of a cold start and gate nothing at all. `failed` counts as
     // accounted-for — a broken file is answered, not pending, and must not burn the venue's patience on
     // every start. Cheap: two set lookups per clip, no IPC, no await.
+    // Ride the host's warm window: hold a standby scene's clips engine-resident so a cut into it is
+    // sample-accurate instead of decoding on entry. `warm` is idempotent by construction (it replaces
+    // the entry for that key), and `release` is the host promising the window closed — dropping the
+    // clips there lets the next syncLoaded unload anything now unwanted, which is the same path a
+    // deleted clip takes. See the note on warmClips.
+    // Residency, as the engine actually holds it — for verifying the preload tier and for anyone
+    // asking why a sting is late. Same window-guarded diagnostic pattern as __artluxWarmPools and
+    // hapDecode's __artluxHapStats.
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>)['__artluxAudioResidency'] = () => ({
+        loaded: [...loaded.keys()],
+        live: allClips().map(c => c.id),
+        warmPools: [...warmClips.keys()],
+        warmHeld: [...warmClips.values()].flat().map(c => c.id),
+        sounding: [...sounding],
+      });
+    }
+
+    unsubPreload = ctx.host.preload.registerParticipant({
+      warm: (poolKey, timeline) => {
+        const tl = timeline as { audio?: Partial<TlAudio> } | undefined;
+        const clips = (tl?.audio?.clips ?? []) as BedClip[];
+        const prev = warmClips.get(poolKey);
+        // Identity-stable when nothing changed: syncLoaded's orphan gate compares clip ARRAYS by
+        // identity, so handing it a fresh array every warm() would make it re-run on every poll.
+        if (prev && prev.length === clips.length && prev.every((c, i) => c === clips[i])) return;
+        warmClips.set(poolKey, clips);
+        if (clips.length) void syncLoaded();
+      },
+      release: (poolKey) => {
+        if (!warmClips.delete(poolKey)) return;
+        void syncLoaded(); // the window closed — let the usual residency pass drop what nobody wants
+      },
+    });
+
     unsubBoot = ctx.host.boot.registerProbe('audio', () => {
       if (engineAbsent) return { ready: true }; // no engine ⇒ nothing will ever load; don't hold the show
       const pending: string[] = [];
@@ -899,7 +971,26 @@ export const plugin: RendererPlugin = {
       // The conforms behind the video-audio container. readVideoAudio() DROPS a clip whose conform has
       // not landed (it cannot play a .mp4), so those clips are invisible to allClips() above — checking
       // only the mapped container would call the sound ready precisely because it is missing.
-      if (videoAudioOn) {
+      //
+      // ⚠ BUT ONLY BRIEFLY, AND THAT BOUND IS THE WHOLE POINT.
+      //
+      // A conform is not a decode, it is a TRANSCODE: main demuxes the track and the renderer runs two
+      // full AudioDecoder passes over it (one to measure peak, one to write the WAV). Measured on a
+      // scene with ten 1080p clips — nine conforms running in parallel reached ~40% after 75 seconds,
+      // and a killed app discards the partial work, so it restarts from zero every open. Waiting for
+      // that is not a preload, it is an outage: the show armed by TIMEOUT on every single start, which
+      // means the gate's readiness logic — including the codec pre-roll it exists to serve — never
+      // applied to any video-heavy project at all.
+      //
+      // So the wait is bounded. A conform that is ALREADY CACHED answers in one IPC round-trip
+      // (`conformStart` returns `kind:'ready'` off a cache hit), which is the normal case on every
+      // open after the first, and CONFORM_WAIT_SEC is generous enough to cover it many times over.
+      // One that must be produced is left to finish in the background — the clip's picture plays on
+      // time and its sound joins when it lands, exactly as it does for a clip dropped mid-show.
+      //
+      // This is the same judgement the gate already makes about live sources (it never waits on NDI,
+      // a camera or Spout): hold for what will arrive imminently, never for what may take minutes.
+      if (videoAudioOn && ctx.host.boot.elapsedSec() < CONFORM_WAIT_SEC) {
         const raw = (host.audio.getVideoAudio() as Partial<TlAudio>) ?? {};
         for (const c of Array.isArray(raw.clips) ? raw.clips : EMPTY_CLIPS) {
           if (conformOf(c.path) === undefined) pending.push(`conform: ${c.path.split(/[\\/]/).pop() || c.path}`);
@@ -914,6 +1005,7 @@ export const plugin: RendererPlugin = {
     unsubMix?.(); unsubMix = null;
     unsubCfg?.(); unsubCfg = null;
     unsubBoot?.(); unsubBoot = null;
+    unsubPreload?.(); unsubPreload = null;
     audioClient.stopAll();
   },
 };

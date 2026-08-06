@@ -1,6 +1,7 @@
 import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
-import { getBlobUrl, ensureBlobUrl } from './mediaCache';
+import { resolveMediaUrl } from './mediaCache';
 import * as contentSource from './contentSource';
+import * as codecResidency from './codecResidency';
 import { clipKindRegistry, videoCodecRegistry, smTriggerRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
@@ -51,6 +52,11 @@ const layerKey = (layerId: string): string => `layer:${layerId}`;
 export const GLOBAL_POOL = '__global__';
 type LayerPool = Map<string, LayerVid>;
 const pools = new Map<string, LayerPool>([[GLOBAL_POOL, new Map()]]);
+// The DOCUMENT behind each pool. The pools above hold <video> elements; judging whether a pool could
+// go on stage (poolReadiness) needs its timeline too, and the state machine asks that of a scene it is
+// about to cut to — see contentReadyFor / SmTransition.waitForContent. Written wherever a pool is, and
+// dropped with it, so it cannot outlive what it describes.
+const poolDocs = new Map<string, Timeline>();
 let activeKey = GLOBAL_POOL;
 let layerVideos: LayerPool = pools.get(GLOBAL_POOL)!;
 // External mirror windows (Scene / projector) don't decode: the main window decodes once
@@ -194,9 +200,16 @@ const pluginTrigger = (source: string, params: Record<string, unknown>, stateEnt
   try { return !!t.fires(params, { nowSec: frameNowSec, stateEnteredAtSec, held }); }
   catch (e) { console.error(`[timeline] trigger source "${source}" threw`, e); return false; }
 };
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, pluginTrigger });
+// Would cutting to this scene put a picture on stage, or black? The pool key IS the scene id, and
+// poolReadiness answers exactly this question for the boot gate — asking it here re-drives the
+// pre-roll too, which is what makes a `waitForContent` wait actually productive rather than a pause.
+// A scene with no warmed pool and no timeline to judge is "ready" by omission, same as the gate.
+const contentReadyFor = (sceneId: string): boolean => {
+  const tl = poolDocs.get(sceneId);
+  return tl ? poolReadiness(sceneId, tl).ready : true;
+};
 
-const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, contentReady: contentReadyFor, pluginTrigger });
 
 function getLayerVideo(layerId: string, pool: LayerPool = layerVideos): LayerVid {
   let lv = pool.get(layerId);
@@ -275,9 +288,11 @@ function captureHold(lv: LayerVid): void {
 
 function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   if (lv.srcPath !== clip.path) {
-    const url = getBlobUrl(clip.path);
-    if (url) { lv.el.src = url; lv.srcPath = clip.path; lv.hold = null; } // a new FILE: the held frame is a lie
-    else { ensureBlob(clip.path); return; } // not loaded yet
+    // A streaming url is valid the instant it is built, so there is no "not loaded yet" branch to
+    // return from any more — the element simply starts fetching the ranges it needs. What used to be
+    // here (bail, kick a whole-file read, hope a later pass finds it) is the shape that let a pool
+    // promote on an empty element; see warmPoolVideos.
+    lv.el.src = resolveMediaUrl(clip.path); lv.srcPath = clip.path; lv.hold = null; // new FILE: the held frame is a lie
   }
   lv.clipId = clip.id;
   lv.mode = 'video';
@@ -306,17 +321,45 @@ function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   else if (!lv.el.paused) lv.el.pause();
 }
 
+// ── MEASUREMENT ONLY: when does a layer have NO PICTURE? ─────────────────────────────────────────
+// layerFrame() returns null when the codec cannot supply the frame asked for — still opening the
+// file, or its ring has not decoded that index. That is the codec-agnostic signal for what an
+// operator sees as a stutter, and it is the one earlier attempts LACKED: resident bytes say
+// something is cached, not that the frame being requested is there.
+//
+// Logs clip SWITCHES and GAPS so the two can be correlated — a burst of gaps right after a switch
+// means the next clip on a track is being loaded when the playhead reaches it. One comparison per
+// layer per frame; a push only on a transition. Changes no behaviour.
+// Read with window.__artluxLayerGaps() / reset with __artluxLayerGapsReset().
+const GAP_LOG_MAX = 500;
+interface GapEvent { t: number; kind: 'switch' | 'gap'; layerId: string; clipId: string; name: string; head: number }
+const gapLog: GapEvent[] = [];
+function gapNote(kind: GapEvent['kind'], layerId: string, clip: VideoClip, head: number): void {
+  gapLog.push({ t: Math.round(performance.now()), kind, layerId, clipId: clip.id,
+    name: (clip.path.split(/[\/]/).pop() || clip.path).slice(0, 40), head: +head.toFixed(3) });
+  if (gapLog.length > GAP_LOG_MAX) gapLog.shift();
+}
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxLayerGaps'] = () => gapLog.slice();
+  (window as unknown as Record<string, unknown>)['__artluxLayerGapsReset'] = () => { gapLog.length = 0; };
+}
+
 function syncCodecLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number, codec: VideoCodecContribution): void {
   if (!lv.el.paused) lv.el.pause(); // not using the <video> for this clip
   if (!lv.codec || lv.codec.path !== clip.path) {
     lv.codec = { path: clip.path, canvas: null, codecId: codec.id };
   }
+  // MEASUREMENT: this layer just changed clip — the boundary any gap would follow.
+  if (lv.clipId !== clip.id) gapNote('switch', layerId, clip, t);
   lv.clipId = clip.id;
   lv.mode = 'codec';
   // The codec samples the exact frame for this clip-local playhead time and paints its per-layer
   // canvas (GPU decompress); it tracks the decoded index internally so it only re-uploads on advance.
   const clipTime = t - clip.start + clip.inPoint;
   lv.codec.canvas = codec.layerFrame(layerId, clip.path, clipTime);
+  // MEASUREMENT: null = this layer has no picture this frame. Only while PLAYING — a paused or
+  // scrubbing transport legitimately asks for frames nobody has decoded, which would drown the signal.
+  if (!lv.codec.canvas && playing) gapNote('gap', layerId, clip, t);
 }
 
 // A generalized content clip: route its SurfaceContent onto the layer via the shared contentSource
@@ -339,16 +382,92 @@ function syncContentLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: num
 
 // --- Per-scene timeline swap helpers (main window only) ------------------------------------------
 
-// Warm shared, path-keyed media for a timeline's clips (blob URLs + codec sessions). Idempotent and
-// cheap — mediaCache and codec preWarm both dedupe by path. Shared by setData (cold) and warmPool.
-function warmMedia(t: Timeline): void {
+// ── WARMING IS A RELEVANCE WINDOW, NOT THE WHOLE DOCUMENT ────────────────────────────────────────
+// warmMedia used to loop EVERY clip of the timeline and read each one's whole file over IPC — at
+// project open, on every GO, and for every FSM look-ahead state. A 40-clip scene was 40 whole-file
+// reads for material that might play twenty minutes from now, and it was the single largest share of
+// a heavy project's open I/O (measured with scripts/bench-open.cjs — metric D). Now it warms only
+// what a promoted pool can actually SHOW soon:
+//   · the start clip of every layer — exactly the set warmPoolVideos seeks and poolReadiness judges,
+//     so the boot gate's contract is unchanged;
+//   · plus clips intersecting the next WARM_AHEAD_SEC of playback, a window frame() advances ahead
+//     of the playhead while playing (and mainSeek re-bases on every jump).
+// Everything else loads ON DEMAND, which already works and is why this is safe: syncVideoLayer points
+// the element at the clip the moment it becomes active, and poolReadiness re-drives warmPoolVideos
+// every gate poll. The fallback existed before this window did — the window only stops the flood.
+//
+// WARM_AHEAD_SEC stays generous even though media now STREAMS (artlux-media://), for a different
+// reason than before: a plain <video> given a src does not decode until it needs to, so a wide window
+// costs a few HTTP-range handshakes rather than the whole-file IPC read it used to. The number is
+// about giving Chromium time to buffer ahead of a cut, not about hiding an I/O stall.
+const WARM_AHEAD_SEC = 20;
+
+// ⚠ THE WINDOW NOW ONLY MEANS SOMETHING FOR CODEC CLIPS, and that is not an oversight.
+//
+// A plain <video> layer has exactly ONE element, showing the clip that is currently active — so a
+// clip five seconds in the future has nowhere to be loaded INTO. Under the old blob path there was
+// still something useful to do (read the file early, so the src assignment at the cut was instant),
+// which is what the FIFO here bounded. Streaming removes both halves: there is no read to start
+// early, and Chromium buffers ahead of the src it has by itself.
+//
+// So `warmWindow` warms codec paths (a decoder is path-keyed and genuinely can be opened ahead of
+// time) and leaves <video> clips to `warmPoolVideos` — which handles the one case that CAN be warmed,
+// each layer's start clip, by creating the element and seeking it. That is also precisely the set the
+// cold-start gate judges, so nothing the gate waits on has been weakened.
+
+// Open the CODEC decoders for every clip intersecting [fromSec, fromSec + WARM_AHEAD_SEC). Idempotent
+// — codec preWarm and the residency refcount are both path-keyed. Plain <video> clips are skipped by
+// design (see the note above: a future clip has no element to load into).
+//
+// `owner` is the POOL KEY that will hold the decoders this opens. Every codec.preWarm here creates a
+// path-keyed decoder that only closeSurface() can free, and for a long time nothing did: releasePool
+// freed a pool's <video>s and its layer-keyed codec state while the path decoders it had opened
+// stayed resident for the session, so a "COLD" pool was not cold. Retaining under the pool key is
+// what gives releasePool something to release. See services/codecResidency.
+function warmWindow(t: Timeline, fromSec: number, owner: string): void {
   for (const c of t.clips) {
     if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video / lazy content
+    if (c.start >= fromSec + WARM_AHEAD_SEC || c.start + c.duration <= fromSec) continue; // outside the window
     const codec = videoCodecRegistry.forPath(c.path);
-    if (codec) codec.preWarm(c.path);
-    else ensureBlob(c.path);
+    if (!codec) continue; // a <video> clip: nothing to open ahead of time — warmPoolVideos owns the start clip
+    codec.preWarm(c.path);
+    codecResidency.retain(c.path, owner, codec.id);
   }
 }
+
+// Warm what a pool needs to PROMOTE cleanly: each layer's start clip plus the opening window. Shared
+// by setData (cold), warmPool (standby) and swap. <video> start clips are handled by warmPoolVideos,
+// which creates and seeks the element — the only form of warming that means anything for one.
+function warmMedia(t: Timeline, owner: string): void {
+  const startT = timelineStart(t);
+  for (const l of t.layers) {
+    if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
+    const sc = startClip(t, l.id);
+    if (!sc || isContentClip(sc.clip)) continue;
+    const codec = videoCodecRegistry.forPath(sc.clip.path);
+    if (codec) { codec.preWarm(sc.clip.path); codecResidency.retain(sc.clip.path, owner, codec.id); }
+  }
+  // ⚠ THE LOOK-AHEAD WINDOW WAITS FOR THE SHOW TO BE ARMED, and this is the same doctrine the
+  // thumbnail and waveform pumps already follow: nothing cosmetic or speculative competes with the
+  // frame the audience is about to see.
+  //
+  // Opening a decoder is not free — it is a native decode ring filling at once. The window spans
+  // WARM_AHEAD_SEC across every layer, which on a 4-layer 1080p60 HAP scene is ~16 files decoding
+  // simultaneously, and they contend with the START clips the gate is actually waiting on. Measured:
+  // a 93% HAP ring miss rate during the hold, with the gate stuck at 47/48 on one clip that could not
+  // get a look in. `armed` is false exactly while the cold-start gate holds (bootGate.setArmed), so
+  // this reads the hold without importing it — services/bootGate imports THIS module, and the reverse
+  // edge would be a cycle.
+  //
+  // Nothing is lost: frame()'s advancing window fills the look-ahead the moment the show runs, and the
+  // gate never judged these clips in the first place.
+  if (armed) warmWindow(t, startT, owner);
+}
+
+// How far ahead of the ACTIVE document's playhead media has been queued. -Infinity forces the next
+// frame to re-warm around wherever the playhead now is — set on every seek/swap/edit, because a jump
+// invalidates the window and re-scanning t.clips once is cheaper than being wrong about it.
+let warmHorizon = -Infinity;
 
 // The clip visible at a timeline's start on a given layer — the frame a clean restart shows. Uses the
 // GUARDED start (timelineStart), not the raw in-point: a junk `inPoint` would make startT NaN, match no
@@ -376,15 +495,23 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
     const sc = startClip(t, l.id);
     if (!sc || isContentClip(sc.clip)) continue;
     const codec = videoCodecRegistry.forPath(sc.clip.path);
-    if (codec) { codec.preWarm(sc.clip.path); continue; } // codec frames are pulled on demand; preWarm suffices
-    const url = getBlobUrl(sc.clip.path);
-    // Not read yet. ensureBlobUrl dedupes by path, so asking again is free — and asking again is the
-    // POINT: on a cold project open the blob lands AFTER this pass, and the pre-roll used to wait for
-    // "a later warm() pass" that, for the scene the show opens on, never came. The pool then promoted
-    // on an empty element and the show started on black. poolReady() re-drives this every poll.
-    if (!url) { ensureBlob(sc.clip.path); continue; }
+    if (codec) {
+      // Prime BOTH decoders a codec may use: the path-keyed one (preWarm) and — where the codec keys
+      // its timeline decoder differently, as mp4 does per layer — the one this layer will actually
+      // read from. Without the second, the gate can pass while the layer is still opening, and the
+      // layer is black through a whole demux with the show already running.
+      codec.preWarm(sc.clip.path);
+      codec.preWarmLayer?.(l.id, sc.clip.path, Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint));
+      continue;
+    }
+    // The source is available immediately (a streaming url is just a string), so the pre-roll can
+    // always set it and seek. This used to bail whenever the blob had not been read yet and rely on a
+    // later pass to come back — which, for the scene a cold project opens on, never came: the pool
+    // promoted on an empty element and the show started on black. The state that bug lived in no
+    // longer exists. Readiness is still judged by readyState in poolReadiness, which is the honest
+    // question ("can this element draw?") rather than a proxy for it.
     const lv = getLayerVideo(l.id, pool);
-    if (lv.srcPath !== sc.clip.path) { lv.el.src = url; lv.srcPath = sc.clip.path; }
+    if (lv.srcPath !== sc.clip.path) { lv.el.src = resolveMediaUrl(sc.clip.path); lv.srcPath = sc.clip.path; }
     lv.el.pause();
     const target = Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint);
     // Half a source frame of slop: exact equality never holds (a decoder lands on the nearest frame
@@ -436,7 +563,9 @@ function poolReadiness(poolKey: string, t: Timeline): { ready: boolean; pending:
       // opens on. Codecs without preRoll behave exactly as before.
       if (probed && codec.preRoll) {
         const at = Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint);
-        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC)) pending.push(`${name} (buffering)`);
+        // `l.id` so a codec keying its timeline decoder per layer (mp4) pre-rolls the decoder this
+        // layer will actually read from, not the surface one nobody here is about to ask.
+        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC, l.id)) pending.push(`${name} (buffering)`);
       }
       continue;
     }
@@ -477,6 +606,7 @@ function mainSeek(sec: number): void {
   originMs = performance.now() - clamped * 1000;
   prevPlayhead = clamped;
   endLatched = false; // a deliberate jump re-arms the end
+  warmHorizon = -Infinity; // the warm window was built around the OLD playhead — re-base next frame
 }
 
 // The show clock's mainSeek — the ONLY thing that moves showTime from outside the frame loop.
@@ -909,6 +1039,14 @@ function frame(now: number): void {
       // Mirror windows never reach here (`!external`), so they still cannot emit intents.
       if (pausePending && endLatched) emitIntent({ kind: 'pause' });
     }
+    // ADVANCE THE WARM WINDOW ahead of a running playhead — the other half of warmMedia's relevance
+    // window. One comparison per frame; the rescan runs only when the playhead crosses the half-window
+    // boundary (every WARM_AHEAD_SEC/2 of playback) or after a seek/swap reset the horizon. Mirror
+    // windows never warm (no blobs to manage there — see `external` above).
+    if (!external && playing && playhead + WARM_AHEAD_SEC / 2 > warmHorizon) {
+      warmWindow(data, playhead, activeKey);
+      warmHorizon = playhead + WARM_AHEAD_SEC;
+    }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
     //
@@ -1064,7 +1202,7 @@ export const timeline = {
     // clampPlayheadIntoDoc above. setData is its ONLY caller: swap()'s click case is 'reconverge', which
     // carries its own copy of the latch-without-pulse guard.
     clampPlayheadIntoDoc(t);
-    warmMedia(t);
+    warmMedia(t, activeKey); // this document IS the active pool's — retain under its key
     pruneStaleLayers(layerVideos, t);
     compileAutomation();
   },
@@ -1074,7 +1212,8 @@ export const timeline = {
     if (external) return;
     let pool = pools.get(poolKey);
     if (!pool) { pool = new Map(); pools.set(poolKey, pool); }
-    warmMedia(t);
+    poolDocs.set(poolKey, t);
+    warmMedia(t, poolKey);
     warmPoolVideos(pool, t);
   },
   // Promote a (warm, ideally) pool to ACTIVE — the seamless per-scene timeline swap. Only ONE pool is
@@ -1104,7 +1243,8 @@ export const timeline = {
     const prevKey = activeKey;
     data = t;
     let pool = pools.get(poolKey);
-    if (!pool) { pool = new Map(); pools.set(poolKey, pool); warmMedia(t); warmPoolVideos(pool, t); } // cold fallback
+    poolDocs.set(poolKey, t);
+    if (!pool) { pool = new Map(); pools.set(poolKey, pool); warmMedia(t, poolKey); warmPoolVideos(pool, t); } // cold fallback
     activeKey = poolKey;
     layerVideos = pool;
     // One transport at a time: pause the outgoing pool's videos (kept warm; preloader evicts later).
@@ -1113,7 +1253,8 @@ export const timeline = {
     // timeline had but the new one doesn't).
     for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) contentSource.release(layerKey(l.id)); }
     pruneStaleLayers(pool, t);
-    warmMedia(t);
+    poolDocs.set(poolKey, t);
+    warmMedia(t, poolKey);
     // Clean first-frame start — via the GUARDED start, never the raw in-point. mainSeek() feeds `playhead`,
     // `originMs` and `prevPlayhead` from this one number, so a scene whose timeline carries a junk inPoint
     // (hand-edit, bad import, plugin-written project — normalizeTimeline does not coerce it) would NaN the
@@ -1178,11 +1319,49 @@ export const timeline = {
       lv.el.pause(); lv.el.removeAttribute('src');
       if (!data.layers.find(l => l.id === id)) { for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); }
     }
+    // …AND THE PATH-KEYED DECODERS THIS POOL'S WARMING OPENED. Everything above is keyed by LAYER,
+    // which is why demoting a pool used to leave it holding decoders: warmMedia opens a decoder per
+    // PATH (mp4 keeps every compressed sample of the track; HAP a ring of decoded frames) and only
+    // closeSurface() frees one. A pool the LRU had demoted to COLD therefore kept the heaviest thing
+    // it owned, for the life of the session — the tier table in docs/SCENE-TIMELINES.md described a
+    // teardown that never happened. codecResidency refcounts them across pools AND surfaces, so a
+    // file still shown somewhere else survives this.
+    poolDocs.delete(poolKey);
+    codecResidency.releaseOwner(poolKey);
     pools.delete(poolKey);
   },
   // Which pool keys currently hold decoders (active + warm standby) — for the preloader's LRU budget.
   warmPoolKeys(): string[] { return [...pools.keys()]; },
   activePoolKey(): string { return activeKey; },
+  /**
+   * TOP UP EVERY STANDBY POOL UNTIL IT COULD GO ON STAGE. Returns true once they all could.
+   *
+   * A WARM pool used to mean "decoders held, first frame seeked" — which is not enough to cut to.
+   * A codec's ring starts nearly EMPTY (measured on a real show: a standby scene holding ~6 decoded
+   * frames against the active scene's ~40), so promoting it began with an underrun: the compositor
+   * painted the nearest decoded neighbour while the ring caught up, and the operator saw the video
+   * stop and start again. That is precisely the stutter the boot gate's pre-roll prevents at project
+   * open — a cut deserves the same.
+   *
+   * ⚠ THIS IS A ONE-TIME COST PER WARM SCENE, NOT A RUNNING ONE, and that is what makes it
+   * affordable. poolReadiness re-drives the pre-roll, and both halves stop asking once satisfied:
+   * hapDecode.fill requests only frames it does not already hold, and warmPoolVideos' seek is
+   * conditional. Once a standby ring is full it stays full (nothing evicts it — the ring retains the
+   * union of its consumers' windows), so the steady-state cost of a warm pool is back to ~zero. The
+   * caller stops calling as soon as this returns true.
+   *
+   * Never touches the ACTIVE pool (playback owns it) or GLOBAL. Skipped entirely while the cold-start
+   * gate holds: nothing speculative may compete with the look the audience is about to see.
+   */
+  topUpWarmPools(): boolean {
+    if (external || !armed) return true; // mirror windows decode nothing; a held gate owns the decoders
+    let allReady = true;
+    for (const [key, doc] of poolDocs) {
+      if (key === activeKey || key === GLOBAL_POOL || !pools.has(key)) continue;
+      if (!poolReadiness(key, doc).ready) allReady = false;
+    }
+    return allReady;
+  },
   setPlaying(p: boolean): void {
     if (p === playing) return;
     playing = p;

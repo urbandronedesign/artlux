@@ -18,6 +18,7 @@ import * as lightingOverlay from '../services/lightingOverlay';
 import * as lightingCue from '../services/lightingCue';
 import { perfMonitor } from '../services/perfMonitor';
 
+
 // THE RENDER/OUTPUT ENGINE — composite, sample, pack, publish.
 //
 // This is the pipeline that was living inside a React component. Everything it needs was already
@@ -70,6 +71,8 @@ export interface FrameInputs {
   /** Whether packed frames are actually sent to the transport. The operator's output switch. */
   outputEnabled: boolean;
   artNetPort: number;
+  /** Engine tick rate (AppSettings.engineFps). Also the DECODE ASK RATE — see the setting for why. */
+  engineFps: number;
   /**
    * Whether the 512² composite is actually on screen. Broadcast/headless run with no visible preview,
    * where compositing is dead work on the WebGPU path (fixtures sample per-surface, not the composite).
@@ -121,7 +124,7 @@ const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
 const DEFAULT_INPUTS: FrameInputs = {
   surfaces: [], fixtures: [], controllers: [], fixtureProfiles: EMPTY_PROFILES,
   gamma: 1, brightness: 1, targetIp: '', broadcast: false, protocol: 'artnet',
-  engineRunning: false, videoPlaying: false, outputEnabled: false, artNetPort: 6454,
+  engineRunning: false, videoPlaying: false, outputEnabled: false, artNetPort: 6454, engineFps: 30,
   showPreview: true,
 };
 
@@ -176,7 +179,28 @@ class FrameEngine {
   constructor() {
     if (typeof requestAnimationFrame === 'undefined') return; // no rAF (a test harness) — stay idle
     void this.initMapper();
-    const loop = () => { this.raf = requestAnimationFrame(loop); this.tick(); };
+    // ── THE TICK RATE IS ALSO THE DECODE ASK RATE ───────────────────────────────────────────────
+    // Every tick asks each layer's codec for the exact frame at the playhead. Asking faster than the
+    // decoder can serve does not produce more pictures — it produces MISSES: the ring hands back the
+    // nearest frame it has, and a burst of those is what an operator reports as the picture stopping
+    // and starting.
+    //
+    // Measured on a 1080p60 HAP show looping every 14 s. Uncapped (rAF, ~60 Hz of asks): 19% of exact
+    // frames missed, clustered ~78 into the half second after each loop wrap. At 25 Hz on the same
+    // content: 0.27%, worst half-second 9, and every scene cut clean. The projector window — which
+    // decodes only the one surface it draws — missed 0.007% throughout, which is what pointed here.
+    //
+    // NOT the Art-Net wire rate. The native pacer sends at AppSettings.fps (44 by default) with
+    // keep-alive, so a slower engine repeats the last frame on the wire rather than starving a node;
+    // what changes is how often NEW pixel data is produced. Rate comes from AppSettings.engineFps.
+    let lastTick = -1e9;
+    const loop = (now: number) => {
+      this.raf = requestAnimationFrame(loop);
+      const cap = this.inputs.engineFps;
+      if (cap > 0 && now - lastTick < 1000 / cap - 0.5) return;
+      lastTick = now;
+      this.tick();
+    };
     this.raf = requestAnimationFrame(loop);
   }
 

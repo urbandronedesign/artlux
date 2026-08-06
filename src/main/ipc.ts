@@ -1,5 +1,5 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand, type RendererFault } from '../../shared/protocol';
 import * as output from './transport/outputManager';
@@ -11,6 +11,7 @@ import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
+import * as thumbCache from './thumbCache';
 import * as docs from './docs';
 import * as fixtureLibrary from './fixtureLibrary';
 import { importGdtf } from './gdtf';
@@ -18,6 +19,11 @@ import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import { rebuildAppMenu } from './menu';
 import { activateMainPlugins } from './host/plugins';
+
+// READ_FILE accounting for the cold-open bench (metric D — bytes read vs. bytes actually shown).
+// Module-level, not per-registerIpc: the counter must survive for the process's life and there is
+// exactly one main process. Reset by PERF_OPEN_ARMED (the renderer's boot gate arming).
+const readStats = { calls: 0, bytes: 0, ms: 0, maxBytes: 0, maxPath: '' };
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
@@ -128,8 +134,29 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         } catch (err) { console.error('[scene] read model failed', err); return null; }
     });
     ipcMain.handle(IPC.READ_FILE, async (_e, path: string) => {
-        try { return new Uint8Array(await readFile(path)); }
+        const t0 = performance.now();
+        try {
+            const bytes = new Uint8Array(await readFile(path));
+            // Metric D of plans/preload-optimization.md: every byte crossing this channel is a whole file loaded
+            // into renderer RAM (mediaCache → Blob). The counter is what turns "the open felt slow"
+            // into "we read 226 MB nobody looked at" — logged + reset when the boot gate arms below.
+            readStats.calls++;
+            readStats.bytes += bytes.byteLength;
+            readStats.ms += performance.now() - t0;
+            if (bytes.byteLength > readStats.maxBytes) { readStats.maxBytes = bytes.byteLength; readStats.maxPath = path; }
+            return bytes;
+        }
         catch (err) { console.error('[ipc] read file failed', err); return null; }
+    });
+    ipcMain.on(IPC.PERF_OPEN_ARMED, () => {
+        const mb = (n: number) => (n / 1048576).toFixed(1);
+        // One line, parseable — scripts/bench-open.cjs reads it from main's stdout, and a venue log
+        // reads it the morning after. maxPath names the file worth converting/relocating first.
+        console.log(
+            `[ipc] read-file totals since last open: ${readStats.calls} call(s), ${mb(readStats.bytes)} MB, ` +
+            `${readStats.ms.toFixed(0)} ms, largest ${mb(readStats.maxBytes)} MB (${readStats.maxPath || 'n/a'}) — reset`,
+        );
+        readStats.calls = 0; readStats.bytes = 0; readStats.ms = 0; readStats.maxBytes = 0; readStats.maxPath = '';
     });
 
     // In-app Docs Browser: enumerate the example/tutorial + user-guide tree, and read one doc by id.
@@ -170,7 +197,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.SCAN_ASSETS, (_e, projectFile: string, knownPaths: string[]) =>
         projectFolder.scanAssets(projectFile, knownPaths ?? []));
     ipcMain.on(IPC.SHOW_ITEM_IN_FOLDER, (_e, path: string) => { if (path) shell.showItemInFolder(path); });
-    ipcMain.handle(IPC.ASSET_EXISTS, (_e, paths: string[]) => (paths ?? []).map((p) => !!p && existsSync(p)));
+    // ASYNC, and the concurrency is the point. This is called with the WHOLE library — every path, on
+    // every change to the asset list — and `existsSync` per entry blocks main's event loop for the sum
+    // of them. On a network volume a single stat can take tens of milliseconds, so a 300-asset library
+    // was a visible stall in a process that is also pacing Art-Net.
+    // Persisted thumbnails — decode a frame once, not once per session. See src/main/thumbCache.
+    ipcMain.handle(IPC.THUMB_GET, (_e, path: string, qt: number) => thumbCache.get(path, qt));
+    ipcMain.on(IPC.THUMB_PUT, (_e, path: string, qt: number, bytes: Uint8Array) => { void thumbCache.put(path, qt, bytes); });
+    ipcMain.handle(IPC.ASSET_EXISTS, async (_e, paths: string[]) => Promise.all(
+        (paths ?? []).map((p) => (p ? stat(p).then(() => true, () => false) : Promise.resolve(false))),
+    ));
     ipcMain.handle(IPC.PICK_VIDEO, async () => {
         const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
         const opts = { title: 'Import video', properties: ['openFile' as const], filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'mov', 'mkv'] }] };

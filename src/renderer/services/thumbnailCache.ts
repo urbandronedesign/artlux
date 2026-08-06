@@ -1,4 +1,4 @@
-import { ensureBlobUrl, mimeForPath } from './mediaCache';
+import { resolveMediaUrl } from './mediaCache';
 import { videoCodecRegistry } from '../host/registries';
 import * as bootGate from './bootGate';
 import { timeline as engine } from './timeline';
@@ -80,9 +80,12 @@ class VideoLoader {
   constructor(public path: string) {
     this.v.muted = true; this.v.preload = 'auto'; this.v.crossOrigin = 'anonymous';
     this.ready = (async () => {
-      const url = await ensureBlobUrl(path, mimeForPath(path));
-      if (!url) return false;
-      this.v.src = url;
+      // Streams now (artlux-media://) instead of blob-reading the whole file to grab one frame. That
+      // read is what the housekeeping rules below were written around — one measured startup pulled
+      // 99 MB + 127 MB of library video for filmstrips nobody was looking at, at ~20 dropped frames
+      // per file. The rules still stand (they also bound decode and GPU work), but their worst input
+      // is gone.
+      this.v.src = resolveMediaUrl(path);
       await new Promise<void>(res => { this.v.onloadeddata = () => res(); this.v.onerror = () => res(); });
       return this.v.readyState >= 1;
     })();
@@ -117,23 +120,30 @@ function getLoader(path: string): VideoLoader {
 }
 
 function pumpVideo(): void {
-  // The <video> path is the EXPENSIVE one: its loader blob-reads the WHOLE FILE over IPC to seek in it
-  // (99 MB + 127 MB of library video in one measured startup). While a show is running it takes the
-  // same one-job-at-a-time, one-per-second budget as the codec path — see nextJobDelay.
+  // The <video> path is still the expensive one — a decode + a GPU readback per frame, on the same
+  // hardware the show is using. While a show is running it takes the same one-job-at-a-time,
+  // one-per-second budget as the codec path — see nextJobDelay.
   while (videoBusy < (engine.isPlaying() ? 1 : VIDEO_MAX) && videoQueue.length) {
     const wait = nextJobDelay();
     if (wait > 0) { setTimeout(pumpVideo, wait); return; }
-    // ⚠ NO WHOLE-FILE READ WHILE THE SHOW IS RUNNING. Throttling this one does not help, because the
-    // cost is not the RATE, it is the SINGLE JOB: opening a loader blob-reads the entire file over IPC
-    // (99 MB and 127 MB in a measured startup), which stalls the main process mid-read and cost ~20
-    // dropped frames per file even at one job per second. A loader that already exists is free to
-    // re-seek, so strips that were built while stopped keep filling. The rest wait for the transport.
+    // ⚠ NO NEW LOADER WHILE THE SHOW IS RUNNING.
+    //
+    // The ORIGINAL reason was that opening one blob-read the entire file over IPC — 99 MB and 127 MB
+    // in a measured startup — which stalled main mid-read and cost ~20 dropped frames per file even
+    // at one job per second. That specific cost is GONE: loaders stream (artlux-media://) and read
+    // only the ranges they seek to.
+    //
+    // The rule stays, for the reason that survives: a new loader is a new decoder and a new demux of
+    // an unfamiliar file, which is a burst of decode + IPC + GPU work at the one moment the frame
+    // budget has none to give. An EXISTING loader is free to re-seek, so strips built while stopped
+    // keep filling; the rest wait for the transport. Revisit only with a measurement, not by reading
+    // the paragraph above and concluding the rule expired with it.
     if (engine.isPlaying() && !loaders.has(videoQueue[0].path)) { setTimeout(pumpVideo, PLAYING_GAP_MS); return; }
     const job = videoQueue.shift()!;
     lastJob = performance.now();
     videoBusy++;
     getLoader(job.path).grab(job.qt)
-      .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); } })
+      .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); void persist(job.path, job.qt, bmp); } })
       .catch(() => {})
       .finally(() => { videoBusy--; inFlight.delete(job.key); pumpVideo(); });
   }
@@ -173,6 +183,7 @@ async function pumpCodec(): Promise<void> {
       if (canvas) {
         const bmp = await createImageBitmap(canvas, { resizeWidth: THUMB_W, resizeHeight: THUMB_H, resizeQuality: 'low' });
         store(job.key, { bmp, path: job.path, qt: job.qt });
+        void persist(job.path, job.qt, bmp);
         emit(job.path);
       }
     }
@@ -181,6 +192,45 @@ async function pumpCodec(): Promise<void> {
     codecBusy = false;
     if (codecQueue.length) void pumpCodec();
   }
+}
+
+// ── PERSISTED SIDECARS — decode once, not once per session ───────────────────────────────────────
+// The in-memory LRU dies with the window, so reopening a project re-decoded every visible tile. A
+// thumbnail is a couple of kB and its source cannot change without changing mtime/size, so the work is
+// stored beside the project (main/thumbCache) and re-used forever.
+//
+// Encoding costs one canvas round-trip per NEW thumbnail; reading one back costs an IPC message and a
+// createImageBitmap. Both are far below a frame decode + seek, which is what they replace.
+const encodeThumb = async (bmp: ImageBitmap): Promise<Uint8Array | null> => {
+  try {
+    const cv = new OffscreenCanvas(bmp.width, bmp.height);
+    const cx = cv.getContext('2d');
+    if (!cx) return null;
+    cx.drawImage(bmp, 0, 0);
+    // WebP at a low quality: these are 160x90 tiles behind a filmstrip, not deliverables.
+    const blob = await cv.convertToBlob({ type: 'image/webp', quality: 0.72 });
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch { return null; } // no OffscreenCanvas / no WebP encoder: just don't persist
+};
+
+// Store a freshly decoded thumbnail beside the project. Fire-and-forget and best-effort: a failure
+// costs a re-decode next session, never correctness, so nothing here is awaited or reported.
+async function persist(path: string, qt: number, bmp: ImageBitmap): Promise<void> {
+  const bytes = await encodeThumb(bmp);
+  if (bytes) window.artlux?.thumbPut?.(path, qt, bytes);
+}
+
+// Sidecar hit → decode the stored bytes instead of the source. Returns false when there is nothing
+// stored, so the caller falls through to the real decode.
+async function fromSidecar(path: string, qt: number, key: string): Promise<boolean> {
+  try {
+    const bytes = await window.artlux?.thumbGet?.(path, qt);
+    if (!bytes || !bytes.byteLength) return false;
+    const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/webp' }));
+    store(key, { bmp, path, qt });
+    emit(path);
+    return true;
+  } catch { return false; }
 }
 
 function schedule(path: string, qt: number, key: string): void {
@@ -193,8 +243,14 @@ function schedule(path: string, qt: number, key: string): void {
   // Filmstrip only re-asks when something makes it repaint, and a paused timeline repaints nothing.
   if (bootGate.isBooting()) { deferred.add(path); return; }
   inFlight.add(key);
-  if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
-  else { videoQueue.push({ path, qt, key }); pumpVideo(); }
+  // A STORED THUMBNAIL SHORT-CIRCUITS EVERYTHING BELOW — no decoder, no seek, no queue. Checked here
+  // rather than in getThumb so it still honours the boot-gate deferral above: reading sidecars during
+  // a cold start is cheap but not free, and nothing cosmetic competes with a show starting.
+  void fromSidecar(path, qt, key).then((hit) => {
+    if (hit) { inFlight.delete(key); return; }
+    if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
+    else { videoQueue.push({ path, qt, key }); pumpVideo(); }
+  });
 }
 
 // Synchronous: the exact thumbnail if cached (refreshing LRU), else the nearest decoded frame for
@@ -209,3 +265,13 @@ export function getThumb(path: string, time: number): ImageBitmap | undefined {
 }
 
 export const THUMB_ASPECT = THUMB_W / THUMB_H;
+
+// Diagnostics: what the strip cache holds, and a way to ask for a thumbnail without a Filmstrip on
+// screen. Same window-guarded pattern as __artluxHapStats / __artluxWarmPools. Genuinely useful
+// beyond tests — "why is this filmstrip empty" is otherwise only answerable by adding a log.
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxThumbs'] = (paths?: string[], t = 0.5) => {
+    if (Array.isArray(paths)) for (const p of paths) getThumb(p, t);
+    return { cached: cache.size, inFlight: inFlight.size, deferred: deferred.size, loaders: loaders.size };
+  };
+}

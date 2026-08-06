@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileS
 import { dirname, join } from 'node:path';
 import type { ProjectData, RigData, Prefs, OpenProjectResult } from '../../shared/protocol';
 import { relativizeAssets, resolveAssets } from './projectFolder';
+import * as mediaAccess from './mediaAccess';
+import * as thumbCache from './thumbCache';
 
 // All file I/O lives in main (the renderer is sandboxed with no fs access).
 // Projects/rigs use native Open/Save dialogs; preferences (settings + recent
@@ -48,6 +50,46 @@ function readJson<T>(path: string): T | null {
     console.error('[persistence] read failed', path, e);
     return null;
   }
+}
+
+// PROJECT OPEN, TIMED — the main-side half of the cold-open trace (the renderer half is
+// services/openTrace.ts). Read, parse and resolve are timed SEPARATELY because they scale on different
+// axes (disk vs. document size vs. path count across every scene snapshot), and the plan's next steps
+// (async read, worker parse — phase 6b) are each gated on which term actually dominates. Same read+parse
+// as readJson — kept apart so rigs/prefs don't pay for or pollute the measurement.
+function openProjectTimed(path: string): ProjectData | null {
+  const t0 = performance.now();
+  let text: string;
+  try { text = readFileSync(path, 'utf-8'); }
+  catch (e) { console.error('[persistence] read failed', path, e); return null; }
+  const t1 = performance.now();
+  let data: ProjectData;
+  try { data = JSON.parse(text) as ProjectData; }
+  catch (e) { console.error('[persistence] read failed', path, e); return null; }
+  const t2 = performance.now();
+  const resolved = resolveAssets(data, dirname(path));
+  const t3 = performance.now();
+  // ADMIT THIS PROJECT'S MEDIA TO THE SCHEME, AND FORGET THE LAST ONE'S. Rebuilt from scratch here so
+  // closing a project stops its assets being readable and a playlist does not accumulate the union of
+  // every show it has played. Fed the RESOLVED document because absolute paths are what the renderer
+  // will ask for. See src/main/mediaAccess.
+  mediaAccess.setProject(path, resolved, app.getPath('userData'));
+  // …and point the thumbnail cache at this project's folder, so its sidecars travel with it.
+  thumbCache.setProject(path);
+  // ProjectData keeps timeline/scenes deliberately loose (`unknown` — the renderer owns those shapes),
+  // so the counts peek structurally. A malformed document yields 0s here and fails loudly later.
+  const clipsOf = (t: unknown): number => {
+    const c = (t as { clips?: unknown[] } | undefined)?.clips;
+    return Array.isArray(c) ? c.length : 0;
+  };
+  const sceneArr = Array.isArray(data.scenes) ? (data.scenes as { timeline?: unknown }[]) : [];
+  const scenes = sceneArr.length;
+  const clips = clipsOf(data.timeline) + sceneArr.reduce((n, s) => n + clipsOf(s?.timeline), 0);
+  console.log(
+    `[open] read=${(t1 - t0).toFixed(0)}ms parse=${(t2 - t1).toFixed(0)}ms resolve=${(t3 - t2).toFixed(0)}ms ` +
+    `bytes=${text.length} scenes=${scenes} clips=${clips} rssMB=${(process.memoryUsage().rss / 1048576).toFixed(0)}`,
+  );
+  return resolved;
 }
 
 // ATOMIC REPLACE, NOT A TRUNCATING WRITE. writeFileSync's first act is openSync(path, 'w') — it TRUNCATES
@@ -102,17 +144,17 @@ export async function openProject(win: BrowserWindow | null): Promise<OpenProjec
   const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
   if (res.canceled || !res.filePaths[0]) return null;
   const path = res.filePaths[0];
-  const data = readJson<ProjectData>(path);
+  const data = openProjectTimed(path);
   if (!data) return null;
   pushRecent(path);
-  return { path, data: resolveAssets(data, dirname(path)) };
+  return { path, data };
 }
 
 export function loadProjectPath(path: string): ProjectData | null {
-  const data = readJson<ProjectData>(path);
+  const data = openProjectTimed(path);
   if (!data) return null;
   pushRecent(path);
-  return resolveAssets(data, dirname(path));
+  return data;
 }
 
 // Write a recorded LiDAR-blob take to a sidecar `.lblob` file under userData. Stored externally

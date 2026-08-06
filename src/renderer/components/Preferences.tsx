@@ -378,6 +378,13 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               a missing asset, not a choice about whether to wait forever. See services/bootGate.ts. */}
           <NumberField label="Preload wait (s)" labelWidth={LBL} value={settings.bootPreloadSec ?? 15} step={1} min={1} max={120}
             onChange={(v) => onChange({ bootPreloadSec: Math.max(1, Math.min(120, Math.round(v))) })} />
+          {/* Engine rate — how often a new frame is composited, sampled and published, and therefore
+              how often each layer's codec is asked for a frame. Higher is not always smoother: asking
+              faster than the decoder can serve returns the nearest frame instead of the exact one, and
+              a burst of those is the stutter. Not the Art-Net wire rate (that is FPS above, paced with
+              keep-alive). Lower this if the preview stutters on heavy video; raise it on a fast rig. */}
+          <NumberField label="Engine rate (fps)" labelWidth={LBL} value={settings.engineFps ?? 30} step={1} min={1} max={120}
+            onChange={(v) => onChange({ engineFps: Math.max(1, Math.min(120, Math.round(v))) })} />
         </Section></Tile>
 
         <Tile><GpuSection /></Tile>

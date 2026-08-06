@@ -256,7 +256,36 @@ export interface VideoCodecContribution {
    *
    * Omit it and the host only waits for the first frame, exactly as before.
    */
-  preRoll?(path: string, atSec: number, aheadSec: number): boolean;
+  preRoll?(path: string, atSec: number, aheadSec: number, layerKey?: string): boolean;
+  /**
+   * OPTIONAL — open the decoder a TIMELINE LAYER will read from, ahead of playback.
+   *
+   * `preWarm(path)` above opens whatever the SURFACE path uses. If your codec keys its layer decoder
+   * differently (mp4 keys per `layerKey` so each layer scrubs independently), preWarm cannot prime it
+   * and a host that waited on the surface decoder would be measuring the wrong thing: the layer opens
+   * lazily on its first frame request, returns null while it does, and the layer is black through a
+   * whole demux — after the gate said the show was ready.
+   *
+   * Implement this when your layer decoder is not the one `preWarm` opens. Omit it when it is (HAP's
+   * decode ring is genuinely path-keyed, so preWarm already covers both).
+   */
+  preWarmLayer?(layerKey: string, path: string, atSec: number): void;
+  /**
+   * OPTIONAL — roughly how much memory this decoder is holding for `path`, in bytes.
+   *
+   * The host's residency budget (services/codecResidency) evicts warm standby pools, and counting
+   * POOLS is a poor proxy for the cost of one: two pools can be two 720p layers or twenty 4K ones.
+   * A decoder knows its own footprint — mp4 holds every compressed sample of the track, HAP holds a
+   * ring of decoded frames — and nothing outside it can.
+   *
+   * BEST-EFFORT, AND SAY SO. Report what you can account for; you cannot see GPU-side VideoFrames or
+   * driver allocations, so this legitimately under-reports. That is fine for a budget and would not
+   * be fine for a number someone sizes a venue machine by, which is why the host labels it as such.
+   *
+   * Omit it and the host falls back to counting open decoders — exactly as `preRoll`'s absence falls
+   * back to waiting for a first frame.
+   */
+  residentBytes?(path: string): number;
   // One-shot frame at a source time (seconds) for the thumbnail cache (bypasses the playback
   // prefetch ring; uses its own shared GL context so it never disturbs a live layer's decode).
   thumbnail(path: string, timeSec: number): Promise<CanvasImageSource | null>;
@@ -865,6 +894,20 @@ export interface BootService {
   registerProbe(id: string, probe: () => { ready: boolean; pending?: string[] }): () => void;
   /** Is the host holding the show for a preload right now? */
   isBooting(): boolean;
+  /**
+   * How long the current hold has lasted, in seconds (0 when not holding).
+   *
+   * For a probe with a FAST path and a SLOW one, so it can insist on the fast path and give up on the
+   * slow one rather than holding the whole show to the venue's deadline. The audio probe uses it
+   * exactly that way: a conform that is already cached answers in one IPC round-trip, while one that
+   * must be produced takes MINUTES (two decode passes per file) — measured, a scene with ten video
+   * clips could not finish inside any tolerable wait, so every such show armed by timeout and the
+   * gate's readiness logic never applied to it at all.
+   *
+   * Use it to stop *waiting*, never to stop *working*: the slow half must still complete in the
+   * background, or you have traded a late start for a permanent absence.
+   */
+  elapsedSec(): number;
 }
 
 // ─── Project service ────────────────────────────────────────────────────────────────────────
@@ -894,6 +937,32 @@ export interface RendererHostServices {
   show: ShowService;
   audio: AudioService;
   boot: BootService;
+  preload: PreloadService;
+}
+
+/**
+ * KEEP A SCENE'S RESOURCES ALIVE WHILE THE SHOW COULD STILL CUT TO IT.
+ *
+ * The host already runs a tiered residency model for pictures: exactly one ACTIVE timeline, a couple of
+ * WARM standby ones the show can reach next, everything else COLD (docs/SCENE-TIMELINES.md). This opens
+ * the same window to a plugin, because "what is warm" is a decision only the host can make — it depends
+ * on the state machine's shape, not on any one subsystem.
+ *
+ * The audio plugin is the motivating case. Its residency tracked only the two LIVE containers, so
+ * leaving a scene unloaded its sound and re-entering DECODED IT AGAIN — a clip that starts at 0 is
+ * therefore silent for its first few milliseconds, which for a percussive sting is exactly its attack,
+ * and an installation cycling scenes re-decodes the same files forever. It cannot fix that alone: the
+ * driver sees two bound containers and cannot tell "this scene departed" (keep it) from "this clip was
+ * deleted" (drop it now). The host can.
+ *
+ * `warm` may be called repeatedly for a pool that is already warm — make it idempotent. `release` is
+ * the promise that the window closed; free anything held for that key.
+ */
+export interface PreloadService {
+  registerParticipant(p: {
+    warm(poolKey: string, timeline: unknown): void;
+    release(poolKey: string): void;
+  }): () => void;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────

@@ -32,7 +32,7 @@ import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import { TakesBin } from './TakesBin';
 import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
-import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
+import { resolveMediaUrl } from '../../services/mediaCache';
 import { DragMode } from './ClipBlock';
 import { ClipAudioInspector } from './ClipAudioInspector';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
@@ -930,10 +930,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // waveform's time base (AudioLane's Wave) — write 30 for a 6-minute file and the operator can NEVER
     // extend that clip past 30 s, in any session, while the native engine happily plays all six minutes,
     // and the wave is drawn against a source that does not exist. Leaving it ABSENT is what lets the
-    // decode (`sourceDurationFor`) supply the truth later — which matters, because the commonest null
-    // here is not an undecodable .aiff at all, it is the probe LOSING A RACE with a concurrent read of
-    // the same path (ensureBlobUrl returns undefined while another caller is mid-read). That clip
-    // recovers its cap the moment the peaks land; a fabricated 30 never would.
+    // decode (`sourceDurationFor`) supply the truth later. (The comment here used to name a specific
+    // commonest cause — the probe losing a race because `ensureBlobUrl` returned undefined while
+    // another caller was mid-read. That premise is dead twice over: mediaCache now JOINS an in-flight
+    // read rather than refusing, and media no longer goes through it at all. The argument for leaving
+    // the field absent never depended on that cause, so it stands unchanged.)
     // ⚠ `place` RUNS AFTER AN AWAIT — an IPC file read and a decode. The world moves under it.
     //
     // Appending unconditionally MINTS AN ORPHAN: a clip whose `trackId` names a track that no longer
@@ -1235,14 +1236,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       // cannot hold it, and a take was already rejected above.
       if (asset.type !== 'video') return;
       const addClip = (d: number) => onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path: asset.path, start: freeStartOn(layerId, start, d), duration: d, inPoint: 0, sourceDuration: d }] });
-      void (async () => {
-        const url = await ensureBlobUrl(asset.path, mimeForPath(asset.path));
-        if (!url) { addClip(5); return; }
-        const probe = document.createElement('video'); probe.preload = 'metadata';
-        probe.onloadedmetadata = () => addClip(probe.duration && isFinite(probe.duration) ? probe.duration : 5);
-        probe.onerror = () => addClip(5);
-        probe.src = url;
-      })();
+      // `preload='metadata'` over the streaming scheme reads the header and stops — it used to pull
+      // the ENTIRE file over IPC to learn one number (a clip's duration) before the drop landed.
+      const probe = document.createElement('video'); probe.preload = 'metadata';
+      probe.onloadedmetadata = () => addClip(probe.duration && isFinite(probe.duration) ? probe.duration : 5);
+      probe.onerror = () => addClip(5);
+      probe.src = resolveMediaUrl(asset.path);
       return;
     }
     const file = Array.from(e.dataTransfer.files).find(f =>

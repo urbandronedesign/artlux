@@ -32,17 +32,22 @@
 
 import { timeline as engine } from './timeline';
 import * as surfaceMedia from './surfaceMedia';
+import * as openTrace from './openTrace';
 import type { Surface, Timeline } from '../types';
 
 // A readiness contributor. `pending` names what is still missing (shown in the status chip and in the
 // timeout log); an empty/absent list with ready:false still holds, it just can't say why.
 export type ReadyProbe = () => { ready: boolean; pending?: string[] };
 
+/** What the gate is mostly doing — a one-word readout beside the fraction, on the chip and on outputs. */
+export type BootPhase = 'warming' | 'decoding' | 'audio' | 'ready';
+
 export interface BootProgress {
   booting: boolean;    // the gate is holding the show right now
-  ready: number;       // items resolved (of `total`)
-  total: number;       // the workload measured on the first poll — 0 when nothing had to load
+  ready: number;       // items finished (of `total`)
+  total: number;       // every item seen so far — GROWS as late work appears; see the ledger
   pending: string[];   // what is still missing (capped for display)
+  phase: BootPhase;
   elapsedSec: number;
   timedOut: boolean;   // armed by the deadline rather than by everything being ready
   // WHY the gate released, on the notification that releases it (null while holding, and before the
@@ -59,24 +64,54 @@ let timeoutSec = DEFAULT_TIMEOUT_SEC;
 let spec: { poolKey: string; timeline: Timeline; surfaces: Surface[] } | null = null;
 let startMs = 0;
 let poll = 0;
-let total = 0;          // workload measured on the first poll; 0 until measured
-let measured = false;
 let pending: string[] = [];
 let timedOut = false;
 let armedBy: BootProgress['armedBy'] = null;
 
+// ── A LEDGER, NOT A SUBTRACTION ───────────────────────────────────────────────────────────────────
+// `total` used to be frozen on the second poll and `ready` derived as `total - pending.length`. That
+// conflates two independent things: an item FINISHING and a new item APPEARING. They cancel out, so a
+// gate that finished four things and discovered four more reported no progress at all — and anything
+// discovered after the freeze (a conform kicked off once the audio driver had synced) pushed `ready`
+// negative or made the chip read `n/0`.
+//
+// So: remember every item ever seen. `total` grows, `ready` counts what has finished, and neither can
+// mask the other.
+//
+// ⚠ KEYED ON IDENTITY, NEVER ON THE DISPLAY LABEL — the labels are not stable. poolReadiness reports
+// the same clip as `foo.mov (mp4-webcodecs)` while its probe is answering and `foo.mov (buffering)`
+// while it pre-rolls; a label-keyed ledger counts that as two items, one of which never completes, so
+// the total inflates and the bar never fills. The key is the path (or the probe id); the label is
+// display text that may change under it.
+const ledger = new Map<string, { label: string; done: boolean }>();
+
+/** `foo.mov (buffering)` → `foo.mov`. The identity is the thing; the parenthetical is its state. */
+const keyOf = (label: string): string => label.replace(/\s*\([^)]*\)\s*$/, '');
+
+const phaseOf = (): BootProgress['phase'] => {
+  if (!spec) return 'ready';
+  if (pending.some(p => p.startsWith('audio:') || p.startsWith('conform:'))) return 'audio';
+  if (pending.some(p => /\(buffering\)|\(.*codec.*\)|^Surface /.test(p))) return 'decoding';
+  return 'warming';
+};
+
 const probes = new Map<string, ReadyProbe>();
 const subs = new Set<(p: BootProgress) => void>();
 
-const progress = (): BootProgress => ({
-  booting: !!spec,
-  ready: Math.max(0, total - pending.length),
-  total,
-  pending,
-  elapsedSec: spec ? (performance.now() - startMs) / 1000 : 0,
-  timedOut,
-  armedBy,
-});
+const progress = (): BootProgress => {
+  let done = 0;
+  for (const e of ledger.values()) if (e.done) done++;
+  return {
+    booting: !!spec,
+    ready: done,
+    total: ledger.size,
+    pending,
+    phase: phaseOf(),
+    elapsedSec: spec ? (performance.now() - startMs) / 1000 : 0,
+    timedOut,
+    armedBy,
+  };
+};
 
 const notify = (): void => { const p = progress(); subs.forEach(cb => cb(p)); };
 
@@ -113,10 +148,17 @@ function collect(): string[] {
 function tick(): void {
   if (!spec) return;
   pending = collect();
-  // The workload is whatever was outstanding on the FIRST poll — measured a beat after the open, by
-  // which time Stage has run one tick and acquired the surfaces' content sources. Before that
-  // everything reads "not ready" for a reason that has nothing to do with decoding.
-  if (!measured) { measured = true; total = pending.length; }
+  // RECONCILE THE LEDGER. Anything named this poll is either new (add it, growing `total`) or still
+  // outstanding; anything in the ledger that is NOT named has finished since we last looked. Growth
+  // and completion are tracked separately, which is the whole point — see the note on `ledger`.
+  const seen = new Set<string>();
+  for (const label of pending) {
+    const key = keyOf(label);
+    seen.add(key);
+    const e = ledger.get(key);
+    if (e) { e.label = label; e.done = false; } else ledger.set(key, { label, done: false });
+  }
+  for (const [key, e] of ledger) if (!seen.has(key)) e.done = true;
   const elapsed = (performance.now() - startMs) / 1000;
   if (pending.length === 0) { finish(false, elapsed); return; }
   if (elapsed >= timeoutSec) { finish(true, elapsed); return; }
@@ -128,6 +170,12 @@ function finish(byTimeout: boolean, elapsedSec: number): void {
   const more = pending.length - outstanding.length;
   timedOut = byTimeout;
   armedBy = byTimeout ? 'timeout' : 'ready';
+  // The whole open span is only known here — log the per-phase table (parse/apply/warm/…, see
+  // services/openTrace.ts) and tell main to report + reset its READ_FILE byte counter, so one open's
+  // I/O is attributable to that open and not smeared across a session.
+  openTrace.mark('gate-armed');
+  openTrace.logTable();
+  window.artlux?.perfOpenArmed?.();
   if (byTimeout) {
     // ERROR, not warn: the show is about to open on a hole. This line is what the venue log will be
     // read for the morning after.
@@ -135,8 +183,8 @@ function finish(byTimeout: boolean, elapsedSec: number): void {
       `[boot] armed by TIMEOUT after ${elapsedSec.toFixed(1)}s — ${pending.length} item(s) never became ready: ` +
       `${outstanding.join(', ')}${more > 0 ? `, +${more} more` : ''}`,
     );
-  } else if (total > 0) {
-    console.log(`[boot] content ready in ${elapsedSec.toFixed(1)}s (${total} item(s)) — arming the show`);
+  } else if (ledger.size > 0) {
+    console.log(`[boot] content ready in ${elapsedSec.toFixed(1)}s (${ledger.size} item(s)) — arming the show`);
   }
   release();
 }
@@ -156,10 +204,10 @@ function release(): void {
 // so this one call site covers all of them. Re-holding while already holding restarts the wait against
 // the new project, which is exactly right for a playlist switch.
 export function hold(next: { poolKey: string; timeline: Timeline; surfaces: Surface[] }): void {
+  openTrace.mark('gate-held');
   spec = next;
   startMs = performance.now();
-  measured = false;
-  total = 0;
+  ledger.clear(); // a re-hold is a NEW show (a playlist switch) — never the last one's tally
   timedOut = false;
   armedBy = null;
   pending = [];
@@ -188,3 +236,10 @@ export function subscribe(cb: (p: BootProgress) => void): () => void {
 
 export const get = (): BootProgress => progress();
 export const isBooting = (): boolean => !!spec;
+
+// The cold-open bench (scripts/bench-open.cjs) reads armedBy/timedOut over CDP — renderer console
+// lines never reach main's stdout, so this is the only honest way for it to know WHY the gate
+// released. Same window-guarded pattern as openTrace / hapDecode's __artluxHapStats.
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxBootGate'] = get;
+}

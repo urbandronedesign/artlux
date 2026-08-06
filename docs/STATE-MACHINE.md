@@ -78,6 +78,7 @@ SmTransition {
   trigger: SmTrigger;
   fromAny?: boolean;             // a GLOBAL RULE — evaluated from every state (see below); `from` unused
   requireEnd?: boolean;          // GUARD: only once the source state's timeline is HELD (see below)
+  waitForContent?: boolean;      // GUARD: brief, capped wait for the destination's look (see below)
   fadeSec?: number;              // "transition time": scene crossfade applied on arrival at `to`
   c1?, c2?: {x,y};               // bezier control handles (curved edge — cosmetic)
 }
@@ -152,6 +153,28 @@ Playhead crossings use a `prev → current` window that survives loop/seek wraps
 re-anchors `prev` so one jump doesn't fire every intermediate trigger along the way.
 
 ---
+
+## Waiting for the destination's picture — `waitForContent`
+
+**Off by default, and that default is deliberate.** A GO is your hand on a button in front of an
+audience: a cut that silently refuses reads as a broken button, so you press it again while nothing
+moves. Cutting immediately onto whatever is decoded is the right behaviour for a manned show — the
+cold-start gate holds the *whole* show at project open only because nobody is watching yet.
+
+Tick it on a transition for the other case: an **unattended installation**, where a few hundred
+milliseconds of wait is plainly better than a black frame in front of a visitor. The edge then holds
+until the destination scene's look would put a picture on stage rather than black — and the asking is
+what *drives* the decode, so the wait is productive rather than a pause.
+
+**It is capped at one second and then cuts anyway**, logging `[sm] "<id>" waited …ms for its
+destination's content and cut anyway`. A destination that never becomes ready (a missing file, a live
+source that never arrives) must not freeze the machine on one edge, unattended, with nothing in the
+log — the same fail-open promise the cold-start gate makes.
+
+**And the show tells you when a cut was cold.** Recalling a scene whose content is not ready logs
+`[scene] "<name>" was recalled before its content was ready` — once per scene, so a show cycling for a
+week does not fill the console. If an operator reports a flash on one particular cut, that line names
+it; if the log is silent, the warm window is doing its job.
 
 ## The state that ends and waits — **hold at end** + `requireEnd`
 
@@ -277,6 +300,12 @@ state with **no** `sceneId` and **no** entry actions is a harmless no-op waypoin
 - Because a Scene may own its **own timeline**, entering a state can also **warm-swap the playback
   engine** to that state's timeline. Details + the per-state authoring loop:
   [SCENE-TIMELINES.md](SCENE-TIMELINES.md).
+- Entering a state also **preloads where the show can go next**, ranked by how soon each outgoing edge
+  could fire: a short `afterDelay` first, then longer ones, then `onTimelineEnd`, then triggers that
+  wait on the world (`plugin`) or on a person (`manual`). Only the top few are warmed, because warm
+  standby costs decoders — so a **hub state with ten exits** warms the two most imminent rather than
+  all ten. `fromAny` rules are included in that ranking but demoted: reachable from everywhere means
+  always a candidate, never evidence of imminence.
 
 Entry is **idempotent and repeatable**: re-entering the same state restarts it identically (its
 timeline seeks to the first frame), which matters for shows that re-enter a state many times.
@@ -458,9 +487,21 @@ Also true of the hold:
 - **Every cold start funnels through `applyProjectData`** — editor open, `--project=`, the watchdog's
   relaunch, the show-control playlist's next show — so one call site covers all of them, and a playlist
   switch simply restarts the wait against the incoming project.
-- **The status bar says so** (a "Preloading n/m" chip), and so does the tablet: `host.show.getStatus()`
-  carries `booting` + `bootPending`, because a preload and a stopped show otherwise look identical
-  (`playing: false`, no current state) and an operator would press GO over a gate about to open.
+- **The status bar says so** — a `Preloading 12/47 · decoding` chip — and so does the tablet:
+  `host.show.getStatus()` carries `booting` + `bootPending`, because a preload and a stopped show
+  otherwise look identical (`playing: false`, no current state) and an operator would press GO over a
+  gate about to open. The projector outputs show the same fraction under **PRELOADING SHOW**.
+- **The fraction counts finished items and only ever moves forward.** It is a ledger of everything the
+  gate has seen, not `total − outstanding`: work discovered late (a video soundtrack whose conform
+  starts once the audio driver has synced) raises the total instead of silently cancelling out a
+  completion, so the numerator never goes backwards and the denominator is never `0` mid-preload. The
+  word beside it — *warming*, *decoding*, *audio* — is what it is mostly waiting on, because a
+  fraction that sits still for four seconds reads as a hang while "decoding" reads as work.
+- **It does not wait for a video clip's soundtrack to be conformed.** A conform is a transcode (two
+  decode passes per file) and can take minutes; a cached one answers in milliseconds. The gate waits
+  briefly — long enough for the cached case, which is every open after the first — then starts the show
+  and lets the rest finish in the background, exactly as it declines to wait for NDI or a camera. The
+  clip's picture is on time; its sound joins when it lands.
 
 ---
 

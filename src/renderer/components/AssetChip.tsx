@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Box, Film, Image as ImageIcon, Radio, Music, AlertTriangle } from 'lucide-react';
 import { AssetEntry, MediaView } from '../types';
 import { getThumb, onThumb } from '../services/thumbnailCache';
-import { ensureBlobUrl, mimeForPath } from '../services/mediaCache';
+import { resolveMediaUrl } from '../services/mediaCache';
 import { BlobSparkline } from './timeline/BlobSparkline';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
@@ -29,11 +29,11 @@ const VideoThumb: React.FC<{ path: string }> = ({ path }) => {
   return <canvas ref={ref} width={160} height={90} className="w-full h-full object-cover" />;
 };
 
-const ImageThumb: React.FC<{ path: string }> = ({ path }) => {
-  const [url, setUrl] = useState<string | undefined>();
-  useEffect(() => { let live = true; void ensureBlobUrl(path, mimeForPath(path)).then(u => { if (live) setUrl(u); }); return () => { live = false; }; }, [path]);
-  return url ? <img src={url} alt="" className="w-full h-full object-cover" /> : null;
-};
+// Streams via artlux-media:// — no state, no effect, no whole-file read. A library of 300 images used
+// to mean 300 full-resolution files pulled into renderer memory over IPC just to fill 74px tiles.
+const ImageThumb: React.FC<{ path: string }> = ({ path }) => (
+  <img src={resolveMediaUrl(path)} alt="" className="w-full h-full object-cover" />
+);
 
 interface Props {
   asset: AssetEntry;

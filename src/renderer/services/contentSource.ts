@@ -3,6 +3,7 @@ import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
 import { contentSourceRegistry, videoCodecRegistry } from '../host/registries';
+import * as codecResidency from './codecResidency';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
@@ -43,27 +44,13 @@ const dmxConsumers = new Set<string>();
 // same file, deleting or retyping one KILLED THE OTHER'S DECODER. The survivor then went black
 // permanently, because reconcileMedia() early-returns when the url is unchanged and never reopens.
 //
-// So: count the consumers per path here and only close on the last release. This lives in the
-// host rather than in each plugin because this module is the only place that knows consumer
-// identity — the codec contract is path-based by design and should stay that way.
-const codecUsers = new Map<string, Set<string>>(); // codec file path -> consumer keys holding it
-
-function retainCodec(path: string, key: string): void {
-  let users = codecUsers.get(path);
-  if (!users) { users = new Set(); codecUsers.set(path, users); }
-  users.add(key);
-}
-
-// Release `key`'s claim on `path`; closes the shared decoder only when nobody is left.
-function releaseCodec(codecId: string, path: string, key: string): void {
-  const users = codecUsers.get(path);
-  if (users) {
-    users.delete(key);
-    if (users.size > 0) return; // another surface/clip is still playing this file — leave it open
-    codecUsers.delete(path);
-  }
-  videoCodecRegistry.get(codecId)?.closeSurface(path);
-}
+// THE COUNT NOW LIVES IN services/codecResidency — one refcount for the whole app, not one per
+// module. It used to live here, which was right about consumers and blind to the OTHER holder of the
+// same decoders: `timeline.warmMedia` opens path-keyed decoders when it warms a pool, and nothing
+// counted or released those. Two independent refcounts over one shared resource is how a warm pool
+// came to hold decoders forever. Same behaviour for this module's callers, one owner vocabulary.
+const retainCodec = (path: string, key: string, codecId: string): void => codecResidency.retain(path, key, codecId);
+const releaseCodec = (codecId: string, path: string, key: string): void => codecResidency.release(path, key, codecId);
 
 let cameraEl: HTMLVideoElement | null = null;
 let cameraStream: MediaStream | null = null;
@@ -74,11 +61,16 @@ let playing = true;
 // `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
 function makeVideo(url: string): HTMLVideoElement {
   const v = document.createElement('video');
+  // ⚠ crossOrigin is LOAD-BEARING, in both directions. It is what keeps frames UNTAINTED so the 2D
+  // composite and the WebGPU LED sampler may read them — drop it and the whole output pipeline throws
+  // SecurityError. Under `blob:` it was inert (same origin); under artlux-media:// it makes every load
+  // a CORS request, which is why the protocol handler answers with Access-Control-Allow-Origin on
+  // every response. Change one without the other and every video in the show goes black.
   v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous';
-  void resolveMediaUrl(url, 'video/mp4').then((src) => {
-    v.src = src; v.load();
-    if (playing) v.play().catch(() => {});
-  });
+  // Synchronous — a path becomes a streaming url by string construction, so there is no "not loaded
+  // yet" window to schedule around any more.
+  v.src = resolveMediaUrl(url); v.load();
+  if (playing) v.play().catch(() => {});
   return v;
 }
 /**
@@ -94,8 +86,10 @@ function makeImage(key: string, url: string): Entry {
   const entry: Entry = { type: 'IMAGE', bmp: null, url };
   void (async () => {
     try {
-      const src = await resolveMediaUrl(url, mimeForPath(url));
+      const src = resolveMediaUrl(url);
       if (!src) return;
+      // ONE copy now, streamed: the file used to be read whole over IPC into a Blob and then fetched
+      // BACK out of that blob — two full copies of every image in renderer memory before decode.
       const blob = await (await fetch(src)).blob();
       const bmp = await createImageBitmap(blob);
       const cur = media.get(key);
@@ -204,7 +198,7 @@ function reconcileMedia(key: string, content: SurfaceContent): void {
       // Optimistically use the codec; its probe downgrades to a normal <video> if it isn't (e.g. an
       // H.264 .mov that isn't HAP).
       media.set(key, { type: 'CODEC', codecId: codec.id, path: url });
-      retainCodec(url, key);
+      retainCodec(url, key, codec.id);
       void codec.openSurface(url).then((ok) => {
         if (ok) return;
         const cur = media.get(key);

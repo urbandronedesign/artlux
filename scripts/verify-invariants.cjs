@@ -65,6 +65,26 @@ function fnBody(src, name) {
   return null;
 }
 
+/**
+ * Brace-matched body starting at an arbitrary anchor — for the shapes fnBody() cannot see, notably
+ * OBJECT-LITERAL METHODS (`releasePool(poolKey: string): void { … }`). fnBody returns null for those,
+ * and a check written as `if (body && …)` then passes on the null: it reports "I could not find the
+ * thing I guard" as success. Returns null when the anchor is absent, and callers MUST treat that as a
+ * problem rather than as nothing to say.
+ */
+function braceBody(src, anchor) {
+  const i = src.indexOf(anchor);
+  if (i < 0) return null;
+  const open = src.indexOf('{', i);
+  if (open < 0) return null;
+  let depth = 0;
+  for (let j = open; j < src.length; j++) {
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}' && --depth === 0) return src.slice(open, j + 1);
+  }
+  return null;
+}
+
 const checks = [];
 const check = (name, why, fn) => checks.push({ name, why, fn });
 
@@ -1098,6 +1118,191 @@ check(
     if (!peaks.includes('bootGate.isBooting()')) problems.push('audioPeaks does not check bootGate.isBooting()');
     // A waveform must not pull a whole video into memory — see AUDIO_CONTAINER.
     if (!/AUDIO_CONTAINER\.test\(path\)/.test(peaks)) problems.push('audioPeaks will blob-read a non-audio container to draw a waveform');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Preload: warming reads what plays next, not the whole document ────────────────────────────
+check(
+  'warmMedia warms a relevance window, not every clip',
+  'warmMedia used to loop EVERY clip of a timeline and open/read each one — at project open, on every ' +
+  'GO, and once per FSM look-ahead state. A 40-clip scene was 40 whole-file reads for material that ' +
+  'might play twenty minutes later, and on a heavy show it was the largest single share of the open\'s ' +
+  'I/O (metric D, scripts/bench-open.cjs). The fix is a window: each layer\'s START clip (the set ' +
+  'poolReadiness judges, so the gate\'s contract is unchanged) plus the next WARM_AHEAD_SEC, advanced ' +
+  'by frame() while playing. It reverts silently — the app still runs, the show still plays, and only ' +
+  'the open gets slow again — so it is asserted here. ' +
+  'NOTE: this check once also required a WARM_INFLIGHT bound on concurrent BLOB READS. That clause was ' +
+  'removed when media moved to artlux-media:// — there are no whole-file reads left on this path to ' +
+  'bound, so requiring the bound would have forced dead code. The window itself still matters, and now ' +
+  'bounds how many DECODERS get opened ahead of time rather than how many files get read.',
+  () => {
+    const src = read('src/renderer/services/timeline.ts');
+    const problems = [];
+    const body = fnBody(src, 'warmMedia');
+    if (!body) return 'warmMedia() not found in services/timeline.ts';
+    // The window is built from each layer's start clip, never from a bare walk of t.clips.
+    if (!body.includes('startClip(')) problems.push('warmMedia no longer warms per-layer start clips (startClip) — the gate waits on exactly those');
+    if (/for \(const c of t\.clips\)/.test(body)) problems.push('warmMedia walks every clip in the document again — that is the flood this check exists to prevent');
+    if (!src.includes('WARM_AHEAD_SEC')) problems.push('WARM_AHEAD_SEC is gone — there is no look-ahead window');
+    // The window must ADVANCE, or a clip past the opening window never warms until it is already live.
+    if (!fnBody(src, 'frame')?.includes('warmWindow(')) problems.push('frame() no longer advances the warm window — clips past the opening window warm only once they are on screen');
+    // A seek/swap invalidates a window built around the old playhead.
+    if (!fnBody(src, 'mainSeek')?.includes('warmHorizon')) problems.push('mainSeek does not reset warmHorizon — after a jump the window still describes the OLD playhead');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Boot progress is a ledger, not a subtraction ──────────────────────────────────────────────
+check(
+  'the boot fraction counts finished items and cannot go backwards',
+  '`total` was frozen on the second poll and `ready` derived as `total - pending.length`, which ' +
+  'conflates an item FINISHING with a new one APPEARING: they cancel out, so a gate that completed ' +
+  'four things and discovered four more showed no progress, and anything discovered after the freeze ' +
+  '(a conform kicked off once the audio driver had synced) pushed `ready` negative or made the chip ' +
+  'read n/0. The fix is a ledger of every item ever seen — and it MUST be keyed on identity, not on ' +
+  'the display label, because the labels change under it: poolReadiness reports the same clip as ' +
+  '"foo.mov (mp4-webcodecs)" while probing and "foo.mov (buffering)" while pre-rolling, so a ' +
+  'label-keyed ledger counts one clip as two, one of which never completes.',
+  () => {
+    const src = read('src/renderer/services/bootGate.ts');
+    const problems = [];
+    if (/if \(!measured\)/.test(src)) problems.push('the frozen-total measurement is back — late work will make progress go backwards');
+    if (/ready:\s*Math\.max\(0,\s*total\s*-\s*pending\.length\)/.test(src)) problems.push('ready is derived by subtracting pending from a fixed total again');
+    if (!src.includes('const ledger = new Map')) problems.push('the ledger is gone — nothing remembers items that already finished');
+    if (!/keyOf\s*\(/.test(src)) problems.push('the ledger no longer normalises labels to an identity key — a clip whose label changes counts twice');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── The cold-start buffer guarantee is codec-AGNOSTIC ─────────────────────────────────────────
+check(
+  'a codec that decodes ahead implements preRoll, and the gate primes the LAYER decoder',
+  'The gate waits for a decoded BUFFER, not a first frame — a decode-ahead codec starts EMPTY, so a ' +
+  'show armed on "the first frame exists" opens by missing the next hundred (measured on HAP: 167 ring ' +
+  'misses in the first ten seconds). HAP answered that; mp4 — THE DEFAULT CODEC — did not, so the ' +
+  'guarantee silently excluded every .mp4 in every show. Worse, preRoll alone would have fixed nothing: ' +
+  'preWarm opens the PATH-keyed surface decoder while a timeline layer reads a LAYER-keyed one that ' +
+  'opens lazily on its first frame request, so the gate passed while the layer was still demuxing and ' +
+  'the layer was black with the show already running. Both halves, or neither is worth having.',
+  () => {
+    const problems = [];
+    for (const f of walk('plugins')) {
+      if (!/Codec\.ts$/.test(f)) continue;
+      const src = read(f);
+      if (!/layerFrame\s*:/.test(src)) continue; // not a timeline-capable codec
+      if (!/preRoll\s*:/.test(src)) problems.push(`${f} defines layerFrame but no preRoll — the gate cannot see its buffer and will arm on an empty one`);
+    }
+    // The host must pass the layer key through, or a per-layer codec pre-rolls the wrong decoder.
+    const tl = read('src/renderer/services/timeline.ts');
+    if (!/codec\.preRoll\([^)]*l\.id\)/.test(tl))
+      problems.push('poolReadiness does not pass the layer id to preRoll — a codec keying its timeline decoder per layer pre-rolls a decoder nobody reads');
+    if (!/preWarmLayer\?\.\(/.test(tl))
+      problems.push('warmPoolVideos never calls preWarmLayer — a per-layer codec opens lazily AFTER the gate has armed');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Media streams; it is never read whole into the renderer ───────────────────────────────────
+check(
+  'media loads over artlux-media://, with the scheme privileged before app-ready',
+  'Media used to cross IPC as one Uint8Array and become a Blob: a 1 GB HAP .mov measured 2.3 s of ' +
+  'read, main RSS 125 MB -> 3.7 GB and a 1.7 s event-loop stall, for a file the decoder wanted a few ' +
+  'MB of. Streaming it back onto that path is invisible in dev (small files, warm cache) and fatal in ' +
+  'a venue. THREE THINGS MUST HOLD TOGETHER: (1) the scheme is privileged at MODULE SCOPE — Chromium ' +
+  'fixes its scheme registry during startup, so registering inside whenReady yields a scheme without ' +
+  'standard/secure/stream and every video silently fails to load; (2) the handler answers Range AND ' +
+  'sends Access-Control-Allow-Origin, because both <video> factories set crossOrigin=anonymous (inert ' +
+  'under blob:, mandatory under a custom scheme) and that attribute is also what keeps frames ' +
+  'UNTAINTED for canvas/WebGPU sampling — i.e. the LED pipeline; (3) the handler aborts its stream, ' +
+  'or a scrubbing <video> leaks an fd per cancelled range until the process dies of EMFILE.',
+  () => {
+    const problems = [];
+    if (!exists('src/main/mediaProtocol.ts')) return 'src/main/mediaProtocol.ts is gone — media is no longer streamed';
+    const proto = read('src/main/mediaProtocol.ts');
+    const index = read('src/main/index.ts');
+    // (1) privileged before ready. The call must not sit inside the whenReady callback.
+    const readyAt = index.indexOf('app.whenReady()');
+    const regAt = index.indexOf('registerMediaScheme()');
+    if (regAt < 0) problems.push('src/main/index.ts never calls registerMediaScheme() — the scheme has no privileges');
+    else if (readyAt >= 0 && regAt > readyAt) problems.push('registerMediaScheme() is called after app.whenReady() — too late for Chromium to grant standard/secure/stream');
+    for (const priv of ['standard', 'secure', 'supportFetchAPI', 'stream']) {
+      if (!new RegExp(`${priv}:\\s*true`).test(proto)) problems.push(`the media scheme is missing the \`${priv}\` privilege`);
+    }
+    // (2) range + CORS on the responses.
+    if (!proto.includes('Content-Range')) problems.push('the handler never sends Content-Range — seeking a <video> will refetch from zero or hang');
+    if (!proto.includes('Accept-Ranges')) problems.push('the handler never sends Accept-Ranges — clients will not attempt to seek');
+    if (!proto.includes('Access-Control-Allow-Origin')) problems.push('the handler never sends Access-Control-Allow-Origin — crossOrigin=anonymous makes EVERY media load fail');
+    // (3) the fd-leak guard.
+    if (!/signal\?*\.addEventListener\('abort'/.test(proto)) problems.push('the handler does not destroy its stream on abort — a scrubbing <video> will leak file descriptors');
+    // …and the allowlist is what stops the scheme being an arbitrary-file-read for the renderer.
+    if (!proto.includes('mediaAccess.isAllowed(')) problems.push('the handler serves without asking mediaAccess.isAllowed — the renderer can read any file on disk');
+    // The renderer must not have crept back onto whole-file reads for pictures.
+    for (const f of ['src/renderer/services/timeline.ts', 'src/renderer/services/contentSource.ts', 'src/renderer/services/thumbnailCache.ts', 'src/renderer/components/AssetChip.tsx']) {
+      if (/\bensureBlobUrl\s*\(/.test(read(f))) problems.push(`${f} blob-reads media again — that is the whole-file path this check exists to prevent`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Preload: the residency budget must actually bind ──────────────────────────────────────────
+check(
+  'the warm-pool budget counts protected pools, and look-ahead is trimmed',
+  'evictExcess used to subtract the protected keys from `standby` BEFORE comparing to MAX_WARM, so ' +
+  'the one caller that matters could not be bounded by it: the FSM look-ahead hands in every ' +
+  'reachable-next state, so a hub state with ten outgoing transitions protected ten pools, `standby` ' +
+  'came out empty and `excess` went negative. Ten warm pools — ten sets of per-layer <video> decoders ' +
+  'and ten warmed clip sets — against a budget of two, silently, for as long as the show sat there. ' +
+  'Both halves are required: counting protected pools in, AND callers ranking + trimming to MAX_WARM ' +
+  'before calling (else the fix would warm ten and immediately release eight — thrash, strictly worse).',
+  () => {
+    const pre = read('src/renderer/services/timelinePreloader.ts');
+    const app = read('src/renderer/App.tsx');
+    const problems = [];
+    if (!/excess\s*=\s*Math\.min\([^)]*standby\.length\s*\+\s*protectedHeld/.test(pre))
+      problems.push('evictExcess no longer counts protected pools against MAX_WARM — the budget is unenforceable by the FSM look-ahead');
+    if (!pre.includes('export const MAX_WARM'))
+      problems.push('MAX_WARM is no longer exported — App cannot trim its look-ahead to the budget without drifting from it');
+    // The caller half: rank, then trim. A raw transitions.filter is the shape that shipped the bug.
+    if (!app.includes('reachableNext('))
+      problems.push('App does not use reachableNext — the look-ahead is unranked, and `fromAny` global transitions are invisible to it again');
+    if (!/reachableNext\([\s\S]{0,200}?\.slice\(0,\s*timelinePreloader\.MAX_WARM\)/.test(app))
+      problems.push('App does not trim its look-ahead to MAX_WARM — an over-budget protect set is not something evictExcess can resolve');
+    if (/sm\.transitions\.filter\(t => t\.from === stateId\)/.test(app))
+      problems.push('App filters transitions by `t.from === stateId` again — that can never match a fromAny global rule');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Preload: a demoted pool must release the decoders it opened ───────────────────────────────
+check(
+  'releasePool frees its path-keyed codec decoders, and there is ONE codec refcount',
+  'warmMedia opens a decoder per PATH (mp4 keeps every compressed sample of the track; HAP a ring of ' +
+  'decoded 1-4 MB frames) and only closeSurface() frees one. releasePool freed the pool\'s <video>s ' +
+  'and its LAYER-keyed codec state and nothing else, so a pool the LRU had demoted to COLD kept the ' +
+  'heaviest thing it owned for the life of the session — the tier table in docs/SCENE-TIMELINES.md ' +
+  'described a teardown that never happened. It survived because TWO modules refcounted the same ' +
+  'shared resource: contentSource counted surface consumers and released them correctly, while the ' +
+  'pool side counted nothing. One refcount, one owner vocabulary, or the gap comes back.',
+  () => {
+    const tl = read('src/renderer/services/timeline.ts');
+    const cs = read('src/renderer/services/contentSource.ts');
+    const problems = [];
+    if (!exists('src/renderer/services/codecResidency.ts')) return 'services/codecResidency.ts is gone — nothing refcounts codec decoders across pools AND surfaces';
+    // ⚠ releasePool is an OBJECT-LITERAL METHOD, which fnBody() does not match (it knows `const x =`
+    // and `function x(`). Written as `if (fnBody(...) && ...)` this check passed on a null body — it
+    // reported the absence of the thing it was looking for as success, which is the exact failure the
+    // header of this file warns about. Brace-match from the method anchor instead, and treat a missing
+    // anchor as a problem rather than as nothing to say.
+    const rel = braceBody(tl, 'releasePool(poolKey: string): void');
+    if (!rel) problems.push('releasePool(poolKey) not found in services/timeline.ts — this check can no longer see what it guards');
+    else if (!rel.includes('codecResidency.releaseOwner'))
+      problems.push('releasePool does not release its codec paths — a COLD pool still holds every decoder its warming opened');
+    if (!tl.includes('codecResidency.retain('))
+      problems.push('timeline never retains warmed codec paths — releasePool then has nothing to release');
+    // The second refcount must stay gone: two counts over one resource is how the gap survived.
+    if (/const codecUsers = new Map/.test(cs))
+      problems.push('contentSource declares its own codecUsers map again — two refcounts over one shared decoder');
     return problems.length ? problems.join('; ') : null;
   },
 );

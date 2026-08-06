@@ -18,7 +18,21 @@ scrolling panel with collapsible sections.
 
 **Engine** — the output loop:
 
-- **FPS** — output frame rate.
+- **FPS** — output frame rate (what goes on the wire).
+- **Engine rate (fps)** — how often a new frame is *made*: composited, sampled for your fixtures and
+  published. Default **30**.
+
+  **Higher is not always smoother.** Each engine tick asks every video layer for the exact frame at the
+  playhead, and asking faster than the decoder can supply does not produce more pictures — you get the
+  nearest frame it happens to hold instead, and a run of those is what looks like the picture stopping
+  and starting. On a 1080p60 HAP show looping every 14 seconds, running uncapped missed **19%** of
+  frames — bunched into the moment after each loop — while 25 fps missed **0.27%** and every scene cut
+  was clean.
+
+  It is **not** the Art‑Net rate: the wire keeps running at **FPS** above, re-sending the last frame, so
+  a slower engine never starves a node — only new pixel data arrives less often. Lower it if heavy video
+  stutters; raise it on a fast machine. It is a property of *this computer*, not of the show, so it does
+  not travel with a project.
 - **Keep‑alive** — keep streaming unchanged universes.
 - **Synchronous output (ArtSync)** — synchronized universe release.
 - **Gamma** — global output gamma (1.0–3.0).

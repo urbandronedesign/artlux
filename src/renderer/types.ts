@@ -456,6 +456,21 @@ export interface SmTransition {
   // exactly the venue it was built for. `manual`/OSC transitions are gated too, deliberately: an
   // operator's GO on a state authored to run out is the same mistake, just slower.
   requireEnd?: boolean;
+  /**
+   * HOLD THIS CUT until the destination scene's look is decoded — briefly, then cut anyway.
+   *
+   * OFF BY DEFAULT, deliberately. A GO is an operator's hand in front of an audience, and a cut that
+   * silently refuses reads as a broken button; failing fast onto whatever is decoded is the right
+   * behaviour for a manned show. (The cold-start gate holds the whole show at project open only
+   * because nobody is watching yet.)
+   *
+   * This is for the other case: an unattended installation, no operator, where a few hundred
+   * milliseconds of wait is plainly better than a black frame in front of a visitor. Per-transition
+   * and opt-in, so the author says which cuts are worth waiting for — and CAPPED, because a
+   * destination that never becomes ready (a missing file) would otherwise freeze the machine on that
+   * edge forever with nothing in the log. See stateMachine.contentGated.
+   */
+  waitForContent?: boolean;
   // A GLOBAL RULE — evaluated from EVERY state, not just `from`. ("Someone walks into the entrance →
   // start the welcome", whatever the show happens to be doing.)
   //
@@ -1269,6 +1284,10 @@ export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefin
       // no hold authored at all, that is never. The show sits on one look with a green status. Coerce
       // to ABSENT (= ungated), the behaviour every project written before this field already has.
       requireEnd: boolOrAbsent(t.requireEnd),
+      // Same coercion, same reason: junk here would make an edge wait on its destination's content
+      // (capped, so it cannot hang — but it would still delay every cut on that edge for no reason
+      // the author asked for). Absent = fire immediately, which is every existing project.
+      waitForContent: boolOrAbsent(t.waitForContent),
       // Junk here is far worse than junk in `requireEnd`: a truthy string would promote an ordinary
       // edge into a rule that fires from EVERY state in the show. Coerce to absent (= a normal edge).
       fromAny: boolOrAbsent(t.fromAny),
@@ -1338,6 +1357,22 @@ export interface AppSettings {
   // everything else here: the same show on a slower disk deserves a longer wait, and that is a
   // property of the building, not of the project.
   bootPreloadSec?: number;
+  // HOW OFTEN THE RENDER ENGINE COMPUTES A FRAME — composite, GPU-sample, pack, publish. Absent ⇒ 30.
+  //
+  // NOT the Art-Net wire rate: that is `fps` above, paced by the native engine with keep-alive, so a
+  // slower engine repeats the last frame on the wire rather than starving a node. This is how often
+  // NEW pixel data is produced.
+  //
+  // ⚠ IT IS ALSO THE DECODE ASK RATE, which is why it exists. Every engine tick asks each layer's
+  // codec for the exact frame at the playhead, and asking faster than the decoder can serve does not
+  // produce more pictures — it produces MISSES. The ring hands back the nearest frame instead, and a
+  // burst of those is exactly the stutter an operator reports. Measured on a 1080p60 HAP show looping
+  // every 14 s: uncapped (~60 Hz of asks) missed 19% of exact frames, clustered ~78 into the half
+  // second after each wrap; at 25 Hz the same content missed 0.27% and every scene cut was clean.
+  //
+  // MACHINE-scoped like the rest of AppSettings — the right value is a property of this computer's
+  // disk and GPU, not of the show. Raise it on a fast rig; lower it if the preview stutters.
+  engineFps?: number;
   // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
   // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
   // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.

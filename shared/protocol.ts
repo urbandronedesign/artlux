@@ -105,6 +105,12 @@ export const IPC = {
   SCENE_READ_MODEL: 'scene:read-model',
   /** Renderer → main (invoke): read any file's bytes by path (e.g. timeline MP4s). */
   READ_FILE: 'app:read-file',
+  /**
+   * Renderer → main: the boot gate just armed — log the READ_FILE byte counter and reset it, so one
+   * cold open's whole-file I/O is attributable to THAT open (metric D of the preload plan). Purely
+   * diagnostic; a missed send only smears the next open's numbers, never behaviour.
+   */
+  PERF_OPEN_ARMED: 'perf:open-armed',
   /** Renderer → main (invoke): list the in-app docs tree (example sets + tutorials + user guide). */
   DOCS_LIST: 'docs:list',
   /** Renderer → main (invoke): every heading-sized slice of the shipped docs, for in-app search. */
@@ -150,6 +156,10 @@ export const IPC = {
   SHOW_ITEM_IN_FOLDER: 'asset:show-in-folder',
   /** Renderer → main (invoke): which of these paths exist on disk → boolean[]. */
   ASSET_EXISTS: 'asset:exists',
+  /** Renderer → main (invoke): a persisted thumbnail for (path, quantized time), or null. */
+  THUMB_GET: 'thumb:get',
+  /** Renderer → main: store an encoded thumbnail. Fire-and-forget — a failure costs a re-decode. */
+  THUMB_PUT: 'thumb:put',
   /** Renderer → main (invoke): pick a video file → absolute path. */
   PICK_VIDEO: 'app:pick-video',
   /** Renderer → main (invoke): pick/create a project folder → { root, projectFile }. */
@@ -1461,6 +1471,12 @@ export interface ArtluxApi {
   readModel(path: string): Promise<Uint8Array | null>;
   // Generic file access (timeline video clips)
   readFile(path: string): Promise<Uint8Array | null>;
+  /** Boot gate armed — main logs + resets its READ_FILE byte counter (cold-open diagnostics). */
+  perfOpenArmed(): void;
+  /** A previously-encoded thumbnail for (path, quantized time) — see src/main/thumbCache. */
+  thumbGet(path: string, qt: number): Promise<Uint8Array | null>;
+  /** Persist an encoded thumbnail so reopening a project does not re-decode it. Fire-and-forget. */
+  thumbPut(path: string, qt: number, bytes: Uint8Array): void;
   // In-app Docs Browser (examples/tutorials + user guide)
   // DMX fixture library (bundled generated set + the operator's own profiles in userData).
   /** The whole catalogue, bundled + user, user rows winning on id. Cached in main. */

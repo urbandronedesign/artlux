@@ -18,5 +18,5 @@
     "outDir": "../.tmp-tests",
     "types": ["node"]
   },
-  "include": ["test-blend.ts", "test-recal.ts"]
+  "include": ["test-blend.ts", "test-recal.ts", "test-lookahead.ts", "test-mediagrid.ts"]
 }
