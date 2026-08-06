@@ -256,7 +256,20 @@ export interface VideoCodecContribution {
    *
    * Omit it and the host only waits for the first frame, exactly as before.
    */
-  preRoll?(path: string, atSec: number, aheadSec: number): boolean;
+  preRoll?(path: string, atSec: number, aheadSec: number, layerKey?: string): boolean;
+  /**
+   * OPTIONAL — open the decoder a TIMELINE LAYER will read from, ahead of playback.
+   *
+   * `preWarm(path)` above opens whatever the SURFACE path uses. If your codec keys its layer decoder
+   * differently (mp4 keys per `layerKey` so each layer scrubs independently), preWarm cannot prime it
+   * and a host that waited on the surface decoder would be measuring the wrong thing: the layer opens
+   * lazily on its first frame request, returns null while it does, and the layer is black through a
+   * whole demux — after the gate said the show was ready.
+   *
+   * Implement this when your layer decoder is not the one `preWarm` opens. Omit it when it is (HAP's
+   * decode ring is genuinely path-keyed, so preWarm already covers both).
+   */
+  preWarmLayer?(layerKey: string, path: string, atSec: number): void;
   /**
    * OPTIONAL — roughly how much memory this decoder is holding for `path`, in bytes.
    *

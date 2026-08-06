@@ -11,9 +11,16 @@
 // heartbeat that a LOAD-PATH throw never produces. A poisoned project file used to mean an install
 // that was dead, silent and invisible to every tier, forever. See services/faultReporter.ts.
 //
-// Why a relaunch and not a reload: applyProjectData has no teardown for media-cache blob URLs /
-// decode pools / undo history, so a fresh process each recovery avoids accumulated leaks — exactly
-// the trade-off the show scheduler already makes.
+// Why a relaunch and not a reload: applyProjectData has no teardown for what a session accumulates,
+// so a fresh process each recovery avoids inheriting it — exactly the trade-off the show scheduler
+// already makes.
+//
+// ⚠ THE HEADLINE REASON FOR THIS IS GONE, AND THE DECISION STILL STANDS. It used to be the media-cache
+// blob URLs: unbounded, never revoked, a whole-file copy of everything the show had ever touched. Media
+// now streams (artlux-media://) and that cache is deleted. What remains is smaller but real — codec
+// decode pools (an mp4 decoder holds a track's encoded samples), GPU textures, undo history — and none
+// of it has a teardown path either. So: do not read the disappearance of the blob cache as licence to
+// switch to a reload. Measure what a recovered process actually inherits first.
 //
 // A crash-loop CIRCUIT BREAKER caps relaunches to maxRelaunchesPerHour: past that it writes a
 // tripped marker in userData and STOPS relaunching (leaving the show down beats an infinite storm).

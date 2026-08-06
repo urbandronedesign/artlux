@@ -439,7 +439,15 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
     const sc = startClip(t, l.id);
     if (!sc || isContentClip(sc.clip)) continue;
     const codec = videoCodecRegistry.forPath(sc.clip.path);
-    if (codec) { codec.preWarm(sc.clip.path); continue; } // codec frames are pulled on demand; preWarm suffices
+    if (codec) {
+      // Prime BOTH decoders a codec may use: the path-keyed one (preWarm) and — where the codec keys
+      // its timeline decoder differently, as mp4 does per layer — the one this layer will actually
+      // read from. Without the second, the gate can pass while the layer is still opening, and the
+      // layer is black through a whole demux with the show already running.
+      codec.preWarm(sc.clip.path);
+      codec.preWarmLayer?.(l.id, sc.clip.path, Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint));
+      continue;
+    }
     // The source is available immediately (a streaming url is just a string), so the pre-roll can
     // always set it and seek. This used to bail whenever the blob had not been read yet and rely on a
     // later pass to come back — which, for the scene a cold project opens on, never came: the pool
@@ -499,7 +507,9 @@ function poolReadiness(poolKey: string, t: Timeline): { ready: boolean; pending:
       // opens on. Codecs without preRoll behave exactly as before.
       if (probed && codec.preRoll) {
         const at = Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint);
-        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC)) pending.push(`${name} (buffering)`);
+        // `l.id` so a codec keying its timeline decoder per layer (mp4) pre-rolls the decoder this
+        // layer will actually read from, not the surface one nobody here is about to ask.
+        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC, l.id)) pending.push(`${name} (buffering)`);
       }
       continue;
     }

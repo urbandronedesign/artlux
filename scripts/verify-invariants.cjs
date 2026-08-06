@@ -1153,6 +1153,34 @@ check(
   },
 );
 
+// ── The cold-start buffer guarantee is codec-AGNOSTIC ─────────────────────────────────────────
+check(
+  'a codec that decodes ahead implements preRoll, and the gate primes the LAYER decoder',
+  'The gate waits for a decoded BUFFER, not a first frame — a decode-ahead codec starts EMPTY, so a ' +
+  'show armed on "the first frame exists" opens by missing the next hundred (measured on HAP: 167 ring ' +
+  'misses in the first ten seconds). HAP answered that; mp4 — THE DEFAULT CODEC — did not, so the ' +
+  'guarantee silently excluded every .mp4 in every show. Worse, preRoll alone would have fixed nothing: ' +
+  'preWarm opens the PATH-keyed surface decoder while a timeline layer reads a LAYER-keyed one that ' +
+  'opens lazily on its first frame request, so the gate passed while the layer was still demuxing and ' +
+  'the layer was black with the show already running. Both halves, or neither is worth having.',
+  () => {
+    const problems = [];
+    for (const f of walk('plugins')) {
+      if (!/Codec\.ts$/.test(f)) continue;
+      const src = read(f);
+      if (!/layerFrame\s*:/.test(src)) continue; // not a timeline-capable codec
+      if (!/preRoll\s*:/.test(src)) problems.push(`${f} defines layerFrame but no preRoll — the gate cannot see its buffer and will arm on an empty one`);
+    }
+    // The host must pass the layer key through, or a per-layer codec pre-rolls the wrong decoder.
+    const tl = read('src/renderer/services/timeline.ts');
+    if (!/codec\.preRoll\([^)]*l\.id\)/.test(tl))
+      problems.push('poolReadiness does not pass the layer id to preRoll — a codec keying its timeline decoder per layer pre-rolls a decoder nobody reads');
+    if (!/preWarmLayer\?\.\(/.test(tl))
+      problems.push('warmPoolVideos never calls preWarmLayer — a per-layer codec opens lazily AFTER the gate has armed');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Media streams; it is never read whole into the renderer ───────────────────────────────────
 check(
   'media loads over artlux-media://, with the scheme privileged before app-ready',

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Box, Film, Image as ImageIcon, Radio, Music, AlertTriangle } from 'lucide-react';
 import { AssetEntry, MediaView } from '../types';
 import { getThumb, onThumb } from '../services/thumbnailCache';

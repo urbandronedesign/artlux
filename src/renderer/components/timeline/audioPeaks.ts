@@ -10,17 +10,21 @@
 // an offscreen <video> — and the native engine still loads the file ITSELF for playback (the audio
 // driver's syncLoaded → audioClient.loadClip). Core decides WHERE the clip sits; the engine decides how
 // it sounds. Chromium decodes wav/flac/ogg/mp3 natively; mimeForPath (services/mediaCache.ts) maps them.
-import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
+import { resolveMediaUrl } from '../../services/mediaCache';
 import * as bootGate from '../../services/bootGate';
 
 // ⚠ A WAVEFORM MUST NEVER PULL A WHOLE VIDEO INTO MEMORY.
 //
-// `ensureBlobUrl` reads the ENTIRE file over IPC, and `decodeAudioData` then copies it again — for a
-// clip's own soundtrack that meant reading the VIDEO. Measured on a real show: a 1 GB HAP `.mov` read
-// whole in 2.3 s, main's RSS from 125 MB to 3.7 GB (the size of the whole assets folder), the main
-// process's event loop stalled 1.7 s, and — because every HAP frame decode is answered on that same
-// thread — the playback ring starved for its first ten seconds. All to draw a waveform nobody had
-// asked to see yet.
+// `decodeAudioData` needs every byte of its source, so this is the one media path that still
+// materialises a whole file — which for a clip's own soundtrack meant decoding the VIDEO. Measured on
+// a real show: a 1 GB HAP `.mov` read whole in 2.3 s, main's RSS from 125 MB to 3.7 GB (the size of
+// the whole assets folder), the main process's event loop stalled 1.7 s, and — because every HAP
+// frame decode is answered on that same thread — the playback ring starved for its first ten seconds.
+// All to draw a waveform nobody had asked to see yet.
+//
+// Streaming (artlux-media://) removed the IPC copy and the permanently-retained Blob, but NOT the
+// fundamental cost: the bytes still have to arrive to be decoded. So the container guard below is as
+// load-bearing as it ever was.
 //
 // A video's sound is not core's to decode anyway: the audio plugin CONFORMS it (main-side demux → a
 // cached WAV) precisely because Chromium's ffmpeg refuses a HAP `.mov` outright (docs/CODECS.md). So
@@ -123,9 +127,14 @@ export function ensurePeaks(path: string): void {
   pending.add(path);
   void (async () => {
     try {
-      const url = await ensureBlobUrl(path, mimeForPath(path));
-      if (!url) {
-        // Not a failure yet — most likely a concurrent read of the same path (see MAX_ATTEMPTS).
+      // decodeAudioData genuinely needs the whole file in hand, so this is the one media path that
+      // still materialises all the bytes. What it no longer does is keep them: fetching over
+      // artlux-media:// yields an ArrayBuffer the GC reclaims after the decode, where ensureBlobUrl
+      // handed back a Blob URL that lived in mediaCache for the session with nothing to revoke it.
+      const res = await fetch(resolveMediaUrl(path));
+      if (!res.ok) {
+        // A read can fail transiently (a file being written, a network volume blinking). Treating one
+        // failure as "undecodable" would blacklist a good file for the session — see MAX_ATTEMPTS.
         const n = (attempts.get(path) ?? 0) + 1;
         attempts.set(path, n);
         if (n >= MAX_ATTEMPTS) { failed.add(path); return; }
@@ -136,7 +145,7 @@ export function ensurePeaks(path: string): void {
         setTimeout(() => { retryAfter.delete(path); ensurePeaks(path); }, RETRY_COOLDOWN_MS);
         return;
       }
-      const buf = await (await fetch(url)).arrayBuffer();
+      const buf = await res.arrayBuffer();
       ctx ??= new OfflineAudioContext(1, 1, 44100);
       const audio = await ctx.decodeAudioData(buf);
       // THE SOURCE DURATION, FOR FREE. Every bed clip minted before this wave has NO `sourceDuration`
@@ -213,14 +222,14 @@ export function peaksFor(path: string, buckets: number): Float32Array | null {
 export function probeAudioDuration(path: string): Promise<number | null> {
   return (async () => {
     try {
-      const url = await ensureBlobUrl(path, mimeForPath(path));
-      if (!url) return null;
+      // `preload='metadata'` over the streaming scheme reads the header and stops — this used to pull
+      // an entire album-length file over IPC to learn one number.
       return await new Promise<number | null>((resolve) => {
         const el = document.createElement('audio');
         el.preload = 'metadata';
         el.onloadedmetadata = () => resolve(Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null);
         el.onerror = () => resolve(null);
-        el.src = url;
+        el.src = resolveMediaUrl(path);
       });
     } catch { return null; }
   })();

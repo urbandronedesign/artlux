@@ -143,6 +143,34 @@ class FileDecoder {
     });
   }
 
+  /**
+   * Fill toward `aheadSec` of decoded material at `atSec`, and say whether we got there.
+   *
+   * Asked by the host's cold-start gate, ~10×/s while it holds the show. `frame()` is what actually
+   * runs the pump, so calling it here is the kick — its return value is ignored on purpose: a null
+   * (still opening, still decoding) is answered by `have` being short, not by a separate branch.
+   *
+   * TWO WAYS TO BE SATISFIED, and the second one matters as much as the first:
+   *   · enough decoded frames sit at or after `atSec`; or
+   *   · the decoder has reached the END OF THE TRACK. A two-second sting cannot produce 0.3 s of
+   *     lead beyond its own end, and a gate that insisted would hold the whole show to its timeout
+   *     over a clip that is entirely ready. (HAP takes the same view of a permanently-failed frame.)
+   */
+  preRoll(atSec: number, aheadSec: number): boolean {
+    this.frame(atSec, false); // THE KICK — the gate's polling is what fills the buffer
+    const wantUs = atSec * 1e6;
+    // Cap at MAX_BUFFER-1: the gate's 0.3 s is 18 frames at 60 fps and we will never hold that many
+    // live VideoFrames (NVDEC stalls). See the note on preRoll() below.
+    const fps = this.samples.length > 1 && this.durUs > 0 ? this.samples.length / (this.durUs / 1e6) : 30;
+    const want = Math.max(1, Math.min(MAX_BUFFER - 1, Math.ceil(aheadSec * fps)));
+    let have = 0;
+    for (const f of this.buffer) if (f.timestamp >= wantUs - EPS_US) have++;
+    if (have >= want) return true;
+    // End of track: everything that exists is decoded, so this is as ready as it can be.
+    const endUs = this.durUs > 0 ? this.durUs : Infinity;
+    return wantUs + aheadSec * 1e6 >= endUs && this.buffer.length > 0;
+  }
+
   // Resident bytes: the encoded samples this decoder is holding (the dominant, exactly-known term)
   // plus a nominal 4:2:0 estimate for the decoded frames in flight. See the module-level residentBytes.
   residentBytes(): number {
@@ -320,6 +348,26 @@ const layerOpening = new Map<string, Promise<Info | null>>();
 const thumbDecoders = new Map<string, FileDecoder>();
 const thumbOpening = new Map<string, Promise<Info | null>>();
 
+// ⚠ THUMBNAIL DECODERS HAD NO RELEASE PATH AT ALL. `decoders` is refcounted by the host
+// (services/codecResidency) and `layerDecoders` is freed by releaseLayer — but nothing ever closed a
+// thumb decoder, and each one holds every encoded sample of its file so seeks are instant. Scrubbing a
+// filmstrip across a 24-clip library therefore accumulated 24 whole tracks, permanently.
+//
+// This was visible in the residency probe before it was understood: codec-resident bytes climbed past
+// the size of the entire media pool, which is only possible if one file is resident several times over.
+// A filmstrip is a LOOK, not the show, so it gets the smallest budget that still lets a strip fill
+// without reopening on every slot — the LRU keeps the last few files scrubbed.
+const MAX_THUMB_DECODERS = 4;
+
+function trimThumbDecoders(): void {
+  while (thumbDecoders.size > MAX_THUMB_DECODERS) {
+    const oldest = thumbDecoders.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    thumbDecoders.get(oldest)?.close();
+    thumbDecoders.delete(oldest);
+  }
+}
+
 export function ensureOpen(path: string): Promise<Info | null> {
   const existing = opening.get(path);
   if (existing) return existing;
@@ -371,13 +419,58 @@ export function close(path: string): void { decoders.get(path)?.close(); decoder
 export function layerFrame(layerId: string, path: string, clipTimeSec: number): VideoFrame | null {
   const cur = layerDecoders.get(layerId);
   if (cur && cur.path === path) return cur.dec.frame(clipTimeSec, false);
-  if (cur) { cur.dec.close(); layerDecoders.delete(layerId); } // clip on this layer changed file
-  if (!layerOpening.has(layerId)) {
-    const nd = new FileDecoder();
-    const p = nd.open(path).then((info) => { if (info) layerDecoders.set(layerId, { dec: nd, path }); else nd.close(); layerOpening.delete(layerId); return info; });
-    layerOpening.set(layerId, p);
-  }
+  ensureLayerOpen(layerId, path);
   return null; // opening
+}
+
+/**
+ * Open the LAYER decoder for `layerId` ahead of time, without asking for a frame.
+ *
+ * ⚠ THIS IS THE HALF THAT WAS MISSING, AND WITHOUT IT A PRE-ROLL FIXES NOTHING. `preWarm(path)` opens
+ * the SURFACE decoder, which is keyed by path; a timeline layer uses a DIFFERENT decoder keyed by
+ * layerId, created lazily on the first `layerFrame` call — which returns null while it opens. So on an
+ * H.264 show the cold-start gate armed, the swap promoted, `syncCodecLayer` asked for a frame, got
+ * null, and the layer was black for the whole duration of an open (a full demux). The gate was
+ * measuring a decoder nobody was about to read from.
+ *
+ * Extracted from layerFrame's own lazy path so both go through one door — a second open() for the same
+ * layer would be a second full copy of the track's samples.
+ */
+export function ensureLayerOpen(layerId: string, path: string): void {
+  const cur = layerDecoders.get(layerId);
+  if (cur && cur.path === path) return;
+  if (cur) { cur.dec.close(); layerDecoders.delete(layerId); } // clip on this layer changed file
+  if (layerOpening.has(layerId)) return;
+  const nd = new FileDecoder();
+  const p = nd.open(path).then((info) => { if (info) layerDecoders.set(layerId, { dec: nd, path }); else nd.close(); layerOpening.delete(layerId); return info; });
+  layerOpening.set(layerId, p);
+}
+
+/**
+ * "Is there a decoded BUFFER here, not just a first frame?" — the cold-start gate's question.
+ *
+ * A codec that decodes ahead starts EMPTY, so a show armed on "the first frame exists" opens by
+ * missing the next hundred: measured on HAP, 167 ring misses in the first ten seconds. HAP has
+ * answered this since that measurement; **mp4 — the DEFAULT codec — never did**, so the guarantee
+ * silently did not apply to H.264/H.265 at all.
+ *
+ * Kicks the work as well as reporting it (the SDK contract): the gate polls ~10×/s while holding, and
+ * that polling is what fills the buffer.
+ *
+ * ⚠ A DELIBERATE DEVIATION ON DEPTH, and it is not the constant being ignored. The gate asks for
+ * PREROLL_SEC (0.3 s) which at 60 fps is 18 frames — but MAX_BUFFER is 12, because holding many live
+ * 4K VideoFrames stalls NVDEC (see the constants above). Starving the hardware decoder to satisfy a
+ * number would trade a real stall for a nominal one, so the target is capped at MAX_BUFFER-1: an
+ * 11-frame lead is ~180 ms at 60 fps, within a rounding error of HAP's own 300 ms ring.
+ */
+export function preRoll(path: string, atSec: number, aheadSec: number, layerId?: string): boolean {
+  const dec = layerId ? layerDecoders.get(layerId)?.dec : decoders.get(path);
+  if (!dec) {
+    // Not open yet — kick it and report "not ready". The gate's next poll asks again.
+    if (layerId) ensureLayerOpen(layerId, path); else void ensureOpen(path);
+    return false;
+  }
+  return dec.preRoll(atSec, aheadSec);
 }
 
 // Layer twin of generation(): the same per-decoder lastFrameTs, read off the LAYER pool. Non-looping,
@@ -400,12 +493,16 @@ export async function thumbnail(path: string, timeSec: number): Promise<VideoFra
     let p = thumbOpening.get(path);
     if (!p) {
       const nd = new FileDecoder();
-      p = nd.open(path).then((info) => { if (info) thumbDecoders.set(path, nd); else nd.close(); thumbOpening.delete(path); return info; });
+      p = nd.open(path).then((info) => { if (info) { thumbDecoders.set(path, nd); trimThumbDecoders(); } else nd.close(); thumbOpening.delete(path); return info; });
       thumbOpening.set(path, p);
     }
     await p;
     d = thumbDecoders.get(path);
     if (!d) return null;
+  } else {
+    // Touch for the LRU: re-inserting moves it to the end of the Map's iteration order, so the file
+    // being scrubbed right now is the last one trimThumbDecoders would evict.
+    thumbDecoders.delete(path); thumbDecoders.set(path, d);
   }
   return d.frame(timeSec, false);
 }

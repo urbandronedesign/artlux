@@ -71,6 +71,27 @@ any future `.mov` codec should inherit both:
   background layer, which it wants at display rate). Before this, a projector showing an `IMAGE`
   decoded the whole timeline's video anyway. Guarded by `npm run verify:invariants`.
 
+### The cold-start buffer guarantee applies to every codec
+
+The boot gate does not wait for a first frame, it waits for a **decoded buffer** — a decode-ahead codec
+starts empty, so a show armed on "frame 0 exists" opens by missing the next hundred (measured on a
+1080p60 HAP show: **167 ring misses in the first ten seconds**). HAP has answered that since the
+measurement. **MP4 — the default codec — did not**, so the guarantee silently excluded every `.mp4` in
+every show; it now implements `preRoll` too.
+
+Two details worth knowing if you write a codec:
+
+- **`preWarmLayer` exists because `preWarm` is not always enough.** `preWarm(path)` opens whatever the
+  *surface* path uses. MP4 keys its **timeline layer** decoder per layer (so each layer scrubs
+  independently), and that one opened lazily on its first frame request — returning null while it did.
+  The gate could therefore pass while a layer was still demuxing, and the layer stayed black with the
+  show already running. HAP omits `preWarmLayer` because its ring genuinely is path-keyed.
+- **MP4 pre-rolls ~11 frames, not the 18 that 0.3 s implies.** `MAX_BUFFER` is 12 because holding many
+  live 4K `VideoFrame`s stalls NVDEC. Starving the hardware decoder to satisfy a constant would trade a
+  real stall for a nominal one, so the target is capped — ~180 ms at 60 fps, within a rounding error of
+  HAP's 300 ms ring. A clip shorter than the lead (a two-second sting) is satisfied by reaching its own
+  end, or the gate would hold the whole show to its timeout over a clip that is entirely ready.
+
 ### Who closes a decoder — `residentBytes` and the residency budget
 
 A codec keys its surface decoder by **path**, so N surfaces on one file cost one decode — and
@@ -86,6 +107,13 @@ encoded samples it keeps resident for instant seeking, which for a long clip is 
 Both **under-report** — neither can see GPU-side frames or driver allocations — and the host labels
 the number as best-effort for that reason. Omit the method and the budget falls back to counting open
 decoders, exactly as omitting `preRoll` falls back to waiting for a first frame.
+
+**Thumbnail decoders are capped (MP4: 4, LRU).** They are the one pool nothing refcounts — `decoders`
+is held by the host and `layerDecoders` is freed by `releaseLayer`, but a thumb decoder had no release
+path at all, and each holds a whole track's encoded samples so seeks are instant. Scrubbing a filmstrip
+across a large library therefore accumulated one resident track per file, permanently. The symptom was
+visible before it was understood: measured codec residency climbed **past the size of the entire media
+pool**, which is only possible if one file is resident several times over.
 
 ## MP4 / WebCodecs (`@artlux/plugin-mp4`)
 

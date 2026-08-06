@@ -56,6 +56,14 @@ export const mp4Codec: VideoCodecContribution = {
 
   setPlaying: (p) => { if (p === playing) return; playing = p; if (p) clockOriginMs = performance.now() - clock * 1000; },
   preWarm: (path) => { void dec.ensureOpen(path); },
+  // Open the LAYER decoder ahead of the swap. preWarm above opens the path-keyed SURFACE decoder,
+  // which a timeline layer does not use — see ensureLayerOpen for why that gap made the gate's
+  // guarantee vacuous for H.264.
+  preWarmLayer: (layerKey, path) => dec.ensureLayerOpen(layerKey, path),
+  // Cold start: the gate waits for a decoded BUFFER, not a first frame. HAP has answered this since
+  // the 167-ring-miss measurement; mp4 — the default codec — did not, so the anti-stutter guarantee
+  // silently excluded every .mp4 in every show.
+  preRoll: (path, atSec, aheadSec, layerKey) => dec.preRoll(path, atSec, aheadSec, layerKey),
   // What this file is holding, for the host's residency budget. Mostly the encoded samples: open()
   // keeps the whole track resident so seeks are instant, so one warm mp4 clip can be tens or hundreds
   // of megabytes — the difference a pool-counting budget was blind to.

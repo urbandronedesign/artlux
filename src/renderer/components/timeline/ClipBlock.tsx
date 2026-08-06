@@ -1,26 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import { VideoClip, isContentClip, SourceType } from '../../types';
 import { Filmstrip } from './Filmstrip';
 import { BlobSparkline } from './BlobSparkline';
 import { fmtClock } from './geometry';
-import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
+import { resolveMediaUrl } from '../../services/mediaCache';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 
 export type DragMode = 'move' | 'l' | 'r';
 
-// Cover-fit thumbnail for an IMAGE content clip — resolves the file to a blob URL (file:// can't
-// be loaded directly), then fills the clip body like the video filmstrip does.
+// Cover-fit thumbnail for an IMAGE content clip. Streams via artlux-media:// (file:// can't be loaded
+// directly), so this is a plain string — no state, no effect, and no whole-file read to fill a strip
+// a few dozen pixels tall.
 const ImageStrip: React.FC<{ path: string }> = ({ path }) => {
-  const [url, setUrl] = useState<string | undefined>();
-  useEffect(() => {
-    if (!path) { setUrl(undefined); return; }
-    let live = true;
-    void ensureBlobUrl(path, mimeForPath(path)).then(u => { if (live) setUrl(u); });
-    return () => { live = false; };
-  }, [path]);
-  if (!url) return null;
+  if (!path) return null;
+  const url = resolveMediaUrl(path);
   return <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `url("${url}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />;
 };
 
