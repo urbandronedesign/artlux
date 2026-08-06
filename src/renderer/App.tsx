@@ -524,6 +524,8 @@ const App: React.FC = () => {
       protocol: settings.protocol,
       outputEnabled: settings.outputEnabled,
       artNetPort: settings.artNetPort,
+      // Engine tick rate — and therefore the decode ask rate. See AppSettings.engineFps.
+      engineFps: settings.engineFps ?? 30,
       engineRunning: true,
       videoPlaying: isVideoPlaying,
       // Broadcast/headless have no visible composite, and compositing is dead work there on the

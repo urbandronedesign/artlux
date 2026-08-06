@@ -321,17 +321,45 @@ function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   else if (!lv.el.paused) lv.el.pause();
 }
 
+// ── MEASUREMENT ONLY: when does a layer have NO PICTURE? ─────────────────────────────────────────
+// layerFrame() returns null when the codec cannot supply the frame asked for — still opening the
+// file, or its ring has not decoded that index. That is the codec-agnostic signal for what an
+// operator sees as a stutter, and it is the one earlier attempts LACKED: resident bytes say
+// something is cached, not that the frame being requested is there.
+//
+// Logs clip SWITCHES and GAPS so the two can be correlated — a burst of gaps right after a switch
+// means the next clip on a track is being loaded when the playhead reaches it. One comparison per
+// layer per frame; a push only on a transition. Changes no behaviour.
+// Read with window.__artluxLayerGaps() / reset with __artluxLayerGapsReset().
+const GAP_LOG_MAX = 500;
+interface GapEvent { t: number; kind: 'switch' | 'gap'; layerId: string; clipId: string; name: string; head: number }
+const gapLog: GapEvent[] = [];
+function gapNote(kind: GapEvent['kind'], layerId: string, clip: VideoClip, head: number): void {
+  gapLog.push({ t: Math.round(performance.now()), kind, layerId, clipId: clip.id,
+    name: (clip.path.split(/[\/]/).pop() || clip.path).slice(0, 40), head: +head.toFixed(3) });
+  if (gapLog.length > GAP_LOG_MAX) gapLog.shift();
+}
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxLayerGaps'] = () => gapLog.slice();
+  (window as unknown as Record<string, unknown>)['__artluxLayerGapsReset'] = () => { gapLog.length = 0; };
+}
+
 function syncCodecLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number, codec: VideoCodecContribution): void {
   if (!lv.el.paused) lv.el.pause(); // not using the <video> for this clip
   if (!lv.codec || lv.codec.path !== clip.path) {
     lv.codec = { path: clip.path, canvas: null, codecId: codec.id };
   }
+  // MEASUREMENT: this layer just changed clip — the boundary any gap would follow.
+  if (lv.clipId !== clip.id) gapNote('switch', layerId, clip, t);
   lv.clipId = clip.id;
   lv.mode = 'codec';
   // The codec samples the exact frame for this clip-local playhead time and paints its per-layer
   // canvas (GPU decompress); it tracks the decoded index internally so it only re-uploads on advance.
   const clipTime = t - clip.start + clip.inPoint;
   lv.codec.canvas = codec.layerFrame(layerId, clip.path, clipTime);
+  // MEASUREMENT: null = this layer has no picture this frame. Only while PLAYING — a paused or
+  // scrubbing transport legitimately asks for frames nobody has decoded, which would drown the signal.
+  if (!lv.codec.canvas && playing) gapNote('gap', layerId, clip, t);
 }
 
 // A generalized content clip: route its SurfaceContent onto the layer via the shared contentSource

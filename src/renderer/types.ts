@@ -1357,6 +1357,22 @@ export interface AppSettings {
   // everything else here: the same show on a slower disk deserves a longer wait, and that is a
   // property of the building, not of the project.
   bootPreloadSec?: number;
+  // HOW OFTEN THE RENDER ENGINE COMPUTES A FRAME — composite, GPU-sample, pack, publish. Absent ⇒ 30.
+  //
+  // NOT the Art-Net wire rate: that is `fps` above, paced by the native engine with keep-alive, so a
+  // slower engine repeats the last frame on the wire rather than starving a node. This is how often
+  // NEW pixel data is produced.
+  //
+  // ⚠ IT IS ALSO THE DECODE ASK RATE, which is why it exists. Every engine tick asks each layer's
+  // codec for the exact frame at the playhead, and asking faster than the decoder can serve does not
+  // produce more pictures — it produces MISSES. The ring hands back the nearest frame instead, and a
+  // burst of those is exactly the stutter an operator reports. Measured on a 1080p60 HAP show looping
+  // every 14 s: uncapped (~60 Hz of asks) missed 19% of exact frames, clustered ~78 into the half
+  // second after each wrap; at 25 Hz the same content missed 0.27% and every scene cut was clean.
+  //
+  // MACHINE-scoped like the rest of AppSettings — the right value is a property of this computer's
+  // disk and GPU, not of the show. Raise it on a fast rig; lower it if the preview stutters.
+  engineFps?: number;
   // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
   // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
   // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.

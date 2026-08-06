@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### The engine has a frame rate now — and asking faster was making video *worse*
+
+Heavy video stuttered: a looping clip, or a track with several clips, would visibly stop and start.
+Three attempts to fix it in the decoder failed (one made it worse and was reverted) because they were
+aimed at the wrong thing.
+
+Every engine tick asks each video layer's codec for the exact frame at the playhead. **Asking faster
+than the decoder can serve does not produce more pictures — it produces misses**: the decode ring hands
+back the nearest frame it holds instead, and a burst of those is exactly what an operator sees as a
+hitch. The engine ran at display rate, so on heavy media it was asking for frames nobody could supply.
+
+Measured on a 1080p60 HAP show looping every 14 s:
+
+| engine rate | exact frames missed | worst half-second |
+|---|---|---|
+| uncapped (~60 Hz) | **19.0%** | 78 |
+| 25 Hz | **0.27%** | 9 |
+
+Every scene cut was clean at the lower rate. The clue that found it: the **projector** window, decoding
+the same media but only for the one surface it draws, missed **0.007%** throughout — the window doing
+*more* work had almost no problem, which pointed away from the decoder and at how often it was asked.
+
+**Preferences → Engine → Engine rate (fps)**, default **30**. It is *not* the Art-Net rate — the wire
+keeps running at **FPS** with keep-alive, so a slower engine never starves a node; only new pixel data
+arrives less often. Machine-scoped, because the right value depends on the computer's disk and GPU
+rather than on the show.
+
+Also ships the instrumentation that found it, since three wrong guesses preceded it:
+`window.__artluxLayerGaps()` (clip switches vs frames with no picture) and `__artluxHapPulls()` (who is
+pulling on a decode ring, at which index, with what cached).
+
 ### A heavy show opens without reading itself
 
 The cold-start gate held the show until the opening look was decoded — and had **never once reached
