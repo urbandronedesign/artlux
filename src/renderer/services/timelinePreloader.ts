@@ -5,8 +5,13 @@
 // 60fps while unlikely states cost nothing.
 //
 //   ACTIVE  (1)          playing              — the engine's active pool
-//   WARM    (<= MAX_WARM) paused, pre-seeked   — decoders held, ~0 CPU, ready for an instant swap
+//   WARM    (<= MAX_WARM) paused, pre-seeked AND PRE-ROLLED — decoders held with a filled buffer,
+//                         then ~0 CPU, ready for an instant swap
 //   COLD    (rest)        torn down            — no decoders, only shared path-keyed blobs remain
+//
+// "Pre-rolled" is load-bearing and was missing: holding a decoder is not the same as having decoded
+// anything, and a swap onto a pool whose ring was empty visibly stopped and restarted the picture.
+// See startTopUp below — the fill is a bounded burst, after which a warm pool really is ~0 CPU.
 //
 // Warming is all async IPC + createObjectURL + decode-init — off the rAF/compute path, so the frame
 // loop is never blocked. mediaCache blobs and codec preWarm are path-keyed and globally shared, so
@@ -78,6 +83,30 @@ const tellRelease = (key: string): void => {
   for (const p of participants) { try { p.release(key); } catch (e) { console.warn('[preload] participant release threw', e); } }
 };
 
+// ── PREPARING A CUT, NOT JUST HOLDING ONE ────────────────────────────────────────────────────────
+// Warming a pool opens its decoders; it does not FILL them. A codec ring starts nearly empty, so a
+// swap onto a freshly-warmed pool began by underrunning — the picture visibly stopped and restarted
+// while the ring caught up. This drives each standby pool's pre-roll until it could actually go on
+// stage, then STOPS: the work is bounded (a ring that is full requests nothing more), so a warm pool
+// costs a burst once and ~nothing thereafter.
+//
+// Deliberately a modest cadence rather than a rAF: this is preparation for a cut that has not been
+// called yet, and it must never look like a second frame loop. It also self-suspends while the
+// cold-start gate holds (the engine refuses there — see topUpWarmPools).
+const TOPUP_MS = 250;
+let topUp = 0;
+
+function stopTopUp(): void { if (topUp) { clearInterval(topUp); topUp = 0; } }
+
+function startTopUp(): void {
+  if (topUp || typeof window === 'undefined') return;
+  topUp = window.setInterval(() => {
+    let done = true;
+    try { done = engine.topUpWarmPools(); } catch (e) { console.warn('[preload] top-up threw', e); }
+    if (done) stopTopUp();   // every standby pool could go on stage — nothing left to prepare
+  }, TOPUP_MS);
+}
+
 function touch(key: string): void {
   const i = lru.indexOf(key);
   if (i >= 0) lru.splice(i, 1);
@@ -89,6 +118,7 @@ export function warm(poolKey: string, tl: Timeline | undefined): void {
   if (!tl) return;
   engine.warmPool(poolKey, tl);
   tellWarm(poolKey, tl);
+  startTopUp();
   touch(poolKey);
   evictExcess([poolKey]);
 }
@@ -100,6 +130,7 @@ export function predict(entries: { key: string; tl: Timeline | undefined }[]): v
     if (!e.tl) continue;
     engine.warmPool(e.key, e.tl);
     tellWarm(e.key, e.tl);
+    startTopUp();
     touch(e.key);
   }
   evictExcess(entries.map(e => e.key));

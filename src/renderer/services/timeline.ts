@@ -1305,6 +1305,35 @@ export const timeline = {
   // Which pool keys currently hold decoders (active + warm standby) — for the preloader's LRU budget.
   warmPoolKeys(): string[] { return [...pools.keys()]; },
   activePoolKey(): string { return activeKey; },
+  /**
+   * TOP UP EVERY STANDBY POOL UNTIL IT COULD GO ON STAGE. Returns true once they all could.
+   *
+   * A WARM pool used to mean "decoders held, first frame seeked" — which is not enough to cut to.
+   * A codec's ring starts nearly EMPTY (measured on a real show: a standby scene holding ~6 decoded
+   * frames against the active scene's ~40), so promoting it began with an underrun: the compositor
+   * painted the nearest decoded neighbour while the ring caught up, and the operator saw the video
+   * stop and start again. That is precisely the stutter the boot gate's pre-roll prevents at project
+   * open — a cut deserves the same.
+   *
+   * ⚠ THIS IS A ONE-TIME COST PER WARM SCENE, NOT A RUNNING ONE, and that is what makes it
+   * affordable. poolReadiness re-drives the pre-roll, and both halves stop asking once satisfied:
+   * hapDecode.fill requests only frames it does not already hold, and warmPoolVideos' seek is
+   * conditional. Once a standby ring is full it stays full (nothing evicts it — the ring retains the
+   * union of its consumers' windows), so the steady-state cost of a warm pool is back to ~zero. The
+   * caller stops calling as soon as this returns true.
+   *
+   * Never touches the ACTIVE pool (playback owns it) or GLOBAL. Skipped entirely while the cold-start
+   * gate holds: nothing speculative may compete with the look the audience is about to see.
+   */
+  topUpWarmPools(): boolean {
+    if (external || !armed) return true; // mirror windows decode nothing; a held gate owns the decoders
+    let allReady = true;
+    for (const [key, doc] of poolDocs) {
+      if (key === activeKey || key === GLOBAL_POOL || !pools.has(key)) continue;
+      if (!poolReadiness(key, doc).ready) allReady = false;
+    }
+    return allReady;
+  },
   setPlaying(p: boolean): void {
     if (p === playing) return;
     playing = p;
