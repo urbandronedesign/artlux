@@ -143,7 +143,7 @@ function pumpVideo(): void {
     lastJob = performance.now();
     videoBusy++;
     getLoader(job.path).grab(job.qt)
-      .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); } })
+      .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); void persist(job.path, job.qt, bmp); } })
       .catch(() => {})
       .finally(() => { videoBusy--; inFlight.delete(job.key); pumpVideo(); });
   }
@@ -183,6 +183,7 @@ async function pumpCodec(): Promise<void> {
       if (canvas) {
         const bmp = await createImageBitmap(canvas, { resizeWidth: THUMB_W, resizeHeight: THUMB_H, resizeQuality: 'low' });
         store(job.key, { bmp, path: job.path, qt: job.qt });
+        void persist(job.path, job.qt, bmp);
         emit(job.path);
       }
     }
@@ -191,6 +192,45 @@ async function pumpCodec(): Promise<void> {
     codecBusy = false;
     if (codecQueue.length) void pumpCodec();
   }
+}
+
+// ── PERSISTED SIDECARS — decode once, not once per session ───────────────────────────────────────
+// The in-memory LRU dies with the window, so reopening a project re-decoded every visible tile. A
+// thumbnail is a couple of kB and its source cannot change without changing mtime/size, so the work is
+// stored beside the project (main/thumbCache) and re-used forever.
+//
+// Encoding costs one canvas round-trip per NEW thumbnail; reading one back costs an IPC message and a
+// createImageBitmap. Both are far below a frame decode + seek, which is what they replace.
+const encodeThumb = async (bmp: ImageBitmap): Promise<Uint8Array | null> => {
+  try {
+    const cv = new OffscreenCanvas(bmp.width, bmp.height);
+    const cx = cv.getContext('2d');
+    if (!cx) return null;
+    cx.drawImage(bmp, 0, 0);
+    // WebP at a low quality: these are 160x90 tiles behind a filmstrip, not deliverables.
+    const blob = await cv.convertToBlob({ type: 'image/webp', quality: 0.72 });
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch { return null; } // no OffscreenCanvas / no WebP encoder: just don't persist
+};
+
+// Store a freshly decoded thumbnail beside the project. Fire-and-forget and best-effort: a failure
+// costs a re-decode next session, never correctness, so nothing here is awaited or reported.
+async function persist(path: string, qt: number, bmp: ImageBitmap): Promise<void> {
+  const bytes = await encodeThumb(bmp);
+  if (bytes) window.artlux?.thumbPut?.(path, qt, bytes);
+}
+
+// Sidecar hit → decode the stored bytes instead of the source. Returns false when there is nothing
+// stored, so the caller falls through to the real decode.
+async function fromSidecar(path: string, qt: number, key: string): Promise<boolean> {
+  try {
+    const bytes = await window.artlux?.thumbGet?.(path, qt);
+    if (!bytes || !bytes.byteLength) return false;
+    const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/webp' }));
+    store(key, { bmp, path, qt });
+    emit(path);
+    return true;
+  } catch { return false; }
 }
 
 function schedule(path: string, qt: number, key: string): void {
@@ -203,8 +243,14 @@ function schedule(path: string, qt: number, key: string): void {
   // Filmstrip only re-asks when something makes it repaint, and a paused timeline repaints nothing.
   if (bootGate.isBooting()) { deferred.add(path); return; }
   inFlight.add(key);
-  if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
-  else { videoQueue.push({ path, qt, key }); pumpVideo(); }
+  // A STORED THUMBNAIL SHORT-CIRCUITS EVERYTHING BELOW — no decoder, no seek, no queue. Checked here
+  // rather than in getThumb so it still honours the boot-gate deferral above: reading sidecars during
+  // a cold start is cheap but not free, and nothing cosmetic competes with a show starting.
+  void fromSidecar(path, qt, key).then((hit) => {
+    if (hit) { inFlight.delete(key); return; }
+    if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
+    else { videoQueue.push({ path, qt, key }); pumpVideo(); }
+  });
 }
 
 // Synchronous: the exact thumbnail if cached (refreshing LRU), else the nearest decoded frame for
@@ -219,3 +265,13 @@ export function getThumb(path: string, time: number): ImageBitmap | undefined {
 }
 
 export const THUMB_ASPECT = THUMB_W / THUMB_H;
+
+// Diagnostics: what the strip cache holds, and a way to ask for a thumbnail without a Filmstrip on
+// screen. Same window-guarded pattern as __artluxHapStats / __artluxWarmPools. Genuinely useful
+// beyond tests — "why is this filmstrip empty" is otherwise only answerable by adding a log.
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxThumbs'] = (paths?: string[], t = 0.5) => {
+    if (Array.isArray(paths)) for (const p of paths) getThumb(p, t);
+    return { cached: cache.size, inFlight: inFlight.size, deferred: deferred.size, loaders: loaders.size };
+  };
+}

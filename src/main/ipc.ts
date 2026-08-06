@@ -11,6 +11,7 @@ import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
+import * as thumbCache from './thumbCache';
 import * as docs from './docs';
 import * as fixtureLibrary from './fixtureLibrary';
 import { importGdtf } from './gdtf';
@@ -200,6 +201,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     // every change to the asset list — and `existsSync` per entry blocks main's event loop for the sum
     // of them. On a network volume a single stat can take tens of milliseconds, so a 300-asset library
     // was a visible stall in a process that is also pacing Art-Net.
+    // Persisted thumbnails — decode a frame once, not once per session. See src/main/thumbCache.
+    ipcMain.handle(IPC.THUMB_GET, (_e, path: string, qt: number) => thumbCache.get(path, qt));
+    ipcMain.on(IPC.THUMB_PUT, (_e, path: string, qt: number, bytes: Uint8Array) => { void thumbCache.put(path, qt, bytes); });
     ipcMain.handle(IPC.ASSET_EXISTS, async (_e, paths: string[]) => Promise.all(
         (paths ?? []).map((p) => (p ? stat(p).then(() => true, () => false) : Promise.resolve(false))),
     ));

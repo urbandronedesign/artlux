@@ -126,6 +126,8 @@ const api: ArtluxApi = {
     readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
     perfOpenArmed: () => ipcRenderer.send(IPC.PERF_OPEN_ARMED),
+    thumbGet: (path: string, qt: number) => ipcRenderer.invoke(IPC.THUMB_GET, path, qt),
+    thumbPut: (path: string, qt: number, bytes: Uint8Array) => ipcRenderer.send(IPC.THUMB_PUT, path, qt, bytes),
     // In-app Docs Browser (examples/tutorials + user guide)
     fixtureLibraryIndex: () => ipcRenderer.invoke(IPC.FIXTURE_LIBRARY_INDEX),
     fixtureLibraryGet: (manufacturerKey: string) => ipcRenderer.invoke(IPC.FIXTURE_LIBRARY_GET, manufacturerKey),
