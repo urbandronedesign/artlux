@@ -506,11 +506,19 @@ renewal for a project that takes no money. Two consequences worth holding on to:
 | 3 | Examples: derived sets, whole-set copy to a writable workspace, then open | **done** |
 | 4 | Health: run `preflight.ps1`, triage as data, repair via `-Fix` | **done** |
 | 5 | CI on `launcher-v*`, self-update | **done** |
+| 6 | Launch mode: open a project in the editor or the **calibration workbench**, with the running-instance and version cases named rather than silently dropped | **done** (v0.1.2) |
 
 Not built, and worth considering later: **thumbnails for projects**, which would mean rendering a
 project through the WebGPU pipeline and is therefore a real feature rather than a detail; and a
 **cancel** for the download, which exists in the core (`download::request_cancel`) and is wired to a
 button only while a download is running.
+
+**Broadcast is deliberately not a launch mode here.** `--broadcast` is one flag away and the plumbing
+already generalises to it, but a show mode is a different promise: it has no editor window, quits
+when the last output closes, and is what the watchdog relaunches into. Starting one from a
+project-picker — on a machine an operator may be about to walk away from — is a decision worth its
+own deliberate surface, not a third segment beside *Normal*. Add it when someone asks for it and
+knows why.
 
 **Not exercised end to end:** removing the legacy per-user install. Its guard paths are covered by
 the self-test (no recorded command, missing uninstaller), but the happy path would delete a real

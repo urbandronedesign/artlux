@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased
+
+### A projector can play a calibration instead of recomputing one
+
+Replaying a calibration used to mean rendering the whole venue a second time, from the projector's
+viewpoint, in its own 3D scene with a depth pass — at showtime, per output. Now the geometry is
+**baked once into a file**: for every pixel of every projector, which point of the content belongs
+there, with occlusion, the object's silhouette and the content's footprint edge already resolved into
+it. Playback samples a picture through that map. **No venue model, no 3D scene, no depth pass.**
+
+The map now *supersedes* the live venue render rather than drawing underneath it — which is what it
+did at first, invisibly, because both paths draw the same silhouette and a screenshot agreed with the
+map to 0.25% while the wrong one was on screen.
+
+**A show machine boots calibrated.** The file's path is remembered per machine (never in the project —
+a calibration describes the room, so one file serves every show run there) and re-read at startup.
+Without that, a baked calibration could never reach `--broadcast` at all: it renders the show and no
+editor chrome, so there is nothing to import from and nobody to click it.
+
+**Playing a calibration no longer needs the app that makes one.** `--calibrate` now gates only
+*authoring* — the wizards, the camera, OpenCV and the venue render you align against. Import and
+playback are in every launch, so a plain editor has no Calibration entry on the rail but does have a
+**Calibration File** panel under Projection Outputs.
+
+### The projected picture stopped stair-casing
+
+Two separate causes, one of them a regression from the above.
+
+The baked silhouette was a **binary** hit flag, so the outline stepped from nothing to full in one
+pixel and stair-cased along every slanted edge. The mesh path never had this: it drew a real warp mesh
+into a multisampled buffer and got its outline antialiased for free. MSAA cannot help the baked path
+at any cost — that edge is made by a branch in a fragment shader, so every sample in a pixel takes the
+same side of it. The bake now renders at 2× and stores real coverage per texel, in a channel the file
+already reserved. **Re-export to benefit.**
+
+Content is also **mipped and anisotropically filtered** now. Content mapped onto a venue is almost
+always minified, and undersampling does not merely blur — it crawls as the video plays, which on a
+large projection is far more objectionable than a static jagged edge.
+
+### Also
+
+- A calibration import reaches a projector window that **opens later**. It was sent when an output was
+  *enabled*, which is before the window exists and its bridge port is up, so it landed on nothing.
+- Contribution registries **replace by id** instead of appending. Four of them did not, so a plugin
+  activating twice mounted its panels twice — a projector window reached eighteen canvases in one
+  session of edits.
+- **A measurement that had spread to three files was wrong.** "A calibrated output takes the app from
+  60 fps to 17.6" compared two *different projects*; controlled, it was 38.9 against 34.4. It had been
+  quoted into `runProfile.ts`, the plugin host and an invariant's rationale, and was the stated reason
+  for a design decision. Corrected in all three.
+
+
 ## v0.25.2
 
 ### The engine has a frame rate now — and asking faster was making video *worse*

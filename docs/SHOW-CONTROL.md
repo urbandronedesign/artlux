@@ -48,6 +48,12 @@ client is watching" rule — the sampler stays free when nobody is looking.
 7. **Metrics tab:** the same series ArtLux exposes to Prometheus/Grafana — output (fps/pps/universes/up),
    **renderer** (fps, frame p99, work p99, long/dropped frames), and system (CPU/RSS/heap/event-loop
    lag) — live with sparklines and green/amber/red health, no Grafana required.
+   > **Render FPS is not judged against 60.** It shows whatever *Preferences ▸ Engine ▸ Engine rate* is
+   > set to (30 by default), so a healthy show routinely reads 30 — that is not a fault and is not
+   > coloured as one. What *is* coloured: **Frame p99** past two of the show's own frame periods, and
+   > **Long frames**, which counts frames well past the median. Both are relative to the rate you chose,
+   > so they mean the same thing at 25, 30 or 60. **Output FPS is separate** — it is the Art-Net wire
+   > rate (*Preferences ▸ Engine ▸ FPS*) and keeps running at full rate however slow the engine is.
 8. **Operator panel (View ▸ Show Control):** a **QR code** to connect (scan → the tablet opens the
    remote and pairs automatically via a `?pin=` URL), the connect URL + PIN, a **Lock** that
    freezes/kicks remotes mid-show, and the paired-device list with per-device kick.

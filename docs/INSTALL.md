@@ -246,6 +246,23 @@ What a good install looks like:
 Then launch the app and confirm in the UI: an **NDI** source type appears in a surface's content picker,
 and the **projector calibration** wizard opens without an "addon unavailable" message.
 
+### If this machine plays a baked calibration
+
+A venue PC that projects onto objects usually runs a calibration **file** rather than aligning on
+site. Two things have to be true, and neither is checked by the preflight:
+
+1. **The `.mpcdi` is on this machine**, at a path that survives a reboot — a mapped network drive is
+   the classic thing that is not mounted yet when the show starts.
+2. **It has been imported once, on this machine.** Projection Outputs ▸ **Calibration File** ▸
+   *Import*. The path is remembered per machine (never in the project — a calibration describes the
+   room), and re-read at every start.
+
+Step 2 is not optional and cannot be done later from the show mode: `--broadcast` renders the show
+and its outputs and **no editor chrome**, so there is no panel to import from and nobody to click it.
+Import once in the editor, then launch broadcast — the output should come up warped with no further
+action. If the file has moved, the log says so once and every output falls back to its own warp: the
+show still starts, it just looks wrong.
+
 ---
 
 ## Troubleshooting

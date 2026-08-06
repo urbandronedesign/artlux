@@ -286,6 +286,53 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   look exactly like a bug on next launch. `Get-Process ArtLux,electron | Stop-Process -Force` between
   tests; several instances also contend over the shared `userData` GPU cache (`Access is denied`).
 
+
+### Testing a change that alters HOW OFTEN anything happens
+
+**The editor preview cannot show you a rate bug.** The Stage reads the frame engine directly; the
+*projector* is fed across three seams the preview never touches — a transport stream, a bitmap pump, and
+a decoder that refills when asked. v0.25.2 shipped an engine-rate cap that looked perfect in the editor
+and hitched on the wall, because all three sampled the engine on a 33 ms gate written when the engine
+always ran faster than they sampled. A 30 Hz producer against a 33 ms gate is decided by sub-millisecond
+jitter, so whole updates vanish.
+
+So when you change a rate, an interval, a throttle or a budget, **find every consumer of the thing you
+slowed down** and ask what period it assumed. Grep for the constant, not for the feature:
+
+```bash
+grep -rn "now - last\|< 33\|1000 /" src/renderer src/main plugins   # time gates
+grep -rn "PER_TICK\|_MAX\|budget" src/renderer                       # per-tick budgets
+```
+
+Two rules that fall out of it, both of which cost a release:
+- **A gate must be finer than its producer's period**, never equal to it. 15 ms passes on every tick at
+  both 30 and 60 Hz; 33 ms passes reliably at 60 and unreliably at 30.
+- **A per-tick budget is a rate.** Halving or doubling the tick silently halves or doubles it, and a
+  rotating cursor that exists for fairness must only advance on ticks that actually spent the budget.
+
+**Then run it in broadcast, with a real fullscreen output** — that is the mode these bugs live in:
+
+```bash
+npm run build     # broadcast/calibration relaunches load out/renderer from disk, never the dev server
+electron . --broadcast --built-renderer --project=<abs path to .artlux>
+```
+
+⚠ **A projector output whose `displayId` is unbound opens no window and logs nothing about it.** Check
+the project (`projectorOutputs[].displayId`) before concluding the code is at fault. The fullscreen
+window is a separate CDP target — `ARTLUX_CDP_PORT=9222` reaches both it and the hidden main window, and
+`http://127.0.0.1:9464/metrics` answers with `mode="broadcast"`.
+
+Diagnostics to read there (all measure-only, all on `window`): `__artluxProjPump()` — ships, aliased
+skips, and the delivery-gap distribution per surface; `__artluxLayerGaps()` — clip switches vs frames
+where a layer had no picture at all; `__artluxHapStats()` — ring asks vs misses; `__artluxCodecResidency()`
+— which decoders are actually open, which is how you confirm an mp4 clip was reached at all.
+
+**Reset them before you measure** (`__artluxProjPumpReset()`, `__artluxLayerGapsReset()`,
+`__artluxHapStatsReset()`). Every one of them is cumulative or capped: a boot burst dominates the totals,
+a full 500-entry gap log cannot report anything new, and a frozen `missed` beside a climbing `asked`
+reads as a *falling* rate when nothing improved at all. Three wrong readings in one session came from
+exactly that.
+
 ## Profiling — finding a bottleneck from OUTSIDE the app
 The app measures itself in two places: `services/perfMonitor` (frame interval + in-frame work, always
 on) and `services/uiPerfMonitor` (long tasks always on, React commits opt-in), both surfaced in the
