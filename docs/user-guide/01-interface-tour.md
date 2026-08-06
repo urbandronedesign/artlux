@@ -65,8 +65,10 @@ The menus, in brief:
 ## Action bar
 
 Under the title bar: the name of the active workbench and the actions that belong to it — *Add
-Surface*, *Auto-patch*, *Routing* and *Collect Assets* in **Map**; *Store Key*, *Save Pose* and
-*Record Lighting Take* in **3D**. Everything here is also in the **Ctrl+K** palette.
+Surface*, *Auto-patch*, *Routing* and *Collect Assets* in **Map**; *Store Key*, *Save Pose*, *Record
+Lighting Take* and *Record Tracking Take* in **3D**. The two record buttons show **REC** and a running
+clock while they are capturing, and stay clickable while they do — so the button that started a take is
+always the button that stops it. Everything here is also in the **Ctrl+K** palette.
 
 ---
 
@@ -118,8 +120,13 @@ eight of the nine workbenches (all but Calib and Prefs). Pull it up with **Ctrl+
 Timeline**, or by clicking the collapsed strip; each workbench remembers whether you left it open.
 
 That is deliberate: the timeline is a tool you want *while* working in a view — cutting against the
-2D stage, recording a lighting take against the 3D rig, authoring a scene's timeline from the cue
-grid — not a place you travel to. See [Timeline](06-timeline.md).
+2D stage, dropping a recorded take onto a lane with the rig in front of you, authoring a scene's
+timeline from the cue grid — not a place you travel to. See [Timeline](06-timeline.md).
+
+Note that **recording** a take is *not* one of those things. Capture has nothing to do with the
+playhead, so it lives in the **Lighting Takes** and **Tracking Takes** dock tabs (and on the action
+bar, and on **Ctrl+Shift+R** / **Ctrl+Alt+R**) — which is why you can record from Calib and Prefs even
+though neither has a timeline.
 
 ---
 
@@ -143,6 +150,11 @@ have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable w
 
 Panel toggles at each end, a one‑line contextual hint for the active workbench in the middle, and
 live **FPS** + a **LIVE** output indicator on the right.
+
+While a take is recording, a red **REC** light appears on the right, naming what is being captured and
+**which document it will land in** (`REC lighting → Act 2`). It is a button: click it to stop. That
+matters because a recording can be armed with a keyboard shortcut from a workbench with no visible
+record control — a light you cannot switch off would be a trap.
 
 ---
 

@@ -15,7 +15,6 @@ import { AudioLane, type AudioDragMode } from './AudioLane';
 import { ensurePeaks, probeAudioDuration, sourceDurationFor } from './audioPeaks';
 import { TimelineToolbar } from './TimelineToolbar';
 import { LightingClipInspector } from './LightingClipInspector';
-import * as lightingRecorder from '../../services/lightingRecorder';
 import { TimelineRuler } from './TimelineRuler';
 import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
@@ -30,8 +29,6 @@ import type { AutomationLane as AutoLane, ChannelRole, Fixture, FixtureGroup, Fi
 type PanelLane = { lane: AutoLane; origin: 'scene' | 'global'; shadowed: boolean };
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { nextNumberedName } from '@artlux/sdk/renderer';
-import { TakesBin } from './TakesBin';
-import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { resolveMediaUrl } from '../../services/mediaCache';
 import { DragMode } from './ClipBlock';
 import { ClipAudioInspector } from './ClipAudioInspector';
@@ -93,11 +90,6 @@ interface Props {
   rigFixtures?: Fixture[];
   /** Resolved DMX profiles — the lighting clip inspector maps a role to the channel a lane names. */
   rigProfiles?: ReadonlyMap<string, FixtureProfile>;
-  /**
-   * The fixtures currently selected, IN SELECTION ORDER — what a recorded take captures, and the
-   * order its parts (and therefore any later phase spread) run along.
-   */
-  selectedFixtureIds?: string[];
   cues?: { id: string; name: string }[];   // for the FSM 'fireCue' action picker
   // Per-state authoring context: which scene's timeline is bound to the editor, the scene list for the
   // pill, and the trigger→build→save→continue handlers. Absent → plain global-timeline editing.
@@ -132,7 +124,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   // The pill menu is portalled (usePopoverAnchor), so it is placed from the button's measured rect
@@ -1004,42 +996,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       place(path, name, d && d > 0 ? d : null);
     })();
   };
-  // --- tracking takes: record the live blob feed, place takes on a special lane ---
-  const hasTrackingLane = layers.some(l => l.kind === 'tracking');
-  const addTrackingLane = () => { if (!hasTrackingLane) onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking', color: '#7ed321', enabled: true }] }); };
-  const startRecord = () => { if (!trackingRecorder.start()) console.warn('[timeline] cannot record now (a take is playing)'); };
-
-  // --- lighting clips: movement instanced onto a fixture group (docs/LIGHTING-SHOW.md) ---
-  const hasLightingLane = layers.some(l => l.kind === 'lighting');
-  const addLightingLane = () => {
-    if (hasLightingLane) return;
-    onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Lighting', kind: 'lighting', color: '#f5a623', enabled: true }] });
-  };
-  // Recording a movement off the live rig. Independent of the transport — you busk the look, stop,
-  // and the take appears in the bin ready to place. See services/lightingRecorder.
-  const startLightingRecord = () => {
-    if (!lightingRecorder.start(selectedFixtureIds)) {
-      console.warn('[timeline] cannot record: select fixtures first, and stop any lighting clip driving them');
-    }
-  };
-  const stopLightingRecord = () => {
-    const tl = timelineRef.current;
-    const take = lightingRecorder.stop(nextNumberedName('Move', tl.lightingTakes ?? []));
-    if (!take) { console.warn('[timeline] nothing moved — no take recorded'); return; }
-    onChangeRef.current({ ...tl, lightingTakes: [...(tl.lightingTakes ?? []), take] });
-  };
-  const removeLightingTake = (id: string) => {
-    const tl = timelineRef.current;
-    onChangeRef.current({
-      ...tl,
-      lightingTakes: (tl.lightingTakes ?? []).filter(t => t.id !== id),
-      // A clip pointing at a deleted take would silently drive nothing; drop it back to a generated
-      // movement so the clip stays meaningful instead of becoming an invisible no-op.
-      clips: tl.clips.map(c => (c.kind === 'lighting' && c.lighting?.takeId === id
-        ? { ...c, lighting: { ...c.lighting, takeId: undefined, effect: c.lighting.effect ?? { form: 'sine' as const, role: 'pan' as const, centre: 270, amplitude: 60, periodSec: 4 } } }
-        : c)),
-    });
-  };
+  // --- takes: RECORDING AND THE TAKE LIBRARIES LIVE IN services/takeRecorder, NOT HERE ---
+  //
+  // Both recorders capture independently of the transport, so their controls had no business being
+  // reachable only through this drawer — and the commit logic that anchored them here (naming, the
+  // async .lblob write, the doc-key guard, the auto-created lane) is now the service's, which is what
+  // lets a dock panel, the action bar, the status chip and a keyboard shortcut all drive the same
+  // function. The timeline keeps only what is a timeline edit: PLACING a finished take on a lane
+  // (the drop handler below) and the clip that plays it.
 
   /**
    * Drop a new lighting clip on the lane.
@@ -1060,37 +1024,6 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     };
     onChangeRef.current({ ...tl, clips: [...tl.clips, clip] });
   };
-  // ⚠ THE COMMIT RUNS AFTER TWO AWAITS — a disk write and an asset import. Same door as `place()` above:
-  // the world moves under it. `onChangeRef`/`timelineRef` are read AT COMMIT TIME, so they name WHATEVER IS
-  // BOUND NOW — and a take recorded against Global, or against scene A, lands its `trackingTakes` entry AND
-  // a synthesized 'tracking' layer in whatever document an FSM/scheduler/OSC recall bound while the file was
-  // being written. So the SAME guard place() got: capture the doc before the awaits, and if it moved, drop
-  // the commit. The take file itself stays on disk (harmless — an orphan file, not a document that lies),
-  // but nothing is written into a document the operator never recorded into. The putCache is inside the
-  // guard too: it seeds replay/sparkline for a `ref` that no document now holds, so on the abandon path it
-  // is dead weight, keeping a whole take's samples alive for a path nobody can reach.
-  const stopRecord = async () => {
-    const tk = trackingRecorder.stop();
-    if (!tk) return;
-    // Named off the doc as it stands BEFORE the awaits — the same doc `recDocKey` pins below, so the
-    // name and the commit guard agree on which document this take belongs to. (Numbered from what is
-    // taken, not the count: takes are the most-deleted list in the app — you record five and keep one.)
-    tk.name = nextNumberedName('Take', timelineRef.current.trackingTakes ?? []);
-    const recDocKey = docKeyRef.current;
-    let path = await window.artlux?.saveTrackingTake?.(tk.id, trackingTake.serialize(tk));
-    if (!path) return;
-    // Copy-in policy: relocate the take into the project's assets/tracking when we have a folder.
-    if (projectPath) {
-      const entry = await window.artlux?.importAssetFile?.(projectPath, path, 'take', tk.name);
-      if (entry?.path) path = entry.path;
-    }
-    if (docKeyRef.current !== recDocKey) return;   // recalled mid-write → the take is not this document's
-    trackingTake.putCache(path, tk); // so replay/sparkline don't re-read disk
-    const ref = { id: tk.id, name: tk.name, path, duration: tk.duration, fps: tk.fps };
-    const tl = timelineRef.current;
-    onChangeRef.current({ ...tl, trackingTakes: [...(tl.trackingTakes ?? []), ref], layers: tl.layers.some(l => l.kind === 'tracking') ? tl.layers : [...tl.layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking' as const, color: '#7ed321', enabled: true }] });
-  };
-  const removeTake = (id: string) => onChange({ ...timeline, trackingTakes: (timeline.trackingTakes ?? []).filter(t => t.id !== id) });
   const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
   const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
   const toggleLoop = () => onChange({ ...timeline, loop: !timeline.loop });
@@ -1622,15 +1555,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         {...toolbarHandlers}
       />
 
-      <TakesBin
-        takes={timeline.trackingTakes ?? []} hasTrackingLane={hasTrackingLane}
-        onStartRecord={startRecord} onStopRecord={stopRecord}
-        onAddTrackingLane={addTrackingLane} onRemoveTake={removeTake}
-        hasLightingLane={hasLightingLane} onAddLightingLane={addLightingLane}
-        lightingTakes={timeline.lightingTakes ?? []} selectedFixtureCount={selectedFixtureIds.length}
-        onStartLightingRecord={startLightingRecord} onStopLightingRecord={stopLightingRecord}
-        onRemoveLightingTake={removeLightingTake}
-      />
+      {/* The Takes bin used to sit here — a record button, two lane-adders and both take libraries in one
+          strip. Recording is a PERFORMANCE gesture against the live rig, not a timeline edit, so it now
+          lives in the Lighting Takes / Tracking Takes dock panels (which are also the drag sources for
+          the chips). The timeline keeps what is actually its job: the lanes those takes are placed on. */}
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto relative">
         <div className="relative" style={{ width: GUTTER + Math.max(width, 100) }}>

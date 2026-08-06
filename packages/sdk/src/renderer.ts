@@ -449,6 +449,35 @@ export interface PanelRegistry {
 // Contexts are SOFT: they set the default workbench, they do not lock anything away. Opening
 // something off-context is allowed and flips the layout badge to 'custom', exactly as a manual panel
 // resize already does.
+// A LIVE action — one whose pressed state, label or availability changes while the app runs, with no
+// selection change and no context switch to re-render the bar. A recorder is the motivating case: it is
+// armed or it is not, and the bar has to say which.
+//
+// Without this, an action is evaluated once per ActionBar render, which happens only when the context or
+// the selection changes. That is why `record-take` shipped as a fire-and-forget toggle that never showed
+// REC — and worse, why its `enabled` (which asked for a fixture selection) could turn the ONLY stop
+// button off mid-recording when the operator clicked empty space.
+export interface ContextActionLive {
+  /** Fires on state CHANGE only — never per tick. The bar subscribes with useSyncExternalStore. */
+  subscribe(cb: () => void): () => void;
+  /**
+   * ⚠ MUST return a CACHED object — the same reference until something actually changes. The bar
+   * compares with Object.is, so returning a fresh literal on every call is an infinite render loop.
+   * Keep a module-level `let state` and reassign it only when a field really moves (the idiom in
+   * services/telemetry).
+   *
+   * `enabled` here WINS over ContextAction.enabled when both are present, because only this one can see
+   * run-time state; use it for "…but you can always stop what is running".
+   */
+  get(): { active: boolean; label?: string; enabled?: boolean };
+  /**
+   * An optional fast-changing suffix — an elapsed clock. POLLED and written straight to a DOM node, so
+   * it never re-renders React. Omit it and nothing is drawn. Do not put this value in `get()`: at 5 Hz
+   * it would re-render the whole action bar for the length of the take.
+   */
+  text?(): string;
+}
+
 export interface ContextAction {
   id: string;
   label: string;
@@ -459,6 +488,16 @@ export interface ContextAction {
   enabled?(selection: SelectionSnapshot): boolean;  // omitted ⇒ always enabled
   danger?: boolean;
   shortcut?: string;                               // display only; binding stays with the host menu
+  live?: ContextActionLive;                        // run-time state on the button (REC, armed, muted…)
+  /**
+   * Keep the operator where they are when this action is run from the command palette.
+   *
+   * The palette normally travels to an action's own context first, because "Add Surface" from anywhere
+   * means "go to Mapping and add a surface". That is wrong for a GLOBAL function that merely happens to
+   * be declared on one context's bar: arming a recorder should not move the workbench out from under
+   * someone who is mid-show. Set this on actions that act on the app rather than on the workbench.
+   */
+  stayPut?: boolean;
 }
 
 // Generic over the host's layout type for the same reason every other contribution here is generic

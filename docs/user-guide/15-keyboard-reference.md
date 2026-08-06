@@ -47,6 +47,13 @@ Live anywhere in the editor, and suppressed while you are typing in a field.
 | `Ctrl+Tab` | Next workspace |
 | `Ctrl+Shift+Tab` | Previous workspace |
 
+**Recording**
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Shift+R` | Record lighting take — Toggles. Captures the SELECTED fixtures — their selection order becomes the take |
+| `Ctrl+Alt+R` | Record tracking take — Toggles. Captures the live tracker feed, independent of the transport |
+
 ### Timeline
 
 Live only while the timeline drawer is hovered or focused (`Ctrl+T` opens it).

@@ -2067,6 +2067,68 @@ check(
   },
 );
 
+// ── Takes: ONE owner of the take commit ───────────────────────────────────────────────────────
+check(
+  'a recorded take is committed only by takeRecorder.ts',
+  'Committing a take is not one write. It is: name it off the CURRENT document with ' +
+  'nextNumberedName, (for tracking) write a .lblob, copy it into the project, re-check that the bound ' +
+  'document did not move across those two awaits, seed the replay cache, append the ref AND ' +
+  'synthesize the lane — all in ONE handleTimelineChange so it is one undo entry. That whole sequence ' +
+  'was duplicated the moment a second door appeared: the timeline\'s Takes bin and the Venue & Rig ' +
+  'action bar each had their own copy, and only one of them carried the doc-key guard. Nothing throws ' +
+  'when they drift — a take recorded against scene A simply lands in scene B because an FSM recall ' +
+  'fired while the file was being written, and the operator finds out at the next load-in. Now that ' +
+  'recording is reachable from a dock panel, the action bar, the status chip and a keyboard shortcut, ' +
+  'the sequence has exactly one owner and every door calls it. Guards the APPEND specifically — a ' +
+  'library delete or an asset relink rewrites an existing list and must keep calling setTimeline.',
+  () => {
+    const OWNER = 'src/renderer/services/takeRecorder.ts';
+    if (!exists(OWNER)) return `${OWNER} is missing (the single owner of the take commit)`;
+    const owner = read(OWNER);
+    for (const sym of ['stopLighting', 'stopTracking', 'setHost']) {
+      if (!new RegExp(`export (async )?function ${sym}\\b`).test(owner))
+        return `${OWNER} no longer exports ${sym}() — the take commit has lost its owner`;
+    }
+    // The guard the duplication kept losing. Both halves must survive any refactor of stopTracking.
+    if (!/recDocKey/.test(owner) || !/docKey\(\) *!== *recDocKey/.test(owner))
+      return `${OWNER}.stopTracking() lost the doc-key guard across its two awaits — a take can land in a document nobody recorded into`;
+    // THE APPEND, and only the append — `xTakes: [...prev, take]`. That is the commit, and the thing
+    // that was duplicated. Deliberately NOT every write: removing a take from the Media library and
+    // rewriting its path on a relink are `filter`/`map` over an existing list, they are not gestures,
+    // and handleTimelineChange's own header requires them to keep calling setTimeline directly. Reads
+    // (`timeline.lightingTakes ?? []` in a panel) are of course fine and common.
+    const APPEND = /(?:lightingTakes|trackingTakes) *: *\[ *\.\.\./;
+    const problems = [];
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins')]) {
+      if (f === OWNER) continue;
+      const m = read(f).match(APPEND);
+      if (m) problems.push(`${f} appends to a take list itself (${m[0].trim()}) — commit through services/takeRecorder`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Plugins: the lidar barrel is the ONLY door ────────────────────────────────────────────────
+check(
+  'host code imports @artlux/plugin-lidar-tracking through its barrel only',
+  'tsconfig.json AND electron.vite.config.ts both alias the `/*` SUBPATH as well as the bare ' +
+  'specifier, so `@artlux/plugin-lidar-tracking/trackingStore` typechecks, builds and runs — and ' +
+  'gives you a SECOND MODULE IDENTITY. Every singleton in that plugin then exists twice: the OSC tap ' +
+  'writes one trackingStore while the recorder, the 3D viz and the projector bridge read an empty ' +
+  'other. Nothing throws; the tracker is simply "not working". The barrel\'s own header has warned ' +
+  'about this since it was written, and nothing enforced it — which mattered more the moment ' +
+  'services/takeRecorder became a fourth host consumer.',
+  () => {
+    const DEEP = /from ['"]@artlux\/plugin-lidar-tracking\/[^'"]+['"]/;
+    const problems = [];
+    for (const f of [...walk('src'), ...walk('shared')]) {
+      const m = read(f).match(DEEP);
+      if (m) problems.push(`${f} deep-imports the lidar plugin (${m[0].trim()}) — import from '@artlux/plugin-lidar-tracking'`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Fixtures: ONE owner of "what KIND of fixture is this?" ────────────────────────────────────
 check(
   'fixture kind is decided only by fixtureKind.ts',

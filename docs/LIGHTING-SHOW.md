@@ -208,7 +208,8 @@ The arm is optional and additive, so an older build ignores it and still fires t
 > select a light → place it in 3D → aim it → change its parameters → **Store Key**
 
 Everything before the last step is fixture and 3D work. `Store Key` (the **3D** action bar, next to
-*Save Pose* and *Record Lighting Take*) is the last step, and it asks one question: *what does the
+*Save Pose* and *Record Lighting Take* — the same capture at three time scales: one instant, one named
+instant, one stream) is the last step, and it asks one question: *what does the
 group look like right now, and where on the timeline does that go?*
 
 [lightingStoreKey.ts](../src/renderer/services/lightingStoreKey.ts) is **pure** — it decides, the
@@ -301,20 +302,28 @@ clip, on the wire: `[71,71]` → fire → `[184,184]`.
 
 ## Recording
 
-**Do it in Venue & Rig** (the `3d` context) — the workbench this loop was shaped around. Select the heads
-in the 3D scene, aim them, then either press **Record Lighting Take** on the action bar or pull the
-**timeline drawer** up with **Ctrl+T** and use **Record move** in the Takes bin. Both drive the same
-`services/lightingRecorder` singleton, so they cannot disagree about whether it is armed; the action bar
-is just the version that does not make you hunt for the bin. The drawer is why no separate light-show
-context was needed: the rig, the channel strip and the lanes are on screen together.
+**Do it in Venue & Rig** (the `3d` context) — the workbench this loop was shaped around, because it is
+where you can see the heads you are busking. Select them in the 3D scene, aim them, then use any of:
+
+- the **Lighting Takes** dock panel — its *Arm* line tells you how many fixtures are armed before you
+  commit, and it holds **✕ Cancel** for a take you want to throw away;
+- **Record Lighting Take** on the action bar, which shows REC and an elapsed clock while capturing;
+- **Ctrl+Shift+R**, from any workspace at all.
+
+All three drive the same `services/lightingRecorder` singleton, so they cannot disagree about whether
+it is armed, and all three commit through `services/takeRecorder`, so the finished take always lands in
+the document you were recording into. The **status bar** carries a REC light naming that document
+(`REC lighting → Act 2`); clicking it stops. The Lighting Takes panel is also in **Scenes & Cues**,
+where a scene's own timeline is authored.
 
 Select the fixtures first: *their selection order becomes the take*, and therefore the order any later
-phase spread runs along.
+phase spread runs along. With nothing selected the recorder refuses and says why.
 
 Capture is **independent of the transport** — you busk the look with the playhead stopped, press
-stop, and the take appears in the bin ready to drop into a clip's *Source*. It records the RESOLVED
-fixture signal (the packer's own output), so a take comes out in the same role space it will be
-replayed in.
+stop, and the take appears in the panel's library ready to drag onto a lighting lane or pick in a
+clip's *Source*. It records the RESOLVED fixture signal (the packer's own output), so a take comes out
+in the same role space it will be replayed in. Each take lists its length, its part count and **the
+roles it actually carries** — which is not decoration; see the second bullet below.
 
 Two things happen at stop, and both matter more than they look:
 
@@ -326,7 +335,9 @@ Two things happen at stop, and both matter more than they look:
   pan-only busk must yield a pan-only take, so clips compose the way a console's effects do.
 
 Recording refuses to start while a lighting clip is already driving the rig, so a take can never be a
-recording of its own replay.
+recording of its own replay. That refusal — and the "nothing was selected" one, and "nothing moved, so
+there is no take" — arrive as **toasts**: a recorder you can arm from a keyboard shortcut in a
+workspace with no visible record button cannot fail silently.
 
 ### The fitter
 

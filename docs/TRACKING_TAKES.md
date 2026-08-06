@@ -43,12 +43,21 @@ plugins/lidar-tracking/src/
   trackingRecorder.ts  taps trackingStore.subscribe; start/stop/isRecording/getElapsed; builds a take
   trackingPlayback.ts  subscribes to engine playhead; injects frames; sets/clears the replay override
   trackingStore.ts     +setReplaySource/isReplaySource + the ingest() gate (live OSC suppression)
+src/renderer/services/
+  takeRecorder.ts      THE ONE OWNER of the commit: naming, the .lblob write, the copy-in, the doc-key
+                       guard across both awaits, the replay cache seed, the ref append + the auto-lane
+src/renderer/contexts/panels/takes.tsx
+  TrackingTakesDock    record/cancel/lane + the take library (rename, sparkline, drag out)
 src/renderer/components/timeline/
-  TakesBin.tsx         record control + draggable take chips (strip under the timeline toolbar)
-  BlobSparkline.tsx    per-clip blob-density signature (the take analogue of the video Filmstrip)
-  Timeline.tsx         addTrackingLane, take→clip drop, record handlers (copy-in to assets/tracking)
+  BlobSparkline.tsx    blob-density signature — drawn on the clip AND on the take row
+  Timeline.tsx         take→clip drop (placement only; recording left the timeline)
 src/renderer/services/timeline.ts   frame loop skips kind:'tracking' layers; setData skips .lblob clips
 ```
+
+The recorder is a UI-agnostic singleton and the commit is a host service, so the record button is not
+tied to any one surface: the dock panel, the Venue & Rig action bar, the status-bar REC chip and the
+global shortcut all call the same `takeRecorder.toggleTracking()`. That is what let the control leave
+the timeline — the drawer was never the reason it lived there, the commit logic was.
 
 ### The `.lblob` take format
 A take is a compact JSON sidecar:
@@ -78,12 +87,22 @@ stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and
 
 ## Usage
 
-1. **Record.** Pull the timeline drawer up (**Ctrl+T**). In the **Takes** strip under the toolbar press
-   **● Record** — it captures the live blob feed (independent of Play/Pause). Press **■** to stop; a
-   take chip appears and a **Tracking** lane is created if absent. Recording is blocked while a take
-   is already playing under the playhead (so you never record replayed data).
-2. **Place.** Drag a take chip from the bin (or from the **Media** library) onto the tracking lane.
-   It becomes a clip with a green blob-density sparkline; move/trim it like any clip.
+1. **Record.** Capture is independent of Play/Pause — the playhead can be stopped, and usually is. Any
+   of three doors, all the same recorder:
+   - the **Tracking Takes** dock panel (in **Venue & Rig** and on the **Show** deck) — press **● Record**,
+     press **■** to stop, or **✕ Cancel** to throw the capture away;
+   - **Record Tracking Take** on the Venue & Rig action bar, which shows REC and an elapsed clock;
+   - **Ctrl+Alt+R**, which works in *every* workspace — Calibration and Preferences included, where
+     there is no timeline drawer at all.
+
+   While anything is recording, the **status bar** carries a REC light naming what is being captured
+   and **which document it will land in** (`REC tracking → Act 2`); clicking it stops. On stop the take
+   is written to disk, copied into the project, and a **Tracking** lane is created if there is none.
+   Recording is refused while a take is already playing under the playhead (you would be recording
+   replayed data) — the refusal says so in a toast.
+2. **Place.** Drag a take out of the **Tracking Takes** panel (or the **Media** library) onto the
+   tracking lane. It becomes a clip with a green blob-density sparkline — the same signature the take
+   row carries — and moves/trims like any clip. Click a take's name to rename it.
 3. **Replay.** With the tracker disconnected, press **Play** (or scrub) — the recorded blobs drive
    the 3D Scene and any TRACKING projector outputs. Past the clip's end the blobs clear.
 4. **Mixing with a live tracker.** While a take plays, the live feed is globally suppressed; it
@@ -94,8 +113,12 @@ stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and
 ## Verify
 
 `npx tsc --noEmit` → `npm run build` → launch `env -u ELECTRON_RUN_AS_NODE npm run dev`.
-With an OSC blob sender feeding port `10000` (or the real tracker), record ~10 s, stop, confirm a
-`.lblob` lands in `assets/tracking/` and the chip shows a sparkline. Drop it on the tracking lane;
+With an OSC blob sender feeding port `10000` (or the real tracker), record ~10 s from the **Tracking
+Takes** dock (and once more with **Ctrl+Alt+R** from **Preferences**, which is the reachability the
+move exists for), stop, confirm a `.lblob` lands in `assets/tracking/` and the take row shows a
+sparkline. Also confirm the doc-key guard: stop a recording bound to one scene and recall another
+*while the file is being written* — nothing may be written into the scene you did not record into.
+Drop the take on the tracking lane;
 **disconnect the sender** and confirm Play/scrub replays the blobs in the Scene and projector; past
 the clip the blobs clear and (reconnecting the sender) live resumes. Save → reload and confirm the
 take + clip restore.

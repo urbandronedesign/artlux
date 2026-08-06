@@ -199,19 +199,28 @@ there, advance when someone walks in* — instead of a visitor cutting the film 
 A **take** records the live blob feed so you can author, rehearse and run an interactive show with no
 tracker present — replay is indistinguishable from the live feed.
 
-1. **Record** — **Timeline** dock ▸ the **Takes** strip under the toolbar ▸ **● Record** (captures the
-   feed independently of Play/Pause). Press **■** to stop; a take chip appears and a green **Tracking**
-   lane is created.
-2. **Place** — drag the take onto the tracking lane (or from the **Media** library). It shows a
-   blob‑density sparkline; move/trim it like any clip.
+1. **Record** — the **Tracking Takes** dock tab ▸ **● Record**. It captures the feed independently of
+   Play/Pause, so the playhead can (and usually should) be stopped. Press **■** to stop, or **✕ Cancel**
+   to throw the capture away; on stop the take appears in the panel and a green **Tracking** lane is
+   created if there is none.
+
+   The panel is in **Venue & Rig** and on the **Show** deck. Two other doors reach the same recorder:
+   *Record Tracking Take* on the Venue & Rig action bar, and **`Ctrl+Alt+R`**, which works in *every*
+   workspace — including Calibration, which matters on site, where you are often nowhere near a
+   timeline. While it runs, the **status bar** shows a REC light naming the take's destination; click it
+   to stop. If recording refuses (a take is already playing under the playhead, which would record
+   replayed data), it tells you so.
+2. **Place** — drag the take out of the panel onto the tracking lane (or drag it from the **Media**
+   library). It shows the same blob‑density sparkline the take row does; move/trim it like any clip.
+   Click a take's name in the panel to rename it.
 3. **Replay** — with the tracker disconnected, **Play** or scrub: the recorded blobs drive the 3D
    scene, the trigger zones, and any *Tracking* projector outputs. Past the clip the blobs clear.
 4. **Mixing with a live tracker** — while a take plays, the live feed is globally suppressed and
    resumes automatically once no take is under the playhead. Entering/leaving a take re‑arms every
    zone, so no phantom enter/exit fires across the boundary.
 
-Takes are portable assets — they save into the project's `assets/tracking/` folder. See
-[the timeline drawer ▸ Tracking takes](06-timeline.md#tracking-takes-record--replay-lidar-without-the-tracker).
+Takes are portable assets — they save into the project's `assets/tracking/` folder. For the lane a take
+is placed on, see [the timeline ▸ Takes on a lane](06-timeline.md#takes-on-a-lane-replay-lidar-and-lighting-without-the-source).
 
 ---
 

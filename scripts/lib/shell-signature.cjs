@@ -10,9 +10,13 @@
 // so when it has moved. It REPORTS rather than fails: a one-line CSS change in the shell should make
 // the screenshots suspect, not block a merge behind a three-minute app run.
 //
-// Deliberately narrow. These four files are the shell's shape — the rail, the workbench manifests, the
-// hand-built fallback layout, and the dock tree that actually renders. A change in a leaf panel moves
-// one screenshot; a change in these moves all of them.
+// Deliberately narrow. These are the shell's shape — the rail, the workbench manifests, the hand-built
+// fallback layout, the dock tree that actually renders, and the two PERMANENT STRIPS above and below
+// them. A change in a leaf panel moves one screenshot; a change in these moves all of them.
+//
+// The action bar and the status bar were added after a REC indicator landed in both: they are in every
+// screenshot in the guide by construction, and the hash was silently blind to them — you could put a
+// permanent new light in the chrome of all ~18 pictures and this would report "unchanged".
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -25,6 +29,8 @@ const SHELL_FILES = [
   'src/renderer/components/shell/WorkspaceShell.tsx',
   'src/renderer/components/shell/ContextRail.tsx',
   'src/renderer/components/shell/DockRenderer.tsx',
+  'src/renderer/components/shell/ActionBar.tsx',
+  'src/renderer/components/StatusBar.tsx',
 ];
 
 function shellSignature() {

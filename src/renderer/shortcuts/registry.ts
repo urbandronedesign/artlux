@@ -45,6 +45,13 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'global.clearNvwarp', label: 'Clear all NV warp/blend', category: 'View',    scope: 'global', defaultBinding: ['Ctrl+Shift+W'] },
   { id: 'global.nextContext', label: 'Next workspace',       category: 'Navigation', scope: 'global', defaultBinding: ['Ctrl+Tab'] },
   { id: 'global.prevContext', label: 'Previous workspace',   category: 'Navigation', scope: 'global', defaultBinding: ['Ctrl+Shift+Tab'] },
+  // Recording is a PERFORMANCE gesture against the live rig, so it answers from every workbench —
+  // including Calibration and Preferences, which have no timeline drawer and so had no route to a
+  // recorder at all. NOT bare 'R', and NOT Ctrl+R: Ctrl+R is a registered main-process Reload
+  // accelerator (main/menu.ts) that fires before the renderer sees the key — it would hard-reload the
+  // app mid-take. Both toggle; refusals surface as a toast, never a silent no-op.
+  { id: 'global.recordLighting', label: 'Record lighting take', category: 'Recording', scope: 'global', defaultBinding: ['Ctrl+Shift+R'], description: 'Toggles. Captures the SELECTED fixtures — their selection order becomes the take.' },
+  { id: 'global.recordTracking', label: 'Record tracking take', category: 'Recording', scope: 'global', defaultBinding: ['Ctrl+Alt+R'], description: 'Toggles. Captures the live tracker feed, independent of the transport.' },
 
   // ── State-graph editor (active when the Show state-machine graph is focused) ──────────────────────
   { id: 'stategraph.deleteSelected', label: 'Delete state / transition / region', category: 'Editing', scope: 'stategraph', defaultBinding: ['Delete', 'Backspace'] },

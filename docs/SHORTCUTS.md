@@ -32,6 +32,17 @@ direct workspace jumps, and **Esc-to-cancel/close** everywhere. These are not sh
 View. The View-menu entry shows the label but does not register the accelerator, so a rebind takes
 effect. See [WORKSPACE.md](WORKSPACE.md#the-full-width-bottom-drawer-workspacecontextbottom).)
 
+**The Recording pair are deliberately Global scope.** `Ctrl+Shift+R` (lighting) and `Ctrl+Alt+R`
+(tracking) fire in *every* workbench, Calibration and Preferences included — those two declare no
+timeline drawer, so before recording left the timeline they had no route to a recorder at all. Both
+toggle, and a refusal ("nothing selected", "a clip is already driving the rig", "a take is already
+playing") arrives as a toast: a shortcut you can press where there is no visible record button must
+never fail silently. The status bar's REC light will stop them from anywhere too.
+
+> Neither is a bare letter, and neither is `Ctrl+R`. **`Ctrl+R` is a registered Reload accelerator** in
+> the native menu — it is handled before the renderer ever sees the key, so binding a recorder to it
+> would hard-reload the app in the middle of a take. Worth knowing if you rebind these yourself.
+
 <!-- audience:contributor -->
 
 ## For developers — how it works

@@ -16,8 +16,10 @@ workspace contexts declare (`WorkspaceContext.bottom`), collapsed to a 28px stri
 **Ctrl+T** / **View ▸ Timeline** / a click on the strip. Open/closed and height are remembered **per
 workbench**, so Mapping can keep it up while Venue & Rig keeps it down.
 
-This is the point: you cut against the 2D stage, record a **lighting take** against the 3D rig, and
-author a scene's timeline from the cue grid — all without giving up the viewport you were working in.
+This is the point: you cut against the 2D stage, place a recorded take on a lane while the rig is on
+screen in 3D, and author a scene's timeline from the cue grid — all without giving up the viewport you
+were working in. (RECORDING a take is no longer one of these examples: capture is transport-independent,
+so it left the drawer for the Lighting Takes / Tracking Takes dock panels. Placing one did not.)
 It also means `TimelinePanel` **never remounts on a context switch** (it did, every time, while the
 timeline was a context of its own — losing zoom, scroll and clip selection). Canonical:
 [WORKSPACE.md → the full-width bottom drawer](WORKSPACE.md#the-full-width-bottom-drawer-workspacecontextbottom).
@@ -48,8 +50,7 @@ src/renderer/components/timeline/
   Lane.tsx             one track's clip lane: drop target, hosts ClipBlocks
   ClipBlock.tsx        one clip: move/trim/blade hit zones, hosts the Filmstrip / BlobSparkline (React.memo)
   Filmstrip.tsx        imperative <canvas> of thumbnails; decoupled from React render
-  TakesBin.tsx         LiDAR take recorder control + draggable take chips (v0.14.0)
-  BlobSparkline.tsx    per-clip blob-density signature for tracking-take clips (v0.14.0)
+  BlobSparkline.tsx    blob-density signature for tracking takes — on the clip and on the take row (v0.14.0)
   StateLane.tsx        always-present control lane: live state, manual-trigger buttons, time markers
   StateGraphEditor.tsx modal node-graph editor: states (draggable), transitions, entry actions/triggers
   AudioLane.tsx        one audio track's lane (Timeline.audio): clips, waveform, drag/trim/blade, fade handles, gutter
@@ -462,10 +463,11 @@ Scoped to when the timeline panel is hovered/focused, suppressed while typing in
 A special **tracking lane** (`VideoLayer.kind:'tracking'`) holds recorded LiDAR-blob **takes** instead
 of video. The engine's `frame()` loop skips `kind:'tracking'` layers and `setData` skips `.lblob`
 clips — replay is handled by a separate `trackingPlayback` service (the engine stays decoupled from
-the tracking store). Takes are recorded from the **Takes** strip, placed as `kind:'tracking'` clips
-(rendered with a `BlobSparkline` instead of a Filmstrip), and replayed into the tracking store as the
-playhead crosses them. Full design in [TRACKING_TAKES.md](TRACKING_TAKES.md); takes are managed in the
-[asset library](ASSETS.md).
+the tracking store). Takes are recorded from the **Tracking Takes** dock panel (or **Ctrl+Alt+R**),
+dragged onto the lane as `kind:'tracking'` clips (rendered with a `BlobSparkline` instead of a
+Filmstrip), and replayed into the tracking store as the playhead crosses them. The timeline owns the
+PLACEMENT, not the capture. Full design in [TRACKING_TAKES.md](TRACKING_TAKES.md); takes are also
+listed in the [asset library](ASSETS.md).
 
 <!-- audience:contributor -->
 

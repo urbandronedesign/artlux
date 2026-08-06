@@ -94,8 +94,9 @@ put them. See [Making it yours](#making-it-yours).
 - **Help (modal)** — **F1**, a tooltip's **?** link, or **Help › Help…**. One searchable page over
   the topic guides and every function's help, with an **EN / FR** toggle that is remembered.
   Contextual help for whatever you hover stays live in the status bar.
-- **Status bar (bottom)** — a hint for the current workbench, FPS, output state, and the toggles
-  that hide the side columns.
+- **Status bar (bottom)** — a hint for the current workbench, a **REC** light while a take is being
+  recorded (it names the document the take will land in, and stops recording when clicked), FPS,
+  output state, and the toggles that hide the side columns.
 
 ### Making it yours
 
@@ -371,8 +372,8 @@ the static look, not effects, media or patch.
 ## 11. The timeline & state machine
 
 Pull the **timeline drawer** up with **Ctrl+T** — it spans the full window width under whichever
-workbench you are in, so you can cut against the 2D stage or record a lighting take against the 3D rig
-without leaving either. (Press **F** to maximize it full-screen; drag its top edge to resize; each
+workbench you are in, so you can cut against the 2D stage or drop a recorded take onto a lane with the
+3D rig in front of you, without leaving either. (Press **F** to maximize it full-screen; drag its top edge to resize; each
 workbench remembers whether you had it open.) It's a DaVinci-style editor for sequencing video on tracks (layers); point a surface's
 content at a **Layer** to show it.
 
@@ -395,11 +396,13 @@ Out** buttons and draggable ruler handles set the region without needing the **I
 **Navigation:** **mouse wheel** zooms toward the cursor, **Shift+wheel** scrolls horizontally, and
 **middle-button drag** pans in any direction.
 
-**Tracking takes (record & replay LiDAR without the tracker):** the **Takes** strip under the toolbar
-records the live LiDAR blob feed into reusable *takes*, so you can rehearse and run an interactive
-show with no tracker connected.
-- **Record** — press **● Record** to capture the live feed (independent of Play/Pause), **■** to stop.
-  A take chip appears and a green **Tracking** lane is created.
+**Tracking takes (record & replay LiDAR without the tracker):** record the live LiDAR blob feed into
+reusable *takes*, so you can rehearse and run an interactive show with no tracker connected.
+- **Record** — from the **Tracking Takes** dock (Venue & Rig, or the Show deck), from *Record Tracking
+  Take* on the Venue & Rig action bar, or with **Ctrl+Alt+R** anywhere. Capture is independent of
+  Play/Pause. Press **■** to stop: the take appears in the panel and a green **Tracking** lane is
+  created. A **REC** light in the status bar shows what is recording and where it will land, and stops
+  it when clicked.
 - **Place** — drag a take onto the tracking lane (or drag it from the **Media** library). It shows a
   blob-density sparkline; move/trim it like any clip.
 - **Replay** — with the tracker disconnected, **Play** or scrub: the recorded blobs drive the 3D Scene
@@ -539,8 +542,8 @@ The left panel's **Media** tab is the project's media hub — video, images, 3D 
 tracking takes in one place.
 
 - **Import** — the **Video / Image / Model** buttons copy the chosen files **into** the project's
-  `assets/` folder (so the project stays portable). Recorded **takes** appear here automatically
-  (recorded from the Timeline — [§11](#11-the-timeline--state-machine)).
+  `assets/` folder (so the project stays portable). Recorded **takes** appear here automatically —
+  they are recorded from the **Tracking Takes** dock, or with **Ctrl+Alt+R**, not imported.
 - **Browse** — filter by type, search by name. Each tile shows a thumbnail (a video frame, the image,
   a take's blob-density, or a model glyph) and a badge: **used N×**, **unused**, or **⚠ missing**.
 - **Place** — **drag a tile** onto a Stage surface (sets its video/image content) or onto a Timeline

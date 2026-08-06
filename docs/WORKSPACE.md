@@ -131,7 +131,7 @@ survives only as a one-time migration input (see below).
 | Cluster | Context | Viewport | What it is for |
 |---|---|---|---|
 | **Build** | `mapping` | 2D stage | surfaces **and** fixtures — placement, content, patch, DMX; media library + program monitor in the dock |
-| | `3d` | `Simulator3D` | venue layout, models, the rig, lighting, tracking overlays, lighting takes |
+| | `3d` | `Simulator3D` | venue layout, models, the rig, lighting, tracking overlays; **both take recorders** live in its dock (Lighting Takes / Tracking Takes) and on its action bar |
 | **Align** | `project` | outputs table | bind displays, warp, blend, span, gamma; previews in the dock |
 | | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside. **Registered only under the calibration launch profile** — see below |
 | **Show** | `scenes` | `CueBankPanel` | capture scenes, fire them from the grid; program preview + both clocks on the left |
@@ -155,10 +155,12 @@ Seven of these are worth knowing the history of, because the shape was arrived a
 - **`timeline` was dissolved** (2026-07-26), having itself replaced `media` ("Media & Content" was only a
   media browser beside the stage). It led the Build cluster in the NLE shape: a program monitor on top,
   lanes across the full width underneath. What killed it is that **the timeline is a tool, not a place**
-  — you want it while cutting against the 2D stage, while recording a lighting take against the 3D rig,
-  while authoring a scene's timeline from the cue grid — and reaching it cost you the viewport you were
-  working in. That is also why a 12th `light` context looked necessary for the light-show workflow: a
-  rail entry was the only way to get the 3D scene and the timeline on screen together.
+  — you want it while cutting against the 2D stage, while placing a recorded take on a lane with the rig
+  in front of you, while authoring a scene's timeline from the cue grid — and reaching it cost you the
+  viewport you were working in. That is also why a 12th `light` context looked necessary for the
+  light-show workflow: a rail entry was the only way to get the 3D scene and the timeline on screen
+  together. (This argument once cited *recording* a lighting take. It no longer does: capture is
+  transport-independent, so it left the drawer entirely — see the takes panels below.)
 
   So the timeline became every context's **bottom drawer**, and this context had nothing left of its own:
   its program monitor is the `core.dock.programPreview` tab (the same full-bleed `ProgramMonitorViewport`
@@ -171,7 +173,20 @@ Seven of these are worth knowing the history of, because the shape was arrived a
   3D scene is where live blobs are drawn. Being *in* the 3D scene is the better version of that. Its
   three plugins contributed only **dock tabs**, and `3d` had no dock at all, so the region was free; they
   now `extend('3d', …)`. `3d` was retitled **Venue & Rig** and is where a light show is prepped: pick
-  heads, aim them, pull the drawer up, record a take against the rig you can see.
+  heads, aim them, record a take against the rig you can see — from the **Lighting Takes** dock beside
+  the viewport, not from a drawer.
+- **The Takes bin left the timeline** (2026-08-06). Both recorders — lighting and LiDAR — used to live in
+  a 40px strip under the timeline toolbar, so capturing a moving head meant pulling up a drawer full of a
+  clock you were not using. Both capture INDEPENDENTLY OF THE TRANSPORT, which is the tell: the drawer was
+  never the reason they lived there, the commit logic was (`Timeline.tsx` owned the naming, the disk
+  write and the doc-key guard, so the button had to be inside it). That moved to
+  `services/takeRecorder`, and the controls became **two dock panels** — `core.dock.lightingTakes` (in
+  `3d` and `scenes`) and `core.dock.trackingTakes` (in `3d` and `show`) — plus two action-bar buttons
+  carrying live REC, a status-bar REC light that stops everything, and **Ctrl+Shift+R** / **Ctrl+Alt+R**,
+  which arm from *every* workspace including Calibration and Preferences (which have no drawer at all).
+  Two panels and not one because the recorders are different instruments: a lighting take is scoped to
+  the SELECTED fixtures and their order is the show, a tracking take has no target at all. Placement did
+  not move — you still drag a take onto a lane, and the dock sits directly above the drawer.
 - **`settings` was the Preferences modal**, and it is the only context in its own `app` cluster (a rule
   separates it on the rail, last). Preferences started as a 460px dialog over output protocol + engine
   and grew into appearance, unattended watchdog, GPU probing and every plugin's `SettingsSection` — a
@@ -216,6 +231,9 @@ item or a floating window:
 | Fixture Editor | **split by what is unique to it** (2026-07-27, `mapping` `layoutRev` 5). `core.dock.fixtureEditor` is **retired**; five of its seven cards were a second rendering of the kind-gated inspector. What survived is two dock tabs — **Library** (`core.dock.fixtureLibrary`: create, templates, groups) and **Wiring & Ledmap** (`core.dock.fixtureWiring`: the physical-index preview + the ledmap, `appliesTo: ['fixture.pixel']`). Everything else is the parameter column |
 | Routing | **Mapping** — dock tab |
 | The timeline (was its own rail entry) | **the bottom drawer** — `Ctrl+T`, View ▸ Timeline, or click the collapsed strip. Available in every context except Calib and Prefs |
+| Recording a **lighting take** (was the Takes bin in the timeline drawer) | **3D** / **Cues** — the `Lighting Takes` dock tab. Also *Record Lighting Take* on the 3D action bar (with a live REC clock), the status-bar REC light, or **`Ctrl+Shift+R`** from anywhere |
+| Recording a **tracking take** (was the same bin) | **3D** / **Show** — the `Tracking Takes` dock tab. Also *Record Tracking Take* on the 3D action bar, or **`Ctrl+Alt+R`** from anywhere |
+| The take **libraries** (were chips in the bin) | the same two dock tabs — now with rename, duration, the roles a lighting take carries, and a blob-density signature on a tracking take. Still the drag source for a lane |
 | Media library, Asset Manager | **Mapping** — dock tab (`Media Library`); also **Audio** — browser column. The Asset Manager was deleted; its per-asset inspector (size, dimensions, path, and the resolved **Usage** list) is the bottom section of the library |
 | The program monitor (was the Timeline context's viewport) | **Mapping** / **Proj** / **Show** — the `Program` dock tab, same full-bleed component |
 | Outputs… (was a modal) | **Proj** — the viewport; live per-output previews in the dock |

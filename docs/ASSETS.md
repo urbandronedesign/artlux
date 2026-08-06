@@ -133,8 +133,9 @@ Folder…" menu item is merged away.
 ## Usage
 
 - **Open the library:** left sidebar → **Media** tab (toggle **Scene ⇄ Media**).
-- **Import:** the **Video / Image / Model / Audio** buttons copy files into the project. (Takes are
-  recorded from the Timeline's Takes bin — see [TRACKING_TAKES.md](TRACKING_TAKES.md).)
+- **Import:** the **Video / Image / Model / Audio** buttons copy files into the project. (Takes are not
+  imported — they are recorded, from the **Tracking Takes** dock or with **Ctrl+Alt+R**, and appear here
+  by themselves. See [TRACKING_TAKES.md](TRACKING_TAKES.md).)
 - **Scan:** copied media into `assets/` outside the app? Click **⟳ Scan** to adopt it into the library
   (see [Scan](#scan-media-added-by-hand) — it reads the folder, it never writes it).
 - **Browse:** the **search box spans the top of the column**; filter by type below it; badges show

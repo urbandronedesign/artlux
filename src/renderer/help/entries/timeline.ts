@@ -13,29 +13,35 @@ export const timelineHelp: HelpEntry[] = [
     group: 'Timeline',
     keywords: ['lighting', 'movement', 'chase', 'effect', 'phaser', 'moving head', 'dmx'],
   },
+  // The Lighting Takes dock. These ids keep their `timeline.` prefix although the controls left the
+  // timeline — see the note on the tracking entries in timelineAudio.ts.
   {
     id: 'timeline.lighting-record',
     title: 'Record movement',
     short: 'Capture what you are doing to the selected fixtures, live, as a reusable take.',
     body: 'Select the fixtures first — THEIR SELECTION ORDER becomes the take, and therefore the order any '
-      + 'later phase spread runs along. Recording is independent of the transport: busk the look with the '
-      + 'playhead stopped, press stop, and the take appears here ready to drop into a lighting clip. It '
-      + 'captures in role space (pan/tilt in degrees), so the take can later drive DIFFERENT fixtures — a '
-      + 'move recorded on a 540° head replays at the same angle on a 630° one. Roles that never moved are '
-      + 'dropped, so a pan-only busk yields a pan-only take that layers cleanly under a colour clip.',
-    group: 'Timeline',
+      + 'later phase spread runs along; the Arm line above the button says how many are armed. Recording is '
+      + 'independent of the transport: busk the look with the playhead stopped, press stop, and the take '
+      + 'appears below ready to drop onto a lighting lane or pick in a clip’s Source. It captures in role '
+      + 'space (pan/tilt in degrees), so the take can later drive DIFFERENT fixtures — a move recorded on a '
+      + '540° head replays at the same angle on a 630° one. Roles that never moved are dropped, so a '
+      + 'pan-only busk yields a pan-only take that layers cleanly under a colour clip. Ctrl+Shift+R arms it '
+      + 'from any workspace, and the status bar carries a REC light you can click to stop.',
+    group: 'Takes',
     keywords: ['record', 'take', 'busk', 'movement', 'capture', 'lighting'],
   },
   {
     id: 'timeline.lighting-take-chip',
     title: 'Lighting take',
-    short: 'A recorded movement. Pick it in a lighting clip’s Source.',
-    body: 'Shows the take name and how many PARTS it has. One part is a single movement that fans across '
-      + 'the whole group; several parts is a recorded multi-fixture chase, kept intact — part 1 drives '
-      + 'fixture 1 of the target group, wrapping if the group is longer. Deleting a take reverts any clip '
-      + 'using it to a generated movement rather than leaving a silent clip behind.',
-    group: 'Timeline',
-    keywords: ['take', 'lighting', 'parts', 'chase'],
+    short: 'A recorded movement. Drag it onto a lighting lane, or pick it in a clip’s Source.',
+    body: 'Shows the take’s length, how many PARTS it has, and WHICH ROLES it drives. One part is a single '
+      + 'movement that fans across the whole group; several parts is a recorded multi-fixture chase, kept '
+      + 'intact — part 1 drives fixture 1 of the target group, wrapping if the group is longer. The role '
+      + 'list matters: a take only carries the roles that actually moved, which is what lets a pan take '
+      + 'layer over a colour take instead of fighting it. Click the name to rename. Deleting a take reverts '
+      + 'any clip using it to a generated movement rather than leaving a silent clip behind.',
+    group: 'Takes',
+    keywords: ['take', 'lighting', 'parts', 'chase', 'roles', 'rename'],
   },
   {
     id: 'timeline.play',

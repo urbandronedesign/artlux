@@ -294,9 +294,15 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 
 ## Not yet (see ROADMAP.md)
 
-- `settingsSection` + `panel` registries exist but have **no consumer yet** — the natural candidates
-  are shared core infra (OSC settings) or deeply timeline-coupled (TakesBin), so they wait for a
-  host-services surface rather than being force-fit.
+- `settingsSection` still has **no consumer** — its natural candidate is shared core infra (OSC
+  settings), so it waits for a host-services surface rather than being force-fit. (`panel` no longer
+  belongs on this list: core registers the two take docks through it, and the calibration and
+  show-control plugins register their own.)
+- **The Tracking Takes panel is host-registered, and should not be.** The recorder is the lidar
+  plugin's, but the finished take is committed into `Timeline.trackingTakes`, and `RendererHostServices`
+  has no way to write a timeline. Until a `host.takes` service exists (the shape `host.show` already
+  set), `src/renderer/contexts/panels/takes.tsx` stays core and imports the plugin barrel — the same
+  transitional arrangement `TakesBin` had.
 - **Calibration is fully inverted (Stage 1 → 3).** Engine + logic + host-services + back-channel; wizard
   UIs co-located; write path via `calibHost.ts`; pose-pairing orchestration in `calibWorkspace.ts`; and
   the projector-side rendering (pattern / crosshair / render-from-projector) in `CalibProjector.tsx` via a

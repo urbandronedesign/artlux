@@ -9,17 +9,24 @@ import { helpBus } from '../../services/helpBus';
 //
 // An action either names a host `menuAction` (reusing the ~30 functions already wired through App's
 // dispatchMenu — open, save-as, routing, preferences, collect-assets…) or carries its own `run()`.
-// Both go through the stable actions facade, so this bar re-renders only when the context or the
+// Both go through the stable actions facade, so the bar re-renders only when the context or the
 // selection changes, never when the rig state moves underneath it.
+//
+// The one exception is an action with a `live` channel (a recorder's REC state): it subscribes, so a
+// start or a stop re-renders THAT BUTTON alone. The bar itself still does not move.
 
 interface Props {
   context: WorkspaceContext<WorkspaceLayout>;
   selection: SelectionSnapshot;
 }
 
-const ActionButton: React.FC<{ action: ContextAction; selection: SelectionSnapshot }> = ({ action, selection }) => {
+// The shared shell of a bar button. `live` supplies the run-time overrides; without one, everything
+// below is just the declared action.
+const ButtonShell: React.FC<{
+  action: ContextAction; enabled: boolean; label: string; active?: boolean;
+  clockRef?: React.Ref<HTMLSpanElement>;
+}> = ({ action, enabled, label, active, clockRef }) => {
   const actions = useEditorActions();
-  const enabled = action.enabled ? action.enabled(selection) : true;
   const run = () => {
     if (action.run) action.run();
     else if (action.menuAction) actions.menuAction(action.menuAction);
@@ -28,15 +35,60 @@ const ActionButton: React.FC<{ action: ContextAction; selection: SelectionSnapsh
     <button
       onClick={run}
       disabled={!enabled}
-      title={action.shortcut ? `${action.label} (${action.shortcut})` : action.label}
+      title={action.shortcut ? `${label} (${action.shortcut})` : label}
       onMouseLeave={() => helpBus.set(null)}
       className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-sm text-mini whitespace-nowrap transition-colors disabled:opacity-40 disabled:pointer-events-none ${
-        action.danger ? 'text-fg-2 hover:text-danger hover:bg-surface-3' : 'text-fg-2 hover:text-fg-1 hover:bg-surface-3'
+        active ? 'text-danger bg-danger/15 ring-1 ring-danger/50'
+          : action.danger ? 'text-fg-2 hover:text-danger hover:bg-surface-3' : 'text-fg-2 hover:text-fg-1 hover:bg-surface-3'
       }`}
     >
       {action.icon}
-      {action.label}
+      {label}
+      {/* The clock is written straight into this node by an interval — it is never React state. */}
+      {clockRef && <span ref={clockRef} className="tabular-nums" aria-hidden />}
     </button>
+  );
+};
+
+const ActionButton: React.FC<{ action: ContextAction; selection: SelectionSnapshot }> = ({ action, selection }) => (
+  <ButtonShell action={action} enabled={action.enabled ? action.enabled(selection) : true} label={action.label} />
+);
+
+// An action carrying run-time state (see ContextActionLive). Two channels, deliberately separate:
+//
+//   · WHAT IT IS — active/label/enabled — through useSyncExternalStore, so a start or a stop re-renders
+//     THIS BUTTON and nothing else on the bar. It also means `enabled` is finally re-evaluated while the
+//     app runs: `record-take` used to disable itself mid-recording when the operator deselected, because
+//     its enabled() asked for a fixture selection and nothing ever re-ran it.
+//   · HOW LONG — through a 200 ms interval writing `textContent` on a ref. At 5 Hz through React this
+//     would re-render the action bar for the length of the take, for a string of five characters.
+//     Same discipline as StatusBar's ShowStateChip.
+const LiveActionButton: React.FC<{ action: ContextAction; selection: SelectionSnapshot }> = ({ action, selection }) => {
+  const live = action.live!;
+  const state = React.useSyncExternalStore(live.subscribe, live.get);
+  const clockRef = React.useRef<HTMLSpanElement>(null);
+
+  // Checked ONCE per mount, not per render — a fresh object from get() would loop
+  // useSyncExternalStore forever, and a frozen window is a miserable way to discover that.
+  React.useEffect(() => {
+    if (live.get() !== live.get()) {
+      console.error(`[action-bar] live.get() for '${action.id}' returns a new object each call. It must return a cached reference (see ContextActionLive) or this bar re-renders forever.`);
+    }
+  }, [live, action.id]);
+
+  React.useEffect(() => {
+    if (!state.active || !live.text) { if (clockRef.current) clockRef.current.textContent = ''; return; }
+    const tick = () => { if (clockRef.current) clockRef.current.textContent = live.text!(); };
+    tick();
+    const id = window.setInterval(tick, 200);
+    return () => window.clearInterval(id);
+  }, [state.active, live]);
+
+  // `live.enabled` wins when present — only it can see run-time state, and it is what lets a recorder
+  // say "…but you can always stop what is already running".
+  const enabled = state.enabled ?? (action.enabled ? action.enabled(selection) : true);
+  return (
+    <ButtonShell action={action} enabled={enabled} label={state.label ?? action.label} active={state.active} clockRef={clockRef} />
   );
 };
 
@@ -63,7 +115,11 @@ export const ActionBar: React.FC<Props> = ({ context, selection }) => {
         <React.Fragment key={g.name || `g${i}`}>
           <div className="h-4 w-px bg-line-2 shrink-0" aria-hidden />
           <div className="flex items-center gap-0.5 shrink-0" role="group" aria-label={g.name || context.title}>
-            {g.items.map((a) => <ActionButton key={a.id} action={a} selection={selection} />)}
+            {/* Branching on `a.live` is stable per action id — an action does not gain or lose its live
+                channel at run time — so this never swaps a component type under a mounted hook. */}
+            {g.items.map((a) => (a.live
+              ? <LiveActionButton key={a.id} action={a} selection={selection} />
+              : <ActionButton key={a.id} action={a} selection={selection} />))}
           </div>
         </React.Fragment>
       ))}
