@@ -35,6 +35,14 @@ export interface SmContext {
   // one-frame edge: it stays true for as long as the hold lasts, which is what lets a transition WAIT
   // on it (SmTransition.requireEnd) rather than having to catch a single frame.
   held: boolean;
+  /**
+   * Is the look bound to `sceneId` decoded enough to cut to — i.e. would promoting its pool put a
+   * PICTURE on stage rather than black? For `SmTransition.waitForContent`; see the guard below.
+   *
+   * Cheap and side-effect-free from this module's point of view (the engine's implementation also
+   * re-drives the pre-roll, exactly as the boot gate's polling does).
+   */
+  contentReady: (sceneId: string) => boolean;
   // PLUGIN-OWNED TRIGGERS ('plugin' kind). The FSM asks; it never knows what it is asking about.
   //
   // Passed as a FUNCTION rather than the registry itself, so this module keeps importing nothing but
@@ -129,6 +137,38 @@ function enter(sm: StateMachine, stateId: string, playhead: number, ctx: SmConte
 // opt-in rather than defaulting it on.
 const gated = (tr: SmTransition, ctx: SmContext): boolean => !!tr.requireEnd && !ctx.held;
 
+// ── `waitForContent` — HOLD A CUT UNTIL THE DESTINATION HAS A PICTURE ────────────────────────────
+//
+// OFF BY DEFAULT, AND THAT DEFAULT IS THE DESIGN. A GO is an operator's hand in front of an audience:
+// a cut that silently refuses to happen reads as a broken button, so they press it again while
+// nothing moves. Failing fast — cutting to whatever is decoded — is the right behaviour for a manned
+// show, and it is what the cold-start gate deliberately does NOT do only because at project open
+// nobody is watching yet.
+//
+// The case this exists for is the other one: an unattended installation, no operator, where 400 ms of
+// waiting is plainly better than a black frame in front of a visitor. So it is per-transition and
+// opt-in — the author says which cuts are worth waiting for.
+//
+// ⚠ AND IT IS CAPPED, because an uncapped wait is a hang. A destination that never becomes ready (a
+// missing file, a live source that never arrives) would otherwise freeze the machine on that edge
+// forever, unattended, with nothing in the log. After WAIT_CONTENT_CAP_MS the transition fires
+// anyway — the same fail-open promise the boot gate makes.
+const WAIT_CONTENT_CAP_MS = 1000;
+const waitingSince = new Map<string, number>(); // transition id → when it first waited on content
+
+function contentGated(tr: SmTransition, toSceneId: string | undefined, ctx: SmContext): boolean {
+  if (!tr.waitForContent || !toSceneId) return false;
+  if (ctx.contentReady(toSceneId)) { waitingSince.delete(tr.id); return false; }
+  const nowMs = ctx.nowSec * 1000;
+  const since = waitingSince.get(tr.id);
+  if (since === undefined) { waitingSince.set(tr.id, nowMs); return true; }
+  if (nowMs - since < WAIT_CONTENT_CAP_MS) return true;
+  // Deadline: fire on black rather than freeze the show here. Say so once per transition.
+  console.warn(`[sm] "${tr.id}" waited ${WAIT_CONTENT_CAP_MS}ms for its destination's content and cut anyway`);
+  waitingSince.delete(tr.id);
+  return false;
+}
+
 // Crossing test for an absolute time T over the prev→cur playhead window (handles loop/backward
 // wrap when cur < prev: the window covers prev→end and start→cur).
 function crossed(T: number, prev: number, cur: number): boolean {
@@ -216,8 +256,12 @@ export function tick(sm: StateMachine | undefined, playhead: number, prev: numbe
   // (crossings, a one-frame end pulse) so asking them under a closed guard costs nothing and changes
   // nothing. It is a documented part of the SmTriggerContribution contract — see docs/SDK.md.
   const fires = (tr: SmTransition): boolean => {
-    const fired = triggerFires(tr, from, playhead, prev, ctx);   // ALWAYS ask — keeps stateful sources warm
-    return fired && !gated(tr, ctx);
+    // Both guards apply the same discipline: evaluate FIRST, then decide whether the result may ACT.
+    // && short-circuits, so contentGated is only consulted once the trigger has actually fired — a
+    // transition nobody is taking never starts a wait whose deadline would tick while the show was
+    // somewhere else entirely.
+    const fired = triggerFires(tr, from, playhead, prev, ctx);   // ALWAYS ask — keeps sources warm
+    return fired && !gated(tr, ctx) && !contentGated(tr, sm.states.find(s => s.id === tr.to)?.sceneId, ctx);
   };
 
   // 1. THE CURRENT STATE'S OWN EDGES — explicit beats global.

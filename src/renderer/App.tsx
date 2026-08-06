@@ -1437,6 +1437,9 @@ const App: React.FC = () => {
     swapTimelineForScene(scene);
     setActiveSceneId(scene.id);
   };
+  // Scenes already reported as recalled-cold. Once per scene, not once per recall: an FSM cycling a
+  // show for a week must not fill a venue's console with the same line a million times.
+  const coldEntryLogged = useRef(new Set<string>());
   // Warm-swap the playback engine to a scene's timeline, preloading its media first (hitless), and
   // bridge the new timeline to the projector windows. Keyed by scene.id (a per-scene pool), so
   // activePoolKey stays == activeSceneId.
@@ -1446,6 +1449,16 @@ const App: React.FC = () => {
     // reason isGlobalDocBound() had to exist as a question distinct from clocksCoincident().
     const tl = normalizeTimeline(scene.timeline);
     timelinePreloader.warm(scene.id, tl);
+    // WAS THIS CUT HITLESS? docs/SCENE-TIMELINES.md has claimed a "60 fps warm-swap (still to be
+    // measured)" since the tier was written. Ask before promoting — poolReady answers exactly "would
+    // this put a picture on stage, or black" — and say so ONCE per scene, so an operator who sees a
+    // flash has a line naming it and the residency budget has real evidence rather than a design
+    // intention. After the swap it would always read ready (the pool is live by then), which is why
+    // this sits here and not below.
+    if (!coldEntryLogged.current.has(scene.id) && !timelineEngine.poolReady(scene.id, tl).ready) {
+      coldEntryLogged.current.add(scene.id);
+      console.warn(`[scene] "${scene.name}" was recalled before its content was ready — the cut may show a partial first frame`);
+    }
     timelineEngine.swap(scene.id, tl, { transport: 'restart', holdMs: (scene.fadeSec ?? 0) * 1000 });
     for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: tl });
   };

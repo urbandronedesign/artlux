@@ -52,6 +52,11 @@ const layerKey = (layerId: string): string => `layer:${layerId}`;
 export const GLOBAL_POOL = '__global__';
 type LayerPool = Map<string, LayerVid>;
 const pools = new Map<string, LayerPool>([[GLOBAL_POOL, new Map()]]);
+// The DOCUMENT behind each pool. The pools above hold <video> elements; judging whether a pool could
+// go on stage (poolReadiness) needs its timeline too, and the state machine asks that of a scene it is
+// about to cut to — see contentReadyFor / SmTransition.waitForContent. Written wherever a pool is, and
+// dropped with it, so it cannot outlive what it describes.
+const poolDocs = new Map<string, Timeline>();
 let activeKey = GLOBAL_POOL;
 let layerVideos: LayerPool = pools.get(GLOBAL_POOL)!;
 // External mirror windows (Scene / projector) don't decode: the main window decodes once
@@ -195,7 +200,16 @@ const pluginTrigger = (source: string, params: Record<string, unknown>, stateEnt
   try { return !!t.fires(params, { nowSec: frameNowSec, stateEnteredAtSec, held }); }
   catch (e) { console.error(`[timeline] trigger source "${source}" threw`, e); return false; }
 };
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, pluginTrigger });
+// Would cutting to this scene put a picture on stage, or black? The pool key IS the scene id, and
+// poolReadiness answers exactly this question for the boot gate — asking it here re-drives the
+// pre-roll too, which is what makes a `waitForContent` wait actually productive rather than a pause.
+// A scene with no warmed pool and no timeline to judge is "ready" by omission, same as the gate.
+const contentReadyFor = (sceneId: string): boolean => {
+  const tl = poolDocs.get(sceneId);
+  return tl ? poolReadiness(sceneId, tl).ready : true;
+};
+
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, contentReady: contentReadyFor, pluginTrigger });
 
 function getLayerVideo(layerId: string, pool: LayerPool = layerVideos): LayerVid {
   let lv = pool.get(layerId);
@@ -1170,6 +1184,7 @@ export const timeline = {
     if (external) return;
     let pool = pools.get(poolKey);
     if (!pool) { pool = new Map(); pools.set(poolKey, pool); }
+    poolDocs.set(poolKey, t);
     warmMedia(t, poolKey);
     warmPoolVideos(pool, t);
   },
@@ -1200,6 +1215,7 @@ export const timeline = {
     const prevKey = activeKey;
     data = t;
     let pool = pools.get(poolKey);
+    poolDocs.set(poolKey, t);
     if (!pool) { pool = new Map(); pools.set(poolKey, pool); warmMedia(t, poolKey); warmPoolVideos(pool, t); } // cold fallback
     activeKey = poolKey;
     layerVideos = pool;
@@ -1209,6 +1225,7 @@ export const timeline = {
     // timeline had but the new one doesn't).
     for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) contentSource.release(layerKey(l.id)); }
     pruneStaleLayers(pool, t);
+    poolDocs.set(poolKey, t);
     warmMedia(t, poolKey);
     // Clean first-frame start — via the GUARDED start, never the raw in-point. mainSeek() feeds `playhead`,
     // `originMs` and `prevPlayhead` from this one number, so a scene whose timeline carries a junk inPoint
@@ -1281,6 +1298,7 @@ export const timeline = {
     // it owned, for the life of the session — the tier table in docs/SCENE-TIMELINES.md described a
     // teardown that never happened. codecResidency refcounts them across pools AND surfaces, so a
     // file still shown somewhere else survives this.
+    poolDocs.delete(poolKey);
     codecResidency.releaseOwner(poolKey);
     pools.delete(poolKey);
   },

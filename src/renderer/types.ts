@@ -456,6 +456,21 @@ export interface SmTransition {
   // exactly the venue it was built for. `manual`/OSC transitions are gated too, deliberately: an
   // operator's GO on a state authored to run out is the same mistake, just slower.
   requireEnd?: boolean;
+  /**
+   * HOLD THIS CUT until the destination scene's look is decoded — briefly, then cut anyway.
+   *
+   * OFF BY DEFAULT, deliberately. A GO is an operator's hand in front of an audience, and a cut that
+   * silently refuses reads as a broken button; failing fast onto whatever is decoded is the right
+   * behaviour for a manned show. (The cold-start gate holds the whole show at project open only
+   * because nobody is watching yet.)
+   *
+   * This is for the other case: an unattended installation, no operator, where a few hundred
+   * milliseconds of wait is plainly better than a black frame in front of a visitor. Per-transition
+   * and opt-in, so the author says which cuts are worth waiting for — and CAPPED, because a
+   * destination that never becomes ready (a missing file) would otherwise freeze the machine on that
+   * edge forever with nothing in the log. See stateMachine.contentGated.
+   */
+  waitForContent?: boolean;
   // A GLOBAL RULE — evaluated from EVERY state, not just `from`. ("Someone walks into the entrance →
   // start the welcome", whatever the show happens to be doing.)
   //
@@ -1269,6 +1284,10 @@ export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefin
       // no hold authored at all, that is never. The show sits on one look with a green status. Coerce
       // to ABSENT (= ungated), the behaviour every project written before this field already has.
       requireEnd: boolOrAbsent(t.requireEnd),
+      // Same coercion, same reason: junk here would make an edge wait on its destination's content
+      // (capped, so it cannot hang — but it would still delay every cut on that edge for no reason
+      // the author asked for). Absent = fire immediately, which is every existing project.
+      waitForContent: boolOrAbsent(t.waitForContent),
       // Junk here is far worse than junk in `requireEnd`: a truthy string would promote an ordinary
       // edge into a rule that fires from EVERY state in the show. Coerce to absent (= a normal edge).
       fromAny: boolOrAbsent(t.fromAny),

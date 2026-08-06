@@ -78,6 +78,7 @@ SmTransition {
   trigger: SmTrigger;
   fromAny?: boolean;             // a GLOBAL RULE — evaluated from every state (see below); `from` unused
   requireEnd?: boolean;          // GUARD: only once the source state's timeline is HELD (see below)
+  waitForContent?: boolean;      // GUARD: brief, capped wait for the destination's look (see below)
   fadeSec?: number;              // "transition time": scene crossfade applied on arrival at `to`
   c1?, c2?: {x,y};               // bezier control handles (curved edge — cosmetic)
 }
@@ -152,6 +153,28 @@ Playhead crossings use a `prev → current` window that survives loop/seek wraps
 re-anchors `prev` so one jump doesn't fire every intermediate trigger along the way.
 
 ---
+
+## Waiting for the destination's picture — `waitForContent`
+
+**Off by default, and that default is deliberate.** A GO is your hand on a button in front of an
+audience: a cut that silently refuses reads as a broken button, so you press it again while nothing
+moves. Cutting immediately onto whatever is decoded is the right behaviour for a manned show — the
+cold-start gate holds the *whole* show at project open only because nobody is watching yet.
+
+Tick it on a transition for the other case: an **unattended installation**, where a few hundred
+milliseconds of wait is plainly better than a black frame in front of a visitor. The edge then holds
+until the destination scene's look would put a picture on stage rather than black — and the asking is
+what *drives* the decode, so the wait is productive rather than a pause.
+
+**It is capped at one second and then cuts anyway**, logging `[sm] "<id>" waited …ms for its
+destination's content and cut anyway`. A destination that never becomes ready (a missing file, a live
+source that never arrives) must not freeze the machine on one edge, unattended, with nothing in the
+log — the same fail-open promise the cold-start gate makes.
+
+**And the show tells you when a cut was cold.** Recalling a scene whose content is not ready logs
+`[scene] "<name>" was recalled before its content was ready` — once per scene, so a show cycling for a
+week does not fill the console. If an operator reports a flash on one particular cut, that line names
+it; if the log is silent, the warm window is doing its job.
 
 ## The state that ends and waits — **hold at end** + `requireEnd`
 
