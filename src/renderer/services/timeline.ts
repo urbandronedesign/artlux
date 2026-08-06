@@ -494,41 +494,6 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
   }
 }
 
-// ── A LOOP IS A CUT THE SHOW MAKES TO ITSELF ─────────────────────────────────────────────────────
-// …and it deserves the same pre-roll as any other. A decode ring retains a window around the playhead
-// and evicts what is behind it, so by the time a looping timeline reaches its out-point the frames at
-// its IN-point — the ones it is about to jump to — were evicted long ago. The wrap then lands on an
-// empty ring and the picture visibly hitches, every lap.
-//
-// The ring's own wrap handles looping the FILE (`(idx + d) % frameCount`). It cannot help here: the
-// timeline's out-point is usually EARLIER than the file's end (a 30 s clip played to 26 s), so the
-// loop target is not the file's wrap point and nothing pre-fetches it.
-//
-// ⚠ CODEC RINGS ONLY — this must NEVER touch the layer's <video> element. warmPoolVideos would repoint
-// `src` at the start clip and seek it, which on the ACTIVE pool is the element currently on screen:
-// pre-rolling the loop would destroy the very picture it is trying to protect. Codec rings are
-// path-keyed and separate from playback's claim (see hapDecode's prerollKey), so filling them is
-// invisible to the frame being shown.
-// A STANDING CLAIM, refreshed at this cadence for as long as the timeline loops — not a burst before
-// the wrap. Re-asserting the claim is what keeps the in-point frames from ever being evicted, so the
-// loop costs nothing at the moment it happens. 1 Hz: the claim only has to outlive the eviction pass,
-// and this runs on the frame loop where anything faster would be waste.
-const LOOP_CLAIM_MS = 1000;
-let lastLoopClaimMs = 0;
-
-function preRollLoopTarget(t: Timeline): void {
-  const startT = timelineStart(t);
-  for (const l of t.layers) {
-    if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
-    const sc = startClip(t, l.id);
-    if (!sc || isContentClip(sc.clip)) continue;
-    const codec = videoCodecRegistry.forPath(sc.clip.path);
-    if (!codec?.preRoll) continue;                      // a <video> layer cannot be pre-seeked safely
-    const at = Math.max(0, startT - sc.clip.start + sc.clip.inPoint);
-    codec.preRoll(sc.clip.path, at, PREROLL_SEC, l.id); // idempotent; requests only what it lacks
-  }
-}
-
 // How much decoded material a codec layer must hold before the show is allowed to start. Matched to
 // the HAP ring's own 300 ms look-ahead: less and the buffer is still filling when playback begins,
 // more and the venue waits for material the ring would evict anyway. The gate's timeout is the
@@ -1050,13 +1015,6 @@ function frame(now: number): void {
     // window. One comparison per frame; the rescan runs only when the playhead crosses the half-window
     // boundary (every WARM_AHEAD_SEC/2 of playback) or after a seek/swap reset the horizon. Mirror
     // windows never warm (no blobs to manage there — see `external` above).
-    // A looping timeline will cut to its own start, again and again — so hold a STANDING claim on the
-    // frames there rather than scrambling for them as the wrap approaches. Re-asserted at 1 Hz; the
-    // decode happens once and every later call finds the ring already full, so the wrap itself is free.
-    if (!external && playing && data.loop && now - lastLoopClaimMs > LOOP_CLAIM_MS) {
-      lastLoopClaimMs = now;
-      preRollLoopTarget(data);
-    }
     if (!external && playing && playhead + WARM_AHEAD_SEC / 2 > warmHorizon) {
       warmWindow(data, playhead, activeKey);
       warmHorizon = playhead + WARM_AHEAD_SEC;
@@ -1699,14 +1657,3 @@ export const timeline = {
 };
 
 timeline.start();
-
-// Transport state, for diagnosing timing from outside the app (why is the show at that moment? did
-// it wrap?). Same window-guarded pattern as the other __artlux* probes; reads nothing, allocates one
-// small object per call.
-if (typeof window !== 'undefined') {
-  (window as unknown as Record<string, unknown>)['__artluxTransport'] = () => ({
-    playhead, showTime, playing, armed,
-    loop: !!data.loop, start: timelineStart(data), end: timelineEnd(data),
-    activePool: activeKey,
-  });
-}
