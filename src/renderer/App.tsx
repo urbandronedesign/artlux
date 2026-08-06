@@ -2565,17 +2565,26 @@ const App: React.FC = () => {
       const key = entry.path.replace(/\\/g, '/').toLowerCase();
       setAssets(prev => prev.some(a => a.path.replace(/\\/g, '/').toLowerCase() === key) ? prev : [...prev, entry]);
   };
-  // Remove a library entry. Recorded takes live on the timeline, so removing a take also drops it
-  // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
+  // Remove a library entry. An imported asset's references are left as-is (they read as missing, and
+  // relink brings them back). A recorded TAKE is different — its library entry IS the recording, not a
+  // reference to one — so removing it drops the ref AND every clip playing it, across the global
+  // timeline and every scene.
   const handleRemoveAsset = async (asset: AssetEntry) => {
       const usedTake = asset.type === 'take';
       // Count references the SAME way the library badges do — across every surface list (live + each
       // scene's look snapshot), every scene3D, every timeline and the audio bed. `refs === 0` short-
       // circuits the confirm below, so anything this count can't see is deleted with no warning at all.
       const refs = usageForPath(asset.path, projectRefs).count;
+      // TWO DIFFERENT PROMISES, because the two branches below do genuinely different things. Removing
+      // an imported asset leaves its placements alone — they read as missing, and relinking brings them
+      // back. Removing a TAKE deletes the recording itself, so every clip playing it is deleted too, on
+      // every timeline. Offering one "…(recoverable)" message for both would be a lie in the direction
+      // that costs an operator their work.
       if (refs > 0 && !await confirm({
           title: `Remove "${asset.name}"?`,
-          message: `It is used in ${refs} place${refs === 1 ? '' : 's'}. Removing it from the library leaves those references reading as missing (recoverable).`,
+          message: usedTake
+              ? `This deletes the recording. Its ${refs} placement${refs === 1 ? '' : 's'} will be removed from every timeline and scene. This cannot be undone.`
+              : `It is used in ${refs} place${refs === 1 ? '' : 's'}. Removing it from the library leaves those references reading as missing (recoverable).`,
           confirmLabel: 'Remove', danger: true,
       })) return;
       // NB: removing a library entry never removes the CLIPS that reference it — video, audio (bed or
@@ -2585,7 +2594,18 @@ const App: React.FC = () => {
       // confirm above is the guard, and it is only as good as usageIndex's coverage of every field a
       // path can live in — see services/assetLibrary.usageIndex.
       if (usedTake) {
-          setTimeline(t => ({ ...t, trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id), clips: t.clips.filter(c => c.takeId !== asset.id) }));
+          // SWEEP EVERY DOCUMENT, not just the global one. A take lives in the project library and can
+          // be dropped on ANY timeline's tracking lane, so its placements are spread across the global
+          // doc and every scene. Deleting only the global ones left scene clips pointing at a recording
+          // that no longer exists — a clip that cannot play and cannot be relinked, because there is
+          // nothing left to relink to. (Same reach as the relink path below, and for the same reason.)
+          const dropTake = (t: Timeline): Timeline => ({
+              ...t,
+              trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id),
+              clips: t.clips.filter(c => c.takeId !== asset.id),
+          });
+          setTimeline(dropTake);
+          setScenes(prev => prev.map(s => (s.timeline ? { ...s, timeline: dropTake(s.timeline) } : s)));
       } else {
           setAssets(prev => prev.filter(a => a.id !== asset.id));
       }

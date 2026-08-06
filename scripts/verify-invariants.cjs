@@ -2118,6 +2118,30 @@ check(
   },
 );
 
+// ── Assets: a library-wide operation reaches every timeline ───────────────────────────────────
+check(
+  'removing and relinking a library asset reach the scenes, not just the global timeline',
+  'A project holds MANY timelines: the global document plus one per scene. Both of these functions ' +
+  'rewrite references across the project, and both have already shipped a version that touched only ' +
+  'the global one. Relink was first — scene timelines, scene look snapshots and scene 3D kept ' +
+  'pointing at the old path, so the file was "relinked" and the show still went black on the scenes ' +
+  'that used it. Remove was second, and worse: a recorded take can be dropped on ANY scene\'s ' +
+  'tracking lane, so deleting it globally left scene clips pointing at a recording that no longer ' +
+  'exists — a clip that cannot play AND cannot be relinked, because there is nothing left to relink ' +
+  'to. Neither failure throws, neither shows up in the editor you are looking at, and both are found ' +
+  'at a load-in. If a function in this family does not mention setScenes, it is not finished.',
+  () => {
+    const src = read('src/renderer/App.tsx');
+    const problems = [];
+    for (const fn of ['handleRemoveAsset', 'handleRelinkAsset']) {
+      const body = fnBody(src, fn);
+      if (!body) { problems.push(`App.tsx no longer defines ${fn}() (the asset-wide rewrite paths)`); continue; }
+      if (!/setScenes\(/.test(body)) problems.push(`${fn}() never calls setScenes — it rewrites only the global timeline, leaving every scene stale`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Plugins: the lidar barrel is the ONLY door ────────────────────────────────────────────────
 check(
   'host code imports @artlux/plugin-lidar-tracking through its barrel only',
