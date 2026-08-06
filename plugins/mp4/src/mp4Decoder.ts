@@ -159,10 +159,19 @@ class FileDecoder {
   preRoll(atSec: number, aheadSec: number): boolean {
     this.frame(atSec, false); // THE KICK — the gate's polling is what fills the buffer
     const wantUs = atSec * 1e6;
-    // Cap at MAX_BUFFER-1: the gate's 0.3 s is 18 frames at 60 fps and we will never hold that many
-    // live VideoFrames (NVDEC stalls). See the note on preRoll() below.
+    // ⚠ ASK FOR WHAT THE PUMP WILL ACTUALLY PRODUCE, WHICH IS TARGET_AHEAD — NOT what the requested
+    // seconds imply. `pump()` stops feeding at `framesAhead + decodeQueueSize < TARGET_AHEAD`, so the
+    // buffer never holds more than ~5 frames ahead no matter how long anyone waits. The first version
+    // of this asked for ceil(aheadSec × fps) — 9 frames at 30 fps, 18 at 60 — capped only at
+    // MAX_BUFFER, and was therefore UNSATISFIABLE BY CONSTRUCTION: it compiled, nothing threw, and the
+    // cold-start gate held every show with an .mp4 in its opening scene to the full timeout while
+    // reporting the clip as "buffering". Found only by watching the gate's own pending list.
+    //
+    // TARGET_AHEAD frames is ~83 ms at 60 fps / ~167 ms at 30 fps of decoded lead. Less than HAP's
+    // 300 ms ring, but it is real: the point of the wait is that the decoder is RUNNING and ahead of
+    // the playhead, not that it has banked a specific number of milliseconds.
     const fps = this.samples.length > 1 && this.durUs > 0 ? this.samples.length / (this.durUs / 1e6) : 30;
-    const want = Math.max(1, Math.min(MAX_BUFFER - 1, Math.ceil(aheadSec * fps)));
+    const want = Math.max(1, Math.min(TARGET_AHEAD, Math.ceil(aheadSec * fps)));
     let have = 0;
     for (const f of this.buffer) if (f.timestamp >= wantUs - EPS_US) have++;
     if (have >= want) return true;

@@ -894,6 +894,20 @@ export interface BootService {
   registerProbe(id: string, probe: () => { ready: boolean; pending?: string[] }): () => void;
   /** Is the host holding the show for a preload right now? */
   isBooting(): boolean;
+  /**
+   * How long the current hold has lasted, in seconds (0 when not holding).
+   *
+   * For a probe with a FAST path and a SLOW one, so it can insist on the fast path and give up on the
+   * slow one rather than holding the whole show to the venue's deadline. The audio probe uses it
+   * exactly that way: a conform that is already cached answers in one IPC round-trip, while one that
+   * must be produced takes MINUTES (two decode passes per file) — measured, a scene with ten video
+   * clips could not finish inside any tolerable wait, so every such show armed by timeout and the
+   * gate's readiness logic never applied to it at all.
+   *
+   * Use it to stop *waiting*, never to stop *working*: the slow half must still complete in the
+   * background, or you have traded a late start for a permanent absence.
+   */
+  elapsedSec(): number;
 }
 
 // ─── Project service ────────────────────────────────────────────────────────────────────────

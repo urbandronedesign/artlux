@@ -94,6 +94,12 @@ let unsubBoot: (() => void) | null = null; // cold-start readiness probe (host.b
 // promise held against a host that hands us something worse than undefined. Frozen: the driver only ever
 // reads and spreads these.)
 const EMPTY_CLIPS = Object.freeze([]) as unknown as BedClip[];
+
+// How long the cold-start gate may be held waiting for a video clip's soundtrack to be CONFORMED.
+// Sized for a cache hit (one IPC round-trip) plus slack, not for the transcode: producing a conform
+// takes minutes, and holding a show for it meant every video-heavy project armed by timeout. See the
+// long note at the boot probe — the work still finishes in the background either way.
+const CONFORM_WAIT_SEC = 2.5;
 const EMPTY_TRACKS = Object.freeze([]) as unknown as BedTrack[];
 const EMPTY_BUSES = Object.freeze([]) as unknown as BedBus[];
 
@@ -899,7 +905,26 @@ export const plugin: RendererPlugin = {
       // The conforms behind the video-audio container. readVideoAudio() DROPS a clip whose conform has
       // not landed (it cannot play a .mp4), so those clips are invisible to allClips() above — checking
       // only the mapped container would call the sound ready precisely because it is missing.
-      if (videoAudioOn) {
+      //
+      // ⚠ BUT ONLY BRIEFLY, AND THAT BOUND IS THE WHOLE POINT.
+      //
+      // A conform is not a decode, it is a TRANSCODE: main demuxes the track and the renderer runs two
+      // full AudioDecoder passes over it (one to measure peak, one to write the WAV). Measured on a
+      // scene with ten 1080p clips — nine conforms running in parallel reached ~40% after 75 seconds,
+      // and a killed app discards the partial work, so it restarts from zero every open. Waiting for
+      // that is not a preload, it is an outage: the show armed by TIMEOUT on every single start, which
+      // means the gate's readiness logic — including the codec pre-roll it exists to serve — never
+      // applied to any video-heavy project at all.
+      //
+      // So the wait is bounded. A conform that is ALREADY CACHED answers in one IPC round-trip
+      // (`conformStart` returns `kind:'ready'` off a cache hit), which is the normal case on every
+      // open after the first, and CONFORM_WAIT_SEC is generous enough to cover it many times over.
+      // One that must be produced is left to finish in the background — the clip's picture plays on
+      // time and its sound joins when it lands, exactly as it does for a clip dropped mid-show.
+      //
+      // This is the same judgement the gate already makes about live sources (it never waits on NDI,
+      // a camera or Spout): hold for what will arrive imminently, never for what may take minutes.
+      if (videoAudioOn && ctx.host.boot.elapsedSec() < CONFORM_WAIT_SEC) {
         const raw = (host.audio.getVideoAudio() as Partial<TlAudio>) ?? {};
         for (const c of Array.isArray(raw.clips) ? raw.clips : EMPTY_CLIPS) {
           if (conformOf(c.path) === undefined) pending.push(`conform: ${c.path.split(/[\\/]/).pop() || c.path}`);

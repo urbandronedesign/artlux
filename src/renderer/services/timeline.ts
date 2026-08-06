@@ -405,7 +405,21 @@ function warmMedia(t: Timeline, owner: string): void {
     const codec = videoCodecRegistry.forPath(sc.clip.path);
     if (codec) { codec.preWarm(sc.clip.path); codecResidency.retain(sc.clip.path, owner, codec.id); }
   }
-  warmWindow(t, startT, owner);
+  // ⚠ THE LOOK-AHEAD WINDOW WAITS FOR THE SHOW TO BE ARMED, and this is the same doctrine the
+  // thumbnail and waveform pumps already follow: nothing cosmetic or speculative competes with the
+  // frame the audience is about to see.
+  //
+  // Opening a decoder is not free — it is a native decode ring filling at once. The window spans
+  // WARM_AHEAD_SEC across every layer, which on a 4-layer 1080p60 HAP scene is ~16 files decoding
+  // simultaneously, and they contend with the START clips the gate is actually waiting on. Measured:
+  // a 93% HAP ring miss rate during the hold, with the gate stuck at 47/48 on one clip that could not
+  // get a look in. `armed` is false exactly while the cold-start gate holds (bootGate.setArmed), so
+  // this reads the hold without importing it — services/bootGate imports THIS module, and the reverse
+  // edge would be a cycle.
+  //
+  // Nothing is lost: frame()'s advancing window fills the look-ahead the moment the show runs, and the
+  // gate never judged these clips in the first place.
+  if (armed) warmWindow(t, startT, owner);
 }
 
 // How far ahead of the ACTIVE document's playhead media has been queued. -Infinity forces the next

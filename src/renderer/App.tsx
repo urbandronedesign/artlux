@@ -2981,6 +2981,7 @@ const App: React.FC = () => {
     boot: {
       registerProbe: (id, probe) => bootGate.registerProbe(id, probe),
       isBooting: () => bootGate.isBooting(),
+      elapsedSec: () => bootGate.get().elapsedSec,
     },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
