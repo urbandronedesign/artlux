@@ -1,4 +1,4 @@
-// ArtLux cold-open bench — the scoreboard for the preload plan. Opens a project headless, waits for the
+// ArtLux cold-open bench — the scoreboard for plans/preload-optimization.md. Opens a project headless, waits for the
 // boot gate to arm, and reports the four metrics every optimization phase is judged against:
 //
 //   A  time-to-arm            renderer open-trace, 'begin' → 'gate-armed'   (services/openTrace.ts)

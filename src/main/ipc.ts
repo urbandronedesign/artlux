@@ -137,7 +137,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const t0 = performance.now();
         try {
             const bytes = new Uint8Array(await readFile(path));
-            // Metric D of the preload plan: every byte crossing this channel is a whole file loaded
+            // Metric D of plans/preload-optimization.md: every byte crossing this channel is a whole file loaded
             // into renderer RAM (mediaCache → Blob). The counter is what turns "the open felt slow"
             // into "we read 226 MB nobody looked at" — logged + reset when the boot gate arms below.
             readStats.calls++;

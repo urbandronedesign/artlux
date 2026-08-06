@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased
+
+### A heavy show opens without reading itself
+
+The cold-start gate held the show until the opening look was decoded — and had **never once reached
+`ready`** on any project. It always failed open at its deadline, so the readiness logic, and the codec
+pre-roll that exists to serve it, applied to nothing. Underneath it, everything scaled with the size of
+the project rather than with what the show was about to display.
+
+Measured on a 60-scene / 2400-clip / 3000-LED project over 2.3 GB of real HAP + H.264, and on a real
+venue show:
+
+| | before | after |
+|---|---|---|
+| bytes read over IPC at open | 887 MB | **0 MB** |
+| peak main RSS | 1963 MB | **284 MB** |
+| codec residency, walking show | 3793 MB, climbing | **~250 MB, flat** |
+| cold-start gate, real project | 17.1 s, armed by TIMEOUT | **7.3 s, armed by READY** |
+
+**Media streams instead of being read whole.** A privileged `artlux-media://` scheme answers HTTP Range
+from a read stream, so a decoder pulls the byte windows it needs and nothing holds a file in memory — a
+1 GB HAP `.mov` used to cost 2.3 s of read and take main's RSS from 125 MB to 3.7 GB for a few megabytes
+of actual want. Only what the open project references is served, and closing a show revokes it. It also
+deletes a correctness hazard: *"the blob has not landed yet"* was a state the timeline carried, and it is
+what let a warm pool promote on an empty element — the show starting on black.
+
+**Warming became a relevance window** rather than every clip in the document, **the residency budget now
+binds** (it was bypassed by its own protect set, and a demoted pool never released its decoders at all),
+and **the look-ahead is ranked** by how soon an edge can fire — including `fromAny` global rules, which
+the old filter could never match, so the edge most likely to fire in an interactive show was the one edge
+never preloaded.
+
+**Three bugs surfaced only by measuring.** The gate waited on audio conforms that take *minutes* (a
+transcode, not a decode). HAP keyed its decode ring by path alone, so a file used by both a surface and a
+timeline layer had two playheads over one ring, each evicting the other — 88% ring miss. And a pre-roll
+shared its retention claim with playback, so a 1 GB clip cycled 0 → 3 → 0 MB of cached frames forever —
+that last one is what kept the gate from ever arming ready.
+
+Also: the boot fraction is a ledger now (it could previously go backwards, or read `n/0`) and says what it
+is waiting on; a warm scene keeps its **sound** loaded, so a cut into it no longer eats a sting's attack;
+thumbnails persist in `<project>/.artlux-cache/`; the media grid is windowed; and
+`SmTransition.waitForContent` lets an unattended installation wait briefly for a destination's picture —
+off by default, because a GO in front of an audience should fail fast rather than hang.
+
+Full record, including what was measured and **dropped**:
+[plans/preload-optimization.md](plans/preload-optimization.md).
+
+
 ## v0.25.1
 
 ### Broadcast mode starts, and says so when it cannot

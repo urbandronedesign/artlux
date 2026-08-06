@@ -1,6 +1,6 @@
 // ArtLux heavy-project generator — the fixture for the cold-open bench (scripts/bench-open.cjs).
 //
-// WHY THIS EXISTS. The preload plan (plans: preload optimization) is judged on four metrics, and two of
+// WHY THIS EXISTS. The preload plan (plans/preload-optimization.md) is judged on four metrics, and two of
 // them — time-to-arm as a function of scene count, bytes read vs. bytes shown — need a project whose
 // size is a KNOB, not whichever show happens to be on disk. This writes a real, openable project folder
 // (project.artlux + assets/) shaped to hit the known scaling bugs on purpose:

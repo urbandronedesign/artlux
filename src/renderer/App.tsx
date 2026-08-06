@@ -1979,7 +1979,7 @@ const App: React.FC = () => {
       });
       setScenes(loadedScenes);
       // This mark is metric B's needle: the per-scene normalize above is the one open cost that grows
-      // with scene count (plans: preload optimization, phase 6). If its delta is flat, phase 6 is done.
+      // with scene count (plans/preload-optimization.md §4). If its delta is flat, phase 6 is done.
       openTrace.mark('scenes-normalized');
       // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
       // older (pre-cues) projects open with their scenes already on the grid.
