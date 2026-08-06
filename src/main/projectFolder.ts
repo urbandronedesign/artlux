@@ -1,5 +1,6 @@
 import { dialog, type BrowserWindow } from 'electron';
 import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync } from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType } from '../../shared/protocol';
@@ -335,14 +336,19 @@ function uniqueDest(destDir: string, srcPath: string): { dest: string; reused: b
 
 // Copy one file into <root>/assets/<cat>/ and build an AssetEntry. Files already inside assets/
 // are referenced in place (no copy). Returns null on failure.
-function copyIntoAssets(root: string, src: string, type: AssetType, name?: string): AssetEntry | null {
+// ⚠ THE COPY IS ASYNC BUT STILL SERIAL, and both halves are deliberate. Serial because these are
+// I/O-bound bulk copies: firing them in parallel at a spinning disk or a network share makes the whole
+// import slower, not faster, and the byte-compare in uniqueDest only runs on a name collision. Async
+// because `copyFileSync` blocked main's event loop for the duration — importing a folder of 1080p
+// clips froze Art-Net pacing, the window, and everything else, for as long as the copy took.
+async function copyIntoAssets(root: string, src: string, type: AssetType, name?: string): Promise<AssetEntry | null> {
   const cat = TYPE_CATEGORY[type];
   const destDir = join(root, 'assets', cat);
   mkdirSync(destDir, { recursive: true });
   try {
     let dest: string;
     if (isInside(destDir, src)) { dest = src; }
-    else { const u = uniqueDest(destDir, src); dest = u.dest; if (!u.reused) copyFileSync(src, dest); }
+    else { const u = uniqueDest(destDir, src); dest = u.dest; if (!u.reused) await fsp.copyFile(src, dest); }
     const size = statSync(dest).size;
     return { id: randomUUID(), name: name ?? basename(dest, extname(dest)), type, path: dest, size, addedAt: new Date().toISOString() };
   } catch (e) {
@@ -365,12 +371,13 @@ export async function importAssets(win: BrowserWindow | null, projectFile: strin
   const root = dirname(projectFile);
   scaffold(root);
   const out: AssetEntry[] = [];
-  for (const src of res.filePaths) { const e = copyIntoAssets(root, src, type); if (e) out.push(e); }
+  // Serial on purpose — see copyIntoAssets. Async only so main keeps breathing between files.
+  for (const src of res.filePaths) { const e = await copyIntoAssets(root, src, type); if (e) out.push(e); }
   return out;
 }
 
 // Copy a known file (e.g. a freshly-recorded take from userData) into the project's assets/ tree.
-export function importAssetFile(projectFile: string, srcPath: string, type: AssetType, name?: string): AssetEntry | null {
+export function importAssetFile(projectFile: string, srcPath: string, type: AssetType, name?: string): Promise<AssetEntry | null> {
   const root = dirname(projectFile);
   scaffold(root);
   return copyIntoAssets(root, srcPath, type, name);
@@ -464,6 +471,10 @@ function collectInto(root: string, data: ProjectData): CollectResult {
     if (!existsSync(abs)) { remap.set(p, p); missing.add(abs); skipped += 1; return p; }
     try {
       const { dest, reused } = uniqueDest(join(assetsDir, cat), abs);
+      // STILL SYNCHRONOUS HERE, unlike the import path. Collect runs inside mapAssetPaths's
+      // synchronous visitor (returning the new path as it walks), so making it await would mean
+      // rebuilding the visitor — and Collect is an explicit, one-off batch the operator asked for and
+      // waits on, not something that happens under their hands while authoring.
       if (!reused) { copyFileSync(abs, dest); copied += 1; }
       remap.set(p, dest);
     } catch (e) {

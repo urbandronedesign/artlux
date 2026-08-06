@@ -1,5 +1,5 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand, type RendererFault } from '../../shared/protocol';
 import * as output from './transport/outputManager';
@@ -196,7 +196,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.SCAN_ASSETS, (_e, projectFile: string, knownPaths: string[]) =>
         projectFolder.scanAssets(projectFile, knownPaths ?? []));
     ipcMain.on(IPC.SHOW_ITEM_IN_FOLDER, (_e, path: string) => { if (path) shell.showItemInFolder(path); });
-    ipcMain.handle(IPC.ASSET_EXISTS, (_e, paths: string[]) => (paths ?? []).map((p) => !!p && existsSync(p)));
+    // ASYNC, and the concurrency is the point. This is called with the WHOLE library — every path, on
+    // every change to the asset list — and `existsSync` per entry blocks main's event loop for the sum
+    // of them. On a network volume a single stat can take tens of milliseconds, so a 300-asset library
+    // was a visible stall in a process that is also pacing Art-Net.
+    ipcMain.handle(IPC.ASSET_EXISTS, async (_e, paths: string[]) => Promise.all(
+        (paths ?? []).map((p) => (p ? stat(p).then(() => true, () => false) : Promise.resolve(false))),
+    ));
     ipcMain.handle(IPC.PICK_VIDEO, async () => {
         const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
         const opts = { title: 'Import video', properties: ['openFile' as const], filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'mov', 'mkv'] }] };
