@@ -127,3 +127,42 @@ Node and dies at `app.getVersion()`.
   a tail Range fetch for a non-faststart `moov` is the remaining win.
 - **The byte ceiling (`MAX_RESIDENT_MB`) can only evict standby pools**, and most bytes live in the active
   one — so it is a backstop, not an allocator. Not yet wired to a preference.
+
+## 10. The sequel this work uncovered: the engine was asking too fast
+
+Once shows opened quickly, the owner tested playback and found what preloading had been masking — heavy
+video *stuttered while running*. A looping clip, or a track with several clips, visibly stopped and
+started. It presented as a **preload** problem ("as if we load the video when the playhead reaches it"),
+and it was not one.
+
+**Three fixes aimed at the decoder failed.** Raising the loop's pre-roll landed the wrap on cached frames
+but still dipped. A standing retention claim across the wrap was reverted after a bad report — and the
+report was probably wrong: the app had stale HMR state that had stopped the FSM ticking altogether, an
+unrelated bug. Raising HAP's `MAX_INFLIGHT` from 3 to 6 moved the miss rate 18.1% → 20.6%, i.e. nowhere.
+
+**The cause was the ask rate.** Every engine tick asks each layer's codec for the exact frame at the
+playhead. Asking faster than the decoder can serve does not produce more pictures — it produces misses,
+and the ring answers with the *nearest* frame it holds. A burst of those is the stutter. The engine ran
+at display rate, so on heavy media it was asking for frames nobody could supply.
+
+| engine rate | exact frames missed | worst half-second | scene cuts |
+|---|---|---|---|
+| uncapped (~60 Hz) | **19.0%** | 78 | visible hitch |
+| 25 Hz | **0.27%** | 9 | 4 of 4 clean |
+
+**What pointed there**, after the guesses: the **projector** window — decoding the same media, but only
+for the one surface it draws — missed **0.007%** throughout. The window doing *more* work barely
+suffered, which is an argument against the decoder and for how often it was being asked.
+
+Shipped as **Preferences → Engine → Engine rate (fps)**, default 30, machine-scoped: the right value
+depends on the computer, not the show. It is **not** the Art-Net rate — the native pacer sends at
+`AppSettings.fps` with keep-alive, so a slower engine repeats the last frame on the wire rather than
+starving a node. (That warning was given wrongly here first, then checked and corrected.)
+
+The instrumentation ships with it, because three wrong guesses came first: `__artluxLayerGaps()` (clip
+switches vs frames where a layer had no picture) and `__artluxHapPulls()` (who pulls a ring, at which
+index, with what cached). Both are measure-only.
+
+**The method lesson, and it generalises past this repo:** resident bytes tell you something is cached —
+never that the frame being *asked for* is there. Both failed fixes reported success against residency
+while the operator still saw a hitch. Measure the question the consumer actually asks.
