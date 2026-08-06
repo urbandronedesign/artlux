@@ -72,6 +72,16 @@ tablet browser ──HTTP(PWA)──▶  ┐  plugin.main (main process)
   native `EventSource` auto-reconnect (a tablet self-heals across a broadcast relaunch), same-origin.
 - **The PWA is embedded** as a single self-contained document (`clientHtml.ts`) served verbatim — no
   second build pipeline, no packaging path, no client/server version skew.
+- **The show snapshot is the one payload that is not periodic**, so it is the one that can be wrong
+  forever. Status (2 Hz) and metrics (1 Hz) stream continuously and repair themselves; the scene / cue /
+  FSM list is sent at plugin activation — when the project is still empty — and then only when
+  `host.show` fans out a change, which an unattended venue never does. A single missed or mis-timed push
+  therefore left a tablet reading *"No scenes in this project"* for the life of the show, and nothing on
+  the desktop could reveal it: the Show Deck re-reads `host.show` when it **mounts**, so the operator's
+  own screen was right while the phone was wrong. Two backstops, both in `plugin.renderer.ts`: a device
+  opening its SSE stream makes the server ask the renderer for a **fresh** snapshot (`onNeedSnapshot` →
+  `showctl:request-snapshot`), and the 2 Hz status timer re-offers one every 4th tick. Both send only
+  when the payload actually changed, so a connected tablet is not repainted for nothing.
 - **Commands reuse the existing buses.** `dispatch.ts` maps each `ShowCommand` onto the host `show`
   service, which the app wires to the exact `cueBus`/`timeline` singletons the OSC controller uses — so
   the remote drives the show through the identical path and App stays the single writer of `playing`.

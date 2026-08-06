@@ -82,9 +82,34 @@ export const plugin: RendererPlugin = {
     unsubs.push(ctx.ipc.on('showctl:set-schedule', (entries) => host.show.setSchedule((entries as unknown[]) ?? [])));
 
     // Push the show snapshot up whenever scenes/cues/FSM/schedule change (+ once now).
-    const pushSnapshot = () => ctx.ipc.send('showctl:snapshot', buildSnapshot(host));
-    unsubs.push(host.show.subscribe(pushSnapshot));
-    pushSnapshot();
+    //
+    // AND ON A HEARTBEAT, because this is the ONE payload that is not periodic. Status (2 Hz) and
+    // metrics (1 Hz) stream forever and repair themselves; the scene/cue/FSM list is sent once at
+    // activation — when the project is still EMPTY — and then only when host.show fans out a change.
+    // So a single push that is missed, or that lands before the project has loaded with nothing
+    // changing afterwards (an unattended venue changes nothing), leaves the tablet reading "No scenes
+    // in this project" for the life of the show. Nothing on the desktop reveals it either: the Show
+    // Deck re-reads host.show when it MOUNTS, so the operator's own screen is right while the phone
+    // is wrong — which is exactly how this was found, in a venue, on a machine whose deck listed
+    // every scene.
+    //
+    // Re-send only when the payload actually CHANGED: an unconditional re-push would re-render the
+    // tablet's Control tab every couple of seconds for nothing (renderIfDynamic repaints on any
+    // snapshot). `force` skips the compare — used when main asks, because then it is main's copy
+    // that is suspect, not ours.
+    let lastSnapJson = '';
+    const pushSnapshot = (force = false) => {
+      const snap = buildSnapshot(host);
+      const json = JSON.stringify(snap);
+      if (!force && json === lastSnapJson) return;
+      lastSnapJson = json;
+      ctx.ipc.send('showctl:snapshot', snap);
+    };
+    unsubs.push(host.show.subscribe(() => pushSnapshot()));
+    // A tablet just connected and main replayed whatever it last cached. Re-send unconditionally so a
+    // stale or absent cache cannot outlive the connection that exposes it.
+    unsubs.push(ctx.ipc.on('showctl:request-snapshot', () => pushSnapshot(true)));
+    pushSnapshot(true);
 
     // (Re)configure the tablet server from the plugin's persisted { enabled, port } (+ once now).
     const pushConfig = () => {
@@ -95,11 +120,14 @@ export const plugin: RendererPlugin = {
     unsubs.push(host.settings.subscribe(pushConfig));
     pushConfig();
 
-    // Live status → main (~2 Hz). Cheap; SSE fans it out to tablets.
+    // Live status → main (~2 Hz). Cheap; SSE fans it out to tablets. Every 4th tick also re-offers the
+    // snapshot (the heartbeat above) — one timer, not two, and a no-op on the ticks where nothing moved.
+    let tick = 0;
     timers.push(setInterval(() => {
       const st = host.show.getStatus();
       const status: ShowStatus = { ...st, ts: Date.now() };
       ctx.ipc.send('showctl:status', status);
+      if (++tick % 4 === 0) pushSnapshot();
     }, 500));
 
     // Forward native engine throughput (public onDmxStats ~1 Hz) → main assembles the metrics snapshot.

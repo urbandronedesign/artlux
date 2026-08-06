@@ -208,7 +208,11 @@ export const CLIENT_HTML = `<!doctype html>
        '<button class="btn" data-act="tp" data-a="pause">&#10074;&#10074; Pause</button>'+
        '<button class="btn" data-act="tp" data-a="stop">&#9632; Stop</button></div></div>';
     h+='<h3>Scenes</h3><div class="grid">';
-    if(!s.scenes.length) h+='<div class="muted">No scenes in this project.</div>';
+    // TWO DIFFERENT NOTHINGS. An empty scene list is a fact about the project; NO SNAPSHOT YET is a
+    // fact about this connection, and reporting the second as the first sends an operator to look for
+    // a problem in their project that is not there (it did — a venue, an install whose desktop Show
+    // Deck listed every scene while the phone said the project had none).
+    if(!s.scenes.length) h+='<div class="muted">'+(snapshot?'No scenes in this project.':'Waiting for the app to send the show&hellip;')+'</div>';
     for(var i=0;i<s.scenes.length;i++){ var sc=s.scenes[i];
       h+='<button class="tile '+(active===sc.id?'active':'')+'" data-act="scene" data-ref="'+esc(sc.id)+'">'+
          '<div class="accentbar" style="background:'+esc(sc.accent||'#5b8cff')+'"></div>'+

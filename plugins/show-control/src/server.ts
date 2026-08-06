@@ -22,6 +22,7 @@ export interface ServerHandlers {
   onCommand(cmd: ShowCommand): void;        // tablet → show engine (forwarded to the renderer by plugin.main)
   onPlaylistChanged(): void;                // tablet edited the playlist (re-broadcast status)
   onSchedule(entries: unknown[]): void;     // tablet edited the in-project schedule (→ renderer host.show)
+  onNeedSnapshot(): void;                   // a device connected — ask the renderer for a fresh show snapshot
 }
 
 interface Client { res: ServerResponse; id: number; token: string }
@@ -92,6 +93,12 @@ function openStream(req: IncomingMessage, res: ServerResponse, token: string | u
   if (lastStatus) push({ t: 'status', status: lastStatus });
   push({ t: 'playlist', playlist: getPlaylist(), status: scheduler.status() });
   push({ t: 'devices', devices: currentDevices() });
+
+  // …then ask the renderer for a CURRENT one. The replay above is only as good as the last push we
+  // received, and the show snapshot is the one payload that is not periodic (see plugin.renderer.ts):
+  // if the cache is empty or stale, this connection is precisely the moment that becomes visible, and
+  // waiting for the operator to edit a scene is not a recovery. Arrives a few ms later and replaces it.
+  handlers?.onNeedSnapshot();
 
   const beat = setInterval(() => { try { res.write(': ping\n\n'); } catch { /* */ } }, 20000);
   req.on('close', () => { clearInterval(beat); clients.delete(client); });

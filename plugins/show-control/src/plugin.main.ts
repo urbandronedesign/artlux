@@ -34,6 +34,10 @@ export const plugin: MainPlugin = {
       onCommand: (cmd: ShowCommand) => ipc.send('showctl:command', cmd),
       onPlaylistChanged: () => server.pushPlaylistStatus(scheduler.status()),
       onSchedule: (entries: unknown[]) => ipc.send('showctl:set-schedule', entries),
+      // A device opened its SSE stream. Whatever snapshot we cached was replayed to it already; this
+      // asks the renderer for the live one, so a cache that is empty (server up before the project
+      // loaded) or stale (a window reload we never saw) cannot survive the connection.
+      onNeedSnapshot: () => ipc.send('showctl:request-snapshot'),
     };
 
     // Playlist scheduler: pushes current/next status to any connected tablet, and (in broadcast) does
