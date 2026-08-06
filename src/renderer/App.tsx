@@ -2983,6 +2983,13 @@ const App: React.FC = () => {
       isBooting: () => bootGate.isBooting(),
       elapsedSec: () => bootGate.get().elapsedSec,
     },
+    preload: {
+      // The warm-window seam: a plugin keeps its own per-scene resources alive for as long as the host
+      // keeps that scene's pictures warm. See services/timelinePreloader.
+      registerParticipant: (p) => timelinePreloader.registerParticipant(
+        p as { warm(k: string, tl: Timeline): void; release(k: string): void },
+      ),
+    },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
   useEffect(() => { surfaceSubs.current.forEach(cb => cb()); }, [surfaces]);

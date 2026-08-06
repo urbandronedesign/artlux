@@ -937,6 +937,32 @@ export interface RendererHostServices {
   show: ShowService;
   audio: AudioService;
   boot: BootService;
+  preload: PreloadService;
+}
+
+/**
+ * KEEP A SCENE'S RESOURCES ALIVE WHILE THE SHOW COULD STILL CUT TO IT.
+ *
+ * The host already runs a tiered residency model for pictures: exactly one ACTIVE timeline, a couple of
+ * WARM standby ones the show can reach next, everything else COLD (docs/SCENE-TIMELINES.md). This opens
+ * the same window to a plugin, because "what is warm" is a decision only the host can make — it depends
+ * on the state machine's shape, not on any one subsystem.
+ *
+ * The audio plugin is the motivating case. Its residency tracked only the two LIVE containers, so
+ * leaving a scene unloaded its sound and re-entering DECODED IT AGAIN — a clip that starts at 0 is
+ * therefore silent for its first few milliseconds, which for a percussive sting is exactly its attack,
+ * and an installation cycling scenes re-decodes the same files forever. It cannot fix that alone: the
+ * driver sees two bound containers and cannot tell "this scene departed" (keep it) from "this clip was
+ * deleted" (drop it now). The host can.
+ *
+ * `warm` may be called repeatedly for a pool that is already warm — make it idempotent. `release` is
+ * the promise that the window closed; free anything held for that key.
+ */
+export interface PreloadService {
+  registerParticipant(p: {
+    warm(poolKey: string, timeline: unknown): void;
+    release(poolKey: string): void;
+  }): () => void;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────

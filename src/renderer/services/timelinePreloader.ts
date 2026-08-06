@@ -52,6 +52,32 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// ── OTHER SUBSYSTEMS RIDE THE SAME WINDOW ────────────────────────────────────────────────────────
+// A scene's pictures are not the only thing worth keeping ready for a cut the show might take. The
+// audio plugin registers here so a WARM scene's sound stays engine-resident: without it, leaving a
+// scene unloaded its clips and re-entering decoded them again, so a clip starting at 0 lost its first
+// milliseconds — a percussive sting's whole attack — on every single entry.
+//
+// It has to be here rather than in the plugin because "which scenes are warm" is a decision only this
+// module can make (it follows the machine's shape), and core must not import a plugin to tell it.
+// Participants are driven wherever pools are: warm(), predict() and evictExcess().
+interface WarmParticipant { warm(poolKey: string, timeline: Timeline): void; release(poolKey: string): void }
+const participants = new Set<WarmParticipant>();
+
+export function registerParticipant(p: WarmParticipant): () => void {
+  participants.add(p);
+  return () => { participants.delete(p); };
+}
+
+// A participant that throws must not break residency for everything else — the same discipline the
+// boot gate applies to a probe.
+const tellWarm = (key: string, tl: Timeline): void => {
+  for (const p of participants) { try { p.warm(key, tl); } catch (e) { console.warn('[preload] participant warm threw', e); } }
+};
+const tellRelease = (key: string): void => {
+  for (const p of participants) { try { p.release(key); } catch (e) { console.warn('[preload] participant release threw', e); } }
+};
+
 function touch(key: string): void {
   const i = lru.indexOf(key);
   if (i >= 0) lru.splice(i, 1);
@@ -62,6 +88,7 @@ function touch(key: string): void {
 export function warm(poolKey: string, tl: Timeline | undefined): void {
   if (!tl) return;
   engine.warmPool(poolKey, tl);
+  tellWarm(poolKey, tl);
   touch(poolKey);
   evictExcess([poolKey]);
 }
@@ -72,6 +99,7 @@ export function predict(entries: { key: string; tl: Timeline | undefined }[]): v
   for (const e of entries) {
     if (!e.tl) continue;
     engine.warmPool(e.key, e.tl);
+    tellWarm(e.key, e.tl);
     touch(e.key);
   }
   evictExcess(entries.map(e => e.key));
@@ -105,6 +133,7 @@ export function evictExcess(protect: string[] = []): void {
   let excess = Math.min(standby.length, standby.length + protectedHeld - MAX_WARM);
   for (let i = 0; i < excess; i++) {
     engine.releasePool(standby[i]);
+    tellRelease(standby[i]);
     const li = lru.indexOf(standby[i]);
     if (li >= 0) lru.splice(li, 1);
   }
@@ -120,6 +149,7 @@ export function evictExcess(protect: string[] = []): void {
       const next = lru.find(k => engine.warmPoolKeys().includes(k) && !keep.has(k));
       if (!next) break; // everything left is active, global or protected — the budget cannot be met
       engine.releasePool(next);
+      tellRelease(next);
       const li = lru.indexOf(next);
       if (li >= 0) lru.splice(li, 1);
       excess++;

@@ -93,6 +93,8 @@ const NOOP_HOST: RendererHostServices = {
   // Cold-start readiness. A projector window loads no project and holds no show machine, so a probe
   // registered here would be polled by nobody — accept it and drop it, like every other write above.
   boot: { registerProbe: () => () => {}, isBooting: () => false, elapsedSec: () => 0 },
+  // A projector window holds no pools, so a participant here would be driven by nobody.
+  preload: { registerParticipant: () => () => {} },
 };
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {

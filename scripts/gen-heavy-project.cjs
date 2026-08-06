@@ -70,6 +70,10 @@ const SYNTH_MB = Number(arg('synthetic-mb', 8));
 const POOL = Number(arg('pool', 24));
 const FIXTURES = Number(arg('fixtures', 24));
 const LEDS_PER_FIXTURE = Number(arg('leds', 125));
+// Seconds each state dwells before its afterDelay transition fires. Low values are a STRESS TEST of
+// everything that pre-loads: the warm window, the audio preload tier and the codec rings all assume a
+// scene sits still long enough to get ready, and a 1 s dwell is faster than a decode.
+const DWELL = Number(arg('dwell', 6));
 
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.webm', '.mkv']);
 
@@ -300,11 +304,13 @@ function makeStateMachine(scenes) {
     }));
     const transitions = [];
     const spokes = Math.min(10, states.length - 1);
+    // Hub spokes fan out over a small spread so their ranking is distinguishable; the chain uses the
+    // flat dwell. Both scale with --dwell so a 1 s run really is one second per state.
     for (let i = 1; i <= spokes; i++) {
-        transitions.push({ id: `t_hub_${i}`, from: 'st_0', to: `st_${i}`, trigger: { kind: 'afterDelay', seconds: 4 + i }, fadeSec: 1 });
+        transitions.push({ id: `t_hub_${i}`, from: 'st_0', to: `st_${i}`, trigger: { kind: 'afterDelay', seconds: +(DWELL * (1 + i / spokes)).toFixed(2) }, fadeSec: Math.min(1, DWELL / 2) });
     }
     for (let i = 1; i < states.length - 1; i++) {
-        transitions.push({ id: `t_chain_${i}`, from: `st_${i}`, to: `st_${i + 1}`, trigger: { kind: 'afterDelay', seconds: 6 }, fadeSec: 1 });
+        transitions.push({ id: `t_chain_${i}`, from: `st_${i}`, to: `st_${i + 1}`, trigger: { kind: 'afterDelay', seconds: DWELL }, fadeSec: Math.min(1, DWELL / 2) });
     }
     if (states.length > 1) {
         transitions.push({ id: 't_back_home', fromAny: true, from: '', to: 'st_0', trigger: { kind: 'afterDelay', seconds: 120 }, fadeSec: 2 });
