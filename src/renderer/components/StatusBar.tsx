@@ -90,6 +90,9 @@ const BootChip: React.FC = () => {
           <Hourglass size={12} className="text-warn" />
           <span className="text-fg-2">Preloading</span>
           <span className="num text-fg-3">{p.ready}/{p.total}</span>
+          {/* WHAT it is doing, not just how far along. A fraction that sits at 12/47 for four seconds
+              reads as a hang; "decoding" reads as work. One word, so the chip stays a chip. */}
+          <span className="text-fg-3">· {p.phase}</span>
         </div>
       </Tooltip>
       <div className="h-3 w-px bg-line-2" />

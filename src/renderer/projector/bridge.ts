@@ -1,4 +1,6 @@
 import type { Surface, Timeline } from '../types';
+// Type-only, so this is erased at runtime and adds no module edge to the gate.
+import type { BootPhase } from '../services/bootGate';
 import type { CornerPin, BezierWarp, SoftEdge, ProjectorCalibration, ProjectorBlend, Scene3D } from '../../../shared/protocol';
 
 export interface ProjectorRender {
@@ -46,7 +48,7 @@ export type MainToProjector =
   // just looks like the show is broken. So the window draws NOTHING and says "PRELOADING SHOW" instead,
   // which an operator in a venue can read from the floor. Pushed on every gate change and once with the
   // config (a window opened mid-preload has to learn the state it missed).
-  | { t: 'boot'; booting: boolean; ready: number; total: number }
+  | { t: 'boot'; booting: boolean; ready: number; total: number; phase: BootPhase }
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   // The streamed source has NOTHING to show (a timeline clip ended, a live source dropped). Without

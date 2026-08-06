@@ -3438,7 +3438,7 @@ const App: React.FC = () => {
       // The cold-start hold. Sent HERE as well as on every gate change because a window can open INTO a
       // preload — broadcast opens its outputs from the same project load that started the wait — and a
       // window that missed the change event would put a half-loaded look on a real projector.
-      { const b = bootGate.get(); port.postMessage({ t: 'boot', booting: b.booting, ready: b.ready, total: b.total }); }
+      { const b = bootGate.get(); port.postMessage({ t: 'boot', booting: b.booting, ready: b.ready, total: b.total, phase: b.phase }); }
       // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
       // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
       if (surfaceId !== calibratingOutputId) {
@@ -3513,7 +3513,7 @@ const App: React.FC = () => {
   // SHOW" instead of a half-decoded look; the release message is what puts the real picture up. Fires at
   // the gate's poll rate for the second or two it is holding, and never again after that.
   useEffect(() => bootGate.subscribe((p) => {
-      const msg: MainToProjector = { t: 'boot', booting: p.booting, ready: p.ready, total: p.total };
+      const msg: MainToProjector = { t: 'boot', booting: p.booting, ready: p.ready, total: p.total, phase: p.phase };
       for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
   }), []);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.

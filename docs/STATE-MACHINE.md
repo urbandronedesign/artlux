@@ -464,9 +464,21 @@ Also true of the hold:
 - **Every cold start funnels through `applyProjectData`** — editor open, `--project=`, the watchdog's
   relaunch, the show-control playlist's next show — so one call site covers all of them, and a playlist
   switch simply restarts the wait against the incoming project.
-- **The status bar says so** (a "Preloading n/m" chip), and so does the tablet: `host.show.getStatus()`
-  carries `booting` + `bootPending`, because a preload and a stopped show otherwise look identical
-  (`playing: false`, no current state) and an operator would press GO over a gate about to open.
+- **The status bar says so** — a `Preloading 12/47 · decoding` chip — and so does the tablet:
+  `host.show.getStatus()` carries `booting` + `bootPending`, because a preload and a stopped show
+  otherwise look identical (`playing: false`, no current state) and an operator would press GO over a
+  gate about to open. The projector outputs show the same fraction under **PRELOADING SHOW**.
+- **The fraction counts finished items and only ever moves forward.** It is a ledger of everything the
+  gate has seen, not `total − outstanding`: work discovered late (a video soundtrack whose conform
+  starts once the audio driver has synced) raises the total instead of silently cancelling out a
+  completion, so the numerator never goes backwards and the denominator is never `0` mid-preload. The
+  word beside it — *warming*, *decoding*, *audio* — is what it is mostly waiting on, because a
+  fraction that sits still for four seconds reads as a hang while "decoding" reads as work.
+- **It does not wait for a video clip's soundtrack to be conformed.** A conform is a transcode (two
+  decode passes per file) and can take minutes; a cached one answers in milliseconds. The gate waits
+  briefly — long enough for the cached case, which is every open after the first — then starts the show
+  and lets the rest finish in the background, exactly as it declines to wait for NDI or a camera. The
+  clip's picture is on time; its sound joins when it lands.
 
 ---
 

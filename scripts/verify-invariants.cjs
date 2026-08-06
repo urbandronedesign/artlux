@@ -1153,6 +1153,28 @@ check(
   },
 );
 
+// ── Boot progress is a ledger, not a subtraction ──────────────────────────────────────────────
+check(
+  'the boot fraction counts finished items and cannot go backwards',
+  '`total` was frozen on the second poll and `ready` derived as `total - pending.length`, which ' +
+  'conflates an item FINISHING with a new one APPEARING: they cancel out, so a gate that completed ' +
+  'four things and discovered four more showed no progress, and anything discovered after the freeze ' +
+  '(a conform kicked off once the audio driver had synced) pushed `ready` negative or made the chip ' +
+  'read n/0. The fix is a ledger of every item ever seen — and it MUST be keyed on identity, not on ' +
+  'the display label, because the labels change under it: poolReadiness reports the same clip as ' +
+  '"foo.mov (mp4-webcodecs)" while probing and "foo.mov (buffering)" while pre-rolling, so a ' +
+  'label-keyed ledger counts one clip as two, one of which never completes.',
+  () => {
+    const src = read('src/renderer/services/bootGate.ts');
+    const problems = [];
+    if (/if \(!measured\)/.test(src)) problems.push('the frozen-total measurement is back — late work will make progress go backwards');
+    if (/ready:\s*Math\.max\(0,\s*total\s*-\s*pending\.length\)/.test(src)) problems.push('ready is derived by subtracting pending from a fixed total again');
+    if (!src.includes('const ledger = new Map')) problems.push('the ledger is gone — nothing remembers items that already finished');
+    if (!/keyOf\s*\(/.test(src)) problems.push('the ledger no longer normalises labels to an identity key — a clip whose label changes counts twice');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── The cold-start buffer guarantee is codec-AGNOSTIC ─────────────────────────────────────────
 check(
   'a codec that decodes ahead implements preRoll, and the gate primes the LAYER decoder',
