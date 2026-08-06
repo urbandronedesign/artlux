@@ -1,8 +1,8 @@
 # Take recording — out of the timeline, into the workbench and the library
 
-> **Status:** ✅ **BUILT on branch `take-recording`** (2026-08-06/07, three commits off `main@5a44124`).
-> **Not pushed, not merged.** Verified in the running app against the live LiDAR emitter. The one
-> outstanding item is `npm run docs:capture` — the guide's screenshots still show the deleted Takes bin.
+> **Status:** ✅ **BUILT and PUSHED** — branch `take-recording` (2026-08-06/07, off `main@5a44124`),
+> on `origin` at `66dc0dd`. **Not merged.** Verified in the running app against the live LiDAR emitter.
+> **The guide's screenshots are deliberately NOT re-captured on this branch** — see §7.
 
 Not a limitation-lift plan and it carries no §1–§10 template: this is the record of a change that was
 scoped, built and verified in one session, written down because three of its findings outlive it.
@@ -133,8 +133,21 @@ input enabled through `window.artlux.configureOsc`:
 
 ## 7. Not done
 
-- **`npm run docs:capture`.** The guide's screenshots still show the Takes bin. `verify:docs` says so
-  (non-blocking) and now notices more than it did.
+- **`npm run docs:capture` — deliberately NOT on this branch** (owner's call). The guide's screenshots
+  still show the Takes bin, and `verify:docs` will keep saying so on every run until someone re-shoots
+  them. That warning is **working as designed, not waiting on this branch**:
+  `scripts/lib/shell-signature.cjs` says in its own header that it *"REPORTS rather than fails: a
+  one-line CSS change in the shell should make the screenshots suspect, not block a merge behind a
+  three-minute app run."*
+
+  Three reasons it does not belong here. `docs:capture` **re-shoots the whole guide in one pass**, so it
+  would land ~18 rewritten PNGs on a code branch, most of them unrelated to takes. The shell will move
+  again before this merges, and a re-capture is only worth its diff once. And the harness **leaks the
+  machine's LAN IP and the tablet PIN into the images** without `redactPrivate()` — a real hazard on a
+  public repo, and a reason to run it deliberately rather than as a branch chore.
+
+  ⇒ **Re-capture on `main` after this merges**, as its own commit. Until then the stale pictures are
+  measured and announced, which is exactly what the signature exists for.
 - **`host.takes`.** `TrackingTakesDock` is registered **host-side** even though the recorder belongs to
   the lidar plugin, because no SDK service can write a timeline — `RendererHostServices` has ten
   services and `ShowService` is read-mostly with two narrow writers. That is the next extraction, in the
