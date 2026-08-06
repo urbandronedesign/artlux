@@ -33,11 +33,13 @@ export const hapCodec: VideoCodecContribution = {
     const idx = Math.max(0, Math.min(Math.round(clipTimeSec * info.fps), info.frameCount - 1));
     let st = layerState.get(layerKey);
     if (!st) { st = { index: -1, canvas: null }; layerState.set(layerKey, st); }
-    const got = hapDecode.getFrame(path, idx);
+    // `layerKey` as the ring CONSUMER: a layer's playhead is not the surface player's clock, and the
+    // ring retains the union of its consumers' windows rather than only the last caller's.
+    const got = hapDecode.getFrame(path, idx, layerKey);
     if (got && got.index !== st.index) { st.canvas = hapGL.uploadFrame(layerKey, got.frame); st.index = got.index; }
     return st.canvas;
   },
-  releaseLayer: (layerKey) => { hapGL.release(layerKey); layerState.delete(layerKey); },
+  releaseLayer: (layerKey) => { hapGL.release(layerKey); layerState.delete(layerKey); hapDecode.releaseConsumer(layerKey); },
   // The decoded index already tracked above — it advances only on the `got.index !== st.index` branch
   // that actually re-uploads, which is precisely "the canvas has new pixels".
   layerGeneration: (layerKey) => { const st = layerState.get(layerKey); return st && st.index >= 0 ? st.index : undefined; },
@@ -46,7 +48,10 @@ export const hapCodec: VideoCodecContribution = {
   preWarm: (path) => { void hapDecode.ensureOpen(path); },
   // Cold start: fill the decode-ahead ring before the host lets the show run, so playback does not
   // open on an empty buffer (see hapDecode.preRoll and the SDK's contract).
-  preRoll: (path, atSec, aheadSec) => hapDecode.preRoll(path, atSec, aheadSec),
+  // The gate asks on behalf of a LAYER, so the claim (and the frames counted) must be that layer's —
+  // the surface player is elsewhere in the same file. Falls back to the surface consumer when the host
+  // does not name a layer, which is what a surface-only pre-roll wants.
+  preRoll: (path, atSec, aheadSec, layerKey) => hapDecode.preRoll(path, atSec, aheadSec, layerKey),
   // What this file's decode ring is holding, for the host's residency budget. Raw BC blocks:
   // ~1 MB per 1080p DXT1 frame, ~4 MB per 4K DXT5 — a few of these outweigh a whole pool of <video>s.
   residentBytes: (path) => hapDecode.residentBytes(path),
