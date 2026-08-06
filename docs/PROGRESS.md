@@ -804,6 +804,58 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   splitter drag whose pixel values stayed pinned, because React rewrites a style property only when
   its own props change. All three are guarded; the reasoning is in docs/WORKSPACE.md.
 
+## v0.25.2 — a heavy show opens without reading itself, and the engine stops asking faster than the decoder can answer (2026-08-06)
+
+Two halves of one campaign (branch `preload-optimization`, 20 commits). Full record, including what was
+measured and **dropped**: [plans/preload-optimization.md](../plans/preload-optimization.md).
+
+**The gate had never worked.** ArtLux holds the show at project open until the opening look is decoded
+(`services/bootGate.ts`), and the measurement that opened this work said it had **never once reached
+`ready`** — on any project, ever. It always failed open at its deadline, which means its readiness logic
+and the codec pre-roll that serves it had been applying to nothing. The owner's real show: 17.1 s
+`armedBy=timeout` → **7.3 s `armedBy=ready`**. When a gate reports a timeout every single time, suspect
+the gate, not the workload.
+
+**Nothing is read to be played any more.** Media streams over an `artlux-media://` scheme with HTTP Range
+against a per-project allowlist, instead of being read whole-file over IPC into a Blob. On a 60-scene /
+2400-clip / 2.3 GB fixture: bytes read at open **887 MB → 0**, renderer heap 1459 → 326 MB, peak main RSS
+1963 → 284 MB, codec residency while walking the show 3793 MB-and-climbing → **~250 MB flat**. `mediaCache`'s
+blob path was **deleted** rather than budgeted — after streaming it had no consumers left. The warm-pool
+budget now actually binds (its own protect set had been bypassing it), candidates are ranked by imminence
+including `fromAny` transitions, and pools can release.
+
+**Then playback stuttered, and it was not a preload problem.** With shows opening fast, heavy video
+visibly stopped and started. It presented as late loading — *"as if we load the video when the playhead
+reaches it"* — and three decoder-side fixes failed before the cause came out: **every engine tick asks
+each layer's codec for the exact frame at the playhead, and asking faster than the decoder can serve does
+not produce more pictures.** The ring answers with the *nearest* frame it holds, and a burst of those is
+the stutter. Uncapped (~60 Hz of asks): **19.0%** of exact frames missed, 78 in the worst half-second. At
+25 Hz on identical content: **0.27%**, worst half-second 9, and 4 of 4 scene cuts clean.
+
+What pointed there, after the guesses: the **projector** window — decoding the same media, but only for
+the one surface it draws — missed **0.007%** throughout. The window doing *more* work barely suffered,
+which is an argument against the decoder and for how often it was being asked.
+
+Ships as **Preferences ▸ Engine ▸ Engine rate (fps)**, `AppSettings.engineFps`, default **30**,
+machine-scoped because the right value depends on the computer's disk and GPU rather than on the show.
+⚠ **This changes every show, not only heavy ones** — the engine no longer runs at display rate. It is
+**not** the Art-Net rate: the native pacer sends at `AppSettings.fps` with keep-alive, so a slower engine
+repeats the last frame on the wire rather than starving a node.
+
+**Dropped on their own evidence, not deferred.** The planned "make the open O(1) in scene count" phase:
+the `normalizeTimeline` it targeted costs **3.3 ms at 160 scenes** — 0.5% of the open, against the largest
+blast radius in the plan. And HAP `MAX_INFLIGHT` 3→6, which moved the miss rate 18.1% → 20.6%.
+
+**The method note worth keeping.** Resident bytes tell you something is *cached* — never that the frame
+being *asked for* is there. Two failed fixes measured green against residency while the operator still
+saw the hitch. The instrumentation that finally separated the two ships with it, measure-only:
+`window.__artluxLayerGaps()` and `__artluxHapPulls()`.
+
+⚠ **Projector output windows and real Art-Net to hardware are unexercised** — no projector or LED node on
+this machine. Both paths typecheck and are invariant-guarded, but this release changes how often frames
+are produced. Exercise a fullscreen output and watch a real node before it drives a show.
+
+
 ## v0.25.1 — a relaunch cannot inherit a dev server, and a packaged tray needs a packaged icon (2026-08-05)
 
 Two independent defects, both in broadcast mode, both silent, found in one session.

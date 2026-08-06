@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.25.2
 
 ### The engine has a frame rate now — and asking faster was making video *worse*
 
