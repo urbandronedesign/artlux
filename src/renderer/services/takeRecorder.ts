@@ -2,7 +2,7 @@ import type { ContextActionLive } from '@artlux/sdk/renderer';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import * as lightingRecorder from './lightingRecorder';
-import type { Timeline } from '../types';
+import type { Timeline, TrackingTakeRef } from '../types';
 
 // THE ONE OWNER OF A RECORDED TAKE.
 //
@@ -39,13 +39,30 @@ export interface TakeHost {
   docKey(): string;
   /** Commit a whole timeline as ONE undo entry (App.handleTimelineChange). */
   commit(next: Timeline): void;
+  /**
+   * THE PROJECT'S OWN DOCUMENT — where the tracking-take LIBRARY lives, whatever scene is on air.
+   *
+   * A LiDAR take is captured REALITY: a .lblob of what the venue actually did, reusable by every scene
+   * in the show. It is not a property of whichever scene happened to be bound when you pressed record —
+   * and routing it through the bound document (which is what happened before) meant a take recorded
+   * during Scene 2 was invisible to the Media library, which reads the global doc, and could never be
+   * placed on any other scene's lane. Three separate comments in the tree already asserted the library
+   * was global; only the writer disagreed.
+   */
+  globalTimeline(): Timeline;
+  /**
+   * Add to the project library. Deliberately NOT `commit` — recording a take is an IMPORT, not a
+   * timeline edit, so it takes the same door as importing a video (a direct setTimeline, no undo
+   * entry). Putting an asset add on the document undo stack would let Ctrl+Z silently un-record.
+   */
+  commitGlobal(next: Timeline): void;
   /** Project folder, when there is one — enables the copy-in of a .lblob into assets/tracking. */
   projectPath(): string | null;
   /** The lighting recorder's target. THE ORDER IS THE SHOW — it becomes the take's part order. */
   selectedFixtureIds(): string[];
   /** Operator-visible refusal. Replaces the console.warn nobody ever saw. */
   notify(kind: 'error' | 'warn' | 'info', title: string, detail?: string): void;
-  /** Names the destination on the REC chip ("→ Act 2" / "→ Global"). */
+  /** The bound scene's name for the REC chip ("Act 2" / "Global") — where a LIGHTING take will land. */
   destinationName(): string;
 }
 
@@ -85,8 +102,17 @@ export function elapsed(kind: 'lighting' | 'tracking'): number {
   return kind === 'lighting' ? lightingRecorder.getElapsed() : trackingRecorder.getElapsed();
 }
 export function isRecording(): boolean { return rec.lighting || rec.tracking; }
-/** Where a take stopped RIGHT NOW would land. Display only. */
-export function destination(): string { return host?.destinationName() ?? 'Global'; }
+/**
+ * Where a take stopped RIGHT NOW would land. Display only.
+ *
+ * The two kinds answer differently, and that IS the model: a tracking take always goes to the project's
+ * media library, a lighting take goes to the document you are authoring. The lighting answer can move
+ * under you (an FSM advancing a scene mid-take), which is why the REC chip polls this rather than
+ * reading it once at arm time.
+ */
+export function destination(kind: 'lighting' | 'tracking'): string {
+  return kind === 'tracking' ? 'Media library' : (host?.destinationName() ?? 'Global');
+}
 
 // ── Lighting takes ───────────────────────────────────────────────────────────────────────────────
 
@@ -166,15 +192,21 @@ export function startTracking(): boolean {
 }
 
 /**
- * Stop, write the .lblob, copy it into the project, and commit the ref.
+ * Stop, write the .lblob, copy it into the project, and put the take in the PROJECT LIBRARY.
  *
- * ⚠ THE COMMIT RUNS AFTER TWO AWAITS — a disk write and an asset import — and the world moves under it.
- * A take recorded against Global, or against scene A, would otherwise land its `trackingTakes` entry AND
- * a synthesized 'tracking' layer in whatever document an FSM / scheduler / OSC recall bound while the
- * file was being written. So: capture the doc key BEFORE the awaits and drop the commit if it moved.
- * The take file itself stays on disk (an orphan file is harmless; a document that lies is not), and the
- * putCache is INSIDE the guard because it would otherwise keep a whole take's samples alive under a path
- * no document can reach.
+ * TWO DOCUMENTS, ON PURPOSE:
+ *
+ *   · the take REF goes to the GLOBAL doc — it is the project's take library, the list the Media panel
+ *     renders and the one every scene can draw from. This is what makes "record it, then drop it on any
+ *     timeline" true. It is an import, so it does not take an undo entry.
+ *   · the auto-created LANE goes to the BOUND doc — a lane is where you are about to PLACE the take,
+ *     which is wherever you are working.
+ *
+ * ⚠ TWO AWAITS RUN BEFORE EITHER — a disk write and an asset import — and the bound document moves under
+ * them (an FSM, the scheduler, an OSC recall). That used to be able to lose the take itself into a scene
+ * nobody recorded into; now it cannot, because the library has one fixed address. The doc-key guard
+ * survives for the LANE alone, so the worst a recall can now cost you is a convenience lane in the wrong
+ * scene — never the recording. The putCache stays before both so replay/sparkline never re-read disk.
  */
 export async function stopTracking(): Promise<void> {
   if (!host) return;
@@ -186,11 +218,10 @@ export async function stopTracking(): Promise<void> {
     host.notify('warn', 'Nothing was captured', 'No blobs arrived while recording — check the tracker is connected and sending.');
     return;
   }
-  // Named off the doc as it stands BEFORE the awaits — the same doc `recDocKey` pins below, so the name
-  // and the commit guard agree on which document this take belongs to. (Numbered from what is TAKEN,
-  // not from the count: takes are the most-deleted list in the app — you record five and keep one.)
-  tk.name = nextNumberedName('Take', host.timeline().trackingTakes ?? []);
-  const recDocKey = host.docKey();
+  // Numbered across the PROJECT, because that is the list it joins — and numbered from what is TAKEN,
+  // not from the count: takes are the most-deleted list in the app, you record five and keep one.
+  tk.name = nextNumberedName('Take', host.globalTimeline().trackingTakes ?? []);
+  const laneDocKey = host.docKey();
   let path = await window.artlux?.saveTrackingTake?.(tk.id, trackingTake.serialize(tk));
   if (!path) { host.notify('error', 'Take not saved', 'The recorded blob file could not be written to disk.'); return; }
   // Copy-in policy: relocate the take into the project's assets/tracking when we have a folder.
@@ -199,17 +230,22 @@ export async function stopTracking(): Promise<void> {
     const entry = await window.artlux?.importAssetFile?.(projectPath, path, 'take', tk.name);
     if (entry?.path) path = entry.path;
   }
-  if (host.docKey() !== recDocKey) return;   // recalled mid-write → the take is not this document's
   trackingTake.putCache(path, tk);           // so replay/sparkline don't re-read disk
+
+  // 1. The library. Re-read at commit time; the destination cannot have moved, only its contents.
+  const g = host.globalTimeline();
+  host.commitGlobal({
+    ...g,
+    trackingTakes: [...(g.trackingTakes ?? []), { id: tk.id, name: tk.name, path, duration: tk.duration, fps: tk.fps }],
+  });
+
+  // 2. The lane you will drop it on — only if you are still in the document you recorded from.
+  if (host.docKey() !== laneDocKey) return;
   const tl = host.timeline();
+  if (tl.layers.some((l) => l.kind === 'tracking')) return;
   host.commit({
     ...tl,
-    trackingTakes: [...(tl.trackingTakes ?? []), { id: tk.id, name: tk.name, path, duration: tk.duration, fps: tk.fps }],
-    // The lane is created in the SAME commit so it is one undo entry, and from the freshly-read `tl`
-    // rather than a boolean captured before the awaits.
-    layers: tl.layers.some((l) => l.kind === 'tracking')
-      ? tl.layers
-      : [...tl.layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking' as const, color: '#7ed321', enabled: true }],
+    layers: [...tl.layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking' as const, color: '#7ed321', enabled: true }],
   });
 }
 
@@ -220,18 +256,25 @@ export function toggleTracking(): void {
 /** Abandon a tracking capture without producing anything (and without touching the disk). */
 export function cancelTracking(): void { trackingRecorder.cancel(); }
 
+/** The library list, whatever scene is bound. What the Tracking Takes panel renders. */
+export function trackingTakes(): TrackingTakeRef[] { return host?.globalTimeline().trackingTakes ?? []; }
+
+// Library maintenance targets the GLOBAL doc, the same door App.handleRemoveAsset already used for a
+// take deleted from the Media panel — so the two ways to delete a take cannot disagree about where it
+// lives. (Clips referencing it are left alone: they carry their own path and read as missing, which is
+// recoverable. Deleting the operator's placement is not — see App.handleRemoveAsset's note.)
 export function removeTrackingTake(id: string): void {
   if (!host) return;
-  const tl = host.timeline();
-  host.commit({ ...tl, trackingTakes: (tl.trackingTakes ?? []).filter((t) => t.id !== id) });
+  const g = host.globalTimeline();
+  host.commitGlobal({ ...g, trackingTakes: (g.trackingTakes ?? []).filter((t) => t.id !== id) });
 }
 
 export function renameTrackingTake(id: string, name: string): void {
   if (!host) return;
   const trimmed = name.trim();
   if (!trimmed) return;
-  const tl = host.timeline();
-  host.commit({ ...tl, trackingTakes: (tl.trackingTakes ?? []).map((t) => (t.id === id ? { ...t, name: trimmed } : t)) });
+  const g = host.globalTimeline();
+  host.commitGlobal({ ...g, trackingTakes: (g.trackingTakes ?? []).map((t) => (t.id === id ? { ...t, name: trimmed } : t)) });
 }
 
 export function addTrackingLane(): void {

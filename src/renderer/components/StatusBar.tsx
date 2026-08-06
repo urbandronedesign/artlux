@@ -116,8 +116,18 @@ const BootChip: React.FC = () => {
 //
 // The two clocks are separate on purpose: the recorders are independent singletons with their own
 // start times, and both can be armed at once. One merged clock would be a lie.
+//
+// ⚠ THE DESTINATION IS POLLED, NOT RENDERED. It rides the clock's interval rather than React for a
+// reason that is easy to miss: this component only re-renders on start/stop, so a destination read
+// during render is frozen at ARM TIME — and the bound document is exactly the thing that moves while
+// you are not looking. An FSM advancing a scene mid-take (observed: armed against "Scene 1", the show
+// stepped to "Scene 2", the take landed there) would leave the chip naming a document the take is no
+// longer going to. Same failure Timeline's `audioOwnerName` documents, in the dangerous direction: the
+// operator reads a promise about where their work is going and it is out of date.
 const RecChip: React.FC = () => {
   const rec = useSyncExternalStore(takeRecorder.subscribe, takeRecorder.getRec);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const destRef = useRef<HTMLSpanElement>(null);
   const lightRef = useRef<HTMLSpanElement>(null);
   const trackRef = useRef<HTMLSpanElement>(null);
   const armed = rec.lighting || rec.tracking;
@@ -125,6 +135,16 @@ const RecChip: React.FC = () => {
     if (!armed) return;
     const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
     const tick = () => {
+      // Per KIND, because the two land in different places by design: a tracking take always goes to
+      // the project's media library, a lighting take to the document you are authoring. With both
+      // armed, name both rather than picking one.
+      const parts: string[] = [];
+      if (takeRecorder.getRec().lighting) parts.push(takeRecorder.destination('lighting'));
+      if (takeRecorder.getRec().tracking) parts.push(takeRecorder.destination('tracking'));
+      const dest = parts.join(' + ');
+      // textContent, so a changed destination re-announces on the aria-live region without a render.
+      if (destRef.current && destRef.current.textContent !== dest) destRef.current.textContent = dest;
+      if (btnRef.current) btnRef.current.title = `Recording into ${dest} — click to stop`;
       if (lightRef.current) lightRef.current.textContent = fmt(takeRecorder.elapsed('lighting'));
       if (trackRef.current) trackRef.current.textContent = fmt(takeRecorder.elapsed('tracking'));
     };
@@ -133,23 +153,20 @@ const RecChip: React.FC = () => {
     return () => window.clearInterval(id);
   }, [armed]);
   if (!armed) return null;
-  // WHERE IT WILL LAND. Once the control left the timeline, which document a take is being recorded
-  // into stopped being obvious — you can arm from Preferences. Resolved out of the scene list, so a
-  // bound-but-unresolvable scene reads "Scene", never the literal "Global".
-  const dest = takeRecorder.destination();
   return (
     <>
       <Tooltip id="general.recording">
         <button
+          ref={btnRef}
           onClick={() => takeRecorder.stopAll()}
-          title={`Recording into "${dest}" — click to stop`}
           {...helpTip('general.recording')}
           className="flex items-center gap-1.5 h-5 px-1.5 rounded-sm text-danger bg-danger/15 ring-1 ring-danger/50"
         >
           <Circle size={9} className="fill-danger animate-pulse shrink-0" />
-          {/* Polite live region on WHAT is recording and where — never on a clock. */}
-          <span role="status" aria-live="polite" className="truncate max-w-[180px]">
-            {rec.lighting && rec.tracking ? 'REC lighting + tracking' : rec.lighting ? 'REC lighting' : 'REC tracking'} → {dest}
+          {/* Polite live region on WHAT is recording and WHERE IT WILL LAND — never on a clock. */}
+          <span role="status" aria-live="polite" className="truncate max-w-[220px]">
+            {rec.lighting && rec.tracking ? 'REC lighting + tracking' : rec.lighting ? 'REC lighting' : 'REC tracking'}
+            {' → '}<span ref={destRef} />
           </span>
           {rec.lighting && <span ref={lightRef} className="num" aria-hidden="true">00:00</span>}
           {rec.tracking && <span ref={trackRef} className="num" aria-hidden="true">00:00</span>}

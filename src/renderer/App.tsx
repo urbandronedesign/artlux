@@ -1584,6 +1584,11 @@ const App: React.FC = () => {
       // where the write will actually LAND. Identity, not value — see Timeline.tsx's docKey note.
       docKey: () => activeSceneIdRef.current ?? '__global__',
       commit: (next) => handleTimelineChangeRef.current(next),
+      // The PROJECT's own document. `setTimeline` directly, NOT handleTimelineChange: that routes to
+      // the bound scene (which is the bug this fixes) and records an undo entry. Recording a take is an
+      // import — it takes the same door handleRemoveAsset already uses to delete one.
+      globalTimeline: () => timelineRef.current,
+      commitGlobal: (next) => setTimeline(next),
       projectPath: () => currentProjectPathRef.current,
       // THE LIGHTS IN THE SELECTION, IN SELECTION ORDER — not the raw selection.
       //
@@ -2028,6 +2033,20 @@ const App: React.FC = () => {
         // Scene would be a lie at runtime: tsc would believe it, and the app would hold undefined.
         return { ...s, accent, timeline: normalizeTimeline(s.timeline) };
       });
+      // MIGRATION: HOIST STRANDED TRACKING TAKES INTO THE PROJECT LIBRARY.
+      //
+      // A LiDAR take is captured reality and belongs to the project, so its ref lives on the GLOBAL
+      // document — that is the list the Media panel renders and the one any scene can draw from. But
+      // until 2026-08-06 the recorder committed through the bound document, so every take recorded
+      // while a scene was on air was written into THAT SCENE. Those takes are invisible to the media
+      // library (which reads the global doc) and cannot be placed anywhere else. Hoist them once, on
+      // open, deduped by id; the `.lblob` files are untouched, only the refs move. Idempotent, so a
+      // project saved after this simply has nothing left to hoist.
+      const strandedTakes = loadedScenes.flatMap(s => s.timeline?.trackingTakes ?? []);
+      if (strandedTakes.length) {
+        for (const s of loadedScenes) if (s.timeline) s.timeline = { ...s.timeline, trackingTakes: [] };
+        console.info(`[takes] hoisted ${strandedTakes.length} scene-local tracking take(s) into the project library`);
+      }
       setScenes(loadedScenes);
       // This mark is metric B's needle: the per-scene normalize above is the one open cost that grows
       // with scene count (plans/preload-optimization.md §4). If its delta is flat, phase 6 is done.
@@ -2049,7 +2068,16 @@ const App: React.FC = () => {
         bank.sceneCells = loadedScenes.map((s, i) => ({ col: i, sceneId: s.id }));
         setCueBanks([bank]);
       }
-      const tl = normalizeTimeline(data?.timeline);
+      const tlRaw = normalizeTimeline(data?.timeline);
+      // …and land them here, after the global doc is normalized. Deduped by id, global's own first, so
+      // re-opening a half-migrated project cannot double a take.
+      let tl = tlRaw;
+      if (strandedTakes.length) {
+        const merged = [...(tlRaw.trackingTakes ?? [])];
+        const seen = new Set(merged.map(t => t.id));
+        for (const t of strandedTakes) if (!seen.has(t.id)) { seen.add(t.id); merged.push(t); }
+        tl = { ...tlRaw, trackingTakes: merged };
+      }
       setTimeline(tl);
       // State machine: project-level field, else migrate a legacy machine nested in the timeline.
       const legacySm = (data?.timeline as any)?.stateMachine;

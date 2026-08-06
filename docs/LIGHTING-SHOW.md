@@ -339,6 +339,23 @@ recording of its own replay. That refusal — and the "nothing was selected" one
 there is no take" — arrive as **toasts**: a recorder you can arm from a keyboard shortcut in a
 workspace with no visible record button cannot fail silently.
 
+### A lighting take belongs to ONE timeline — and a LiDAR take does not
+
+This asymmetry is deliberate, and the Lighting Takes panel names the document its list belongs to so you
+meet it before it costs you anything.
+
+A **LiDAR take is captured reality**: a `.lblob` recording of what the venue actually did, on disk, that
+any scene in the show might legitimately replay. It goes into the **project's media library**, and you
+can drop it on any timeline (docs/TRACKING_TAKES.md).
+
+A **lighting take is authored performance**. It is a busk of *these* heads in *this* look, keyframe-
+fitted and stored inline in the document you recorded it against — it is material for the show you are
+writing, not a recording of the room. Making it project-global would put every rehearsal take of every
+scene in one flat list, and the useful ones are the ones sitting next to the clips they belong to.
+
+If you do want a busk in another scene: place it on a lighting clip here, then **Capture Scene** — the
+clone carries the take with it. Recording the take against the scene you mean is the cheaper path.
+
 ### The fitter
 
 [curveFit.ts](../src/renderer/services/curveFit.ts) — what a busk goes through on the way to becoming

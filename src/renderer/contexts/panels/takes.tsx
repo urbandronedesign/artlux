@@ -89,8 +89,10 @@ const LaneButton: React.FC<{ onClick: () => void; label: string; helpId: string 
 const TakeRow: React.FC<{
   id: string; name: string; helpId: string; title: string;
   meta: React.ReactNode; signature?: React.ReactNode;
+  /** The full ref, for a take that can be dropped on a document which does not hold it. */
+  payload?: unknown;
   onRename: (name: string) => void; onRemove: () => void;
-}> = ({ id, name, helpId, title, meta, signature, onRename, onRemove }) => {
+}> = ({ id, name, helpId, title, meta, signature, payload, onRename, onRemove }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const commit = () => { setEditing(false); if (draft.trim() && draft !== name) onRename(draft); else setDraft(name); };
@@ -100,7 +102,11 @@ const TakeRow: React.FC<{
         // The lane drop handler reads exactly this MIME. Lighting chips were never draggable before —
         // a lighting take could only be reached through a clip's Source dropdown.
         draggable={!editing}
-        onDragStart={(e) => { e.dataTransfer.setData('application/artlux-take', id); e.dataTransfer.effectAllowed = 'copy'; }}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/artlux-take', id);
+          if (payload) e.dataTransfer.setData('application/artlux-take-ref', JSON.stringify(payload));
+          e.dataTransfer.effectAllowed = 'copy';
+        }}
         title={title}
         {...help(helpId)}
         className="group relative flex items-center gap-2 h-8 px-2 rounded border border-line-1 bg-surface-2 hover:border-accent cursor-grab"
@@ -146,7 +152,10 @@ const rolesOf = (t: LightingTake): ChannelRole[] => {
 };
 
 export const LightingTakesDock: React.FC = () => {
-  const { timeline, selectedFixtureIds, fixtures } = useEditor();
+  const { timeline, selectedFixtureIds, fixtures, scenes, activeSceneId } = useEditor();
+  // Resolved out of `scenes`, never off a pre-collapsed name — the rule Timeline's audioOwnerName
+  // documents: a bound-but-unresolvable scene must read "Scene", never the literal "Global".
+  const owner = activeSceneId ? (scenes.find((s) => s.id === activeSceneId)?.name || 'Scene') : 'the global timeline';
   const rec = useSyncExternalStore(takeRecorder.subscribe, takeRecorder.getRec);
   const takes = timeline.lightingTakes ?? [];
   const hasLane = timeline.layers.some((l) => l.kind === 'lighting');
@@ -190,6 +199,14 @@ export const LightingTakesDock: React.FC = () => {
         />
         {rec.lighting && <CancelButton onClick={takeRecorder.cancelLighting} />}
         {!hasLane && <LaneButton onClick={takeRecorder.addLightingLane} label="Lighting lane" helpId="timeline.lighting-add-lane" />}
+      </div>
+
+      {/* WHOSE LIBRARY THIS IS. Lighting takes are scene-local BY DESIGN and tracking takes are not, so
+          the difference has to be visible rather than something you discover by losing a take. See
+          docs/LIGHTING-SHOW.md — a busk is authored material for the show you are writing; a LiDAR take
+          is a recording of what the venue did, which every scene can reuse. */}
+      <div className="text-micro text-fg-3 pt-0.5">
+        Takes of <span className="text-fg-2">{owner}</span> — a lighting take belongs to the timeline it was recorded on.
       </div>
 
       <div className="space-y-1 pt-1">
@@ -238,9 +255,13 @@ const TrackingSignature: React.FC<{ t: TrackingTakeRef }> = ({ t }) => (
 );
 
 export const TrackingTakesDock: React.FC = () => {
-  const { timeline } = useEditor();
+  // THE PROJECT LIBRARY, not the bound document. A LiDAR take is captured reality — a recording of what
+  // the venue did — so it belongs to the project and every scene can draw on it. `globalTimeline` is
+  // the same list the Media panel renders (services/assetLibrary.libraryItems).
+  const { globalTimeline, timeline } = useEditor();
   const rec = useSyncExternalStore(takeRecorder.subscribe, takeRecorder.getRec);
-  const takes = timeline.trackingTakes ?? [];
+  const takes = globalTimeline.trackingTakes ?? [];
+  // …but the LANE is a property of the document you are editing, so it is read from the bound one.
   const hasLane = timeline.layers.some((l) => l.kind === 'tracking');
 
   return (
@@ -265,7 +286,10 @@ export const TrackingTakesDock: React.FC = () => {
           : takes.map((t) => (
             <TakeRow
               key={t.id} id={t.id} name={t.name} helpId="timeline.take-chip"
-              title={`${t.name} — ${fmtClock(t.duration)}\nDrag onto the tracking lane.`}
+              title={`${t.name} — ${fmtClock(t.duration)}\nIn the project library — drag it onto the tracking lane of ANY scene's timeline.`}
+              // The whole ref travels with the drag, so a lane can accept a take its own document has
+              // never heard of. See the drop handler in Timeline.tsx.
+              payload={{ id: t.id, name: t.name, path: t.path, duration: t.duration, fps: t.fps }}
               signature={<TrackingSignature t={t} />}
               meta={fmtClock(t.duration)}
               onRename={(name) => takeRecorder.renameTrackingTake(t.id, name)}

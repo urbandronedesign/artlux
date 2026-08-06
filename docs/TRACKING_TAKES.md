@@ -76,10 +76,21 @@ so there's no interpolation). Files are written via the `SAVE_TRACKING_TAKE` IPC
 stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and cached by path.
 
 ### Data model
-- The take **library** lives in `Timeline.trackingTakes: TrackingTakeRef[]` (`{ id, name, path,
-  duration, fps }`). A placed take is an ordinary `VideoClip` with `kind:'tracking'`, `takeId` = the
-  ref id, and `path` = the `.lblob`. The asset library (ASSETS.md) **aggregates** these for display;
-  takes are **not** migrated into `ProjectData.assets` — the timeline remains their owner.
+- The take **library** lives in **the GLOBAL timeline's** `trackingTakes: TrackingTakeRef[]`
+  (`{ id, name, path, duration, fps }`) — the PROJECT's list, not the bound scene's. That is the whole
+  point: a LiDAR take is captured *reality*, a recording of what the venue did, so every scene can draw
+  on it. (Contrast a **lighting** take, which is authored *performance* and stays inline on the timeline
+  it was recorded against — see LIGHTING-SHOW.md.)
+- A placed take is an ordinary `VideoClip` with `kind:'tracking'`, `takeId` = the ref id, and `path` =
+  the `.lblob`. **The clip is self-sufficient** — it carries the path and duration — which is what lets a
+  take be dropped on a scene timeline that does not hold its ref. The drag carries the whole ref
+  (`application/artlux-take-ref`) so the drop never has to resolve against the target document.
+- The asset library (ASSETS.md) **aggregates** these for display; takes are **not** migrated into
+  `ProjectData.assets` — the timeline remains their owner.
+- **Migration.** Until 2026-08-06 the recorder committed through the *bound* document, so takes recorded
+  while a scene was on air were written into that scene: invisible to the media library and unplaceable
+  anywhere else. `applyProjectData` hoists any it finds into the global doc on open, deduped by id. The
+  `.lblob` files are untouched; only the refs move.
 - `mapAssetPaths` (main/`projectFolder.ts`) already visits `trackingTakes[].path` and tracking clip
   paths, so save/relativize/resolve/Collect-Assets all handle takes.
 
@@ -100,9 +111,12 @@ stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and
    is written to disk, copied into the project, and a **Tracking** lane is created if there is none.
    Recording is refused while a take is already playing under the playhead (you would be recording
    replayed data) — the refusal says so in a toast.
-2. **Place.** Drag a take out of the **Tracking Takes** panel (or the **Media** library) onto the
-   tracking lane. It becomes a clip with a green blob-density sparkline — the same signature the take
-   row carries — and moves/trims like any clip. Click a take's name to rename it.
+2. **Place.** A finished take goes into the **project's media library**, not into whatever scene was on
+   air when you recorded it — so it appears in **Media Library** beside your video and images, and you
+   can drag it onto the tracking lane of **any** timeline: the global one, or any scene's. Drag it from
+   the **Tracking Takes** panel or from the Media library; it becomes a clip with a green blob-density
+   sparkline — the same signature the take row carries — and moves/trims like any clip. Click a take's
+   name to rename it.
 3. **Replay.** With the tracker disconnected, press **Play** (or scrub) — the recorded blobs drive
    the 3D Scene and any TRACKING projector outputs. Past the clip's end the blobs clear.
 4. **Mixing with a live tracker.** While a take plays, the live feed is globally suppressed; it

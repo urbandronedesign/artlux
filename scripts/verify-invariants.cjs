@@ -2070,10 +2070,10 @@ check(
 // ── Takes: ONE owner of the take commit ───────────────────────────────────────────────────────
 check(
   'a recorded take is committed only by takeRecorder.ts',
-  'Committing a take is not one write. It is: name it off the CURRENT document with ' +
-  'nextNumberedName, (for tracking) write a .lblob, copy it into the project, re-check that the bound ' +
-  'document did not move across those two awaits, seed the replay cache, append the ref AND ' +
-  'synthesize the lane — all in ONE handleTimelineChange so it is one undo entry. That whole sequence ' +
+  'Committing a take is not one write. It is: name it off the PROJECT library with nextNumberedName, ' +
+  '(for tracking) write a .lblob, copy it into the project, seed the replay cache, append the ref to ' +
+  'the GLOBAL document, and — only if the bound document has not moved across those two awaits — ' +
+  'synthesize a lane in the document you recorded from. That whole sequence ' +
   'was duplicated the moment a second door appeared: the timeline\'s Takes bin and the Venue & Rig ' +
   'action bar each had their own copy, and only one of them carried the doc-key guard. Nothing throws ' +
   'when they drift — a take recorded against scene A simply lands in scene B because an FSM recall ' +
@@ -2089,9 +2089,19 @@ check(
       if (!new RegExp(`export (async )?function ${sym}\\b`).test(owner))
         return `${OWNER} no longer exports ${sym}() — the take commit has lost its owner`;
     }
-    // The guard the duplication kept losing. Both halves must survive any refactor of stopTracking.
-    if (!/recDocKey/.test(owner) || !/docKey\(\) *!== *recDocKey/.test(owner))
-      return `${OWNER}.stopTracking() lost the doc-key guard across its two awaits — a take can land in a document nobody recorded into`;
+    // THE LIBRARY IS THE GLOBAL DOC. A tracking take is captured reality — every scene may replay it —
+    // so its ref must be appended through commitGlobal, never through the bound-document `commit`.
+    // Routing it through the bound doc is what made a take recorded during a scene invisible to the
+    // media library and unplaceable on any other timeline, for as long as the feature existed.
+    const cg = owner.indexOf('commitGlobal({');
+    if (cg < 0 || !/trackingTakes: *\[\.\.\./.test(owner.slice(cg, cg + 400)))
+      return `${OWNER}.stopTracking() no longer appends the take ref through commitGlobal() — a recorded take must land in the PROJECT library, not in whichever scene was on air`;
+    // …and a doc-key guard still spans the two awaits. Its job SHRANK rather than vanished: the ref now
+    // has one fixed address, so a recall can no longer misplace the recording — only the convenience
+    // lane that gets created in the document you recorded from. That is the whole point of the split,
+    // and losing the guard would put an empty tracking lane in a scene the operator never touched.
+    if (!/docKey\(\) *!== *\w+/.test(owner))
+      return `${OWNER}.stopTracking() lost the doc-key guard across its two awaits — the auto-created lane can land in a document nobody recorded from`;
     // THE APPEND, and only the append — `xTakes: [...prev, take]`. That is the commit, and the thing
     // that was duplicated. Deliberately NOT every write: removing a take from the Media library and
     // rewriting its path on a relink are `filter`/`map` over an existing list, they are not gestures,

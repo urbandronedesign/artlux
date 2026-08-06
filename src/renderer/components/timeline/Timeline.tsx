@@ -1144,10 +1144,17 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const tl = timelineRef.current;
     const layer = tl.layers.find(l => l.id === layerId);
     const takeId = e.dataTransfer.getData('application/artlux-take');
-    // Tracking lane: only accepts take chips from the bin (no video files).
+    // Tracking lane: only accepts takes (no video files).
     if (layer?.kind === 'tracking') {
       if (!takeId) return;
-      const ref = (tl.trackingTakes ?? []).find(t => t.id === takeId);
+      // THE TAKE NEED NOT BELONG TO THIS DOCUMENT. A LiDAR take lives in the PROJECT library (the global
+      // doc's trackingTakes) precisely so any scene can play it, so resolving only against `tl` would
+      // reject every take on every scene timeline — silently, since a failed drop looks like a missed
+      // one. The drag carries the whole ref for exactly this case; the doc lookup stays first so an
+      // older drag source that sends only an id still works.
+      const raw = e.dataTransfer.getData('application/artlux-take-ref');
+      const ref = (tl.trackingTakes ?? []).find(t => t.id === takeId)
+        ?? (raw ? (JSON.parse(raw) as { id: string; name: string; path: string; duration: number; fps?: number }) : undefined);
       if (!ref) return;
       const start = freeStartOn(layerId, clientXToTime(e.clientX), ref.duration);
       onChangeRef.current({ ...tl, clips: [...tl.clips, { id: crypto.randomUUID(), layerId, name: ref.name, path: ref.path, kind: 'tracking', takeId: ref.id, start, duration: ref.duration, inPoint: 0, sourceDuration: ref.duration }] });
