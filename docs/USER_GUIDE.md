@@ -83,7 +83,8 @@ put them. See [Making it yours](#making-it-yours).
 - **Browser column (left)** — the lists this workbench works from: Surfaces and Fixtures in Map,
   scenes in Cues, and so on. Add with **+**, double-click to rename.
 - **Viewport (centre)** — the 2D stage, the 3D scene, the outputs table — whatever the workbench is
-  for. On the stage, **surfaces are cyan** and **fixtures are red**.
+  for. On the stage, **surfaces are cyan** and **fixtures are blue** (a subtle hatched fill so they
+  stay visible over bright content) — a **selected fixture turns red**.
 - **Parameters (right)** — properties of whatever is selected. A surface and a fixture can both
   contribute sections at once.
 - **Dock (under the viewport)** — Library, Wiring & Ledmap, Media Library, Program, Routing, DMX
@@ -266,6 +267,11 @@ selected. Two things are not in the column and have their own dock tabs in **Map
 shape, auto-patched). Or add one from a **template**, or from a **DMX profile** in the Library tab —
 which gives you a light, not a strip.
 
+The created rectangle **is the fixture's shape**: a strip spawns as a thin bar proportional to its
+LED count, a matrix at its Cols × Rows aspect. Changing the LED count (or the matrix size) re-derives
+the rectangle — until the first time you resize it by hand, after which the geometry is yours and
+stays put. You can always resize it freely either way.
+
 **Geometry (shape)** — parameters column, *2D / Output*:
 - **Line** — a single run of LEDs (a strip).
 - **Matrix** — a 2D panel: set **Cols** and **Rows**, and toggle **Serpentine** if the rows are wired
@@ -280,8 +286,8 @@ which gives you a light, not a strip.
   (brighter, keeps hue); *None* leaves white off.
 - **Reverse** — flips the whole fixture's pixel order (pixel 0 ↔ last) for backward wiring.
 
-**Place on the stage:** drag to move; drag the corner/edge handles to resize (corner = both axes,
-side handles = one axis); drag the top handle to rotate. Hold **Ctrl/Cmd** or **Shift** while
+**Place on the stage:** drag to move; drag the handles to resize — one on **every edge** (one axis
+each) plus the bottom-right corner (both axes); drag the top handle to rotate. Hold **Ctrl/Cmd** or **Shift** while
 clicking to multi-select; rotation snaps to 45° steps with snapping on. *Light fixtures are not drawn
 here at all* — click to place them in the **3D** workbench instead, where they land at trim height.
 
@@ -623,7 +629,7 @@ Text-field typing suppresses these shortcuts.
 | Input | Action |
 |-------|--------|
 | Drag body | Move surface/fixture |
-| Drag corner handle | Resize (corner = both axes; side handles on fixtures = one axis) |
+| Drag corner handle | Resize (corner = both axes; fixtures also have a one-axis handle on every edge) |
 | Drag top handle | Rotate (snaps to 45° with snapping on) |
 | Click fixture + Ctrl/Cmd or Shift | Add/remove from multi-selection |
 | Click empty space | Deselect |

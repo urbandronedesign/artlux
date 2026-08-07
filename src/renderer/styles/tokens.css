@@ -25,9 +25,12 @@
   --accent-press: #1f97a3;
   --accent-dim: rgba(39, 182, 196, 0.14);
 
-  /* Canvas selection (cyan = surfaces, red = DMX fixtures) */
+  /* Canvas identity (cyan = surfaces, blue = idle LED fixtures, red = selected fixtures).
+     --fixture-idle is a true blue, kept deliberately apart from the teal accent/surface cyan
+     so surface vs fixture stays readable at a glance on the same canvas. */
   --sel-surface: #27b6c4;
   --sel-fixture: #ff3b3b;
+  --fixture-idle: #4a8cff;
 
   /* Semantic */
   --danger: #e5484d;

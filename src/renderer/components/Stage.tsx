@@ -107,7 +107,7 @@ const StageView: React.FC<StageProps> = ({
 
   const dragState = useRef({
       isDragging: false,
-      mode: null as 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy' | null,
+      mode: null as 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy' | 'resize-l' | 'resize-t' | null,
       targetId: null as string | null,
       startX: 0,
       startY: 0,
@@ -320,23 +320,41 @@ const StageView: React.FC<StageProps> = ({
         if (state.mode === 'resize-y' || state.mode === 'resize-xy') {
             newH = Math.max(0.01, init.h + localDy);
         }
+        // Left/top handles grow the box AGAINST the drag axis — the opposite edge is the anchor,
+        // so a positive local delta shrinks the extent instead of growing it.
+        if (state.mode === 'resize-l') newW = Math.max(0.01, init.w - localDx);
+        if (state.mode === 'resize-t') newH = Math.max(0.01, init.h - localDy);
 
         if (snapEnabled && Math.abs(init.r % 90) < 1) {
-            if (state.mode.includes('x') || state.mode.includes('xy')) {
+            if (state.mode === 'resize-x' || state.mode === 'resize-xy') {
                  const sRight = applySnap(target.x + newW, guidesX);
                  if (sRight.snapped !== null) { newW = sRight.val - target.x; currentSnapsX.push(sRight.snapped); }
             }
-            
-            if (state.mode.includes('y') || state.mode.includes('xy')) {
+
+            if (state.mode === 'resize-y' || state.mode === 'resize-xy') {
                 const sBottom = applySnap(target.y + newH, guidesY);
                 if (sBottom.snapped !== null) { newH = sBottom.val - target.y; currentSnapsY.push(sBottom.snapped); }
+            }
+
+            // For the left/top handles the MOVING edge is the one to snap. Its position comes from
+            // the drag-start snapshot (fixed opposite edge minus the new extent) — target.x/y shift
+            // during these drags, init does not.
+            if (state.mode === 'resize-l') {
+                const sLeft = applySnap((init.x + init.w) - newW, guidesX);
+                if (sLeft.snapped !== null) { newW = Math.max(0.01, (init.x + init.w) - sLeft.val); currentSnapsX.push(sLeft.snapped); }
+            }
+            if (state.mode === 'resize-t') {
+                const sTop = applySnap((init.y + init.h) - newH, guidesY);
+                if (sTop.snapped !== null) { newH = Math.max(0.01, (init.y + init.h) - sTop.val); currentSnapsY.push(sTop.snapped); }
             }
         }
 
         let anchorU = 0, anchorV = 0;
-        if (state.mode === 'resize-x') { anchorU = 0; anchorV = 0.5; } 
-        else if (state.mode === 'resize-y') { anchorU = 0.5; anchorV = 0; } 
-        else { anchorU = 0; anchorV = 0; } 
+        if (state.mode === 'resize-x') { anchorU = 0; anchorV = 0.5; }
+        else if (state.mode === 'resize-y') { anchorU = 0.5; anchorV = 0; }
+        else if (state.mode === 'resize-l') { anchorU = 1; anchorV = 0.5; }
+        else if (state.mode === 'resize-t') { anchorU = 0.5; anchorV = 1; }
+        else { anchorU = 0; anchorV = 0; }
 
         const getAnchorWorld = (fx: number, fy: number, fw: number, fh: number, fr: number) => {
              const cx = fx + fw/2;
@@ -398,7 +416,7 @@ const StageView: React.FC<StageProps> = ({
     window.removeEventListener('mouseup', handleWindowMouseUp);
   }, [handleWindowMouseMove, onUpdateFixtures]);
 
-  const startDrag = (e: React.MouseEvent, mode: 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy', fixtureId?: string) => {
+  const startDrag = (e: React.MouseEvent, mode: 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy' | 'resize-l' | 'resize-t', fixtureId?: string) => {
       e.stopPropagation();
       e.preventDefault();
       dragState.current.isDragging = true;
@@ -807,7 +825,13 @@ const StageView: React.FC<StageProps> = ({
                     transformOrigin: 'center center'
                 }}
                 >
-                    <div className={`w-full h-full border ${isSel ? 'border-sel-fixture shadow-[0_0_10px_rgba(255,59,59,0.35)]' : 'border-white/25'}`}></div>
+                    {/* The body is tinted + hatched (.fixture-hatch), not just outlined — a bare
+                        border vanished over bright surface content. One class, two identities:
+                        --hatch-c flips the whole body blue (idle) ↔ red (selected) with the border. */}
+                    <div
+                        className={`w-full h-full border fixture-hatch ${isSel ? 'border-sel-fixture shadow-[0_0_10px_rgba(255,59,59,0.35)]' : 'border-fixture-idle/60'}`}
+                        style={{ '--hatch-c': isSel ? 'var(--sel-fixture)' : 'var(--fixture-idle)' } as React.CSSProperties}
+                    ></div>
 
                     {isSel && (
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-sel-fixture/60"></div>
@@ -838,6 +862,21 @@ const StageView: React.FC<StageProps> = ({
                                 className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-black border border-sel-fixture hover:bg-sel-fixture transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 180) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-y', fixture.id)}
+                            ></div>
+
+                            <div
+                                className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-1.5 h-4 bg-black border border-sel-fixture hover:bg-sel-fixture transition-colors z-50 pointer-events-auto"
+                                style={{ cursor: getResizeCursor(fixture.rotation || 0, 90) }}
+                                onMouseDown={(e) => startDrag(e, 'resize-l', fixture.id)}
+                            ></div>
+
+                            {/* Last on purpose: it shares top-center with the rotate stalk's 1px
+                                line, and later-in-DOM wins the overlap — the stalk's grab dot sits
+                                clear above at -top-6, so both stay hittable. */}
+                            <div
+                                className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-black border border-sel-fixture hover:bg-sel-fixture transition-colors z-50 pointer-events-auto"
+                                style={{ cursor: getResizeCursor(fixture.rotation || 0, 180) }}
+                                onMouseDown={(e) => startDrag(e, 'resize-t', fixture.id)}
                             ></div>
 
                             <div

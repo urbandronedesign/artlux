@@ -13,6 +13,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { isLight } from './services/fixtureKind';
+import { derivedFixtureRect, retrackDerivedRect } from './services/fixtureGeometry';
 import { mergeFixtureLook } from './services/sceneLook';
 import { spawnPosition3D } from './services/led3dDefaults';
 import * as placement from './services/fixturePlacement';
@@ -994,11 +995,15 @@ const App: React.FC = () => {
   const handleAddFixture = () => {
     recordHistory();
     const newId = generateId();
+    // The created rect is the strip's own shape (4px cells, one cell tall — fixtureGeometry.ts),
+    // centered so a near-document-wide bar can't spawn hanging outside the document.
+    const ledCount = 30;
+    const size = derivedFixtureRect({ ledCount });
     const fx: Fixture = {
       id: newId,
       name: nextNumberedName('Fixture', fixtures),
-      x: 0.4, y: 0.4, width: 0.2, height: 0.2,
-      universe: 0, startAddress: 1, ledCount: 30, reverse: false, rotation: 0,
+      x: 0.5 - size.width / 2, y: 0.5 - size.height / 2, width: size.width, height: size.height,
+      universe: 0, startAddress: 1, ledCount, reverse: false, rotation: 0,
       colorData: [],
       surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
     };
@@ -1118,7 +1123,11 @@ const App: React.FC = () => {
   const REPATCH_KEYS = ['ledCount', 'channelsPerPixel', 'controllerId', 'patchLocked'] as const;
   const handleUpdateFixture = (id: string, updates: Partial<Fixture>) => {
     recordHistory();
-    const mapped = fixtures.map(f => f.id === id ? pinLedCount({ ...f, ...updates }) : f);
+    // retrackDerivedRect: a ledCount/shape/matrix edit re-derives the rect, but only while the
+    // rect is still exactly what creation derived — plain Add creates at the default count of 30
+    // and the real count arrives here afterwards, so creation-time sizing alone would leave most
+    // fixtures shaped for the wrong strip. Hand-resized geometry is never touched.
+    const mapped = fixtures.map(f => f.id === id ? retrackDerivedRect(f, pinLedCount({ ...f, ...updates })) : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
     const next = repatch ? autoPatch(mapped, controllers, patchPolicy, undefined, fixtureProfiles) : mapped;
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
@@ -1919,13 +1928,16 @@ const App: React.FC = () => {
   const handleAddFromTemplate = (t: FixtureTemplate) => {
     recordHistory();
     const id = generateId();
+    // Templates carry the full pixel description, so a "Pixel Bar 150" or an 8×8 matrix lands at
+    // its true proportions immediately (same derivation + centering as handleAddFixture).
+    const size = derivedFixtureRect(t);
     setFixtures([...fixtures, {
       // The word here is the TEMPLATE's name, so the count is now per-template: three `Pixel Bar`
       // adds read `Pixel Bar 1..3` instead of borrowing the rig's total fixture count and starting at
       // `Pixel Bar 12`. (The helper escapes the word — a template called `Bar (2m)` is a valid name
       // and would otherwise be a regex that matches nothing.)
       id, name: nextNumberedName(t.name, fixtures),
-      x: 0.4, y: 0.4, width: 0.2, height: 0.2,
+      x: 0.5 - size.width / 2, y: 0.5 - size.height / 2, width: size.width, height: size.height,
       universe: 0, startAddress: 1, reverse: false, rotation: 0, colorData: [],
       ledCount: t.ledCount, shape: t.shape, matrixWidth: t.matrixWidth, matrixHeight: t.matrixHeight,
       serpentine: t.serpentine, colorOrder: t.colorOrder, rgbwMode: t.rgbwMode, channelsPerPixel: t.channelsPerPixel,

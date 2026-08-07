@@ -98,6 +98,20 @@ input[type=range]::-webkit-slider-runnable-track {
 /* Tabular figures helper for numeric values */
 .num { font-variant-numeric: tabular-nums; }
 
+/* LED-fixture body on the mapping canvas — a faint tint + 45° hatching so a fixture stays visible
+   over bright surface content (a bare border used to vanish there). ONE class serves both states:
+   the element sets --hatch-c (blue idle, red selected) and the geometry never forks. The alphas are
+   deliberately whisper-quiet — the fixture must read as an overlay ON the content, not a curtain
+   over it — and it's pure CSS, so the canvas's per-frame repaints cost nothing extra here. */
+.fixture-hatch {
+  background-color: color-mix(in srgb, var(--hatch-c) 5%, transparent);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--hatch-c) 12%, transparent) 0 1px,
+    transparent 1px 7px
+  );
+}
+
 /* Motion — modal/overlay entrance (150–250ms, ease-out) */
 @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-in {

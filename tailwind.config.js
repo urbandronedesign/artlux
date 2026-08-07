@@ -32,6 +32,8 @@ module.exports = {
         ok: '#3fb950',
         warn: '#e3b341',
         sel: { surface: '#27b6c4', fixture: '#ff3b3b' },
+        // Idle (unselected) LED-fixture identity on the mapping canvas — see --fixture-idle in tokens.css.
+        fixture: { idle: '#4a8cff' },
         state: { init: '#16e0d8', active: '#f5a623' },
       },
       // Named type-scale steps. NEW keys only — `xs`/`sm`/`lg` keep their Tailwind

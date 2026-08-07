@@ -78,6 +78,7 @@ exempt** — those are data, not chrome, and correctly use raw hex.
 | `--warn` | `#e3b341` | `warn` | warning |
 | `--sel-surface` | `#27b6c4` | `sel-surface` | canvas surface selection (cyan) |
 | `--sel-fixture` | `#ff3b3b` | `sel-fixture` | canvas fixture selection (red) |
+| `--fixture-idle` | `#4a8cff` | `fixture-idle` | idle (unselected) LED fixture on the canvas (blue, hatched via `.fixture-hatch`) |
 | `--state-init` | `#16e0d8` | `state-init` | FSM initial node |
 | `--state-active` | `#f5a623` | `state-active` | FSM active node ring |
 
@@ -96,6 +97,17 @@ one-offs (1px preview cells).
 Ascending: `z-stage-guide` (60) < `z-stage-overlay` (100) < `z-calib-camera` (110) < `z-calib-panel` (120) <
 `z-popover` (130) < `z-menubar` (150) < `z-menu-flyout` (160) < `z-modal` (200) < `z-toast` (205). Global
 overlays use these; within-panel layering keeps Tailwind `z-10..z-50`.
+
+> **A popover never trusts its ancestors.** `position:sticky`/`fixed` *with* a z-index creates a stacking
+> context, and dense panels are lattices of them — the timeline alone has sticky gutters (`z-20`), a
+> sticky ruler (`z-30`) and a `fixed inset-0 z-50` maximise wrapper. A panel written the obvious way
+> (`absolute … z-50` beside its anchor) is **sealed** inside one, and its z-index stops meaning anything
+> globally. Walked into three times in one day: TrackHeader's opacity/blend panel painted *under the next
+> track's header*, and a picker's backdrop lost to the maximise wrapper so the dismissal click fell
+> through and scrubbed the timeline. Nothing throws — the panel is in the DOM at correct geometry with
+> correct text, so every DOM assertion passes and only the pixels are wrong. **Rule:** any popover with a
+> dismiss backdrop portals to `document.body`, sits on the `z-popover` tier, and places itself from a
+> *measured* rect (`components/timeline/usePopoverAnchor.ts`). Guarded (§8).
 
 ### 1.5 Motion
 `--dur-fast` (120ms) → `duration-fast`; `--dur-med` (200ms) → `duration-med`; `--ease-out`
@@ -177,6 +189,20 @@ Disabled controls use **opacity 0.4–0.5** (never lower), start from `fg-2` (no
 change the cursor. `disabled:opacity-30` on a glyph already at `fg-3` computes to ~1.4:1 — it reads as empty
 space, not "inactive." Every kit primitive exposes a `disabled` prop; use it so "feature off" is consistent.
 
+### 4.4 A rendered control must act
+A control that answers its hover/press and then does nothing is read as **the app being broken**, never as
+the button being obsolete. When a control cannot act in the current mode it is **absent, or disabled with a
+reason** — never rendered wired-to-nothing:
+- The StatusBar column toggles render only when handed a handler, and App hands one only on the fallback
+  shell (`isDockingOn()`) — under docking the dock chevrons own that job, and the toggles kept flipping,
+  persisting and recolouring a flag *nothing read*, for every operator, since docking is the default.
+  Guarded (§8).
+- A door contributed by a plugin is **gated on the capability actually being present** (the Trigger Zones
+  action-bar button asks the panel registry first) — with the plugin disabled the door is absent, not dead.
+- A static `enabled()` predicate must not kill the only way to *stop* something mid-operation: the take
+  Record button once disabled itself mid-take when the selection emptied, while capture continued. While an
+  operation runs, its run-time state (`ContextAction.live`) wins over the static predicate.
+
 ---
 
 ## 5. Primitive kit
@@ -196,7 +222,12 @@ are how the app grew keyboard-unreachable rows and missing labels.
 | `Segmented` | one-of-N | `role="radiogroup"`/`radio` + `aria-checked`; active segment has a **non-color** cue (inset ring), not tint alone |
 | `ListRow` | selectable browser/tree row | `role="button"` + roving `tabIndex` + Enter/Space handler — keyboard-operable everywhere it's used |
 | `Section` | collapsible group | header is `type="button"` with `aria-expanded`; hosts an action slot |
-| `Tooltip` | hover/focus help | opens on focus; stays open while focus is within anchor-or-panel so the "Learn more" link is Tab-reachable |
+| `Tooltip` | hover/focus help | opens on focus; stays open while focus is within anchor-or-panel so the "Learn more" link is Tab-reachable; "Learn more" deep-links into the F1 help modal (§6) |
+
+> **Tooltip clones its child, and under React 19 the child's own ref is read from `props` ONLY.** Merely
+> *touching* `element.ref` logs a deprecation error to the console — it did, on every tooltip-wrapped
+> child that carried a ref, caught by a smoke test's console-error check. Don't reintroduce the
+> `element.ref ?? props.ref` fallback.
 
 ### 5.1 Supporting primitives & hooks (feedback + keyboard)
 | Name | Purpose |
@@ -221,6 +252,41 @@ are how the app grew keyboard-unreachable rows and missing labels.
   helper text for complex inputs, validate on blur (not per keystroke).
 - **Live-show safety:** "LIVE" must mean frames are actually flowing, not just that a socket is configured;
   the master output toggle is guarded; the StatusBar carries a warnings channel for degraded-native/errors.
+  Recording is chrome-level state: a REC chip in the StatusBar plus a live elapsed clock on the action-bar
+  button — written to a DOM ref via `ContextAction.live`, **never through React state**, which would
+  re-render the shell once a second for a cosmetic tick.
+- **A refusal is a toast, never a `console.warn`.** Mandatory the moment a shortcut can trigger the action
+  somewhere no visible button explains the silence — the take recorders shipped every refusal as a warning
+  nobody saw, from workbenches with no record button on screen.
+- **Shipped is not done until it is findable.** Track reorder had already shipped — documented, working —
+  and the owner had never seen it: a 12px glyph at the dim tier carrying only a native `title`, the one
+  control in its header not wired into the help system. A control that is a *door* gets a real hit target,
+  the brighter text tier, and a `Tooltip` + help entry; a feature gets a **View menu item**; several doors
+  are fine when they all land on the same panel (the trigger-zone editor has three). And revealing a panel
+  by name must actually surface it — under docking that means writing the dock tree (`ensureTree` +
+  `setActive`, re-adding a closed tab), not a flag the docked path never reads.
+- **…but chrome never duplicates a door.** The inverse rule: the TopBar icon group (Outputs, Routing, DMX
+  Monitor, Preferences, Help) died because every icon was a *second* door to something the menus, the
+  context rail, the dock tabs and F1 already opened. Findability comes from help + menus + contextual
+  actions, not from accreting global icons.
+- **Help has ONE door: F1.** One searchable modal interleaves the per-function control registry, the
+  Guides tier, and the usage-doc chapters (723 heading-sized chunks) through **one scorer**
+  (`services/docSearch.ts`) — two rankers would order the same merged list two ways, so `verify:docs`
+  fails any surface that grows its own. Multi-word queries tokenise ("gray code" must find "Gray-code").
+  F1 is renderer-owned like Ctrl+K — a native accelerator would swallow toggle-to-close or double-fire.
+- **Progress counts up.** A progress fraction is a **ledger keyed on identity**: `total` only grows,
+  `ready` counts what finished — never `total − pending`, because an item finishing and a new one being
+  discovered then cancel out and the bar sits still (or runs backwards, or reads n/0). Key on identity,
+  not the display label — the same clip re-labelled per phase must not count twice. Pair the fraction
+  with a one-word phase ("warming" / "decoding"): a fraction stuck at 12/47 reads as a hang; a phase
+  reads as work. Guarded (§8).
+- **A canvas is an open workspace, not a fenced square.** The Stage mapping canvas and the state graph
+  both pan/zoom unbounded — the unit-square raster and the fixed 2600×1700 scroll-document were fences
+  that made real work silently vanish (a surface dragged off the square kept *outputting* but disappeared
+  from the preview). Wheel zooms toward the cursor via a **native non-passive listener** — React's root
+  `onWheel` is passive, so its `preventDefault` is a console-warning no-op — and every open canvas ships
+  a recovery affordance: **Fit / Reset** chrome plus a rebindable `F`, because an operator who loses the
+  content off-screen must never be stranded.
 
 ---
 
@@ -283,6 +349,13 @@ system from regressing (run by `npm run verify`):
   About both import it and render `AUTHORS_LINE` + `LICENSE_HEADLINE`, and no other file hardcodes an
   author's name. This one is a **licence obligation**, not a style rule: [`LICENSE`](../LICENSE) §3 requires
   a build to show them.
+- **Popovers leave the gutter** — a timeline popover with a dismiss backdrop must `createPortal` to the
+  body and sit on `z-popover` (§1.4; three panels shipped sealed inside sticky/fixed stacking contexts,
+  invisible or scrubbing the timeline on dismiss).
+- **A dead toggle is not rendered** — the StatusBar column toggles exist only when handed a handler, and
+  App hands one only on the fallback shell (§4.4).
+- **The boot fraction cannot go backwards** — the cold-start gate's progress is a grows-only ledger;
+  `ready` counts finished items, never `total − pending` (§6).
 - **The splash never opens in headless/broadcast** — `splash.open()` has exactly one call site and it is
   gated on `!HEADLESS && !BROADCAST` (see §9).
 - Plus the pre-existing floors (interaction film overridable, one type/color/z/shadow vocabulary — see
@@ -329,3 +402,9 @@ dismiss hint, present in the DOM at zero pixels tall):
 - **Never in `--headless` / `--broadcast`.** Broadcast is the watchdog's relaunch mode: an always-on-top
   window over live fullscreen projector output, mid-show, unattended. Guarded (§8). `Prefs.showSplash`
   turns it off in the editor too (Preferences → Appearance).
+- **It contains and reports its own faults, silently.** The splash entry installs the global fault net
+  (`installGlobalNet('splash')`) and wraps in a `silent` `ErrorBoundary` — a throw here would otherwise
+  leave the splash on screen forever, with "it never opened" as the operator's only symptom. Silent
+  because **main owns this window's lifetime**: a failed splash simply shows nothing while main closes it
+  on its own schedule, so there is nothing for a recovery card to offer. Its faults report as `aux` — the
+  splash can never relaunch a show.
