@@ -106,26 +106,42 @@ const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
               corner(z.surface, u1, v1), corner(z.surface, u0, v1),
             ])} color={col} dashed={!occupied} dashSize={0.12} gapSize={0.08}
               opacity={inScene ? 1 : 0.35} />
-            {/* THE MARKER. Positioned through the same blobPosition() mapping as the corners above, so
-                the label can never drift from the rectangle it names. DOM via drei Html (offline-safe,
-                uses the app's fonts) — the same pattern as the per-blob #id labels below. */}
+            {/* THE NAME. Anchored through the same blobPosition() mapping as the corners above, so the
+                label can never drift from the rectangle it names. DOM via drei Html (offline-safe,
+                uses the app's fonts) — the same pattern as the per-blob #id labels below.
+
+                ⚠ NO `distanceFactor` — AND THAT IS THE WHOLE POINT OF THIS LABEL. With one, drei scales
+                the element by camera distance, so the name behaves like a billboard painted on the
+                floor: it swells to fill the room when you fly in and shrinks past legibility when you
+                pull back to see the whole venue — which is exactly the view you are in when you need to
+                know which rectangle is which. Without it the label is pure SCREEN SPACE: one small,
+                constant, always-upright caption per zone at any camera distance or angle.
+
+                It is drawn as bare text, not the pill it used to be: at nine pixels a background chip
+                is bigger than the word inside it and hides the corner of the zone it sits in. Legibility
+                over an arbitrary venue model comes from a 1px dark outline instead, which costs no area. */}
             <group position={centre}>
-              <Html center distanceFactor={11} zIndexRange={[18, 0]} prepend>
+              <Html center zIndexRange={[18, 0]} prepend>
                 <div style={{
-                  pointerEvents: 'none', whiteSpace: 'nowrap', fontSize: '11px', fontWeight: 700,
-                  lineHeight: 1.15, padding: '2px 6px', borderRadius: '4px', textAlign: 'center',
-                  // Occupied is the state a trigger fires on, so it is the one that reads from across a
-                  // venue: filled in the zone's colour. Otherwise it stays quiet against the 3D scene.
-                  color: occupied ? '#0b0b0b' : col,
-                  background: occupied ? col : 'rgba(0,0,0,0.55)',
-                  border: `1px solid ${col}`,
-                  opacity: inScene ? 1 : 0.4,
-                  transform: 'translate(-50%, -50%)',
+                  pointerEvents: 'none', whiteSpace: 'nowrap', fontSize: '9px', lineHeight: 1,
+                  letterSpacing: '0.02em', textAlign: 'center',
+                  // Occupancy is already shouted by the rectangle going solid (see PolyLine above), so
+                  // here it is only a nudge in weight + brightness. The zone's own colour is what ties
+                  // the caption to its outline.
+                  fontWeight: occupied ? 700 : 500,
+                  color: col,
+                  opacity: inScene ? (occupied ? 1 : 0.85) : 0.35,
+                  // The outline is what a chip used to do, for free: four 1px shadows keep 9px text
+                  // readable over a pale wall or a bright projection without covering anything.
+                  textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 -1px 1px rgba(0,0,0,0.7), 1px 0 1px rgba(0,0,0,0.7), -1px 0 1px rgba(0,0,0,0.7)',
+                  // No transform here: `center` above ALREADY translates the wrapper by -50%/-50%. The
+                  // old chip carried one too and was therefore offset up-left by half its own size —
+                  // invisible on a pill, obvious on bare text sitting in a rectangle it is naming.
                 }}>
                   {z.name}
                   {/* The live headcount, only while somebody is in it — a permanent "· 0" would be noise
                       on every zone in the room. */}
-                  {!!st?.count && <span style={{ fontWeight: 500 }}> · {st.count}</span>}
+                  {!!st?.count && <span style={{ fontWeight: 700 }}> · {st.count}</span>}
                 </div>
               </Html>
             </group>

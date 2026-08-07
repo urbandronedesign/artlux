@@ -212,10 +212,15 @@ control existed carried a baked `0.2 / 0.5`; those are cleared to *follow venue*
 moves them too. A zone you had deliberately set to any other value is kept as an override.)
 
 Live blobs are drawn on the map as you work — **raw**, not people-merged, because this is the diagnostic
-view and the venue's two-blobs-per-person has to be visible rather than mysterious. The same zones appear
-in the **3D scene**, labelled with their name and live headcount, so you can check they are where you
-think they are against the fixtures. Every drag is a draft until you release: one commit, not one per
-mouse sample.
+view and the venue's two-blobs-per-person has to be visible rather than mysterious. Every drag is a draft
+until you release: one commit, not one per mouse sample.
+
+The same zones are drawn in the **3D scene** (needs *Tracking zones (LiDAR)* on in the scene inspector),
+so you can check they are where you think they are against the fixtures. Each one carries a **very small
+caption at its centre** — the zone's name, in its own colour, plus the live headcount once somebody is
+standing in it. The caption is **screen-space**: it stays the same tiny size and stays upright whatever
+the camera does, so it labels the room without ever growing large enough to cover the rectangle it names.
+The rectangle itself is the state display — **dashed while empty, solid once occupied**.
 
 ## The rules (transition ▸ trigger ▸ **LiDAR zone**)
 
