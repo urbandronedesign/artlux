@@ -89,13 +89,18 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
       for (const a of c.actions ?? []) {
         list.push({
           key: `act:${c.id}:${a.id}`,
-          label: a.label,
+          // A live action reports its own label and availability ("Stop Recording", and enabled even
+          // with nothing selected) — the palette must not offer a stale one.
+          label: a.live?.get().label ?? a.label,
           group: c.title,
           hint: a.shortcut,
-          enabled: a.enabled ? a.enabled(selection) : true,
+          enabled: a.live?.get().enabled ?? (a.enabled ? a.enabled(selection) : true),
           run: () => {
-            // Land where the function makes sense before firing it.
-            goToContext(c.id);
+            // Land where the function makes sense before firing it — "Add Surface" from anywhere means
+            // "go to Mapping and add a surface". But an action that acts on the APP rather than on the
+            // workbench opts out with `stayPut`: arming a recorder must not move the workbench out from
+            // under an operator mid-show, least of all one who reached it from Preferences.
+            if (!a.stayPut) goToContext(c.id);
             if (a.run) a.run();
             else if (a.menuAction) actions.menuAction(a.menuAction);
           },

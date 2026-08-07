@@ -78,7 +78,7 @@ import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
 import * as lightingPlayback from './services/lightingPlayback';
-import * as lightingRecorder from './services/lightingRecorder';
+import * as takeRecorder from './services/takeRecorder';
 import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 import { useToast, useConfirm } from './components/ui';
@@ -210,6 +210,10 @@ const DEFAULT_SETTINGS: AppSettings = {
 const App: React.FC = () => {
   // In-app feedback (replaces blocking native window.confirm/alert). See components/ui/feedback.
   const toast = useToast();
+  // …and a live mirror, for the []-deps host installs below (takeRecorder speaks its refusals through
+  // toasts, and is armed from surfaces that are not in App's React subtree). The provider memoizes its
+  // api today, but a service must not depend on another module keeping that promise.
+  const toastRef = useRef(toast); toastRef.current = toast;
   const confirm = useConfirm();
   // Fixtures are now a plain state slice (they used to BE the history hook's present). The document
   // history that Ctrl+Z drives is the separate stack below, which snapshots fixtures alongside every
@@ -235,6 +239,11 @@ const App: React.FC = () => {
   // Live mirror of fixtures for the global keydown handler (avoids stale closure).
   const fixturesRef = useRef<Fixture[]>(fixtures);
   fixturesRef.current = fixtures;
+  // …and of the selection, for services/takeRecorder: a lighting take captures exactly these fixtures
+  // IN THIS ORDER, and the recorder is armed from a status chip and a keyboard shortcut that are not
+  // inside any React subtree of App.
+  const selectedFixtureIdsRef = useRef<string[]>(selectedFixtureIds);
+  selectedFixtureIdsRef.current = selectedFixtureIds;
   // ── DMX fixture profiles in play ──────────────────────────────────────────────────────────────
   // Resolved from the open project's embedded copies, the operator's own profiles and the bundled
   // library (services/fixtureProfiles owns that precedence). Held as state, not a ref, because a
@@ -372,6 +381,12 @@ const App: React.FC = () => {
   // The GLOBAL document. Read by the plugin write path below when a scene that has NO timeline of its own
   // is bound: `activeTimeline` is the global doc there, so that is the doc its first edit materializes from.
   const timelineRef = useRef(timeline); timelineRef.current = timeline;
+  // The BOUND document (the active scene's timeline, else the global one) — for services/takeRecorder,
+  // which appends a finished take to whichever document the operator was recording into. Safe as a
+  // render-assigned ref for that caller and only that caller: see the warning immediately below, and the
+  // matching one on TakeHost. `Timeline.tsx` reads the same value the same way, through its own
+  // `timelineRef`/`onChangeRef`, so extracting the commit changes nothing about when it is read.
+  const activeTimelineRef = useRef(activeTimeline); activeTimelineRef.current = activeTimeline;
   // NB: the transport-intent subscription below deliberately does NOT read the editor binding through
   // a render-assigned ref (activeTimeline / handleTimelineChange). Those refs are refreshed on RENDER,
   // and an FSM `setLoop` entry action runs synchronously inside the very frame whose scene recall only
@@ -573,6 +588,18 @@ const App: React.FC = () => {
         // it is a modified chord a text field has no claim on, unlike Ctrl+Z.
         else if (keymap.matches(e, 'global.toggleBottom')) {
             layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen });
+            e.preventDefault();
+        }
+        // Arm / stop the two recorders from anywhere — including Calibration and Preferences, which
+        // declare no bottom drawer and so had NO route to a recorder at all. Modified chords, so not
+        // gated on `typing`, and deliberately not bare `R`: Ctrl+R is a registered main-process Reload
+        // accelerator that would hard-reload the renderer mid-take. Refusals speak through a toast.
+        else if (keymap.matches(e, 'global.recordLighting')) {
+            takeRecorder.toggleLighting();
+            e.preventDefault();
+        }
+        else if (keymap.matches(e, 'global.recordTracking')) {
+            takeRecorder.toggleTracking();
             e.preventDefault();
         }
     };
@@ -1529,33 +1556,60 @@ const App: React.FC = () => {
     if (next) enterAuthor(next.id);
   };
   // Timeline edits write back to the OWNER: the active scene's own timeline, else the shared global one.
-  // handleTimelineChange IS THE OPERATOR SEAM. It is what record() means for a timeline edit. Every
-  // caller of it is a human gesture in the timeline panel (the dock + fullscreen TimelinePanel) — there
-  // are no others, by construction. Every writer of a bound timeline document that is NOT a human
-  // gesture (an FSM entry action, an OSC message, a cue GO, the scheduler, an asset relink) calls
-  // setScenes/setTimeline DIRECTLY and must keep doing so — routing a show event through here would
-  // fill an unattended install's undo stack with changes nobody made. Each timeline commit fires this
-  // exactly once per gesture (drafts commit on pointerup — see Timeline.tsx), so one record() here is
-  // one undo entry per gesture, no latch needed. See plans/timeline-undo.md §5.1-5.2.
+  // handleTimelineChange IS THE OPERATOR SEAM. It is what record() means for a timeline edit. It has
+  // exactly TWO sanctioned callers, both human gestures: the timeline panel (the dock + fullscreen
+  // TimelinePanel), and `services/takeRecorder` — which commits a finished lighting or tracking take
+  // from whichever surface armed it (a dock panel, the action bar, the status chip, a shortcut). Every
+  // writer of a bound timeline document that is NOT a human gesture (an FSM entry action, an OSC
+  // message, a cue GO, the scheduler, an asset relink) calls setScenes/setTimeline DIRECTLY and must
+  // keep doing so — routing a show event through here would fill an unattended install's undo stack with
+  // changes nobody made. That constraint is INHERITED by takeRecorder: nothing may call it from
+  // oscController, cueBus or the FSM action table. Each timeline commit fires this exactly once per
+  // gesture (drafts commit on pointerup — see Timeline.tsx), so one record() here is one undo entry per
+  // gesture, no latch needed. See plans/timeline-undo.md §5.1-5.2.
   const handleTimelineChange = (next: Timeline) => {
     recordHistory();
     if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
     else setTimeline(next);
   };
-  // Arm / stop the lighting recorder from the Venue & Rig action bar — the same gesture the timeline's
-  // Takes bin offers, so that you can busk a look on the heads you can SEE without first hunting for the
-  // bin. The two entry points cannot disagree about whether it is armed: `lightingRecorder` is the sole
-  // owner of that state, and this only decides where the finished take is appended (the active scene's
-  // timeline, or the global one — the same binding handleTimelineChange routes on).
-  const handleToggleLightingRecord = () => {
-    if (lightingRecorder.isRecording()) {
-      const take = lightingRecorder.stop(nextNumberedName('Move', activeTimeline.lightingTakes ?? []));
-      if (!take) { console.warn('[app] nothing moved — no lighting take recorded'); return; }
-      handleTimelineChange({ ...activeTimeline, lightingTakes: [...(activeTimeline.lightingTakes ?? []), take] });
-    } else if (!lightingRecorder.start(selectedFixtureIds)) {
-      console.warn('[app] cannot record: select fixtures first, and stop any lighting clip driving them');
-    }
-  };
+  const handleTimelineChangeRef = useRef(handleTimelineChange); handleTimelineChangeRef.current = handleTimelineChange;
+  // Hand the take recorder its view of the bound document. Installed ONCE (`[]` deps) and reading refs,
+  // in the same idiom as frameEngine.setHost / setCoreStateView above — because the surfaces that arm a
+  // recorder are deliberately NOT inside App's React subtree: the StatusBar chip renders outside
+  // <EditorStore>, and the shortcut fires from a window keydown listener. Neither can call a hook.
+  useEffect(() => {
+    takeRecorder.setHost({
+      timeline: () => activeTimelineRef.current,
+      // The same string handleTimelineChange routes on, so the async tracking commit's guard is keyed on
+      // where the write will actually LAND. Identity, not value — see Timeline.tsx's docKey note.
+      docKey: () => activeSceneIdRef.current ?? '__global__',
+      commit: (next) => handleTimelineChangeRef.current(next),
+      // The PROJECT's own document. `setTimeline` directly, NOT handleTimelineChange: that routes to
+      // the bound scene (which is the bug this fixes) and records an undo entry. Recording a take is an
+      // import — it takes the same door handleRemoveAsset already uses to delete one.
+      globalTimeline: () => timelineRef.current,
+      commitGlobal: (next) => setTimeline(next),
+      projectPath: () => currentProjectPathRef.current,
+      // THE LIGHTS IN THE SELECTION, IN SELECTION ORDER — not the raw selection.
+      //
+      // A take is built from the resolved fixture SIGNAL (pan/tilt in degrees, everything else 0..1),
+      // which only a light fixture has; an LED strip contributes an EMPTY part. That is not merely
+      // wasteful — parts are positional, so part N drives fixture N of the target group, and a take
+      // carrying empty parts shifts every real one along and misaligns the phase spread. Filtering
+      // here rather than at each door is what keeps the keyboard shortcut honest: it cannot arm a
+      // capture the action bar and the panel both refuse. `isLight` is the one sanctioned answer to
+      // "what kind is this" (services/fixtureKind) — never an open-coded `f.profileId ?`.
+      selectedFixtureIds: () => selectedFixtureIdsRef.current
+        .filter((id) => { const f = fixturesRef.current.find((x) => x.id === id); return !!f && isLight(f); }),
+      notify: (kind, title, detail) => toastRef.current[kind](title, detail),
+      // Resolved out of `scenes`, NOT off a pre-collapsed name — the exact rule audioOwnerName documents
+      // in Timeline.tsx: an activeSceneId with no scene behind it must degrade to 'Scene', never to the
+      // literal 'Global', or the chip tells you a take is going somewhere it is not.
+      destinationName: () => (activeSceneIdRef.current
+        ? (scenesRef.current.find(s => s.id === activeSceneIdRef.current)?.name || 'Scene')
+        : 'Global'),
+    });
+  }, []);
   // ── STORE KEY — the last step of the light-fixture authoring loop ────────────────────────────
   //
   // Select a light, place it in 3D, position it, set its channels, then put THAT look on the
@@ -1979,6 +2033,20 @@ const App: React.FC = () => {
         // Scene would be a lie at runtime: tsc would believe it, and the app would hold undefined.
         return { ...s, accent, timeline: normalizeTimeline(s.timeline) };
       });
+      // MIGRATION: HOIST STRANDED TRACKING TAKES INTO THE PROJECT LIBRARY.
+      //
+      // A LiDAR take is captured reality and belongs to the project, so its ref lives on the GLOBAL
+      // document — that is the list the Media panel renders and the one any scene can draw from. But
+      // until 2026-08-06 the recorder committed through the bound document, so every take recorded
+      // while a scene was on air was written into THAT SCENE. Those takes are invisible to the media
+      // library (which reads the global doc) and cannot be placed anywhere else. Hoist them once, on
+      // open, deduped by id; the `.lblob` files are untouched, only the refs move. Idempotent, so a
+      // project saved after this simply has nothing left to hoist.
+      const strandedTakes = loadedScenes.flatMap(s => s.timeline?.trackingTakes ?? []);
+      if (strandedTakes.length) {
+        for (const s of loadedScenes) if (s.timeline) s.timeline = { ...s.timeline, trackingTakes: [] };
+        console.info(`[takes] hoisted ${strandedTakes.length} scene-local tracking take(s) into the project library`);
+      }
       setScenes(loadedScenes);
       // This mark is metric B's needle: the per-scene normalize above is the one open cost that grows
       // with scene count (plans/preload-optimization.md §4). If its delta is flat, phase 6 is done.
@@ -2000,7 +2068,16 @@ const App: React.FC = () => {
         bank.sceneCells = loadedScenes.map((s, i) => ({ col: i, sceneId: s.id }));
         setCueBanks([bank]);
       }
-      const tl = normalizeTimeline(data?.timeline);
+      const tlRaw = normalizeTimeline(data?.timeline);
+      // …and land them here, after the global doc is normalized. Deduped by id, global's own first, so
+      // re-opening a half-migrated project cannot double a take.
+      let tl = tlRaw;
+      if (strandedTakes.length) {
+        const merged = [...(tlRaw.trackingTakes ?? [])];
+        const seen = new Set(merged.map(t => t.id));
+        for (const t of strandedTakes) if (!seen.has(t.id)) { seen.add(t.id); merged.push(t); }
+        tl = { ...tlRaw, trackingTakes: merged };
+      }
       setTimeline(tl);
       // State machine: project-level field, else migrate a legacy machine nested in the timeline.
       const legacySm = (data?.timeline as any)?.stateMachine;
@@ -2488,17 +2565,26 @@ const App: React.FC = () => {
       const key = entry.path.replace(/\\/g, '/').toLowerCase();
       setAssets(prev => prev.some(a => a.path.replace(/\\/g, '/').toLowerCase() === key) ? prev : [...prev, entry]);
   };
-  // Remove a library entry. Recorded takes live on the timeline, so removing a take also drops it
-  // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
+  // Remove a library entry. An imported asset's references are left as-is (they read as missing, and
+  // relink brings them back). A recorded TAKE is different — its library entry IS the recording, not a
+  // reference to one — so removing it drops the ref AND every clip playing it, across the global
+  // timeline and every scene.
   const handleRemoveAsset = async (asset: AssetEntry) => {
       const usedTake = asset.type === 'take';
       // Count references the SAME way the library badges do — across every surface list (live + each
       // scene's look snapshot), every scene3D, every timeline and the audio bed. `refs === 0` short-
       // circuits the confirm below, so anything this count can't see is deleted with no warning at all.
       const refs = usageForPath(asset.path, projectRefs).count;
+      // TWO DIFFERENT PROMISES, because the two branches below do genuinely different things. Removing
+      // an imported asset leaves its placements alone — they read as missing, and relinking brings them
+      // back. Removing a TAKE deletes the recording itself, so every clip playing it is deleted too, on
+      // every timeline. Offering one "…(recoverable)" message for both would be a lie in the direction
+      // that costs an operator their work.
       if (refs > 0 && !await confirm({
           title: `Remove "${asset.name}"?`,
-          message: `It is used in ${refs} place${refs === 1 ? '' : 's'}. Removing it from the library leaves those references reading as missing (recoverable).`,
+          message: usedTake
+              ? `This deletes the recording. Its ${refs} placement${refs === 1 ? '' : 's'} will be removed from every timeline and scene. This cannot be undone.`
+              : `It is used in ${refs} place${refs === 1 ? '' : 's'}. Removing it from the library leaves those references reading as missing (recoverable).`,
           confirmLabel: 'Remove', danger: true,
       })) return;
       // NB: removing a library entry never removes the CLIPS that reference it — video, audio (bed or
@@ -2508,7 +2594,18 @@ const App: React.FC = () => {
       // confirm above is the guard, and it is only as good as usageIndex's coverage of every field a
       // path can live in — see services/assetLibrary.usageIndex.
       if (usedTake) {
-          setTimeline(t => ({ ...t, trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id), clips: t.clips.filter(c => c.takeId !== asset.id) }));
+          // SWEEP EVERY DOCUMENT, not just the global one. A take lives in the project library and can
+          // be dropped on ANY timeline's tracking lane, so its placements are spread across the global
+          // doc and every scene. Deleting only the global ones left scene clips pointing at a recording
+          // that no longer exists — a clip that cannot play and cannot be relinked, because there is
+          // nothing left to relink to. (Same reach as the relink path below, and for the same reason.)
+          const dropTake = (t: Timeline): Timeline => ({
+              ...t,
+              trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id),
+              clips: t.clips.filter(c => c.takeId !== asset.id),
+          });
+          setTimeline(dropTake);
+          setScenes(prev => prev.map(s => (s.timeline ? { ...s, timeline: dropTake(s.timeline) } : s)));
       } else {
           setAssets(prev => prev.filter(a => a.id !== asset.id));
       }
@@ -2642,7 +2739,8 @@ const App: React.FC = () => {
           }
           // The timeline drawer, from either menu. Same target as Ctrl+T (global.toggleBottom).
           case 'toggle-timeline': layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen }); break;
-          case 'record-lighting-take': handleToggleLightingRecord(); break;
+          case 'record-lighting-take': takeRecorder.toggleLighting(); break;
+          case 'record-tracking-take': takeRecorder.toggleTracking(); break;
           case 'store-lighting-key': handleStoreLightingKey(); break;
           case 'save-lighting-pose': handleSavePose(); break;
           // Context action-bar targets. These functions already existed as panel buttons; routing them
@@ -4130,7 +4228,7 @@ const App: React.FC = () => {
                     {timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
+                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
                     )}
                   </UiProfiler>
           ),
@@ -4255,7 +4353,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
+          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
         </div>
       )}
 

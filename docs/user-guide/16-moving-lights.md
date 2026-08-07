@@ -94,8 +94,10 @@ a 630° head, not as the same fraction of its travel.
 
 > select the lights → place them in 3D → aim them → set their parameters → **Store Key**
 
-**Store Key** lives in the 3D action bar, next to *Save Pose* and *Record Lighting Take*. One press
-asks a single question — *what does this group look like right now, and where on the timeline does
+**Store Key** lives in the 3D action bar, next to *Save Pose*, *Record Lighting Take* and *Record
+Tracking Take*. The first three are the same capture at three time scales: **Store Key** is one instant
+of the rig, **Save Pose** is one instant stored under a name, and **Record** is a stream of them. One
+press asks a single question — *what does this group look like right now, and where on the timeline does
 that go?* — and then does whatever is needed:
 
 - a lighting clip under the playhead → the key goes into it;
@@ -110,6 +112,26 @@ order a spread walks them.
 
 > ⚠ **Store Key stores what you see, and any phase spread is applied again on playback.** In practice
 > you build the looks first and add the spread afterwards, which is the order that behaves.
+
+### Recording a move instead of keying it
+
+Keying is one instant at a time. When the move is something you'd rather *perform* than plot, record it:
+
+1. Select the heads. Their **selection order becomes the take**, exactly as for Store Key — the
+   **Lighting Takes** dock tab shows how many are armed before you commit.
+2. Press **● Record move** there, *Record Lighting Take* on the action bar, or **`Ctrl+Shift+R`**
+   anywhere. Capture is independent of the transport, so leave the playhead stopped and just busk it.
+3. Press **■** to stop (or **✕ Cancel** to discard). While it runs, the **status bar** carries a REC
+   light naming which document the take will land in; click it to stop.
+4. The take appears in the panel's library with its length, its part count and **the roles it carries**.
+   Drag it onto a lighting lane, or pick it in a lighting clip's *Source*. Click its name to rename it.
+
+That role list is worth reading. A take only carries the roles that actually **moved** — busk a pan and
+you get a pan-only take, which layers cleanly over a colour clip instead of pinning its dimmer. This is
+the same reason a recorded move can drive a different rig later: it is stored as angles and levels, not
+as channel values.
+
+The Lighting Takes panel is also in **Scenes & Cues**, where a scene's own timeline is authored.
 
 ### Starting from the timeline instead
 

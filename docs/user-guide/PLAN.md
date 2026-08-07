@@ -38,7 +38,7 @@ captured by driving the running app.
 - `03-fixtures.md` — Fixture Editor: geometry, pixel type, templates, wiring preview, ledmap
 - `04-patching-and-routing.md` — auto-patch, Routing sheet, controllers, per-fixture overrides
 - `05-color-effects-groups-scenes.md` — Inspector params, effects, groups, scenes, cue banks
-- `06-timeline.md` — clips, tracks, markers, Takes strip, state machine + graph editor
+- `06-timeline.md` — clips, tracks, markers, placing takes on a lane, state machine + graph editor
 - `07-audio.md` — the Audio Bed mixer, the bed vs a scene's own audio (two clocks), spatial audio + FX, automation
 - `08-projector-outputs.md` — Outputs panel, corner-pin align, Bézier warp, soft-edge, NDI out
 - `09-3d-scene.md` — split-pane 3D, outliner, gizmos, models/planes

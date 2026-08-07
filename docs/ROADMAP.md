@@ -433,6 +433,21 @@ reasoned out under [Video codecs](#video-codecs-via-the-videocodec-contribution)
   OSC/Tracking Preferences section (OSC is shared control + tracking infra, not plugin-specific) and
   **TakesBin** (tightly timeline-engine-coupled — takes/record/lane/remove all from Timeline's own logic;
   inverting it would over-fit the SDK). `dock`/`timeline-bin` panel mounts were **trimmed** (see below).
+
+  > **Superseded 2026-08-06 — and the stated reason was backwards.** `TakesBin` is gone. It was not
+  > timeline-*engine*-coupled at all: both recorders capture independently of the transport and always
+  > did. What tied it to `Timeline.tsx` was that the COMMIT lived there (naming, the `.lblob` write, the
+  > doc-key guard, the auto-lane), so the button had to live wherever the commit did. Moving that to
+  > `services/takeRecorder` freed the UI, and it became two `mount: 'dock'` panels
+  > (`core.dock.lightingTakes`, `core.dock.trackingTakes`) with no SDK change beyond `ContextAction.live`
+  > — which is a general seam (any action with run-time state), not a takes-shaped one. The lesson is
+  > worth keeping: "too coupled to invert" was a claim about a *file*, and the actual coupling was one
+  > function that could simply be moved.
+  >
+  > **Still core, still a real gap:** `TrackingTakesDock` is registered host-side even though the
+  > recorder belongs to the lidar plugin, because a plugin cannot write `Timeline.trackingTakes` — there
+  > is no `host.takes` service. That is the next extraction here, and the same shape `show-control`
+  > already added with `host.show`.
 - ~~**Public API stabilization (write-up)**~~ ✅ done — [docs/SDK.md](SDK.md) documents the API surface
   (registries / host-services / IPC bridge), the **UNSTABLE/INTERNAL** stability policy, the invariants
   a plugin must uphold, the layered testing model, and the concrete gate to a versioned third-party API

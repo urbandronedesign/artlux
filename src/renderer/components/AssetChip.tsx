@@ -75,7 +75,14 @@ const Preview: React.FC<{ asset: AssetEntry; px: { w: number; h: number }; iconS
 export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selected, view = 'medium', onClick, onDoubleClick, onContextMenu }) => {
   const onDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('application/artlux-asset', JSON.stringify({ id: asset.id, type: asset.type, path: asset.path }));
-    if (asset.type === 'take') e.dataTransfer.setData('application/artlux-take', asset.id);
+    if (asset.type === 'take') {
+      e.dataTransfer.setData('application/artlux-take', asset.id);
+      // The whole ref, so the tracking-lane drop works on a SCENE's timeline too — the take lives in the
+      // project library, not in that document. Same payload the Tracking Takes panel sends.
+      e.dataTransfer.setData('application/artlux-take-ref', JSON.stringify({
+        id: asset.id, name: asset.name, path: asset.path, duration: asset.durationSec ?? 0, fps: asset.fps,
+      }));
+    }
     e.dataTransfer.effectAllowed = 'copy';
   };
   // Same handlers/affordances whichever shape renders.

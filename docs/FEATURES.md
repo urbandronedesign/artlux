@@ -25,9 +25,15 @@ height you set while patching survives a trip through Audio.
   Routing, Collect Assets, …).
 - **The timeline is a DRAWER, not a workbench.** Eight of the nine pull it up with **Ctrl+T**, over
   the full width of the window, and each remembers whether you left it open. It is a tool you want
-  *while* working in a viewport — cutting against the 2D stage, recording a lighting take against
-  the 3D rig — not a place you travel to.
-- **Status bar**: contextual help (hover any control) · render FPS · LIVE/target · engine stats.
+  *while* working in a viewport — cutting against the 2D stage, placing a recorded take on a lane with
+  the rig in front of you — not a place you travel to.
+- **Take recording is NOT in the timeline.** Capture is transport-independent, so the two recorders are
+  dock panels — **Lighting Takes** (Venue & Rig, Scenes & Cues) and **Tracking Takes** (Venue & Rig,
+  Show) — with matching action-bar buttons and **Ctrl+Shift+R** / **Ctrl+Alt+R** working in every
+  workspace. The timeline owns *placing* a take on a lane, which is a timeline edit.
+- **Status bar**: contextual help (hover any control) · a **REC** light while a take is recording,
+  naming which document it will land in and stopping everything when clicked · render FPS ·
+  LIVE/target · engine stats.
 - **Help** (**F1** / **?** / Help menu): one searchable modal over the topic guides and every
   function's help entry, with a remembered **EN/FR** toggle for the guides. Contextual hover help
   lives in the status bar.
@@ -142,9 +148,9 @@ share the socket:
 ### Tracking takes — record & replay without the tracker
 Record the live LiDAR blob feed into reusable **takes** and replay them from a dedicated **tracking
 lane** on the timeline, so you can author and rehearse an interactive show with no tracker connected.
-Record from the timeline's **Takes** strip (independent of the transport), drag a take onto the
-tracking lane, then Play/scrub to replay the blobs into the 3D Scene and any *Tracking* projector
-outputs. While a take plays the live feed is suppressed; past the clip it resumes. Takes are `.lblob`
+Record from the **Tracking Takes** dock (in Venue & Rig and on the Show deck) or with **Ctrl+Alt+R**
+from anywhere — capture is independent of the transport. Drag a take onto the tracking lane, then
+Play/scrub to replay the blobs into the 3D Scene and any *Tracking* projector outputs. While a take plays the live feed is suppressed; past the clip it resumes. Takes are `.lblob`
 sidecars in `assets/tracking/`. Details in [TRACKING_TAKES.md](TRACKING_TAKES.md).
 
 ## Other tracking sources (people → surfaces, no LiDAR)

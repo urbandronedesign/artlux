@@ -29,6 +29,8 @@ import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
 import { PreferencesViewport } from './panels/adapters';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
+import * as takeRecorder from '../services/takeRecorder';
+import { LightingTakesDock, TrackingTakesDock } from './panels/takes';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
@@ -139,6 +141,13 @@ export function registerCoreWorkspace(): void {
   // a 288px browser column it is a `bare`+`grow` panel that eats every section stacked under it — which
   // is why Mapping takes it as a dock tab and Audio keeps the column flavour.
   panelRegistry.register({ id: 'core.dock.media', mount: 'dock', title: 'Media Library', icon: <ImageIcon size={13} />, Component: MediaBrowserPanel });
+  // ── The two take panels ────────────────────────────────────────────────────────────────────
+  // Recording left the timeline drawer: capture is transport-independent, so the controls had no
+  // business being reachable only by pulling up a clock you are not using. TWO panels rather than one,
+  // because the recorders are different instruments — a lighting take is scoped to the SELECTED
+  // fixtures and their order is the show, a tracking take has no target at all. See panels/takes.tsx.
+  panelRegistry.register({ id: 'core.dock.lightingTakes', mount: 'dock', title: 'Lighting Takes', icon: <Lightbulb size={13} />, Component: LightingTakesDock });
+  panelRegistry.register({ id: 'core.dock.trackingTakes', mount: 'dock', title: 'Tracking Takes', icon: <Radar size={13} />, Component: TrackingTakesDock });
   panelRegistry.register({ id: VIEWPORT_MACHINE, mount: 'viewport', title: 'Show Machine', Component: StateMachineViewport });
   panelRegistry.register({ id: VIEWPORT_PREFERENCES, mount: 'viewport', menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport });
 
@@ -233,14 +242,18 @@ export function registerCoreWorkspace(): void {
       'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
       'core.inspector.scene.lighting', 'core.inspector.scene.tracking',
     ],
-    // The tracking plugins (lidar-tracking, mediapipe, augmenta) append their monitors after these.
-    dock: ['core.dock.monitor', 'core.dock.perf'],
+    // BOTH recorders live here — this is the workbench where you can SEE the heads you are busking and
+    // the blobs you are capturing, and they are what you want open WHILE aiming, not in a drawer you
+    // pull up afterwards. The tracking plugins (lidar-tracking, mediapipe, augmenta) append their
+    // monitors after these, so this is the app's most crowded dock; it is tabbed and rearrangeable.
+    dock: ['core.dock.lightingTakes', 'core.dock.trackingTakes', 'core.dock.monitor', 'core.dock.perf'],
     layout: { showLeft: true, showRight: true, dockOpen: false, splitView: false, bottomOpen: false },
     // 3: gained patch + routing + position, so the light loop is one workbench.
-    layoutRev: 3,
+    // 4: the two take panels arrived and the default dock tab changed with them.
+    layoutRev: 4,
     hint: {
-      en: 'The venue and the rig in 3D — place fixtures, aim them, track live blobs, record lighting takes (Ctrl+T for the timeline).',
-      fr: 'Le lieu et le kit en 3D — placez les fixtures, visez, suivez les blobs, enregistrez des takes (Ctrl+T pour la timeline).',
+      en: 'The venue and the rig in 3D — place fixtures, aim them, track live blobs, and record takes from the Takes docks.',
+      fr: 'Le lieu et le kit en 3D — placez les fixtures, visez, suivez les blobs, et enregistrez des takes depuis les docks Takes.',
     },
     actions: [
       { id: 'save', label: 'Save Project', icon: <Save size={13} />, menuAction: 'save' },
@@ -256,10 +269,25 @@ export function registerCoreWorkspace(): void {
       // The same capture, stored under a NAME instead of at a time — the library pose cues fire from.
       { id: 'save-pose', label: 'Save Pose', icon: <Bookmark size={13} />, menuAction: 'save-lighting-pose', group: 'lighting',
         enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
+      // …and the stream itself. `live` is what makes this button honest: it shows REC and an elapsed
+      // clock while capturing, and — the part that was a real bug — it re-evaluates `enabled` while the
+      // app runs. Selection-gated alone, clicking empty space mid-take DISABLED THE ONLY STOP BUTTON
+      // while the recorder kept going. `live.enabled` wins whenever a take is running.
+      // `stayPut` because the command palette otherwise travels to this context first, and arming a
+      // recorder must not move the workbench out from under someone mid-show.
+      // Gated on `fixture.light`, not on the raw selection count: a take is built from the resolved
+      // ROLE signal, which only a moving head has. Selecting six LED strips and being offered "Record
+      // Lighting Take" ends in a take that records nothing — a button that is enabled for work it
+      // cannot do. The narrow kind rides in `kinds` (EditorStore keeps no second `ids` copy of it).
       { id: 'record-take', label: 'Record Lighting Take', icon: <Radio size={13} />, menuAction: 'record-lighting-take', group: 'lighting',
-        enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
+        live: takeRecorder.lightingActionLive, stayPut: true,
+        enabled: (s) => s.kinds.includes('fixture.light') },
       // Followed the tracking context here — a modal step-by-step flow, so it stays an action.
       { id: 'pose-cal', label: 'Pose Floor Calibration…', icon: <Crosshair size={13} />, menuAction: 'pose-calibrate', group: 'tracking' },
+      // No `enabled`: a tracking take has no target to select. It captures the live feed or refuses
+      // (with a toast) because a take is already replaying.
+      { id: 'record-tracking', label: 'Record Tracking Take', icon: <Radar size={13} />, menuAction: 'record-tracking-take', group: 'tracking',
+        live: takeRecorder.trackingActionLive, stayPut: true },
     ],
   });
 
@@ -346,8 +374,13 @@ export function registerCoreWorkspace(): void {
     // it lives in Mapping and on the Show deck.
     browser: ['core.browser.programPreview', 'core.browser.timing'],
     inspector: [],
+    // Lighting takes, because a scene's timeline is authored HERE — you record the movement and place
+    // it on the scene's own lighting lane without leaving the cue grid. (Not tracking takes: capturing
+    // the tracker is a rig/venue job, and it has its own dock in Venue & Rig and on the Show deck.)
+    dock: ['core.dock.lightingTakes'],
     layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false, bottomOpen: false },
-    layoutRev: 3,
+    // 4: gained the Lighting Takes dock.
+    layoutRev: 4,
     hint: {
       en: "Capture looks as scenes, then fire them from the cue grid. Ctrl+T authors the active scene's timeline.",
       fr: 'Capturez des ambiances en scènes, puis déclenchez-les depuis la grille. Ctrl+T ouvre la timeline.',
@@ -430,7 +463,10 @@ export function registerCoreWorkspace(): void {
     inspector: [],
     // The show-control plugin appends Schedule / Playlist / Metrics / Show Control here and claims
     // the viewport (its operator deck) — see plugins/show-control/src/plugin.renderer.ts.
-    dock: ['core.dock.outputsPreview', 'core.dock.programPreview', 'core.dock.monitor', 'core.dock.perf'],
+    // Tracking takes are here as a DIAGNOSTIC instrument, not an authoring one: docs/TRACKING_SYNC.md's
+    // on-site procedure is "record a take during the test so we can replay it at the desk", which is a
+    // thing you do mid-run. Before this it meant pulling up the timeline drawer during a show.
+    dock: ['core.dock.outputsPreview', 'core.dock.programPreview', 'core.dock.monitor', 'core.dock.perf', 'core.dock.trackingTakes'],
     // The old `perform` preset — everything out of the way except the stage.
     layout: { showLeft: false, showRight: false, dockOpen: true, splitView: false, bottomOpen: false },
     layoutRev: 3,

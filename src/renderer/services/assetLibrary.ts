@@ -126,6 +126,12 @@ export const takeToAsset = (t: TrackingTakeRef): AssetEntry => ({
 // The unified library list: imported assets + recorded takes. Single-timeline ON PURPOSE — tracking
 // takes are recorded into the GLOBAL timeline's trackingTakes, so the library is a global-doc list.
 // (Usage counting is the thing that must span every timeline; see usageForPath.)
+//
+// ⚠ That was ASPIRATIONAL until 2026-08-06 and this file was the only place saying it. The recorder
+// committed through the bound document, so a take recorded while a scene was on air went into THAT
+// SCENE — invisible here, and unplaceable on any other timeline. services/takeRecorder now writes the
+// ref to the global doc explicitly (host.commitGlobal), and App hoists any stranded ones on open. Pass
+// this the GLOBAL timeline, never the bound one.
 export function libraryItems(assets: AssetEntry[] | undefined, timeline: Timeline): AssetEntry[] {
   const imported = assets ?? [];
   const takes = (timeline.trackingTakes ?? []).map(takeToAsset);

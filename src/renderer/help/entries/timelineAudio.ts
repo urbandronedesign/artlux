@@ -237,29 +237,39 @@ export const timelineAudioHelp: HelpEntry[] = [
     keywords: ['trigger', 'manual', 'fire', 'transition'],
   },
 
-  // ── Takes bin (TakesBin) ──────────────────────────────────────────────────
+  // ── Tracking Takes dock ───────────────────────────────────────────────────
+  // The ids keep their `timeline.` prefix although the controls left the timeline: an id is the one
+  // thing the tooltip, the Help browser and every openHelp() deep link agree on, and renaming one
+  // silently breaks all three (see help/registry.ts). A rename is its own campaign, not a side effect.
   {
     id: 'timeline.take-record',
-    title: 'Record take',
-    short: 'Capture the live LiDAR blob feed into a take.',
-    body: "Records the tracker's blob stream independently of the transport; click again to stop. Finished takes appear as draggable chips.",
-    group: 'Timeline',
-    keywords: ['record', 'take', 'lidar', 'tracking'],
+    title: 'Record tracking take',
+    short: 'Capture the live tracker feed into a take.',
+    body: "Records the tracker's blob stream independently of the transport — the playhead can be stopped, "
+      + 'and usually is. Click again to stop; the take is written to disk, copied into the project, and a '
+      + 'Tracking lane is created for it if there is none. Refuses while a take is already playing under '
+      + 'the playhead, because it would record a copy of a copy. Ctrl+Alt+R arms it from any workspace.',
+    group: 'Takes',
+    keywords: ['record', 'take', 'lidar', 'tracking', 'blobs', 'capture'],
   },
   {
     id: 'timeline.take-add-lane',
     title: 'Add tracking lane',
     short: 'Add a lane to place recorded takes on.',
-    body: 'Creates a tracking lane in the timeline so you can drop takes onto it as clips. Shown only while no tracking lane exists yet.',
-    group: 'Timeline',
+    body: 'Creates a tracking lane in the timeline so you can drop takes onto it as clips. Shown only while '
+      + 'no tracking lane exists yet — stopping a recording also creates one if it is missing.',
+    group: 'Takes',
     keywords: ['tracking lane', 'add', 'take'],
   },
   {
     id: 'timeline.take-chip',
-    title: 'Take',
+    title: 'Tracking take',
     short: 'Drag onto a tracking lane to place it as a clip.',
-    body: 'A recorded LiDAR take. Drag the chip onto a tracking lane to drop it in as a clip for replay.',
-    group: 'Timeline',
-    keywords: ['take', 'drag', 'replay', 'clip'],
+    body: 'A recorded tracker take, drawn with the same blob-density signature it will carry on the lane. '
+      + 'Drag it onto a tracking lane to place it as a clip; while it plays, the live feed is suppressed so '
+      + 'replay drives the 3D scene, the trigger zones and the TRACKING projector outputs exactly as a live '
+      + 'tracker would. Click the name to rename it.',
+    group: 'Takes',
+    keywords: ['take', 'drag', 'replay', 'clip', 'rename'],
   },
 ];

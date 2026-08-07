@@ -5,7 +5,7 @@ surface's content at a **Layer** (one track) or **Timeline** (the whole composit
 Press **F** to maximize the timeline full‑screen; drag the dock's top edge to resize.
 
 ![The Timeline](images/05-timeline.png)
-*The Timeline: transport + tools toolbar, the Takes strip, the state‑machine row, then tracks with clips, a ruler and the playhead. A marker (flag) sits at ~4 s.*
+*The Timeline: transport + tools toolbar, the state‑machine row, then tracks with clips, a ruler and the playhead. A marker (flag) sits at ~4 s.*
 
 ---
 
@@ -31,18 +31,24 @@ pans in any direction. **Home / End** seek start / content end.
 
 ---
 
-## Tracking takes (record & replay LiDAR without the tracker)
+## Takes on a lane (replay LiDAR and lighting without the source)
 
-The **Takes** strip under the toolbar records the live LiDAR blob feed into reusable *takes*, so you can
-rehearse and run an interactive show with **no tracker connected**.
+A **take** is a recording — of the live LiDAR blob feed, or of you busking a set of moving heads. You
+**record** takes from the **Lighting Takes** and **Tracking Takes** dock panels, not from here: capture
+has nothing to do with the playhead, so it does not live in the timeline. See
+[Tracking](13-tracking.md#record--replay-takes-author-with-no-tracker) and
+[Moving lights](16-moving-lights.md).
 
-- **Record** — press **● Record** to capture the live feed (independent of Play/Pause), **■** to stop.
-  A take chip appears and a green **Tracking** lane is created.
-- **Place** — drag a take onto the tracking lane (or from the **Media** library). It shows a
-  blob‑density sparkline; move/trim it like any clip.
+What the timeline owns is **placing** one:
+
+- **Place** — drag a take out of its Takes panel (or from the **Media** library) onto a **Tracking** or
+  **Lighting** lane. A tracking take shows a blob‑density sparkline; move/trim it like any clip. A
+  lighting take can also be picked in a lighting clip's *Source* instead of being dragged.
 - **Replay** — with the tracker disconnected, **Play** or scrub: the recorded blobs drive the 3D Scene
   and any *Tracking* projector outputs. While a take plays it takes over from any live feed; past the
   clip the blobs clear and the live tracker resumes.
+
+Stopping a recording creates the matching lane for you if there is none.
 
 See [TRACKING_TAKES.md](../TRACKING_TAKES.md).
 

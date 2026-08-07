@@ -54,9 +54,11 @@ Fill this in on-site:
 | 2 people apart | | | | |
 | 2 people close | | | | |
 
-> Tip: also **record a LiDAR take** (`Ctrl+T` for the timeline drawer ▸ Takes bin ▸ record) during the
-> test — it captures the
-> raw feed so we can replay and inspect it back at the desk if the live read is too fast.
+> Tip: also **record a LiDAR take** during the test — it captures the raw feed so we can replay and
+> inspect it back at the desk if the live read is too fast. Press **Ctrl+Alt+R** (it works in every
+> workspace, so you can arm it without leaving whatever you are looking at on site) or use the
+> **Tracking Takes** dock in Venue & Rig or on the Show deck. The status bar shows a REC light while
+> it runs; click it to stop.
 
 ### What an on-site recording showed (Take 2, 34 s, 3–4 people)
 Analysed `plugins/lidar-tracking/src/blobClustering.ts` against a real `.lblob`. Findings:
