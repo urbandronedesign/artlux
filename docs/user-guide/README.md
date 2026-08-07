@@ -12,10 +12,20 @@ page with a screenshot and a walkthrough of what each control does and when you'
 > Screenshots are captured from a small built‑in demo project (two surfaces, a strip + a matrix
 > fixture, a timeline, a 3D scene and an output) so the panels look the way they will in real use.
 
-> Screenshots were re-captured against the current **dockable workbench** shell on **2026-07-29**, in
-> one pass over the whole guide (`npm run docs:capture`) — a guide whose pictures come from three
-> different shells would be worse than one that is uniformly out of date. If the shell changes again,
-> re-run that one command rather than re-shooting a page at a time.
+> **Taking a screenshot for this guide? Read this.** Pictures are **hand-made** from 2026-08-07;
+> nothing measures whether they still match the shell, so assume they are older than the app unless
+> someone says otherwise. Shoot the whole guide in one sitting where you can — a guide whose pictures
+> come from three different shells is worse than one that is uniformly out of date.
+>
+> ⚠ **Two panels print things that must not be published.** The old automated pass redacted them and a
+> hand-made one does not, so check by eye before committing:
+> - **Preferences ▸ OSC / Tracking** — the *Bind address* field and the interface chips beside it show
+>   **this machine's real LAN addresses**. One reached this public repo already.
+> - **Preferences ▸ Show Control** (and the Show deck) — the tablet server URL and the **pairing PIN**.
+>
+> Substitute or blank them. `192.168.0.10:8788` and a `0000` PIN are the example values the guide
+> already uses elsewhere. (`npm run docs:capture` still exists and still does this automatically, if an
+> automated pass is ever wanted again.)
 
 ---
 

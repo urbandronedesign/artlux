@@ -297,35 +297,37 @@ const GUIDE_DIR = path.join(ROOT, ...manifest.guideDir.split('/'));
   pass(`every hybrid page marks its operator/contributor seam (${hybrids.length} pages, ${markers} markers)`);
 }
 
-// ── 11. Do the screenshots still match the shell they were taken against? ─────────────────────────────
-// Layer 4 of the documentation strategy: pictures have the shortest half-life in the docs, so their
-// staleness is MEASURED, not remembered. It went unmeasured for three shell generations behind a
-// hand-written "⚠ these are outdated" banner that someone had to think to add and then think to remove.
+// ── 11. (RETIRED 2026-08-07) The screenshot staleness signal ──────────────────────────────────────────
+// There used to be a check here comparing `images/captured.json`'s shell signature against a live hash
+// of the shell, so stale pictures were MEASURED rather than remembered. It is gone because the premise
+// under it changed: **screenshots are hand-made now** (owner's decision), and the stamp was written by
+// `npm run docs:capture`. With no automated pass to re-stamp it, the signature could only ever drift —
+// so the check would have reported "the shell has changed" on every run, forever.
 //
-// This REPORTS rather than fails. A one-line change in the shell should make the screenshots suspect,
-// not block a merge behind a three-minute app run — and a check that cries wolf on every CSS tweak is a
-// check that gets deleted. `npm run docs:capture` re-stamps it.
-{
-  const { shellSignature } = require('./lib/shell-signature.cjs');
-  const stampPath = path.join(GUIDE_DIR, 'images', 'captured.json');
-  if (!exists(stampPath)) {
-    notes.push('the guide screenshots carry no capture stamp — run `npm run docs:capture` to create one');
-  } else {
-    const stamp = JSON.parse(read(stampPath));
-    const now = shellSignature();
-    if (stamp.shellSignature !== now) {
-      notes.push(`the editor shell has changed since the screenshots were taken (${stamp.capturedAt}, v${stamp.appVersion}) — re-run \`npm run docs:capture\``);
-    } else {
-      pass(`the guide screenshots match the current shell (captured ${stamp.capturedAt}, v${stamp.appVersion})`);
-    }
-  }
-}
+// That is strictly worse than not checking. Its own comment said so: *"a check that cries wolf on every
+// CSS tweak is a check that gets deleted."* One that cries wolf on EVERY run teaches people to skim past
+// the whole report, and the nine checks above are worth more than this one was.
+//
+// What is deliberately NOT deleted: `scripts/lib/shell-signature.cjs` and the harness itself.
+// `capture-docs.cjs` still stamps `captured.json`, so if an automated pass is ever run again the stamp
+// stays truthful and this check can come back in one commit.
+//
+// ⚠ WHAT NOW HAS NO GUARD AT ALL. Two things this file used to do for the pictures:
+//   1. staleness — nothing measures it. `captured.json` records the date and version of the last
+//      automated pass, and after a hand-made pass it records nothing. Assume the guide's images are
+//      older than the shell unless someone says otherwise.
+//   2. redaction — `redactPrivate()` lives in the harness, so a HAND-SHOT Preferences screenshot has
+//      none. It substitutes an example LAN URL, blanks the tablet PIN and rewrites the machine's own
+//      NIC addresses. A real 192.168.x.x reached this public repo once already (fixed 2026-08-07, and
+//      still in two historical blobs). Check any hand-made shot of Preferences ▸ OSC / Tracking and
+//      ▸ Show Control by eye before committing it. See docs/user-guide/README.md.
 
 // ── Report ────────────────────────────────────────────────────────────────────────────────────────────
 for (const c of checks) console.log(`\x1b[32m✓\x1b[0m ${c}`);
-// Non-blocking observations. These are things that make the docs SUSPECT rather than wrong — the
-// screenshot staleness signal is the one that matters, and it must not fail a build (a check that cries
-// wolf on every CSS tweak is a check that gets deleted).
+// Non-blocking observations: things that make the docs SUSPECT rather than wrong. Nothing pushes to
+// `notes` today — the screenshot staleness signal was the only producer and it is retired (see 11) —
+// but the channel is kept, because "suspect, do not fail the build" is the right shape for the next
+// one and re-deriving it is how a checker ends up blocking a merge over a CSS tweak.
 for (const n of notes) console.log(`\x1b[33m⚠\x1b[0m ${n}`);
 if (errors.length) {
   console.error(`\n\x1b[31m✗ ${errors.length} documentation problem${errors.length === 1 ? '' : 's'}:\x1b[0m`);

@@ -84,13 +84,25 @@ times and the guide's *prose* survived all three while every *screenshot* went s
    reads it. Never copy usage prose into a second file — two copies drift the first time a feature lands.
    `verify:docs` fails a `hybrid` page that marks no contributor region, because an unmarked hybrid is
    not neutral: it silently declares its whole implementation half to be operator documentation.
-3. **Cap and stamp the pictures.** ~18 screenshots is a ceiling; prefer hand-authored SVG diagrams
-   (shell-independent). `npm run docs:capture` re-shoots the whole guide in one pass and stamps
-   `docs/user-guide/images/captured.json` with the app version and a **shell signature** (a hash of the
-   rail, the context manifests, the fallback shell and the dock renderer). `verify:docs` recomputes it
-   and **warns** — never fails — when the shell has moved since. Staleness is measured now, not
-   remembered: the old mechanism was a hand-written "⚠ these are outdated" banner that someone had to
-   think to add and then think to remove, and it survived three shell generations.
+3. **Cap the pictures — and know that nothing measures them any more.** ~18 screenshots is a ceiling;
+   prefer hand-authored SVG diagrams (shell-independent), because they do not rot when the shell moves.
+   **Screenshots are HAND-MADE (owner's decision, 2026-08-07)**, so the automated staleness signal is
+   **retired**: `verify:docs` no longer compares a shell hash against `images/captured.json`. The stamp
+   was written by `npm run docs:capture`, so with no automated pass to refresh it the check could only
+   report "the shell has changed" forever — and a check that fires on every run is one everybody skims
+   past, which is worse than not checking. (`scripts/capture-docs.cjs` and its `shell-signature.cjs` are
+   still in the tree and still stamp; the check can return in one commit if an automated pass ever does.)
+
+   Two things therefore have **no guard at all**, and you have to carry them yourself:
+   - **Staleness.** Assume the guide's images are older than the shell unless someone says otherwise.
+     This is a deliberate step back to the situation the stamp was built to fix — a hand-written banner
+     nobody remembered to add or remove, which survived three shell generations. It is a knowing trade.
+   - **Redaction.** `redactPrivate()` lives inside the harness, so a hand-shot screenshot has none. It
+     is what turns the tablet URL into `192.168.0.10:8788`, blanks the PIN, and rewrites the machine's
+     own NIC addresses. **A real `192.168.x.x` reached this public repo once** (found and blanked
+     2026-08-07; still in two historical blobs). Before committing any hand-made shot, check
+     **Preferences ▸ OSC / Tracking** (bind address + the interface chips) and **▸ Show Control**
+     (server URL + PIN) by eye.
 
 Corollary for prose you write: describe **verbs and destinations**, never panel coordinates — that is what
 let the text survive three shell rewrites.
