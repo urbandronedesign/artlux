@@ -70,6 +70,19 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   const patchZone = (id: string, p: Partial<TrackingZone>): void =>
     commit(list.map((z) => (z.id === id ? { ...z, ...p } : z)));
   const isLive = (id: string): boolean => !active || active.includes(id);
+  // THE ONE PLACE A ZONE STOPS EXISTING. It was reachable only from a 12px trash in the detail block
+  // BELOW the list — so on a venue with a dozen zones the delete was off-screen, and the row (colour,
+  // name, occupancy, eye) read as the complete set of things you can do to a zone. Deleting is not a
+  // rare operation here: zones get drawn, judged against the real room and re-drawn on site, which is
+  // why nextNumberedName exists at all. It now has a button on every row and the Delete key.
+  const deleteZone = (id: string): void => {
+    commit(list.filter((z) => z.id !== id));
+    // Prune the id out of this look's active set too. The evaluator already ignores it (isActive() asks
+    // whether the zone EXISTS first), so this is not a correctness fix — it stops every scene that ever
+    // materialised an explicit set from accumulating dead ids in the project file forever.
+    if (active?.includes(id)) setActiveZoneIds(active.filter((x) => x !== id));
+    if (selId === id) setSelId(null);
+  };
   // Toggling "active in this scene" MATERIALISES the list on first use: absent means "all", so the
   // first time anything is switched off the implicit set has to become an explicit one.
   const toggleActive = (id: string): void => {
@@ -196,7 +209,21 @@ export const ZonePanel: React.FC<PanelProps> = () => {
       else { setSelId(null); dragRef.current = { kind: 'draw', rect: { u0: p.u, v0: p.v, u1: p.u, v1: p.v } }; }
     }
     setDragging(true);
+    // Take focus so the Delete key below has somewhere to land. preventScroll because the map is inside
+    // an overflow container and a plain focus() would jerk the dock pane mid-gesture.
+    boxRef.current?.focus({ preventScroll: true });
     (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  // Delete the selected zone from the map itself — the gesture anybody reaches for after drawing a
+  // rectangle. Safe to claim these keys here: every other Delete binding in the app is SCOPED (the
+  // timeline's fires only while the timeline is hovered/focused, the state graph's only while the graph
+  // is), and stopPropagation keeps this one from reaching them regardless.
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    if (!selId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    deleteZone(selId);
   };
   const onPointerMove = (e: React.PointerEvent): void => {
     const d = dragRef.current; if (!d) return;
@@ -246,7 +273,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   const track = trackingStore.getSurfaceTrack(surface);
   const dims = track && track.scaleX && track.scaleY ? `${track.scaleX.toFixed(2)} × ${track.scaleY.toFixed(2)} m` : 'size unknown';
   const hint = dragging ? 'release to apply'
-    : sel ? 'drag the body to move · drag a corner to resize · drag empty space for a new zone'
+    : sel ? 'drag the body to move · a corner to resize · Del to remove · empty space for a new zone'
       : 'drag on the map to draw a zone · click one to select it';
 
   return (
@@ -262,8 +289,9 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           <span className="text-fg-3 text-micro">{dims}</span>
           <span className="ml-auto text-fg-3 text-micro truncate">{hint}</span>
         </div>
-        <div ref={boxRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-          className="flex-1 min-h-0 relative rounded border border-line-1 overflow-hidden cursor-crosshair">
+        <div ref={boxRef} tabIndex={0} onKeyDown={onKeyDown}
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+          className="flex-1 min-h-0 relative rounded border border-line-1 overflow-hidden cursor-crosshair outline-none focus-visible:border-accent">
           <canvas ref={canvasRef} className="absolute inset-0" />
         </div>
         <div className="text-fg-3 text-micro">
@@ -297,6 +325,15 @@ export const ZonePanel: React.FC<PanelProps> = () => {
                 className={`shrink-0 ${live ? 'text-accent' : 'text-fg-3'}`}>
                 {live ? <Eye size={12} /> : <EyeOff size={12} />}
               </button>
+              {/* Delete sits ON THE ROW, beside the eye it is constantly confused with. The two are
+                  opposites and they have to be adjacent to read as a pair: the eye silences a zone in
+                  THIS scene and leaves the rectangle taped to the floor, the bin removes it from the
+                  room for every scene. No confirm — Ctrl+Z is the safety net, and a zone is thirty
+                  seconds of dragging, not a scene. */}
+              <button onClick={() => deleteZone(z.id)} title={`Delete "${z.name}" from the room (every scene)`}
+                className="shrink-0 text-fg-3 hover:text-red-400">
+                <Trash2 size={12} />
+              </button>
             </div>
           );
         })}
@@ -305,7 +342,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           <div className="pt-2 mt-2 border-t border-line-1 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-fg-2 font-medium">Zone</span>
-              <button onClick={() => { commit(list.filter((z) => z.id !== sel.id)); setSelId(null); }}
+              <button onClick={() => deleteZone(sel.id)} title="Delete this zone (Del)"
                 className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
             </div>
             <label className="block">

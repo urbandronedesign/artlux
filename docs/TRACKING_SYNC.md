@@ -178,11 +178,16 @@ and the transition inspector says so rather than letting it be discovered during
 
 ## Authoring
 
-**Tracking** workbench → **Trigger Zones** dock tab.
+**3D Scene** workbench → **Trigger Zones** dock tab, or the **Trigger Zones** button in its action bar
+(the *Draw trigger zones…* button in the tracking inspector section goes to the same place).
 
 - **drag on empty space** to draw a new zone;
 - **click** a zone to select it, **drag its body** to move, **drag a corner** to resize;
-- the **eye** toggle sets whether the *current scene* listens to it (dim + hollow = ignored here);
+- **delete** it with the **bin** on its row, or select it and press **Del** on the map. This removes the
+  rectangle from the **room** — every scene, not just this one. `Ctrl+Z` brings it back;
+- the **eye** toggle is the other half of that pair and is *not* a delete: it sets whether the **current
+  scene** listens to the zone (dim + hollow = ignored here), leaving it taped to the floor for every
+  other scene;
 - the list carries **People needed** per zone; **dwell follows the venue-wide value** unless you tick
   **Override dwell for this zone**.
 
