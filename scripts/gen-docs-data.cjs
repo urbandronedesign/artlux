@@ -118,7 +118,15 @@ function applyBlock(file, name, body) {
     throw new Error(`gen-docs-data: ${file} has no "${name}" block. Add:\n${open(name)}\n${close(name)}`);
   }
   const after = before.replace(re, `${open(name)}\n\n${body}\n\n${close(name)}`);
-  return { abs, file, changed: after !== before, after };
+  // COMPARE LINE-ENDING-BLIND. On a machine with `core.autocrlf=true` — the Windows default, and this
+  // project's — git materialises the file with CRLF on every checkout, while the block above is built
+  // with \n. A raw string compare therefore reports EVERY block stale after any checkout or branch
+  // switch, with no content difference at all: `npm run docs:gen` then rewrites the file, `git diff`
+  // shows nothing, and the next checkout breaks it again. That cost two red `npm run verify` runs on a
+  // clean tree before it was diagnosed, which is exactly how a real check gets ignored. Content is what
+  // is being asserted here; the newline flavour on disk is git's business.
+  const norm = (s) => s.replace(/\r\n/g, '\n');
+  return { abs, file, changed: norm(after) !== norm(before), after };
 }
 
 function main() {
