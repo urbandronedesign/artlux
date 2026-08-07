@@ -651,14 +651,17 @@ const App: React.FC = () => {
     setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...t } : m) }));
   const handleModelNaturalSize = (id: string, maxDim: number) =>
     setModelNaturalSizes(s => (s[id] === maxDim ? s : { ...s, [id]: maxDim }));
-  const handleSceneConfig = (patch: Partial<Scene3D>) => setScene3D(s => ({ ...s, ...patch }));
+  // Records like handleUpdateSurface: every caller commits discretely (NumRow/Toggle/select — the
+  // 3D gizmo drags go through onCommitModel with the Simulator3D moved-latch instead), so this
+  // never fires per-frame. One config edit = one undo entry.
+  const handleSceneConfig = (patch: Partial<Scene3D>) => { recordHistory(); setScene3D(s => ({ ...s, ...patch })); };
   // --- 3D model CRUD (driven by the in-window scene panel; App owns scene3D) ---
-  // KNOWN GAP: none of these record history, yet scene3D IS in DocSnapshot — so a Ctrl+Z after a
-  // model edit reverts the previous unrelated gesture while the model change stands. (An older
-  // comment here claimed the stack was fixtures-only; that stopped being true when DocSnapshot
-  // widened to the whole authored document.) Deliberately left as-is for now — see
-  // plans/timeline-undo.md §11 Q7 for the boundary decision this is waiting on.
-  const addSceneModel = (m: SceneModel) => { setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
+  // Add/remove record here; the COMMIT paths (handleCommitModel / handleCommitFixture3D) must NOT —
+  // the gizmos latch history on their first real drag movement (onRecordHistory), and recording in
+  // the commit too would push a second, post-mutation snapshot that makes Ctrl+Z a no-op. (An older
+  // comment here excluded all of scene3D as "not on the fixtures-only stack"; dead since DocSnapshot
+  // widened to the whole authored document.)
+  const addSceneModel = (m: SceneModel) => { recordHistory(); setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
   // Returns the new model's id (null = the picker was cancelled) so a caller that is BLOCKED on having
   // a venue model — the calibration wizard's Setup prerequisite — can react rather than just hoping.
   const handleAddModel = async (): Promise<string | null> => {
@@ -679,7 +682,7 @@ const App: React.FC = () => {
     addSceneModel({ id: crypto.randomUUID(), name: nextNumberedName('Screen', scene3D.models ?? []), kind: 'plane', path: '', position: { x: count * 2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 2, visible: true });
   };
   const handleUpdateModel = (id: string, patch: Partial<SceneModel>) => { setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...patch } : m) })); };
-  const handleRemoveModel = (id: string) => { setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
+  const handleRemoveModel = (id: string) => { recordHistory(); setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
   const [sceneSaved, setSceneSaved] = useState(false);
   const sceneSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSceneSave = () => { handleSaveProject().then((path) => { if (path) { setSceneSaved(true); if (sceneSavedTimer.current) clearTimeout(sceneSavedTimer.current); sceneSavedTimer.current = setTimeout(() => setSceneSaved(false), 1500); } }); };
@@ -753,16 +756,19 @@ const App: React.FC = () => {
   };
   const handleRemoveSurface = async (id: string) => {
     // Deleting a surface also removes its projector output (the reconciler then closes that window) —
-    // a mapped projector goes dark. Confirm, and say so when an output is attached. Not undoable.
+    // a mapped projector goes dark. Confirm, and say so when an output is attached. The SURFACE is
+    // undoable (it's in DocSnapshot); the output binding is NOT (projectorOutputs is deliberately
+    // excluded — undoing output config mid-show is a footgun), so the message says exactly that.
     const surf = surfaces.find(s => s.id === id);
     const hasOutput = projectorOutputs.some(o => o.surfaceId === id);
     if (!await confirm({
       title: `Delete surface "${surf?.name ?? id}"?`,
       message: hasOutput
-        ? 'Its projector output is removed too — that display goes dark. This can’t be undone.'
-        : 'This can’t be undone.',
+        ? 'Its projector output is removed too — that display goes dark. Ctrl+Z brings the surface back, but not the output assignment.'
+        : 'Ctrl+Z can bring it back.',
       confirmLabel: 'Delete', danger: true,
     })) return;
+    recordHistory();
     setSurfaces(surfaces.filter(s => s.id !== id));
     setProjectorOutputs(prev => prev.filter(o => o.surfaceId !== id)); // reconciler closes its window
     if (selectedSurfaceId === id) setSelectedSurfaceId(null);
@@ -1497,9 +1503,12 @@ const App: React.FC = () => {
     const sc = scenes.find(s => s.id === id);
     if (!await confirm({
       title: `Delete scene "${sc?.name ?? id}"?`,
-      message: 'Its look, timeline and cues are removed. This can’t be undone.',
+      message: 'Its look, timeline and cues are removed. Ctrl+Z can bring it back.',
       confirmLabel: 'Delete', danger: true,
     })) return;
+    // Scene + its embedded timeline + the cue cells are ALL in DocSnapshot, so this undoes clean —
+    // and a state left ⚠ scene-missing by this delete heals when the undo restores the scene.
+    recordHistory();
     setScenes(scenes.filter(s => s.id !== id));
     // If it was the current scene, fall back to global first (releasePool won't drop the active pool).
     if (activeSceneId === id) {

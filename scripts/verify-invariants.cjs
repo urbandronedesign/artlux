@@ -453,6 +453,32 @@ check(
   },
 );
 
+// ── Undo/redo: the destructive deletes and 3D scene edits record; the gizmo commits must not ──
+check(
+  'destructive deletes and 3D scene edits record history, and the gizmo commits stay record-free',
+  'Every one of these writes a DocSnapshot slice; an UNRECORDED write there is worse than ' +
+  'un-undoable — undoing any unrelated gesture silently reverts it (the FSM shipped exactly that). ' +
+  'And the commit paths must NOT record: the gizmos latch history at drag start, so a second, ' +
+  'post-mutation record would make the next Ctrl+Z a visible no-op.',
+  () => {
+    const problems = [];
+    const src = read('src/renderer/App.tsx');
+    for (const fn of ['handleRemoveScene', 'handleRemoveSurface', 'addSceneModel', 'handleRemoveModel', 'handleSceneConfig']) {
+      const body = fnBody(src, fn);
+      if (!body) { problems.push(`could not find ${fn} in App.tsx`); continue; }
+      if (!body.includes('recordHistory(')) problems.push(`${fn} does not recordHistory() — its slice is in DocSnapshot`);
+    }
+    // handleCommitModel is a braceless arrow fnBody can't see — assert over a source window instead.
+    const cm = src.indexOf('const handleCommitModel');
+    if (cm < 0) problems.push('could not find handleCommitModel in App.tsx');
+    else if (src.slice(cm, cm + 300).includes('recordHistory(')) problems.push('handleCommitModel records — double-record with the gizmo latch');
+    const cf = fnBody(src, 'handleCommitFixture3D');
+    if (!cf) problems.push('could not find handleCommitFixture3D in App.tsx');
+    else if (cf.includes('recordHistory(')) problems.push('handleCommitFixture3D records — double-record with the gizmo latch');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Shell: context switching must carry the layout revision ───────────────────────────────────
 check(
   'context switches go through goToContext()',
