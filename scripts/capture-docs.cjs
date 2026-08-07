@@ -336,6 +336,7 @@ async function settleAfterReload(browser) {
 async function redactPrivate(page) {
   await page.evaluate(() => {
     const EXAMPLE_HOST = 'http://192.168.0.10:8788';
+    const EXAMPLE_IP = '192.168.0.10';
 
     // The LAN URL the tablet is told to open.
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -361,6 +362,32 @@ async function redactPrivate(page) {
       if (prev && (prev.textContent || '').trim() === 'PIN' && /\d/.test(el.textContent || '')) {
         el.textContent = (el.textContent || '').replace(/\d/g, '0');
       }
+    }
+
+    // THE MACHINE'S OWN NIC ADDRESSES — the miss that put a real 192.168.x.x into a PUBLISHED
+    // screenshot for two commits (found 2026-08-07, redacted in place; the blobs are still in history).
+    //
+    // The URL rule above only matches `scheme://ip:port`. Preferences ▸ OSC / Tracking ALSO renders the
+    // machine's interfaces as BARE addresses, from `listLocalAddrs()` — one quick-pick chip per NIC —
+    // and a bare IP matches none of it.
+    //
+    // Structural, like the PIN rule, and for the same reason: a blanket "any IPv4 on the page" would
+    // also rewrite the DMX Target IP and the Art-Net broadcast address, which are the SEEDED DEMO
+    // PROJECT's values (capture-docs' own buildDemoProject) — documented data the guide is supposed to
+    // show. Redacting those invents a wrong fact, which the PIN comment above already learned is worse
+    // than the exposure. Two sites, both unambiguously this machine's:
+    const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+    //   1. the quick-pick chips: a <button> whose text is a bare IPv4, in the row whose FIRST child is
+    //      the "All" button (Preferences.tsx renders <button>All</button> then one per localAddrs).
+    for (const btn of document.querySelectorAll('button')) {
+      const first = btn.parentElement && btn.parentElement.firstElementChild;
+      if (!first || (first.textContent || '').trim() !== 'All') continue;
+      if (IPV4.test((btn.textContent || '').trim())) btn.textContent = EXAMPLE_IP;
+    }
+    //   2. the bind-address field itself, when it is bound to one NIC rather than left blank. An
+    //      <input> carries its text in `.value`, so the tree walker above cannot see it at all.
+    for (const input of document.querySelectorAll('input[placeholder="All interfaces"]')) {
+      if (IPV4.test((input.value || '').trim())) input.value = EXAMPLE_IP;
     }
   });
 }
