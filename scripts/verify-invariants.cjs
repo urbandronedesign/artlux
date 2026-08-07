@@ -3663,6 +3663,49 @@ check(
   },
 );
 
+// ── A build-time download goes through the one downloader that can tell it failed ─────────────
+check(
+  'build scripts download through scripts/lib/download.cjs',
+  'A hand-rolled `res.pipe(file)` settles its promise on four events — finish, file error, request ' +
+  'error, bad status — and a response that stops WITHOUT ending hits none of them. `.pipe()` calls ' +
+  'file.end() only on the source\'s "end", so a dropped body leaves the promise unsettled; since ' +
+  'await keeps nothing alive, the loop drains and node exits **0** having written no file and said ' +
+  'nothing. That is not theory: it killed the v0.25.2 build on 2026-08-07, where fetch-redist ' +
+  'printed "downloading…" and the NEXT script\'s output followed it, because `&&` saw success. ' +
+  'Only verify:resources stood between that and a Windows installer with no VC++ runtime, which ' +
+  'would have made all six .node addons fail to require() on a fresh venue PC — silently, since ' +
+  'every one of them degrades gracefully. All three fetch scripts had their own copy of the bug. ' +
+  'download.cjs uses stream.pipeline(), which is the thing that detects premature close, plus a ' +
+  '.part file, a size check and retries. Do not open a fourth copy.',
+  () => {
+    // walk() yields .ts/.tsx only — build scripts are .cjs, so this enumerates them itself. Written
+    // the other way first, this check inspected ZERO files and reported success, which is the exact
+    // trap braceBody()'s header describes: not finding the thing you guard is a failure, not a pass.
+    const files = [];
+    const collect = (dir) => {
+      const abs = path.join(ROOT, dir);
+      if (!fs.existsSync(abs)) return;
+      for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+        const rel = path.posix.join(dir, e.name);
+        if (e.isDirectory()) collect(rel);
+        else if (/\.(cjs|mjs|js)$/.test(e.name)) files.push(rel);
+      }
+    };
+    collect('scripts');
+    if (files.length < 10) return `expected to scan the build scripts, found ${files.length} — this check is not looking at anything`;
+
+    const bad = [];
+    for (const f of files) {
+      if (f.endsWith('scripts/lib/download.cjs')) continue; // the one implementation
+      const src = read(f);
+      // The pairing is what makes it a download: a CDP harness opens http.get and never saves a body.
+      if (!src.includes('createWriteStream')) continue;
+      if (/https?\.get\(|https?\.request\(/.test(src)) bad.push(f);
+    }
+    return bad.length ? `writes a network response to disk without lib/download.cjs: ${bad.join(', ')}` : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

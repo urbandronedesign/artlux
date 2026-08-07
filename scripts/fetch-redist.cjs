@@ -21,12 +21,15 @@
  * Run:  npm run fetch:redist        (idempotent — skips files already present and non-empty)
  * CI:   a step before `electron-builder`; `scripts/verify-package-resources.cjs` then hard-fails the
  *       package if either file is somehow still absent.
+ *
+ * The download itself lives in scripts/lib/download.cjs — read its header before touching it. This
+ * script is where the silent-exit-0 bug was found: it reported success having written nothing, and
+ * only `verify:resources` stood between that and an installer with no VC++ runtime in it.
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
-const http = require('node:http');
-const https = require('node:https');
+const { download, fail } = require('./lib/download.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -48,44 +51,18 @@ const REDISTS = [
   },
 ];
 
-// Follows redirects across BOTH schemes — aka.ms and ndi.link both bounce through http/https hops, so a
-// bare https.get (as in fetch-mediapipe-assets.cjs, whose URLs are single-scheme) would throw here.
-function download(url, dst, depth = 0) {
-  if (depth > 10) return Promise.reject(new Error(`too many redirects for ${url}`));
-  return new Promise((resolve, reject) => {
-    const mod = url.startsWith('http:') ? http : https;
-    const req = mod.get(url, { headers: { 'user-agent': 'artlux-build' } }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        res.resume(); // drain, or the socket stays open
-        const next = new URL(res.headers.location, url).toString();
-        return download(next, dst, depth + 1).then(resolve, reject);
-      }
-      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode} for ${url}`)); }
-      // Write to a .part file and rename only on success, so an interrupted download can never leave a
-      // truncated binary that existsSync() would happily accept next run.
-      const tmp = `${dst}.part`;
-      const file = fs.createWriteStream(tmp);
-      res.pipe(file);
-      file.on('finish', () => file.close(() => { fs.renameSync(tmp, dst); resolve(); }));
-      file.on('error', (e) => { fs.rmSync(tmp, { force: true }); reject(e); });
-    });
-    req.on('error', reject);
-    req.setTimeout(120_000, () => req.destroy(new Error(`timeout fetching ${url}`)));
-  });
-}
-
 (async () => {
   for (const r of REDISTS) {
     if (fs.existsSync(r.dst) && fs.statSync(r.dst).size >= r.minBytes) {
       console.log(`[redist] ${r.name}: already present — skipped (${(fs.statSync(r.dst).size / 1e6).toFixed(1)} MB)`);
       continue;
     }
-    fs.mkdirSync(path.dirname(r.dst), { recursive: true });
-    process.stdout.write(`[redist] ${r.name}: downloading… `);
-    await download(r.url, r.dst);
-    const size = fs.statSync(r.dst).size;
-    if (size < r.minBytes) throw new Error(`${r.name} downloaded only ${size} bytes — the URL likely served an error page`);
-    console.log(`done (${(size / 1e6).toFixed(1)} MB) → ${path.relative(ROOT, r.dst)}`);
+    // One complete line per event, never a dangling `process.stdout.write` with no newline: the partial
+    // line is what made the failing build ambiguous to read, because the runner's log only flushed it
+    // when the NEXT process printed, stamping the two with the same timestamp.
+    console.log(`[redist] ${r.name}: downloading…`);
+    const size = await download(r.url, r.dst, { label: 'redist', minBytes: r.minBytes });
+    console.log(`[redist] ${r.name}: done (${(size / 1e6).toFixed(1)} MB) → ${path.relative(ROOT, r.dst)}`);
   }
   console.log('[redist] redistributables ready.');
-})().catch((e) => { console.error('[redist] fetch failed:', e.message); process.exit(1); });
+})().catch((e) => fail('[redist] fetch failed:', e));

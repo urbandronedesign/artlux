@@ -25,8 +25,8 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const https = require('node:https');
 const { spawnSync } = require('node:child_process');
+const { download, fail } = require('./lib/download.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -43,32 +43,15 @@ const DST_DIR = path.join(ROOT, 'native', 'calib');
 const DST = path.join(DST_DIR, DLL_NAME);
 const MIN_BYTES = 20 * 1024 * 1024; // the real DLL is ~62 MB; anything tiny is an error page
 
-function download(url, dst, depth = 0) {
-  if (depth > 10) return Promise.reject(new Error(`too many redirects for ${url}`));
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'user-agent': 'artlux-build' } }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        res.resume();
-        return download(new URL(res.headers.location, url).toString(), dst, depth + 1).then(resolve, reject);
-      }
-      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode} for ${url}`)); }
-      const total = Number(res.headers['content-length'] || 0);
-      let seen = 0, lastPct = -1;
-      const tmp = `${dst}.part`;
-      const file = fs.createWriteStream(tmp);
-      res.on('data', (c) => {
-        seen += c.length;
-        if (!total) return;
-        const pct = Math.floor((seen / total) * 100);
-        if (pct !== lastPct && pct % 10 === 0) { lastPct = pct; process.stdout.write(`${pct}% `); }
-      });
-      res.pipe(file);
-      file.on('finish', () => file.close(() => { fs.renameSync(tmp, dst); resolve(); }));
-      file.on('error', (e) => { fs.rmSync(tmp, { force: true }); reject(e); });
-    });
-    req.on('error', reject);
-    req.setTimeout(300_000, () => req.destroy(new Error(`timeout fetching ${url}`)));
-  });
+// Percent ticks for a 185 MB download, one line per decile — see scripts/lib/download.cjs for why the
+// counting happens in the pipeline rather than in a `res.on('data')` listener.
+function decileProgress() {
+  let lastPct = -1;
+  return (seen, total) => {
+    if (!total) return;
+    const pct = Math.floor((seen / total) * 100);
+    if (pct !== lastPct && pct % 10 === 0) { lastPct = pct; console.log(`[opencv]   ${pct}%`); }
+  };
 }
 
 // No `shell: true` anywhere below: it triggers Node's DEP0190 warning and concatenates args unescaped,
@@ -105,9 +88,12 @@ function extractWithSfx(sfx, outDir) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'artlux-opencv-'));
   const sfx = path.join(work, `opencv-${OPENCV_VERSION}-windows.exe`);
   try {
-    process.stdout.write(`[opencv] downloading opencv-${OPENCV_VERSION}-windows.exe … `);
-    await download(SFX_URL, sfx);
-    console.log(`done (${(fs.statSync(sfx).size / 1e6).toFixed(0)} MB)`);
+    console.log(`[opencv] downloading opencv-${OPENCV_VERSION}-windows.exe …`);
+    // 300s of silence, not 120: this is 185 MB, and a slow link is not a stall.
+    const sfxSize = await download(SFX_URL, sfx, {
+      label: 'opencv', minBytes: MIN_BYTES, timeoutMs: 300_000, onProgress: decileProgress(),
+    });
+    console.log(`[opencv] downloaded (${(sfxSize / 1e6).toFixed(0)} MB)`);
 
     console.log('[opencv] extracting…');
     const okExtract = (has7z() && extractWith7z(sfx, work)) || extractWithSfx(sfx, work);
@@ -129,4 +115,4 @@ function extractWithSfx(sfx, outDir) {
     // ~1 GB in the SFX-fallback case — always clean up.
     try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* best effort */ }
   }
-})().catch((e) => { console.error('[opencv] fetch failed:', e.message); process.exit(1); });
+})().catch((e) => fail('[opencv] fetch failed:', e));
