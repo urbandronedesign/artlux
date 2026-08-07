@@ -7,7 +7,10 @@ universe/address allocation and a multi-controller routing spreadsheet.
 
 ## Concepts
 - **Surface** — a rectangle on the stage carrying one content source. On-canvas it's **cyan**.
-  `Surface { id, name, x, y, width, height, rotation, zIndex, content }` (rect normalized 0..1).
+  `Surface { id, name, x, y, width, height, rotation, zIndex, content }` (rect normalized 0..1,
+  and **unbounded** — the unit square is a reference frame, not a fence: a surface placed outside
+  it keeps its content, its preview and its outputs. Only reduced/WebGL rendering mode samples the
+  0..1 document, and the Stage shows a document frame + a warning chip there).
 - **SurfaceContent** — `{ type: NONE | VIDEO | IMAGE | CAMERA | SPOUT | DMX_IN | EFFECT, url?,
   spoutName?, effectId?, paletteId?, speed?, intensity? }`.
 - **Slice** (`type: SLICE`) — a surface that shows a **cropped region of another surface**
@@ -69,7 +72,9 @@ Per-surface render → per-surface sample, reusing the compute shader's normaliz
 
 ## Key files
 `src/renderer/types.ts` (Surface/SurfaceContent/Controller), `src/renderer/services/surfaceMedia.ts`,
-`src/renderer/components/Stage.tsx` (composite + per-surface dispatch in S3), `src/renderer/gpu/
-{WebGPUMapper,GPUMapper}.ts` (S3), `src/renderer/gpu/surfaceFx.ts` (S2),
+`src/renderer/engine/frameEngine.ts` (owns the loop, the per-surface dispatch, the WebGL-only 512²
+composite, and the Stage's per-surface preview canvases — `paintSurfacePreviews`),
+`src/renderer/components/Stage.tsx` (the viewport: overlays, drag, and the lent preview canvases),
+`src/renderer/gpu/{WebGPUMapper,GPUMapper}.ts` (S3), `src/renderer/gpu/surfaceFx.ts` (S2),
 `src/renderer/services/addressing.ts` (S5), `src/renderer/components/RoutingModal.tsx` (S6),
 `ScenePanel`/`InspectorPanel` (browser + inspectors).

@@ -614,8 +614,18 @@ check(
     if (/domReady/.test(eng) || /domReady/.test(stage)) {
       problems.push('a domReady gate is back — output must not wait on the view being laid out');
     }
-    if (/if\s*\(\s*!?\s*(this\.)?previewCanvas\s*\)\s*return/.test(eng)) {
-      problems.push('the engine returns early on a missing preview canvas — the preview is cosmetic, output is not');
+    // Covers the old single previewCanvas and today's per-surface map (`surfacePreviews.size`) —
+    // the preview gate must stay INLINE around the paint, never a return out of the frame.
+    if (/if\s*\(\s*!?\s*(this\.)?(previewCanvas|surfacePreviews(\.size)?)[^)]*\)\s*return/.test(eng)) {
+      problems.push('the engine returns early on a missing preview target — the preview is cosmetic, output is not');
+    }
+    // The preview painter lives in the engine; the Stage only LENDS canvases. A Stage that grabs a
+    // 2d context is a component painting frames again — the exact regression the extraction fixed.
+    if (!/paintSurfacePreviews\(/.test(eng)) {
+      problems.push('frameEngine.ts must own paintSurfacePreviews( — the per-surface preview painter belongs to the engine');
+    }
+    if (/\.getContext\(/.test(stage)) {
+      problems.push('Stage.tsx calls .getContext( — painting belongs to the engine; the Stage only lends canvases');
     }
     return problems.length ? problems.join('; ') : null;
   },

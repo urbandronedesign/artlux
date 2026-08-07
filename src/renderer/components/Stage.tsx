@@ -10,7 +10,9 @@ import { isPixel } from '../services/fixtureKind';
 //
 // The composite / sample / pack / publish pipeline that used to live in this file is now
 // engine/frameEngine.ts, which owns its own loop and its own GPU mapper. What is left here is the
-// viewport, the overlays you drag, and a canvas the engine paints into.
+// viewport, the overlays you drag, and one small canvas PER SURFACE that the engine paints (and
+// positions) — which is why a surface placed outside the unit document still shows its content
+// here: the old single square canvas was a fixed raster that silently dropped anything off it.
 //
 // The prop list is the evidence. Everything the FRAME needed — controllers, profiles, gamma, target
 // IP, protocol, brightness — used to arrive through this component and get mirrored into refs, purely
@@ -49,7 +51,6 @@ const StageView: React.FC<StageProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -66,9 +67,11 @@ const StageView: React.FC<StageProps> = ({
   const viewStateRef = useRef(viewState);
   useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
 
-  // The stage is the composition canvas; surfaces are placed within it. Square (1:1)
-  // so the 512² backing buffer maps 1:1 to the displayed canvas — a normalized UV
-  // texture square. Surfaces/LEDs use normalized 0–1 coords, so sampling is unaffected.
+  // The unit document. Surfaces/LEDs use normalized 0–1 coords relative to this square, and it is
+  // square (1:1) so a normalized rotation IS the visual rotation (see fitView). It is INVISIBLE on
+  // the WebGPU path — the workspace reads as one open canvas and surfaces live anywhere, because
+  // per-surface sampling never looks at the document. It reappears in reduced (WebGL) mode, where
+  // the 512² composite really does sample only 0–1 and outside-the-square means black LEDs.
   const contentAspect = 1;
 
   const [snapEnabled, setSnapEnabled] = useState(true);
@@ -113,16 +116,14 @@ const StageView: React.FC<StageProps> = ({
       hasMoved: false
   });
 
-  // Lend the engine somewhere to show its composite. That is the entire relationship this component
-  // now has with the frame loop: the engine runs on its own rAF, started when its module loaded, and
-  // handing back null on unmount costs the operator a picture and costs the show nothing.
+  // The engine's preview canvases are lent per SURFACE, straight from ref callbacks in the render
+  // below (frameEngine.setSurfacePreviewCanvas) — there is no effect here to do it. That is the
+  // entire relationship this component now has with the frame loop: the engine runs on its own rAF,
+  // started when its module loaded, and React handing a ref null on unmount costs the operator a
+  // picture and costs the show nothing.
   //
   // This is what the whole extraction was for. Stage may unmount, remount, or be hidden by a context
   // switch, and Art-Net does not notice — so the workspace is free to move it around.
-  useEffect(() => {
-    frameEngine.setPreviewCanvas(canvasRef.current);
-    return () => frameEngine.setPreviewCanvas(null);
-  }, []);
 
   // --- Surface drag (self-contained; cyan rectangles) ---
   // `moved` is a per-gesture history latch: a surface drag streams to state at pointer rate via the
@@ -500,6 +501,24 @@ const StageView: React.FC<StageProps> = ({
       setViewState({ x: Vw / 2 - scale * layerCx, y: Vh / 2 - scale * layerCy, scale });
   };
 
+  // Does any part of the surface stick out past the unit document? Same rotation-aware corner walk
+  // as fitView above — the un-rotated rect would miss a corner swung outside. Only consulted in
+  // reduced (WebGL) mode, where the document really is the sampling extent and "outside" means the
+  // LEDs read black; on WebGPU nothing samples the document, so nobody asks.
+  const outsideDocument = (s: Surface): boolean => {
+      const cx = s.x + s.width / 2, cy = s.y + s.height / 2;
+      const r = ((s.rotation || 0) * Math.PI) / 180;
+      const cos = Math.cos(r), sin = Math.sin(r);
+      const EPS = 1e-3; // a surface ON the border is not "outside"
+      for (const [ox, oy] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] as const) {
+          const px = ox * s.width, py = oy * s.height;
+          const x = cx + px * cos - py * sin;
+          const y = cy + px * sin + py * cos;
+          if (x < -EPS || x > 1 + EPS || y < -EPS || y > 1 + EPS) return true;
+      }
+      return false;
+  };
+
   const getResizeCursor = (rotation: number, offset: number) => {
     const a = (rotation + offset) % 180; 
     const angle = a < 0 ? a + 180 : a;
@@ -640,9 +659,14 @@ const StageView: React.FC<StageProps> = ({
             height: '100%',
         }}
       >
+          {/* The unit document — the coordinate frame every overlay positions against in percent.
+              It stays in the DOM at all times but carries NO chrome on the WebGPU path: sampling is
+              per-surface there, so the square would be a fence around nothing, and the workspace
+              reads as one open canvas instead. In reduced (WebGL) mode it IS the sampling extent,
+              so the frame comes back and says so. */}
           <div
             ref={containerRef}
-            className="absolute shadow-e3 bg-surface-4 border border-line-1"
+            className={`absolute ${reducedMode ? 'border border-dashed border-[#e3b341]/70' : ''}`}
             style={{
                 width: `${stageW}px`,
                 height: `${stageH}px`,
@@ -652,48 +676,60 @@ const StageView: React.FC<StageProps> = ({
                 marginTop: `${-stageH / 2}px`,
             }}
           >
-            {/* Layout grid — divides the square into `gridDivisions` cells for placement. */}
+            {reducedMode && (
+                <div className="absolute -bottom-5 left-0 text-micro font-mono whitespace-nowrap pointer-events-none" style={{ color: '#e3b341' }}
+                     title="The WebGL fallback samples LED colors only inside this frame">
+                    Document · UV 0–1
+                </div>
+            )}
+            {/* Layout grid — `gridDivisions` cells per unit-document axis, tiled across the whole
+                workspace: surfaces live anywhere, and snapping (Math.round(v*div)/div) is already
+                coordinate-unbounded, so the lines go where the snap targets are. The div spans
+                -200%..300% of the document (5× per axis), hence backgroundSize is divided by 5;
+                the tiling stays aligned to x=0 because -2 is a whole number of 1/div cells for any
+                integer division count. */}
             {showGrid && (
                 <div
-                    className="absolute inset-0 pointer-events-none z-[1]"
+                    className="absolute pointer-events-none z-[1]"
                     style={{
+                        inset: '-200%',
                         backgroundImage: 'linear-gradient(rgba(255,255,255,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.16) 1px, transparent 1px)',
-                        backgroundSize: `${100 / gridDivisions}% ${100 / gridDivisions}%`,
+                        backgroundSize: `${20 / gridDivisions}% ${20 / gridDivisions}%`,
                     }}
                 />
             )}
+            {/* Snap guides stretch past the document the same way, so they reach the objects they
+                are guiding wherever those sit. */}
             {activeSnapLines.x.map((x, i) => (
-                <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-sel-surface z-stage-guide shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%` }}></div>
+                <div key={`sx-${i}`} className="absolute w-px bg-sel-surface z-stage-guide shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%`, top: '-200%', bottom: '-200%' }}></div>
             ))}
             {activeSnapLines.y.map((y, i) => (
-                <div key={`sy-${i}`} className="absolute left-0 right-0 h-px bg-sel-surface z-stage-guide shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ top: `${y * 100}%` }}></div>
+                <div key={`sy-${i}`} className="absolute h-px bg-sel-surface z-stage-guide shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ top: `${y * 100}%`, left: '-200%', right: '-200%' }}></div>
             ))}
 
-            {webglError && (
-            <div className="absolute inset-0 z-stage-overlay bg-black/90 flex flex-col items-center justify-center text-danger font-mono text-xs text-center p-4">
-                <AlertCircle className="w-8 h-8 mb-2" />
-                <p>WebGL Initialization Failed</p>
-                <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
+            {/* Surface content previews — painted AND positioned by the engine (30 Hz,
+                frameEngine.paintSurfacePreviews), never by React; the inline styles below are only
+                the first-paint placement so a fresh surface doesn't flash at 0,0 for a tick. One
+                canvas per surface is what lets content follow a surface anywhere in the workspace.
+                NOT children of the outline divs: a selected outline is raised to z-[8] for its
+                handles, and content riding in it would visibly jump a back surface in front on
+                selection. `isolate` keeps the per-canvas z-index (composite order) local to this
+                layer; brightness dims through the same CSS var livePreview owns. */}
+            <div className="absolute inset-0 z-[4] isolate pointer-events-none" style={{ filter: 'brightness(var(--preview-brightness, 1))' }}>
+            {renderSurfacesList.map((s) => (
+                <canvas
+                    key={s.id}
+                    ref={(el) => frameEngine.setSurfacePreviewCanvas(s.id, el)}
+                    className="absolute"
+                    style={{
+                        left: `${s.x * 100}%`, top: `${s.y * 100}%`,
+                        width: `${s.width * 100}%`, height: `${s.height * 100}%`,
+                        transform: s.rotation ? `rotate(${s.rotation}deg)` : undefined,
+                        transformOrigin: 'center center', zIndex: s.zIndex,
+                    }}
+                />
+            ))}
             </div>
-            )}
-
-            {/* Non-blocking honesty banner: distinct from the full-screen webglError overlay above. Shows
-                when the WebGPU compute path is unavailable and the WebGL fallback (approximate per-surface
-                sampling) is running. Dismissable; re-shows on the next fallback (remount). */}
-            {reducedMode && !reducedDismissed && (
-            <div className="absolute top-0 left-0 right-0 z-stage-overlay flex items-center gap-2 px-3 py-1.5 text-mini font-medium pointer-events-none" style={{ background: '#e3b341', color: '#151515' }}>
-                <AlertCircle size={13} className="shrink-0" />
-                <span className="flex-1">Reduced rendering mode — GPU compute (WebGPU) unavailable. Per-surface sampling is approximate; fixtures may sample overlapping surfaces.</span>
-                <button onClick={() => setReducedDismissed(true)} className="shrink-0 hover:opacity-70 pointer-events-auto" aria-label="Dismiss reduced-mode notice" title="Dismiss">✕</button>
-            </div>
-            )}
-
-            <canvas
-                ref={canvasRef}
-                width={512} height={512}
-                className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none"
-                style={{ filter: 'brightness(var(--preview-brightness, 1))' }}
-            />
 
             {/* Surfaces (cyan) — behind fixtures. Container ignores pointer events so empty
                 areas fall through to the viewport; each surface re-enables them. */}
@@ -716,6 +752,15 @@ const StageView: React.FC<StageProps> = ({
                             className="absolute -top-5 left-0 text-micro font-mono text-sel-surface bg-black/70 px-1 whitespace-nowrap pointer-events-none"
                             style={{ transform: `rotate(${-s.rotation}deg)` }}
                         >{s.name}</div>
+                        {/* Honesty chip, reduced mode only: the content preview shows out here, but
+                            the WebGL composite samples only UV 0–1 — the LEDs on this surface are
+                            reading black, and the operator is entitled to see that said. */}
+                        {reducedMode && outsideDocument(s) && (
+                            <div
+                                className="absolute -bottom-5 left-0 text-micro font-medium px-1 whitespace-nowrap pointer-events-none"
+                                style={{ background: '#e3b341', color: '#151515', transform: `rotate(${-s.rotation}deg)` }}
+                            >Outside the document — black on LEDs</div>
+                        )}
                         {sel && (
                             <>
                                 <div
@@ -735,7 +780,10 @@ const StageView: React.FC<StageProps> = ({
             })}
             </div>
 
-            <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden pointer-events-none">
+            {/* No overflow clip here (it was legacy, from before the pannable viewport): fixtures on
+                a surface parked outside the document must stay visible with it. The viewport div
+                above still clips everything at the panel's own bounds. */}
+            <div className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none">
             {renderFixturesList.map((fixture) => {
                 const isPrimary = selectedFixtureId === fixture.id;
                 const isSel = isPrimary || selectedFixtureIds.includes(fixture.id);
@@ -806,7 +854,29 @@ const StageView: React.FC<StageProps> = ({
             </div>
         </div>
       </div>
-        
+
+      {/* Panel-level notices — anchored to the viewport, not the pannable layer, so they stay put
+          (and stay readable) wherever the operator has panned or zoomed, and survive the document
+          frame being hidden on the WebGPU path. */}
+      {webglError && (
+      <div className="absolute inset-0 z-stage-overlay bg-black/90 flex flex-col items-center justify-center text-danger font-mono text-xs text-center p-4">
+          <AlertCircle className="w-8 h-8 mb-2" />
+          <p>WebGL Initialization Failed</p>
+          <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
+      </div>
+      )}
+
+      {/* Non-blocking honesty banner: distinct from the full-screen webglError overlay above. Shows
+          when the WebGPU compute path is unavailable and the WebGL fallback (approximate per-surface
+          sampling) is running. Dismissable; re-shows on the next fallback (remount). */}
+      {reducedMode && !reducedDismissed && (
+      <div className="absolute top-0 left-0 right-0 z-stage-overlay flex items-center gap-2 px-3 py-1.5 text-mini font-medium pointer-events-none" style={{ background: '#e3b341', color: '#151515' }}>
+          <AlertCircle size={13} className="shrink-0" />
+          <span className="flex-1">Reduced rendering mode — GPU compute (WebGPU) unavailable. Per-surface sampling is approximate; fixtures may sample overlapping surfaces, and LEDs read black outside the document frame.</span>
+          <button onClick={() => setReducedDismissed(true)} className="shrink-0 hover:opacity-70 pointer-events-auto" aria-label="Dismiss reduced-mode notice" title="Dismiss">✕</button>
+      </div>
+      )}
+
       </div>
     </div>
   );

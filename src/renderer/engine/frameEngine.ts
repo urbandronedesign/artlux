@@ -106,9 +106,10 @@ const byZIndex = (a: Surface, b: Surface) => a.zIndex - b.zIndex;
 /** One shared empty map, so a rig with no profiled fixtures allocates nothing. */
 export const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
 
-// Refresh cap for the operator's preview composite, used ONLY when the mapper samples per-surface
-// (so the composite feeds the preview and nothing else). 30 Hz reads as smooth for monitoring while
-// halving the rescale work on a 60 Hz display. The LED/output path is never throttled by this.
+// Refresh cap for the operator's per-surface preview canvases. 30 Hz reads as smooth for
+// monitoring while halving the raster work on a 60 Hz display. The LED/output path is never
+// throttled by this — and neither is the WebGL fallback's composite, which is a sampling source,
+// not a preview.
 const PREVIEW_MS = 1000 / 30;
 
 // Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
@@ -143,18 +144,24 @@ class FrameEngine {
   private fixtureParamSig = '';
 
   // ── Compositing ──
-  // The engine composites into its OWN canvas, and the visible preview is a blit of that. The
-  // inversion is the point of this step: the composite used to be drawn straight into the Stage's
-  // visible canvas, and on the WebGL fallback that canvas WAS the sampling source — so LED output was
-  // reading pixels out of a DOM node owned by a React component, and unmounting the component left
-  // the output with nothing to sample. (WP-3.2 makes this an OffscreenCanvas, once the engine is in a
-  // worker; a plain detached element is the smaller step and behaves identically to texImage2D.)
+  // The engine composites into its OWN canvas. The inversion is the point of this step: the
+  // composite used to be drawn straight into the Stage's visible canvas, and on the WebGL fallback
+  // that canvas WAS the sampling source — so LED output was reading pixels out of a DOM node owned
+  // by a React component, and unmounting the component left the output with nothing to sample.
+  // Since the per-surface preview (below) the composite exists ONLY as the WebGL fallback's
+  // sampling source; on WebGPU it is never built. (WP-3.2 makes this an OffscreenCanvas, once the
+  // engine is in a worker; a plain detached element is the smaller step and behaves identically to
+  // texImage2D.)
   private composite: HTMLCanvasElement | null = null;
   private compositeCtx: CanvasRenderingContext2D | null = null;
-  /** Where the operator sees it — when there is an operator. Optional, and never load-bearing. */
-  private previewCanvas: HTMLCanvasElement | null = null;
-  private previewCtx: CanvasRenderingContext2D | null = null;
-  private lastPreviewComposite = -1e9;
+  /**
+   * Where the operator sees it — when there is an operator. One lent canvas PER SURFACE, painted
+   * and positioned by the engine, so a surface placed outside the unit document still shows its
+   * content (the old single 512² composite blit silently dropped anything off the square's raster).
+   * Optional, and never load-bearing: an empty map costs the operator a picture and the show nothing.
+   */
+  private surfacePreviews = new Map<string, { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; geomSig: string }>();
+  private lastPreviewPaint = -1e9;
   private lastPreviewBrightness = -1;
 
   // ── Per-frame scratch, reused so the hot loop allocates nothing ──
@@ -263,12 +270,16 @@ class FrameEngine {
   }
 
   /**
-   * Hand the engine somewhere to show the composite. Passing null (the view unmounted, the context
-   * switched away) costs the operator a picture and costs the show nothing.
+   * Lend the engine one surface's preview canvas. Passing null (the element unmounted, the surface
+   * was deleted, an HMR swap) costs the operator that surface's picture and costs the show nothing.
+   * A new element for a known id resets the cached ctx and geometry signature — same "re-fetch if
+   * the element was replaced" idiom the old single-canvas blit used, so a remount can't go stale.
    */
-  setPreviewCanvas(el: HTMLCanvasElement | null): void {
-    this.previewCanvas = el;
-    this.previewCtx = null;
+  setSurfacePreviewCanvas(id: string, el: HTMLCanvasElement | null): void {
+    if (!el) { this.surfacePreviews.delete(id); return; }
+    const cur = this.surfacePreviews.get(id);
+    if (cur?.canvas === el) return;
+    this.surfacePreviews.set(id, { canvas: el, ctx: null, geomSig: '' });
   }
 
   /**
@@ -413,24 +424,13 @@ class FrameEngine {
     // would animate everywhere EXCEPT the LEDs.
     else if (paramsDirty) mapper.updateParams?.(effFixtures);
 
-    // Composite every surface's content into the 512² canvas (z-order). Fixtures sample this
-    // composite on the WebGL path; on the WebGPU path it is PREVIEW ONLY.
-    //
-    // Skip it entirely when the preview is hidden (broadcast/headless) AND the mapper samples
-    // per-surface — there the composite feeds nothing (renderSurfaces uploads each surface's own
-    // drawable; rawBytes comes from the compute readback).
+    // Composite every surface's content into the 512² canvas (z-order) — WEBGL FALLBACK ONLY.
+    // There the composite IS the sampling source, so it is not optional and must never be
+    // throttled — throttling it would throttle the actual LED output. On the WebGPU path nothing
+    // reads it (renderSurfaces uploads each surface's own drawable; rawBytes comes from the compute
+    // readback; the operator's preview is the per-surface canvases below), so it is never built.
     const perSurface = !!(mapper.perSurface && mapper.renderSurfaces);
-    const wantPreview = showPreview && !!this.previewCanvas;
-    // On the WebGL fallback the composite IS the sampling source, so it is not optional and must
-    // never be throttled — throttling it would throttle the actual LED output. On the WebGPU path it
-    // feeds only the operator's picture, so it is skipped entirely when nobody is looking.
-    let needComposite = !perSurface || wantPreview;
-    if (needComposite && perSurface) {
-      const nowMs = performance.now();
-      if (nowMs - this.lastPreviewComposite < PREVIEW_MS) needComposite = false;
-      else this.lastPreviewComposite = nowMs;
-    }
-    if (needComposite) {
+    if (!perSurface) {
       const ctx = this.compositeContext();
       if (ctx) {
         const cw = ctx.canvas.width;
@@ -458,8 +458,20 @@ class FrameEngine {
           }
         }
         ctx.globalAlpha = 1;
-        // Show it, if anyone is looking. One 512² blit, and the ONLY thing the preview canvas is for.
-        if (wantPreview) this.blitPreview(ctx.canvas);
+      }
+    }
+
+    // Paint the operator's per-surface previews (30 Hz; cosmetic; failure here cannot affect
+    // output). Painted from effSurfaces — the render-free overrides (automation lanes, scene
+    // fades) move geometry and opacity without touching React, and the preview must follow them
+    // exactly as the old composite did. The gate lives INLINE, never at the top of tick(): a
+    // view condition that could return out of the frame loop is the bug class the engine
+    // extraction exists to prevent (guarded by verify:invariants).
+    if (showPreview && this.surfacePreviews.size > 0) {
+      const nowMs = performance.now();
+      if (nowMs - this.lastPreviewPaint >= PREVIEW_MS) {
+        this.lastPreviewPaint = nowMs;
+        this.paintSurfacePreviews(effSurfaces);
       }
     }
 
@@ -467,11 +479,11 @@ class FrameEngine {
       // Pull brightness from the live channel each frame so slider drags affect output immediately
       // without committing React state (which would re-render the whole app).
       mapper.setBrightness(effBrightness);
-      // The preview canvas dims through a CSS var that livePreview owns — and a render-free override
+      // The preview canvases dim through a CSS var that livePreview owns — and a render-free override
       // never goes through livePreview. Without this the LEDs would dim while the preview stayed
       // bright, so the preview would lie about what is actually leaving the machine. Purely a preview
       // concern, so it is skipped when there is no preview (broadcast, headless, view unmounted).
-      if (this.previewCanvas && effBrightness !== this.lastPreviewBrightness) {
+      if (this.surfacePreviews.size > 0 && effBrightness !== this.lastPreviewBrightness) {
         this.lastPreviewBrightness = effBrightness;
         document.documentElement.style.setProperty('--preview-brightness', String(effBrightness));
       }
@@ -517,16 +529,53 @@ class FrameEngine {
     return this.compositeCtx;
   }
 
-  /** Blit the composite into the operator's canvas. Cosmetic; failure here cannot affect output. */
-  private blitPreview(src: HTMLCanvasElement): void {
-    const canvas = this.previewCanvas;
-    if (!canvas) return;
-    // Re-fetch if the element was replaced (a remount, an HMR swap), so the cache can't go stale.
-    if (this.previewCtx?.canvas !== canvas) this.previewCtx = canvas.getContext('2d');
-    const ctx = this.previewCtx;
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+  /**
+   * Paint (and position) every lent surface-preview canvas. Cosmetic; failure here cannot affect
+   * output. Iterates effSurfaces — an entry whose surface is gone is simply never painted, and the
+   * ref callback deletes it when React drops the element.
+   *
+   * The engine writes the element's position STYLES as well as its pixels. That is deliberate, and
+   * it is the same doctrine as the `--preview-brightness` documentElement write above and
+   * PersistentLayer's direct style writes: automation lanes and scene fades move surface geometry
+   * render-free (effSurfaces), so a React-positioned element would sit still while its content
+   * plays a move the LEDs are already following. Signature-cached, so a static layout writes no
+   * styles at all.
+   */
+  private paintSurfacePreviews(effSurfaces: Surface[]): void {
+    for (const s of effSurfaces) {
+      const entry = this.surfacePreviews.get(s.id);
+      if (!entry) continue;
+      // Position/rotation/stacking, only when the geometry actually changed.
+      const sig = `${s.x},${s.y},${s.width},${s.height},${s.rotation},${s.zIndex}`;
+      if (entry.geomSig !== sig) {
+        entry.geomSig = sig;
+        const st = entry.canvas.style;
+        st.left = `${s.x * 100}%`;
+        st.top = `${s.y * 100}%`;
+        st.width = `${s.width * 100}%`;
+        st.height = `${s.height * 100}%`;
+        st.transform = s.rotation ? `rotate(${s.rotation}deg)` : '';
+        st.zIndex = String(s.zIndex);
+      }
+      // Backing store at document scale (512 = the old composite's raster, so resolution parity),
+      // capped so an operator who scales a surface to 20× the document can't allocate unbounded
+      // memory. A resize clears the canvas, which the repaint below covers.
+      const bw = Math.min(2048, Math.max(1, Math.round(s.width * 512)));
+      const bh = Math.min(2048, Math.max(1, Math.round(s.height * 512)));
+      if (entry.canvas.width !== bw) entry.canvas.width = bw;
+      if (entry.canvas.height !== bh) entry.canvas.height = bh;
+      if (entry.ctx?.canvas !== entry.canvas) entry.ctx = entry.canvas.getContext('2d');
+      const ctx = entry.ctx;
+      if (!ctx) continue;
+      ctx.clearRect(0, 0, bw, bh);
+      const d = surfaceMedia.getDrawable(s);
+      if (!d) continue; // no content → transparent, same as the composite skipped it
+      // Opacity is baked into the pixels (not CSS opacity) so stacked sibling canvases reproduce
+      // the composite's z-ordered source-over blend — and so an automated opacity stays live.
+      ctx.globalAlpha = s.content.opacity ?? 1;
+      ctx.drawImage(d, 0, 0, bw, bh);
+      ctx.globalAlpha = 1;
+    }
   }
 
   /**

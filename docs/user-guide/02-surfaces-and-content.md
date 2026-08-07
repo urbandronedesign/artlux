@@ -14,6 +14,14 @@ surfaces, and every content source you can put on one.
 **Create:** left panel ▸ *Surfaces* ▸ **+**. New surfaces appear centered at half size (shown in
 **cyan**). Coordinates are normalized 0–1 to the stage, so a layout scales cleanly.
 
+**The Stage is an open workspace.** Place surfaces anywhere — there is no edge. A surface keeps its
+content, its LED output and its projector output wherever it sits, and the grid tiles the whole
+workspace so snapping works everywhere. Use **Fit** (stage top-left) to frame everything you've
+placed, however spread out. The only exception is **reduced rendering mode** (when the app falls
+back to WebGL): a dashed *Document · UV 0–1* frame then appears, and a surface outside it shows an
+amber *black on LEDs* chip — its picture is still visible, but LEDs linked to it read black until
+it is moved back inside the frame.
+
 On the Stage:
 
 | Action | How |
