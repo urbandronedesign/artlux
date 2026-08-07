@@ -433,6 +433,26 @@ check(
   },
 );
 
+// ── Undo/redo: state-graph edits must be on the stack ─────────────────────────────────────────
+check(
+  'state-graph edits are recorded for undo',
+  'stateMachine is in DocSnapshot, so an UNRECORDED graph edit is worse than un-undoable: undoing ' +
+  'any unrelated recorded gesture silently reverts the graph work done since. Shipped exactly so — ' +
+  'the machine viewport passed a bare setStateMachine for months (adapters.tsx, found 2026-08-07).',
+  () => {
+    const problems = [];
+    const adapters = read('src/renderer/contexts/panels/adapters.tsx');
+    // The PROP WIRING, not just the identifier: the adapter must hand recordHistory to the editor.
+    if (!/onRecordHistory=\{a\.recordHistory\}/.test(adapters))
+      problems.push('adapters.tsx does not pass onRecordHistory={a.recordHistory} to StateGraphEditor');
+    const sge = read('src/renderer/components/timeline/StateGraphEditor.tsx');
+    const patchBody = sge.match(/const patch = [\s\S]*?onChange\(\{ \.\.\.sm, \.\.\.next \}\);/)?.[0] ?? '';
+    if (!patchBody.includes('onRecordHistory'))
+      problems.push('StateGraphEditor patch() no longer records history — every graph edit funnels through it, so the record must live there');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Shell: context switching must carry the layout revision ───────────────────────────────────
 check(
   'context switches go through goToContext()',

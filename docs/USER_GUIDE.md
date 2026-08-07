@@ -431,7 +431,8 @@ default**; open its editor from the Timeline dock's **state lane** (**Edit logic
 
 - **States** — each state is a node that **binds one Scene** (recalled on entry) and can run **entry
   actions** (*play / pause / stop / seek / set loop / jump to marker / recall another scene / fire a
-  cue*). Click **Build from scenes** to seed one node per Scene automatically.
+  cue*). Click **Build from scenes** to seed one node per Scene automatically — it only adds states
+  for scenes that don't have one yet, so re-running it tops up the graph instead of duplicating it.
 - **Transitions** — drag from a node's link nub (it rides the node's rim toward your cursor) onto
   another node to connect them — or onto empty canvas to create a new linked state right there — then
   pick the **trigger** that fires the edge:

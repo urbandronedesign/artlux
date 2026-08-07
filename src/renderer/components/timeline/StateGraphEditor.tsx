@@ -21,6 +21,9 @@ interface Props {
   scenes: SceneRef[];
   cues: CueRef[];
   onChange: (sm: StateMachine) => void;
+  /** Push the pre-mutation document onto the undo stack (App.recordHistory). Called by patch() —
+      the single write chokepoint — so no gesture can forget it. Optional like Stage's. */
+  onRecordHistory?: () => void;
   /** Leave the editor — jumping to the timeline. Absent when it IS the workbench (its own context). */
   onClose?: () => void;
   onEditTimeline?: (sceneId: string) => void; // enter author mode on a state's timeline (closes the graph)
@@ -75,7 +78,7 @@ type Drag =
   | { kind: 'regionSize'; id: string; w: number; h: number }
   | { kind: 'handle'; id: string; which: 'c1' | 'c2' };
 
-export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onClose, onEditTimeline }) => {
+export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onRecordHistory, onClose, onEditTimeline }) => {
   const [sel, setSel] = useState<{ kind: 'state' | 'transition' | 'region'; id: string } | null>(null);
   const [linkFrom, setLinkFrom] = useState<string | null>(null);     // source state while drawing a transition
   const [linkTo, setLinkTo] = useState<Vec | null>(null);            // live cursor (canvas coords) while linking
@@ -98,7 +101,18 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     return () => window.clearTimeout(t);
   }), []);
 
-  const patch = (next: Partial<StateMachine>) => onChange({ ...sm, ...next });
+  // RECORD FIRST, THEN COMMIT (the scene3d.tsx doctrine), coalesced: a live bezier-handle drag and
+  // a typing burst patch many times per second and must land as ONE undo step; 500ms of quiet
+  // starts the next step. The record lives here — the single write chokepoint — so no gesture,
+  // current or future, can forget it. Known trade: two discrete gestures finished within 500ms
+  // coalesce, and a handle drag paused >500ms mid-gesture records a second step. Both benign.
+  const lastEditTs = useRef(0);
+  const patch = (next: Partial<StateMachine>) => {
+    const now = performance.now();
+    if (now - lastEditTs.current > 500) onRecordHistory?.();
+    lastEditTs.current = now;
+    onChange({ ...sm, ...next });
+  };
   const patchState = (id: string, p: Partial<SmState>) => patch({ states: sm.states.map(s => s.id === id ? { ...s, ...p } : s) });
   const patchTransition = (id: string, p: Partial<SmTransition>) => patch({ transitions: sm.transitions.map(t => t.id === id ? { ...t, ...p } : t) });
   const patchRegion = (id: string, p: Partial<SmRegion>) => patch({ regions: regions.map(r => r.id === id ? { ...r, ...p } : r) });
@@ -160,13 +174,17 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     setSel({ kind: 'transition', id: t.id });
   };
 
-  // One node per scene, each pre-bound to its scene — seeds a show graph fast. Laid out
+  // One node per scene THAT DOES NOT HAVE ONE YET, each pre-bound to its scene — a top-up sync,
+  // not an append: running it twice used to duplicate the whole graph, which is exactly wrong for
+  // the workflow it exists for (capture more scenes, come back, build again). Laid out
   // TOP-TO-BOTTOM: a show reads as a flow, and the canvas is unbounded so there is no square to
   // wrap into. Anchored at the current view centre, then fitted, so it lands where you look.
+  const boundSceneIds = new Set(sm.states.map(s => s.sceneId).filter(Boolean));
+  const unboundScenes = scenes.filter(sc => !boundSceneIds.has(sc.id));
   const buildFromScenes = () => {
-    if (!scenes.length) return;
+    if (!unboundScenes.length) return;
     const c = viewCentre();
-    const states: SmState[] = scenes.map((sc, i) => ({
+    const states: SmState[] = unboundScenes.map((sc, i) => ({
       id: uid(), name: sc.name, sceneId: sc.id, entry: [],
       x: c.x - R, y: c.y - R + i * (D + 90),
     }));
@@ -216,10 +234,20 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     if (e.button !== 0) return; // before stopPropagation, so middle-drag bubbles up and pans
     e.stopPropagation();
     const start = toCanvas(e.clientX, e.clientY); const off = { x: start.x - s.x, y: start.y - s.y };
-    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'node', id: s.id, x: c.x - off.x, y: c.y - off.y }); };
+    // Commit only if the pointer actually MOVED (Stage doctrine): a plain click selects, and must
+    // not push an identical array into App — since patch() records history, a no-op commit here is
+    // a junk undo step that eats the operator's next Ctrl+Z.
+    const sx = e.clientX, sy = e.clientY; let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= 2) return;
+      moved = true;
+      const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'node', id: s.id, x: c.x - off.x, y: c.y - off.y });
+    };
     const up = (ev: PointerEvent) => {
-      const c = toCanvas(ev.clientX, ev.clientY); const x = c.x - off.x, y = c.y - off.y;
-      patchState(s.id, { x, y, regionId: regionAt({ x: x + R, y: y + R }) });
+      if (moved) {
+        const c = toCanvas(ev.clientX, ev.clientY); const x = c.x - off.x, y = c.y - off.y;
+        patchState(s.id, { x, y, regionId: regionAt({ x: x + R, y: y + R }) });
+      }
       setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
@@ -230,10 +258,17 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     e.stopPropagation();
     const start = toCanvas(e.clientX, e.clientY); const off = { x: start.x - r.x, y: start.y - r.y };
     const members = sm.states.filter(s => s.regionId === r.id).map(s => ({ id: s.id, dx: s.x - r.x, dy: s.y - r.y }));
-    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'region', id: r.id, x: c.x - off.x, y: c.y - off.y }); };
+    const sx = e.clientX, sy = e.clientY; let moved = false; // same moved-latch as beginNodeDrag
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= 2) return;
+      moved = true;
+      const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'region', id: r.id, x: c.x - off.x, y: c.y - off.y });
+    };
     const up = (ev: PointerEvent) => {
-      const c = toCanvas(ev.clientX, ev.clientY); const x = c.x - off.x, y = c.y - off.y;
-      patch({ regions: regions.map(rr => rr.id === r.id ? { ...rr, x, y } : rr), states: sm.states.map(s => { const m = members.find(mm => mm.id === s.id); return m ? { ...s, x: x + m.dx, y: y + m.dy } : s; }) });
+      if (moved) {
+        const c = toCanvas(ev.clientX, ev.clientY); const x = c.x - off.x, y = c.y - off.y;
+        patch({ regions: regions.map(rr => rr.id === r.id ? { ...rr, x, y } : rr), states: sm.states.map(s => { const m = members.find(mm => mm.id === s.id); return m ? { ...s, x: x + m.dx, y: y + m.dy } : s; }) });
+      }
       setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
@@ -242,8 +277,13 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   const beginRegionResize = (e: React.PointerEvent, r: SmRegion) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'regionSize', id: r.id, w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); };
-    const up = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); patchRegion(r.id, { w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const sx = e.clientX, sy = e.clientY; let moved = false; // same moved-latch as beginNodeDrag
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= 2) return;
+      moved = true;
+      const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'regionSize', id: r.id, w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) });
+    };
+    const up = (ev: PointerEvent) => { if (moved) { const c = toCanvas(ev.clientX, ev.clientY); patchRegion(r.id, { w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); } setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
   const beginHandleDrag = (e: React.PointerEvent, t: SmTransition, which: 'c1' | 'c2') => {
@@ -426,6 +466,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   const selState = sel?.kind === 'state' ? sm.states.find(s => s.id === sel.id) ?? null : null;
   const selTrans = sel?.kind === 'transition' ? sm.transitions.find(t => t.id === sel.id) ?? null : null;
   const selRegion = sel?.kind === 'region' ? regions.find(r => r.id === sel.id) ?? null : null;
+  // RESOLVED scene of the selected state — a set-but-unresolvable sceneId means the scene was
+  // deleted, and the inspector must say so (the bare <select> renders BLANK for a dead value).
+  const selStateScene = selState?.sceneId ? scenes.find(sc => sc.id === selState.sceneId) : undefined;
 
   const trLabel = (t: SmTransition) => {
     const to = sm.states.find(s => s.id === t.to);
@@ -453,7 +496,8 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
             <button onClick={addRegion} {...help('timeline.sm-add-region')} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
           </Tooltip>
           <Tooltip id="timeline.sm-build-from-scenes">
-            <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
+            <button onClick={buildFromScenes} disabled={!unboundScenes.length}
+              title={!scenes.length ? 'No scenes captured yet' : unboundScenes.length ? `Add a state for each scene without one (${unboundScenes.length})` : 'Every scene already has a state'}
               {...help('timeline.sm-build-from-scenes')}
               className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
           </Tooltip>
@@ -575,6 +619,10 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   const isActive = activeId === s.id;
                   const selected = sel?.kind === 'state' && sel.id === s.id;
                   const scene = scenes.find(sc => sc.id === s.sceneId);
+                  // A dead binding must LOOK different from no binding: without this, a node whose
+                  // scene was deleted is pixel-identical to an unbound one, and the show silently
+                  // loses a look (handleRemoveScene never touches the graph — by design).
+                  const sceneMissing = !!s.sceneId && !scene;
                   return (
                     <div key={s.id} data-node={s.id} onPointerDown={(e) => beginNodeDrag(e, s)}
                       onPointerMove={(e) => placeNub(e, s)} onPointerLeave={() => parkNub(s)}
@@ -587,6 +635,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                       <span className="text-micro font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
                       {s.lockSec != null && <span className={`text-micro ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
                       {scene && <span className={`inline-flex items-center gap-0.5 text-micro ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
+                      {sceneMissing && <span title="The bound scene was deleted — entering this state recalls nothing. Rebind or clear it in the inspector." className="text-micro text-warn">⚠ scene missing</span>}
                       {/* Per-state timeline build status: empty vs populated. The third case — "↩ global",
                           a scene with no timeline of its own — was deleted on 2026-07-14: every scene owns
                           one now (types.ts), so there is no such state left to label. */}
@@ -683,10 +732,21 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                     <Star size={12} /> {sm.initialStateId === selState.id ? 'Initial state' : 'Set as initial'}
                   </button>
                 </Tooltip>
+                {/* The dead-binding warning sits ABOVE the picker because the picker itself shows
+                    BLANK for an unresolvable value — indistinguishable from "never bound". */}
+                {selState.sceneId && !selStateScene && (
+                  <div className="text-warn italic text-micro">
+                    ⚠ Bound to a scene that no longer exists — entering this state recalls nothing.
+                    Pick a new scene below, or{' '}
+                    <button onClick={() => patchState(selState.id, { sceneId: undefined })} className="underline not-italic hover:text-fg-1">clear the binding</button>.
+                  </div>
+                )}
                 <SelectField label="Scene (recalled on entry)" helpId="timeline.sm-state-scene" value={selState.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
                   onChange={(v) => patchState(selState.id, { sceneId: v || undefined })} />
-                {/* Author this state's own timeline: recalls its look live and binds the editor to it. */}
-                {selState.sceneId && onEditTimeline && (
+                {/* Author this state's own timeline: recalls its look live and binds the editor to it.
+                    Gated on the RESOLVED scene — with a dead binding it rendered and silently
+                    no-opped (enterAuthor bails when the scene is gone). */}
+                {selStateScene && onEditTimeline && (
                   <Tooltip id="timeline.sm-edit-timeline">
                     <button onClick={() => { onEditTimeline(selState.sceneId!); onClose?.(); }}
                       {...help('timeline.sm-edit-timeline')}
@@ -885,8 +945,14 @@ const ActionRow: React.FC<{ action: SmAction; markers: Marker[]; scenes: SceneRe
         onChange={(v) => onChange({ ...action, markerId: v })} />
     )}
     {action.kind === 'recallScene' && (
-      <SelectField label="Scene" value={action.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
-        onChange={(v) => onChange({ ...action, sceneId: v })} />
+      <>
+        <SelectField label="Scene" value={action.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
+          onChange={(v) => onChange({ ...action, sceneId: v })} />
+        {/* Same dead-binding honesty as the state's own Scene field (the select renders blank). */}
+        {action.sceneId && !scenes.some(s => s.id === action.sceneId) && (
+          <div className="text-warn italic text-micro">⚠ This scene no longer exists — the action does nothing.</div>
+        )}
+      </>
     )}
     {action.kind === 'fireCue' && (
       <SelectField label="Cue" value={action.cueId ?? ''} options={cues.map(c => ({ v: c.id, l: c.name }))}

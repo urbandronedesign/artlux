@@ -45,8 +45,9 @@ Open the editor from the **Show Machine** context, or from the timeline drawer's
 - **＋ State** — add a node at the current view centre (or **double‑click empty canvas**).
 - **＋ Region** — a resizable group‑box that visually organizes states (purely cosmetic — regions have
   no runtime effect).
-- **Build from scenes** — one node per existing Scene, each **pre‑bound** to its Scene, laid out
-  **top‑to‑bottom**. The fastest way to seed a show.
+- **Build from scenes** — one node per scene **that doesn't have one yet**, each **pre‑bound** to its
+  Scene, laid out **top‑to‑bottom**. A top‑up sync: run it again after capturing new scenes and only
+  the missing states are added. The fastest way to seed a show.
 - **Tidy** — relayout the whole graph as a **top‑to‑bottom flow** from the initial state (layers by
   graph distance; unreachable states last). Regions stay put — a state joins whichever region it lands
   in — and hand‑curved edges are straightened.
@@ -65,9 +66,15 @@ The canvas is an **open workspace** — pan and zoom without bounds, like the 2D
 - **Select an edge** to reveal its **bezier handles** (curve it for readability — cosmetic).
 - **Drag empty canvas** (or **middle‑drag from anywhere**) pans; the **wheel** zooms toward the cursor;
   **Del/Backspace** deletes the selection; **F** fits the graph in view.
+- **Everything you author here is undoable** — `Ctrl+Z` steps back one gesture at a time (a drag, a
+  Tidy, a typing burst each count as one step).
 
 **Inspector — state selected:** Name · **Set as initial** (★) · **Scene (recalled on entry)** · **Edit
 timeline** · **Lock time** · **Entry actions**.
+
+> **Deleting a Scene does not delete the states bound to it** — they stay in the graph with a
+> **⚠ scene missing** warning (entering one recalls nothing, the show keeps running). Rebind the
+> state to another scene, or clear the dead binding from the inspector.
 **Inspector — transition selected:** the `from → to` label · **Trigger** kind + its params ·
 **Transition time** (the arrival crossfade).
 

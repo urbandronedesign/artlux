@@ -149,10 +149,10 @@ export const timelineAudioHelp: HelpEntry[] = [
   {
     id: 'timeline.sm-build-from-scenes',
     title: 'Build from scenes',
-    short: 'Create one state per captured scene, pre-bound.',
-    body: 'Lays out a grid of states, each bound to a scene, to seed a show graph fast. Disabled until scenes exist.',
+    short: 'Add a state for each scene that does not have one yet.',
+    body: 'A top-up sync: scenes already bound to a state are skipped, so running it again after capturing new scenes only adds the missing ones. New states land as a top-to-bottom column at the view centre, each pre-bound to its scene. Disabled when every scene has a state.',
     group: 'Timeline',
-    keywords: ['scenes', 'generate', 'seed', 'show machine'],
+    keywords: ['scenes', 'generate', 'seed', 'sync', 'show machine'],
   },
   {
     id: 'timeline.sm-add-global-rule',

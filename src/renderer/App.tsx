@@ -653,9 +653,11 @@ const App: React.FC = () => {
     setModelNaturalSizes(s => (s[id] === maxDim ? s : { ...s, [id]: maxDim }));
   const handleSceneConfig = (patch: Partial<Scene3D>) => setScene3D(s => ({ ...s, ...patch }));
   // --- 3D model CRUD (driven by the in-window scene panel; App owns scene3D) ---
-  // No recordHistory() here: the undo stack snapshots the FIXTURES array only, so recording a
-  // fixtures snapshot before a scene-model change made Ctrl+Z pop an unrelated snapshot AND clear
-  // redo, while the model stayed changed. 3D-model edits are simply not on the (fixture-scoped) stack.
+  // KNOWN GAP: none of these record history, yet scene3D IS in DocSnapshot — so a Ctrl+Z after a
+  // model edit reverts the previous unrelated gesture while the model change stands. (An older
+  // comment here claimed the stack was fixtures-only; that stopped being true when DocSnapshot
+  // widened to the whole authored document.) Deliberately left as-is for now — see
+  // plans/timeline-undo.md §11 Q7 for the boundary decision this is waiting on.
   const addSceneModel = (m: SceneModel) => { setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
   // Returns the new model's id (null = the picker was cancelled) so a caller that is BLOCKED on having
   // a venue model — the calibration wizard's Setup prerequisite — can react rather than just hoping.
@@ -1529,8 +1531,10 @@ const App: React.FC = () => {
   // Create a new state: a Scene (current look + EMPTY timeline + stable accent) + a bound SmState node,
   // then drop straight into author mode on its empty timeline — the "new state → empty timeline" flow.
   const handleCreateState = () => {
-    // No recordHistory(): creating a state adds a Scene + SmState node, not a fixtures change — the
-    // fixture-scoped undo stack has nothing to record, and recording here only clobbered redo.
+    // Record first: this adds a Scene AND an SmState node, and both slices are in DocSnapshot.
+    // (An older comment excluded this as "not a fixtures change" — a leftover from the
+    // fixtures-only stack, dead since DocSnapshot widened to the whole authored document.)
+    recordHistory();
     const id = generateId();
     const accent = nextAccent(scenes.map(s => s.accent), id);
     // `State N` counted among the STATES, not among all scenes — see handleCreateScene's note.

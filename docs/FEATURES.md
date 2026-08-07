@@ -180,7 +180,7 @@ Scene (recalled on entry, whole look + its timeline) and can run **entry actions
 loop/jump-marker/recall/fire-cue); each **transition** is an edge with a **trigger** that moves the show
 on. Author it from the Timeline dock's **state lane → Edit logic** (a node canvas: drag a node's nub onto
 another to wire a transition, double-click a node to force-enter it live, **Build from scenes** to seed one
-node per Scene). The machine runs once per frame **even while the transport is stopped**, so a delay-driven
+node per Scene that doesn't have one yet). The machine runs once per frame **even while the transport is stopped**, so a delay-driven
 show loops with no Play pressed. Triggers:
 
 - **manual** (state-lane button, Ctrl/Cmd+click an edge, or OSC/tablet),

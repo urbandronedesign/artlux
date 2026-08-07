@@ -331,8 +331,9 @@ is an AutomataUI-style node canvas + an inspector.
 **Toolbar**
 - **＋ State** — add a state at the current view centre (or **double-click empty canvas**).
 - **＋ Region** — add a group-box.
-- **Build from scenes** — one node per existing Scene, each **pre-bound** to its Scene, laid out
-  **top-to-bottom**. The fastest way to seed a show graph.
+- **Build from scenes** — one node per scene **that doesn't have one yet**, each **pre-bound** to its
+  Scene, laid out **top-to-bottom**. A top-up sync: run it again after capturing new scenes and only
+  the missing states are added. The fastest way to seed a show graph.
 - **Tidy** — relayout the whole graph as a **top-to-bottom flow** from the initial state (layers by
   graph distance; unreachable states last). Regions stay put — a state joins whichever region it lands
   in — and hand-curved edges are straightened.
@@ -353,10 +354,16 @@ graph off screen, **Fit** (or `F`) brings it back.
 - **Select an edge** to reveal its **bezier handles** (curve it for readability — cosmetic).
 - **Drag empty canvas** (or **middle-drag from anywhere**) pans; the **wheel** zooms toward the cursor.
 - **Del/Backspace** deletes the selection; **F** fits the graph in view.
+- **Everything you author here is undoable** — `Ctrl+Z` steps back one gesture at a time (a drag, a
+  Tidy, a typing burst each count as one step).
 
 **Inspector (state selected)** — Name · **Set as initial** (★) · **Scene (recalled on entry)** ·
 **Edit timeline** (author this state's own timeline) · **Lock time** · **Entry actions** (add/remove;
 each action edits its own params).
+
+**Deleting a Scene does not delete the states bound to it** — they stay in the graph with a
+**⚠ scene missing** warning (entering one recalls nothing, the show keeps running). Rebind the state
+to another scene, or clear the dead binding from the inspector.
 
 **Inspector (transition selected)** — the `from → to` label · **Trigger** kind + its params
 (`afterDelay` seconds, `atTime` time, `onMarker` marker, `onClipEnd` track, `onTimelineEnd` — no

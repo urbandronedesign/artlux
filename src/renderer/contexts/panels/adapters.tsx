@@ -112,6 +112,9 @@ export const StateMachineViewport: React.FC = () => {
       scenes={scenes.map((s) => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop }))}
       cues={cueBanks.flatMap((b) => b.cues.map((c) => ({ id: c.id, name: c.name })))}
       onChange={a.setStateMachine}
+      // Without this, graph edits are invisible to undo AND an unrelated Ctrl+Z silently reverts
+      // them (stateMachine is in DocSnapshot). Guarded by verify:invariants.
+      onRecordHistory={a.recordHistory}
       // Editing a state's timeline binds that scene and pulls the timeline DRAWER up underneath the
       // graph. It used to switch to the `timeline` context, which took the graph away — the whole
       // point of the drawer is that the state you just wired stays on screen beside its lanes.
