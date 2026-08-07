@@ -438,7 +438,9 @@ the toolbar.
   a live guide.
 - **Blade tool (B):** click a clip to split it at the cursor; **C** blades at the playhead.
 - **Tracks:** mute (M), solo (S), lock (L, blocks edits/drops on that lane), show-hide eye, cycle color,
-  drag the grip to reorder, drag the header's bottom edge to resize height.
+  drag the grip to reorder, drag the header's bottom edge to resize height. **Order is depth:** the top
+  track is front-most in the Program composite and the bottom one sits behind everything, so **+ Track**
+  adds on top — what you just added is what you see. A reorder drags live and commits once on release.
 - **Markers:** **M** adds at the playhead; click a marker to seek, Alt/right-click to delete,
   double-click to edit its note.
 - **Range:** **I/O** (or the toolbar **Set In**/**Set Out** buttons) set the timeline in/out points,

@@ -39,6 +39,35 @@ Content is also **mipped and anisotropically filtered** now. Content mapped onto
 always minified, and undersampling does not merely blur — it crawls as the video plays, which on a
 large projection is far more objectionable than a static jagged edge.
 
+### A new timeline track lands on top, and the reorder grip is findable
+
+**+ Track** appended, and on this timeline array position *is* depth: index 0 is both the top row and the
+front-most contributor to the Program composite. So every new track was filed **behind** everything
+already authored — you added a track, dropped a video on it, and the picture did not change. It now
+lands on top, and the track list scrolls so you can see it arrive. Every NLE does this, and the in-app
+help already promised it ("higher tracks composite over lower ones").
+
+Reordering tracks by dragging the header grip has shipped for a while and **nobody could find it**. Two
+reasons, and the second is the real one:
+
+- The grip was a 12px glyph at the dimmest text tier carrying a native `title` and nothing else — the
+  only control in that header not wired into the help system, while all seven of its siblings had a
+  tooltip and a *? Learn more* link. It now has a real hit target, a hover chip, the brighter text tier,
+  and its own help entry.
+- **The drag's hit-test was 30px out.** It converted the pointer into content space and subtracted the
+  ruler, but the row it measures from is the *first track*, and the always-present state-machine lane
+  (30px) sits in between. Against a 36px default lane that is nearly a full row: the track swapped on the
+  first pixel of movement and then trailed the pointer by most of a lane for the rest of the gesture. A
+  feature can be present, documented and shipped and still read as absent if it does not track your hand.
+
+The gesture itself is unchanged — it still drafts locally and commits **once** on release, so a reorder
+on a running show is one document write rather than one per lane crossing. The carried row now takes an
+accent ring and the cursor turns to `grabbing` for the duration.
+
+Track order carries no other meaning: clips, surface bindings, 3D planes and audio all bind by id, so a
+reorder moves depth and nothing else, and **no project file changes**. The Tracking and Lighting take
+lanes still append — they are excluded from the composite, so the bottom keeps them out of the way.
+
 ### Also
 
 - A calibration import reaches a projector window that **opens later**. It was sent when an output was

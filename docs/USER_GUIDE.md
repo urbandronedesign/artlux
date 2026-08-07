@@ -385,8 +385,9 @@ content at a **Layer** to show it.
 - **Snapping (S)** — aligns drags to clip edges, the playhead, markers and the in/out range.
 - **Markers (M)** — add at the playhead; click to seek, Alt/right-click to delete, double-click to
   note. **I/O** set the in/out region.
-- **Tracks** — mute / solo / lock / show-hide, recolor, reorder (drag the grip), and resize height
-  from the track header.
+- **Tracks** — mute / solo / lock / show-hide, recolor, reorder (drag the grip at the left of the track
+  name), and resize height from the track header. The **top** track is front-most in the composite;
+  **+ Track** adds a new one on top.
 
 **Length & looping:** the **Length** field (toolbar) is the end of the timeline — playback stops and
 holds on the last frame when it gets there. Looping is off by default; toggle **Loop** (**Shift+L**) to

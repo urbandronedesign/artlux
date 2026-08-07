@@ -8,7 +8,7 @@ import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
+import { GUTTER, RULER_H, SM_LANE_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete, nearestFreeStart, freeSpanAt } from './operations';
 import { collectSnapPoints, snap, type SnapPoint } from './snapping';
 import { AudioLane, type AudioDragMode } from './AudioLane';
@@ -152,6 +152,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // The lane REORDER's draft: the layer ids in their dragged order. It used to commit a whole document
   // per lane crossing, INSIDE pointermove (invariant 7) — six full setData + projector fan-outs per drag.
   const [orderDraft, setOrderDraft] = useState<string[] | null>(null);
+  // WHICH row the reorder is carrying — feedback only, and the reason it can be plain state: TrackHeader
+  // is React.memo'd, so flipping this wakes the ONE row whose `dragging` prop actually changed (every
+  // other header compares false → false and does not re-render), and the headers were already
+  // re-rendering per lane crossing for `orderDraft` anyway.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [regionDrag, setRegionDrag] = useState<{ edge: 'in' | 'out'; t: number } | null>(null); // loop-region handle drag (draft; commits once on pointerup)
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
 
@@ -775,6 +780,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const doc = docKeyRef.current;
     let order = tl0.layers.map(l => l.id);
     setOrderDraft(order);
+    setDraggingId(id);
+    // The pointer LEAVES the grip the instant the drag starts — the listeners below are on `window`, not
+    // captured on the handle — so `:active`/`:hover` cannot carry the cursor across the gutter and lanes.
+    // Painting it on the body is the same door DockDrag.tsx opens, for the same reason.
+    document.body.style.cursor = 'grabbing';
     const move = (ev: PointerEvent) => {
       if (doc !== docKeyRef.current) return;                  // rebound mid-drag — the gesture is dead
       // Heights come from the BOUND document, resolved by id — never from a stale captured array.
@@ -782,7 +792,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       const rows = order.map(i => byId.get(i));
       if (rows.some(l => !l)) return;                       // rebound under the drag → freeze the preview
       const r = el.getBoundingClientRect();
-      const y = ev.clientY - r.top + el.scrollTop - RULER_H;
+      // RULER_H **+ SM_LANE_H**. The accumulator below measures from the top of the FIRST TRACK, and TWO
+      // rows sit above it inside this scroller: the sticky ruler, then the always-present state-machine
+      // lane. Subtracting only the ruler left `y` 30px — a whole SM_LANE_H, against a 36px default lane —
+      // too large on EVERY sample, so the row swapped on the first pixel of movement and then trailed the
+      // pointer by most of a lane. That is a plausible reason the grip never read as a grip.
+      // The empty-state row is deliberately not in this sum: it renders only when there are no layers,
+      // and with no layers there is no grip to drag.
+      const y = ev.clientY - r.top + el.scrollTop - RULER_H - SM_LANE_H;
       let target = 0, acc = 0;
       for (let i = 0; i < rows.length; i++) { const h = laneHeight(rows[i]!); if (y > acc + h / 2) target = i + 1; acc += h; }
       target = clamp(target, 0, rows.length - 1);
@@ -796,7 +813,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);
+      // Teardown FIRST, above every early return — a cancelled or abandoned gesture must still hand the
+      // cursor and the lifted row back, or the app is left looking mid-drag forever.
       setOrderDraft(null);
+      setDraggingId(null);
+      document.body.style.cursor = '';
       if (!commit || doc !== docKeyRef.current) return;     // cancelled, or rebound mid-drag → ABANDON
       const tl = timelineRef.current;
       const byId = new Map(tl.layers.map(l => [l.id, l] as const));
@@ -843,7 +864,25 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // --- non-stable mutations (toolbar / lane / ruler / keyboard) read fresh closure state ---
   // `nextNumberedName`, NOT `layers.length + 1` — the count is not the name. Delete `Track 1` out of
   // `[Track 1, Track 2]` and the count says the next lane is `Track 2`, which is already on screen.
-  const addLayer = () => onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: nextNumberedName('Track', layers), enabled: true }] });
+  //
+  // ⚠ UNSHIFT, NOT PUSH. Array position IS the stacking order — VideoLayer carries no index field — so
+  // index 0 is BOTH the top row (the forward map below) and the FRONT-MOST contributor to the Program
+  // composite (services/timeline.ts walks length-1 → 0: "bottom of the track list = back, top = front").
+  // Appending therefore filed every new track BEHIND everything already authored: you add a track, drop a
+  // video on it, and the picture does not change. "Add a layer" means "on top" in every NLE and in the
+  // operator's head, so mint it there.
+  //   · The TAKE lanes deliberately keep appending (takeRecorder.addLightingLane / addTrackingLane).
+  //     They are excludeFromProgram, so their position is cosmetic and the bottom keeps them out of the way.
+  //   · Spread `timeline.layers`, NOT the memoized `layers` — that one is the REORDER-DRAFT view (the
+  //     useMemo above), so committing it would land a half-finished drag as a side effect of an add.
+  //   · nextNumberedName reads the highest number ALREADY TAKEN, never a position, so unshifting cannot
+  //     re-issue a name a deletion freed.
+  const addLayer = () => {
+    onChange({ ...timeline, layers: [{ id: crypto.randomUUID(), name: nextNumberedName('Track', timeline.layers), enabled: true }, ...timeline.layers] });
+    // The new row is at the TOP now, so a scrolled-down track list would mint it off-screen above. The
+    // ruler is `sticky top-0` inside this scroller, so 0 parks the new track right under it, fully visible.
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  };
 
   // --- audio track ops. Discrete edits (one commit each) — the CONTINUOUS ones (gain fader, name field)
   // draft inside AudioLane and land here once, on release/blur. ---
@@ -1601,7 +1640,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             return (
               <div key={l.id} className="flex">
                 <div className="sticky left-0 z-20 shrink-0" style={{ width: GUTTER }}>
-                  <TrackHeader layer={l} index={i} height={h} onPatch={patchLayer} onRemove={removeLayer} onStartReorder={startReorder} onStartResize={startResize} />
+                  <TrackHeader layer={l} index={i} height={h} dragging={draggingId === l.id} onPatch={patchLayer} onRemove={removeLayer} onStartReorder={startReorder} onStartResize={startResize} />
                 </div>
                 <Lane
                   layer={l} clips={laneClips} selectedId={selected} tool={tool} pxPerSec={pxPerSec}

@@ -132,8 +132,8 @@ export const timelineExtraHelp: HelpEntry[] = [
   {
     id: 'timeline.add-track',
     title: 'Add track',
-    short: 'Add a video layer to the timeline.',
-    body: 'Adds a new video layer (track) you can drop video, images or effects onto. Higher tracks composite over lower ones.',
+    short: 'Add a video layer on top of the stack.',
+    body: 'Adds a new video layer (track) you can drop video, images or effects onto. It lands on TOP — higher tracks composite over lower ones, so what you just added is what you see. Drag its grip to move it down.',
     group: 'Timeline',
     keywords: ['track', 'layer', 'add', 'video'],
   },
@@ -212,6 +212,14 @@ export const timelineExtraHelp: HelpEntry[] = [
     keywords: ['marker', 'flag', 'cue', 'note', 'seek', 'delete'],
   },
   // ── track header: layer controls ─────────────────────────────────────────────────────────────────
+  {
+    id: 'timeline.track-reorder',
+    title: 'Reorder track',
+    short: 'Drag the grip to move this track up or down the stack.',
+    body: 'Press the grip at the left of the track name and drag vertically. The rows reorder live under the pointer and the new order lands when you let go — nothing is written to the show until you release. Track order is not cosmetic: the top track is FRONT-MOST in the Program composite and the bottom one sits behind everything, so moving a track up moves its picture forward. Its clips, surface bindings and audio ride along with it — only its depth changes. A new track is added on top.',
+    group: 'Timeline',
+    keywords: ['reorder', 'order', 'move', 'grip', 'handle', 'drag', 'stack', 'layer', 'front', 'back', 'depth', 'above', 'below', 'up', 'down'],
+  },
   {
     id: 'timeline.track-mute',
     title: 'Mute (visual)',

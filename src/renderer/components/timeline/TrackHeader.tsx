@@ -17,6 +17,8 @@ interface Props {
   layer: VideoLayer;
   index: number;
   height: number;
+  /** This row is the one a reorder drag is currently carrying. Owned by Timeline (its `draggingId`). */
+  dragging?: boolean;
   onPatch: (id: string, patch: Partial<VideoLayer>) => void;
   onRemove: (id: string) => void;
   onStartReorder: (e: React.PointerEvent, index: number) => void;
@@ -40,7 +42,7 @@ const Toggle: React.FC<{ on: boolean; label: string; title: string; helpId?: str
   return helpId ? <Tooltip id={helpId}>{btn}</Tooltip> : btn;
 };
 
-const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRemove, onStartReorder, onStartResize }) => {
+const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, dragging, onPatch, onRemove, onStartReorder, onStartResize }) => {
   const [fxOpen, setFxOpen] = useState(false);
   const fxBtnRef = useRef<HTMLButtonElement>(null);
   const fxBoxRef = useRef<HTMLDivElement>(null);
@@ -54,9 +56,26 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
     onPatch(layer.id, { color: next });
   };
   return (
-    <div className="relative flex flex-col justify-center gap-1 px-1.5 py-1 border-b border-line-1 bg-surface-1" style={{ height }}>
+    <div className={`relative flex flex-col justify-center gap-1 px-1.5 py-1 border-b border-line-1 ${dragging ? 'bg-surface-2 ring-1 ring-inset ring-accent' : 'bg-surface-1'}`} style={{ height }}>
       <div className="flex items-center gap-1">
-        <span onPointerDown={(e) => onStartReorder(e, index)} className="cursor-grab text-fg-3 hover:text-fg-1 -ml-0.5" title="Drag to reorder"><GripVertical size={12} /></span>
+        {/* THE REORDER HANDLE. It was a bare 12px glyph at the DIMMEST text tier carrying a native `title`
+            and nothing else, and operators simply never found it — it was also the only control in this
+            header not wired into the help system, while all seven of its siblings carry Tooltip + help().
+            Three changes, and NOT a new gesture (startReorder is careful, and stays as it is):
+              · a real hit target with a hover chip, so it reads as interactive AT REST instead of only
+                once you happen to land on the exact glyph;
+              · fg-2, not fg-3 — the dim tier is for meta and captions, not for an affordance;
+              · Tooltip + help(), for the hover card, the "? Learn more" deep-link and the StatusBar line.
+            `cursor-grabbing` during the drag is belt-and-braces: the pointer leaves this element
+            immediately, so Timeline also paints the cursor on the body for the rest of the gesture. */}
+        <Tooltip id="timeline.track-reorder">
+          <span
+            onPointerDown={(e) => onStartReorder(e, index)}
+            {...help('timeline.track-reorder')}
+            title="Drag to reorder — the top track is front-most"
+            className={`-ml-0.5 shrink-0 w-4 h-5 rounded-sm flex items-center justify-center ${dragging ? 'cursor-grabbing text-fg-1 bg-surface-3' : 'cursor-grab text-fg-2 hover:text-fg-1 hover:bg-surface-3'}`}
+          ><GripVertical size={12} /></span>
+        </Tooltip>
         <button onPointerDown={(e) => e.stopPropagation()} onClick={cycleColor} title="Track color" className="w-2.5 h-2.5 rounded-sm border border-line-2 shrink-0" style={{ background: layer.color ?? 'transparent' }} />
         <input
           value={layer.name}
