@@ -90,7 +90,7 @@ There's nothing else — a looping show is *N* states in a ring, each bound to a
    and let it cycle — Calm now shows your new look.
 3. **Add a fourth state.** In the editor, **double-click empty canvas** to add a state. Bind it to a
    Scene in the inspector (or leave it blank for a black beat). Then **rewire the ring**: drag the
-   little **nub on a node's right edge** onto your new node to connect, delete the old closing arrow
+   little **nub on the node's rim** (it follows your cursor) onto your new node to connect, delete the old closing arrow
    (select it, press **Delete**), and add an `afterDelay` arrow from your new node back to `Calm`.
 4. **Break the loop.** Delete the `Burn → Calm` arrow. Now the show runs Calm → Rise → Burn and
    **stops** on Burn (no outgoing trigger). A state with no outgoing arrow is a natural ending.

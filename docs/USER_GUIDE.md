@@ -432,8 +432,9 @@ default**; open its editor from the Timeline dock's **state lane** (**Edit logic
 - **States** — each state is a node that **binds one Scene** (recalled on entry) and can run **entry
   actions** (*play / pause / stop / seek / set loop / jump to marker / recall another scene / fire a
   cue*). Click **Build from scenes** to seed one node per Scene automatically.
-- **Transitions** — drag from a node's right-edge nub onto another node to connect them, then pick the
-  **trigger** that fires the edge:
+- **Transitions** — drag from a node's link nub (it rides the node's rim toward your cursor) onto
+  another node to connect them — or onto empty canvas to create a new linked state right there — then
+  pick the **trigger** that fires the edge:
   - **Manual GO** — a button on the state lane, **Ctrl/Cmd+click** the edge, OSC, or the tablet remote.
   - **After a delay** — N seconds after entry, on a *wall clock* that runs even with the transport
     stopped (so a delay-only graph loops with no Play).

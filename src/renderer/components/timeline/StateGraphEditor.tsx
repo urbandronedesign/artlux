@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTrigger, SmTriggerKind, Marker, VideoLayer } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { smTriggerRegistry } from '../../host/registries';
 import { nextNumberedName } from '@artlux/sdk/renderer';
-import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap } from 'lucide-react';
+import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap, Maximize2, ZoomIn, Network } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { keymap } from '../../shortcuts/keymapStore';
@@ -39,7 +39,6 @@ interface Props {
 
 const R = 34;                 // state node radius
 const D = R * 2;
-const CW = 2600, CH = 1700;   // canvas coordinate space
 const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene', 'fireCue'];
 // The CORE kinds only. Plugin-owned sources ('plugin' kind — a LiDAR trigger zone, a camera pose, a
 // DMX level) are appended at render time from the registry, one entry per registered source, so this
@@ -74,18 +73,21 @@ type Drag =
   | { kind: 'node'; id: string; x: number; y: number }
   | { kind: 'region'; id: string; x: number; y: number }
   | { kind: 'regionSize'; id: string; w: number; h: number }
-  | { kind: 'handle'; id: string; which: 'c1' | 'c2' }
-  | { kind: 'pan' };
+  | { kind: 'handle'; id: string; which: 'c1' | 'c2' };
 
 export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onClose, onEditTimeline }) => {
   const [sel, setSel] = useState<{ kind: 'state' | 'transition' | 'region'; id: string } | null>(null);
   const [linkFrom, setLinkFrom] = useState<string | null>(null);     // source state while drawing a transition
   const [linkTo, setLinkTo] = useState<Vec | null>(null);            // live cursor (canvas coords) while linking
   const [drag, setDrag] = useState<Drag | null>(null);
-  const [scale, setScale] = useState(1);
+  // The open-workspace camera (Stage.tsx pattern): an overflow-hidden viewport and a
+  // translate/scale content layer, unbounded in every direction — negative coords included.
+  const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [firedId, setFiredId] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const regions = sm.regions ?? [];
 
   // Live "current state" ring + fired-edge pulse driven render-free by the engine.
@@ -102,9 +104,17 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   const patchRegion = (id: string, p: Partial<SmRegion>) => patch({ regions: regions.map(r => r.id === id ? { ...r, ...p } : r) });
 
   const toCanvas = (clientX: number, clientY: number): Vec => {
-    const el = scrollRef.current; if (!el) return { x: 0, y: 0 };
+    const el = viewportRef.current; if (!el) return { x: 0, y: 0 };
     const r = el.getBoundingClientRect();
-    return { x: (clientX - r.left + el.scrollLeft) / scale, y: (clientY - r.top + el.scrollTop) / scale };
+    // viewRef, NOT state: every drag below runs in window-level closures captured at drag start,
+    // and a wheel-zoom mid-drag would otherwise leave them converting through a stale transform.
+    const v = viewRef.current;
+    return { x: (clientX - r.left - v.x) / v.scale, y: (clientY - r.top - v.y) / v.scale };
+  };
+  const viewCentre = (): Vec => {
+    const el = viewportRef.current; if (!el) return { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    return toCanvas(r.left + r.width / 2, r.top + r.height / 2);
   };
   const regionAt = (c: Vec): string | undefined =>
     [...regions].reverse().find(r => c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h)?.id;
@@ -127,8 +137,10 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   };
   const addRegion = () => {
     // The NAME comes from what is taken; the x/y stagger deliberately still rides the count — it is a
-    // cascade so a new region does not land exactly on the last one, not an identity.
-    const r: SmRegion = { id: uid(), name: nextNumberedName('Region', regions), x: 80 + regions.length * 30, y: 60 + regions.length * 30, w: 360, h: 320 };
+    // cascade so a new region does not land exactly on the last one, not an identity. Anchored on the
+    // current view centre: on an unbounded canvas "near the origin" can be anywhere but on screen.
+    const c = viewCentre();
+    const r: SmRegion = { id: uid(), name: nextNumberedName('Region', regions), x: c.x - 180 + regions.length * 30, y: c.y - 160 + regions.length * 30, w: 360, h: 320 };
     patch({ regions: [...regions, r] });
     setSel({ kind: 'region', id: r.id });
   };
@@ -148,20 +160,60 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     setSel({ kind: 'transition', id: t.id });
   };
 
-  // One node per scene, laid out in a grid, each pre-bound to its scene — seeds a show graph fast.
+  // One node per scene, each pre-bound to its scene — seeds a show graph fast. Laid out
+  // TOP-TO-BOTTOM: a show reads as a flow, and the canvas is unbounded so there is no square to
+  // wrap into. Anchored at the current view centre, then fitted, so it lands where you look.
   const buildFromScenes = () => {
     if (!scenes.length) return;
-    const cols = Math.ceil(Math.sqrt(scenes.length));
-    const gapX = D + 80, gapY = D + 70, ox = 90, oy = 90;
+    const c = viewCentre();
     const states: SmState[] = scenes.map((sc, i) => ({
       id: uid(), name: sc.name, sceneId: sc.id, entry: [],
-      x: ox + (i % cols) * gapX, y: oy + Math.floor(i / cols) * gapY,
+      x: c.x - R, y: c.y - R + i * (D + 90),
     }));
-    patch({ states: [...sm.states, ...states], initialStateId: sm.initialStateId ?? states[0]?.id ?? null });
+    const all = [...sm.states, ...states];
+    patch({ states: all, initialStateId: sm.initialStateId ?? states[0]?.id ?? null });
+    fitViewTo(all, regions);
+  };
+
+  // Tidy — relayout the whole graph as a top-to-bottom flow: layers by BFS depth from the initial
+  // state (BFS, not longest-path — show graphs loop back to attract states constantly, and BFS is
+  // cycle-safe with no back-edge bookkeeping), unreachable islands in trailing layers, siblings
+  // spread symmetrically about x=0. Regions are ignored for placement and membership is RE-DERIVED
+  // from where each node lands — the same spatial rule node drag-drop enforces. Hand-curved
+  // beziers are cleared: a curve authored against the old geometry is noise after a relayout.
+  const tidy = () => {
+    if (!sm.states.length) return;
+    const succ = new Map<string, string[]>();
+    for (const t of sm.transitions) {
+      if (t.fromAny || t.from === t.to) continue; // a global rule has no source; a self-loop says nothing about depth
+      const l = succ.get(t.from); if (l) l.push(t.to); else succ.set(t.from, [t.to]);
+    }
+    const depth = new Map<string, number>();
+    const bfs = (root: string, d0: number) => {
+      depth.set(root, d0);
+      const q = [root];
+      while (q.length) {
+        const id = q.shift()!;
+        for (const n of succ.get(id) ?? []) if (!depth.has(n)) { depth.set(n, depth.get(id)! + 1); q.push(n); }
+      }
+    };
+    const init = sm.states.find(s => s.id === sm.initialStateId) ?? sm.states[0];
+    bfs(init.id, 0);
+    for (const s of sm.states) if (!depth.has(s.id)) bfs(s.id, Math.max(...depth.values()) + 1);
+    const layers = new Map<number, SmState[]>();
+    for (const s of sm.states) { const d = depth.get(s.id)!; const l = layers.get(d); if (l) l.push(s); else layers.set(d, [s]); }
+    const gapX = D + 60, gapY = D + 90;
+    const pos = new Map<string, Vec>();
+    for (const [d, row] of layers) row.forEach((s, j) => pos.set(s.id, { x: (j - (row.length - 1) / 2) * gapX - R, y: d * gapY - R }));
+    const states = sm.states.map(s => { const p = pos.get(s.id)!; return { ...s, x: p.x, y: p.y, regionId: regionAt({ x: p.x + R, y: p.y + R }) }; });
+    const transitions = sm.transitions.map(t => (t.fromAny || (t.c1 == null && t.c2 == null)) ? t : { ...t, c1: undefined, c2: undefined });
+    patch({ states, transitions }); // ONE patch — `sm` is the pre-patch prop
+    fitViewTo(states, regions);
   };
 
   // --- drags (commit on release for node/region/resize; handles patch live) ---
   const beginNodeDrag = (e: React.PointerEvent, s: SmState) => {
+    if (e.button !== 0) return; // before stopPropagation, so middle-drag bubbles up and pans
     e.stopPropagation();
     const start = toCanvas(e.clientX, e.clientY); const off = { x: start.x - s.x, y: start.y - s.y };
     const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'node', id: s.id, x: c.x - off.x, y: c.y - off.y }); };
@@ -174,6 +226,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     setSel({ kind: 'state', id: s.id });
   };
   const beginRegionDrag = (e: React.PointerEvent, r: SmRegion) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     const start = toCanvas(e.clientX, e.clientY); const off = { x: start.x - r.x, y: start.y - r.y };
     const members = sm.states.filter(s => s.regionId === r.id).map(s => ({ id: s.id, dx: s.x - r.x, dy: s.y - r.y }));
@@ -187,21 +240,27 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     setSel({ kind: 'region', id: r.id });
   };
   const beginRegionResize = (e: React.PointerEvent, r: SmRegion) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'regionSize', id: r.id, w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); };
     const up = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); patchRegion(r.id, { w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
   const beginHandleDrag = (e: React.PointerEvent, t: SmTransition, which: 'c1' | 'c2') => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     setDrag({ kind: 'handle', id: t.id, which });
     const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); patchTransition(t.id, { [which]: c } as Partial<SmTransition>); };
     const up = () => { setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
-  // Drag a node's link nub onto another node to create a transition.
+  // Drag a node's link nub onto another node to create a transition — or onto empty canvas to
+  // create the target state right there (the downward-authoring accelerator: pull the show flow
+  // out of a node and the next state materializes where you let go).
   const beginLink = (e: React.PointerEvent, fromId: string) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
+    const sx = e.clientX, sy = e.clientY;
     setLinkFrom(fromId); setLinkTo(toCanvas(e.clientX, e.clientY));
     const move = (ev: PointerEvent) => setLinkTo(toCanvas(ev.clientX, ev.clientY));
     const up = (ev: PointerEvent) => {
@@ -210,40 +269,110 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
       if (tgt && tgt !== fromId) {
         const tr: SmTransition = { id: uid(), from: fromId, to: tgt, trigger: { kind: 'manual' } };
         patch({ transitions: [...sm.transitions, tr] }); setSel({ kind: 'transition', id: tr.id });
+      } else if (!tgt && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
+        // The 8px guard keeps a stray click on the nub from spawning a state; the rect check
+        // keeps a drop that wandered into the inspector (or off the window) from creating one.
+        const r = viewportRef.current?.getBoundingClientRect();
+        if (r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+          const c = toCanvas(ev.clientX, ev.clientY);
+          const st: SmState = { id: uid(), name: nextNumberedName('State', sm.states), x: c.x - R, y: c.y - R, entry: [], regionId: regionAt(c) };
+          const tr: SmTransition = { id: uid(), from: fromId, to: st.id, trigger: { kind: 'manual' } };
+          // ONE patch for both arrays — `sm` here is the pre-patch prop; two sequential patches
+          // would have the second clobber the first.
+          patch({ states: [...sm.states, st], transitions: [...sm.transitions, tr] });
+          setSel({ kind: 'state', id: st.id });
+        }
       }
       setLinkFrom(null); setLinkTo(null);
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
 
-  // Pan with the middle mouse button; Ctrl/Cmd-wheel zooms around the cursor (plain wheel scrolls).
-  const beginPan = (e: React.PointerEvent) => {
-    if (e.button !== 1) return; e.preventDefault();
-    const el = scrollRef.current!; const sx = e.clientX, sy = e.clientY, l = el.scrollLeft, t = el.scrollTop;
-    const move = (ev: PointerEvent) => { el.scrollLeft = l - (ev.clientX - sx); el.scrollTop = t - (ev.clientY - sy); };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  // Left-drag on empty canvas pans; middle-drag pans from ANYWHERE (every element-level handler
+  // ignores non-left buttons, so a middle press falls through to the viewport). A drag-less left
+  // click is the deselect gesture — decided on release, so panning never clears the selection.
+  const beginViewportPan = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    e.preventDefault(); // a middle press would otherwise start Windows autoscroll
+    const btn = e.button, sx = e.clientX, sy = e.clientY, v0 = { ...viewRef.current };
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) <= 3) return; // click slop
+      moved = true;
+      setView({ x: v0.x + (ev.clientX - sx), y: v0.y + (ev.clientY - sy), scale: v0.scale });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      if (!moved && btn === 0) { setSel(null); setLinkFrom(null); }
+    };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
+  // Zoom around the cursor — one synchronous updater, same math and [0.1, 5] clamp as the Stage
+  // (Stage.tsx handleWheel), so the app's two 2D workspaces share one navigation feel. Plain wheel
+  // on purpose: with the old scroll-document gone there is nothing else for the wheel to do, and
+  // the previous Ctrl+wheel habit still lands here (the modifier is simply ignored).
+  //
+  // A NATIVE non-passive listener, not React's onWheel: React binds wheel passively at the root,
+  // so a preventDefault there is a console-warning no-op and the wheel would ALSO scroll whatever
+  // scrollable pane the dock has put around us. Mount-once is safe — the handler reads no state
+  // (functional setView only), which is exactly what the old version's `[scale]` re-subscribe
+  // dep bug got wrong.
   useEffect(() => {
-    const el = scrollRef.current; if (!el) return;
+    const el = viewportRef.current; if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault();
+      e.preventDefault();
       const r = el.getBoundingClientRect();
-      const cx = (e.clientX - r.left + el.scrollLeft) / scale, cy = (e.clientY - r.top + el.scrollTop) / scale;
-      const next = Math.min(2, Math.max(0.4, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
-      setScale(next);
-      requestAnimationFrame(() => { el.scrollLeft = cx * next - (e.clientX - r.left); el.scrollTop = cy * next - (e.clientY - r.top); });
+      const mx = e.clientX - r.left, my = e.clientY - r.top;
+      setView(prev => {
+        const ns = Math.min(5, Math.max(0.1, prev.scale + -e.deltaY * 0.001));
+        if (ns === prev.scale) return prev;
+        // The canvas point under the cursor stays under it: v' = m − (m − v)·(s'/s).
+        const k = ns / prev.scale;
+        return { x: mx - (mx - prev.x) * k, y: my - (my - prev.y) * k, scale: ns };
+      });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [scale]);
+  }, []);
+  // Fit takes explicit arrays because Tidy / Build-from-scenes must frame positions they JUST
+  // computed — inside those handlers the `sm` prop is still the pre-patch graph.
+  const fitViewTo = (states: SmState[], regs: SmRegion[]) => {
+    const el = viewportRef.current; if (!el) return;
+    const { width: vw, height: vh } = el.getBoundingClientRect();
+    if (vw <= 0 || vh <= 0) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of states) { minX = Math.min(minX, s.x); minY = Math.min(minY, s.y); maxX = Math.max(maxX, s.x + D); maxY = Math.max(maxY, s.y + D); }
+    for (const g of regs) { minX = Math.min(minX, g.x); minY = Math.min(minY, g.y); maxX = Math.max(maxX, g.x + g.w); maxY = Math.max(maxY, g.y + g.h); }
+    if (!Number.isFinite(minX)) { setView({ x: 0, y: 0, scale: 1 }); return; }
+    const PAD = 32; // screen px of breathing room on every side
+    // Capped at 1×, not the wheel's 5×: fit is for SEEING the graph, and one lone 68px node blown
+    // up to fill the pane is not a view anyone asked for. The floor matches the wheel's, so fit
+    // can never land somewhere the wheel can't reach.
+    const scale = Math.min(Math.max(Math.min((vw - 2 * PAD) / (maxX - minX || 1), (vh - 2 * PAD) / (maxY - minY || 1)), 0.1), 1);
+    setView({ x: vw / 2 - scale * (minX + maxX) / 2, y: vh / 2 - scale * (minY + maxY) / 2, scale });
+  };
+  const fitView = () => fitViewTo(sm.states, regions);
+  const resetView = () => setView({ x: 0, y: 0, scale: 1 });
+  // Frame the graph once, when states FIRST exist — not blindly at mount: if the app boots straight
+  // into this context the editor mounts before the project's graph arrives, and a mount-only fit
+  // would frame an empty canvas and then leave a graph authored around x=0 half off screen. (rAF:
+  // the dock pane needs a layout pass before it has a size.)
+  const didAutoFit = useRef(false);
+  useLayoutEffect(() => {
+    if (didAutoFit.current || !sm.states.length) return;
+    didAutoFit.current = true;
+    const id = requestAnimationFrame(fitView);
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once, on first non-empty graph
+  }, [sm.states.length]);
 
-  // Delete the selection with Del/Backspace (unless typing in a field).
+  // Delete the selection with Del/Backspace, frame the graph with F (unless typing in a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!keymap.matches(e, 'stategraph.deleteSelected')) return;
       const t = document.activeElement?.tagName;
       if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA') return;
+      if (keymap.matches(e, 'stategraph.fitView')) { e.preventDefault(); fitView(); return; }
+      if (!keymap.matches(e, 'stategraph.deleteSelected')) return;
       if (!sel) return; e.preventDefault();
       if (sel.kind === 'state') removeState(sel.id);
       else if (sel.kind === 'transition') removeTransition(sel.id);
@@ -251,7 +380,30 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [sel, sm]); // the handlers close over the selection and the graph — no dep array meant a re-bind every render
+
+
+  // --- the radial link nub ---
+  // The nub RIDES THE NODE'S RIM toward the cursor while you hover, so a link can start in any
+  // direction — the edges themselves were always omnidirectional (rim() is radial); only the
+  // authoring gesture was pinned to the right edge. Positioned by direct style writes, never
+  // React state: the renderer repaints per-frame during playback, and a setState per mousemove
+  // would re-render the whole editor at pointer rate. At rest it parks at the right edge —
+  // always visible, so the affordance stays discoverable without knowing to hover.
+  const NUB = 7; // half the nub's 14px box
+  const nubRefs = useRef(new Map<string, HTMLDivElement>());
+  const placeNub = (e: React.PointerEvent, s: SmState) => {
+    if (drag) return; // mid-drag the committed centre is stale — leave the nub parked
+    const el = nubRefs.current.get(s.id); if (!el) return;
+    const d = sub(toCanvas(e.clientX, e.clientY), C(s));
+    const u = Math.hypot(d.x, d.y) < 1 ? { x: 1, y: 0 } : norm(d); // cursor on the centre → right edge
+    el.style.left = `${R + u.x * R - NUB}px`;
+    el.style.top = `${R + u.y * R - NUB}px`;
+  };
+  const parkNub = (s: SmState) => {
+    const el = nubRefs.current.get(s.id); if (!el) return;
+    el.style.left = `${D - NUB}px`; el.style.top = `${R - NUB}px`;
+  };
 
   // --- live positions (drag overrides) ---
   const nodePos = (s: SmState): Vec => (drag?.kind === 'node' && drag.id === s.id ? { x: drag.x, y: drag.y } : { x: s.x, y: s.y });
@@ -293,7 +445,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
         <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
           <span className="text-xs text-fg-1 font-medium">Show machine — states &amp; scenes</span>
           <Tooltip id="timeline.sm-add-state">
-            <button onClick={() => addStateAt(CW / 2, CH / 2)} {...help('timeline.sm-add-state')} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
+            {/* Drops at the CURRENT view centre — the old hard-coded document centre could be
+                anywhere off screen once the canvas became unbounded. */}
+            <button onClick={() => { const c = viewCentre(); addStateAt(c.x, c.y); }} {...help('timeline.sm-add-state')} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
           </Tooltip>
           <Tooltip id="timeline.sm-add-region">
             <button onClick={addRegion} {...help('timeline.sm-add-region')} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
@@ -303,28 +457,59 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               {...help('timeline.sm-build-from-scenes')}
               className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
           </Tooltip>
+          <Tooltip id="timeline.sm-tidy">
+            <button onClick={tidy} disabled={!sm.states.length} title={sm.states.length ? 'Lay the graph out top-to-bottom from the initial state' : 'Nothing to lay out'}
+              {...help('timeline.sm-tidy')}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Network size={12} /> Tidy</button>
+          </Tooltip>
           <Tooltip id="timeline.sm-add-global-rule">
             <button onClick={addGlobalRule} disabled={!sm.states.length} title={sm.states.length ? 'A rule evaluated from EVERY state — for a trigger that must work whatever the show is doing' : 'Add a state first'}
               {...help('timeline.sm-add-global-rule')}
               className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Zap size={12} /> Global rule</button>
           </Tooltip>
+          <div className="w-px h-5 bg-line-2 mx-1"></div>
+          {/* Same chrome as the Stage viewport: Fit is the primary recovery gesture on an unbounded
+              canvas (you WILL lose the graph off screen), with plain reset kept reachable. */}
+          <Tooltip id="timeline.sm-fit">
+            <button onClick={(e) => (e.altKey ? resetView() : fitView())}
+              title="Fit view to graph (Alt-click: reset view)" aria-label="Fit view to graph"
+              {...help('timeline.sm-fit')}
+              className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"><Maximize2 size={13} /></button>
+          </Tooltip>
+          <Tooltip id="timeline.sm-reset-view">
+            <button onClick={resetView} title="Reset view" aria-label="Reset view"
+              {...help('timeline.sm-reset-view')}
+              className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"><ZoomIn size={13} /></button>
+          </Tooltip>
           {linkFrom && <span className="text-micro text-accent">drag onto a target state to connect…</span>}
-          <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
+          <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · drag: pan · wheel: zoom · F: fit</span>
         </div>
 
         <div className="flex-1 min-h-0 flex">
-          {/* canvas */}
-          <div ref={scrollRef} className="relative flex-1 overflow-auto bg-surface-0"
-            onPointerDown={(e) => { beginPan(e); setSel(null); setLinkFrom(null); }}
+          {/* canvas — an open workspace: overflow-hidden viewport + translate/scale content layer
+              (the Stage.tsx camera), unbounded in every direction, negative coordinates included. */}
+          <div ref={viewportRef} className="relative flex-1 overflow-hidden bg-surface-0"
+            onPointerDown={beginViewportPan}
             onDoubleClick={(e) => { if ((e.target as HTMLElement).closest('[data-node]')) return; const c = toCanvas(e.clientX, e.clientY); addStateAt(c.x, c.y); }}>
-            <div className="relative" style={{ width: CW * scale, height: CH * scale }}>
-              <div className="absolute top-0 left-0" style={{ width: CW, height: CH, transform: `scale(${scale})`, transformOrigin: '0 0' }}>
+              {/* Canvas-locked grid, drawn in screen space on the UNtransformed viewport. The Stage's
+                  inset:-200% grid div (Stage.tsx) surrounds a finite document; there is no document
+                  here, so any fixed-size div could be panned off. A background repositioned by
+                  view.x/y is unbounded by construction: canvas point p renders at view + p·scale,
+                  so gridlines at canvas multiples of 40 stay locked to the graph. */}
+              <div aria-hidden className="absolute inset-0 pointer-events-none" style={{
+                backgroundImage: 'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
+                backgroundSize: `${40 * view.scale}px ${40 * view.scale}px`,
+                backgroundPosition: `${view.x}px ${view.y}px`,
+              }} />
+              {/* The content layer is deliberately ZERO-SIZED — children position absolutely and
+                  overflow freely, which is what makes the workspace edge-less. */}
+              <div className="absolute top-0 left-0" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`, transformOrigin: '0 0' }}>
                 {/* regions (behind everything) */}
                 {regions.map(r => {
                   const b = regionBox(r); const selected = selRegion?.id === r.id;
                   return (
                     <div key={r.id} className={`absolute rounded-lg border ${selected ? 'border-accent' : 'border-line-2'} bg-surface-1/30`} style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
-                      onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: 'region', id: r.id }); }}>
+                      onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); setSel({ kind: 'region', id: r.id }); }}>
                       <div className="absolute -top-0.5 left-0 right-3 h-6 flex items-center px-2 cursor-grab text-mini text-fg-2" onPointerDown={(e) => beginRegionDrag(e, r)}>{r.name}</div>
                       <div className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize" onPointerDown={(e) => beginRegionResize(e, r)}>
                         <div className="absolute bottom-0.5 right-0.5 w-2 h-2 border-r-2 border-b-2 border-fg-3" />
@@ -333,8 +518,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   );
                 })}
 
-                {/* transition edges */}
-                <svg className="absolute inset-0" width={CW} height={CH} style={{ overflow: 'visible' }}>
+                {/* transition edges — a nominal 1×1 box with overflow:visible, so edges render (and
+                    hit-test — Chromium hit-tests overflowing SVG content) at any coordinate. */}
+                <svg className="absolute top-0 left-0" width={1} height={1} style={{ overflow: 'visible' }}>
                   <defs>
                     <marker id="sm-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="currentColor" /></marker>
                   </defs>
@@ -353,7 +539,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                       <g key={t.id} style={{ color }}>
                         <path d={`M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`} fill="none" stroke="transparent" strokeWidth={14}
                           style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-                          onPointerDown={(e) => { e.stopPropagation(); if (e.ctrlKey || e.metaKey) engine.triggerSmTransition(t.id); else setSel({ kind: 'transition', id: t.id }); }} />
+                          onPointerDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); if (e.ctrlKey || e.metaKey) engine.triggerSmTransition(t.id); else setSel({ kind: 'transition', id: t.id }); }} />
                         <path d={`M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`} fill="none" stroke="currentColor"
                           strokeWidth={selected || fired ? 2.5 : 1.6} markerEnd="url(#sm-arrow)" pointerEvents="none" />
                         {/* label + transition-time badge */}
@@ -391,6 +577,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   const scene = scenes.find(sc => sc.id === s.sceneId);
                   return (
                     <div key={s.id} data-node={s.id} onPointerDown={(e) => beginNodeDrag(e, s)}
+                      onPointerMove={(e) => placeNub(e, s)} onPointerLeave={() => parkNub(s)}
                       onDoubleClick={(e) => { e.stopPropagation(); if (!sm.enabled) patch({ enabled: true }); engine.enterSmState(s.id); }}
                       title="Double-click to fire this state"
                       className={`absolute rounded-full flex flex-col items-center justify-center text-center cursor-grab select-none border-2
@@ -418,19 +605,24 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                         <span title="A global rule can enter this state from anywhere — see Global rules in the inspector."
                           className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-warn text-black flex items-center justify-center"><Zap size={9} /></span>
                       )}
-                      {/* link nub */}
-                      <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
-                        className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />
+                      {/* link nub — see placeNub above; left/top as an inline default so the
+                          imperative rim writes compose with (and override) the parked spot */}
+                      <div title="Drag onto another state to connect — or onto empty canvas to create a new linked state there"
+                        onPointerDown={(e) => beginLink(e, s.id)}
+                        ref={(el) => { if (el) nubRefs.current.set(s.id, el); else nubRefs.current.delete(s.id); }}
+                        className="absolute w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair"
+                        style={{ left: D - NUB, top: R - NUB }} />
                     </div>
                   );
                 })}
-                {sm.states.length === 0 && regions.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center text-fg-3 text-xs italic pointer-events-none">
-                    Double-click to add a state, or “Build from scenes”.
-                  </div>
-                )}
               </div>
-            </div>
+              {/* Empty-state hint lives on the VIEWPORT (the content layer is zero-sized, so
+                  inset-0 inside it would be a zero-sized box). */}
+              {sm.states.length === 0 && regions.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center text-fg-3 text-xs italic pointer-events-none">
+                  Double-click to add a state, or “Build from scenes”.
+                </div>
+              )}
           </div>
 
           {/* inspector */}

@@ -55,6 +55,8 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 
   // ── State-graph editor (active when the Show state-machine graph is focused) ──────────────────────
   { id: 'stategraph.deleteSelected', label: 'Delete state / transition / region', category: 'Editing', scope: 'stategraph', defaultBinding: ['Delete', 'Backspace'] },
+  // The recovery gesture for the unbounded graph canvas — same job as the Stage's Fit button.
+  { id: 'stategraph.fitView', label: 'Fit graph in view', category: 'View', scope: 'stategraph', defaultBinding: ['F'], description: 'Frames every state and region. The toolbar Fit button does the same; Alt-click it to reset the view to 1:1.' },
 
   // ── Projector warp editing (active only in a projector window's warp-edit mode) ───────────────────
   // The projector runs in its own renderer window (ProjectorApp); it hydrates the keymap from prefs on

@@ -105,6 +105,12 @@ Live only while the Show graph has focus.
 |---|---|
 | `Delete` or `Backspace` | Delete state / transition / region |
 
+**View**
+
+| Shortcut | Action |
+|---|---|
+| `F` | Fit graph in view — Frames every state and region. The toolbar Fit button does the same; Alt-click it to reset the view to 1:1 |
+
 ### Projector window
 
 Live only in a projector window's warp-edit mode.

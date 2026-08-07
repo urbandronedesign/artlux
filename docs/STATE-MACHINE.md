@@ -329,20 +329,30 @@ The editor
 is an AutomataUI-style node canvas + an inspector.
 
 **Toolbar**
-- **＋ State** — add a state at the canvas centre (or **double-click empty canvas**).
+- **＋ State** — add a state at the current view centre (or **double-click empty canvas**).
 - **＋ Region** — add a group-box.
-- **Build from scenes** — one node per existing Scene, each **pre-bound** to its Scene, laid out in a
-  grid. The fastest way to seed a show graph.
+- **Build from scenes** — one node per existing Scene, each **pre-bound** to its Scene, laid out
+  **top-to-bottom**. The fastest way to seed a show graph.
+- **Tidy** — relayout the whole graph as a **top-to-bottom flow** from the initial state (layers by
+  graph distance; unreachable states last). Regions stay put — a state joins whichever region it lands
+  in — and hand-curved edges are straightened.
+- **Fit** — frame every state and region in the viewport (**Alt-click resets** to 1:1 at the origin);
+  **Reset** puts the camera back unconditionally.
 
 **Canvas gestures**
+
+The canvas is an **open workspace** — pan and zoom without bounds, like the 2D Stage. If you lose the
+graph off screen, **Fit** (or `F`) brings it back.
 - **Drag a node** to move it (drops it into whatever region it lands on).
-- **Drag a node's right-edge nub** onto another node to **create a transition** (starts as `manual`).
+- **Drag a node's link nub** (it rides the node's rim toward your cursor) onto another node to
+  **create a transition** (starts as `manual`) — or **onto empty canvas to create a new linked state
+  right there**.
 - **Double-click a node** to **force-enter that state live** (enables the machine if needed) — great
   for previewing a look.
 - **Ctrl/Cmd+click an edge** to **fire that transition manually** (if it leaves the current state).
 - **Select an edge** to reveal its **bezier handles** (curve it for readability — cosmetic).
-- **Middle-drag** pans; **Ctrl/Cmd+wheel** zooms toward the cursor.
-- **Del/Backspace** deletes the selection.
+- **Drag empty canvas** (or **middle-drag from anywhere**) pans; the **wheel** zooms toward the cursor.
+- **Del/Backspace** deletes the selection; **F** fits the graph in view.
 
 **Inspector (state selected)** — Name · **Set as initial** (★) · **Scene (recalled on entry)** ·
 **Edit timeline** (author this state's own timeline) · **Lock time** · **Entry actions** (add/remove;
