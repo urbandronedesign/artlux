@@ -1,1503 +1,1973 @@
-# Graph Report - .  (2026-07-21)
+# Graph Report - C:\Users\Prêt\Desktop\artlux  (2026-08-07)
 
 ## Corpus Check
-- Large corpus: 492 files · ~813,771 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
+- Large corpus: 908 files · ~1,964,962 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
 
 ## Summary
-- 4532 nodes · 7841 edges · 328 communities (284 shown, 44 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 221 edges (avg confidence: 0.81)
-- Token cost: 1,538,798 input · 0 output
+- 6982 nodes · 13265 edges · 434 communities (378 shown, 56 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 351 edges (avg confidence: 0.8)
+- Token cost: 796,320 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Cue Bank and Automation Overlay|Cue Bank and Automation Overlay]]
-- [[_COMMUNITY_IPC Protocol API Surface|IPC Protocol API Surface]]
-- [[_COMMUNITY_Calibration Native Bridge|Calibration Native Bridge]]
-- [[_COMMUNITY_Stage Rendering and GPU Mapping|Stage Rendering and GPU Mapping]]
-- [[_COMMUNITY_Audio Effects DSP|Audio Effects DSP]]
-- [[_COMMUNITY_App Shell and Dock|App Shell and Dock]]
-- [[_COMMUNITY_Timeline Track Headers|Timeline Track Headers]]
-- [[_COMMUNITY_Ambisonic Spatial Audio|Ambisonic Spatial Audio]]
-- [[_COMMUNITY_User Guide Screenshots|User Guide Screenshots]]
-- [[_COMMUNITY_Preferences and Fixture Editor|Preferences and Fixture Editor]]
-- [[_COMMUNITY_HAP Decode Pipeline|HAP Decode Pipeline]]
+- [[_COMMUNITY_Timeline Lanes & Automation|Timeline Lanes & Automation]]
+- [[_COMMUNITY_Launcher API Bridge|Launcher API Bridge]]
+- [[_COMMUNITY_Shared Types & Panel Props|Shared Types & Panel Props]]
+- [[_COMMUNITY_Fixture Library & Contexts|Fixture Library & Contexts]]
+- [[_COMMUNITY_ArtluxApi IPC Surface|ArtluxApi IPC Surface]]
+- [[_COMMUNITY_Dock Tree Layout Tests|Dock Tree Layout Tests]]
+- [[_COMMUNITY_Media Panel & UI Primitives|Media Panel & UI Primitives]]
+- [[_COMMUNITY_Lighting Clip Inspector|Lighting Clip Inspector]]
+- [[_COMMUNITY_DMX Monitor & Fixture Editor|DMX Monitor & Fixture Editor]]
+- [[_COMMUNITY_Boot Report & Branding|Boot Report & Branding]]
+- [[_COMMUNITY_Calibration Projector Channel|Calibration Projector Channel]]
 - [[_COMMUNITY_Timeline Engine Service|Timeline Engine Service]]
-- [[_COMMUNITY_3D Simulator Scene|3D Simulator Scene]]
-- [[_COMMUNITY_Shared Protocol Types|Shared Protocol Types]]
+- [[_COMMUNITY_Native Audio Effects|Native Audio Effects]]
+- [[_COMMUNITY_MP4 WebCodecs Decoder|MP4 WebCodecs Decoder]]
+- [[_COMMUNITY_Editor Store Actions|Editor Store Actions]]
+- [[_COMMUNITY_App Root & Outputs Panel|App Root & Outputs Panel]]
+- [[_COMMUNITY_Auto-Recalibration|Auto-Recalibration]]
+- [[_COMMUNITY_Launcher Tauri Commands|Launcher Tauri Commands]]
+- [[_COMMUNITY_Ambisonic Spatial Bus|Ambisonic Spatial Bus]]
+- [[_COMMUNITY_HAP Codec Decode|HAP Codec Decode]]
+- [[_COMMUNITY_Content Editor & Preferences|Content Editor & Preferences]]
+- [[_COMMUNITY_Main Windows & IPC|Main Windows & IPC]]
+- [[_COMMUNITY_Calibration Pose Controller|Calibration Pose Controller]]
+- [[_COMMUNITY_3D Simulator Gizmos|3D Simulator Gizmos]]
 - [[_COMMUNITY_JUCE Audio Engine Core|JUCE Audio Engine Core]]
-- [[_COMMUNITY_HAP Rust Native Crate|HAP Rust Native Crate]]
-- [[_COMMUNITY_OpenCV Calibration Crate|OpenCV Calibration Crate]]
-- [[_COMMUNITY_SDK Renderer Registries|SDK Renderer Registries]]
-- [[_COMMUNITY_Electron Main Lifecycle|Electron Main Lifecycle]]
-- [[_COMMUNITY_TypeScript Build Config|TypeScript Build Config]]
-- [[_COMMUNITY_Audio Automation Targets|Audio Automation Targets]]
-- [[_COMMUNITY_Show Control HTTP Server|Show Control HTTP Server]]
-- [[_COMMUNITY_NDI Manager|NDI Manager]]
-- [[_COMMUNITY_Timeline Edit Operations|Timeline Edit Operations]]
-- [[_COMMUNITY_Show Control Dispatch|Show Control Dispatch]]
-- [[_COMMUNITY_Audio Conform Cache|Audio Conform Cache]]
-- [[_COMMUNITY_Auto-Align Design Docs|Auto-Align Design Docs]]
-- [[_COMMUNITY_Calibration Camera Panel|Calibration Camera Panel]]
-- [[_COMMUNITY_Auto-Align Wizard|Auto-Align Wizard]]
-- [[_COMMUNITY_SDK Content Source Contract|SDK Content Source Contract]]
-- [[_COMMUNITY_Watchdog Recovery|Watchdog Recovery]]
-- [[_COMMUNITY_Art-Net Output Engine|Art-Net Output Engine]]
-- [[_COMMUNITY_SDK Barrel Exports|SDK Barrel Exports]]
-- [[_COMMUNITY_Audio Bed Panel|Audio Bed Panel]]
-- [[_COMMUNITY_Audio Client and Host|Audio Client and Host]]
-- [[_COMMUNITY_Broadcast Playlist Scheduler|Broadcast Playlist Scheduler]]
-- [[_COMMUNITY_Project Folder Assets|Project Folder Assets]]
-- [[_COMMUNITY_NDI Rust Native Crate|NDI Rust Native Crate]]
-- [[_COMMUNITY_MediaPipe Pose Calibration|MediaPipe Pose Calibration]]
-- [[_COMMUNITY_Audio Channel Fold|Audio Channel Fold]]
-- [[_COMMUNITY_MediaPipe Pose Engine|MediaPipe Pose Engine]]
-- [[_COMMUNITY_Asset Library and Media Panel|Asset Library and Media Panel]]
-- [[_COMMUNITY_Content Source Registry|Content Source Registry]]
-- [[_COMMUNITY_Projector Window (grp 43)|Projector Window (grp 43)]]
-- [[_COMMUNITY_Calibration (grp 44)|Calibration (grp 44)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 45)|MediaPipe Pose (grp 45)]]
-- [[_COMMUNITY_Renderer UI and Renderer Services (grp 46)|Renderer UI and Renderer Services (grp 46)]]
-- [[_COMMUNITY_Filmstrip Thumbnails|Filmstrip Thumbnails]]
-- [[_COMMUNITY_State Graph Editor|State Graph Editor]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 49)|JUCE Audio Engine (grp 49)]]
-- [[_COMMUNITY_Timeline UI (grp 50)|Timeline UI (grp 50)]]
-- [[_COMMUNITY_Timeline UI (grp 51)|Timeline UI (grp 51)]]
-- [[_COMMUNITY_Plugin SDK and Calibration (grp 52)|Plugin SDK and Calibration (grp 52)]]
-- [[_COMMUNITY_Calibration (grp 53)|Calibration (grp 53)]]
-- [[_COMMUNITY_Calibration (grp 54)|Calibration (grp 54)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 55)|LiDAR Tracking (grp 55)]]
-- [[_COMMUNITY_HAP Native (grp 56)|HAP Native (grp 56)]]
-- [[_COMMUNITY_Calibration (grp 57)|Calibration (grp 57)]]
-- [[_COMMUNITY_Show Control (grp 58)|Show Control (grp 58)]]
-- [[_COMMUNITY_Electron Main (grp 59)|Electron Main (grp 59)]]
-- [[_COMMUNITY_Timeline UI (grp 60)|Timeline UI (grp 60)]]
-- [[_COMMUNITY_Audio Plugin (grp 61)|Audio Plugin (grp 61)]]
-- [[_COMMUNITY_Spout (grp 62)|Spout (grp 62)]]
-- [[_COMMUNITY_Transport and Output (grp 63)|Transport and Output (grp 63)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 64)|JUCE Audio Engine (grp 64)]]
-- [[_COMMUNITY_Docs (grp 65)|Docs (grp 65)]]
-- [[_COMMUNITY_Audio Plugin (grp 66)|Audio Plugin (grp 66)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 67)|Augmenta Tracking (grp 67)]]
-- [[_COMMUNITY_Docs (grp 68)|Docs (grp 68)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 69)|JUCE Audio Engine (grp 69)]]
-- [[_COMMUNITY_Renderer UI (grp 70)|Renderer UI (grp 70)]]
-- [[_COMMUNITY_Plugin SDK (grp 71)|Plugin SDK (grp 71)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 72)|Augmenta Tracking (grp 72)]]
-- [[_COMMUNITY_Calibration (grp 73)|Calibration (grp 73)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 74)|LiDAR Tracking (grp 74)]]
-- [[_COMMUNITY_Renderer UI (grp 75)|Renderer UI (grp 75)]]
-- [[_COMMUNITY_Renderer Services (grp 76)|Renderer Services (grp 76)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 77)|JUCE Audio Engine (grp 77)]]
-- [[_COMMUNITY_Docs (grp 78)|Docs (grp 78)]]
-- [[_COMMUNITY_Package Devdependencies (grp 79)|Package Devdependencies (grp 79)]]
-- [[_COMMUNITY_Plugin SDK (grp 80)|Plugin SDK (grp 80)]]
-- [[_COMMUNITY_Audio Plugin (grp 81)|Audio Plugin (grp 81)]]
-- [[_COMMUNITY_Calibration (grp 82)|Calibration (grp 82)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 83)|LiDAR Tracking (grp 83)]]
-- [[_COMMUNITY_MP4 Codec (grp 84)|MP4 Codec (grp 84)]]
-- [[_COMMUNITY_Transport and Output (grp 85)|Transport and Output (grp 85)]]
-- [[_COMMUNITY_Electron Main (grp 86)|Electron Main (grp 86)]]
-- [[_COMMUNITY_Renderer Services (grp 87)|Renderer Services (grp 87)]]
-- [[_COMMUNITY_Renderer Services (grp 88)|Renderer Services (grp 88)]]
-- [[_COMMUNITY_Package (grp 89)|Package (grp 89)]]
-- [[_COMMUNITY_Package Scripts (grp 90)|Package Scripts (grp 90)]]
-- [[_COMMUNITY_Calibration (grp 91)|Calibration (grp 91)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 92)|LiDAR Tracking (grp 92)]]
-- [[_COMMUNITY_Show Control (grp 93)|Show Control (grp 93)]]
-- [[_COMMUNITY_Electron Main (grp 94)|Electron Main (grp 94)]]
-- [[_COMMUNITY_GPU Mapping (grp 95)|GPU Mapping (grp 95)]]
-- [[_COMMUNITY_Docs (grp 96)|Docs (grp 96)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 97)|Augmenta Tracking (grp 97)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 98)|LiDAR Tracking (grp 98)]]
-- [[_COMMUNITY_Electron Main (grp 99)|Electron Main (grp 99)]]
-- [[_COMMUNITY_Docs (grp 100)|Docs (grp 100)]]
-- [[_COMMUNITY_Docs (grp 101)|Docs (grp 101)]]
-- [[_COMMUNITY_LiDAR Examples (grp 102)|LiDAR Examples (grp 102)]]
-- [[_COMMUNITY_Spout Native (grp 103)|Spout Native (grp 103)]]
-- [[_COMMUNITY_Show Control (grp 104)|Show Control (grp 104)]]
-- [[_COMMUNITY_Projector Window (grp 105)|Projector Window (grp 105)]]
-- [[_COMMUNITY_State Machine Examples (grp 106)|State Machine Examples (grp 106)]]
-- [[_COMMUNITY_Audio Plugin (grp 107)|Audio Plugin (grp 107)]]
-- [[_COMMUNITY_Archived Plans (grp 108)|Archived Plans (grp 108)]]
-- [[_COMMUNITY_Planning Docs (grp 109)|Planning Docs (grp 109)]]
-- [[_COMMUNITY_State Machine Examples and Audio Examples (grp 110)|State Machine Examples and Audio Examples (grp 110)]]
-- [[_COMMUNITY_MP4 Codec (grp 111)|MP4 Codec (grp 111)]]
-- [[_COMMUNITY_Archived Plans (grp 112)|Archived Plans (grp 112)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 113)|MediaPipe Pose (grp 113)]]
-- [[_COMMUNITY_MP4 Codec (grp 114)|MP4 Codec (grp 114)]]
-- [[_COMMUNITY_MP4 Codec (grp 115)|MP4 Codec (grp 115)]]
-- [[_COMMUNITY_Electron Main (grp 116)|Electron Main (grp 116)]]
-- [[_COMMUNITY_Renderer UI and Renderer Services (grp 117)|Renderer UI and Renderer Services (grp 117)]]
-- [[_COMMUNITY_Projector Window (grp 118)|Projector Window (grp 118)]]
-- [[_COMMUNITY_Docs (grp 119)|Docs (grp 119)]]
-- [[_COMMUNITY_Docs (grp 120)|Docs (grp 120)]]
-- [[_COMMUNITY_Docs (grp 121)|Docs (grp 121)]]
-- [[_COMMUNITY_Docs (grp 122)|Docs (grp 122)]]
-- [[_COMMUNITY_Docs (grp 123)|Docs (grp 123)]]
-- [[_COMMUNITY_Docs (grp 124)|Docs (grp 124)]]
-- [[_COMMUNITY_Docs (grp 125)|Docs (grp 125)]]
-- [[_COMMUNITY_User Guide (grp 126)|User Guide (grp 126)]]
-- [[_COMMUNITY_User Guide Images (grp 127)|User Guide Images (grp 127)]]
-- [[_COMMUNITY_State Machine Examples (grp 128)|State Machine Examples (grp 128)]]
-- [[_COMMUNITY_Archived Plans (grp 129)|Archived Plans (grp 129)]]
-- [[_COMMUNITY_Archived Plans (grp 130)|Archived Plans (grp 130)]]
-- [[_COMMUNITY_Plans (grp 131)|Plans (grp 131)]]
-- [[_COMMUNITY_Audio Plugin (grp 132)|Audio Plugin (grp 132)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 133)|Augmenta Tracking (grp 133)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 134)|Augmenta Tracking (grp 134)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 135)|Augmenta Tracking (grp 135)]]
-- [[_COMMUNITY_Calibration (grp 136)|Calibration (grp 136)]]
-- [[_COMMUNITY_HAP Codec (grp 137)|HAP Codec (grp 137)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 138)|LiDAR Tracking (grp 138)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 139)|LiDAR Tracking (grp 139)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 140)|LiDAR Tracking (grp 140)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 141)|MediaPipe Pose (grp 141)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 142)|MediaPipe Pose (grp 142)]]
-- [[_COMMUNITY_NDI (grp 143)|NDI (grp 143)]]
-- [[_COMMUNITY_NDI (grp 144)|NDI (grp 144)]]
-- [[_COMMUNITY_Show Control (grp 145)|Show Control (grp 145)]]
-- [[_COMMUNITY_Spout (grp 146)|Spout (grp 146)]]
-- [[_COMMUNITY_Renderer Services (grp 147)|Renderer Services (grp 147)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 148)|JUCE Audio Engine (grp 148)]]
-- [[_COMMUNITY_User Guide (grp 149)|User Guide (grp 149)]]
-- [[_COMMUNITY_User Guide Images (grp 150)|User Guide Images (grp 150)]]
-- [[_COMMUNITY_Audio Examples (grp 151)|Audio Examples (grp 151)]]
-- [[_COMMUNITY_LiDAR Examples (grp 152)|LiDAR Examples (grp 152)]]
-- [[_COMMUNITY_Audio Examples (grp 153)|Audio Examples (grp 153)]]
-- [[_COMMUNITY_Package Dependencies (grp 154)|Package Dependencies (grp 154)]]
-- [[_COMMUNITY_Plans (grp 155)|Plans (grp 155)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 156)|MediaPipe Pose (grp 156)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 157)|MediaPipe Pose (grp 157)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 158)|MediaPipe Pose (grp 158)]]
-- [[_COMMUNITY_Spout (grp 159)|Spout (grp 159)]]
-- [[_COMMUNITY_Docs (grp 160)|Docs (grp 160)]]
-- [[_COMMUNITY_Docs (grp 161)|Docs (grp 161)]]
-- [[_COMMUNITY_Docs (grp 162)|Docs (grp 162)]]
-- [[_COMMUNITY_Docs (grp 163)|Docs (grp 163)]]
-- [[_COMMUNITY_Docs (grp 164)|Docs (grp 164)]]
-- [[_COMMUNITY_Docs (grp 165)|Docs (grp 165)]]
-- [[_COMMUNITY_Docs (grp 166)|Docs (grp 166)]]
-- [[_COMMUNITY_Planning Docs (grp 167)|Planning Docs (grp 167)]]
-- [[_COMMUNITY_User Guide (grp 168)|User Guide (grp 168)]]
-- [[_COMMUNITY_User Guide (grp 169)|User Guide (grp 169)]]
-- [[_COMMUNITY_User Guide Images (grp 170)|User Guide Images (grp 170)]]
-- [[_COMMUNITY_User Guide Images (grp 171)|User Guide Images (grp 171)]]
-- [[_COMMUNITY_User Guide Images (grp 172)|User Guide Images (grp 172)]]
-- [[_COMMUNITY_Monitoring Stack (grp 173)|Monitoring Stack (grp 173)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 174)|JUCE Audio Engine (grp 174)]]
-- [[_COMMUNITY_HAP Native (grp 175)|HAP Native (grp 175)]]
-- [[_COMMUNITY_Plugin SDK (grp 176)|Plugin SDK (grp 176)]]
-- [[_COMMUNITY_Plans (grp 177)|Plans (grp 177)]]
-- [[_COMMUNITY_Archived Plans (grp 178)|Archived Plans (grp 178)]]
-- [[_COMMUNITY_Plans (grp 179)|Plans (grp 179)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 180)|Augmenta Tracking (grp 180)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 181)|LiDAR Tracking (grp 181)]]
-- [[_COMMUNITY_Renderer UI and Timeline UI (grp 182)|Renderer UI and Timeline UI (grp 182)]]
-- [[_COMMUNITY_MP4 Codec (grp 183)|MP4 Codec (grp 183)]]
-- [[_COMMUNITY_Projector Window (grp 184)|Projector Window (grp 184)]]
-- [[_COMMUNITY_Transport and Output (grp 185)|Transport and Output (grp 185)]]
-- [[_COMMUNITY_Renderer Services (grp 186)|Renderer Services (grp 186)]]
-- [[_COMMUNITY_Docs (grp 187)|Docs (grp 187)]]
-- [[_COMMUNITY_Docs (grp 188)|Docs (grp 188)]]
-- [[_COMMUNITY_Planning Docs (grp 189)|Planning Docs (grp 189)]]
-- [[_COMMUNITY_Planning Docs (grp 190)|Planning Docs (grp 190)]]
-- [[_COMMUNITY_User Guide (grp 191)|User Guide (grp 191)]]
-- [[_COMMUNITY_Docs (grp 192)|Docs (grp 192)]]
-- [[_COMMUNITY_User Guide Images (grp 193)|User Guide Images (grp 193)]]
-- [[_COMMUNITY_LiDAR Examples (grp 194)|LiDAR Examples (grp 194)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 195)|JUCE Audio Engine (grp 195)]]
-- [[_COMMUNITY_Plugin SDK (grp 196)|Plugin SDK (grp 196)]]
-- [[_COMMUNITY_Plans (grp 197)|Plans (grp 197)]]
-- [[_COMMUNITY_Plans (grp 198)|Plans (grp 198)]]
-- [[_COMMUNITY_Plans (grp 199)|Plans (grp 199)]]
-- [[_COMMUNITY_Audio Plugin (grp 200)|Audio Plugin (grp 200)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 201)|Augmenta Tracking (grp 201)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 202)|JUCE Audio Engine (grp 202)]]
-- [[_COMMUNITY_Docs (grp 203)|Docs (grp 203)]]
-- [[_COMMUNITY_Docs (grp 204)|Docs (grp 204)]]
-- [[_COMMUNITY_Planning Docs (grp 205)|Planning Docs (grp 205)]]
-- [[_COMMUNITY_User Guide (grp 206)|User Guide (grp 206)]]
-- [[_COMMUNITY_User Guide (grp 207)|User Guide (grp 207)]]
-- [[_COMMUNITY_User Guide Images (grp 208)|User Guide Images (grp 208)]]
-- [[_COMMUNITY_User Guide Images (grp 209)|User Guide Images (grp 209)]]
-- [[_COMMUNITY_User Guide Images (grp 210)|User Guide Images (grp 210)]]
-- [[_COMMUNITY_Audio Examples (grp 211)|Audio Examples (grp 211)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 212)|JUCE Audio Engine (grp 212)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 213)|JUCE Audio Engine (grp 213)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 214)|JUCE Audio Engine (grp 214)]]
-- [[_COMMUNITY_Package (grp 215)|Package (grp 215)]]
-- [[_COMMUNITY_Plugin SDK (grp 216)|Plugin SDK (grp 216)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 217)|LiDAR Tracking (grp 217)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 218)|LiDAR Tracking (grp 218)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 219)|MediaPipe Pose (grp 219)]]
-- [[_COMMUNITY_Renderer Services (grp 220)|Renderer Services (grp 220)]]
-- [[_COMMUNITY_Docs (grp 221)|Docs (grp 221)]]
-- [[_COMMUNITY_Docs (grp 222)|Docs (grp 222)]]
-- [[_COMMUNITY_Docs (grp 223)|Docs (grp 223)]]
-- [[_COMMUNITY_User Guide (grp 224)|User Guide (grp 224)]]
-- [[_COMMUNITY_User Guide (grp 225)|User Guide (grp 225)]]
-- [[_COMMUNITY_User Guide Images (grp 226)|User Guide Images (grp 226)]]
-- [[_COMMUNITY_Audio Examples (grp 227)|Audio Examples (grp 227)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 228)|JUCE Audio Engine (grp 228)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 229)|JUCE Audio Engine (grp 229)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 230)|JUCE Audio Engine (grp 230)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 231)|JUCE Audio Engine (grp 231)]]
-- [[_COMMUNITY_NVIDIA Warp (grp 232)|NVIDIA Warp (grp 232)]]
-- [[_COMMUNITY_Plugin SDK (grp 234)|Plugin SDK (grp 234)]]
-- [[_COMMUNITY_Plans (grp 235)|Plans (grp 235)]]
-- [[_COMMUNITY_Plans (grp 236)|Plans (grp 236)]]
-- [[_COMMUNITY_Renderer Services (grp 237)|Renderer Services (grp 237)]]
-- [[_COMMUNITY_Transport and Output (grp 238)|Transport and Output (grp 238)]]
-- [[_COMMUNITY_Renderer Services (grp 239)|Renderer Services (grp 239)]]
-- [[_COMMUNITY_Docs (grp 240)|Docs (grp 240)]]
-- [[_COMMUNITY_Docs (grp 241)|Docs (grp 241)]]
-- [[_COMMUNITY_Docs (grp 242)|Docs (grp 242)]]
-- [[_COMMUNITY_Planning Docs (grp 243)|Planning Docs (grp 243)]]
-- [[_COMMUNITY_User Guide (grp 244)|User Guide (grp 244)]]
-- [[_COMMUNITY_User Guide (grp 245)|User Guide (grp 245)]]
-- [[_COMMUNITY_User Guide Images (grp 246)|User Guide Images (grp 246)]]
-- [[_COMMUNITY_User Guide Images (grp 247)|User Guide Images (grp 247)]]
-- [[_COMMUNITY_Audio Examples (grp 248)|Audio Examples (grp 248)]]
-- [[_COMMUNITY_JUCE Audio Engine (grp 249)|JUCE Audio Engine (grp 249)]]
-- [[_COMMUNITY_Archived Plans (grp 250)|Archived Plans (grp 250)]]
-- [[_COMMUNITY_Plans (grp 251)|Plans (grp 251)]]
-- [[_COMMUNITY_Augmenta Tracking (grp 252)|Augmenta Tracking (grp 252)]]
-- [[_COMMUNITY_MediaPipe Pose (grp 253)|MediaPipe Pose (grp 253)]]
-- [[_COMMUNITY_Renderer UI (grp 254)|Renderer UI (grp 254)]]
-- [[_COMMUNITY_Renderer Services (grp 255)|Renderer Services (grp 255)]]
-- [[_COMMUNITY_Docs (grp 256)|Docs (grp 256)]]
-- [[_COMMUNITY_Docs (grp 257)|Docs (grp 257)]]
-- [[_COMMUNITY_Planning Docs (grp 258)|Planning Docs (grp 258)]]
-- [[_COMMUNITY_User Guide Images (grp 259)|User Guide Images (grp 259)]]
-- [[_COMMUNITY_Audio Examples (grp 260)|Audio Examples (grp 260)]]
-- [[_COMMUNITY_LiDAR Examples (grp 261)|LiDAR Examples (grp 261)]]
-- [[_COMMUNITY_Audio Examples (grp 262)|Audio Examples (grp 262)]]
-- [[_COMMUNITY_Plugin SDK (grp 263)|Plugin SDK (grp 263)]]
-- [[_COMMUNITY_Plugin SDK (grp 264)|Plugin SDK (grp 264)]]
-- [[_COMMUNITY_LiDAR Tracking (grp 265)|LiDAR Tracking (grp 265)]]
-- [[_COMMUNITY_Planning Docs (grp 266)|Planning Docs (grp 266)]]
-- [[_COMMUNITY_Planning Docs (grp 267)|Planning Docs (grp 267)]]
-- [[_COMMUNITY_User Guide Images (grp 268)|User Guide Images (grp 268)]]
-- [[_COMMUNITY_LiDAR Examples (grp 269)|LiDAR Examples (grp 269)]]
-- [[_COMMUNITY_LiDAR Examples (grp 270)|LiDAR Examples (grp 270)]]
-- [[_COMMUNITY_Package (grp 271)|Package (grp 271)]]
-- [[_COMMUNITY_Package (grp 272)|Package (grp 272)]]
-- [[_COMMUNITY_Package (grp 273)|Package (grp 273)]]
-- [[_COMMUNITY_Archived Plans (grp 274)|Archived Plans (grp 274)]]
-- [[_COMMUNITY_Archived Plans (grp 275)|Archived Plans (grp 275)]]
-- [[_COMMUNITY_Archived Plans (grp 276)|Archived Plans (grp 276)]]
-- [[_COMMUNITY_Show Control (grp 277)|Show Control (grp 277)]]
-- [[_COMMUNITY_Docs (grp 278)|Docs (grp 278)]]
-- [[_COMMUNITY_Docs (grp 279)|Docs (grp 279)]]
-- [[_COMMUNITY_State Machine Examples (grp 280)|State Machine Examples (grp 280)]]
-- [[_COMMUNITY_Archived Plans (grp 281)|Archived Plans (grp 281)]]
-- [[_COMMUNITY_Archived Plans (grp 282)|Archived Plans (grp 282)]]
-- [[_COMMUNITY_Plans (grp 283)|Plans (grp 283)]]
-- [[_COMMUNITY_Docs (grp 284)|Docs (grp 284)]]
-- [[_COMMUNITY_Docs (grp 285)|Docs (grp 285)]]
-- [[_COMMUNITY_Planning Docs (grp 286)|Planning Docs (grp 286)]]
-- [[_COMMUNITY_Planning Docs (grp 287)|Planning Docs (grp 287)]]
-- [[_COMMUNITY_Planning Docs (grp 288)|Planning Docs (grp 288)]]
-- [[_COMMUNITY_Planning Docs (grp 289)|Planning Docs (grp 289)]]
-- [[_COMMUNITY_Docs (grp 290)|Docs (grp 290)]]
-- [[_COMMUNITY_Electron Vite Config (grp 291)|Electron Vite Config (grp 291)]]
-- [[_COMMUNITY_LiDAR Examples (grp 292)|LiDAR Examples (grp 292)]]
-- [[_COMMUNITY_Archived Plans (grp 299)|Archived Plans (grp 299)]]
-- [[_COMMUNITY_Archived Plans (grp 300)|Archived Plans (grp 300)]]
-- [[_COMMUNITY_Archived Plans (grp 301)|Archived Plans (grp 301)]]
-- [[_COMMUNITY_Archived Plans (grp 302)|Archived Plans (grp 302)]]
-- [[_COMMUNITY_Archived Plans (grp 303)|Archived Plans (grp 303)]]
-- [[_COMMUNITY_Archived Plans (grp 304)|Archived Plans (grp 304)]]
-- [[_COMMUNITY_Archived Plans (grp 305)|Archived Plans (grp 305)]]
-- [[_COMMUNITY_Archived Plans (grp 306)|Archived Plans (grp 306)]]
-- [[_COMMUNITY_Plans (grp 307)|Plans (grp 307)]]
-- [[_COMMUNITY_Plans (grp 308)|Plans (grp 308)]]
-- [[_COMMUNITY_Planning Docs (grp 309)|Planning Docs (grp 309)]]
-- [[_COMMUNITY_Planning Docs (grp 310)|Planning Docs (grp 310)]]
-- [[_COMMUNITY_Planning Docs (grp 311)|Planning Docs (grp 311)]]
-- [[_COMMUNITY_Docs (grp 312)|Docs (grp 312)]]
-- [[_COMMUNITY_Docs (grp 313)|Docs (grp 313)]]
-- [[_COMMUNITY_User Guide (grp 314)|User Guide (grp 314)]]
-- [[_COMMUNITY_User Guide (grp 315)|User Guide (grp 315)]]
-- [[_COMMUNITY_Archived Plans (grp 316)|Archived Plans (grp 316)]]
-- [[_COMMUNITY_Archived Plans (grp 317)|Archived Plans (grp 317)]]
-- [[_COMMUNITY_Plans (grp 318)|Plans (grp 318)]]
-- [[_COMMUNITY_Plans (grp 319)|Plans (grp 319)]]
-- [[_COMMUNITY_Audio Plugin (grp 320)|Audio Plugin (grp 320)]]
+- [[_COMMUNITY_Show Control Playlist|Show Control Playlist]]
+- [[_COMMUNITY_Homography & Corner Pin|Homography & Corner Pin]]
+- [[_COMMUNITY_Take Recorder|Take Recorder]]
+- [[_COMMUNITY_OpenCV Calib (Rust) — Src Lib|OpenCV Calib (Rust) — Src Lib]]
+- [[_COMMUNITY_Timeline UI|Timeline UI]]
+- [[_COMMUNITY_Documentation — Manifest Reference|Documentation — Manifest Reference]]
+- [[_COMMUNITY_Audio Plugin — Src|Audio Plugin — Src]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibworkspace|Calibration Plugin — Src Calibworkspace]]
+- [[_COMMUNITY_3D Simulator|3D Simulator]]
+- [[_COMMUNITY_Renderer|Renderer]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Audio Plugin — Src Automationtargets|Audio Plugin — Src Automationtargets]]
+- [[_COMMUNITY_Calibration Plugin — Src|Calibration Plugin — Src]]
+- [[_COMMUNITY_Artlux Plugin|Artlux Plugin]]
+- [[_COMMUNITY_Main Process — Watchdog|Main Process — Watchdog]]
+- [[_COMMUNITY_Plugin SDK — Src|Plugin SDK — Src]]
+- [[_COMMUNITY_Renderer Services|Renderer Services]]
+- [[_COMMUNITY_Renderer Services — Transitions|Renderer Services — Transitions]]
+- [[_COMMUNITY_Calibration Plugin — Src Cvcamera|Calibration Plugin — Src Cvcamera]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Audio Plugin — Src Conform|Audio Plugin — Src Conform]]
+- [[_COMMUNITY_Calibration Plugin — Src|Calibration Plugin — Src]]
+- [[_COMMUNITY_Renderer Services|Renderer Services]]
+- [[_COMMUNITY_Renderer Services|Renderer Services]]
+- [[_COMMUNITY_Package Scripts|Package Scripts]]
+- [[_COMMUNITY_NDI Plugin — Src Ndimanager|NDI Plugin — Src Ndimanager]]
+- [[_COMMUNITY_Renderer Services — Contentsource|Renderer Services — Contentsource]]
+- [[_COMMUNITY_Renderer Services — Surfacemedia|Renderer Services — Surfacemedia]]
+- [[_COMMUNITY_Main Process — Projectfolder|Main Process — Projectfolder]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Renderer Services — Thumbnailcache|Renderer Services — Thumbnailcache]]
+- [[_COMMUNITY_Renderer Services|Renderer Services]]
+- [[_COMMUNITY_Renderer — Shortcuts|Renderer — Shortcuts]]
+- [[_COMMUNITY_3D Simulator|3D Simulator]]
+- [[_COMMUNITY_Output Engine (Rust) — Src|Output Engine (Rust) — Src]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibnative|Calibration Plugin — Src Calibnative]]
+- [[_COMMUNITY_Calibration Plugin — Src Projectorscene|Calibration Plugin — Src Projectorscene]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_Show Control — Src|Show Control — Src]]
+- [[_COMMUNITY_Show Control — Src|Show Control — Src]]
+- [[_COMMUNITY_3D Simulator|3D Simulator]]
+- [[_COMMUNITY_Launcher — Package|Launcher — Package]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_3D Simulator|3D Simulator]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Poseengine|MediaPipe Plugin — Src Poseengine]]
+- [[_COMMUNITY_Renderer — Help Entries|Renderer — Help Entries]]
+- [[_COMMUNITY_Launcher Backend — Tauri|Launcher Backend — Tauri]]
+- [[_COMMUNITY_NDI Native — Src Lib|NDI Native — Src Lib]]
+- [[_COMMUNITY_Calibration Plugin — Src|Calibration Plugin — Src]]
+- [[_COMMUNITY_Calibration Plugin — Src Calib|Calibration Plugin — Src Calib]]
+- [[_COMMUNITY_HAP Plugin — Src Hapdecode|HAP Plugin — Src Hapdecode]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Audio Plugin — Src Audiobedpanel|Audio Plugin — Src Audiobedpanel]]
+- [[_COMMUNITY_Audio Plugin — Src Conformclient|Audio Plugin — Src Conformclient]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Posetracking|MediaPipe Plugin — Src Posetracking]]
+- [[_COMMUNITY_Show Control — Src|Show Control — Src]]
+- [[_COMMUNITY_JUCE Audio Engine — Src|JUCE Audio Engine — Src]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_Renderer Services — Bootgate|Renderer Services — Bootgate]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibcapture|Calibration Plugin — Src Calibcapture]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_JUCE Audio Engine — Src|JUCE Audio Engine — Src]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_Build Scripts — Build Fixture|Build Scripts — Build Fixture]]
+- [[_COMMUNITY_Build Scripts — Test Blend|Build Scripts — Test Blend]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibmanager|Calibration Plugin — Src Calibmanager]]
+- [[_COMMUNITY_HAP Plugin — Src Hapmanager|HAP Plugin — Src Hapmanager]]
+- [[_COMMUNITY_Spout Plugin — Src Spoutmanager|Spout Plugin — Src Spoutmanager]]
+- [[_COMMUNITY_Renderer UI — Menubar|Renderer UI — Menubar]]
+- [[_COMMUNITY_Main Process — Metrics|Main Process — Metrics]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Audio Plugin — Src Audiomanager|Audio Plugin — Src Audiomanager]]
+- [[_COMMUNITY_Calibration Plugin — Src Venueregistrar|Calibration Plugin — Src Venueregistrar]]
+- [[_COMMUNITY_MediaPipe Plugin — Src|MediaPipe Plugin — Src]]
+- [[_COMMUNITY_Transport  Output — Sacn|Transport / Output — Sacn]]
+- [[_COMMUNITY_Renderer Services — Statemachine|Renderer Services — Statemachine]]
+- [[_COMMUNITY_JUCE Audio Engine — Src|JUCE Audio Engine — Src]]
+- [[_COMMUNITY_JUCE Audio Engine — Src|JUCE Audio Engine — Src]]
+- [[_COMMUNITY_Output Engine (Rust) — Src|Output Engine (Rust) — Src]]
+- [[_COMMUNITY_Spout Plugin — Src|Spout Plugin — Src]]
+- [[_COMMUNITY_Audio Plugin — Src Effectdefs|Audio Plugin — Src Effectdefs]]
+- [[_COMMUNITY_Shared Types — Mediaurl|Shared Types — Mediaurl]]
+- [[_COMMUNITY_Main Process — Gdtf|Main Process — Gdtf]]
+- [[_COMMUNITY_Transport  Output — Outputmanager|Transport / Output — Outputmanager]]
+- [[_COMMUNITY_Documentation — Archive Superpowers|Documentation — Archive Superpowers]]
+- [[_COMMUNITY_Documentation — Nvwarp|Documentation — Nvwarp]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_Package Devdependencies|Package Devdependencies]]
+- [[_COMMUNITY_Main Process — Splashwindow|Main Process — Splashwindow]]
+- [[_COMMUNITY_3D Simulator|3D Simulator]]
+- [[_COMMUNITY_Projector Window — Projectorgl|Projector Window — Projectorgl]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_Launcher — Tsconfig Compileroptions|Launcher — Tsconfig Compileroptions]]
+- [[_COMMUNITY_Package Build|Package Build]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Audio Plugin — Src Audiomanager|Audio Plugin — Src Audiomanager]]
+- [[_COMMUNITY_Show Control — Src|Show Control — Src]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibmanager|Calibration Plugin — Src Calibmanager]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_Main Process — Docs|Main Process — Docs]]
+- [[_COMMUNITY_Renderer Services — Mocksocketservice|Renderer Services — Mocksocketservice]]
+- [[_COMMUNITY_Main Process — Persistence|Main Process — Persistence]]
+- [[_COMMUNITY_Renderer Services — Cuebus|Renderer Services — Cuebus]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Documentation — Tracking|Documentation — Tracking]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Augmenta Plugin — Src Augmentastore|Augmenta Plugin — Src Augmentastore]]
+- [[_COMMUNITY_Augmenta Plugin — Src Motion|Augmenta Plugin — Src Motion]]
+- [[_COMMUNITY_Calibration Plugin — Src Manualwizard|Calibration Plugin — Src Manualwizard]]
+- [[_COMMUNITY_Renderer Services — Fixtureprofiles|Renderer Services — Fixtureprofiles]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_HAP Native — Src Mov|HAP Native — Src Mov]]
+- [[_COMMUNITY_Augmenta Plugin — Src Index|Augmenta Plugin — Src Index]]
+- [[_COMMUNITY_Calibration Plugin — Src Blendinspector|Calibration Plugin — Src Blendinspector]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_Resources — Fixture Library|Resources — Fixture Library]]
+- [[_COMMUNITY_GPU Pipeline — Palettes|GPU Pipeline — Palettes]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_Spout Native — Src|Spout Native — Src]]
+- [[_COMMUNITY_Show Control — Src|Show Control — Src]]
+- [[_COMMUNITY_Renderer Services — Scene3dquality|Renderer Services — Scene3dquality]]
+- [[_COMMUNITY_OpenCV Calib (Rust) — Src Dshow|OpenCV Calib (Rust) — Src Dshow]]
+- [[_COMMUNITY_Doc Images — Launcher 01|Doc Images — Launcher 01]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_Package Dependencies|Package Dependencies]]
+- [[_COMMUNITY_Augmenta Plugin — Src Augmentamonitor|Augmenta Plugin — Src Augmentamonitor]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_Renderer Services — Curvefit|Renderer Services — Curvefit]]
+- [[_COMMUNITY_Renderer Services — Lightingplayback|Renderer Services — Lightingplayback]]
+- [[_COMMUNITY_Documentation — Archive Superpowers|Documentation — Archive Superpowers]]
+- [[_COMMUNITY_Documentation — Archive Superpowers|Documentation — Archive Superpowers]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_Launcher Backend — Resources|Launcher Backend — Resources]]
+- [[_COMMUNITY_MP4 Plugin — Src Mp4codec|MP4 Plugin — Src Mp4codec]]
+- [[_COMMUNITY_Design Plans — Archive Asset|Design Plans — Archive Asset]]
+- [[_COMMUNITY_Calibration Plugin — Src Blendstore|Calibration Plugin — Src Blendstore]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Posestore|MediaPipe Plugin — Src Posestore]]
+- [[_COMMUNITY_Build Scripts — Preflight|Build Scripts — Preflight]]
+- [[_COMMUNITY_Renderer Services — Docsearch|Renderer Services — Docsearch]]
+- [[_COMMUNITY_Main Process — Mediaaccess|Main Process — Mediaaccess]]
+- [[_COMMUNITY_Main Process — Mpcdi|Main Process — Mpcdi]]
+- [[_COMMUNITY_Renderer Services — Automation|Renderer Services — Automation]]
+- [[_COMMUNITY_Documentation — Outputs|Documentation — Outputs]]
+- [[_COMMUNITY_Documentation — Surfaces|Documentation — Surfaces]]
+- [[_COMMUNITY_Documentation — Plugins|Documentation — Plugins]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Design Plans — Archive Audio|Design Plans — Archive Audio]]
+- [[_COMMUNITY_Design Plans — Lighting Keyframes|Design Plans — Lighting Keyframes]]
+- [[_COMMUNITY_Audio Plugin — Package|Audio Plugin — Package]]
+- [[_COMMUNITY_Augmenta Plugin — Src Augmentadrawable|Augmenta Plugin — Src Augmentadrawable]]
+- [[_COMMUNITY_Augmenta Plugin — Src Augmentarenderer|Augmenta Plugin — Src Augmentarenderer]]
+- [[_COMMUNITY_Calibration Plugin — Package|Calibration Plugin — Package]]
+- [[_COMMUNITY_HAP Plugin — Package|HAP Plugin — Package]]
+- [[_COMMUNITY_HAP Plugin — Src Happlayer|HAP Plugin — Src Happlayer]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Posepass|MediaPipe Plugin — Src Posepass]]
+- [[_COMMUNITY_MP4 Plugin — Src Mp4box|MP4 Plugin — Src Mp4box]]
+- [[_COMMUNITY_NDI Plugin — Package|NDI Plugin — Package]]
+- [[_COMMUNITY_NDI Plugin — Src Ndireceiver|NDI Plugin — Src Ndireceiver]]
+- [[_COMMUNITY_Show Control — Package|Show Control — Package]]
+- [[_COMMUNITY_Spout Plugin — Package|Spout Plugin — Package]]
+- [[_COMMUNITY_Build Scripts — Test Mediagrid|Build Scripts — Test Mediagrid]]
+- [[_COMMUNITY_Renderer Services — Perfmonitor|Renderer Services — Perfmonitor]]
+- [[_COMMUNITY_3D Simulator|3D Simulator]]
+- [[_COMMUNITY_Timeline UI|Timeline UI]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Doc Images — Launcher 04|Doc Images — Launcher 04]]
+- [[_COMMUNITY_Documentation — Scenes|Documentation — Scenes]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Design Plans — Engine Decoupling|Design Plans — Engine Decoupling]]
+- [[_COMMUNITY_Augmenta Plugin — Src Blobpass|Augmenta Plugin — Src Blobpass]]
+- [[_COMMUNITY_HAP Plugin — Src Hapgl|HAP Plugin — Src Hapgl]]
+- [[_COMMUNITY_MediaPipe Plugin — Package|MediaPipe Plugin — Package]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Posedrawable|MediaPipe Plugin — Src Posedrawable]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Poserenderer|MediaPipe Plugin — Src Poserenderer]]
+- [[_COMMUNITY_Show Control — Src|Show Control — Src]]
+- [[_COMMUNITY_Build Scripts — Tsconfig Test|Build Scripts — Tsconfig Test]]
+- [[_COMMUNITY_Renderer UI — Ui|Renderer UI — Ui]]
+- [[_COMMUNITY_Renderer Services — Lightingoverlay|Renderer Services — Lightingoverlay]]
+- [[_COMMUNITY_Renderer Services — Viewportslots|Renderer Services — Viewportslots]]
+- [[_COMMUNITY_Documentation — Archive Superpowers|Documentation — Archive Superpowers]]
+- [[_COMMUNITY_Documentation — Auto Align|Documentation — Auto Align]]
+- [[_COMMUNITY_Documentation — Sdk|Documentation — Sdk]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Src|Launcher Backend — Src]]
+- [[_COMMUNITY_Monitoring — Docker Compose|Monitoring — Docker Compose]]
+- [[_COMMUNITY_JUCE Audio Engine — Cmakelists|JUCE Audio Engine — Cmakelists]]
+- [[_COMMUNITY_JUCE Audio Engine — Test|JUCE Audio Engine — Test]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Design Plans — Documentation Wiki|Design Plans — Documentation Wiki]]
+- [[_COMMUNITY_Design Plans — Renderer Error|Design Plans — Renderer Error]]
+- [[_COMMUNITY_Augmenta Plugin — Package|Augmenta Plugin — Package]]
+- [[_COMMUNITY_LiDAR Tracking — Package|LiDAR Tracking — Package]]
+- [[_COMMUNITY_MP4 Plugin — Package|MP4 Plugin — Package]]
+- [[_COMMUNITY_Main Process — Fixturelibrary|Main Process — Fixturelibrary]]
+- [[_COMMUNITY_Transport  Output — Oscmanager|Transport / Output — Oscmanager]]
+- [[_COMMUNITY_Renderer Services — Uiperfmonitor|Renderer Services — Uiperfmonitor]]
+- [[_COMMUNITY_Renderer Services — Codecresidency|Renderer Services — Codecresidency]]
+- [[_COMMUNITY_Renderer Services — Fixturelayout|Renderer Services — Fixturelayout]]
+- [[_COMMUNITY_Renderer Services — Fixtureplacement|Renderer Services — Fixtureplacement]]
+- [[_COMMUNITY_Renderer Services — Gpumapper|Renderer Services — Gpumapper]]
+- [[_COMMUNITY_Documentation — Manifest|Documentation — Manifest]]
+- [[_COMMUNITY_Documentation — Roadmap|Documentation — Roadmap]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Package|Package]]
+- [[_COMMUNITY_Plugin SDK — Package|Plugin SDK — Package]]
+- [[_COMMUNITY_Design Plans — Archive Headless|Design Plans — Archive Headless]]
+- [[_COMMUNITY_Design Plans — Multi Projector|Design Plans — Multi Projector]]
+- [[_COMMUNITY_Audio Plugin — Src Movdemux|Audio Plugin — Src Movdemux]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibaudit|Calibration Plugin — Src Calibaudit]]
+- [[_COMMUNITY_Renderer Services — Outputspan|Renderer Services — Outputspan]]
+- [[_COMMUNITY_JUCE Audio Engine — Src|JUCE Audio Engine — Src]]
+- [[_COMMUNITY_Documentation — Audio|Documentation — Audio]]
+- [[_COMMUNITY_Documentation — Archive Superpowers|Documentation — Archive Superpowers]]
+- [[_COMMUNITY_Documentation — Checkerboard 9x6|Documentation — Checkerboard 9x6]]
+- [[_COMMUNITY_Documentation — Fixture Library|Documentation — Fixture Library]]
+- [[_COMMUNITY_Doc Images — Launcher 02|Doc Images — Launcher 02]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Documentation — State Machine|Documentation — State Machine]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_JUCE Audio Engine — Package|JUCE Audio Engine — Package]]
+- [[_COMMUNITY_JUCE Audio Engine — Test|JUCE Audio Engine — Test]]
+- [[_COMMUNITY_Renderer UI|Renderer UI]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_LiDAR Tracking — Src|LiDAR Tracking — Src]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Posecamera|MediaPipe Plugin — Src Posecamera]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Posefloor|MediaPipe Plugin — Src Posefloor]]
+- [[_COMMUNITY_Renderer Services — Uiperfmonitor|Renderer Services — Uiperfmonitor]]
+- [[_COMMUNITY_Documentation — Effects|Documentation — Effects]]
+- [[_COMMUNITY_Documentation — Calib Optimizations|Documentation — Calib Optimizations]]
+- [[_COMMUNITY_Doc Images — Launcher 03|Doc Images — Launcher 03]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_JUCE Audio Engine — Gen|JUCE Audio Engine — Gen]]
+- [[_COMMUNITY_JUCE Audio Engine — Test|JUCE Audio Engine — Test]]
+- [[_COMMUNITY_JUCE Audio Engine — Test|JUCE Audio Engine — Test]]
+- [[_COMMUNITY_JUCE Audio Engine — Test|JUCE Audio Engine — Test]]
+- [[_COMMUNITY_NVAPI Warp (Rust) — Src Lib|NVAPI Warp (Rust) — Src Lib]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Design Plans — Archive Video|Design Plans — Archive Video]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibartifacts|Calibration Plugin — Src Calibartifacts]]
+- [[_COMMUNITY_Renderer Services — Fixturesearch|Renderer Services — Fixturesearch]]
+- [[_COMMUNITY_Main Process — Thumbcache|Main Process — Thumbcache]]
+- [[_COMMUNITY_Renderer UI — Dock|Renderer UI — Dock]]
+- [[_COMMUNITY_Renderer Services — Opentrace|Renderer Services — Opentrace]]
+- [[_COMMUNITY_Renderer Services — Selection|Renderer Services — Selection]]
+- [[_COMMUNITY_Show Bug|Show Bug]]
+- [[_COMMUNITY_Doc Images — Launcher 02|Doc Images — Launcher 02]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — State Machine|Examples & Tutorials — State Machine]]
+- [[_COMMUNITY_Launcher Backend — Capabilities|Launcher Backend — Capabilities]]
+- [[_COMMUNITY_JUCE Audio Engine — Gen|JUCE Audio Engine — Gen]]
+- [[_COMMUNITY_Design Plans — Archive Autopatch|Design Plans — Archive Autopatch]]
+- [[_COMMUNITY_Augmenta Plugin — Src Augmentaprojector|Augmenta Plugin — Src Augmentaprojector]]
+- [[_COMMUNITY_MediaPipe Plugin — Src Poseprojector|MediaPipe Plugin — Src Poseprojector]]
+- [[_COMMUNITY_Documentation — Osc Osc|Documentation — Osc Osc]]
+- [[_COMMUNITY_Documentation — Ui Ux|Documentation — Ui Ux]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Design Plans — Archive Docs|Design Plans — Archive Docs]]
+- [[_COMMUNITY_Documentation — Assets|Documentation — Assets]]
+- [[_COMMUNITY_Documentation — Monitoring|Documentation — Monitoring]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_User Guide Screens|User Guide Screens]]
+- [[_COMMUNITY_Examples & Tutorials — Audio Tuto|Examples & Tutorials — Audio Tuto]]
+- [[_COMMUNITY_Examples & Tutorials — Lidar Tracking|Examples & Tutorials — Lidar Tracking]]
+- [[_COMMUNITY_Examples & Tutorials — Readme|Examples & Tutorials — Readme]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Package Linux|Package Linux]]
+- [[_COMMUNITY_Package Mac|Package Mac]]
+- [[_COMMUNITY_Package Win|Package Win]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Plugin SDK — Src Renderer|Plugin SDK — Src Renderer]]
+- [[_COMMUNITY_Design Plans — Archive Timeline|Design Plans — Archive Timeline]]
+- [[_COMMUNITY_Design Plans — Archive Watchdog|Design Plans — Archive Watchdog]]
+- [[_COMMUNITY_Design Plans — Timeline Undo|Design Plans — Timeline Undo]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibmanager|Calibration Plugin — Src Calibmanager]]
+- [[_COMMUNITY_Documentation — Audio|Documentation — Audio]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_Launcher Backend — Examples|Launcher Backend — Examples]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Launcher Backend — Gen|Launcher Backend — Gen]]
+- [[_COMMUNITY_Design Plans — Archive Dmx|Design Plans — Archive Dmx]]
+- [[_COMMUNITY_Design Plans — Archive Fixture|Design Plans — Archive Fixture]]
+- [[_COMMUNITY_Calibration Plugin — Src Calibmanager|Calibration Plugin — Src Calibmanager]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Documentation|Documentation]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_Vite Config|Vite Config]]
+- [[_COMMUNITY_Plugins Graph|Plugins Graph]]
+- [[_COMMUNITY_JUCE Audio Engine — Cmakelists|JUCE Audio Engine — Cmakelists]]
+- [[_COMMUNITY_Design Plans — Archive Asset|Design Plans — Archive Asset]]
+- [[_COMMUNITY_Design Plans — Archive Asset|Design Plans — Archive Asset]]
+- [[_COMMUNITY_Design Plans — Archive|Design Plans — Archive]]
+- [[_COMMUNITY_Design Plans — Archive Autopatch|Design Plans — Archive Autopatch]]
+- [[_COMMUNITY_Design Plans — Archive Cue|Design Plans — Archive Cue]]
+- [[_COMMUNITY_Design Plans — Archive Show|Design Plans — Archive Show]]
+- [[_COMMUNITY_Design Plans — Archive Show|Design Plans — Archive Show]]
+- [[_COMMUNITY_Design Plans — Archive Timeline|Design Plans — Archive Timeline]]
+- [[_COMMUNITY_Design Plans — Archive Timeline|Design Plans — Archive Timeline]]
+- [[_COMMUNITY_Design Plans — Archive Timeline|Design Plans — Archive Timeline]]
+- [[_COMMUNITY_Resources — Fixture Library|Resources — Fixture Library]]
+- [[_COMMUNITY_Documentation — Calib Optimizations|Documentation — Calib Optimizations]]
+- [[_COMMUNITY_Documentation — User Guide|Documentation — User Guide]]
+- [[_COMMUNITY_Design Plans — Archive Asset|Design Plans — Archive Asset]]
+- [[_COMMUNITY_Design Plans — Archive Asset|Design Plans — Archive Asset]]
+- [[_COMMUNITY_Design Plans — Archive Autopatch|Design Plans — Archive Autopatch]]
+- [[_COMMUNITY_Design Plans — Archive Cue|Design Plans — Archive Cue]]
+- [[_COMMUNITY_Design Plans — Archive Dmx|Design Plans — Archive Dmx]]
+- [[_COMMUNITY_Design Plans — Archive Docs|Design Plans — Archive Docs]]
+- [[_COMMUNITY_Design Plans — Archive Docs|Design Plans — Archive Docs]]
+- [[_COMMUNITY_Design Plans — Archive Fixture|Design Plans — Archive Fixture]]
+- [[_COMMUNITY_Design Plans — Archive Fixture|Design Plans — Archive Fixture]]
+- [[_COMMUNITY_Design Plans — Archive Fixture|Design Plans — Archive Fixture]]
+- [[_COMMUNITY_Design Plans — Archive Headless|Design Plans — Archive Headless]]
+- [[_COMMUNITY_Design Plans — Archive Headless|Design Plans — Archive Headless]]
+- [[_COMMUNITY_Design Plans — Archive Show|Design Plans — Archive Show]]
+- [[_COMMUNITY_Design Plans — Archive Timeline|Design Plans — Archive Timeline]]
+- [[_COMMUNITY_Audio Plugin — Src Automationtargets|Audio Plugin — Src Automationtargets]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `SpatialBus` - 78 edges
-2. `ArtluxApi` - 71 edges
-3. `Engine` - 56 edges
-4. `Fixture` - 40 edges
-5. `Surface` - 38 edges
-6. `Vec` - 37 edges
-7. `Clip` - 25 edges
-8. `SurfaceContent` - 25 edges
-9. `EffectSpec` - 24 edges
-10. `Scene3D` - 24 edges
+1. `ArtluxApi` - 89 edges
+2. `SpatialBus` - 78 edges
+3. `help()` - 74 edges
+4. `Fixture` - 72 edges
+5. `Vec` - 61 edges
+6. `EditorActions` - 59 edges
+7. `Engine` - 56 edges
+8. `Surface` - 53 edges
+9. `reference` - 42 edges
+10. `registerCoreWorkspace()` - 42 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Native addons degrade gracefully when missing` --semantically_similar_to--> `Renderer guards every new native call (older calib.node degrades)`  [INFERRED] [semantically similar]
-  CLAUDE.md → docs/CALIB-OPTIMIZATIONS.md
-- `Documented doc-drift (this entry said the opposite until 2026-07-14)` --semantically_similar_to--> `FORWARD-COMPAT — per-container asset relativization has no schema guard`  [INFERRED] [semantically similar]
-  docs/DEVELOPMENT.md → CHANGELOG.md
-- `set_warping()` --references--> `Vec`  [EXTRACTED]
-  native/nvwarp/src/lib.rs → src/renderer/components/timeline/StateGraphEditor.tsx
-- `set_intensity()` --references--> `Vec`  [EXTRACTED]
-  native/nvwarp/src/lib.rs → src/renderer/components/timeline/StateGraphEditor.tsx
-- `readDoc()` --calls--> `normalize()`  [INFERRED]
-  src/main/docs.ts → plugins/calibration/src/cvCamera.ts
+- `One Transport, Two Playheads Invariant` --semantically_similar_to--> `Three Audio Containers, Two Clocks`  [INFERRED] [semantically similar]
+  plans/README.md → examples/audio/tuto/README.md
+- `Audio lane 'Foyer — Sting' with gutter mixer (mute · solo · gain · TL)` --semantically_similar_to--> `Audio lane 'Look A — Sting' with sting-main clip`  [INFERRED] [semantically similar]
+  examples/audio/tuto/images/03-scene-ruler.png → docs/user-guide/images/15-osc-monitor.png
+- `tick()` --indirect_call--> `tr()`  [INFERRED]
+  src/renderer/services/stateMachine.ts → scripts/test-lookahead.ts
+- `Verify Packaged Resources Step` --semantically_similar_to--> `Machine Preflight (preflight.ps1, PE import-table scan)`  [INFERRED] [semantically similar]
+  .github/workflows/build.yml → docs/DEVELOPMENT.md
+- `Kind Chosen at Creation (no in-place conversion in the UI)` --semantically_similar_to--> `Start in Safe Mode Recovery (autoload is the trap)`  [INFERRED] [semantically similar]
+  docs/FIXTURE-LIBRARY.md → CHANGELOG.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Three audio containers riding two clocks** — docs_audio_three_containers_two_clocks, docs_audio_bed, docs_audio_timeline_own_audio, docs_audio_video_clip_soundtrack, changelog_show_clock [EXTRACTED 1.00]
-- **Projection-mapping calibration pipeline (scan → solve → blend → apply → interchange)** — docs_calibration_graycode, docs_auto_align_markerless_autoalign, docs_auto_align_calibration_artifact, docs_auto_align_blendcompute, docs_auto_align_nvwarp_addon, docs_auto_align_mpcdi, docs_calibration_render_from_projector [EXTRACTED 1.00]
-- **Defense-in-depth against a silent audio UI** — _github_workflows_build_strict_audio_engine_build, docs_development_audio_engine_build_policy, readme_two_traps, readme_packaging_rebuilds_audio_engine, docs_audio_three_silences, docs_development_stale_addon_trap [INFERRED 0.95]
-- **The plugin contribution seams (registries + host services + IPC bridge)** — docs_plugins_contribution_registries, docs_plugins_host_services, docs_plugins_generic_ipc_bridge, docs_plugins_projector_channel, docs_plugins_projector_panel_contribution, docs_sdk_api_surface [EXTRACTED 1.00]
-- **Scene/cue trigger flow: manual GO · FSM action · OSC → cueBus → resolve → fade** — docs_scenes_cuebus, docs_scenes_fsm_recallscene, docs_scenes_osc_scene_triggers, docs_scenes_crossfade, docs_scene_timelines_current_scene_binding [EXTRACTED 1.00]
-- **One transport, two clocks — the scene clock vs the show clock** — docs_scene_timelines_one_transport, docs_scene_timelines_show_clock, docs_scene_timelines_two_predicates, docs_scene_timelines_reconverge, docs_scene_timelines_optional_timeline_deletion, docs_scene_timelines_pool_keyed_buffers [EXTRACTED 1.00]
-- **State-machine persisted data model** — docs_state_machine_state_machine, docs_state_machine_smstate, docs_state_machine_smtransition, docs_state_machine_smtrigger, docs_state_machine_smaction, docs_state_machine_smregion [EXTRACTED 1.00]
-- **Two-clock audio scoping model (scene clock vs show clock)** — docs_timeline_scene_clock, docs_timeline_show_clock, docs_timeline_clockscoincident, docs_timeline_silent_show_clock, docs_timeline_audio_bed, docs_timeline_timeline_audio, docs_timeline_show_clock_reset_table [EXTRACTED 1.00]
-- **Unattended show survival: relaunch-based recovery + supervision** — docs_watchdog_tier1, docs_watchdog_tier2, docs_watchdog_circuit_breaker, docs_watchdog_relaunch_recovery, docs_show_control_relaunch_per_project, docs_watchdog_single_instance_lock [INFERRED 0.95]
-- **The missing-audio-engine announcement flow (probe → modal → badge → retired inference)** — docs_superpowers_plans_2026_07_13_audio_engine_missing_notice_audio_available_probe, docs_superpowers_plans_2026_07_13_audio_engine_missing_notice_startup_modal, docs_superpowers_plans_2026_07_13_audio_engine_missing_notice_no_audio_engine_badge, docs_superpowers_specs_2026_07_13_audio_engine_missing_notice_design_renderer_cannot_ask, docs_superpowers_specs_2026_07_13_audio_engine_missing_notice_design_perfect_silent_degrade [EXTRACTED 1.00]
-- **The transport invariants every Wave A/B task must uphold** — docs_superpowers_plans_2026_07_12_audio_scoping_wave_b_seven_hard_invariants, docs_superpowers_plans_2026_07_11_timeline_transport_wave_a_app_single_writer_of_playing, docs_superpowers_plans_2026_07_11_timeline_transport_wave_a_playhead_never_in_react_state, docs_superpowers_plans_2026_07_12_audio_scoping_wave_b_derived_not_accumulated_clock, docs_superpowers_plans_2026_07_12_audio_scoping_wave_b_coerce_do_not_drop, docs_superpowers_plans_2026_07_12_audio_scoping_wave_b_drag_commits_once_on_pointerup [EXTRACTED 1.00]
-- **The +9.6 dB automation-clock blocker and its cure (delete the state, strip the clone, show the lane)** — docs_superpowers_plans_2026_07_14_wave_3_merge_blockers_scene_timeline_required, docs_superpowers_plans_2026_07_14_wave_3_merge_blockers_capture_scene_base_lanes, docs_superpowers_plans_2026_07_14_wave_3_merge_blockers_visible_driving_lane, docs_superpowers_plans_2026_07_12_audio_scoping_wave_b_dc6b_is_global_doc_bound, docs_superpowers_2026_07_12_wave_3_acceptance_mixer_shows_what_is_sounding [EXTRACTED 1.00]
-- **One-directional signal flow: content → surface → fixture → Art-Net/sACN → controller** — docs_user_guide_02_surfaces_and_content_content_source, docs_user_guide_02_surfaces_and_content_surface, docs_user_guide_03_fixtures_fixture, docs_user_guide_03_fixtures_mapping_to_surface, docs_user_guide_04_patching_and_routing_controller, docs_user_guide_readme_signal_flow_model [EXTRACTED 1.00]
+- **Graceful Degradation Made Legible (splash, badges, preflight, installer)** — docs_architecture_graceful_degradation, changelog_startup_splash, docs_audio_graceful_silence, docs_development_preflight, docs_install_installer_provisioning [EXTRACTED 1.00]
+- **Projector Calibration Pipeline (board → markerless → blend → recal → MPCDI)** — docs_calibration_structured_light, docs_auto_align_markerless_auto_align, docs_auto_align_blend_computation, docs_auto_align_unattended_recalibration, docs_auto_align_mpcdi [EXTRACTED 1.00]
+- **Tracking Plugin Family (LiDAR template, MediaPipe, Augmenta)** — docs_mediapipe_tracking_plugin_template, docs_mediapipe_plugin, docs_augmenta_plugin [EXTRACTED 1.00]
+- **Speaker Rig Commissioning Flow (device → patch → tone → synthetic gate)** — docs_archive_superpowers_specs_2026_07_14_p6_multichannel_design_device_identity, docs_archive_superpowers_specs_2026_07_14_p6_multichannel_design_speaker_patch_test_tone, docs_archive_superpowers_2026_07_14_p6_acceptance_synthetic_8_channel_device, docs_archive_superpowers_2026_07_14_p6_acceptance_speaker_check_gate [EXTRACTED 1.00]
+- **Two-Clock Transport Architecture (one transport, two playheads)** — docs_archive_superpowers_plans_2026_07_12_audio_scoping_wave_b_one_transport_two_playheads, docs_archive_superpowers_plans_2026_07_12_audio_scoping_wave_b_show_clock, docs_archive_superpowers_plans_2026_07_12_audio_scoping_wave_b_scene_clock, docs_archive_superpowers_plans_2026_07_12_audio_scoping_wave_b_show_clock_park, docs_archive_superpowers_2026_07_12_wave_3_acceptance_bed_never_restarts [EXTRACTED 1.00]
+- **Missing Audio Engine Notice System (probe + modal + badge)** — docs_archive_superpowers_plans_2026_07_13_audio_engine_missing_notice_audio_available_probe, docs_archive_superpowers_plans_2026_07_13_audio_engine_missing_notice_startup_modal, docs_archive_superpowers_plans_2026_07_13_audio_engine_missing_notice_no_audio_engine_badge, docs_archive_superpowers_specs_2026_07_13_audio_engine_missing_notice_design_renderer_cannot_ask [EXTRACTED 1.00]
 - **The two-clock audio model (bed on the show clock vs a scene's own audio on the playhead)** — docs_user_guide_07_audio_two_containers_two_clocks, docs_user_guide_07_audio_show_clock, docs_user_guide_07_audio_global_binding, docs_user_guide_07_audio_automation, docs_user_guide_05_color_effects_groups_scenes_scene [EXTRACTED 1.00]
 - **Projector geometry-correction stack (corner-pin, Bézier warp, soft edge, calibration solve)** — docs_user_guide_08_projector_outputs_corner_pin_align, docs_user_guide_08_projector_outputs_bezier_warp, docs_user_guide_08_projector_outputs_soft_edge, docs_user_guide_10_calibration_calibration_wizard, docs_user_guide_10_calibration_mpcdi_interchange [INFERRED 0.85]
-- **The two-container / two-clock audio model** — examples_audio_tuto_readme_two_containers_two_clocks, examples_audio_tuto_01_the_bed_and_the_show_clock_the_bed, examples_audio_tuto_01_the_bed_and_the_show_clock_show_clock, examples_audio_tuto_03_a_scenes_own_audio_scene_own_audio, examples_audio_tuto_03_a_scenes_own_audio_playhead, examples_audio_tuto_03_a_scenes_own_audio_container_question, examples_audio_tuto_02_the_mixer_solo_scoped_per_container [EXTRACTED 1.00]
-- **LiDAR blob flow: emitter → OSC → store → surface / 3D / take** — examples_lidar_tracking_readme_lidar_emitter, examples_lidar_tracking_readme_osc_listen_address_empty, examples_lidar_tracking_tuto_01_blob_viewer_osc_monitor, examples_lidar_tracking_tuto_01_blob_viewer_tracking_surface, examples_lidar_tracking_tuto_01_blob_viewer_3d_tracking_viz, examples_lidar_tracking_tuto_03_replayed_take_lblob_take_format, examples_lidar_tracking_tuto_03_replayed_take_tracking_lane [EXTRACTED 1.00]
-- **Three silences, three badges, three fixes** — examples_audio_tuto_02_the_mixer_no_audio_engine_badge, examples_audio_tuto_02_the_mixer_no_output_device_badge, examples_audio_tuto_01_the_bed_and_the_show_clock_parked_show, examples_audio_tuto_06_the_unattended_show_three_silences [EXTRACTED 1.00]
+- **Three Containers / Two Clocks Audio Model** — examples_audio_tuto_readme_three_containers_two_clocks, examples_audio_tuto_01_the_bed_and_the_show_clock_audio_bed, examples_audio_tuto_03_a_scenes_own_audio_scene_audio, examples_audio_tuto_01_the_bed_and_the_show_clock_show_clock, examples_audio_tuto_05_automating_the_mix_lane_clock_rule [EXTRACTED 1.00]
+- **One trackingStore Feeds Live, Replay, Viz and Zones** — examples_lidar_tracking_readme_lidar_emitter, examples_lidar_tracking_tuto_03_replayed_take_lblob_take, examples_lidar_tracking_tuto_readme_trigger_zones, examples_lidar_tracking_tuto_03_replayed_take_merge_people, examples_lidar_tracking_tuto_01_blob_viewer_raw_vs_smoothed [EXTRACTED 1.00]
+- **The Canonical Interactive Installation State** — examples_state_machine_tuto_03_interactive_installation_hold_at_end, examples_state_machine_tuto_03_interactive_installation_requireend, examples_lidar_tracking_tuto_readme_trigger_zones, examples_state_machine_tuto_03_interactive_installation_fromany [EXTRACTED 1.00]
 - **The local ArtLux observability stack (compose + scrape + provisioned Grafana)** — monitoring_docker_compose_prometheus_service, monitoring_docker_compose_grafana_service, monitoring_prometheus_artlux_scrape_job, monitoring_grafana_provisioning_datasources_prometheus_prometheus_datasource, monitoring_grafana_provisioning_dashboards_dashboards_artlux_dashboard_provider, monitoring_prometheus_in_app_metrics_endpoint [EXTRACTED 1.00]
-- **The Wave 3 audio subsystem (engine, clocks, lanes, binding, asset paths, build)** — plans_archive_audio_engine_plan, plans_archive_timeline_transport_and_audio_scoping_show_clock, plans_archive_timeline_transport_and_audio_scoping_audio_lanes, plans_archive_timeline_transport_and_audio_scoping_scene_cue_audio_binding, plans_archive_asset_paths_scenes_and_audio_plan, native_audio_engine_cmakelists_audio_engine_target, plans_sequencing_wave_3 [EXTRACTED 1.00]
-- **The unattended-install rot class of defect this project keeps re-learning** — plans_readme_audio_device_no_auto_reopen, plans_readme_uncapped_undo_stack, plans_archive_watchdog_relaunch_throttle_defer_not_drop, plans_archive_headless_plugin_host_schedule_tick, plans_sequencing_wave_4 [INFERRED 0.85]
-- **Additive-optional persisted field + normalize default (no version bump)** — plans_content_source_region_srcregion, plans_midi_control_midibindings_field, plans_projector_blend_preview_window_bounds, plans_video_clip_audio_videoclipaudio_type [INFERRED 0.85]
-- **Renderer fault containment + recovery flow** — plans_renderer_error_containment_faultreporter, plans_renderer_error_containment_renderer_fault_ipc, plans_renderer_error_containment_errorboundary, plans_renderer_error_containment_pluginboundary, plans_renderer_error_containment_noterendererup, plans_renderer_error_containment_recovery_ladder, plans_renderer_error_containment_boot_breaker [EXTRACTED 1.00]
-- **Video-clip audio conform pipeline (demux → route → cache → derive → drive)** — plans_video_clip_audio_movdemux, plans_video_clip_audio_conform_main, plans_video_clip_audio_conformclient, plans_video_clip_audio_itu_downmix, plans_video_clip_audio_videoaudio_derivation, plans_video_clip_audio_third_container [EXTRACTED 1.00]
-- **Shared Editor Shell: left trees + centre stage/3D + right context inspector across all user-guide screens** — docs_user_guide_images_00_main_editor_screenshot, docs_user_guide_images_02_surface_inspector_screenshot, docs_user_guide_images_03_fixture_inspector_screenshot, docs_user_guide_images_04_fixture_editor_screenshot, docs_user_guide_images_05_timeline_screenshot, docs_user_guide_images_00_main_editor_three_column_dark_layout [INFERRED 0.95]
-- **Fixture Authoring Pipeline: geometry -> patch -> pixel type -> routing to Art-Net** — docs_user_guide_images_04_fixture_editor_geometry_shape_toggle, docs_user_guide_images_03_fixture_inspector_patch_panel, docs_user_guide_images_03_fixture_inspector_pixel_type_panel, docs_user_guide_images_03_fixture_inspector_2d_output_section, docs_user_guide_images_03_fixture_inspector_routing_section [INFERRED 0.95]
+- **The Wave Sequencing Programme (waves 0-4 + gates)** — plans_sequencing_plan, plans_archive_audio_engine_plan, plans_timeline_undo_plan, plans_renderer_error_containment_plan, plans_documentation_wiki_plan [EXTRACTED 1.00]
+- **Fixture Kinds + Lighting Encoding Rework Programme** — plans_fixture_kinds_plan, plans_lighting_keyframes_plan, plans_lighting_rework_status_doc, plans_fixture_editor_split_plan [EXTRACTED 1.00]
+- **The Renderer HTML Entry Points (editor, projector, docs, splash)** — src_renderer_index_editor_entry, src_renderer_projector_projector_entry, src_renderer_docs_docs_entry, src_renderer_splash_splash_entry [INFERRED 0.85]
 - **Printed Checkerboard Calibration Flow: vector source -> print at actual size -> measure -> enter in wizard** — docs_checkerboard_9x6_25mm_svg_source, docs_checkerboard_9x6_25mm_png_target, docs_checkerboard_9x6_25mm_print_at_actual_size, docs_checkerboard_9x6_25mm_100mm_reference_ruler, docs_checkerboard_9x6_25mm_measure_and_enter_square_size [EXTRACTED 1.00]
-- **LED patch-to-wire flow: define fixture geometry, patch to a controller universe, verify live channels** — docs_user_guide_images_08_media_library_fixture_editor_panel, docs_user_guide_images_08_media_library_patch_fields, docs_user_guide_images_10_routing_fixtures_patch_table, docs_user_guide_images_10_routing_controller_main_dmx, docs_user_guide_images_07_dmx_monitor_dmx_monitor_panel [INFERRED 0.90]
-- **Shared modal-overlay UI pattern: dimmed backdrop, titled header with actions, close X, tabular body** — docs_user_guide_images_09_asset_manager_asset_manager_modal, docs_user_guide_images_10_routing_routing_modal, docs_user_guide_images_11_outputs_outputs_modal [INFERRED 0.90]
-- **Three-zone editor shell: left scene/media sidebar, center stage + bottom dock tabs, right inspector** — docs_user_guide_images_06_scenes_cues_left_sidebar_scene_tree, docs_user_guide_images_06_scenes_cues_bottom_dock_tabs, docs_user_guide_images_06_scenes_cues_right_inspector_mapping, docs_user_guide_images_06_scenes_cues_status_bar_live, docs_user_guide_images_08_media_library_media_library_panel [INFERRED 0.85]
-- **Projector output alignment + blending flow (place, align, warp, blend, colour-match)** — docs_user_guide_images_11c_outputs_expanded_windowed_display_mode, docs_user_guide_images_11c_outputs_expanded_align_corner_pin, docs_user_guide_images_11c_outputs_expanded_bezier_warp, docs_user_guide_images_11c_outputs_expanded_soft_edge_blend, docs_user_guide_images_11c_outputs_expanded_auto_measure_camera, docs_user_guide_images_13_calibration_calibrate_wizard [INFERRED 0.85]
-- **Persistent editor shell chrome shared by every screenshot (left Scene rail, right inspector, bottom dock, status bar)** — docs_user_guide_images_11c_outputs_expanded_left_scene_sidebar, docs_user_guide_images_11c_outputs_expanded_global_params, docs_user_guide_images_11c_outputs_expanded_mapping_inspector, docs_user_guide_images_11c_outputs_expanded_status_bar, docs_user_guide_images_13_calibration_bottom_dock_tabs [EXTRACTED 1.00]
-- **Centered dark modal overlay pattern over a dimmed editor (title row + close X)** — docs_user_guide_images_11c_outputs_expanded_outputs_panel, docs_user_guide_images_14_preferences_dialog, docs_user_guide_images_15_osc_monitor_panel, docs_user_guide_images_17_about_dialog, docs_user_guide_images_18_audio_bed_panel [INFERRED 0.95]
-- **Three-look cyclic state loop (Calm → Rise → Burn → Calm)** — examples_state_machine_tuto_images_state_graph_calm, examples_state_machine_tuto_images_state_graph_rise, examples_state_machine_tuto_images_state_graph_burn, examples_state_machine_tuto_images_state_graph_transition_trigger_crossfade [EXTRACTED 1.00]
-- **Hub-and-spoke attract pattern — hub plus four spoke states** — examples_state_machine_tuto_images_hub_and_spoke_attract, examples_state_machine_tuto_images_hub_and_spoke_ember, examples_state_machine_tuto_images_hub_and_spoke_tide, examples_state_machine_tuto_images_hub_and_spoke_grove, examples_state_machine_tuto_images_hub_and_spoke_blackout [EXTRACTED 1.00]
 - **LiDAR blob → smoothed, merged marker pipeline (raw stage vs 3D viz)** — examples_lidar_tracking_tuto_images_merge_people_raw_feed_one_person, examples_lidar_tracking_tuto_images_merge_people_merge_people, examples_lidar_tracking_tuto_images_tracking_zones_smoothed_blob_markers, examples_lidar_tracking_tuto_images_merge_people_3d_scene_projector [INFERRED 0.85]
+- **Hub-and-spoke attract pattern — hub plus four spoke states** — examples_state_machine_tuto_images_hub_and_spoke_attract, examples_state_machine_tuto_images_hub_and_spoke_ember, examples_state_machine_tuto_images_hub_and_spoke_tide, examples_state_machine_tuto_images_hub_and_spoke_grove, examples_state_machine_tuto_images_hub_and_spoke_blackout [EXTRACTED 1.00]
+- **Three-look cyclic state loop (Calm → Rise → Burn → Calm)** — examples_state_machine_tuto_images_state_graph_calm, examples_state_machine_tuto_images_state_graph_rise, examples_state_machine_tuto_images_state_graph_burn, examples_state_machine_tuto_images_state_graph_transition_trigger_crossfade [EXTRACTED 1.00]
+- **The contribution registries a plugin registers into** — docs_plugins_contentsourceregistry, docs_plugins_clipkindregistry, docs_plugins_scenevizregistry, docs_plugins_panelregistry, docs_plugins_contextregistry, docs_plugins_smtriggerregistry, docs_plugins_videocodecregistry, docs_plugins_automationtargetregistry, docs_plugins_settingssectionregistry, docs_plugins_projectorchannel [EXTRACTED 1.00]
+- **The cold-start gate flow (a show waits for its content)** — docs_state_machine_bootgate, docs_state_machine_preroll_first_frame_not_buffer, docs_state_machine_preloading_show_sign, docs_scene_timelines_pool_keyed_layer_buffers, docs_sdk_host_boot, docs_timeline_housekeeping_three_rules [EXTRACTED 1.00]
+- **One transport, two playheads — the show/scene clock model** — docs_scene_timelines_one_transport_two_playheads, docs_scene_timelines_clockscoincident, docs_timeline_show_clock, docs_timeline_show_clock_reset_table, docs_timeline_audio_containers, docs_state_machine_holdatend, docs_scene_timelines_reconverge [EXTRACTED 1.00]
+- **Launcher four-tab venue-PC workflow: install, find projects, seed examples, preflight the machine** — docs_images_launcher_01_install_launcher_window, docs_images_launcher_01_install_sidebar_nav, docs_images_launcher_02_projects_tab, docs_images_launcher_03_examples_tab, docs_images_launcher_04_health_tab [EXTRACTED 1.00]
+- **Mapping context composes rail, action bar, browser, stage viewport, dock tabs, parameters and the timeline drawer** — docs_user_guide_images_00_main_editor_context_rail, docs_user_guide_images_00_main_editor_action_bar, docs_user_guide_images_00_main_editor_browser_column, docs_user_guide_images_00_main_editor_stage_viewport, docs_user_guide_images_00_main_editor_dock_tabs, docs_user_guide_images_00_main_editor_timeline_drawer, docs_user_guide_images_02_surface_inspector_parameters_column [EXTRACTED 1.00]
+- **Place surface → assign content source → patch fixtures → route to an Art-Net controller → live output on the status bar** — docs_user_guide_images_00_main_editor_surfaces_list, docs_user_guide_images_00_main_editor_content_source_grid, docs_user_guide_images_03_fixture_inspector_fixtures_tree, docs_user_guide_images_00_main_editor_routing_panel, docs_user_guide_images_00_main_editor_controller_row, docs_user_guide_images_00_main_editor_status_bar [INFERRED 0.95]
+- **Right-hand fixture inspector stack: Patch → Mapping → Segments → 2D/Output** — docs_user_guide_images_04_fixture_editor_patchsection, docs_user_guide_images_04_fixture_editor_mappingsection, docs_user_guide_images_04_fixture_editor_segmentssection, docs_user_guide_images_04_fixture_editor_2doutputsection [EXTRACTED 1.00]
+- **Timeline lane stack: state-machine, video, audio and automation lanes share one ruler and playhead** — docs_user_guide_images_05_timeline_statemachinelane, docs_user_guide_images_05_timeline_videolane, docs_user_guide_images_05_timeline_audiolane, docs_user_guide_images_05_timeline_automationlane, docs_user_guide_images_05_timeline_playhead [EXTRACTED 1.00]
+- **Patch-to-wire flow: routing controller → auto-patch → fixture patch → DMX monitor → live output stats** — docs_user_guide_images_10_routing_maindmxcontroller, docs_user_guide_images_10_routing_autopatchbutton, docs_user_guide_images_04_fixture_editor_patchsection, docs_user_guide_images_07_dmx_monitor_panel, docs_user_guide_images_11_outputs_outputengine [INFERRED 0.85]
+- **Patch chain: fixture browser → routing controllers → patch/mapping inspector → matrix output** — docs_user_guide_images_11b_outputs_windowed_fixtures_panel, docs_user_guide_images_11b_outputs_windowed_controllers_table, docs_user_guide_images_11b_outputs_windowed_patch_section, docs_user_guide_images_13_calibration_matrix_layout [INFERRED 0.85]
+- **Trigger-zone authoring: canvas + zones list + inspector feed a Show Machine transition** — docs_user_guide_images_13_tracking_zone_canvas, docs_user_guide_images_13_tracking_zones_list, docs_user_guide_images_13_tracking_zone_inspector, docs_user_guide_images_13_tracking_show_machine_link, docs_user_guide_images_14_show_state_machine_transition_labels [EXTRACTED 1.00]
+- **Playhead-driven region binds timeline transport to TIMED/MARKER/CLIP states** — docs_user_guide_images_14_show_state_machine_region, docs_user_guide_images_14_show_state_machine_timed_state, docs_user_guide_images_14_show_state_machine_marker_state, docs_user_guide_images_14_show_state_machine_clip_state, docs_user_guide_images_11c_outputs_expanded_transport_bar [EXTRACTED 1.00]
+- **Two clocks shown side by side: the bed clock and the per-scene timeline clock** — examples_audio_tuto_images_01_bed_lane_vs_ruler_bedbadge, examples_audio_tuto_images_01_bed_lane_vs_ruler_sceneclock, examples_audio_tuto_images_01_bed_lane_vs_ruler_timeruler, examples_audio_tuto_images_03_scene_ruler_bedbadge, examples_audio_tuto_images_03_scene_ruler_sceneclock [EXTRACTED 1.00]
+- **The Audio context mixer: bed region + scene region + master insert chain** — examples_audio_tuto_images_02_mixer_regions_bedregion, examples_audio_tuto_images_02_mixer_regions_sceneregion, examples_audio_tuto_images_02_mixer_regions_masterstrip, examples_audio_tuto_images_02_mixer_regions_insertchain, examples_audio_tuto_images_02_mixer_regions_readonlynote [EXTRACTED 1.00]
+- **Authoring flow: media library → bed tracks / scene lane → clip inspector → master** — docs_user_guide_images_18_audio_bed_medialibrary, docs_user_guide_images_18_audio_bed_dragfromlibrary, docs_user_guide_images_18_audio_bed_bedtracksregion, docs_user_guide_images_18_audio_bed_clipinspector, docs_user_guide_images_18_audio_bed_masterstrip [INFERRED 0.85]
+- **The bed vs a scene's own sound, kept on two clocks** — examples_audio_tuto_images_04_clip_inspector_spatial_fx_tracks_the_bed, examples_audio_tuto_images_04_clip_inspector_spatial_fx_tracks_foyer, examples_audio_tuto_images_04_clip_inspector_spatial_fx_bed_show_clock_note, examples_audio_tuto_images_05_global_vs_lane_two_clocks, examples_audio_tuto_images_audio_context_bed_vs_scene_audio [INFERRED 0.85]
+- **Per-scene authoring loop: bind a state to a scene, edit that scene's timeline, mix its audio** — examples_audio_tuto_images_06_show_machine_state_scene_binding, examples_audio_tuto_images_05_global_vs_lane_editing_scene_picker, examples_audio_tuto_images_05_global_vs_lane_audio_lane, examples_audio_tuto_images_audio_context_mixer [INFERRED 0.75]
+- **LiDAR setup flow: verify OSC arrives, map tracking content onto the floor with Calibrate/Flip, then draw trigger zones** — examples_lidar_tracking_tuto_images_01_osc_monitor_listen_status, examples_lidar_tracking_tuto_images_02_calibrate_flip_calibrate_toggles, examples_lidar_tracking_tuto_images_02_calibrate_flip_tracking_source_params, examples_lidar_tracking_tuto_images_01_tracking_panel_zone_map, examples_lidar_tracking_tuto_images_01_tracking_panel_zone_ownership_rule [INFERRED 0.85]
+- **A zone drawn in the Tracking panel fires a state-machine transition** — examples_lidar_tracking_tuto_images_zones_panel_zonerect, examples_lidar_tracking_tuto_images_zones_panel_peopleneeded, examples_lidar_tracking_tuto_images_zone_trigger_inspector_triggerselect, examples_lidar_tracking_tuto_images_zone_trigger_inspector_whenselect, examples_lidar_tracking_tuto_images_zone_trigger_inspector_blackouttoattract [INFERRED 0.95]
+- **Playhead-driven states advance from timeline time, marker and clip end** — examples_state_machine_tuto_images_02_transition_inspector_playheadregion, examples_state_machine_tuto_images_02_transition_inspector_timedstate, examples_state_machine_tuto_images_02_transition_inspector_markerstate, examples_state_machine_tuto_images_02_transition_inspector_clipstate, examples_lidar_tracking_tuto_images_03_tracking_lane_transportbar [INFERRED 0.85]
+- **Attract-hub topology: every triggered performance returns to ATTRACT** — examples_state_machine_tuto_images_03_interactive_graph_attractstate, examples_state_machine_tuto_images_03_interactive_graph_emberstate, examples_state_machine_tuto_images_03_interactive_graph_tidestate, examples_state_machine_tuto_images_03_interactive_graph_grovestate, examples_state_machine_tuto_images_03_interactive_graph_blackoutstate, examples_state_machine_tuto_images_03_interactive_graph_toattracttransition [EXTRACTED 1.00]
 
-## Communities (328 total, 44 thin omitted)
+## Communities (434 total, 56 thin omitted)
 
-### Community 0 - "Cue Bank and Automation Overlay"
+### Community 0 - "Timeline Lanes & Automation"
+Cohesion: 0.04
+Nodes (94): AutomationTargetDef, toDisplay(), AudioClipBlock(), AudioDragMode, AudioLane(), AudioLaneProps, Wave(), ensurePeaks() (+86 more)
+
+### Community 1 - "Launcher API Bridge"
 Cohesion: 0.05
-Nodes (55): CaptureTarget, CueBankPanel(), labelForPath(), Props, TRANSITIONS, apply(), release(), set() (+47 more)
+Nodes (78): addLibraryRoot(), artluxRunning(), cancelDownload(), cancelScan(), copyExample(), CopyResult, createProject(), downloadInstaller() (+70 more)
 
-### Community 2 - "Calibration Native Bridge"
+### Community 2 - "Shared Types & Panel Props"
 Cohesion: 0.05
-Nodes (31): CalibNative, calibrateGuided(), cameraGrab(), cameraGrabColor(), decodeDense(), loadNative(), mapCorners(), native (+23 more)
+Nodes (46): AssetEntry, AssetType, DisplayInfo, FixtureProfile, DocSnapshot, Props, DMXMonitorProps, LibraryProps (+38 more)
 
-### Community 3 - "Stage Rendering and GPU Mapping"
+### Community 3 - "Fixture Library & Contexts"
+Cohesion: 0.08
+Nodes (64): trackingStore, FixtureLibrary(), FixtureWiring(), FixtureProfilePicker(), Props, HelpBrowserBody(), Preferences(), RoutingModal() (+56 more)
+
+### Community 5 - "Dock Tree Layout Tests"
 Cohesion: 0.06
-Nodes (34): InspectorPanelProps, Props, ScenePanel(), ScenePanelProps, COLOR_ORDER, Stage(), StageProps, fixtureSegments() (+26 more)
+Nodes (67): PanelContribution, base, closed, count(), crossed, CTX, deepNode, dup (+59 more)
 
-### Community 4 - "Audio Effects DSP"
+### Community 6 - "Media Panel & UI Primitives"
+Cohesion: 0.05
+Nodes (54): SelectionSnapshot, WorkspaceContext, AssetChip(), Props, CollapsibleSection(), Props, Filter, fmtBytes() (+46 more)
+
+### Community 7 - "Lighting Clip Inspector"
+Cohesion: 0.04
+Nodes (53): FORMS, isAngle(), LightingClipInspector(), MODES, Props, ROLE_DEFAULTS, effectiveLayout(), spawnPosition3D() (+45 more)
+
+### Community 8 - "DMX Monitor & Fixture Editor"
+Cohesion: 0.06
+Nodes (47): DMXMonitor(), ProfileChannels(), wireChannels(), WiringProps, KIND_ORDER, buildGammaLut(), COLOR_ORDER, DEFAULT_INPUTS (+39 more)
+
+### Community 9 - "Boot Report & Branding"
+Cohesion: 0.05
+Nodes (45): ICON_MARK, WORDMARK, AUTHORS, AUTHORS_LINE, AppInfo, BootEntry, BootReport, BootState (+37 more)
+
+### Community 10 - "Calibration Projector Channel"
+Cohesion: 0.05
+Nodes (44): CalibMode, hintBox, sameLook(), sameTriple(), BlendLook, clearOwnedSurfaceFrames(), clearSurfaceFrame(), frames (+36 more)
+
+### Community 11 - "Timeline Engine Service"
+Cohesion: 0.06
+Nodes (58): activeClip(), armedSubs, atEndBound(), baseAutomation, blendOp(), buildProgram(), captureHold(), clampPlayheadIntoDoc() (+50 more)
+
+### Community 12 - "Native Audio Effects"
 Cohesion: 0.06
 Nodes (42): BallisticsFilter, map, CompFx, det, makeup, ptrs, ratio, thr (+34 more)
 
-### Community 5 - "App Shell and Dock"
-Cohesion: 0.06
-Nodes (43): defaultProjectorOutput(), defaultScene3D(), defaultSoftEdge(), App(), DEFAULT_SETTINGS, EMPTY_TIMELINE_AUDIO, QS, Dock() (+35 more)
-
-### Community 6 - "Timeline Track Headers"
+### Community 13 - "MP4 WebCodecs Decoder"
 Cohesion: 0.05
-Nodes (46): objects, ContentEditorProps, Timeline(), BLEND_MODES, Props, TRACK_COLORS, TrackHeader, AudioBus (+38 more)
+Nodes (32): close(), decoders, Enc, ensureLayerOpen(), ensureOpen(), ensurePump(), FileDecoder, frame() (+24 more)
 
-### Community 7 - "Ambisonic Spatial Audio"
+### Community 15 - "App Root & Outputs Panel"
+Cohesion: 0.06
+Nodes (44): defaultProjectorOutput(), defaultSoftEdge(), FULL_RECT, OutputSpan, App(), DEFAULT_SETTINGS, EditOrigin, EMPTY_TIMELINE_AUDIO (+36 more)
+
+### Community 16 - "Auto-Recalibration"
+Cohesion: 0.08
+Nodes (49): anchorCamera(), applyAccepted(), CameraAnchor, cfgOf(), commissionFromScan(), insideWindow(), Log, referenceFor() (+41 more)
+
+### Community 17 - "Launcher Tauri Commands"
+Cohesion: 0.08
+Nodes (47): AppHandle, Config, CopyResult, ExampleSet, InstallOutcome, add_library_root(), copy_example(), create_project() (+39 more)
+
+### Community 18 - "Ambisonic Spatial Bus"
 Cohesion: 0.04
-Nodes (46): AmbisonicBinauralizer, AmbisonicDecoder, Amblib_SpeakerSetUps, AudioBuffer, BFormat, CriticalSection, DecodeBuild, Gain (+38 more)
+Nodes (44): AmbisonicBinauralizer, AmbisonicDecoder, AudioBuffer, BFormat, CriticalSection, DecodeBuild, Gain, SpatialBus (+36 more)
 
-### Community 8 - "User Guide Screenshots"
+### Community 19 - "HAP Codec Decode"
+Cohesion: 0.10
+Nodes (46): AsRef, AsyncTask, JsValue, classify(), decode_complex(), decode_frame(), Decoded, HapFormat (+38 more)
+
+### Community 20 - "Content Editor & Preferences"
+Cohesion: 0.06
+Nodes (35): SrcRect, btnCls(), ContentEditor, ContentEditorImpl(), ContentEditorProps, Props, WATCHDOG_UI_DEFAULTS, Button() (+27 more)
+
+### Community 21 - "Main Windows & IPC"
+Cohesion: 0.07
+Nodes (37): IPC, APP_PRELOAD, open(), registerDocsWindow(), closeEnginePort(), openEnginePort(), APP_ICON, argv (+29 more)
+
+### Community 22 - "Calibration Pose Controller"
+Cohesion: 0.06
+Nodes (35): Ack, begin(), capturePose(), CaptureResult, delay(), imagePoints, IntrinsicsSolve, objectPoints (+27 more)
+
+### Community 23 - "3D Simulator Gizmos"
+Cohesion: 0.06
+Nodes (30): AnchorMarker(), _p, Props, AXES, AxisTriad(), FixtureGizmo(), FixtureTransform, Props (+22 more)
+
+### Community 24 - "JUCE Audio Engine Core"
 Cohesion: 0.05
-Nodes (53): 100 mm Reference Ruler, 25 mm Square Size, 9 x 6 Inner Corners Pattern, Measure a Square and Enter It in the Calibration Wizard, Millimetre-Exact Page Geometry (274 x 229 mm viewBox), Calibration Checkerboard (PNG print target), Print at 100% / Actual Size (A3 or A4 fit-to-page), Calibration Checkerboard (SVG vector source) (+45 more)
+Nodes (27): AudioDeviceManager, AudioSourceChannelInfo, AudioSourcePlayer, Engine, bus, deviceManager, initialised, lastOpened (+19 more)
 
-### Community 9 - "Preferences and Fixture Editor"
-Cohesion: 0.06
-Nodes (34): AugmentaContentEditor(), UnattendedPrefs, WatchdogStatus, Props, Props, WATCHDOG_UI_DEFAULTS, TopBar(), TopBarProps (+26 more)
+### Community 25 - "Show Control Playlist"
+Cohesion: 0.07
+Nodes (33): PanelProps, RendererHostServices, baseName(), DAYS, PlaylistPanel(), timers, unsubs, toSvg() (+25 more)
 
-### Community 10 - "HAP Decode Pipeline"
-Cohesion: 0.06
-Nodes (28): fill(), Frame, getFrame(), getPipe(), infos, Pipe, pipes, probing (+20 more)
-
-### Community 11 - "Timeline Engine Service"
+### Community 26 - "Homography & Corner Pin"
 Cohesion: 0.08
-Nodes (48): ensureBlobUrl(), getBlobUrl(), activeClip(), atEndBound(), baseAutomation, blendOp(), buildProgram(), captureHold() (+40 more)
+Nodes (37): imageToWorld(), invert(), multiply(), defaultCornerPin(), applyH(), cornerQs(), dist(), intersect() (+29 more)
 
-### Community 12 - "3D Simulator Scene"
-Cohesion: 0.07
-Nodes (25): ProjectorModel(), modelScaleXYZ(), SceneModel, FixtureGizmo(), Props, FixtureLights(), GroundGrid(), Lighting() (+17 more)
+### Community 27 - "Take Recorder"
+Cohesion: 0.08
+Nodes (28): addLightingLane(), addTrackingLane(), destination(), emit(), isRecording(), LIGHT_OFF, LIGHT_ON, lightingActionLive (+20 more)
 
-### Community 13 - "Shared Protocol Types"
-Cohesion: 0.07
-Nodes (31): FiducialMarker, InputConfig, InputFrame, IPC, MpcdiRegion, OutputConfig, OutputProtocol, OutputStats (+23 more)
-
-### Community 14 - "JUCE Audio Engine Core"
-Cohesion: 0.06
-Nodes (25): AudioDeviceManager, AudioSourcePlayer, channels, Engine, bus, deviceManager, initialised, lastOpened (+17 more)
-
-### Community 15 - "HAP Rust Native Crate"
+### Community 28 - "OpenCV Calib (Rust) — Src Lib"
 Cohesion: 0.12
-Nodes (33): AsRef, AsyncTask, JsValue, blocks_to_rgba(), BlocksTask, close(), decode_blocks(), decode_frame() (+25 more)
+Nodes (42): Mat, ArucoDetection, bits_for(), BoardDetectResult, bougnoux_focal_sq(), calibrate_projector(), calibrate_projector_guided(), camera_get_prop() (+34 more)
 
-### Community 16 - "OpenCV Calibration Crate"
-Cohesion: 0.15
-Nodes (35): Mat, ArucoDetection, bits_for(), BoardDetectResult, bougnoux_focal_sq(), calibrate_projector(), calibrate_projector_guided(), camera_grab_gray() (+27 more)
+### Community 29 - "Timeline UI"
+Cohesion: 0.06
+Nodes (30): hub, tr(), withGlobal, ACTION_KINDS, add(), CueRef, defaultC(), Drag (+22 more)
 
-### Community 17 - "SDK Renderer Registries"
+### Community 30 - "Documentation — Manifest Reference"
 Cohesion: 0.05
-Nodes (19): AutomationTargetRegistry, ClipKindContribution, ContentSourceRegistry, PanelContribution, PanelRegistry, ProjectorPanelContribution, ProjectorPanelRegistry, SceneVizContribution (+11 more)
+Nodes (42): reference, ARCHITECTURE.md, ASSETS.md, AUDIO.md, AUGMENTA.md, AUTO-ALIGN.md, CALIB-OPTIMIZATIONS.md, CALIBRATION.md (+34 more)
 
-### Community 18 - "Electron Main Lifecycle"
+### Community 31 - "Audio Plugin — Src"
 Cohesion: 0.08
-Nodes (27): APP_PRELOAD, registerDocsWindow(), APP_ICON, argv, BROADCAST, createWindow(), disabledFeatures, HEADLESS (+19 more)
+Nodes (33): audioClient, setIpc(), setAudioHost(), AudioEffectSpec, ClipMeta, DeviceEntry, Meters, OutputMode (+25 more)
 
-### Community 19 - "TypeScript Build Config"
-Cohesion: 0.05
-Nodes (36): compilerOptions, allowImportingTsExtensions, allowJs, experimentalDecorators, isolatedModules, jsx, lib, module (+28 more)
+### Community 32 - "Calibration Plugin — Src Calibworkspace"
+Cohesion: 0.10
+Nodes (33): getCalibration(), storeCalibration(), armEditPixel(), armEditWorld(), begin(), bestPose(), CalibWorkspaceState, cancelPickDrag() (+25 more)
 
-### Community 20 - "Audio Automation Targets"
-Cohesion: 0.07
-Nodes (32): getAudioHost(), applyBusLayers(), applyBusPaths(), applyClipLayers(), applyClipPaths(), autoOrFadeGain(), autoOrFadeMasterGain(), autoOrFadeTrackGain() (+24 more)
+### Community 33 - "3D Simulator"
+Cohesion: 0.08
+Nodes (29): UNIT_CONE, barSize(), BASE, FixtureBodies(), Props, SELECTED, UNIT_BAR, FixtureLights() (+21 more)
 
-### Community 21 - "Show Control HTTP Server"
+### Community 34 - "Renderer"
 Cohesion: 0.09
-Nodes (24): begin(), beginScan(), bearer(), Client, clients, close(), configure(), currentDevices() (+16 more)
+Nodes (28): currentProject(), RendererFault, DocsBrowser(), ErrorBoundary, Props, State, SplashScreen(), FeedbackProvider() (+20 more)
 
-### Community 22 - "NDI Manager"
+### Community 35 - "Plugin SDK — Src Renderer"
+Cohesion: 0.05
+Nodes (23): ClipKindContribution, PanelRegistry, ProjectorPanelRegistry, SceneVizRegistry, SmTriggerContribution, SmTriggerRegistry, applyExtend(), automationProviders (+15 more)
+
+### Community 36 - "Audio Plugin — Src Automationtargets"
+Cohesion: 0.07
+Nodes (34): ProjectService, getAudioHost(), applyBusLayers(), applyBusPaths(), applyClipLayers(), applyClipPaths(), autoOrFadeGain(), autoOrFadeMasterGain() (+26 more)
+
+### Community 37 - "Calibration Plugin — Src"
+Cohesion: 0.09
+Nodes (25): describe(), emit(), ImportedRig, pushToProjector(), pushToProjectors(), regionFor(), set(), subs (+17 more)
+
+### Community 38 - "Artlux Plugin"
+Cohesion: 0.05
+Nodes (37): compilerOptions, allowImportingTsExtensions, allowJs, experimentalDecorators, isolatedModules, jsx, lib, module (+29 more)
+
+### Community 39 - "Main Process — Watchdog"
+Cohesion: 0.11
+Nodes (32): uid(), report(), isStale(), date, UnattendedPrefs, WatchdogStatus, relaunchArgs(), cfg (+24 more)
+
+### Community 40 - "Plugin SDK — Src"
+Cohesion: 0.09
+Nodes (19): OscConfig, OscMessage, PluginManifest, PluginState, PluginStatus, MainPlugin, MainPluginContext, MainPluginIpc (+11 more)
+
+### Community 41 - "Renderer Services"
+Cohesion: 0.09
+Nodes (28): nextNumberedName(), CaptureTarget, CueBankPanel(), labelForPath(), TRANSITIONS, coreAutomationProvider, profileChannelRange(), RANGE (+20 more)
+
+### Community 42 - "Renderer Services — Transitions"
+Cohesion: 0.08
+Nodes (25): apply(), release(), set(), values, FadeTarget, GEOMETRY_LEAVES, isGeometryPath(), setByPath() (+17 more)
+
+### Community 43 - "Calibration Plugin — Src Cvcamera"
+Cohesion: 0.11
+Nodes (28): cameraCenter(), cameraPixelRayWorld(), cameraPose(), cameraToWorldRot(), frustumCorners(), glProjectionMatrix(), Mat3, matT() (+20 more)
+
+### Community 44 - "Plugin SDK — Src Renderer"
+Cohesion: 0.06
+Nodes (13): AutomationTargetRegistry, ContentSourceRegistry, ContextAction, Drawable, PanelMount, PreloadService, ProjectorPanelContribution, ProjectorsService (+5 more)
+
+### Community 45 - "Audio Plugin — Src Conform"
+Cohesion: 0.13
+Nodes (29): gainFor(), cacheDir(), cacheKey(), conformAppend(), conformFinish(), conformFrames(), conformRewind(), conformStart (+21 more)
+
+### Community 46 - "Calibration Plugin — Src"
+Cohesion: 0.12
+Nodes (27): SurfaceResult, LiveDrag, DriftCheckOptions, runDriftCheck(), aggregate(), Blob, camProject(), DriftScore (+19 more)
+
+### Community 47 - "Renderer Services"
+Cohesion: 0.11
+Nodes (27): ChannelRole, Cursor, cancel(), notify(), start(), stop(), subs, subscribe() (+19 more)
+
+### Community 48 - "Renderer Services"
+Cohesion: 0.09
+Nodes (28): ProfileChannel, ProfileMode, EMITTERS, FixtureState, hexToRgb(), latest, Listener, listeners (+20 more)
+
+### Community 49 - "Package Scripts"
+Cohesion: 0.06
+Nodes (33): scripts, assets:mediapipe, build, build:audio, build:calib, build:fixtures, build:native, build:ndi (+25 more)
+
+### Community 50 - "NDI Plugin — Src Ndimanager"
 Cohesion: 0.09
 Nodes (17): ndiManager, available(), ensureNdiOnPath(), loadNative(), native, NdiNative, req, sendConfigure() (+9 more)
 
-### Community 23 - "Timeline Edit Operations"
-Cohesion: 0.11
-Nodes (24): AutomationTargetDef, AutomationTargetPicker(), Props, TimelineKeyHandlers, useTimelineKeys(), bladeAt(), liftDelete(), rippleDelete() (+16 more)
-
-### Community 24 - "Show Control Dispatch"
-Cohesion: 0.09
-Nodes (19): PanelProps, PluginIpc, RendererHostServices, dispatch(), timers, unsubs, toSvg(), DEFAULTS (+11 more)
-
-### Community 25 - "Audio Conform Cache"
-Cohesion: 0.15
-Nodes (27): cacheDir(), cacheKey(), conformAppend(), conformFinish(), conformFrames(), conformRewind(), conformStart, isVideoContainer() (+19 more)
-
-### Community 26 - "Auto-Align Design Docs"
-Cohesion: 0.08
-Nodes (30): Native addons degrade gracefully when missing, Six napi crates loaded in main, dmxSignal bus (per-LED RGBW buffer in fixture order), One InstancedMesh for all LEDs + ref-based useLedColors, Phase G — 3D LED fixture editor + live simulator, Read-time back-compat migration for 3D fields, Governing architectural truth (NVAPI warp is a 2D resample), Markerless camera auto-align (multi-projector, NVAPI, MPCDI) (+22 more)
-
-### Community 27 - "Calibration Camera Panel"
-Cohesion: 0.08
-Nodes (23): CameraParamsPanel(), EXPOSURE, FOCUS, FPS_OPTS, GAIN, Props, RESOLUTIONS, SIMPLE (+15 more)
-
-### Community 28 - "Auto-Align Wizard"
-Cohesion: 0.15
-Nodes (23): AutoAlignWizard(), nominalK(), Step, STEPS, Props, applyCamMask(), inPoly(), masked() (+15 more)
-
-### Community 29 - "SDK Content Source Contract"
+### Community 51 - "Renderer Services — Contentsource"
 Cohesion: 0.10
-Nodes (14): ContentSourceProvider, RendererPlugin, RendererPluginContext, ndiContentSource, plugin, plugin, plugin, spoutContentSource (+6 more)
+Nodes (27): InputFrame, contentSourceRegistry, acquire(), cameraConsumers, DEFAULT_DMX_UNIVERSES, dmxConsumers, Drawable, dropMedia() (+19 more)
 
-### Community 30 - "Watchdog Recovery"
-Cohesion: 0.14
-Nodes (21): cfg, healthTick(), installTask(), isTaskInstalled(), loadRelaunchTimes(), loadRing(), logEvent(), logFile() (+13 more)
+### Community 52 - "Renderer Services — Surfacemedia"
+Cohesion: 0.08
+Nodes (26): ProjectorPanelContext, SourcePreview(), projectorChannelRegistry, CORNER_KEYS, CORNER_LABELS, hintBox, NO_FEATHER, overlayCenter (+18 more)
 
-### Community 31 - "Art-Net Output Engine"
+### Community 53 - "Main Process — Projectfolder"
+Cohesion: 0.11
+Nodes (28): CollectResult, NewProjectFolder, ASSET_CATEGORIES, CATEGORY_TYPE, categoryFor(), collectAssetPaths(), collectAssets(), collectAssetsToFolder() (+20 more)
+
+### Community 54 - "Plugin SDK — Src Renderer"
+Cohesion: 0.09
+Nodes (18): PluginIpc, RendererPlugin, RendererPluginContext, hapCodec, layerState, plugin, ndiContentSource, plugin (+10 more)
+
+### Community 55 - "Renderer Services — Thumbnailcache"
+Cohesion: 0.11
+Nodes (27): VideoThumb(), Filmstrip(), Props, cache, codecQueue, deferred, emit(), encodeThumb() (+19 more)
+
+### Community 56 - "Renderer Services"
+Cohesion: 0.09
+Nodes (20): HelpBrowser(), Row, Props, StatusBar(), HELP_TOPICS, HelpTopic, helpEntry(), Cb (+12 more)
+
+### Community 57 - "Renderer — Shortcuts"
+Cohesion: 0.11
+Nodes (20): SCOPE_LABEL, ShortcutsEditor(), Cb, listeners, openShortcuts(), shortcutsNav, baseToken(), eventToChord() (+12 more)
+
+### Community 58 - "3D Simulator"
+Cohesion: 0.09
+Nodes (20): artluxUnpackDepthTSL(), farDepthTexture(), makeProjectedGlslMaterial(), makeProjectedMaterial(), makeProjectedNodeMaterial(), ProjectedBasicMaterial, ProjectedMaterial, TslNode (+12 more)
+
+### Community 59 - "Output Engine (Rust) — Src"
 Cohesion: 0.12
-Nodes (25): Arc, AtomicBool, AtomicU32, Condvar, build_artnet(), build_artsync(), build_sacn(), close() (+17 more)
+Nodes (27): AtomicU32, build_artnet(), build_artsync(), build_sacn(), close(), configure(), get_stats(), list_serial_devices() (+19 more)
 
-### Community 32 - "SDK Barrel Exports"
-Cohesion: 0.09
-Nodes (9): OscConfig, OscMessage, PluginManifest, ClipKindRegistry, Drawable, ProjectorChannelRegistry, ProjectorsService, Scene3DService (+1 more)
+### Community 60 - "Calibration Plugin — Src Calibnative"
+Cohesion: 0.12
+Nodes (21): calibArtifactDelete(), calibArtifactRead(), calibAuditAppend(), calibCalibrateGuided(), calibCalibrateProjector(), calibCameraGetProp(), calibCameraGrab(), calibCameraGrabColor() (+13 more)
 
-### Community 33 - "Audio Bed Panel"
-Cohesion: 0.10
-Nodes (19): AudioBedPanel(), Bus, Clip, EMPTY_TL, fmt(), fxOf(), Mix, num() (+11 more)
-
-### Community 34 - "Audio Client and Host"
-Cohesion: 0.10
-Nodes (21): audioClient, setIpc(), setAudioHost(), AudioEffectSpec, ClipMeta, Meters, audioAutomationProvider, boundGain() (+13 more)
-
-### Community 35 - "Broadcast Playlist Scheduler"
-Cohesion: 0.14
-Nodes (21): empty(), file(), getPlaylist(), minuteOfWeek(), occurrences(), parseHM(), resolve(), Resolved (+13 more)
-
-### Community 36 - "Project Folder Assets"
-Cohesion: 0.13
-Nodes (23): CollectResult, NewProjectFolder, ASSET_CATEGORIES, categoryFor(), collectAssets(), collectAssetsToFolder(), collectInto(), copyIntoAssets() (+15 more)
-
-### Community 37 - "NDI Rust Native Crate"
-Cohesion: 0.13
-Nodes (21): Fn, downscale_rgba(), fit(), list_sources(), NdiFrame, reason(), Recv, recv_connect() (+13 more)
-
-### Community 38 - "MediaPipe Pose Calibration"
+### Community 61 - "Calibration Plugin — Src Projectorscene"
 Cohesion: 0.11
-Nodes (17): useDraggable(), plugin, CORNERS, DEFAULT_HANDLES, PoseCalibration(), Pt, PoseContentEditor(), MediaPipeSettings (+9 more)
+Nodes (20): Blend, BlendEffect, Distortion, DistortionEffect, gridTexture(), needsBlendPass(), ProjectorModel(), ProjectorPlane() (+12 more)
 
-### Community 39 - "Audio Channel Fold"
+### Community 62 - "LiDAR Tracking — Src"
+Cohesion: 0.09
+Nodes (21): Accum, AddrStat, freshAccum(), OscMonitor(), Row, SurfRow, SurfStat, EMPTY (+13 more)
+
+### Community 63 - "Show Control — Src"
+Cohesion: 0.10
+Nodes (21): sample(), start(), lastWatchdog, plugin, FILE_EXTS, scanProjects(), DeviceInfo, EngineMetrics (+13 more)
+
+### Community 64 - "Show Control — Src"
+Cohesion: 0.12
+Nodes (19): bearer(), Client, clients, close(), configure(), currentDevices(), emit(), lastDevices (+11 more)
+
+### Community 65 - "3D Simulator"
+Cohesion: 0.12
+Nodes (25): Beams(), artluxPackDepthTSL(), attachProxies(), beginPass(), Caster, casterMatricesChanged(), casters, DepthCamera (+17 more)
+
+### Community 66 - "Launcher — Package"
+Cohesion: 0.07
+Nodes (27): comment, dependencies, react, react-dom, @tauri-apps/api, description, devDependencies, @tauri-apps/cli (+19 more)
+
+### Community 67 - "Launcher Backend — Src"
+Cohesion: 0.17
+Nodes (26): Config, config_path(), create_project_folder(), default_roots(), effective_roots(), entry_for(), head_scalar(), ignored() (+18 more)
+
+### Community 68 - "3D Simulator"
+Cohesion: 0.14
+Nodes (22): Entry, SceneModel, ModelObject(), ModelTransform, Props, ledUnderPointer(), PlaneObject(), Props (+14 more)
+
+### Community 69 - "MediaPipe Plugin — Src Poseengine"
+Cohesion: 0.12
+Nodes (23): acquire(), assetBase(), clamp01(), consumers, createFromOptions(), EngineStatus, forVisionTasks(), loadModule() (+15 more)
+
+### Community 70 - "Renderer — Help Entries"
 Cohesion: 0.16
-Nodes (24): clamp1(), fold(), FoldStats, gainFor(), measureFold(), newFoldStats(), outChannelsFor(), toInt16() (+16 more)
+Nodes (15): chromeHelp, contentHelp, fixturesHelp, mediaHelp, outputsHelp, routingHelp, scene3dHelp, scenesHelp (+7 more)
 
-### Community 40 - "MediaPipe Pose Engine"
+### Community 71 - "Launcher Backend — Tauri"
+Cohesion: 0.07
+Nodes (26): app, security, windows, build, beforeBuildCommand, beforeDevCommand, devUrl, frontendDist (+18 more)
+
+### Community 72 - "NDI Native — Src Lib"
 Cohesion: 0.13
-Nodes (22): acquire(), assetBase(), clamp01(), consumers, createFromOptions(), EngineStatus, forVisionTasks(), loadModule() (+14 more)
+Nodes (21): downscale_rgba(), fit(), list_sources(), NdiFrame, reason(), Recv, recv_connect(), recv_frame() (+13 more)
 
-### Community 41 - "Asset Library and Media Panel"
-Cohesion: 0.18
-Nodes (22): AssetEntry, AssetType, AssetChip(), AssetManager(), Filter, fmtBytes(), Props, Filter (+14 more)
-
-### Community 42 - "Content Source Registry"
+### Community 73 - "Calibration Plugin — Src"
 Cohesion: 0.13
-Nodes (21): acquire(), cameraConsumers, DEFAULT_DMX_UNIVERSES, dmxConsumers, Drawable, dropMedia(), effects, Entry (+13 more)
+Nodes (19): AutoAlignWizard(), nominalK(), Step, STEPS, CameraViewport, CameraViewportHandle, Detect, Props (+11 more)
 
-### Community 43 - "Projector Window (grp 43)"
+### Community 74 - "Calibration Plugin — Src Calib"
+Cohesion: 0.09
+Nodes (20): CameraParamsPanel(), EXPOSURE, FOCUS, FPS_LADDER, FPS_OPTS, GAIN, Props, RESOLUTIONS (+12 more)
+
+### Community 75 - "HAP Plugin — Src Hapdecode"
+Cohesion: 0.10
+Nodes (15): claimed(), ensureOpen(), fill(), Frame, getFrame(), getPipe(), infos, Pipe (+7 more)
+
+### Community 76 - "Documentation"
 Cohesion: 0.12
-Nodes (20): ProjectorPanelContext, BezierWarp, projectorChannelRegistry, projectorPanelRegistry, ProjectorRender, applyH(), CORNER_KEYS, CORNER_LABELS (+12 more)
+Nodes (25): Build Workflow (three-OS CI matrix), extraResources Glob Silent-Skip Trap, CI Strict Audio Engine Build Gate, Verify Packaged Resources Step, launcher-latest.yml Update Metadata, Launcher Workflow (launcher-v* tags), Launcher Pre-release Publishing (protects /releases/latest), Graceful Native Degradation Contract (+17 more)
 
-### Community 44 - "Calibration (grp 44)"
-Cohesion: 0.11
-Nodes (10): getCalibration(), setHost(), storeCalibration(), CalibProjector(), clearPoses(), pick(), solvePose(), PatternShown (+2 more)
+### Community 77 - "Audio Plugin — Src Audiobedpanel"
+Cohesion: 0.10
+Nodes (18): AudioBedPanel(), Bus, Clip, EMPTY_TL, fmt(), fxOf(), Mix, num() (+10 more)
 
-### Community 45 - "MediaPipe Pose (grp 45)"
+### Community 78 - "Audio Plugin — Src Conformclient"
+Cohesion: 0.16
+Nodes (23): clamp1(), fold(), FoldStats, measureFold(), newFoldStats(), outChannelsFor(), toInt16(), BlockFn (+15 more)
+
+### Community 79 - "LiDAR Tracking — Src"
+Cohesion: 0.10
+Nodes (20): clusterAndTrack(), clusterBlobs(), mergeGroup(), resetPeopleTracking(), state, SurfState, Track, trackSurface() (+12 more)
+
+### Community 80 - "MediaPipe Plugin — Src Posetracking"
 Cohesion: 0.10
 Nodes (18): poseDrawable, poseEngine, poseFloor, poseHomography, posePass, poseProjector, poseRenderer, poseStore (+10 more)
 
-### Community 46 - "Renderer UI and Renderer Services (grp 46)"
-Cohesion: 0.13
-Nodes (18): CollapsibleSection(), Props, FixtureEditor(), InspectorPanel(), useLedColors(), BLACK, InstancedLeds(), Props (+10 more)
+### Community 81 - "Show Control — Src"
+Cohesion: 0.16
+Nodes (20): empty(), file(), getPlaylist(), minuteOfWeek(), occurrences(), parseHM(), resolve(), Resolved (+12 more)
 
-### Community 47 - "Filmstrip Thumbnails"
-Cohesion: 0.12
-Nodes (21): Filmstrip(), Props, videoCodecRegistry, cache, codecQueue, emit(), Entry, getLoader() (+13 more)
-
-### Community 48 - "State Graph Editor"
-Cohesion: 0.10
-Nodes (17): ACTION_KINDS, add(), CueRef, defaultC(), Drag, length(), lerp(), mul() (+9 more)
-
-### Community 49 - "JUCE Audio Engine (grp 49)"
+### Community 82 - "JUCE Audio Engine — Src"
 Cohesion: 0.27
 Nodes (23): CallbackInfo, ClearClipSpatial(), Close(), Configure(), Env, GetDevices(), Init(), JuceVersion() (+15 more)
 
-### Community 50 - "Timeline UI (grp 50)"
-Cohesion: 0.12
-Nodes (21): react, AudioDragMode, AudioLane(), AudioLaneProps, Wave(), attempts, durs, ensurePeaks() (+13 more)
-
-### Community 51 - "Timeline UI (grp 51)"
+### Community 83 - "LiDAR Tracking — Src"
 Cohesion: 0.13
-Nodes (19): trackingRecorder, AudioClipBlock(), chooseTickStep(), clamp(), fmtClock(), fmtTimecode(), laneHeight(), pad2() (+11 more)
+Nodes (14): SmTriggerEvalContext, EDGES, ZoneTriggerInspector(), describeZoneTrigger(), level(), Memo, memos, resetZoneTriggers() (+6 more)
 
-### Community 52 - "Plugin SDK and Calibration (grp 52)"
+### Community 84 - "Renderer Services — Bootgate"
 Cohesion: 0.13
-Nodes (10): MainPlugin, MainPluginContext, MainPluginIpc, plugin, calibManager, plugin, hapManager, plugin (+2 more)
+Nodes (19): armNow(), BootPhase, BootProgress, collect(), finish(), get(), hold(), keyOf() (+11 more)
 
-### Community 53 - "Calibration (grp 53)"
+### Community 85 - "Calibration Plugin — Src Calibcapture"
 Cohesion: 0.10
-Nodes (12): CameraDevice, CaptureSource, grab(), grabBrowser(), GrayFrame, nativeDims, PropRange, start() (+4 more)
+Nodes (14): CameraDevice, CaptureSource, current(), dims(), grab(), grabBrowser(), GrayFrame, nativeDims (+6 more)
 
-### Community 54 - "Calibration (grp 54)"
-Cohesion: 0.14
-Nodes (17): cameraCenter(), cameraPose(), cameraToWorldRot(), frustumCorners(), glProjectionMatrix(), Mat3, matT(), matToQuat() (+9 more)
+### Community 86 - "LiDAR Tracking — Src"
+Cohesion: 0.13
+Nodes (17): BlobInst, cache, compile(), GL, linkProg(), Progs, TrailVerts, aspectFor() (+9 more)
 
-### Community 55 - "LiDAR Tracking (grp 55)"
+### Community 87 - "JUCE Audio Engine — Src"
+Cohesion: 0.17
+Nodes (5): Amblib_SpeakerSetUps, channels, String, vector, layoutFromName()
+
+### Community 88 - "LiDAR Tracking — Src"
 Cohesion: 0.13
 Nodes (15): cancel(), notify(), start(), stop(), subs, subscribe(), TrackingSnapshot, buildDensity() (+7 more)
 
-### Community 56 - "HAP Native (grp 56)"
-Cohesion: 0.19
-Nodes (21): FnMut, camera_get_prop(), camera_open(), camera_set_prop(), prop_id_for(), String, be16(), be32() (+13 more)
-
-### Community 57 - "Calibration (grp 57)"
-Cohesion: 0.11
-Nodes (17): BlendMap, BlendOptions, Grid, ProjectorBlendInput, calibCapture, calibController, calibNative, calibWorkspace (+9 more)
-
-### Community 58 - "Show Control (grp 58)"
-Cohesion: 0.13
-Nodes (14): lastWatchdog, EngineMetrics, RenderMetrics, ShowCommand, ShowSnapshot, ShowStatus, SnapBank, SnapCue (+6 more)
-
-### Community 59 - "Electron Main (grp 59)"
-Cohesion: 0.13
-Nodes (17): DocAsset, DocContent, DocEntry, DocSection, docsRoot(), IMAGE_MIME, listDocs(), mdFiles() (+9 more)
-
-### Community 60 - "Timeline UI (grp 60)"
+### Community 89 - "Build Scripts — Build Fixture"
 Cohesion: 0.14
-Nodes (16): ClipAudioInspector, Props, ClipBlock, ClipBlockBase(), DragMode, Props, Lane(), Props (+8 more)
+Nodes (22): aliasesFor(), argRef, CACHE, channelRole(), convert(), dmxByte(), fetchSource(), goboKeyOf() (+14 more)
 
-### Community 61 - "Audio Plugin (grp 61)"
+### Community 90 - "Build Scripts — Test Blend"
+Cohesion: 0.13
+Nodes (18): BlendMap, BlendOptions, computeBlendMaps(), Grid, ProjectorBlendInput, A, at(), B (+10 more)
+
+### Community 91 - "Calibration Plugin — Src Calibmanager"
+Cohesion: 0.10
+Nodes (8): decodeDense(), loadNative(), mapCorners(), native, req, CameraFrame, CornerProjMap, DenseMap
+
+### Community 92 - "HAP Plugin — Src Hapmanager"
+Cohesion: 0.13
+Nodes (15): cache, close(), closeAll(), decode(), HapNative, inflight, key(), loadNative() (+7 more)
+
+### Community 93 - "Spout Plugin — Src Spoutmanager"
+Cohesion: 0.13
+Nodes (10): spoutManager, plugin, loadNative(), native, req, SpoutNative, start(), stop() (+2 more)
+
+### Community 94 - "Renderer UI — Menubar"
+Cohesion: 0.13
+Nodes (15): CONTEXT_MENU_ITEMS, contextAction(), WindowCommand, setupBroadcastControls(), buildAppMenu(), passthrough(), rebuildAppMenu(), template() (+7 more)
+
+### Community 95 - "Main Process — Metrics"
+Cohesion: 0.10
+Nodes (18): EngineStats, fps, gpuGauges, outputUp, pluginGauges, pps, register, renderFps (+10 more)
+
+### Community 96 - "Documentation"
+Cohesion: 0.11
+Nodes (21): External control addresses (transport/state/scene/cue), MIDI control — dropped 2026-08-03 (external control stays OSC-only), codecResidency refcount across pools and surfaces, Pool-keyed layer buffers (warmPool/swap/releasePool), timelinePreloader — tiered residency ACTIVE/WARM/COLD, Recall is an imperative warm-swap, HTTP + Server-Sent Events transport, PIN pairing + per-device bearer tokens + Lock (+13 more)
+
+### Community 97 - "Audio Plugin — Src Audiomanager"
 Cohesion: 0.10
 Nodes (4): loadNative(), native, NO_DEVICE, req
 
-### Community 62 - "Spout (grp 62)"
-Cohesion: 0.14
-Nodes (10): spoutManager, plugin, loadNative(), native, req, SpoutNative, start(), stop() (+2 more)
+### Community 98 - "Calibration Plugin — Src Venueregistrar"
+Cohesion: 0.16
+Nodes (17): registerVenueMesh(), unregisterVenueMesh(), dispose(), inFlight, loader, placed, reconcile(), RegistrarStatus (+9 more)
 
-### Community 63 - "Transport and Output (grp 63)"
+### Community 99 - "MediaPipe Plugin — Src"
+Cohesion: 0.13
+Nodes (13): plugin, CORNERS, DEFAULT_HANDLES, PoseCalibration(), Pt, PoseContentEditor(), MediaPipeSettings, EMPTY (+5 more)
+
+### Community 100 - "Transport / Output — Sacn"
 Cohesion: 0.11
-Nodes (12): ArtNetFramePayload, ARTNET_HEADER, ARTSYNC, lastSent, packet, sequence, ACN_ID, buildPacket() (+4 more)
+Nodes (13): ArtNetFramePayload, OutputConfig, ARTNET_HEADER, ARTSYNC, lastSent, packet, sequence, ACN_ID (+5 more)
 
-### Community 64 - "JUCE Audio Engine (grp 64)"
+### Community 101 - "Renderer Services — Statemachine"
+Cohesion: 0.12
+Nodes (13): crossed(), enter(), firedSubs, notify(), runEntry(), SmContext, stateSubs, tick() (+5 more)
+
+### Community 102 - "JUCE Audio Engine — Src"
+Cohesion: 0.12
+Nodes (16): AmbisonicEncoder, AudioFormatReaderSource, AudioTransportSource, Clip, chain, encoder, lengthSec, pos (+8 more)
+
+### Community 103 - "JUCE Audio Engine — Src"
 Cohesion: 0.12
 Nodes (15): AudioBlock, DelayLine, Linear, DelayFx, fb, first, kMaxSec, line (+7 more)
 
-### Community 65 - "Docs (grp 65)"
-Cohesion: 0.11
-Nodes (20): Discrete effect params snap during crossfade, /artlux control address map (transport + state), ELECTRON_RUN_AS_NODE sandbox gotcha, Mistake-proof authoring UX (scene pill, author strip, accents), scripts/test-scene-timelines.cjs — CDP test harness, Current-scene binding (editor ↔ engine lockstep), Deletion of the optional-timeline scene shape (2026-07-14), Pool-keyed layer video buffers (warmPool/swap/releasePool) (+12 more)
+### Community 104 - "Output Engine (Rust) — Src"
+Cohesion: 0.18
+Nodes (16): a_short_universe_is_sent_short(), build_packet(), carries_the_channel_data_in_order(), clamps_past_512_rather_than_overflowing_the_length(), frames_a_full_universe(), list_dmx_ports(), Mailbox, Arc (+8 more)
 
-### Community 66 - "Audio Plugin (grp 66)"
+### Community 105 - "Spout Plugin — Src"
+Cohesion: 0.16
+Nodes (10): ContentSourceProvider, plugin, consumers, reconcile(), spoutContentSource, SpoutEditor(), getSpoutCanvas(), listSpoutSenders() (+2 more)
+
+### Community 106 - "Audio Plugin — Src Effectdefs"
 Cohesion: 0.17
-Nodes (15): EffectChain(), FxParamRef, ParamRow(), defOf(), defsFor(), EFFECT_DEFS, EffectDef, EffectScope (+7 more)
+Nodes (16): EffectChain(), FxParamRef, ParamRow(), uid(), defOf(), defsFor(), EFFECT_DEFS, EffectDef (+8 more)
 
-### Community 67 - "Augmenta Tracking (grp 67)"
-Cohesion: 0.14
-Nodes (13): EMPTY, OscSettings, setHost(), useHostSettings(), Accum, AddrStat, AugmentaMonitor(), freshAccum() (+5 more)
-
-### Community 68 - "Docs (grp 68)"
-Cohesion: 0.13
-Nodes (19): Pose floor calibration (4-point homography), poseHomography — imageToWorld reusing host corner-pin math, Send a projector output as NDI (ProjectorGL.captureRGBA), Double-warp guard (hwOwnsGeometry), GLSL warp/blend fallback engine, NVAPI scanout warp & blend, nvwarpApply.ts — warp/intensity buffer builder, nvwarpManager — Electron display.id ↔ NVAPI displayId mapping (+11 more)
-
-### Community 70 - "Renderer UI (grp 70)"
+### Community 107 - "Shared Types — Mediaurl"
 Cohesion: 0.16
-Nodes (14): DragOffset, AppInfo, DisplayInfo, ProjectorOutput, SoftEdge, About(), Props, AudioEngineMissing() (+6 more)
+Nodes (15): b64urlDecode(), b64urlEncode(), fromBase64(), mediaUrl(), mimeForPath(), pathFromMediaUrl(), toBase64(), baseHeaders() (+7 more)
 
-### Community 71 - "Plugin SDK (grp 71)"
-Cohesion: 0.12
-Nodes (4): VideoCodecContribution, hapCodec, layerState, plugin
-
-### Community 72 - "Augmenta Tracking (grp 72)"
-Cohesion: 0.15
-Nodes (11): applySnapshot(), AugmentaScene, getObject(), getObjects(), ingestBundle(), markDirty(), num(), scene (+3 more)
-
-### Community 73 - "Calibration (grp 73)"
-Cohesion: 0.16
-Nodes (13): bitsFor(), CalibPatternKind, fillPattern(), grayCode(), graycodeLayout, planeBit(), Ack, captureGrayCode() (+5 more)
-
-### Community 74 - "LiDAR Tracking (grp 74)"
-Cohesion: 0.13
-Nodes (16): clusterBlobs(), mergeGroup(), resetPeopleTracking(), state, SurfState, Track, trackSurface(), blobClustering (+8 more)
-
-### Community 75 - "Renderer UI (grp 75)"
-Cohesion: 0.13
-Nodes (12): setupBroadcastControls(), buildAppMenu(), passthrough(), rebuildAppMenu(), template(), buildMenus(), DRAG, Item (+4 more)
-
-### Community 76 - "Renderer Services (grp 76)"
-Cohesion: 0.15
-Nodes (13): crossed(), enter(), firedSubs, notify(), runEntry(), stateSubs, tick(), TransportIntent (+5 more)
-
-### Community 77 - "JUCE Audio Engine (grp 77)"
-Cohesion: 0.13
-Nodes (16): AmbisonicEncoder, AudioFormatReaderSource, AudioTransportSource, Clip, chain, encoder, lengthSec, pos (+8 more)
-
-### Community 78 - "Docs (grp 78)"
-Cohesion: 0.13
-Nodes (18): v0.21.0 — Augmenta optical tracking plugin, v0.21.0 — Show Control (tablet PWA + scheduler + project playlist), v0.21.0 — Unattended self-healing watchdog, Barrel-only imports convention, Core stays core (persisted types stay in shared/protocol.ts), Generic plugin IPC bridge (pluginInvoke / pluginSend / pluginOn), In-process contribution-based plugin architecture (VS Code style), Audio subsystem (JUCE + libspatialaudio N-API addon) (+10 more)
-
-### Community 79 - "Package Devdependencies (grp 79)"
-Cohesion: 0.11
-Nodes (18): devDependencies, autoprefixer, electron, electron-builder, electron-vite, marked, @napi-rs/cli, png-to-ico (+10 more)
-
-### Community 82 - "Calibration (grp 82)"
-Cohesion: 0.16
-Nodes (15): Props, CalibMode, hintBox, Props, delay(), fitGamma(), GammaOpts, GammaResult (+7 more)
-
-### Community 83 - "LiDAR Tracking (grp 83)"
-Cohesion: 0.15
-Nodes (13): clusterAndTrack(), Accum, AddrStat, freshAccum(), OscMonitor(), Row, SurfRow, SurfStat (+5 more)
-
-### Community 84 - "MP4 Codec (grp 84)"
-Cohesion: 0.12
-Nodes (13): decoders, Enc, ensureOpen(), frame(), Info, layerDecoders, layerFrame(), layerOpening (+5 more)
-
-### Community 85 - "Transport and Output (grp 85)"
-Cohesion: 0.14
-Nodes (8): decodeFrame(), loadNative(), native, NativeEngine, req, sendFrame(), toArrayBuffer(), toBuffer()
-
-### Community 86 - "Electron Main (grp 86)"
+### Community 108 - "Main Process — Gdtf"
 Cohesion: 0.17
-Nodes (11): clearAll(), clearDisplay(), hw, loadNative(), native, NvDisplayRaw, nvIdForElectron(), NvWarpNative (+3 more)
+Nodes (17): ProfileGeoNode, ProfileRange, invalidateUserProfiles(), channelSets(), decode(), dmxByte(), dmxValue01(), find() (+9 more)
 
-### Community 87 - "Renderer Services (grp 87)"
+### Community 109 - "Transport / Output — Outputmanager"
+Cohesion: 0.12
+Nodes (7): loadNative(), native, NativeEngine, req, sendFrame(), toArrayBuffer(), toBuffer()
+
+### Community 110 - "Documentation — Archive Superpowers"
+Cohesion: 0.13
+Nodes (19): The Bed Never Restarts (headline property), LANE/FADE Fader Badges (mixer shows what is sounding), Asset Usage Counts Every Timeline, Automation Picker Portal Fix, Load-Time Duration Raise (back-compat guard), Length Bounds Playback (bounded clock), onTimelineEnd FSM Trigger, Timeline Transport Wave A Implementation Plan (+11 more)
+
+### Community 111 - "Documentation — Nvwarp"
+Cohesion: 0.13
+Nodes (19): Double-warp guard (hwOwnsGeometry), Edge blend (NvAPI_GPU_SetScanoutIntensity), GLSL warp/blend fallback, ProjectorOutput.hwWarp opt-in, NVAPI scanout warp & blend, nvwarpApply.ts — warp/intensity buffer builder, nvwarpManager (Electron displayId ↔ NVAPI displayId), nvwarp stub vs real build (+11 more)
+
+### Community 112 - "Launcher Backend — Src"
+Cohesion: 0.27
+Nodes (16): check(), client(), GhRelease, is_app_tag(), is_app_tag_for_test(), is_base64_sha512(), is_base64_sha512_for_test(), newest_release() (+8 more)
+
+### Community 113 - "Launcher Backend — Src"
+Cohesion: 0.22
+Nodes (15): artlux_running(), Elevated, InstallOutcome, LaunchMode, new_project(), open_project(), OpenOutcome, InstallScan (+7 more)
+
+### Community 114 - "Package Devdependencies"
+Cohesion: 0.11
+Nodes (19): devDependencies, autoprefixer, electron, electron-builder, electron-vite, marked, @napi-rs/cli, opentype.js (+11 more)
+
+### Community 115 - "Main Process — Splashwindow"
+Cohesion: 0.22
+Nodes (16): APP_PRELOAD, destroy(), fadeAndClose(), maybeClose(), noteEditorVisible(), open(), reportComplete(), reveal() (+8 more)
+
+### Community 116 - "3D Simulator"
+Cohesion: 0.15
+Nodes (15): attachProxies(), BakeCamera, bakeContentUv(), BakedMap, bakeMaterial(), getCamera(), makeNodeMaterial(), makeShaderMaterial() (+7 more)
+
+### Community 118 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.14
+Nodes (18): + Bed button with bed level meter, AUDIO BED panel with its own transport and bed clock (0:05), Audio workspace context, Rationale: the bed plays on the SHOW clock — a scene recall does not restart it, Audio clip inspector (empty: gain, spatial position, insert chain live here), Context rail (Time / Map / 3D / Proj / Calib / Cues / Logic / Audio / Track / Show / Prefs), Master bus footer with FX (1) insert-chain button, Media Library browser column (Import / Scan, All-Video-Image-Model-Take-Audio filters) (+10 more)
+
+### Community 119 - "Launcher Backend — Src"
+Cohesion: 0.27
+Nodes (17): copied(), copy_set(), copy_tree(), CopyResult, default_workspace(), dir_size(), examples_dir(), ExampleSet (+9 more)
+
+### Community 120 - "Launcher — Tsconfig Compileroptions"
+Cohesion: 0.11
+Nodes (17): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+9 more)
+
+### Community 121 - "Package Build"
+Cohesion: 0.11
+Nodes (18): build, afterPack, appId, artifactName, directories, electronFuses, extraResources, files (+10 more)
+
+### Community 124 - "Show Control — Src"
+Cohesion: 0.18
+Nodes (17): append(), addEccAndInterleave(), draw(), ECC_CODEWORDS_PER_BLOCK, Ecl, encode(), getAlignmentPatternPositions(), getBit() (+9 more)
+
+### Community 125 - "Calibration Plugin — Src Calibmanager"
+Cohesion: 0.12
+Nodes (7): CalibNative, cameraGrab(), cameraGrabColor(), ArucoDetection, BoardDetectResult, CameraMode, PnpResult
+
+### Community 126 - "LiDAR Tracking — Src"
+Cohesion: 0.14
+Nodes (8): applySnapshot(), getBlob(), getSurface(), ingest(), markDirty(), subs, surfaces, SurfaceTrack
+
+### Community 127 - "LiDAR Tracking — Src"
+Cohesion: 0.14
+Nodes (11): blank(), configure(), evaluate(), inside(), isActive(), isZoneActive(), Presence, states (+3 more)
+
+### Community 128 - "Main Process — Docs"
 Cohesion: 0.20
-Nodes (16): Props, bez(), BEZ_DEFAULT, bezD(), bezierEase(), bsearch(), Cursor, denormValue() (+8 more)
+Nodes (14): DocAsset, DocContent, docsRoot(), IMAGE_MIME, listDocs(), mdFiles(), pretty(), readDoc() (+6 more)
 
-### Community 88 - "Renderer Services (grp 88)"
+### Community 129 - "Renderer Services — Mocksocketservice"
+Cohesion: 0.16
+Nodes (13): decodeFrame(), encodeFrame(), UniverseTarget, PortListener, sendFrame(), waiting, addStatusListener(), configureOutput() (+5 more)
+
+### Community 130 - "Main Process — Persistence"
+Cohesion: 0.22
+Nodes (16): OpenProjectResult, defaultPrefs(), exportRig(), getPrefs(), importRig(), loadProjectPath(), openProject(), openProjectTimed() (+8 more)
+
+### Community 131 - "Renderer Services — Cuebus"
 Cohesion: 0.12
 Nodes (9): colSubs, cueSubs, FireColumnCb, FireCueCb, RecallCb, subs, handleControl(), route() (+1 more)
 
-### Community 89 - "Package (grp 89)"
-Cohesion: 0.12
-Nodes (17): build, afterPack, appId, artifactName, directories, electronFuses, extraResources, files (+9 more)
+### Community 132 - "Documentation"
+Cohesion: 0.14
+Nodes (17): Cold-Start Boot Gate (show waits for its content), Barrel-Only Plugin Imports (mixed aliases duplicate singletons), Core Stays Core (persisted types never move to plugins), Projector MessagePort Bridge (not IPC), Contribution-Based Plugin Architecture (in-process, VS Code style), Augmenta OSC v2 Protocol (/au/scene + per-object messages), Augmenta Tracking Plugin (renderer-only OSC v2 tracking source), Shared OSC Listener (one UDP socket, /artlux prefix routing) (+9 more)
 
-### Community 90 - "Package Scripts (grp 90)"
+### Community 133 - "Documentation — Tracking"
 Cohesion: 0.12
-Nodes (17): scripts, assets:mediapipe, build, build:audio, build:calib, build:native, build:ndi, build:nvwarp (+9 more)
+Nodes (17): LiDAR blob OSC protocol (SOL/MUR/SOL_MUR), @artlux/plugin-lidar-tracking, trackingStore — render-free blob pub/sub, TrackingViz — 3D blob markers (scene-viz), sceneVizRegistry / SceneVizContribution, Per-scene timelines, buildSceneSnapshot is look-only, Scene3D.activeZoneIds — what a look listens to (+9 more)
 
-### Community 91 - "Calibration (grp 91)"
+### Community 134 - "Documentation — User Guide"
 Cohesion: 0.13
-Nodes (10): Ack, capturePose(), CaptureResult, delay(), imagePoints, IntrinsicsSolve, objectPoints, pointCounts (+2 more)
+Nodes (17): Ledmap (irregular wiring remap), User Guide: Fixtures, Two Kinds of Fixture (LED vs Light), Auto-Patch, User Guide: Patching & Routing, Bézier warp (16-point control mesh), Corner-pin Align mode, Output FPS cap (GPU budget on big rigs) (+9 more)
 
-### Community 92 - "LiDAR Tracking (grp 92)"
-Cohesion: 0.15
-Nodes (7): applySnapshot(), getBlob(), getSurface(), ingest(), markDirty(), subs, surfaces
+### Community 135 - "Documentation — User Guide"
+Cohesion: 0.12
+Nodes (17): Cue bank (rows × columns grid, Live/Edit, column fire), Global Params (LED / Projector brightness, output gamma), Scene (static look snapshot), Audio Bed panel (mixer), Audio automation lanes (same curve engine), Audio clip inspector (gain, spatial pad, FX inserts), Global binding (bed lanes editable only on Global), Insert chain runs before spatial placement (+9 more)
 
-### Community 93 - "Show Control (grp 93)"
-Cohesion: 0.20
-Nodes (16): addEccAndInterleave(), draw(), ECC_CODEWORDS_PER_BLOCK, Ecl, encode(), getAlignmentPatternPositions(), getBit(), getNumDataCodewords() (+8 more)
-
-### Community 94 - "Electron Main (grp 94)"
-Cohesion: 0.24
-Nodes (15): OpenProjectResult, defaultPrefs(), exportRig(), getPrefs(), importRig(), loadProjectPath(), openProject(), prefsFile() (+7 more)
-
-### Community 95 - "GPU Mapping (grp 95)"
+### Community 137 - "Augmenta Plugin — Src Augmentastore"
 Cohesion: 0.17
-Nodes (11): buildPaletteLut(), expandGradient(), GradientPalette, GRADIENTS, hsvToRgb(), PALETTE_NAMES, PaletteLut, LUT (+3 more)
+Nodes (12): applySnapshot(), AugmentaObject, getObject(), getObjects(), ingestBundle(), markDirty(), num(), objects (+4 more)
 
-### Community 96 - "Docs (grp 96)"
+### Community 138 - "Augmenta Plugin — Src Motion"
 Cohesion: 0.15
-Nodes (16): EFFECT_NAMES catalog (gpu/effects.ts), Fire2012 stateful heat buffer effect, Built-in generative effects, Gradient palettes → 256×N RGBA LUT, surfaceFx.ts — 2D surface-content effect renderer, WGSL effectColor (per-LED effect render), Routing spreadsheet & auto-patch, Core surfaces workflow (surface → content → fixture → patch → output) (+8 more)
+Nodes (13): alpha(), Axis, cfg, Config, ingest(), LiveTrack, minCutoff(), MotionSample (+5 more)
 
-### Community 97 - "Augmenta Tracking (grp 97)"
+### Community 139 - "Calibration Plugin — Src Manualwizard"
+Cohesion: 0.18
+Nodes (12): lensConstraint(), lensFromK(), manualK(), reprojectionErrors(), bandColor, bandDot, LensSnapshot, ManualWizard() (+4 more)
+
+### Community 140 - "Renderer Services — Fixtureprofiles"
+Cohesion: 0.14
+Nodes (11): embedded, ensureLoaded(), fetched, get(), missing, pending, rebuild(), resolved (+3 more)
+
+### Community 141 - "Examples & Tutorials — State Machine"
+Cohesion: 0.15
+Nodes (16): "End state here" + "Edit logic" state-machine controls in the timeline bar, Transport toolbar (play/pause, stop, loop, in/out, timecode, FPS 30, Length 20s), State CLIP — trigger "On clip end" (1 clip), State FINALE (scene Finale), State IDLE (scene Idle) — active, State MARKER — trigger "On marker", Region "Playhead-driven (timeline must be playing)", State RUN (scene Run) (+8 more)
+
+### Community 142 - "Examples & Tutorials — State Machine"
 Cohesion: 0.16
-Nodes (12): alpha(), Axis, cfg, Config, ingest(), minCutoff(), MotionSample, newAxis() (+4 more)
+Nodes (16): Selected transition: Blackout → Attract, "Only after the state has finished" gate (requireEnd), Screenshot: Transition inspector with a LiDAR-zone trigger, Transition inspector (parameters column), Transition time (s) — scene crossfade on arrival, Highlighted zone-triggered edge with orange handles in the graph, State ATTRACT (scene Attract) — the hub, active, State BLACKOUT (scene Blackout) (+8 more)
 
-### Community 98 - "LiDAR Tracking (grp 98)"
+### Community 143 - "HAP Native — Src Mov"
+Cohesion: 0.28
+Nodes (15): FnMut, be16(), be32(), be64(), find_box(), find_video_track(), for_each_box(), MovVideo (+7 more)
+
+### Community 144 - "Augmenta Plugin — Src Index"
+Cohesion: 0.15
+Nodes (13): AugmentaContentEditor(), AugmentaSettings(), HostSettings, AugmentaScene, AugmentaSnapshot, BlobInst, augmentaDrawable, augmentaProjector (+5 more)
+
+### Community 145 - "Calibration Plugin — Src Blendinspector"
+Cohesion: 0.15
+Nodes (10): Props, BlendInspector(), Mode, Props, Props, Props, blendController, blendStore (+2 more)
+
+### Community 146 - "LiDAR Tracking — Src"
 Cohesion: 0.16
 Nodes (12): alpha(), Axis, cfg, Config, ingest(), LiveTrack, minCutoff(), newAxis() (+4 more)
 
-### Community 99 - "Electron Main (grp 99)"
+### Community 147 - "Resources — Fixture Library"
 Cohesion: 0.12
-Nodes (11): EngineStats, fps, outputUp, pps, register, renderFps, renderFrameP99, renderLongFrames (+3 more)
+Nodes (15): counts, danglingRedirects, gobos, manufacturers, modes, profiles, redirects, skipped (+7 more)
 
-### Community 100 - "Docs (grp 100)"
-Cohesion: 0.16
-Nodes (15): BREAKING — a project no longer reconfigures the machine that opens it, BEHAVIOUR CHANGE — video clips now play their own soundtracks, VideoClip.audio.enabled absent means AUDIBLE, AppSettings is the machine, not the show, Soundtracks are CONFORMED to WAV, not decoded live, Downmix to mono BEFORE the insert chain, Lipsync — two additive offsets (machine A/V offset + per-clip Offset), A reverb on the master is silently dropped (+7 more)
+### Community 148 - "GPU Pipeline — Palettes"
+Cohesion: 0.17
+Nodes (10): buildPaletteLut(), expandGradient(), GradientPalette, GRADIENTS, hsvToRgb(), PALETTE_NAMES, PaletteLut, LUT (+2 more)
 
-### Community 101 - "Docs (grp 101)"
-Cohesion: 0.16
-Nodes (15): Tracking lane (VideoLayer.kind:'tracking'), SOL/MUR blob OSC wire format + u/v geometry, clusterAndTrack — predictive multi-object tracker, Venue tracker id flicker (median id life 0.13 s), Merge radius tuning (default 0.8 m), On-site LiDAR sync procedure, One person = two blobs (the pairing problem), frameAt (binary-search step lookup, no tween) (+7 more)
+### Community 149 - "Documentation"
+Cohesion: 0.15
+Nodes (15): Engine decoupling programme (approved 2026-07-26), WP-0.2 — a geometry drag is local until you let go, WP-0.3 — services/telemetry (idle re-render fix), clocksCoincident() — the ONE predicate, Invariant: one transport, two playheads, transport:'reconverge' — playhead snaps onto showTime, Scene.timeline became REQUIRED (2026-07-14), fromAny — global rules (+7 more)
 
-### Community 102 - "LiDAR Examples (grp 102)"
-Cohesion: 0.16
-Nodes (15): 2D editor Stage — raw markers (ground truth, unmerged), 3D Scene / projector — 1 person → 1 marker, Diagram: Merge People — two blobs become one marker, Merge People (collapse blobs within 0.8 m), Raw feed — one person (2 blobs, ids 7 and 12), trackingMergePeople (Scene3D setting), trackingMergeRadius (0.8 m pairing distance), Diagram: Tracking zones in 3D — SOL floor + MUR wall (+7 more)
+### Community 150 - "User Guide Screens"
+Cohesion: 0.15
+Nodes (15): CONTENT source grid (None/Camera/Video/Image/DMX In/Spout/NDI/Effect/Layer/Timeline/Tracking/MediaPipe/Augmenta/Slice), SURFACES list (FX Panel — EFFECT, Logo Wall — IMAGE), Collapsible inspector sections pattern, CONTENT section (source-type picker, Image selected), Opacity parameter slider (100%), Right parameters column (surface inspector), Surface inspector (screenshot), Selected surface Logo Wall (highlighted in browser + on stage) (+7 more)
 
-### Community 103 - "Spout Native (grp 103)"
+### Community 151 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.15
+Nodes (15): U/V gizmo at origin 0,0 (near-left of the floor), One zone / Combination segmented toggle, Trigger select — "LiDAR zone", When select — "someone enters" (arrival after this state began), Edge label "zone?: someone enters [1]", Zone picker ("— pick a zone —"), "Override dwell for this zone" (enter 0.2s / exit 0.5s venue defaults), "People needed" occupancy threshold (+7 more)
+
+### Community 152 - "Launcher Backend — Gen"
+Cohesion: 0.13
+Nodes (14): anyOf, anyOf, description, definitions, Application, Target, Value, description (+6 more)
+
+### Community 153 - "Launcher Backend — Gen"
+Cohesion: 0.13
+Nodes (14): anyOf, anyOf, description, definitions, Application, Target, Value, description (+6 more)
+
+### Community 154 - "Launcher Backend — Src"
+Cohesion: 0.31
+Nodes (13): cache_file(), debom(), parse(), PreflightItem, PreflightReport, read_cached(), repair(), Path (+5 more)
+
+### Community 155 - "Spout Native — Src"
 Cohesion: 0.19
 Nodes (12): connect(), downscale(), fit(), list_senders(), receive_frame(), Buffer, Receiver, Result (+4 more)
 
-### Community 104 - "Show Control (grp 104)"
+### Community 156 - "Show Control — Src"
 Cohesion: 0.27
 Nodes (14): Device, deviceName(), file(), genPin(), getPin(), listDevices(), load(), pair() (+6 more)
 
-### Community 105 - "Projector Window (grp 105)"
-Cohesion: 0.25
-Nodes (14): defaultCornerPin(), buildIntensity(), buildWarpVerts(), destFn(), featherWeight(), isIdentityWarp(), maskWeight(), NvwarpPayload (+6 more)
+### Community 157 - "Renderer Services — Scene3dquality"
+Cohesion: 0.17
+Nodes (10): GpuSection(), Simulator3D(), clamp(), clampFps(), FPS_CHOICES, setMaxFps(), setRenderScale(), subs (+2 more)
 
-### Community 106 - "State Machine Examples (grp 106)"
+### Community 158 - "OpenCV Calib (Rust) — Src Dshow"
+Cohesion: 0.31
+Nodes (13): AM_MEDIA_TYPE, IAMStreamConfig, IMoniker, caps_of(), fourcc_of(), frame_interval_range(), free_media_type(), interval_to_fps() (+5 more)
+
+### Community 159 - "Doc Images — Launcher 01"
+Cohesion: 0.16
+Nodes (14): Already-at-latest state (You already have 0.25.0 — reinstalling is safe), Footer credits + non-commercial license line + Launcher 0.1.0, Header brand bar (ARTLux · Launcher · tagline), Installed version readout (0.25.0 · C:\Program Files\ArtLux · per-machine), LATEST RELEASE card, ArtLux Launcher window, ON THIS MACHINE card, Product-key InstallLocation detection (+6 more)
+
+### Community 160 - "User Guide Screens"
+Cohesion: 0.18
+Nodes (14): + Automation / + Audio lane-add buttons, Audio lane (Look A — Sting clip with waveform, volume + solo/monitor), Automation lane (Gain GLOBAL Master, keyframe curve), Clock controls (FPS 30, Length 20 s, zoom, + Track, maximize), Editing scene bar (Editing: Look A · its own timeline · 0 clips · State 1 of 1 · Save), Playhead + time ruler, Record row (Record, + Tracking lane, + Lighting lane, Record move, Takes), Screenshot: Timeline drawer open under the Mapping workbench (+6 more)
+
+### Community 161 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.15
+Nodes (14): AUDIO BED transport (0:04, scrub bar, meter, + Bed), Clip inspector (gain · spatial position · insert chain), Dimmed mute/solo controls on the scene region strip, Insert chain (FX) concept, Master strip (FX · 1.00), Audio mixer panel (regionised track list), Read-only note: a timeline's own tracks are mixed on their lane in the gutter, TRACKS — Foyer region ('Sting' 1.00, scene-owned) (+6 more)
+
+### Community 162 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.18
+Nodes (14): Smoothed blob marker — one per tracked person (id 1, id 2), Diagram: tracking zones in 3D — SOL floor + MUR wall, Zone dimensions 5.825 m (+U) × 3.125 m (+V), MUR — wall zone (z = 0, vertical), Nav path: Tracking context ▸ Tracking inspector ▸ Tracking zones (LiDAR), One-Euro filter + prediction (the smoothed view), Raw 2D Stage view (contrasted with the smoothed 3D view), Shared bottom edge between SOL and MUR (+6 more)
+
+### Community 163 - "Examples & Tutorials — State Machine"
 Cohesion: 0.20
 Nodes (14): afterDelay auto-return (10s back to hub), Attract (hub state — initial · self-loops), Blackout (held state · brightness 0 · manual release), Diagram: Hub-and-spoke — attract loop with triggered performances, Ember (performance state · lock 3s), Grove (performance state · lock 3s), Manual trigger → performance, Tide (performance state · lock 3s) (+6 more)
 
-### Community 107 - "Audio Plugin (grp 107)"
-Cohesion: 0.22
-Nodes (12): DeviceEntry, OutputMode, SpeakerLayout, AudioCfg, AudioSettings(), BUFFER_SIZES, firstOverRangeChannel(), hasDuplicateChannel() (+4 more)
-
-### Community 108 - "Archived Plans (grp 108)"
+### Community 164 - "Package Dependencies"
 Cohesion: 0.14
-Nodes (14): Detachable docs window (docs.html entry + docsWindow.ts), docsRoot dev-vs-packaged resolution (the watchdog idiom), docsList / docsRead IPC (main owns all base-path resolution), Sandbox image loading via readFile→blob, never file://, --broadcast is the existence proof that the full App runs chrome-less, Retiring headless.tsx / HeadlessRunner.tsx / headless.html, Operational break — headless now decodes media and serves the tablet port, Projector suppression — the one behavior making headless ≠ broadcast (+6 more)
+Nodes (14): dependencies, electron-updater, @fontsource/ibm-plex-mono, @fontsource/ibm-plex-sans, lucide-react, @mediapipe/tasks-vision, prom-client, react (+6 more)
 
-### Community 109 - "Planning Docs (grp 109)"
+### Community 165 - "Augmenta Plugin — Src Augmentamonitor"
 Cohesion: 0.18
-Nodes (13): Killing the audio output device mid-show (badge + Reconnect, no auto-recovery), Defect C5 — New Project leaves the transport bound to a dead scene's pool, P6 Acceptance — multichannel audio hardening checklist, The synthetic 8-channel rig (virtual driver or 7.1 Surround + WASAPI Exclusive), A synthetic pass is not a venue pass, P6 — Multichannel Hardening, Rig Commissioning, Headless Audio · Implementation Plan, `PatchPolicy` / `readPatchPolicy` — reserveLockedRanges moves to the project, A required property is what forces tsc to name every call site (strict is OFF) (+5 more)
+Nodes (9): EMPTY, OscSettings, setHost(), useHostSettings(), Accum, AddrStat, AugmentaMonitor(), freshAccum() (+1 more)
 
-### Community 110 - "State Machine Examples and Audio Examples (grp 110)"
+### Community 166 - "LiDAR Tracking — Src"
+Cohesion: 0.18
+Nodes (6): Dims, LabelDesc, rect(), SURFACE_COLOR, TrackingViz(), PolyLine()
+
+### Community 167 - "Renderer Services — Curvefit"
+Cohesion: 0.30
+Nodes (13): b1(), b2(), b3(), bezAt(), bezDeriv(), easeAt(), fitCurve(), fitSegment() (+5 more)
+
+### Community 168 - "Renderer Services — Lightingplayback"
+Cohesion: 0.20
+Nodes (10): activeClips(), cursorFor(), cursors, fixtures, groups, poses, start(), targetsOf() (+2 more)
+
+### Community 169 - "Documentation — Archive Superpowers"
+Cohesion: 0.18
+Nodes (13): show ended Badge, Published Show-Clock Park (showEnded), audio:available IPC Probe, no audio engine Badge, No 'Don't Show Again' Rule, Audio Engine Missing Notice Implementation Plan, Audio Engine Missing Startup Modal, Root Cause: Renderer Cannot Ask If the Engine Loaded (+5 more)
+
+### Community 170 - "Documentation — Archive Superpowers"
+Cohesion: 0.18
+Nodes (13): LNK1104 Stale Addon Build Trap, PatchPolicy Migration (reserveLockedRanges), P6 Multichannel Implementation Plan, Scratch Assertion Sims (house TDD convention), Atomic Project Save (tmp + rename), ASIO Off-by-Default Decision, Device Identity Selection (pick the box, not the default), Driver-Type Dedupe Bug (+5 more)
+
+### Community 171 - "Documentation — User Guide"
+Cohesion: 0.17
+Nodes (13): User Guide: Interface Tour, Timeline Drawer, Nine Workbenches, Merge People (2 blobs → 1 person), User Guide: Tracking, Three Interchangeable Tracking Sources (LiDAR / MediaPipe / Augmenta), The Dual-Clock Trigger Rule, User Guide: Show / State Machine (+5 more)
+
+### Community 172 - "User Guide Screens"
 Cohesion: 0.15
-Nodes (13): Audio example projects (5 .artlux files), Audio tutorial — six chapters, demo.lblob — the bundled take, LiDAR tracking example projects, ArtLux examples & templates, Output aimed at 127.0.0.1 loopback, Save As… sandbox convention, State-machine example projects (+5 more)
+Nodes (13): Screenshot: Mapping workbench with Routing dock (windowed), Editing: Look A chip (its own timeline · 0 clips), Timeline FPS / Length / zoom controls + Add Track, Playhead marker on the ruler, Record bar (Record · Tracking lane · Lighting lane · Record move (1) · Takes), Screenshot: same Mapping workbench, transport stopped (expanded), State nav + Save (State 1 of 1), Timeline drawer pinned under the workbench (+5 more)
 
-### Community 111 - "MP4 Codec (grp 111)"
+### Community 173 - "User Guide Screens"
+Cohesion: 0.18
+Nodes (13): Edit logic button (jump to show machine), Hint: use a zone from a transition — trigger LiDAR zone in the Show Machine, FINALE state node (scene Finale), State-graph canvas (dbl-click add, drag nub link, Ctrl+wheel zoom), IDLE state node (active, bound to scene Idle), Right inspector (empty-state: select a state, transition or region to edit), Logic workspace context — Show Machine (Logic rail item active), RUN state node (scene Run, empty) (+5 more)
+
+### Community 174 - "User Guide Screens"
+Cohesion: 0.18
+Nodes (13): Asset type filter chips (All · Video · Image · Model · Take), AUDIO BED panel with its own transport (0:14), Audio workspace context, Bed track row (level 1.00, mute/solo, delete), Context rail (BUILD: Map, 3D · ALIGN: Proj), Import row (video / image / model / audio) + Scan, Media Library browser panel, Room track row (+5 more)
+
+### Community 175 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.21
+Nodes (13): The Audio Bed, Audio Ch.01: The Bed and the Show Clock, The Parked Show / 'show ended' Badge, The Show Clock, Latched Clipping Badge, Audio Ch.06: The Unattended Show, No Automatic Audio-Device Re-Open, Overnight Install Checklist (+5 more)
+
+### Community 176 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.24
+Nodes (13): Bundled Take demo.lblob, Synthetic LiDAR Emitter (scripts/lidar-emitter.cjs), LiDAR Tracking Example Projects, LiDAR Ch.01: Blob Viewer, id == 0 Empty-Slot Rule, OSC Monitor, Raw 2D Stage vs Smoothed 3D View, OSC Bind Address Rule (+5 more)
+
+### Community 177 - "Examples & Tutorials — State Machine"
+Cohesion: 0.22
+Nodes (13): State-Machine Example Projects, SM Ch.01: Hello State Machine, State ↔ Scene Binding, SM Ch.03: Interactive Installation, Cold-Start Boot Gate, fromAny Global Rules, Hold At End, Hub-and-Spoke Pattern (+5 more)
+
+### Community 178 - "Launcher Backend — Resources"
+Cohesion: 0.27
+Nodes (10): Add-Result(), Convert-Rva(), Find-ArtLuxInstall(), Get-CmdVersion(), Get-PEImports(), Invoke-DevChecks(), Invoke-RuntimeChecks(), Test-Admin() (+2 more)
+
+### Community 179 - "MP4 Plugin — Src Mp4codec"
 Cohesion: 0.23
 Nodes (9): SettingsSection, ensureRaf(), mp4Codec, setEnabled(), surfaces, tick(), plugin, Settings (+1 more)
 
-### Community 112 - "Archived Plans (grp 112)"
+### Community 180 - "Design Plans — Archive Asset"
 Cohesion: 0.15
 Nodes (13): Collect a Copy to Folder — the non-destructive collect path, collectInto shared-body refactor (in-place + to-folder), Collect Assets reports success and still ships a broken project, Per-container visitors (mapSurfaces / mapScene3D / mapTimeline / mapAudio), mapAssetPaths must never throw on garbage/hand-edited input, Idempotent map + path-keyed remap makes aliasing safe, mapAssetPaths — the single source of truth for where asset paths live, The 'coerce to an array' trap (a partial Segment is not a valid Segment) (+5 more)
 
-### Community 113 - "MediaPipe Pose (grp 113)"
-Cohesion: 0.26
-Nodes (8): footPoint(), imageCornerPin(), worldQuad(), imageToWorld(), invert(), multiply(), Mat3, squareToQuad()
+### Community 181 - "Calibration Plugin — Src Blendstore"
+Cohesion: 0.21
+Nodes (9): clear(), drop(), emit(), get(), put(), RigScan, sampleCount(), scans (+1 more)
 
-### Community 114 - "MP4 Codec (grp 114)"
-Cohesion: 0.15
-Nodes (5): MP4File, MP4Info, MP4Sample, MP4Track, MP4VideoTrack
+### Community 182 - "MediaPipe Plugin — Src Posestore"
+Cohesion: 0.18
+Nodes (6): applySnapshot(), detections, ingest(), markDirty(), PoseSnapshot, subs
 
-### Community 115 - "MP4 Codec (grp 115)"
-Cohesion: 0.29
-Nodes (3): close(), FileDecoder, releaseLayer()
+### Community 183 - "Build Scripts — Preflight"
+Cohesion: 0.27
+Nodes (10): Add-Result(), Convert-Rva(), Find-ArtLuxInstall(), Get-CmdVersion(), Get-PEImports(), Invoke-DevChecks(), Invoke-RuntimeChecks(), Test-Admin() (+2 more)
 
-### Community 116 - "Electron Main (grp 116)"
+### Community 184 - "Renderer Services — Docsearch"
+Cohesion: 0.24
+Nodes (10): DocChunk, DocEntry, DocSection, Props, DocHit, excerptAround(), loadDocIndex(), score() (+2 more)
+
+### Community 185 - "Main Process — Mediaaccess"
+Cohesion: 0.23
+Nodes (10): ProjectData, allowPath(), allowRoot(), denied, exact, isAllowed(), norm(), roots (+2 more)
+
+### Community 186 - "Main Process — Mpcdi"
 Cohesion: 0.28
 Nodes (12): buildMpcdi(), CRC, crc32(), paeth(), parseMpcdi(), pfmRead(), pfmWrite(), pngChunk() (+4 more)
 
-### Community 117 - "Renderer UI and Renderer Services (grp 117)"
-Cohesion: 0.18
-Nodes (7): DMXMonitor(), DMXMonitorProps, DmxData, DmxDestination, dmxSignal, Listener, listeners
+### Community 187 - "Renderer Services — Automation"
+Cohesion: 0.24
+Nodes (12): bez(), BEZ_DEFAULT, bezD(), bezierEase(), bsearch(), denormValue(), lerp(), lerpLog() (+4 more)
 
-### Community 119 - "Docs (grp 119)"
-Cohesion: 0.17
-Nodes (12): Fixed — Collect Assets shipped a broken project, FORWARD-COMPAT — per-container asset relativization has no schema guard, All asset-path translation lives in main, Persistence (.artlux JSON projects, .artrig rigs, prefs), Portable project folders (project.artlux + assets/), Managed media/asset library, AssetEntry / ProjectData.assets registry, Copy-in import (project self-contained by construction) (+4 more)
-
-### Community 120 - "Docs (grp 120)"
-Cohesion: 0.17
-Nodes (12): Repo layout (main / preload / renderer / shared / native / plugins), IPC contract (shared/protocol.ts), Projector windows bridge over MessagePort, not IPC, Three processes (main / preload / renderer), Augmenta shares the host's single OSC listener, World-space multi-projector blend (blendCompute.ts, partition of unity), Per-projector calibration artifact (ProjectorCalibration + dense 3D surface map), MPCDI export/import codec (+4 more)
-
-### Community 121 - "Docs (grp 121)"
-Cohesion: 0.18
-Nodes (12): 3D simulator module, OSC in — external control & LiDAR tracking (feature guide), Tracking takes — record & replay without the tracker, Workspace layout (MadMapper logic), LiDAR blob OSC protocol (one value per message), OSC Monitor (raw wire sniffer), OSC receive (external control + LiDAR tracking), trackingStore — render-free pub/sub blob store (+4 more)
-
-### Community 122 - "Docs (grp 122)"
-Cohesion: 0.18
-Nodes (12): plugins/mediapipe — BlazePose tracking source, oscManager — zero-dependency OSC 1.0 codec over dgram, Barrel-only import rule (single identity), Core stays core (persisted types never move into plugins), Per-GL-context plugin resources (WeakMap keyed by gl), In-process contribution-based plugin architecture, ProjectorChannel contribution (data + GPU-render halves), npm run verify:plugins (single-identity + coverage gate) (+4 more)
-
-### Community 123 - "Docs (grp 123)"
-Cohesion: 0.17
-Nodes (11): grafton-ndi Rust binding, NDI network video (receive + send), ndiManager (main) — receive poll + multi-instance send, Committed prebuilt ndi.node, Receive resolution cap (720p editor / 1080p broadcast), Generic plugin IPC bridge (pluginInvoke/Send/On), Plugin-architecture roadmap & locked decisions, plugins/spout extraction (receive-only, NDI-shaped) (+3 more)
-
-### Community 124 - "Docs (grp 124)"
+### Community 188 - "Documentation — Outputs"
 Cohesion: 0.20
-Nodes (12): In-project schedule (ProjectData.schedule), Time-of-day project playlist, Relaunch-per-project switching, Broadcast (show) mode, Crash-loop circuit breaker + tripped flag, Recovery is a full relaunch, not a reload, Renderer heartbeat via render:stats IPC, Single-instance lock (+4 more)
+Nodes (12): Broadcast (show) mode, did-fail-load is fatal in a show mode, OutputSpan (one picture across several projectors), runProfile.relaunchArgs() + --built-renderer, SourceType.SLICE — cropped region of another surface, WP-1.2 — output stops being a property of the view, renderer/engine/frameEngine.ts (self-starting, DOM-free), In-project schedule (ProjectData.schedule) (+4 more)
 
-### Community 125 - "Docs (grp 125)"
-Cohesion: 0.18
-Nodes (12): AppShell information architecture, CollapsibleSection (the one reusable section), Contextual hover-help bus (services/helpBus.ts), Module model (MEDIA · MAP · FIXTURES · THREE_D), Fixture multi-select (primary + full set), Workspace layout v2 (three-region shell), Draggable position-remembering modals (useDraggableModal), layoutStore — WorkspaceLayout pub/sub singleton (+4 more)
-
-### Community 126 - "User Guide (grp 126)"
+### Community 189 - "Documentation — Surfaces"
 Cohesion: 0.21
-Nodes (12): Auto-patch (back-to-back address packing), Controller (physical output device row), Per-fixture auto/manual address lock, Per-fixture routing override (protocol/IP/broadcast/sparse/priority), Routing panel (patch sheet), Spatial output (Binaural HRTF vs speaker layout), Commissioning a speaker rig (Exclusive Mode + speaker check), The project stores the show, not the machine (+4 more)
+Nodes (12): Controller.drives (LED / Light / Any), Per-port writer thread + single-slot mailbox, USB DMX (ENTTEC DMX USB Pro, protocol==2), sceneLook allow-list — a recall restores the LOOK, never the RIG, autoPatch (addressing.ts universe/address packing), Controller (physical output device), Fixture (LED layout linked to one surface), Surface (a rectangle carrying one content source) (+4 more)
 
-### Community 127 - "User Guide Images (grp 127)"
+### Community 190 - "Documentation — Plugins"
+Cohesion: 0.18
+Nodes (12): @artlux/sdk (contracts, host owns instances), The barrel rule (single module identity), Core stays core (zero project-file migration), Generic plugin IPC bridge (pluginInvoke/Send/On), In-process contribution-based plugin architecture, Tailwind must scan plugins/ (dropped-class gotcha), verify:plugins (single-identity + coverage gate), Plugin-architecture migration roadmap (+4 more)
+
+### Community 191 - "Documentation"
+Cohesion: 0.17
+Nodes (12): automationTargetRegistry / AutomationTargetProvider, clipKindRegistry / ClipKindContribution, contextRegistry / WorkspaceContext (manifest of panel ids), Contribution registries (host/registries.ts), AutomationTarget display{unit,min,max} is read by the lane UI only, Configurable keyboard shortcuts, keymapStore — the live keymap singleton, Scoped conflict rule (Global/Timeline/State graph/Projector) (+4 more)
+
+### Community 192 - "User Guide Screens"
+Cohesion: 0.18
+Nodes (12): 2D / OUTPUT inspector section (Line | Matrix), Left context rail (BUILD / SHOW / APP groups), FIXTURES browser panel (Master Layer › Matrix 16x16, 256px · 768ch), GLOBAL PARAMS (LED Brightness, Projector Brightness), GROUPS panel (All Fixtures (2)), Mapping workspace context, MAPPING inspector section (Surface, LED Count 256, Reverse Direction), PATCH inspector section (Universe, Start Addr, Channels 768) (+4 more)
+
+### Community 193 - "Examples & Tutorials — Audio Tuto"
 Cohesion: 0.20
-Nodes (12): Global Params (LED Brightness / Projector Brightness), Left Scene sidebar (Surfaces / Fixtures / Groups / Global Params), Output gamma slider (with reset), Appearance: UI scale slider (120%, Ctrl +/-/0, Reset to detected), Screenshot: Audio Bed panel, Clip inspector empty state: select an audio clip to shape gain, spatial position and insert chain, Rule: placement / trim / fades live on the timeline lane, not in this panel, Master strip (Master gain 0.35, FX (1) insert chain, LANE badge) (+4 more)
+Nodes (12): AUDIO BED panel (bed clock 0:04, transport, + Bed), TRACKS — THE BED (single 'Bed' track at 1.00), Concept: the bed vs a scene's own sound, TRACKS — Foyer empty ('the scene Foyer has no audio tracks of its own'), BED 0:06 clock badge in the transport, Scene clock readout 00:00:06:20 / 00:00:20:00, Transport toolbar (play/pause · stop · loop · snap · in/out · End state here · Edit logic · FPS · Length · + Track), Concept: two clocks (show/bed clock vs per-scene timeline clock) (+4 more)
 
-### Community 128 - "State Machine Examples (grp 128)"
+### Community 194 - "Examples & Tutorials — Audio Tuto"
 Cohesion: 0.20
-Nodes (12): The unattended show (installed and left running), The wall clock (a third clock), The afterDelay trigger (wall clock), A looping show is N states in a ring, Entry actions (seek/play/stop/pause/setLoop/jumpMarker/recallScene/fireCue), Lock time (minimum dwell, gates afterDelay only), onTimelineEnd trigger, The six triggers (manual/afterDelay/atTime/onMarker/onClipEnd/onTimelineEnd) (+4 more)
+Nodes (12): Editing: Foyer scene picker (its own timeline · 0 clips) + State 1 of 3 stepper + Save, Action bar: + State, Region, Build from scenes, Global rule, Gesture legend: dbl-click empty add · dbl-click state fire · drag nub link · Ctrl+click edge fire · Ctrl+wheel zoom, Graph inspector pane — select a state, transition or region to edit it, Status readout of the live scene and its clock (Foyer 00:06), Logic workspace context, Show Machine panel — states & scenes graph canvas, Screenshot: Show Machine graph in the Logic context (+4 more)
 
-### Community 129 - "Archived Plans (grp 129)"
-Cohesion: 0.20
-Nodes (12): Asset-Ops Safety plan, Auto-Patch Collision Detection & Locked-Range Reservation plan, Cue-Authoring Robustness plan, DMX I/O Fidelity plan, In-App Docs Browser plan, Finish Fixture Segments plan, Run the schedule & show engine under --headless plan, Cross-cutting hazard: the two hand-mirrored File menus (+4 more)
+### Community 195 - "Design Plans — Archive Audio"
+Cohesion: 0.17
+Nodes (12): Ambisonic Bus (one spatial model, binaural or N-speaker decode), Automation-Curve Engine (core, generic keyframe/lane system), JUCE / libspatialaudio Licensing Gate (gates first tag, not the merge), Native Audio Engine Plan (JUCE + libspatialaudio), Show Clock (global bed survives scene swaps, not reset by recall), One transport, two playheads — the new engine invariant, showTime — the SHOW clock a scene recall does not reset, One Curve Format (LightingCurve becomes legacy; takes store Keyframe[]) (+4 more)
 
-### Community 130 - "Archived Plans (grp 130)"
-Cohesion: 0.23
-Nodes (12): Asset paths: mapAssetPaths is blind to scenes and to the audio bed, The core automation-curve engine (AutomationLane / targetPath / sampler), automationOverlay.owns() is core-only and invisible across the plugin boundary, Native Audio Engine — JUCE + libspatialaudio plan, WS6 correction — P5's 'no new recall plumbing' claim was false, Archived plans (shipped) index, The ownership rule — an automation lane always wins over a scene fade, Timeline transport + global/scene scoping + audio scene binding plan (+4 more)
+### Community 196 - "Design Plans — Lighting Keyframes"
+Cohesion: 0.26
+Nodes (12): Controller.drives Kind-Aware Auto-Patch (fallback chain ends on controllers[0]), ledCount Pinned to 1 for Lights (F2 silent rig corruption via canonical buffer shift), Lights Leave the 2D Canvas (WS9: 3D is a light's only home, click-to-place), Fixture Kinds Plan (dissociating LED fixtures from Light fixtures), Cues Are the Invocation Layer, Never the Storage (scrub/seek determinism argument), Lighting Keyframes Plan (group-addressed authorable light-show encoding), Pose Cues (E6: a layer between the lighting clip and the automation lane), Project-Level Pose Library (NamedPose; inline slots win over poseRef) (+4 more)
 
-### Community 131 - "Plans (grp 131)"
-Cohesion: 0.20
-Nodes (12): effectiveRegion() normalizer + FULL_REGION default, renderSurfaces getRegion? optional callback, intrinsicSize(CanvasImageSource) helper, CPU drawImage vs GPU UV crop parity risk, Projector UV remap u'=sx+u*sw in buildGeometry, Port the WebGPU atlas strategy into GPUMapper, The WebGL fallback is a reachable path, not dead code, IPixelMapper optional members (perSurface / renderSurfaces / updateParams) (+4 more)
-
-### Community 132 - "Audio Plugin (grp 132)"
+### Community 197 - "Audio Plugin — Package"
 Cohesion: 0.17
 Nodes (11): dependencies, @artlux/sdk, description, exports, ./main, ./renderer, name, private (+3 more)
 
-### Community 133 - "Augmenta Tracking (grp 133)"
+### Community 198 - "Augmenta Plugin — Src Augmentadrawable"
 Cohesion: 0.26
 Nodes (9): CPUSurf, cpuSurfaces, get(), getFor(), getGL(), GLSurf, glSurfaces, renderCPU() (+1 more)
 
-### Community 134 - "Augmenta Tracking (grp 134)"
+### Community 199 - "Augmenta Plugin — Src Augmentarenderer"
 Cohesion: 0.33
 Nodes (10): aspect(), colorFor(), drawCalibration(), instances(), liveCache, overlayCanvas(), sourceSize(), tickOnce() (+2 more)
 
-### Community 135 - "Augmenta Tracking (grp 135)"
-Cohesion: 0.20
-Nodes (7): BlobInst, cache, compile(), GL, linkProg(), Progs, TrailVerts
-
-### Community 136 - "Calibration (grp 136)"
+### Community 200 - "Calibration Plugin — Package"
 Cohesion: 0.17
 Nodes (11): dependencies, @artlux/sdk, description, exports, ./main, ./renderer, name, private (+3 more)
 
-### Community 137 - "HAP Codec (grp 137)"
+### Community 201 - "HAP Plugin — Package"
 Cohesion: 0.17
 Nodes (11): dependencies, @artlux/sdk, description, exports, ./main, ./renderer, name, private (+3 more)
 
-### Community 138 - "LiDAR Tracking (grp 138)"
+### Community 202 - "HAP Plugin — Src Happlayer"
 Cohesion: 0.20
-Nodes (7): BlobInst, cache, compile(), GL, linkProg(), Progs, TrailVerts
+Nodes (5): active, ensureRaf(), open(), Src, tick()
 
-### Community 139 - "LiDAR Tracking (grp 139)"
+### Community 203 - "LiDAR Tracking — Src"
 Cohesion: 0.26
 Nodes (9): CPUSurf, cpuSurfaces, get(), getFor(), getGL(), GLSurf, glSurfaces, renderCPU() (+1 more)
 
-### Community 140 - "LiDAR Tracking (grp 140)"
-Cohesion: 0.33
-Nodes (10): aspectFor(), colorFor(), drawCalibration(), instances(), liveCache, overlayCanvas(), sourceSize(), tickOnce() (+2 more)
-
-### Community 141 - "MediaPipe Pose (grp 141)"
+### Community 204 - "MediaPipe Plugin — Src Posepass"
 Cohesion: 0.20
 Nodes (7): cache, compile(), GL, linkProg(), PoseInst, Progs, TrailVerts
 
-### Community 142 - "MediaPipe Pose (grp 142)"
-Cohesion: 0.20
-Nodes (5): applySnapshot(), detections, ingest(), markDirty(), subs
+### Community 205 - "MP4 Plugin — Src Mp4box"
+Cohesion: 0.17
+Nodes (5): MP4File, MP4Info, MP4Sample, MP4Track, MP4VideoTrack
 
-### Community 143 - "NDI (grp 143)"
+### Community 206 - "NDI Plugin — Package"
 Cohesion: 0.17
 Nodes (11): dependencies, @artlux/sdk, description, exports, ./main, ./renderer, name, private (+3 more)
 
-### Community 144 - "NDI (grp 144)"
+### Community 207 - "NDI Plugin — Src Ndireceiver"
 Cohesion: 0.30
 Nodes (8): consumers, reconcile(), NdiEditor(), getNdiCanvas(), listNdiSources(), ndiAvailable(), startNdi(), stopNdi()
 
-### Community 145 - "Show Control (grp 145)"
+### Community 208 - "Show Control — Package"
 Cohesion: 0.17
 Nodes (11): dependencies, @artlux/sdk, description, exports, ./main, ./renderer, name, private (+3 more)
 
-### Community 146 - "Spout (grp 146)"
+### Community 209 - "Spout Plugin — Package"
 Cohesion: 0.17
 Nodes (11): dependencies, @artlux/sdk, description, exports, ./main, ./renderer, name, private (+3 more)
 
-### Community 147 - "Renderer Services (grp 147)"
-Cohesion: 0.27
-Nodes (10): encodeFrame(), UniverseTarget, addStatusListener(), configureOutput(), ensureStatusBridge(), listeners, notify(), sendArtNetFrame() (+2 more)
-
-### Community 148 - "JUCE Audio Engine (grp 148)"
+### Community 210 - "Build Scripts — Test Mediagrid"
 Cohesion: 0.20
-Nodes (3): AudioSourceChannelInfo, DeviceCfg, OpenedCfg
+Nodes (8): base, bottom, rows, stale, top, unmeasured, GridMetrics, gridWindow
 
-### Community 149 - "User Guide (grp 149)"
+### Community 211 - "Renderer Services — Perfmonitor"
+Cohesion: 0.23
+Nodes (5): RenderStats, fmt(), gpuMs(), PerfPanel(), PerfMonitor
+
+### Community 212 - "3D Simulator"
+Cohesion: 0.29
+Nodes (8): matchBitmapOrientation(), acquireSurfaceTexture(), entries, Entry, releaseSurfaceTexture(), stampNow(), getDrawableGeneration(), getSurface()
+
+### Community 213 - "Timeline UI"
+Cohesion: 0.17
+Nodes (10): attempts, deferred, durs, failed, peaks, pending, probeAudioDuration(), retryAfter (+2 more)
+
+### Community 214 - "Documentation"
+Cohesion: 0.20
+Nodes (11): Start in Safe Mode Recovery (autoload is the trap), Watchdog White-Screen Detection (UI crash reporting + load-start stall clock), frameEngine (self-starting DOM-free frame loop), Frame Pipeline (composite → GPU sample → pack → publish), Headless Mode (hidden GPU window, full App entry), Three-Process Electron Split (main / preload / renderer), Headless UDP Output Testing (dgram listener parsing ArtDmx/sACN), Kind Chosen at Creation (no in-place conversion in the UI) (+3 more)
+
+### Community 215 - "Doc Images — Launcher 04"
+Cohesion: 0.18
+Nodes (11): Launcher left sidebar nav (Install / Projects / Examples / Health), Launcher — Projects tab (screenshot), Projects tab, MACHINE CHECK card (preflight), Warnings-first, passes-collapsed reporting pattern, Collapsed disclosure: 31 CHECKS PASSED OR NOT APPLICABLE, Re-check button, Saved-report provenance notice (not a fresh run) (+3 more)
+
+### Community 216 - "Documentation — Scenes"
 Cohesion: 0.22
-Nodes (11): Bottom dock (DMX Monitor / Fixture Editor / Timeline / Scenes & Cues), Fixture Editor dock tab, Fixture geometry (Line / Matrix / Serpentine), Ledmap (irregular wiring remap, WLED-compatible), Pixel type (color order, channels, white mode, reverse), Fixture template library (structure only), Transform order: Reverse → ledmap → Serpentine, Output chain sanity check (nothing lights up) (+3 more)
+Nodes (11): OSC control prefix (/artlux), oscController — control-message router, Cue (a composable subset of parameters), Cue-bank grid (row 0 scenes, rows 1+ cues), cueBus — the React-free recall/fire bus, Render-free crossfade engine (transitions.ts + paramPath.ts), Pose cues (LightingCueEntry — the lighting arm), Scene (a snapshot of the whole look) (+3 more)
 
-### Community 150 - "User Guide Images (grp 150)"
+### Community 217 - "User Guide Screens"
 Cohesion: 0.20
-Nodes (11): Screenshot: OSC Monitor, Address table (Address / Hz / Count / Last value), Monitor controls (Pause, Clear, Raw log, filter address), OSC Monitor panel, Live stats strip (msg/s, addresses, active blobs, receive state), Screenshot: Help panel (docked right rail), DMX Monitor tab (bottom dock), Fixture Editor (Create / Add fixture / Auto-patch / Library templates) (+3 more)
+Nodes (11): Monitor tab strip (OSC Monitor · Trigger Zones · Pose Monitor · Augmenta Monitor), Pose Floor Calibration… action, Screenshot: Tracking workbench with Trigger Zones editor, Split viewport: 2D stage | live 3D floor grid, Surface select for the zone canvas (SOL), Tracking workspace context (Track rail item active), Collapsed TRACKING parameters rail (right edge), Trigger-zone canvas (normalized room, origin bottom-left, drag to move/resize) (+3 more)
 
-### Community 151 - "Audio Examples (grp 151)"
-Cohesion: 0.18
-Nodes (11): Headphones requirement (binaural HRTF default), Headroom and gain staging, Latched clipping flag, The master strip, Ambisonic encode + binaural HRTF decode, The clip insert chain (pre-encoder), Master chain is for protection (compressor/limiter/EQ), Reverb dropped from the master chain (+3 more)
-
-### Community 152 - "LiDAR Examples (grp 152)"
+### Community 218 - "User Guide Screens"
 Cohesion: 0.20
-Nodes (11): Folder-relative audio asset paths, The tracking store coalesces the feed to one update per animation frame, OSC Monitor (raw-wire sniffer), SOL floor / MUR wall zones (5.825 × 3.125 m), TRACKING surface content, Media-free EFFECT backdrop via bgLayerId, Folder-relative POSIX take path (ref + clip), Recorded takes copy into the open project's assets/tracking/ (+3 more)
+Nodes (11): Audio engine built with JUCE 8 (Starter licence) · libspatialaudio LGPL-2.1+, Licence notice (educational / non-commercial only, see NOTICE), Audio assets with use counts (bed-count.wav ×1, sting-main.wav ×1, logo.png ×2), Audio workspace context, Rule: the bed plays when the SHOW clock is over it — a scene recall does not restart it, TRACKS — THE BED mixer region (Bed 1.00, Room 0.70), Clip inspector empty state (gain, spatial position, insert chain live here), Interaction: drag audio in from the library on the left (+3 more)
 
-### Community 153 - "Audio Examples (grp 153)"
+### Community 219 - "Examples & Tutorials — Lidar Tracking"
 Cohesion: 0.20
-Nodes (11): The bed (ProjectData.audio), Solo is scoped per container, "Should this sound start over?" — the container question, Every Scene owns a timeline, A Scene's own audio (Timeline.audio), `GLOBAL` badge — base lanes drawn read-only under a Scene, A lane rides the clock of the document it lives in, Scene lane shadows a base lane on the same target (strike-through) (+3 more)
+Nodes (11): Address table (Address / Hz / Count / Last value), Monitor controls: Pause, Clear, Raw log, filter address…, Tracking dock tabs: OSC Monitor / Trigger Zones / Pose Monitor / Augmenta Monitor, OSC Monitor panel, Tracking-surface discovery readout ('No tracking surfaces seen yet…'), Origin is bottom-left, matching the tracker, Screenshot: Tracking context with the Trigger Zones dock tab, Surface selector (SOL, 'size unknown') (+3 more)
 
-### Community 154 - "Package Dependencies (grp 154)"
-Cohesion: 0.18
-Nodes (11): dependencies, electron-updater, lucide-react, @mediapipe/tasks-vision, prom-client, react-dom, @react-three/drei, @react-three/fiber (+3 more)
-
-### Community 155 - "Plans (grp 155)"
+### Community 220 - "Design Plans — Engine Decoupling"
 Cohesion: 0.20
-Nodes (11): Two hand-mirrored menus must both gain the item, plugins/midi — renderer-only MIDI control plugin, grantMediaPermissions gains 'midi'/'midiSysex', Web MIDI API as the substrate, ErrorBoundary component (scope + resetKey), services/faultReporter.ts + installGlobalNet, host/PluginBoundary — plugin render containment, IPC.RENDERER_FAULT channel + RendererFault (+3 more)
+Nodes (11): Dock Tree Model + Compiler (defaultTreeOf / ensureTree / mergePluginPanels), dockingOff Rename (default flip must reach installs that already saved a layout), PersistentLayer (position over placeholders, never reparent, never React state per frame), Dockable Workspace Plan (Phase 5, shipped 2026-07-27), The Decorrelation (output survives deleting the Stage DOM; DOM gates deleted), Execution Map — What Runs Where During a Show (interactive frame trace), Frame Engine (self-starting, DOM-free singleton owning the rAF), Electron MessagePort Transfer Yields Null Payload (renderer to main; copy instead) (+3 more)
 
-### Community 156 - "MediaPipe Pose (grp 156)"
+### Community 221 - "Augmenta Plugin — Src Blobpass"
+Cohesion: 0.22
+Nodes (6): cache, compile(), GL, linkProg(), Progs, TrailVerts
+
+### Community 222 - "HAP Plugin — Src Hapgl"
+Cohesion: 0.25
+Nodes (6): DecodeCanvas, GLRenderer, makeCanvas(), release(), renderers, uploadFrame()
+
+### Community 223 - "MediaPipe Plugin — Package"
 Cohesion: 0.18
 Nodes (10): dependencies, @artlux/sdk, @mediapipe/tasks-vision, description, main, name, private, sideEffects (+2 more)
 
-### Community 157 - "MediaPipe Pose (grp 157)"
+### Community 224 - "MediaPipe Plugin — Src Posedrawable"
 Cohesion: 0.29
 Nodes (9): CPUSurf, cpuSurfaces, get(), getFor(), getGL(), GLSurf, glSurfaces, renderCPU() (+1 more)
 
-### Community 158 - "MediaPipe Pose (grp 158)"
+### Community 225 - "MediaPipe Plugin — Src Poserenderer"
 Cohesion: 0.35
 Nodes (9): colorFor(), instances(), liveCache, overlayCanvas(), POSE_CONNECTIONS, sourceSize(), tickOnce(), trails() (+1 more)
 
-### Community 159 - "Spout (grp 159)"
+### Community 226 - "Show Control — Src"
+Cohesion: 0.29
+Nodes (8): Handler, handlers, hasCommandHandler(), registerCommandHandler(), runExternalCommand(), dispatch(), plugin, ShowCommand
+
+### Community 227 - "Build Scripts — Tsconfig Test"
+Cohesion: 0.18
+Nodes (10): compilerOptions, allowImportingTsExtensions, module, moduleResolution, noEmit, outDir, rootDir, types (+2 more)
+
+### Community 228 - "Renderer UI — Ui"
+Cohesion: 0.18
+Nodes (9): ConfirmCtx, ConfirmDialog(), ConfirmFn, ConfirmOptions, KIND_META, ToastApi, ToastCtx, ToastItem (+1 more)
+
+### Community 229 - "Renderer Services — Lightingoverlay"
+Cohesion: 0.24
+Nodes (8): begin(), building, clear(), current, get(), HTP_ROLES, RoleValues, set()
+
+### Community 230 - "Renderer Services — Viewportslots"
+Cohesion: 0.22
+Nodes (7): Listener, listeners, notify(), register(), setVisible(), __slots, ViewportSlot
+
+### Community 231 - "Documentation — Archive Superpowers"
+Cohesion: 0.29
+Nodes (10): Wave 3 Acceptance Test Script, Bed Click on GO (blocking prepare under the audio lock), Capture Scene +9.6 dB Automation Snap Blocker, Effects Animated on Raw Wall Clock Defect, Pause Black-Picture Defect (pre-existing), Deletion of the Timeline-less Scene (S-noTL), One Transport, Two Playheads, Wave 3 Merge Blockers Plan (+2 more)
+
+### Community 232 - "Documentation — Auto Align"
+Cohesion: 0.22
+Nodes (10): World-Space Multi-Projector Blend (partition of unity), Markerless Camera Auto-Align (venue model as metric reference), MPCDI Export/Import Codec, NVAPI Scanout Warp Is a 2D Resample (cannot render 3D perspective), Unattended Recalibration (nightly dot drift check + rollback), Validate-Better Gate (a low residual is not evidence of a correct solve), Manual Calibration Flow (spec-sheet lens, no camera), Pose via Model Picks (solvePnP in the venue frame) (+2 more)
+
+### Community 233 - "Documentation — Sdk"
+Cohesion: 0.20
+Nodes (10): Missing host.takes service (TrackingTakesDock stays core), host.audio — the three audio containers, host.boot — registerProbe / isBooting, host.show — read-mostly view of the show model, RendererHostServices (ctx.host), The Recording pair are deliberately Global scope, The two audio containers — the clock follows the CONTAINER, services/selection — an ephemeral channel, not a store (+2 more)
+
+### Community 234 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.22
+Nodes (10): Orientation toggles: Flip H (on), Flip V, Show IDs (on), Calibrate (on), Trail (on), Calibrate overlay: banded gradient + corner IDs used to check tracker orientation, CONTENT inspector section — source-type grid, FIXTURES panel (Master Layer, no fixtures) + GROUPS panel, GLOBAL PARAMS (LED Brightness 100%, Projector Brightness 100%), Mapping workspace context (Add Surface, Add Fixture, Auto-patch, Routing, Group Selection, Save as Template, Delete), Screenshot: Mapping context — a Tracking-content floor surface with Calibrate and Flip H on, Source types: None, Camera, Video, Image, DMX In, Spout, NDI, Effect, Layer, Timeline, Tracking, MediaPipe, Augmenta, Slice (+2 more)
+
+### Community 235 - "Launcher Backend — Src"
+Cohesion: 0.42
+Nodes (9): HKEY, accept(), dir_from_display_icon(), InstallInfo, InstallScan, PathBuf, String, scan() (+1 more)
+
+### Community 236 - "Launcher Backend — Gen"
+Cohesion: 0.20
+Nodes (10): $ref, description, items, type, uniqueItems, description, items, type (+2 more)
+
+### Community 237 - "Launcher Backend — Gen"
+Cohesion: 0.20
+Nodes (10): type, webviews, windows, items, description, items, type, description (+2 more)
+
+### Community 238 - "Launcher Backend — Gen"
+Cohesion: 0.20
+Nodes (10): $ref, description, items, type, uniqueItems, description, items, type (+2 more)
+
+### Community 239 - "Launcher Backend — Gen"
+Cohesion: 0.20
+Nodes (10): type, webviews, windows, items, description, items, type, description (+2 more)
+
+### Community 240 - "Launcher Backend — Src"
 Cohesion: 0.33
-Nodes (7): consumers, reconcile(), SpoutEditor(), getSpoutCanvas(), listSpoutSenders(), startSpout(), stopSpout()
+Nodes (8): cache_dir(), fetch_verified(), hash_file(), Progress, F, PathBuf, Result, String
 
-### Community 160 - "Docs (grp 160)"
-Cohesion: 0.22
-Nodes (10): NDI addon shipped as a committed prebuilt (not built in CI), JUCE Linux dependency install step (ALSA + X11), CI package job (per-OS matrix build), CI release job (publish GitHub Release on v* tag), ASIO off by default (a decision, not an oversight), CI notes (cargo cache, uncached JUCE FetchContent, ubuntu JUCE deps), Release gotchas (lockfile sync, space-free artifact names, no duplicate assets), Release process (v* tag → CI matrix → GitHub Release) (+2 more)
-
-### Community 161 - "Docs (grp 161)"
-Cohesion: 0.20
-Nodes (10): Mandatory strict JUCE audio-engine build in CI, Wave A — Length bounds playback again (transport revert of v0.12.0), New state-machine trigger: onTimelineEnd (and narrowed onClipEnd), Wave B — showTime, the second derived clock, Three silences, three badges (no audio engine / no output device / show ended), Audio engine build policy (warn in build:native, hard-fail in build:audio/package/CI), Dev-machine environment gotchas (ELECTRON_RUN_AS_NODE, cargo PATH, EBUSY, UDP 6454), The stale-addon trap (a stale .node logs 'engine loaded') (+2 more)
-
-### Community 162 - "Docs (grp 162)"
-Cohesion: 0.20
-Nodes (10): Frame pipeline (composite → per-surface GPU sample → universe pack → publish), Output transport (outputManager prefers native output-engine), Async readback via a staging-buffer ring (mapAsync), Decision: hybrid staged (Electron + WebGPU, only the output engine in Rust), Phase F — Rust output engine (napi-rs) + SharedArrayBuffer handoff, The three structural limits that motivated the rewrite, WLED feature port (effects, palettes, segments, 2D, color correctness), Strict per-surface UV sampling (WebGPU) vs degraded WebGL composite (+2 more)
-
-### Community 163 - "Docs (grp 163)"
-Cohesion: 0.20
-Nodes (10): Local Grafana + Prometheus docker stack (monitoring/), Loopback-bound by default (ARTLUX_METRICS_HOST), artlux_output_* gauges (fps/pps/universes/up), Prometheus /metrics endpoint (main process), ArtPoll/ArtPollReply device discovery (F2), ArtSync synchronous output (F2b), dgram.send buffer-reuse corruption bug, Hybrid native decision (Electron + React + WebGPU, Rust only for output) (+2 more)
-
-### Community 164 - "Docs (grp 164)"
-Cohesion: 0.24
-Nodes (10): Plugin activation (FIRST_PARTY, once per window), Contribution registries (renderer host singletons), Host services (ctx.host / RendererHostServices), ProjectorPanelContribution (full-window React overlay), Tailwind must scan plugins/, plugins/calibration staged extraction (Stages 1→3), Stage 2d: orchestration move chosen over panel-ization, @artlux/sdk API surface (+2 more)
-
-### Community 165 - "Docs (grp 165)"
-Cohesion: 0.20
-Nodes (10): SourceType.SPOUT stays a core enum value, autoPatch — sequential universe/address allocation, Controller (physical output device), Effects live on surfaces, not per-fixture, Fixture (LED layout linked to a Surface), Routing spreadsheet modal, Surface (rectangle carrying one content source), SurfaceContent (+2 more)
-
-### Community 166 - "Docs (grp 166)"
-Cohesion: 0.20
-Nodes (10): onTimelineEnd auto-advance (held-back pause), The dual-clock rule (wall clock vs playhead triggers), Lock time (minimum dwell, gates only afterDelay), OSC transition triggering (/artlux/state/...), SmTransition (directed edge + fadeSec), SmTrigger (manual/afterDelay/atTime/onMarker/onClipEnd/onTimelineEnd), Length bounds playback (Wave A re-bounded clock), Overrun badge (audio never extends Length) (+2 more)
-
-### Community 167 - "Planning Docs (grp 167)"
-Cohesion: 0.20
-Nodes (10): App is the single writer of `playing` (the engine only emits TransportIntent), normalizeTimeline raises Length to the content end at load (Wave A back-compat), Length bounds playback again (start = inPoint, end = outPoint ?? duration), The loop TransportIntent wrote the global document while a scene was bound, `onTimelineEnd` FSM trigger, The playhead never enters React state (painted imperatively), DC5b — exit-to-Global reconverges, and re-latches a parked clock without pulsing `hitEnd`, The playhead is DERIVED, never accumulated (re-anchor originMs and re-baseline prevPlayhead) (+2 more)
-
-### Community 168 - "User Guide (grp 168)"
-Cohesion: 0.24
-Nodes (10): Help panel (F1, contextual, EN/FR), Stage (2D canvas), 1:1 tracking projection calibration procedure, Tracking content (LiDAR blobs as projectable content), Tracking takes (record & replay LiDAR without a tracker), Bézier warp (16-point control mesh), Corner-pin Align mode, 3D Scene split pane (+2 more)
-
-### Community 169 - "User Guide (grp 169)"
-Cohesion: 0.22
-Nodes (10): Audio Bed panel (mixer), Audio automation lanes (same curve engine), Audio clip inspector (gain, spatial pad, FX inserts), Global binding (bed lanes editable only on Global), Insert chain runs before spatial placement, LANE / FADE / GLOBAL fader ownership badges, Master reverb is dropped after ambisonic decode, Master strip (house level, protection FX, latched clip badge) (+2 more)
-
-### Community 170 - "User Guide Images (grp 170)"
-Cohesion: 0.24
-Nodes (10): Screenshot: Media Library tab + Fixture Editor, Asset thumbnail grid with usage-count badge (x1 / x2), Import row (video / image / model / audio import buttons), Media Library panel (Media sidebar tab), Asset type filter chips (All / Video / Image / Model / Take / Audio) + search, Screenshot: Asset Manager modal, Asset Manager modal (dimmed-backdrop overlay dialog), Consolidate action (copy assets into the project folder) (+2 more)
-
-### Community 171 - "User Guide Images (grp 171)"
-Cohesion: 0.24
-Nodes (10): Auto-patch action (Fixture Editor), Fixture Editor panel (Create / Library / Patch / Pixel Type / Geometry), Patch fields (LEDs / Universe / Start / Reverse), Screenshot: Routing modal (controllers + fixture patch table), Auto-patch button + auto-assigned Universe/Start with per-row lock, Controller 'Main DMX' (Art-Net @ 192.168.1.50), Controllers table (Name / Protocol / IP / BCAST / Start U / Prio), Fixtures patch table (Surface / Controller / Univ / Start / Channels / LEDs / Span) (+2 more)
-
-### Community 172 - "User Guide Images (grp 172)"
-Cohesion: 0.24
-Nodes (10): Screenshot: Outputs modal, all surfaces Off / Idle, Align action (drag four corners; arrows nudge, R reset, Esc done), Display picker per surface ('— pick display —'), FPS cap selector + Re-scan displays, Output status column (Idle when Off), Outputs modal (per-surface projector output table), Screenshot: Outputs modal, Logo Wall On in Windowed mode (Live), Live output status (green) once a surface output is On (+2 more)
-
-### Community 173 - "Monitoring Stack (grp 173)"
+### Community 241 - "Monitoring — Docker Compose"
 Cohesion: 0.24
 Nodes (10): ARTLUX_METRICS_HOST=0.0.0.0 launch requirement, ArtLux local monitoring stack (Prometheus + Grafana), Grafana published on host port 3001, grafana container service (artlux-grafana), host.docker.internal:host-gateway extra_hosts mapping, prometheus container service (artlux-prometheus), ArtLux file-based Grafana dashboard provider, Provisioned Prometheus datasource (uid: prometheus) (+2 more)
 
-### Community 174 - "JUCE Audio Engine (grp 174)"
+### Community 242 - "JUCE Audio Engine — Cmakelists"
+Cohesion: 0.20
+Nodes (10): ARTLUX_ENABLE_ASIO — OFF by default, and that is a decision, audio_engine N-API shared addon target, HAVE_MIT_HRTF built-in HRTF dataset (no SOFA/MySofa), JUCE 8.0.14 fetched at configure time, juce_dsp linked for P3 effect chains, libspatialaudio 0.4.0 built STATIC, MSVC node.lib import-library generation step, NAPI_VERSION=8 (Electron 42 / node 22 ABI) (+2 more)
+
+### Community 243 - "JUCE Audio Engine — Test"
 Cohesion: 0.24
 Nodes (8): a, fs, measure(), p, path, results, sleep(), wav()
 
-### Community 175 - "HAP Native (grp 175)"
-Cohesion: 0.58
-Nodes (9): decode_complex(), decode_frame(), Decoded, HapFormat, read_header(), Result, String, snappy_decode() (+1 more)
-
-### Community 177 - "Plans (grp 177)"
-Cohesion: 0.20
-Nodes (10): Relink confirm-before + report-after (instead of true undo), useHistory<Fixture[]> — the app's undo has always been fixtures-only, disconnectRevoked() — Kick hard-cuts a device's SSE stream, Kick vs Lock — per-device cut vs global 423 freeze, The audio engine does not re-open a dead device on its own, A layer goes black forever after a scene round-trip (timeline.ts swap), tsconfig.json has no strict — a green tsc is weaker evidence than it looks, Automated GOs push uncapped project snapshots onto the undo stack (+2 more)
-
-### Community 178 - "Archived Plans (grp 178)"
-Cohesion: 0.20
-Nodes (10): Address-collision detector (fixtureSpans / findCollisions), RoutingModal hooks-order hazard (early return at :38), resolveDest — one shared destination resolution for detector and Stage, Controller/output split-brain for un-bucketed 'Global' fixtures, The canonical RGBW linear buffer — canvas indexing stays *4, DMX Monitor honors channelsPerPixel for wire-footprint math, Audit-log spam during a persistent-trigger defer (design defect), The skipped-debounce audit event (scaffolded in the schema, never emitted) (+2 more)
-
-### Community 179 - "Plans (grp 179)"
-Cohesion: 0.20
-Nodes (10): Double-decode cost of the two-surface split, Multi-projector split via two surfaces sharing one source, SurfaceContent.srcRegion (normalized source sub-rect), Projector windows keyed 1:1 by surfaceId, Continuous CC → fadeable param with per-frame coalescing, MIDI dispatch(host, binding, msg), MIDI-learn arm/capture flow, MidiBinding (MidiMatcher + MidiAction) (+2 more)
-
-### Community 180 - "Augmenta Tracking (grp 180)"
-Cohesion: 0.20
-Nodes (9): dependencies, @artlux/sdk, description, main, name, private, sideEffects, type (+1 more)
-
-### Community 181 - "LiDAR Tracking (grp 181)"
-Cohesion: 0.20
-Nodes (9): dependencies, @artlux/sdk, description, main, name, private, sideEffects, type (+1 more)
-
-### Community 182 - "Renderer UI and Timeline UI (grp 182)"
+### Community 246 - "Design Plans — Documentation Wiki"
 Cohesion: 0.24
-Nodes (6): trackingTake, Props, VideoThumb(), BlobSparkline, Props, onThumb()
+Nodes (10): Audience Toggle Markers (mark in place, demote not hide), Stratify Docs by Half-Life (never hand-write what the source knows), In-App Doc Search (DocChunk index, one shared scorer, F1 third tier), docs/manifest.json (the one index, replaces six hand-kept lists), Searchable Usage Wiki Plan (Phases 0-2 done, gate open), Help Merge + TopBar Removal Plan (shipped; HelpPanel and TopBar deleted), One Help Surface (modal wins; F1 renderer-owned like Ctrl+K; StatusBar keeps live hover), The Documentation Gate (machine-checked, not a tick in a table) (+2 more)
 
-### Community 183 - "MP4 Codec (grp 183)"
+### Community 247 - "Design Plans — Renderer Error"
+Cohesion: 0.22
+Nodes (10): faultReporter + RENDERER_FAULT IPC (global net installed before createRoot), Renderer Error Containment Plan (built 2026-07-29; the watchdog can see a white screen), PluginBoundary (host wraps all four plugin render sites; no opt-out), Projectors Freeze and Lie (black with a caption is the truth, not the frozen frame), Recovery Ladder (contain / layout reset / breakered reload / safe boot; venue gets only relaunch), Watchdog Blind to a First-Render Throw (lastRenderAt > 0 gate never arms), Docs & Tutorials Entry (docs.html loads docs.tsx), Editor Entry (index.html loads index.tsx into #root) (+2 more)
+
+### Community 248 - "Augmenta Plugin — Package"
+Cohesion: 0.20
+Nodes (9): dependencies, @artlux/sdk, description, main, name, private, sideEffects, type (+1 more)
+
+### Community 249 - "LiDAR Tracking — Package"
+Cohesion: 0.20
+Nodes (9): dependencies, @artlux/sdk, description, main, name, private, sideEffects, type (+1 more)
+
+### Community 250 - "MP4 Plugin — Package"
 Cohesion: 0.20
 Nodes (9): dependencies, @artlux/sdk, mp4box, description, name, private, sideEffects, type (+1 more)
 
-### Community 184 - "Projector Window (grp 184)"
-Cohesion: 0.36
-Nodes (8): CornerPin, WarpGrid, cornerQs(), dist(), intersect(), P, toClip(), DrawOpts
+### Community 251 - "Main Process — Fixturelibrary"
+Cohesion: 0.38
+Nodes (9): bundledRoot(), ensureUserDir(), getIndex(), getManufacturer(), getProfile(), manufacturerCache, readUserProfiles(), summarize() (+1 more)
 
-### Community 185 - "Transport and Output (grp 185)"
+### Community 252 - "Transport / Output — Oscmanager"
 Cohesion: 0.31
 Nodes (8): decodeMessage(), decodePacket(), encodeMessage(), padString(), readString(), send(), start(), stop()
 
-### Community 187 - "Docs (grp 187)"
-Cohesion: 0.28
-Nodes (9): Broadcast (show) mode (--broadcast), Headless mode (--headless), MessagePort tracking snapshot bridge to the 3D Scene window, Broadcast mode launch + tray/global-hotkey control, MessageChannelMain projector bridge, Projector windows self-render file/effect/layer content, 3D Scene as a separate window + MessageChannelMain bridge, Invariant: one transport, two playheads (+1 more)
-
-### Community 188 - "Docs (grp 188)"
+### Community 253 - "Renderer Services — Uiperfmonitor"
 Cohesion: 0.22
-Nodes (9): AutomataUI (design model for the node graph), Legacy stateMachine migration (timeline.stateMachine → ProjectData), Single transport writer (FSM emits TransportIntents), SmAction (entry actions), SmRegion (visual group-box, no runtime effect), SmState (a node is a look), State machine — the project-level Show graph, StateGraphEditor node-graph authoring modal (+1 more)
+Nodes (7): Props, UiProfiler(), EMPTY_REGIONS, UI_PROFILING_ENABLED, UiPerfStats, UiRegionStats, WindowSum
 
-### Community 189 - "Planning Docs (grp 189)"
+### Community 254 - "Renderer Services — Codecresidency"
+Cohesion: 0.22
+Nodes (5): videoCodecRegistry, codecOf, release(), releaseOwner(), users
+
+### Community 255 - "Renderer Services — Fixturelayout"
+Cohesion: 0.29
+Nodes (7): arc(), Axis, centroid(), distribute(), line(), pos(), rot()
+
+### Community 256 - "Renderer Services — Fixtureplacement"
+Cohesion: 0.27
+Nodes (7): arm(), consume(), disarm(), Listener, notify(), PlacementRequest, subs
+
+### Community 258 - "Documentation — Manifest"
+Cohesion: 0.22
+Nodes (8): $comment, examples, generated, guide, guideDir, guideExclude, $referenceOrder, verifiedAgainstSource
+
+### Community 259 - "Documentation — Roadmap"
 Cohesion: 0.25
-Nodes (9): The mixer must show what is SOUNDING (LANE / FADE badges), DC11b — the write-only fade map trap (releaseFade / releaseAllFades / getLive), DC13 — `Scene.audio?: CueEntry[]` gives the FSM audio recall for free, DC15 — a fade leg must carry `log` so a log-curve param fades like its lane, DC6b — `isGlobalDocBound()`: tag automation lanes by DOCUMENT, not by list, DC11 — read order: lane-override ?? scene-fade ?? authored, Task 6 — Capture Scene must not clone the global timeline's automation lanes (+9.6 dB blocker), Task 5 — `Scene.timeline` becomes required (delete the state, don't guard it) (+1 more)
+Nodes (8): videoCodecRegistry / VideoCodecContribution, WP-2.1 — a codec stopped claiming files it cannot decode, DDS image sequences — evaluated and dropped, Feed samples in DECODE order, never presentation order, DXV codec — dropped 2026-07-03, @artlux/plugin-hap (first VideoCodec contribution), @artlux/plugin-mp4 (WebCodecs GPU decode), SDK gap: @artlux/sdk/main is IPC-only (no contribution seam)
 
-### Community 190 - "Planning Docs (grp 190)"
-Cohesion: 0.28
-Nodes (9): Wave 3 Acceptance Test Script & Close-out, The Wave 3 merge gate (four gates), Timeline Transport & Scoping (Wave A) — Implementation Plan, Audio Scoping (Wave B) — Implementation Plan, A Missing Audio Engine Must Announce Itself — Implementation Plan, The build trap — a running app locks audio_engine.node (LNK1104, stale addon left in place), Wave 3 Merge Blockers — Implementation Plan, The sibling availability probes (`calib:available`, `ndi:available`, `nvwarp:available`) (+1 more)
-
-### Community 191 - "User Guide (grp 191)"
-Cohesion: 0.22
-Nodes (9): Engine boundary — syncLayer never reads muted/solo/enabled, Clip scope invariant (track flags are UX-only), Thumbnails never disturb playback, Timeline NLE (DaVinci-style video-layer editor), Content source catalog (None/Video/Image/Camera/DMX-In/Spout/NDI/Layer/Effect/Tracking), Quick start — first light in 5 steps, Signal flow: content → surface → fixture → Art-Net/sACN, Tracking content surface + 1:1 projection calibration (+1 more)
-
-### Community 192 - "Docs (grp 192)"
-Cohesion: 0.22
-Nodes (9): Color routes through tokens (canvas/WGSL exempt), Design-token conventions (tokens.css → tailwind.config.js), Elevation shadow scale (shadow-e1..e3), Token guardrail greps (all must return 0), Motion tokens + prefers-reduced-motion, One radius vocabulary (rounded-sm/md/lg → --r-*), Named type scale with a 10px hard floor, Projector outputs — corner-pin, Bézier warp, soft edge (+1 more)
-
-### Community 193 - "User Guide Images (grp 193)"
-Cohesion: 0.22
-Nodes (9): Bank 1 (cue bank tabs, + adds bank), Hint bar: click to fire / click to author / column fires whole column, Cue grid (numbered rows x columns), Global Params (LED Brightness, Projector Brightness), GO cue cell 'Look A' in scene row (SC), Left sidebar: Surfaces / Fixtures / Groups / Global Params tree, Live / Edit mode toggle, Right inspector: Mapping / Segments / 2D Output / Routing (+1 more)
-
-### Community 194 - "LiDAR Examples (grp 194)"
-Cohesion: 0.22
-Nodes (9): id == 0 means an empty blob slot, scripts/lidar-emitter.cjs — synthetic blob emitter, oscListenAddress "" = bind all interfaces, The shipped emitter never sends id = 0, Bind this machine's NIC, never the tracking server's IP, EADDRNOTAVAIL — binding a non-local NIC silences OSC, The FSM has no wildcard edge, OSC transition control (/artlux/state/<transitionId>) (+1 more)
-
-### Community 195 - "JUCE Audio Engine (grp 195)"
+### Community 260 - "User Guide Screens"
 Cohesion: 0.25
-Nodes (9): ARTLUX_ENABLE_ASIO — OFF by default, and that is a decision, audio_engine N-API shared addon target, JUCE 8.0.14 fetched at configure time, juce_dsp linked for P3 effect chains, MSVC node.lib import-library generation step, NAPI_VERSION=8 (Electron 42 / node 22 ABI), WASAPI exclusive mode as the Windows multichannel path, The first C++/CMake native module in a Rust-only native tree (+1 more)
+Nodes (9): ActionBar (Add Surface · Add Fixture · Auto-patch · Routing · Group Selection · Save as Template · Delete · Collect Assets · Collect a Copy), Browser column (SURFACES · FIXTURES · GROUPS · GLOBAL PARAMS), ContextRail (BUILD: Map/3D · ALIGN: Proj/Calib · SHOW: Cues/Machi…/Audio/Show · APP: Prefs), Dock tab strip (Library · Media Library · Program · Routing · DMX Monitor · Performance), GLOBAL PARAMS (LED Brightness, Projector Brightness sliders), Mapping workspace context (active), ROUTING panel (Reserve locked, Auto-patch, CONTROLLERS table, FIXTURES section), Stage 2D viewport (grid toggle, grid size 8, snap, zoom-fit) (+1 more)
 
-### Community 196 - "Plugin SDK (grp 196)"
+### Community 261 - "User Guide Screens"
+Cohesion: 0.25
+Nodes (9): 2D / OUTPUT inspector section (Line vs Matrix layout), Context Rail (BUILD / ALIGN / SHOW / APP), GLOBAL PARAMS (LED Brightness, Projector Brightness), Mapping workspace context, MAPPING inspector section (Surface, LED Count, Reverse Direction), SEGMENTS inspector section (Whole fixture, Insert gap, Split), 2D Stage viewport (grid, zoom, snap toolbar), SURFACES browser panel (FX Panel EFFECT, Logo Wall IMAGE) (+1 more)
+
+### Community 262 - "User Guide Screens"
+Cohesion: 0.22
+Nodes (9): Action Bar (Add Surface / Add Fixture / Auto-patch / Routing / Group Selection / Save as Template / Delete / Collect Assets), Screenshot: Fixture Editor (Mapping workbench), Status bar (hint line, FPS, LIVE, refresh Hz · pps · universes), Counts header (FIXTURES 2, CHANNELS 948, UNIVERSES 3) + LIVE indicator, Auto-patch button + Reserve locked checkbox, Drives selector (steers auto-patch classification), Controller row: Main DMX · Art-Net · Drives Any · 192.168.1.50 · prio 100, Protocol selector (Art-Net / sACN / USB-DMX) (+1 more)
+
+### Community 263 - "User Guide Screens"
+Cohesion: 0.28
+Nodes (9): Bank tabs (Bank 1, +), Column ▼ fires the whole column (column headers), Cue grid (columns 1..11 × rows SC/1..7, + cells), Cues workspace context (SHOW group in the rail), GO cell — armed scene Look A (on air), Scene / Live / Edit mode toggle, PROGRAM preview panel (whole timeline composited, z-ordered), Screenshot: Scenes & Cues workbench (+1 more)
+
+### Community 264 - "User Guide Screens"
+Cohesion: 0.22
+Nodes (9): Action bar (Add Surface, Add Fixture, Auto-patch, Routing, Collect Assets), CONTROLLERS table (Name · Protocol · Drives · IP · BCAST · Start U · Prio), Dock tab strip (Library · Wiring & Ledmap · Media Library · Program · Routing · DMX Monitor · Performance), ROUTING dock panel (Reserve locked, Auto-patch), Reordered dock tab strip (Routing · DMX Monitor · Media Library · Library · Wiring & Ledmap), Media Library dock panel (Search media, Import, Scan), Screenshot: Mapping workbench, Media Library dock + Matrix fixture inspector — filename says calibration, Widened browser column (splitter dragged) vs 11b/11c (+1 more)
+
+### Community 265 - "User Guide Screens"
+Cohesion: 0.22
+Nodes (9): About ARTLux modal dialog, Check for updates action, Credits: Zaki Jawhari · Bérenger Recoules, Docs link button (in-app Docs Browser), GitHub link button, Modal overlay dimming the shell behind it, Product blurb (maps video/images/camera/NDI/Spout/DMX-in and effects onto surfaces, samples every LED on the GPU), Tech stack line (Electron · React · WebGPU · Rust napi-rs · Spout2) (+1 more)
+
+### Community 266 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.25
+Nodes (9): TRACKS — Foyer section (Sting, read-only here), + Automation / + Audio lane-add row, Per-scene audio lane 'Foyer — Sting' with clip waveform, mute/solo, gain, TL badge, Gain GLOBAL automation lane (Master 0.84) with keyframed curve, Red playhead over the time ruler (00:00:00 → 00:40:00), Record row (Record, + Tracking lane, Takes: none yet), Timeline drawer (per-scene editing surface with its own transport), Transport bar (play/stop/loop, End state here, 00:00:04:16 / 00:00:20:00, BED 0:04, FPS 30, Length 20s, +Track) (+1 more)
+
+### Community 267 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.28
+Nodes (9): + Automation · + Audio · + Bed lane adders, "Demo SOL take" LiDAR take asset (0:18, ×1 use), "Editing: Global" scope selector — global vs per-scene timeline, Per-lane toggles (M / S / lock / eye / audio / link), Record button + Takes chip (take recording row), TimelinePanel drawer (the SHOW's timeline), Tracking lane (holds the LiDAR take clip), Tracks list (disabled state-machine lane, Backdrop, Tracking) (+1 more)
+
+### Community 268 - "Launcher Backend — Gen"
+Cohesion: 0.22
+Nodes (9): properties, Identifier, description, oneOf, type, identifier, remote, anyOf (+1 more)
+
+### Community 269 - "Launcher Backend — Gen"
+Cohesion: 0.22
+Nodes (9): properties, Identifier, description, oneOf, type, identifier, remote, anyOf (+1 more)
+
+### Community 270 - "Package"
+Cohesion: 0.22
+Nodes (8): author, description, license, main, name, private, version, workspaces
+
+### Community 271 - "Plugin SDK — Package"
 Cohesion: 0.22
 Nodes (8): description, exports, ./main, ./renderer, name, private, type, version
 
-### Community 197 - "Plans (grp 197)"
+### Community 272 - "Design Plans — Archive Headless"
 Cohesion: 0.22
-Nodes (9): The global audio bed (ProjectData.audio) vs per-scene one-shots, One transport, two playheads — the new engine invariant, showTime — the SHOW clock a scene recall does not reset, Gate 6 — the automation-clock blockers cured by deleting the state, Gate 1 — the build system builds the audio engine (build:audio + --check), Gate 2 — a gate whose subject is 'the docs are true' cannot be closed once and left, A review that reads code cannot hear a room, Independent track — transport prev/next edit point (+1 more)
+Nodes (9): --broadcast is the existence proof that the full App runs chrome-less, Retiring headless.tsx / HeadlessRunner.tsx / headless.html, Operational break — headless now decodes media and serves the tablet port, Projector suppression — the one behavior making headless ≠ broadcast, The show-control renderer schedule tick (only armed in the 'main' window role), Unify --headless onto the App entry with a headless=1 flag, Show Control — Tablet Parity plan, Audit-log spam during a persistent-trigger defer (design defect) (+1 more)
 
-### Community 198 - "Plans (grp 198)"
+### Community 273 - "Design Plans — Multi Projector"
 Cohesion: 0.22
-Nodes (9): BlendPreviewGL additive combined-region compositor, effectEpoch field on the transport bridge message, effectTimeSec() shared time helper, NVAPI hwWarp outputs are not previewable, Shared effect clock (phase-lock), ProjectorOutput.windowBounds? persistence (deferred), Overlapping desktop windows occlude instead of adding light, The frozen-frame lie in projector windows (+1 more)
+Nodes (9): Shrink the Dock to Unique Cards (audit found a third unique thing: MatrixPreview), Fixture Editor Split Plan (option B: shrink to Library + Wiring & Ledmap), Role Vocabulary De-duplication (roleValue one owner; the white role had already drifted), fixtureKind.ts — the One Owner for the Kind Predicate (three-way lightState), Double-Blend Guard (blendOwner: alpha squared mimics a gamma error), The Gap Chain (solver has zero callers; a calibrated output has no blend stage at all), Multi-Projector Soft-Edge Blend Plan (auto-calibrated, 2 projectors one screen), ProjectorBlend Persisted Result (core by doctrine; dense map stays session-scoped) (+1 more)
 
-### Community 199 - "Plans (grp 199)"
-Cohesion: 0.25
-Nodes (9): conform.main.ts — cache, key, jobs, routing, conformClient.ts — WebCodecs AAC + last-resort branches, in24 is not always big-endian (the enda atom), audioFold.ts — ITU-R BS.775 downmix at conform, Preferences ▸ Audio ▸ Video clip audio kill switch, movDemux.ts — moov-only container walk, DECIDED: every existing project starts making sound, services/videoAudio.ts — the derivation (+1 more)
-
-### Community 200 - "Audio Plugin (grp 200)"
+### Community 274 - "Audio Plugin — Src Movdemux"
 Cohesion: 0.36
 Nodes (6): AudioRange, be32(), demuxAudio(), findBox(), forEachBox(), readMoov()
 
-### Community 201 - "Augmenta Tracking (grp 201)"
-Cohesion: 0.22
-Nodes (8): AugmentaObject, augmentaDrawable, augmentaProjector, augmentaRenderer, augmentaStore, blobPass, motion, LiveTrack
+### Community 275 - "Calibration Plugin — Src Calibaudit"
+Cohesion: 0.36
+Nodes (8): AuditRecord, clearInFlight(), logPath(), markerPath(), markInFlight(), queue, tail(), takeInterrupted()
 
-### Community 202 - "JUCE Audio Engine (grp 202)"
+### Community 276 - "Renderer Services — Outputspan"
+Cohesion: 0.47
+Nodes (8): clampCount(), clampOverlap(), SpanTile, spanTileCount(), spanTiles(), tileName(), tileSize(), tileStart()
+
+### Community 277 - "JUCE Audio Engine — Src"
 Cohesion: 0.39
 Nodes (5): array, atomic, AudioSource, kMaxMeterCh, MeteringAudioSource
 
-### Community 203 - "Docs (grp 203)"
+### Community 278 - "Documentation — Audio"
 Cohesion: 0.25
-Nodes (8): Native-degradation contract (never crash when unavailable), Offline WASM + .task model staging, poseEngine — WASM PoseLandmarker inference loop, poseStore — render-free pub/sub detection store, poseTracking — id assignment + One-Euro smoothing, PoseViz — r3f scene overlay, blobMotion — One-Euro smoothing + bounded prediction, Camera surfaces need the main-process 'media' permission
+Nodes (8): Show Model (timeline · scenes/cues · state machine), The Audio Bed (ProjectData.audio, never restarted by a recall), Read Order lane ?? fade ?? authored, Two Clocks (show clock vs playhead; three containers), Video Soundtrack Conform (container → WAV, codec-agnostic), Audio Is a Container Concern, Not a Codec One, lightingOverlay (fixture/role-keyed, double-buffered, garbage-free), Lighting Precedence Stack (default < authored < clip < cue < lane < live)
 
-### Community 204 - "Docs (grp 204)"
-Cohesion: 0.25
-Nodes (8): dispatch.ts — ShowCommand → cueBus/timeline, host.show SDK seam, Scene recall via cueBus.requestRecall, Ephemeral vs persisted timeline state, Selection is a channel, not a store (services/selection.ts), MadMapper-language design system (UI refactor), Shared primitive kit (components/ui/), Slider local-during-drag + render-free live preview
-
-### Community 205 - "Planning Docs (grp 205)"
-Cohesion: 0.25
-Nodes (8): The amber `show ended` badge, DC2b — a parked show clock published, not inferred (`showEnded`), The `audio:available` IPC probe, The persistent amber `no audio engine` badge, No "don't show again" — a permanently silenceable warning is how a machine ends up mute, No false alarms — only an explicit `false` from the probe raises the modal, The `AudioEngineMissing` startup modal, Task 9 — a dead audio device must not report "engine active" (badge + Reconnect)
-
-### Community 206 - "User Guide (grp 206)"
+### Community 279 - "Documentation — Archive Superpowers"
 Cohesion: 0.29
-Nodes (8): Transport lives in the Timeline, not the title bar, Content sources (Video/Image/Camera/DMX-In/Spout/NDI/Layer/Timeline/Effect/Tracking), Generative effect + palette (surface or fixture), Group (named selection set + look-copy), Clip editing (select/blade/snap/markers/in-out), Timeline state machine (automatic control layer), Timeline (DaVinci-style track NLE), Send warped output as NDI
+Nodes (8): Output Device Loss Recovery Test (2.10), P6 Multichannel Acceptance Checklist, Headless Audio Checkpoint (never run), Speaker Check Acceptance Gate (Checkpoint 3), Synthetic 8-Channel Device, A Synthetic Pass Is Not a Venue Pass, Headless: Verify, Then Delete the Dead Fork, Two-Tier Watchdog
 
-### Community 207 - "User Guide (grp 207)"
+### Community 280 - "Documentation — Checkerboard 9x6"
+Cohesion: 0.32
+Nodes (8): 100 mm Reference Ruler, 25 mm Square Size, 9 x 6 Inner Corners Pattern, Measure a Square and Enter It in the Calibration Wizard, Millimetre-Exact Page Geometry (274 x 229 mm viewBox), Calibration Checkerboard (PNG print target), Print at 100% / Actual Size (A3 or A4 fit-to-page), Calibration Checkerboard (SVG vector source)
+
+### Community 281 - "Documentation — Fixture Library"
 Cohesion: 0.29
-Nodes (8): Normalized 0–1 stage coordinates, Surface z-order / stacking, Surface (one rectangle, one content source), Fixture (one LED product), Mapping ▸ Surface (fixture→surface link), 3D Layout card (position/rotation/line-matrix-arc), First light in 5 steps, Signal-flow mental model: Content → Surface → Fixture → Art-Net/sACN
+Nodes (8): Pan/Tilt Stored in Degrees (head morphing), FixtureProfile Model (channels, modes, flat slots array), fixtureFootprint Single Owner (unresolved profile returns 0), OFL Library Build (506 profiles, idempotent, skip report), Lighting Clip (movement × ordered group × spread; take/effect/sequence), Phase Spread Engine (spread/wing/block/random, mirror), Pose Keys / LightingSequence (sparse per-role sampling, compiled on edit), Role Space (values by channel meaning, degrees; head morphing)
 
-### Community 208 - "User Guide Images (grp 208)"
-Cohesion: 0.25
-Nodes (8): Align (drag four corners onto the projection surface), Surface / Output / Display / Status / Align table, Windowed (this screen) display target, Board / Auto-Align mode toggle, Calibrate wizard (per-surface projector calibration), Five-step stepper: Setup, Camera, Lens, Pose, Verify, Per-track strip (mute, solo/headphone, gain slider, delete), TRACKS - THE BED group (Bed 1.00, Room 0.70)
-
-### Community 209 - "User Guide Images (grp 209)"
+### Community 282 - "Doc Images — Launcher 02"
 Cohesion: 0.29
-Nodes (8): Auto-measure (camera) blend/colour matching, Bezier warp toggle, Colour gain + Black lift (per-RGB projector matching), OUTPUTS Panel (modal), Soft edge % (L/R/T/B) + Blend gamma, Camera device picker (Integrated Webcam), Calibration engine missing -> 'Run npm run build:calib on an OpenCV host', Preflight readiness checklist (engine installed / output live / camera detected / venue model / dim the room)
+Nodes (8): Add a folder… button, Rescan button, Scan-policy note (6 levels deep; system folders, node_modules, build output skipped), Scan-root row with Remove action, WHERE IT LOOKS card (scan roots), Copy-into-workspace-before-open policy, EXAMPLE PROJECTS card (destination workspace), Workspace path + Change… button
 
-### Community 210 - "User Guide Images (grp 210)"
-Cohesion: 0.25
-Nodes (8): Send as NDI (publish the output as an NDI stream), Discover devices (controller discovery), DMX Output section (Protocol Art-Net, Target IP, Port 6454, Broadcast/multicast), Screenshot: About dialog, Check for updates action (+ GitHub / Docs links), About dialog (logo, ARTLUX, Version 0.21.0), Product tagline: GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN, WebGPU compute, native Rust output engine, 2D + 3D, Credits line: urbandronedesign, BSD/MIT components, Electron, React, WebGPU, Rust (napi-rs), Spout2
+### Community 283 - "Documentation"
+Cohesion: 0.32
+Nodes (8): blobPass — WebGL2 GPU blob compositor, SourceType.TRACKING surface content, contentSourceRegistry / ContentSourceProvider, @artlux/plugin-ndi (cross-process template), ProjectorChannel (data half + GPU-render half), Spout extraction record, @artlux/plugin-spout (refcounted content source), Spout — Windows GPU video receive
 
-### Community 211 - "Audio Examples (grp 211)"
-Cohesion: 0.25
-Nodes (8): Arrangement/mixer split (lane places, inspector shapes), The Audio Bed panel, The clip inspector (follows timeline selection), Fader drafts locally, commits once on release, The panel names the document it writes, `FADE` badge — moving the fader is a takeover, `LANE` badge and the read-only fader, Layer priority: authored < fade < lane
+### Community 284 - "Documentation — State Machine"
+Cohesion: 0.32
+Nodes (8): smTriggerRegistry / SmTriggerContribution, An SmTrigger must return an EDGE, not a level, The guard suppresses the action, not the evaluation, SmState.lockSec — minimum dwell, SmTransition.requireEnd — a guard, not a trigger, SmTrigger kinds + the dual-clock rule, Arm-and-hold firing rule, lidar.zone plugin trigger source
 
-### Community 212 - "JUCE Audio Engine (grp 212)"
+### Community 285 - "Documentation — User Guide"
 Cohesion: 0.29
-Nodes (8): HAVE_MIT_HRTF built-in HRTF dataset (no SOFA/MySofa), JUCE_DISPLAY_SPLASH_SCREEN=0 — a licence-gated flag set for engineering reasons, Lean JUCE compile definitions (no curl/browser, FLAC+Vorbis on), libspatialaudio 0.4.0 built STATIC, Blanking libspatialaudio's upstream tests/CMakeLists.txt, The ambisonic bus — one spatial model, two decoders, JUCE dual-licence + libspatialaudio LGPL distribution obligations, Gate 4 — the JUCE / libspatialaudio licence election (blocks the first tag)
+Nodes (8): Broadcast Mode, Media Library (with inline asset inspector), User Guide: Projects, Media & Broadcast, Prometheus/Grafana Health Metrics, User Guide: Preferences & Monitoring, User Guide: Running Unattended, Time-of-Day Project Playlist, Tablet Remote
 
-### Community 213 - "JUCE Audio Engine (grp 213)"
+### Community 286 - "User Guide Screens"
+Cohesion: 0.32
+Nodes (8): APPEARANCE section (UI scale, Startup splash, Dockable workspace), ENGINE section (FPS 44, Keep-alive, ArtSync, Gamma, Preload wait), GPU RENDERING section (Active backend: WebGPU (compute)), Preferences workspace context (Prefs rail item, APP group), RECALIBRATION section (prerequisites checklist, policy, window, drift warn/fail, max pose jump), Screenshot: Preferences workbench (four-column section grid), SHOW CONTROL section (tablet remote HTTP server, Port 8788, server URL, PIN + Regenerate), UNATTENDED / WATCHDOG section (self-heal, crash+hang recovery, relaunch limits, Install/Remove OS task, fault log)
+
+### Community 287 - "User Guide Screens"
+Cohesion: 0.25
+Nodes (8): Action Bar (Save Project · Store Key · Save Pose · Record Lighting Take · Pose Floor Calibration · Trigger Zones), Context Rail (BUILD / ALIGN / SHOW / APP), FIXTURES browser (Matrix 16x16, LED Strip), OBJECTS browser (Screen 1), Screenshot: OSC Monitor in Venue & Rig, Status bar (hover help · FPS · LIVE · Hz/pps/universes), Venue & Rig workspace context (3D), Screenshot: About dialog
+
+### Community 288 - "User Guide Screens"
+Cohesion: 0.25
+Nodes (8): Screenshot: Help panel (docked right rail), CONTEXT section (contextual help mirroring the status-bar hint), DMX Monitor tab (bottom dock), Fixture Editor (Create / Add fixture / Auto-patch / Library templates), HELP panel (F1 toggle, replaces the right inspector rail), EN / FR language toggle, 3D Lighting controls (Light gain, Exposure, Ambient env, Reflective floor, Grid), TOPICS accordion (Getting Started, Surfaces & Mapping, Outputs / Projectors, OSC / LiDAR Tracking, Timeline, Keyboard Shortcuts)
+
+### Community 289 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.25
+Nodes (8): Screenshot: Audio context with a loaded bed, Audio context selected in the rail, Clip inspector placeholder (select an audio clip on the timeline to shape it), Context rail (Time · Map · 3D · Proj · Calib · Cues · Logic · Audio · Track · Show · Prefs), Master strip with FX insert chain (gain 1.00), Media Library empty state (import files, scan the assets folder, or record a take), Screenshot: Audio context, tutorial step 1, Title-bar utility icons (projector, state machine, metrics, preferences, help)
+
+### Community 290 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.36
+Nodes (8): Audio Ch.02: The Mixer, Fader Drafts Locally, Commits Once on Release, Solo Scoped Per Container, Audio Ch.03: A Scene's Own Audio, The Container Question, A Scene's Own Audio (the Sting), Audio Tutorial (six chapters), Three Audio Containers, Two Clocks
+
+### Community 291 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.25
+Nodes (8): Dock tabs (Output Preview · DMX Monitor), PROGRAM viewport — the whole timeline composited, Record row (Record · + Tracking lane · Lighting lane · Record move · Takes), Screenshot: bed clock vs scene ruler in the Timeline context, State pager (State 1 of 3 · Save), Timeline workspace context (Collect Assets · Collect a Copy), Screenshot: scene audio lane on the scene ruler, Status bar hint: edit the show timeline — drag media from the library onto a layer
+
+### Community 292 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.25
+Nodes (8): Listener status line: listening *:10000 · msg/s · addresses · active blobs, Pose Floor Calibration… action, Screenshot: Tracking context with the OSC Monitor dock tab, Split viewport: 2D stage map beside the 3D scene showing live blobs, Tracking workspace context (LiDAR, camera pose and Augmenta sources), Collapsed TRACKING inspector section on the right, Viewport toolbar (fit, zoom, grid, grid size 8, snap; 2D/3D split, expand, gizmo, orbit, fullscreen), Tracking-source parameters: Source 'SOL — floor', Background 'Backdrop', Blob size 6%, Trail 0.6s, Rotate 0°, Opacity 100%
+
+### Community 293 - "Examples & Tutorials — Lidar Tracking"
+Cohesion: 0.25
+Nodes (8): Asset kind filters (All / Video / Image / Model / Take / Audio), Context rail (Time · Map · 3D · Proj · Calib · Cues · Logic · Audio · Track · Show · Prefs), Media Library browser panel, Dock tabs: Output Preview · DMX Monitor, PROGRAM viewport — the whole timeline composited, Screenshot: Timeline with a tracking lane, StatusBar (hover hint, FPS, LIVE, Hz · pps · universes), Timeline workspace context (Time rail)
+
+### Community 294 - "Examples & Tutorials — State Machine"
+Cohesion: 0.25
+Nodes (8): StatusBar active-state chip (Rise 00:05), State BURN (scene Burn), State CALM (scene Calm, empty), Empty inspector hint — "bind each state to a scene; a transition's time is the crossfade", State RISE (scene Rise) — currently active, orange ring, State node (name, bound scene chip, cue count, link nub), Transition toBurn [2s crossfade], Transition toRise [2s crossfade]
+
+### Community 295 - "Launcher Backend — Gen"
+Cohesion: 0.25
+Nodes (8): description, properties, required, type, CapabilityRemote, urls, description, type
+
+### Community 296 - "Launcher Backend — Gen"
+Cohesion: 0.25
+Nodes (8): description, properties, required, type, CapabilityRemote, urls, description, type
+
+### Community 297 - "JUCE Audio Engine — Package"
 Cohesion: 0.25
 Nodes (7): description, devDependencies, cmake-js, node-addon-api, name, private, version
 
-### Community 214 - "JUCE Audio Engine (grp 214)"
+### Community 298 - "JUCE Audio Engine — Test"
 Cohesion: 0.25
 Nodes (7): a, devs, fs, iv, p, path, wav
 
-### Community 215 - "Package (grp 215)"
-Cohesion: 0.25
-Nodes (7): author, description, main, name, private, version, workspaces
+### Community 299 - "Renderer UI"
+Cohesion: 0.36
+Nodes (6): DragOffset, useDraggable(), About(), AudioEngineMissing(), Props, useDraggableModal()
 
-### Community 217 - "LiDAR Tracking (grp 217)"
+### Community 301 - "LiDAR Tracking — Src"
 Cohesion: 0.32
 Nodes (5): ProjectorRenderHost, glTex, renderSource(), sourceSize(), texturesFor()
 
-### Community 218 - "LiDAR Tracking (grp 218)"
-Cohesion: 0.29
-Nodes (5): Dims, LabelDesc, rect(), SURFACE_COLOR, TrackingViz()
-
-### Community 219 - "MediaPipe Pose (grp 219)"
+### Community 302 - "MediaPipe Plugin — Src Posecamera"
 Cohesion: 0.29
 Nodes (3): CameraDevice, start(), stop()
 
-### Community 220 - "Renderer Services (grp 220)"
-Cohesion: 0.32
-Nodes (6): makeImage(), cache, isLiveUrl(), loading, mimeForPath(), resolveMediaUrl()
+### Community 303 - "MediaPipe Plugin — Src Posefloor"
+Cohesion: 0.36
+Nodes (4): footPoint(), imageCornerPin(), worldQuad(), MediapipeFloor
 
-### Community 221 - "Docs (grp 221)"
-Cohesion: 0.29
-Nodes (7): v0.21.0 — In-app Docs & Tutorials browser, Documentation index (read the topic doc before diving in), The working loop (renderer HMR, main needs restart, EBUSY on native rebuild), The BED (ProjectData.audio, one per project, rides showTime), Three containers, two clocks, A timeline's OWN audio (Timeline.audio, rides the playhead), Day-to-day development loop
-
-### Community 222 - "Docs (grp 222)"
+### Community 305 - "Documentation — Effects"
 Cohesion: 0.33
-Nodes (7): BREAKING — Scene.timeline is now REQUIRED, Audio automation-target provider (automationTargets.ts), Clip ids alias across containers (bed paths resolve against scene clips), Invariant 7 — draft locally, commit once, A gesture can outlive its document (docKey guarding), Invariants are NAMED, not numbered, The read order — lane ?? fade ?? authored
+Nodes (7): Timeline as a Drawer (a tool, not a place), Dockable Dock-Tree Shell (compiled from the flat manifest), Workspace Contexts (context-driven editor shell), Fire2012 Stateful Effect (persistent heat buffer), Generative Effects Catalog (Solid/Rainbow/Palette Flow/Wave/Fire), Gradient Palette LUT (256×N RGBA, WLED/FastLED anchors), Feature & Usage Guide
 
-### Community 223 - "Docs (grp 223)"
+### Community 306 - "Documentation — Calib Optimizations"
+Cohesion: 0.29
+Nodes (7): One-click recalibration via ArUco fiducials, Camera exposure / gain / auto controls, Camera mask (exclusion polygons on the decode), Colour gain + black-level matching across projectors, Identity defaults design principle, Projector mask (NVAPI intensity path only), VIOSO-parity workflow optimizations
+
+### Community 307 - "Doc Images — Launcher 03"
+Cohesion: 0.38
+Nodes (7): Audio example projects set (5 projects · 4.2 MB · tutorial included), LiDAR tracking example projects set (3 projects · 354 KB), Example project chip (e.g. 01-the-bed, 01-blob-viewer, 01-hello-state-machine), Launcher — Examples tab (screenshot), State-machine example projects set (3 projects · 42 KB), Examples tab, Paired hands-on tutorial in tuto/
+
+### Community 308 - "User Guide Screens"
 Cohesion: 0.33
-Nodes (7): ProjectData.audio — THE BED (rides showTime), clocksCoincident() — the ONE predicate, isGlobalDocBound() — the deleted second predicate, Per-scene decoder pools + tiered preloader, showTime — the SHOW clock, THE SHOW-CLOCK RESET TABLE (20-row specification), The show clock is silent (no intent, no hitEnd)
+Nodes (7): WARN: network profile is Public — firewall blocks inbound OSC and tablet remote, Controller row (Name · Protocol Art-Net · Drives · IP 192.168.1.50 · BCAST · Start U · Prio), StatusBar (hover hint · 56 FPS · LIVE · 60Hz · 180pps · 3u), Fixture: LED Strip (60px · 180ch), Master Layer fixture group, Fixture: Matrix 16x16 (256px · 768ch), Per-fixture pixel-count / channel-count readout
 
-### Community 224 - "User Guide (grp 224)"
+### Community 309 - "User Guide Screens"
 Cohesion: 0.29
-Nodes (7): Left panel — Scene & Media tabs, 3D outliner (OBJECTS / FIXTURES / LIGHTING), Venue model (.glb/.gltf) in the 3D scene, Calibration setup readiness checklist, Asset Manager (usage, relink, consolidate), Media library tab (import/browse/place), Hardware-only contexts captured as real panels with a device note
+Nodes (7): Asset thumbnail grid (image + audio assets with usage-count badges), Import row (video / image / model / audio buttons) + Scan, Media Library panel (managed asset registry), Screenshot: Media Library dock tab, Search media field, Asset type filters (All / Video / Image / Model / Take / Audio), View-mode switch (small grid / large grid / list)
 
-### Community 225 - "User Guide (grp 225)"
+### Community 310 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.43
+Nodes (7): Audio Example Projects, Synthesized Tutorial Audio Assets (make-assets.cjs), Object-Based Ambisonics + Binaural HRTF Decode, Audio Ch.04: Spatial Audio and FX, Clip Insert Chain (Before the Encoder), Master-Chain Reverb Silently Dropped, No Per-Track Insert (Ever)
+
+### Community 311 - "Examples & Tutorials — Lidar Tracking"
 Cohesion: 0.33
-Nodes (7): Global Params (LED / Projector brightness, output gamma), Scene (static look snapshot), Soft edge, per-output gamma & color/black match, Auto-Align mode (markerless correspondences), Board mode (structured light + printed checkerboard), Projector calibration wizard (5 steps), MPCDI import/export + camera-measured projector gamma
+Nodes (7): 2D editor Stage — raw markers (ground truth, unmerged), 3D Scene / projector — 1 person → 1 marker, Diagram: Merge People — two blobs become one marker, Merge People (collapse blobs within 0.8 m), Raw feed — one person (2 blobs, ids 7 and 12), trackingMergePeople (Scene3D setting), trackingMergeRadius (0.8 m pairing distance)
 
-### Community 226 - "User Guide Images (grp 226)"
-Cohesion: 0.29
-Nodes (7): Screenshot: DMX Monitor panel, DMX Monitor panel, Fixture 'LED Strip', Fixture 'Matrix 16x16', Per-fixture live pixel strip preview card, Summary counters: Fixtures / Channels / Universes, Universe/address badge (U:0-1, U:2.1) + pixel-count badge
-
-### Community 227 - "Audio Examples (grp 227)"
-Cohesion: 0.29
-Nodes (7): Bed lane hidden while a Scene is bound, Bed scrub disabled under a bound Scene, The parked show / `show ended` badge, The SHOW clock, A show loop wrap resets the bed (not a recall), Fade snap-back on GO = an audible click (a shipped bug), An installation's global timeline should always Loop ON
-
-### Community 228 - "JUCE Audio Engine (grp 228)"
+### Community 312 - "JUCE Audio Engine — Gen"
 Cohesion: 0.29
 Nodes (6): data, fs, hdr, n, out, path
 
-### Community 229 - "JUCE Audio Engine (grp 229)"
+### Community 313 - "JUCE Audio Engine — Test"
 Cohesion: 0.29
 Nodes (5): a, fs, p, path, wav
 
-### Community 230 - "JUCE Audio Engine (grp 230)"
+### Community 314 - "JUCE Audio Engine — Test"
 Cohesion: 0.29
 Nodes (6): a, fs, p, path, s, wav
 
-### Community 231 - "JUCE Audio Engine (grp 231)"
+### Community 315 - "JUCE Audio Engine — Test"
 Cohesion: 0.29
 Nodes (5): a, fs, p, path, wav
 
-### Community 232 - "NVIDIA Warp (grp 232)"
+### Community 316 - "NVAPI Warp (Rust) — Src Lib"
 Cohesion: 0.33
 Nodes (4): list_displays(), NvDisplay, set_intensity(), set_warping()
 
-### Community 235 - "Plans (grp 235)"
+### Community 319 - "Design Plans — Archive Video"
 Cohesion: 0.33
-Nodes (7): sessionStorage renderer remount breaker, Recovery ladder (contain → layout → reload → safe boot → relaunch), ?safe=1 safe boot (the only terminating rung), The 3am failure — an FSM filling the undo stack overnight, EditOrigin ('operator' | 'show') defaulting to 'show', handleTimelineChange as THE OPERATOR SEAM, SHOW_ENGINE gate — no history in the venue
+Nodes (7): Conform, Don't Stream (demux moov in main, route by codec, WAV cache), Derived Video-Audio Clips (identity-memoized, conform is just a path), in24 Is Not Always Big-Endian (enda atom; caught by measuring), Video-Clip Audio Plan (a video clip's soundtrack through the JUCE engine), Sound-by-Default Decision (every project starts audible; three obligations), Three Flex Layout Traps (found in five minutes of real use; ask the app for geometry), Nothing Claimed on a Green Typecheck (CDP probes + wire capture as proof)
 
-### Community 236 - "Plans (grp 236)"
-Cohesion: 0.29
-Nodes (7): Bed clips excluded from the edit-point set, Edit point (clip edges, markers, in/out, 0 and end), components/timeline/editPoints.ts, Seek through engine.seek(), never the playhead directly, Half-frame epsilon, The playhead must never enter React state, The third container — video audio on the playhead
+### Community 320 - "Calibration Plugin — Src Calibartifacts"
+Cohesion: 0.43
+Nodes (5): deleteDenseMap(), DenseMapFile, fileFor(), readDenseMap(), writeDenseMap()
 
-### Community 237 - "Renderer Services (grp 237)"
-Cohesion: 0.29
-Nodes (3): status(), collectFadeableTargets(), Ring
+### Community 321 - "Renderer Services — Fixturesearch"
+Cohesion: 0.43
+Nodes (6): FixtureProfileSummary, haystacks, keysOf(), norm(), search(), SearchHit
 
-### Community 238 - "Transport and Output (grp 238)"
+### Community 322 - "Main Process — Thumbcache"
+Cohesion: 0.48
+Nodes (4): fileFor(), get(), keyFor(), put()
+
+### Community 323 - "Renderer UI — Dock"
 Cohesion: 0.38
-Nodes (5): ArtNetDevice, ARTNET_ID, asciiZ(), buildArtPoll(), parsePollReply()
+Nodes (5): Dock(), DockTabDef, Props, ResizeOpts, useResizable()
 
-### Community 239 - "Renderer Services (grp 239)"
+### Community 324 - "Renderer Services — Opentrace"
+Cohesion: 0.33
+Nodes (4): begin(), mark(), marks, OpenMark
+
+### Community 325 - "Renderer Services — Selection"
 Cohesion: 0.33
 Nodes (4): same(), setSelection(), subs, TimelineSelection
 
-### Community 240 - "Docs (grp 240)"
-Cohesion: 0.33
-Nodes (6): Machine preferences are not in the project (machine ≠ show), Managed media library + Asset Manager, Portable projects (project folders + Collect Assets), Export/Import Rig (.artrig), Project folders + mapAssetPaths single visitor, Scenes are not portable across project folders
-
-### Community 241 - "Docs (grp 241)"
-Cohesion: 0.33
-Nodes (6): Feed samples in decode order, never presentation order, Keep few decoded frames live (HW output-surface pool), DXV codec dropped from the roadmap (2026-07-03), plugins/mp4 — WebCodecs GPU MP4 decode, VideoCodec contribution dispatch (canDecode first-match), videoCodecs / VideoCodecContribution
-
-### Community 242 - "Docs (grp 242)"
-Cohesion: 0.33
-Nodes (6): Embedded single-document PWA (clientHtml.ts), HTTP + Server-Sent Events transport, Operator Lock + device kick, PIN pairing + per-device bearer tokens, QR onboarding (dependency-free encoder qr.ts), Show Control plugin (@artlux/plugin-show-control)
-
-### Community 243 - "Planning Docs (grp 243)"
-Cohesion: 0.33
-Nodes (6): The bed must not CLICK on a GO (a blocking prepareToPlay under the audio lock), The bed never restarts across a scene recall, One transport, two playheads, The show clock (`showTime` / `showOriginMs`), Task 10 — effects on surfaces must ride the show clock (and reach the projector), Task 8 — `addClip` must not call prepareToPlay while holding the audio lock
-
-### Community 244 - "User Guide (grp 244)"
+### Community 326 - "Show Bug"
 Cohesion: 0.40
-Nodes (6): Title bar (menus + action icons), Output FPS cap (GPU budget on big rigs), Outputs panel (one row per surface), Broadcast (show) mode + --headless, OSC Monitor (incoming OSC/LiDAR sniffer), OSC / Tracking preferences (receive, port, bind, prefix)
+Nodes (6): ready-to-show Packaged-Only Reveal Bug (three reveal paths), Startup Splash Boot Console (per-addon load report), The Documentation Rule (usage docs gate net-new features), verify:invariants Guard Suite (rules a typechecker cannot see), Design Tokens (dark-only OLED control surface), Unknown Colour Utility Silent-Drop Guard (bg-bg-stage, text-fg-4)
 
-### Community 245 - "User Guide (grp 245)"
-Cohesion: 0.53
-Nodes (6): Cue bank (rows × columns grid, Live/Edit, column fire), Projects are folders (project.artlux + assets/ tree), Screenshot capture pipeline (CDP-driven, seeded demo project), No binary demo assets committed — only resulting PNGs, User documentation plan (task-oriented, screenshot-illustrated), ArtLux User Guide index
+### Community 327 - "Doc Images — Launcher 02"
+Cohesion: 0.33
+Nodes (6): .artlux project file, Duplicate-name disambiguation by parent folder label, Filter… search field, Project row (name · group · kind · schema version · date · path), Project schema version column (v1.1 / v1.2), YOUR PROJECTS card
 
-### Community 246 - "User Guide Images (grp 246)"
+### Community 328 - "User Guide Screens"
 Cohesion: 0.40
-Nodes (6): Screenshot: Outputs panel expanded (per-surface projector output row), Right Mapping inspector (LED count, universe, start addr, segments, 2D/Output, routing), Bottom status bar (Edit/Perform/Calib modes, hint text, FPS, LIVE), Screenshot: Calibration wizard (CALIBRATE - LOGO WALL), Bottom dock tabs (DMX Monitor, Fixture Editor, Timeline, Scenes & Cues, Performance), CONTEXT section (contextual help mirroring the status-bar hint)
+Nodes (6): + Controller button, CONTROLLERS table (Name, Protocol, Drives, IP, Bcast, Start U, Prio, delete), ROUTING panel, Screenshot: Routing dock tab, Screenshot: Outputs (Routing tab, controller output config), Start Universe + Broadcast + Priority controller fields
 
-### Community 247 - "User Guide Images (grp 247)"
+### Community 329 - "User Guide Screens"
 Cohesion: 0.33
-Nodes (6): Screenshot: 3D Scene (truncated/partial capture), 3D Scene sidebar sections: OBJECTS / FIXTURES, Truncated screenshot asset (only a ~300px sliver captured), Embedded 3D viewport (grid floor, surfaces in venue space), Venue model (GLB) required for the Pose step, 3D Lighting controls (Light gain, Exposure, Ambient env, Reflective floor, Grid)
+Nodes (6): Color Order selector (GRB), Fixture inspector column (Mapping · Segments · 2D/Output), Line | Matrix layout toggle, Matrix layout params (Cols 16, Rows 16, Serpentine), Stage viewport with selected surface handles (red bounds), Surface binding select (Logo Wall) + LED Count 256
 
-### Community 248 - "Audio Examples (grp 248)"
+### Community 330 - "User Guide Screens"
 Cohesion: 0.33
-Nodes (6): bed-count.wav — the counting bed, make-assets.cjs — synthesized audio generator, orbit.wav — harmonically rich spatial source, sting-*.wav — fast-attack scene stings, A cue does not restart the bed, No 'don't restart' flag — behaviour comes from the container
+Nodes (6): Dock tab strip (DMX Monitor · Performance · OSC Monitor · Trigger Zones · Pose Monitor · Augmenta Monitor), Disabled banner: enable in Preferences ▸ OSC / Tracking, port 10000, OSC Monitor controls (Pause · Clear · Raw log · filter address), OSC Monitor panel, OSC status line (receive disabled · msg/s · addresses · active blobs), Parameter sections (LIGHTING · TRACKING)
 
-### Community 250 - "Archived Plans (grp 250)"
+### Community 331 - "Examples & Tutorials — State Machine"
+Cohesion: 0.47
+Nodes (6): Every Scene Owns a Timeline, SM Ch.02: Triggers & Actions, Entry Actions, Lock Time (Minimum Dwell), Author Ruler Content Per State, Wall Clock vs Playhead Triggers
+
+### Community 332 - "Examples & Tutorials — Audio Tuto"
 Cohesion: 0.33
-Nodes (6): The dead per-segment effect UI (buildSegParams forces mode -1), Persisted relaunch timestamps enforce the gap across processes, Defer, not drop — one-shot triggers must still recover, The first relaunch after a stable run is never delayed, minRelaunchGapSec — a declared, defaulted, documented setting no code reads, The UI claims something the engine is not doing (house rule)
+Nodes (6): Dock tabs: Output Preview / DMX Monitor, PROGRAM viewport — the whole timeline composited, Screenshot: Timeline context — global gain automation vs a scene's own audio lane, Timeline workspace context (Collect Assets / Collect a Copy actions), Header tabs: Scenes & Cues / Timeline, DMX Monitor dock tab (Fixtures 0 · Channels 0 · Universes 0, LIVE)
 
-### Community 251 - "Plans (grp 251)"
+### Community 333 - "Examples & Tutorials — State Machine"
 Cohesion: 0.33
-Nodes (6): DocSnapshot — the widened history value, Per-gesture moved-latch (Stage precedent, 3D gizmo divergence), Snapshot by reference, not by deep clone, useHistory reset() + MAX_DEPTH FIFO cap, Typing guard on the Ctrl+Z branch, Widening useHistory<T> from Fixture[] to the document
+Nodes (6): Action bar: + State · Region · Build from scenes · Global rule, Graph gesture legend (dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom), Screenshot: the Show Machine — a linear three-state graph, Show Machine context (Logic rail) — states & scenes, Sibling tabs: Scenes & Cues · Timeline, Region "Attract loop (unattended)"
 
-### Community 252 - "Augmenta Tracking (grp 252)"
+### Community 334 - "Launcher Backend — Capabilities"
+Cohesion: 0.33
+Nodes (5): description, identifier, permissions, $schema, windows
+
+### Community 336 - "Design Plans — Archive Autopatch"
+Cohesion: 0.33
+Nodes (6): Address-collision detector (fixtureSpans / findCollisions), RoutingModal hooks-order hazard (early return at :38), resolveDest — one shared destination resolution for detector and Stage, Controller/output split-brain for un-bucketed 'Global' fixtures, The canonical RGBW linear buffer — canvas indexing stays *4, DMX Monitor honors channelsPerPixel for wire-footprint math
+
+### Community 337 - "Augmenta Plugin — Src Augmentaprojector"
 Cohesion: 0.47
 Nodes (4): glTex, renderSource(), sourceSize(), texturesFor()
 
-### Community 253 - "MediaPipe Pose (grp 253)"
+### Community 338 - "MediaPipe Plugin — Src Poseprojector"
 Cohesion: 0.47
 Nodes (4): glTex, renderSource(), sourceSize(), texturesFor()
 
-### Community 254 - "Renderer UI (grp 254)"
-Cohesion: 0.47
-Nodes (4): btnCls(), ContentEditor(), EFFECT_NAMES, contentSourceRegistry
-
-### Community 255 - "Renderer Services (grp 255)"
-Cohesion: 0.60
-Nodes (5): evictExcess(), lru, predict(), touch(), warm()
-
-### Community 256 - "Docs (grp 256)"
+### Community 339 - "Documentation — Osc Osc"
 Cohesion: 0.40
-Nodes (5): Deliberately positional + defensive OSC parser, scripts/augmenta-emitter.cjs (test without the box), One-Euro smoothing + bounded prediction + trails (motion.ts), Augmenta OSC v2 / Fusion wire protocol (/au/scene, /au/person*), augmentaStore (render-free pub/sub + OSC v2 parser)
+Nodes (5): OSC Monitor (raw-wire sniffer), OSC receive (UDP listener), oscManager — zero-dependency OSC 1.0 codec over dgram, panelRegistry / PanelContribution (5 mounts), settingsSectionRegistry / SettingsSection
 
-### Community 257 - "Docs (grp 257)"
+### Community 340 - "Documentation — Ui Ux"
 Cohesion: 0.40
-Nodes (5): @artlux/plugin-spout, Refcounted Spout content source, Spout — Windows GPU texture sharing, spoutManager (main-process receive loop), spout-receiver native crate
+Nodes (5): Design-token conventions (tokens.css ↔ tailwind.config), Token-adherence guardrail greps, Interaction states are a FLOOR (:where()-wrapped film), Type scale with a 10px hard floor, Named z-index tiers + elevation shadow language
 
-### Community 258 - "Planning Docs (grp 258)"
+### Community 341 - "User Guide Screens"
+Cohesion: 0.40
+Nodes (5): Menu bar (File · Edit · Context · View · Window · Help), Scene editing bar (Editing: Look A · its own timeline · End state here · State 1 of 1 · Save · Edit logic), ArtLux main editor (screenshot), Timeline drawer (transport, FPS 30, Length 20 s, tracks, automation, Record), Workspace shell (rail · browser · viewport · dock · parameters · drawer)
+
+### Community 342 - "User Guide Screens"
+Cohesion: 0.40
+Nodes (5): Dock tab strip (Library, Wiring & Ledmap, Media Library, Program, Routing, DMX Monitor, Performance), LIBRARY panel — Light Fixtures / LED Templates with manufacturer search, Fixture personality/mode selector (16bit, 1 CE (2ch)) with channel-count badge, DMX Monitor panel, Screenshot: DMX Monitor dock tab
+
+### Community 343 - "User Guide Screens"
+Cohesion: 0.40
+Nodes (5): FIXTURES browser panel (Master Layer · Matrix 16x16 · LED Strip), PATCH inspector section (Universe, Start Addr, Channels), Per-fixture monitor card (name, U:x.y patch badge, pixel count, live color strip), GROUPS browser panel (All Fixtures (2)), FIXTURES section of the routing panel (per-fixture assignment)
+
+### Community 344 - "User Guide Screens"
 Cohesion: 0.50
-Nodes (5): Junk JSON must not white-screen the venue, COERCE, DO NOT DROP — normalizeTimeline must never throw, Hand-rolled Node assertion sims in gitignored `scratch/` — write the failing sim FIRST, Task 1 — writeJson becomes an atomic tmp + rename replace, Task 2 — a junk `effects` field must not crash the app on load
+Nodes (5): Audio lane 'Look A — Sting' with sting-main clip, Gain GLOBAL automation lane (Master, keyframed curve), Timeline drawer (Editing: Look A · its own timeline), AUDIO BED transport header (rewind · pause · stop · bed clock 0:12 · scrubber · meter · + Bed), TRACKS — Look A mixer region (Sting, read-only mirror of the timeline lane)
 
-### Community 259 - "User Guide Images (grp 259)"
-Cohesion: 0.40
-Nodes (5): FPS cap + Re-scan displays controls, Screenshot: Preferences dialog, PREFERENCES dialog (collapsible sections), Engine section (FPS, Keep-alive, Synchronous output ArtSync, Gamma), Warning banner: OSC receive is off - enable in Preferences > OSC / Tracking, port 10000
-
-### Community 260 - "Audio Examples (grp 260)"
-Cohesion: 0.40
-Nodes (5): `no audio engine` badge, `no output device` badge, Pre-install audio checklist, ArtLux never re-opens a lost audio device by itself, Three different silences, three badges
-
-### Community 261 - "LiDAR Examples (grp 261)"
-Cohesion: 0.40
-Nodes (5): A clip at start:0 is the entry-fire mechanism, The PLAYHEAD (a scene's clock), applySnapshot() re-stamps updatedAt on replay, The .lblob take format (frames[] of { t, snap }), The timeline tracking lane (kind:"tracking" clip)
-
-### Community 262 - "Audio Examples (grp 262)"
-Cohesion: 0.40
-Nodes (5): The Spatial flag rebuilds the DSP chain (mono vs stereo), Automation lane (timeline.automation), Audio automation target paths (audio.master.gain, audio.clip.*.spatial.x …), Keyframe curve editing (linear/hold/bezier, ⧫ punch-in), If it is not a number, it is not automatable
-
-### Community 266 - "Planning Docs (grp 266)"
+### Community 345 - "Examples & Tutorials — Audio Tuto"
 Cohesion: 0.50
-Nodes (4): Defect C1 — two same-size WAVs de-duplicate into one asset, The one-way forward-compat break (relative asset paths), Asset usage must scan every timeline (ProjectRefs.timelines), mapAssetPaths as per-container visitors (mapSurfaces / mapScene3D / mapTimeline / mapAudio)
+Nodes (5): Spatial Flag Rebuilds the DSP Chain, Automation Lanes, Audio Ch.05: Automating the Mix, A Lane Rides the Clock of the Document It Lives In, Parameter Layer Priority: authored < fade < lane
 
-### Community 267 - "Planning Docs (grp 267)"
+### Community 348 - "Design Plans — Archive Docs"
+Cohesion: 0.40
+Nodes (5): Detachable docs window (docs.html entry + docsWindow.ts), docsRoot dev-vs-packaged resolution (the watchdog idiom), docsList / docsRead IPC (main owns all base-path resolution), Sandbox image loading via readFile→blob, never file://, Enforce (and surface) the watchdog minRelaunchGapSec throttle plan
+
+### Community 349 - "Documentation — Assets"
+Cohesion: 0.50
+Nodes (4): Portable Project Folders (asset-path translation lives in main), Copy-In Import (self-contained by construction), Managed Media Library (persisted assets registry), Scan (adopt hand-copied media, read-only)
+
+### Community 350 - "Documentation — Monitoring"
+Cohesion: 0.50
+Nodes (4): Local Grafana + Prometheus docker stack (monitoring/), Loopback-bound by default (ARTLUX_METRICS_HOST), artlux_output_* gauges (fps/pps/universes/up), Prometheus /metrics endpoint (main process)
+
+### Community 351 - "User Guide Screens"
+Cohesion: 0.50
+Nodes (4): Audio lane (Look A — Sting clip with waveform, level + solo), Gain GLOBAL automation lane (Master 1, keyframed curve), Tracks header column (disabled tracking lane · edit link), Empty video lane (drop a video onto its lane hint)
+
+### Community 352 - "User Guide Screens"
+Cohesion: 0.50
+Nodes (4): Zone in the centre (add) button, Enter/exit dwell explainer + venue defaults (0.2s / 0.5s), Zone inspector (Name, People needed, Override dwell), Zones list with per-zone eye toggle (scene listening)
+
+### Community 353 - "Examples & Tutorials — Audio Tuto"
+Cohesion: 0.50
+Nodes (4): + Automation / + Audio lane buttons, Editing scene selector ('Foyer' · its own timeline · 0 clips), Time ruler (00:00:00 → 00:40:00) with playhead, Empty-track dropzone ('Add a track, then drag media onto its lane to build Foyer')
+
+### Community 354 - "Examples & Tutorials — Lidar Tracking"
 Cohesion: 0.67
-Nodes (4): Checkpoint 3 — the speaker check acceptance gate, The stranded-tone defect (held test tone survives an unmount), Commissioning — speakerPatch + Speaker check test tone, The test tone is injected AFTER the decoder — a tone routed through the thing under test is not a test
+Nodes (4): Calibrate Overlay, LiDAR Ch.02: Calibrated Projection, Media-Free EFFECT Backdrop (bgLayerId), Rotate-Then-Flip Transform Order
 
-### Community 268 - "User Guide Images (grp 268)"
+### Community 355 - "Examples & Tutorials — Readme"
 Cohesion: 0.50
-Nodes (4): Screenshot: Scenes & Cues cue-grid panel, Bottom dock tab strip (DMX Monitor, Fixture Editor, Timeline, Scenes & Cues, Performance), Scenes & Cues panel, Status bar (FPS counter + LIVE indicator + hint text)
+Nodes (4): ArtLux examples & templates, Output aimed at 127.0.0.1 loopback, Portable, media-free example projects, Save As… sandbox convention
 
-### Community 269 - "LiDAR Examples (grp 269)"
-Cohesion: 0.67
-Nodes (4): 3D tracking-zone viz (One-Euro smoothing + prediction), The 2D Stage draws raw, un-merged, un-smoothed blobs, Merge People (2 blobs → 1, 0.8 m radius), 1-person-2-blobs field test (different ids, pair spatially)
-
-### Community 270 - "LiDAR Examples (grp 270)"
+### Community 356 - "Launcher Backend — Gen"
 Cohesion: 0.50
-Nodes (4): The Calibrate overlay (read-only diagnostic), Rotate-then-flip transform order, Flip/Rotate is a real transform — applies to the projector too, The amber U/V gizmo (data orientation readout)
+Nodes (4): description, required, type, Capability
 
-### Community 271 - "Package (grp 271)"
+### Community 357 - "Launcher Backend — Gen"
+Cohesion: 0.50
+Nodes (4): default, description, type, description
+
+### Community 358 - "Launcher Backend — Gen"
+Cohesion: 0.50
+Nodes (4): default, description, type, local
+
+### Community 359 - "Launcher Backend — Gen"
+Cohesion: 0.50
+Nodes (4): description, required, type, Capability
+
+### Community 360 - "Launcher Backend — Gen"
+Cohesion: 0.50
+Nodes (4): default, description, type, description
+
+### Community 361 - "Launcher Backend — Gen"
+Cohesion: 0.50
+Nodes (4): default, description, type, local
+
+### Community 362 - "Package Linux"
 Cohesion: 0.50
 Nodes (4): linux, category, icon, target
 
-### Community 272 - "Package (grp 272)"
+### Community 363 - "Package Mac"
 Cohesion: 0.50
 Nodes (4): mac, category, icon, target
 
-### Community 273 - "Package (grp 273)"
+### Community 364 - "Package Win"
 Cohesion: 0.50
-Nodes (4): publish, owner, provider, repo
+Nodes (4): win, extraResources, icon, target
 
-### Community 274 - "Archived Plans (grp 274)"
-Cohesion: 0.50
-Nodes (4): Graceful-degrade native loader (audio absent ⇒ no sound, no crash), The N-API control surface (configure/loadClip/transport/pushAutomation/getMeters), Curve-ahead scheduling + periodic playhead re-sync (the projector phase-lock trick), plugins/audio — the cross-process audio plugin (engine + spatial UI + settings)
-
-### Community 275 - "Archived Plans (grp 275)"
-Cohesion: 0.50
-Nodes (4): Insert gap / Off affordance in the fixture Inspector, Param-signature miss — Segment.off must join Stage.tsx:222's join, Segment.off — an explicit, named dead span, Cross-cutting hazard: Stage.tsx signature invalidation
-
-### Community 276 - "Archived Plans (grp 276)"
+### Community 369 - "Design Plans — Archive Timeline"
 Cohesion: 0.50
 Nodes (4): Core audio lanes (AudioLane.tsx) + Timeline.audio container, The clock follows the container (bed → show clock, Timeline.audio → playhead), The mixer — two insert points only (clip and master), forced by ambisonics, The playhead must never enter React state
 
-### Community 277 - "Show Control (grp 277)"
-Cohesion: 0.67
-Nodes (3): FILE_EXTS, scanProjects(), ProjectInfo
+### Community 370 - "Design Plans — Archive Watchdog"
+Cohesion: 0.50
+Nodes (4): Persisted relaunch timestamps enforce the gap across processes, Defer, not drop — one-shot triggers must still recover, The first relaunch after a stable run is never delayed, minRelaunchGapSec — a declared, defaulted, documented setting no code reads
 
-### Community 278 - "Docs (grp 278)"
+### Community 371 - "Design Plans — Timeline Undo"
 Cohesion: 0.67
-Nodes (3): WASAPI Exclusive Mode is the only multichannel path, Speaker check tone bypasses the decoder and the master fader, The speaker patch (decode order vs physical wiring)
+Nodes (4): DocSnapshot (reference snapshot via immutable writers; MAX_DEPTH cap + reset()), handleTimelineChange Is the Operator Seam (show writers bypass it by construction), Operator vs Show Origin (the 3am line; SHOW_ENGINE has no history at all), Timeline Undo Plan (R5b: widening Fixture[] history into document-wide history)
 
-### Community 279 - "Docs (grp 279)"
+### Community 373 - "Documentation — Audio"
 Cohesion: 0.67
-Nodes (3): Three-series live metrics over SSE, Pull-based /metrics endpoint (Prometheus/Grafana), JSONL audit log tailed on boot
+Nodes (3): Downmix Before Insert Chain (stereo reverb decorrelation trap), Ambisonic Spatial Bus (shared B-format, HRTF or speaker decode), Two Insert Points (clip + master, never a third)
 
-### Community 280 - "State Machine Examples (grp 280)"
+### Community 374 - "Documentation — User Guide"
 Cohesion: 0.67
-Nodes (3): The state-graph editor (node canvas), Regions (visual grouping only, no logic effect), The state lane (⚙ toggle, current state, edit link)
+Nodes (3): Single-Pass Screenshot Capture (docs:capture), One-Direction Signal Flow Model, ArtLux User Guide
 
-### Community 281 - "Archived Plans (grp 281)"
+### Community 376 - "Launcher Backend — Gen"
 Cohesion: 0.67
-Nodes (3): SVG-as-surface-texture parity caveat (kept out of ASSET_CATEGORIES), WebGL fallback has no segments — the parity cliff a gap exposes, Cross-cutting hazard: WebGPU ↔ WebGL parity
+Nodes (3): Number, anyOf, description
 
-### Community 282 - "Archived Plans (grp 282)"
+### Community 377 - "Launcher Backend — Gen"
+Cohesion: 0.67
+Nodes (3): PermissionEntry, anyOf, description
+
+### Community 378 - "Launcher Backend — Gen"
+Cohesion: 0.67
+Nodes (3): Number, anyOf, description
+
+### Community 379 - "Launcher Backend — Gen"
+Cohesion: 0.67
+Nodes (3): PermissionEntry, anyOf, description
+
+### Community 380 - "Design Plans — Archive Dmx"
 Cohesion: 0.67
 Nodes (3): DMX-in universes derived from patched fixtures (setDmxInputUniverses), DMX_IN is STREAMED on projectors, so there is a single configureInput writer, The hardcoded universe range limits sACN only, not Art-Net
 
-### Community 283 - "Plans (grp 283)"
+### Community 381 - "Design Plans — Archive Fixture"
 Cohesion: 0.67
-Nodes (3): Execution protocol (instructions to Claude), Git workflow: one branch per wave, one wave in flight, Verification gate — what 'done, ready to test' means per wave
+Nodes (3): Insert gap / Off affordance in the fixture Inspector, Param-signature miss — Segment.off must join Stage.tsx:222's join, Segment.off — an explicit, named dead span
 
 ## Ambiguous Edges - Review These
-- `GO cue cell 'Look A' in scene row (SC)` → `Left sidebar: Surfaces / Fixtures / Groups / Global Params tree`  [AMBIGUOUS]
-  docs/user-guide/images/06-scenes-cues.png · relation: shares_data_with
-- `Send as NDI (publish the output as an NDI stream)` → `Credits line: urbandronedesign, BSD/MIT components, Electron, React, WebGPU, Rust (napi-rs), Spout2`  [AMBIGUOUS]
-  docs/user-guide/images/17-about.png · relation: conceptually_related_to
-- `3D Scene / projector — 1 person → 1 marker` → `ArtLux app icon (black 'A' on teal rounded square)`  [AMBIGUOUS]
-  src/renderer/public/icon.png · relation: conceptually_related_to
+- `WARN: network profile is Public — firewall blocks inbound OSC and tablet remote` → `StatusBar (hover hint · 56 FPS · LIVE · 60Hz · 180pps · 3u)`  [AMBIGUOUS]
+  docs/images/launcher/04-health.png · relation: conceptually_related_to
+- `Right parameters column (surface inspector)` → `FIXTURES tree (Master Layer group with 2 children)`  [AMBIGUOUS]
+  docs/user-guide/images/03-fixture-inspector.png · relation: conceptually_related_to
+- `Screenshot: Audio context header (Media Library + Audio Bed) — filename says 3d-scene` → `AUDIO BED panel with its own transport (0:14)`  [AMBIGUOUS]
+  docs/user-guide/images/12-3d-scene.png · relation: conceptually_related_to
+- `Master strip (FX · 1.00)` → `TL toggle on the lane (timeline-local routing)`  [AMBIGUOUS]
+  examples/audio/tuto/images/03-scene-ruler.png · relation: conceptually_related_to
+- `Tracking lane (holds the LiDAR take clip)` → `Dock tabs: OSC Monitor · Trigger Zones · Pose Monitor · Augmenta Monitor`  [AMBIGUOUS]
+  examples/lidar-tracking/tuto/images/zones-panel.png · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **1048 isolated node(s):** `sdkAliases`, `fs`, `path`, `fs`, `path` (+1043 more)
+- **1757 isolated node(s):** `$comment`, `guideDir`, `guide`, `guideExclude`, `examples` (+1752 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **56 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `GO cue cell 'Look A' in scene row (SC)` and `Left sidebar: Surfaces / Fixtures / Groups / Global Params tree`?**
-  _Edge tagged AMBIGUOUS (relation: shares_data_with) - confidence is low._
-- **What is the exact relationship between `Send as NDI (publish the output as an NDI stream)` and `Credits line: urbandronedesign, BSD/MIT components, Electron, React, WebGPU, Rust (napi-rs), Spout2`?**
+- **What is the exact relationship between `WARN: network profile is Public — firewall blocks inbound OSC and tablet remote` and `StatusBar (hover hint · 56 FPS · LIVE · 60Hz · 180pps · 3u)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `3D Scene / projector — 1 person → 1 marker` and `ArtLux app icon (black 'A' on teal rounded square)`?**
+- **What is the exact relationship between `Right parameters column (surface inspector)` and `FIXTURES tree (Master Layer group with 2 children)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `OpenedCfg` connect `JUCE Audio Engine (grp 148)` to `Audio Client and Host`, `Audio Plugin (grp 107)`, `Audio Plugin (grp 61)`, `JUCE Audio Engine Core`?**
-  _High betweenness centrality (0.070) - this node is a cross-community bridge._
-- **Why does `Engine` connect `JUCE Audio Engine Core` to `JUCE Audio Engine (grp 69)`, `Ambisonic Spatial Audio`, `JUCE Audio Engine (grp 202)`, `Audio Plugin (grp 107)`, `JUCE Audio Engine (grp 49)`, `JUCE Audio Engine (grp 148)`?**
-  _High betweenness centrality (0.066) - this node is a cross-community bridge._
-- **Why does `ArtluxApi` connect `IPC Protocol API Surface` to `SDK Barrel Exports`, `Electron Main (grp 59)`, `Broadcast Playlist Scheduler`, `Shared Protocol Types`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
-- **What connects `sdkAliases`, `fs`, `path` to the rest of the system?**
-  _1244 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What is the exact relationship between `Screenshot: Audio context header (Media Library + Audio Bed) — filename says 3d-scene` and `AUDIO BED panel with its own transport (0:14)`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
+- **What is the exact relationship between `Master strip (FX · 1.00)` and `TL toggle on the lane (timeline-local routing)`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
+- **What is the exact relationship between `Tracking lane (holds the LiDAR take clip)` and `Dock tabs: OSC Monitor · Trigger Zones · Pose Monitor · Augmenta Monitor`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
+- **Why does `Vec` connect `OpenCV Calib (Rust) — Src Lib` to `Launcher Backend — Src`, `NDI Native — Src Lib`, `Output Engine (Rust) — Src`, `Launcher Backend — Src`, `Spout Native — Src`, `HAP Native — Src Mov`, `Launcher Tauri Commands`, `HAP Codec Decode`, `Launcher Backend — Src`, `Launcher Backend — Src`, `Output Engine (Rust) — Src`, `NVAPI Warp (Rust) — Src Lib`, `Timeline UI`, `OpenCV Calib (Rust) — Src Dshow`?**
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
+- **Why does `Engine` connect `JUCE Audio Engine Core` to `JUCE Audio Engine — Src`, `Ambisonic Spatial Bus`, `JUCE Audio Engine — Src`, `JUCE Audio Engine — Src`, `Audio Plugin — Src`?**
+  _High betweenness centrality (0.065) - this node is a cross-community bridge._
