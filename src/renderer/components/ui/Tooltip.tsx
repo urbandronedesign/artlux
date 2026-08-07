@@ -118,9 +118,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ id, content, children }) => {
   const cloned = React.cloneElement(children, {
     ref: (node: HTMLElement | null) => {
       anchorRef.current = node;
-      // Preserve the child's own ref, whether callback or object. In React 19 a ref rides on props;
-      // older elements expose it as `element.ref`. Handle both so cloning never drops the child's ref.
-      const r = (children as any).ref ?? childProps.ref;
+      // Preserve the child's own ref, whether callback or object. In React 19 a ref rides on
+      // props — and merely TOUCHING `element.ref` logs a deprecation error to the console (it did,
+      // on every tooltip-wrapped child that carried a ref), so props is the only place we look.
+      const r = childProps.ref;
       if (typeof r === 'function') r(node);
       else if (r && typeof r === 'object') (r as React.MutableRefObject<HTMLElement | null>).current = node;
     },
