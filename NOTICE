@@ -243,6 +243,17 @@ THE STARTER ELECTION: DONE, AND WHAT KEEPS IT TRUE
   published stay covered? The EULA text does not say, and §1.10's "keep seats active to
   continue Distributing" is written for subscription tiers, which Starter is not.
 
+  (h) RELICENSING TO GRANT COMMERCIAL RIGHTS — RAISED 2026-08-07, DECISION DEFERRED to later in
+      2026. Whether ArtLux can move to MIT / Apache-2.0 / AGPLv3 so users may do paid work with it.
+      The full analysis — a verified per-dependency inventory, the four routes and what each costs —
+      is in plans/licensing-relicensing.md. Do not re-derive it from this file: THIS FILE HAS AN
+      ERROR that the analysis found. Section 2 says the NDI SDK "is NOT redistributed"; that is true
+      of the installer and FALSE of the git tree, where native/ndi/ndi.node is a committed binary
+      carrying SDK-derived code. Two further things that document records and this one does not:
+      the JUCE blocker is confined to the audio engine and its API surface is shallow enough to
+      replace, and item (a)'s reasoning for rejecting AGPLv3 — that it grants commercial rights — is
+      INVERTED under the new question. (a) is not wrong; the goal it was answering has changed.
+
   (g) WHO OWNS THE COPYRIGHT — RESOLVED 2026-07-25: the two authors, as individuals. No
       company, studio or institution is a party to the work or holds any claim in it, and
       none is a JUCE licensee for it. That is what LICENSE asserts, it is what the seats in

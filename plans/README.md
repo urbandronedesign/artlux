@@ -77,6 +77,17 @@ either a *canonical programme doc still being read* (engine-decoupling, dockable
 
 ## Active plans
 
+> **[Relicensing — can ArtLux grant commercial rights?](licensing-relicensing.md)** — ⏳ **OPEN, decision
+> deferred to later in 2026** (owner, 2026-08-07). Not a build plan and carries no §1–§10 template. Answers
+> whether the tree can move off the Non-Commercial Educational Licence to MIT / Apache-2.0 / AGPLv3. **One
+> blocker, and it is the audio engine**: JUCE ships linked into every installer under free Starter seats,
+> which permit *us* to distribute but cannot grant recipients the redistribute/sublicense rights a
+> permissive licence promises. Everything else in the stack is clean — verified crate by crate, not read
+> off `NOTICE`. Records the JUCE API surface (**1,651 lines against a shallow surface — a miniaudio job,
+> not a rewrite**), that **`NOTICE` §2 is wrong** where it says the NDI SDK is not redistributed (`ndi.node`
+> is a committed binary carrying SDK code), that AGPL's §13 fires **only on modification** so an unmodified
+> paid show owes nothing, and the in-process linking hazard that exists under AGPL and not under Apache.
+
 > **[Fixture Editor — two categories, and the duplication behind them](fixture-editor-split.md)** — ✅ **both parts shipped 2026-07-27**, 🟢 Low. The inspector was split by kind in Wave B; the **Fixture Editor dock was not**, and four of its seven cards were pixel-only with nothing saying so. Resolved as **option B**: the seven-card dock became two, `Library` and `Wiring & Ledmap` — and the audit found the plan had undercounted the unique cards (three, not two), so the wiring preview was nearly deleted as duplicated. Also records the duplication audit: **no enum has a duplicate** — but `roleValue()` exists three times identically, the captured-role list is duplicated under two names beside a third divergent one, and `allRoles` is a dead flag (`x ? A : A`).
 
 | Plan | Lifts (tutorial set) | Placement | Risk | Status |
