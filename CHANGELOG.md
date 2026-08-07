@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.25.2
 
 ### A projector can play a calibration instead of recomputing one
 
@@ -68,20 +68,88 @@ Track order carries no other meaning: clips, surface bindings, 3D planes and aud
 reorder moves depth and nothing else, and **no project file changes**. The Tracking and Lighting take
 lanes still append — they are excluded from the composite, so the bottom keeps them out of the way.
 
-### Also
+### The mapping canvas is an open workspace, not a square
 
-- A calibration import reaches a projector window that **opens later**. It was sent when an output was
-  *enabled*, which is before the window exists and its bridge port is up, so it landed on nothing.
-- Contribution registries **replace by id** instead of appending. Four of them did not, so a plugin
-  activating twice mounted its panels twice — a projector window reached eighteen canvases in one
-  session of edits.
-- **A measurement that had spread to three files was wrong.** "A calibrated output takes the app from
-  60 fps to 17.6" compared two *different projects*; controlled, it was 38.9 against 34.4. It had been
-  quoted into `runProfile.ts`, the plugin host and an invariant's rationale, and was the stated reason
-  for a design decision. Corrected in all three.
+Drag a surface off the unit square and it kept sampling, kept reaching projectors, kept drawing in the
+3D scene — and **vanished from the Stage**. The preview was a blit of a fixed 512×512 composite raster,
+so anything outside it was silently cropped from the one view you author in. The output was right and
+the picture lied.
 
+The engine now paints and positions **one preview canvas per surface** at 30 Hz, fed from the effective
+surfaces so automated geometry and opacity stay live, and content follows a surface anywhere. The square
+chrome is hidden, the grid and snap guides tile the whole workspace at the cell size snapping already
+used, and the legacy fixture-overlay clip is gone. Stored coordinates are untouched — the invisible
+container stays as the percent frame — so **no project file changes**.
 
-## v0.25.2
+The square composite is no longer built on WebGPU at all. It remains, unthrottled, as the WebGL
+fallback's sampling source, and in that reduced mode the frame comes *back*, labelled **Document UV
+0–1**, with an amber black-on-LEDs chip on any surface outside it — because there it really is the
+sampling extent, and cropping there is the truth rather than a rendering artifact.
+
+### The state graph is an open workspace, and the show flows top to bottom
+
+The same fence, in the other editor: a fixed 2600×1700 scroll-document. The graph canvas now adopts the
+Stage camera and is **unbounded in every direction** — left-drag empty canvas or middle-drag anywhere
+pans, the wheel zooms toward the cursor (0.1–5×), and **Fit** / **Reset** plus a rebindable `F` recover
+a graph you have lost. Saved projects load pixel-identically; the coordinates just stopped being fenced.
+
+Authoring now runs **top to bottom**. The link nub rides the node rim toward your cursor, dropping a
+link on empty canvas **creates the linked state right there**, and a new **Tidy** relayouts the graph as
+a BFS-layered vertical flow — unreachable states last, region membership re-derived spatially,
+hand-drawn curves straightened, and idempotent, so a second Tidy moves nothing. **Build from scenes**
+seeds a vertical column at the view centre.
+
+**Build from scenes is a top-up now**, not a rebuild: scenes already bound to a state are skipped, so
+running it again after capturing new scenes adds only the missing ones instead of duplicating the whole
+graph. The button disables when every scene has a state, and shows the missing count when they do not.
+
+**A state whose scene was deleted stops being pixel-identical to an unbound one.** The node carries a
+scene-missing warning, the inspector explains the dead binding and offers an undoable clear, *Edit
+timeline* no longer renders as a silent no-op, and a `recallScene` entry action pointing at a dead id
+warns the same way. Deliberately **no auto-cleanup** when a scene is deleted — a cascade that quietly
+unwires a flow is worse than a warning that doesn't.
+
+Two details worth keeping: the wheel handler is a native non-passive listener, because React's root
+`onWheel` is passive and its `preventDefault` was a console-warning no-op; and the auto-fit fires when
+states *first exist*, because the editor can mount before the project arrives.
+
+### An LED fixture reads as the device it is
+
+On the 2D canvas a fixture was a plain rect that disappeared over bright content. It now has a blue
+hatched body (one `.fixture-hatch` class, flipped red on selection through `--hatch-c`), so it stays
+visible over anything, and **a resize handle on every edge**, anchored on the opposite edge and
+rotation-aware through the existing anchor correction.
+
+The created rect is also **derived from the pixel description** instead of being a fixed square: at 4px
+cells, a strip is `ledCount` wide by one cell tall, and a matrix keeps its Cols × Rows aspect. It
+re-derives on count and shape edits *only while the rect is still pristine* — the first hand-resize
+makes it the operator's forever. Saved projects hold the old 0.2 square, which matches no derivation,
+so **existing rigs are untouched by construction**.
+
+### Undo reaches the rest of the document
+
+The machine viewport wrote through a bare setter while `stateMachine` **is** in the undo snapshot. So
+graph edits were not merely un-undoable: undoing any unrelated recorded gesture **silently reverted the
+graph work done since**. Writes now record through the single chokepoint, coalesced per gesture — a live
+bezier drag or a typing burst is one step, and 500 ms of quiet starts the next. Node and region drags
+gained the Stage's moved-latch, because a drag-less click must not commit a no-op patch that recording
+would turn into a junk step eating the operator's next `Ctrl+Z`.
+
+That finished a sweep of every authored slice: each one now records, or is excluded on purpose with an
+honest reason.
+
+- **Scene deletion records.** `Ctrl+Z` resurrects the scene, its timeline, its cue cells, and heals any
+  scene-missing states it stranded. The confirm now says *"Ctrl+Z can bring it back"* instead of lying
+  the other way.
+- **Surface deletion records**, with the asymmetry spelled out in the confirm: the surface returns, the
+  projector-output binding does not, because `projectorOutputs` is deliberately outside the snapshot.
+- **The 3D scene writers record** — add model, remove model, scene config — all discrete commits.
+- **The gizmo commit paths stay record-free on purpose:** gizmos latch history at drag start, so a
+  second post-mutation record would make the next `Ctrl+Z` a visible no-op. An invariant guards **both**
+  directions.
+- **Asset relink and delete stay un-recorded.** `assets` is outside the snapshot, so recording them
+  would produce a *torn* undo — clips restored, library entry still gone — and their "can't be undone"
+  confirms stay truthful.
 
 ### The engine has a frame rate now — and asking faster was making video *worse*
 
@@ -197,6 +265,40 @@ included boot — showed 492 gaps and an 816 ms pump stall.
 **And the Art-Net question is now measured, not argued:** `artlux_render_fps 30.12` with
 `artlux_output_fps 61`, live in broadcast. A slower engine does not starve the wire; the native pacer sends
 at its own rate with keep-alive.
+
+### The design system is a page you can look at
+
+`docs/design-system.html` renders every choice in DESIGN-SYSTEM.md **as the thing itself**: the surface
+ladder, contrast-annotated text tiers, the hover/press film on working buttons, the z-tier cascade, live
+kit mocks, the patterns, both brand marks, and a to-scale splash. The app's own IBM Plex faces are
+embedded and the wordmark geometry comes from `shared/brandMarks.ts`, so it is exact offline with no CDN.
+Dark-only, like the system it documents. Assembled by hand this once and **not wired into the build** —
+regenerating means re-deriving from the doc and `tokens.css`.
+
+### Also
+
+- A calibration import reaches a projector window that **opens later**. It was sent when an output was
+  *enabled*, which is before the window exists and its bridge port is up, so it landed on nothing.
+- Contribution registries **replace by id** instead of appending. Four of them did not, so a plugin
+  activating twice mounted its panels twice — a projector window reached eighteen canvases in one
+  session of edits.
+- **A measurement that had spread to three files was wrong.** "A calibrated output takes the app from
+  60 fps to 17.6" compared two *different projects*; controlled, it was 38.9 against 34.4. It had been
+  quoted into `runProfile.ts`, the plugin host and an invariant's rationale, and was the stated reason
+  for a design decision. Corrected in all three.
+- **A dropped download exited 0 and reported success** — which is how the first v0.25.2 build failed, on
+  a missing VC++ redistributable that only surfaced four minutes later. All three fetch scripts settled
+  their promise on four events, and a response that stops *without ending* hits none of them: `.pipe()`
+  calls `end()` only on the source's end, the long-sent request never errors, and an unsettled promise
+  keeps nothing alive, so the loop drains and node exits clean. One shared `scripts/lib/download.cjs`
+  now pipes through `stream.pipeline()` (which is what detects a premature close), writes to `.part` and
+  renames only after a size check, and retries three times. mediapipe's copy was the worst of the three
+  — it skipped on `size > 0`, so one dropped connection would have parked a truncated pose model on disk
+  that every later run accepted. Guarded by an invariant, which itself first shipped inspecting **zero**
+  files because it walked `.ts`/`.tsx` only and passed.
+- **A tooltip-wrapped child that carries a ref stopped logging a React 19 deprecation.** Refs ride on
+  props now, and the clone-time merge read `element.ref` first — so every such child logged on render.
+  Surfaced by the state-graph smoke test's console-error check, the first time it visited Scenes & Cues.
 
 
 ## v0.25.1
