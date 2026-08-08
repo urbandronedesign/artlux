@@ -3280,7 +3280,7 @@ const App: React.FC = () => {
   // layers all stream — only IMAGE / EFFECT self-render in the projector. Decoding the same
   // media in every window otherwise exhausts the GPU's concurrent hardware-decode sessions.
   useEffect(() => {
-      const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
+      const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.SYPHON, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
       const inFlight = new Set<string>(); // surfaceIds with a createImageBitmap still pending
       // Last drawable generation actually shipped per surface. A 25/30 fps clip sampled by this
       // 30 fps pump repeats frames; each repeat would otherwise cost a full-surface

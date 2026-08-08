@@ -1402,14 +1402,22 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   const conflictIds = useMemo(() => {
     const ids = new Set<string>();
-    const live = timeline.clips.filter(c => c.content && (c.content.type === SourceType.SPOUT || c.content.type === SourceType.NDI));
+    // A LIVE SINGULAR SOURCE has exactly one receiver for the whole app, so two overlapping clips
+    // asking it for different senders is a conflict the operator cannot see any other way — one
+    // silently wins. Syphon belongs here for the same reason Spout does.
+    const LIVE_SINGULAR = new Set<string>([SourceType.SPOUT, SourceType.SYPHON, SourceType.NDI]);
+    // Which field names the wanted source, per type. Syphon's identity is a PAIR — app + name — so
+    // comparing the name alone would call two clips identical when they point at different servers.
+    const sourceKey = (c: { type: string; spoutName?: string; syphonName?: string; syphonAppName?: string; ndiName?: string }) =>
+      c.type === SourceType.SPOUT ? (c.spoutName ?? '')
+        : c.type === SourceType.SYPHON ? `${c.syphonName ?? ''} ${c.syphonAppName ?? ''}`
+          : (c.ndiName ?? '');
+    const live = timeline.clips.filter(c => c.content && LIVE_SINGULAR.has(c.content.type));
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
       const a = live[i], b = live[j];
       if (a.content!.type !== b.content!.type) continue;
       if (!(a.start < b.start + b.duration && b.start < a.start + a.duration)) continue; // no time overlap
-      const an = a.content!.type === SourceType.SPOUT ? a.content!.spoutName : a.content!.ndiName;
-      const bn = b.content!.type === SourceType.SPOUT ? b.content!.spoutName : b.content!.ndiName;
-      if ((an ?? '') !== (bn ?? '')) { ids.add(a.id); ids.add(b.id); }
+      if (sourceKey(a.content!) !== sourceKey(b.content!)) { ids.add(a.id); ids.add(b.id); }
     }
     return ids;
   }, [timeline.clips]);

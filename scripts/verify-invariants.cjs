@@ -1844,6 +1844,47 @@ check(
   },
 );
 
+// ── Spout and Syphon are siblings, and the operator can actually REACH Syphon ──────────────────
+check(
+  'Syphon has a door, and every file that knows about Spout knows about Syphon',
+  'Syphon is Spout on the other OS. The behaviour lives in a plugin, but the places that DISPATCH on ' +
+  'content type are core and hardcoded — the picker row in ContentEditor, the STREAMED sets in ' +
+  'App/ProjectorApp, the timeline conflict check, the atlas key. A content-source plugin can ' +
+  'contribute its editor but NOT its own button, so a new type is only half-added until core names ' +
+  'it, and every one of those sites fails silently: no button means the feature is unreachable, and ' +
+  'a missing STREAMED entry means projector outputs treat it as SELF_RENDER and render NOTHING while ' +
+  'the editor preview looks perfect. Both of those were real, in this repo, on this branch — the ' +
+  'plugin was complete, shipped, CI-green and had no way to select it. The rule that catches it is ' +
+  'blunt on purpose: the two are siblings, so a file that names one must name the other. If you are ' +
+  'adding a THIRD GPU-share source, generalise this check rather than deleting it. See also the ' +
+  'repo\'s standing lesson that "it already exists" is never the answer to "I cannot find it".',
+  () => {
+    const problems = [];
+    // Sibling parity, by file. Cheap, and it finds a new dispatch site the day someone adds one.
+    // Comment-stripped (via read), so a passing mention in prose does not satisfy the rule.
+    const files = [...walk('src'), ...walk('shared')];
+    for (const f of files) {
+      const src = read(f);
+      for (const [a, b] of [['SourceType.SPOUT', 'SourceType.SYPHON'], ['spoutName', 'syphonName']]) {
+        if (src.includes(a) && !src.includes(b)) {
+          problems.push(`${f} handles ${a} but not ${b} — the two are siblings and divergence is always a bug`);
+        }
+      }
+    }
+    // The door itself. A button that only exists inside a platform conditional still counts: the
+    // point is that the type is reachable somewhere, not that it is always visible.
+    const editor = read('src/renderer/components/ContentEditor.tsx');
+    if (!/pickType\(SourceType\.SYPHON\)/.test(editor)) {
+      problems.push('ContentEditor has no Syphon button — the content type cannot be selected, so the plugin is unreachable');
+    }
+    // And a glyph with no help entry is the exact shape of a feature that ships and is never found.
+    if (!/content\.syphon/.test(read('src/renderer/help/entries/content.ts'))) {
+      problems.push('no content.syphon help entry — a picker glyph with no help is how a shipped feature stays invisible');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── The output port copies its frames, and does not transfer them ─────────────────────────────
 check(
   'frames are POSTED to the output port, never transferred',

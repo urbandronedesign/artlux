@@ -22,7 +22,7 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 // Content-type-string membership sets (SurfaceContent.type is an open string space; SourceType values
 // are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
 const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
-const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.SYPHON, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
 // Silence on the port for this long means the main window is no longer producing — see the liveness
 // check in the render loop for why a frozen picture is worse than a black one. Generous next to the
 // ~30 Hz frame rate and the transport/config traffic that punctuates an idle output, because a false

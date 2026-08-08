@@ -376,7 +376,7 @@ class FrameEngine {
         // once on the first clip and never again. Keying on the measured aspect re-fits exactly when
         // the shape of the content actually changes, and still leaves a manual resize alone while
         // the content is unchanged — which is the behaviour the one-shot fit was written for.
-        const key = `${s.content.type}:${s.content.url ?? s.content.layerId ?? s.content.spoutName ?? ''}:${aspect.toFixed(3)}`;
+        const key = `${s.content.type}:${s.content.url ?? s.content.layerId ?? s.content.spoutName ?? s.content.syphonName ?? ''}:${aspect.toFixed(3)}`;
         if (this.fittedAspect.get(s.id) === key) continue;
         this.fittedAspect.set(s.id, key);
         if (Math.abs(s.width / s.height - aspect) > 0.01) {

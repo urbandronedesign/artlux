@@ -52,6 +52,17 @@ export const contentHelp: HelpEntry[] = [
     keywords: ['gpu', 'share', 'windows'],
   },
   {
+    id: 'content.syphon',
+    title: 'Syphon',
+    short: 'Receive a Syphon video stream (macOS GPU share).',
+    body: "Captures another app's GPU output over Syphon onto this surface. macOS only — the Spout "
+      + 'sibling. Servers are listed as App — Name, because a Syphon server\'s own name is often '
+      + 'blank and the application is what identifies it. Leave it on Active server to follow '
+      + 'whichever one is running.',
+    group: 'Content',
+    keywords: ['gpu', 'share', 'macos', 'mac', 'spout', 'resolume', 'madmapper', 'touchdesigner'],
+  },
+  {
     id: 'content.ndi',
     title: 'NDI',
     short: 'Receive an NDI network video stream.',

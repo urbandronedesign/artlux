@@ -10,6 +10,10 @@ import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { contentSourceRegistry } from '../host/registries';
 
+// Which local GPU-share button to offer — see the picker below. Same idiom as MenuBar's shortcut
+// glyphs; the renderer has no platform on `window.artlux`.
+const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
+
 // The content-source picker grid + per-type config (Spout sender, NDI source, Effect params,
 // Tracking options, Layer track, opacity). Shared by the surface inspector and the timeline clip
 // inspector so both edit a SurfaceContent identically. `onChange` merges a patch into the content;
@@ -89,11 +93,29 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
             <Network size={16} className="mb-1" /><span className="text-micro">DMX In</span>
           </button>
         </Tooltip>
-        <Tooltip id="content.spout">
-          <button onClick={() => pickType(SourceType.SPOUT)} className={btnCls(c.type === SourceType.SPOUT)} {...help('content.spout')}>
-            <Cast size={16} className="mb-1" /><span className="text-micro">Spout</span>
-          </button>
-        </Tooltip>
+        {/* THE LOCAL GPU SHARE — ONE BUTTON PER PLATFORM, NOT BOTH EVERYWHERE.
+            Spout is Windows-only and Syphon is macOS-only, so showing both would always leave one
+            dead button that can do nothing but explain itself. Show the one that can work here.
+
+            ...but keep the OTHER one visible when the surface is ALREADY set to it, because a
+            project authored on Windows opens on a Mac with SPOUT content: hiding the button would
+            leave the picker with nothing highlighted, and an operator cannot fix a blank surface
+            whose type the UI refuses to name. Seeing "Spout" selected — with the inspector's
+            incompatibility banner under it — is what turns a mystery into an instruction. */}
+        {(!isMac || c.type === SourceType.SPOUT) && (
+          <Tooltip id="content.spout">
+            <button onClick={() => pickType(SourceType.SPOUT)} className={btnCls(c.type === SourceType.SPOUT)} {...help('content.spout')}>
+              <Cast size={16} className="mb-1" /><span className="text-micro">Spout</span>
+            </button>
+          </Tooltip>
+        )}
+        {(isMac || c.type === SourceType.SYPHON) && (
+          <Tooltip id="content.syphon">
+            <button onClick={() => pickType(SourceType.SYPHON)} className={btnCls(c.type === SourceType.SYPHON)} {...help('content.syphon')}>
+              <Cast size={16} className="mb-1" /><span className="text-micro">Syphon</span>
+            </button>
+          </Tooltip>
+        )}
         <Tooltip id="content.ndi">
           <button onClick={() => pickType(SourceType.NDI)} className={btnCls(c.type === SourceType.NDI)} title="NDI network video" {...help('content.ndi')}>
             <Radio size={16} className="mb-1" /><span className="text-micro">NDI</span>
