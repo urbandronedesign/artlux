@@ -1410,7 +1410,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // comparing the name alone would call two clips identical when they point at different servers.
     const sourceKey = (c: { type: string; spoutName?: string; syphonName?: string; syphonAppName?: string; ndiName?: string }) =>
       c.type === SourceType.SPOUT ? (c.spoutName ?? '')
-        : c.type === SourceType.SYPHON ? `${c.syphonName ?? ''} ${c.syphonAppName ?? ''}`
+        : c.type === SourceType.SYPHON ? `${c.syphonName ?? ''}\u0001${c.syphonAppName ?? ''}`
           : (c.ndiName ?? '');
     const live = timeline.clips.filter(c => c.content && LIVE_SINGULAR.has(c.content.type));
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {

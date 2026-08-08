@@ -1844,6 +1844,31 @@ check(
   },
 );
 
+// ── No raw NUL bytes in source ─────────────────────────────────────────────────────────────────
+check(
+  'no source file contains a raw NUL byte',
+  'A NUL inside a string literal is legal JavaScript and compiles, runs and typechecks without a ' +
+  'murmur — so nothing catches it. Git does: its binary heuristic keys on NUL in the first 8 KB, and ' +
+  'a file that trips it is marked -text, which silently turns OFF line-ending normalisation. The ' +
+  'result is a 3,700-line phantom diff on a file whose actual change was one line, a review nobody ' +
+  'can read, and a merge conflict surface across the whole file. That happened here: a composite-key ' +
+  'separator meant to be a space went in as U+0000, in three files, and the first symptom was ' +
+  'Timeline.tsx appearing wholly rewritten. A control character IS a legitimate key separator — the ' +
+  'timeline already joins with \\x01 and that is fine — but WRITE IT AS AN ESCAPE (\'\\u0001\'), so ' +
+  'the bytes on disk stay ASCII and the intent is visible to the next reader. NUL specifically is ' +
+  'never worth it, because it is the one byte git treats as "this is not text".',
+  () => {
+    const bad = [];
+    for (const f of [...walk('src'), ...walk('shared'), ...walk('plugins'), ...walk('packages')]) {
+      // Bytes, not text: the whole point is a character that reading as UTF-8 would hide.
+      if (fs.readFileSync(path.join(ROOT, f)).includes(0x00)) bad.push(f);
+    }
+    return bad.length
+      ? `raw NUL byte in ${bad.join(', ')} — write it as an escape (\\u0001) or use a printable separator`
+      : null;
+  },
+);
+
 // ── Spout and Syphon are siblings, and the operator can actually REACH Syphon ──────────────────
 check(
   'Syphon has a door, and every file that knows about Spout knows about Syphon',
