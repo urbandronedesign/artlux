@@ -7,6 +7,26 @@
 > runner plus a loopback selftest — see [§4.8](#48-build-it-blind--and-isolate-the-one-decision-that-cannot-be-settled-blind)
 > and [§5.0](#phase-0--the-macos-ci-gate-replaces-the-spike). Read those before starting.
 
+> **CI VERDICT, 2026-08-08 (run `31257760049`, `e4438af`) — the gate is green and four unknowns are
+> closed on real macOS.** The framework builds, the Objective-C shim compiles and links, the addon
+> loads, and the loopback selftest passes 0-failed/0-warned. Specifically:
+>
+> | Was open | Now |
+> |---|---|
+> | §4.3 does bare `SyphonClientBase` work? | **Yes.** No subclass, no Metal, no `MTLDevice`. The fallback beside `artlux_make_client()` stays unused. |
+> | §4.2 does the (name, appName) discovery model hold? | **Yes** — reported `selftest — artlux-selftest`, in-process, on a headless runner. The warn-only hedge was unnecessary. |
+> | §10 q2 does the picture MOVE behind a reused surface? | **Yes (Syphon half).** Same pointer `0x102b563a0` across both frames, pixels changed `0xFF0000FF → 0xFFFF0000`. |
+> | the +1 leak hazard | **Balanced.** Retain count 3 → 3 across 100 acquire/release cycles. |
+>
+> Also learned, and it belongs on the Mac-day checklist: **nothing in Syphon happens synchronously.**
+> The client/server handshake is CFMessagePort traffic delivered on run-loop turns, so frames
+> published before a client attaches are not retroactively delivered and the first frames after a
+> connect are legitimately absent. `receive_shared` returning `None` there is correct, not a fault.
+>
+> **Still needs the Mac, and only this:** Electron's `importSharedTexture` accepting the surface, and
+> whether Chromium re-reads a `SharedImage` it already imported from the same `IOSurface`
+> (failure mode: a frozen first frame, not a black one).
+
 The macOS counterpart to [`plugins/spout`](../plugins/spout/). Same job, same shape, same operator
 story: take another app's GPU texture on this machine and pixel-map it, with no file, no network hop
 and no readback. Reference docs: <https://syphon.info/FrameworkDocumentation/> and the framework
