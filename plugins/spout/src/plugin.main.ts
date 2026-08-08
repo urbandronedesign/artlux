@@ -14,7 +14,9 @@ export const plugin: MainPlugin = {
     ipc.handle('spout:list', () => spout.listSenders());
     ipc.on('spout:configure', (cfg) => {
       const c = cfg as SpoutConfig;
-      if (c.enabled) spout.start(c.name ?? '', (frame) => ipc.send('spout:frame', frame));
+      // `fps` is the renderer's engine rate — how often anything actually consumes a frame. Re-sent
+      // whenever it changes; start() re-arms the poll without reconnecting when only the rate moved.
+      if (c.enabled) spout.start(c.name ?? '', c.fps, (frame) => ipc.send('spout:frame', frame));
       else spout.stop();
     });
   },

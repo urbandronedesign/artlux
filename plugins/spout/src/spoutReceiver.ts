@@ -19,9 +19,11 @@ let latest: SpoutFrame | null = null;
 let seq = 0;
 let painted = -1;
 
-export function startSpout(name: string): void {
+// `fps` is the poll rate main should run — the renderer's engine rate, because that is what consumes
+// the frames. Re-calling with the same name and a new rate re-arms main's timer without reconnecting.
+export function startSpout(name: string, fps?: number): void {
   if (typeof window === 'undefined' || !window.artlux) return;
-  window.artlux.pluginSend?.('spout:configure', { enabled: true, name });
+  window.artlux.pluginSend?.('spout:configure', { enabled: true, name, fps });
   if (!unsub) {
     unsub = window.artlux.pluginOn?.('spout:frame', (f) => { latest = f as SpoutFrame; seq++; }) ?? null;
   }

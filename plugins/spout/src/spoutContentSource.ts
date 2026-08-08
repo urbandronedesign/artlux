@@ -1,6 +1,7 @@
 import type { ContentSourceProvider } from '@artlux/sdk/renderer';
 import type { SurfaceContent } from '@/types';
 import { startSpout, stopSpout, getSpoutCanvas } from './spoutReceiver';
+import { pollFps } from './spoutHost';
 import { SpoutEditor } from './SpoutEditor';
 
 // The Spout content source: a single live receiver shared by every consumer (surface/clip), refcounted
@@ -12,15 +13,24 @@ let seq = 0;
 const consumers = new Map<string, { name: string; seq: number }>();
 let active = false;
 let activeName = '';
+let activeFps = 0;
 
 function reconcile(): void {
   let want = false, name = '', best = -1;
   for (const v of consumers.values()) { want = true; if (v.seq > best) { best = v.seq; name = v.name; } }
-  if (want !== active || name !== activeName) {
-    active = want; activeName = name;
-    if (want) startSpout(name); else stopSpout();
+  // The poll rate is part of what "the receiver is configured correctly" MEANS, so it belongs in the
+  // same comparison as the sender name — otherwise a rate change is a no-op whenever the name is
+  // unchanged, which is every time.
+  const fps = pollFps();
+  if (want !== active || name !== activeName || (want && fps !== activeFps)) {
+    active = want; activeName = name; activeFps = fps;
+    if (want) startSpout(name, fps); else stopSpout();
   }
 }
+
+// Re-evaluate after something OUTSIDE the consumer set changed — today only the engine rate. Exported
+// for the plugin's settings subscription; reconcile() itself stays private so there is one door.
+export function reconcileSpout(): void { reconcile(); }
 
 export const spoutContentSource: ContentSourceProvider<SurfaceContent> = {
   type: 'SPOUT', // SourceType.SPOUT — kept as a core enum value; only behavior lives here

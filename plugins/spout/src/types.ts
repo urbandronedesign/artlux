@@ -4,6 +4,10 @@
 export interface SpoutConfig {
   enabled: boolean;
   name?: string; // empty/undefined = active sender
+  // How often main should poll the native receiver, in Hz. Carried from the renderer because the rate
+  // that matters is AppSettings.engineFps — how often anything CONSUMES a frame — and only the
+  // renderer knows it. Absent ⇒ main's own default. See spoutHost.pollFps.
+  fps?: number;
 }
 
 // Spout receive (Windows GPU texture share). `data` is RGBA downscaled to width×height; src* is the

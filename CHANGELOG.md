@@ -23,9 +23,25 @@ path; the filter now runs only for a source larger than the cap, such as a 4K se
 receive is dominated by the GPU→CPU readback, and that happens at the *sender's* resolution either
 way. The cap cost 93% of the image to save half a millisecond.
 
-What it did save is IPC payload, and that part is real: a 1080p RGBA frame is 8.3 MB against 0.59 MB,
-and the receiver polls at ~60 Hz. Paying that down — polling at the engine rate instead of a fixed
-16 ms, and transferring the buffer instead of cloning it — is the next step.
+What it did save is IPC payload, and that part is real: a 1080p RGBA frame is 8.3 MB against 0.59 MB.
+Half of that is addressed below; transferring the buffer instead of cloning it is still to come.
+
+### Spout stopped producing frames nobody reads
+
+The native receiver polled on a fixed 16 ms timer — about 60 Hz — while the frame engine consumes at
+**Preferences ▸ Engine ▸ Engine rate**, which defaults to 30. Every surplus poll that found a new
+frame paid the whole cost of a receive: a GPU→CPU readback at the sender's resolution, around 9 ms on
+the main process's own thread, followed by an 8.3 MB structured clone across IPC — for a frame nothing
+would ever look at. At 1080p that is a quarter of a gigabyte per second produced in order to be
+dropped.
+
+The poll now follows the engine rate, on the same reasoning the setting itself rests on: asking faster
+than anything consumes does not produce more pictures. At the default this halves both the
+main-thread time and the IPC traffic, and raising Engine rate raises the Spout poll with it.
+
+Changing the rate re-arms the poll **without reconnecting**. A reconnect resets the receiver and its
+first frame is all zeros, so otherwise nudging the setting would have blinked every Spout surface
+black.
 
 ## v0.25.2
 
