@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### A full-HD Spout sender now arrives full HD
+
+A 1920×1080 Spout source reached the compositor as **512×288** — 7% of its pixels — and the reduction
+was a nearest-neighbour point sample. Sending full HD got you a visibly aliased picture back: jagged
+edges, moiré on fine detail, and crawling shimmer on anything that moved, because which surviving
+pixel won shifted from frame to frame. No setting in the app explained it.
+
+Two causes, both fixed. **The receive cap is 1080p in every mode**, where it was 512² and lifted to
+1080p only under `--broadcast`. That mode split was wrong in principle: a projector window can be
+opened from the *editor*, so the "preview-grade" cap was never only preview — it was feeding live
+output. **And the resample is a box filter**, averaging every source pixel covering a destination
+pixel instead of keeping one and discarding the rest.
+
+With a 1080p cap an ordinary 1080p sender needs no resample at all, so that case takes a new copy-only
+path; the filter now runs only for a source larger than the cap, such as a 4K sender.
+
+**The old cap was not buying what it appeared to buy.** Measured against a live sender, capping at
+512² rather than 1080p saved 0.47 ms per frame — inside the run-to-run noise. The cost of a Spout
+receive is dominated by the GPU→CPU readback, and that happens at the *sender's* resolution either
+way. The cap cost 93% of the image to save half a millisecond.
+
+What it did save is IPC payload, and that part is real: a 1080p RGBA frame is 8.3 MB against 0.59 MB,
+and the receiver polls at ~60 Hz. Paying that down — polling at the engine rate instead of a fixed
+16 ms, and transferring the buffer instead of cloning it — is the next step.
+
 ## v0.25.2
 
 ### A projector can play a calibration instead of recomputing one

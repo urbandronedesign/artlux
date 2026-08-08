@@ -1,10 +1,17 @@
 // Native Spout receiver for ArtLux (napi-rs). Loaded in the MAIN process (the
 // sandboxed renderer can't require a .node). Wraps spout2-rs's DirectX-11
-// receiver (manages its own D3D11 device, CPU pixel readback), downscales each
-// frame (aspect-preserving) to a capped RGBA size, and hands it to JS to forward
-// over IPC. The cap is runtime-settable (broadcast mode lifts it to 1080p);
-// defaults to 512² for the editor (the mapper samples a 512² source). Spout is
+// receiver (manages its own D3D11 device, CPU pixel readback), fits each frame
+// (aspect-preserving) to a capped RGBA size, and hands it to JS to forward over
+// IPC. The cap is runtime-settable and defaults to 1080p in EVERY mode. Spout is
 // Windows-only; non-Windows builds compile to no-op stubs so CI stays green.
+//
+// ⚠ THE CAP AND THE FILTER ARE ONE DECISION — changing either alone reintroduces
+// the bug they were built to fix. The cap used to be 512² outside `--broadcast`,
+// and the resample was nearest-neighbour: a 1080p sender arrived as 512×288 (7%
+// of its pixels, point-sampled), so an operator sending full HD saw a visibly
+// aliased output and no setting explained why. With the cap at 1080p the ordinary
+// sender now needs NO resample at all, which is why `swizzle` exists as a separate
+// path — see the comments on each function.
 
 #[macro_use]
 extern crate napi_derive;
@@ -28,8 +35,11 @@ mod imp {
     use spout2::dx::Receiver;
     use std::sync::Mutex;
 
-    // Aspect-preserving output cap. Runtime-settable; defaults to 512² for the editor.
-    static CAP: Mutex<(u32, u32)> = Mutex::new((512, 512));
+    // Aspect-preserving output cap. Runtime-settable; defaults to 1080p — the house format, and the
+    // resolution an operator sending full HD expects to get back. It is deliberately the SAME in the
+    // editor and in broadcast: a projector window can be opened from the editor, so a preview-grade
+    // cap there was never "just the preview" — it fed live output.
+    static CAP: Mutex<(u32, u32)> = Mutex::new((1920, 1080));
 
     pub fn set_cap(w: u32, h: u32) {
         if w > 0 && h > 0 {
@@ -88,7 +98,13 @@ mod imp {
         let bgra = st.rx.sender_format() == 87; // DXGI_FORMAT_B8G8R8A8_UNORM
         let (max_w, max_h) = *CAP.lock().unwrap();
         let (ow, oh) = fit(st.w, st.h, max_w, max_h);
-        let out = downscale(&st.buf, st.w, st.h, ow, oh, bgra);
+        // `fit` never upscales, so equal dimensions mean the sender already fits the cap — the
+        // ordinary case now that the cap is 1080p. Take the copy-only path; see `swizzle`.
+        let out = if ow == st.w && oh == st.h {
+            swizzle(&st.buf, st.w, st.h, bgra)
+        } else {
+            downscale(&st.buf, st.w, st.h, ow, oh, bgra)
+        };
         Some(SpoutFrame { width: ow, height: oh, data: out.into(), src_width: st.w, src_height: st.h })
     }
 
@@ -104,30 +120,86 @@ mod imp {
         (((sw as f64 * r) as u32).max(1), ((sh as f64 * r) as u32).max(1))
     }
 
-    // Nearest-neighbour downscale of a (w x h, 4bpp) image to ow x oh RGBA.
+    // 1:1 copy to RGBA — no resample, only the channel order to fix (and alpha forced opaque, which
+    // the resampling path does too: a Spout sender's alpha is frequently uninitialised garbage).
+    //
+    // Kept separate from `downscale` rather than falling out of it as a 1×1 box, because with a 1080p
+    // cap this is the ORDINARY case for an ordinary sender. Running the box filter at 1:1 would spend
+    // ~2M iterations of span arithmetic per frame to average exactly one pixel with itself — on the
+    // main process's thread, at the sender's frame rate.
+    fn swizzle(src: &[u8], w: u32, h: u32, bgra: bool) -> Vec<u8> {
+        let n = (w as usize) * (h as usize) * 4;
+        let mut out = vec![0u8; n];
+        // Clamp to what the source actually holds, and to a whole number of pixels: a short or
+        // ragged buffer must leave the tail black, never panic on an index.
+        let n = n.min(src.len()) & !3;
+        if bgra {
+            for i in (0..n).step_by(4) {
+                out[i] = src[i + 2];
+                out[i + 1] = src[i + 1];
+                out[i + 2] = src[i];
+                out[i + 3] = 255;
+            }
+        } else {
+            out[..n].copy_from_slice(&src[..n]);
+            for i in (3..n).step_by(4) {
+                out[i] = 255;
+            }
+        }
+        out
+    }
+
+    // Box-filter downscale of a (w × h, 4bpp) image to ow × oh RGBA — every source pixel covering a
+    // destination pixel contributes to its average.
+    //
+    // This replaced a nearest-neighbour point sample, which kept ONE source pixel per destination and
+    // discarded the rest. That aliased three ways at once: jagged edges, moiré on fine detail, and —
+    // because which survivor won shifted frame to frame — crawling shimmer on anything that moved.
+    // The operator-visible symptom was "my Spout output looks low quality" while the sender was
+    // provably full HD, with no setting in the app that explained it.
+    //
+    // Still reachable with the 1080p cap: a 4K sender, or any sender wider than the cap's aspect.
     fn downscale(src: &[u8], w: u32, h: u32, ow: u32, oh: u32, bgra: bool) -> Vec<u8> {
-        let mut out = vec![0u8; (ow * oh * 4) as usize];
-        if w == 0 || h == 0 {
+        let mut out = vec![0u8; (ow as usize) * (oh as usize) * 4];
+        if w == 0 || h == 0 || ow == 0 || oh == 0 {
             return out;
         }
+        // The source offsets of R and B are the only difference between the two formats — hoisted out
+        // of the loop so the filter itself is written once rather than duplicated per channel order.
+        let (ri, bi) = if bgra { (2usize, 0usize) } else { (0usize, 2usize) };
         for y in 0..oh {
-            let sy = (y as u64 * h as u64 / oh as u64) as u32;
+            // Half-open source span [y0, y1) for this destination row. Consecutive spans tile the
+            // source exactly — no gap, no overlap — so every source pixel is counted once and the
+            // frame's average brightness is preserved. `.max(y0 + 1)` keeps a span non-empty below
+            // 2× reduction, where integer division would otherwise collapse it and divide by zero.
+            let y0 = (y as u64 * h as u64 / oh as u64) as u32;
+            let y1 = (((y as u64 + 1) * h as u64 / oh as u64) as u32).max(y0 + 1).min(h);
             for x in 0..ow {
-                let sx = (x as u64 * w as u64 / ow as u64) as u32;
-                let si = ((sy * w + sx) * 4) as usize;
-                let di = ((y * ow + x) * 4) as usize;
-                if si + 3 < src.len() {
-                    if bgra {
-                        out[di] = src[si + 2];
-                        out[di + 1] = src[si + 1];
-                        out[di + 2] = src[si];
-                    } else {
-                        out[di] = src[si];
-                        out[di + 1] = src[si + 1];
-                        out[di + 2] = src[si + 2];
+                let x0 = (x as u64 * w as u64 / ow as u64) as u32;
+                let x1 = (((x as u64 + 1) * w as u64 / ow as u64) as u32).max(x0 + 1).min(w);
+                let (mut r, mut g, mut b, mut n) = (0u32, 0u32, 0u32, 0u32);
+                for sy in y0..y1 {
+                    let row = (sy as usize) * (w as usize) * 4;
+                    for sx in x0..x1 {
+                        let si = row + (sx as usize) * 4;
+                        if si + 3 >= src.len() {
+                            continue;
+                        }
+                        r += src[si + ri] as u32;
+                        g += src[si + 1] as u32;
+                        b += src[si + bi] as u32;
+                        n += 1;
                     }
-                    out[di + 3] = 255;
                 }
+                let di = ((y as usize) * (ow as usize) + x as usize) * 4;
+                if n > 0 {
+                    // u8 sums over a box can't overflow u32 until ~16M source pixels per destination
+                    // pixel, which no real reduction reaches.
+                    out[di] = (r / n) as u8;
+                    out[di + 1] = (g / n) as u8;
+                    out[di + 2] = (b / n) as u8;
+                }
+                out[di + 3] = 255;
             }
         }
         out
