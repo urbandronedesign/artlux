@@ -1802,6 +1802,48 @@ check(
   },
 );
 
+// ── Syphon is GPU-only too, and its IOSurface is given back ────────────────────────────────────
+check(
+  'Syphon delivers GPU textures only — and the IOSurface reference is released on every path',
+  'Syphon is the macOS twin of the Spout check above, and every word of that reasoning applies: no ' +
+  'pixel-readback path, not even as a silent fallback, and every VideoFrame closed on replacement. ' +
+  'But it carries ONE HAZARD SPOUT DOES NOT, and it is the whole reason this check exists ' +
+  'separately. On Windows, Electron DUPLICATES the NT handle on import, so the addon owns its copy ' +
+  'and the plugin owes nothing. On macOS, Electron RETAINS the IOSurface instead (Chromium: ' +
+  'ScopedCFTypeRef(io_surface, scoped_policy::RETAIN)) — so the +1 that newSurface handed us is ' +
+  'STILL OURS after the hand-off, whether the import succeeded, failed, or threw. Release it on the ' +
+  'happy path only and a full-resolution surface leaks every time an import fails; forget it and one ' +
+  'leaks every frame, which at 60 Hz is VRAM gone in seconds. That is why the release lives in a ' +
+  'finally, and why this asserts the finally and not merely the call.',
+  () => {
+    const problems = [];
+    const rx = stripComments(read('plugins/syphon/src/syphonReceiver.ts'));
+    for (const [re, what] of [[/new OffscreenCanvas\(/, 'builds a canvas'], [/putImageData/, 'paints pixels'], [/createImageData/, 'allocates ImageData']]) {
+      if (re.test(rx)) problems.push(`syphonReceiver ${what} — Syphon takes textures, not pixels`);
+    }
+    if (!/\.close\(\)/.test(rx)) problems.push('syphonReceiver never closes a VideoFrame — it leaks a GPU image per frame');
+    if (!/syphonIncompatibility/.test(rx)) problems.push('syphonReceiver no longer reports incompatibility — a machine that cannot do this must be told');
+    // Same comment-preservation rule as Spout: this file is a near-copy, and a copy made without the
+    // measurement grows a retirement queue back. `raw`, not `read` — it asserts a COMMENT.
+    if (!/createImageBitmap/.test(raw('plugins/syphon/src/syphonReceiver.ts'))) {
+      problems.push('syphonReceiver lost the note on why closing a frame on replacement is safe for async readers — without it someone will add a grace period again');
+    }
+    // THE macOS-SPECIFIC ONE. The release must be unconditional, so require the finally that makes
+    // it so — a bare releaseSurface() on the success path is the bug this is here to catch.
+    const mgr = stripComments(read('plugins/syphon/src/syphonManager.ts'));
+    if (!/releaseSurface/.test(mgr)) problems.push('syphonManager never releases the IOSurface — Electron RETAINS it, so our +1 leaks a surface per frame');
+    if (!/finally\s*\{[\s\S]*?releaseSurface/.test(mgr)) {
+      problems.push('syphonManager releases the IOSurface outside a finally — a failed or throwing import would leak it');
+    }
+    if (!/Incompatibility/.test(mgr)) problems.push('syphonManager no longer reports why Syphon is unavailable');
+    // The addon must keep the GPU surface entry point and the release that balances it.
+    const lib = stripComments(read('native/syphon-receiver/src/lib.rs'));
+    if (!/fn receive_shared/.test(lib)) problems.push('the addon no longer exposes receive_shared — the GPU path is gone');
+    if (!/fn release_surface/.test(lib)) problems.push('the addon no longer exposes release_surface — nothing can give the +1 back');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── The output port copies its frames, and does not transfer them ─────────────────────────────
 check(
   'frames are POSTED to the output port, never transferred',

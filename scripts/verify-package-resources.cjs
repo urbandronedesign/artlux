@@ -53,9 +53,17 @@ function normalise(entries) {
   ).filter((e) => e && e.from);
 }
 
+// `extraFiles` is checked on exactly the same terms as `extraResources`, and for exactly the same
+// reason: electron-builder globs both, so a literal path matching nothing is a silent skip in both.
+// It is not a hypothetical distinction — the macOS Syphon.framework goes into Contents/Frameworks
+// via extraFiles (that is where codesign expects nested code to live), and a build that quietly
+// omitted it would produce an app whose syphon-receiver.node fails at dlopen with a message that
+// reads as "you forgot to build it".
 const declarations = [
   ...normalise(PKG.build?.extraResources).map((e) => ({ ...e, scope: 'all' })),
   ...normalise(PKG.build?.[PLATFORM]?.extraResources).map((e) => ({ ...e, scope: PLATFORM })),
+  ...normalise(PKG.build?.extraFiles).map((e) => ({ ...e, scope: 'all', kind: 'extraFiles' })),
+  ...normalise(PKG.build?.[PLATFORM]?.extraFiles).map((e) => ({ ...e, scope: PLATFORM, kind: 'extraFiles' })),
 ];
 
 if (!declarations.length) {
@@ -104,7 +112,8 @@ if (missing) {
     '  native/calib/opencv_world4110.dll  → npm run fetch:opencv   (or npm run build:calib on an OpenCV host)\n' +
     '  build/ndi/NDI-Runtime.exe          → npm run fetch:redist\n' +
     '  build/vcredist/vc_redist.x64.exe   → npm run fetch:redist\n' +
-    '  native/*/*.node                    → npm run build:native / build:audio / build:ndi / build:nvwarp\n',
+    '  native/*/*.node                    → npm run build:native / build:audio / build:ndi / build:nvwarp\n' +
+    '  native/syphon-receiver/*  (macOS)  → npm run build:syphon\n',
   );
   process.exit(1);
 }

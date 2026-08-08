@@ -40,6 +40,8 @@ const CHECKS = [
   { plugin: 'calibration',    where: 'main',     marker: 'calib:detect-board',   note: 'calibManager IPC handle' },
   { plugin: 'spout',          where: 'renderer', marker: 'spout:configure',      note: 'spoutReceiver plugin-IPC channel' },
   { plugin: 'spout',          where: 'main',     marker: 'spout] native receiver loaded', note: 'spoutManager native-load log' },
+  { plugin: 'syphon',         where: 'renderer', marker: 'syphon:configure',     note: 'syphonReceiver plugin-IPC channel' },
+  { plugin: 'syphon',         where: 'main',     marker: 'syphon] native receiver loaded', note: 'syphonManager native-load log' },
   { plugin: 'hap',            where: 'renderer', marker: 'hap:decode',           note: 'hapDecode plugin-IPC channel' },
   { plugin: 'hap',            where: 'main',     marker: 'hap] native decoder loaded', note: 'hapManager native-load log' },
   { plugin: 'mp4',            where: 'renderer', marker: 'mp4-webcodecs',        note: 'mp4Codec id (renderer-only)' },

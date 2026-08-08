@@ -199,7 +199,19 @@
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "extraResources": [
+        {
+          "from": "native/syphon-receiver/syphon-receiver.node",
+          "to": "syphon-receiver.node"
+        }
+      ],
+      "extraFiles": [
+        {
+          "from": "native/syphon-receiver/Syphon.framework",
+          "to": "Frameworks/Syphon.framework"
+        }
+      ]
     },
     "linux": {
       "icon": "build/icon.png",

@@ -41,7 +41,10 @@ jobs:
             native/output-engine/target
             native/spout-receiver/target
             native/ndi/target
-          key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock', 'native/ndi/Cargo.lock') }}
+            native/syphon-receiver/target
+            native/syphon-receiver/.syphon-src
+            native/syphon-receiver/Syphon.framework
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock', 'native/ndi/Cargo.lock', 'native/syphon-receiver/Cargo.lock', 'scripts/build-syphon.sh') }}
 
       # JUCE's Linux build needs ALSA (juce_audio_devices) and the X11 dev headers that juce_core /
       # juce_events reference. CMake (3.31) and GCC are already on the ubuntu image; Windows
@@ -87,6 +90,19 @@ jobs:
       # so CI doesn't build it — build:native covers output-engine + spout + hap only.
       - name: Build native engine
         run: npm run build:native
+
+      # Syphon (macOS GPU video receive). NOT part of build:native, because the crate cannot compile
+      # until Syphon.framework has been built from source — so it owns its own chain.
+      #
+      # This step is MANDATORY on the mac runner, not best-effort. package.json's build.mac declares
+      # both syphon-receiver.node (extraResources) and Syphon.framework (extraFiles), and
+      # verify:resources below hard-fails on a declared source that is absent. That is deliberate:
+      # electron-builder globs those paths, so without the check a runner that skipped this step
+      # would produce a perfectly successful .dmg with Syphon silently missing — the exact shape of
+      # the calib/OpenCV bug that shipped in every release for months.
+      - name: Build Syphon receiver (macOS)
+        if: runner.os == 'macOS'
+        run: npm run build:syphon
 
       # The JUCE audio engine, built STRICTLY (build:native only warns, so it cannot be relied on to
       # fail the job). This compiles native/audio-engine with cmake-js and copies the addon to
