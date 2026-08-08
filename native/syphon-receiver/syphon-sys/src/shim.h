@@ -83,6 +83,10 @@ void artlux_syphon_test_server_stop(void);
  * directory needs distributed notifications and a run loop; this path needs neither, so it isolates
  * "does the IOSurface path work" from "does discovery work in this environment". */
 int artlux_syphon_test_connect_direct(void);
+/* Has the server noticed a client attach? The client/server handshake runs over CFMessagePort and
+ * completes on RUN-LOOP TURNS, not synchronously in -init — so this is the diagnostic that separates
+ * "the connection never happened" from "we did not wait for it". */
+int artlux_syphon_test_server_has_clients(void);
 /* Let the run loop turn, so distributed notifications can actually be delivered. */
 void artlux_syphon_runloop_spin(double seconds);
 int artlux_syphon_surface_retain_count(uintptr_t surface);

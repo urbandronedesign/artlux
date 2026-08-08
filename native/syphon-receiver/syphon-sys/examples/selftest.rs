@@ -24,6 +24,23 @@ const H: u32 = 32;
 const RED: u32 = 0xFF_00_00_FF; // arbitrary, distinct
 const BLUE: u32 = 0xFF_FF_00_00;
 
+/// Turn the run loop until `cond` holds, or give up. **Nothing in Syphon happens synchronously.**
+/// The client/server handshake is CFMessagePort traffic and the directory is distributed
+/// notifications; both are delivered on run-loop turns, so every state change here is "true shortly",
+/// never "true on return". Polling with a deadline rather than sleeping a fixed amount is what keeps
+/// this honest on a loaded CI runner — a fixed sleep is a race that passes until the day it doesn't.
+fn spin_until(mut cond: impl FnMut() -> bool, timeout_s: f64) -> bool {
+    let mut waited = 0.0;
+    while waited < timeout_s {
+        if cond() {
+            return true;
+        }
+        artlux_syphon_sys::test_support::runloop_spin(0.05);
+        waited += 0.05;
+    }
+    cond()
+}
+
 struct Report {
     failed: u32,
     warned: u32,
@@ -71,11 +88,10 @@ fn main() -> ExitCode {
     if !r.check(t::server_start("artlux-selftest"), "test server started") {
         return ExitCode::FAILURE; // nothing below can mean anything
     }
-    r.check(t::server_publish(W, H, RED), "published frame 1 (red)");
 
     // ── discovery (§4.2) ────────────────────────────────────────────────────────────────────
     // Distributed notifications need run-loop turns to be delivered, even in-process.
-    t::runloop_spin(1.0);
+    spin_until(|| !syphon::list_servers().is_empty(), 3.0);
     let servers = syphon::list_servers();
     println!("  info  directory reports {} server(s): {:?}", servers.len(),
              servers.iter().map(|s| s.label()).collect::<Vec<_>>());
@@ -98,7 +114,23 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     r.check(syphon::is_valid(), "client is valid");
-    r.check(syphon::has_new_frame(), "hasNewFrame is true after a publish");
+
+    // ⚠ ORDER MATTERS, AND GETTING IT WRONG IS WHAT THE FIRST CI RUN CAUGHT.
+    // The original test published its one and only frame BEFORE any client existed, then asked the
+    // freshly-built client for it. Both questions answered no, which looked like a broken IOSurface
+    // path and was nothing of the sort: a Syphon client learns where the surface is over a
+    // CFMessagePort handshake that completes on run-loop turns, and a frame published into the void
+    // beforehand is not retroactively delivered.
+    //
+    // This is a TEST bug, not a product one — the plugin polls, and `receive_shared` returning None
+    // until the server publishes again is already the documented ordinary case. But it is worth
+    // knowing on the Mac: the first frames after a connect are legitimately absent, so an operator
+    // switching servers sees a beat of nothing rather than an error, and that is correct.
+    r.check(spin_until(t::server_has_clients, 3.0), "the server sees the client attach (handshake)");
+
+    // NOW publish, with someone listening.
+    r.check(t::server_publish(W, H, RED), "published frame 1 (red)");
+    r.check(spin_until(syphon::has_new_frame, 3.0), "hasNewFrame is true after a publish");
 
     // ── the surface ─────────────────────────────────────────────────────────────────────────
     let Some(f1) = syphon::new_surface() else {
@@ -117,7 +149,7 @@ fn main() -> ExitCode {
     // frozen first frame — which is the failure mode to watch for on the Mac, since the Chromium
     // half of this question cannot be answered here.
     r.check(t::server_publish(W, H, BLUE), "published frame 2 (blue)");
-    r.check(syphon::has_new_frame(), "hasNewFrame flips on the second publish");
+    r.check(spin_until(syphon::has_new_frame, 3.0), "hasNewFrame flips on the second publish");
     let Some(f2) = syphon::new_surface() else {
         println!("  FAIL  newSurface returned nothing for frame 2");
         return ExitCode::FAILURE;
@@ -140,8 +172,7 @@ fn main() -> ExitCode {
 
     // ── a client does not follow its server (§1.1) ──────────────────────────────────────────
     t::server_stop();
-    t::runloop_spin(0.5);
-    r.check(!syphon::is_valid(), "client goes invalid when its server stops");
+    r.check(spin_until(|| !syphon::is_valid(), 3.0), "client goes invalid when its server stops");
     // And re-resolution must not resurrect a server that is gone, nor silently attach to something
     // else. (With no other Syphon server on the runner, "cannot reconnect" is the correct answer.)
     let reconnected = syphon::ensure_connected();

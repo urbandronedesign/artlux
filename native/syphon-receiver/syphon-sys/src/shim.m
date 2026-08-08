@@ -227,6 +227,11 @@ int artlux_syphon_test_connect_direct(void)
     return (gClient != nil) ? 1 : 0;
 }
 
+int artlux_syphon_test_server_has_clients(void)
+{
+    return (gTestServer != nil && gTestServer.hasClients) ? 1 : 0;
+}
+
 void artlux_syphon_runloop_spin(double seconds)
 {
     [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:seconds]];
