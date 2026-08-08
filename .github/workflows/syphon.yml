@@ -110,6 +110,17 @@ jobs:
       # From Phase 6 on. This is the ONLY step that exercises the framework's rpath as shipped, the
       # ad-hoc signature and the extraFiles layout — three things `npm run dev` structurally cannot
       # fail on, because in dev the framework sits next to the addon and nothing is signed.
+      #
+      # ⚠ THE APP THIS PRODUCES IS DELIBERATELY INCOMPLETE, AND A GREEN RUN HERE IS NOT "the mac
+      # package is good". This gate never runs build:native or build:audio, so electron-builder logs
+      #   • file source doesn't exist  from=.../native/output-engine/output-engine.node
+      # for output-engine, spout, hap and audio — and then SUCCEEDS anyway, because it resolves an
+      # extraResources `from` as a glob and a literal path matching nothing is a silent skip. That is
+      # the exact bug that shipped calibration and NDI dead in every release for months, visible here
+      # in miniature. It is harmless in this workflow because the assertions below are Syphon-only,
+      # and verify:resources (which turns those bullets into a hard failure) belongs to the real
+      # release job in build.yml, where the other addons are actually built. Do not "fix" this gate
+      # by adding verify:resources — it would fail for four modules this branch does not touch.
       - name: Package (unpacked) + verify the bundle
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'

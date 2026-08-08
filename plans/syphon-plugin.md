@@ -23,6 +23,11 @@
 > published before a client attaches are not retroactively delivered and the first frames after a
 > connect are legitimately absent. `receive_shared` returning `None` there is correct, not a fault.
 >
+> **Packaging verified too** (run `31258673640`, `420c48e`): `Syphon.framework` lands in
+> `Contents/Frameworks`, the shipped addon resolves `@rpath/Syphon.framework/Versions/A/Syphon`, and
+> inside-out ad-hoc signing gives `valid on disk` / `satisfies its Designated Requirement` under
+> `codesign --verify --strict`. `npm run verify` passes on macOS as well as Windows.
+>
 > **Still needs the Mac, and only this:** Electron's `importSharedTexture` accepting the surface, and
 > whether Chromium re-reads a `SharedImage` it already imported from the same `IOSurface`
 > (failure mode: a frozen first frame, not a black one).
