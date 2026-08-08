@@ -35,6 +35,13 @@ native/**/target
 # it: run build:calib on a host with OpenCV, or copy from C:\opencv\build\x64\vc16\bin\.
 native/calib/*.dll
 
+# Syphon (macOS): the fetched framework sources and the built Syphon.framework. NOT committed —
+# unlike ndi.node/calib.node above, whose SDKs are licence-gated and unfetchable in CI, Syphon is
+# BSD-2-clause with no dependencies and rebuilds in seconds from the SHA pinned in
+# scripts/build-syphon.sh. A binary here would just be a thing that rots.
+native/syphon-receiver/.syphon-src/
+native/syphon-receiver/Syphon.framework/
+
 # Windows redistributables the NSIS installer bundles and silently installs (build/installer.nsh).
 # Unmodified vendor binaries (~35 MB), fetched with `npm run fetch:redist` — same rationale as the
 # OpenCV DLL above: no history bloat, and re-fetched on every version bump. `npm run package` fetches

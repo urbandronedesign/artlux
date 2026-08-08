@@ -1,0 +1,125 @@
+name: Syphon (macOS gate)
+
+# THE MAC WE DO NOT OWN.
+#
+# The Syphon plugin is being written on a Windows machine with no Mac available (owner's call,
+# 2026-08-08 — see plans/syphon-plugin.md §4.8). That is fine for the TypeScript, which typechecks
+# and bundles anywhere. It is NOT fine for native/syphon-receiver, whose entire implementation sits
+# behind `#[cfg(target_os = "macos")]` and is therefore *never compiled* on the dev box. Blind
+# Objective-C-from-Rust with no compiler in the loop is a guaranteed pile of wrong selector
+# signatures and wrong framework linkage, none of it visible until someone opens a Mac.
+#
+# So this workflow is the compiler. It runs on every push to the `syphon` branch and turns "blind"
+# into "compiled, linked and loopback-tested blind" in a few minutes.
+#
+# What it CAN prove without hardware:
+#   - every line of ObjC-from-Rust compiles, links against Syphon.framework, and is relocatable
+#   - discovery, client lifecycle, IOSurface contents and frame advance actually work (the selftest
+#     runs a Syphon server and client in ONE process — no GPU, no second app, no display)
+#   - the packaged .app's framework layout and ad-hoc signature hold together
+#
+# What it CANNOT, and what therefore still waits for a real Mac:
+#   - Electron's sharedTexture.importSharedTexture accepting a Syphon IOSurface
+#   - a real Syphon server in ANOTHER application
+#
+# Deliberately NOT wired into build.yml: this must never sit between a `v*` tag and a release.
+# artlux is public, so the minutes are unbilled (see the CI-artifact-storage note in the repo docs).
+
+on:
+  push:
+    branches: [syphon]
+    paths:
+      - 'native/syphon-receiver/**'
+      - 'plugins/syphon/**'
+      - 'scripts/build-syphon.sh'
+      - '.github/workflows/syphon.yml'
+      - 'package.json'
+  workflow_dispatch:
+
+# A push that lands while the previous run is still going cancels it — we only ever care about the
+# verdict on the newest commit, and a queue of stale mac runs is just latency on the next answer.
+concurrency:
+  group: syphon-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The fetched Syphon sources and the built framework are keyed on the SHA pinned inside
+      # build-syphon.sh, so a cache hit skips the xcodebuild entirely. Hashing the script is what
+      # invalidates it: the pin lives in there.
+      - name: Cache Syphon framework + cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/syphon-receiver/target
+            native/syphon-receiver/.syphon-src
+            native/syphon-receiver/Syphon.framework
+          key: syphon-${{ hashFiles('scripts/build-syphon.sh', 'native/syphon-receiver/Cargo.toml') }}
+
+      # ── THE GATE ────────────────────────────────────────────────────────────────────────────
+      # Framework + crate + the relocatability assertions, all inside the script so a developer on a
+      # real Mac runs byte-identical steps. If this step is red, nothing else matters.
+      - name: Build Syphon.framework + the native crate
+        run: bash scripts/build-syphon.sh
+
+      # Belt and braces on top of the script's own otool checks: prove the addon actually LOADS,
+      # not merely that it links. A missing rpath and a missing symbol both pass `otool -L`.
+      - name: Assert the addon loads
+        run: |
+          node -e "
+            const n = require('./native/syphon-receiver/syphon-receiver.node');
+            const want = ['listServers','connect','disconnect','receiveShared','releaseSurface'];
+            const missing = want.filter(k => typeof n[k] !== 'function');
+            if (missing.length) { console.error('missing napi exports:', missing); process.exit(1); }
+            console.log('[gate] addon loaded, exports OK:', want.join(', '));
+          "
+
+      # The loopback selftest: a Syphon server and a client in one process. This is what buys back
+      # most of the blindness — see plans/syphon-plugin.md §5.0 for the list of what it asserts.
+      # DYLD_FRAMEWORK_PATH rather than another rpath in build.rs: the example binary sits three
+      # directories deeper than the .node, and polluting the shipped addon's load commands to suit a
+      # test would be the tail wagging the dog.
+      - name: Loopback selftest (server + client, one process)
+        env:
+          DYLD_FRAMEWORK_PATH: ${{ github.workspace }}/native/syphon-receiver
+        run: cargo run --release --example selftest --manifest-path native/syphon-receiver/syphon-sys/Cargo.toml
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The same gate the dev box runs, on the other OS. Catches a guard written so it fires on the
+      # wrong platform — which is one of the two ways this branch can break the Windows build.
+      - name: Verify (invariants + docs + typecheck)
+        run: npm run verify
+
+      - name: Build app (main/preload/renderer)
+        run: npm run build
+
+      # From Phase 6 on. This is the ONLY step that exercises the framework's rpath as shipped, the
+      # ad-hoc signature and the extraFiles layout — three things `npm run dev` structurally cannot
+      # fail on, because in dev the framework sits next to the addon and nothing is signed.
+      - name: Package (unpacked) + verify the bundle
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          if [ ! -d plugins/syphon ]; then echo "plugins/syphon not present yet — skipping"; exit 0; fi
+          npx electron-builder --dir
+          APP=$(find dist release -maxdepth 3 -name '*.app' -print -quit 2>/dev/null || true)
+          if [ -z "$APP" ]; then echo "no .app produced"; exit 1; fi
+          echo "[gate] $APP"
+          test -d "$APP/Contents/Frameworks/Syphon.framework" \
+            || { echo "Syphon.framework is not in Contents/Frameworks — check build.mac.extraFiles"; exit 1; }
+          otool -L "$APP/Contents/Resources/syphon-receiver.node"
+          codesign --verify --strict --verbose=2 "$APP"

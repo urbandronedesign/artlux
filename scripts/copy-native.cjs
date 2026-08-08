@@ -7,6 +7,11 @@ const path = require('node:path');
 // NDI is NOT here: native/ndi/ndi.node is a committed prebuilt (built once against the gated
 // NDI SDK) so CI + end users don't need the SDK. Update it only via `npm run build:ndi`
 // (scripts/copy-ndi.cjs), which requires the SDK + LLVM.
+// Syphon is NOT here either, for the same reason as NDI but a different gate: native/syphon-receiver
+// cannot be built until Syphon.framework exists, so `npm run build:syphon` (scripts/build-syphon.sh)
+// owns the whole chain — framework, cargo, and the cp to syphon-receiver.node. Adding it here would
+// also couple it to output-engine, which is `required: true` below: this script exits 1 when that is
+// missing, so `build:syphon` would fail on exactly the machine someone iterating on Syphon is using.
 // The JUCE audio engine is NOT here either: native/audio-engine is C++/CMake, not cargo, so it has
 // its own builder — scripts/build-audio.cjs (`npm run build:audio`). `build:native` invokes it with
 // --optional so a missing C++ toolchain warns loudly instead of blocking the Rust build.
