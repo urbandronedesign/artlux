@@ -56,6 +56,12 @@
       "@artlux/plugin-spout/renderer": [
         "./plugins/spout/src/renderer.ts"
       ],
+      "@artlux/plugin-syphon/main": [
+        "./plugins/syphon/src/main.ts"
+      ],
+      "@artlux/plugin-syphon/renderer": [
+        "./plugins/syphon/src/renderer.ts"
+      ],
       "@artlux/plugin-hap/main": [
         "./plugins/hap/src/main.ts"
       ],

@@ -20,6 +20,9 @@ const sdkAliases = [
   { find: '@artlux/plugin-calibration/renderer', replacement: resolve(__dirname, 'plugins/calibration/src/renderer.ts') },
   { find: '@artlux/plugin-spout/main', replacement: resolve(__dirname, 'plugins/spout/src/main.ts') },
   { find: '@artlux/plugin-spout/renderer', replacement: resolve(__dirname, 'plugins/spout/src/renderer.ts') },
+  // Syphon is Spout's macOS sibling — same cross-process shape, so the same explicit subpaths.
+  { find: '@artlux/plugin-syphon/main', replacement: resolve(__dirname, 'plugins/syphon/src/main.ts') },
+  { find: '@artlux/plugin-syphon/renderer', replacement: resolve(__dirname, 'plugins/syphon/src/renderer.ts') },
   { find: '@artlux/plugin-hap/main', replacement: resolve(__dirname, 'plugins/hap/src/main.ts') },
   { find: '@artlux/plugin-hap/renderer', replacement: resolve(__dirname, 'plugins/hap/src/renderer.ts') },
   { find: '@artlux/plugin-mp4', replacement: resolve(__dirname, 'plugins/mp4/src') }, // renderer-only, single barrel
