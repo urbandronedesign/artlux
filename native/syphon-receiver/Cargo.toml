@@ -1,0 +1,27 @@
+[package]
+name = "artlux-syphon-receiver"
+version = "0.0.0"
+edition = "2021"
+description = "Native Syphon receiver for ArtLux (napi-rs, macOS-only). The Spout sibling."
+
+# One workspace so the addon and the selftest share a target dir (and one Cargo.lock). Without it
+# CI caches two copies of the same build and the selftest recompiles the shim from scratch.
+[workspace]
+members = ["syphon-sys"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+# The Objective-C lives one level down, in its own crate, so the loopback selftest can be an ordinary
+# binary that links no Node. See syphon-sys/Cargo.toml for the full reason.
+artlux-syphon-sys = { path = "syphon-sys" }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+opt-level = 3
