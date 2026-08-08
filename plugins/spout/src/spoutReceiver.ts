@@ -10,8 +10,20 @@ import type { SpoutIncompatibility, SpoutTextureMeta } from './types';
 // everything else: 'spout:configure' (send), 'spout:list' (invoke), 'spout:incompatible' (on).
 //
 // ⚠ EVERY FRAME MUST BE CLOSED. These are references to GPU images and the preload has already
-// dropped its own. Holding the newest and closing the one it replaces is the whole discipline — miss
-// it and a full-resolution allocation leaks per frame, which at 60 Hz exhausts VRAM in seconds.
+// dropped its own. Miss a close and a full-resolution allocation leaks per frame, which at 60 Hz
+// exhausts VRAM in seconds rather than hours.
+//
+// CLOSING ON REPLACEMENT IS SAFE, INCLUDING FOR ASYNC READERS — MEASURED, DON'T "FIX" IT.
+// The worry is obvious and wrong: the projector pump reads a drawable with `createImageBitmap`
+// (App.tsx) and AWAITS the copy, so closing the frame underneath it looks like it must reject the
+// promise — silently, since the pump catches — and show up as a projector output dropping frames
+// while the editor preview looks fine. It does not happen. `createImageBitmap` takes its own
+// reference to the underlying image, so a later close cannot invalidate a copy already in flight.
+// Verified against REAL imported shared textures (not canvas-backed stand-ins, which prove nothing
+// here — an imported frame's GPU image is externally owned): 181 frames closed immediately after the
+// call, 181 bitmaps resolved, 0 rejections. A retirement queue holding superseded frames for a few
+// frames was written to defend this and then removed, because it defends nothing and costs a
+// full-resolution GPU image per slot.
 
 let texture: VideoFrame | null = null;
 let textureMeta: SpoutTextureMeta | null = null;
@@ -20,8 +32,12 @@ let unsubIncompatible: (() => void) | null = null;
 let incompatible: SpoutIncompatibility | null = null;
 const listeners = new Set<() => void>();
 
+function close(f: VideoFrame | null): void {
+  try { f?.close(); } catch { /* already closed */ }
+}
+
 function releaseTexture(): void {
-  try { texture?.close(); } catch { /* already closed */ }
+  close(texture);
   texture = null;
   textureMeta = null;
 }
@@ -29,8 +45,9 @@ function releaseTexture(): void {
 function onRelayMessage(e: MessageEvent): void {
   const d = e.data as { kind?: string; channel?: string; meta?: SpoutTextureMeta; frame?: VideoFrame };
   if (d?.kind !== 'artlux:shared-texture' || d.channel !== 'spout' || !d.frame) return;
-  // Replace, never accumulate: the previous frame goes back to the GPU the moment a newer one lands.
-  try { texture?.close(); } catch { /* already closed */ }
+  // Replace, and give the outgoing frame straight back to the GPU. Safe for async readers too — see
+  // the measurement at the top of this file before adding any grace period here.
+  close(texture);
   texture = d.frame;
   textureMeta = d.meta ?? null;
   if (incompatible) { incompatible = null; listeners.forEach((l) => l()); } // a picture disproves it

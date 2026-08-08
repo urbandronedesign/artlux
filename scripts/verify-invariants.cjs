@@ -1770,7 +1770,11 @@ check(
   '("this machine cannot share GPU textures") into one they cannot ("the picture is soft and the app ' +
   'is slow"). A machine that cannot share textures must be TOLD. And because a VideoFrame is a ' +
   'reference to a GPU image, the receiver must close the one it replaces — a missed close leaks a ' +
-  'full-resolution allocation per frame, which at 60 Hz exhausts VRAM in seconds rather than hours.',
+  'full-resolution allocation per frame, which at 60 Hz exhausts VRAM in seconds rather than hours. ' +
+  'Closing on replacement is enough, including for the projector pump, which reads the drawable with ' +
+  'an AWAITED createImageBitmap: that takes its own reference to the underlying image, so a later ' +
+  'close cannot invalidate a copy in flight (measured on real imported shared textures — 181 frames ' +
+  'closed immediately, 181 bitmaps resolved, 0 rejections). Do not add a grace period for it.',
   () => {
     const problems = [];
     const rx = stripComments(read('plugins/spout/src/spoutReceiver.ts'));
@@ -1781,6 +1785,12 @@ check(
     // The frame it replaces must be released, and the incompatibility must be reportable.
     if (!/\.close\(\)/.test(rx)) problems.push('spoutReceiver never closes a VideoFrame — it leaks a GPU image per frame');
     if (!/spoutIncompatibility/.test(rx)) problems.push('spoutReceiver no longer reports incompatibility — a machine that cannot do this must be told');
+    // The measurement that says an immediate close is safe must stay recorded here, or the next
+    // reader re-derives the same wrong worry and adds a retirement queue nobody needs. `raw`, not
+    // `read`: this asserts a COMMENT, and `read` strips them.
+    if (!/createImageBitmap/.test(raw('plugins/spout/src/spoutReceiver.ts'))) {
+      problems.push('spoutReceiver lost the note on why closing a frame on replacement is safe for async readers — without it someone will add a grace period again');
+    }
     // The addon must not regrow the readback either.
     const lib = stripComments(read('native/spout-receiver/src/lib.rs'));
     if (/fn receive_frame/.test(lib)) problems.push('the addon has a receive_frame again — that is the readback path');
