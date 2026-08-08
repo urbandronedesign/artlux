@@ -18,6 +18,22 @@ extern crate napi_derive;
 
 use napi::bindgen_prelude::Buffer;
 
+#[cfg(windows)]
+mod share;
+
+// A GPU texture handed straight to the renderer — no readback, no IPC copy of pixels. See share.rs
+// for why this is OUR texture rather than the sender's.
+#[napi(object)]
+pub struct SpoutShare {
+    // The NT share HANDLE as 8 little-endian bytes: pointer-sized, so a JS number would lose
+    // precision, and Electron's SharedTextureHandle.ntHandle wants a Buffer regardless.
+    pub handle: Buffer,
+    pub width: u32,
+    pub height: u32,
+    // DXGI_FORMAT. 87 = B8G8R8A8_UNORM ('bgra' to Electron), 28 = R8G8B8A8_UNORM ('rgba').
+    pub format: u32,
+}
+
 #[napi(object)]
 pub struct SpoutFrame {
     pub width: u32,
@@ -31,7 +47,9 @@ pub struct SpoutFrame {
 
 #[cfg(windows)]
 mod imp {
-    use super::SpoutFrame;
+    use super::{SpoutFrame, SpoutShare};
+    use crate::share;
+    use napi::bindgen_prelude::Buffer;
     use spout2::dx::Receiver;
     use std::sync::Mutex;
 
@@ -76,6 +94,43 @@ mod imp {
 
     pub fn disconnect() {
         *STATE.lock().unwrap() = None;
+        share::reset();
+    }
+
+    // The GPU path: copy the sender's texture into our own NT-shared one and describe it, for
+    // Electron's sharedTexture import. Returns None whenever anything is not ready or not possible —
+    // no sender, no frame yet, a cross-adapter open, a driver that refuses — and the caller then uses
+    // receive_frame() as before. The two paths are alternatives per frame, never both.
+    //
+    // ⚠ Call this INSTEAD of receive_frame(), not after it: both consume the same "is this frame new"
+    // edge from the receiver, so calling both makes each see only half the frames.
+    pub fn receive_shared() -> Option<SpoutShare> {
+        let mut g = STATE.lock().unwrap();
+        let st = g.as_mut()?;
+        // The receiver still drives discovery, connection and frame timing — only the pixels take a
+        // different road. A zero-size read is the cheapest way to advance its state without asking it
+        // to fill a CPU buffer we are not going to look at.
+        let _ = st.rx.receive_image(&mut [], 0, 0, false, false);
+        if st.rx.is_updated() {
+            let (nw, nh) = st.rx.sender_size();
+            if nw > 0 && nh > 0 {
+                st.w = nw;
+                st.h = nh;
+            }
+            return None; // republish: the handle we hold is stale, take it next poll
+        }
+        if !st.rx.is_frame_new() {
+            return None;
+        }
+        let raw = unsafe { st.rx.sender_handle() } as isize;
+        let (w, h) = st.rx.sender_size();
+        let s = share::reshare(raw, w, h, st.rx.sender_format())?;
+        Some(SpoutShare {
+            handle: Buffer::from((s.handle as u64).to_le_bytes().to_vec()),
+            width: s.width,
+            height: s.height,
+            format: s.format,
+        })
     }
 
     pub fn receive_frame() -> Option<SpoutFrame> {
@@ -231,6 +286,11 @@ pub fn disconnect() {
 pub fn receive_frame() -> Option<SpoutFrame> {
     imp::receive_frame()
 }
+#[cfg(windows)]
+#[napi]
+pub fn receive_shared() -> Option<SpoutShare> {
+    imp::receive_shared()
+}
 
 // ---- Non-Windows stubs (Spout is Windows-only) ----
 #[cfg(not(windows))]
@@ -252,5 +312,10 @@ pub fn disconnect() {}
 #[cfg(not(windows))]
 #[napi]
 pub fn receive_frame() -> Option<SpoutFrame> {
+    None
+}
+#[cfg(not(windows))]
+#[napi]
+pub fn receive_shared() -> Option<SpoutShare> {
     None
 }
