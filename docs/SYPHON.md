@@ -1,5 +1,23 @@
 # Syphon — macOS GPU video receive
 
+> ## ⚠ NOT YET TESTED ON A MAC
+>
+> **Status 2026-08-08 · branch `syphon` · unmerged.** Every word below is implemented, and a great
+> deal of it is machine-verified — the framework builds, the native receiver compiles and links, a
+> loopback test drives a real Syphon server and client, the packaged `.app` signs and its addon
+> resolves the framework. **None of it has ever run on Apple hardware against a real Syphon server in
+> another application.** It was written on a Windows machine and verified by a macOS CI runner, which
+> has no GPU-composited Electron window and no second app to receive from.
+>
+> **Until someone runs it on a Mac, read this page as a specification, not a description.** Two links
+> in the chain are unproven, and both are Chromium rather than Syphon: whether
+> `sharedTexture.importSharedTexture` accepts a Syphon `IOSurface` at all, and whether it re-reads a
+> surface it has already imported. If the second one bites, the symptom is a **frozen first frame,
+> not a black surface** — do not mistake it for "no signal".
+>
+> The hand-off checklist is [plans/syphon-plugin.md § Testing on a Mac](../plans/syphon-plugin.md).
+> **Delete this banner when it has passed.**
+
 **Syphon** shares GPU textures between apps on **macOS** (the macOS analogue of [Spout](SPOUT.md) on
 Windows). ArtLux receives a Syphon server as a **live content source**, so output from Resolume,
 MadMapper, TouchDesigner, Isadora, VDMX, Millumin, After Effects (with a Syphon plugin) etc. can be

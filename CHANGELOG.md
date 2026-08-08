@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### Syphon — the macOS half of local GPU video — on branch `syphon`, NOT YET TESTED ON A MAC
+
+**Read that heading before reading the rest.** This work is complete, guarded and green on two
+platforms, and it has never run on Apple hardware against a real Syphon server. It lives on the
+unmerged `syphon` branch. Do not cut a release containing it until the checklist in
+[plans/syphon-plugin.md](plans/syphon-plugin.md) has been walked on a Mac.
+
+ArtLux receives a **Syphon** server as live content, so output from Resolume, MadMapper,
+TouchDesigner, Isadora, VDMX or Millumin pixel-maps onto fixtures with no file and no network hop.
+It is [Spout](docs/SPOUT.md) on the other operating system, shipped as `@artlux/plugin-syphon`, and
+the frame never leaves the GPU.
+
+**It is the easier half of Spout, and the shape shows it.** Spout needs a whole D3D11 re-share through
+its own device because its handle is a legacy DX9 token Electron cannot duplicate; Syphon's transport
+primitive *is* an `IOSurface`, which is exactly what Electron wants on darwin, so the server's surface
+goes straight across — no copy, no second device. Syphon publishes BGRA and nothing else, so there is
+no format table. And `SyphonClientBase -newSurface` hands over the `IOSurface` directly, so Metal and
+OpenGL are not involved at all.
+
+**One thing is inverted relative to Windows, and it is the local hazard.** Electron *retains* the
+surface on import rather than taking ownership of it, so the reference we were handed is still ours
+afterwards and is released on every path — success, failure or throw. On Windows Electron duplicates
+the NT handle instead and the plugin owes nothing.
+
+**Two things behave differently for the operator.** Servers are listed as **`App — Name`**, because a
+Syphon server's own name is frequently blank and the application is what identifies it — so identity
+is the pair, not the name. And **a beat of nothing after switching servers is normal**: the client and
+the server introduce themselves over a handshake that completes asynchronously, and frames published
+before ArtLux attached are not replayed.
+
+There is also **no "both apps on the same GPU" problem**, the one that dominates the Spout page. An
+`IOSurface` is not tied to one adapter.
+
+Because there was no Mac to build on, a macOS CI gate stands in for one: it builds the framework from
+a pinned commit, compiles and links the Objective-C, asserts the addon is relocatable and loadable,
+runs a **loopback selftest** — a Syphon server and client in one process, on a runner with no GPU —
+and packages and codesigns the `.app`. That closed four unknowns without hardware, including whether
+a reused surface really carries new pixels. It cannot reach Electron's importer, which is why the
+heading says what it says.
+
 ### Spout is now a GPU path, end to end — and refuses rather than degrading
 
 A Spout frame reaches the compositor as **the texture itself**. Nothing is read back to system memory

@@ -1,6 +1,25 @@
 # Syphon — macOS GPU video receive (`@artlux/plugin-syphon`)
 
-**Branch:** `syphon` · **Status:** planned, nothing built · **Written:** 2026-08-08
+**Branch:** `syphon` · **Written:** 2026-08-08
+
+> # ⚠ STATUS: BUILT, GUARDED, GREEN — AND NEVER RUN ON A MAC
+>
+> **The branch is feature-complete and unmerged. It must be tested on Apple hardware before it is
+> merged or released.** Nothing here has met a real Syphon server in another application, a
+> GPU-composited Electron window, or a projector output.
+>
+> | | |
+> |---|---|
+> | **Written on** | a Windows machine, with no Mac available (owner's call, 2026-08-08) |
+> | **Verified by** | a `macos-latest` CI runner — `.github/workflows/syphon.yml` |
+> | **Windows** | `npm run verify` 131 invariants + 11 doc checks + typecheck, build, plugin identity |
+> | **macOS CI** | framework build · ObjC compile + link · `otool` relocatable · addon loads · loopback selftest 0-failed · `npm run verify` · app build · `electron-builder --dir` · `codesign --verify --strict` |
+> | **Never done** | **run the app on a Mac** |
+>
+> **Do not merge on the strength of a green CI badge.** The gate proves the code builds, links, signs
+> and that Syphon's own half works; it cannot prove the one link that matters most — Chromium
+> accepting the surface. Walk [§9B](#9b--on-the-mac-the-hand-off-checklist) first, then delete the
+> banner at the top of [docs/SYPHON.md](../docs/SYPHON.md).
 
 > **Built blind (owner's call, 2026-08-08).** No Mac is available; the whole feature is written on
 > Windows and tested on hardware in a few days. The substitute for a Mac is the `macos-latest` CI
@@ -536,10 +555,26 @@ Split in two, because we are building blind. **Everything in 9A must be green be
 that makes a missing artifact fatal rather than optional. Both are avoidable; both are easy to do by
 accident.
 
-### 9B — On the Mac (the day it arrives)
+### 9B — On the Mac: the hand-off checklist
 
-There is no test runner, and per [ArtLux workflow] the verification is *run the app and watch the
-logs*. In order — and note that 1, 2, 5, 6 and 7 are cheap because CI already proved the crate works:
+**This is the gate on merging the branch.** There is no test runner, and per [ArtLux workflow] the
+verification is *run the app and watch the logs*. Walk it in order; 1, 2, 5, 6 and 7 are quick
+because CI already proved the crate works, and **3 and 4 are the ones that can still sink it.**
+
+You need: a Mac, a Syphon server app, and — for step 8 — a second display. Budget half a day.
+
+- [ ] 1 · the addon loads
+- [ ] 2 · a server appears in the picker as `App — Name`
+- [ ] **3 · A PICTURE APPEARS, AND IT MOVES** ← the unproven link
+- [ ] **4 · no leak over 10 minutes** ← the macOS-specific hazard
+- [ ] 5 · a server restart recovers by itself
+- [ ] 6 · a server resize re-imports cleanly
+- [ ] 7 · several consumers share one receiver
+- [ ] 8 · the **packaged** `.app` works, including a projector output
+
+When all eight pass: delete the banner at the top of [docs/SYPHON.md](../docs/SYPHON.md), drop the
+`NOT YET TESTED` heading from the CHANGELOG entry, replace the STATUS block at the top of this file
+with the result, and merge.
 
 1. `npm run build:syphon && npm run dev`. Expect `[syphon] native receiver loaded` — its absence is
    either the build or the ad-hoc signature, and the two look identical from JS. Check with
@@ -547,8 +582,19 @@ logs*. In order — and note that 1, 2, 5, 6 and 7 are cheap because CI already 
 2. A known server. **Simple Server** from the Syphon SDK is the reference; Resolume/MadMapper/
    TouchDesigner/VDMX for real content. Confirm the picker shows `App — Name` and that an unnamed
    server is still identifiable.
-3. Watch for `[syphon] GPU shared-texture path active — WxH bgra, no readback` **once**. Its absence
-   with a picture present would mean a CPU path exists, which is the thing that must not exist.
+3. **A picture appears, and it MOVES.** The whole branch turns on this step. Watch for
+   `[syphon] GPU shared-texture path active — WxH bgra, no readback` **once** (its absence *with* a
+   picture would mean a CPU path exists, which must not). Then look at the surface for ten seconds
+   with moving content, because the two failures look nothing alike and lead in opposite directions:
+   - **Nothing at all** → `importSharedTexture` refused the surface. Check the inspector banner and
+     the main-process log. This is the "does Chromium accept a Syphon IOSurface" question, and if it
+     is no, the plan needs re-opening, not patching.
+   - **A single frozen frame** → Chromium is caching the `SharedImage` for a surface it has already
+     imported. Syphon reuses one `IOSurface` and only the *bytes* change (CI proved that much), so a
+     frozen picture means the import is not re-reading. **This is not "no signal" — do not chase the
+     server.** The fix is the Metal blit in §4.6, into our own surface per frame; the call site is
+     one line for exactly this reason.
+   - **Live, moving video** → the last unproven link in the chain is closed.
 4. **Leak watch — the one macOS-specific hazard.** Run 10+ minutes at 1080p60 and watch VRAM/memory.
    A missed `CFRelease` on the `IOSurfaceRef` and a missed `VideoFrame.close()` produce the *same*
    symptom, so instrument both sides before concluding which. `Instruments → Allocations` filtered to
