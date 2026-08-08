@@ -1731,8 +1731,8 @@ check(
 
 // ── The byte-sources paint somewhere a worker can reach ───────────────────────────────────────
 check(
-  'DMX-in, Spout and NDI paint into an OffscreenCanvas, and skip the repaint when nothing arrived',
-  'These three receive raw RGBA (or DMX channels) over IPC and assemble a picture for the sampler. The ' +
+  'DMX-in and NDI paint into an OffscreenCanvas, and skip the repaint when nothing arrived',
+  'These two receive raw RGBA (or DMX channels) over IPC and assemble a picture for the sampler. The ' +
   'canvas they paint into is never displayed — it exists only to be sampled — so a DOM element is the ' +
   'wrong thing twice over: it cannot exist in a worker, which is where the engine is going, and it ties ' +
   'a background data path to the document. They also each get asked for a picture once per consuming ' +
@@ -1741,9 +1741,10 @@ check(
   'on every frame while the sender sat idle. A detached <canvas> stays as the fallback where ' +
   'OffscreenCanvas is missing; it must not be the primary path.',
   () => {
+    // Spout is deliberately NOT in this list any more: it receives no bytes at all. See the
+    // GPU-texture check below, which guards the stronger property that replaced this one for it.
     const files = [
       'src/renderer/services/dmxInput.ts',
-      'plugins/spout/src/spoutReceiver.ts',
       'plugins/ndi/src/ndiReceiver.ts',
     ];
     const problems = [];
@@ -1753,6 +1754,40 @@ check(
       // The repaint-skip: an arrival counter and a record of what is already painted.
       if (!/painted\s*===\s*seq/.test(src)) problems.push(`${f} repaints unconditionally — it must skip when no new frame arrived`);
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Spout is GPU-only, and every texture it takes is given back ────────────────────────────────
+check(
+  'Spout delivers GPU textures only — no readback path, and every VideoFrame is closed',
+  'Spout receives the sender\'s texture on the GPU and hands the renderer a VideoFrame. It must not ' +
+  'grow a pixel-readback path again, and not as a fallback either. There WAS one, and it was the only ' +
+  'path: read back to system memory, resample to a cap, ship 8.3 MB per frame over IPC — ~9 ms of ' +
+  'main-thread stall per frame, and for most of its life a 512-pixel cap and a nearest-neighbour ' +
+  'resample, so a full-HD sender arrived aliased with nothing in the app to explain it. Reinstated as ' +
+  'a silent fallback it is worse than absent: it converts a hardware fact the operator can act on ' +
+  '("this machine cannot share GPU textures") into one they cannot ("the picture is soft and the app ' +
+  'is slow"). A machine that cannot share textures must be TOLD. And because a VideoFrame is a ' +
+  'reference to a GPU image, the receiver must close the one it replaces — a missed close leaks a ' +
+  'full-resolution allocation per frame, which at 60 Hz exhausts VRAM in seconds rather than hours.',
+  () => {
+    const problems = [];
+    const rx = stripComments(read('plugins/spout/src/spoutReceiver.ts'));
+    // No pixel assembly: these are the fingerprints of a readback path returning.
+    for (const [re, what] of [[/new OffscreenCanvas\(/, 'builds a canvas'], [/putImageData/, 'paints pixels'], [/createImageData/, 'allocates ImageData']]) {
+      if (re.test(rx)) problems.push(`spoutReceiver ${what} — Spout takes textures, not pixels`);
+    }
+    // The frame it replaces must be released, and the incompatibility must be reportable.
+    if (!/\.close\(\)/.test(rx)) problems.push('spoutReceiver never closes a VideoFrame — it leaks a GPU image per frame');
+    if (!/spoutIncompatibility/.test(rx)) problems.push('spoutReceiver no longer reports incompatibility — a machine that cannot do this must be told');
+    // The addon must not regrow the readback either.
+    const lib = stripComments(read('native/spout-receiver/src/lib.rs'));
+    if (/fn receive_frame/.test(lib)) problems.push('the addon has a receive_frame again — that is the readback path');
+    if (!/fn receive_shared/.test(lib)) problems.push('the addon no longer exposes receive_shared — the GPU path is gone');
+    // And the manager must refuse rather than degrade.
+    const mgr = stripComments(read('plugins/spout/src/spoutManager.ts'));
+    if (!/Incompatibility/.test(mgr)) problems.push('spoutManager no longer reports why Spout is unavailable');
     return problems.length ? problems.join('; ') : null;
   },
 );

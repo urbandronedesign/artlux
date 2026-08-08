@@ -4,28 +4,16 @@
 export interface SpoutConfig {
   enabled: boolean;
   name?: string; // empty/undefined = active sender
-  // How often main should poll the native receiver, in Hz. Carried from the renderer because the rate
-  // that matters is AppSettings.engineFps — how often anything CONSUMES a frame — and only the
-  // renderer knows it. Absent ⇒ main's own default. See spoutHost.pollFps.
+  // The renderer's engine rate. It only raises the poll FLOOR — the poll follows the SENDER, because
+  // sampling below the sender's rate judders and polling above it re-delivers frames. See pollHz.
   fps?: number;
-  // May main deliver frames as GPU textures instead of pixels? Absent ⇒ yes. The renderer sets it
-  // false when the window cannot receive them (no `sharedTextureSupported`) or the operator turned
-  // the path off. Saying yes is only a REQUEST: main still falls back per connection if the import
-  // fails, which is what a sender on another GPU looks like.
-  gpu?: boolean;
 }
 
-// Spout receive (Windows GPU texture share). `data` is RGBA downscaled to width×height; src* is the
-// sender's true resolution (for stage aspect).
-export interface SpoutFrame {
-  width: number;
-  height: number;
-  data: Uint8Array;
-  srcWidth: number;
-  srcHeight: number;
-}
+// Why Spout is not running. Spout is GPU-only — there is no pixel-readback path behind it — so any
+// of these means no picture, and the operator is told rather than silently given a degraded one.
+export type SpoutIncompatibility = 'no-native' | 'no-shared-texture' | 'import-failed';
 
-// The GPU path's frame: a handle instead of pixels. The sender's texture, re-shared by the addon into
+// A frame: a handle instead of pixels. The sender's texture, re-shared by the addon into
 // one Electron can import (see native/spout-receiver/src/share.rs for why re-sharing is required).
 export interface SpoutShare {
   /** NT share HANDLE, 8 little-endian bytes — Electron's SharedTextureHandle.ntHandle. */

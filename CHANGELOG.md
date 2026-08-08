@@ -2,86 +2,38 @@
 
 ## Unreleased
 
-### A full-HD Spout sender now arrives full HD
+### Spout is now a GPU path, end to end — and refuses rather than degrading
 
-A 1920×1080 Spout source reached the compositor as **512×288** — 7% of its pixels — and the reduction
-was a nearest-neighbour point sample. Sending full HD got you a visibly aliased picture back: jagged
-edges, moiré on fine detail, and crawling shimmer on anything that moved, because which surviving
-pixel won shifted from frame to frame. No setting in the app explained it.
+A Spout frame reaches the compositor as **the texture itself**. Nothing is read back to system memory
+and no pixels cross IPC: the sender's texture is shared onto this machine's GPU, main imports it, and
+the renderer is handed a `VideoFrame` — which is a `CanvasImageSource`, so it draws exactly where a
+canvas used to. The picture is whatever size the sender publishes. There is no resolution cap, no
+resample and no quality setting, because nothing is resized any more.
 
-Two causes, both fixed. **The receive cap is 1080p in every mode**, where it was 512² and lifted to
-1080p only under `--broadcast`. That mode split was wrong in principle: a projector window can be
-opened from the *editor*, so the "preview-grade" cap was never only preview — it was feeding live
-output. **And the resample is a box filter**, averaging every source pixel covering a destination
-pixel instead of keeping one and discarding the rest.
+**If the texture cannot be shared, Spout says so and stops.** A sender running on a different graphics
+card, a build without the API, a format we cannot describe — each is reported in the content inspector
+in plain terms, and on the startup splash. It does **not** quietly fall back to reading pixels back.
 
-With a 1080p cap an ordinary 1080p sender needs no resample at all, so that case takes a new copy-only
-path; the filter now runs only for a source larger than the cap, such as a 4K sender.
+That readback path existed, and this release deletes it. Two reasons. It was slow and lossy: ~9 ms of
+main-thread stall and 8.3 MB of IPC per frame at 1080p, and for most of its life it also imposed a
+512-pixel cap and a nearest-neighbour resample outside `--broadcast`, so a full-HD sender arrived as
+512×288 of point-sampled pixels — visibly aliased, with nothing in the app to explain it. (Both were
+fixed first, with a 1080p cap and a box filter, before the GPU path made the road unnecessary.) And as
+a *silent* fallback it was worse than absent: it traded a hardware fact an operator can act on — "this
+machine cannot share GPU textures" — for one they cannot: "the picture looks soft and the app is slow,
+and nothing says why".
 
-**The old cap was not buying what it appeared to buy.** Measured against a live sender, capping at
-512² rather than 1080p saved 0.47 ms per frame — inside the run-to-run noise. The cost of a Spout
-receive is dominated by the GPU→CPU readback, and that happens at the *sender's* resolution either
-way. The cap cost 93% of the image to save half a millisecond.
+**Motion is smooth against a 60 fps sender.** The poll follows the *sender*, not the engine — floor 60,
+which is what Spout senders overwhelmingly run at. Tying it to **Engine rate** looks correct (one frame
+produced per frame consumed) and stutters: a 60 fps sender polled at 30 Hz is *sampled* at half rate
+off an unrelated clock, so the picture advances by one source frame on some ticks and two on others.
+Right frame count, visibly uneven motion. It is capped too, because Spout's own frame-new flag depends
+on the sender publishing frame counts and answers "yes" forever against one that does not — so polling
+above the sender's rate re-delivers the same picture at full price instead of costing a cheap no-op.
 
-What it did save is IPC payload, and that part is real: a 1080p RGBA frame is 8.3 MB against 0.59 MB.
-Half of that is addressed below; transferring the buffer instead of cloning it is still to come.
-
-### Spout frames arrive as GPU textures, with no readback and no copy
-
-A Spout frame now reaches the compositor as the **texture itself**. Nothing is read back to system
-memory and no pixels cross IPC: main imports the sender's texture and hands the renderer a
-`VideoFrame`, which is a `CanvasImageSource` and so draws exactly where a canvas did.
-
-Getting there needed a **re-share**, because Electron will not accept Spout's own handle. It requires
-an NT handle, and Spout's NT mode is an opt-in its senders rarely set — the default is a legacy
-DX9-style token that is not a kernel object, so the import fails with "Unable to duplicate handle."
-That is not fixable upstream; Resolume, TouchDesigner and OBS choose it. So the receiver opens the
-sender's texture on its own D3D11 device and copies it into one it created itself, entirely in VRAM.
-
-The picture is identical either way, so a line on startup says which path a machine is on:
-`[spout] GPU shared-texture path active`. **Every failure falls back** — a sender on another GPU, an
-Electron without the API, a format we cannot describe — and the CPU path is unchanged beneath it.
-
-Delivery uses a first-party preload seam rather than the plugin IPC bridge, because a shared texture
-cannot be structured-cloned. It is deliberately generic: the sender names a channel, so NDI receive
-and any future GPU source take the same road.
-
-### Spout no longer stutters against a 60 fps sender
-
-The poll rate briefly followed **Engine rate**, on the reasoning that producing frames faster than
-anything consumes them is waste. That was wrong, and it stuttered: a 60 fps sender polled at the
-engine's 30 Hz is *sampled* at half rate off an unrelated clock, so the picture advanced by one
-source frame on some ticks and two on others. Right frame count, visibly uneven motion.
-
-The poll now follows the **sender** — a floor of 60, which is what Spout senders overwhelmingly run
-at — so every frame it makes is caught. Interval spread fell from ragged to a 0.8 ms standard
-deviation around a 17.6 ms mean.
-
-There is a ceiling too, and it exists because **Spout's own frame gate cannot be trusted**:
-`is_frame_new()` depends on the sender publishing frame counts, and against one that does not it
-answers "yes" forever. Polling above the sender's rate therefore does not cost a cheap no-op — it
-re-delivers the same picture at full price. Measured at 92 Hz against a 60 fps sender: 278 frames
-delivered in 3 s, only 179 of them distinct.
-
-*This gives back the IPC saving claimed for the CPU path below — that saving was what caused the
-stutter, and smooth motion is worth more than the bandwidth.*
-
-### Spout stopped producing frames nobody reads
-
-The native receiver polled on a fixed 16 ms timer — about 60 Hz — while the frame engine consumes at
-**Preferences ▸ Engine ▸ Engine rate**, which defaults to 30. Every surplus poll that found a new
-frame paid the whole cost of a receive: a GPU→CPU readback at the sender's resolution, around 9 ms on
-the main process's own thread, followed by an 8.3 MB structured clone across IPC — for a frame nothing
-would ever look at. At 1080p that is a quarter of a gigabyte per second produced in order to be
-dropped.
-
-The poll now follows the engine rate, on the same reasoning the setting itself rests on: asking faster
-than anything consumes does not produce more pictures. At the default this halves both the
-main-thread time and the IPC traffic, and raising Engine rate raises the Spout poll with it.
-
-Changing the rate re-arms the poll **without reconnecting**. A reconnect resets the receiver and its
-first frame is all zeros, so otherwise nudging the setting would have blinked every Spout surface
-black.
+Delivery uses a first-party preload seam rather than the plugin IPC bridge, since a shared texture
+cannot be structured-cloned. It is deliberately generic — the sender names a channel — so NDI receive
+and any future GPU source can take the same road instead of growing a second copy of it.
 
 ## v0.25.2
 

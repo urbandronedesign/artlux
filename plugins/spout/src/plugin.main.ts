@@ -19,15 +19,15 @@ export const plugin: MainPlugin = {
     ipc.handle('spout:list', () => spout.listSenders());
     ipc.on('spout:configure', (cfg) => {
       const c = cfg as SpoutConfig;
-      // The GPU path, when this Electron can do it and the renderer asked for it. The sink returns
-      // false on an import failure, which latches this connection back to the CPU path.
+      // Spout is GPU-only: the texture is the delivery, and there is no pixel path behind it. Wiring
+      // the sink to null when this Electron has no sharedTexture is what makes start() report
+      // 'no-shared-texture' rather than silently doing nothing.
       spout.setSharedSink(
-        (s) => gpu.deliver(ctx.window() as BrowserWindow | null, s),
-        gpu.available() && c.gpu !== false,
+        gpu.available() ? (s) => gpu.deliver(ctx.window() as BrowserWindow | null, s) : null,
+        (why) => ipc.send('spout:incompatible', why),
       );
-      // `fps` is the renderer's engine rate — how often anything actually consumes a frame. Re-sent
-      // whenever it changes; start() re-arms the poll without reconnecting when only the rate moved.
-      if (c.enabled) spout.start(c.name ?? '', c.fps, (frame) => ipc.send('spout:frame', frame));
+      // `fps` only sets the poll FLOOR (see pollHz) — the poll follows the sender, not the engine.
+      if (c.enabled) spout.start(c.name ?? '', c.fps);
       else spout.stop();
     });
   },
@@ -37,9 +37,19 @@ export const plugin: MainPlugin = {
   // Reported on the startup splash. Spout is a Windows-only GPU-sharing API, so an absent receiver
   // off Windows is EXPECTED ('off'), not a broken install ('degraded') — the splash must not cry wolf
   // on a mac where Spout could never have worked.
-  status: () => spout.available()
-    ? { state: 'ok', detail: 'native receiver loaded' }
-    : process.platform === 'win32'
-      ? { state: 'degraded', detail: 'native receiver unavailable' }
-      : { state: 'off', detail: 'Windows only' },
+  status: () => {
+    if (!spout.available()) {
+      return process.platform === 'win32'
+        ? { state: 'degraded', detail: 'native receiver unavailable' }
+        : { state: 'off', detail: 'Windows only' };
+    }
+    // GPU texture sharing is not an optimisation here, it is the whole feature — so an Electron
+    // without it makes Spout unusable, and the splash must say that rather than showing a healthy
+    // plugin that will never produce a picture.
+    if (!gpu.available()) return { state: 'degraded', detail: 'no GPU texture sharing — Spout unavailable' };
+    const why = spout.incompatibility();
+    return why
+      ? { state: 'degraded', detail: `unavailable: ${why}` }
+      : { state: 'ok', detail: 'native receiver loaded, GPU texture sharing' };
+  },
 };

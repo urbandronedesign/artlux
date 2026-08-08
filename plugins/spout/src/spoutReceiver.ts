@@ -1,35 +1,24 @@
-import type { SpoutFrame, SpoutTextureMeta } from './types';
+import type { SpoutIncompatibility, SpoutTextureMeta } from './types';
 
-// Receives Spout frames (downscaled RGBA) from the plugin's main entry over the generic plugin IPC
-// bridge and assembles them into a canvas usable as surface content — mirrors ndiReceiver.ts.
-// Channels: 'spout:configure' (send), 'spout:frame' (on), 'spout:list' (invoke).
-
-let unsub: (() => void) | null = null;
-// OffscreenCanvas, not a DOM element: this is never displayed — it exists to be sampled — and an
-// OffscreenCanvas is the version that can live in a worker once the engine moves there. Falls back to
-// a detached <canvas> where the API is missing.
-let canvas: OffscreenCanvas | HTMLCanvasElement | null = null;
-let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
-let imageData: ImageData | null = null;
-let latest: SpoutFrame | null = null;
-// `seq` counts arrivals, `painted` records which one the canvas holds. getSpoutCanvas() is called once
-// per consuming surface AND again inside the GPU sampler's per-surface closure, so without this the
-// same unchanged bytes were re-packed and re-uploaded several times per frame — and on every frame
-// while the sender sat idle, which for a paused Spout source is all of them.
-let seq = 0;
-let painted = -1;
-
-// ── THE GPU PATH ────────────────────────────────────────────────────────────────────────────────
-// When main can hand over the texture itself, frames arrive as VideoFrames on the preload's relay
-// instead of as pixels over IPC. A VideoFrame IS a CanvasImageSource, so getSpoutCanvas returns it
-// directly and every consumer — the compositor's atlas, the projector window — draws it unchanged.
+// Receives Spout frames as GPU TEXTURES from the plugin's main entry and holds the newest one for the
+// compositor to draw. There is no pixel path: main hands over a shared texture, the preload turns it
+// into a VideoFrame, and a VideoFrame IS a CanvasImageSource — so it goes straight to every consumer
+// (the compositor's atlas, a projector window) with no canvas, no upload and no conversion.
 //
-// ⚠ EVERY FRAME MUST BE CLOSED. These are references to GPU images; the preload already dropped its
-// own. Holding the newest and closing the one it replaces is the whole discipline — miss it and a
-// 1080p allocation leaks per frame, which at 30 Hz exhausts VRAM in seconds.
+// The frames do NOT arrive on the plugin IPC bridge. A shared texture cannot be structured-cloned, so
+// they come over the preload's shared-texture relay as a window message. Bridge channels still carry
+// everything else: 'spout:configure' (send), 'spout:list' (invoke), 'spout:incompatible' (on).
+//
+// ⚠ EVERY FRAME MUST BE CLOSED. These are references to GPU images and the preload has already
+// dropped its own. Holding the newest and closing the one it replaces is the whole discipline — miss
+// it and a full-resolution allocation leaks per frame, which at 60 Hz exhausts VRAM in seconds.
+
 let texture: VideoFrame | null = null;
 let textureMeta: SpoutTextureMeta | null = null;
 let unsubTexture: (() => void) | null = null;
+let unsubIncompatible: (() => void) | null = null;
+let incompatible: SpoutIncompatibility | null = null;
+const listeners = new Set<() => void>();
 
 function releaseTexture(): void {
   try { texture?.close(); } catch { /* already closed */ }
@@ -44,31 +33,45 @@ function onRelayMessage(e: MessageEvent): void {
   try { texture?.close(); } catch { /* already closed */ }
   texture = d.frame;
   textureMeta = d.meta ?? null;
-  seq++;
+  if (incompatible) { incompatible = null; listeners.forEach((l) => l()); } // a picture disproves it
 }
 
-/** Is the GPU path even possible in this window? False ⇒ ask main for pixels. */
-export function gpuSupported(): boolean {
-  return typeof window !== 'undefined' && window.artlux?.sharedTextureSupported === true;
+/**
+ * Why Spout cannot run here, or null when it is fine.
+ *
+ * Spout is GPU-only by design — see spoutManager for why there is no readback path — so this is the
+ * difference between a picture and no picture, and the editor shows it rather than leaving an
+ * operator staring at an empty surface.
+ */
+export function spoutIncompatibility(): SpoutIncompatibility | null { return incompatible; }
+
+/** Subscribe to incompatibility changes (for the editor's status line). */
+export function onSpoutStatus(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => { listeners.delete(cb); };
 }
 
-// `fps` is the poll rate main should run — the renderer's engine rate, because that is what consumes
-// the frames. Re-calling with the same name and a new rate re-arms main's timer without reconnecting.
+// `fps` raises the poll FLOOR only; main polls the sender's rate. Re-calling with the same name and a
+// new rate re-arms main's timer without reconnecting.
 export function startSpout(name: string, fps?: number): void {
   if (typeof window === 'undefined' || !window.artlux) return;
-  const gpu = gpuSupported();
-  window.artlux.pluginSend?.('spout:configure', { enabled: true, name, fps, gpu });
-  if (!unsub) {
-    unsub = window.artlux.pluginOn?.('spout:frame', (f) => {
-      // A CPU frame arriving means main fell back (import failure / another GPU). Drop the stale
-      // texture so getSpoutCanvas stops preferring a picture that is no longer being updated.
-      if (texture) releaseTexture();
-      latest = f as SpoutFrame;
-      seq++;
+  // The window's own capability. Main checks its side too; this one catches an Electron whose main
+  // process has the API while the renderer cannot be handed anything.
+  if (window.artlux.sharedTextureSupported !== true) {
+    incompatible = 'no-shared-texture';
+    listeners.forEach((l) => l());
+    return;
+  }
+  window.artlux.pluginSend?.('spout:configure', { enabled: true, name, fps });
+  if (!unsubIncompatible) {
+    unsubIncompatible = window.artlux.pluginOn?.('spout:incompatible', (why) => {
+      incompatible = why as SpoutIncompatibility;
+      releaseTexture(); // nothing will refresh it now; a frozen last frame would read as "working"
+      listeners.forEach((l) => l());
     }) ?? null;
   }
   // The relay is a window message, not an IPC channel — see the preload's shared-texture section.
-  if (gpu && !unsubTexture) {
+  if (!unsubTexture) {
     window.addEventListener('message', onRelayMessage);
     unsubTexture = () => window.removeEventListener('message', onRelayMessage);
   }
@@ -76,50 +79,24 @@ export function startSpout(name: string, fps?: number): void {
 
 export function stopSpout(): void {
   window.artlux?.pluginSend?.('spout:configure', { enabled: false });
-  unsub?.();
-  unsub = null;
   unsubTexture?.();
   unsubTexture = null;
+  unsubIncompatible?.();
+  unsubIncompatible = null;
   releaseTexture();
-  latest = null;
-  painted = -1;
 }
 
 export async function listSpoutSenders(): Promise<string[]> {
   return ((await window.artlux?.pluginInvoke?.('spout:list')) as string[] | undefined) ?? [];
 }
 
-// The active sender's true aspect ratio (w/h), or null until a frame arrives.
+/** The active sender's aspect ratio (w/h), or null until a frame arrives. */
 export function getSpoutAspect(): number | null {
   if (textureMeta?.width && textureMeta.height) return textureMeta.width / textureMeta.height;
-  if (!latest || !latest.srcWidth || !latest.srcHeight) return null;
-  return latest.srcWidth / latest.srcHeight;
+  return null;
 }
 
-// The latest Spout frame as something drawable, or null if none yet.
-//
-// On the GPU path this is the VideoFrame itself — a CanvasImageSource, so it needs no canvas, no
-// upload and no conversion. Preferred over any CPU frame: when both exist the texture is the live
-// one, because main sends pixels only after the GPU path has been abandoned (and that handler
-// releases the texture, so "both" does not persist).
+/** The latest Spout frame, or null if none yet. Already a CanvasImageSource — nothing to convert. */
 export function getSpoutCanvas(): CanvasImageSource | null {
-  if (texture) return texture;
-  if (!latest) return null;
-  const { width, height, data } = latest;
-  if (width <= 0 || height <= 0) return null;
-  if (!canvas || canvas.width !== width || canvas.height !== height) {
-    canvas = typeof OffscreenCanvas !== 'undefined'
-      ? new OffscreenCanvas(width, height)
-      : Object.assign(document.createElement('canvas'), { width, height });
-    ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null;
-    imageData = null;
-    painted = -1; // a new canvas holds nothing
-  }
-  if (!ctx) return null;
-  if (painted === seq) return canvas; // no new frame since the last paint
-  if (!imageData) imageData = ctx.createImageData(width, height);
-  imageData.data.set(data);
-  ctx.putImageData(imageData, 0, 0);
-  painted = seq;
-  return canvas;
+  return texture;
 }

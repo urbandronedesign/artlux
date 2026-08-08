@@ -247,8 +247,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         }
     });
     ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, () => !!getWindow()?.isMaximized());
-    // Spout receive moved to @artlux/plugin-spout (spout:list / spout:configure / spout:frame over the
-    // generic plugin bridge; activated via activateMainPlugins below).
+    // Spout receive moved to @artlux/plugin-spout (spout:list / spout:configure / spout:incompatible
+    // over the generic plugin bridge; activated via activateMainPlugins below). Its FRAMES do not
+    // travel here at all — they are GPU textures, handed over by the preload's shared-texture relay.
 
     // First-party main plugins register their own IPC through the generic plugin bridge. NDI lives in
     // @artlux/plugin-ndi now (channels: ndi:available / ndi:list / ndi:configure / ndi:frame / ndi:send-*).

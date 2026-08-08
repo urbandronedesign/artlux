@@ -255,7 +255,7 @@ export interface BootReport {
   rendererDone: boolean;
 }
 
-// Spout (SpoutConfig/SpoutFrame) → @artlux/plugin-spout; NDI (NdiConfig/NdiFrame/NdiSendConfig) →
+// Spout (SpoutConfig) → @artlux/plugin-spout; NDI (NdiConfig/NdiFrame/NdiSendConfig) →
 // @artlux/plugin-ndi; HAP video (HapInfo/HapFrame) → @artlux/plugin-hap.
 
 // ---- Projector calibration (native OpenCV addon: structured light + solvePnP) ----

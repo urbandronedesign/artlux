@@ -10,7 +10,6 @@ import { registerDocsWindow } from './docsWindow';
 import * as splash from './splashWindow';
 import { applyUiScale } from './uiScale';
 import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (recv cap / quit) — transitional host→plugin seam
-import { spoutManager as spout } from '@artlux/plugin-spout/main'; // broadcast cap — transitional host→plugin seam
 import * as nvwarp from './nvwarpManager';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
@@ -349,12 +348,10 @@ app.whenReady().then(() => {
     // Broadcast (show) mode lifts the NDI receive downscale cap to 1080p for full-HD projector
     // output; the editor keeps the lighter 720p default for preview.
     //
-    // Spout is NOT in here any more: its cap is 1080p in every mode (native/spout-receiver). A
-    // mode-dependent cap was wrong for it, because a projector window can be opened from the EDITOR
-    // — so the "preview-grade" 512² was feeding live output, and full HD in gave an aliased picture
-    // out. The call is kept as a no-op-shaped belt: if the native default ever moves, broadcast still
-    // asserts what a show needs.
-    if (BROADCAST) { ndi.setRecvCap(1920, 1080); spout.setCap(1920, 1080); }
+    // Spout has no cap to lift. It delivers the sender's texture on the GPU at whatever size the
+    // sender publishes — nothing is resampled, so there is no resolution knob and no mode in which
+    // the picture is preview-grade.
+    if (BROADCAST) { ndi.setRecvCap(1920, 1080); }
     // The startup splash. Registered in every mode (it opens nothing by itself) but OPENED only in the
     // editor: in broadcast — the watchdog's relaunch mode — an always-on-top window would flash over
     // live fullscreen projector output, unattended, on every self-heal. Opened BEFORE registerIpc so it
