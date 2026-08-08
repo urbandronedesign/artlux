@@ -51,7 +51,7 @@ Select a surface, then pick a type in the Inspector's **Content** grid:
 | **Image** | An image file | Static (Play/Pause does nothing). |
 | **Camera** | — (a connected webcam) | The OS asks for camera permission the first time. |
 | **DMX In** | — | Shows incoming Art‑Net/sACN as content (input port set in Preferences). |
-| **Spout** | A Spout sender name (Windows) | Live GPU feed from Resolume/TouchDesigner etc. **Refresh** rescans; blank = active sender. *Requires a Spout sender running.* |
+| **Spout** | A Spout sender name (Windows) | Live GPU feed from Resolume/TouchDesigner etc. **Refresh** rescans; blank = active sender. *Requires a Spout sender running **on the same GPU as ArtLux** — see the note below.* |
 | **NDI** | An NDI source name | Network video. Requires the free **NDI Runtime/Tools**; if missing, the panel shows an install link. **Refresh** rescans; blank = first source. |
 | **Layer** | A timeline track | The surface shows whatever clip is under the playhead on that track. |
 | **Timeline** | — (the whole Program) | The full composited timeline (all contributing layers, z‑ordered). |
@@ -60,6 +60,18 @@ Select a surface, then pick a type in the Inspector's **Content** grid:
 
 The top‑bar/timeline **Play/Pause** is the global transport for video, camera and the timeline (only
 enabled when something is playable). Live sources (camera, Spout, NDI, DMX‑in) are real‑time.
+
+> **Spout and two graphics cards.** Spout hands ArtLux the sender's texture **on the GPU** — nothing is
+> copied or resized, so you get the sender's full resolution with no setting to tune. The catch is that
+> a texture shared on one graphics card cannot be read by an app running on another, and on a machine
+> with two GPUs (an integrated chip plus a discrete card) Windows may put ArtLux on one and your sender
+> on the other.
+>
+> If that happens ArtLux **tells you** — *"Spout not compatible"* appears under the sender picker,
+> naming the reason — and shows nothing, rather than quietly giving you a softer, slower picture. Fix it
+> in **Windows Settings ▸ System ▸ Display ▸ Graphics** by setting *both* ArtLux and the sender app to
+> the same GPU. If you can't, use **NDI** instead: it costs a compression pass but has no such limit.
+> Full detail in the [Spout reference](../SPOUT.md).
 
 > **Tip:** for **Video** and **Image** you don't have to browse each time — import once into the
 > **Media** library and **drag a tile onto the surface** (or select the surface and click **Use**).

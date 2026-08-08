@@ -180,8 +180,9 @@ Above the surfaces/output engine sits the **show model**, three layers core pers
 ## Output / transport (`src/main/transport/`)
 `outputManager.ts` prefers the native `output-engine.node` (Rust send thread + pacer + keep-alive +
 sparse + ArtSync) and falls back to TS `artnet.ts`/`sacn.ts`. `discovery.ts` does ArtPoll/ArtPollReply.
-`input.ts` captures incoming Art-Net/sACN. `spoutManager.ts` loads `spout-receiver.node` and streams
-512² frames to the renderer.
+`input.ts` captures incoming Art-Net/sACN. `spoutManager.ts` (in `@artlux/plugin-spout/main`) loads
+`spout-receiver.node` and hands the renderer a **GPU shared texture** — no readback and no frame data
+over IPC; see [SPOUT.md](SPOUT.md).
 
 ## Audio (`native/audio-engine/` + `plugins/audio/`) — the second native language
 The **only non-Rust native module**: a **C++17 / JUCE 8 / libspatialaudio** N-API addon

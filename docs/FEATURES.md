@@ -109,7 +109,10 @@ Select a surface, then in the inspector **Content** section:
   surface has its own player.
 - **DMX In** — capture incoming Art-Net/sACN as the surface's content (single live input).
 - **Spout** (Windows) — receive a live GPU stream from Resolume/MadMapper/TouchDesigner; pick a
-  sender (or "Active sender") + refresh. Received natively, downscaled, composited (single live).
+  sender (or "Active sender") + refresh. The sender's texture is shared **on the GPU** and drawn as-is:
+  full resolution, nothing read back or resampled, no settings. Requires ArtLux and the sender to be on
+  the **same graphics card**; if they are not, Spout reports *"not compatible"* rather than degrading.
+  See [SPOUT.md](SPOUT.md). (Single live input.)
 - **NDI** (network video) — receive an NDI stream from another machine/app; pick a source + refresh.
   Requires the free NDI Runtime/Tools. See [NDI.md](NDI.md). (Single live input.)
 - **Effect** — a generative shader (Solid / Rainbow / Palette Flow / Wave / Fire) fills the surface;
