@@ -108,6 +108,8 @@ hop and a compression pass, but it works across GPUs and across machines.
 
 ## Related
 
+- [SYPHON.md](SYPHON.md) — the **macOS** sibling. Same feature, different OS — and notably without
+  the same-GPU constraint below, because an `IOSurface` is not tied to one adapter.
 - [NDI.md](NDI.md) — network video (cross-machine), the Spout sibling, and the fallback when two GPUs
   cannot be avoided.
 - [SURFACES.md](SURFACES.md) — the content/mapping model.

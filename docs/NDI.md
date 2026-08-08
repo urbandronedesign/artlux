@@ -2,7 +2,8 @@
 
 NDI® lets ArtLux **receive** a network video stream as a Surface's content, and **send** each
 projector output as its own NDI source for other software (Resolume, OBS, vMix, media servers,
-recorders). It's the cross-platform, network counterpart to Spout. Added in **v0.7.0**.
+recorders). It's the cross-platform, network counterpart to the local-GPU pair,
+[Spout](SPOUT.md) on Windows and [Syphon](SYPHON.md) on macOS. Added in **v0.7.0**.
 
 Shipped as the first-party plugin **`@artlux/plugin-ndi`** (see [PLUGINS.md](PLUGINS.md)):
 cross-process, with a main-side native manager (`/main`) and a renderer receive/content source
