@@ -23,6 +23,18 @@ export interface MainPluginIpc {
 // Context handed to a plugin's main-process `activate()`.
 export interface MainPluginContext {
   ipc: MainPluginIpc;
+  /**
+   * The window `ipc.send` targets, or null before one exists / after it is gone.
+   *
+   * `ipc` covers everything that can be structured-cloned, which is nearly everything — reach for
+   * this only when an Electron API needs the window or frame ITSELF. That is the case for handing
+   * over a GPU shared texture: `sharedTexture.sendSharedTexture` takes a `WebFrameMain`, and the
+   * texture is not clonable, so it cannot travel over `ipc` at all.
+   *
+   * Typed as `unknown` so the SDK's main entry stays free of an `electron` import in its public
+   * surface; callers cast to `BrowserWindow`.
+   */
+  window(): unknown;
 }
 
 export interface MainPlugin {

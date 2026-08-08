@@ -1534,6 +1534,26 @@ export interface ArtluxApi {
   pluginInvoke(channel: string, ...args: unknown[]): Promise<unknown>;
   pluginSend(channel: string, ...args: unknown[]): void;
   pluginOn(channel: string, cb: (...args: unknown[]) => void): () => void;
+  // Can main hand this window GPU textures directly (Electron's `sharedTexture`)? False on an
+  // Electron without it. A consumer that says yes still needs its CPU path: the GPU road also fails
+  // per-frame for reasons this flag cannot see — a sender on another adapter, a driver that refuses
+  // the share. See the preload's shared-texture relay, and `onSharedTexture` for the receiving end.
+  sharedTextureSupported?: boolean;
+}
+
+// A GPU texture delivered to the main world by the preload's relay, as a `VideoFrame` — which is a
+// `CanvasImageSource`, so it drops straight into anything that already draws a canvas or a video.
+//
+// ⚠ THE RECEIVER OWNS THE FRAME AND MUST `close()` IT. It is a clone sharing one GPU image; the
+// preload has already released its own reference. Dropping one on the floor leaks a full-resolution
+// GPU allocation, and these arrive at the sender's frame rate.
+export interface SharedTextureMessage {
+  kind: 'artlux:shared-texture';
+  /** Names the producer, e.g. 'spout' — one relay serves every GPU source. */
+  channel: string;
+  /** Producer-defined description (size, format, sender name…), structured-cloned. */
+  meta?: unknown;
+  frame: VideoFrame;
 }
 
 declare global {

@@ -23,7 +23,9 @@ function makeContext(getWindow: () => BrowserWindow | null): MainPluginContext {
     on(channel, handler) { ipcMain.on('plugin:' + channel, (_e, ...args) => handler(...args)); },
     send(channel, ...args) { getWindow()?.webContents.send('plugin:' + channel, ...args); },
   };
-  return { ipc };
+  // Same window `ipc.send` targets — for the Electron APIs that need the window itself rather than a
+  // message (handing over a GPU shared texture, which is not clonable and so cannot use `ipc`).
+  return { ipc, window: () => getWindow() };
 }
 
 export function activateMainPlugins(getWindow: () => BrowserWindow | null): void {

@@ -70,6 +70,10 @@ mod imp {
         buf: Vec<u8>, // sender-resolution RGBA/BGRA
         w: u32,
         h: u32,
+        // Spout's own receive target, used ONLY by the GPU path — see receive_shared for why it has
+        // to exist. Owned by us per Spout's ReceiveTexture(ID3D11Texture2D**) contract: Spout creates
+        // and resizes it, we release it. Null until the first GPU receive.
+        tex_slot: *mut std::ffi::c_void,
     }
     // napi calls run on the single JS thread and the poll runs on the same
     // thread, so the raw spoutDX pointer never crosses threads.
@@ -88,11 +92,27 @@ mod imp {
         let opt = if name.is_empty() { None } else { Some(name) };
         let rx = Receiver::new(opt.as_deref())
             .map_err(|e| napi::Error::from_reason(format!("spout connect: {e}")))?;
-        *STATE.lock().unwrap() = Some(State { rx, buf: vec![0u8; 256 * 256 * 4], w: 256, h: 256 });
+        *STATE.lock().unwrap() = Some(State {
+            rx,
+            buf: vec![0u8; 256 * 256 * 4],
+            w: 256,
+            h: 256,
+            tex_slot: std::ptr::null_mut(),
+        });
         Ok(())
     }
 
     pub fn disconnect() {
+        // Release Spout's receive texture before dropping the receiver. Per the ReceiveTexture
+        // contract that texture is OURS once Spout has created it, and dropping the Receiver does not
+        // free it — so without this each connect/disconnect cycle strands a full-resolution texture
+        // in VRAM for the life of the process.
+        if let Some(st) = STATE.lock().unwrap().as_mut() {
+            if !st.tex_slot.is_null() {
+                unsafe { share::release_texture(st.tex_slot) };
+                st.tex_slot = std::ptr::null_mut();
+            }
+        }
         *STATE.lock().unwrap() = None;
         share::reset();
     }
@@ -107,10 +127,23 @@ mod imp {
     pub fn receive_shared() -> Option<SpoutShare> {
         let mut g = STATE.lock().unwrap();
         let st = g.as_mut()?;
-        // The receiver still drives discovery, connection and frame timing — only the pixels take a
-        // different road. A zero-size read is the cheapest way to advance its state without asking it
-        // to fill a CPU buffer we are not going to look at.
-        let _ = st.rx.receive_image(&mut [], 0, 0, false, false);
+        // A REAL receive, on the texture side so it costs no readback. Spout owns the copy into
+        // `tex_slot`; we never read that texture — our pixels come from the sender's own shared
+        // texture in share.rs — but the call is what keeps the receiver's state current, which is
+        // what makes `is_updated()` below able to see a sender resize at all.
+        //
+        // This replaced `receive_image(&mut [], 0, 0, …)`, a zero-size read used as a cheap way to
+        // tick the receiver. Spout rejects the zero size before touching any state, so that version
+        // advanced nothing and a resize could go unnoticed on this path.
+        //
+        // ⚠ IT DOES NOT MAKE `is_frame_new()` RELIABLE, and nothing here can. That flag depends on
+        // the SENDER publishing frame counts; against a sender that does not, it answers "yes"
+        // forever. Measured at 92 Hz against a 60 fps sender: 278 frames delivered in 3 s, 179 of
+        // them distinct — 36% were a re-send of a picture already sent. The defence is the poll rate,
+        // not this check (see pollHz in spoutManager), because there is none available here.
+        unsafe {
+            st.rx.receive_into_texture(&mut st.tex_slot);
+        }
         if st.rx.is_updated() {
             let (nw, nh) = st.rx.sender_size();
             if nw > 0 && nh > 0 {

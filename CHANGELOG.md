@@ -26,6 +26,46 @@ way. The cap cost 93% of the image to save half a millisecond.
 What it did save is IPC payload, and that part is real: a 1080p RGBA frame is 8.3 MB against 0.59 MB.
 Half of that is addressed below; transferring the buffer instead of cloning it is still to come.
 
+### Spout frames arrive as GPU textures, with no readback and no copy
+
+A Spout frame now reaches the compositor as the **texture itself**. Nothing is read back to system
+memory and no pixels cross IPC: main imports the sender's texture and hands the renderer a
+`VideoFrame`, which is a `CanvasImageSource` and so draws exactly where a canvas did.
+
+Getting there needed a **re-share**, because Electron will not accept Spout's own handle. It requires
+an NT handle, and Spout's NT mode is an opt-in its senders rarely set — the default is a legacy
+DX9-style token that is not a kernel object, so the import fails with "Unable to duplicate handle."
+That is not fixable upstream; Resolume, TouchDesigner and OBS choose it. So the receiver opens the
+sender's texture on its own D3D11 device and copies it into one it created itself, entirely in VRAM.
+
+The picture is identical either way, so a line on startup says which path a machine is on:
+`[spout] GPU shared-texture path active`. **Every failure falls back** — a sender on another GPU, an
+Electron without the API, a format we cannot describe — and the CPU path is unchanged beneath it.
+
+Delivery uses a first-party preload seam rather than the plugin IPC bridge, because a shared texture
+cannot be structured-cloned. It is deliberately generic: the sender names a channel, so NDI receive
+and any future GPU source take the same road.
+
+### Spout no longer stutters against a 60 fps sender
+
+The poll rate briefly followed **Engine rate**, on the reasoning that producing frames faster than
+anything consumes them is waste. That was wrong, and it stuttered: a 60 fps sender polled at the
+engine's 30 Hz is *sampled* at half rate off an unrelated clock, so the picture advanced by one
+source frame on some ticks and two on others. Right frame count, visibly uneven motion.
+
+The poll now follows the **sender** — a floor of 60, which is what Spout senders overwhelmingly run
+at — so every frame it makes is caught. Interval spread fell from ragged to a 0.8 ms standard
+deviation around a 17.6 ms mean.
+
+There is a ceiling too, and it exists because **Spout's own frame gate cannot be trusted**:
+`is_frame_new()` depends on the sender publishing frame counts, and against one that does not it
+answers "yes" forever. Polling above the sender's rate therefore does not cost a cheap no-op — it
+re-delivers the same picture at full price. Measured at 92 Hz against a 60 fps sender: 278 frames
+delivered in 3 s, only 179 of them distinct.
+
+*This gives back the IPC saving claimed for the CPU path below — that saving was what caused the
+stutter, and smooth motion is worth more than the bandwidth.*
+
 ### Spout stopped producing frames nobody reads
 
 The native receiver polled on a fixed 16 ms timer — about 60 Hz — while the frame engine consumes at

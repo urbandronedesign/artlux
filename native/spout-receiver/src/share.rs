@@ -238,6 +238,21 @@ pub fn reshare(src_handle: isize, w: u32, h: u32, fmt: u32) -> Option<Shared> {
     })
 }
 
+/// Release a raw ID3D11Texture2D* that something else created and handed us ownership of.
+///
+/// Spout's ReceiveTexture creates its target texture and leaves the caller owning it, so this is how
+/// that one gets freed. Taking it with `from_raw` transfers the reference into a Rust value whose
+/// drop calls Release exactly once.
+///
+/// # Safety
+/// `ptr` must be a live ID3D11Texture2D* we hold a reference to, and must not be used afterwards.
+pub unsafe fn release_texture(ptr: *mut std::ffi::c_void) {
+    if ptr.is_null() {
+        return;
+    }
+    drop(unsafe { ID3D11Texture2D::from_raw(ptr) });
+}
+
 /// Drop the device, the textures and the NT handle. Called on disconnect.
 pub fn reset() {
     if let Ok(mut g) = CTX.lock() {

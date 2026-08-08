@@ -219,6 +219,56 @@ ipcRenderer.on(IPC.ENGINE_PORT, (e) => {
     if (port) pendingEnginePort = port;
     flushEnginePort();
 });
+// ── SHARED GPU TEXTURES ──────────────────────────────────────────────────────────────────────────
+// A GPU texture handed to the renderer WITHOUT the pixels ever reaching system memory. Main imports a
+// native shared texture (Electron's `sharedTexture`) and sends it here; we turn it into a `VideoFrame`
+// and forward that into the main world.
+//
+// WHY THIS IS IN THE PRELOAD AND NOT ON THE PLUGIN BRIDGE. `pluginSend/On` forward their arguments
+// over ipcRenderer, which serialises with the structured clone algorithm — and an imported shared
+// texture is not clonable. Nor could a plugin register the receiver itself: `sharedTexture` lives in
+// the preload's isolated world, which plugin code never runs in. So this is a first-party seam, the
+// deliberate exception to "plugins talk over the generic bridge". It is GENERIC rather than
+// Spout-shaped — the sender names a channel — because NDI receive and any future GPU source want the
+// identical road, and a second copy of this would be a second thing to keep correct.
+//
+// ⚠ The relay is `window.postMessage`, NOT the contextBridge, for the same reason the MessagePorts
+// above are: contextIsolation strips these objects' methods. A VideoFrame posted this way is CLONED —
+// the clone shares the underlying GPU image but owns its own reference, which is why we can close
+// ours immediately and why the MAIN WORLD MUST CLOSE ITS OWN. A missed close leaks a 1080p GPU
+// allocation per frame; at 30 Hz that is VRAM exhaustion in seconds, not minutes.
+//
+// `sharedTexture` is one of the few APIs available in a SANDBOXED preload (verified: alongside
+// contextBridge/ipcRenderer/webFrame), so none of this needs the sandbox relaxed.
+try {
+    const st = (require('electron') as typeof import('electron')).sharedTexture;
+    // Declared async because Electron types the receiver as returning a promise — it awaits the
+    // callback before considering the hand-off done. Everything inside is synchronous: the frame is
+    // taken, forwarded and released before we return, so nothing is in flight past that await.
+    st?.setSharedTextureReceiver(async (data: Electron.ReceivedSharedTextureData, ...args: unknown[]) => {
+        const channel = typeof args[0] === 'string' ? args[0] : '';
+        const meta = args[1];
+        const imported = data?.importedSharedTexture;
+        if (!imported) return;
+        try {
+            const frame = imported.getVideoFrame();
+            window.postMessage({ kind: 'artlux:shared-texture', channel, meta, frame }, '*');
+            // Our references, not the main world's. The posted clone stays valid.
+            frame.close();
+        } catch {
+            /* a frame we cannot convert is a dropped frame, never a thrown one — the producer is
+               free-running and there is no one here to report to */
+        } finally {
+            imported.release();
+        }
+    });
+    api.sharedTextureSupported = true;
+} catch {
+    // No sharedTexture in this Electron, or the receiver would not register. The feature is simply
+    // unavailable; every consumer keeps its CPU path.
+    api.sharedTextureSupported = false;
+}
+
 window.addEventListener('message', (e) => {
     if (e.data === 'artlux:projector-ready') {
         rendererReady = true;
