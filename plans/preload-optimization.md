@@ -166,3 +166,60 @@ index, with what cached). Both are measure-only.
 **The method lesson, and it generalises past this repo:** resident bytes tell you something is cached —
 never that the frame being *asked for* is there. Both failed fixes reported success against residency
 while the operator still saw a hitch. Measure the question the consumer actually asks.
+
+## 11. What the status-bar chip is actually counting (measured 2026-08-09, NOT fixed)
+
+The owner asked whether the launch preload covers all scenes or only the first ones, and then said the
+chip at the bottom of the window read differently from the answer. It does. **Nothing was changed** —
+this section is the record so the next person does not have to re-measure.
+
+**The scope, from `bootGate.collect()`:** the *pictures* are one look — the scene bound to the FSM's
+initial state, and within it only the frame the timeline opens on (`poolReadiness`, `startClip` per
+layer). But the two other contributors are **not** scene-scoped: `surfaceMedia.pendingMedia` walks
+`data.surfaces` (the document's whole surface list), and the audio probe's `allClips()` is
+`bed ∪ the bound timeline ∪ video audio` — and the bed is show-clocked, i.e. project-wide. So "the
+preload is one scene" is true of video and false of the fraction.
+
+**Measured on the owner's real project** (`Documents/projetled/artlux-project.artlux`, 6 scenes /
+18 clips, built app, `--headless --project=`), gate armed by `ready` in 6.6 s with **12 items**:
+
+| t | chip | pending |
+|---|---|---|
+| 0.5–2.7 s | `0/7 audio` | 5 × `conform: *.mov`, 2 × `*.mov (hap)` |
+| 2.8–6.0 s | `5/7 warming` — **frozen 3.2 s** | only the 2 HAP probes |
+| 6.05 s | `5/12 audio` — **denominator jumps** | 2 × `(buffering)` + 5 new `audio: <hash>.wav` |
+| 6.6 s | armed `ready`, 12/12 | — |
+
+**The 12 items are 5 files.** Scene 1 holds five clips; each is counted once as `conform:` and again as
+its conform output (`AppData/Roaming/artlux/audio-conform/<hash>.wav` — verified by hash), and the two
+HAP ones a third time for probe + pre-roll. Three genuinely distinct waits, one asset. Nothing came from
+another scene here: the bed is empty and the single surface is a `LAYER` source, so `pendingMedia`
+contributed **zero** — the project-wide path exists but did not fire.
+
+**Three defects in the readout, all display-only:**
+1. **The phase word is wrong for HAP, for half the boot.** `phaseOf` tests
+   `/\(buffering\)|\(.*codec.*\)|^Surface /`. `(mp4-webcodecs)` matches `.*codec.*`; **`(hap)` matches
+   nothing** — so the 3.2 s stretch where two HAP codecs are probing reads `warming`. That is exactly the
+   frozen-fraction moment the phase word was added to explain.
+2. **`^Surface ` matches a surface NAME, not a source.** `pendingMedia` emits `` `${s.name || s.id}: file` ``,
+   so the test only works while surfaces keep their default names; rename one to "Wall Left" and its
+   pending line stops reading as `decoding`.
+3. **`total` grows late and the bar goes backwards** — 5/7 (71%) → 5/12 (42%), because the conformed WAVs
+   cannot exist as ledger keys until the conforms land. The ledger's growth is by design; here the growth
+   is the same five assets re-entering under names nothing can relate to the originals.
+
+**Why it was left alone.** The show-critical boundary is *when the gate arms* — `pending.length === 0`
+and the timeout — and none of the above touches it. A safe fix exists (tag each line inside `collect()`,
+which already calls the three contributors separately, so no signature and no SDK change; then derive the
+phase from the tag instead of from display text). The unsafe half is collapsing 12 into 5: **there is no
+shared identity to dedupe on** — `0f0e8055….wav` cannot be related to `Drums_Verse_GFX.mov` without the
+conform table, which only the audio plugin holds, so it needs a `ReadyProbe` signature change; and
+`pending.length` is already published as `bootPending` through `@artlux/sdk`'s show status and rendered
+on the tablet as "*n* item(s) left". Prettier count, less truthful tooltip, three surfaces moved.
+
+**Measuring it again — `bench-open.cjs` CANNOT answer this.** It reads the gate only after it has armed,
+when `pending` is empty by definition. Poll `__artluxBootGate()` *during* the hold, and install the
+recorder with `page.evaluateOnNewDocument()` + `page.reload()` — attaching over CDP the ordinary way cost
+11 s on the first attempt and had already missed 3 of the 11 items. The reload works because the project
+path rides in the window's URL query (`editorQuery()` in `main/index.ts`), so it re-runs the whole open.
+The throwaway script lived at `.traces/probe-boot.cjs` (gitignored, not committed).
