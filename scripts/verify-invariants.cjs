@@ -4065,6 +4065,28 @@ check(
   },
 );
 
+check(
+  'the node canvas keeps React Flow\'s own nodes in state',
+  'React Flow MEASURES every node and writes the size back through onNodesChange. Rebuild the node ' +
+  'array from our graph on each render and that measurement is discarded — and a node with no ' +
+  'measured size is rendered `visibility: hidden`. The canvas then looks EMPTY while the footer ' +
+  'correctly reports "14 nodes", every port answers hit-tests, and nothing throws: a panel that is ' +
+  'working perfectly and showing nothing. So the React Flow node array must live in state that ' +
+  'applyNodeChanges writes into, with our graph reconciled INTO it rather than replacing it.',
+  () => {
+    const f = 'plugins/shader/src/ShaderNodePanel.tsx';
+    const src = read(f);
+    if (!/<ReactFlow/.test(src)) return null; // the panel stopped using React Flow — nothing to protect
+    if (/const\s+rfNodes[^=]*=\s*useMemo/.test(src)) {
+      return `${f} derives rfNodes with useMemo — React Flow's measurements are thrown away and every node renders invisible`;
+    }
+    if (!/setRfNodes\(\s*\(\s*\w+\s*\)\s*=>\s*applyNodeChanges\(/.test(src)) {
+      return `${f} does not feed applyNodeChanges back into rfNodes state — dimension changes are dropped and nodes render invisible`;
+    }
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

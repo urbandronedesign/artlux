@@ -15,6 +15,7 @@ import * as shaderDrawable from './shaderDrawable';
 import { isAvailable } from './shaderContext';
 import { ShaderContentEditor } from './ShaderContentEditor';
 import { ShaderEditorPanel } from './ShaderEditorPanel';
+import { ShaderNodePanel } from './ShaderNodePanel';
 import { shaderAutomation, setSurfaces } from './shaderParams';
 import { ShaderLibraryPanel } from './ShaderLibraryPanel';
 import * as libraryClient from './libraryClient';
@@ -78,12 +79,13 @@ export const plugin: RendererPlugin = {
     // The editor: a DOCK TAB on the mapping workbench, beside the media library and the monitor —
     // not a workspace context of its own.
     ctx.panels.register({ id: 'shader-editor', mount: 'dock', title: 'Shader', Component: ShaderEditorPanel });
+    ctx.panels.register({ id: 'shader-nodes', mount: 'dock', title: 'Shader Nodes', Component: ShaderNodePanel });
 
     // The library goes in the BROWSER column, beside Surfaces and the Media Library — it is a place you
     // pick content FROM, which is what that column is for. The editor is a dock tab because it is a
     // place you work IN.
     ctx.panels.register({ id: 'shader-library', mount: 'browser', title: 'Effects', grow: true, Component: ShaderLibraryPanel });
-    ctx.contexts.extend('mapping', { dock: ['shader-editor'], browser: ['shader-library'] });
+    ctx.contexts.extend('mapping', { dock: ['shader-editor', 'shader-nodes'], browser: ['shader-library'] });
 
     // The library lives in files, and only main has a filesystem.
     libraryClient.setIpc(ctx.ipc);

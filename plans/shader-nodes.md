@@ -1,6 +1,6 @@
 # A node editor for shaders — feasibility and plan
 
-**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: RESEARCH + PLAN. No code.**
+**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: phases 0–2 BUILT** — the generator, the 59-node catalogue and the canvas ship; phases 3–4 open.
 
 > ## The verdict in one paragraph
 >
@@ -172,6 +172,21 @@ input, which is a frame-delayed edge and the only legal loop.
 | **0 · Spike, no UI** | `generateGlsl(graph)` for 8 nodes. A hand-written JSON graph in a test compiles through the existing harness and renders on a surface | A graph-generated shader is on the wall, with no editor at all |
 | **1 · The generator** | Full catalogue, type checking on connections, `requires` dedup, readable temporaries, cycle detection | Every catalogue node appears in at least one test graph, and all of them compile |
 | **2 · The canvas** | React Flow in a dock panel, themed to the design system: add/connect/delete, typed handles, pan/zoom | A shader can be built by mouse and appears on the surface |
+
+**Phases 0–2 are built (2026-08-11).** `nodeGraph.ts` generates, `nodeCatalog.ts` holds 59 nodes, and
+`ShaderNodePanel.tsx` is the canvas in the Mapping dock. Verified by driving the real app: five nodes
+clicked out of the palette, four wires dragged port-to-port with the mouse, rings on the surface.
+
+**Two defects that only running it could find**, both now guarded or fixed:
+
+- **Fourteen nodes, an empty canvas.** React Flow measures each node and writes the size back through
+  `onNodesChange`; the panel rebuilt its node array from the graph on every render, so every
+  measurement was discarded and every node rendered `visibility: hidden`. The footer said "14 nodes"
+  and it was telling the truth — the panel worked perfectly and showed nothing. `verify:invariants`
+  now fails a canvas that derives its nodes with `useMemo`.
+- **`fitView` on a one-node graph zooms to the maximum**, so a new graph opened at 3× with two giant
+  boxes filling the pane — capped at zoom 1. And a node added in graph coordinates landed outside the
+  frame, which made the palette look inert; a new node is now dropped where the operator is looking.
 | **3 · Parameters + library** | Parameter nodes → ISF header; graph saved on the surface and in library folders; **Convert to code** | A graph parameter drives a timeline lane; an effect saved from a graph re-opens as a graph |
 | **4 · Comfort** | Node search, copy/paste, groups/comments, per-node preview, undo integration | It is pleasant rather than merely possible |
 

@@ -194,7 +194,9 @@ export function registerCoreWorkspace(): void {
     // 7: the Effects library joined the browser column. Same reason as 6 — a banked browser list is the
     // operator's own and wins over the manifest, so without the bump the library is registered, working,
     // and invisible.
-    layoutRev: 7,
+    // 8: the Shader Nodes dock tab. Same reason as 6 and 7 — a banked dock list is the operator's own
+    // and wins over the manifest, so without the bump the panel is registered, working, and invisible.
+    layoutRev: 8,
     hint: {
       en: 'Place surfaces, map content onto them, then patch fixtures. Ctrl+T pulls the timeline up.',
       fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures. Ctrl+T ouvre la timeline.',

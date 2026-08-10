@@ -314,6 +314,15 @@ export interface SurfaceContent {
    */
   shaderSource?: string;
   /**
+   * THE NODE GRAPH, when this surface was built with one — and the source of truth in that case.
+   *
+   * shaderSource above still holds the GENERATED code and is still what runs, which is what lets a
+   * project open and render on a build with no node editor at all: it simply cannot be edited as a
+   * graph there. Graph to code is a compiler and code to graph is decompilation, so the conversion is
+   * deliberately one-way and a surface is either one or the other.
+   */
+  shaderGraph?: string;
+  /**
    * AUTHORED parameter values, by the input name the shader's header declares. Absent keys fall back
    * to that header's DEFAULT, which is why editing a shader never resets a show: the header declares
    * the knob, this records where the operator put it.

@@ -203,12 +203,36 @@ function renderCookbook(recipes) {
   return parts.join('\n').trimEnd();
 }
 
+// ── Parsing the node catalogue ────────────────────────────────────────────────────────────────────
+// The palette in the node editor IS nodeCatalog.ts. A hand-written list of nodes is wrong the first
+// time somebody adds one — which is the entire reason generated blocks exist.
+function parseNodes() {
+  const src = fs.readFileSync(path.join(ROOT, 'plugins', 'shader', 'src', 'nodeCatalog.ts'), 'utf8');
+  const re = /id:\s*'([^']+)',\s*(?:\n\s*)?label:\s*'([^']+)',\s*(?:\n\s*)?category:\s*'([^']+)',\s*(?:\n\s*)?hint:\s*'([^']*)'/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(src)) !== null) out.push({ id: m[1], label: m[2], category: m[3], hint: m[4] });
+  if (out.length < 20) throw new Error('gen-docs-data: nodeCatalog.ts parsed to ' + out.length + ' nodes — the literal formatting changed');
+  return out;
+}
+
+function renderNodes(nodes) {
+  const parts = [];
+  for (const cat of [...new Set(nodes.map((n) => n.category))]) {
+    parts.push(`**${cat}**`, '', '| Node | What it does |', '|---|---|');
+    for (const n of nodes.filter((x) => x.category === cat)) parts.push(`| **${n.label}** | ${n.hint} |`);
+    parts.push('');
+  }
+  return parts.join('\n').trimEnd();
+}
+
 function main() {
   const results = [
     applyBlock('docs/user-guide/15-keyboard-reference.md', 'keymap', renderKeymap(parseShortcuts())),
     applyBlock('docs/SHADERS.md', 'shader-uniforms', renderShaderUniforms(parseShaderUniforms())),
     applyBlock('docs/SHADER-COOKBOOK.md', 'shader-cookbook', renderCookbook(parseCookbook('cookbook.ts'))),
     applyBlock('docs/SHADER-COOKBOOK.md', 'shader-noise', renderCookbook(parseCookbook('noiseLib.ts'))),
+    applyBlock('docs/SHADERS.md', 'shader-nodes', renderNodes(parseNodes())),
   ];
 
   const stale = results.filter((r) => r.changed);

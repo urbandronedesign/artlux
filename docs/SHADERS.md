@@ -119,6 +119,160 @@ surfaces can run the same shader at different settings.
 **An automation lane wins while it is running, and gives the control back when it stops.** Turning a
 lane off snaps the parameter to whatever you set by hand — not to wherever the curve happened to end.
 
+## Build one without writing code — the node editor
+
+**Shader Nodes** (a tab in the dock, next to **Shader**) builds the same shaders by wiring boxes
+together. It is not a second kind of content: the graph **generates GLSL**, and everything downstream —
+the parameter knobs, the automation lanes, the library, the projector — sees an ordinary shader and
+never learns a graph was involved.
+
+The loop is short:
+
+1. **Select a shader surface.** The editor edits whatever is selected; with nothing selected it says so.
+2. **Click nodes in the left palette.** Each one lands where you are looking, so a run of clicks fans
+   out across the canvas rather than piling up at the origin.
+3. **Drag from an output dot to an input dot.** Dots are coloured by type — a `vec2` will not drop onto
+   a `float` port, and an illegal wire simply refuses to land. Dropping a wire on an input that already
+   has one **replaces** it; that gesture means "rewire", not "mistake".
+4. **Type into any unconnected number field** to set it. Wire something into that port and the field
+   disappears, because the wire now decides the value.
+5. **Everything reaches `Output`.** Every graph has exactly one — `color` (a `vec3`) and `alpha`.
+
+**The surface updates as you wire, but only from a graph that builds.** Half of a graph is invalid while
+a wire is in mid-air, so a graph that does not generate or does not compile leaves the wall showing the
+last good picture and puts the reason in the footer. You cannot break a running show by dragging.
+
+**The graph is saved on the surface** alongside the generated code, so reopening the project reopens the
+graph exactly as you left it. The reverse is not offered: a shader you typed by hand opens the node
+editor **empty**, because turning code back into a graph is decompilation, not editing.
+
+Delete removes selected nodes and any wires that touched them. Mouse wheel zooms, drag on empty canvas
+pans, and the controls at the bottom-left reset the view.
+
+### The palette
+
+<!-- generated:shader-nodes — DO NOT EDIT BY HAND. Regenerate with: npm run docs:gen -->
+
+**Input**
+
+| Node | What it does |
+|---|---|
+| **UV** | 0..1 across the surface. x left→right, y bottom→top. |
+| **Time** | Show time in seconds — scrubs with the timeline and holds when stopped. |
+| **Wall time** | Free-running clock that ignores the transport. |
+| **Aspect** | Surface width ÷ height. Multiply centred x by it to keep circles round. |
+| **Last frame** | This shader’s previous output — the only legal feedback. Needs the graph to request it. |
+
+**UV**
+
+| Node | What it does |
+|---|---|
+| **Centre** | Move the origin to the middle and correct for aspect, so shapes are not stretched. |
+| **Scale** | Zoom the coordinate space. Bigger scale means more of the pattern in the same area. |
+| **Translate** | Slide the coordinates. Wire an LFO in to make the whole pattern drift. |
+| **Rotate** | Turn the coordinate space. Rotate around the centre by centring first. |
+| **Tile** | Repeat space. `cell` is which tile you are in, `uv` is where inside it. |
+| **Polar** | Radius and angle instead of x and y — stripes become rings and rays. |
+| **Kaleidoscope** | Fold the angle into N mirrored segments. |
+
+**Math**
+
+| Node | What it does |
+|---|---|
+| **Add** | a + b |
+| **Multiply** | a × b |
+| **Subtract** | a − b |
+| **Divide** | a ÷ b, guarded against zero. |
+| **Mix** | Blend a and b by t (0 = a, 1 = b). |
+| **Clamp** | Keep a value inside a range. |
+| **Smoothstep** | A soft 0→1 ramp between two edges. |
+| **Step** | A hard cut: 0 below the edge, 1 above. Antialiased. |
+| **Remap** | Move a value from one range to another. |
+| **Fract** | The part after the decimal point — a sawtooth. |
+| **Abs** | Distance from zero. Folds a signed value. |
+| **Power** | x^k — above 1 sharpens, below 1 softens. |
+| **One minus** | Invert a 0..1 value. |
+| **Min** | The smaller of two values. On shapes: union. |
+| **Max** | The larger of two values. On shapes: intersection. |
+| **Length** | Distance from the origin to a point. |
+| **Split** | Take a vector apart into x and y. |
+| **Combine** | Build a vector from two numbers. |
+
+**LFO**
+
+| Node | What it does |
+|---|---|
+| **LFO** | A slow oscillator: sine, triangle, saw or square. Rate in cycles per second. |
+| **Pulse** | A one-shot ramp that falls from 1 after each trigger — an envelope, not a wave. |
+
+**Pattern**
+
+| Node | What it does |
+|---|---|
+| **Grid** | Square tiles with a gap. Outputs the tile mask and a per-cell random value. |
+| **Lines** | Repeating stripes, antialiased to one pixel at any resolution. |
+| **Checker** | The other classic tiling. 0 or 1 per square. |
+
+**Noise**
+
+| Node | What it does |
+|---|---|
+| **Value noise** | Soft blobs. The cheapest real noise. |
+| **Value noise 3D** | Wire time into z and the field evolves in place instead of sliding past. |
+| **Gradient noise** | Perlin. Rolling and organic; signed, so remap before using as brightness. |
+| **Simplex noise** | Like Perlin without the square-grid bias. The better default. |
+| **fBm** | Layered noise — detail at every scale. Octaves multiply the cost. |
+| **Turbulence** | fBm folded at zero: creases. Fire and marble. |
+| **Ridged** | Inverted folds: sharp crests. Mountains. |
+| **Worley** | Cells. F1 is bubbles, F2−F1 is the walls between them. |
+| **Curl** | A flow field that never bunches up. Wire it into Translate to advect. |
+| **Seamless** | Noise that repeats exactly — for a strip that loops or panels that tile. |
+
+**Shape**
+
+| Node | What it does |
+|---|---|
+| **Circle** | Signed distance to a circle: negative inside, zero on the edge. |
+| **Box** | Signed distance to a rectangle. |
+| **Fill** | Turn a distance into a solid shape, softly. |
+| **Outline** | Turn a distance into an outline of a given thickness. |
+| **Subtract** | Cut b out of a. (min is union, max is intersection.) |
+
+**Audio**
+
+| Node | What it does |
+|---|---|
+| **Audio band** | One of 16 frequency bands, low to high, already smoothed. |
+| **Audio level** | Overall energy — the whole spectrum averaged. |
+| **Beat** | 0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0. |
+
+**Parameter**
+
+| Node | What it does |
+|---|---|
+| **Float parameter** | A slider in the inspector, and a timeline lane. |
+| **Palette parameter** | A palette picker, and the gradient it selects. |
+
+**Colour**
+
+| Node | What it does |
+|---|---|
+| **Palette** | Sample one of ArtLux’s gradients by index. |
+| **Mix colours** | Blend two colours by t. |
+| **Brightness** | Scale a colour. |
+
+**Output**
+
+| Node | What it does |
+|---|---|
+| **Output** | What the surface shows. Every graph has exactly one. |
+
+<!-- /generated:shader-nodes -->
+
+**Parameter** nodes are the bridge to everything else in ArtLux: one becomes a knob in the inspector
+with the name you give it, and therefore a timeline lane, an OSC address and a state-machine target —
+exactly as if you had declared it in a header by hand.
+
 ## Your effect library
 
 An effect written for one show is a building block in the next. The **Effects** panel in the browser

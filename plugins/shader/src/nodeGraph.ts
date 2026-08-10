@@ -252,6 +252,15 @@ export function generateGlsl(graph: ShaderGraph): GenerateResult {
   return { source, errors: [] };
 }
 
+/**
+ * Can this wire be made? Asked by the CANVAS while a wire is being dragged, so a refusal is a
+ * connection that will not attach rather than an error message after the fact — the same rule the
+ * generator enforces, exported so the two cannot disagree about what is legal.
+ */
+export function canConnect(from: PortType, to: PortType): boolean {
+  return coerce('x', from, to).error === undefined;
+}
+
 /** A graph with just an Output, which is what "new graph" means. */
 export function emptyGraph(): ShaderGraph {
   return {
