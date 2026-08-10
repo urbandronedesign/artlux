@@ -33,6 +33,8 @@ export const UNIFORMS: { name: string; detail: string }[] = [
   // quote ends the capture early — the doc row came out cut off mid-word the first time.
   { name: 'palette', detail: 'vec3 palette(int id, float t) — sample an ArtLux gradient by index.' },
   { name: 'lastFrame', detail: 'sampler2D — this shader last frame. Needs REQUIRES_LAST_FRAME in the header.' },
+  { name: 'iAudio', detail: 'float[16] — the sound, low to high, each 0..1 and already smoothed.' },
+  { name: 'iAudioLevel', detail: 'float — the whole spectrum averaged: overall energy, 0..1.' },
 ];
 
 // `palette()` is always available, whether or not the shader declares a `palette` input, so a shader
@@ -47,6 +49,8 @@ uniform float iAspect;
 uniform int iFrame;
 uniform sampler2D artluxPaletteLut;
 uniform int artluxPaletteRows;
+uniform float iAudio[16];
+uniform float iAudioLevel;
 in vec2 vUv;
 out vec4 artluxFragColor;
 

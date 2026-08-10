@@ -9,7 +9,7 @@ work on it, and it needs no media, no network and no hardware.
 
 > **What you can do today:** choose a built-in shader, edit its code in ArtLux, give it your own
 > parameters, drive those from the timeline, OSC or the state machine, give it trails, and save it to
-> a library that carries across projects. **Still to come:** sound-reactive inputs.
+> a library that carries across projects, and make it react to sound.
 
 ## Put one on a surface
 
@@ -28,6 +28,7 @@ That is the whole setup. The picture starts immediately.
 | **Strip chase** · LED | A bright comet running left to right with a fading tail, wrapping at the ends | LED tape — everything varies *along* the strip |
 | **Palette wave** · LED | Bands of one of ArtLux's gradients sweeping along the surface | LED tape — and the worked example of a shader with **knobs** |
 | **Comet trails** | A head wandering the surface, leaving a long fading tail | Projection — and the worked example of **feedback** |
+| **Spectrum** · LED | Sixteen bars rising with the music, coloured by a palette | LED tape — and the worked example of **sound** |
 
 The `· LED` mark is the important one. A shader made for a projector usually looks like noise on sixty
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
@@ -63,6 +64,8 @@ Available to it:
 | `iFrame` | int | frames drawn since the shader loaded. |
 | `palette` | vec3 palette(int id, float t) | sample an ArtLux gradient by index. |
 | `lastFrame` | sampler2D | this shader last frame. Needs REQUIRES_LAST_FRAME in the header. |
+| `iAudio` | float[16] | the sound, low to high, each 0..1 and already smoothed. |
+| `iAudioLevel` | float | the whole spectrum averaged: overall energy, 0..1. |
 
 <!-- /generated:shader-uniforms -->
 
@@ -136,6 +139,39 @@ deliberate:
 - **Editing a library effect does not change shows that already used it.** A show that worked last
   night works tonight. To update an older project, apply the effect again there.
 
+## Make it react to sound
+
+Every shader can read what is playing. Nothing to declare and nothing to switch on:
+
+```glsl
+vec4 shaderColor(vec2 uv) {
+  float bass = iAudio[1];        // 16 bands, low to high, each 0..1
+  float energy = iAudioLevel;    // the whole spectrum averaged
+  return vec4(vec3(bass), 1.0);
+}
+```
+
+The bands are the **mixed output** — everything ArtLux is playing, after the master effects and the
+master fader, which is what the room hears. Band 0 is the low end, band 15 the top.
+
+They are already **smoothed**: each band rises almost instantly and falls over about a quarter of a
+second. That is what makes a visual pulse with a hit rather than flicker on it, and it means you can
+use the value directly instead of building your own follower.
+
+The built-in **Spectrum** shader is the worked example.
+
+### What the numbers mean
+
+- **0 is silence and 1 is full scale**, on a 60 dB scale — so a quiet passage sits low rather than
+  filling the screen with noise, and a loud one reaches the top instead of clipping at half.
+- **The bands are spaced by ear**, not evenly: each is about a third wider than the one below it, so
+  the low end gets as much of the picture as the top does.
+- **The lowest four bands move together.** Resolving 40 Hz from 58 Hz needs a longer listen than a
+  visual can afford to lag by, so the bottom of the range reports bass energy rather than four
+  independent notes. Above roughly 200 Hz every band is its own.
+
+**No sound, no motion.** If the machine has no audio device, or nothing is playing, every band reads
+0 and an audio-reactive shader is simply dark. That is the shader working, not failing.
 ## Trails, decay, and anything that remembers
 
 Add `"REQUIRES_LAST_FRAME": true` to the header and your shader is handed its own previous frame as

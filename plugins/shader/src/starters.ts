@@ -122,6 +122,33 @@ vec4 shaderColor(vec2 uv) {
 }`,
 });
 
+STARTERS.push({
+  id: 'spectrum',
+  name: 'Spectrum',
+  family: 'led',
+  source: `/*{
+  "TITLE": "Spectrum",
+  "CATEGORIES": ["audio", "led"],
+  "INPUTS": [
+    { "NAME": "gain", "LABEL": "Gain",    "TYPE": "float",   "MIN": 0.2, "MAX": 4.0, "DEFAULT": 1.0 },
+    { "NAME": "pal",  "LABEL": "Palette", "TYPE": "palette", "DEFAULT": 0 }
+  ]
+}*/
+// iAudio holds the sound as 16 bands, low to high, each 0..1 and already enveloped — fast up, slow
+// down — so a hit reads as a pulse rather than a flicker. Nothing to declare: it is always there.
+vec4 shaderColor(vec2 uv) {
+  int band = int(clamp(uv.x, 0.0, 0.999) * 16.0);
+  float e = clamp(iAudio[band] * gain, 0.0, 1.0);
+
+  // A bar per band: lit below the level, dark above it.
+  float lit = step(1.0 - uv.y, e);
+  vec3 col = palette(pal, float(band) / 16.0) * lit;
+
+  // ...and a floor that glows with the overall energy, so a strip sampling one row still moves.
+  return vec4(col + palette(pal, uv.x) * iAudioLevel * 0.35, 1.0);
+}`,
+});
+
 export const DEFAULT_STARTER = 'plasma';
 
 export function starterSource(id: string | undefined): string {

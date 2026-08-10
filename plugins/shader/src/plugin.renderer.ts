@@ -18,6 +18,7 @@ import { ShaderEditorPanel } from './ShaderEditorPanel';
 import { shaderAutomation, setSurfaces } from './shaderParams';
 import { ShaderLibraryPanel } from './ShaderLibraryPanel';
 import * as libraryClient from './libraryClient';
+import * as audioTap from './audioTap';
 
 let unsubSurfaces: (() => void) | null = null;
 
@@ -28,6 +29,12 @@ export const plugin: RendererPlugin = {
     // Tell the drawable which window it is in — a projector renders at its display's own resolution,
     // the main window at LED density. See sizeFor.
     shaderDrawable.setWindowKind(ctx.window);
+
+    // Sound, for shaders that react to it. The analyser lives in the audio engine, which belongs to
+    // another plugin — the two meet at a channel NAME rather than an import, because importing that
+    // plugin here would give the bundler a second identity for its native handle. See audioTap.ts.
+    audioTap.setIpc(ctx.ipc);
+    audioTap.start();
 
     // 'SHADER' is an OPEN content-type string, not a SourceType enum value: `SurfaceContent.type`
     // accepts any plugin type id and the compositor dispatches unknown types through this registry

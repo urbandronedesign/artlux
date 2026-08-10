@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "effects.h"
+#include "spectrum.h"
 
 // libspatialaudio — ambisonic encode (per source position) → B-format → binaural decode (built-in MIT
 // HRTF, no SOFA file needed). Namespace `spaudio`.
@@ -667,8 +668,9 @@ constexpr int kMaxMeterCh = 8;
 class MeteringAudioSource : public juce::AudioSource {
 public:
   MeteringAudioSource(juce::AudioSource& s, std::atomic<float>& peak, std::atomic<float>& rms,
-                      std::array<std::atomic<float>, kMaxMeterCh>& chPeaks, std::atomic<bool>& clipped)
-    : src(s), peakOut(peak), rmsOut(rms), chOut(chPeaks), clipOut(clipped) {}
+                      std::array<std::atomic<float>, kMaxMeterCh>& chPeaks, std::atomic<bool>& clipped,
+                      SpectrumAnalyser& spec)
+    : src(s), peakOut(peak), rmsOut(rms), chOut(chPeaks), clipOut(clipped), analyser(spec) {}
   void prepareToPlay(int n, double sr) override { src.prepareToPlay(n, sr); }
   void releaseResources() override { src.releaseResources(); }
   void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
@@ -697,6 +699,11 @@ public:
     // blocks in ten are never seen — a clip indicator built on that would miss most of what it exists to
     // catch, which is worse than not having one. This sticks until getMeters() reads and clears it.
     if (peak >= 1.0f) clipOut.store(true);
+
+    // THE SAME TAP THE METERS USE — post master FX and master gain, so the analyser hears what the room
+    // hears rather than what the clips started as. Mono fold + memcpy only; the transform runs on
+    // whoever calls getSpectrum(). See spectrum.h.
+    if (info.buffer != nullptr) analyser.push(*info.buffer, info.startSample, info.numSamples);
   }
 private:
   juce::AudioSource& src;
@@ -704,11 +711,12 @@ private:
   std::atomic<float>& rmsOut;
   std::array<std::atomic<float>, kMaxMeterCh>& chOut;
   std::atomic<bool>& clipOut;
+  SpectrumAnalyser& analyser;
 };
 
 class Engine {
 public:
-  Engine() : metering(bus, meterPeak, meterRms, meterCh, meterClipped) {}
+  Engine() : metering(bus, meterPeak, meterRms, meterCh, meterClipped, analyser) {}
   ~Engine() { closeDevice(); }
 
   struct DeviceCfg {
@@ -977,6 +985,14 @@ public:
   void setTestTone(int ch, float g) { bus.setTestTone(ch, g); }
   void stopAll() { bus.stopAll(); }
 
+  // The transform runs HERE, on whoever polls — not on the audio thread. See spectrum.h.
+  void spectrum(float* out) {
+    // Ask the DEVICE, not a cached number: the analyser converts bins to hertz, so a stale rate does
+    // not blur the answer, it moves every band to the wrong frequency. 0 when there is no device,
+    // which read() treats as silence.
+    auto* dev = deviceManager.getCurrentAudioDevice();
+    analyser.read(out, dev != nullptr ? dev->getCurrentSampleRate() : 0.0);
+  }
   float peak() const { return meterPeak.load(); }
   float rms() const { return meterRms.load(); }
   float chPeak(int i) const { return (i >= 0 && i < kMaxMeterCh) ? meterCh[(size_t) i].load() : 0.0f; }
@@ -999,7 +1015,11 @@ private:
   std::atomic<float> meterRms { 0.0f };
   std::array<std::atomic<float>, kMaxMeterCh> meterCh {};
   std::atomic<bool> meterClipped { false };
-  MeteringAudioSource metering;                 // declared after bus + meters
+  // Declared before , which holds a reference to it: member init order is declaration
+  // order, and binding a reference to a not-yet-constructed member is how this crashes on the first
+  // block rather than at startup.
+  SpectrumAnalyser analyser;
+  MeteringAudioSource metering;                 // declared after bus + meters + analyser
   juce::TimeSliceThread readThread { "artlux-audio-read" };
   bool opened = false;
   int openedChannels = 0;
@@ -1223,6 +1243,40 @@ static Napi::Value SetTestTone(const Napi::CallbackInfo& info) {
 
 static Napi::Value StopAll(const Napi::CallbackInfo& info) { ensureEngine().stopAll(); return info.Env().Undefined(); }
 
+// The spectrum, as  values in 0..1. A separate call from GetMeters because it is polled at a
+// DIFFERENT RATE: meters are a 10 Hz readout for a human eye, while a visual reacting to sound needs
+// every frame it can get. Bundling them would force one of the two to be wrong.
+static Napi::Value GetSpectrum(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  auto& e = ensureEngine();
+  float bands[SpectrumAnalyser::kBands];
+  e.spectrum(bands);
+  auto arr = Napi::Float32Array::New(env, (size_t) SpectrumAnalyser::kBands);
+  for (int i = 0; i < SpectrumAnalyser::kBands; ++i) arr[(size_t) i] = bands[i];
+  return arr;
+}
+
+// Analyse a caller-supplied mono buffer with the SAME window, scaling and band layout as the live
+// tap. Two uses, and the second is why it exists at all: analysing a file offline, and proving the
+// analyser is CORRECT on a machine with no audio device — where the live path can only ever return
+// silence, so a tone test through it would pass by being empty.
+static Napi::Value AnalyseSamples(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  if (info.Length() < 2 || !info[0].IsTypedArray()) {
+    Napi::TypeError::New(env, "analyseSamples(Float32Array, sampleRate)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  auto in = info[0].As<Napi::Float32Array>();
+  const double sr = info[1].As<Napi::Number>().DoubleValue();
+  SpectrumAnalyser an;
+  an.pushMono(in.Data(), (int) in.ElementLength());
+  float bands[SpectrumAnalyser::kBands];
+  an.read(bands, sr);
+  auto arr = Napi::Float32Array::New(env, (size_t) SpectrumAnalyser::kBands);
+  for (int i = 0; i < SpectrumAnalyser::kBands; ++i) arr[(size_t) i] = bands[i];
+  return arr;
+}
+
 static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   auto& e = ensureEngine();
@@ -1294,6 +1348,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("juceVersion", Napi::Function::New(env, JuceVersion));
   exports.Set("configure", Napi::Function::New(env, Configure));
   exports.Set("getDevices", Napi::Function::New(env, GetDevices));
+  exports.Set("getSpectrum", Napi::Function::New(env, GetSpectrum));
+  exports.Set("analyseSamples", Napi::Function::New(env, AnalyseSamples));
   exports.Set("loadClip", Napi::Function::New(env, LoadClip));
   exports.Set("unloadClip", Napi::Function::New(env, UnloadClip));
   exports.Set("playClip", Napi::Function::New(env, PlayClip));

@@ -18,6 +18,7 @@
 import { buildProgramSource } from './wrapper';
 import { parseHeader, type ShaderInput } from './header';
 import { buildPaletteLut } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
+import { spectrum as audioSpectrum, broadband } from './audioTap';
 
 export interface CompileResult {
   program: WebGLProgram | null;
@@ -34,6 +35,8 @@ interface Uniforms {
   iWallTime: WebGLUniformLocation | null;
   iAspect: WebGLUniformLocation | null;
   iFrame: WebGLUniformLocation | null;
+  iAudio: WebGLUniformLocation | null;
+  iAudioLevel: WebGLUniformLocation | null;
 }
 
 /** A compiled program plus its uniform locations — what renderToBitmap needs to draw. */
@@ -197,6 +200,11 @@ export function getProgram(source: string): CompiledProgram {
           iWallTime: g.getUniformLocation(p, 'iWallTime'),
           iAspect: g.getUniformLocation(p, 'iAspect'),
           iFrame: g.getUniformLocation(p, 'iFrame'),
+          // An ARRAY uniform is addressed by its first element — 'iAudio[0]', not 'iAudio'. Asking for
+          // the bare name returns null on some drivers and works on others, which is the worst kind of
+          // difference: it would light up on this machine and be silent on a venue's.
+          iAudio: g.getUniformLocation(p, 'iAudio[0]'),
+          iAudioLevel: g.getUniformLocation(p, 'iAudioLevel'),
           artluxPaletteLut: g.getUniformLocation(p, 'artluxPaletteLut'),
           artluxPaletteRows: g.getUniformLocation(p, 'artluxPaletteRows'),
         },
@@ -220,7 +228,7 @@ export function failedProgram(log: string): CompiledProgram {
 }
 
 function emptyUniforms(): Uniforms {
-  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null };
+  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null, iAudio: null, iAudioLevel: null };
 }
 
 /**
@@ -256,6 +264,10 @@ export function renderToBitmap(
   if (u.iWallTime) g.uniform1f(u.iWallTime, performance.now() / 1000);
   if (u.iAspect) g.uniform1f(u.iAspect, h > 0 ? w / h : 1);
   if (u.iFrame) g.uniform1i(u.iFrame, frameCounter++);
+  // The sound, already enveloped. Uploaded whether or not the shader reads it: an unused uniform is
+  // optimised out and its location comes back null, so this costs one branch.
+  if (u.iAudio) g.uniform1fv(u.iAudio, audioSpectrum());
+  if (u.iAudioLevel) g.uniform1f(u.iAudioLevel, broadband());
 
   // ArtLux's own gradients, on texture unit 0, so `palette(id, t)` works in any shader — declared
   // input or a literal id. Uploaded once, lazily: a project with no palette-using shader never pays.
