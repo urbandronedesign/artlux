@@ -302,11 +302,21 @@ export interface SurfaceContent {
   // Here rather than in the plugin because these are PERSISTED: core owns the project file's shape so
   // a plugin can be reworked, renamed or disabled without a migration. Only behaviour lives in the
   // plugin, which is the same split SourceType.NDI / TRACKING already follow.
-  shaderId?: string;   // which shader — a built-in id in Phase 0, a library/asset ref later
-  shaderRes?: number;  // render HEIGHT in px (width follows at 16:9). Absent ⇒ 720.
-                       // Per surface because the two consumers want opposite things: the LED path
-                       // samples an atlas rect scaled to fixture density and discards anything finer,
-                       // while a projector output wants its native raster.
+  shaderId?: string;   // which built-in this started from — also what an empty shaderSource falls back to
+  /**
+   * THE OPERATOR'S OWN GLSL, when they have edited it. Absent ⇒ run the built-in named by `shaderId`.
+   *
+   * Inline in the project rather than a file beside it, deliberately and temporarily: a self-contained
+   * `.artlux` cannot lose its shader on the way to a venue, and the alternative needs the asset
+   * copy-in machinery that arrives with the library. When the library lands, a saved shader moves to
+   * `assets/shaders/` and this field becomes the fallback for projects written before it — which is
+   * why it is read through one accessor (`sourceOf`) rather than everywhere.
+   */
+  shaderSource?: string;
+  shaderRes?: number;  // DETAIL: a pixel budget (720 ⇒ "as many pixels as 1280×720"), spent in the
+                       // surface's own proportions. Absent ⇒ 720. Per surface because the two consumers
+                       // want opposite things: the LED path samples an atlas rect scaled to fixture
+                       // density and discards anything finer, while a projector wants its native raster.
   // TRACKING params (LiDAR blob viz, projection-mappable):
   trackingSource?: string;   // which tracking surface: 'SOL' | 'MUR' | 'SOL_MUR'
   bgLayerId?: string;        // optional timeline layer drawn UNDER the blobs (video + blobs on one surface)

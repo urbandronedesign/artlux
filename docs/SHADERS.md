@@ -7,9 +7,9 @@ loops, never runs out, and costs no disk.
 It behaves like any other content. Fixtures sample it, projector outputs show it, opacity and slices
 work on it, and it needs no media, no network and no hardware.
 
-> **What you can do today:** choose one of the built-in shaders and its render size. **Writing your
-> own** — an editor inside ArtLux, your parameters on the timeline, and a library of effects you build
-> up across shows — is being built next. The examples below run right now.
+> **What you can do today:** choose a built-in shader, edit its code in ArtLux, and see the change on
+> the wall. **Still to come:** your own parameters as sliders and timeline lanes, sound-reactive
+> inputs, trails, and a library of effects that carries across projects.
 
 ## Put one on a surface
 
@@ -30,6 +30,54 @@ That is the whole setup. The picture starts immediately.
 The `· LED` mark is the important one. A shader made for a projector usually looks like noise on sixty
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
 and whatever varies left-to-right is all you get. **Strip chase** is built that way on purpose.
+
+## Write your own
+
+Open the **Shader** tab in the dock (Mapping workbench) with a shader surface selected. It shows that
+surface's code.
+
+**Press `Ctrl+Enter` to compile.** Nothing compiles while you type — deliberately, because a shader
+that is half-written can hang the graphics card, and an editor that built every keystroke would
+eventually build one. Only a shader that *builds* is saved to the project.
+
+You write one function:
+
+```glsl
+vec4 shaderColor(vec2 uv) {   // uv runs 0..1 across the surface
+  return vec4(uv.x, uv.y, 0.5, 1.0);
+}
+```
+
+Available to it:
+
+<!-- generated:shader-uniforms — DO NOT EDIT BY HAND. Regenerate with: npm run docs:gen -->
+
+| Name | Type | What it is |
+|---|---|---|
+| `iTime` | float | SHOW time in seconds. Scrubs with the timeline; holds when stopped. |
+| `iWallTime` | float | free-running clock, ignores the transport. |
+| `iResolution` | vec3 | render size in pixels (xy), z = 1. |
+| `iAspect` | float | width / height. Use it to keep circles round. |
+| `iFrame` | int | frames drawn since the shader loaded. |
+
+<!-- /generated:shader-uniforms -->
+
+A shader pasted from Shadertoy — one that defines `mainImage(out vec4, in vec2)` — runs as-is. What
+does not carry over: multi-pass shaders (Buffer A/B/C/D), `iChannel` textures, and `iMouse`.
+
+**Reset** puts the built-in shader back, so an experiment is never a one-way door.
+
+### Three things that will not let you break the show
+
+- **A broken edit keeps the last picture.** Compile errors appear in the gutter and below the code,
+  and the surface goes on running the last version that built. Only a shader that has *never* built
+  shows black.
+- **Loops that cannot end are refused** before the graphics card ever sees them — `while (true)` with
+  no `break`, `for(;;)`, a `for` that never advances. This catches the accident, not the determined;
+  it is not a sandbox.
+- **A shader that is too slow disables itself.** If one surface runs over budget for a second solid,
+  it keeps its last picture and reports the fault rather than dragging the whole show down. Simplify
+  it or lower **Detail**, then compile again to bring it back.
 
 ## The picture takes the surface's shape
 

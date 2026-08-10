@@ -187,7 +187,11 @@ export function registerCoreWorkspace(): void {
     // then the seven-card Fixture Editor dock became `Library` + `Wiring & Ledmap`. A banked slice
     // from before still names `core.dock.fixtureEditor`, which no longer resolves — without the bump
     // the operator keeps an empty tab and never sees either replacement.
-    layoutRev: 5,
+    // 6: the Shader editor joined the dock (@artlux/plugin-shader). A plugin `extend` adds the panel
+    // id to this manifest, but a banked slice is the operator's OWN list and wins over it — so without
+    // the bump the editor exists, is registered, and is invisible to everyone who has ever opened this
+    // workbench. Which is everyone.
+    layoutRev: 6,
     hint: {
       en: 'Place surfaces, map content onto them, then patch fixtures. Ctrl+T pulls the timeline up.',
       fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures. Ctrl+T ouvre la timeline.',

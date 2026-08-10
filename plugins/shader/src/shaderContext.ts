@@ -32,7 +32,8 @@ interface Uniforms {
   iFrame: WebGLUniformLocation | null;
 }
 
-interface Entry extends CompileResult {
+/** A compiled program plus its uniform locations — what renderToBitmap needs to draw. */
+export interface CompiledProgram extends CompileResult {
   uniforms: Uniforms;
 }
 
@@ -40,7 +41,7 @@ let canvas: OffscreenCanvas | null = null;
 let gl: WebGL2RenderingContext | null = null;
 let vao: WebGLVertexArrayObject | null = null;
 let unavailable = false; // sticky: we said why once, don't spam the log per frame
-const programs = new Map<string, Entry>(); // keyed by author source text
+const programs = new Map<string, CompiledProgram>(); // keyed by author source text
 let frameCounter = 0;
 
 /** Lazily stand up the context. Returns null when this machine cannot give us WebGL2 at all. */
@@ -146,20 +147,20 @@ function toAuthorSpace(log: string): string {
 }
 
 /** Compile (or return the cached program for) one author source. Never throws. */
-export function getProgram(source: string): Entry {
+export function getProgram(source: string): CompiledProgram {
   const hit = programs.get(source);
   if (hit) return hit;
 
   const g = ensure();
   if (!g) {
-    const miss: Entry = { program: null, ok: false, log: 'WebGL2 unavailable', uniforms: emptyUniforms() };
+    const miss: CompiledProgram = { program: null, ok: false, log: 'WebGL2 unavailable', uniforms: emptyUniforms() };
     return miss; // deliberately NOT cached: a lost context may come back
   }
 
   const { vert, frag } = buildProgramSource(source);
   const v = compileStage(g, g.VERTEX_SHADER, vert);
   const f = compileStage(g, g.FRAGMENT_SHADER, frag);
-  let entry: Entry;
+  let entry: CompiledProgram;
 
   if (!v.sh || !f.sh) {
     entry = { program: null, ok: false, log: toAuthorSpace(f.log || v.log), uniforms: emptyUniforms() };
@@ -192,6 +193,11 @@ export function getProgram(source: string): Entry {
   return entry;
 }
 
+/** A "did not build" result carrying `log`. The lint uses it to speak the same language as the driver. */
+export function failedProgram(log: string): CompiledProgram {
+  return { program: null, ok: false, log, uniforms: emptyUniforms() };
+}
+
 function emptyUniforms(): Uniforms {
   return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null };
 }
@@ -204,7 +210,7 @@ function emptyUniforms(): Uniforms {
  * nothing extra, while a project mixing sizes pays one reallocation per change per frame. Worth
  * measuring before it is worth optimising.
  */
-export function renderToBitmap(entry: Entry, w: number, h: number, timeSec: number): ImageBitmap | null {
+export function renderToBitmap(entry: CompiledProgram, w: number, h: number, timeSec: number): ImageBitmap | null {
   const g = ensure();
   if (!g || !entry.ok || !entry.program || !canvas) return null;
 

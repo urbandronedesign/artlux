@@ -14,6 +14,7 @@ import type { SurfaceContent } from '@/types';
 import * as shaderDrawable from './shaderDrawable';
 import { isAvailable } from './shaderContext';
 import { ShaderContentEditor } from './ShaderContentEditor';
+import { ShaderEditorPanel } from './ShaderEditorPanel';
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'shader', name: 'Shaders', version: '0.0.0' },
@@ -33,6 +34,14 @@ export const plugin: RendererPlugin = {
       // Left here because it is the contract the SDK publishes; see docs/ROADMAP.md.
       pickerButton: { label: 'Shader', title: 'Operator-authored GLSL generative content' },
     });
+
+    // The editor: a DOCK TAB on the mapping workbench, beside the media library and the monitor —
+    // not a workspace context of its own. Only the main window has an editor to edit with; a
+    // projector window activates this plugin too and must not stand up a CodeMirror it can never show.
+    if (ctx.window === 'main') {
+      ctx.panels.register({ id: 'shader-editor', mount: 'dock', title: 'Shader', Component: ShaderEditorPanel });
+      ctx.contexts.extend('mapping', { dock: ['shader-editor'] });
+    }
   },
 
   // On the startup splash. The honest thing to report is whether this machine gave us a context at

@@ -117,6 +117,12 @@
       "target": "docs/user-guide/15-keyboard-reference.md",
       "source": "src/renderer/shortcuts/registry.ts",
       "why": "Chapter 15 was hand-typed, was edited as recently as 2026-07-28, and STILL documented the static list SHORTCUTS.md says was replaced. Re-typing a registry loses that race every time."
+    },
+    {
+      "block": "shader-uniforms",
+      "target": "docs/SHADERS.md",
+      "source": "plugins/shader/src/wrapper.ts",
+      "why": "The uniforms a shader can read are declared once, in the wrapper that injects them. A hand-kept table is wrong the first time one is added, and a reference listing a uniform the wrapper does not declare sends an author hunting a compile error in their own code."
     }
   ],
 

@@ -1,29 +1,18 @@
-// Per-consumer state for SHADER content: which program, at what size, and the last frame handed out.
+// Per-consumer state for SHADER content: which source, at what size, and the last frame handed out.
 //
 // A "consumer" is a surface id, or `layer:<id>` for a timeline clip — the same keying every other
 // content source uses. All of them share the ONE context in shaderContext.ts; what lives here is the
-// bookkeeping that lets N of them coexist on it.
+// bookkeeping that lets N of them coexist on it, plus the two rules that keep a live show alive: a
+// broken edit never blacks out a wall, and a shader that will not behave stops being drawn.
 
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
-import { getProgram, renderToBitmap } from './shaderContext';
+import { reportFault } from '@/services/faultReporter';
+import { getProgram, renderToBitmap, failedProgram, type CompiledProgram } from './shaderContext';
 import { starterSource, DEFAULT_STARTER } from './starters';
+import { lintLoops, noteDraw, isDisabled, rearm, BUDGET } from './shaderGuard';
 
-/**
- * Render heights offered in the MAIN window. Width follows at 16:9 — see `sizeFor`.
- *
- * 2160 IS DELIBERATELY ABSENT, and it was measured out rather than argued out. Changing this canvas's
- * size reallocates its drawing buffer, so a project mixing render sizes reallocates every frame; at
- * 4K on Intel Iris Xe that thrash **killed the GPU process** (exit_code=34) inside a few seconds —
- * reproducibly, twice, with no hostile shader involved. Every compile afterwards failed with an empty
- * info log, which is the worst possible shape: black surfaces and nothing to read. At 1080p the same
- * loop is survivable (~2.4–3.2 ms/frame) and at 720p it is cheap.
- *
- * Nothing is lost. The LED path uploads into an atlas rect scaled to fixture density and discards
- * anything finer (WebGPUMapper.ts:653), so >1080p in this window was already being thrown away — and
- * the case that genuinely wants 4K is a projector output, which renders in its OWN window and its own
- * context where every surface is the same size and no per-frame resize happens (Phase 6).
- */
+/** Detail rungs offered in the MAIN window — a PIXEL BUDGET each, not a literal size (see sizeFor). */
 export const RENDER_HEIGHTS = [360, 720, 1080] as const;
 export const DEFAULT_HEIGHT = 720;
 
@@ -31,23 +20,23 @@ interface Entry {
   bitmap: ImageBitmap | null;
   /** Everything that determines the pixels. Equal signature ⇒ the last bitmap is still correct. */
   sig: string;
+  /** THE LAST SOURCE THAT COMPILED. What a broken edit falls back to — see resolveProgram. */
+  lastGoodSource: string | null;
 }
 
 const entries = new Map<string, Entry>();
 
 /**
- * THE BUFFER TAKES THE SURFACE'S SHAPE. A fixed 16:9 was wrong, visibly.
+ * THE BUFFER TAKES THE SURFACE'S SHAPE.
  *
- * The compositor draws a surface's drawable with `ctx.drawImage(d, x, y, w, h)` (frameEngine.ts) —
- * it STRETCHES the picture into the surface rect, which is what mapping means. So the buffer's aspect
- * has to equal the surface's, or the picture is distorted by however much the two disagree. Mapping
- * space is a **unit square** (the composite canvas is 512×512), so a surface 0.30 wide and 0.52 high
- * really is portrait — and a 16:9 buffer stretched into it squashed the picture nearly 3×, turning
- * Rings into tall ellipses. Reported from a real test, and obvious once the picture is round.
+ * The compositor draws a surface's drawable with `ctx.drawImage(d, x, y, w, h)` (frameEngine.ts) — it
+ * STRETCHES the picture into the surface rect, which is what mapping means. So the buffer's aspect has
+ * to equal the surface's, or the picture is distorted by however much the two disagree. Mapping space
+ * is a unit square (the composite canvas is 512×512), so a surface 0.30 wide and 0.52 high really is
+ * portrait, and a 16:9 buffer stretched into it squashed the picture nearly 3×.
  *
- * `shaderRes` therefore names a PIXEL BUDGET, not a literal width×height: the ladder's 720 means "as
- * many pixels as 1280×720", spent in whatever proportion this surface actually has. `iAspect` reports
- * the same ratio, so a shader that wants round circles gets them.
+ * `shaderRes` therefore names a PIXEL BUDGET: the ladder's 720 means "as many pixels as 1280×720",
+ * spent in whatever proportion this surface actually has. `iAspect` reports the same ratio.
  *
  * Dimensions are quantised to 16px. Resizing this canvas reallocates its drawing buffer — the thing
  * that killed the GPU process at 4K in the Phase 0 bench — and a surface being DRAGGED changes shape
@@ -58,7 +47,7 @@ const MIN_DIM = 64;
 const MAX_DIM = 3840;
 
 function sizeFor(res: number, aspect: number): { w: number; h: number } {
-  const budget = res * ((res * 16) / 9); // the ladder rung's pixel count (720 ⇒ 1280×720)
+  const budget = res * ((res * 16) / 9);
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 9;
   const q = (v: number) => Math.min(MAX_DIM, Math.max(MIN_DIM, Math.round(v / QUANT) * QUANT));
   return { w: q(Math.sqrt(budget * a)), h: q(Math.sqrt(budget / a)) };
@@ -68,59 +57,114 @@ function sizeFor(res: number, aspect: number): { w: number; h: number } {
  * The surface's aspect in mapping space, or 16:9 when there is no surface to ask.
  *
  * `surfaceMedia.getSurface` is fed by `syncSurfaces`, which BOTH the main window and every projector
- * window call — so this one lookup works in both, where `host.surfaces` is inert in a projector. A
- * `layer:<id>` key belongs to a timeline clip and has no surface; 16:9 is the honest default there.
+ * window call — so this one lookup works in both, where `host.surfaces` is inert in a projector.
  */
 export function aspectFor(key: string): number {
   const s = getSurface(key);
   return s && s.width > 0 && s.height > 0 ? s.width / s.height : 16 / 9;
 }
 
+/** The text this content actually runs: the operator's own edit, else the built-in it started from. */
+export function sourceOf(content: SurfaceContent): string {
+  return content.shaderSource ?? starterSource(content.shaderId ?? DEFAULT_STARTER);
+}
+
+/**
+ * Compile, with the lint in front and the last good program behind.
+ *
+ * The lint runs BEFORE the driver sees the text, because the whole point is that the dangerous shapes
+ * never reach it. Its findings are shaped like compile errors so the editor's gutter needs no second
+ * code path.
+ */
+export function compile(source: string): CompiledProgram {
+  const problems = lintLoops(source);
+  if (problems.length) {
+    return failedProgram(problems.map((p) => `ERROR: 0:${p.line}: ${p.message}`).join('\n'));
+  }
+  return getProgram(source);
+}
+
+/**
+ * A TYPO MUST NOT BLACK OUT A WALL.
+ *
+ * While a shader is being edited its text is broken most of the time — that is what editing is. If a
+ * failed compile stopped the picture, every keystroke's worth of half-written code would put a hole in
+ * the show, and the one place an author is most likely to be typing is a machine that is running one.
+ * So a failure keeps the LAST SOURCE THAT COMPILED and reports the error beside the editor instead.
+ *
+ * A shader that has NEVER compiled has nothing to fall back to and renders black — which is honest,
+ * and the panel says why.
+ */
+function resolveProgram(key: string, entry: Entry, source: string): { result: CompiledProgram; usingFallback: boolean } {
+  const fresh = compile(source);
+  if (fresh.ok) { entry.lastGoodSource = source; return { result: fresh, usingFallback: false }; }
+  if (entry.lastGoodSource) {
+    const good = getProgram(entry.lastGoodSource);
+    if (good.ok) return { result: good, usingFallback: true };
+  }
+  return { result: fresh, usingFallback: false };
+}
+
 /**
  * THE REPEAT-CALL GUARD, and it is not an optimisation.
  *
  * The frame engine asks for a surface's drawable, and then the 3D viewport asks again in its own loop —
- * `surfaceFx.ts` documents hitting exactly this and caching on the same grounds. Here it is sharper
- * than waste: `transferToImageBitmap` CLEARS the canvas, so a second render for the same frame would
- * be fine, but the first caller's bitmap would then be a frame the second caller never sees, and every
- * consumer past the first would pay a full re-render. Same signature in, same bitmap out.
+ * `surfaceFx.ts` documents hitting exactly this. Here it is sharper: `transferToImageBitmap` clears the
+ * canvas, so the first caller's bitmap would be a frame the second never sees, and every consumer past
+ * the first would pay a full re-render. Same signature in, same bitmap out.
  */
 export function getFor(key: string, content: SurfaceContent, timeSec: number): ImageBitmap | null {
-  const shaderId = content.shaderId ?? DEFAULT_STARTER;
-  const { w, h } = sizeFor(content.shaderRes ?? DEFAULT_HEIGHT, aspectFor(key));
-  const sig = `${shaderId}|${w}x${h}|${timeSec}`;
-
   const prev = entries.get(key);
+
+  // A surface disabled for overrunning its budget keeps its last picture rather than going black: the
+  // operator sees a frozen wall and a fault, which is a diagnosable state, where black is not.
+  if (isDisabled(key)) return prev?.bitmap ?? null;
+
+  const source = sourceOf(content);
+  const { w, h } = sizeFor(content.shaderRes ?? DEFAULT_HEIGHT, aspectFor(key));
+  const sig = `${source.length}:${content.shaderId ?? ''}|${w}x${h}|${timeSec}`;
   if (prev && prev.sig === sig && prev.bitmap) return prev.bitmap;
 
-  const entry = getProgram(starterSource(shaderId));
-  if (!entry.ok) {
-    // A shader that has never compiled has nothing to fall back TO, so the surface goes black and the
-    // inspector says why (compileStatus below). Once an author can edit source (Phase 2) the rule
-    // inverts: a failed compile keeps the LAST GOOD program, because a typo saved during a show must
-    // cost an error message and not the wall.
-    return prev?.bitmap ?? null;
+  const entry: Entry = prev ?? { bitmap: null, sig: '', lastGoodSource: null };
+  const { result } = resolveProgram(key, entry, source);
+  if (!result.ok) { entry.sig = sig; entries.set(key, entry); return entry.bitmap; }
+
+  const t0 = performance.now();
+  const bmp = renderToBitmap(result, w, h, timeSec);
+  const ms = performance.now() - t0;
+  if (!bmp) return entry.bitmap;
+
+  if (noteDraw(key, ms)) {
+    // Disabled: say so once, loudly, through the same channel every other renderer fault uses.
+    reportFault({
+      window: 'main',
+      scope: 'shader',
+      pluginId: 'shader',
+      message: `Shader on ${key} disabled after ${BUDGET.strikes} frames over ${BUDGET.ms} ms — `
+        + 'the surface keeps its last picture. Simplify it or lower its Detail, then recompile to re-arm.',
+    });
   }
 
-  const bmp = renderToBitmap(entry, w, h, timeSec);
-  if (!bmp) return prev?.bitmap ?? null;
-
-  // Close the frame we handed out last time. Safe because consumers use a drawable within the frame
-  // they asked for it; holding one across frames was never part of the contract (a <video> element's
-  // pixels change under the same assumption). Skipping this leaks a full-resolution bitmap per frame.
-  prev?.bitmap?.close();
-  entries.set(key, { bitmap: bmp, sig });
+  entry.bitmap?.close(); // the frame we handed out last time; skipping this leaks one bitmap per frame
+  entry.bitmap = bmp;
+  entry.sig = sig;
+  entries.set(key, entry);
   return bmp;
 }
 
-/** Compile state for the inspector — Phase 0's entire error UI. */
-export function compileStatus(content: SurfaceContent): { ok: boolean; log: string } {
-  const e = getProgram(starterSource(content.shaderId ?? DEFAULT_STARTER));
-  return { ok: e.ok, log: e.log };
+/** Compile state for the inspector and the editor's gutter. */
+export function compileStatus(content: SurfaceContent): { ok: boolean; log: string; usingFallback: boolean } {
+  const source = sourceOf(content);
+  const result = compile(source);
+  return { ok: result.ok, log: result.log, usingFallback: !result.ok };
 }
+
+/** An edit landed: give a previously disabled surface another chance. */
+export function rearmKey(key: string): void { rearm(key); }
 
 /** A consumer stopped needing shader content. Drop its bitmap; programs are shared and stay cached. */
 export function release(key: string): void {
   entries.get(key)?.bitmap?.close();
   entries.delete(key);
+  rearm(key);
 }

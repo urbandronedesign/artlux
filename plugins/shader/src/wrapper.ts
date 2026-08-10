@@ -14,6 +14,21 @@
 // Shadertoy's `mainImage(out vec4, in vec2)` is still accepted — a pasted shader should run — through
 // the adapter appended below. It is a compatibility path, not the documented way to write a new one.
 
+/**
+ * What the author gets for free, and what the editor's completion list offers.
+ *
+ * One table, so the uniform block below, the completions and (later) the generated doc block cannot
+ * drift apart — a hand-kept uniform list that no longer matches the shader is the exact failure the
+ * documentation rule calls out.
+ */
+export const UNIFORMS: { name: string; detail: string }[] = [
+  { name: 'iTime', detail: 'float — SHOW time in seconds. Scrubs with the timeline; holds when stopped.' },
+  { name: 'iWallTime', detail: 'float — free-running clock, ignores the transport.' },
+  { name: 'iResolution', detail: 'vec3 — render size in pixels (xy), z = 1.' },
+  { name: 'iAspect', detail: 'float — width / height. Use it to keep circles round.' },
+  { name: 'iFrame', detail: 'int — frames drawn since the shader loaded.' },
+];
+
 const FRAG_PREFIX = `#version 300 es
 precision highp float;
 uniform vec3 iResolution;

@@ -129,12 +129,41 @@ function applyBlock(file, name, body) {
   return { abs, file, changed: norm(after) !== norm(before), after };
 }
 
+// ── Parsing the shader uniform table ──────────────────────────────────────────────────────────────────
+// Same doctrine as the keymap above: the uniforms an operator's shader can read are declared once, in
+// the plugin's wrapper, and the doc table is OUTPUT. A hand-kept copy is wrong the first time a uniform
+// is added or renamed — and a shader reference listing a uniform the wrapper does not declare sends an
+// author hunting for a compile error in their own code.
+function parseShaderUniforms() {
+  const file = path.join(ROOT, 'plugins', 'shader', 'src', 'wrapper.ts');
+  const src = fs.readFileSync(file, 'utf8');
+  const arr = src.match(/export const UNIFORMS[^=]*=\s*\[([\s\S]*?)\n\];/);
+  if (!arr) throw new Error('gen-docs-data: could not find UNIFORMS in plugins/shader/src/wrapper.ts');
+  const rows = [];
+  for (const line of arr[1].split(/\r?\n/)) {
+    const m = line.match(/\{\s*name:\s*'([^']+)',\s*detail:\s*'([^']*)'/);
+    if (m) rows.push({ name: m[1], detail: m[2] });
+  }
+  // An empty parse is the one failure that would silently put us back to a hand-kept table.
+  if (!rows.length) throw new Error('gen-docs-data: UNIFORMS parsed to zero rows — the literal formatting changed');
+  return rows;
+}
+
+function renderShaderUniforms(rows) {
+  const out = ['| Name | Type | What it is |', '|---|---|---|'];
+  for (const r of rows) {
+    // `detail` is authored as "type — prose"; split it so the table reads as a table.
+    const [type, ...rest] = r.detail.split(' — ');
+    out.push(`| \`${r.name}\` | ${type} | ${rest.join(' — ')} |`);
+  }
+  return out.join('\n');
+}
+
 function main() {
-  const results = [applyBlock(
-    'docs/user-guide/15-keyboard-reference.md',
-    'keymap',
-    renderKeymap(parseShortcuts()),
-  )];
+  const results = [
+    applyBlock('docs/user-guide/15-keyboard-reference.md', 'keymap', renderKeymap(parseShortcuts())),
+    applyBlock('docs/SHADERS.md', 'shader-uniforms', renderShaderUniforms(parseShaderUniforms())),
+  ];
 
   const stale = results.filter((r) => r.changed);
   if (CHECK) {

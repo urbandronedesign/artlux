@@ -12,6 +12,7 @@ export * as shaderContext from './shaderContext';
 export * as shaderDrawable from './shaderDrawable';
 export * as starters from './starters';
 export * as wrapper from './wrapper';
+export * as shaderGuard from './shaderGuard';
 
 export type { Starter } from './starters';
 
