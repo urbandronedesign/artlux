@@ -146,8 +146,13 @@ last good picture and puts the reason in the footer. You cannot break a running 
 graph exactly as you left it. The reverse is not offered: a shader you typed by hand opens the node
 editor **empty**, because turning code back into a graph is decompilation, not editing.
 
-Delete removes selected nodes and any wires that touched them. Mouse wheel zooms, drag on empty canvas
-pans, and the controls at the bottom-left reset the view.
+**Tidy** arranges the whole graph: every node is placed in a column according to what feeds it, so the
+picture reads left to right and ends at `Output`. Nodes you have added but not wired to anything are
+parked together past the output, where they read as "not in the graph yet". **Fit** frames everything
+without moving a node.
+
+Delete removes selected nodes and any wires that touched them. Mouse wheel zooms and dragging empty
+canvas pans.
 
 ### The palette
 

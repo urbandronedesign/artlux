@@ -17,15 +17,17 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ReactFlow, Background, Controls, Handle, Position, applyNodeChanges, applyEdgeChanges,
+  ReactFlow, Background, Handle, Position, applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type NodeProps,
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useEditor, useEditorActions } from '@/state/EditorStore';
+import { Button, Select } from '@/components/ui'; // host UI primitives (pure presentational — no singletons)
 import { NODE_LIST, NODES, type NodeDef, type PortType } from './nodeCatalog';
 import { generateGlsl, canConnect, emptyGraph, type ShaderGraph } from './nodeGraph';
 import { compile } from './shaderDrawable';
+import { layoutGraph, type NodeSize } from './nodeLayout';
 import { nextNumberedName } from '@artlux/sdk';
 
 /** One colour per port type, so a wire's legality is readable before it is dragged. */
@@ -35,9 +37,33 @@ const TYPE_COLOR: Record<PortType, string> = {
 };
 
 const handleStyle = (t: PortType, side: 'left' | 'right'): React.CSSProperties => ({
-  background: TYPE_COLOR[t], width: 9, height: 9, border: '1px solid #0b0e0f',
+  background: TYPE_COLOR[t], width: 9, height: 9, border: '1px solid var(--surface-0)',
   [side]: -5,
 });
+
+/**
+ * A number on a port row. This is `NumberField`'s guard without `NumberField`'s layout: the primitive
+ * pairs a w-16 label column with its input, and here the LABEL IS THE PORT ROW ITSELF — a second one
+ * inside a 148px node leaves no room for the number. What is not dropped is the reason the primitive
+ * exists: `+''` is 0 and `+'-'` is NaN, and both are states you pass through while retyping a value.
+ * A NaN reaching the generator emits `NaN` into GLSL, which fails to compile, which freezes the wall
+ * on its last good picture until the operator finishes typing — so only finite values are committed.
+ */
+const PortNumber: React.FC<{ value: number; step: number; onCommit: (v: number) => void }> = ({ value, step, onCommit }) => {
+  const [draft, setDraft] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { if (!editing) setDraft(String(value)); }, [value, editing]);
+  return (
+    <input
+      type="number" step={step} value={draft}
+      className="w-12 rounded border border-line-1 bg-surface-0 px-1 text-right text-fg-1 num nodrag focus:border-accent focus:outline-none"
+      style={{ fontSize: 9 }}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => { setDraft(e.target.value); const v = parseFloat(e.target.value); if (Number.isFinite(v)) onCommit(v); }}
+      onBlur={() => { setEditing(false); setDraft(String(value)); }}
+    />
+  );
+};
 
 /** The node body. Unconnected numeric inputs get an inline field, which is most of the editing. */
 const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
@@ -52,9 +78,9 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
   return (
     <div
       className="rounded border bg-surface-2 text-fg-1"
-      style={{ borderColor: selected ? '#27b6c4' : '#2a3134', minWidth: 148, fontSize: 10 }}
+      style={{ borderColor: selected ? 'var(--accent)' : 'var(--line-2)', minWidth: 148, fontSize: 10 }}
     >
-      <div className="truncate rounded-t px-2 py-1" style={{ background: '#1c2124', fontSize: 10, fontWeight: 600 }} title={def.hint}>
+      <div className="truncate rounded-t px-2 py-1" style={{ background: 'var(--surface-3)', fontSize: 10, fontWeight: 600 }} title={def.hint}>
         {def.label}
       </div>
 
@@ -66,13 +92,10 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
             <Handle type="target" position={Position.Left} id={p.name} style={handleStyle(p.type, 'left')} title={p.type} />
             <span className="flex-1 truncate text-fg-2">{p.name}</span>
             {editable && (
-              <input
-                type="number"
-                className="w-12 rounded border border-line-1 bg-surface-0 px-1 text-right text-fg-1 num nodrag"
-                style={{ fontSize: 9 }}
+              <PortNumber
                 step={p.type === 'int' ? 1 : 0.05}
                 value={Number(d.params[p.name] ?? p.def ?? 0)}
-                onChange={(e) => d.onParam(id, p.name, +e.target.value)}
+                onCommit={(v) => d.onParam(id, p.name, v)}
               />
             )}
           </div>
@@ -83,14 +106,14 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
           and a constant lets the compiler fold the branch away. */}
       {def.id === 'lfo.wave' && (
         <div className="px-2 py-[2px]">
-          <select
-            className="w-full rounded border border-line-1 bg-surface-0 px-1 text-fg-1 nodrag"
+          <Select
+            className="w-full py-0 nodrag"
             style={{ fontSize: 9 }}
             value={String(d.params.shape ?? 'sine')}
             onChange={(e) => d.onParam(id, 'shape', e.target.value)}
           >
             {['sine', 'triangle', 'saw', 'square'].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -185,7 +208,7 @@ export const ShaderNodePanel: React.FC = () => {
     id: `e${i}`,
     source: e.from.node, sourceHandle: e.from.port,
     target: e.to.node, targetHandle: e.to.port,
-    style: { stroke: '#4b5563', strokeWidth: 1.5 },
+    style: { stroke: 'var(--line-2)', strokeWidth: 1.5 },
   })), [graph.edges]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -252,6 +275,19 @@ export const ShaderNodePanel: React.FC = () => {
     commit({ ...graph, nodes: [...graph.nodes, { id, type: def.id, x: Math.round(at.x), y: Math.round(at.y), params }] });
   }, [graph, commit]);
 
+  /** Arrange the whole graph left to right. Uses the sizes React Flow has actually MEASURED, falling
+   *  back to the estimate for anything not yet rendered — the two differ most for tall nodes, which
+   *  are exactly the ones that would otherwise overlap their neighbour below. */
+  const tidy = useCallback(() => {
+    const sizes: Record<string, NodeSize> = {};
+    for (const n of rfNodes) {
+      const m = (n as { measured?: { width?: number; height?: number } }).measured;
+      if (m?.width && m?.height) sizes[n.id] = { width: m.width, height: m.height };
+    }
+    commit(layoutGraph(graph, sizes));
+    requestAnimationFrame(() => flow.current?.fitView({ duration: 250, maxZoom: 1, padding: 0.25 }));
+  }, [graph, rfNodes, commit]);
+
   const shown = filter
     ? NODE_LIST.filter((d) => (d.label + d.category + d.hint).toLowerCase().includes(filter.toLowerCase()))
     : NODE_LIST;
@@ -273,10 +309,14 @@ export const ShaderNodePanel: React.FC = () => {
             <div key={cat}>
               <div className="px-2 pt-1 text-micro uppercase tracking-wide text-fg-3">{cat}</div>
               {shown.filter((d) => d.category === cat).map((d) => (
-                <button
+                <Button
                   key={d.id} onClick={() => addNode(d)} title={d.hint}
-                  className="block w-full truncate px-2 py-[2px] text-left text-micro text-fg-1 hover:bg-surface-3"
-                >{d.label}</button>
+                  variant="ghost" size="sm"
+                  // `!justify-start`: Button's base sets justify-center, and which of two same-specificity
+                  // utilities wins is decided by their order in the STYLESHEET, not in the class list —
+                  // so a plain justify-start here loses and the whole palette reads centred.
+                  className="w-full !justify-start truncate rounded-none px-2 font-normal text-fg-1"
+                >{d.label}</Button>
               ))}
             </div>
           ))}
@@ -284,6 +324,20 @@ export const ShaderNodePanel: React.FC = () => {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* The canvas toolbar. React Flow's own <Controls> is deliberately NOT mounted: it draws its
+            own zoom buttons bottom-left in its own styling, which is a second visual language inside
+            one panel. Wheel-zoom and drag-pan are unaffected, and Fit does what the zoom buttons were
+            reached for anyway. */}
+        <div className="flex shrink-0 items-center gap-1 border-b border-line-1 px-1.5 py-1">
+          <Button size="sm" variant="tonal" onClick={tidy} title="Arrange every node left to right by what feeds what">
+            Tidy
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => flow.current?.fitView({ duration: 200, maxZoom: 1, padding: 0.3 })} title="Frame the whole graph">
+            Fit
+          </Button>
+          <span className="ml-auto truncate text-micro text-fg-3">{graph.nodes.length} nodes · {graph.edges.length} wires</span>
+        </div>
+
         {/* A NEW GRAPH IS ONE NODE, and fitView on one node zooms to the maximum — the canvas opened at
             3× with two nodes filling it, which reads as broken rather than as fitted. Capping the zoom
             at 1 makes framing a small graph mean centring it, not magnifying it.
@@ -300,10 +354,9 @@ export const ShaderNodePanel: React.FC = () => {
             fitView fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
             onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: true }}
             deleteKeyCode={['Delete', 'Backspace']}
-            style={{ background: '#0f1113' }}
+            style={{ background: 'var(--surface-0)' }}
           >
-            <Background color="#2a3134" gap={16} />
-            <Controls showInteractive={false} />
+            <Background color="var(--line-1)" gap={16} />
           </ReactFlow>
         </div>
         <div className={`shrink-0 border-t border-line-1 px-2 py-1 text-micro ${status && !status.ok ? 'text-danger' : 'text-fg-3'}`}>
