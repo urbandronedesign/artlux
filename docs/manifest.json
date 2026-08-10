@@ -47,7 +47,8 @@
   ],
   "guideExclude": ["PLAN.md"],
 
-  "examples": ["audio", "lidar-tracking", "state-machine"],
+  "examples": ["audio", "lidar-tracking",
+    "shader", "state-machine"],
 
   "$referenceOrder": [
     "KEY ORDER IS THE READING ORDER, and src/main/docs.ts renders the operator sidebar in it. Do not",
@@ -67,6 +68,7 @@
 
     "SURFACES.md": "hybrid",
     "EFFECTS.md": "hybrid",
+    "SHADERS.md": "usage",
     "ASSETS.md": "hybrid",
     "CODECS.md": "usage",
 

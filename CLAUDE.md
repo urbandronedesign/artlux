@@ -39,6 +39,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Project state machine (the "Show" graph over scenes)** | [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md) |
 | **Per-scene timelines + per-state authoring loop** | [docs/SCENE-TIMELINES.md](docs/SCENE-TIMELINES.md) |
 | Effects & palettes (generative content) | [docs/EFFECTS.md](docs/EFFECTS.md) |
+| **Shaders — GPU generative content on a surface** | [docs/SHADERS.md](docs/SHADERS.md) · plan: [plans/shader-plugin.md](plans/shader-plugin.md) |
 | **Example projects + written tutorials (state machine)** | [examples/README.md](examples/README.md) |
 | Projector calibration (structured light + pose) | [docs/CALIBRATION.md](docs/CALIBRATION.md), [docs/AUTO-ALIGN.md](docs/AUTO-ALIGN.md), [docs/CALIB-OPTIMIZATIONS.md](docs/CALIB-OPTIMIZATIONS.md) |
 | NVIDIA hardware warp/blend | [docs/NVWARP.md](docs/NVWARP.md) |

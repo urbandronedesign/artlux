@@ -1,0 +1,163 @@
+{
+ "version": "1.2",
+ "timestamp": "2026-08-10T00:00:00.000Z",
+ "globalBrightness": 1,
+ "groups": [],
+ "scenes": [],
+ "cueBanks": [],
+ "schedule": [],
+ "assets": [],
+ "projectorOutputs": [],
+ "controllers": [
+  {
+   "id": "ctl_local",
+   "name": "Loopback",
+   "protocol": "artnet",
+   "ip": "127.0.0.1",
+   "broadcast": false,
+   "startUniverse": 0
+  }
+ ],
+ "scene3D": {
+  "models": [],
+  "lightIntensity": 1,
+  "environment": true,
+  "exposure": 1,
+  "gridVisible": true,
+  "reflectiveFloor": false,
+  "trackingViz": false,
+  "augmentaViz": false,
+  "trackingSmoothing": 0.6,
+  "trackingPredictMs": 50
+ },
+ "timeline": {
+  "layers": [],
+  "clips": [],
+  "duration": 40,
+  "fps": 30,
+  "markers": [],
+  "inPoint": null,
+  "outPoint": null,
+  "loop": true,
+  "trackingTakes": []
+ },
+ "stateMachine": {
+  "enabled": false,
+  "initialStateId": null,
+  "regions": [],
+  "states": [],
+  "transitions": []
+ },
+ "surfaces": [
+  {
+   "id": "srf_plasma",
+   "name": "Plasma",
+   "x": 0.02,
+   "y": 0.08,
+   "width": 0.3,
+   "height": 0.52,
+   "rotation": 0,
+   "zIndex": 0,
+   "content": {
+    "opacity": 1,
+    "type": "SHADER",
+    "shaderId": "plasma",
+    "shaderRes": 720
+   }
+  },
+  {
+   "id": "srf_rings",
+   "name": "Rings",
+   "x": 0.35,
+   "y": 0.08,
+   "width": 0.3,
+   "height": 0.52,
+   "rotation": 0,
+   "zIndex": 0,
+   "content": {
+    "opacity": 1,
+    "type": "SHADER",
+    "shaderId": "rings",
+    "shaderRes": 720
+   }
+  },
+  {
+   "id": "srf_strip",
+   "name": "Strip chase",
+   "x": 0.68,
+   "y": 0.08,
+   "width": 0.3,
+   "height": 0.52,
+   "rotation": 0,
+   "zIndex": 0,
+   "content": {
+    "opacity": 1,
+    "type": "SHADER",
+    "shaderId": "strip",
+    "shaderRes": 360
+   }
+  }
+ ],
+ "fixtures": [
+  {
+   "id": "fx_plasma",
+   "name": "Plasma strip",
+   "x": 0.03,
+   "y": 0.66,
+   "width": 0.28,
+   "height": 0.06,
+   "rotation": 0,
+   "universe": 0,
+   "startAddress": 1,
+   "ledCount": 60,
+   "reverse": false,
+   "colorData": [],
+   "source": "MEDIA",
+   "surfaceId": "srf_plasma",
+   "shape": "LINE",
+   "colorOrder": "RGB",
+   "rgbwMode": "NONE",
+   "channelsPerPixel": 3
+  },
+  {
+   "id": "fx_rings",
+   "name": "Rings strip",
+   "x": 0.36,
+   "y": 0.66,
+   "width": 0.28,
+   "height": 0.06,
+   "rotation": 0,
+   "universe": 1,
+   "startAddress": 1,
+   "ledCount": 60,
+   "reverse": false,
+   "colorData": [],
+   "source": "MEDIA",
+   "surfaceId": "srf_rings",
+   "shape": "LINE",
+   "colorOrder": "RGB",
+   "rgbwMode": "NONE",
+   "channelsPerPixel": 3
+  },
+  {
+   "id": "fx_strip",
+   "name": "Chase strip",
+   "x": 0.69,
+   "y": 0.66,
+   "width": 0.28,
+   "height": 0.06,
+   "rotation": 0,
+   "universe": 2,
+   "startAddress": 1,
+   "ledCount": 60,
+   "reverse": false,
+   "colorData": [],
+   "source": "MEDIA",
+   "surfaceId": "srf_strip",
+   "shape": "LINE",
+   "colorOrder": "RGB",
+   "rgbwMode": "NONE",
+   "channelsPerPixel": 3
+  }
+ ]
+}
