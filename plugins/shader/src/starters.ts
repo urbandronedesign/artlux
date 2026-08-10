@@ -140,8 +140,11 @@ vec4 shaderColor(vec2 uv) {
   int band = int(clamp(uv.x, 0.0, 0.999) * 16.0);
   float e = clamp(iAudio[band] * gain, 0.0, 1.0);
 
-  // A bar per band: lit below the level, dark above it.
-  float lit = step(1.0 - uv.y, e);
+  // A bar per band, GROWING UP FROM THE BOTTOM. uv.y = 0 is the bottom edge of the surface, so the
+  // lit region is uv.y <= e. Written the other way round first, this drew bars hanging DOWN from the
+  // top — which no previous starter would have caught, because Rings and Plasma are symmetric and
+  // Strip chase varies only along x. A spectrum is the first built-in that can tell up from down.
+  float lit = step(uv.y, e);
   vec3 col = palette(pal, float(band) / 16.0) * lit;
 
   // ...and a floor that glows with the overall energy, so a strip sampling one row still moves.
