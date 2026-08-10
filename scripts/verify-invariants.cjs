@@ -2914,7 +2914,11 @@ check(
   'and the survivors reverted to the old universe/address/controller. The FSM recalls on entering ' +
   'EVERY state, including its initial one on load, so opening a project did it within seconds, ' +
   'silently. Same class as trackingZones riding the snapshot. sceneLook.ts owns the split, and it ' +
-  'is an ALLOW-LIST so a new Fixture field defaults to rig — the safe side.',
+  'is an ALLOW-LIST so a new Fixture field defaults to rig — the safe side. `projectorOutputs` was ' +
+  'the same bug one object over: which display a surface is bound to, its warp, its soft edge, its ' +
+  'label and its CALIBRATION describe the building, not the show, and a scene carrying a frozen copy ' +
+  'meant the first GO on load could revert a venue an operator had set up once. Outputs are ' +
+  'project-scope; a scene neither captures nor restores them.',
   () => {
     const A = 'src/renderer/App.tsx';
     const S = 'src/renderer/services/sceneLook.ts';
@@ -2927,6 +2931,13 @@ check(
       return `${A} assigns scene.fixtures wholesale again — the rig is being replaced by a look`;
     if (/setGroups\(scene\.groups/.test(a))
       return `${A} restores scene.groups — a group made after the capture would be deleted by the next GO`;
+    if (/setProjectorOutputs\(scene\.projectorOutputs/.test(a))
+      return `${A} restores scene.projectorOutputs — a GO would revert display bindings, warps and calibrations the venue was set up with`;
+    // …and the capture side, or scenes would quietly start carrying the rig again.
+    const snap = fnBody(a, 'buildSceneSnapshot');
+    if (!snap) return `${A}'s buildSceneSnapshot not found — this guard has gone blind`;
+    if (!/projectorOutputs:\s*undefined/.test(snap))
+      return `${A}'s buildSceneSnapshot captures projectorOutputs again — outputs are the building, not the show`;
     // Rig fields must never enter the allow-list. Each of these was observed reverting.
     const list = (read(S).match(/const FIXTURE_LOOK_KEYS = \[[\s\S]*?\] as const/) ?? [''])[0];
     if (!list) return `${S} no longer declares FIXTURE_LOOK_KEYS as one literal list`;
@@ -2935,6 +2946,46 @@ check(
     const leaked = banned.filter((k) => new RegExp(`'${k}'`).test(list));
     if (leaked.length) return `${S} lists rig fields as look: ${leaked.join(', ')}`;
     return null;
+  },
+);
+
+// ── An output never sits in render mode with nothing to render ────────────────────────────────
+check(
+  'render-from-projector is decided in ONE place, and needs a venue to render',
+  'Render-from-projector is not a look, it is a different SOURCE: the projector\'s base canvas ' +
+  'early-returns (it is meant to be covered by calibration\'s overlay) and the frame pump stops ' +
+  'streaming that window its own surface. Two sites decide halves of it — the config push picks the ' +
+  'mode, the pump decides whether to feed it — so if they disagree the output is BLACK: told to draw ' +
+  'its surface while being sent nothing to draw. They must ask ONE predicate. And that predicate must ' +
+  'require visible venue geometry, not merely a pose: render mode draws the 3D scene, so with nothing ' +
+  'in it the window draws nothing while every other path has already stood down. A project authored ' +
+  'with a venue model and opened on a machine without it lands there, as did unloading a calibration ' +
+  'while an output still had useCalibration on — which stayed black through a close and reopen, ' +
+  'because the flag is persisted on the output and the window was only ever rebuilding it.',
+  () => {
+    const a = stripComments(read('src/renderer/App.tsx'));
+    const problems = [];
+    if (!/const rendersVenue = /.test(a)) return 'App no longer defines rendersVenue — the two halves of render mode have nothing holding them together';
+    // Visible geometry, not just a pose.
+    const pred = (a.match(/const rendersVenue =[\s\S]*?;\n/) ?? [''])[0];
+    if (!/models\s*\?\?\s*\[\]\)\.some\(/.test(pred) || !/visible/.test(pred)) {
+      problems.push('rendersVenue no longer requires visible venue geometry — a posed output with an empty 3D scene renders nothing and the projector goes black');
+    }
+    // Both callers must go through it rather than re-deriving the condition.
+    // The declaration reads `const rendersVenue = (` — space and equals — so it does not match this,
+    // and every hit is a real call site.
+    const calls = (a.match(/rendersVenue\(/g) ?? []).length;
+    if (calls < 2) problems.push(`rendersVenue is called ${calls} time(s) — the config push AND the frame pump must both use it`);
+    if (/renderActive\s*=\s*!!\(out\?\.useCalibration/.test(a)) {
+      problems.push('the frame pump re-derives render mode inline again — that second copy is exactly what makes an output black when the two disagree');
+    }
+    // Unload must switch outputs back, or withdrawing a map drops them into render mode with no map
+    // to supersede it — the original black-after-reopen report.
+    const imp = stripComments(read('plugins/calibration/src/ImportPanel.tsx'));
+    if (!/setUseCalibration\([^)]*false\)/.test(imp)) {
+      problems.push('ImportPanel.unload no longer returns outputs to their own warp — its own tooltip promises it, and without it withdrawing a map leaves a black projector that survives a reopen');
+    }
+    return problems.length ? problems.join('; ') : null;
   },
 );
 

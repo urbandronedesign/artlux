@@ -87,6 +87,25 @@ import { useToast, useConfirm } from './components/ui';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+/**
+ * IS THIS OUTPUT DRAWING THE VENUE INSTEAD OF ITS OWN SURFACE? — the one answer, for both callers.
+ *
+ * Render-from-projector is not a look, it is a different SOURCE: the base canvas early-returns (it is
+ * meant to be covered by calibration's overlay) and the frame pump stops streaming the window its own
+ * surface. Two places decide halves of that — the config push tells the window which mode to be in,
+ * the pump decides whether to feed it — and if they ever disagree the projector goes BLACK: told to
+ * draw its surface while being sent nothing to draw. So they ask the same function.
+ *
+ * ⚠ `hasVenue` is the part that is easy to leave out, and leaving it out is a black wall. A pose alone
+ * is not enough: render mode draws the 3D scene, so with no visible geometry it draws NOTHING while
+ * every other path has already stood down. A project authored with a venue model and opened on a
+ * machine without it lands exactly there, as did unloading a calibration before Unload learned to
+ * switch its outputs back. Falling back to the flat warp shows content with the wrong geometry — which
+ * an operator can see and fix. Black is indistinguishable from a dead projector at 2am.
+ */
+const rendersVenue = (out: ProjectorOutput | undefined, s3d: Scene3D | undefined): boolean =>
+  !!(out?.useCalibration && out.calibration?.poseRms != null && (s3d?.models ?? []).some(m => m.visible));
+
 // Register the host's own workspace contexts + panels at module scope, i.e. before React mounts and
 // before plugins activate. Registration order does not actually matter (contextRegistry.extend queues
 // against a context that hasn't registered yet), but doing it here means the rail is populated on the
@@ -1386,7 +1405,21 @@ const App: React.FC = () => {
     // looking in the editor, not part of the look. Captured, it would ride every scene and a GO
     // would yank the 3D viewport to whichever projector was selected when that scene was stored.
     scene3D: { ...scene3D, trackingZones: undefined, viewFrom: undefined },
-    projectorOutputs,
+    // ⚠ `projectorOutputs` IS STRIPPED — OUTPUTS ARE THE BUILDING, NOT THE SHOW.
+    //
+    // Same class as `groups` and `trackingZones` above, and the same bug: which display a surface is
+    // bound to, its corner-pin, its soft edge, its calibration and its NVAPI warp describe how this
+    // ROOM is wired. None of it changes because the lighting changed. But it rode the snapshot and a
+    // recall assigned the whole array, so every scene carried a frozen copy of the rig as it stood
+    // when that scene was stored — and since the FSM recalls on entering EVERY state, including its
+    // initial one on load, the first GO could revert a projector's label, its warp, or its
+    // calibration. An operator sets a venue up once and expects it to stay set up; instead the show
+    // quietly undid it, with nothing logged.
+    //
+    // Outputs live at PROJECT scope (`ProjectData.projectorOutputs`), which is where they already
+    // were — this only stops a scene shadowing them. handleRecallScene ignores the field, so an old
+    // file that still carries one is harmless.
+    projectorOutputs: undefined,
   });
   const handleCaptureScene = () => {
     const id = generateId();
@@ -1461,22 +1494,15 @@ const App: React.FC = () => {
       k === 'scene3D' && v && typeof v === 'object'
         ? { ...(v as Record<string, unknown>), trackingZones: undefined, viewFrom: undefined }
         : v;
-    // ⚠ THE WARNING COVERS THE LOOK AN OPERATOR BUILT — fixtures, surfaces, brightness — AND NOT THE
-    // VENUE/RIG SLICES, even though "Update Scene" still stores those. That boundary was found by
-    // measurement, not taste: watching a real project across three cold loads, `projectorOutputs`
-    // reported a difference every time (the scenes predate outputs having a `name`) and then `scene3D`
-    // did (it carries editor and venue state that moves on its own). Neither can be resolved by any
-    // amount of editing, so both made the indicator permanently on — which trains an operator to
-    // ignore the one warning that exists to save their work, and is worse than having none.
+    // ⚠ THE WARNING COVERS THE LOOK AN OPERATOR BUILT — fixtures, surfaces, brightness.
     //
-    // The line is the one the app already draws elsewhere: `projectorOutputs` is deliberately excluded
-    // from the undo stack too ("undoing output config mid-show is a footgun"), and `trackingZones` was
-    // stripped out of the snapshot because a taped rectangle on a floor is the room, not the look.
-    //
-    // ⚠ AND IT EXPOSES A PRE-EXISTING HAZARD I AM NOT FIXING HERE: a scene DOES store projectorOutputs
-    // and scene3D, and a recall DOES restore them — so a GO can revert output config or venue state,
-    // the same shape of bug sceneLook.ts was written to end for fixtures. Flagged, not changed.
-    // `groups` is excluded outright: the snapshot strips it and a recall ignores it.
+    // `projectorOutputs` and `groups` are not here because they are no longer CAPTURED at all: both
+    // are the building rather than the show, and a scene neither stores nor restores them (see
+    // buildSceneSnapshot). `scene3D` still rides the snapshot but is excluded from the warning —
+    // measured across three cold loads, it reports a difference on its own because it carries editor
+    // and venue state, which no amount of editing can resolve. An indicator that can never be
+    // cleared is permanently on, which teaches an operator to ignore the one warning that exists to
+    // save their work.
     for (const [k, label] of [['surfaces', 'surfaces'], ['globalBrightness', 'brightness']] as const) {
       if (stored[k] === undefined) continue; // an older scene that never stored this expresses no opinion
       if (JSON.stringify(norm(k, snap[k])) !== JSON.stringify(norm(k, stored[k]))) out.push(label);
@@ -1526,7 +1552,11 @@ const App: React.FC = () => {
     // list is both the migration and the invariant: a GO can change WHICH zones a look listens to
     // (activeZoneIds, which does travel), never which zones exist.
     if (scene.scene3D) setScene3D(prev => ({ ...scene.scene3D!, trackingZones: prev.trackingZones, viewFrom: prev.viewFrom }));
-    if (scene.projectorOutputs) setProjectorOutputs(scene.projectorOutputs);
+    // THE OUTPUTS SURVIVE THE RECALL. This used to be `setProjectorOutputs(scene.projectorOutputs)`,
+    // which replaced the live rig with whatever the scene froze — reverting display bindings, warps,
+    // soft edges, labels and calibrations on a GO. Outputs are project-scope (see
+    // buildSceneSnapshot); an old scene's stored copy is ignored here, which is both the migration
+    // and the invariant.
     setSelectedFixtureId(null);
     setSelectedFixtureIds([]);
     setSelectedSurfaceId(null);
@@ -3637,7 +3667,11 @@ const App: React.FC = () => {
               // fixes the ordinary case: a mesh unbound mid-show used to hold its last frame, because
               // activeClip still reported a live clip on the layer it was no longer bound to.
               const out = projectorOutputsRef.current.find(o => o.surfaceId === surfaceId);
-              const renderActive = !!(out?.useCalibration && out.calibration?.poseRms != null)
+              // The SAME predicate the config push uses (rendersVenue) — not a second copy of it.
+              // These two decide different halves of one behaviour: this one withholds the window's
+              // own frames, that one tells the window to draw the venue. If they ever disagree the
+              // output is BLACK — told to draw its surface while being sent nothing to draw.
+              const renderActive = rendersVenue(out, scene3DRef.current)
                   || calibWorkspace.getState().target === surfaceId;
               // SURFACE-BOUND MESHES. A mesh can be bound to ANY surface, not only this output's own,
               // and until it was streamed one it simply stayed dark. What makes the extra streams
@@ -3935,7 +3969,10 @@ const App: React.FC = () => {
       // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
       // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
       if (surfaceId !== calibratingOutputId) {
-          const posed = out?.useCalibration && out.calibration?.poseRms != null;
+          const posed = rendersVenue(out, scene3D);
+          if (out?.useCalibration && out.calibration?.poseRms != null && !posed) {
+              console.warn(`[projector] ${out.name || surfaceId}: render-from-projector is on but the venue scene has no visible geometry — falling back to the flat warp so the output is not black`);
+          }
           if (posed) {
               // Resolve live projected mapping HERE: a projector window is sent only its own
               // calibration, so a mesh projected from another output could never be resolved inside

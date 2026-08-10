@@ -8,6 +8,11 @@ from the title‑bar **Outputs** icon. Each surface gets a row.
 
 ---
 
+> **Outputs are set once for the whole project, not per scene.** Display bindings, warps, soft edges,
+> gamma, labels and calibrations belong to the *room* — they do not change because the lighting did, so
+> **scenes do not store them and a GO never changes them**. Set your rig up once and it stays set up.
+> (Older projects may still carry per‑scene copies from before this rule; they are ignored.)
+
 ## Turn an output on
 
 1. Pick a **Display** for the surface's row. A real projector appears here; **Windowed (this screen)**

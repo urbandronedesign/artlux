@@ -129,14 +129,24 @@ the timeline, reads as correctly configured, and drives nothing.
 > - fixtures are compared through **`sceneLook.fixtureLookEqual`**, the inverse of `mergeFixtureLook`.
 >   Comparing whole `Fixture` objects reported every freshly-recalled scene as modified, because a
 >   recall deliberately leaves the rig half alone.
-> - `projectorOutputs` and `scene3D` are **excluded from the warning** though Update Scene still stores
->   them: both drift on their own (outputs predate their `name` field; scene3D carries editor state), so
->   both made the indicator permanently on — which teaches an operator to ignore it. Same line the app
->   already draws by keeping `projectorOutputs` out of the undo stack.
->
-> ⚠ That exclusion **exposes a real hazard rather than fixing it**: a scene *does* store
-> `projectorOutputs` and `scene3D`, and a recall *does* restore them, so a GO can revert output config
-> or venue state — the shape of bug `sceneLook.ts` exists to end for fixtures. Not addressed.
+> - `scene3D` is **excluded from the warning** though Update Scene still stores it: it carries editor
+>   and venue state that moves on its own, so it made the indicator permanently on — and an indicator
+>   that can never be cleared teaches an operator to ignore it.
+
+### Outputs are the building, not the show
+
+**A scene neither stores nor restores `projectorOutputs`.** Which display a surface is bound to, its
+corner-pin, soft edge, gamma, label, NVAPI warp and **calibration** describe how *this room* is wired;
+none of it changes because the lighting changed. It is the same class as `groups` and `trackingZones`,
+and it was the same bug: the snapshot carried a frozen copy of the rig and a recall assigned the whole
+array, so — since the FSM recalls on entering **every** state, including its initial one on load — the
+first GO could revert a projector's warp, its label or its calibration. An operator sets a venue up
+once and expects it to stay set up.
+
+Outputs live at **project scope** (`ProjectData.projectorOutputs`), which is where they already were;
+this only stops a scene shadowing them. `buildSceneSnapshot` strips the field and `handleRecallScene`
+ignores it, so an older project that still carries per-scene copies is harmless — they are simply dead
+data. Guarded by *a scene recall never replaces the rig*.
 
 `fadeSec` is the per-scene **crossfade** time. On recall, fadeable numeric params (global brightness,
 surface/fixture geometry, surface **opacity**, and effect speed/intensity) animate from their current

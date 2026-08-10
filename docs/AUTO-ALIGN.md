@@ -203,6 +203,21 @@ render-from-projector. So verifying a fresh solve on an output that already has 
 you **the map**, not the new solve. Press **Unload** first — it is next to Import, and it also
 forgets the remembered path so the next start does not quietly reload what you just withdrew.
 
+**Unload also switches every output back to its own warp** (`useCalibration` off), which is what its
+tooltip has always promised and what it did not used to do. Withdrawing the map alone was only half:
+with no map left to supersede it, an output whose `useCalibration` was still on dropped straight into
+render-from-projector — and there the base canvas stands down, the frame pump stops sending that
+window its own surface, and the overlay that should paint needs the venue scene. **The projector went
+black, and stayed black through a close and reopen**, because the flag lives on the output in the
+project, not in the window. The solved pose is left alone: this is a reversible switch, not a delete.
+
+Two guards behind that now: outputs are decided to be render-active in **one** place (App's
+`rendersVenue`, used by both the config push and the frame pump — if those two ever disagree the
+window is told to draw its surface while being sent nothing), and that predicate requires **visible
+venue geometry**, not merely a solved pose. An output that opts in with an empty 3D scene falls back
+to the flat warp and logs why. Wrong geometry is visible and fixable; black is indistinguishable from
+a dead projector.
+
 ### You no longer need the calibration build to play one
 
 Importing and playing work in a **plain launch**. Only *authoring* — the wizards, the camera, OpenCV,

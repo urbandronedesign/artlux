@@ -1,7 +1,9 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import { Download, X } from 'lucide-react';
+import type { ProjectorOutput } from '../../../shared/protocol';
 import * as baked from './bakedStore';
 import { describe } from './bakedStore';
+import { getHost, setUseCalibration } from './calibHost';
 
 // LOADING A VENUE'S CALIBRATION — the half of calibration that is not authoring.
 //
@@ -43,6 +45,25 @@ export const ImportPanel: React.FC = () => {
     baked.set(null);
     // Forget the path too, or the next start would silently re-load what was just withdrawn.
     void window.artlux?.setPrefs?.({ calibrationFile: '' });
+    // ⚠ …AND RETURN EVERY OUTPUT TO ITS OWN WARP, WHICH IS WHAT THIS BUTTON SAYS IT DOES.
+    //
+    // Withdrawing the map was only half of it, and the missing half turned the projector BLACK.
+    // While a map is loaded, ProjectorApp.applyCalibMode downgrades calib mode 'render' → 'idle' —
+    // the map supersedes render-from-projector — and the base canvas draws content through it. Take
+    // the map away and nothing downgrades any more, so an output with `useCalibration` on drops
+    // straight back into render mode: the base canvas early-returns (render mode is meant to be
+    // covered by an opaque overlay), App stops streaming it frames at all, and the overlay that
+    // should be painting needs the venue 3D scene. No venue, no picture, black wall.
+    //
+    // And it SURVIVED A CLOSE AND REOPEN, which is what made it look like a stuck window:
+    // `useCalibration` is persisted on the output, so a fresh window rebuilt the same state. It was
+    // never the window — it was the document.
+    //
+    // The pose (`calibration`) is deliberately left alone: it is expensive authoring data, and this
+    // is a reversible switch, not a delete.
+    for (const o of (getHost()?.projectorOutputs.list() ?? []) as ProjectorOutput[]) {
+      if (o.useCalibration) setUseCalibration(o.surfaceId, false);
+    }
   };
 
   return (
