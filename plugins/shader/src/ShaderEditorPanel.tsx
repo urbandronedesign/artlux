@@ -101,6 +101,7 @@ export const ShaderEditorPanel: React.FC = () => {
       // Only a shader that BUILDS is written to the document. A broken buffer stays in the editor,
       // where it belongs, and the surface keeps drawing the last thing that worked.
       updateSurface(surfaceId, { content: { ...surface!.content, shaderSource: text } });
+      loadedSource.current = text; // this IS the loaded source now, so the reload guard stays quiet
       rearmKey(surfaceId); // a fixed shader deserves another go at the frame budget
     }
     return true;
@@ -136,15 +137,32 @@ export const ShaderEditorPanel: React.FC = () => {
     return () => { view.current?.destroy(); view.current = null; };
   }, []);
 
-  // Load the selected surface's source into the existing view.
+  /**
+   * Load the selected surface's source — and RELOAD it when that source changes underneath us.
+   *
+   * Watching only the surface id was wrong, and visibly: applying a library effect (or an undo)
+   * replaces the surface's shader while this panel goes on showing the previous text. That is not
+   * merely stale — the next Ctrl+Enter would write the OLD code back over what was just applied.
+   *
+   * The reload is refused when the buffer is DIRTY, because the operator's half-written work outranks
+   * a background change; they see their own text, and the compile they eventually run is the one they
+   * meant. `loadedSource` is what makes "dirty" answerable at all.
+   */
   const loadedFor = useRef<string | null>(null);
+  const loadedSource = useRef<string>('');
   useEffect(() => {
     const v = view.current;
-    if (!v || loadedFor.current === surfaceId) return;
+    if (!v) return;
+    const next = surface ? sourceOf(surface.content) : '';
+    const switched = loadedFor.current !== surfaceId;
+    const dirty = v.state.doc.toString() !== loadedSource.current;
+    if (!switched && (next === loadedSource.current || dirty)) return;
+
     loadedFor.current = surfaceId;
+    loadedSource.current = next;
     diagnostics.current = [];
     setStatus(null);
-    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: surface ? sourceOf(surface.content) : '' } });
+    v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: next } });
   }, [surfaceId, surface]);
 
   const resetToStarter = () => {

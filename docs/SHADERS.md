@@ -8,8 +8,8 @@ It behaves like any other content. Fixtures sample it, projector outputs show it
 work on it, and it needs no media, no network and no hardware.
 
 > **What you can do today:** choose a built-in shader, edit its code in ArtLux, give it your own
-> parameters, drive those from the timeline, OSC or the state machine, and give it trails.
-> **Still to come:** sound-reactive inputs, and a library of effects that carries across projects.
+> parameters, drive those from the timeline, OSC or the state machine, give it trails, and save it to
+> a library that carries across projects. **Still to come:** sound-reactive inputs.
 
 ## Put one on a surface
 
@@ -111,6 +111,30 @@ surfaces can run the same shader at different settings.
 
 **An automation lane wins while it is running, and gives the control back when it stops.** Turning a
 lane off snaps the parameter to whatever you set by hand — not to wherever the curve happened to end.
+
+## Your effect library
+
+An effect written for one show is a building block in the next. The **Effects** panel in the browser
+column is where they live.
+
+- **Save current** stores the selected surface’s shader — its code, its parameter values, and a
+  thumbnail — under the surface’s name.
+- **Click a card** to apply that effect to whichever surface is selected.
+- **Folder** opens the library on disk. Each effect is one folder holding `shader.frag`,
+  `values.json` and `thumbnail.png`, so sharing one with somebody is copying a folder.
+
+The library lives with your ArtLux install, not inside any project — that is what lets it follow you
+from show to show.
+
+### Applying copies, it does not link
+
+When you apply an effect its **code is copied into the surface**. Two things follow, and both are
+deliberate:
+
+- **A project carries its own shaders.** Open it on a venue machine with an empty library and it
+  still renders exactly what you built. There is no missing-file state to discover on the night.
+- **Editing a library effect does not change shows that already used it.** A show that worked last
+  night works tonight. To update an older project, apply the effect again there.
 
 ## Trails, decay, and anything that remembers
 

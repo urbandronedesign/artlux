@@ -74,11 +74,11 @@
       "@artlux/plugin-augmenta/*": [
         "./plugins/augmenta/src/*"
       ],
-      "@artlux/plugin-shader": [
-        "./plugins/shader/src/index.ts"
+      "@artlux/plugin-shader/main": [
+        "./plugins/shader/src/main.ts"
       ],
-      "@artlux/plugin-shader/*": [
-        "./plugins/shader/src/*"
+      "@artlux/plugin-shader/renderer": [
+        "./plugins/shader/src/renderer.ts"
       ],
       "@artlux/plugin-show-control/main": [
         "./plugins/show-control/src/main.ts"

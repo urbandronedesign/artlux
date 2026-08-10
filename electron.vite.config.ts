@@ -25,7 +25,9 @@ const sdkAliases = [
   { find: '@artlux/plugin-mp4', replacement: resolve(__dirname, 'plugins/mp4/src') }, // renderer-only, single barrel
   { find: '@artlux/plugin-mediapipe', replacement: resolve(__dirname, 'plugins/mediapipe/src') }, // renderer-only, single barrel
   { find: '@artlux/plugin-augmenta', replacement: resolve(__dirname, 'plugins/augmenta/src') }, // renderer-only, single barrel
-  { find: '@artlux/plugin-shader', replacement: resolve(__dirname, 'plugins/shader/src') }, // renderer-only, single barrel
+  // Shader spans both processes (the effect library is files, and only main has a filesystem).
+  { find: '@artlux/plugin-shader/main', replacement: resolve(__dirname, 'plugins/shader/src/main.ts') },
+  { find: '@artlux/plugin-shader/renderer', replacement: resolve(__dirname, 'plugins/shader/src/renderer.ts') },
   // Show-control spans both processes (HTTP/SSE server in main + UI in renderer) → explicit subpaths.
   { find: '@artlux/plugin-show-control/main', replacement: resolve(__dirname, 'plugins/show-control/src/main.ts') },
   { find: '@artlux/plugin-show-control/renderer', replacement: resolve(__dirname, 'plugins/show-control/src/renderer.ts') },

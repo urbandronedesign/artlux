@@ -1,4 +1,4 @@
-// Shader plugin — public barrel.
+// @artlux/plugin-shader/renderer — renderer barrel.
 //
 // Host code imports this plugin ONLY through this barrel ('@artlux/plugin-shader'); the plugin's own
 // files import each other relatively. That is not style: mixing the package alias with relative
@@ -16,6 +16,7 @@ export * as shaderGuard from './shaderGuard';
 export * as header from './header';
 export * as shaderParams from './shaderParams';
 export * as shaderSource from './shaderSource';
+export * as libraryClient from './libraryClient';
 
 export type { Starter } from './starters';
 

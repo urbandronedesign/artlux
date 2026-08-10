@@ -191,7 +191,10 @@ export function registerCoreWorkspace(): void {
     // id to this manifest, but a banked slice is the operator's OWN list and wins over it — so without
     // the bump the editor exists, is registered, and is invisible to everyone who has ever opened this
     // workbench. Which is everyone.
-    layoutRev: 6,
+    // 7: the Effects library joined the browser column. Same reason as 6 — a banked browser list is the
+    // operator's own and wins over the manifest, so without the bump the library is registered, working,
+    // and invisible.
+    layoutRev: 7,
     hint: {
       en: 'Place surfaces, map content onto them, then patch fixtures. Ctrl+T pulls the timeline up.',
       fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures. Ctrl+T ouvre la timeline.',
