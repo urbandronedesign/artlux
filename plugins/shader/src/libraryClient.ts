@@ -14,6 +14,7 @@ export interface LibraryEntry {
   source: string;
   params: Record<string, number | boolean | number[]>;
   shaderId?: string;
+  graph?: string;
   thumbnail: string | null;
   savedAt: number;
 }
@@ -80,6 +81,7 @@ export async function saveFromContent(
     source,
     params: content.shaderParams ?? {},
     shaderId: content.shaderId,
+    graph: content.shaderGraph,
     thumbnail,
   })) as { ok: boolean; name: string; error?: string };
   await refresh();
@@ -110,5 +112,9 @@ export function contentPatch(entry: LibraryEntry): Partial<SurfaceContent> {
     shaderSource: entry.source,
     shaderParams: entry.params,
     shaderId: entry.shaderId,
+    // undefined, not omitted: this patch is spread over the existing content, so leaving the key out
+    // would keep the surface's previous graph next to the new effect's code — the node editor would
+    // then show, and on the next edit re-generate, a shader nobody asked for.
+    shaderGraph: entry.graph,
   };
 }

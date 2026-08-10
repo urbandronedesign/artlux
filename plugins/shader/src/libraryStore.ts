@@ -3,6 +3,7 @@
 //   userData/shaders/<Effect name>/
 //     shader.frag      the code, header and all
 //     values.json      this effect's parameter values + which built-in it started from
+//     graph.json       the node graph, when the effect was built in the node editor
 //     thumbnail.png    rendered once, on save
 //
 // A FOLDER PER EFFECT, following MadMapper, and simpler than the index-plus-cache an earlier draft of
@@ -28,6 +29,8 @@ export interface LibraryEntry {
   params: Record<string, number | boolean | number[]>;
   /** Which built-in it was derived from, for the Reset action. */
   shaderId?: string;
+  /** The node graph, when this effect was built in the node editor. Absent for hand-written code. */
+  graph?: string;
   /** A data: URI, or null when the folder has no thumbnail yet. */
   thumbnail: string | null;
   savedAt: number;
@@ -66,11 +69,17 @@ export function list(): LibraryEntry[] {
         shaderId = typeof v.shaderId === 'string' ? v.shaderId : undefined;
         savedAt = typeof v.savedAt === 'number' ? v.savedAt : 0;
       }
+      // The graph is OPTIONAL and its absence is meaningful, not a defect: an effect saved from the
+      // code editor has none, and applying it must therefore CLEAR whatever graph the target surface
+      // had — a graph left behind would describe a shader that is no longer there.
+      const graphPath = path.join(folder, 'graph.json');
+      const graph = fs.existsSync(graphPath) ? fs.readFileSync(graphPath, 'utf8') : undefined;
+
       const thumbPath = path.join(folder, 'thumbnail.png');
       const thumbnail = fs.existsSync(thumbPath)
         ? `data:image/png;base64,${fs.readFileSync(thumbPath).toString('base64')}`
         : null;
-      out.push({ name: e.name, source, params, shaderId, thumbnail, savedAt });
+      out.push({ name: e.name, source, params, shaderId, graph, thumbnail, savedAt });
     } catch (err) {
       // ONE BAD FOLDER MUST NOT EMPTY THE LIBRARY. A half-written entry, a folder someone dropped in
       // by hand, a shader.frag deleted — skip it and keep the rest, because a browser that shows
@@ -86,6 +95,7 @@ export function save(input: {
   source: string;
   params: Record<string, number | boolean | number[]>;
   shaderId?: string;
+  graph?: string;
   /** A `data:image/png;base64,…` URI rendered by the renderer, or null. */
   thumbnail?: string | null;
 }): { ok: boolean; name: string; error?: string } {
@@ -99,6 +109,11 @@ export function save(input: {
       JSON.stringify({ params: input.params, shaderId: input.shaderId, savedAt: Date.now() }, null, 2),
       'utf8',
     );
+    // Re-saving a graph effect as code must not leave the old graph.json behind to be re-applied.
+    const graphFile = path.join(folder, 'graph.json');
+    if (input.graph) fs.writeFileSync(graphFile, input.graph, 'utf8');
+    else if (fs.existsSync(graphFile)) fs.rmSync(graphFile);
+
     if (input.thumbnail?.startsWith('data:image/png;base64,')) {
       const b64 = input.thumbnail.slice('data:image/png;base64,'.length);
       fs.writeFileSync(path.join(folder, 'thumbnail.png'), Buffer.from(b64, 'base64'));

@@ -1,6 +1,6 @@
 # A node editor for shaders — feasibility and plan
 
-**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: phases 0–2 BUILT** — the generator, the 59-node catalogue and the canvas ship; phases 3–4 open.
+**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: phases 0–3 BUILT** — the generator, the 59-node catalogue and the canvas ship; phases 3–4 open.
 
 > ## The verdict in one paragraph
 >
@@ -188,6 +188,33 @@ clicked out of the palette, four wires dragged port-to-port with the mouse, ring
   boxes filling the pane — capped at zoom 1. And a node added in graph coordinates landed outside the
   frame, which made the palette look inert; a new node is now dropped where the operator is looking.
 | **3 · Parameters + library** | Parameter nodes → ISF header; graph saved on the surface and in library folders; **Convert to code** | A graph parameter drives a timeline lane; an effect saved from a graph re-opens as a graph |
+
+**Phase 3 is built (2026-08-11)**, and both of its acceptance criteria were driven through the real UI:
+a `Float parameter` node wired into the graph appeared in the inspector as **Value 1** and in the
+timeline's automation picker as **Shader ▸ Graph · Value 1 (0–1)**; an effect saved from an 8-node
+graph and applied to a fresh shader surface re-opened as 8 nodes and 8 wires.
+
+**The seam this phase is really about is DETACHMENT — who owns the shader.** Two authors cannot own
+one: leave a graph attached to hand-edited code and the next node touched regenerates over it. So all
+four doors close it the same way, and none of them silently:
+
+- **Convert to code** hands the GLSL to the editor and discards the graph, after asking.
+- **Compiling by hand** in the code editor detaches — the node editor reloads and shows the graph gone.
+- **Choosing a built-in** from the Shader dropdown clears the graph with the code. It cleared only the
+  code before this phase, which left the editor holding a graph for a shader that was no longer there;
+  the confirm now names the graph when there is one.
+- **Applying a code-only library effect** clears the target surface's graph, because the patch carries
+  `shaderGraph: undefined` rather than omitting the key.
+
+**Two more defects found by running it**, neither visible in the source:
+
+- **React Flow's default `minZoom` is 0.5**, and a shader graph is thirteen columns wide. `Fit` would
+  zoom to 0.5, report success, and leave a third of the nodes off the right edge — with the wheel
+  unable to pull back either. Floor lowered to 0.1.
+- **A panel that watched only the selection went stale.** Applying a library effect rewrites the graph
+  while the node editor is open; it kept editing the old one and would write it back on the next
+  click. It now reloads when the surface's graph changes underneath it, telling somebody else's
+  change from the echo of its own — the code editor shipped this exact bug once.
 | **4 · Comfort** | Node search, copy/paste, groups/comments, per-node preview, undo integration | It is pleasant rather than merely possible |
 
 **Effort, honestly:** Phase 0 is a day. Phases 1–3 are the real build — a generator with a type system

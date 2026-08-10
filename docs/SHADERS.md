@@ -276,7 +276,21 @@ canvas pans.
 
 **Parameter** nodes are the bridge to everything else in ArtLux: one becomes a knob in the inspector
 with the name you give it, and therefore a timeline lane, an OSC address and a state-machine target —
-exactly as if you had declared it in a header by hand.
+exactly as if you had declared it in a header by hand. A parameter that drives nothing declares
+nothing; wire it into the graph and the knob appears.
+
+### Saving a graph, and leaving one behind
+
+**Save current** stores a graph effect with its graph inside. Apply it to another surface and the node
+editor opens the graph, not just the code — the same effect, editable the same way. An effect saved
+from the code editor has no graph, and applying it to a surface that had one **clears** it, because a
+graph left behind describes a shader that is no longer there.
+
+**Convert to code** is the one-way door. It hands the generated GLSL to the **Shader** tab and discards
+the graph, after asking — there is no way back, because reading code into a graph is decompilation.
+Two other actions do the same thing from the other side, and for the same reason: compiling by hand in
+the code editor, and choosing a different built-in from the **Shader** dropdown. Two authors cannot own
+one shader — leave the graph in place and the next node you touch regenerates over everything you typed.
 
 ## Your effect library
 

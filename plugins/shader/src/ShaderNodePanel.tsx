@@ -24,6 +24,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useEditor, useEditorActions } from '@/state/EditorStore';
 import { Button, Select } from '@/components/ui'; // host UI primitives (pure presentational — no singletons)
+import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 import { NODE_LIST, NODES, type NodeDef, type PortType } from './nodeCatalog';
 import { generateGlsl, canConnect, emptyGraph, type ShaderGraph } from './nodeGraph';
 import { compile } from './shaderDrawable';
@@ -144,16 +145,25 @@ export const ShaderNodePanel: React.FC = () => {
   const loadedFor = useRef<string | null>(null);
   const flow = useRef<ReactFlowInstance | null>(null);
   const pane = useRef<HTMLDivElement | null>(null);
+  const confirmDialog = useConfirm();
 
   // Load the selected surface's graph. A surface with code but no graph opens EMPTY rather than trying
   // to reverse-engineer one: graph → code is a compiler, code → graph is decompilation.
+  //
+  // RELOAD ALSO WHEN THE SURFACE'S GRAPH CHANGES UNDER US, not only when the selection moves. Applying
+  // a library effect rewrites the graph while this panel is open, and a panel that only watched the
+  // selection would keep editing the old one — then write it back over the effect on the next click.
+  // The code editor shipped exactly that bug. `wrote` is how we tell somebody else's change from the
+  // echo of our own, which must NOT reload (it would fight every keystroke in a number field).
+  const wrote = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (loadedFor.current === surfaceId) return;
+    const raw = surface?.content.shaderGraph;
+    if (loadedFor.current === surfaceId && raw === wrote.current) return;
     loadedFor.current = surfaceId;
+    wrote.current = raw;
     setStatus(null);
     if (!surface) { setGraph(emptyGraph()); return; }
     try {
-      const raw = surface.content.shaderGraph;
       setGraph(raw ? (JSON.parse(raw) as ShaderGraph) : emptyGraph());
     } catch {
       setGraph(emptyGraph());
@@ -170,9 +180,9 @@ export const ShaderNodePanel: React.FC = () => {
     const built = compile(gen.source);
     if (!built.ok) { setStatus({ ok: false, message: built.log.split('\n')[0] || 'the generated shader did not compile' }); return; }
     setStatus({ ok: true, message: `${next.nodes.length} nodes` });
-    updateSurface(surfaceId, {
-      content: { ...surface.content, shaderGraph: JSON.stringify(next), shaderSource: gen.source },
-    });
+    const json = JSON.stringify(next);
+    wrote.current = json;
+    updateSurface(surfaceId, { content: { ...surface.content, shaderGraph: json, shaderSource: gen.source } });
   }, [surfaceId, surface, updateSurface]);
 
   // ── React Flow's model, derived from ours. Ours stays the source of truth; this is a projection.
@@ -288,6 +298,31 @@ export const ShaderNodePanel: React.FC = () => {
     requestAnimationFrame(() => flow.current?.fitView({ duration: 250, maxZoom: 1, padding: 0.25 }));
   }, [graph, rfNodes, commit]);
 
+  /**
+   * Hand the graph's code to the code editor and stop being a graph.
+   *
+   * ONE-WAY, AND IT ASKS. The generated GLSL is already on the surface — this only drops the
+   * `shaderGraph` beside it. But that is the difference between "the graph is what this surface is"
+   * and "some code that a graph once produced", and there is no way back: reading the code into a
+   * graph is decompilation. Keeping the graph instead would be worse than the confirm, because the
+   * next node you touched would regenerate over everything you had typed.
+   */
+  const convertToCode = useCallback(async () => {
+    if (!surfaceId || !surface) return;
+    const gen = generateGlsl(graph);
+    if (gen.errors.length) { setStatus({ ok: false, message: gen.errors[0] }); return; }
+    const yes = await confirmDialog({
+      title: 'Convert this graph to code?',
+      message: 'The generated GLSL stays on the surface and opens in the Shader tab. The graph is discarded — code cannot be turned back into nodes.',
+      confirmLabel: 'Convert',
+    });
+    if (!yes) return;
+    wrote.current = undefined;
+    updateSurface(surfaceId, { content: { ...surface.content, shaderSource: gen.source, shaderGraph: undefined } });
+    setGraph(emptyGraph());
+    setStatus({ ok: true, message: 'converted — edit it in the Shader tab' });
+  }, [graph, surface, surfaceId, updateSurface, confirmDialog]);
+
   const shown = filter
     ? NODE_LIST.filter((d) => (d.label + d.category + d.hint).toLowerCase().includes(filter.toLowerCase()))
     : NODE_LIST;
@@ -335,6 +370,9 @@ export const ShaderNodePanel: React.FC = () => {
           <Button size="sm" variant="ghost" onClick={() => flow.current?.fitView({ duration: 200, maxZoom: 1, padding: 0.3 })} title="Frame the whole graph">
             Fit
           </Button>
+          <Button size="sm" variant="ghost" onClick={convertToCode} disabled={graph.nodes.length < 2} title="Hand the generated GLSL to the Shader tab and stop being a graph">
+            Convert to code
+          </Button>
           <span className="ml-auto truncate text-micro text-fg-3">{graph.nodes.length} nodes · {graph.edges.length} wires</span>
         </div>
 
@@ -352,6 +390,10 @@ export const ShaderNodePanel: React.FC = () => {
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
             onConnect={onConnect} isValidConnection={isValid}
             fitView fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
+            // React Flow's default floor is 0.5, and a shader graph is WIDE — thirteen columns of it.
+            // At that floor Fit simply cannot frame the graph: it zooms to 0.5, reports success, and
+            // leaves a third of the nodes off the right edge, with the wheel unable to pull back either.
+            minZoom={0.1} maxZoom={2}
             onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: true }}
             deleteKeyCode={['Delete', 'Backspace']}
             style={{ background: 'var(--surface-0)' }}

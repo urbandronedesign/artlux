@@ -100,7 +100,12 @@ export const ShaderEditorPanel: React.FC = () => {
     if (res.ok) {
       // Only a shader that BUILDS is written to the document. A broken buffer stays in the editor,
       // where it belongs, and the surface keeps drawing the last thing that worked.
-      updateSurface(surfaceId, { content: { ...surface!.content, shaderSource: text } });
+      //
+      // COMPILING BY HAND DETACHES THE NODE GRAPH. Two authors cannot own one shader: leave the graph
+      // in place and the next node the operator touches regenerates over everything typed here. This
+      // is the same trade as Convert to code, arrived at from the other side — and it is not silent,
+      // because the node editor reloads from the surface and shows the graph gone.
+      updateSurface(surfaceId, { content: { ...surface!.content, shaderSource: text, shaderGraph: undefined } });
       loadedSource.current = text; // this IS the loaded source now, so the reload guard stays quiet
       rearmKey(surfaceId); // a fixed shader deserves another go at the frame budget
     }

@@ -43,16 +43,23 @@ export function ShaderContentEditor({
         <select className={SELECT} value={content.shaderId ?? STARTERS[0].id}
           onChange={(e) => {
             const id = e.target.value;
-            if (!content.shaderSource) { onChange({ shaderId: id, shaderSource: undefined }); return; }
+            // THE GRAPH GOES WITH THE CODE. Clearing only the source left the node editor holding a
+            // graph for a shader that is no longer there — and the next node you touched regenerated
+            // it straight back over the built-in you had just chosen.
+            if (!content.shaderSource && !content.shaderGraph) {
+              onChange({ shaderId: id, shaderSource: undefined, shaderGraph: undefined }); return;
+            }
             void (async () => {
               const name = STARTERS.find((s) => s.id === id)?.name ?? id;
               const ok = await confirmDialog({
                 title: `Replace this surface’s shader with “${name}”?`,
-                message: 'This surface has its own edited code. It is lost unless you saved it to the Effects library.',
+                message: content.shaderGraph
+                  ? 'This surface has a node graph. Both it and its generated code are lost unless you saved the effect to the Effects library.'
+                  : 'This surface has its own edited code. It is lost unless you saved it to the Effects library.',
                 confirmLabel: 'Replace',
                 danger: true,
               });
-              if (ok) onChange({ shaderId: id, shaderSource: undefined });
+              if (ok) onChange({ shaderId: id, shaderSource: undefined, shaderGraph: undefined });
             })();
           }}>
           {STARTERS.map((s) => (
