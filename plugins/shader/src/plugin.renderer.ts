@@ -25,6 +25,10 @@ export const plugin: RendererPlugin = {
   manifest: { id: 'shader', name: 'Shaders', version: '0.0.0' },
 
   activate(ctx: RendererPluginContext): void {
+    // Tell the drawable which window it is in — a projector renders at its display's own resolution,
+    // the main window at LED density. See sizeFor.
+    shaderDrawable.setWindowKind(ctx.window);
+
     // 'SHADER' is an OPEN content-type string, not a SourceType enum value: `SurfaceContent.type`
     // accepts any plugin type id and the compositor dispatches unknown types through this registry
     // (contentSource.getDrawable's default branch). So a new content type costs zero core enum edits
@@ -44,6 +48,12 @@ export const plugin: RendererPlugin = {
     // activates this plugin too — it must render shaders — but it has no selection to edit, no
     // surfaces list to enumerate, and no business standing up a CodeMirror it can never show.
     if (ctx.window !== 'main') return;
+
+    // NO AUTHORING UI IN A SHOW LAUNCH. --broadcast runs with the editor window hidden and nobody at
+    // the keyboard, so a CodeMirror and a library browser there are pure cost with no operator to use
+    // them — and the plan's rule that a shader must never be compiled on the show path is easiest to
+    // keep when the thing that compiles is not there. Shaders still RENDER: the outputs are the point.
+    if (new URLSearchParams(location.search).get('broadcast') === '1') return;
 
     // The editor: a DOCK TAB on the mapping workbench, beside the media library and the monitor —
     // not a workspace context of its own.

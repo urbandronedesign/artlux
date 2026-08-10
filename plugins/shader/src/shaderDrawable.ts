@@ -43,12 +43,31 @@ const entries = new Map<string, Entry>();
  * that killed the GPU process at 4K in the Phase 0 bench — and a surface being DRAGGED changes shape
  * every frame. Quantising means a drag crosses a size boundary occasionally instead of continuously.
  */
+/**
+ * WHICH WINDOW THIS IS, because the answer changes what a shader is drawn at.
+ *
+ * The main window feeds the mapper, whose atlas rect is scaled to fixture density and discards
+ * anything finer — 720p there is generous. A projector window feeds a physical projector, where the
+ * picture's detail is what an audience sees, so it renders at the OUTPUT's own pixel count. Same
+ * source text, same parameters, two very different rasters: that is the whole point of shipping the
+ * text between windows rather than the pixels.
+ */
+let windowKind: 'main' | 'projector' = 'main';
+export function setWindowKind(kind: 'main' | 'projector'): void { windowKind = kind; }
+
 const QUANT = 16;
 const MIN_DIM = 64;
 const MAX_DIM = 3840;
 
-function sizeFor(res: number, aspect: number): { w: number; h: number } {
-  const budget = res * ((res * 16) / 9);
+export function sizeFor(res: number, aspect: number): { w: number; h: number } {
+  // A projector window IS its output — fullscreen on the display it is bound to — so its own inner
+  // size is the native raster, with no need to ask the host for it. The 4K ceiling that the main
+  // window keeps does not apply here: what made 4K dangerous was RESIZING the shared canvas every
+  // frame when surfaces disagree about size, and in a projector window every surface is the output
+  // size, so the canvas is allocated once and never thrashes.
+  const budget = windowKind === 'projector' && typeof window !== 'undefined'
+    ? Math.max(1, window.innerWidth) * Math.max(1, window.innerHeight)
+    : res * ((res * 16) / 9);
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 9;
   const q = (v: number) => Math.min(MAX_DIM, Math.max(MIN_DIM, Math.round(v / QUANT) * QUANT));
   return { w: q(Math.sqrt(budget * a)), h: q(Math.sqrt(budget / a)) };

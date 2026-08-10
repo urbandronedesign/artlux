@@ -189,12 +189,21 @@ For **fixtures**, more is not better and generally does nothing: a strip of 60 L
 so a 1080p picture is reduced to 60 samples either way. Example `02-shader-to-leds` puts the same
 shader at 360p and at 1080p next to each other with identical strips on both — the strips match.
 
-For a **projector**, size is the picture's actual detail, so raise it when the output looks soft.
+For a **projector output**, Detail does not apply at all: the output draws the shader again at its
+own display's full resolution. A 4K projector gets a 4K picture whatever this control says, and there
+is nothing to raise. The shader is not copied from the editor to the projector — the *code* is, and
+each screen draws it at the size it needs.
 
-Bigger costs GPU time, and a shader is drawn every frame: on a modest laptop GPU a shader costs
-roughly a tenth of a millisecond at 720p and about ten times that at 1080p. Ten shader surfaces at
-720p is still a small fraction of a frame; ten at 1080p is not. Start at 720p and raise the ones that
-are actually projected.
+So Detail is only about the picture the editor and your fixtures see. Bigger costs GPU time, and a
+shader is drawn every frame: on a modest laptop GPU a shader costs roughly a tenth of a millisecond
+at 720p and about ten times that at 1080p. Ten shader surfaces at 720p is still a small fraction of a
+frame; ten at 1080p is not. There is rarely a reason to leave 720p.
+
+## In a show launch
+
+Started with `--broadcast`, ArtLux runs your shaders and shows them on the outputs, with **no editor
+and no library** — there is no operator at that machine and nothing should be compiling while a show
+is on. Everything you built is already in the project.
 
 ## The clock: a shader follows the show, not the wall
 
