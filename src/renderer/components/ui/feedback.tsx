@@ -28,9 +28,17 @@ interface ConfirmOptions {
   message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  // A THIRD answer, for the one question that genuinely has three: "you have unsaved work — save,
+  // throw it away, or go back?". Two buttons cannot ask it, and chaining two dialogs to fake a third
+  // makes the destructive path the one that takes fewest clicks. Only shown when a label is given, so
+  // every existing caller is a plain yes/no and can never receive 'alt'.
+  altLabel?: string;
   danger?: boolean; // destructive → red confirm, and focus defaults to Cancel
 }
-type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>;
+// `false` = cancelled (also Escape and backdrop click), `true` = the confirm button, 'alt' = the
+// third one. Truthiness is deliberate: 'alt' is truthy, but no caller without `altLabel` can get it.
+type ConfirmResult = boolean | 'alt';
+type ConfirmFn = (opts: ConfirmOptions) => Promise<ConfirmResult>;
 
 const ToastCtx = React.createContext<ToastApi | null>(null);
 const ConfirmCtx = React.createContext<ConfirmFn | null>(null);
@@ -75,12 +83,12 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Confirm — a single dialog resolved through a ref'd promise.
   const [confirmState, setConfirmState] = React.useState<ConfirmOptions | null>(null);
-  const resolver = React.useRef<((v: boolean) => void) | null>(null);
-  const confirm = React.useCallback<ConfirmFn>((opts) => new Promise<boolean>((resolve) => {
+  const resolver = React.useRef<((v: ConfirmResult) => void) | null>(null);
+  const confirm = React.useCallback<ConfirmFn>((opts) => new Promise<ConfirmResult>((resolve) => {
     resolver.current = resolve;
     setConfirmState(opts);
   }), []);
-  const closeConfirm = React.useCallback((result: boolean) => {
+  const closeConfirm = React.useCallback((result: ConfirmResult) => {
     resolver.current?.(result);
     resolver.current = null;
     setConfirmState(null);
@@ -128,7 +136,7 @@ const ToastCard: React.FC<{ toast: ToastItem; onDismiss: () => void }> = ({ toas
   );
 };
 
-const ConfirmDialog: React.FC<{ opts: ConfirmOptions; onClose: (result: boolean) => void }> = ({ opts, onClose }) => {
+const ConfirmDialog: React.FC<{ opts: ConfirmOptions; onClose: (result: ConfirmResult) => void }> = ({ opts, onClose }) => {
   const trapRef = useFocusTrap(true);
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(false); };
@@ -157,6 +165,13 @@ const ConfirmDialog: React.FC<{ opts: ConfirmOptions; onClose: (result: boolean)
           >
             {opts.cancelLabel ?? 'Cancel'}
           </button>
+          {opts.altLabel && (
+            // Deliberately NOT styled as the primary action: this is usually the discarding path, and
+            // it must not be the easiest button to hit by reflex.
+            <button type="button" onClick={() => onClose('alt')} className="px-3 py-1.5 text-xs rounded-md border border-line-2 text-fg-2">
+              {opts.altLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onClose(true)}

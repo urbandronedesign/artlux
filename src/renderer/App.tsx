@@ -15,7 +15,7 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { isLight } from './services/fixtureKind';
 import { derivedFixtureRect, retrackDerivedRect } from './services/fixtureGeometry';
-import { mergeFixtureLook } from './services/sceneLook';
+import { mergeFixtureLook, fixtureLookEqual } from './services/sceneLook';
 import { spawnPosition3D } from './services/led3dDefaults';
 import * as placement from './services/fixturePlacement';
 import { About } from './components/About';
@@ -1417,9 +1417,75 @@ const App: React.FC = () => {
   };
   // Re-capture current LOOK into an existing scene (keeps id/name/fadeSec/timeline) — MadMapper
   // "Update Scene". buildSceneSnapshot is look-only, so a scene's own timeline is never clobbered.
+  // The one definition of what "Update Scene" does to a scene, so Save All commits byte-identically
+  // rather than growing a second, drifting copy of the rule.
+  const sceneWithLook = (s: Scene): Scene => ({ ...s, ...buildSceneSnapshot() });
   const handleUpdateScene = (id: string) => {
-    setScenes(scenes.map(s => s.id === id ? { ...s, ...buildSceneSnapshot() } : s));
+    setScenes(scenes.map(s => s.id === id ? sceneWithLook(s) : s));
   };
+  // ── THE LOOK YOU HAVE NOT STORED YET ────────────────────────────────────────────────────────
+  //
+  // The trap this answers loses work WITHOUT ANYONE QUITTING. buildSceneSnapshot is the live look;
+  // handleUpdateScene is the ONLY thing that puts it into a scene. So tweak a colour while Scene 3 is
+  // bound, then GO to Scene 4 — handleRecallScene commits the target look immediately and the tweak
+  // is gone. No save, no quit, no warning, and after another edit or two not even undoable.
+  //
+  // At most ONE scene can ever be in this state: recalling any other scene replaces the live look
+  // wholesale, so there is never a queue of scenes with pending changes — only the bound one. That is
+  // what makes both the warning and "Save All" well defined, and it is why neither of them is ever
+  // tempted to do the catastrophic thing (stamp the current look onto every scene).
+  // ⚠ THE COMPARISON MUST MIRROR WHAT A RECALL ACTUALLY RESTORES, not what the snapshot carries.
+  // Comparing whole objects reported every freshly-loaded project as modified — measured in the
+  // running app — because a recall deliberately leaves the RIG half of each fixture alone
+  // (services/sceneLook.ts) and presence-guards every field beyond fixtures/globalBrightness so old
+  // minimal scenes still load. So: fixtures through the one function that owns "what is the look",
+  // and for the rest, a stored field that is absent expresses no opinion and cannot be a difference.
+  // Returns WHAT is unstored, not merely whether something is: the chip and the dialog name it, so
+  // "Update scene" is a decision the operator can make rather than a leap of faith. It is also how
+  // this got debugged — the first two attempts fired on every freshly loaded project, and a boolean
+  // could not say why.
+  const sceneLookDiff = useMemo<string[]>(() => {
+    if (!activeSceneId) return [];
+    const scene = scenes.find(s => s.id === activeSceneId);
+    if (!scene) return [];
+    const out: string[] = [];
+    if (!fixtureLookEqual(fixtures, scene.fixtures)) out.push('fixtures');
+    const snap = buildSceneSnapshot() as Record<string, unknown>;
+    const stored = scene as unknown as Record<string, unknown>;
+    // ⚠ BOTH SIDES GET THE SAME NORMALIZATION. buildSceneSnapshot strips `trackingZones` and
+    // `viewFrom` out of scene3D (they are the room and the operator's viewpoint, not the look) — but
+    // a scene STORED BEFORE that rule existed still carries them, so comparing the stripped snapshot
+    // against the raw stored object reported a difference that no amount of pressing Update could
+    // ever resolve. Measured in the running app: it fired on load, every time.
+    const norm = (k: string, v: unknown): unknown =>
+      k === 'scene3D' && v && typeof v === 'object'
+        ? { ...(v as Record<string, unknown>), trackingZones: undefined, viewFrom: undefined }
+        : v;
+    // ⚠ THE WARNING COVERS THE LOOK AN OPERATOR BUILT — fixtures, surfaces, brightness — AND NOT THE
+    // VENUE/RIG SLICES, even though "Update Scene" still stores those. That boundary was found by
+    // measurement, not taste: watching a real project across three cold loads, `projectorOutputs`
+    // reported a difference every time (the scenes predate outputs having a `name`) and then `scene3D`
+    // did (it carries editor and venue state that moves on its own). Neither can be resolved by any
+    // amount of editing, so both made the indicator permanently on — which trains an operator to
+    // ignore the one warning that exists to save their work, and is worse than having none.
+    //
+    // The line is the one the app already draws elsewhere: `projectorOutputs` is deliberately excluded
+    // from the undo stack too ("undoing output config mid-show is a footgun"), and `trackingZones` was
+    // stripped out of the snapshot because a taped rectangle on a floor is the room, not the look.
+    //
+    // ⚠ AND IT EXPOSES A PRE-EXISTING HAZARD I AM NOT FIXING HERE: a scene DOES store projectorOutputs
+    // and scene3D, and a recall DOES restore them — so a GO can revert output config or venue state,
+    // the same shape of bug sceneLook.ts was written to end for fixtures. Flagged, not changed.
+    // `groups` is excluded outright: the snapshot strips it and a recall ignores it.
+    for (const [k, label] of [['surfaces', 'surfaces'], ['globalBrightness', 'brightness']] as const) {
+      if (stored[k] === undefined) continue; // an older scene that never stored this expresses no opinion
+      if (JSON.stringify(norm(k, snap[k])) !== JSON.stringify(norm(k, stored[k]))) out.push(label);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- buildSceneSnapshot reads exactly these
+  }, [activeSceneId, scenes, surfaces, fixtures, globalBrightness, scene3D, projectorOutputs]);
+  const sceneLookDirty = sceneLookDiff.length > 0;
+
   const handleRenameScene = (id: string, name: string) => setScenes(scenes.map(s => s.id === id ? { ...s, name } : s));
   const handleUpdateSceneFade = (id: string, fadeSec: number) => setScenes(scenes.map(s => s.id === id ? { ...s, fadeSec } : s));
   // The ONLY writer of `scene.audio`. Deliberately NOT part of buildSceneSnapshot: "Update Scene" spreads
@@ -1554,9 +1620,31 @@ const App: React.FC = () => {
   // --- Per-state authoring loop (trigger → build → save → continue) ---
   // Enter author mode for a scene: bind the editor to its own timeline and recall its look live so you
   // build against real output. The state-machine control layer is left as-is (author with it off).
-  const enterAuthor = (sceneId: string) => {
+  // Ask before a HUMAN gesture throws away a look that was never stored. Returns false = stay put.
+  //
+  // Only human gestures: a recall reached through the show (FSM, OSC, a cue GO, the tablet, the
+  // scheduler) must never raise a dialog — an unattended venue machine would sit on it until someone
+  // drove over. That is the same line handleRecallScene already draws with `origin`, and it is why
+  // this lives at the operator doors rather than inside the recall itself.
+  const confirmLeaveScene = async (targetSceneId?: string): Promise<boolean> => {
+    if (!sceneLookDirty || !activeSceneId || targetSceneId === activeSceneId) return true;
+    const scene = scenes.find(s => s.id === activeSceneId);
+    const answer = await confirm({
+      title: `Store your changes into “${scene?.name ?? 'this scene'}” first?`,
+      message: 'The look has changed since this scene was stored. Recalling another scene replaces it, and the change is not saved anywhere yet.',
+      confirmLabel: 'Update scene & continue',
+      altLabel: 'Discard & continue',
+      cancelLabel: 'Stay here',
+    });
+    if (answer === false) return false;
+    if (answer === true) { recordHistory(); handleUpdateScene(activeSceneId); }
+    return true;
+  };
+
+  const enterAuthor = async (sceneId: string) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene) return;
+    if (!await confirmLeaveScene(sceneId)) return;
     // Recall already makes this the current edit target + swaps its pool; the scene's own timeline is
     // materialized lazily on first edit (handleTimelineChange), seeded from what was shown.
     handleRecallScene(scene);
@@ -2022,6 +2110,10 @@ const App: React.FC = () => {
       // one. Without this, one Ctrl+Z after File→Open would restore the PREVIOUS project's whole document
       // over the just-opened one (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
       resetHistory();
+      // …and the saved-document baseline settles again from THIS project (see the settling block —
+      // signing it here would capture the OUTGOING document, since these setStates have not committed).
+      settlingRef.current = true;
+      lastSigRef.current = null;
       // …and so does an armed click-to-place: its target belongs to the outgoing document.
       placement.disarm();
       // Surfaces: use the saved ones, or fall back to a default full-stage surface
@@ -2235,17 +2327,133 @@ const App: React.FC = () => {
   // — otherwise host.project.save() would serialize whatever the document was at activation.
   const buildProjectDataRef = useRef(buildProjectData); buildProjectDataRef.current = buildProjectData;
 
+  // ── IS THE DOCUMENT DIFFERENT FROM THE FILE? ────────────────────────────────────────────────
+  //
+  // Nothing had ever asked. There was no dirty flag anywhere in the renderer, so the app could not
+  // show an indicator, could not warn on close, and could not tell you which of your work was still
+  // only in memory. This is that missing fact.
+  //
+  // Compared as the SERIALIZED DOCUMENT, verbatim — not a hash. A hash collision reads as CLEAN, and
+  // clean-when-dirty is the one direction this must never fail in; the string is the same size as the
+  // file we would write, which is nothing.
+  //
+  // ⚠ `timestamp` MUST come out. buildProjectData() stamps `new Date().toISOString()` on every call,
+  // so comparing its raw output would report a document that has never been touched as permanently
+  // modified — the indicator would be on forever and mean nothing.
+  const signatureOf = (data: ReturnType<typeof buildProjectData>): string => {
+      const { timestamp: _ignored, ...rest } = data;
+      return JSON.stringify(rest);
+  };
+  const docSignature = (): string => signatureOf(buildProjectData());
+  const docSignatureRef = useRef(docSignature); docSignatureRef.current = docSignature;
+  const savedDocRef = useRef<string | null>(null); // the document as last written to / read from disk
+  // OPENING DOES NOT END WHEN THE FILE IS PARSED, and that is what made the first three attempts at
+  // this fire on every cold start. The state machine recalls its initial scene, pools warm, audio
+  // normalizes, assets relink — a burst of perfectly legitimate writes, none of them the operator's,
+  // arriving over a second or two AFTER applyProjectData has committed. Baselining at any single
+  // moment in that burst reports a project nobody has touched as modified.
+  //
+  // So the baseline SETTLES instead: while settling, every poll adopts the current document, and
+  // settling ends when the document has stopped moving (two identical ticks, boot gate disarmed) or
+  // the moment the operator touches the app — whichever is first. Chasing the individual causes was
+  // the wrong shape; each fix revealed the next one (outputs, then scene3D, then this).
+  //
+  // ⚠ The honest cost: an edit made in the first second or two of a cold open is adopted as part of
+  // the baseline and will not show as unsaved. That is why the first pointer or key press ends
+  // settling immediately — a boot write is never a human one, so the human's arrival is the signal.
+  const settlingRef = useRef(true);
+  const lastSigRef = useRef<string | null>(null);
+  const [docDirty, setDocDirty] = useState(false);
+
+  // Rebasing happens HERE rather than at the load site because applyProjectData's setStates have not
+  // been applied when it returns — signing the document there would bake in the OUTGOING project.
+  // No dep array on purpose: this runs after every commit, and all it does when idle is read a
+  // boolean. Marked clean at the same moment, so a freshly opened project never flashes as modified.
+  // The operator's arrival ends settling — a boot write is never a human one. Capture phase and
+  // `once`, so it costs one listener and cannot be swallowed by anything that stops propagation.
+  useEffect(() => {
+      const stop = () => { settlingRef.current = false; };
+      window.addEventListener('pointerdown', stop, { capture: true, once: true });
+      window.addEventListener('keydown', stop, { capture: true, once: true });
+      return () => {
+          window.removeEventListener('pointerdown', stop, { capture: true } as EventListenerOptions);
+          window.removeEventListener('keydown', stop, { capture: true } as EventListenerOptions);
+      };
+  }, []);
+
+  // Polled rather than derived from a dependency list. buildProjectData reads ~20 state slices, and a
+  // hand-written dep list that misses one would silently report a modified document as saved — the
+  // exact failure this feature exists to prevent. An interval cannot miss a dependency. ~78 kB of
+  // JSON at 1 Hz is not a cost worth trading that for.
+  useEffect(() => {
+      if (HEADLESS || BROADCAST) return; // no operator, no editing, nothing to warn about
+      const id = window.setInterval(() => {
+          const sig = docSignatureRef.current();
+          if (settlingRef.current) {
+              // Two identical ticks with the gate disarmed = the project has stopped opening.
+              if (!bootGate.isBooting() && sig === lastSigRef.current) settlingRef.current = false;
+              lastSigRef.current = sig;
+              savedDocRef.current = sig;
+              setDocDirty(false);
+              return;
+          }
+          const base = savedDocRef.current;
+          setDocDirty(base !== null && sig !== base);
+      }, 1000);
+      return () => window.clearInterval(id);
+  }, []);
+
   // Save to the current file (Save) or prompt for a location (Save As / first save).
-  const handleSaveProject = async () => {
+  //
+  // `override` exists for Save All, and it is not a convenience: that flow calls setScenes and then
+  // saves in the same tick, and React has not committed by then — so buildProjectData() would write
+  // the scenes as they were BEFORE the look was stored, quietly saving the old version of the very
+  // thing the operator pressed the button to keep. The caller passes what it just set.
+  const handleSaveProject = async (override?: Partial<ReturnType<typeof buildProjectData>>) => {
       try {
-          const path = await window.artlux?.saveProject?.(buildProjectData(), currentProjectPath ?? undefined);
-          if (path) { setCurrentProjectPath(path); refreshRecents(); toast.success('Project saved'); }
+          const data = override ? { ...buildProjectData(), ...override } : buildProjectData();
+          const path = await window.artlux?.saveProject?.(data, currentProjectPath ?? undefined);
+          if (path) {
+              setCurrentProjectPath(path); refreshRecents(); toast.success('Project saved');
+              // Signed from THE PAYLOAD THAT WAS WRITTEN, not from current state — with an override in
+              // play those two differ until React commits, and signing the state would leave the
+              // document reading as modified the moment it was saved.
+              savedDocRef.current = signatureOf(data);
+              setDocDirty(false);
+          }
           return path ?? null; // null = the user cancelled the Save dialog (not an error)
       } catch (err) {
           toast.error('Save failed', String((err as Error)?.message ?? err));
           return null;
       }
   };
+  // ── SAVE ALL ────────────────────────────────────────────────────────────────────────────────
+  // Two verbs, not one: commit the bound scene's pending look, THEN write the file. It exists because
+  // "Update Scene, then Ctrl+S" is two things to remember in the middle of editing, and forgetting
+  // the first one loses work that Ctrl+S would happily write the old version of.
+  //
+  // It updates the ACTIVE scene only — never every scene. `buildSceneSnapshot` is the live look, so
+  // spreading it across all of them would overwrite every scene in the show with whatever is on
+  // screen. Only the bound scene can have a pending look at all (see sceneLookDirty).
+  const handleSaveAll = async () => {
+      const scene = activeSceneId ? scenes.find(s => s.id === activeSceneId) : undefined;
+      if (!scene || !sceneLookDirty) return handleSaveProject(); // nothing pending — a plain save
+      recordHistory();
+      const nextScenes = scenes.map(s => s.id === scene.id ? sceneWithLook(s) : s);
+      setScenes(nextScenes);
+      const path = await handleSaveProject({ scenes: nextScenes });
+      // Said out loud, because the whole point is that you did not have to remember the first step.
+      if (path) toast.success('Saved all', `Look stored into “${scene.name}”, then the project was written.`);
+      return path;
+  };
+
+  // Live mirrors for the close-request handler: it awaits a dialog, so reading these off a captured
+  // render would answer with whatever was true before the operator started thinking.
+  const docDirtyRef = useRef(docDirty); docDirtyRef.current = docDirty;
+  const sceneLookDirtyRef = useRef(sceneLookDirty); sceneLookDirtyRef.current = sceneLookDirty;
+  const confirmRef = useRef(confirm); confirmRef.current = confirm;
+  const saveAllRef = useRef(handleSaveAll); saveAllRef.current = handleSaveAll;
+
   const handleSaveAs = async () => {
       try {
           const path = await window.artlux?.saveProject?.(buildProjectData(), undefined);
@@ -2767,7 +2975,34 @@ const App: React.FC = () => {
           case 'open': handleOpenProject(); break;
           case 'open-project-folder': handleOpenProjectFolder(); break;
           case 'save': handleSaveProject(); break;
+          case 'save-all': handleSaveAll(); break;
           case 'save-as': handleSaveAs(); break;
+          // MAIN IS ASKING WHETHER IT MAY CLOSE (main/closeGuard.ts). It cannot know — only this
+          // process can compare the document against the file — so it holds the window open until we
+          // answer. Answer on EVERY path, including the failure ones, or the window hangs until the
+          // 4-second backstop fires.
+          case 'close-request': void (async () => {
+              const cmd = window.artlux?.windowCommand;
+              try {
+                  const pending = docDirtyRef.current || sceneLookDirtyRef.current;
+                  if (!pending) { cmd?.('force-close'); return; }
+                  const answer = await confirmRef.current({
+                      title: 'Save before closing?',
+                      message: sceneLookDirtyRef.current
+                          ? 'This project has unsaved changes, and the look you are editing has not been stored into its scene yet. Save All does both.'
+                          : 'This project has unsaved changes.',
+                      confirmLabel: 'Save all & close',
+                      altLabel: 'Close without saving',
+                      cancelLabel: 'Keep editing',
+                  });
+                  if (answer === false) { cmd?.('cancel-close'); return; }
+                  // 'alt' = discard. Only the confirm path writes anything.
+                  if (answer === true && !(await saveAllRef.current())) { cmd?.('cancel-close'); return; } // Save-As cancelled or the write failed → do NOT close
+                  cmd?.('force-close');
+              } catch {
+                  cmd?.('cancel-close'); // never leave the window in limbo on a throw
+              }
+          })(); break;
           case 'collect-assets': handleCollectAssets(); break;
           case 'collect-copy': handleCollectCopyToFolder(); break;
           case 'broadcast': handleLaunchBroadcast(); break;
@@ -4199,7 +4434,14 @@ const App: React.FC = () => {
       {/* No toolbar icon group beside the window controls anymore: every function it carried has a
           first-class door (menus, the context rail, dock tabs, F1), and rendering them twice was
           noise — see plans/help-merge-and-topbar-removal.md. */}
-      <MenuBar onMenuAction={(a) => dispatchMenuRef.current(a)} />
+      <MenuBar
+        onMenuAction={(a) => dispatchMenuRef.current(a)}
+        projectPath={currentProjectPath}
+        docDirty={docDirty}
+        sceneLookDirty={sceneLookDirty}
+        sceneLookDiff={sceneLookDiff}
+        sceneName={activeSceneId ? scenes.find(s => s.id === activeSceneId)?.name ?? null : null}
+      />
 
       <EditorStore data={editorData} actions={editorActions}>
       <WorkspaceShell
@@ -4365,7 +4607,7 @@ const App: React.FC = () => {
                         // These three are the OPERATOR GO surfaces (a human clicking the deck) → 'operator',
                         // so they push undo history. The show-driven recalls/cues route through cueBus →
                         // recallByRefRef/fireCueRef/fireColumnRef and inherit the 'show' default (no record).
-                        onRecallScene={(scene) => handleRecallScene(scene, 'operator')}
+                        onRecallScene={async (scene) => { if (await confirmLeaveScene(scene.id)) handleRecallScene(scene, 'operator'); }}
                         onUpdateScene={handleUpdateScene}
                         onRenameScene={handleRenameScene}
                         onRemoveScene={handleRemoveScene}

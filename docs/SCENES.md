@@ -119,6 +119,25 @@ the timeline, reads as correctly configured, and drives nothing.
 > [SCENE-TIMELINES.md](SCENE-TIMELINES.md). (`buildSceneSnapshot` stays look-only, so **Update Scene**
 > never overwrites a scene's timeline.)
 
+> **The unstored look, and why it is a warning and not just a save.** `buildSceneSnapshot` is the live
+> look; `handleUpdateScene` is the ONLY writer of it into a scene. So a look changed since the scene was
+> stored is destroyed by the next recall — no save, no quit, no warning. App now derives
+> `sceneLookDiff` (surfaces / fixtures / brightness) and shows it in the title bar, asks before an
+> **operator** recall replaces it, and **Save All** (`Ctrl+Alt+S`) commits it before writing the file.
+>
+> Two boundaries in that derivation were found by measurement, not taste, and both matter:
+> - fixtures are compared through **`sceneLook.fixtureLookEqual`**, the inverse of `mergeFixtureLook`.
+>   Comparing whole `Fixture` objects reported every freshly-recalled scene as modified, because a
+>   recall deliberately leaves the rig half alone.
+> - `projectorOutputs` and `scene3D` are **excluded from the warning** though Update Scene still stores
+>   them: both drift on their own (outputs predate their `name` field; scene3D carries editor state), so
+>   both made the indicator permanently on — which teaches an operator to ignore it. Same line the app
+>   already draws by keeping `projectorOutputs` out of the undo stack.
+>
+> ⚠ That exclusion **exposes a real hazard rather than fixing it**: a scene *does* store
+> `projectorOutputs` and `scene3D`, and a recall *does* restore them, so a GO can revert output config
+> or venue state — the shape of bug `sceneLook.ts` exists to end for fixtures. Not addressed.
+
 `fadeSec` is the per-scene **crossfade** time. On recall, fadeable numeric params (global brightness,
 surface/fixture geometry, surface **opacity**, and effect speed/intensity) animate from their current
 value to the scene's over `fadeSec`; discrete params (media, effectId, palette, booleans) snap.

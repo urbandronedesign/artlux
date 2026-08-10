@@ -1875,6 +1875,47 @@ check(
   },
 );
 
+// ── Unsaved work is visible, and closing cannot discard it silently ───────────────────────────
+check(
+  'the unsaved-work guard cannot be silently defeated',
+  'Closing the editor used to throw away every unsaved change with no prompt, and nothing on screen ' +
+  'had ever said the document differed from the file. Four things make the fix true, and every one ' +
+  'of them fails INVISIBLY — the app still runs, still saves, and merely stops protecting anything. ' +
+  '(1) The dirty signature must drop `timestamp`: buildProjectData stamps a fresh ISO date on every ' +
+  'call, so keeping it reports an untouched project as permanently modified, and an always-on ' +
+  'indicator is worse than none. (2) The close guard needs its backstop, or a crashed or hung ' +
+  'renderer makes the app UNQUITTABLE — worse, on a venue machine, than losing the edit. (3) Show ' +
+  'modes must not guard at all: nobody is there to answer. (4) Save All must target the ACTIVE scene ' +
+  'only — buildSceneSnapshot is the live look, so spreading it across every scene would overwrite ' +
+  'the whole show with whatever is on screen.',
+  () => {
+    const problems = [];
+    const app = stripComments(read('src/renderer/App.tsx'));
+    if (!/const\s*\{\s*timestamp:[^}]*\}\s*=\s*data/.test(app)) {
+      problems.push('the document signature no longer strips `timestamp` — buildProjectData re-stamps it every call, so the document would read as modified forever');
+    }
+    if (!/fixtureLookEqual\(/.test(app)) {
+      problems.push('the scene-look check no longer goes through sceneLook.fixtureLookEqual — comparing whole fixtures reports every recalled scene as modified, because a recall deliberately leaves the rig half alone');
+    }
+    // Save All commits ONE scene. The signature of the old catastrophe: mapping every scene.
+    const saveAll = fnBody(app, 'handleSaveAll');
+    if (!saveAll) problems.push('handleSaveAll not found — this guard has gone blind');
+    else if (!/s\.id === scene\.id \? sceneWithLook\(s\) : s/.test(saveAll)) {
+      problems.push('handleSaveAll no longer stores the look into the ACTIVE scene alone — stamping the live look onto every scene would overwrite the whole show');
+    }
+    if (!exists('src/main/closeGuard.ts')) return 'src/main/closeGuard.ts is gone — closing would discard unsaved work again';
+    const guard = stripComments(read('src/main/closeGuard.ts'));
+    if (!/setTimeout\(/.test(guard)) {
+      problems.push('closeGuard has no backstop timer — a renderer that never answers would make the window impossible to close');
+    }
+    const index = stripComments(read('src/main/index.ts'));
+    if (!/guardClose\(mainWindow,\s*!HEADLESS && !BROADCAST\)/.test(index)) {
+      problems.push('the close guard is not armed editor-only — a show mode has no operator to answer it and must never refuse to close');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── An alignment aid shows the PROJECTOR, not the picture ─────────────────────────────────────
 check(
   'alignment aids are drawn unwarped, off the real soft edge, and are never persisted',

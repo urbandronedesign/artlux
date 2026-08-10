@@ -18,6 +18,7 @@ import { importGdtf } from './gdtf';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import { rebuildAppMenu } from './menu';
+import { allowClose, cancelClose } from './closeGuard';
 import { activateMainPlugins } from './host/plugins';
 
 // READ_FILE accounting for the cold-open bench (metric D — bytes read vs. bytes actually shown).
@@ -232,6 +233,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
             case 'minimize': win.minimize(); break;
             case 'maximize-toggle': win.isMaximized() ? win.unmaximize() : win.maximize(); break;
             case 'close': win.close(); break;
+            // The renderer's answer to a close-request. `close` above still runs the guard (that is
+            // the point — the title bar's own X must be asked about too); these two are the replies.
+            case 'force-close': allowClose(win); break;
+            case 'cancel-close': cancelClose(win); break;
             case 'quit': app.quit(); break;
             case 'reload': wc.reload(); break;
             case 'devtools': wc.toggleDevTools(); break;

@@ -287,4 +287,20 @@ export const chromeHelp: HelpEntry[] = [
     group: 'General',
     keywords: ['playhead', 'timeline', 'position', 'clock', 'scene'],
   },
+  {
+    id: 'general.document-state',
+    title: 'Saved / unsaved',
+    short: 'The document name in the title bar, with an amber dot when it is ahead of the file.',
+    body: 'An amber dot means the project on disk is behind what you have on screen — click it to Save All (Ctrl+Alt+S). “· look not stored” is the more urgent one: you have changed the look since the bound scene was stored, and recalling another scene REPLACES it — that work is not merely unsaved, it is one GO away from being gone. The tooltip names exactly what is unstored. Timeline edits do not need this: they are written into the bound scene as you make them.',
+    group: 'General',
+    keywords: ['save', 'unsaved', 'dirty', 'modified', 'asterisk', 'dot', 'title bar'],
+  },
+  {
+    id: 'general.save-all',
+    title: 'Save All',
+    short: 'Store the live look into the bound scene, then write the project.',
+    body: 'Two steps in one, because forgetting the first loses work the second would happily overwrite: it stores the current look into the scene you are editing (exactly as Update Scene does), then saves the project file. It only ever touches the ACTIVE scene — never every scene, which would stamp what is on screen over your whole show. With no scene bound, or nothing pending, it is simply Save. Ctrl+Alt+S.',
+    group: 'General',
+    keywords: ['save all', 'save', 'update scene', 'store', 'shortcut'],
+  },
 ];

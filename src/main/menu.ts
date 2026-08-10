@@ -38,6 +38,10 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Open Recent', submenu: recentItems },
         { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => send('save') },
+        // Save All = store the bound scene's pending look, then write the file. Alt+S rather than a
+        // Ctrl combination because Ctrl+Shift+S is Save As and Ctrl+S is Save — the two neighbours
+        // this sits between — and taking either would silently retrain a reflex that already exists.
+        { label: 'Save All', accelerator: 'CmdOrCtrl+Alt+S', click: () => send('save-all') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('save-as') },
         { label: 'Collect Assets…', click: () => send('collect-assets') },
         { label: 'Collect a Copy to Folder…', click: () => send('collect-copy') },

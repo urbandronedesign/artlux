@@ -16,10 +16,40 @@ scenes, cue banks, the 3D scene, the timeline, the media library, and projector 
   imported and recorded media always has a home.
 - **Open…** (**Ctrl/Cmd+O**) opens a `.artlux` file; **Open Project Folder…** (**Ctrl/Cmd+Shift+O**)
   opens a folder. **Open Recent** lists your last projects.
-- **Save** (**Ctrl/Cmd+S**), **Save As…** (**Ctrl/Cmd+Shift+S**).
+- **Save** (**Ctrl/Cmd+S**), **Save All** (**Ctrl/Cmd+Alt+S**), **Save As…** (**Ctrl/Cmd+Shift+S**).
 
 Asset paths inside the folder are stored **relative**, so you can zip or move the whole folder and it
 stays self‑contained.
+
+---
+
+## Not losing work
+
+Two different things can be un‑saved, and only one of them is about the file.
+
+**The project file.** The document name sits in the middle of the title bar. An **amber dot** means
+what you have on screen is ahead of what is on disk; click it to Save All. Closing the window with a
+dot showing now asks — **Save all & close**, **Close without saving**, or **Keep editing** — instead
+of discarding the work silently, which is what it used to do.
+
+**The look you have not stored into its scene.** This one is more urgent, because it can be lost
+*without quitting*. A scene holds a stored look, and **Update Scene** (↻) is the only thing that puts
+the live look into it. Change a colour while a scene is bound and then recall another scene, and the
+recall replaces the live look — your change is gone, saved or not. When that is pending the title bar
+adds **· look not stored**, and hovering it names exactly what (surfaces, fixtures, brightness).
+Recalling another scene by hand now stops to ask first: **Update scene & continue**, **Discard &
+continue**, or **Stay here**.
+
+**Save All** (**Ctrl/Cmd+Alt+S**) does both in order: it stores the live look into the scene you are
+editing, then writes the project. It only ever touches the **active** scene — the one bound to the
+editor — because the live look is a single snapshot, and spreading it across every scene would
+overwrite your whole show with what happens to be on screen right now.
+
+> **Timeline edits need none of this.** They are written into the bound scene's own timeline as you
+> make them, so there is no per‑scene "commit the timeline" step to forget — only the file save.
+
+> **Show modes never ask.** `--broadcast` and `--headless` have no operator to answer a dialog, so the
+> close guard is editor‑only: an unattended machine always closes when told to.
 
 ---
 

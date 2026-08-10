@@ -7,6 +7,7 @@ import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
 import { APP_ICON } from './appIcon';
+import { guardClose } from './closeGuard';
 import { registerDocsWindow } from './docsWindow';
 import * as splash from './splashWindow';
 import { applyUiScale } from './uiScale';
@@ -198,6 +199,9 @@ function createWindow(): void {
         mainWindow.on('ready-to-show', revealBroadcast);
         setTimeout(revealBroadcast, 4000); // backstop: never leave broadcast with an unshown window
     }
+    // Ask the renderer before closing, so an hour of unsaved scene work is not discarded by the X.
+    // Editor only: a show mode has no operator to answer and must never refuse to close.
+    guardClose(mainWindow, !HEADLESS && !BROADCAST);
     mainWindow.on('closed', () => { closeAllProjectors(); closeEnginePort(); mainWindow = null; });
     // Unattended self-heal: wire the crash/hang detectors to this window. No-op unless the watchdog
     // armed itself in whenReady (unattended.enabled + broadcast/always).

@@ -46,6 +46,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Open Recent', submenu: recentItems },
         { sep: true },
         { label: 'Save', accel: 'Ctrl+S', action: 'save' },
+        { label: 'Save All', accel: 'Ctrl+Alt+S', action: 'save-all' },
         { label: 'Save As…', accel: 'Ctrl+Shift+S', action: 'save-as' },
         { label: 'Collect Assets…', action: 'collect-assets' },
         { label: 'Collect a Copy to Folder…', action: 'collect-copy' },
@@ -144,9 +145,15 @@ function buildMenus(recents: string[]): Menu[] {
 
 interface Props {
   onMenuAction: (action: string) => void;
+  // The document, named and stamped — see the title block in the render. `null` path = never saved.
+  projectPath?: string | null;
+  docDirty?: boolean;      // the document differs from the file on disk
+  sceneLookDirty?: boolean; // …and the live look has not been stored into the bound scene
+  sceneLookDiff?: string[]; // which parts of it (surfaces, fixtures, outputs…) — named in the tooltip
+  sceneName?: string | null;
 }
 
-export const MenuBar: React.FC<Props> = ({ onMenuAction }) => {
+export const MenuBar: React.FC<Props> = ({ onMenuAction, projectPath, docDirty, sceneLookDirty, sceneLookDiff, sceneName }) => {
   const [open, setOpen] = useState<string | null>(null); // open top-level menu label
   const [recents, setRecents] = useState<string[]>([]);
   const [maximized, setMaximized] = useState(false);
@@ -233,7 +240,28 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction }) => {
       </div>
 
       {/* Draggable spacer */}
-      <div className="flex-1" />
+      {/* THE DOCUMENT, in the one strip of chrome that is always on screen.
+          Nothing here ever said whether your work was on disk. The dot is the whole feature: an
+          amber dot means the file is behind the document, and "· look not stored" means the more
+          urgent one — a change that the next scene recall will destroy, not merely one that a
+          Ctrl+S would keep. Click to Save All. */}
+      <div className="flex-1 flex items-center justify-center min-w-0" style={DRAG}>
+        <button
+          style={NODRAG}
+          onClick={() => onMenuAction('save-all')}
+          title={
+            sceneLookDirty
+              ? `Not stored into “${sceneName ?? 'the scene'}”: ${(sceneLookDiff ?? []).join(', ')}. Recalling another scene replaces it. Click to Save All (Ctrl+Alt+S).`
+              : docDirty ? 'Unsaved changes — click to Save All (Ctrl+Alt+S)' : 'Everything is saved'
+          }
+          className={`no-press flex items-center gap-1.5 px-2 py-0.5 rounded max-w-[52ch] truncate text-mini ${docDirty || sceneLookDirty ? 'text-fg-2' : 'text-fg-3'}`}
+        >
+          {(docDirty || sceneLookDirty) && <span className="w-1.5 h-1.5 rounded-full bg-warn shrink-0" aria-hidden="true" />}
+          <span className="truncate">{projectPath ? projectPath.replace(/^.*[\\/]/, '') : 'Untitled project'}</span>
+          {sceneLookDirty && <span className="text-warn shrink-0">· look not stored{sceneName ? ` (${sceneName})` : ''}</span>}
+          <span className="sr-only">{docDirty || sceneLookDirty ? 'Unsaved changes' : 'Saved'}</span>
+        </button>
+      </div>
 
       {/* Window controls */}
       <div className="flex items-stretch" style={NODRAG}>

@@ -1324,6 +1324,11 @@ export const contextAction = (id: string): string => `context:${id}`;
 /** Window/menu-role commands the custom title bar can fire at the main window. */
 export type WindowCommand =
   | 'minimize' | 'maximize-toggle' | 'close' | 'quit'
+  // The renderer's answer to a `close-request` (main/closeGuard.ts): proceed, or stay open. Closing
+  // the editor used to discard every unsaved change with no prompt at all, because main has no idea
+  // whether the document differs from the file — only the renderer knows that, so the close has to
+  // make a round trip.
+  | 'force-close' | 'cancel-close'
   | 'reload' | 'devtools' | 'fullscreen'
   | 'zoom-in' | 'zoom-out' | 'zoom-reset'
   | 'cut' | 'copy' | 'paste' | 'select-all';

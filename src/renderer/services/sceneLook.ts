@@ -53,6 +53,32 @@ const FIXTURE_LOOK_KEYS = [
  * `colorData` is cleared for the same reason capture strips it — it is the live DMX frame, not a
  * stored value, and the next frame overwrites it anyway.
  */
+/**
+ * Would storing the live look into this scene actually CHANGE it? — i.e. is there unstored work?
+ *
+ * This is the exact inverse of mergeFixtureLook and must stay that way, which is why it lives here
+ * beside it rather than in App: it has to use the same key list, the same "a field the snapshot does
+ * not carry expresses no opinion" rule, and the same membership rule (the live rig wins; a fixture
+ * patched since the scene was stored is not a look difference). Written independently, it drifts —
+ * and the first version of it, which compared whole Fixture objects, reported EVERY freshly-recalled
+ * scene as modified, because a recall deliberately does not restore the rig half. An indicator that
+ * is always on is worse than no indicator at all: it trains the operator to ignore the one warning
+ * that exists to save their work.
+ */
+export function fixtureLookEqual(live: Fixture[], stored: Fixture[] | undefined): boolean {
+  if (!stored?.length) return true; // nothing stored → a recall would restore nothing → no difference
+  const byId = new Map(stored.map((f) => [f.id, f]));
+  for (const f of live) {
+    const snap = byId.get(f.id);
+    if (!snap) continue; // patched after this scene was stored — membership is rig, not look
+    for (const k of FIXTURE_LOOK_KEYS) {
+      if (snap[k] === undefined) continue;
+      if (JSON.stringify(snap[k]) !== JSON.stringify(f[k])) return false;
+    }
+  }
+  return true;
+}
+
 export function mergeFixtureLook(live: Fixture[], stored: Fixture[] | undefined): Fixture[] {
   if (!stored?.length) return live.map((f) => ({ ...f, colorData: [] }));
   const byId = new Map(stored.map((f) => [f.id, f]));
