@@ -5,6 +5,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useEditor, useEditorActions } from '@/state/EditorStore';
+import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 import * as library from './libraryClient';
 import { resolve as resolveParams } from './shaderParams';
 
@@ -15,6 +16,7 @@ export const ShaderLibraryPanel: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('');
   const [note, setNote] = useState<string | null>(null);
+  const confirmDialog = useConfirm();
 
   useEffect(() => {
     const un = library.subscribe(() => setEntries(library.all()));
@@ -92,7 +94,18 @@ export const ShaderLibraryPanel: React.FC = () => {
               <div className="flex items-center gap-1 px-1.5 py-1">
                 <span className="min-w-0 flex-1 truncate text-micro text-fg-1" title={e.name}>{e.name}</span>
                 <button
-                  onClick={() => { if (confirm(`Delete the effect “${e.name}” from your library?`)) void library.remove(e.name); }}
+                  onClick={() => void (async () => {
+                    // THE IN-APP DIALOG, NEVER THE NATIVE ONE. window.confirm blocks the JS thread, so
+                    // the whole app stops until it is answered — and behind a fullscreen projector
+                    // output the box is not even visible. It reads as a freeze, not as a question.
+                    const ok = await confirmDialog({
+                      title: `Delete “${e.name}”?`,
+                      message: 'Removed from your library on this machine. Projects already using it keep their own copy.',
+                      confirmLabel: 'Delete',
+                      danger: true,
+                    });
+                    if (ok) await library.remove(e.name);
+                  })()}
                   title="Delete from the library"
                   className="text-micro text-fg-3 opacity-0 group-hover:opacity-100"
                 >×</button>

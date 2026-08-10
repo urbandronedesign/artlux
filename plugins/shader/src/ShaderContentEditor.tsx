@@ -12,6 +12,7 @@ import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDrawable';
 import { compileStatus } from './shaderDrawable';
 import { inputsOf, headerProblems } from './shaderParams';
 import { ShaderParamControls } from './ShaderParamControls';
+import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 
 const SELECT =
   'flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none';
@@ -23,6 +24,7 @@ export function ShaderContentEditor({
   content: SurfaceContent;
   onChange: (patch: Partial<SurfaceContent>) => void;
 }): React.ReactElement {
+  const confirmDialog = useConfirm();
   const status = compileStatus(content);
   const inputs = inputsOf(content);
   const problems = headerProblems(content);
@@ -31,8 +33,28 @@ export function ShaderContentEditor({
     <div className="space-y-1 pt-1">
       <div className="flex items-center gap-1">
         <label className="text-fg-2 w-12 text-micro">Shader</label>
+        {/* PICKING A SHADER HAS TO ACTUALLY CHANGE THE SHADER.
+            `sourceOf` runs `shaderSource ?? the built-in`, so once a surface carries its own code —
+            after any compile, or after applying a library effect — setting `shaderId` alone changed
+            nothing at all: the surface kept running the saved text and the editor kept showing it. The
+            control looked live and was inert, which is worse than being disabled.
+            So this CLEARS the saved source. That is destructive, so when there is something to lose it
+            asks first, and names where the copy would have been kept. */}
         <select className={SELECT} value={content.shaderId ?? STARTERS[0].id}
-          onChange={(e) => onChange({ shaderId: e.target.value })}>
+          onChange={(e) => {
+            const id = e.target.value;
+            if (!content.shaderSource) { onChange({ shaderId: id, shaderSource: undefined }); return; }
+            void (async () => {
+              const name = STARTERS.find((s) => s.id === id)?.name ?? id;
+              const ok = await confirmDialog({
+                title: `Replace this surface’s shader with “${name}”?`,
+                message: 'This surface has its own edited code. It is lost unless you saved it to the Effects library.',
+                confirmLabel: 'Replace',
+                danger: true,
+              });
+              if (ok) onChange({ shaderId: id, shaderSource: undefined });
+            })();
+          }}>
           {STARTERS.map((s) => (
             <option key={s.id} value={s.id}>{s.name}{s.family === 'led' ? ' · LED' : ''}</option>
           ))}

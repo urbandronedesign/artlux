@@ -1633,9 +1633,20 @@ check(
     const bad = [];
     for (const f of [...walk('src/renderer'), ...walk('plugins')]) {
       const src = read(f);
-      if (/window\.(confirm|alert)\s*\(/.test(src) || /(^|[^.\w])alert\s*\(/.test(src)) bad.push(f);
+      // BARE `confirm("…")` COUNTS TOO, and it did not until now. The pattern caught `window.confirm`
+      // and bare `alert`, but bare `confirm` walked past it — and that is the form that shipped, in a
+      // library panel, where deleting an effect blocked the JS thread and the app looked frozen. A
+      // guard with a hole shaped exactly like the bug it exists to stop is worse than no guard,
+      // because it is trusted.
+      //
+      // Discriminated by the ARGUMENT, not the name: the in-app `useConfirm()` handle is also called
+      // `confirm` and is called all over App.tsx and Preferences.tsx, so a bare-name match would flag
+      // the CORRECT pattern. The native one takes a string; the in-app one takes an options object.
+      if (/window\.(confirm|alert)\s*\(/.test(src)
+        || /(^|[^.\w])alert\s*\(/.test(src)
+        || /(^|[^.\w])confirm\s*\(\s*['"`]/.test(src)) bad.push(f);
     }
-    return bad.length ? `native window.confirm/alert/alert() found: ${bad.join(', ')}` : null;
+    return bad.length ? `native confirm()/alert() found: ${bad.join(', ')}` : null;
   },
 );
 
