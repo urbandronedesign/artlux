@@ -69,6 +69,7 @@
     "SURFACES.md": "hybrid",
     "EFFECTS.md": "hybrid",
     "SHADERS.md": "usage",
+    "SHADER-COOKBOOK.md": "usage",
     "ASSETS.md": "hybrid",
     "CODECS.md": "usage",
 
@@ -123,6 +124,12 @@
       "target": "docs/SHADERS.md",
       "source": "plugins/shader/src/wrapper.ts",
       "why": "The uniforms a shader can read are declared once, in the wrapper that injects them. A hand-kept table is wrong the first time one is added, and a reference listing a uniform the wrapper does not declare sends an author hunting a compile error in their own code."
+    },
+    {
+      "block": "shader-cookbook",
+      "target": "docs/SHADER-COOKBOOK.md",
+      "source": "plugins/shader/src/cookbook.ts",
+      "why": "The guide teaches with SHIPPED shaders — four are in the app dropdown and all are compiled on a real driver before release. Copying them into markdown by hand would break that the first time one was edited."
     }
   ],
 

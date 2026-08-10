@@ -159,10 +159,55 @@ function renderShaderUniforms(rows) {
   return out.join('\n');
 }
 
+// ── Parsing the shader cookbook ───────────────────────────────────────────────────────────────────────
+// The guide's examples are SHIPPED SHADERS, not prose. Every one is in plugins/shader/src/cookbook.ts,
+// four of them are in the app's shader dropdown, and all of them are compiled on a real driver by the
+// harness before release — so a documented example cannot be one that does not build. Copying them into
+// markdown by hand would break that the first time one was edited.
+function parseCookbook() {
+  const file = path.join(ROOT, 'plugins', 'shader', 'src', 'cookbook.ts');
+  const src = fs.readFileSync(file, 'utf8');
+  const out = [];
+  // One entry per `{ id: '…', … source: `…` }`. Sources contain no backticks (checked below), so a
+  // non-greedy match to the next one is exact rather than merely convenient.
+  const re = /\{\s*\n\s*id:\s*'([^']+)',\s*\n\s*name:\s*'([^']+)',\s*\n\s*teach:\s*'([\s\S]*?)',\s*\n\s*note:\s*\n?([\s\S]*?),\s*\n\s*(?:starter:[\s\S]*?)?source:\s*`([\s\S]*?)`,\s*\n\s*\}/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const note = m[4]
+      .split('\n')
+      .map((l) => l.trim().replace(/^\+?\s*'/, '').replace(/'\s*$/, ''))
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    out.push({ id: m[1], name: m[2], teach: m[3], note, source: m[5] });
+  }
+  if (!out.length) throw new Error('gen-docs-data: cookbook.ts parsed to zero recipes — the literal formatting changed');
+  return out;
+}
+
+function renderCookbook(recipes) {
+  const parts = [];
+  for (const r of recipes) {
+    parts.push(`### ${r.name}`);
+    parts.push('');
+    parts.push(`**${r.teach}**`);
+    parts.push('');
+    parts.push(r.note);
+    parts.push('');
+    parts.push('```glsl');
+    parts.push(r.source);
+    parts.push('```');
+    parts.push('');
+  }
+  return parts.join('\n').trimEnd();
+}
+
 function main() {
   const results = [
     applyBlock('docs/user-guide/15-keyboard-reference.md', 'keymap', renderKeymap(parseShortcuts())),
     applyBlock('docs/SHADERS.md', 'shader-uniforms', renderShaderUniforms(parseShaderUniforms())),
+    applyBlock('docs/SHADER-COOKBOOK.md', 'shader-cookbook', renderCookbook(parseCookbook())),
   ];
 
   const stale = results.filter((r) => r.changed);

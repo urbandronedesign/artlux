@@ -12,6 +12,8 @@
 // header, values and a thumbnail. Their TEXT should survive that move unchanged, which is the point of
 // writing them against the real entry point now rather than something provisional.
 
+import { STARTER_RECIPES } from './cookbook';
+
 export interface Starter {
   id: string;
   name: string;
@@ -175,6 +177,12 @@ vec4 shaderColor(vec2 uv) {
   return vec4(palette(pal, t) * pulse, 1.0);
 }`,
 });
+
+// The cookbook techniques that are useful enough to reach for directly. They live in cookbook.ts
+// because the guide is generated from that file — one copy of each shader, documented and shipped.
+for (const r of STARTER_RECIPES) {
+  STARTERS.push({ id: r.id, name: r.name, family: r.family ?? 'projection', source: r.source });
+}
 
 export const DEFAULT_STARTER = 'plasma';
 
