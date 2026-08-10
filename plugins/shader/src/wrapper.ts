@@ -32,6 +32,7 @@ export const UNIFORMS: { name: string; detail: string }[] = [
   // No apostrophes in these strings: gen-docs-data parses this literal with a regex, and an escaped
   // quote ends the capture early — the doc row came out cut off mid-word the first time.
   { name: 'palette', detail: 'vec3 palette(int id, float t) — sample an ArtLux gradient by index.' },
+  { name: 'lastFrame', detail: 'sampler2D — this shader last frame. Needs REQUIRES_LAST_FRAME in the header.' },
 ];
 
 // `palette()` is always available, whether or not the shader declares a `palette` input, so a shader
@@ -96,7 +97,10 @@ void main() {
 export function buildProgramSource(authorSource: string): { vert: string; frag: string; prefixLines: number } {
   const header = parseHeader(authorSource);
   const decls = header.inputs.map((i) => `uniform ${glslTypeOf(i.type)} ${i.name};`).join('\n');
-  const prefix = decls ? `${FRAG_HEAD}${decls}\n` : FRAG_HEAD;
+  // Declared only when asked for. An always-present sampler would cost a texture unit on every shader
+  // and, worse, would let one read a history buffer that nothing is maintaining for it.
+  const feedback = header.needsLastFrame ? 'uniform sampler2D lastFrame;\n' : '';
+  const prefix = `${FRAG_HEAD}${feedback}${decls ? `${decls}\n` : ''}`;
 
   const usesShadertoy = !/\bshaderColor\s*\(/.test(authorSource) && /\bmainImage\s*\(/.test(authorSource);
   const frag = prefix + authorSource + (usesShadertoy ? SHADERTOY_ADAPTER : '') + MAIN;

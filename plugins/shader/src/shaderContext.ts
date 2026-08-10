@@ -41,6 +41,9 @@ export interface CompiledProgram extends CompileResult {
   uniforms: Uniforms;
   /** Declared inputs, and where each one lives in this program. Empty for a shader with no header. */
   params: { input: ShaderInput; loc: WebGLUniformLocation | null }[];
+  /** Set when the header asked for its own previous frame. */
+  needsLastFrame: boolean;
+  lastFrameLoc: WebGLUniformLocation | null;
 }
 
 let canvas: OffscreenCanvas | null = null;
@@ -65,6 +68,7 @@ function ensure(): WebGL2RenderingContext | null {
     gl = null;
     canvas = null;
     paletteLut = null; // its texture belonged to the context that just died
+    history.clear();   // and so did every feedback buffer
   }
   if (gl) return gl;
   if (unavailable) return null;
@@ -101,6 +105,7 @@ function ensure(): WebGL2RenderingContext | null {
     gl = null;
     canvas = null;
     paletteLut = null; // its texture belonged to the context that just died
+    history.clear();   // and so did every feedback buffer
   });
 
   canvas = c;
@@ -161,7 +166,7 @@ export function getProgram(source: string): CompiledProgram {
 
   const g = ensure();
   if (!g) {
-    const miss: CompiledProgram = { program: null, ok: false, log: 'WebGL2 unavailable', uniforms: emptyUniforms(), params: [] };
+    const miss: CompiledProgram = { program: null, ok: false, log: 'WebGL2 unavailable', uniforms: emptyUniforms(), params: [], needsLastFrame: false, lastFrameLoc: null };
     return miss; // deliberately NOT cached: a lost context may come back
   }
 
@@ -171,7 +176,7 @@ export function getProgram(source: string): CompiledProgram {
   let entry: CompiledProgram;
 
   if (!v.sh || !f.sh) {
-    entry = { program: null, ok: false, log: toAuthorSpace(f.log || v.log, prefixLines), uniforms: emptyUniforms(), params: [] };
+    entry = { program: null, ok: false, log: toAuthorSpace(f.log || v.log, prefixLines), uniforms: emptyUniforms(), params: [], needsLastFrame: false, lastFrameLoc: null };
   } else {
     const p = g.createProgram()!;
     g.attachShader(p, v.sh);
@@ -181,7 +186,7 @@ export function getProgram(source: string): CompiledProgram {
     g.deleteShader(v.sh);
     g.deleteShader(f.sh);
     if (!g.getProgramParameter(p, g.LINK_STATUS)) {
-      entry = { program: null, ok: false, log: toAuthorSpace(g.getProgramInfoLog(p) ?? 'link failed', prefixLines), uniforms: emptyUniforms(), params: [] };
+      entry = { program: null, ok: false, log: toAuthorSpace(g.getProgramInfoLog(p) ?? 'link failed', prefixLines), uniforms: emptyUniforms(), params: [], needsLastFrame: false, lastFrameLoc: null };
       g.deleteProgram(p);
     } else {
       entry = {
@@ -199,6 +204,8 @@ export function getProgram(source: string): CompiledProgram {
         // optimised out and its location is null — kept in the list anyway, so the inspector still
         // shows the control the author declared rather than silently dropping it.
         params: parseHeader(source).inputs.map((input) => ({ input, loc: g.getUniformLocation(p, input.name) })),
+        needsLastFrame: parseHeader(source).needsLastFrame,
+        lastFrameLoc: g.getUniformLocation(p, 'lastFrame'),
       };
     }
   }
@@ -209,7 +216,7 @@ export function getProgram(source: string): CompiledProgram {
 
 /** A "did not build" result carrying `log`. The lint uses it to speak the same language as the driver. */
 export function failedProgram(log: string): CompiledProgram {
-  return { program: null, ok: false, log, uniforms: emptyUniforms(), params: [] };
+  return { program: null, ok: false, log, uniforms: emptyUniforms(), params: [], needsLastFrame: false, lastFrameLoc: null };
 }
 
 function emptyUniforms(): Uniforms {
@@ -231,6 +238,8 @@ export function renderToBitmap(
   timeSec: number,
   /** Resolved parameter values by input name — automation override, else authored, else the default. */
   params?: Map<string, number | number[]>,
+  /** The CONSUMER (surface id). Feedback history belongs to the surface, not to the program. */
+  key?: string,
 ): ImageBitmap | null {
   const g = ensure();
   if (!g || !entry.ok || !entry.program || !canvas) return null;
@@ -274,9 +283,29 @@ export function renderToBitmap(
     }
   }
 
+  // This shader last frame, on unit 1 (unit 0 is the palette LUT). On the very first frame the
+  // texture is freshly allocated and reads as transparent black, which is the right seed for a trail.
+  let hist: WebGLTexture | null = null;
+  if (entry.needsLastFrame && key) {
+    hist = ensureHistory(g, key, w, h);
+    if (hist && entry.lastFrameLoc) {
+      g.activeTexture(g.TEXTURE1);
+      g.bindTexture(g.TEXTURE_2D, hist);
+      g.uniform1i(entry.lastFrameLoc, 1);
+    }
+  }
+
   g.bindVertexArray(vao);
   g.drawArrays(g.TRIANGLES, 0, 3);
   g.bindVertexArray(null);
+
+  // Keep this frame as next frame past — BEFORE the transfer, which hands the drawing buffer away and
+  // leaves the canvas cleared.
+  if (hist) {
+    g.activeTexture(g.TEXTURE1);
+    g.bindTexture(g.TEXTURE_2D, hist);
+    g.copyTexSubImage2D(g.TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+  }
 
   return canvas.transferToImageBitmap();
 }
@@ -304,6 +333,50 @@ function ensurePaletteLut(g: WebGL2RenderingContext): { tex: WebGLTexture; rows:
   g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
   paletteLut = { tex, rows: lut.count };
   return paletteLut;
+}
+
+/**
+ * THE HISTORY BUFFER — one texture per CONSUMER, not per program.
+ *
+ * Two surfaces running the same shader are two different pictures with two different pasts, so this is
+ * keyed by surface, while the compiled program is keyed by source text. Getting that wrong would give
+ * one surface the other's trails.
+ *
+ * A COPY, NOT A PING-PONG. The shader draws into the canvas as usual and the result is copied into
+ * this texture afterwards, which costs one `copyTexSubImage2D` and no second draw. The ping-pong an
+ * FBO pair would need buys nothing here because the shader never reads and writes the same texture in
+ * one pass — it reads the copy of the PREVIOUS frame, which is a different object by construction.
+ *
+ * A size change reallocates and therefore clears the history. That is a visible glitch when an operator
+ * resizes a surface carrying trails, and the alternative — rescaling the old contents — would invent
+ * pixels the shader never drew. A one-frame reset is the honest answer.
+ */
+const history = new Map<string, { tex: WebGLTexture; w: number; h: number }>();
+
+function ensureHistory(g: WebGL2RenderingContext, key: string, w: number, h: number): WebGLTexture | null {
+  const hit = history.get(key);
+  if (hit && hit.w === w && hit.h === h) return hit.tex;
+  if (hit) g.deleteTexture(hit.tex);
+
+  const tex = g.createTexture();
+  if (!tex) return null;
+  g.bindTexture(g.TEXTURE_2D, tex);
+  g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, w, h, 0, g.RGBA, g.UNSIGNED_BYTE, null);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
+  // CLAMP, not REPEAT: a trail that runs off the edge must fade, not wrap round and re-enter the
+  // other side as a ghost the author never asked for.
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+  history.set(key, { tex, w, h });
+  return tex;
+}
+
+/** A consumer stopped needing feedback (released, or its shader dropped the flag). */
+export function dropHistory(key: string): void {
+  const h = history.get(key);
+  if (h && gl) gl.deleteTexture(h.tex);
+  history.delete(key);
 }
 
 /** For the bench and the boot report: is there a usable context at all? */

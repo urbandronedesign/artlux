@@ -93,6 +93,35 @@ vec4 shaderColor(vec2 uv) {
 }`,
 });
 
+STARTERS.push({
+  id: 'trails',
+  name: 'Comet trails',
+  family: 'projection',
+  source: `/*{
+  "TITLE": "Comet trails",
+  "CATEGORIES": ["ambient"],
+  "REQUIRES_LAST_FRAME": true,
+  "INPUTS": [
+    { "NAME": "decay",  "LABEL": "Trail length", "TYPE": "float", "MIN": 0.80, "MAX": 0.995, "DEFAULT": 0.96 },
+    { "NAME": "speed",  "LABEL": "Speed",        "TYPE": "float", "MIN": 0.05, "MAX": 2.0,   "DEFAULT": 0.4 },
+    { "NAME": "radius", "LABEL": "Head size",    "TYPE": "float", "MIN": 0.01, "MAX": 0.20,  "DEFAULT": 0.05 }
+  ]
+}*/
+// REQUIRES_LAST_FRAME hands this shader its OWN previous output as \`lastFrame\`. Reading it, fading it
+// and drawing on top is the whole trick behind trails, decay and reaction-diffusion — and because a
+// shader only ever reads its own past, there is no ordering problem and no cycle to resolve.
+vec4 shaderColor(vec2 uv) {
+  vec3 prev = texture(lastFrame, uv).rgb * decay;
+
+  vec2 p = (uv - 0.5) * vec2(iAspect, 1.0);
+  vec2 head = vec2(cos(iTime * speed) * 0.35, sin(iTime * speed * 1.3) * 0.30);
+  float d = length(p - head);
+
+  vec3 dot3 = vec3(0.35, 0.85, 1.0) * smoothstep(radius, 0.0, d);
+  return vec4(max(prev, dot3), 1.0);
+}`,
+});
+
 export const DEFAULT_STARTER = 'plasma';
 
 export function starterSource(id: string | undefined): string {

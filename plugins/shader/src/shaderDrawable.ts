@@ -8,7 +8,7 @@
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
 import { reportFault } from '@/services/faultReporter';
-import { getProgram, renderToBitmap, failedProgram, type CompiledProgram } from './shaderContext';
+import { getProgram, renderToBitmap, failedProgram, dropHistory, type CompiledProgram } from './shaderContext';
 import { sourceOf } from './shaderSource';
 import { lintLoops, noteDraw, isDisabled, rearm, BUDGET } from './shaderGuard';
 import { resolve as resolveParams } from './shaderParams';
@@ -130,7 +130,7 @@ export function getFor(key: string, content: SurfaceContent, timeSec: number): I
   if (!result.ok) { entry.sig = sig; entries.set(key, entry); return entry.bitmap; }
 
   const t0 = performance.now();
-  const bmp = renderToBitmap(result, w, h, timeSec, values);
+  const bmp = renderToBitmap(result, w, h, timeSec, values, key);
   const ms = performance.now() - t0;
   if (!bmp) return entry.bitmap;
 
@@ -166,5 +166,6 @@ export function rearmKey(key: string): void { rearm(key); }
 export function release(key: string): void {
   entries.get(key)?.bitmap?.close();
   entries.delete(key);
+  dropHistory(key); // a feedback buffer is a full-resolution texture; it must not outlive its surface
   rearm(key);
 }

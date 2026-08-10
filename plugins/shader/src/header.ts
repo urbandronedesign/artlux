@@ -36,13 +36,21 @@ export interface ShaderInput {
 
 export interface ShaderHeader {
   title?: string;
+  /**
+   * The shader asked for its own previous frame — trails, decay, reaction-diffusion.
+   *
+   * MadMapper spells this REQUIRES_LAST_FRAME and it is worth copying exactly, because the shape of
+   * the feature is the good idea: SELF-feedback has no cycles, no ordering problem and no cross-surface
+   * graph, which is why it is safe here while sampling ANOTHER surface is not.
+   */
+  needsLastFrame: boolean;
   categories: string[];
   inputs: ShaderInput[];
   /** Problems to show the author. Never thrown — a bad header must not stop the shader compiling. */
   problems: string[];
 }
 
-const EMPTY: ShaderHeader = { categories: [], inputs: [], problems: [] };
+const EMPTY: ShaderHeader = { categories: [], inputs: [], problems: [], needsLastFrame: false };
 
 const SUPPORTED: InputType[] = ['float', 'bool', 'long', 'color', 'point2D', 'palette'];
 
@@ -51,7 +59,7 @@ const IDENT = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
 
 // Names the wrapper already declares. A shader that redeclares one gets a compile error whose cause is
 // nowhere near the line it points at, so it is refused here where the reason can be stated plainly.
-const RESERVED = new Set(['iTime', 'iWallTime', 'iResolution', 'iAspect', 'iFrame', 'uv', 'shaderColor', 'mainImage', 'palette', 'artluxFragColor', 'vUv']);
+const RESERVED = new Set(['iTime', 'iWallTime', 'iResolution', 'iAspect', 'iFrame', 'uv', 'shaderColor', 'mainImage', 'palette', 'artluxFragColor', 'vUv', 'lastFrame']);
 
 function num(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
@@ -120,6 +128,7 @@ export function parseHeader(source: string): ShaderHeader {
   }
 
   return {
+    needsLastFrame: raw.REQUIRES_LAST_FRAME === true,
     title: typeof raw.TITLE === 'string' ? raw.TITLE : undefined,
     categories: Array.isArray(raw.CATEGORIES) ? (raw.CATEGORIES as unknown[]).map(String) : [],
     inputs,

@@ -8,8 +8,8 @@ It behaves like any other content. Fixtures sample it, projector outputs show it
 work on it, and it needs no media, no network and no hardware.
 
 > **What you can do today:** choose a built-in shader, edit its code in ArtLux, give it your own
-> parameters, and drive those from the timeline, OSC or the state machine. **Still to come:**
-> sound-reactive inputs, trails, and a library of effects that carries across projects.
+> parameters, drive those from the timeline, OSC or the state machine, and give it trails.
+> **Still to come:** sound-reactive inputs, and a library of effects that carries across projects.
 
 ## Put one on a surface
 
@@ -27,6 +27,7 @@ That is the whole setup. The picture starts immediately.
 | **Rings** | Concentric rings travelling outward from the centre | Projection — circular architecture, discs, columns |
 | **Strip chase** · LED | A bright comet running left to right with a fading tail, wrapping at the ends | LED tape — everything varies *along* the strip |
 | **Palette wave** · LED | Bands of one of ArtLux's gradients sweeping along the surface | LED tape — and the worked example of a shader with **knobs** |
+| **Comet trails** | A head wandering the surface, leaving a long fading tail | Projection — and the worked example of **feedback** |
 
 The `· LED` mark is the important one. A shader made for a projector usually looks like noise on sixty
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
@@ -61,6 +62,7 @@ Available to it:
 | `iAspect` | float | width / height. Use it to keep circles round. |
 | `iFrame` | int | frames drawn since the shader loaded. |
 | `palette` | vec3 palette(int id, float t) | sample an ArtLux gradient by index. |
+| `lastFrame` | sampler2D | this shader last frame. Needs REQUIRES_LAST_FRAME in the header. |
 
 <!-- /generated:shader-uniforms -->
 
@@ -109,6 +111,26 @@ surfaces can run the same shader at different settings.
 
 **An automation lane wins while it is running, and gives the control back when it stops.** Turning a
 lane off snaps the parameter to whatever you set by hand — not to wherever the curve happened to end.
+
+## Trails, decay, and anything that remembers
+
+Add `"REQUIRES_LAST_FRAME": true` to the header and your shader is handed its own previous frame as
+`lastFrame`. Read it, fade it, draw on top:
+
+```glsl
+vec3 prev = texture(lastFrame, uv).rgb * decay;  // decay 0.96 ≈ a long tail, 0.80 ≈ a short one
+return vec4(max(prev, myNewPixels), 1.0);
+```
+
+That is the whole mechanism behind trails, motion blur, decay and reaction-diffusion. The built-in
+**Comet trails** shader is the worked example.
+
+A shader only ever sees **its own** past, never another surface — which is what keeps it simple and
+predictable. Two surfaces running the same shader keep separate histories, so they never bleed into
+one another.
+
+One thing to expect: **resizing the surface clears the trail.** The history buffer is re-made at the
+new shape, and inventing pixels the shader never drew would be worse than a one-frame reset.
 
 **Reset** puts the built-in shader back, so an experiment is never a one-way door.
 
