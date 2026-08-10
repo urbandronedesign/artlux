@@ -4013,6 +4013,47 @@ check(
   },
 );
 
+// ── a plugin content type must be CLASSIFIED for projector windows ───────────────────────────
+check(
+  'every plugin content type is renderable in a projector window',
+  'ProjectorApp classifies content into SELF_RENDER (drawn locally) and STREAMED (ImageBitmaps ' +
+  'pushed from the main window). A type in NEITHER set renders NOTHING — a black output, in the one ' +
+  'mode with no operator watching, while the stage and the fixtures look perfectly correct. SLICE ' +
+  'shipped that way once; SHADER did it again the day it was added. The third legitimate path is a ' +
+  'projector CHANNEL with renderSource (how MEDIAPIPE and AUGMENTA draw themselves), so a plugin ' +
+  'that registers one for its own type is covered too.',
+  () => {
+    const projSrc = read('src/renderer/projector/ProjectorApp.tsx');
+    const setLiterals = (name) => {
+      const m = projSrc.match(new RegExp(`${name}\\s*=\\s*new Set<string>\\(\\[([^\\]]*)\\]`));
+      if (!m) return null; // the set itself vanished — a problem, not an empty answer
+      return new Set([...m[1].matchAll(/'([^']+)'|SourceType\.(\w+)/g)].map((x) => x[1] ?? x[2]));
+    };
+    const self = setLiterals('SELF_RENDER');
+    const streamed = setLiterals('STREAMED');
+    if (!self || !streamed) return 'ProjectorApp no longer declares SELF_RENDER / STREAMED as Set<string> literals';
+
+    const bad = [];
+    for (const f of walk('plugins')) {
+      const src = read(f);
+      // The registration call, not the string: a type name in a comment or a type alias must not
+      // satisfy this, and a plugin that stopped registering content must stop being asked about.
+      const reg = [...src.matchAll(/contentSources\.register\(\s*\{\s*type:\s*'([^']+)'/g)].map((m) => m[1]);
+      if (!reg.length) continue;
+      const drawsItself = /projectorChannels\.register\(/.test(src) && /renderSource\s*:/.test(src);
+      for (const t of reg) {
+        // SourceType.X members are matched by their member NAME above, which is also the string value
+        // for every core type — they are declared as `X = 'X'`.
+        if (self.has(t) || streamed.has(t) || drawsItself) continue;
+        bad.push(`${t} (${f})`);
+      }
+    }
+    return bad.length
+      ? `content type(s) in neither SELF_RENDER nor STREAMED, and with no projector renderSource — a projector output for one of these is BLACK: ${bad.join(', ')}`
+      : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
