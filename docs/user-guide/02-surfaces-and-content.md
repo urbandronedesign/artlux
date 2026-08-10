@@ -49,7 +49,7 @@ Select a surface, then pick a type in the Inspector's **Content** grid:
 | **None** | — | Black surface (linked fixtures go dark). |
 | **Video** | A video file (`.mp4`, `.webm`, `.mov`, `.mkv`) | Driven by the timeline transport / **Space**. HAP‑encoded `.mov` is GPU‑decoded for smooth high‑res playback. |
 | **Image** | An image file | Static (Play/Pause does nothing). |
-| **Camera** | — (a connected webcam) | The OS asks for camera permission the first time. |
+| **Camera** | A **Device** (which webcam), plus **Size** / **Rate** | The OS asks for camera permission the first time. Leave the device on *Default camera* if the machine has only one — otherwise pick yours, and see the note below. **Camera controls** (exposure, white balance, brightness, zoom…) appear if the camera has them. |
 | **DMX In** | — | Shows incoming Art‑Net/sACN as content (input port set in Preferences). |
 | **Spout** | A Spout sender name (Windows) | Live GPU feed from Resolume/TouchDesigner etc. **Refresh** rescans; blank = active sender. *Requires a Spout sender running **on the same GPU as ArtLux** — see the note below.* |
 | **NDI** | An NDI source name | Network video. Requires the free **NDI Runtime/Tools**; if missing, the panel shows an install link. **Refresh** rescans; blank = first source. |
@@ -72,6 +72,40 @@ enabled when something is playable). Live sources (camera, Spout, NDI, DMX‑in)
 > in **Windows Settings ▸ System ▸ Display ▸ Graphics** by setting *both* ArtLux and the sender app to
 > the same GPU. If you can't, use **NDI** instead: it costs a compression pass but has no such limit.
 > Full detail in the [Spout reference](../SPOUT.md).
+
+> **The camera surface is empty and the camera works everywhere else.** Almost always the wrong
+> *device*. **Default camera** means whatever Windows offers first, and a machine with **NDI Tools**,
+> **OBS** or a webcam-utility installed has a **virtual camera** in that list — it opens successfully
+> and then sends no picture. Set **Content ▸ Device** to your real webcam by name.
+>
+> Each surface picks its own device, so you can map two cameras onto two surfaces at once, and the
+> choice is saved with the project. Two things to expect: device **names** stay generic (*Camera 1,
+> Camera 2*) until a camera has opened successfully once — that's the operating system withholding
+> them until permission has been used — and the ids are **per machine**, so a project opened on
+> another computer falls back to the default camera and says so under the picker. Re-pick there.
+>
+> Under the picker ArtLux states what the chosen camera is doing — *Live*, *Opening…*, or the reason
+> it can't: **permission denied**, **in use by another program** (close Teams/Zoom/OBS, then
+> **Retry**), or **not connected**.
+
+> **Size, rate and the camera's own controls.** **Size** and **Rate** list only what this camera can
+> reach, and they are a **request, not a command**: a camera that can't do what you asked gives its
+> nearest mode rather than failing, so read the **Actual** line underneath — ask 1080p60 of a camera
+> that only does 1080p30 and you get 30, and nothing else would tell you. Leave both on *Camera
+> default* unless you need something specific; a bigger capture is uploaded to the GPU every frame,
+> for detail LED fixtures usually can't resolve. Raise it when the surface also feeds a projector.
+>
+> **Camera controls** (in the fold under the format) are **whatever this camera advertises** — a
+> plain webcam offers brightness and contrast, a better one exposure and white balance, a PTZ head
+> pan/tilt/zoom. Nothing is listed that the device doesn't have. Two are worth setting for any real
+> show: put **Exposure** and **White balance** on *manual*, because on auto they hunt and drift as
+> the stage light changes and the surface breathes with them. Sliders take effect as you drag.
+> **Reset to camera defaults** hands every control back to the camera (it re-opens the device, so
+> the picture blinks once).
+>
+> If two surfaces use the **same** camera they share one capture — one camera, one exposure. They get
+> the largest size and rate either asked for, and the controls of whichever surface was created last.
+> Two *different* cameras on two surfaces is fine and costs two captures.
 
 > **Tip:** for **Video** and **Image** you don't have to browse each time — import once into the
 > **Media** library and **drag a tile onto the surface** (or select the surface and click **Use**).

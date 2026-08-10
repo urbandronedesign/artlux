@@ -12,7 +12,18 @@ universe/address allocation and a multi-controller routing spreadsheet.
   it keeps its content, its preview and its outputs. Only reduced/WebGL rendering mode samples the
   0..1 document, and the Stage shows a document frame + a warning chip there).
 - **SurfaceContent** — `{ type: NONE | VIDEO | IMAGE | CAMERA | SPOUT | DMX_IN | EFFECT, url?,
-  spoutName?, effectId?, paletteId?, speed?, intensity? }`.
+  spoutName?, cameraDeviceId?, cameraWidth?, cameraHeight?, cameraFps?, cameraControls?, effectId?,
+  paletteId?, speed?, intensity? }`. A live input that a machine can have several of **names the one
+  it wants**, exactly as Spout names a sender and NDI a source: `cameraDeviceId` picks the video
+  input (absent ⇒ the OS default). It is a browser `deviceId`, stable per machine and salted per
+  profile, so a project moved elsewhere falls back to the default camera and the inspector says so.
+  The format is requested as **`ideal`, never `exact`** — a webcam publishes ranges, not a menu, and
+  `exact` turns "cannot do 4K" into a dead surface instead of the nearest mode; the negotiated result
+  is read back off the live track and shown, because it genuinely differs. `cameraControls` is an
+  **open bag keyed by whatever `track.getCapabilities()` advertises** (exposure, white balance, zoom,
+  pan/tilt…), applied live through `applyConstraints` with no reopen — so the inspector renders the
+  controls the *device* has, not a list we guessed. Its one asymmetry: `applyConstraints` can set a
+  value but cannot un-set one, so removing a control re-opens the capture.
 - **Slice** (`type: SLICE`) — a surface that shows a **cropped region of another surface**
   (`sliceOf`, `sliceRect`) instead of owning content. It borrows the source's picture, so N slices of
   one video cost **one** decode; because each slice is a normal Surface it gets its own projector
@@ -31,7 +42,10 @@ universe/address allocation and a multi-controller routing spreadsheet.
 2. **Effects on surfaces** — an effect is a surface content type rendered 2D into the surface; the
    per-fixture "source = Effect" UI is retired (engine kept during migration).
 3. **Standard routing spreadsheet** (no external reference).
-4. **One live input at a time** in v1 (many video/image/effect surfaces, single camera OR Spout).
+4. ~~**One live input at a time** in v1 (many video/image/effect surfaces, single camera OR Spout).~~
+   **Superseded.** Live inputs are refcounted per *source*, not globally: Spout/NDI per sender, and
+   the camera **per device** (`services/contentSource.ts` → `cams`). Two surfaces on two webcams cost
+   two captures; N surfaces on one webcam still cost one.
 
 ## Engine design (target, S3)
 Per-surface render → per-surface sample, reusing the compute shader's normalized

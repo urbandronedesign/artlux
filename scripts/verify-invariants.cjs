@@ -1860,12 +1860,63 @@ check(
       problems.push('dropMedia does not close the ImageBitmap — that is a GPU-memory leak per surface retype');
     }
     // The pump replaces the held frame every time one arrives; stopCamera closes the last one.
-    if (!/cameraFrame\?\.close\(\)/.test(src)) {
+    // Two spellings are accepted because the camera stopped being ONE global: it is a capture per
+    // device now (`cams`, keyed by SurfaceContent.cameraDeviceId), so the held frame lives on the
+    // per-device record. The obligation is unchanged — only the noun moved.
+    const CLOSES_FRAME = /(?:cameraFrame|cam\.frame)\?\.close\(\)/;
+    if (!CLOSES_FRAME.test(src)) {
       problems.push('the camera frame is never closed — VideoFrames pin decoder buffers and the camera will stall');
     }
     const stop = fnBody(src, 'stopCamera');
-    if (stop && !/cameraFrame\?\.close\(\)/.test(stop)) {
+    if (stop && !CLOSES_FRAME.test(stop)) {
       problems.push('stopCamera leaves the last VideoFrame open');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── A live input you can have two of must let the operator say WHICH ──────────────────────────
+check(
+  'a camera surface names its device, and the inspector can choose it',
+  'Spout names a sender and NDI names a source; the camera named NOTHING and opened whatever ' +
+  'getUserMedia({video:true}) handed back — the OS default video input. On a show machine that is ' +
+  'routinely a VIRTUAL camera (NDI Webcam Input, OBS, a vendor overlay), which opens perfectly and ' +
+  'then produces no frames, so the surface sat empty forever. It cost a site visit to diagnose, ' +
+  'because the same physical camera worked in the MediaPipe and calibration wizards — they had ' +
+  'always had a device picker of their own, and that asymmetry WAS the bug. Nothing about it is ' +
+  'visible to a typechecker: the code compiles, the app boots, the permission is granted and no ' +
+  'error is thrown. So the demand must carry a device (per consumer, so two surfaces can hold two ' +
+  'cameras), the drawable must be resolved by that device, and the inspector must offer the list.',
+  () => {
+    const src = stripComments(read('src/renderer/services/contentSource.ts'));
+    const problems = [];
+    const acq = fnBody(src, 'acquire');
+    if (!acq) problems.push('contentSource.acquire not found — this guard has gone blind');
+    else if (!/cameraDeviceId/.test(acq)) {
+      problems.push('acquire ignores content.cameraDeviceId — every camera surface is back on one capture of the DEFAULT device');
+    }
+    const draw = fnBody(src, 'getDrawable');
+    if (!draw) problems.push('contentSource.getDrawable not found — this guard has gone blind');
+    else if (!/cameraDeviceId/.test(draw)) {
+      problems.push('getDrawable does not resolve the camera by device — a second camera would show the first one picture');
+    }
+    const editor = stripComments(read('src/renderer/components/ContentEditor.tsx'));
+    if (!/SourceType\.CAMERA\s*&&\s*<CameraSettings/.test(editor)) {
+      problems.push('the content inspector does not render CameraSettings for a camera surface — the choice exists but the operator cannot reach it');
+    }
+    const ui = stripComments(read('src/renderer/components/CameraSettings.tsx'));
+    if (!/cameraDeviceId/.test(ui)) problems.push('CameraSettings offers no device picker');
+    // The picture controls must be driven by the DEVICE's capabilities, not by a hardcoded list —
+    // that is what lets one panel serve a plain webcam and a PTZ head, and what stops us shipping a
+    // slider for something the camera does not have.
+    if (!/capabilities/.test(ui)) {
+      problems.push('CameraSettings does not read the device capabilities — the control list must come from the camera, not from a fixed list');
+    }
+    // A drag must reach the device WITHOUT a document write per pointer move: App owns the state and
+    // the tree is only partly memoized, so committing on every move re-renders the editor at pointer
+    // rate and the slider feels broken. onInput previews, onChange commits.
+    if (!/onInput=\{[^}]*previewCameraControl/.test(ui)) {
+      problems.push('a camera control slider must preview through previewCameraControl on onInput, not commit on every pointer move');
     }
     return problems.length ? problems.join('; ') : null;
   },

@@ -9,6 +9,7 @@ import { help } from '../services/helpBus';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { contentSourceRegistry } from '../host/registries';
+import { CameraSettings } from './CameraSettings';
 
 // The content-source picker grid + per-type config (Spout sender, NDI source, Effect params,
 // Tracking options, Layer track, opacity). Shared by the surface inspector and the timeline clip
@@ -170,6 +171,8 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
           {sliceable.length === 0 && <div className="text-micro text-fg-3 italic">No other surface to slice.</div>}
         </div>
       )}
+
+      {c.type === SourceType.CAMERA && <CameraSettings content={c} onChange={onChange} />}
 
       {showLayerOption && c.type === SourceType.LAYER && (
         <div className="flex items-center gap-1 pt-1">

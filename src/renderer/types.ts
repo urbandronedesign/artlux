@@ -253,6 +253,33 @@ export interface SurfaceContent {
   url?: string;        // VIDEO / IMAGE object URL or file path
   spoutName?: string;  // SPOUT sender name (empty = active sender)
   ndiName?: string;    // NDI source name (empty = first discovered)
+  // CAMERA — WHICH video input to open. Absent ⇒ the OS default device, which is what a camera surface
+  // ALWAYS used before: `getUserMedia({ video: true })` and no way to say otherwise. On a machine with
+  // one webcam that is invisible; on a machine that also has a VIRTUAL camera (NDI Webcam Input, OBS,
+  // a vendor overlay) the default is frequently the virtual one, and the surface stays empty forever
+  // while the camera itself works perfectly in the MediaPipe/calibration pickers — which have always
+  // had a device dropdown. That asymmetry is the whole bug. Per-surface rather than one global setting
+  // so two surfaces can carry two different cameras.
+  //
+  // The id is a browser deviceId, which is STABLE per origin but NOT portable: it is salted per
+  // browser profile, so a project carried to another machine (or a wiped profile) resolves to nothing.
+  // That is why an unknown id falls back to the default device rather than going black — see
+  // contentSource.startCamera.
+  cameraDeviceId?: string;
+  // CAMERA format. Requested as `ideal`, never `exact`: a webcam publishes RANGES, not a menu, and a
+  // mode it cannot do would otherwise fail the whole open rather than land on the nearest one. So
+  // these are what was ASKED — what the device actually negotiated is read back off the live track
+  // and shown beside the picker, because the two genuinely differ (ask 1080p60 of a camera that only
+  // does 1080p30 and you get 30, silently).
+  cameraWidth?: number;
+  cameraHeight?: number;
+  cameraFps?: number;
+  // CAMERA image controls — brightness/contrast/exposure/white-balance/focus/zoom and whatever else
+  // the device advertises. Deliberately an open bag rather than named fields: the set is decided by
+  // the CAMERA, not by us (`track.getCapabilities()`), so a PTZ head or a machine-vision sensor
+  // exposes its own and the inspector renders them without a code change. Applied live with
+  // `applyConstraints`, no reopen. Absent key ⇒ the camera's own default (usually auto).
+  cameraControls?: Record<string, number | string>;
   layerId?: string;    // LAYER content: which timeline track to show
   opacity?: number;    // surface opacity 0..1 (default 1) — composite alpha; fadeable for crossfades
   // SLICE content — a cropped region of another Surface's picture. This is how ONE source spans
