@@ -6,6 +6,7 @@ import { openEnginePort, closeEnginePort } from './enginePort';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
+import { APP_ICON } from './appIcon';
 import { registerDocsWindow } from './docsWindow';
 import * as splash from './splashWindow';
 import { applyUiScale } from './uiScale';
@@ -24,14 +25,12 @@ import { IPC } from '../../shared/protocol';
 // video in the show silently failing to load. Guarded by npm run verify:invariants.
 registerMediaScheme();
 
-// THE SHIPPED COPY, not the repo's. electron-builder's `files` is `out/**/*`, so `build/` — where the
-// icon sources live for the installer — is not in the asar at all. This pointed at `../../build/icon.png`,
+// THE SHIPPED COPY, not the repo's — and now in ONE place (./appIcon), because the editor window was
+// the only window that ever set it. It used to be a local const here pointing at `../../build/icon.png`,
 // which resolves in dev and NEVER in a packaged build, and the one caller that can fail wraps itself in
 // a try/catch: so packaged broadcast logged "[broadcast] tray failed" and ran on with no tray icon —
 // in the one mode that has no window and no menu, leaving Ctrl+Shift+Q as the operator's only way out.
-// `out/renderer/icon.png` is the Vite public asset every HTML entry already uses as its favicon, so it
-// is rebuilt on every `npm run build` and is inside `out/**/*`. Same relative path in both worlds.
-const APP_ICON = join(__dirname, '../renderer/icon.png');
+// The path and the reasoning behind it now live with the constant.
 
 let mainWindow: BrowserWindow | null = null;
 let broadcastTray: Tray | null = null;

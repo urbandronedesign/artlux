@@ -3,6 +3,7 @@ import type { Display } from 'electron';
 import { join } from 'node:path';
 import { IPC, WINDOWED_DISPLAY, type DisplayInfo } from '../../shared/protocol';
 import { profileQuery, rendererDevUrl } from './runProfile';
+import { APP_ICON } from './appIcon';
 
 // Per-Surface fullscreen projector outputs. Each enabled output gets its own frameless,
 // fullscreen BrowserWindow positioned on a chosen physical display; the surface's content
@@ -161,7 +162,12 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
     ...geom,
     backgroundColor: '#000000',
     show: false,
+    // Title and icon are both placeholders here, in different senses: the RENDERER renames the
+    // window the moment its first config lands (to the output's label — see ProjectorApp), while the
+    // icon is final. Without it a windowed output showed Electron's default mark in its own title
+    // bar and in the taskbar, next to the editor window wearing the real one.
     title: 'ARTLux — Output',
+    icon: APP_ICON,
     webPreferences: {
       preload: APP_PRELOAD,
       contextIsolation: true,

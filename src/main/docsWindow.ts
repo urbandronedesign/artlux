@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { IPC } from '../../shared/protocol';
 import { rendererDevUrl } from './runProfile';
+import { APP_ICON } from './appIcon';
 
 // Detached Docs & Tutorials window — a single normal framed window reusing the app preload so
 // window.artlux (docsList/docsRead/openExternal/docsOpenExample) works there. Static content, so plain
@@ -16,6 +17,7 @@ function open(initialId?: string): void {
   win = new BrowserWindow({
     width: 820, height: 940, minWidth: 480, minHeight: 400,
     title: 'ARTLux — Docs & Tutorials',
+    icon: APP_ICON,
     autoHideMenuBar: true,
     webPreferences: {
       preload: APP_PRELOAD,

@@ -1875,6 +1875,36 @@ check(
   },
 );
 
+// ── Every window ArtLux opens wears ArtLux's mark ──────────────────────────────────────────────
+check(
+  'every framed window carries the app icon, from one source',
+  'Only the editor window ever set `icon:`, so the projector outputs and the Docs window fell back to ' +
+  "ELECTRON'S OWN default mark — in their title bar, their taskbar button and Alt-Tab, sitting next to " +
+  'an editor window wearing the real one. It is the renderer AppMark bug one process over: it compiles, ' +
+  'it boots, nothing throws, and the app is simply branded as somebody else half the time, which is ' +
+  'invisible until a person looks at a title bar. The path is easy to get wrong too — it once pointed ' +
+  'at build/icon.png, which resolves in dev and never in a packaged build — so there is one constant ' +
+  'and every window reads it.',
+  () => {
+    const problems = [];
+    if (!exists('src/main/appIcon.ts')) return 'src/main/appIcon.ts is gone — the one source of the window icon';
+    // The path must stay inside what electron-builder actually ships (`files: out/**/*`).
+    if (!/renderer\/icon\.png/.test(stripComments(read('src/main/appIcon.ts')))) {
+      problems.push('appIcon.ts no longer points at out/renderer/icon.png — build/ is NOT in the asar, so an installer build would find nothing');
+    }
+    // Every window with a frame (i.e. an OS title bar / taskbar entry) must set it. The splash and the
+    // editor are frameless and draw their own chrome, but the editor is also the taskbar entry, so it
+    // is included; splash is excluded because it has no frame AND no taskbar button.
+    for (const f of ['src/main/index.ts', 'src/main/projector.ts', 'src/main/docsWindow.ts']) {
+      const src = stripComments(read(f));
+      if (!/new BrowserWindow\(/.test(src)) continue; // no window here any more — nothing to assert
+      if (!/icon:\s*APP_ICON/.test(src)) problems.push(`${f} opens a window without icon: APP_ICON`);
+      if (!/from '\.\/appIcon'/.test(src)) problems.push(`${f} does not read the icon from ./appIcon — a second path is how this drifted before`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── A live input you can have two of must let the operator say WHICH ──────────────────────────
 check(
   'a camera surface names its device, and the inspector can choose it',
