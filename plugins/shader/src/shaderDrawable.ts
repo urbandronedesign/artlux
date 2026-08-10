@@ -5,6 +5,7 @@
 // bookkeeping that lets N of them coexist on it.
 
 import type { SurfaceContent } from '@/types';
+import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
 import { getProgram, renderToBitmap } from './shaderContext';
 import { starterSource, DEFAULT_STARTER } from './starters';
 
@@ -34,8 +35,45 @@ interface Entry {
 
 const entries = new Map<string, Entry>();
 
-function sizeFor(h: number): { w: number; h: number } {
-  return { w: Math.round((h * 16) / 9), h };
+/**
+ * THE BUFFER TAKES THE SURFACE'S SHAPE. A fixed 16:9 was wrong, visibly.
+ *
+ * The compositor draws a surface's drawable with `ctx.drawImage(d, x, y, w, h)` (frameEngine.ts) —
+ * it STRETCHES the picture into the surface rect, which is what mapping means. So the buffer's aspect
+ * has to equal the surface's, or the picture is distorted by however much the two disagree. Mapping
+ * space is a **unit square** (the composite canvas is 512×512), so a surface 0.30 wide and 0.52 high
+ * really is portrait — and a 16:9 buffer stretched into it squashed the picture nearly 3×, turning
+ * Rings into tall ellipses. Reported from a real test, and obvious once the picture is round.
+ *
+ * `shaderRes` therefore names a PIXEL BUDGET, not a literal width×height: the ladder's 720 means "as
+ * many pixels as 1280×720", spent in whatever proportion this surface actually has. `iAspect` reports
+ * the same ratio, so a shader that wants round circles gets them.
+ *
+ * Dimensions are quantised to 16px. Resizing this canvas reallocates its drawing buffer — the thing
+ * that killed the GPU process at 4K in the Phase 0 bench — and a surface being DRAGGED changes shape
+ * every frame. Quantising means a drag crosses a size boundary occasionally instead of continuously.
+ */
+const QUANT = 16;
+const MIN_DIM = 64;
+const MAX_DIM = 3840;
+
+function sizeFor(res: number, aspect: number): { w: number; h: number } {
+  const budget = res * ((res * 16) / 9); // the ladder rung's pixel count (720 ⇒ 1280×720)
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 9;
+  const q = (v: number) => Math.min(MAX_DIM, Math.max(MIN_DIM, Math.round(v / QUANT) * QUANT));
+  return { w: q(Math.sqrt(budget * a)), h: q(Math.sqrt(budget / a)) };
+}
+
+/**
+ * The surface's aspect in mapping space, or 16:9 when there is no surface to ask.
+ *
+ * `surfaceMedia.getSurface` is fed by `syncSurfaces`, which BOTH the main window and every projector
+ * window call — so this one lookup works in both, where `host.surfaces` is inert in a projector. A
+ * `layer:<id>` key belongs to a timeline clip and has no surface; 16:9 is the honest default there.
+ */
+export function aspectFor(key: string): number {
+  const s = getSurface(key);
+  return s && s.width > 0 && s.height > 0 ? s.width / s.height : 16 / 9;
 }
 
 /**
@@ -49,7 +87,7 @@ function sizeFor(h: number): { w: number; h: number } {
  */
 export function getFor(key: string, content: SurfaceContent, timeSec: number): ImageBitmap | null {
   const shaderId = content.shaderId ?? DEFAULT_STARTER;
-  const { w, h } = sizeFor(content.shaderRes ?? DEFAULT_HEIGHT);
+  const { w, h } = sizeFor(content.shaderRes ?? DEFAULT_HEIGHT, aspectFor(key));
   const sig = `${shaderId}|${w}x${h}|${timeSec}`;
 
   const prev = entries.get(key);

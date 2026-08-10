@@ -15,7 +15,7 @@ work on it, and it needs no media, no network and no hardware.
 
 1. Select the surface.
 2. In the content picker, choose **Shader**.
-3. Pick a shader from the list, and a **Size**.
+3. Pick a shader from the list, and a **Detail** level.
 
 That is the whole setup. The picture starts immediately.
 
@@ -31,9 +31,20 @@ The `· LED` mark is the important one. A shader made for a projector usually lo
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
 and whatever varies left-to-right is all you get. **Strip chase** is built that way on purpose.
 
-## Size, and why the small number is usually right
+## The picture takes the surface's shape
 
-**Size** is how big a picture the shader draws before anything samples it. The default is 1280 × 720.
+A shader has no natural size or shape of its own — it fills whatever it is given. So it is drawn at
+**your surface's proportions**: a tall surface gets a tall picture, a wide one gets a wide picture, and
+circles stay circles in both. Nothing is stretched, and there are no bars.
+
+What changes with the surface's shape is *how much you see*: **Rings** on a tall surface shows the
+middle band of its rings, the same way a tall crop of any picture would. Resize the surface and the
+picture re-draws to fit.
+
+## Detail, and why the small number is usually right
+
+**Detail** is how many pixels the shader draws before anything samples it — `720p` means "about as
+many pixels as 1280 × 720", spent in whatever shape your surface actually has. The default is 720p.
 
 For **fixtures**, more is not better and generally does nothing: a strip of 60 LEDs reads 60 colours,
 so a 1080p picture is reduced to 60 samples either way. Example `02-shader-to-leds` puts the same

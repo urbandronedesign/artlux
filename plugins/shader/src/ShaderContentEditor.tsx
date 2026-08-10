@@ -35,16 +35,20 @@ export function ShaderContentEditor({
         </select>
       </div>
 
-      {/* Render size is per surface because the two consumers want opposite things: the LED path
-          samples an atlas rect scaled to fixture density and throws away anything finer, while a
-          projector wants its native raster. 720p is the default because it is the cheap answer that
-          is never visibly wrong on the LED path. */}
+      {/* Detail is per surface because the two consumers want opposite things: the LED path samples an
+          atlas rect scaled to fixture density and throws away anything finer, while a projector wants
+          its native raster. 720p is the default because it is the cheap answer that is never visibly
+          wrong on the LED path.
+
+          Labelled as a rung, not as a width × height, because it IS one: the picture is drawn at this
+          surface's own proportions (see sizeFor in shaderDrawable), so "720p" means that many pixels
+          spent in whatever shape the surface has — not 1280 × 720 literally. */}
       <div className="flex items-center gap-1">
-        <label className="text-fg-2 w-12 text-micro">Size</label>
+        <label className="text-fg-2 w-12 text-micro">Detail</label>
         <select className={SELECT} value={content.shaderRes ?? DEFAULT_HEIGHT}
           onChange={(e) => onChange({ shaderRes: +e.target.value })}>
           {RENDER_HEIGHTS.map((h) => (
-            <option key={h} value={h}>{Math.round((h * 16) / 9)} × {h}</option>
+            <option key={h} value={h}>{h}p{h === DEFAULT_HEIGHT ? ' · default' : ''}</option>
           ))}
         </select>
       </div>
