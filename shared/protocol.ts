@@ -587,6 +587,15 @@ export interface ProjectorBlend {
 // One Surface routed to a physical projector as its own fullscreen output.
 export interface ProjectorOutput {
   surfaceId: string;
+  // What the OPERATOR calls this projector — "Stage Left", "House Right", "Ceiling 3". Absent ⇒ the
+  // surface's name, which is what every list showed before and what a project keeps reading as.
+  //
+  // It exists because the surface name is the wrong name for a physical machine. A surface is called
+  // "Wall A" because of the picture on it; the projector throwing that picture is identified by where
+  // it hangs, and on a wall of six the two vocabularies stop matching the first time an output is
+  // re-pointed. The label is also what `identify` puts ON the projection, so the name an operator
+  // types here is the name they read off the wall from the floor.
+  name?: string;
   enabled: boolean;
   displayId: number | null;   // Electron display.id (session-stable)
   displayLabel?: string;      // fallback re-match across replug/reboot

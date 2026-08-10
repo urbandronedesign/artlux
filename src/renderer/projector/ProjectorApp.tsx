@@ -13,6 +13,7 @@ import { keymap } from '../shortcuts/keymapStore';
 import { eventToChord } from '../shortcuts/chord';
 import { projectorChannelRegistry, projectorPanelRegistry } from '../host/registries';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { AppIconMark, AppWordmark } from '../components/brand/AppMark';
 import { reportFault } from '../services/faultReporter';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 
@@ -114,6 +115,9 @@ export const ProjectorApp: React.FC = () => {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState('');
+  const [displayName, setDisplayName] = useState(''); // the display this output is bound to, for IDENTIFY
+  const [identify, setIdentify] = useState(false);    // transient rigging aid — see bridge.ts 'identify'
+  const [windowed, setWindowed] = useState(false);    // a preview window on the operator's screen, not a projector
   // The main window's cold-start hold, mirrored here (see bridge.ts 'boot'). The REF is what the frame
   // loop reads — it must not wait for a React commit to stop drawing — and the state drives the sign.
   const bootingRef = useRef(false);
@@ -265,7 +269,22 @@ export const ProjectorApp: React.FC = () => {
         if (m.t === 'config') {
           surfaceRef.current = m.surface;
           playingRef.current = m.playing;
-          setName(m.surface.name);
+          // The operator's label for this projector when there is one, else the surface's name —
+          // which is what this said before, so an unlabelled rig reads exactly as it always did.
+          {
+            const label = m.identity?.label || m.surface.name;
+            setName(label);
+            setDisplayName(m.identity?.display ?? '');
+            setWindowed(!!m.identity?.windowed);
+            // THE WINDOW'S OWN TITLE. Every output window was called "ARTLux — Output", which is the
+            // one thing they all are: with four of them open in windowed mode the taskbar, the
+            // window list and Alt-Tab offered four identical entries and no way to tell them apart.
+            // Set from the renderer rather than at creation in main/projector.ts because main does
+            // not know the label — it is project state, and it changes while the window is open.
+            // Electron forwards a document.title change to the native title bar, which is also why
+            // projector.html carries the fallback <title> for the moment before the first config.
+            document.title = `ARTLux — ${[label, m.identity?.display].filter(Boolean).join(' · ')}`;
+          }
           setConnected(true);
           applyRender(m.render);
           // A slice borrows its source's picture, so it is classified by the SOURCE's type — that is
@@ -341,6 +360,8 @@ export const ProjectorApp: React.FC = () => {
           brightnessRef.current = m.value;
         } else if (m.t === 'pluginData') {
           projectorChannelRegistry.get(m.channel)?.apply?.(m.payload); // e.g. LiDAR tracking snapshot → its store
+        } else if (m.t === 'identify') {
+          setIdentify(m.on);
         } else if (m.t === 'edit') {
           setEditing(m.on);
           if (m.on) window.focus();
@@ -657,6 +678,28 @@ export const ProjectorApp: React.FC = () => {
         </ErrorBoundary>
       ))}
 
+      {/* Branding, top-left — WINDOWED OUTPUTS ONLY. A windowed output is a preview on the operator's
+          own screen (testing a rig on one monitor), so a mark in the corner costs nothing and tells
+          you at a glance which app the window belongs to. On a REAL projector the same mark would be
+          a watermark burnt onto a venue wall for the length of the show, which is why it is gated
+          rather than always on. Drawn from the one sanctioned source (components/brand/AppMark), not
+          hand-rolled — see the invariant.
+
+          `color` on the wrapper is load-bearing, not decoration: the wordmark is monochrome and
+          inherits currentColor, and this document sets none — without it the mark paints the
+          initial black, on black. */}
+      {windowed && (
+        <div style={{ position: 'absolute', left: 14, top: 12, display: 'flex', alignItems: 'center', gap: 9, pointerEvents: 'none', opacity: 0.85, color: '#eef1f5' }}>
+          {/* Tile + wordmark, the pairing people actually read as "the logo". Measured in the running
+              window rather than eyeballed from the JSX: 13px at half opacity was there and invisible. */}
+          <AppIconMark size={20} decorative />
+          <AppWordmark height={16} decorative />
+          {name && (
+            <span style={{ font: '500 12px system-ui', letterSpacing: '0.1em', color: '#aeb4bd', paddingLeft: 2 }}>{name}</span>
+          )}
+        </div>
+      )}
+
       {!connected && <div style={overlayCenter}>Waiting for the main window… {name}</div>}
 
       {/* PRELOADING SHOW — the cold-start hold, said on the output itself. Read from the floor of a
@@ -669,6 +712,27 @@ export const ProjectorApp: React.FC = () => {
             <div style={{ font: '600 clamp(18px, 3.2vw, 54px) system-ui', letterSpacing: '0.14em' }}>PRELOADING SHOW</div>
             <div style={{ marginTop: '1.2em', font: '400 clamp(11px, 1.1vw, 18px) system-ui', color: '#5a5f68' }}>
               {name}{boot.total > 0 ? ` · ${boot.ready}/${boot.total} · ${boot.phase}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IDENTIFY — which physical machine is this? Nothing else in the app can answer that: the
+          Outputs list knows the display id, and the room knows a projector in the ceiling, and only
+          the projection itself joins the two. So the operator's label goes on the wall, large, with
+          the display it is bound to and this window's actual raster underneath — the second line is
+          what turns "the picture is wrong" into "that cable is in the wrong output".
+
+          Over the content rather than instead of it, and dimmed behind a scrim: you identify a rig
+          while it is showing something, and a full-white card on a projector aimed at an audience is
+          not a neutral act. UNWARPED on purpose (it is DOM, not canvas) so it stays square and
+          readable whatever the corner-pin, calibration or blend is doing to the picture below. */}
+      {identify && (
+        <div style={{ ...overlayCenter, background: 'rgba(0,0,0,0.55)' }}>
+          <div style={{ textAlign: 'center', color: '#fff' }}>
+            <div style={{ font: '700 clamp(28px, 7vw, 132px) system-ui', letterSpacing: '0.04em', lineHeight: 1.05 }}>{name || 'OUTPUT'}</div>
+            <div style={{ marginTop: '0.8em', font: '500 clamp(12px, 1.6vw, 26px) system-ui', color: '#9aa0a8', letterSpacing: '0.12em' }}>
+              {[displayName, `${size.w} × ${size.h}`].filter(Boolean).join('  ·  ')}
             </div>
           </div>
         </div>

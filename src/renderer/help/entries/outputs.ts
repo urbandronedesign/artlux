@@ -34,4 +34,20 @@ export const outputsHelp: HelpEntry[] = [
     group: 'Outputs',
     keywords: ['calibrate', 'overlay', 'border', 'manual', 'projector'],
   },
+  {
+    id: 'outputs.label',
+    title: 'Output label',
+    short: 'What you call this projector, as opposed to the surface it shows.',
+    body: 'A surface is named for its picture (Wall A); the projector throwing that picture is known by where it hangs (Stage Left, Ceiling 3). Give the output its own label and the Outputs list, the projector window and Identify all use it. Leave it blank and everything falls back to the surface name, exactly as before. Saved with the project.',
+    group: 'Outputs',
+    keywords: ['name', 'rename', 'label', 'projector', 'identify'],
+  },
+  {
+    id: 'outputs.identify',
+    title: 'Identify',
+    short: "Show this output's name on the projection itself.",
+    body: 'Puts the label on the wall, large enough to read from the floor, with the display it is bound to and the raster it is running underneath. It answers the one question nothing else in the app can — which physical machine in the ceiling this output drives — and the second line is what turns "the picture is wrong" into "that cable is in the wrong port". It draws over the content behind a dark scrim rather than replacing it, and it is never warped, so it stays readable whatever the corner-pin or calibration is doing. Identify all in the header turns the whole wall on, and one press turns it all off again. It is never saved with the project.',
+    group: 'Outputs',
+    keywords: ['identify', 'which projector', 'name', 'label', 'rigging', 'display'],
+  },
 ];

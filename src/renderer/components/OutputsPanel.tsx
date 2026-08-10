@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2 } from 'lucide-react';
+import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2, Tag } from 'lucide-react';
 import { Surface, SourceType } from '../types';
 import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { SpanEditor } from './SpanEditor';
@@ -12,6 +12,11 @@ interface Props {
   outputs: ProjectorOutput[];
   displays: DisplayInfo[];
   editingOutputIds: string[];
+  // Outputs currently projecting their own name (transient; see projector/bridge.ts 'identify').
+  identifyOutputIds: string[];
+  onToggleIdentify: (surfaceId: string) => void;
+  onIdentifyMany: (surfaceIds: string[]) => void;
+  onSetOutputName: (surfaceId: string, name: string) => void;
   fpsCap: number;
   // Spanning one surface across several projectors (see SpanEditor / services/outputSpan.ts).
   spans: OutputSpan[];
@@ -53,7 +58,7 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 // was always the wrong container. Nothing inside changed; only the chrome (backdrop, drag handle,
 // close button) came off. See docs/WORKSPACE.md.
 export const OutputsPanel: React.FC<Props> = ({
-  surfaces, outputs, displays, editingOutputIds, fpsCap,
+  surfaces, outputs, displays, editingOutputIds, identifyOutputIds, onToggleIdentify, onIdentifyMany, onSetOutputName, fpsCap,
   spans, onApplySpan, onUpdateSpan, onRemoveSpan, onSetSliceRect, onToggleEditMany,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
   onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onMeasureGamma, measuringGammaId, gammaMsg, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
@@ -83,7 +88,7 @@ export const OutputsPanel: React.FC<Props> = ({
   }, [surfaces]);
 
   const outFor = (id: string): ProjectorOutput | undefined => outputs.find((o) => o.surfaceId === id);
-  const COLS = 'grid-cols-[1.3fr_56px_1.3fr_48px_144px_28px]';
+  const COLS = 'grid-cols-[1.3fr_56px_1.3fr_48px_168px_28px]';
 
   return (
     <div className="w-full h-full flex flex-col bg-surface-1" aria-label="Outputs">
@@ -103,6 +108,23 @@ export const OutputsPanel: React.FC<Props> = ({
                 <option value={24}>24</option>
               </select>
             </label>
+            {/* One press to name the whole wall, one press to take it all down. The second half is
+                what matters: "everything off" has to be a single control, because it is the state
+                you need before the doors open. */}
+            {(() => {
+              const liveIds = ordered.filter((s) => { const o = outFor(s.id); return !!o?.enabled && o.displayId != null; }).map((s) => s.id);
+              const anyOn = identifyOutputIds.length > 0;
+              return (
+                <button
+                  onClick={() => onIdentifyMany(liveIds)}
+                  disabled={!anyOn && liveIds.length === 0}
+                  title={anyOn ? 'Stop showing names on every projector' : 'Show every output’s name on its projection'}
+                  className={`flex items-center gap-1 text-mini disabled:opacity-40 ${anyOn ? 'text-accent' : 'text-fg-2 hover:text-fg-1'}`}
+                >
+                  <Tag size={13} /> {anyOn ? 'Identify off' : 'Identify all'}
+                </button>
+              );
+            })()}
             <button onClick={onRefreshDisplays} title="Re-scan displays" className="flex items-center gap-1 text-mini text-fg-2 hover:text-fg-1"><RefreshCw size={13} /> Re-scan</button>
           </div>
         </div>
@@ -168,9 +190,13 @@ export const OutputsPanel: React.FC<Props> = ({
               return (
                 <React.Fragment key={s.id}>
                 <div className={`grid ${COLS} gap-2 px-2 py-1.5 items-center`}>
-                  <span className={`text-mini truncate flex items-center gap-1 ${isSlice ? 'text-fg-2 pl-2' : 'text-fg-1'}`} title={s.name}>
+                  {/* The output's own name leads when it has one, with the surface it shows kept
+                      beside it — the two are different things (a surface is named for its picture, a
+                      projector for where it hangs) and losing either makes a re-pointed rig unreadable. */}
+                  <span className={`text-mini truncate flex items-center gap-1 ${isSlice ? 'text-fg-2 pl-2' : 'text-fg-1'}`} title={o?.name ? `${o.name} — surface ${s.name}` : s.name}>
                     {isSlice && <span className="text-fg-3 shrink-0" title="A slice of the surface above">↳</span>}
-                    <span className="truncate">{s.name}</span>
+                    <span className="truncate">{o?.name || s.name}</span>
+                    {o?.name && <span className="text-micro text-fg-3 truncate shrink">· {s.name}</span>}
                   </span>
                   <label className="flex items-center gap-1.5 text-mini text-fg-2 cursor-pointer">
                     <input
@@ -216,6 +242,19 @@ export const OutputsPanel: React.FC<Props> = ({
                     >
                       <Undo2 size={12} />
                     </button>
+                    {/* Which machine in the ceiling is this one? Puts the label on the projection
+                        itself — the only place that question can be answered. */}
+                    <Tooltip id="outputs.identify">
+                      <button
+                        onClick={() => onToggleIdentify(s.id)}
+                        disabled={!live}
+                        title="Identify — show this output's name on the projection"
+                        {...help('outputs.identify')}
+                        className={`p-1 rounded-sm disabled:opacity-40 ${identifyOutputIds.includes(s.id) ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
+                      >
+                        <Tag size={12} />
+                      </button>
+                    </Tooltip>
                     <button
                       onClick={() => onCalibrate(s.id)}
                       disabled={!live}
@@ -237,6 +276,27 @@ export const OutputsPanel: React.FC<Props> = ({
 
                 {isOpen && (
                   <div className="px-3 py-2.5 bg-surface-0/40 space-y-2.5 text-mini">
+                    {/* Label — what this PROJECTOR is called, as distinct from the surface it shows.
+                        Blank falls back to the surface name everywhere, so an unnamed rig is exactly
+                        what it was before. This is also the text Identify puts on the wall. */}
+                    <div className="flex items-center gap-2">
+                      <Tooltip id="outputs.label"><span className="text-fg-3 w-[68px]" {...help('outputs.label')}>Label</span></Tooltip>
+                      <input
+                        type="text"
+                        value={o?.name ?? ''}
+                        placeholder={s.name}
+                        onChange={(e) => onSetOutputName(s.id, e.target.value)}
+                        title="What you call this projector — Stage Left, House Right, Ceiling 3. Shown here and by Identify."
+                        className={`${cell} w-48`}
+                      />
+                      <button
+                        onClick={() => onToggleIdentify(s.id)}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-sm border border-line-1 ${identifyOutputIds.includes(s.id) ? 'bg-accent text-black' : 'bg-surface-2 text-fg-1 hover:bg-surface-3'}`}
+                      >
+                        <Tag size={12} /> {identifyOutputIds.includes(s.id) ? 'Identifying' : 'Identify'}
+                      </button>
+                    </div>
+
                     {/* Bézier warp */}
                     <div className="flex items-center gap-3 flex-wrap">
                       <Tooltip id="outputs.corner-pin">

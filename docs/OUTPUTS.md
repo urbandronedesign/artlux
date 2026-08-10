@@ -20,6 +20,20 @@ can also be projected onto physical surfaces. Added in **v0.6.0**.
 Outputs are saved in the project. Electron display IDs aren't stable across reboot/replug, so each
 output also stores the display **label** and re-binds by label if the saved ID is gone.
 
+### Name a projector, and find it in the room
+An output carries its own **Label** (row ▸ gear ▸ *Label*) — *Stage Left*, *Ceiling 3* — because a
+surface is named for its picture and a projector for where it hangs, and on a wall of six the two
+vocabularies stop matching the first time an output is re-pointed. Blank falls back to the surface
+name, so an unnamed rig reads exactly as it always did. Saved with the project (`ProjectorOutput.name`).
+
+**Identify** (the row's tag icon, or **Identify all** in the header) puts that label on the projection
+itself, with the bound display and the window's actual raster under it — which is how "the picture is
+wrong" becomes "that cable is in the wrong port". It is transient App state, never persisted, and an
+output switched off drops out of it. Drawn as a DOM overlay over the content behind a scrim: therefore
+**unwarped** (readable whatever the corner-pin/calibration/blend is doing) and **absent from an NDI
+send**, on the same reasoning as the cold-start sign — an NDI consumer is another machine's input, not
+a person who needs to be told things.
+
 ### Align it onto the real surface
 Click **Align** on the row, then work **on the projector**:
 - **Corner-pin** (default): drag the four corners (TL/TR/BR/BL) onto the physical surface. A green

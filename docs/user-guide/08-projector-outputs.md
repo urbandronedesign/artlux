@@ -23,6 +23,39 @@ from the title‑bar **Outputs** icon. Each surface gets a row.
 
 ---
 
+## Name it, and find it in the room
+
+A surface is named for its picture — *Wall A*, *Logo Wall*. The projector throwing that picture is
+known by where it hangs — *Stage Left*, *Ceiling 3*. Those are two different names, and on a wall of
+six they stop matching the first time an output is re-pointed. So an output can carry its own
+**Label**: expand a row (the **gear**) and type it. The row then reads `Stage Left · Wall A`, and the
+projector window uses it too. Leave it blank and everything falls back to the surface name, exactly
+as before. The label is saved with the project.
+
+**Identify** answers the question the app otherwise can't: *which machine in the ceiling is this?* It
+puts the label on the projection itself, big enough to read from the floor, with the display it is
+bound to and the raster it is running underneath — the second line is what turns "the picture is
+wrong" into "that cable is in the wrong port". Press the **tag** icon on a row, or **Identify all**
+in the header to name the whole wall at once; one more press turns it all off.
+
+It draws over the content behind a dark scrim rather than replacing it (you identify a rig while it
+is showing something, and a full-white card on a projector aimed at an audience is not a neutral
+act), and it is never warped — so it stays square and readable whatever the corner-pin, calibration
+or blend is doing to the picture below. It is **never saved with the project**, so it cannot come up
+over a show; an output switched off stops identifying by itself.
+
+> Identify is a rigging aid, not a picture. It is drawn as an overlay, so an **NDI send** of that
+> output carries the content without it — the same reason the preloading sign doesn't travel either.
+
+The label also names the **output window itself**: its title bar and taskbar entry read
+`ARTLux — Stage Left · DISPLAY 2` instead of the `ARTLux — Output` every output used to share, which
+is what makes four windowed previews tellable apart in Alt‑Tab. In **Windowed** mode the window also
+carries a small ARTLux mark and the label in its top‑left corner — windowed is a preview on your own
+screen, so it costs nothing there. Fullscreen outputs never draw it: on a real projector that mark
+would be a watermark on the venue wall for the length of the show.
+
+---
+
 ## Align (corner‑pin)
 
 Click **Align**, then on the projector window drag the four corners onto your projection surface:

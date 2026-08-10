@@ -408,6 +408,13 @@ const App: React.FC = () => {
   // the grid up on every projector of the wall AT ONCE, which is the only way to judge where the
   // overlaps actually land. Toggling one output adds/removes it; Esc in a window removes just that one.
   const [editingOutputIds, setEditingOutputIds] = useState<string[]>([]);
+  // Outputs currently SHOUTING THEIR NAME at the wall (see projector/bridge.ts 'identify'). A set for
+  // the same reason aligning is: the question is "which of these six is which", and answering it one
+  // projector at a time means walking back to the desk between each.
+  //
+  // Deliberately App state and NOT part of ProjectorOutput: identify is a thing you do while rigging,
+  // and anything persisted here could be saved on and then come up over a show.
+  const [identifyOutputIds, setIdentifyOutputIds] = useState<string[]>([]);
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
@@ -872,7 +879,18 @@ const App: React.FC = () => {
     setSurfaces(prev => prev.map(s => s.id === surfaceId ? { ...s, content: { ...s.content, sliceRect: rect } } : s));
     setOutputSpans(prev => prev.map(x => x.sliceIds.includes(surfaceId) && x.linked ? { ...x, linked: false } : x));
   };
-  const handleSetOutputEnabled = (surfaceId: string, enabled: boolean) => upsertOutput(surfaceId, { enabled });
+  const handleSetOutputEnabled = (surfaceId: string, enabled: boolean) => {
+    upsertOutput(surfaceId, { enabled });
+    // An output switched off stops identifying. Otherwise the id sits in the set with no window to
+    // receive it, and switching the output back on hours later brings up a name card over the show.
+    if (!enabled) setIdentifyOutputIds(prev => prev.filter(x => x !== surfaceId));
+  };
+  const handleToggleIdentify = (surfaceId: string) =>
+    setIdentifyOutputIds(prev => prev.includes(surfaceId) ? prev.filter(x => x !== surfaceId) : [...prev, surfaceId]);
+  // All at once, or all off — the whole point is comparing a wall of them, and "off" has to be one
+  // press because that is the state you need before the doors open.
+  const handleIdentifyMany = (ids: string[]) =>
+    setIdentifyOutputIds(prev => (prev.length > 0 ? [] : ids));
   const handleSetOutputDisplay = (surfaceId: string, displayId: number | null) =>
     upsertOutput(surfaceId, {
       displayId,
@@ -3622,6 +3640,12 @@ const App: React.FC = () => {
       port.postMessage({
           t: 'config', surface, sources: source && source.id !== surface.id ? [source] : undefined,
           playing: isVideoPlaying,
+          // What this window calls itself on its own overlays (cold-start sign, Identify).
+          identity: {
+              label: out?.name || undefined,
+              display: out?.displayId != null ? displays.find(d => d.id === out.displayId)?.label : undefined,
+              windowed: out?.displayId === WINDOWED_DISPLAY,
+          },
           render: {
               cornerPin: hwGeom ? defaultCornerPin() : (out?.cornerPin ?? defaultCornerPin()),
               warp: hwGeom ? null : (out?.warp ?? null),
@@ -3645,6 +3669,7 @@ const App: React.FC = () => {
       });
       port.postMessage({ t: 'timeline', timeline: activeTimeline }); // the current scene's timeline, not global
       port.postMessage({ t: 'edit', on: editingOutputIds.includes(surfaceId) });
+      port.postMessage({ t: 'identify', on: identifyOutputIds.includes(surfaceId) });
       // The cold-start hold. Sent HERE as well as on every gate change because a window can open INTO a
       // preload — broadcast opens its outputs from the same project load that started the wait — and a
       // window that missed the change event would put a half-loaded look on a real projector.
@@ -3696,7 +3721,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, identifyOutputIds, displays, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
   // ── THE SHOW STARTS AT THE TOP ────────────────────────────────────────────────────────────────
   // The gate armed on its own, so a show is about to begin: put BOTH clocks back on their in-points
   // first. In the ordinary case this is a no-op — opening a project already restarted them (swap with
@@ -4267,6 +4292,10 @@ const App: React.FC = () => {
           outputs={projectorOutputs}
           displays={displays}
           editingOutputIds={editingOutputIds}
+          identifyOutputIds={identifyOutputIds}
+          onToggleIdentify={handleToggleIdentify}
+          onIdentifyMany={handleIdentifyMany}
+          onSetOutputName={(surfaceId, name) => upsertOutput(surfaceId, { name: name || undefined })}
           fpsCap={projectorFpsCap}
           spans={outputSpans}
           onApplySpan={applySpan}

@@ -35,7 +35,14 @@ export type MainToProjector =
   // A projector window syncs its own surface alone, so without this a slice could not resolve its
   // source locally and a sliced EFFECT/IMAGE would drop from display-rate local rendering to the
   // 30 fps frame push. Empty/absent for every non-slice surface.
-  | { t: 'config'; surface: Surface; sources?: Surface[]; playing: boolean; render: ProjectorRender } // geometry + look
+  // `identity` is what this window CALLS ITSELF on screen — the operator's output label and the
+  // display it is bound to. The window already put a name on its own overlays (the cold-start sign
+  // names the output "so a wall of six projectors tells you WHICH one you are looking at") but it
+  // could only read the SURFACE's name, which is the name of the picture, not of the machine.
+  // `windowed` is the "this is not a real projector" flag — a movable window on the operator's own
+  // screen, used for testing on one monitor. It is what licenses the branding in the corner: on a
+  // fullscreen output that would be a watermark burnt onto a wall.
+  | { t: 'config'; surface: Surface; sources?: Surface[]; playing: boolean; render: ProjectorRender; identity?: { label?: string; display?: string; windowed?: boolean } } // geometry + look
   | { t: 'timeline'; timeline: Timeline }                     // for LAYER content
   // ~30 fps clock. showTime rides along because an EFFECT SURFACE is drawn against the SHOW clock
   // (surfaceMedia.getDrawable), and a mirror window does not RUN that clock — it is told it. Without it,
@@ -50,6 +57,16 @@ export type MainToProjector =
   // config (a window opened mid-preload has to learn the state it missed).
   | { t: 'boot'; booting: boolean; ready: number; total: number; phase: BootPhase }
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
+  // IDENTIFY — put this output's label on the projection, big enough to read from the floor. The
+  // question it answers is the one nothing else in the app can: which of the six machines in the
+  // ceiling is "Stage Left". Transient and NEVER persisted (it lives in App state beside
+  // editingOutputIds, not on ProjectorOutput), so it cannot survive into a show through a save.
+  //
+  // Drawn as DOM over the canvas, deliberately: it is therefore UNWARPED — legible whatever the
+  // corner-pin, calibration or blend is doing, which is the point when you are still rigging — and
+  // it is absent from an NDI send of this output, for the same reason the cold-start sign is: an NDI
+  // consumer is another machine's input, not a person who needs to be told things.
+  | { t: 'identify'; on: boolean }
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   // The streamed source has NOTHING to show (a timeline clip ended, a live source dropped). Without
   // this the pump simply stops sending and the window keeps drawing the last bitmap it received —
