@@ -14,6 +14,7 @@ import { eventToChord } from '../shortcuts/chord';
 import { projectorChannelRegistry, projectorPanelRegistry } from '../host/registries';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AppIconMark, AppWordmark } from '../components/brand/AppMark';
+import { AlignAids, type AlignAidSpec } from './AlignAids';
 import { reportFault } from '../services/faultReporter';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 
@@ -118,6 +119,7 @@ export const ProjectorApp: React.FC = () => {
   const [displayName, setDisplayName] = useState(''); // the display this output is bound to, for IDENTIFY
   const [identify, setIdentify] = useState(false);    // transient rigging aid — see bridge.ts 'identify'
   const [windowed, setWindowed] = useState(false);    // a preview window on the operator's screen, not a projector
+  const [aid, setAid] = useState<AlignAidSpec | null>(null); // physical-setup pattern — see AlignAids.tsx
   // The main window's cold-start hold, mirrored here (see bridge.ts 'boot'). The REF is what the frame
   // loop reads — it must not wait for a React commit to stop drawing — and the state drives the sign.
   const bootingRef = useRef(false);
@@ -362,6 +364,8 @@ export const ProjectorApp: React.FC = () => {
           projectorChannelRegistry.get(m.channel)?.apply?.(m.payload); // e.g. LiDAR tracking snapshot → its store
         } else if (m.t === 'identify') {
           setIdentify(m.on);
+        } else if (m.t === 'aid') {
+          setAid(m.aid);
         } else if (m.t === 'edit') {
           setEditing(m.on);
           if (m.on) window.focus();
@@ -699,6 +703,11 @@ export const ProjectorApp: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* ALIGNMENT AIDS — the physical-setup patterns. Under Identify and the boot sign (both are
+          about "stop and read this"), over the content and the plugin panels (an aid you cannot see
+          through a calibration overlay is no aid). */}
+      {aid && <AlignAids aid={aid} size={size} warped={hasResidualWarp(pin, warp)} dpr={window.devicePixelRatio || 1} />}
 
       {!connected && <div style={overlayCenter}>Waiting for the main window… {name}</div>}
 

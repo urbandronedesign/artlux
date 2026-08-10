@@ -9,6 +9,7 @@ import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
 import { outputToNvwarp, toBlendMap } from './projector/nvwarpApply';
 import { OutputsPanel } from './components/OutputsPanel';
+import { litAidHue, type AidPattern } from './projector/AlignAids';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
@@ -415,6 +416,11 @@ const App: React.FC = () => {
   // Deliberately App state and NOT part of ProjectorOutput: identify is a thing you do while rigging,
   // and anything persisted here could be saved on and then come up over a show.
   const [identifyOutputIds, setIdentifyOutputIds] = useState<string[]>([]);
+  // ALIGNMENT AIDS — the pattern projected on EVERY live output while a rig is being physically hung
+  // and overlapped (plans/projector-alignment-aids.md). One control for the whole wall on purpose:
+  // aligning means seeing all of it at once, and a per-output pattern would mostly be a way to get
+  // confused. Transient for the same reason identify is — nothing here may reach a saved project.
+  const [alignAid, setAlignAid] = useState<{ pattern: AidPattern | 'off'; dim: number }>({ pattern: 'off', dim: 0.9 });
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
@@ -3670,6 +3676,23 @@ const App: React.FC = () => {
       port.postMessage({ t: 'timeline', timeline: activeTimeline }); // the current scene's timeline, not global
       port.postMessage({ t: 'edit', on: editingOutputIds.includes(surfaceId) });
       port.postMessage({ t: 'identify', on: identifyOutputIds.includes(surfaceId) });
+      // The alignment pattern. The hue is derived from the output's position in the list rather than
+      // stored, so there is no field to migrate and no way for two outputs to drift onto one colour.
+      //
+      // ⚠ `soft` is the output's REAL soft edge, NOT the one in `render` above. When NVAPI owns the
+      // geometry the GPU is deliberately handed a flat soft edge (the double-blend guard) — but the
+      // blend band still physically exists on the wall, and an aid that vanished on a hardware-blended
+      // rig would disappear exactly where an operator needs it most.
+      port.postMessage({
+          t: 'aid',
+          aid: alignAid.pattern === 'off' ? null : {
+              pattern: alignAid.pattern,
+              hue: litAidHue(projectorOutputs, surfaceId),
+              label: out?.name || surface.name,
+              soft: out?.softEdge ?? defaultSoftEdge(),
+              dim: alignAid.dim,
+          },
+      });
       // The cold-start hold. Sent HERE as well as on every gate change because a window can open INTO a
       // preload — broadcast opens its outputs from the same project load that started the wait — and a
       // window that missed the change event would put a half-loaded look on a real projector.
@@ -3721,7 +3744,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, identifyOutputIds, displays, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, identifyOutputIds, alignAid, displays, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
   // ── THE SHOW STARTS AT THE TOP ────────────────────────────────────────────────────────────────
   // The gate armed on its own, so a show is about to begin: put BOTH clocks back on their in-points
   // first. In the ordinary case this is a no-op — opening a project already restarted them (swap with
@@ -4296,6 +4319,8 @@ const App: React.FC = () => {
           onToggleIdentify={handleToggleIdentify}
           onIdentifyMany={handleIdentifyMany}
           onSetOutputName={(surfaceId, name) => upsertOutput(surfaceId, { name: name || undefined })}
+          alignAid={alignAid}
+          onSetAlignAid={setAlignAid}
           fpsCap={projectorFpsCap}
           spans={outputSpans}
           onApplySpan={applySpan}

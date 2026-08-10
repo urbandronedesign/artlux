@@ -34,6 +34,24 @@ output switched off drops out of it. Drawn as a DOM overlay over the content beh
 send**, on the same reasoning as the cold-start sign — an NDI consumer is another machine's input, not
 a person who needs to be told things.
 
+### Alignment aids (physical setup, before any warp)
+Outputs ▸ **Alignment aids** puts a pattern on **every live output at once** — Grid, Blend, Focus,
+Greys, Bars, 1:1, White, Black — for aiming, overlapping, focusing and matching the real machines.
+Each output is tinted its own hue (the first three are the additive primaries, so an overlap reads as
+their mix), and **Blend** draws the output's real `SoftEdge` as a hatched band with its inner boundary
+bright and a *ladder* across it: matching a neighbour's ladder matches zoom, aim and roll at once.
+
+Two design points that are load-bearing:
+- **Drawn unwarped, in the raw raster** (DOM/SVG over the canvas, never through the warp pipeline).
+  You are adjusting where the projector's *light* goes, so an aid that moved with the corner-pin would
+  hide the error being hunted. An output with a residual warp says so on the projection.
+- **The band comes from the output's real `softEdge`, not from the `render` payload** — under NVAPI
+  scanout warp the GPU is deliberately handed a flat soft edge (the double-blend guard), while the band
+  still physically exists on the wall.
+
+Transient App state (like Identify), never persisted. Design + what was left out:
+[plans/projector-alignment-aids.md](../plans/projector-alignment-aids.md).
+
 ### Align it onto the real surface
 Click **Align** on the row, then work **on the projector**:
 - **Corner-pin** (default): drag the four corners (TL/TR/BR/BL) onto the physical surface. A green

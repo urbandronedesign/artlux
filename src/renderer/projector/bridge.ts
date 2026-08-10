@@ -2,6 +2,7 @@ import type { Surface, Timeline } from '../types';
 // Type-only, so this is erased at runtime and adds no module edge to the gate.
 import type { BootPhase } from '../services/bootGate';
 import type { CornerPin, BezierWarp, SoftEdge, ProjectorCalibration, ProjectorBlend, Scene3D } from '../../../shared/protocol';
+import type { AlignAidSpec } from './AlignAids';
 
 export interface ProjectorRender {
   cornerPin: CornerPin;
@@ -67,6 +68,11 @@ export type MainToProjector =
   // it is absent from an NDI send of this output, for the same reason the cold-start sign is: an NDI
   // consumer is another machine's input, not a person who needs to be told things.
   | { t: 'identify'; on: boolean }
+  // ALIGNMENT AIDS — the patterns you project while physically hanging a rig (grid, blend ladder,
+  // focus, greys, bars, 1:1, flat fields). `null` clears. Transient like `identify`, and for the same
+  // reason. Drawn unwarped in the raw raster — see projector/AlignAids.tsx for why that is the whole
+  // principle rather than a shortcut, and plans/projector-alignment-aids.md for the design.
+  | { t: 'aid'; aid: AlignAidSpec | null }
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   // The streamed source has NOTHING to show (a timeline clip ended, a live source dropped). Without
   // this the pump simply stops sending and the window keeps drawing the last bitmap it received —

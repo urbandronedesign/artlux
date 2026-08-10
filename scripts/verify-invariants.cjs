@@ -1875,6 +1875,39 @@ check(
   },
 );
 
+// ── An alignment aid shows the PROJECTOR, not the picture ─────────────────────────────────────
+check(
+  'alignment aids are drawn unwarped, off the real soft edge, and are never persisted',
+  'The aids exist for the job that comes before every other output feature: standing in a venue ' +
+  'aiming, zooming, rolling and focusing real machines until they overlap. Three things make them ' +
+  'true, and each is invisible to a typechecker. (1) They are drawn in the RAW RASTER — DOM/SVG over ' +
+  'the canvas, never through the warp pipeline — because you are adjusting where the light goes, and ' +
+  'an aid that moved with the corner-pin would hide the error being hunted. (2) The blend band comes ' +
+  "from the output's REAL softEdge, not from the `render` payload, which is deliberately flattened " +
+  'when NVAPI owns the geometry (the double-blend guard) — an aid that vanished on a hardware-blended ' +
+  'rig would disappear exactly where it is needed most. (3) The state is transient: anything that ' +
+  'reached ProjectorOutput could be saved on and then come up over a show, which is the same trap ' +
+  'Identify avoids.',
+  () => {
+    const problems = [];
+    if (!exists('src/renderer/projector/AlignAids.tsx')) return 'projector/AlignAids.tsx is gone';
+    const aid = stripComments(read('src/renderer/projector/AlignAids.tsx'));
+    // Raster space: the overlay is SVG/DOM. A canvas here would mean it had joined the warped path.
+    if (!/<svg/.test(aid)) problems.push('AlignAids no longer draws with SVG — the aid must stay in the raw raster, outside the warp pipeline');
+    const app = stripComments(read('src/renderer/App.tsx'));
+    // The aid payload must read the output's own softEdge, not the flattened one in `render`.
+    if (!/t: 'aid'/.test(app)) problems.push('App no longer pushes the alignment aid to its outputs');
+    else if (!/soft:\s*out\?\.softEdge/.test(app)) {
+      problems.push("the aid's blend band is not taken from out.softEdge — under hwWarp the render payload is flat, so the band would vanish on a hardware-blended rig");
+    }
+    // Never persisted: no aid field may appear on the ProjectorOutput contract.
+    if (/\baid\w*\s*\?:/.test(stripComments(read('shared/protocol.ts')))) {
+      problems.push('ProjectorOutput has gained an alignment-aid field — aids must stay transient App state or one can be saved into a show');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Every window ArtLux opens wears ArtLux's mark ──────────────────────────────────────────────
 check(
   'every framed window carries the app icon, from one source',

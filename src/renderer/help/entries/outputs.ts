@@ -50,4 +50,12 @@ export const outputsHelp: HelpEntry[] = [
     group: 'Outputs',
     keywords: ['identify', 'which projector', 'name', 'label', 'rigging', 'display'],
   },
+  {
+    id: 'outputs.align-aids',
+    title: 'Alignment aids',
+    short: 'Patterns projected on every output while you physically hang the rig.',
+    body: 'These come BEFORE any software warp: they help you aim, zoom, roll and focus the real machines so their images land where you want and overlap by the right amount. Every pattern is drawn in the projector\'s raw raster, unwarped, because you are adjusting where the light goes — an aid that moved with the corner-pin would hide the error you are hunting. Each output is tinted its own colour (the first three are red/green/blue, so an overlap reads as their mix, and the swatch in each row tells you which light is whose). Grid gives lettered columns and numbered rows so two people can name the same square. Blend is the overlap tool: your soft edge drawn as a hatched band with its inner boundary bright and a ladder across it — match the neighbour\'s ladder and you have matched zoom, aim and roll at once. Focus, Greys, Bars and 1:1 cover sharpness, brightness/gamma match, colour match and native resolution. Dim controls how far the show underneath is darkened. Nothing here is saved with the project.',
+    group: 'Outputs',
+    keywords: ['align', 'overlap', 'blend', 'test pattern', 'grid', 'focus', 'projector setup', 'rigging', 'multiscreen', 'edge blend'],
+  },
 ];

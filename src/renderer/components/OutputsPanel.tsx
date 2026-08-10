@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2, Tag } from 'lucide-react';
+import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2, Tag, Crosshair } from 'lucide-react';
 import { Surface, SourceType } from '../types';
 import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { SpanEditor } from './SpanEditor';
 import { RigBlendStrip } from './RigBlendStrip';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
+import { litAidHue, type AidPattern } from '../projector/AlignAids';
 
 interface Props {
   surfaces: Surface[];
@@ -17,6 +18,9 @@ interface Props {
   onToggleIdentify: (surfaceId: string) => void;
   onIdentifyMany: (surfaceIds: string[]) => void;
   onSetOutputName: (surfaceId: string, name: string) => void;
+  // The pattern projected on every live output while a rig is physically hung (AlignAids.tsx).
+  alignAid: { pattern: AidPattern | 'off'; dim: number };
+  onSetAlignAid: (v: { pattern: AidPattern | 'off'; dim: number }) => void;
   fpsCap: number;
   // Spanning one surface across several projectors (see SpanEditor / services/outputSpan.ts).
   spans: OutputSpan[];
@@ -45,6 +49,20 @@ interface Props {
   onSetHwWarp: (surfaceId: string, on: boolean) => void;   // apply warp+blend at the GPU scanout
 }
 
+// The aid patterns, in the order you actually reach for them when hanging a rig: find the light,
+// match the overlap, sharpen it, then match the machines to each other.
+const AID_BUTTONS: Array<{ id: AidPattern | 'off'; label: string; help: string }> = [
+  { id: 'off', label: 'Off', help: '' },
+  { id: 'grid', label: 'Grid', help: 'Geometry, keystone and roll. Lettered columns and numbered rows so two people on two ladders can name the same square.' },
+  { id: 'blend', label: 'Blend', help: 'The overlap itself: each feathered side hatched, its inner edge drawn bright, and a ladder across it. Match the neighbour’s ladder and you have matched zoom, aim and roll at once.' },
+  { id: 'focus', label: 'Focus', help: 'Fine detail at the centre, edges and corners — where a projector focused only in the middle gives itself away.' },
+  { id: 'grey', label: 'Greys', help: 'An 11-step ramp for brightness and gamma match between machines, plus the black patch where a blended rig’s lifted black shows.' },
+  { id: 'bars', label: 'Bars', help: 'Colour bars, for matching colour between machines.' },
+  { id: 'checker', label: '1:1', help: 'A device-pixel checkerboard. Moiré means something is scaling and the projector is not on its native raster.' },
+  { id: 'white', label: 'White', help: 'A flat white field — coverage and spill.' },
+  { id: 'black', label: 'Black', help: 'A flat black field — black level, and how much the overlap lifts it.' },
+];
+
 const cell = 'bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-fg-1 text-mini focus:border-accent focus:outline-none disabled:opacity-40';
 const numCell = 'w-12 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-micro focus:border-accent focus:outline-none';
 const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
@@ -58,7 +76,8 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 // was always the wrong container. Nothing inside changed; only the chrome (backdrop, drag handle,
 // close button) came off. See docs/WORKSPACE.md.
 export const OutputsPanel: React.FC<Props> = ({
-  surfaces, outputs, displays, editingOutputIds, identifyOutputIds, onToggleIdentify, onIdentifyMany, onSetOutputName, fpsCap,
+  surfaces, outputs, displays, editingOutputIds, identifyOutputIds, onToggleIdentify, onIdentifyMany, onSetOutputName,
+  alignAid, onSetAlignAid, fpsCap,
   spans, onApplySpan, onUpdateSpan, onRemoveSpan, onSetSliceRect, onToggleEditMany,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
   onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onMeasureGamma, measuringGammaId, gammaMsg, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
@@ -138,6 +157,49 @@ export const OutputsPanel: React.FC<Props> = ({
             projection surface (on the projector: arrows nudge, <b>R</b> reset, <b>Esc</b> done).
           </div>
 
+          {/* ── Alignment aids ────────────────────────────────────────────────────────────────
+              What you put on the wall while you are still HANGING the rig — before any software
+              warp, which is why the patterns are drawn in each projector's raw raster. One choice
+              for the whole wall: overlapping two machines means seeing both at once. */}
+          <div className="rounded-md border border-line-1 bg-surface-0/40 p-2 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Tooltip id="outputs.align-aids">
+                <span className="text-mini font-semibold text-fg-1 flex items-center gap-1.5" {...help('outputs.align-aids')}>
+                  <Crosshair size={13} /> Alignment aids
+                </span>
+              </Tooltip>
+              <div className="flex items-center gap-1 flex-wrap">
+                {AID_BUTTONS.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => onSetAlignAid({ ...alignAid, pattern: b.id })}
+                    title={b.help}
+                    className={`px-2 py-1 rounded-sm text-micro border ${
+                      alignAid.pattern === b.id ? 'bg-accent text-black border-accent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'
+                    }`}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+              {alignAid.pattern !== 'off' && (
+                <label className="flex items-center gap-1.5 text-micro text-fg-2 ml-auto" title="How far the show underneath is darkened — you often want to align against the real content, not a blank field">
+                  Dim
+                  <input type="range" min={0} max={1} step={0.05} value={alignAid.dim}
+                    onChange={(e) => onSetAlignAid({ ...alignAid, dim: +e.target.value })} className="w-24 accent-accent" />
+                  <span className="num w-8 text-right">{Math.round(alignAid.dim * 100)}%</span>
+                </label>
+              )}
+            </div>
+            {alignAid.pattern !== 'off' && (
+              <div className="text-micro text-fg-3">
+                {AID_BUTTONS.find((b) => b.id === alignAid.pattern)?.help}
+                {' '}Each output is tinted its own colour — the first three are red/green/blue, so an overlap
+                reads as their mix. Patterns are drawn in the raw projector raster, unwarped.
+              </div>
+            )}
+          </div>
+
           <SpanEditor
             surfaces={surfaces}
             spans={spans}
@@ -195,6 +257,16 @@ export const OutputsPanel: React.FC<Props> = ({
                       projector for where it hangs) and losing either makes a re-pointed rig unreadable. */}
                   <span className={`text-mini truncate flex items-center gap-1 ${isSlice ? 'text-fg-2 pl-2' : 'text-fg-1'}`} title={o?.name ? `${o.name} — surface ${s.name}` : s.name}>
                     {isSlice && <span className="text-fg-3 shrink-0" title="A slice of the surface above">↳</span>}
+                    {/* The colour this output is tinted by the alignment aids — shown only while they
+                        are up, because that is the only time it means anything. It is what maps a
+                        light on the wall back to a row in this list. */}
+                    {alignAid.pattern !== 'off' && o && (
+                      <span
+                        title="This output's colour in the alignment aids"
+                        style={{ background: `hsl(${litAidHue(outputs, s.id)}, 90%, 60%)` }}
+                        className="w-2 h-2 rounded-full shrink-0"
+                      />
+                    )}
                     <span className="truncate">{o?.name || s.name}</span>
                     {o?.name && <span className="text-micro text-fg-3 truncate shrink">· {s.name}</span>}
                   </span>

@@ -56,6 +56,47 @@ would be a watermark on the venue wall for the length of the show.
 
 ---
 
+## Hanging a multi‑projector rig — alignment aids
+
+Everything else on this page bends the *picture*. Aids come first: they help you aim, zoom, roll and
+focus the **real machines** so their light lands where you want and overlaps by the right amount.
+
+They live in the **Alignment aids** bar at the top of Outputs, and a pattern goes up on **every live
+output at once** — overlapping two projectors means seeing both. Each output is tinted **its own
+colour**, and the first three are red / green / blue on purpose: where two machines overlap you see
+their mix (red + green = yellow) with nothing to measure. The dot in each row tells you which light
+belongs to which output.
+
+| Pattern | Use it to |
+|---|---|
+| **Grid** | Judge geometry, keystone and roll. Columns are lettered and rows numbered, so two people on two ladders can name the same square — *"my P4 has to sit on your A4"*. |
+| **Blend** | **Set the overlap.** Each feathered side is hatched in the output's colour, its inner edge drawn bright, with a **ladder** of rungs across it. Match your neighbour's ladder and you have matched three things at once: same band width (zoom), same position (aim), rungs parallel (roll). The band is labelled with its size in % and pixels. |
+| **Focus** | Sharpen the lens — fine detail at the centre, edges *and* corners, where a projector focused only in the middle gives itself away. |
+| **Greys** | Match brightness and gamma between machines (11 steps), and see how much a blend lifts black. |
+| **Bars** | Match colour between machines. |
+| **1:1** | Check the projector is on its native raster — moiré means something is scaling. |
+| **White / Black** | Flat fields for coverage, spill and black level. |
+
+**Dim** sets how far the show underneath is darkened; you often want to align against the real content
+rather than a blank field. Nothing here is saved with the project, so an aid can't come up over a show.
+
+> **The aids are drawn unwarped, in each projector's raw raster** — that is deliberate. While you are
+> hanging a machine you are adjusting where its *light* goes, so an aid that moved with the corner‑pin
+> would hide the very error you are looking for. If an output already carries a warp, the aid says so
+> on the projection. Do the physical work first, then **Align** the software on top.
+
+### A working order for a wall
+
+1. **Identify** every output so you know which machine is which.
+2. **Grid** — aim and zoom each projector so its frame covers its share of the surface, using the
+   numbered corners and the centre cross. Get roll right here; it is painful later.
+3. **Blend** — set each output's **Soft edge** (or let a **Span** do it), then physically slide the
+   projectors until neighbouring ladders sit on top of each other.
+4. **Focus**, then **Greys** and **Bars** to match the machines to each other.
+5. Only now use **Align** / calibration to take out what optics could not.
+
+---
+
 ## Align (corner‑pin)
 
 Click **Align**, then on the projector window drag the four corners onto your projection surface:
