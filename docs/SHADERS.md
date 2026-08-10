@@ -29,6 +29,7 @@ That is the whole setup. The picture starts immediately.
 | **Palette wave** · LED | Bands of one of ArtLux's gradients sweeping along the surface | LED tape — and the worked example of a shader with **knobs** |
 | **Comet trails** | A head wandering the surface, leaving a long fading tail | Projection — and the worked example of **feedback** |
 | **Spectrum** · LED | Sixteen bars rising with the music, coloured by a palette | LED tape — and the worked example of **sound** |
+| **Beat quads** | Four panels, each flashing on its own drum: kick, snare, mid, hats | Projection — and the worked example of **beats** |
 
 The `· LED` mark is the important one. A shader made for a projector usually looks like noise on sixty
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
@@ -66,6 +67,8 @@ Available to it:
 | `lastFrame` | sampler2D | this shader last frame. Needs REQUIRES_LAST_FRAME in the header. |
 | `iAudio` | float[16] | the sound, low to high, each 0..1 and already smoothed. |
 | `iAudioLevel` | float | the whole spectrum averaged: overall energy, 0..1. |
+| `iBeat` | float[4] | kick, snare, mid, high. 1 on the beat, falling back to 0. |
+| `iBeatCount` | float[4] | beats counted per channel. Step something on every kick. |
 
 <!-- /generated:shader-uniforms -->
 
@@ -172,6 +175,40 @@ The built-in **Spectrum** shader is the worked example.
 
 **No sound, no motion.** If the machine has no audio device, or nothing is playing, every band reads
 0 and an audio-reactive shader is simply dark. That is the shader working, not failing.
+### Beats, not just level
+
+Four channels watch for **hits** rather than loudness:
+
+| | Channel | Listens to | Usually |
+|---|---|---|---|
+| `iBeat[0]` | kick | 40–180 Hz | the kick drum, bass notes |
+| `iBeat[1]` | snare | 180–550 Hz | snare, toms, low vocals |
+| `iBeat[2]` | mid | 550 Hz–3.5 kHz | guitars, keys, vocal presence |
+| `iBeat[3]` | high | 3.5–16 kHz | hats, cymbals |
+
+Each one goes to **1 the instant it fires** and falls back to 0 over about a quarter second, so you
+can use it directly as a flash:
+
+```glsl
+vec3 col = base + vec3(1.0) * iBeat[0];   // white flash on every kick
+```
+
+And `iBeatCount[4]` counts them, which is how you change something **once per hit** instead of once
+per frame:
+
+```glsl
+vec3 col = palette(pal, fract(iBeatCount[0] * 0.137));   // a new colour on every kick
+```
+
+The built-in **Beat quads** shader is the worked example — one panel per channel.
+
+**A beat is not "loud", it is louder than the last second was.** Each channel compares its energy
+against its own running average, and how far above it has to be adapts to how busy the music already
+is. So a steady tone never fires however loud it is, a held chord fires once at the front rather than
+continuously, and the same shader works on a sparse dub track and a wall of guitars without retuning.
+
+What it will not do: keep time. There is no tempo, no bar and no downbeat here — a channel reports
+that something hit, not where you are in the music.
 ## Trails, decay, and anything that remembers
 
 Add `"REQUIRES_LAST_FRAME": true` to the header and your shader is handed its own previous frame as

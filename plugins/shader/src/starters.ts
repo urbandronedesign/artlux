@@ -152,6 +152,29 @@ vec4 shaderColor(vec2 uv) {
 }`,
 });
 
+STARTERS.push({
+  id: 'beat',
+  name: 'Beat quads',
+  family: 'projection',
+  source: `/*{
+  "TITLE": "Beat quads",
+  "CATEGORIES": ["audio"],
+  "INPUTS": [
+    { "NAME": "pal",  "LABEL": "Palette",  "TYPE": "palette", "DEFAULT": 3 },
+    { "NAME": "hold", "LABEL": "Step hue", "TYPE": "bool",    "DEFAULT": true }
+  ]
+}*/
+// Four quadrants, four beat channels: kick bottom-left, snare bottom-right, mid top-left, high
+// top-right. iBeat[c] is 1 the instant that channel fires and falls back to 0 over about 250 ms;
+// iBeatCount[c] counts them, so "step hue" advances the colour once per HIT rather than per frame.
+vec4 shaderColor(vec2 uv) {
+  int c = (uv.x < 0.5 ? 0 : 1) + (uv.y < 0.5 ? 0 : 2);
+  float pulse = iBeat[c];
+  float t = hold ? fract(iBeatCount[c] * 0.137) : float(c) * 0.25;
+  return vec4(palette(pal, t) * pulse, 1.0);
+}`,
+});
+
 export const DEFAULT_STARTER = 'plasma';
 
 export function starterSource(id: string | undefined): string {

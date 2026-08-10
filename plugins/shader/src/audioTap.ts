@@ -17,6 +17,7 @@
 // and the reason music software feels like it is "reacting" rather than twitching.
 
 import type { PluginIpc } from '@artlux/sdk/renderer';
+import { BeatDetector, CHANNEL_COUNT } from './beatDetect';
 
 export const BAND_COUNT = 16;
 
@@ -29,6 +30,7 @@ let polling = false;
 const bands = new Float32Array(BAND_COUNT);   // enveloped — what shaders read
 const raw = new Float32Array(BAND_COUNT);     // last value from the engine
 let level = 0;
+const beats = new BeatDetector();
 
 export function setIpc(handle: PluginIpc): void { ipc = handle; }
 
@@ -52,6 +54,10 @@ export function start(): void {
       // the honest answer and it must not be a per-frame exception in a render loop.
       raw.fill(0);
     }
+    // Beats come from the RAW bands, not the enveloped ones: the envelope exists to stop a visual
+    // flickering, and smoothing the signal before looking for a jump is smoothing away the jump.
+    beats.update(raw, performance.now() / 1000);
+
     let sum = 0;
     for (let i = 0; i < BAND_COUNT; i++) {
       const target = raw[i];
@@ -66,6 +72,12 @@ export function start(): void {
 }
 
 export function stop(): void { polling = false; }
+
+/** Beat pulses per channel (kick, snare, mid, high) — 1 at the hit, decaying. Live array. */
+export function beatPulses(): Float32Array { return beats.pulses; }
+/** Beats counted per channel since start, so a shader can step on every kick. Live array. */
+export function beatCounts(): Float32Array { return beats.counts; }
+export { CHANNEL_COUNT as BEAT_CHANNELS };
 
 /** The enveloped bands, for the uniform upload. Live array — read it, do not keep it. */
 export function spectrum(): Float32Array { return bands; }

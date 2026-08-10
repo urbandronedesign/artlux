@@ -18,7 +18,7 @@
 import { buildProgramSource } from './wrapper';
 import { parseHeader, type ShaderInput } from './header';
 import { buildPaletteLut } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
-import { spectrum as audioSpectrum, broadband } from './audioTap';
+import { spectrum as audioSpectrum, broadband, beatPulses, beatCounts } from './audioTap';
 
 export interface CompileResult {
   program: WebGLProgram | null;
@@ -37,6 +37,8 @@ interface Uniforms {
   iFrame: WebGLUniformLocation | null;
   iAudio: WebGLUniformLocation | null;
   iAudioLevel: WebGLUniformLocation | null;
+  iBeat: WebGLUniformLocation | null;
+  iBeatCount: WebGLUniformLocation | null;
 }
 
 /** A compiled program plus its uniform locations — what renderToBitmap needs to draw. */
@@ -205,6 +207,8 @@ export function getProgram(source: string): CompiledProgram {
           // difference: it would light up on this machine and be silent on a venue's.
           iAudio: g.getUniformLocation(p, 'iAudio[0]'),
           iAudioLevel: g.getUniformLocation(p, 'iAudioLevel'),
+          iBeat: g.getUniformLocation(p, 'iBeat[0]'),
+          iBeatCount: g.getUniformLocation(p, 'iBeatCount[0]'),
           artluxPaletteLut: g.getUniformLocation(p, 'artluxPaletteLut'),
           artluxPaletteRows: g.getUniformLocation(p, 'artluxPaletteRows'),
         },
@@ -228,7 +232,7 @@ export function failedProgram(log: string): CompiledProgram {
 }
 
 function emptyUniforms(): Uniforms {
-  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null, iAudio: null, iAudioLevel: null };
+  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null, iAudio: null, iAudioLevel: null, iBeat: null, iBeatCount: null };
 }
 
 /**
@@ -268,6 +272,8 @@ export function renderToBitmap(
   // optimised out and its location comes back null, so this costs one branch.
   if (u.iAudio) g.uniform1fv(u.iAudio, audioSpectrum());
   if (u.iAudioLevel) g.uniform1f(u.iAudioLevel, broadband());
+  if (u.iBeat) g.uniform1fv(u.iBeat, beatPulses());
+  if (u.iBeatCount) g.uniform1fv(u.iBeatCount, beatCounts());
 
   // ArtLux's own gradients, on texture unit 0, so `palette(id, t)` works in any shader — declared
   // input or a literal id. Uploaded once, lazily: a project with no palette-using shader never pays.

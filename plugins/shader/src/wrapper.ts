@@ -35,6 +35,8 @@ export const UNIFORMS: { name: string; detail: string }[] = [
   { name: 'lastFrame', detail: 'sampler2D — this shader last frame. Needs REQUIRES_LAST_FRAME in the header.' },
   { name: 'iAudio', detail: 'float[16] — the sound, low to high, each 0..1 and already smoothed.' },
   { name: 'iAudioLevel', detail: 'float — the whole spectrum averaged: overall energy, 0..1.' },
+  { name: 'iBeat', detail: 'float[4] — kick, snare, mid, high. 1 on the beat, falling back to 0.' },
+  { name: 'iBeatCount', detail: 'float[4] — beats counted per channel. Step something on every kick.' },
 ];
 
 // `palette()` is always available, whether or not the shader declares a `palette` input, so a shader
@@ -51,6 +53,8 @@ uniform sampler2D artluxPaletteLut;
 uniform int artluxPaletteRows;
 uniform float iAudio[16];
 uniform float iAudioLevel;
+uniform float iBeat[4];
+uniform float iBeatCount[4];
 in vec2 vUv;
 out vec4 artluxFragColor;
 
