@@ -105,6 +105,7 @@ worked example — open it and read its header.
 | `bool` | checkbox | yes |
 | `long` | dropdown (give it `LABELS`) | yes |
 | `palette` | ArtLux's own gradients, sampled with `palette(id, t)` | yes |
+| `beatDamp` | a slider in seconds that damps THIS shader's `iBeat` values | yes |
 | `color` | colour picker (a `vec4`) | not yet — a lane carries one number |
 | `point2D` | two number boxes (a `vec2`) | not yet |
 
@@ -225,6 +226,23 @@ machine, and they are machine settings rather than project ones — the same sho
 deserves a different fall — so they do not travel with the project.
 
 Neither affects how a beat is *detected*, only how long its pulse lives afterwards.
+#### Damping one shader rather than the machine
+
+Declare a `beatDamp` input and that shader gets its own beat fall, with a slider in the inspector
+next to its other parameters:
+
+```glsl
+/*{ "INPUTS": [
+  { "NAME": "damp", "LABEL": "Beat damping", "TYPE": "beatDamp", "MIN": 0.05, "MAX": 2.0, "DEFAULT": 0.25 }
+] }*/
+```
+
+Nothing else changes — `iBeat[c]` is read exactly as before, it simply decays at the rate that
+slider says. Two surfaces can react to the same kick at very different speeds, and because it is an
+ordinary parameter it travels with the project and can ride a timeline lane.
+
+A shader that declares none uses **Preferences → Shaders ▸ Beat fall**, the machine default. The
+built-in **Beat quads** declares one, so it is the quickest place to feel the difference.
 ## Trails, decay, and anything that remembers
 
 Add `"REQUIRES_LAST_FRAME": true` to the header and your shader is handed its own previous frame as

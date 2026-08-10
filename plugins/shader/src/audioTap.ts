@@ -97,6 +97,24 @@ export function stop(): void { polling = false; }
 
 /** Beat pulses per channel (kick, snare, mid, high) — 1 at the hit, decaying. Live array. */
 export function beatPulses(): Float32Array { return beats.pulses; }
+/**
+ * Beat pulses with a CALLER-CHOSEN fall time, for a shader that declares its own damper.
+ *
+ * A pulse is 1 at the hit and reaches 0 after fallSec seconds, computed straight from when the hit
+ * happened — so this allocates nothing per surface and two surfaces can damp the same kick by very
+ * different amounts without either one keeping state.
+ */
+const scratch = new Float32Array(CHANNEL_COUNT);
+export function beatPulsesWith(fallSec: number): Float32Array {
+  const now = performance.now() / 1000;
+  const f = Math.max(0.02, Math.min(4, fallSec));
+  for (let c = 0; c < CHANNEL_COUNT; c++) {
+    const age = now - beats.hitTimes[c];
+    scratch[c] = age < 0 || age >= f ? 0 : 1 - age / f;
+  }
+  return scratch;
+}
+
 /** Beats counted per channel since start, so a shader can step on every kick. Live array. */
 export function beatCounts(): Float32Array { return beats.counts; }
 export { CHANNEL_COUNT as BEAT_CHANNELS };

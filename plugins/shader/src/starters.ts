@@ -160,8 +160,9 @@ STARTERS.push({
   "TITLE": "Beat quads",
   "CATEGORIES": ["audio"],
   "INPUTS": [
-    { "NAME": "pal",  "LABEL": "Palette",  "TYPE": "palette", "DEFAULT": 3 },
-    { "NAME": "hold", "LABEL": "Step hue", "TYPE": "bool",    "DEFAULT": true }
+    { "NAME": "damp", "LABEL": "Beat damping", "TYPE": "beatDamp", "MIN": 0.05, "MAX": 2.0, "DEFAULT": 0.25 },
+    { "NAME": "pal",  "LABEL": "Palette",      "TYPE": "palette",  "DEFAULT": 3 },
+    { "NAME": "hold", "LABEL": "Step hue",     "TYPE": "bool",     "DEFAULT": true }
   ]
 }*/
 // Four quadrants, four beat channels: kick bottom-left, snare bottom-right, mid top-left, high

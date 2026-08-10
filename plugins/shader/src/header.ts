@@ -18,7 +18,14 @@
 
 import { PALETTE_NAMES } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
 
-export type InputType = 'float' | 'bool' | 'long' | 'color' | 'point2D' | 'palette';
+export type InputType = 'float' | 'bool' | 'long' | 'color' | 'point2D' | 'palette' | 'beatDamp';
+
+/**
+ *  is a float with a JOB: the plugin reads it and uses it as the fall time for THIS
+ * surface iBeat values, so a shader carries its own damping instead of borrowing the machine
+ * setting. It is still declared as a uniform, so the shader can read the number it is being damped
+ * by — useful for showing it, and free, since an unread uniform is optimised out.
+ */
 
 export interface ShaderInput {
   name: string;
@@ -52,7 +59,7 @@ export interface ShaderHeader {
 
 const EMPTY: ShaderHeader = { categories: [], inputs: [], problems: [], needsLastFrame: false };
 
-const SUPPORTED: InputType[] = ['float', 'bool', 'long', 'color', 'point2D', 'palette'];
+const SUPPORTED: InputType[] = ['float', 'bool', 'long', 'color', 'point2D', 'palette', 'beatDamp'];
 
 /** A GLSL identifier we are willing to declare a uniform for. Guards against header-injected code. */
 const IDENT = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
@@ -105,16 +112,18 @@ export function parseHeader(source: string): ShaderHeader {
     // makes most of the choices UNREACHABLE from the timeline: a palette lane could only ever select
     // palettes 0 and 1. Index-like inputs therefore default to their real span.
     const labelsRaw = Array.isArray(item.LABELS) ? (item.LABELS as unknown[]).map(String) : undefined;
-    const defMax = type === 'palette' ? PALETTE_NAMES.length - 1
+    const defMax = type === 'beatDamp' ? 2
+      : type === 'palette' ? PALETTE_NAMES.length - 1
       : type === 'long' && labelsRaw?.length ? labelsRaw.length - 1
       : 1;
-    const min = num(item.MIN, 0);
+    const min = num(item.MIN, type === 'beatDamp' ? 0.05 : 0);
     const max = num(item.MAX, defMax);
 
     let def: number | number[];
     if (type === 'color') def = Array.isArray(item.DEFAULT) ? (item.DEFAULT as number[]).slice(0, 4) : [1, 1, 1, 1];
     else if (type === 'point2D') def = Array.isArray(item.DEFAULT) ? (item.DEFAULT as number[]).slice(0, 2) : [0.5, 0.5];
     else if (type === 'bool') def = item.DEFAULT ? 1 : 0;
+    else if (type === 'beatDamp') def = num(item.DEFAULT, 0.25);
     else def = num(item.DEFAULT, type === 'float' ? (min + max) / 2 : 0);
 
     const labels = labelsRaw;
@@ -141,6 +150,7 @@ export function glslTypeOf(t: InputType): string {
   switch (t) {
     case 'bool': return 'bool';
     case 'long': case 'palette': return 'int';
+    case 'beatDamp': return 'float';
     case 'color': return 'vec4';
     case 'point2D': return 'vec2';
     default: return 'float';
@@ -149,5 +159,5 @@ export function glslTypeOf(t: InputType): string {
 
 /** Only single-number inputs can ride an automation lane — a lane writes ONE float. */
 export function isAutomatable(t: InputType): boolean {
-  return t === 'float' || t === 'bool' || t === 'long' || t === 'palette';
+  return t === 'float' || t === 'bool' || t === 'long' || t === 'palette' || t === 'beatDamp';
 }

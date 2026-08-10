@@ -18,7 +18,7 @@
 import { buildProgramSource } from './wrapper';
 import { parseHeader, type ShaderInput } from './header';
 import { buildPaletteLut } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
-import { spectrum as audioSpectrum, broadband, beatPulses, beatCounts } from './audioTap';
+import { spectrum as audioSpectrum, broadband, beatPulses, beatPulsesWith, beatCounts } from './audioTap';
 
 export interface CompileResult {
   program: WebGLProgram | null;
@@ -272,7 +272,14 @@ export function renderToBitmap(
   // optimised out and its location comes back null, so this costs one branch.
   if (u.iAudio) g.uniform1fv(u.iAudio, audioSpectrum());
   if (u.iAudioLevel) g.uniform1f(u.iAudioLevel, broadband());
-  if (u.iBeat) g.uniform1fv(u.iBeat, beatPulses());
+  if (u.iBeat) {
+    // A shader that DECLARES a damper gets its own decay; everything else gets the machine default.
+    // Same detector either way — only the fall differs, which is why two surfaces can react to one
+    // kick at completely different speeds.
+    const damp = entry.params.find((p) => p.input.type === 'beatDamp');
+    const sec = damp ? Number(params?.get(damp.input.name) ?? damp.input.def) : NaN;
+    g.uniform1fv(u.iBeat, Number.isFinite(sec) ? beatPulsesWith(sec) : beatPulses());
+  }
   if (u.iBeatCount) g.uniform1fv(u.iBeatCount, beatCounts());
 
   // ArtLux's own gradients, on texture unit 0, so `palette(id, t)` works in any shader — declared

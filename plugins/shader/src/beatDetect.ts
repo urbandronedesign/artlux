@@ -103,6 +103,14 @@ export class BeatDetector {
   readonly pulses = new Float32Array(CHANNEL_COUNT);
   /** Beats counted since start, per channel. Lets a shader step on every kick. */
   readonly counts = new Float32Array(CHANNEL_COUNT);
+  /**
+   * WHEN each channel last fired, in the same seconds  is given.
+   *
+   * Exposed because a pulse is then a PURE FUNCTION of (now, hitTime, fallTime) — no accumulator, no
+   * per-consumer state. That is what lets every surface damp the same beat differently: they all read
+   * the one detector and each draws its own decay from it.
+   */
+  readonly hitTimes = new Float32Array(CHANNEL_COUNT).fill(-1e9);
   /** True only on the update a beat was detected. */
   readonly hits = [false, false, false, false];
 
@@ -113,6 +121,7 @@ export class BeatDetector {
     this.pulses.fill(0);
     this.counts.fill(0);
     this.hits.fill(false);
+    this.hitTimes.fill(-1e9);
   }
 
   /**
@@ -167,6 +176,7 @@ export class BeatDetector {
       this.hits[c] = hit;
       this.pulses[c] = st.pulse;
       this.counts[c] = st.count;
+      this.hitTimes[c] = st.lastHit;
     }
   }
 }

@@ -57,6 +57,17 @@ export function ShaderParamControls({
           <div key={i.name} className="flex items-center gap-1">
             <label className="text-fg-2 w-16 shrink-0 truncate text-micro" title={`${i.name} · ${i.type}`}>{i.label}</label>
 
+            {/* A damper reads as a TIME, so it says so. Same slider as a float otherwise — the
+                difference is what the plugin does with the number, not how it is set. */}
+            {i.type === 'beatDamp' && (
+              <>
+                <input type="range" className="flex-1 min-w-0 accent-accent"
+                  min={i.min} max={i.max} step={0.01}
+                  value={v as number} onChange={(e) => set(i.name, +e.target.value)} />
+                <span className="w-12 shrink-0 text-right text-micro text-fg-2 num">{(v as number).toFixed(2)} s</span>
+              </>
+            )}
+
             {i.type === 'float' && (
               <>
                 <input type="range" className="flex-1 min-w-0 accent-accent"
