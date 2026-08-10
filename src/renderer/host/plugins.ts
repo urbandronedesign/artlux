@@ -24,10 +24,11 @@ import { plugin as hap } from '@artlux/plugin-hap/renderer';
 import { plugin as mp4 } from '@artlux/plugin-mp4';
 import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
 import { plugin as augmenta } from '@artlux/plugin-augmenta';
+import { plugin as shader } from '@artlux/plugin-shader';
 import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
 import { plugin as audio } from '@artlux/plugin-audio/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, showControl, audio];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, shader, showControl, audio];
 
 // EVERY PLUGIN ACTIVATES. The launch profile no longer decides that, because calibration is two
 // halves and only one of them is expensive:

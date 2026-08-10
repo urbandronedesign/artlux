@@ -2,7 +2,7 @@ import React from 'react';
 import { SurfaceContent, SourceType, VideoLayer, Surface } from '../types';
 import { FULL_RECT, type SrcRect } from '../../../shared/protocol';
 import { clampRect } from '../services/outputSpan';
-import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop, Code2 } from 'lucide-react';
 import { Slider } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
@@ -103,6 +103,15 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
         <Tooltip id="content.effect">
           <button onClick={() => pickType('EFFECT')} className={btnCls(c.type === 'EFFECT')} {...help('content.effect')}>
             <Sparkles size={16} className="mb-1" /><span className="text-micro">Effect</span>
+          </button>
+        </Tooltip>
+        {/* Hand-written like every other plugin type here (NDI, Spout, Tracking, MediaPipe, Augmenta),
+            even though ContentSourceProvider publishes a `pickerButton` the SDK nobody reads. Rendering
+            these from the registry is the obvious cleanup and a separate one — doing it here alone
+            would give the plugins that still declare a button two of them. */}
+        <Tooltip id="content.shader">
+          <button onClick={() => pickType('SHADER')} className={btnCls(c.type === 'SHADER')} title="Operator-authored GLSL generative content" {...help('content.shader')}>
+            <Code2 size={16} className="mb-1" /><span className="text-micro">Shader</span>
           </button>
         </Tooltip>
         {showLayerOption && (

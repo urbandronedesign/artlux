@@ -298,6 +298,15 @@ export interface SurfaceContent {
   paletteId?: number;
   speed?: number;
   intensity?: number;
+  // SHADER params (@artlux/plugin-shader) — operator-authored GLSL generative content.
+  // Here rather than in the plugin because these are PERSISTED: core owns the project file's shape so
+  // a plugin can be reworked, renamed or disabled without a migration. Only behaviour lives in the
+  // plugin, which is the same split SourceType.NDI / TRACKING already follow.
+  shaderId?: string;   // which shader — a built-in id in Phase 0, a library/asset ref later
+  shaderRes?: number;  // render HEIGHT in px (width follows at 16:9). Absent ⇒ 720.
+                       // Per surface because the two consumers want opposite things: the LED path
+                       // samples an atlas rect scaled to fixture density and discards anything finer,
+                       // while a projector output wants its native raster.
   // TRACKING params (LiDAR blob viz, projection-mappable):
   trackingSource?: string;   // which tracking surface: 'SOL' | 'MUR' | 'SOL_MUR'
   bgLayerId?: string;        // optional timeline layer drawn UNDER the blobs (video + blobs on one surface)

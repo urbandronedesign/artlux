@@ -1,0 +1,75 @@
+// The Phase 0 built-in shaders.
+//
+// Three, not one, and chosen to cover the two families a shader has to serve — because a shader that
+// reads well at 4K often looks like noise on 60 LEDs, and the only way to find that out is to have one
+// of each on screen. `strip` is the LED case (all variation along u, none across v); `rings` and
+// `plasma` are the projection case.
+//
+// Written from scratch. Shadertoy's default licence is CC BY-NC-SA 3.0 — share-alike and contagious —
+// and this repo is public, so nothing shipped here may be derived from one.
+//
+// These are string constants today. In Phase 5 they become the starter LIBRARY: folders on disk with a
+// header, values and a thumbnail. Their TEXT should survive that move unchanged, which is the point of
+// writing them against the real entry point now rather than something provisional.
+
+export interface Starter {
+  id: string;
+  name: string;
+  family: 'projection' | 'led';
+  source: string;
+}
+
+export const STARTERS: Starter[] = [
+  {
+    id: 'plasma',
+    name: 'Plasma',
+    family: 'projection',
+    source: `// Two interfering sine fields, breathing in and out.
+vec4 shaderColor(vec2 uv) {
+  float breath = 0.5 + 0.5 * sin(iTime * 0.7);
+
+  float f = sin((uv.x + uv.y) * 6.0 + iTime * 0.9)
+          + sin((uv.x - uv.y) * 4.2 - iTime * 0.6);
+
+  // A cheap three-phase ramp stands in for a palette until palettes land in Phase 3.
+  float t = f * 0.25 + 0.5;
+  vec3 col = 0.5 + 0.5 * cos(6.2831853 * (t + vec3(0.0, 0.33, 0.67)));
+
+  return vec4(col * mix(0.35, 1.0, breath), 1.0);
+}`,
+  },
+  {
+    id: 'rings',
+    name: 'Rings',
+    family: 'projection',
+    source: `// Concentric rings travelling outward. iAspect is what keeps them ROUND without the
+// shader ever learning the pixel size — the whole reason the entry point is normalised.
+vec4 shaderColor(vec2 uv) {
+  vec2 p = (uv - 0.5) * vec2(iAspect, 1.0);
+  float rings = sin(length(p) * 40.0 - iTime * 3.0);
+  vec3 tint = vec3(0.15, 0.72, 0.78);
+  return vec4((0.5 + 0.5 * rings) * tint, 1.0);
+}`,
+  },
+  {
+    id: 'strip',
+    name: 'Strip chase',
+    family: 'led',
+    source: `// The LED case: everything varies along u, nothing across v, so a fixture sampling one
+// row off this surface sees the whole effect. A comet head with an exponential tail.
+vec4 shaderColor(vec2 uv) {
+  float head = fract(iTime * 0.25);
+  float d = abs(uv.x - head);
+  d = min(d, 1.0 - d);               // wrap, so the tail crosses the seam
+  float energy = exp(-d * 14.0);
+  vec3 col = mix(vec3(0.05, 0.10, 0.35), vec3(1.0, 0.85, 0.45), energy);
+  return vec4(col * (0.25 + 0.75 * energy), 1.0);
+}`,
+  },
+];
+
+export const DEFAULT_STARTER = 'plasma';
+
+export function starterSource(id: string | undefined): string {
+  return (STARTERS.find((s) => s.id === id) ?? STARTERS[0]).source;
+}

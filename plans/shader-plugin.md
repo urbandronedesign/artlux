@@ -382,6 +382,52 @@ nothing until there is something worth putting in it.
 
 ---
 
+## 11.1 · Phase 0 results (2026-08-10) — BUILT, MEASURED, ON THE WIRE
+
+`plugins/shader` exists and renders. Verified the way this repo verifies output: a project with a
+SHADER surface and a 60-LED fixture, booted `--headless`, with a `dgram` listener parsing ArtDmx.
+**413 frames, universe 0, 512 channels, 412 of them lit, and the peak LED visited all 60 positions
+(0 → 59)** — the `strip` comet ran the full length of the strip, so the pixels made the whole trip:
+GLSL → ImageBitmap → the mapper's atlas → universe packing → UDP. (Frame 1 is dark, which is the
+cold-start gate holding, not a fault.)
+
+**Fill-rate, Intel Iris Xe / ANGLE D3D11** — ms per frame, sustained, GPU-synced. This is the
+*authoring* machine and the WebGL-fallback case; the RTX numbers cannot be taken here.
+
+| shader | 640×360 | 1280×720 | 1920×1080 | 3840×2160 |
+|---|---|---|---|---|
+| plasma | 0.052 | 0.127 | 0.182 | 2.380 |
+| rings | 0.020 | 0.048 | 0.162 | 2.413 |
+| strip (LED) | 0.019 | 0.047 | 0.138 | 2.371 |
+| heavy (64 trig octaves) | 0.332 | 1.279 | 2.845 | 11.302 |
+| **+ `transferToImageBitmap`** | +0.02 | +0.06 | **+0.65** | **+2.8** |
+
+Three things follow, and two of them changed the code:
+
+1. **At 720p a shader is free** (~0.05–0.13 ms; ten of them ≈ 1 ms of a 33 ms frame) — so the default
+   render size is right and the LED path is not the thing to worry about.
+2. **The transfer is not free above 720p.** `transferToImageBitmap` — the mechanism that lets ONE
+   context serve N surfaces — costs 0.65 ms at 1080p and 2.8 ms at 4K, which *doubles* a cheap
+   shader. It is the measured price of the one-context rule, it is worth paying, and it is another
+   reason a projector output should self-render in its own window (Phase 6) rather than be fed
+   pixels from here.
+3. **Resizing the shared canvas per frame at 4K KILLED THE GPU PROCESS** (`exit_code=34`),
+   reproducibly, twice, with no hostile shader involved — and every compile afterwards returned
+   failure with an **empty info log**, i.e. black surfaces and nothing to read. So `RENDER_HEIGHTS`
+   now stops at 1080p in the main window (nothing is lost: the atlas rect discards finer detail
+   anyway), and `ensure()` asks `gl.isContextLost()` rather than trusting the event. The plan's TDR
+   section was written about hostile shaders; the first real context loss came from *our own resize
+   path*.
+
+Also found, and left alone deliberately: **`ContentSourceProvider.pickerButton` is declared by the
+SDK and consumed by nothing.** Every plugin content type (NDI, Spout, Tracking, MediaPipe, Augmenta)
+hand-writes a button in `components/ContentEditor.tsx`, so SHADER does too. Rendering these from the
+registry is the obvious cleanup and a separate one — doing it here alone would give the plugins that
+still declare a button two of them.
+
+**Bench harness:** throwaway, in the session scratchpad (an Electron main + a page, so the numbers
+come from the shipping Chromium/ANGLE stack rather than a browser). Not committed.
+
 ## 12 · Obligations
 
 - **The documentation gate.** Net-new feature: `docs/SHADERS.md` ships in the *same commits* as each

@@ -124,6 +124,14 @@ export const contentHelp: HelpEntry[] = [
     keywords: ['optical', 'osc', 'tracking'],
   },
   {
+    id: 'content.shader',
+    title: 'Shader',
+    short: 'Run a GLSL shader as this surface’s content.',
+    body: 'Generative content rendered on the GPU from a fragment shader. Pick a built-in shader and a render size; the picture is generated per frame, so fixtures sample it and projector outputs show it like any other source.',
+    group: 'Content',
+    keywords: ['glsl', 'shader', 'generative', 'code'],
+  },
+  {
     id: 'content.slice',
     title: 'Slice',
     short: 'Show a cropped region of another surface.',
