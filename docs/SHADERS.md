@@ -209,6 +209,22 @@ continuously, and the same shader works on a sparse dub track and a wall of guit
 
 What it will not do: keep time. There is no tempo, no bar and no downbeat here — a channel reports
 that something hit, not where you are in the music.
+### Damping — the one setting that decides whether it feels right
+
+Sound-reactive values are judged by how long they take to **let go**. Too short and a kick is a
+strobe; too long and the room never goes dark between hits. The right number depends on the music and
+on the size of what you are lighting — a wall wants a slower fall than a strip.
+
+So it is a knob, in **Preferences → Shaders**:
+
+- **Beat fall** — how long a beat flash takes to fade. Default 0.25 s.
+- **Spectrum fall** — how long the sixteen bands take to come back down. Default 0.25 s.
+
+Both take effect immediately, so set them with the music playing. They apply to every shader on the
+machine, and they are machine settings rather than project ones — the same show in a bigger room
+deserves a different fall — so they do not travel with the project.
+
+Neither affects how a beat is *detected*, only how long its pulse lives afterwards.
 ## Trails, decay, and anything that remembers
 
 Add `"REQUIRES_LAST_FRAME": true` to the header and your shader is handed its own previous frame as

@@ -72,8 +72,16 @@ const REFRACTORY_SEC = 0.1;
  */
 const REARM_RATIO = 1.05;
 
-/** How fast the visible pulse falls after a hit. ~250 ms, the same envelope the bands use. */
-const PULSE_FALL_PER_SEC = 4.0;
+/**
+ * How long the visible pulse takes to fall from 1 to 0 after a hit, in SECONDS.
+ *
+ * The damper an operator reaches for. Short is a strobe on every kick; long is a swell that is still
+ * fading when the next one lands. It is a fall TIME rather than a coefficient because a coefficient
+ * only means something at one frame rate, and this is fed from a render loop that stutters.
+ */
+export const DEFAULT_BEAT_FALL_SEC = 0.25;
+let beatFallSec = DEFAULT_BEAT_FALL_SEC;
+export function setBeatFall(sec: number): void { beatFallSec = Math.max(0.02, Math.min(4, sec)); }
 
 interface ChannelState {
   history: { t: number; e: number }[];
@@ -154,7 +162,7 @@ export class BeatDetector {
       }
 
       st.history.push({ t: now, e });
-      st.pulse = Math.max(0, st.pulse - PULSE_FALL_PER_SEC * dt);
+      st.pulse = Math.max(0, st.pulse - dt / beatFallSec);
 
       this.hits[c] = hit;
       this.pulses[c] = st.pulse;

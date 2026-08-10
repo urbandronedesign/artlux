@@ -17,19 +17,35 @@
 // and the reason music software feels like it is "reacting" rather than twitching.
 
 import type { PluginIpc } from '@artlux/sdk/renderer';
-import { BeatDetector, CHANNEL_COUNT } from './beatDetect';
+import { BeatDetector, CHANNEL_COUNT, setBeatFall, DEFAULT_BEAT_FALL_SEC } from './beatDetect';
+export { DEFAULT_BEAT_FALL_SEC };
 
 export const BAND_COUNT = 16;
 
-/** Rise is near-instant so a hit is not softened; fall is ~250 ms so the eye reads a pulse, not a flicker. */
-const ATTACK = 0.6;
-const RELEASE = 0.12;
+/**
+ * THE ENVELOPE, IN SECONDS RATHER THAN PER-FRAME COEFFICIENTS.
+ *
+ * The first version smoothed by a fixed fraction each frame, which means the same setting behaves
+ * differently at 30 and 60 fps and reacts differently on a busy frame than a quiet one — the smoothing
+ * would quietly change whenever the rest of the show got heavier. Time constants do not care how often
+ * they are sampled, and they are also the only way a damper expressed in seconds can be honest.
+ */
+const ATTACK_SEC = 0.02;                 // rise: near-instant, so a hit is not softened
+export const DEFAULT_BAND_FALL_SEC = 0.25;
+let bandFallSec = DEFAULT_BAND_FALL_SEC;
+
+/** The dampers. Both are fall TIMES in seconds — bigger is smoother and slower to let go. */
+export function setDamping(bandFall: number, beatFall: number): void {
+  bandFallSec = Math.max(0.02, Math.min(4, bandFall));
+  setBeatFall(beatFall);
+}
 
 let ipc: PluginIpc | null = null;
 let polling = false;
 const bands = new Float32Array(BAND_COUNT);   // enveloped — what shaders read
 const raw = new Float32Array(BAND_COUNT);     // last value from the engine
 let level = 0;
+let lastT = -1;
 const beats = new BeatDetector();
 
 export function setIpc(handle: PluginIpc): void { ipc = handle; }
@@ -54,14 +70,20 @@ export function start(): void {
       // the honest answer and it must not be a per-frame exception in a render loop.
       raw.fill(0);
     }
+    const now = performance.now() / 1000;
+    const dt = lastT < 0 ? 1 / 60 : Math.max(0, Math.min(0.25, now - lastT));
+    lastT = now;
+
     // Beats come from the RAW bands, not the enveloped ones: the envelope exists to stop a visual
     // flickering, and smoothing the signal before looking for a jump is smoothing away the jump.
-    beats.update(raw, performance.now() / 1000);
+    beats.update(raw, now);
 
     let sum = 0;
     for (let i = 0; i < BAND_COUNT; i++) {
       const target = raw[i];
-      const k = target > bands[i] ? ATTACK : RELEASE;
+      // 1 - e^(-dt/tau): the fraction of the remaining distance to cover in this much time. Falls back
+      // to a sensible step at any frame rate, and reaches the target rather than crawling at it.
+      const k = 1 - Math.exp(-dt / (target > bands[i] ? ATTACK_SEC : bandFallSec));
       bands[i] += (target - bands[i]) * k;
       sum += bands[i];
     }

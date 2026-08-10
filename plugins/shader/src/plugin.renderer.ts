@@ -19,8 +19,12 @@ import { shaderAutomation, setSurfaces } from './shaderParams';
 import { ShaderLibraryPanel } from './ShaderLibraryPanel';
 import * as libraryClient from './libraryClient';
 import * as audioTap from './audioTap';
+import { ShaderSettings, readCfg } from './ShaderSettings';
+import { DEFAULT_BAND_FALL_SEC } from './audioTap';
+import { DEFAULT_BEAT_FALL_SEC } from './beatDetect';
 
 let unsubSurfaces: (() => void) | null = null;
+let unsubSettings: (() => void) | null = null;
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'shader', name: 'Shaders', version: '0.0.0' },
@@ -35,6 +39,15 @@ export const plugin: RendererPlugin = {
     // plugin here would give the bundler a second identity for its native handle. See audioTap.ts.
     audioTap.setIpc(ctx.ipc);
     audioTap.start();
+
+    // The dampers, live. Applied on every settings change rather than read once at activation: the
+    // whole point is to dial them while the music is playing and see the difference.
+    const applyDamping = () => {
+      const cfg = readCfg(ctx.host.settings.get());
+      audioTap.setDamping(cfg.bandFallSec ?? DEFAULT_BAND_FALL_SEC, cfg.beatFallSec ?? DEFAULT_BEAT_FALL_SEC);
+    };
+    applyDamping();
+    unsubSettings = ctx.host.settings.subscribe(applyDamping);
 
     // 'SHADER' is an OPEN content-type string, not a SourceType enum value: `SurfaceContent.type`
     // accepts any plugin type id and the compositor dispatches unknown types through this registry
@@ -80,12 +93,14 @@ export const plugin: RendererPlugin = {
     // because the host resolves an automation path by its HEAD and hands the rest to whoever owns it —
     // core never learns what a shader parameter is. The provider has to SEE the surfaces to enumerate
     // their parameters, which is what the subscription is for.
+    ctx.settings.register({ id: 'shader', title: 'Shaders', Component: ShaderSettings } as never);
+
     ctx.automationTargets.register(shaderAutomation);
     setSurfaces(ctx.host.surfaces.list() as Surface[]);
     unsubSurfaces = ctx.host.surfaces.subscribe(() => setSurfaces(ctx.host.surfaces.list() as Surface[]));
   },
 
-  deactivate(): void { unsubSurfaces?.(); unsubSurfaces = null; },
+  deactivate(): void { unsubSurfaces?.(); unsubSurfaces = null; unsubSettings?.(); unsubSettings = null; },
 
   // On the startup splash. The honest thing to report is whether this machine gave us a context at
   // all: without WebGL2 every shader surface is black, and that must not be discovered on stage.
