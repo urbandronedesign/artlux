@@ -10,6 +10,8 @@ import type { SurfaceContent } from '@/types';
 import { STARTERS } from './starters';
 import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDrawable';
 import { compileStatus } from './shaderDrawable';
+import { inputsOf, headerProblems } from './shaderParams';
+import { ShaderParamControls } from './ShaderParamControls';
 
 const SELECT =
   'flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none';
@@ -22,6 +24,8 @@ export function ShaderContentEditor({
   onChange: (patch: Partial<SurfaceContent>) => void;
 }): React.ReactElement {
   const status = compileStatus(content);
+  const inputs = inputsOf(content);
+  const problems = headerProblems(content);
 
   return (
     <div className="space-y-1 pt-1">
@@ -52,6 +56,16 @@ export function ShaderContentEditor({
           ))}
         </select>
       </div>
+
+      {/* The shader's own knobs, drawn from its header. */}
+      <ShaderParamControls inputs={inputs} content={content} onChange={onChange} />
+
+      {/* A header problem is not a compile error — the shader still runs, it just has fewer knobs than
+          its author thinks. Said out loud rather than dropped, which is the whole rule for unsupported
+          input types. */}
+      {problems.length > 0 && (
+        <div className="text-micro text-warning whitespace-pre-wrap">{problems.join('\n')}</div>
+      )}
 
       {!status.ok && (
         <pre className="text-micro font-mono text-danger bg-surface-0 border border-line-1 rounded p-1.5 overflow-auto max-h-32 whitespace-pre-wrap">

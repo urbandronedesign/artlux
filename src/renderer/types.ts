@@ -313,6 +313,16 @@ export interface SurfaceContent {
    * why it is read through one accessor (`sourceOf`) rather than everywhere.
    */
   shaderSource?: string;
+  /**
+   * AUTHORED parameter values, by the input name the shader's header declares. Absent keys fall back
+   * to that header's DEFAULT, which is why editing a shader never resets a show: the header declares
+   * the knob, this records where the operator put it.
+   *
+   * An automation lane does NOT write here — it writes a live override layer the plugin owns, so
+   * disabling a lane snaps the control back to what a human actually set rather than to wherever the
+   * curve stopped.
+   */
+  shaderParams?: Record<string, number | boolean | number[]>;
   shaderRes?: number;  // DETAIL: a pixel budget (720 ⇒ "as many pixels as 1280×720"), spent in the
                        // surface's own proportions. Absent ⇒ 720. Per surface because the two consumers
                        // want opposite things: the LED path samples an atlas rect scaled to fixture

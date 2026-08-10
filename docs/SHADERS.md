@@ -7,9 +7,9 @@ loops, never runs out, and costs no disk.
 It behaves like any other content. Fixtures sample it, projector outputs show it, opacity and slices
 work on it, and it needs no media, no network and no hardware.
 
-> **What you can do today:** choose a built-in shader, edit its code in ArtLux, and see the change on
-> the wall. **Still to come:** your own parameters as sliders and timeline lanes, sound-reactive
-> inputs, trails, and a library of effects that carries across projects.
+> **What you can do today:** choose a built-in shader, edit its code in ArtLux, give it your own
+> parameters, and drive those from the timeline, OSC or the state machine. **Still to come:**
+> sound-reactive inputs, trails, and a library of effects that carries across projects.
 
 ## Put one on a surface
 
@@ -26,6 +26,7 @@ That is the whole setup. The picture starts immediately.
 | **Plasma** | Two interfering sine fields, breathing slowly in and out | Projection — a big, calm, always-moving wash |
 | **Rings** | Concentric rings travelling outward from the centre | Projection — circular architecture, discs, columns |
 | **Strip chase** · LED | A bright comet running left to right with a fading tail, wrapping at the ends | LED tape — everything varies *along* the strip |
+| **Palette wave** · LED | Bands of one of ArtLux's gradients sweeping along the surface | LED tape — and the worked example of a shader with **knobs** |
 
 The `· LED` mark is the important one. A shader made for a projector usually looks like noise on sixty
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
@@ -59,11 +60,55 @@ Available to it:
 | `iResolution` | vec3 | render size in pixels (xy), z = 1. |
 | `iAspect` | float | width / height. Use it to keep circles round. |
 | `iFrame` | int | frames drawn since the shader loaded. |
+| `palette` | vec3 palette(int id, float t) | sample an ArtLux gradient by index. |
 
 <!-- /generated:shader-uniforms -->
 
 A shader pasted from Shadertoy — one that defines `mainImage(out vec4, in vec2)` — runs as-is. What
 does not carry over: multi-pass shaders (Buffer A/B/C/D), `iChannel` textures, and `iMouse`.
+
+## Give it knobs
+
+A number written into the code is a number only you can change, in an editor, with a recompile.
+**Declare it instead** and it becomes a control in the inspector — *and* a timeline lane, an OSC
+address and a state-machine value, all at once.
+
+Declarations go in a JSON block at the top of the file:
+
+```glsl
+/*{
+  "TITLE": "Palette wave",
+  "INPUTS": [
+    { "NAME": "speed", "LABEL": "Speed",   "TYPE": "float",   "MIN": -2, "MAX": 2, "DEFAULT": 0.35 },
+    { "NAME": "pal",   "LABEL": "Palette", "TYPE": "palette", "DEFAULT": 1 }
+  ]
+}*/
+vec4 shaderColor(vec2 uv) {
+  return vec4(palette(pal, fract(uv.x + iTime * speed)), 1.0);
+}
+```
+
+Each `NAME` becomes a variable your shader can just use. The built-in **Palette wave** shader is a
+worked example — open it and read its header.
+
+| TYPE | Control | Automatable |
+|---|---|---|
+| `float` | slider + number box | yes |
+| `bool` | checkbox | yes |
+| `long` | dropdown (give it `LABELS`) | yes |
+| `palette` | ArtLux's own gradients, sampled with `palette(id, t)` | yes |
+| `color` | colour picker (a `vec4`) | not yet — a lane carries one number |
+| `point2D` | two number boxes (a `vec2`) | not yet |
+
+Anything else — `image` above all — is **refused by name** in the inspector rather than ignored, so a
+header that will not do what its author expects says so.
+
+**Values live on the surface, not in the code.** The header declares the knob and its default; where
+you set it is remembered per surface. Editing and recompiling a shader never resets a show, and two
+surfaces can run the same shader at different settings.
+
+**An automation lane wins while it is running, and gives the control back when it stops.** Turning a
+lane off snaps the parameter to whatever you set by hand — not to wherever the curve happened to end.
 
 **Reset** puts the built-in shader back, so an experiment is never a one-way door.
 

@@ -9,8 +9,9 @@ import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
 import { reportFault } from '@/services/faultReporter';
 import { getProgram, renderToBitmap, failedProgram, type CompiledProgram } from './shaderContext';
-import { starterSource, DEFAULT_STARTER } from './starters';
+import { sourceOf } from './shaderSource';
 import { lintLoops, noteDraw, isDisabled, rearm, BUDGET } from './shaderGuard';
+import { resolve as resolveParams } from './shaderParams';
 
 /** Detail rungs offered in the MAIN window — a PIXEL BUDGET each, not a literal size (see sizeFor). */
 export const RENDER_HEIGHTS = [360, 720, 1080] as const;
@@ -62,11 +63,6 @@ function sizeFor(res: number, aspect: number): { w: number; h: number } {
 export function aspectFor(key: string): number {
   const s = getSurface(key);
   return s && s.width > 0 && s.height > 0 ? s.width / s.height : 16 / 9;
-}
-
-/** The text this content actually runs: the operator's own edit, else the built-in it started from. */
-export function sourceOf(content: SurfaceContent): string {
-  return content.shaderSource ?? starterSource(content.shaderId ?? DEFAULT_STARTER);
 }
 
 /**
@@ -122,7 +118,11 @@ export function getFor(key: string, content: SurfaceContent, timeSec: number): I
 
   const source = sourceOf(content);
   const { w, h } = sizeFor(content.shaderRes ?? DEFAULT_HEIGHT, aspectFor(key));
-  const sig = `${source.length}:${content.shaderId ?? ''}|${w}x${h}|${timeSec}`;
+  // Parameter values join the signature: a slider move must invalidate the cached frame, and it is
+  // the only thing besides time that can change the picture without the source changing.
+  const values = resolveParams(key, content);
+  const paramSig = values ? JSON.stringify([...values.entries()]) : '';
+  const sig = `${source.length}:${content.shaderId ?? ''}|${w}x${h}|${timeSec}|${paramSig}`;
   if (prev && prev.sig === sig && prev.bitmap) return prev.bitmap;
 
   const entry: Entry = prev ?? { bitmap: null, sig: '', lastGoodSource: null };
@@ -130,7 +130,7 @@ export function getFor(key: string, content: SurfaceContent, timeSec: number): I
   if (!result.ok) { entry.sig = sig; entries.set(key, entry); return entry.bitmap; }
 
   const t0 = performance.now();
-  const bmp = renderToBitmap(result, w, h, timeSec);
+  const bmp = renderToBitmap(result, w, h, timeSec, values);
   const ms = performance.now() - t0;
   if (!bmp) return entry.bitmap;
 

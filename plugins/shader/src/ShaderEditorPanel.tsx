@@ -23,7 +23,8 @@ import { bracketMatching, indentUnit, syntaxHighlighting, defaultHighlightStyle 
 import { cpp } from '@codemirror/lang-cpp';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
 import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell store (panels read state, App owns it)
-import { compile, sourceOf, rearmKey } from './shaderDrawable';
+import { compile, rearmKey } from './shaderDrawable';
+import { sourceOf } from './shaderSource';
 import { STARTERS } from './starters';
 import { UNIFORMS } from './wrapper';
 

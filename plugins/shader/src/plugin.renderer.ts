@@ -10,11 +10,14 @@
 // which is why the source text, not the picture, is the thing that travels.
 
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
-import type { SurfaceContent } from '@/types';
+import type { Surface, SurfaceContent } from '@/types';
 import * as shaderDrawable from './shaderDrawable';
 import { isAvailable } from './shaderContext';
 import { ShaderContentEditor } from './ShaderContentEditor';
 import { ShaderEditorPanel } from './ShaderEditorPanel';
+import { shaderAutomation, setSurfaces } from './shaderParams';
+
+let unsubSurfaces: (() => void) | null = null;
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'shader', name: 'Shaders', version: '0.0.0' },
@@ -35,14 +38,26 @@ export const plugin: RendererPlugin = {
       pickerButton: { label: 'Shader', title: 'Operator-authored GLSL generative content' },
     });
 
+    // Everything below belongs to the window that has an editor and a document. A projector window
+    // activates this plugin too — it must render shaders — but it has no selection to edit, no
+    // surfaces list to enumerate, and no business standing up a CodeMirror it can never show.
+    if (ctx.window !== 'main') return;
+
     // The editor: a DOCK TAB on the mapping workbench, beside the media library and the monitor —
-    // not a workspace context of its own. Only the main window has an editor to edit with; a
-    // projector window activates this plugin too and must not stand up a CodeMirror it can never show.
-    if (ctx.window === 'main') {
-      ctx.panels.register({ id: 'shader-editor', mount: 'dock', title: 'Shader', Component: ShaderEditorPanel });
-      ctx.contexts.extend('mapping', { dock: ['shader-editor'] });
-    }
+    // not a workspace context of its own.
+    ctx.panels.register({ id: 'shader-editor', mount: 'dock', title: 'Shader', Component: ShaderEditorPanel });
+    ctx.contexts.extend('mapping', { dock: ['shader-editor'] });
+
+    // Every declared input becomes a timeline lane, an OSC address and a state-machine value at once,
+    // because the host resolves an automation path by its HEAD and hands the rest to whoever owns it —
+    // core never learns what a shader parameter is. The provider has to SEE the surfaces to enumerate
+    // their parameters, which is what the subscription is for.
+    ctx.automationTargets.register(shaderAutomation);
+    setSurfaces(ctx.host.surfaces.list() as Surface[]);
+    unsubSurfaces = ctx.host.surfaces.subscribe(() => setSurfaces(ctx.host.surfaces.list() as Surface[]));
   },
+
+  deactivate(): void { unsubSurfaces?.(); unsubSurfaces = null; },
 
   // On the startup splash. The honest thing to report is whether this machine gave us a context at
   // all: without WebGL2 every shader surface is black, and that must not be discovered on stage.

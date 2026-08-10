@@ -15,7 +15,9 @@
 // An ImageBitmap is a CanvasImageSource, which is exactly what `getDrawable` is contracted to return
 // and what `copyExternalImageToTexture` (WebGPUMapper.ts:648) already consumes for every other source.
 
-import { buildProgramSource, PREFIX_LINES } from './wrapper';
+import { buildProgramSource } from './wrapper';
+import { parseHeader, type ShaderInput } from './header';
+import { buildPaletteLut } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
 
 export interface CompileResult {
   program: WebGLProgram | null;
@@ -25,6 +27,8 @@ export interface CompileResult {
 }
 
 interface Uniforms {
+  artluxPaletteLut: WebGLUniformLocation | null;
+  artluxPaletteRows: WebGLUniformLocation | null;
   iResolution: WebGLUniformLocation | null;
   iTime: WebGLUniformLocation | null;
   iWallTime: WebGLUniformLocation | null;
@@ -35,6 +39,8 @@ interface Uniforms {
 /** A compiled program plus its uniform locations — what renderToBitmap needs to draw. */
 export interface CompiledProgram extends CompileResult {
   uniforms: Uniforms;
+  /** Declared inputs, and where each one lives in this program. Empty for a shader with no header. */
+  params: { input: ShaderInput; loc: WebGLUniformLocation | null }[];
 }
 
 let canvas: OffscreenCanvas | null = null;
@@ -58,6 +64,7 @@ function ensure(): WebGL2RenderingContext | null {
     vao = null;
     gl = null;
     canvas = null;
+    paletteLut = null; // its texture belonged to the context that just died
   }
   if (gl) return gl;
   if (unavailable) return null;
@@ -93,6 +100,7 @@ function ensure(): WebGL2RenderingContext | null {
     vao = null;
     gl = null;
     canvas = null;
+    paletteLut = null; // its texture belonged to the context that just died
   });
 
   canvas = c;
@@ -134,14 +142,14 @@ function compileStage(g: WebGL2RenderingContext, type: number, src: string): { s
  * The driver reports errors against the WRAPPED source, which begins with a version line, the uniform
  * block and the Shadertoy adapter. An author who reads "line 47" and looks at line 47 of their own
  * forty-line file is being sent hunting through code that is fine — worse than no line number at all,
- * because it looks authoritative. Every `ERROR: 0:N:` is rewritten to N - PREFIX_LINES.
+ * because it looks authoritative. Every `ERROR: 0:N:` is rewritten to N - prefixLines, the count buildProgramSource reports for THIS shader.
  *
  * Once `#include` resolution lands (Phase 5) the offset stops being a constant and this becomes a real
  * line MAP; the shape of the fix is the same, the arithmetic is not.
  */
-function toAuthorSpace(log: string): string {
+function toAuthorSpace(log: string, prefixLines: number): string {
   return log.replace(/(\d+):(\d+)/g, (m, col: string, line: string) => {
-    const n = Number(line) - PREFIX_LINES;
+    const n = Number(line) - prefixLines;
     return n > 0 ? `${col}:${n}` : m;
   });
 }
@@ -153,17 +161,17 @@ export function getProgram(source: string): CompiledProgram {
 
   const g = ensure();
   if (!g) {
-    const miss: CompiledProgram = { program: null, ok: false, log: 'WebGL2 unavailable', uniforms: emptyUniforms() };
+    const miss: CompiledProgram = { program: null, ok: false, log: 'WebGL2 unavailable', uniforms: emptyUniforms(), params: [] };
     return miss; // deliberately NOT cached: a lost context may come back
   }
 
-  const { vert, frag } = buildProgramSource(source);
+  const { vert, frag, prefixLines } = buildProgramSource(source);
   const v = compileStage(g, g.VERTEX_SHADER, vert);
   const f = compileStage(g, g.FRAGMENT_SHADER, frag);
   let entry: CompiledProgram;
 
   if (!v.sh || !f.sh) {
-    entry = { program: null, ok: false, log: toAuthorSpace(f.log || v.log), uniforms: emptyUniforms() };
+    entry = { program: null, ok: false, log: toAuthorSpace(f.log || v.log, prefixLines), uniforms: emptyUniforms(), params: [] };
   } else {
     const p = g.createProgram()!;
     g.attachShader(p, v.sh);
@@ -173,7 +181,7 @@ export function getProgram(source: string): CompiledProgram {
     g.deleteShader(v.sh);
     g.deleteShader(f.sh);
     if (!g.getProgramParameter(p, g.LINK_STATUS)) {
-      entry = { program: null, ok: false, log: toAuthorSpace(g.getProgramInfoLog(p) ?? 'link failed'), uniforms: emptyUniforms() };
+      entry = { program: null, ok: false, log: toAuthorSpace(g.getProgramInfoLog(p) ?? 'link failed', prefixLines), uniforms: emptyUniforms(), params: [] };
       g.deleteProgram(p);
     } else {
       entry = {
@@ -184,7 +192,13 @@ export function getProgram(source: string): CompiledProgram {
           iWallTime: g.getUniformLocation(p, 'iWallTime'),
           iAspect: g.getUniformLocation(p, 'iAspect'),
           iFrame: g.getUniformLocation(p, 'iFrame'),
+          artluxPaletteLut: g.getUniformLocation(p, 'artluxPaletteLut'),
+          artluxPaletteRows: g.getUniformLocation(p, 'artluxPaletteRows'),
         },
+        // Where each declared input lives in THIS program. A parameter the shader never reads is
+        // optimised out and its location is null — kept in the list anyway, so the inspector still
+        // shows the control the author declared rather than silently dropping it.
+        params: parseHeader(source).inputs.map((input) => ({ input, loc: g.getUniformLocation(p, input.name) })),
       };
     }
   }
@@ -195,11 +209,11 @@ export function getProgram(source: string): CompiledProgram {
 
 /** A "did not build" result carrying `log`. The lint uses it to speak the same language as the driver. */
 export function failedProgram(log: string): CompiledProgram {
-  return { program: null, ok: false, log, uniforms: emptyUniforms() };
+  return { program: null, ok: false, log, uniforms: emptyUniforms(), params: [] };
 }
 
 function emptyUniforms(): Uniforms {
-  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null };
+  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null };
 }
 
 /**
@@ -210,7 +224,14 @@ function emptyUniforms(): Uniforms {
  * nothing extra, while a project mixing sizes pays one reallocation per change per frame. Worth
  * measuring before it is worth optimising.
  */
-export function renderToBitmap(entry: CompiledProgram, w: number, h: number, timeSec: number): ImageBitmap | null {
+export function renderToBitmap(
+  entry: CompiledProgram,
+  w: number,
+  h: number,
+  timeSec: number,
+  /** Resolved parameter values by input name — automation override, else authored, else the default. */
+  params?: Map<string, number | number[]>,
+): ImageBitmap | null {
   const g = ensure();
   if (!g || !entry.ok || !entry.program || !canvas) return null;
 
@@ -227,11 +248,62 @@ export function renderToBitmap(entry: CompiledProgram, w: number, h: number, tim
   if (u.iAspect) g.uniform1f(u.iAspect, h > 0 ? w / h : 1);
   if (u.iFrame) g.uniform1i(u.iFrame, frameCounter++);
 
+  // ArtLux's own gradients, on texture unit 0, so `palette(id, t)` works in any shader — declared
+  // input or a literal id. Uploaded once, lazily: a project with no palette-using shader never pays.
+  if (u.artluxPaletteLut) {
+    const lut = ensurePaletteLut(g);
+    if (lut) {
+      g.activeTexture(g.TEXTURE0);
+      g.bindTexture(g.TEXTURE_2D, lut.tex);
+      g.uniform1i(u.artluxPaletteLut, 0);
+      if (u.artluxPaletteRows) g.uniform1i(u.artluxPaletteRows, lut.rows);
+    }
+  }
+
+  // Declared parameters. A `loc` of null means the shader declared the input and never read it —
+  // legitimate, and skipped silently, because the CONTROL still belongs in the inspector.
+  for (const { input, loc } of entry.params) {
+    if (!loc) continue;
+    const v = params?.get(input.name) ?? input.def;
+    switch (input.type) {
+      case 'color': { const c = Array.isArray(v) ? v : [1, 1, 1, 1]; g.uniform4f(loc, c[0] ?? 0, c[1] ?? 0, c[2] ?? 0, c[3] ?? 1); break; }
+      case 'point2D': { const c = Array.isArray(v) ? v : [0.5, 0.5]; g.uniform2f(loc, c[0] ?? 0, c[1] ?? 0); break; }
+      case 'bool': g.uniform1i(loc, (typeof v === 'number' ? v : 0) >= 0.5 ? 1 : 0); break;
+      case 'long': case 'palette': g.uniform1i(loc, Math.round(typeof v === 'number' ? v : 0)); break;
+      default: g.uniform1f(loc, typeof v === 'number' ? v : 0); break;
+    }
+  }
+
   g.bindVertexArray(vao);
   g.drawArrays(g.TRIANGLES, 0, 3);
   g.bindVertexArray(null);
 
   return canvas.transferToImageBitmap();
+}
+
+/**
+ * ArtLux's gradient palettes as a 256 × N texture, uploaded once.
+ *
+ * The same LUT the mapper samples for the built-in LED effects (gpu/palettes.ts), so an operator's
+ * shader inherits the gradients the rest of the app already uses instead of inventing its own — and a
+ * palette becomes an automatable parameter like any other. NEAREST on the row axis because a row IS a
+ * palette: interpolating between two of them would blend Ocean into Lava at half a row.
+ */
+let paletteLut: { tex: WebGLTexture; rows: number } | null = null;
+
+function ensurePaletteLut(g: WebGL2RenderingContext): { tex: WebGLTexture; rows: number } | null {
+  if (paletteLut) return paletteLut;
+  const lut = buildPaletteLut();
+  const tex = g.createTexture();
+  if (!tex) return null;
+  g.bindTexture(g.TEXTURE_2D, tex);
+  g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, 256, lut.count, 0, g.RGBA, g.UNSIGNED_BYTE, lut.data);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.REPEAT);
+  g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+  paletteLut = { tex, rows: lut.count };
+  return paletteLut;
 }
 
 /** For the bench and the boot report: is there a usable context at all? */

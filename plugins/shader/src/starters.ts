@@ -68,6 +68,31 @@ vec4 shaderColor(vec2 uv) {
   },
 ];
 
+STARTERS.push({
+  id: 'palette-wave',
+  name: 'Palette wave',
+  family: 'led',
+  source: `/*{
+  "TITLE": "Palette wave",
+  "CATEGORIES": ["led", "ambient"],
+  "INPUTS": [
+    { "NAME": "speed",  "LABEL": "Speed",     "TYPE": "float",   "MIN": -2.0, "MAX": 2.0, "DEFAULT": 0.35 },
+    { "NAME": "bands",  "LABEL": "Bands",     "TYPE": "float",   "MIN": 0.5,  "MAX": 8.0, "DEFAULT": 2.0 },
+    { "NAME": "pal",    "LABEL": "Palette",   "TYPE": "palette", "DEFAULT": 1 },
+    { "NAME": "sharp",  "LABEL": "Hard edge", "TYPE": "bool",    "DEFAULT": false }
+  ]
+}*/
+// Everything here is a KNOB, not a number — which is what puts each one on a timeline lane, an OSC
+// address and the state machine. palette() samples ArtLux's own gradients, the same ones the built-in
+// LED effects use, so a palette change is automatable like anything else.
+vec4 shaderColor(vec2 uv) {
+  float t = uv.x * bands + iTime * speed;
+  float f = fract(t);
+  if (sharp) f = step(0.5, f);
+  return vec4(palette(pal, f), 1.0);
+}`,
+});
+
 export const DEFAULT_STARTER = 'plasma';
 
 export function starterSource(id: string | undefined): string {

@@ -13,6 +13,9 @@ export * as shaderDrawable from './shaderDrawable';
 export * as starters from './starters';
 export * as wrapper from './wrapper';
 export * as shaderGuard from './shaderGuard';
+export * as header from './header';
+export * as shaderParams from './shaderParams';
+export * as shaderSource from './shaderSource';
 
 export type { Starter } from './starters';
 
