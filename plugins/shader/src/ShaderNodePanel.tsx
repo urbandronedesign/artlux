@@ -286,14 +286,19 @@ export const ShaderNodePanel: React.FC = () => {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* A NEW GRAPH IS ONE NODE, and fitView on one node zooms to the maximum — the canvas opened at
             3× with two nodes filling it, which reads as broken rather than as fitted. Capping the zoom
-            at 1 makes framing a small graph mean centring it, not magnifying it. */}
+            at 1 makes framing a small graph mean centring it, not magnifying it.
+
+            hideAttribution removes React Flow's badge from the canvas. It is MIT-licensed, so this is
+            permitted outright; the credit moved to NOTICE §4 instead, where the rest of the stack is
+            named. Nothing about it is a paid feature — see docs/SHADERS.md if that question comes up
+            again. */}
         <div ref={pane} className="min-h-0 flex-1">
           <ReactFlow
             nodes={rfNodes} edges={rfEdges} nodeTypes={nodeTypes}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
             onConnect={onConnect} isValidConnection={isValid}
             fitView fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
-            onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: false }}
+            onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: true }}
             deleteKeyCode={['Delete', 'Backspace']}
             style={{ background: '#0f1113' }}
           >
