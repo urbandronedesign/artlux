@@ -164,8 +164,8 @@ function renderShaderUniforms(rows) {
 // four of them are in the app's shader dropdown, and all of them are compiled on a real driver by the
 // harness before release — so a documented example cannot be one that does not build. Copying them into
 // markdown by hand would break that the first time one was edited.
-function parseCookbook() {
-  const file = path.join(ROOT, 'plugins', 'shader', 'src', 'cookbook.ts');
+function parseCookbook(fileName) {
+  const file = path.join(ROOT, 'plugins', 'shader', 'src', fileName);
   const src = fs.readFileSync(file, 'utf8');
   const out = [];
   // One entry per `{ id: '…', … source: `…` }`. Sources contain no backticks (checked below), so a
@@ -182,7 +182,7 @@ function parseCookbook() {
       .trim();
     out.push({ id: m[1], name: m[2], teach: m[3], note, source: m[5] });
   }
-  if (!out.length) throw new Error('gen-docs-data: cookbook.ts parsed to zero recipes — the literal formatting changed');
+  if (!out.length) throw new Error('gen-docs-data: ' + fileName + ' parsed to zero recipes — the literal formatting changed');
   return out;
 }
 
@@ -207,7 +207,8 @@ function main() {
   const results = [
     applyBlock('docs/user-guide/15-keyboard-reference.md', 'keymap', renderKeymap(parseShortcuts())),
     applyBlock('docs/SHADERS.md', 'shader-uniforms', renderShaderUniforms(parseShaderUniforms())),
-    applyBlock('docs/SHADER-COOKBOOK.md', 'shader-cookbook', renderCookbook(parseCookbook())),
+    applyBlock('docs/SHADER-COOKBOOK.md', 'shader-cookbook', renderCookbook(parseCookbook('cookbook.ts'))),
+    applyBlock('docs/SHADER-COOKBOOK.md', 'shader-noise', renderCookbook(parseCookbook('noiseLib.ts'))),
   ];
 
   const stale = results.filter((r) => r.changed);

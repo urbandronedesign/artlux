@@ -130,6 +130,12 @@
       "target": "docs/SHADER-COOKBOOK.md",
       "source": "plugins/shader/src/cookbook.ts",
       "why": "The guide teaches with SHIPPED shaders — four are in the app dropdown and all are compiled on a real driver before release. Copying them into markdown by hand would break that the first time one was edited."
+    },
+    {
+      "block": "shader-noise",
+      "target": "docs/SHADER-COOKBOOK.md",
+      "source": "plugins/shader/src/noiseLib.ts",
+      "why": "Ten noise generators, each compiled on a real driver by the release harness. A noise function that does not build is worse than none, because it is copied before it is tested."
     }
   ],
 
