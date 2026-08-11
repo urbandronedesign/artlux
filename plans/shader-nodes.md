@@ -1,6 +1,6 @@
 # A node editor for shaders — feasibility and plan
 
-**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: phases 0–3 BUILT** — the generator, the 59-node catalogue and the canvas ship; phases 3–4 open.
+**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: phases 0–4 BUILT** (phase 4 partly — see its row) — the generator, the 59-node catalogue and the canvas ship; phases 3–4 open.
 
 > ## The verdict in one paragraph
 >
@@ -216,6 +216,29 @@ four doors close it the same way, and none of them silently:
   click. It now reloads when the surface's graph changes underneath it, telling somebody else's
   change from the echo of its own — the code editor shipped this exact bug once.
 | **4 · Comfort** | Node search, copy/paste, groups/comments, per-node preview, undo integration | It is pleasant rather than merely possible |
+
+**Phase 4, the part that was hurting (2026-08-11).** Copy / paste / duplicate, Enter-to-add from the
+palette search, node positions persisted, and undo confirmed end to end (add a node → `Ctrl+Z` → 13
+nodes back to 12 → redo → 13). Undo needed no work: every graph write goes through `updateSurface`,
+which records like any other document edit.
+
+**Deliberately NOT built**, because neither hurts yet: per-node previews (one render each — the plan
+said defer, and it still says defer) and group/comment boxes. A canvas-wide "find node" was skipped
+too: the palette search is where you look for a node you do not have, and graphs are twenty nodes,
+not two hundred.
+
+**What running it taught:**
+
+- **A node move was never written to the surface.** Positions lived in panel state, so an arrangement
+  vanished on reload. Now the release of a drag (`dragging: false`) is persisted — and only the
+  release, because writing every pointer move would put sixty entries per drag on the undo stack.
+  Position changes skip the compiler: moving a node cannot change the shader.
+- **A focus-gated shortcut is dead in the state you use it from.** Gating `Ctrl+V` on "focus is inside
+  the canvas" failed exactly when you paste: React Flow focuses a NODE when you click one, but
+  clicking the background focuses nothing at all. Hover answers the same question and survives it.
+- **Paste re-mints a parameter's name** (`value_1` → `value_2`, verified in the generated header),
+  because a parameter name is a uniform name and the same uniform declared twice compiles to nothing.
+  The add path already did this; paste is a second door to the same fault.
 
 **Effort, honestly:** Phase 0 is a day. Phases 1–3 are the real build — a generator with a type system
 and thirty-odd nodes is not small, and the UI is a week of its own. Phase 4 is unbounded; stop when it

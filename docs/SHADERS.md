@@ -152,7 +152,21 @@ parked together past the output, where they read as "not in the graph yet". **Fi
 without moving a node.
 
 Delete removes selected nodes and any wires that touched them. Mouse wheel zooms and dragging empty
-canvas pans.
+canvas pans. Where you put a node is part of the graph and is saved with it, so a layout you arranged
+by hand comes back as you left it.
+
+| Key | Does |
+|---|---|
+| `Enter` in the search box | adds the first node in the list — search, Enter, keep typing |
+| `Ctrl+C` / `Ctrl+V` | copy the selected nodes and paste them, wires between them included |
+| `Ctrl+D` | duplicate the selection in place |
+| `Delete` | remove the selected nodes and their wires |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | undo and redo, on ArtLux's ordinary document history |
+
+Pasted nodes are copies, not links, and a pasted **parameter** is given its own name — two knobs called
+the same thing would be one uniform declared twice, which compiles to nothing at all. `Output` never
+copies: every graph has exactly one. A copied selection can be pasted into a **different** surface's
+graph, which is the quickest way to reuse part of something you have already built.
 
 ### The palette
 

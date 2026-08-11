@@ -130,6 +130,9 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
 
 const nodeTypes = { shaderNode: GraphNodeBody };
 
+/** Copied nodes, shared by every instance of this panel — see copySelection. */
+let clipboard: { nodes: ShaderGraph['nodes']; edges: ShaderGraph['edges'] } | null = null;
+
 export const ShaderNodePanel: React.FC = () => {
   const { surfaces, selectedSurfaceId } = useEditor();
   const { updateSurface } = useEditorActions();
@@ -146,6 +149,10 @@ export const ShaderNodePanel: React.FC = () => {
   const flow = useRef<ReactFlowInstance | null>(null);
   const pane = useRef<HTMLDivElement | null>(null);
   const confirmDialog = useConfirm();
+  // Is the operator working in this canvas? Focus alone is not enough: React Flow focuses a NODE when
+  // you click one, but clicking the background focuses nothing at all, so a focus-only gate makes
+  // Ctrl+V dead in exactly the state you paste from. Hover answers the same question and survives it.
+  const hovering = useRef(false);
 
   // Load the selected surface's graph. A surface with code but no graph opens EMPTY rather than trying
   // to reverse-engineer one: graph → code is a compiler, code → graph is decompilation.
@@ -221,6 +228,20 @@ export const ShaderNodePanel: React.FC = () => {
     style: { stroke: 'var(--line-2)', strokeWidth: 1.5 },
   })), [graph.edges]);
 
+  /**
+   * Write the graph WITHOUT regenerating. Moving a node changes where it is drawn and nothing else, so
+   * there is no shader to rebuild — but the position still has to reach the surface, or the layout is
+   * lost the moment the project is reopened. `commit` would recompile on every drag; this is the same
+   * write with the compiler left out.
+   */
+  const commitPositions = useCallback((next: ShaderGraph) => {
+    setGraph(next);
+    if (!surfaceId || !surface) return;
+    const json = JSON.stringify(next);
+    wrote.current = json;
+    updateSurface(surfaceId, { content: { ...surface.content, shaderGraph: json } });
+  }, [surfaceId, surface, updateSurface]);
+
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     // Every change goes to React Flow — including the `dimensions` ones we have no opinion about.
     setRfNodes((ns) => applyNodeChanges(changes, ns));
@@ -232,7 +253,12 @@ export const ShaderNodePanel: React.FC = () => {
       .filter((n) => !removed.has(n.id))
       .map((n) => { const p = moved.get(n.id); return p ? { ...n, x: p.x, y: p.y } : n; });
     // A position change is not worth recompiling; a deletion is.
-    if (removed.size) commit({ ...graph, nodes, edges: graph.edges.filter((e) => !removed.has(e.from.node) && !removed.has(e.to.node)) });
+    if (removed.size) { commit({ ...graph, nodes, edges: graph.edges.filter((e) => !removed.has(e.from.node) && !removed.has(e.to.node)) }); return; }
+    // A drag reports a position change per pointer move with `dragging: true`, and once more with
+    // `dragging: false` when the button comes up. Keep the intermediate ones local — writing them
+    // would put sixty entries per drag on the undo stack — and persist only the release.
+    const released = changes.some((c) => c.type === 'position' && c.dragging === false);
+    if (released) commitPositions({ ...graph, nodes });
     else setGraph({ ...graph, nodes });
   }, [graph, commit]);
 
@@ -323,6 +349,77 @@ export const ShaderNodePanel: React.FC = () => {
     setStatus({ ok: true, message: 'converted — edit it in the Shader tab' });
   }, [graph, surface, surfaceId, updateSurface, confirmDialog]);
 
+  /**
+   * Copy / paste / duplicate.
+   *
+   * The clipboard is module-level rather than the system one, which is what makes pasting into ANOTHER
+   * surface's graph work — the two panels are the same component and share it. Only the wires INSIDE
+   * the selection travel: a wire with one end outside would have to invent an endpoint.
+   *
+   * Two things a paste must not do. It must not bring a second `Output` (every graph has exactly one,
+   * and the generator refuses two), and it must not reuse a parameter's NAME — a name is a uniform
+   * name, so a duplicated parameter would declare the same uniform twice and nothing would compile.
+   */
+  const copySelection = useCallback((): number => {
+    const ids = new Set(rfNodes.filter((n) => n.selected).map((n) => n.id));
+    const nodes = graph.nodes.filter((n) => ids.has(n.id) && NODES[n.type]?.id !== 'output.color');
+    if (!nodes.length) return 0;
+    const keep = new Set(nodes.map((n) => n.id));
+    clipboard = {
+      nodes: nodes.map((n) => ({ ...n, params: { ...(n.params ?? {}) } })),
+      edges: graph.edges.filter((e) => keep.has(e.from.node) && keep.has(e.to.node)).map((e) => ({ ...e })),
+    };
+    return nodes.length;
+  }, [graph, rfNodes]);
+
+  const paste = useCallback((): number => {
+    if (!clipboard?.nodes.length) return 0;
+    const taken = new Set(graph.nodes.map((n) => n.id));
+    const rename = new Map<string, string>();
+    let seed = Math.max(0, ...graph.nodes.map((n) => Number(n.id.split('_').pop()) || 0));
+    const params = graph.nodes.map((nd) => ({ name: String(nd.params?.label ?? '') }));
+
+    const nodes = clipboard.nodes.map((n) => {
+      let id = `${n.type.split('.').pop()}_${++seed}`;
+      while (taken.has(id)) id = `${n.type.split('.').pop()}_${++seed}`;
+      taken.add(id);
+      rename.set(n.id, id);
+      const next = { ...n, id, x: (n.x ?? 0) + 40, y: (n.y ?? 0) + 40, params: { ...(n.params ?? {}) } };
+      if (n.type === 'param.float' || n.type === 'param.palette') {
+        const label = nextNumberedName(String(n.params?.label ?? 'Value').replace(/\s*\d+$/, ''), params);
+        params.push({ name: label });
+        next.params.label = label;
+        next.params.name = label.replace(/[^A-Za-z0-9]+/g, '_').toLowerCase();
+      }
+      return next;
+    });
+    const edges = clipboard.edges.map((e) => ({
+      from: { node: rename.get(e.from.node)!, port: e.from.port },
+      to: { node: rename.get(e.to.node)!, port: e.to.port },
+    }));
+    commit({ ...graph, nodes: [...graph.nodes, ...nodes], edges: [...graph.edges, ...edges] });
+    return nodes.length;
+  }, [graph, commit]);
+
+  // Keyboard, gated on the canvas actually having focus — these are global chords elsewhere in ArtLux,
+  // and a panel that grabbed Ctrl+C whenever it was merely MOUNTED would break copying in every other
+  // dock tab of the same workbench.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!hovering.current && !pane.current?.contains(document.activeElement)) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'c' && k !== 'v' && k !== 'd') return;
+      e.preventDefault(); e.stopPropagation();
+      if (k === 'c') { const n = copySelection(); setStatus({ ok: true, message: n ? `${n} node${n > 1 ? 's' : ''} copied` : 'nothing selected' }); return; }
+      if (k === 'd') { const n = copySelection(); if (n) paste(); return; }
+      const n = paste();
+      if (!n) setStatus({ ok: true, message: 'nothing to paste' });
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [copySelection, paste]);
+
   const shown = filter
     ? NODE_LIST.filter((d) => (d.label + d.category + d.hint).toLowerCase().includes(filter.toLowerCase()))
     : NODE_LIST;
@@ -337,6 +434,7 @@ export const ShaderNodePanel: React.FC = () => {
       <div className="flex w-40 shrink-0 flex-col border-r border-line-1">
         <input
           value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search nodes"
+          onKeyDown={(e) => { if (e.key === 'Enter' && shown.length) { addNode(shown[0]); if (!e.shiftKey) setFilter(''); } }}
           className="m-1 rounded border border-line-1 bg-surface-0 px-1.5 py-0.5 text-micro text-fg-1 focus:border-accent focus:outline-none"
         />
         <div className="min-h-0 flex-1 overflow-auto pb-1">
@@ -384,7 +482,11 @@ export const ShaderNodePanel: React.FC = () => {
             permitted outright; the credit moved to NOTICE §4 instead, where the rest of the stack is
             named. Nothing about it is a paid feature — see docs/SHADERS.md if that question comes up
             again. */}
-        <div ref={pane} className="min-h-0 flex-1">
+        <div
+          ref={pane} className="min-h-0 flex-1"
+          onPointerEnter={() => { hovering.current = true; }}
+          onPointerLeave={() => { hovering.current = false; }}
+        >
           <ReactFlow
             nodes={rfNodes} edges={rfEdges} nodeTypes={nodeTypes}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
