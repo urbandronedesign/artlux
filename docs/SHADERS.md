@@ -129,12 +129,13 @@ never learns a graph was involved.
 The loop is short:
 
 1. **Select a shader surface.** The editor edits whatever is selected; with nothing selected it says so.
-2. **Double-click empty canvas to add a node** — or press `Tab`. The list opens at the cursor, in its
-   sections (Input, UV, Math, LFO, Pattern, Noise, Shape, Audio, Parameter, Colour, Output) so you can
-   find a node you cannot name. Type a few letters and the sections give way to the best matches, each
-   labelled with the section it came from; `↑`/`↓` move, `Enter` takes it. The node lands where you
-   opened the menu, so you point at the space you want it in. Double-clicking a *node* does not open
-   the menu; that is a different gesture.
+2. **Double-click empty canvas to add a node** — or press `Tab`. The menu opens at the cursor showing
+   the **eleven categories** and how many nodes are in each; pick one and it lists that category's
+   nodes, with `←` (or the breadcrumb) to go back. **Typing searches every category at once**, however
+   deep you are, because the node you cannot find is usually filed somewhere you did not expect. `↑`/`↓`
+   move, `Enter` opens a category or takes a node. The node lands where you opened the menu, so you
+   point at the space you want it in. Double-clicking a *node* does not open the menu; that is a
+   different gesture.
 3. **Drag from an output dot to an input dot.** Dots are coloured by type — a `vec2` will not drop onto
    a `float` port, and an illegal wire simply refuses to land. Dropping a wire on an input that already
    has one **replaces** it; that gesture means "rewire", not "mistake".
@@ -162,7 +163,9 @@ by hand comes back as you left it.
 | Key | Does |
 |---|---|
 | `Tab` | opens the node menu at the pointer |
-| `Enter` in the node menu | adds the highlighted node; `↑`/`↓` move, `Escape` closes |
+| `Enter` in the node menu | opens the highlighted category, or adds the highlighted node |
+| `←` / `Backspace` in the node menu | back out of a category (`Backspace` only with an empty search) |
+| `Escape` in the node menu | closes it |
 | `Ctrl+C` / `Ctrl+V` | copy the selected nodes and paste them, wires between them included |
 | `Ctrl+D` | duplicate the selection in place |
 | `Delete` | remove the selected nodes and their wires |

@@ -165,11 +165,18 @@ const nodeTypes = { shaderNode: GraphNodeBody };
  *
  * A permanent palette column costs width on every graph you will ever build, to answer a question you
  * ask for two seconds at a time. So the list comes to the cursor instead: double-click empty canvas (or
- * press Tab), type, Enter. The node lands where you opened it, which is also the placement problem
- * solved — you point at the space you want it in.
+ * press Tab), pick, and the node lands where you opened it — which is the placement problem solved too,
+ * because you point at the space you want it in.
  *
- * Keyboard first, because that is what makes it fast: the field takes focus on open, ↑/↓ walk the
- * matches, Enter adds the highlighted one, Escape closes. The mouse works too and costs nothing.
+ * TWO LEVELS, BECAUSE BROWSING AND SEARCHING ARE DIFFERENT QUESTIONS. With an empty field you see the
+ * ELEVEN CATEGORIES, not fifty-nine nodes: "which kind of thing do I want" is answerable at a glance,
+ * and "which noise, exactly" is a question you only ask once you are inside Noise. Enter a category and
+ * it lists its nodes with a way back. **Typing searches everything at once** and ignores the level you
+ * are on — a search that only looked inside the open category would be a trap, because the node you
+ * cannot find is usually filed somewhere you did not expect.
+ *
+ * Keyboard first, because that is what makes it fast: the field takes focus on open, ↑/↓ walk the rows,
+ * Enter opens a category or adds a node, ← and Backspace go back up, Escape closes. The mouse works too.
  */
 const NodeMenu: React.FC<{
   at: { x: number; y: number };
@@ -179,6 +186,7 @@ const NodeMenu: React.FC<{
   onClose: () => void;
 }> = ({ at, maxHeight, onPick, onClose }) => {
   const [q, setQ] = useState('');
+  const [category, setCategory] = useState<string | null>(null);
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLInputElement | null>(null);
@@ -199,11 +207,18 @@ const NodeMenu: React.FC<{
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  const matches = useMemo(() => {
+  /** Categories in catalogue order, each with how many nodes are in it. */
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const d of NODE_LIST) counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
+    return [...counts].map(([name, count]) => ({ name, count }));
+  }, []);
+
+  const found = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return NODE_LIST;
-    // Rank a label match above a description match: typing "mix" wants the Mix node, not the four
-    // nodes whose hint happens to say "blend".
+    if (!needle) return null;
+    // Rank a name match above a description match: typing "mix" wants the Mix node, not the four nodes
+    // whose hint happens to say "blend".
     const score = (d: NodeDef) => {
       const label = d.label.toLowerCase();
       if (label.startsWith(needle)) return 0;
@@ -216,13 +231,25 @@ const NodeMenu: React.FC<{
       .sort((a, b) => a.s - b.s).map((x) => x.d);
   }, [q]);
 
-  useEffect(() => { setCursor(0); }, [q]);
-  // Keep the highlighted row on screen when walking a 59-entry list with the arrow keys.
+  /** What is on screen right now: categories, one category's nodes, or search results. */
+  const rows: ({ kind: 'category'; name: string; count: number } | { kind: 'node'; def: NodeDef })[] =
+    found ? found.map((def) => ({ kind: 'node' as const, def }))
+      : category ? NODE_LIST.filter((d) => d.category === category).map((def) => ({ kind: 'node' as const, def }))
+        : categories.map((c) => ({ kind: 'category' as const, name: c.name, count: c.count }));
+
+  useEffect(() => { setCursor(0); }, [q, category]);
+  // Keep the highlighted row on screen when walking the list with the arrow keys.
   useEffect(() => {
     listRef.current?.querySelector('[data-cursor="1"]')?.scrollIntoView({ block: 'nearest' });
-  }, [cursor]);
+  }, [cursor, rows.length]);
 
-  const take = (i: number) => { const d = matches[i]; if (d) onPick(d); };
+  const take = (i: number) => {
+    const row = rows[i];
+    if (!row) return;
+    if (row.kind === 'category') { setCategory(row.name); fieldRef.current?.focus(); }
+    else onPick(row.def);
+  };
+  const back = () => { setCategory(null); fieldRef.current?.focus(); };
 
   return (
     <div
@@ -232,42 +259,52 @@ const NodeMenu: React.FC<{
     >
       <input
         ref={fieldRef} autoFocus
-        value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search nodes"
+        value={q} onChange={(e) => setQ(e.target.value)}
+        placeholder={category && !q ? `Search nodes — in ${category}` : 'Search nodes'}
         className="m-1 rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent focus:outline-none"
         onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, matches.length - 1)); }
+          if (e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, rows.length - 1)); }
           else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
           else if (e.key === 'Enter') { e.preventDefault(); take(cursor); }
           else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+          // Back out of a category with ← or Backspace — but Backspace only when there is nothing to
+          // delete, or leaving a category would fight with correcting a typo.
+          else if (category && (e.key === 'ArrowLeft' || (e.key === 'Backspace' && !q))) { e.preventDefault(); back(); }
           e.stopPropagation();   // this field owns its keys; the canvas shortcuts must not see them
         }}
       />
+
+      {/* Where you are. Only inside a category, and only while browsing — a search is across everything,
+          so a breadcrumb there would name a scope the results do not have. */}
+      {category && !found && (
+        <button
+          type="button" onClick={back}
+          className="flex items-center gap-1 border-b border-line-1 px-2 py-1 text-left text-micro text-fg-2 hover:text-fg-1"
+          title="Back to all categories"
+        >
+          <span aria-hidden>←</span><span className="uppercase tracking-wide">{category}</span>
+        </button>
+      )}
+
       <div ref={listRef} className="min-h-0 flex-1 overflow-auto pb-1">
-        {!matches.length && <div className="px-2 py-1 text-micro italic text-fg-3">no node matches “{q}”</div>}
-        {matches.map((d, i) => (
-          <React.Fragment key={d.id}>
-            {/* SECTION HEADERS while browsing, none while searching. Unsearched, the list is the
-                catalogue in its own order and the headers are how you find the noise nodes without
-                knowing one by name. Searched, the order is by RELEVANCE — headers over a ranked list
-                would be a heading per row, and would imply a grouping the order no longer has. Each
-                row keeps its category on the right, so a match still says where it came from. */}
-            {!q.trim() && d.category !== matches[i - 1]?.category && (
-              <div className="sticky top-0 bg-surface-1 px-2 pb-0.5 pt-1.5 text-micro uppercase tracking-wide text-fg-3">
-                {d.category}
-              </div>
-            )}
-            <button
-              type="button"
-              data-cursor={i === cursor ? '1' : undefined}
-              onPointerEnter={() => setCursor(i)}
-              onClick={() => onPick(d)}
-              title={d.hint}
-              className={`flex w-full items-baseline gap-2 px-2 py-[3px] text-left text-micro ${i === cursor ? 'bg-accent/10 text-accent' : 'text-fg-1'}`}
-            >
-              <span className="min-w-0 flex-1 truncate">{d.label}</span>
-              {!!q.trim() && <span className="shrink-0 text-fg-3">{d.category}</span>}
-            </button>
-          </React.Fragment>
+        {!rows.length && <div className="px-2 py-1 text-micro italic text-fg-3">no node matches “{q}”</div>}
+        {rows.map((row, i) => (
+          <button
+            key={row.kind === 'category' ? row.name : row.def.id}
+            type="button"
+            data-cursor={i === cursor ? '1' : undefined}
+            onPointerEnter={() => setCursor(i)}
+            onClick={() => take(i)}
+            title={row.kind === 'category' ? `${row.count} nodes` : row.def.hint}
+            className={`flex w-full items-baseline gap-2 px-2 py-[3px] text-left text-micro ${i === cursor ? 'bg-accent/10 text-accent' : 'text-fg-1'}`}
+          >
+            <span className="min-w-0 flex-1 truncate">{row.kind === 'category' ? row.name : row.def.label}</span>
+            {/* A category says how many; a search result says where it came from. Inside a category
+                neither is worth the ink — you already know both. */}
+            <span className="shrink-0 text-fg-3">
+              {row.kind === 'category' ? `${row.count} ›` : found ? row.def.category : ''}
+            </span>
+          </button>
         ))}
       </div>
     </div>
