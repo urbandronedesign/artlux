@@ -12,8 +12,9 @@ import { plugin as spout } from '@artlux/plugin-spout/main';
 import { plugin as hap } from '@artlux/plugin-hap/main';
 import { plugin as showControl } from '@artlux/plugin-show-control/main';
 import { plugin as audio } from '@artlux/plugin-audio/main';
+import { plugin as shader } from '@artlux/plugin-shader/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl, audio];
+const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl, audio, shader];
 
 let activated = false;
 

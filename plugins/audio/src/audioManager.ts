@@ -89,6 +89,14 @@ interface NativeAudio {
   setTestTone(deviceChannel: number, gain: number): void;
   stopAll(): void;
   getMeters(): Meters;
+  /**
+   * 16 log-spaced bands of the mixed output, 0..1 each.
+   *
+   * OPTIONAL because the addon on disk may predate it: a venue that has not rebuilt the engine still
+   * loads, still plays, and reports silence to anything reacting to sound — which is the graceful
+   * degradation every other native feature here follows, rather than a crash on the first frame.
+   */
+  getSpectrum?(): Float32Array;
   close(): void;
 }
 
@@ -144,4 +152,14 @@ export function getMeters(): Meters {
     // answers exactly one question. See Meters.deviceLive.
     : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false, deviceLive: true };
 }
+/**
+  * The mixed output as 16 log-spaced bands, 0..1 each. Empty when there is no engine.
+  *
+  * A SEPARATE CALL FROM getMeters, because it is polled at a different rate: meters are a ~10 Hz
+  * readout for a human eye, while a visual reacting to sound wants one per rendered frame. Bundling
+  * them would force one of the two to be wrong.
+  */
+export function getSpectrum(): Float32Array { return native?.getSpectrum?.() ?? EMPTY_SPECTRUM; }
+const EMPTY_SPECTRUM = new Float32Array(16);
+
 export function close(): void { native?.close(); }

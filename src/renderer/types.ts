@@ -298,6 +298,44 @@ export interface SurfaceContent {
   paletteId?: number;
   speed?: number;
   intensity?: number;
+  // SHADER params (@artlux/plugin-shader) — operator-authored GLSL generative content.
+  // Here rather than in the plugin because these are PERSISTED: core owns the project file's shape so
+  // a plugin can be reworked, renamed or disabled without a migration. Only behaviour lives in the
+  // plugin, which is the same split SourceType.NDI / TRACKING already follow.
+  shaderId?: string;   // which built-in this started from — also what an empty shaderSource falls back to
+  /**
+   * THE OPERATOR'S OWN GLSL, when they have edited it. Absent ⇒ run the built-in named by `shaderId`.
+   *
+   * Inline in the project rather than a file beside it, deliberately and temporarily: a self-contained
+   * `.artlux` cannot lose its shader on the way to a venue, and the alternative needs the asset
+   * copy-in machinery that arrives with the library. When the library lands, a saved shader moves to
+   * `assets/shaders/` and this field becomes the fallback for projects written before it — which is
+   * why it is read through one accessor (`sourceOf`) rather than everywhere.
+   */
+  shaderSource?: string;
+  /**
+   * THE NODE GRAPH, when this surface was built with one — and the source of truth in that case.
+   *
+   * shaderSource above still holds the GENERATED code and is still what runs, which is what lets a
+   * project open and render on a build with no node editor at all: it simply cannot be edited as a
+   * graph there. Graph to code is a compiler and code to graph is decompilation, so the conversion is
+   * deliberately one-way and a surface is either one or the other.
+   */
+  shaderGraph?: string;
+  /**
+   * AUTHORED parameter values, by the input name the shader's header declares. Absent keys fall back
+   * to that header's DEFAULT, which is why editing a shader never resets a show: the header declares
+   * the knob, this records where the operator put it.
+   *
+   * An automation lane does NOT write here — it writes a live override layer the plugin owns, so
+   * disabling a lane snaps the control back to what a human actually set rather than to wherever the
+   * curve stopped.
+   */
+  shaderParams?: Record<string, number | boolean | number[]>;
+  shaderRes?: number;  // DETAIL: a pixel budget (720 ⇒ "as many pixels as 1280×720"), spent in the
+                       // surface's own proportions. Absent ⇒ 720. Per surface because the two consumers
+                       // want opposite things: the LED path samples an atlas rect scaled to fixture
+                       // density and discards anything finer, while a projector wants its native raster.
   // TRACKING params (LiDAR blob viz, projection-mappable):
   trackingSource?: string;   // which tracking surface: 'SOL' | 'MUR' | 'SOL_MUR'
   bgLayerId?: string;        // optional timeline layer drawn UNDER the blobs (video + blobs on one surface)

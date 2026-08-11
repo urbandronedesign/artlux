@@ -129,12 +129,123 @@ function applyBlock(file, name, body) {
   return { abs, file, changed: norm(after) !== norm(before), after };
 }
 
+// ── Parsing the shader uniform table ──────────────────────────────────────────────────────────────────
+// Same doctrine as the keymap above: the uniforms an operator's shader can read are declared once, in
+// the plugin's wrapper, and the doc table is OUTPUT. A hand-kept copy is wrong the first time a uniform
+// is added or renamed — and a shader reference listing a uniform the wrapper does not declare sends an
+// author hunting for a compile error in their own code.
+function parseShaderUniforms() {
+  const file = path.join(ROOT, 'plugins', 'shader', 'src', 'wrapper.ts');
+  const src = fs.readFileSync(file, 'utf8');
+  const arr = src.match(/export const UNIFORMS[^=]*=\s*\[([\s\S]*?)\n\];/);
+  if (!arr) throw new Error('gen-docs-data: could not find UNIFORMS in plugins/shader/src/wrapper.ts');
+  const rows = [];
+  for (const line of arr[1].split(/\r?\n/)) {
+    const m = line.match(/\{\s*name:\s*'([^']+)',\s*detail:\s*'([^']*)'/);
+    if (m) rows.push({ name: m[1], detail: m[2] });
+  }
+  // An empty parse is the one failure that would silently put us back to a hand-kept table.
+  if (!rows.length) throw new Error('gen-docs-data: UNIFORMS parsed to zero rows — the literal formatting changed');
+  return rows;
+}
+
+function renderShaderUniforms(rows) {
+  const out = ['| Name | Type | What it is |', '|---|---|---|'];
+  for (const r of rows) {
+    // `detail` is authored as "type — prose"; split it so the table reads as a table.
+    const [type, ...rest] = r.detail.split(' — ');
+    out.push(`| \`${r.name}\` | ${type} | ${rest.join(' — ')} |`);
+  }
+  return out.join('\n');
+}
+
+// ── Parsing the shader cookbook ───────────────────────────────────────────────────────────────────────
+// The guide's examples are SHIPPED SHADERS, not prose. Every one is in plugins/shader/src/cookbook.ts,
+// four of them are in the app's shader dropdown, and all of them are compiled on a real driver by the
+// harness before release — so a documented example cannot be one that does not build. Copying them into
+// markdown by hand would break that the first time one was edited.
+function parseCookbook(fileName) {
+  const file = path.join(ROOT, 'plugins', 'shader', 'src', fileName);
+  const src = fs.readFileSync(file, 'utf8');
+  const out = [];
+  // One entry per `{ id: '…', … source: `…` }`. Sources contain no backticks (checked below), so a
+  // non-greedy match to the next one is exact rather than merely convenient.
+  const re = /\{\s*\n\s*id:\s*'([^']+)',\s*\n\s*name:\s*'([^']+)',\s*\n\s*teach:\s*'([\s\S]*?)',\s*\n\s*note:\s*\n?([\s\S]*?),\s*\n\s*(?:starter:[\s\S]*?)?source:\s*`([\s\S]*?)`,\s*\n\s*\}/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const note = m[4]
+      .split('\n')
+      .map((l) => l.trim().replace(/^\+?\s*'/, '').replace(/'\s*$/, ''))
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    out.push({ id: m[1], name: m[2], teach: m[3], note, source: m[5] });
+  }
+  if (!out.length) throw new Error('gen-docs-data: ' + fileName + ' parsed to zero recipes — the literal formatting changed');
+  return out;
+}
+
+function renderCookbook(recipes) {
+  const parts = [];
+  for (const r of recipes) {
+    parts.push(`### ${r.name}`);
+    parts.push('');
+    parts.push(`**${r.teach}**`);
+    parts.push('');
+    parts.push(r.note);
+    parts.push('');
+    parts.push('```glsl');
+    parts.push(r.source);
+    parts.push('```');
+    parts.push('');
+  }
+  return parts.join('\n').trimEnd();
+}
+
+// ── Parsing the node catalogue ────────────────────────────────────────────────────────────────────
+// The palette in the node editor IS nodeCatalog.ts. A hand-written list of nodes is wrong the first
+// time somebody adds one — which is the entire reason generated blocks exist.
+function parseNodes() {
+  const src = fs.readFileSync(path.join(ROOT, 'plugins', 'shader', 'src', 'nodeCatalog.ts'), 'utf8');
+  // The optional trailing group is the alias list the menu's search uses (NodeDef.aliases). It is
+  // documented because a reader of the table should not have to learn our vocabulary either: the
+  // table is where somebody looks up "what is ArtLux's name for lerp?".
+  const re = /id:\s*'([^']+)',\s*(?:\n\s*)?label:\s*'([^']+)',\s*(?:\n\s*)?category:\s*'([^']+)',\s*(?:\n\s*)?hint:\s*'([^']*)',\s*(?:\n\s*)?(?:aliases:\s*\[([^\]]*)\])?/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const aliases = (m[5] ?? '').split(',').map((x) => x.trim().replace(/^'|'$/g, '')).filter(Boolean);
+    out.push({ id: m[1], label: m[2], category: m[3], hint: m[4], aliases });
+  }
+  if (out.length < 20) throw new Error('gen-docs-data: nodeCatalog.ts parsed to ' + out.length + ' nodes — the literal formatting changed');
+  return out;
+}
+
+function renderNodes(nodes) {
+  const parts = [];
+  for (const cat of [...new Set(nodes.map((n) => n.category))]) {
+    parts.push(`**${cat}**`, '', '| Node | What it does | Also found by |', '|---|---|---|');
+    for (const n of nodes.filter((x) => x.category === cat)) {
+      const also = n.aliases.length ? n.aliases.map((a) => '`' + a + '`').join(', ') : '—';
+      parts.push(`| **${n.label}** | ${n.hint} | ${also} |`);
+    }
+    parts.push('');
+  }
+  return parts.join('\n').trimEnd();
+}
+
 function main() {
-  const results = [applyBlock(
-    'docs/user-guide/15-keyboard-reference.md',
-    'keymap',
-    renderKeymap(parseShortcuts()),
-  )];
+  const results = [
+    applyBlock('docs/user-guide/15-keyboard-reference.md', 'keymap', renderKeymap(parseShortcuts())),
+    applyBlock('docs/SHADERS.md', 'shader-uniforms', renderShaderUniforms(parseShaderUniforms())),
+    applyBlock('docs/SHADER-COOKBOOK.md', 'shader-cookbook', renderCookbook(parseCookbook('cookbook.ts'))),
+    applyBlock('docs/SHADER-COOKBOOK.md', 'shader-noise', renderCookbook(parseCookbook('noiseLib.ts'))),
+    applyBlock('docs/SHADERS.md', 'shader-nodes', renderNodes(parseNodes())),
+    // The per-node reference. Built by CALLING each node's generator rather than by reading the
+    // source, so the GLSL in the page is the GLSL the compiler emits — see gen-shader-node-docs.cjs.
+    applyBlock('docs/SHADER-NODES.md', 'shader-node-reference', require('./gen-shader-node-docs.cjs').build()),
+  ];
 
   const stale = results.filter((r) => r.changed);
   if (CHECK) {

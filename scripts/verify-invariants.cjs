@@ -1633,9 +1633,20 @@ check(
     const bad = [];
     for (const f of [...walk('src/renderer'), ...walk('plugins')]) {
       const src = read(f);
-      if (/window\.(confirm|alert)\s*\(/.test(src) || /(^|[^.\w])alert\s*\(/.test(src)) bad.push(f);
+      // BARE `confirm("…")` COUNTS TOO, and it did not until now. The pattern caught `window.confirm`
+      // and bare `alert`, but bare `confirm` walked past it — and that is the form that shipped, in a
+      // library panel, where deleting an effect blocked the JS thread and the app looked frozen. A
+      // guard with a hole shaped exactly like the bug it exists to stop is worse than no guard,
+      // because it is trusted.
+      //
+      // Discriminated by the ARGUMENT, not the name: the in-app `useConfirm()` handle is also called
+      // `confirm` and is called all over App.tsx and Preferences.tsx, so a bare-name match would flag
+      // the CORRECT pattern. The native one takes a string; the in-app one takes an options object.
+      if (/window\.(confirm|alert)\s*\(/.test(src)
+        || /(^|[^.\w])alert\s*\(/.test(src)
+        || /(^|[^.\w])confirm\s*\(\s*['"`]/.test(src)) bad.push(f);
     }
-    return bad.length ? `native window.confirm/alert/alert() found: ${bad.join(', ')}` : null;
+    return bad.length ? `native confirm()/alert() found: ${bad.join(', ')}` : null;
   },
 );
 
@@ -4010,6 +4021,69 @@ check(
       if (/https?\.get\(|https?\.request\(/.test(src)) bad.push(f);
     }
     return bad.length ? `writes a network response to disk without lib/download.cjs: ${bad.join(', ')}` : null;
+  },
+);
+
+// ── a plugin content type must be CLASSIFIED for projector windows ───────────────────────────
+check(
+  'every plugin content type is renderable in a projector window',
+  'ProjectorApp classifies content into SELF_RENDER (drawn locally) and STREAMED (ImageBitmaps ' +
+  'pushed from the main window). A type in NEITHER set renders NOTHING — a black output, in the one ' +
+  'mode with no operator watching, while the stage and the fixtures look perfectly correct. SLICE ' +
+  'shipped that way once; SHADER did it again the day it was added. The third legitimate path is a ' +
+  'projector CHANNEL with renderSource (how MEDIAPIPE and AUGMENTA draw themselves), so a plugin ' +
+  'that registers one for its own type is covered too.',
+  () => {
+    const projSrc = read('src/renderer/projector/ProjectorApp.tsx');
+    const setLiterals = (name) => {
+      const m = projSrc.match(new RegExp(`${name}\\s*=\\s*new Set<string>\\(\\[([^\\]]*)\\]`));
+      if (!m) return null; // the set itself vanished — a problem, not an empty answer
+      return new Set([...m[1].matchAll(/'([^']+)'|SourceType\.(\w+)/g)].map((x) => x[1] ?? x[2]));
+    };
+    const self = setLiterals('SELF_RENDER');
+    const streamed = setLiterals('STREAMED');
+    if (!self || !streamed) return 'ProjectorApp no longer declares SELF_RENDER / STREAMED as Set<string> literals';
+
+    const bad = [];
+    for (const f of walk('plugins')) {
+      const src = read(f);
+      // The registration call, not the string: a type name in a comment or a type alias must not
+      // satisfy this, and a plugin that stopped registering content must stop being asked about.
+      const reg = [...src.matchAll(/contentSources\.register\(\s*\{\s*type:\s*'([^']+)'/g)].map((m) => m[1]);
+      if (!reg.length) continue;
+      const drawsItself = /projectorChannels\.register\(/.test(src) && /renderSource\s*:/.test(src);
+      for (const t of reg) {
+        // SourceType.X members are matched by their member NAME above, which is also the string value
+        // for every core type — they are declared as `X = 'X'`.
+        if (self.has(t) || streamed.has(t) || drawsItself) continue;
+        bad.push(`${t} (${f})`);
+      }
+    }
+    return bad.length
+      ? `content type(s) in neither SELF_RENDER nor STREAMED, and with no projector renderSource — a projector output for one of these is BLACK: ${bad.join(', ')}`
+      : null;
+  },
+);
+
+check(
+  'the node canvas keeps React Flow\'s own nodes in state',
+  'React Flow MEASURES every node and writes the size back through onNodesChange. Rebuild the node ' +
+  'array from our graph on each render and that measurement is discarded — and a node with no ' +
+  'measured size is rendered `visibility: hidden`. The canvas then looks EMPTY while the footer ' +
+  'correctly reports "14 nodes", every port answers hit-tests, and nothing throws: a panel that is ' +
+  'working perfectly and showing nothing. So the React Flow node array must live in state that ' +
+  'applyNodeChanges writes into, with our graph reconciled INTO it rather than replacing it.',
+  () => {
+    const f = 'plugins/shader/src/ShaderNodePanel.tsx';
+    const src = read(f);
+    if (!/<ReactFlow/.test(src)) return null; // the panel stopped using React Flow — nothing to protect
+    if (/const\s+rfNodes[^=]*=\s*useMemo/.test(src)) {
+      return `${f} derives rfNodes with useMemo — React Flow's measurements are thrown away and every node renders invisible`;
+    }
+    if (!/setRfNodes\(\s*\(\s*\w+\s*\)\s*=>\s*applyNodeChanges\(/.test(src)) {
+      return `${f} does not feed applyNodeChanges back into rfNodes state — dimension changes are dropped and nodes render invisible`;
+    }
+    return null;
   },
 );
 

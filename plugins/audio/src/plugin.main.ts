@@ -27,6 +27,10 @@ export const plugin: MainPlugin = {
     ipc.handle('audio:configure', (cfg) => engine.configure((cfg ?? {}) as engine.DeviceCfg));
     ipc.handle('audio:getDevices', () => engine.getDevices());
     ipc.handle('audio:getMeters', () => engine.getMeters());
+    // The spectrum, for anything that reacts to sound. A poll rather than a push: the renderer asks
+    // when it is about to draw, so a window that is not showing anything audio-reactive costs nothing,
+    // and there is never a queue of stale frames to drain.
+    ipc.handle('audio:getSpectrum', () => engine.getSpectrum());
     // Is the native engine actually loaded? `available` was exported and unconsumed — the renderer had to
     // INFER unavailability from configure() returning an empty device name. Mirrors calib:available and
     // ndi:available. A missing engine is silent by construction; this is the only way to see it.

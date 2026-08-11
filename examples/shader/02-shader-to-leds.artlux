@@ -1,0 +1,127 @@
+{
+ "version": "1.2",
+ "timestamp": "2026-08-10T00:00:00.000Z",
+ "globalBrightness": 1,
+ "groups": [],
+ "scenes": [],
+ "cueBanks": [],
+ "schedule": [],
+ "assets": [],
+ "projectorOutputs": [],
+ "controllers": [
+  {
+   "id": "ctl_local",
+   "name": "Loopback",
+   "protocol": "artnet",
+   "ip": "127.0.0.1",
+   "broadcast": false,
+   "startUniverse": 0
+  }
+ ],
+ "scene3D": {
+  "models": [],
+  "lightIntensity": 1,
+  "environment": true,
+  "exposure": 1,
+  "gridVisible": true,
+  "reflectiveFloor": false,
+  "trackingViz": false,
+  "augmentaViz": false,
+  "trackingSmoothing": 0.6,
+  "trackingPredictMs": 50
+ },
+ "timeline": {
+  "layers": [],
+  "clips": [],
+  "duration": 40,
+  "fps": 30,
+  "markers": [],
+  "inPoint": null,
+  "outPoint": null,
+  "loop": true,
+  "trackingTakes": []
+ },
+ "stateMachine": {
+  "enabled": false,
+  "initialStateId": null,
+  "regions": [],
+  "states": [],
+  "transitions": []
+ },
+ "surfaces": [
+  {
+   "id": "srf_lo",
+   "name": "Chase · 360p",
+   "x": 0.02,
+   "y": 0.1,
+   "width": 0.96,
+   "height": 0.3,
+   "rotation": 0,
+   "zIndex": 0,
+   "content": {
+    "opacity": 1,
+    "type": "SHADER",
+    "shaderId": "strip",
+    "shaderRes": 360
+   }
+  },
+  {
+   "id": "srf_hi",
+   "name": "Chase · 1080p",
+   "x": 0.02,
+   "y": 0.56,
+   "width": 0.96,
+   "height": 0.3,
+   "rotation": 0,
+   "zIndex": 0,
+   "content": {
+    "opacity": 1,
+    "type": "SHADER",
+    "shaderId": "strip",
+    "shaderRes": 1080
+   }
+  }
+ ],
+ "fixtures": [
+  {
+   "id": "fx_lo",
+   "name": "Strip A (from 360p)",
+   "x": 0.03,
+   "y": 0.43,
+   "width": 0.94,
+   "height": 0.05,
+   "rotation": 0,
+   "universe": 0,
+   "startAddress": 1,
+   "ledCount": 120,
+   "reverse": false,
+   "colorData": [],
+   "source": "MEDIA",
+   "surfaceId": "srf_lo",
+   "shape": "LINE",
+   "colorOrder": "RGB",
+   "rgbwMode": "NONE",
+   "channelsPerPixel": 3
+  },
+  {
+   "id": "fx_hi",
+   "name": "Strip B (from 1080p)",
+   "x": 0.03,
+   "y": 0.89,
+   "width": 0.94,
+   "height": 0.05,
+   "rotation": 0,
+   "universe": 1,
+   "startAddress": 1,
+   "ledCount": 120,
+   "reverse": false,
+   "colorData": [],
+   "source": "MEDIA",
+   "surfaceId": "srf_hi",
+   "shape": "LINE",
+   "colorOrder": "RGB",
+   "rgbwMode": "NONE",
+   "channelsPerPixel": 3
+  }
+ ]
+}

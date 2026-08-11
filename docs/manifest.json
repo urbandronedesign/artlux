@@ -47,7 +47,8 @@
   ],
   "guideExclude": ["PLAN.md"],
 
-  "examples": ["audio", "lidar-tracking", "state-machine"],
+  "examples": ["audio", "lidar-tracking",
+    "shader", "state-machine"],
 
   "$referenceOrder": [
     "KEY ORDER IS THE READING ORDER, and src/main/docs.ts renders the operator sidebar in it. Do not",
@@ -67,6 +68,9 @@
 
     "SURFACES.md": "hybrid",
     "EFFECTS.md": "hybrid",
+    "SHADERS.md": "usage",
+    "SHADER-COOKBOOK.md": "usage",
+    "SHADER-NODES.md": "usage",
     "ASSETS.md": "hybrid",
     "CODECS.md": "usage",
 
@@ -115,6 +119,24 @@
       "target": "docs/user-guide/15-keyboard-reference.md",
       "source": "src/renderer/shortcuts/registry.ts",
       "why": "Chapter 15 was hand-typed, was edited as recently as 2026-07-28, and STILL documented the static list SHORTCUTS.md says was replaced. Re-typing a registry loses that race every time."
+    },
+    {
+      "block": "shader-uniforms",
+      "target": "docs/SHADERS.md",
+      "source": "plugins/shader/src/wrapper.ts",
+      "why": "The uniforms a shader can read are declared once, in the wrapper that injects them. A hand-kept table is wrong the first time one is added, and a reference listing a uniform the wrapper does not declare sends an author hunting a compile error in their own code."
+    },
+    {
+      "block": "shader-cookbook",
+      "target": "docs/SHADER-COOKBOOK.md",
+      "source": "plugins/shader/src/cookbook.ts",
+      "why": "The guide teaches with SHIPPED shaders — four are in the app dropdown and all are compiled on a real driver before release. Copying them into markdown by hand would break that the first time one was edited."
+    },
+    {
+      "block": "shader-noise",
+      "target": "docs/SHADER-COOKBOOK.md",
+      "source": "plugins/shader/src/noiseLib.ts",
+      "why": "Ten noise generators, each compiled on a real driver by the release harness. A noise function that does not build is worse than none, because it is copied before it is tested."
     }
   ],
 

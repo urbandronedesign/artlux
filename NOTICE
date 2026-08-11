@@ -171,9 +171,16 @@ the two kinds of use, because they carry very different obligations:
 4. THE APPLICATION ITSELF
 --------------------------------------------------------------------------------------
 
-  Electron, React, TypeScript, Vite, Tailwind CSS, react-three-fiber, and the Rust
-  crates used by the output engine — all permissively licensed (MIT / Apache-2.0 / BSD).
-  See `package.json` and each crate's `Cargo.toml`.
+  Electron, React, TypeScript, Vite, Tailwind CSS, react-three-fiber, CodeMirror,
+  React Flow (`@xyflow/react`, MIT, © 2019-2025 webkid GmbH — the shader node canvas),
+  and the Rust crates used by the output engine — all permissively licensed
+  (MIT / Apache-2.0 / BSD). See `package.json` and each crate's `Cargo.toml`.
+
+    React Flow renders a "React Flow" badge on its canvas by default and its authors ASK
+    that you hold a React Flow Pro subscription if you hide it. ArtLux hides it and holds
+    no subscription: the MIT licence permits removal outright, the ask is an honour-system
+    request rather than a licence term, and the credit is given here instead. Revisit this
+    if ArtLux ever takes money — see the relicensing question below.
 
 --------------------------------------------------------------------------------------
 DECISIONS + WHAT IS STILL OPEN  —  recorded here rather than assumed

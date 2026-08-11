@@ -18,12 +18,19 @@ import { AlignAids, type AlignAidSpec } from './AlignAids';
 import { reportFault } from '../services/faultReporter';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 
-// IMAGE (one cheap decode) + EFFECT (procedural) render locally. Everything HW-decoded —
+// IMAGE (one cheap decode) + EFFECT and SHADER (procedural) render locally. Everything HW-decoded —
 // camera/Spout/DMX-in/NDI AND file video / timeline layers — is decoded once in the main
 // window and streamed here as ImageBitmaps, so the same media isn't decoded per window.
+//
+// A CONTENT TYPE IN NEITHER SET RENDERS NOTHING. Not an error, not a fallback — a black output, in the
+// mode with no operator watching. 'SLICE' shipped that way once (see the note in App.tsx's frame pump)
+// and 'SHADER' did it again the day it was added: the plugin registered a content source, the stage
+// and the fixtures were correct, and the projector window silently drew nothing because these two
+// sets are the one place a new type must ALSO be named. Whoever adds the next one: this line, or the
+// output is black.
 // Content-type-string membership sets (SurfaceContent.type is an open string space; SourceType values
 // are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
-const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
+const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING, 'SHADER']);
 const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
 // Silence on the port for this long means the main window is no longer producing — see the liveness
 // check in the render loop for why a frozen picture is worse than a black one. Generous next to the
