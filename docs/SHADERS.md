@@ -139,9 +139,13 @@ The loop is short:
 3. **Drag from an output dot to an input dot.** Dots are coloured by type — a `vec2` will not drop onto
    a `float` port, and an illegal wire simply refuses to land. Dropping a wire on an input that already
    has one **replaces** it; that gesture means "rewire", not "mistake".
-4. **Type into any unconnected number field** to set it. Wire something into that port and the field
+4. **Or drop the wire on empty canvas.** The menu opens listing only the nodes that can receive it —
+   *takes vec2* when the wire came out of an output, *makes vec3* when it came out of an input — with
+   exact type matches above the ones that would need a conversion. Pick one and it is added **and
+   wired** in a single step. **Show all** drops the filter if you want something else after all.
+5. **Type into any unconnected number field** to set it. Wire something into that port and the field
    disappears, because the wire now decides the value.
-5. **Everything reaches `Output`.** Every graph has exactly one — `color` (a `vec3`) and `alpha`.
+6. **Everything reaches `Output`.** Every graph has exactly one — `color` (a `vec3`) and `alpha`.
 
 **The surface updates as you wire, but only from a graph that builds.** Half of a graph is invalid while
 a wire is in mid-air, so a graph that does not generate or does not compile leaves the wall showing the

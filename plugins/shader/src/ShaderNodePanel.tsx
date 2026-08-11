@@ -29,6 +29,7 @@ import { NODE_LIST, NODES, type NodeDef, type PortType } from './nodeCatalog';
 import { generateGlsl, canConnect, emptyGraph, type ShaderGraph } from './nodeGraph';
 import { compile } from './shaderDrawable';
 import { layoutGraph, type NodeSize } from './nodeLayout';
+import { suggestFor, type LooseEnd, type Suggestion } from './nodeSuggest';
 import { nextNumberedName } from '@artlux/sdk';
 
 /** One colour per port type, so a wire's legality is readable before it is dragged. */
@@ -182,11 +183,23 @@ const NodeMenu: React.FC<{
   at: { x: number; y: number };
   /** How tall it may be here — the panel is a dock tab and can be short. */
   maxHeight: number;
-  onPick: (def: NodeDef) => void;
+  /** Set when a wire was dropped on empty canvas: the list then answers "what takes this?". */
+  link?: LooseEnd;
+  onPick: (def: NodeDef, port?: string) => void;
   onClose: () => void;
-}> = ({ at, maxHeight, onPick, onClose }) => {
+}> = ({ at, maxHeight, link, onPick, onClose }) => {
   const [q, setQ] = useState('');
+  // A dropped wire opens straight into the answer, not into the categories: the question was asked by
+  // the gesture, and making the operator choose a category to see it again would be asking it back.
   const [category, setCategory] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  /** What the loose wire can reach, best first — exact type matches above coercions. */
+  const suggested = useMemo(() => (link && !showAll ? suggestFor(link) : null), [link, showAll]);
+  const portFor = useCallback(
+    (def: NodeDef) => suggested?.find((s) => s.def.id === def.id)?.port.name,
+    [suggested],
+  );
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLInputElement | null>(null);
@@ -233,9 +246,13 @@ const NodeMenu: React.FC<{
 
   /** What is on screen right now: categories, one category's nodes, or search results. */
   const rows: ({ kind: 'category'; name: string; count: number } | { kind: 'node'; def: NodeDef })[] =
-    found ? found.map((def) => ({ kind: 'node' as const, def }))
-      : category ? NODE_LIST.filter((d) => d.category === category).map((def) => ({ kind: 'node' as const, def }))
-        : categories.map((c) => ({ kind: 'category' as const, name: c.name, count: c.count }));
+    suggested
+      // A search still applies, but it can only NARROW what the wire can reach: offering a node the
+      // wire cannot land on, because its name matched, would be offering an error.
+      ? suggested.filter((s) => !found || found.some((d) => d.id === s.def.id)).map((s) => ({ kind: 'node' as const, def: s.def }))
+      : found ? found.map((def) => ({ kind: 'node' as const, def }))
+        : category ? NODE_LIST.filter((d) => d.category === category).map((def) => ({ kind: 'node' as const, def }))
+          : categories.map((c) => ({ kind: 'category' as const, name: c.name, count: c.count }));
 
   useEffect(() => { setCursor(0); }, [q, category]);
   // Keep the highlighted row on screen when walking the list with the arrow keys.
@@ -247,7 +264,7 @@ const NodeMenu: React.FC<{
     const row = rows[i];
     if (!row) return;
     if (row.kind === 'category') { setCategory(row.name); fieldRef.current?.focus(); }
-    else onPick(row.def);
+    else onPick(row.def, portFor(row.def));
   };
   const back = () => { setCategory(null); fieldRef.current?.focus(); };
 
@@ -260,7 +277,12 @@ const NodeMenu: React.FC<{
       <input
         ref={fieldRef} autoFocus
         value={q} onChange={(e) => setQ(e.target.value)}
-        placeholder={category && !q ? `Search nodes — in ${category}` : 'Search nodes'}
+        // A wire out of an OUTPUT needs a node that TAKES the type; a wire out of an input needs one
+        // that MAKES it. Same list mechanism, opposite sentence — and the wrong verb here reads as a
+        // filter that is simply wrong ("Rotate takes vec3"? it does not).
+        placeholder={link && !showAll
+          ? `Nodes that ${link.side === 'source' ? 'take' : 'make'} ${link.type}`
+          : category && !q ? `Search nodes — in ${category}` : 'Search nodes'}
         className="m-1 rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent focus:outline-none"
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, rows.length - 1)); }
@@ -274,9 +296,23 @@ const NodeMenu: React.FC<{
         }}
       />
 
+      {/* What the list is answering. A filter you cannot see is a list that looks broken — "why is
+          Grid missing?" — so it says what it is filtering by and offers the way out. */}
+      {link && (
+        <div className="flex items-center gap-2 border-b border-line-1 px-2 py-1 text-micro">
+          <span className="min-w-0 flex-1 truncate text-fg-2">
+            {showAll ? 'every node' : <>{link.side === 'source' ? 'takes' : 'makes'} <span className="font-mono text-accent">{link.type}</span></>}
+          </span>
+          <button type="button" onClick={() => { setShowAll((v) => !v); fieldRef.current?.focus(); }}
+            className="shrink-0 text-fg-3 hover:text-fg-1">
+            {showAll ? 'only matching' : 'show all'}
+          </button>
+        </div>
+      )}
+
       {/* Where you are. Only inside a category, and only while browsing — a search is across everything,
           so a breadcrumb there would name a scope the results do not have. */}
-      {category && !found && (
+      {category && !found && !suggested && (
         <button
           type="button" onClick={back}
           className="flex items-center gap-1 border-b border-line-1 px-2 py-1 text-left text-micro text-fg-2 hover:text-fg-1"
@@ -435,7 +471,11 @@ export const ShaderNodePanel: React.FC = () => {
   const lastDown = useRef<{ x: number; y: number; t: number } | null>(null);
   const confirmDialog = useConfirm();
   /** The node menu: where to draw it, and the graph point a picked node lands on. */
-  const [menu, setMenu] = useState<{ x: number; y: number; h: number; at: { x: number; y: number } } | null>(null);
+  const [menu, setMenu] = useState<
+    { x: number; y: number; h: number; at: { x: number; y: number }; link?: LooseEnd } | null
+  >(null);
+  /** The port a wire is being dragged from, while it is in the air. */
+  const dragging = useRef<LooseEnd | null>(null);
   // Is the operator working in this canvas? Focus alone is not enough: React Flow focuses a NODE when
   // you click one, but clicking the background focuses nothing at all, so a focus-only gate makes
   // Ctrl+V dead in exactly the state you paste from. Hover answers the same question and survives it.
@@ -561,6 +601,45 @@ export const ShaderNodePanel: React.FC = () => {
     return !!from && !!to && canConnect(from.type, to.type);
   }, [graph.nodes]);
 
+  /** Open the menu at a screen point, remembering the graph position under it. */
+  const openMenu = useCallback((clientX: number, clientY: number, link?: LooseEnd) => {
+    const box = shell.current?.getBoundingClientRect();
+    const at = flow.current?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 };
+    // Anchor in PANEL coordinates and keep the whole menu inside the panel — opened near the bottom
+    // edge it would otherwise hang off the dock, where a 320px list is unreachable.
+    // Height first: in a short dock tab there may be less than the 320px it would like, and a menu
+    // taller than its panel is one whose last section cannot be reached.
+    const h = Math.min(320, Math.max(140, (box?.height ?? 300) - 16));
+    const x = Math.max(4, Math.min(clientX - (box?.x ?? 0), (box?.width ?? 400) - 248));
+    const y = Math.max(4, Math.min(clientY - (box?.y ?? 0), (box?.height ?? 300) - h - 8));
+    setMenu({ x, y, h, at, link });
+  }, []);
+
+  /** Remember which port a wire is coming out of, and its GLSL type. */
+  const onConnectStart = useCallback((_: unknown, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
+    const node = graph.nodes.find((n) => n.id === params.nodeId);
+    const def = node && NODES[node.type];
+    if (!def || !params.handleId || !params.handleType) { dragging.current = null; return; }
+    const side = params.handleType === 'source' ? 'source' : 'target';
+    const port = (side === 'source' ? def.outputs : def.inputs).find((x) => x.name === params.handleId);
+    dragging.current = port ? { node: node.id, port: port.name, type: port.type, side } : null;
+  }, [graph.nodes]);
+
+  /**
+   * A wire dropped on empty canvas is a QUESTION — "what takes a vec2?" — so answer it: the menu opens
+   * at the drop point listing only what could receive that port, and picking one both adds the node and
+   * lands the wire. Dropped on a real handle, React Flow has already called onConnect and there is
+   * nothing to ask.
+   */
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent, state: { isValid?: boolean | null; toHandle?: unknown }) => {
+    const end = dragging.current;
+    dragging.current = null;
+    if (!end || state?.isValid || state?.toHandle) return;
+    const pt = 'clientX' in event ? event : (event as TouchEvent).changedTouches?.[0];
+    if (!pt) return;
+    openMenu(pt.clientX, pt.clientY, end);
+  }, [openMenu]);
+
   const onConnect = useCallback((c: Connection) => {
     if (!c.source || !c.target || !c.sourceHandle || !c.targetHandle) return;
     // One wire per input: a second connection REPLACES the first rather than erroring, because that is
@@ -569,7 +648,7 @@ export const ShaderNodePanel: React.FC = () => {
     commit({ ...graph, edges: [...edges, { from: { node: c.source, port: c.sourceHandle }, to: { node: c.target, port: c.targetHandle } }] });
   }, [graph, commit]);
 
-  const addNode = useCallback((def: NodeDef, at?: { x: number; y: number }) => {
+  const addNode = useCallback((def: NodeDef, at?: { x: number; y: number }, link?: { end: LooseEnd; port: string }) => {
     const id = `${def.id.split('.').pop()}_${Math.max(0, ...graph.nodes.map((n) => Number(n.id.split('_').pop()) || 0)) + 1}`;
     const params: Record<string, number | number[] | string | boolean> = {};
     for (const p of def.inputs) if (p.def !== undefined) params[p.name] = p.def as never;
@@ -595,7 +674,17 @@ export const ShaderNodePanel: React.FC = () => {
     const pos = at ?? (rect && flow.current
       ? flow.current.screenToFlowPosition({ x: rect.x + rect.width * 0.28 + step, y: rect.y + rect.height * 0.22 + step })
       : { x: 40 + step, y: 40 + step });
-    commit({ ...graph, nodes: [...graph.nodes, { id, type: def.id, x: Math.round(pos.x), y: Math.round(pos.y), params }] });
+    const nodes = [...graph.nodes, { id, type: def.id, x: Math.round(pos.x), y: Math.round(pos.y), params }];
+    if (!link) { commit({ ...graph, nodes }); return; }
+    // ONE COMMIT for the node and its wire. Two would compile twice, put two entries on the undo
+    // stack, and leave a state in between where the node exists unconnected — which is not a state the
+    // operator ever asked for.
+    const edge = link.end.side === 'source'
+      ? { from: { node: link.end.node, port: link.end.port }, to: { node: id, port: link.port } }
+      : { from: { node: id, port: link.port }, to: { node: link.end.node, port: link.end.port } };
+    // One wire per input, here as everywhere: landing on an occupied input replaces what was there.
+    const edges = graph.edges.filter((e) => !(e.to.node === edge.to.node && e.to.port === edge.to.port));
+    commit({ ...graph, nodes, edges: [...edges, edge] });
   }, [graph, commit]);
 
   /** Arrange the whole graph left to right. Uses the sizes React Flow has actually MEASURED, falling
@@ -687,20 +776,6 @@ export const ShaderNodePanel: React.FC = () => {
     commit({ ...graph, nodes: [...graph.nodes, ...nodes], edges: [...graph.edges, ...edges] });
     return nodes.length;
   }, [graph, commit]);
-
-  /** Open the menu at a screen point, remembering the graph position under it. */
-  const openMenu = useCallback((clientX: number, clientY: number) => {
-    const box = shell.current?.getBoundingClientRect();
-    const at = flow.current?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 };
-    // Anchor in PANEL coordinates and keep the whole menu inside the panel — opened near the bottom
-    // edge it would otherwise hang off the dock, where a 320px list is unreachable.
-    // Height first: in a short dock tab there may be less than the 320px it would like, and a menu
-    // taller than its panel is one whose last section cannot be reached.
-    const h = Math.min(320, Math.max(140, (box?.height ?? 300) - 16));
-    const x = Math.max(4, Math.min(clientX - (box?.x ?? 0), (box?.width ?? 400) - 248));
-    const y = Math.max(4, Math.min(clientY - (box?.y ?? 0), (box?.height ?? 300) - h - 8));
-    setMenu({ x, y, h, at });
-  }, []);
 
   // Keyboard, gated on the canvas actually having focus — these are global chords elsewhere in ArtLux,
   // and a panel that grabbed Ctrl+C whenever it was merely MOUNTED would break copying in every other
@@ -796,6 +871,7 @@ export const ShaderNodePanel: React.FC = () => {
             nodes={rfNodes} edges={rfEdges} nodeTypes={nodeTypes}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
             onConnect={onConnect} isValidConnection={isValid}
+            onConnectStart={onConnectStart} onConnectEnd={onConnectEnd}
             fitView fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
             // React Flow's default floor is 0.5, and a shader graph is WIDE — thirteen columns of it.
             // At that floor Fit simply cannot frame the graph: it zooms to 0.5, reports success, and
@@ -813,8 +889,11 @@ export const ShaderNodePanel: React.FC = () => {
         </div>
         {menu && (
           <NodeMenu
-            at={{ x: menu.x, y: menu.y }} maxHeight={menu.h}
-            onPick={(def) => { addNode(def, menu.at); setMenu(null); }}
+            at={{ x: menu.x, y: menu.y }} maxHeight={menu.h} link={menu.link}
+            onPick={(def, port) => {
+              addNode(def, menu.at, menu.link && port ? { end: menu.link, port } : undefined);
+              setMenu(null);
+            }}
             onClose={() => setMenu(null)}
           />
         )}
