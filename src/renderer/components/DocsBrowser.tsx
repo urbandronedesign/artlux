@@ -142,7 +142,19 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
     const a = (ev.target as HTMLElement).closest('a');
     if (!a) return;
     const href = a.getAttribute('href') || '';
-    if (!href || href.startsWith('#')) return;
+    if (!href) return;
+    if (href.startsWith('#')) {
+      // AN IN-PAGE LINK, MATCHED BY TEXT — the same rule as the search-result jump above, and for the
+      // same reason: a slug function here and another in whatever wrote the markdown is two things to
+      // keep in agreement. A link's own text is its heading's text ("Jump to: Input" → "## Input"), so
+      // there is nothing to invent. Without this, clicking one does nothing at all: the PANE scrolls,
+      // not the document, so the browser's own fragment handling has nothing to move.
+      const want = (a.textContent || '').trim().toLowerCase();
+      const target = [...(paneRef.current?.querySelectorAll('h1, h2, h3, h4') ?? [])]
+        .find((h) => (h.textContent || '').trim().toLowerCase() === want);
+      if (target) { ev.preventDefault(); target.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+      return;
+    }
     ev.preventDefault();
     if (/^https?:/i.test(href)) { window.artlux.openExternal(href); return; }
     const clean = href.split('#')[0].split('?')[0];
@@ -266,28 +278,34 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
   );
 };
 
-// Scoped styling for the raw markdown HTML. Theme-agnostic: inherits the panel's foreground colour and
-// derives borders / code backgrounds from currentColor, so it works in both light and dark tokens.
+// Scoped styling for the raw markdown HTML.
+//
+// ON THE DESIGN TOKENS, with the old grey kept as the fallback. Every border and code background used
+// to come from a flat rgba(128,128,128,…), and links were #4ea1ff — a blue that appears NOWHERE else
+// in ArtLux. The docs are part of the app rather than a web page inside it, so they read --accent,
+// --line-1/2 and --surface-0/2/3 like every other panel; the fallbacks keep this legible if the HTML
+// is ever rendered somewhere those tokens are not defined.
 const DOCS_CSS = `
 .docs-md { font-size: 13px; line-height: 1.65; }
 .docs-md > :first-child { margin-top: 0; }
-.docs-md h1 { font-size: 1.5em; font-weight: 700; margin: 1.2em 0 .5em; padding-bottom: .3em; border-bottom: 1px solid rgba(128,128,128,.25); }
-.docs-md h2 { font-size: 1.25em; font-weight: 700; margin: 1.4em 0 .5em; padding-bottom: .2em; border-bottom: 1px solid rgba(128,128,128,.18); }
+.docs-md h1 { font-size: 1.5em; font-weight: 700; margin: 1.2em 0 .5em; padding-bottom: .3em; border-bottom: 1px solid var(--line-2, rgba(128,128,128,.25)); }
+.docs-md h2 { font-size: 1.25em; font-weight: 700; margin: 1.4em 0 .5em; padding-bottom: .2em; border-bottom: 1px solid var(--line-1, rgba(128,128,128,.18)); }
 .docs-md h3 { font-size: 1.08em; font-weight: 600; margin: 1.2em 0 .4em; }
 .docs-md h4, .docs-md h5 { font-weight: 600; margin: 1em 0 .3em; }
 .docs-md p { margin: .6em 0; }
 .docs-md ul, .docs-md ol { margin: .5em 0; padding-left: 1.5em; }
 .docs-md li { margin: .25em 0; }
-.docs-md a { color: #4ea1ff; text-decoration: none; }
+.docs-md a { color: var(--accent, #4ea1ff); text-decoration: none; }
 .docs-md a:hover { text-decoration: underline; }
-.docs-md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: rgba(128,128,128,.16); padding: .12em .35em; border-radius: 4px; }
-.docs-md pre { background: rgba(128,128,128,.12); padding: .8em 1em; border-radius: 8px; overflow-x: auto; margin: .8em 0; }
+.docs-md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: var(--surface-3, rgba(128,128,128,.16)); padding: .12em .35em; border-radius: 4px; }
+.docs-md pre { background: var(--surface-0, rgba(128,128,128,.12)); border: 1px solid var(--line-1, transparent); padding: .8em 1em; border-radius: 8px; overflow-x: auto; margin: .8em 0; }
 .docs-md pre code { background: none; padding: 0; font-size: .85em; line-height: 1.5; }
-.docs-md blockquote { margin: .8em 0; padding: .1em 1em; border-left: 3px solid rgba(128,128,128,.4); opacity: .85; }
+.docs-md blockquote { margin: .8em 0; padding: .1em 1em; border-left: 3px solid var(--accent, rgba(128,128,128,.4)); opacity: .85; }
 .docs-md table { border-collapse: collapse; width: 100%; margin: .9em 0; display: block; overflow-x: auto; }
-.docs-md th, .docs-md td { border: 1px solid rgba(128,128,128,.3); padding: .4em .7em; text-align: left; vertical-align: top; }
-.docs-md th { background: rgba(128,128,128,.14); font-weight: 600; }
-.docs-md img { max-width: 100%; border-radius: 6px; margin: .5em 0; border: 1px solid rgba(128,128,128,.2); }
-.docs-md .docs-img-missing { display: inline-block; margin: .5em 0; padding: .5em .8em; font-size: .82em; font-style: italic; opacity: .6; border: 1px dashed rgba(128,128,128,.4); border-radius: 6px; }
-.docs-md hr { border: none; border-top: 1px solid rgba(128,128,128,.25); margin: 1.4em 0; }
+.docs-md th, .docs-md td { border: 1px solid var(--line-1, rgba(128,128,128,.3)); padding: .4em .7em; text-align: left; vertical-align: top; }
+.docs-md th { background: var(--surface-2, rgba(128,128,128,.14)); font-weight: 600; }
+.docs-md td code { white-space: nowrap; }
+.docs-md img { max-width: 100%; border-radius: 6px; margin: .5em 0; border: 1px solid var(--line-1, rgba(128,128,128,.2)); }
+.docs-md .docs-img-missing { display: inline-block; margin: .5em 0; padding: .5em .8em; font-size: .82em; font-style: italic; opacity: .6; border: 1px dashed var(--line-2, rgba(128,128,128,.4)); border-radius: 6px; }
+.docs-md hr { border: none; border-top: 1px solid var(--line-1, rgba(128,128,128,.25)); margin: 1.4em 0; }
 `;
