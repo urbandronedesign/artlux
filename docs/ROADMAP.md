@@ -390,6 +390,34 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
    - **Content source-region (crop)** — held behind WebGL Phase 2 ([`plans/content-source-region.md`](../plans/content-source-region.md));
    - **Projector blend preview + phase-lock** — additive soft-edge preview + phase-locked effect clock
      ([`plans/projector-blend-preview.md`](../plans/projector-blend-preview.md)).
+5. **Multi-machine sync — a master/slave video wall** — ⬜ **DESIGNED 2026-08-11, NOT STARTED.** The
+   trigger is a wall needing **more than four video outputs**, which exceeds one machine: a master beats
+   the show clock, N nodes each drive their own displays + Art-Net, media stays local on every node and
+   only clock + cues cross the wire (~10 KB/s). Plan:
+   [`plans/multi-machine-sync.md`](../plans/multi-machine-sync.md).
+   - **Phase 0 is a measurement gate that can close it.** If the venue LAN cannot hold ~2 ms of offset
+     jitter, software frame-lock is not achievable and the answer is NVIDIA Quadro Sync hardware. Same
+     shape as [`plans/native-core.md`](../plans/native-core.md)'s hardware gate — get a number first.
+   - **It is mostly already built, between windows.** `App.tsx` already posts `{playing, playhead,
+     showTime}` to every projector window every 15 ms and `timeline.ts` phase-locks it with a snap/slew.
+     A network node is that same consumer over a different wire — but **not** as `external`/mirror mode,
+     because a mirror has video *streamed* to it as `ImageBitmap`s while a node decodes its own. A node is
+     a normal **`--broadcast`** instance whose main renderer's **clock anchors** come from the network;
+     its own projector windows keep following it over the existing MessagePort, so
+     `src/renderer/projector/` is untouched. (`--headless` is wrong for a node — it opens no projector
+     windows, by design.)
+   - **The design idea worth keeping**: both clocks are *derived* (`t = (now - originMs)/1000`) and
+     `originMs` moves at only seven sites, so the master publishes its **anchors**, not the time. Network
+     jitter then stops mattering. It generalizes the unbuilt `effectEpoch` idea in
+     [`plans/projector-blend-preview.md`](../plans/projector-blend-preview.md) across machines.
+   - **The gap it exposes is real today**: video used as *surface* content (not on a timeline) has **no
+     time coordinate at all** — `contentSource.ts`, `hapPlayer.ts` and `mp4Codec.ts` all run free-running
+     per-window clocks. That already drifts between a main window and its own projector windows, and it is
+     half the work of this feature. It may be worth fixing on its own even if Phase 0 closes the plan.
+   - **No project-file change**: node config rides `AppSettings.plugins['sync']`, because node identity is
+     the machine, not the show. Placement is a thin core seam in `timeline.ts` + a cross-process
+     `plugins/sync`, with **audio and USB-DMX explicitly out of scope** on a node (the audio engine is a
+     pure slave scheduler with no clock feedback path upward).
 
 ### Later
 
