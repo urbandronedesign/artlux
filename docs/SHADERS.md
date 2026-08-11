@@ -303,27 +303,27 @@ only the wording changed. It is also why two parameters can never collide by bei
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **UV** | 0..1 across the surface. x left→right, y bottom→top. | `coordinates`, `position`, `texcoord` |
-| **Time** | Show time in seconds — scrubs with the timeline and holds when stopped. | `clock`, `seconds`, `itime` |
+| **UV** | 0..1 across the surface. x left→right, y bottom→top. | — |
+| **Time** | Show time in seconds — scrubs with the timeline and holds when stopped. | — |
 | **Wall time** | Free-running clock that ignores the transport. | — |
-| **Aspect** | Surface width ÷ height. Multiply centred x by it to keep circles round. | `ratio` |
-| **Last frame** | This shader’s previous output — the only legal feedback. Needs the graph to request it. | `feedback`, `trails`, `buffer`, `previous` |
+| **Aspect** | Surface width ÷ height. Multiply centred x by it to keep circles round. | — |
+| **Last frame** | This shader’s previous output — the only legal feedback. Needs the graph to request it. | — |
 
 **UV**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Centre** | Move the origin to the middle and correct for aspect, so shapes are not stretched. | `center`, `origin`, `middle` |
-| **Scale** | Zoom the coordinate space. Bigger scale means more of the pattern in the same area. | `zoom`, `size` |
-| **Translate** | Slide the coordinates. Wire an LFO in to make the whole pattern drift. | `move`, `offset`, `pan`, `shift` |
-| **Rotate** | Turn the coordinate space. Rotate around the centre by centring first. | `turn`, `spin`, `angle` |
-| **Tile** | Repeat space. `cell` is which tile you are in, `uv` is where inside it. | `repeat`, `grid`, `instance` |
-| **Polar** | Radius and angle instead of x and y — stripes become rings and rays. | `radial`, `angle`, `rings` |
-| **Kaleidoscope** | Fold the angle into N mirrored segments. | `mirror`, `symmetry` |
-| **Pan** | Scroll the coordinates over time. Unreal calls this Panner. | `panner`, `scroll`, `drift`, `conveyor` |
-| **Spin** | Rotate the coordinates over time. Unreal calls this Rotator. | `rotator`, `turntable`, `rotate over time` |
-| **Mirror** | Fold space about the centre, so one half is the reflection of the other. | `fold`, `symmetry`, `flip`, `abs` |
-| **Pixelate** | Snap the coordinates to a grid — big soft blocks, and cheaper detail. | `quantise uv`, `blocks`, `mosaic`, `lowres` |
+| **Centre** | Move the origin to the middle and correct for aspect, so shapes are not stretched. | — |
+| **Scale** | Zoom the coordinate space. Bigger scale means more of the pattern in the same area. | — |
+| **Translate** | Slide the coordinates. Wire an LFO in to make the whole pattern drift. | — |
+| **Rotate** | Turn the coordinate space. Rotate around the centre by centring first. | — |
+| **Tile** | Repeat space. `cell` is which tile you are in, `uv` is where inside it. | — |
+| **Polar** | Radius and angle instead of x and y — stripes become rings and rays. | — |
+| **Kaleidoscope** | Fold the angle into N mirrored segments. | — |
+| **Pan** | Scroll the coordinates over time. Unreal calls this Panner. | — |
+| **Spin** | Rotate the coordinates over time. Unreal calls this Rotator. | — |
+| **Mirror** | Fold space about the centre, so one half is the reflection of the other. | — |
+| **Pixelate** | Snap the coordinates to a grid — big soft blocks, and cheaper detail. | — |
 
 **Math**
 
@@ -333,49 +333,49 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Multiply** | a × b | — |
 | **Subtract** | a − b | — |
 | **Divide** | a ÷ b, guarded against zero. | — |
-| **Mix** | Blend a and b by t (0 = a, 1 = b). | `lerp`, `interpolate`, `blend`, `crossfade` |
-| **Switch** | Choose a or b. Below 0.5 takes a, above takes b — no blending in between. | `select`, `choose`, `if`, `toggle` |
-| **Clamp** | Keep a value inside a range. | `limit`, `saturate` |
-| **Smoothstep** | A soft 0→1 ramp between two edges. | `ease`, `falloff`, `soft threshold` |
-| **Step** | A hard cut: 0 below the edge, 1 above. Antialiased. | `threshold`, `cutoff`, `comparison` |
-| **Remap** | Move a value from one range to another. | `range`, `fit`, `map`, `scale range` |
-| **Fract** | The part after the decimal point — a sawtooth. | `repeat`, `wrap`, `modulo`, `mod` |
+| **Mix** | Blend a and b by t (0 = a, 1 = b). | — |
+| **Switch** | Choose a or b. Below 0.5 takes a, above takes b — no blending in between. | — |
+| **Clamp** | Keep a value inside a range. | — |
+| **Smoothstep** | A soft 0→1 ramp between two edges. | — |
+| **Step** | A hard cut: 0 below the edge, 1 above. Antialiased. | — |
+| **Remap** | Move a value from one range to another. | — |
+| **Fract** | The part after the decimal point — a sawtooth. | — |
 | **Abs** | Distance from zero. Folds a signed value. | — |
-| **Power** | x^k — above 1 sharpens, below 1 softens. | `pow`, `gamma`, `exponent` |
-| **One minus** | Invert a 0..1 value. | `invert`, `negate`, `flip` |
+| **Power** | x^k — above 1 sharpens, below 1 softens. | — |
+| **One minus** | Invert a 0..1 value. | — |
 | **Min** | The smaller of two values. On shapes: union. | — |
 | **Max** | The larger of two values. On shapes: intersection. | — |
-| **Length** | Distance from the origin to a point. | `distance`, `magnitude`, `radius` |
-| **Split** | Take a vector apart into x and y. | `unpack`, `components`, `xy` |
-| **Combine** | Build a vector from two numbers. | `make vec2`, `pack`, `join` |
-| **Sine** | sin of a value, in TURNS — 1 is a full cycle, so no π anywhere. | `sin`, `oscillate`, `wave` |
-| **Cosine** | cos of a value, in turns. A quarter-turn ahead of Sine. | `cos` |
-| **Angle of** | The direction of a vector, 0..1 turns. atan2, without the sign traps. | `atan2`, `direction`, `arctangent`, `heading` |
-| **Floor** | Down to the whole number below. Quantise a value into steps. | `quantise`, `quantize`, `posterise`, `round down`, `int` |
-| **Round** | To the nearest whole number. | `nearest` |
-| **Modulo** | The remainder of x ÷ n. Fract with a divisor of your own. | `mod`, `fmod`, `remainder`, `wrap`, `repeat` |
-| **Sign** | −1 below zero, 0 at zero, 1 above. | `polarity`, `direction` |
-| **Square root** | Also how you soften a falloff without a curve editor. | `sqrt`, `root` |
-| **Saturate** | Clamp to 0..1 — the clamp you reach for nine times out of ten. | `clamp01`, `limit`, `01` |
-| **Distance** | How far apart two points are. Length measures from the origin; this measures between. | `dist`, `between`, `separation` |
-| **Dot product** | How much one direction points along another. Gradients and lighting-style falloffs. | `dot`, `projection` |
-| **Normalise** | Keep a direction, drop its length. | `normalize`, `unit`, `direction` |
-| **Bias · scale** | Add, then multiply. The one-node way to turn −1..1 into 0..1 (bias 1, scale 0.5). | `constantbiasscale`, `offset scale`, `range` |
-| **Greater than** | 1 when a is above b, 0 when it is not. Feed it into Switch to make a decision. | `compare`, `if`, `test`, `above` |
+| **Length** | Distance from the origin to a point. | — |
+| **Split** | Take a vector apart into x and y. | — |
+| **Combine** | Build a vector from two numbers. | — |
+| **Sine** | sin of a value, in TURNS — 1 is a full cycle, so no π anywhere. | — |
+| **Cosine** | cos of a value, in turns. A quarter-turn ahead of Sine. | — |
+| **Angle of** | The direction of a vector, 0..1 turns. atan2, without the sign traps. | — |
+| **Floor** | Down to the whole number below. Quantise a value into steps. | — |
+| **Round** | To the nearest whole number. | — |
+| **Modulo** | The remainder of x ÷ n. Fract with a divisor of your own. | — |
+| **Sign** | −1 below zero, 0 at zero, 1 above. | — |
+| **Square root** | Also how you soften a falloff without a curve editor. | — |
+| **Saturate** | Clamp to 0..1 — the clamp you reach for nine times out of ten. | — |
+| **Distance** | How far apart two points are. Length measures from the origin; this measures between. | — |
+| **Dot product** | How much one direction points along another. Gradients and lighting-style falloffs. | — |
+| **Normalise** | Keep a direction, drop its length. | — |
+| **Bias · scale** | Add, then multiply. The one-node way to turn −1..1 into 0..1 (bias 1, scale 0.5). | — |
+| **Greater than** | 1 when a is above b, 0 when it is not. Feed it into Switch to make a decision. | — |
 
 **LFO**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **LFO** | A slow oscillator: sine, triangle, saw or square. Rate in cycles per second. | `oscillator`, `sine`, `wave`, `modulation` |
-| **Pulse** | A one-shot ramp that falls from 1 after each trigger — an envelope, not a wave. | `trigger`, `envelope`, `blink` |
+| **LFO** | A slow oscillator: sine, triangle, saw or square. Rate in cycles per second. | — |
+| **Pulse** | A one-shot ramp that falls from 1 after each trigger — an envelope, not a wave. | — |
 
 **Pattern**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Grid** | Square tiles with a gap. Outputs the tile mask and a per-cell random value. | `squares`, `checker` |
-| **Lines** | Repeating stripes, antialiased to one pixel at any resolution. | `stripes`, `bars` |
+| **Grid** | Square tiles with a gap. Outputs the tile mask and a per-cell random value. | — |
+| **Lines** | Repeating stripes, antialiased to one pixel at any resolution. | — |
 | **Checker** | The other classic tiling. 0 or 1 per square. | — |
 
 **Noise**
@@ -384,60 +384,63 @@ only the wording changed. It is also why two parameters can never collide by bei
 |---|---|---|
 | **Value noise** | Soft blobs. The cheapest real noise. | — |
 | **Value noise 3D** | Wire time into z and the field evolves in place instead of sliding past. | — |
-| **Gradient noise** | Perlin. Rolling and organic; signed, so remap before using as brightness. | `perlin` |
-| **Simplex noise** | Like Perlin without the square-grid bias. The better default. | `perlin`, `opensimplex` |
-| **fBm** | Layered noise — detail at every scale. Octaves multiply the cost. | `fractal`, `octaves`, `clouds` |
-| **Turbulence** | fBm folded at zero: creases. Fire and marble. | `fire`, `marble` |
+| **Gradient noise** | Perlin. Rolling and organic; signed, so remap before using as brightness. | — |
+| **Simplex noise** | Like Perlin without the square-grid bias. The better default. | — |
+| **fBm** | Layered noise — detail at every scale. Octaves multiply the cost. | — |
+| **Turbulence** | fBm folded at zero: creases. Fire and marble. | — |
 | **Ridged** | Inverted folds: sharp crests. Mountains. | — |
-| **Worley** | Cells. F1 is bubbles, F2−F1 is the walls between them. | `voronoi`, `cellular`, `cells` |
-| **Curl** | A flow field that never bunches up. Wire it into Translate to advect. | `flow`, `vector field`, `fluid` |
-| **Seamless** | Noise that repeats exactly — for a strip that loops or panels that tile. | `tileable`, `looping` |
+| **Worley** | Cells. F1 is bubbles, F2−F1 is the walls between them. | — |
+| **Curl** | A flow field that never bunches up. Wire it into Translate to advect. | — |
+| **Seamless** | Noise that repeats exactly — for a strip that loops or panels that tile. | — |
 
 **Shape**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Circle** | Signed distance to a circle: negative inside, zero on the edge. | `disc`, `sdf`, `dot` |
-| **Box** | Signed distance to a rectangle. | `rect`, `square`, `sdf` |
-| **Fill** | Turn a distance into a solid shape, softly. | `solid`, `mask` |
-| **Outline** | Turn a distance into an outline of a given thickness. | `stroke`, `border`, `ring` |
-| **Subtract** | Cut b out of a. (min is union, max is intersection.) | — |
+| **Circle** | Signed distance to a circle: negative inside, zero on the edge. | — |
+| **Box** | Signed distance to a rectangle. | — |
+| **Fill** | Turn a distance into a solid shape, softly. | — |
+| **Outline** | Turn a distance into an outline of a given thickness. | — |
+| **Cut out** | Cut b out of a. (min is union, max is intersection.) | `subtract`, `difference`, `boolean`, `carve` |
 
 **Audio**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Audio band** | One of 16 frequency bands, low to high, already smoothed. | `fft`, `spectrum`, `frequency`, `eq` |
-| **Audio level** | Overall energy — the whole spectrum averaged. | `volume`, `rms`, `loudness` |
-| **Beat** | 0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0. | `kick`, `onset`, `transient`, `bpm` |
+| **Audio band** | One of 16 frequency bands, low to high, already smoothed. | — |
+| **Audio level** | Overall energy — the whole spectrum averaged. | — |
+| **Beat** | 0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0. | — |
 
 **Parameter**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Float parameter** | A slider in the inspector, and a timeline lane. | `knob`, `slider`, `control`, `automation` |
-| **Palette parameter** | A palette picker, and the gradient it selects. | `knob`, `gradient control` |
+| **Float parameter** | A slider in the inspector, and a timeline lane. | — |
+| **Palette parameter** | A palette picker, and the gradient it selects. | — |
 
 **Colour**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Palette** | Sample one of ArtLux’s gradients by index. | `gradient`, `ramp`, `colour ramp`, `color` |
-| **Mix colours** | Blend two colours by t. | `lerp`, `blend`, `crossfade`, `color` |
-| **Switch colour** | Choose colour a or b. Below 0.5 takes a, above takes b. | `select`, `choose`, `color` |
-| **Brightness** | Scale a colour. | `gain`, `dim`, `multiply`, `color` |
-| **Luminance** | How bright a colour reads to the eye, as one number. | `desaturate`, `greyscale`, `grayscale`, `mono`, `value`, `color` |
-| **Saturation** | Pull a colour towards grey (0) or push it past its own (>1). | `desaturation`, `vibrance`, `color` |
-| **Hue shift** | Rotate a colour around the wheel, in turns. The knob a VJ reaches for first. | `hue`, `rotate colour`, `rotate color`, `color` |
-| **Contrast** | Push values away from mid grey (>1) or towards it (<1). | `gamma`, `punch`, `color` |
+| **Palette** | Sample one of ArtLux’s gradients by index. | — |
+| **Mix colours** | Blend two colours by t. | — |
+| **Switch colour** | Choose colour a or b. Below 0.5 takes a, above takes b. | — |
+| **Brightness** | Scale a colour. | — |
+| **Luminance** | How bright a colour reads to the eye, as one number. | — |
+| **Saturation** | Pull a colour towards grey (0) or push it past its own (>1). | — |
+| **Hue shift** | Rotate a colour around the wheel, in turns. The knob a VJ reaches for first. | — |
+| **Contrast** | Push values away from mid grey (>1) or towards it (<1). | — |
 
 **Output**
 
 | Node | What it does | Also found by |
 |---|---|---|
-| **Output** | What the surface shows. Every graph has exactly one. | `result`, `final`, `surface` |
+| **Output** | What the surface shows. Every graph has exactly one. | — |
 
 <!-- /generated:shader-nodes -->
+
+**[SHADER-NODES.md](SHADER-NODES.md) is the full reference**: every node with its ports, its
+defaults, what it is for, and the GLSL it actually emits.
 
 This is the whole list, and the node menu searches it — by name, by category, by description **and by
 the other names for the same thing**. Type `lerp` and you get **Mix**; `voronoi` gets **Worley**,

@@ -242,6 +242,9 @@ function main() {
     applyBlock('docs/SHADER-COOKBOOK.md', 'shader-cookbook', renderCookbook(parseCookbook('cookbook.ts'))),
     applyBlock('docs/SHADER-COOKBOOK.md', 'shader-noise', renderCookbook(parseCookbook('noiseLib.ts'))),
     applyBlock('docs/SHADERS.md', 'shader-nodes', renderNodes(parseNodes())),
+    // The per-node reference. Built by CALLING each node's generator rather than by reading the
+    // source, so the GLSL in the page is the GLSL the compiler emits — see gen-shader-node-docs.cjs.
+    applyBlock('docs/SHADER-NODES.md', 'shader-node-reference', require('./gen-shader-node-docs.cjs').build()),
   ];
 
   const stale = results.filter((r) => r.changed);
