@@ -232,13 +232,16 @@ const NodeMenu: React.FC<{
     const needle = q.trim().toLowerCase();
     if (!needle) return null;
     // Rank a name match above a description match: typing "mix" wants the Mix node, not the four nodes
-    // whose hint happens to say "blend".
+    // whose hint happens to say "blend". An ALIAS sits between the two — "lerp" is a name for Mix, just
+    // not the name on the node — and the row says which alias matched, or the answer looks arbitrary.
     const score = (d: NodeDef) => {
       const label = d.label.toLowerCase();
       if (label.startsWith(needle)) return 0;
       if (label.includes(needle)) return 1;
-      if (d.category.toLowerCase().includes(needle)) return 2;
-      if (d.hint.toLowerCase().includes(needle)) return 3;
+      if (d.aliases?.some((a) => a.toLowerCase().startsWith(needle))) return 2;
+      if (d.aliases?.some((a) => a.toLowerCase().includes(needle))) return 3;
+      if (d.category.toLowerCase().includes(needle)) return 4;
+      if (d.hint.toLowerCase().includes(needle)) return 5;
       return 99;
     };
     return NODE_LIST.map((d) => ({ d, s: score(d) })).filter((x) => x.s < 99)
@@ -268,6 +271,13 @@ const NodeMenu: React.FC<{
     else onPick(row.def, portFor(row.def));
   };
   const back = () => { setCategory(null); fieldRef.current?.focus(); };
+
+  /** The alias that made a node match, so a surprising hit explains itself ("Mix — lerp"). */
+  const matchedAlias = (d: NodeDef): string | undefined => {
+    const needle = q.trim().toLowerCase();
+    if (!needle || d.label.toLowerCase().includes(needle)) return undefined;
+    return d.aliases?.find((a) => a.toLowerCase().includes(needle));
+  };
 
   return (
     <div
@@ -339,7 +349,9 @@ const NodeMenu: React.FC<{
             {/* A category says how many; a search result says where it came from. Inside a category
                 neither is worth the ink — you already know both. */}
             <span className="shrink-0 text-fg-3">
-              {row.kind === 'category' ? `${row.count} ›` : found ? row.def.category : ''}
+              {row.kind === 'category'
+                ? `${row.count} ›`
+                : found ? (matchedAlias(row.def) ?? row.def.category) : ''}
             </span>
           </button>
         ))}

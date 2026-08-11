@@ -49,6 +49,19 @@ export interface NodeDef {
   category: 'Input' | 'UV' | 'Math' | 'LFO' | 'Pattern' | 'Noise' | 'Shape' | 'Colour' | 'Audio' | 'Parameter' | 'Output';
   /** One line, shown in the palette and as the node's tooltip. */
   hint: string;
+  /**
+   * OTHER NAMES FOR THE SAME THING, for the menu's search only.
+   *
+   * Nobody arrives at this catalogue with its vocabulary. Somebody who writes shaders looks for
+   * `lerp` and this calls it Mix; somebody who has used Houdini looks for `voronoi` and this calls it
+   * Worley; `perlin` is what most people call Gradient noise. Without these a node that exists in the
+   * catalogue does not exist to the operator — which is worse than a missing node, because they go
+   * and build it by hand out of three others.
+   *
+   * An alias is NOT a second node. Two nodes emitting the same GLSL would split every graph's
+   * vocabulary in half and double the maintenance for the sake of one word.
+   */
+  aliases?: string[];
   inputs: Port[];
   outputs: Port[];
   /** Non-port controls — see Setting. Drawn by the inspector, and choices also on the node itself. */
@@ -79,12 +92,14 @@ const DEFS: NodeDef[] = [
   {
     id: 'input.uv', label: 'UV', category: 'Input',
     hint: '0..1 across the surface. x left→right, y bottom→top.',
+    aliases: ['coordinates', 'position', 'texcoord'],
     inputs: [], outputs: [{ name: 'uv', type: 'vec2' }],
     emit: () => ({ uv: 'uv' }),
   },
   {
     id: 'input.time', label: 'Time', category: 'Input',
     hint: 'Show time in seconds — scrubs with the timeline and holds when stopped.',
+    aliases: ['clock', 'seconds', 'itime'],
     inputs: [{ name: 'scale', type: 'float', def: 1 }],
     outputs: [{ name: 'time', type: 'float' }],
     emit: (i) => ({ time: `(iTime * ${i.scale})` }),
@@ -99,12 +114,14 @@ const DEFS: NodeDef[] = [
   {
     id: 'input.aspect', label: 'Aspect', category: 'Input',
     hint: 'Surface width ÷ height. Multiply centred x by it to keep circles round.',
+    aliases: ['ratio'],
     inputs: [], outputs: [{ name: 'aspect', type: 'float' }],
     emit: () => ({ aspect: 'iAspect' }),
   },
   {
     id: 'input.lastFrame', label: 'Last frame', category: 'Input',
     hint: 'This shader’s previous output — the only legal feedback. Needs the graph to request it.',
+    aliases: ['feedback', 'trails', 'buffer', 'previous'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0.5, 0.5] }],
     // vec3, like every other colour port — feedback here is opaque, and one colour type across the
     // catalogue is worth more than an alpha channel nothing reads.
@@ -117,6 +134,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.center', label: 'Centre', category: 'UV',
     hint: 'Move the origin to the middle and correct for aspect, so shapes are not stretched.',
+    aliases: ['center', 'origin', 'middle'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }],
     outputs: [{ name: 'uv', type: 'vec2' }],
     emit: (i) => ({ uv: `((${i.uv} - 0.5) * vec2(iAspect, 1.0))` }),
@@ -124,6 +142,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.scale', label: 'Scale', category: 'UV',
     hint: 'Zoom the coordinate space. Bigger scale means more of the pattern in the same area.',
+    aliases: ['zoom', 'size'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'scale', type: 'vec2', def: [1, 1] }],
     outputs: [{ name: 'uv', type: 'vec2' }],
     emit: (i) => ({ uv: `(${i.uv} * ${i.scale})` }),
@@ -131,6 +150,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.translate', label: 'Translate', category: 'UV',
     hint: 'Slide the coordinates. Wire an LFO in to make the whole pattern drift.',
+    aliases: ['move', 'offset', 'pan', 'shift'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'offset', type: 'vec2', def: [0, 0] }],
     outputs: [{ name: 'uv', type: 'vec2' }],
     emit: (i) => ({ uv: `(${i.uv} + ${i.offset})` }),
@@ -138,6 +158,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.rotate', label: 'Rotate', category: 'UV',
     hint: 'Turn the coordinate space. Rotate around the centre by centring first.',
+    aliases: ['turn', 'spin', 'angle'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'turns', type: 'float', def: 0 }],
     outputs: [{ name: 'uv', type: 'vec2' }], requires: ['rotate2'],
     emit: (i) => ({ uv: `rotate2(${i.uv}, ${i.turns} * 6.2831853)` }),
@@ -145,6 +166,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.tile', label: 'Tile', category: 'UV',
     hint: 'Repeat space. `cell` is which tile you are in, `uv` is where inside it.',
+    aliases: ['repeat', 'grid', 'instance'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'cells', type: 'vec2', def: [4, 4] }],
     outputs: [{ name: 'uv', type: 'vec2' }, { name: 'cell', type: 'vec2' }],
     emit: (i) => ({ uv: `fract(${i.uv} * ${i.cells})`, cell: `floor(${i.uv} * ${i.cells})` }),
@@ -152,6 +174,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.polar', label: 'Polar', category: 'UV',
     hint: 'Radius and angle instead of x and y — stripes become rings and rays.',
+    aliases: ['radial', 'angle', 'rings'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }],
     outputs: [{ name: 'radius', type: 'float' }, { name: 'angle', type: 'float' }],
     emit: (i) => ({ radius: `length(${i.uv})`, angle: `(atan(${i.uv}.y, ${i.uv}.x) / 6.2831853 + 0.5)` }),
@@ -159,6 +182,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'uv.kaleido', label: 'Kaleidoscope', category: 'UV',
     hint: 'Fold the angle into N mirrored segments.',
+    aliases: ['mirror', 'symmetry'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'segments', type: 'float', def: 6 }],
     outputs: [{ name: 'uv', type: 'vec2' }], requires: ['rotate2'],
     emit: (i) => ({
@@ -194,6 +218,7 @@ const DEFS: NodeDef[] = [
   },
   {
     id: 'math.mix', label: 'Mix', category: 'Math', hint: 'Blend a and b by t (0 = a, 1 = b).',
+    aliases: ['lerp', 'interpolate', 'blend', 'crossfade'],
     inputs: [{ name: 'a', type: 'float', def: 0 }, { name: 'b', type: 'float', def: 1 }, { name: 't', type: 'float', def: 0.5 }],
     outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `mix(${i.a}, ${i.b}, ${i.t})` }),
@@ -205,30 +230,35 @@ const DEFS: NodeDef[] = [
     // hood, because a branch per pixel is the one thing a fragment shader should not do: `step` turns
     // the number into a hard 0 or 1 and the blend becomes a choice.
     id: 'math.switch', label: 'Switch', category: 'Math', hint: 'Choose a or b. Below 0.5 takes a, above takes b — no blending in between.',
+    aliases: ['select', 'choose', 'if', 'toggle'],
     inputs: [{ name: 'a', type: 'float', def: 0 }, { name: 'b', type: 'float', def: 1 }, { name: 'which', type: 'float', def: 0 }],
     outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `mix(${i.a}, ${i.b}, step(0.5, ${i.which}))` }),
   },
   {
     id: 'math.clamp', label: 'Clamp', category: 'Math', hint: 'Keep a value inside a range.',
+    aliases: ['limit', 'saturate'],
     inputs: [{ name: 'x', type: 'float', def: 0 }, { name: 'min', type: 'float', def: 0 }, { name: 'max', type: 'float', def: 1 }],
     outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `clamp(${i.x}, ${i.min}, ${i.max})` }),
   },
   {
     id: 'math.smoothstep', label: 'Smoothstep', category: 'Math', hint: 'A soft 0→1 ramp between two edges.',
+    aliases: ['ease', 'falloff', 'soft threshold'],
     inputs: [{ name: 'edge0', type: 'float', def: 0 }, { name: 'edge1', type: 'float', def: 1 }, { name: 'x', type: 'float', def: 0.5 }],
     outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `smoothstep(${i.edge0}, ${i.edge1}, ${i.x})` }),
   },
   {
     id: 'math.step', label: 'Step', category: 'Math', hint: 'A hard cut: 0 below the edge, 1 above. Antialiased.',
+    aliases: ['threshold', 'cutoff', 'comparison'],
     inputs: [{ name: 'edge', type: 'float', def: 0.5 }, { name: 'x', type: 'float', def: 0 }],
     outputs: [{ name: 'out', type: 'float' }], requires: ['aaStep'],
     emit: (i) => ({ out: `aaStep(${i.edge}, ${i.x})` }),
   },
   {
     id: 'math.remap', label: 'Remap', category: 'Math', hint: 'Move a value from one range to another.',
+    aliases: ['range', 'fit', 'map', 'scale range'],
     inputs: [
       { name: 'x', type: 'float', def: 0 },
       { name: 'inMin', type: 'float', def: 0 }, { name: 'inMax', type: 'float', def: 1 },
@@ -239,6 +269,7 @@ const DEFS: NodeDef[] = [
   },
   {
     id: 'math.fract', label: 'Fract', category: 'Math', hint: 'The part after the decimal point — a sawtooth.',
+    aliases: ['repeat', 'wrap', 'modulo', 'mod'],
     inputs: [{ name: 'x', type: 'float', def: 0 }], outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `fract(${i.x})` }),
   },
@@ -249,12 +280,14 @@ const DEFS: NodeDef[] = [
   },
   {
     id: 'math.power', label: 'Power', category: 'Math', hint: 'x^k — above 1 sharpens, below 1 softens.',
+    aliases: ['pow', 'gamma', 'exponent'],
     inputs: [{ name: 'x', type: 'float', def: 0 }, { name: 'k', type: 'float', def: 2 }],
     outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `pow(max(${i.x}, 0.0), ${i.k})` }),
   },
   {
     id: 'math.oneMinus', label: 'One minus', category: 'Math', hint: 'Invert a 0..1 value.',
+    aliases: ['invert', 'negate', 'flip'],
     inputs: [{ name: 'x', type: 'float', def: 0 }], outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `(1.0 - ${i.x})` }),
   },
@@ -272,17 +305,20 @@ const DEFS: NodeDef[] = [
   },
   {
     id: 'math.length', label: 'Length', category: 'Math', hint: 'Distance from the origin to a point.',
+    aliases: ['distance', 'magnitude', 'radius'],
     inputs: [{ name: 'v', type: 'vec2', def: [0, 0] }], outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `length(${i.v})` }),
   },
   {
     id: 'vec.split', label: 'Split', category: 'Math', hint: 'Take a vector apart into x and y.',
+    aliases: ['unpack', 'components', 'xy'],
     inputs: [{ name: 'v', type: 'vec2', def: [0, 0] }],
     outputs: [{ name: 'x', type: 'float' }, { name: 'y', type: 'float' }],
     emit: (i) => ({ x: `${i.v}.x`, y: `${i.v}.y` }),
   },
   {
     id: 'vec.combine', label: 'Combine', category: 'Math', hint: 'Build a vector from two numbers.',
+    aliases: ['make vec2', 'pack', 'join'],
     inputs: [{ name: 'x', type: 'float', def: 0 }, { name: 'y', type: 'float', def: 0 }],
     outputs: [{ name: 'v', type: 'vec2' }],
     emit: (i) => ({ v: `vec2(${i.x}, ${i.y})` }),
@@ -292,6 +328,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'lfo.wave', label: 'LFO', category: 'LFO',
     hint: 'A slow oscillator: sine, triangle, saw or square. Rate in cycles per second.',
+    aliases: ['oscillator', 'sine', 'wave', 'modulation'],
     inputs: [
       { name: 'rate', type: 'float', def: 0.5, label: 'Hz' },
       { name: 'phase', type: 'float', def: 0, label: 'turns' },
@@ -317,6 +354,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'lfo.pulse', label: 'Pulse', category: 'LFO',
     hint: 'A one-shot ramp that falls from 1 after each trigger — an envelope, not a wave.',
+    aliases: ['trigger', 'envelope', 'blink'],
     inputs: [{ name: 'trigger', type: 'float', def: 0 }, { name: 'fall', type: 'float', def: 0.25 }],
     outputs: [{ name: 'out', type: 'float' }],
     // Fed by a beat channel, this is exactly what iBeat already does — but wiring it explicitly lets
@@ -328,6 +366,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'pattern.grid', label: 'Grid', category: 'Pattern',
     hint: 'Square tiles with a gap. Outputs the tile mask and a per-cell random value.',
+    aliases: ['squares', 'checker'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'cells', type: 'float', def: 8 }, { name: 'gap', type: 'float', def: 0.08 }],
     outputs: [{ name: 'mask', type: 'float' }, { name: 'id', type: 'float' }],
     requires: ['hash21'],
@@ -342,6 +381,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'pattern.lines', label: 'Lines', category: 'Pattern',
     hint: 'Repeating stripes, antialiased to one pixel at any resolution.',
+    aliases: ['stripes', 'bars'],
     inputs: [{ name: 'x', type: 'float', def: 0 }, { name: 'count', type: 'float', def: 8 }, { name: 'width', type: 'float', def: 0.15 }],
     outputs: [{ name: 'mask', type: 'float' }], requires: ['aaStep'],
     emit: (i) => ({ mask: `(1.0 - aaStep(${i.width}, abs(fract(${i.x} * ${i.count}) - 0.5)))` }),
@@ -371,18 +411,21 @@ const DEFS: NodeDef[] = [
   {
     id: 'noise.gradient', label: 'Gradient noise', category: 'Noise',
     hint: 'Perlin. Rolling and organic; signed, so remap before using as brightness.',
+    aliases: ['perlin'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }], outputs: [{ name: 'out', type: 'float' }],
     requires: ['gradientNoise'], emit: (i) => ({ out: `gradientNoise(${i.uv})` }),
   },
   {
     id: 'noise.simplex', label: 'Simplex noise', category: 'Noise',
     hint: 'Like Perlin without the square-grid bias. The better default.',
+    aliases: ['perlin', 'opensimplex'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }], outputs: [{ name: 'out', type: 'float' }],
     requires: ['simplexNoise'], emit: (i) => ({ out: `simplexNoise(${i.uv})` }),
   },
   {
     id: 'noise.fbm', label: 'fBm', category: 'Noise',
     hint: 'Layered noise — detail at every scale. Octaves multiply the cost.',
+    aliases: ['fractal', 'octaves', 'clouds'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'octaves', type: 'int', def: 4 }],
     outputs: [{ name: 'out', type: 'float' }],
     requires: ['fbm'], emit: (i) => ({ out: `fbm(${i.uv}, ${i.octaves})` }),
@@ -390,6 +433,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'noise.turbulence', label: 'Turbulence', category: 'Noise',
     hint: 'fBm folded at zero: creases. Fire and marble.',
+    aliases: ['fire', 'marble'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'octaves', type: 'int', def: 4 }],
     outputs: [{ name: 'out', type: 'float' }],
     requires: ['turbulence'], emit: (i) => ({ out: `turbulence(${i.uv}, ${i.octaves})` }),
@@ -404,6 +448,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'noise.worley', label: 'Worley', category: 'Noise',
     hint: 'Cells. F1 is bubbles, F2−F1 is the walls between them.',
+    aliases: ['voronoi', 'cellular', 'cells'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'drift', type: 'float', def: 0.6 }],
     outputs: [{ name: 'f1', type: 'float' }, { name: 'walls', type: 'float' }],
     requires: ['worley'],
@@ -415,12 +460,14 @@ const DEFS: NodeDef[] = [
   {
     id: 'noise.curl', label: 'Curl', category: 'Noise',
     hint: 'A flow field that never bunches up. Wire it into Translate to advect.',
+    aliases: ['flow', 'vector field', 'fluid'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }], outputs: [{ name: 'flow', type: 'vec2' }],
     requires: ['curl'], emit: (i) => ({ flow: `curlNoise(${i.uv})` }),
   },
   {
     id: 'noise.seamless', label: 'Seamless', category: 'Noise',
     hint: 'Noise that repeats exactly — for a strip that loops or panels that tile.',
+    aliases: ['tileable', 'looping'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'period', type: 'float', def: 4 }],
     outputs: [{ name: 'out', type: 'float' }],
     requires: ['tileableNoise'], emit: (i) => ({ out: `tileableNoise(${i.uv} * ${i.period}, ${i.period})` }),
@@ -430,6 +477,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'shape.circle', label: 'Circle', category: 'Shape',
     hint: 'Signed distance to a circle: negative inside, zero on the edge.',
+    aliases: ['disc', 'sdf', 'dot'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'radius', type: 'float', def: 0.25 }],
     outputs: [{ name: 'sd', type: 'float' }], requires: ['sdCircle'],
     emit: (i) => ({ sd: `sdCircle(${i.uv}, ${i.radius})` }),
@@ -437,6 +485,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'shape.box', label: 'Box', category: 'Shape',
     hint: 'Signed distance to a rectangle.',
+    aliases: ['rect', 'square', 'sdf'],
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'size', type: 'vec2', def: [0.25, 0.15] }],
     outputs: [{ name: 'sd', type: 'float' }], requires: ['sdBox'],
     emit: (i) => ({ sd: `sdBox(${i.uv}, ${i.size})` }),
@@ -444,6 +493,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'shape.fill', label: 'Fill', category: 'Shape',
     hint: 'Turn a distance into a solid shape, softly.',
+    aliases: ['solid', 'mask'],
     inputs: [{ name: 'sd', type: 'float', def: 0 }, { name: 'softness', type: 'float', def: 0.005 }],
     outputs: [{ name: 'mask', type: 'float' }],
     emit: (i) => ({ mask: `smoothstep(${i.softness}, -${i.softness}, ${i.sd})` }),
@@ -451,6 +501,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'shape.outline', label: 'Outline', category: 'Shape',
     hint: 'Turn a distance into an outline of a given thickness.',
+    aliases: ['stroke', 'border', 'ring'],
     inputs: [{ name: 'sd', type: 'float', def: 0 }, { name: 'width', type: 'float', def: 0.01 }],
     outputs: [{ name: 'mask', type: 'float' }],
     emit: (i) => ({ mask: `smoothstep(${i.width}, 0.0, abs(${i.sd}))` }),
@@ -467,18 +518,21 @@ const DEFS: NodeDef[] = [
   {
     id: 'audio.band', label: 'Audio band', category: 'Audio',
     hint: 'One of 16 frequency bands, low to high, already smoothed.',
+    aliases: ['fft', 'spectrum', 'frequency', 'eq'],
     inputs: [{ name: 'band', type: 'int', def: 1 }], outputs: [{ name: 'out', type: 'float' }],
     emit: (i) => ({ out: `iAudio[clamp(${i.band}, 0, 15)]` }),
   },
   {
     id: 'audio.level', label: 'Audio level', category: 'Audio',
     hint: 'Overall energy — the whole spectrum averaged.',
+    aliases: ['volume', 'rms', 'loudness'],
     inputs: [], outputs: [{ name: 'out', type: 'float' }],
     emit: () => ({ out: 'iAudioLevel' }),
   },
   {
     id: 'audio.beat', label: 'Beat', category: 'Audio',
     hint: '0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0.',
+    aliases: ['kick', 'onset', 'transient', 'bpm'],
     inputs: [{ name: 'channel', type: 'int', def: 0 }],
     outputs: [{ name: 'pulse', type: 'float' }, { name: 'count', type: 'float' }],
     emit: (i) => ({
@@ -494,6 +548,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'param.float', label: 'Float parameter', category: 'Parameter',
     hint: 'A slider in the inspector, and a timeline lane.',
+    aliases: ['knob', 'slider', 'control', 'automation'],
     inputs: [], outputs: [{ name: 'out', type: 'float' }],
     // RENAMING CHANGES THE LABEL, NOT THE IDENTITY. `name` is minted once and never edited here: it is
     // the uniform's name AND the tail of the automation path, so editing it would silently unhook every
@@ -512,6 +567,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'param.palette', label: 'Palette parameter', category: 'Parameter',
     hint: 'A palette picker, and the gradient it selects.',
+    aliases: ['knob', 'gradient control'],
     inputs: [{ name: 't', type: 'float', def: 0 }], outputs: [{ name: 'color', type: 'vec3' }],
     settings: [
       { name: 'label', kind: 'text', def: 'Palette', label: 'Name', hint: 'What this picker is called in the inspector, the timeline and OSC.' },
@@ -526,12 +582,14 @@ const DEFS: NodeDef[] = [
   {
     id: 'color.palette', label: 'Palette', category: 'Colour',
     hint: 'Sample one of ArtLux’s gradients by index.',
+    aliases: ['gradient', 'ramp', 'colour ramp', 'color'],
     inputs: [{ name: 'index', type: 'int', def: 0 }, { name: 't', type: 'float', def: 0 }],
     outputs: [{ name: 'color', type: 'vec3' }],
     emit: (i) => ({ color: `palette(${i.index}, ${i.t})` }),
   },
   {
     id: 'color.mix', label: 'Mix colours', category: 'Colour', hint: 'Blend two colours by t.',
+    aliases: ['lerp', 'blend', 'crossfade', 'color'],
     inputs: [{ name: 'a', type: 'vec3', def: [0, 0, 0] }, { name: 'b', type: 'vec3', def: [1, 1, 1] }, { name: 't', type: 'float', def: 0.5 }],
     outputs: [{ name: 'color', type: 'vec3' }],
     emit: (i) => ({ color: `mix(${i.a}, ${i.b}, ${i.t})` }),
@@ -543,12 +601,14 @@ const DEFS: NodeDef[] = [
     // would take that away for the sake of one entry in the menu.
     id: 'color.switch', label: 'Switch colour', category: 'Colour',
     hint: 'Choose colour a or b. Below 0.5 takes a, above takes b.',
+    aliases: ['select', 'choose', 'color'],
     inputs: [{ name: 'a', type: 'vec3', def: [0, 0, 0] }, { name: 'b', type: 'vec3', def: [1, 1, 1] }, { name: 'which', type: 'float', def: 0 }],
     outputs: [{ name: 'color', type: 'vec3' }],
     emit: (i) => ({ color: `mix(${i.a}, ${i.b}, step(0.5, ${i.which}))` }),
   },
   {
     id: 'color.brightness', label: 'Brightness', category: 'Colour', hint: 'Scale a colour.',
+    aliases: ['gain', 'dim', 'multiply', 'color'],
     inputs: [{ name: 'color', type: 'vec3', def: [1, 1, 1] }, { name: 'amount', type: 'float', def: 1 }],
     outputs: [{ name: 'color', type: 'vec3' }],
     emit: (i) => ({ color: `(${i.color} * ${i.amount})` }),
@@ -558,6 +618,7 @@ const DEFS: NodeDef[] = [
   {
     id: 'output.color', label: 'Output', category: 'Output',
     hint: 'What the surface shows. Every graph has exactly one.',
+    aliases: ['result', 'final', 'surface'],
     // COLOUR IS vec3 AND ALPHA IS ITS OWN PORT. The first version took a vec4 and refused every colour
     // node in the catalogue, because they all produce vec3 — the single most common connection in the
     // editor was a type error. Splatting a float into vec3 still works (grey), so a mask can drive this

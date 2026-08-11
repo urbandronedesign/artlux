@@ -251,124 +251,127 @@ only the wording changed. It is also why two parameters can never collide by bei
 
 **Input**
 
-| Node | What it does |
-|---|---|
-| **UV** | 0..1 across the surface. x left→right, y bottom→top. |
-| **Time** | Show time in seconds — scrubs with the timeline and holds when stopped. |
-| **Wall time** | Free-running clock that ignores the transport. |
-| **Aspect** | Surface width ÷ height. Multiply centred x by it to keep circles round. |
-| **Last frame** | This shader’s previous output — the only legal feedback. Needs the graph to request it. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **UV** | 0..1 across the surface. x left→right, y bottom→top. | `coordinates`, `position`, `texcoord` |
+| **Time** | Show time in seconds — scrubs with the timeline and holds when stopped. | `clock`, `seconds`, `itime` |
+| **Wall time** | Free-running clock that ignores the transport. | — |
+| **Aspect** | Surface width ÷ height. Multiply centred x by it to keep circles round. | `ratio` |
+| **Last frame** | This shader’s previous output — the only legal feedback. Needs the graph to request it. | `feedback`, `trails`, `buffer`, `previous` |
 
 **UV**
 
-| Node | What it does |
-|---|---|
-| **Centre** | Move the origin to the middle and correct for aspect, so shapes are not stretched. |
-| **Scale** | Zoom the coordinate space. Bigger scale means more of the pattern in the same area. |
-| **Translate** | Slide the coordinates. Wire an LFO in to make the whole pattern drift. |
-| **Rotate** | Turn the coordinate space. Rotate around the centre by centring first. |
-| **Tile** | Repeat space. `cell` is which tile you are in, `uv` is where inside it. |
-| **Polar** | Radius and angle instead of x and y — stripes become rings and rays. |
-| **Kaleidoscope** | Fold the angle into N mirrored segments. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Centre** | Move the origin to the middle and correct for aspect, so shapes are not stretched. | `center`, `origin`, `middle` |
+| **Scale** | Zoom the coordinate space. Bigger scale means more of the pattern in the same area. | `zoom`, `size` |
+| **Translate** | Slide the coordinates. Wire an LFO in to make the whole pattern drift. | `move`, `offset`, `pan`, `shift` |
+| **Rotate** | Turn the coordinate space. Rotate around the centre by centring first. | `turn`, `spin`, `angle` |
+| **Tile** | Repeat space. `cell` is which tile you are in, `uv` is where inside it. | `repeat`, `grid`, `instance` |
+| **Polar** | Radius and angle instead of x and y — stripes become rings and rays. | `radial`, `angle`, `rings` |
+| **Kaleidoscope** | Fold the angle into N mirrored segments. | `mirror`, `symmetry` |
 
 **Math**
 
-| Node | What it does |
-|---|---|
-| **Add** | a + b |
-| **Multiply** | a × b |
-| **Subtract** | a − b |
-| **Divide** | a ÷ b, guarded against zero. |
-| **Mix** | Blend a and b by t (0 = a, 1 = b). |
-| **Switch** | Choose a or b. Below 0.5 takes a, above takes b — no blending in between. |
-| **Clamp** | Keep a value inside a range. |
-| **Smoothstep** | A soft 0→1 ramp between two edges. |
-| **Step** | A hard cut: 0 below the edge, 1 above. Antialiased. |
-| **Remap** | Move a value from one range to another. |
-| **Fract** | The part after the decimal point — a sawtooth. |
-| **Abs** | Distance from zero. Folds a signed value. |
-| **Power** | x^k — above 1 sharpens, below 1 softens. |
-| **One minus** | Invert a 0..1 value. |
-| **Min** | The smaller of two values. On shapes: union. |
-| **Max** | The larger of two values. On shapes: intersection. |
-| **Length** | Distance from the origin to a point. |
-| **Split** | Take a vector apart into x and y. |
-| **Combine** | Build a vector from two numbers. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Add** | a + b | — |
+| **Multiply** | a × b | — |
+| **Subtract** | a − b | — |
+| **Divide** | a ÷ b, guarded against zero. | — |
+| **Mix** | Blend a and b by t (0 = a, 1 = b). | `lerp`, `interpolate`, `blend`, `crossfade` |
+| **Switch** | Choose a or b. Below 0.5 takes a, above takes b — no blending in between. | `select`, `choose`, `if`, `toggle` |
+| **Clamp** | Keep a value inside a range. | `limit`, `saturate` |
+| **Smoothstep** | A soft 0→1 ramp between two edges. | `ease`, `falloff`, `soft threshold` |
+| **Step** | A hard cut: 0 below the edge, 1 above. Antialiased. | `threshold`, `cutoff`, `comparison` |
+| **Remap** | Move a value from one range to another. | `range`, `fit`, `map`, `scale range` |
+| **Fract** | The part after the decimal point — a sawtooth. | `repeat`, `wrap`, `modulo`, `mod` |
+| **Abs** | Distance from zero. Folds a signed value. | — |
+| **Power** | x^k — above 1 sharpens, below 1 softens. | `pow`, `gamma`, `exponent` |
+| **One minus** | Invert a 0..1 value. | `invert`, `negate`, `flip` |
+| **Min** | The smaller of two values. On shapes: union. | — |
+| **Max** | The larger of two values. On shapes: intersection. | — |
+| **Length** | Distance from the origin to a point. | `distance`, `magnitude`, `radius` |
+| **Split** | Take a vector apart into x and y. | `unpack`, `components`, `xy` |
+| **Combine** | Build a vector from two numbers. | `make vec2`, `pack`, `join` |
 
 **LFO**
 
-| Node | What it does |
-|---|---|
-| **LFO** | A slow oscillator: sine, triangle, saw or square. Rate in cycles per second. |
-| **Pulse** | A one-shot ramp that falls from 1 after each trigger — an envelope, not a wave. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **LFO** | A slow oscillator: sine, triangle, saw or square. Rate in cycles per second. | `oscillator`, `sine`, `wave`, `modulation` |
+| **Pulse** | A one-shot ramp that falls from 1 after each trigger — an envelope, not a wave. | `trigger`, `envelope`, `blink` |
 
 **Pattern**
 
-| Node | What it does |
-|---|---|
-| **Grid** | Square tiles with a gap. Outputs the tile mask and a per-cell random value. |
-| **Lines** | Repeating stripes, antialiased to one pixel at any resolution. |
-| **Checker** | The other classic tiling. 0 or 1 per square. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Grid** | Square tiles with a gap. Outputs the tile mask and a per-cell random value. | `squares`, `checker` |
+| **Lines** | Repeating stripes, antialiased to one pixel at any resolution. | `stripes`, `bars` |
+| **Checker** | The other classic tiling. 0 or 1 per square. | — |
 
 **Noise**
 
-| Node | What it does |
-|---|---|
-| **Value noise** | Soft blobs. The cheapest real noise. |
-| **Value noise 3D** | Wire time into z and the field evolves in place instead of sliding past. |
-| **Gradient noise** | Perlin. Rolling and organic; signed, so remap before using as brightness. |
-| **Simplex noise** | Like Perlin without the square-grid bias. The better default. |
-| **fBm** | Layered noise — detail at every scale. Octaves multiply the cost. |
-| **Turbulence** | fBm folded at zero: creases. Fire and marble. |
-| **Ridged** | Inverted folds: sharp crests. Mountains. |
-| **Worley** | Cells. F1 is bubbles, F2−F1 is the walls between them. |
-| **Curl** | A flow field that never bunches up. Wire it into Translate to advect. |
-| **Seamless** | Noise that repeats exactly — for a strip that loops or panels that tile. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Value noise** | Soft blobs. The cheapest real noise. | — |
+| **Value noise 3D** | Wire time into z and the field evolves in place instead of sliding past. | — |
+| **Gradient noise** | Perlin. Rolling and organic; signed, so remap before using as brightness. | `perlin` |
+| **Simplex noise** | Like Perlin without the square-grid bias. The better default. | `perlin`, `opensimplex` |
+| **fBm** | Layered noise — detail at every scale. Octaves multiply the cost. | `fractal`, `octaves`, `clouds` |
+| **Turbulence** | fBm folded at zero: creases. Fire and marble. | `fire`, `marble` |
+| **Ridged** | Inverted folds: sharp crests. Mountains. | — |
+| **Worley** | Cells. F1 is bubbles, F2−F1 is the walls between them. | `voronoi`, `cellular`, `cells` |
+| **Curl** | A flow field that never bunches up. Wire it into Translate to advect. | `flow`, `vector field`, `fluid` |
+| **Seamless** | Noise that repeats exactly — for a strip that loops or panels that tile. | `tileable`, `looping` |
 
 **Shape**
 
-| Node | What it does |
-|---|---|
-| **Circle** | Signed distance to a circle: negative inside, zero on the edge. |
-| **Box** | Signed distance to a rectangle. |
-| **Fill** | Turn a distance into a solid shape, softly. |
-| **Outline** | Turn a distance into an outline of a given thickness. |
-| **Subtract** | Cut b out of a. (min is union, max is intersection.) |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Circle** | Signed distance to a circle: negative inside, zero on the edge. | `disc`, `sdf`, `dot` |
+| **Box** | Signed distance to a rectangle. | `rect`, `square`, `sdf` |
+| **Fill** | Turn a distance into a solid shape, softly. | `solid`, `mask` |
+| **Outline** | Turn a distance into an outline of a given thickness. | `stroke`, `border`, `ring` |
+| **Subtract** | Cut b out of a. (min is union, max is intersection.) | — |
 
 **Audio**
 
-| Node | What it does |
-|---|---|
-| **Audio band** | One of 16 frequency bands, low to high, already smoothed. |
-| **Audio level** | Overall energy — the whole spectrum averaged. |
-| **Beat** | 0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Audio band** | One of 16 frequency bands, low to high, already smoothed. | `fft`, `spectrum`, `frequency`, `eq` |
+| **Audio level** | Overall energy — the whole spectrum averaged. | `volume`, `rms`, `loudness` |
+| **Beat** | 0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0. | `kick`, `onset`, `transient`, `bpm` |
 
 **Parameter**
 
-| Node | What it does |
-|---|---|
-| **Float parameter** | A slider in the inspector, and a timeline lane. |
-| **Palette parameter** | A palette picker, and the gradient it selects. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Float parameter** | A slider in the inspector, and a timeline lane. | `knob`, `slider`, `control`, `automation` |
+| **Palette parameter** | A palette picker, and the gradient it selects. | `knob`, `gradient control` |
 
 **Colour**
 
-| Node | What it does |
-|---|---|
-| **Palette** | Sample one of ArtLux’s gradients by index. |
-| **Mix colours** | Blend two colours by t. |
-| **Switch colour** | Choose colour a or b. Below 0.5 takes a, above takes b. |
-| **Brightness** | Scale a colour. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Palette** | Sample one of ArtLux’s gradients by index. | `gradient`, `ramp`, `colour ramp`, `color` |
+| **Mix colours** | Blend two colours by t. | `lerp`, `blend`, `crossfade`, `color` |
+| **Switch colour** | Choose colour a or b. Below 0.5 takes a, above takes b. | `select`, `choose`, `color` |
+| **Brightness** | Scale a colour. | `gain`, `dim`, `multiply`, `color` |
 
 **Output**
 
-| Node | What it does |
-|---|---|
-| **Output** | What the surface shows. Every graph has exactly one. |
+| Node | What it does | Also found by |
+|---|---|---|
+| **Output** | What the surface shows. Every graph has exactly one. | `result`, `final`, `surface` |
 
 <!-- /generated:shader-nodes -->
 
-This is the whole list, and the node menu searches it — by name, by category and by description, so
-"noise" finds the noise nodes and "blend" finds Mix. You never have to remember which group a node is in.
+This is the whole list, and the node menu searches it — by name, by category, by description **and by
+the other names for the same thing**. Type `lerp` and you get **Mix**; `voronoi` gets **Worley**,
+`perlin` gets **Gradient noise**, `feedback` gets **Last frame**, `fft` gets **Audio band**. The row
+shows which word matched, so a hit that looks surprising explains itself. You never have to remember
+which group a node is in, or which name ArtLux happens to use for it.
 
 **Parameter** nodes are the bridge to everything else in ArtLux: one becomes a knob in the inspector
 with the name you give it, and therefore a timeline lane, an OSC address and a state-machine target —

@@ -208,10 +208,16 @@ function renderCookbook(recipes) {
 // time somebody adds one — which is the entire reason generated blocks exist.
 function parseNodes() {
   const src = fs.readFileSync(path.join(ROOT, 'plugins', 'shader', 'src', 'nodeCatalog.ts'), 'utf8');
-  const re = /id:\s*'([^']+)',\s*(?:\n\s*)?label:\s*'([^']+)',\s*(?:\n\s*)?category:\s*'([^']+)',\s*(?:\n\s*)?hint:\s*'([^']*)'/g;
+  // The optional trailing group is the alias list the menu's search uses (NodeDef.aliases). It is
+  // documented because a reader of the table should not have to learn our vocabulary either: the
+  // table is where somebody looks up "what is ArtLux's name for lerp?".
+  const re = /id:\s*'([^']+)',\s*(?:\n\s*)?label:\s*'([^']+)',\s*(?:\n\s*)?category:\s*'([^']+)',\s*(?:\n\s*)?hint:\s*'([^']*)',\s*(?:\n\s*)?(?:aliases:\s*\[([^\]]*)\])?/g;
   const out = [];
   let m;
-  while ((m = re.exec(src)) !== null) out.push({ id: m[1], label: m[2], category: m[3], hint: m[4] });
+  while ((m = re.exec(src)) !== null) {
+    const aliases = (m[5] ?? '').split(',').map((x) => x.trim().replace(/^'|'$/g, '')).filter(Boolean);
+    out.push({ id: m[1], label: m[2], category: m[3], hint: m[4], aliases });
+  }
   if (out.length < 20) throw new Error('gen-docs-data: nodeCatalog.ts parsed to ' + out.length + ' nodes — the literal formatting changed');
   return out;
 }
@@ -219,8 +225,11 @@ function parseNodes() {
 function renderNodes(nodes) {
   const parts = [];
   for (const cat of [...new Set(nodes.map((n) => n.category))]) {
-    parts.push(`**${cat}**`, '', '| Node | What it does |', '|---|---|');
-    for (const n of nodes.filter((x) => x.category === cat)) parts.push(`| **${n.label}** | ${n.hint} |`);
+    parts.push(`**${cat}**`, '', '| Node | What it does | Also found by |', '|---|---|---|');
+    for (const n of nodes.filter((x) => x.category === cat)) {
+      const also = n.aliases.length ? n.aliases.map((a) => '`' + a + '`').join(', ') : '—';
+      parts.push(`| **${n.label}** | ${n.hint} | ${also} |`);
+    }
     parts.push('');
   }
   return parts.join('\n').trimEnd();
