@@ -22,6 +22,27 @@ export interface Port {
   label?: string;
 }
 
+/**
+ * A node SETTING: something you choose about a node that is not a value flowing through it.
+ *
+ * The distinction is not cosmetic. A port can change per pixel; a setting cannot — an LFO's waveform
+ * is a constant the compiler folds away, and a parameter's name is a uniform's identity. Declaring
+ * them here rather than special-casing them in the panel is what lets the INSPECTOR be generic: a
+ * node added to this catalogue tomorrow gets its controls drawn without the UI learning about it.
+ */
+export interface Setting {
+  name: string;
+  label?: string;
+  kind: 'choice' | 'text' | 'number';
+  /** `choice` only. */
+  options?: string[];
+  def: string | number;
+  /** `number` only. */
+  min?: number; max?: number; step?: number;
+  /** One line under the control, for the thing the label cannot say. */
+  hint?: string;
+}
+
 export interface NodeDef {
   id: string;
   label: string;
@@ -30,6 +51,8 @@ export interface NodeDef {
   hint: string;
   inputs: Port[];
   outputs: Port[];
+  /** Non-port controls — see Setting. Drawn by the inspector, and choices also on the node itself. */
+  settings?: Setting[];
   /** Helper functions from glslLib this node calls. Emitted once each, in dependency order. */
   requires?: string[];
   /** GLSL expression per output port. */
@@ -265,6 +288,7 @@ const DEFS: NodeDef[] = [
       { name: 'offset', type: 'float', def: 0 },
     ],
     outputs: [{ name: 'out', type: 'float' }, { name: 'unipolar', type: 'float' }],
+    settings: [{ name: 'shape', kind: 'choice', options: ['sine', 'triangle', 'saw', 'square'], def: 'sine' }],
     requires: ['lfo'],
     emit: (i, p) => {
       // Shape is a node SETTING rather than a port: switching waveform per pixel is meaningless, and
@@ -460,6 +484,16 @@ const DEFS: NodeDef[] = [
     id: 'param.float', label: 'Float parameter', category: 'Parameter',
     hint: 'A slider in the inspector, and a timeline lane.',
     inputs: [], outputs: [{ name: 'out', type: 'float' }],
+    // RENAMING CHANGES THE LABEL, NOT THE IDENTITY. `name` is minted once and never edited here: it is
+    // the uniform's name AND the tail of the automation path, so editing it would silently unhook every
+    // timeline lane, OSC address and state-machine value already pointing at this knob. The label is
+    // what an operator actually reads — in the inspector, in the lane header, in the target picker.
+    settings: [
+      { name: 'label', kind: 'text', def: 'Value', label: 'Name', hint: 'What this knob is called in the inspector, the timeline and OSC.' },
+      { name: 'min', kind: 'number', def: 0 },
+      { name: 'max', kind: 'number', def: 1 },
+      { name: 'default', kind: 'number', def: 0.5, label: 'Default' },
+    ],
     emit: (p, params) => ({ out: ident(params.name, 'value') }),
     header: (p) => `{ "NAME": "${ident(p.name, 'value')}", "LABEL": "${s(p.label, 'Value')}", "TYPE": "float", `
       + `"MIN": ${n(p.min, 0)}, "MAX": ${n(p.max, 1)}, "DEFAULT": ${n(p.default, 0.5)} }`,
@@ -468,6 +502,10 @@ const DEFS: NodeDef[] = [
     id: 'param.palette', label: 'Palette parameter', category: 'Parameter',
     hint: 'A palette picker, and the gradient it selects.',
     inputs: [{ name: 't', type: 'float', def: 0 }], outputs: [{ name: 'color', type: 'vec3' }],
+    settings: [
+      { name: 'label', kind: 'text', def: 'Palette', label: 'Name', hint: 'What this picker is called in the inspector, the timeline and OSC.' },
+      { name: 'default', kind: 'number', def: 0, min: 0, max: 6, step: 1, label: 'Default', hint: 'Which gradient it starts on.' },
+    ],
     emit: (i, params) => ({ color: `palette(${ident(params.name, 'pal')}, ${i.t})` }),
     header: (p) => `{ "NAME": "${ident(p.name, 'pal')}", "LABEL": "${s(p.label, 'Palette')}", "TYPE": "palette", `
       + `"DEFAULT": ${n(p.default, 0)} }`,

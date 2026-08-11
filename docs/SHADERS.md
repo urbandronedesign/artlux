@@ -168,6 +168,28 @@ the same thing would be one uniform declared twice, which compiles to nothing at
 copies: every graph has exactly one. A copied selection can be pasted into a **different** surface's
 graph, which is the quickest way to reuse part of something you have already built.
 
+### The inspector
+
+Select a node and the column on the right of the canvas shows what it is: its name, the one-line
+explanation from the palette, its settings, and every input port with either the value it is using or
+the node driving it. A port fed by a wire shows **← where it comes from** instead of a field, because a
+number you can type into that a wire overrules is a control that teaches you not to trust the panel.
+
+Settings that change *what a node is* — an LFO's waveform — also sit on the node itself, so a graph can
+be read without opening anything. Names, ranges and defaults live only in the inspector, which is what
+keeps a node 148px wide no matter how many settings it gains.
+
+### Renaming a parameter
+
+Select a **Float parameter** or **Palette parameter** node and edit **Name** in the inspector. That name
+is what you see everywhere the knob appears: the surface inspector, the timeline's target picker, the
+lane header. It commits when you leave the field or press Enter — Escape puts the old one back.
+
+**Renaming does not move the parameter.** Underneath, the knob keeps the fixed *code name* the inspector
+shows below the field (`value_1` and the like), and that is what the generated GLSL, the automation path
+and the OSC address use. So a timeline lane recorded before the rename still drives the knob after it —
+only the wording changed. It is also why two parameters can never collide by being called the same thing.
+
 ### The palette
 
 <!-- generated:shader-nodes — DO NOT EDIT BY HAND. Regenerate with: npm run docs:gen -->

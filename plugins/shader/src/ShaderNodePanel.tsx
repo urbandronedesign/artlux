@@ -66,6 +66,34 @@ const PortNumber: React.FC<{ value: number; step: number; onCommit: (v: number) 
   );
 };
 
+/**
+ * A text setting — a parameter's name, today. Commits on blur or Enter, never per keystroke.
+ *
+ * Every commit regenerates the shader, compiles it, writes the surface and pushes an undo entry.
+ * Typing "Swirl amount" one letter at a time is one rename to the operator and would be twelve of all
+ * four to the machine, leaving eleven meaningless states between them on the undo stack. Escape puts
+ * the old name back, which is what Escape means in a field you have started editing.
+ */
+const SettingText: React.FC<{ value: string; onCommit: (v: string) => void }> = ({ value, onCommit }) => {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  const done = () => { setEditing(false); if (draft.trim() && draft !== value) onCommit(draft.trim()); else setDraft(value); };
+  return (
+    <input
+      className="flex-1 rounded border border-line-1 bg-surface-0 px-1.5 py-0.5 text-micro text-fg-1 focus:border-accent focus:outline-none"
+      value={draft}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={done}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.currentTarget.blur(); }
+        if (e.key === 'Escape') { setDraft(value); setEditing(false); e.currentTarget.blur(); }
+      }}
+    />
+  );
+};
+
 /** The node body. Unconnected numeric inputs get an inline field, which is most of the editing. */
 const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
   const d = data as unknown as {
@@ -103,20 +131,22 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
         );
       })}
 
-      {/* The LFO's waveform is a setting rather than a port — switching shape per pixel is meaningless,
-          and a constant lets the compiler fold the branch away. */}
-      {def.id === 'lfo.wave' && (
-        <div className="px-2 py-[2px]">
+      {/* A CHOICE is the one setting worth showing on the node itself: it changes what the node IS
+          (an LFO's waveform), so reading the graph without it means opening each node to find out.
+          Names, ranges and defaults are settings too, and they live in the inspector where there is
+          room — the node stays 148px wide however many the catalogue grows. */}
+      {def.settings?.filter((st) => st.kind === 'choice').map((st) => (
+        <div key={st.name} className="px-2 py-[2px]">
           <Select
             className="w-full py-0 nodrag"
             style={{ fontSize: 9 }}
-            value={String(d.params.shape ?? 'sine')}
-            onChange={(e) => d.onParam(id, 'shape', e.target.value)}
+            value={String(d.params[st.name] ?? st.def)}
+            onChange={(e) => d.onParam(id, st.name, e.target.value)}
           >
-            {['sine', 'triangle', 'saw', 'square'].map((s) => <option key={s} value={s}>{s}</option>)}
+            {(st.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
           </Select>
         </div>
-      )}
+      ))}
 
       {def.outputs.map((p) => (
         <div key={p.name} className="relative flex items-center justify-end gap-1 px-2 py-[2px]">
@@ -129,6 +159,106 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
 };
 
 const nodeTypes = { shaderNode: GraphNodeBody };
+
+/**
+ * The node inspector.
+ *
+ * It knows nothing about any particular node. Everything it draws — the title, the explanation, each
+ * port with its default, each setting with its control — comes from the catalogue entry, so a node
+ * added tomorrow is inspectable the day it is added and this file does not change. That is the whole
+ * reason `Setting` exists as a declaration rather than as a branch in the panel.
+ *
+ * A CONNECTED PORT SHOWS ITS SOURCE INSTEAD OF A FIELD. Editing a number that a wire overrules is the
+ * kind of control that teaches an operator not to trust the UI.
+ */
+const NodeInspector: React.FC<{
+  node: ShaderGraph['nodes'][number];
+  graph: ShaderGraph;
+  onParam: (nodeId: string, key: string, value: number | string) => void;
+}> = ({ node, graph, onParam }) => {
+  const def = NODES[node.type];
+  if (!def) {
+    return <div className="p-2 text-micro text-danger">This node’s type ({node.type}) is not in the catalogue.</div>;
+  }
+  const params = node.params ?? {};
+  const sourceOfPort = (port: string): string | null => {
+    const e = graph.edges.find((x) => x.to.node === node.id && x.to.port === port);
+    if (!e) return null;
+    const from = graph.nodes.find((n) => n.id === e.from.node);
+    return `${NODES[from?.type ?? '']?.label ?? e.from.node} · ${e.from.port}`;
+  };
+
+  return (
+    <div className="flex flex-col gap-2 p-2">
+      <div>
+        <div className="text-mini font-semibold text-fg-1">{def.label}</div>
+        <div className="mt-0.5 text-micro leading-snug text-fg-3">{def.hint}</div>
+      </div>
+
+      {!!def.settings?.length && (
+        <div className="flex flex-col gap-1.5 border-t border-line-1 pt-2">
+          {def.settings.map((st) => (
+            <div key={st.name}>
+              <div className="flex items-center gap-1.5">
+                <label className="w-14 shrink-0 truncate text-micro text-fg-2" title={st.label ?? st.name}>{st.label ?? st.name}</label>
+                {st.kind === 'choice' ? (
+                  <Select className="flex-1 text-micro" value={String(params[st.name] ?? st.def)}
+                    onChange={(e) => onParam(node.id, st.name, e.target.value)}>
+                    {(st.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                ) : st.kind === 'text' ? (
+                  <SettingText
+                    value={String(params[st.name] ?? st.def)}
+                    onCommit={(v) => onParam(node.id, st.name, v)}
+                  />
+                ) : (
+                  <PortNumber
+                    step={st.step ?? 0.05}
+                    value={Number(params[st.name] ?? st.def)}
+                    onCommit={(v) => onParam(node.id, st.name, v)}
+                  />
+                )}
+              </div>
+              {st.hint && <div className="mt-0.5 pl-[3.9rem] text-micro leading-snug text-fg-3">{st.hint}</div>}
+            </div>
+          ))}
+          {/* The uniform's name, which renaming deliberately does NOT touch — see param.float's
+              settings. Shown because it is what appears in the generated code and in an OSC address. */}
+          {typeof params.name === 'string' && (
+            <div className="text-micro text-fg-3">
+              code name <span className="font-mono text-fg-2">{params.name}</span> — fixed, so automation keeps working
+            </div>
+          )}
+        </div>
+      )}
+
+      {!!def.inputs.length && (
+        <div className="flex flex-col gap-1 border-t border-line-1 pt-2">
+          <div className="text-micro uppercase tracking-wide text-fg-3">Inputs</div>
+          {def.inputs.map((p) => {
+            const src = sourceOfPort(p.name);
+            const editable = !src && (p.type === 'float' || p.type === 'int');
+            return (
+              <div key={p.name} className="flex items-center gap-1.5">
+                <span className="w-14 shrink-0 truncate text-micro text-fg-2" title={`${p.name} · ${p.type}`}>{p.label ?? p.name}</span>
+                {src
+                  ? <span className="flex-1 truncate text-micro text-accent" title={`driven by ${src}`}>← {src}</span>
+                  : editable
+                    ? <PortNumber step={p.type === 'int' ? 1 : 0.05} value={Number(params[p.name] ?? p.def ?? 0)}
+                        onCommit={(v) => onParam(node.id, p.name, v)} />
+                    : <span className="flex-1 truncate text-micro text-fg-3">{p.type} — wire something in</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="border-t border-line-1 pt-2 text-micro text-fg-3">
+        outputs {def.outputs.map((o) => `${o.name} (${o.type})`).join(', ') || '—'}
+      </div>
+    </div>
+  );
+};
 
 /** Copied nodes, shared by every instance of this panel — see copySelection. */
 let clipboard: { nodes: ShaderGraph['nodes']; edges: ShaderGraph['edges'] } | null = null;
@@ -420,6 +550,13 @@ export const ShaderNodePanel: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [copySelection, paste]);
 
+  // Which nodes the inspector is looking at. React Flow owns selection, so this reads its model
+  // rather than keeping a second one that could disagree with the highlight on screen.
+  const selectedNodes = useMemo(() => {
+    const ids = new Set(rfNodes.filter((n) => n.selected).map((n) => n.id));
+    return graph.nodes.filter((n) => ids.has(n.id));
+  }, [rfNodes, graph.nodes]);
+
   const shown = filter
     ? NODE_LIST.filter((d) => (d.label + d.category + d.hint).toLowerCase().includes(filter.toLowerCase()))
     : NODE_LIST;
@@ -506,6 +643,21 @@ export const ShaderNodePanel: React.FC = () => {
         <div className={`shrink-0 border-t border-line-1 px-2 py-1 text-micro ${status && !status.ok ? 'text-danger' : 'text-fg-3'}`}>
           {status ? status.message : 'Add nodes from the left, wire them into Output.'}
         </div>
+      </div>
+
+      {/* The inspector. A third column rather than a floating panel, because it is read WHILE wiring —
+          and rather than the app's own parameters column, which belongs to the selected SURFACE: two
+          different selections cannot share one inspector without one of them lying. */}
+      <div className="flex w-52 shrink-0 flex-col overflow-auto border-l border-line-1">
+        {selectedNodes.length === 1
+          ? <NodeInspector node={selectedNodes[0]} graph={graph} onParam={onParam} />
+          : (
+            <div className="p-2 text-micro leading-snug text-fg-3">
+              {selectedNodes.length
+                ? `${selectedNodes.length} nodes selected — the inspector edits one at a time.`
+                : 'Select a node to see what it does and set its values.'}
+            </div>
+          )}
       </div>
     </div>
   );

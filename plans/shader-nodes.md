@@ -240,6 +240,37 @@ not two hundred.
   because a parameter name is a uniform name and the same uniform declared twice compiles to nothing.
   The add path already did this; paste is a second door to the same fault.
 
+## 7 · The node inspector, and why `Setting` exists (2026-08-11)
+
+The catalogue will keep growing, and a node body is 148px wide. Rather than let each new node add a
+branch to the panel, a node now DECLARES its non-port controls as `Setting[]` in nodeCatalog.ts, and
+the inspector renders from the declaration: title, hint, settings, every input port with either its
+value or the node driving it, and the output types. **A node added tomorrow is inspectable the day it
+is added and ShaderNodePanel.tsx does not change.** The LFO's waveform stopped being a special case in
+the panel the same day — it is the first `choice` setting.
+
+A port and a setting are not the same kind of thing, which is what the split encodes: a port can vary
+per pixel, a setting cannot. The waveform is a constant the compiler folds away; a parameter's name is
+a uniform's identity.
+
+**Renaming a parameter changes its LABEL and deliberately not its NAME.** The name is the uniform *and*
+the tail of the automation path (`shader.<surface>.value_1`), so editing it would silently unhook every
+timeline lane, OSC address and state-machine value already pointing at that knob — a rename that breaks
+a show is not a rename. The label is what an operator actually reads: inspector, lane header, target
+picker. Verified in the app: renaming to "Swirl amount" changed the surface inspector's knob and left
+the code name at `value_1`.
+
+Both text and numeric settings commit on blur, not per keystroke. Every commit regenerates, compiles,
+writes the surface and pushes an undo entry — typing a twelve-letter name is ONE rename to the operator
+and would otherwise be twelve of each, with eleven meaningless states left on the undo stack.
+
+**Where the inspector lives, and why not in the app's own parameters column:** that column belongs to
+the selected SURFACE. A node selection is a second, unrelated selection, and two selections cannot
+share one inspector without one of them lying about what is selected. So it is a third column inside
+the panel — palette, canvas, inspector — which is also where it is read: while wiring.
+
+---
+
 **Effort, honestly:** Phase 0 is a day. Phases 1–3 are the real build — a generator with a type system
 and thirty-odd nodes is not small, and the UI is a week of its own. Phase 4 is unbounded; stop when it
 stops hurting.
