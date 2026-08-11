@@ -46,7 +46,7 @@ export interface Setting {
 export interface NodeDef {
   id: string;
   label: string;
-  category: 'Input' | 'UV' | 'Math' | 'LFO' | 'Pattern' | 'Noise' | 'Shape' | 'Colour' | 'Audio' | 'Parameter' | 'Output' | 'Subpatch';
+  category: 'Input' | 'UV' | 'Math' | 'LFO' | 'Pattern' | 'Noise' | 'Shape' | 'Colour' | 'Audio' | 'Parameter' | 'Output' | 'Subpatch' | 'Library';
   /** One line, shown in the palette and as the node's tooltip. */
   hint: string;
   /**

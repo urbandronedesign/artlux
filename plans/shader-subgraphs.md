@@ -1,6 +1,6 @@
 # Reusable subpatches — collapse a selection into one node
 
-**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: FEASIBILITY + PLAN. No code.**
+**Branch:** `shader-content` · **Written:** 2026-08-11 · **Status: BUILT — phases 0–4.**
 
 > ## The verdict in one paragraph
 >
@@ -133,6 +133,41 @@ the phasing below.
 **Effort:** phase 1 is a few hours. Phases 0 and 3 are the day each. Phase 2 is where the fiddly cases
 live (a selection with a wire crossing it twice, a selection containing Output, a selection containing a
 feedback node whose uv comes from outside).
+
+## 7 · What was actually built (2026-08-11)
+
+**All five phases, and the estimate held: the compiler was not modified.** `flatten()` inlines every
+instance before `generateGlsl` runs, so cycle detection, naming, helpers, the header and the type
+rules never learn subpatches exist, and the generated GLSL is identical to the flat version.
+
+- **0 · Registry** — `defsFor(graph)` merges built-ins with the project's subpatches; the panel, menu,
+  inspector, suggestions and layout all read it instead of the static table.
+- **1 · Generate** — inline expansion, per-instance parameter names, depth cap, missing-subpatch named.
+- **2 · Collapse** — `Ctrl+G` / `Ctrl+Shift+G`, boundary derived from the wires that cross.
+- **3 · Inside** — the panel holds a PATH and derives the graph it shows (`viewOf`), folding edits back
+  (`foldInto`). Pins appear inside as **In ·**/**Out ·** nodes, so re-pinning is ordinary wiring.
+- **4 · Library** — `userData/subpatches/<name>.json`, one file each; picking one copies it in.
+
+**Proof, before the UI existed:** every help patch collapses and generates the same shader body,
+expands back to the same again, two instances compile, recursion is refused, an edit inside reaches
+the shader and every instance follows it, and unwiring a boundary node empties that pin without
+breaking generation.
+
+**Three bugs the running app found, none visible in the source:**
+
+- `flatten()` bailed out early on "no subpatch definitions", so INSTANCES without definitions reached
+  the generator as `unknown node type "sub.swirl"` — the venue-machine case, reported three steps from
+  its cause. It now looks for instances.
+- **Shift+click did not extend the selection.** React Flow defaults multi-select to Ctrl/Cmd, so the
+  first gesture everyone tries silently replaced the selection and Collapse stayed greyed out.
+- A default name built from `subpatches.length` — caught by `verify:invariants`, which exists because
+  deleting the first one makes the next mint a name already in use.
+
+**Still open, deliberately:** a "used by" list and an "update instances from the library" command (§3a),
+and sharing one uniform across instances of a subpatch (§3b option 3). Neither is needed until someone
+asks for it.
+
+---
 
 ## 6 · What would make me say no
 

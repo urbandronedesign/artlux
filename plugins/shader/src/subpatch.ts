@@ -297,3 +297,110 @@ export function flatten(graph: ShaderGraph, maxDepth = 8): { graph: ShaderGraph;
   }
   return { graph: cur, error: `a subpatch contains itself (gave up after ${maxDepth} levels)` };
 }
+
+// ── Editing INSIDE a subpatch ────────────────────────────────────────────────────────────────────
+//
+// The panel edits one graph. Going inside a subpatch means it edits a DIFFERENT one — the definition,
+// which every instance in the project shares — so the panel holds a PATH and derives the graph it is
+// showing. Nothing else in the panel changes: what it is handed still looks like an ordinary graph.
+//
+// THE BOUNDARY IS SHOWN AS NODES. Inside, a pin appears as a small Input or Output node wired to
+// whatever it feeds. That is not decoration: it makes the pins EDITABLE with the same gesture as
+// everything else — rewire an input node and the pin moves, delete it and the pin goes. The
+// alternative (invisible boundaries) leaves inner ports looking unconnected, with editable numbers
+// that the instance silently overrides, which is a control that lies.
+
+export const IN_PREFIX = '__in_';
+export const OUT_PREFIX = '__out_';
+export const isBoundary = (id: string): boolean => id.startsWith(IN_PREFIX) || id.startsWith(OUT_PREFIX);
+
+/** Boundary node types are synthesised per pin, because each carries that pin's own type. */
+export function boundaryDefs(sub: SubpatchDef): Record<string, NodeDef> {
+  const out: Record<string, NodeDef> = {};
+  for (const pin of sub.inputs) {
+    out[IN_PREFIX + pin.name] = {
+      id: IN_PREFIX + pin.name, label: `In · ${pin.name}`, category: 'Subpatch',
+      hint: `What the outside wires into "${pin.name}".`,
+      inputs: [], outputs: [{ name: pin.name, type: pin.type }],
+      emit: () => ({}),
+    };
+  }
+  for (const pin of sub.outputs) {
+    out[OUT_PREFIX + pin.name] = {
+      id: OUT_PREFIX + pin.name, label: `Out · ${pin.name}`, category: 'Subpatch',
+      hint: `What this subpatch hands back as "${pin.name}".`,
+      inputs: [{ name: pin.name, type: pin.type }], outputs: [],
+      emit: () => ({}),
+    };
+  }
+  return out;
+}
+
+/** The graph the panel should show for a path of subpatch types ([] = the surface's own graph). */
+export function viewOf(root: ShaderGraph, path: string[]): ShaderGraph {
+  let cur = root;
+  for (const type of path) {
+    const sub = (cur.subpatches ?? []).find((s) => s.id === type);
+    if (!sub) return cur;
+    const nodes: GraphNode[] = [...sub.nodes.map((n) => ({ ...n }))];
+    const edges: GraphEdge[] = [...sub.edges.map((e) => ({ from: { ...e.from }, to: { ...e.to } }))];
+    // Lay the boundary nodes out on either side, so entering a subpatch shows a graph that reads the
+    // same way the outer one does: in on the left, out on the right.
+    const xs = sub.nodes.map((n) => n.x ?? 0);
+    const left = Math.min(0, ...xs) - 220;
+    const right = Math.max(0, ...xs) + 260;
+    sub.inputs.forEach((pin, i) => {
+      nodes.push({ id: IN_PREFIX + pin.name, type: IN_PREFIX + pin.name, x: left, y: i * 90, params: {} });
+      for (const t of pin.to ?? []) edges.push({ from: { node: IN_PREFIX + pin.name, port: pin.name }, to: { ...t } });
+    });
+    sub.outputs.forEach((pin, i) => {
+      nodes.push({ id: OUT_PREFIX + pin.name, type: OUT_PREFIX + pin.name, x: right, y: i * 90, params: {} });
+      if (pin.from) edges.push({ from: { ...pin.from }, to: { node: OUT_PREFIX + pin.name, port: pin.name } });
+    });
+    // Subpatches travel with the view so a nested one still resolves — and so collapsing INSIDE a
+    // subpatch has somewhere to put what it makes.
+    cur = { version: 1, nodes, edges, subpatches: root.subpatches };
+  }
+  return cur;
+}
+
+/**
+ * Fold an edited view back into the root.
+ *
+ * The pins are rebuilt from the boundary nodes' wires rather than carried along, so re-wiring an
+ * input node inside is how you change what the pin feeds — the same gesture as everything else.
+ */
+export function foldInto(root: ShaderGraph, path: string[], view: ShaderGraph): ShaderGraph {
+  if (!path.length) return view;
+  const [type, ...rest] = path;
+  const subs = root.subpatches ?? [];
+  const sub = subs.find((s) => s.id === type);
+  if (!sub) return root;
+
+  const inner = rest.length ? foldInto({ ...sub, version: 1 } as ShaderGraph, rest, view) : view;
+  const nodes = inner.nodes.filter((n) => !isBoundary(n.id));
+  const edges = inner.edges.filter((e) => !isBoundary(e.from.node) && !isBoundary(e.to.node));
+
+  const inputs: SubpatchPin[] = inner.nodes.filter((n) => n.id.startsWith(IN_PREFIX)).map((n) => {
+    const name = n.id.slice(IN_PREFIX.length);
+    const old = sub.inputs.find((p) => p.name === name);
+    return {
+      name,
+      type: old?.type ?? 'float',
+      to: inner.edges.filter((e) => e.from.node === n.id).map((e) => ({ node: e.to.node, port: e.to.port })),
+    };
+  });
+  const outputs: SubpatchPin[] = inner.nodes.filter((n) => n.id.startsWith(OUT_PREFIX)).map((n) => {
+    const name = n.id.slice(OUT_PREFIX.length);
+    const old = sub.outputs.find((p) => p.name === name);
+    const feed = inner.edges.find((e) => e.to.node === n.id);
+    return { name, type: old?.type ?? 'float', from: feed ? { node: feed.from.node, port: feed.from.port } : old?.from };
+  });
+
+  const updated: SubpatchDef = { ...sub, nodes, edges, inputs, outputs };
+  return {
+    ...root,
+    // A subpatch edited inside may itself have made a new subpatch; keep whichever list is longer-lived.
+    subpatches: (inner.subpatches ?? subs).map((s) => (s.id === type ? updated : s)),
+  };
+}

@@ -31,7 +31,11 @@ import { compile } from './shaderDrawable';
 import { layoutGraph, type NodeSize } from './nodeLayout';
 import { suggestFor, type LooseEnd, type Suggestion } from './nodeSuggest';
 import { EXAMPLES } from './nodeExamples';
-import { collapse, defsFor, expand, isSubpatchType, type SubpatchDef } from './subpatch';
+import * as library from './libraryClient';
+import {
+  boundaryDefs, collapse, defsFor, expand, foldInto, isBoundary, isSubpatchType, viewOf,
+  type SubpatchDef,
+} from './subpatch';
 import { nextNumberedName } from '@artlux/sdk';
 
 /** One colour per port type, so a wire's legality is readable before it is dragged. */
@@ -381,7 +385,9 @@ const NodeInspector: React.FC<{
   onParam: (nodeId: string, key: string, value: number | string) => void;
   onRenameSubpatch: (type: string, name: string) => void;
   onExpand: () => void;
-}> = ({ node, graph, defs, onParam, onRenameSubpatch, onExpand }) => {
+  onEnter: () => void;
+  onSave: () => void;
+}> = ({ node, graph, defs, onParam, onRenameSubpatch, onExpand, onEnter, onSave }) => {
   const def = defs[node.type];
   if (!def) {
     return <div className="p-2 text-micro text-danger">This node’s type ({node.type}) is not in the catalogue.</div>;
@@ -415,6 +421,12 @@ const NodeInspector: React.FC<{
             <span className="flex-1 text-micro text-fg-3">
               {graph.subpatches?.find((sp) => sp.id === node.type)?.nodes.length ?? 0} nodes inside
             </span>
+            <Button size="sm" variant="ghost" onClick={onEnter} title="Edit what is inside (every copy follows)">
+              Inside
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onSave} title="Save it to this machine's library, for other projects">
+              Save
+            </Button>
             <Button size="sm" variant="ghost" onClick={onExpand} title="Put its contents back on the canvas">
               Expand
             </Button>
@@ -499,7 +511,24 @@ export const ShaderNodePanel: React.FC = () => {
   );
   const surfaceId = surface?.id ?? null;
 
-  const [graph, setGraph] = useState<ShaderGraph>(() => emptyGraph());
+  const [root, setRoot] = useState<ShaderGraph>(() => emptyGraph());
+  /**
+   * WHICH GRAPH IS ON SCREEN: [] is the surface's own, otherwise the subpatch definitions we have
+   * gone inside, outermost first. Editing inside edits the DEFINITION, so every instance of it in
+   * this project follows — which is what makes a subpatch worth having over a copy.
+   */
+  const [path, setPath] = useState<string[]>([]);
+  /** Subpatches saved on this machine — a palette to pick from, never read while a show runs. */
+  const [saved, setSaved] = useState<library.StoredSubpatch[]>(() => library.allSubpatches());
+  useEffect(() => {
+    const off = library.subscribeSubpatches(() => setSaved(library.allSubpatches()));
+    void library.refreshSubpatches();
+    return off;
+  }, []);
+
+  const graph = useMemo(() => viewOf(root, path), [root, path]);
+  /** Write an edited view back where it came from. Every mutation below goes through this. */
+  const setGraph = useCallback((next: ShaderGraph) => setRoot((r) => foldInto(r, path, next)), [path]);
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const loadedFor = useRef<string | null>(null);
   const flow = useRef<ReactFlowInstance | null>(null);
@@ -514,8 +543,32 @@ export const ShaderNodePanel: React.FC = () => {
    * Built-ins plus this graph's own subpatches. EVERY lookup in this panel goes through here — a
    * subpatch is a node type that exists only inside one project, so the static table cannot answer.
    */
-  const defs = useMemo(() => defsFor(graph), [graph]);
-  const catalogue = useMemo(() => Object.values(defs), [defs]);
+  const defs = useMemo(() => {
+    const base = defsFor(root);
+    if (!path.length) return base;
+    const sub = (root.subpatches ?? []).find((sp) => sp.id === path[path.length - 1]);
+    return sub ? { ...base, ...boundaryDefs(sub) } : base;
+  }, [root, path]);
+  const catalogue = useMemo(() => {
+    const own = Object.values(defs);
+    // Saved subpatches appear under Library. Synthesised for the menu only: they belong to no project
+    // until one is picked, and picking copies the definition in.
+    const fromLibrary: NodeDef[] = saved
+      .filter((entry) => !!(entry.def as SubpatchDef)?.id)
+      .map((entry) => {
+        const d = entry.def as SubpatchDef;
+        return {
+          id: `library:${entry.name}`,
+          label: entry.name,
+          category: 'Library' as NodeDef['category'],
+          hint: `${d.nodes?.length ?? 0} nodes, saved on this machine. Adding it copies it into this project.`,
+          inputs: (d.inputs ?? []).map((pin) => ({ name: pin.name, type: pin.type })),
+          outputs: (d.outputs ?? []).map((pin) => ({ name: pin.name, type: pin.type })),
+          emit: () => ({}),
+        };
+      });
+    return [...own, ...fromLibrary];
+  }, [defs, saved]);
 
   /** The node menu: where to draw it, and the graph point a picked node lands on. */
   const [menu, setMenu] = useState<
@@ -546,11 +599,12 @@ export const ShaderNodePanel: React.FC = () => {
     loadedFor.current = surfaceId;
     wrote.current = raw;
     setStatus(null);
-    if (!surface) { setGraph(emptyGraph()); return; }
+    setPath([]);
+    if (!surface) { setRoot(emptyGraph()); return; }
     try {
-      setGraph(raw ? (JSON.parse(raw) as ShaderGraph) : emptyGraph());
+      setRoot(raw ? (JSON.parse(raw) as ShaderGraph) : emptyGraph());
     } catch {
-      setGraph(emptyGraph());
+      setRoot(emptyGraph());
       setStatus({ ok: false, message: 'this surface’s graph could not be read — starting a new one' });
     }
   }, [surfaceId, surface]);
@@ -562,17 +616,20 @@ export const ShaderNodePanel: React.FC = () => {
    */
   const commit = useCallback((next: ShaderGraph): boolean => {
     setGraph(next);
+    // INSIDE A SUBPATCH, WHAT IS COMPILED IS STILL THE WHOLE SURFACE. The view has no Output node of
+    // its own and never could: it is a fragment of a shader, not a shader.
+    const whole = foldInto(root, path, next);
     if (!surfaceId || !surface) return false;
-    const gen = generateGlsl(next);
+    const gen = generateGlsl(whole);
     if (gen.errors.length) { setStatus({ ok: false, message: gen.errors[0] }); return false; }
     const built = compile(gen.source);
     if (!built.ok) { setStatus({ ok: false, message: built.log.split('\n')[0] || 'the generated shader did not compile' }); return false; }
     setStatus({ ok: true, message: `${next.nodes.length} nodes` });
-    const json = JSON.stringify(next);
+    const json = JSON.stringify(whole);
     wrote.current = json;
     updateSurface(surfaceId, { content: { ...surface.content, shaderGraph: json, shaderSource: gen.source } });
     return true;
-  }, [surfaceId, surface, updateSurface]);
+  }, [surfaceId, surface, updateSurface, root, path, setGraph]);
 
   // ── React Flow's model, derived from ours. Ours stays the source of truth; this is a projection.
   const connected = useMemo(
@@ -619,10 +676,10 @@ export const ShaderNodePanel: React.FC = () => {
   const commitPositions = useCallback((next: ShaderGraph) => {
     setGraph(next);
     if (!surfaceId || !surface) return;
-    const json = JSON.stringify(next);
+    const json = JSON.stringify(foldInto(root, path, next));
     wrote.current = json;
     updateSurface(surfaceId, { content: { ...surface.content, shaderGraph: json } });
-  }, [surfaceId, surface, updateSurface]);
+  }, [surfaceId, surface, updateSurface, root, path, setGraph]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     // Every change goes to React Flow — including the `dimensions` ones we have no opinion about.
@@ -779,7 +836,7 @@ export const ShaderNodePanel: React.FC = () => {
    * night after it worked.
    */
   const collapseSelection = useCallback(async () => {
-    const ids = selectedIds.current;
+    const ids = selectedIds.current.filter((id) => !isBoundary(id));
     if (ids.length < 2) { setStatus({ ok: false, message: 'select at least two nodes to collapse' }); return; }
     // NOT the list length: delete the first subpatch and the next collapse would mint a name already
     // in use, which is the fault nextNumberedName exists to prevent — it takes the highest number
@@ -800,12 +857,76 @@ export const ShaderNodePanel: React.FC = () => {
     }
   }, [graph, commit, confirmDialog]);
 
+  /** Go inside a subpatch to edit its definition — every instance in this project follows. */
+  const enterSubpatch = useCallback((type: string) => {
+    if (!(root.subpatches ?? []).some((sp) => sp.id === type)) return;
+    // A subpatch cannot be opened inside itself: the definition being edited would be its own parent,
+    // and every edit would be a question about which copy you meant.
+    if (path.includes(type)) { setStatus({ ok: false, message: 'already editing that subpatch' }); return; }
+    setPath((cur) => [...cur, type]);
+    setStatus(null);
+    requestAnimationFrame(() => flow.current?.fitView({ duration: 200, maxZoom: 1, padding: 0.25 }));
+  }, [root.subpatches, path]);
+
+  const leaveSubpatch = useCallback((depth?: number) => {
+    setPath((cur) => cur.slice(0, depth ?? cur.length - 1));
+    setStatus(null);
+    requestAnimationFrame(() => flow.current?.fitView({ duration: 200, maxZoom: 1, padding: 0.25 }));
+  }, []);
+
   /** Put a subpatch instance's nodes back on the canvas. The inverse of collapse, and never lossy. */
   const expandSelection = useCallback(() => {
     const inst = graph.nodes.find((n) => selectedIds.current.includes(n.id) && isSubpatchType(n.type));
     if (!inst) { setStatus({ ok: false, message: 'select a subpatch node to expand it' }); return; }
     if (commit(expand(graph, inst.id))) setStatus({ ok: true, message: `expanded “${defs[inst.type]?.label ?? inst.type}”` });
   }, [graph, commit, defs]);
+
+  /**
+   * Put a subpatch in the library, so the next project can have it.
+   *
+   * What is stored is the DEFINITION, and using it later copies that definition into whatever project
+   * picks it up — the same rule as the effect library, for the same reason: a venue machine has a
+   * different userData, and a project that fetched part of its shader from here would render black on
+   * the night. The cost is the honest one: editing the library copy does not change shows already
+   * built with it.
+   */
+  const saveToLibrary = useCallback(async (type: string) => {
+    const def = (root.subpatches ?? []).find((sp) => sp.id === type);
+    if (!def) return;
+    const res = await library.saveSubpatch(def.name, def);
+    setStatus(res.ok
+      ? { ok: true, message: `“${res.name}” saved — it is in the node menu under Library on any project` }
+      : { ok: false, message: res.error ?? 'could not save' });
+  }, [root.subpatches]);
+
+  /**
+   * Take a saved subpatch into this graph: copy the definition in, then add one instance of it.
+   *
+   * The id is re-minted if this project already has one of that name, because two different
+   * definitions answering to one node type is a graph that renders differently depending on which was
+   * loaded last.
+   */
+  const useFromLibrary = useCallback((entry: library.StoredSubpatch, at?: { x: number; y: number }) => {
+    const incoming = entry.def as SubpatchDef;
+    const existing = root.subpatches ?? [];
+    const clash = existing.find((sp) => sp.id === incoming.id);
+    const same = clash && JSON.stringify({ ...clash, name: '' }) === JSON.stringify({ ...incoming, name: '' });
+    let def = incoming;
+    if (clash && !same) {
+      let id = incoming.id, n = 2;
+      while (existing.some((sp) => sp.id === id)) id = `${incoming.id}-${n++}`;
+      def = { ...incoming, id };
+    }
+    const subpatches = clash && same ? existing : [...existing, def];
+    const id = `sub_${Math.max(0, ...graph.nodes.map((n) => Number(n.id.split('_').pop()) || 0)) + 1}`;
+    const pos = at ?? { x: 40, y: 40 };
+    const next: ShaderGraph = {
+      ...graph,
+      subpatches,
+      nodes: [...graph.nodes, { id, type: def.id, x: Math.round(pos.x), y: Math.round(pos.y), params: {}, label: def.name }],
+    };
+    if (commit(next)) setStatus({ ok: true, message: `added “${def.name}”` });
+  }, [graph, root.subpatches, commit]);
 
   /** Rename a subpatch — the definition, so every instance of it in this graph follows. */
   const renameSubpatch = useCallback((type: string, name: string) => {
@@ -850,7 +971,8 @@ export const ShaderNodePanel: React.FC = () => {
     if (!yes) return;
     wrote.current = undefined;
     updateSurface(surfaceId, { content: { ...surface.content, shaderSource: gen.source, shaderGraph: undefined } });
-    setGraph(emptyGraph());
+    setPath([]);
+    setRoot(emptyGraph());
     setStatus({ ok: true, message: 'converted — edit it in the Shader tab' });
   }, [graph, surface, surfaceId, updateSurface, confirmDialog]);
 
@@ -867,7 +989,7 @@ export const ShaderNodePanel: React.FC = () => {
    */
   const copySelection = useCallback((): number => {
     const ids = new Set(rfNodes.filter((n) => n.selected).map((n) => n.id));
-    const nodes = graph.nodes.filter((n) => ids.has(n.id) && defs[n.type]?.id !== 'output.color');
+    const nodes = graph.nodes.filter((n) => ids.has(n.id) && defs[n.type]?.id !== 'output.color' && !isBoundary(n.id));
     if (!nodes.length) return 0;
     const keep = new Set(nodes.map((n) => n.id));
     clipboard = {
@@ -920,8 +1042,13 @@ export const ShaderNodePanel: React.FC = () => {
         if (box) openMenu(pointer.current.x || box.x + box.width / 2, pointer.current.y || box.y + box.height / 2);
         return;
       }
-      if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
+      if (!(e.ctrlKey || e.metaKey) && e.key !== 'Escape') return;
+      if (e.key === 'Escape' && path.length && !menu) {
+        e.preventDefault(); e.stopPropagation();
+        leaveSubpatch();
+        return;
+      }
       if (k === 'g') {
         e.preventDefault(); e.stopPropagation();
         if (e.shiftKey) expandSelection(); else void collapseSelection();
@@ -936,7 +1063,7 @@ export const ShaderNodePanel: React.FC = () => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [copySelection, paste, openMenu, collapseSelection, expandSelection]);
+  }, [copySelection, paste, openMenu, collapseSelection, expandSelection, path.length, menu, leaveSubpatch]);
 
   // Which nodes the inspector is looking at. React Flow owns selection, so this reads its model
   // rather than keeping a second one that could disagree with the highlight on screen.
@@ -982,8 +1109,31 @@ export const ShaderNodePanel: React.FC = () => {
           <Button size="sm" variant="ghost" onClick={() => setExamplesOpen((v) => !v)} title="Open a worked example and take it apart">
             Examples
           </Button>
+          {selectedNodes.length === 1 && isSubpatchType(selectedNodes[0].type) && (
+            <Button size="sm" variant="ghost" onClick={() => enterSubpatch(selectedNodes[0].type)} title="Edit what is inside (or double-click it)">
+              Inside
+            </Button>
+          )}
           <span className="ml-auto truncate text-micro text-fg-3">{graph.nodes.length} nodes · {graph.edges.length} wires</span>
         </div>
+
+        {/* WHERE YOU ARE. Only shown when it is not the surface's own graph — a breadcrumb that says
+            "Surface" and nothing else is a line of chrome that tells you what you already knew. */}
+        {!!path.length && (
+          <div className="flex shrink-0 items-center gap-1 border-b border-line-1 bg-surface-2 px-2 py-1 text-micro">
+            <button type="button" onClick={() => leaveSubpatch(0)} className="text-fg-2 hover:text-fg-1">Surface</button>
+            {path.map((type, i) => (
+              <React.Fragment key={type}>
+                <span className="text-fg-3" aria-hidden>›</span>
+                <button
+                  type="button" onClick={() => leaveSubpatch(i + 1)}
+                  className={i === path.length - 1 ? 'text-accent' : 'text-fg-2 hover:text-fg-1'}
+                >{defs[type]?.label ?? type}</button>
+              </React.Fragment>
+            ))}
+            <span className="ml-auto text-fg-3">editing the definition — every copy follows</span>
+          </div>
+        )}
 
         {/* A NEW GRAPH IS ONE NODE, and fitView on one node zooms to the maximum — the canvas opened at
             3× with two nodes filling it, which reads as broken rather than as fitted. Capping the zoom
@@ -1012,7 +1162,16 @@ export const ShaderNodePanel: React.FC = () => {
             if (!near || now - last!.t > 400) return;
             // Only on EMPTY canvas. Double-clicking a node is how you select and edit it, and opening
             // an add-a-node menu on top of the node you just aimed at is the opposite of the intent.
-            if ((e.target as HTMLElement).closest('.react-flow__node, .react-flow__edge, .react-flow__handle')) return;
+            const onNode = (e.target as HTMLElement).closest('.react-flow__node');
+            if (onNode) {
+              // DOUBLE-CLICK A SUBPATCH TO OPEN IT. On any other node it stays what it was: nothing,
+              // because a double-click that sometimes opened a menu over the node you aimed at would
+              // be worse than no gesture at all.
+              const hit = graph.nodes.find((n) => n.id === onNode.getAttribute('data-id'));
+              if (hit && isSubpatchType(hit.type)) { lastDown.current = null; enterSubpatch(hit.type); }
+              return;
+            }
+            if ((e.target as HTMLElement).closest('.react-flow__edge, .react-flow__handle')) return;
             lastDown.current = null;   // a third click must not open it again
             openMenu(e.clientX, e.clientY);
           }}
@@ -1068,7 +1227,9 @@ export const ShaderNodePanel: React.FC = () => {
           <NodeMenu
             at={{ x: menu.x, y: menu.y }} maxHeight={menu.h} link={menu.link} catalogue={catalogue}
             onPick={(def, port) => {
-              addNode(def, menu.at, menu.link && port ? { end: menu.link, port } : undefined);
+              const entry = def.id.startsWith('library:') && saved.find((x) => x.name === def.id.slice('library:'.length));
+              if (entry) useFromLibrary(entry, menu.at);
+              else addNode(def, menu.at, menu.link && port ? { end: menu.link, port } : undefined);
               setMenu(null);
             }}
             onClose={() => setMenu(null)}
@@ -1085,7 +1246,7 @@ export const ShaderNodePanel: React.FC = () => {
           different selections cannot share one inspector without one of them lying. */}
       <div className="flex w-52 shrink-0 flex-col overflow-auto border-l border-line-1">
         {selectedNodes.length === 1
-          ? <NodeInspector node={selectedNodes[0]} graph={graph} defs={defs} onParam={onParam} onRenameSubpatch={renameSubpatch} onExpand={expandSelection} />
+          ? <NodeInspector node={selectedNodes[0]} graph={graph} defs={defs} onParam={onParam} onRenameSubpatch={renameSubpatch} onExpand={expandSelection} onEnter={() => enterSubpatch(selectedNodes[0].type)} onSave={() => void saveToLibrary(selectedNodes[0].type)} />
           : (
             <div className="p-2 text-micro leading-snug text-fg-3">
               {selectedNodes.length

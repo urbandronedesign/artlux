@@ -205,6 +205,20 @@ every copy of a subpatch needs its own — so a parameter that goes inside gets 
 timeline lane or OSC send aimed at the old one stops matching. ArtLux says which knobs are affected
 and asks before doing it.
 
+**Go inside it** by double-clicking it, or with **Inside** in the toolbar. You are then editing the
+definition, so **every copy in the project follows** — that is what a subpatch is for. A breadcrumb
+above the canvas shows where you are; click **Surface** (or press `Escape`) to come back out.
+
+Inside, the pins appear as small **In ·** and **Out ·** nodes wired to whatever they feed. They are
+real nodes: rewire one and the pin moves with it, so changing what a subpatch takes is the same
+gesture as any other wiring.
+
+**Save** puts it in this machine's library, and it then appears in the node menu under **Library** in
+*any* project. Adding it from there **copies the definition in** — like an effect, and for the same
+reason: a project must carry everything it needs, because the venue machine has its own library or
+none at all. The cost is the honest one: editing the library copy does not change shows already built
+with it.
+
 `Output` cannot go inside a subpatch: it is what the surface draws.
 
 ### Learn it by taking a patch apart

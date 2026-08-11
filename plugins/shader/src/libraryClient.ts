@@ -118,3 +118,39 @@ export function contentPatch(entry: LibraryEntry): Partial<SurfaceContent> {
     shaderGraph: entry.graph,
   };
 }
+
+// ── The subpatch library ─────────────────────────────────────────────────────────────────────────
+// Separate from the effect library above because they are different things: an effect REPLACES a
+// surface's shader, a subpatch is one node you add to a graph you are already building.
+
+export interface StoredSubpatch { name: string; def: unknown; savedAt: number }
+
+let subpatchEntries: StoredSubpatch[] = [];
+const subpatchSubs = new Set<() => void>();
+
+export function allSubpatches(): StoredSubpatch[] { return subpatchEntries; }
+export function subscribeSubpatches(cb: () => void): () => void { subpatchSubs.add(cb); return () => { subpatchSubs.delete(cb); }; }
+
+export async function refreshSubpatches(): Promise<void> {
+  if (!ipc) return;
+  try {
+    subpatchEntries = (await ipc.invoke('shader:subpatch:list')) as StoredSubpatch[];
+  } catch (e) {
+    console.warn('[shader] subpatch list failed', (e as Error).message);
+    subpatchEntries = [];
+  }
+  for (const cb of subpatchSubs) cb();
+}
+
+export async function saveSubpatch(name: string, def: unknown): Promise<{ ok: boolean; name: string; error?: string }> {
+  if (!ipc) return { ok: false, name, error: 'no ipc' };
+  const res = (await ipc.invoke('shader:subpatch:save', { name, def })) as { ok: boolean; name: string; error?: string };
+  await refreshSubpatches();
+  return res;
+}
+
+export async function removeSubpatch(name: string): Promise<void> {
+  if (!ipc) return;
+  await ipc.invoke('shader:subpatch:delete', name);
+  await refreshSubpatches();
+}

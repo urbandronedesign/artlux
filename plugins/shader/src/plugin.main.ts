@@ -6,6 +6,7 @@
 import { shell } from 'electron';
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
 import * as libraryStore from './libraryStore';
+import * as subpatchStore from './subpatchStore';
 
 export const plugin: MainPlugin = {
   manifest: { id: 'shader', name: 'Shaders', version: '0.0.0' },
@@ -19,6 +20,14 @@ export const plugin: MainPlugin = {
       libraryStore.save(input as Parameters<typeof libraryStore.save>[0]));
 
     ctx.ipc.handle('shader:library:delete', async (name: unknown) => libraryStore.remove(String(name)));
+
+    // Subpatches are their own library: one JSON file each, because a subpatch is one object where
+    // an effect is code, values and a thumbnail. Same rule as the effects, though — using one COPIES
+    // it into the project, so nothing here is ever read while a show runs.
+    ctx.ipc.handle('shader:subpatch:list', async () => subpatchStore.list());
+    ctx.ipc.handle('shader:subpatch:save', async (input: unknown) =>
+      subpatchStore.save(input as Parameters<typeof subpatchStore.save>[0]));
+    ctx.ipc.handle('shader:subpatch:delete', async (name: unknown) => subpatchStore.remove(String(name)));
 
     ctx.ipc.handle('shader:library:reveal', async () => {
       // Create it first: "Reveal in folder" on a folder that does not exist yet opens nothing at all
