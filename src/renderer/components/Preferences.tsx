@@ -11,6 +11,7 @@ import { layoutStore } from '../services/layoutStore';
 import {
   useRenderScale, setRenderScale, RENDER_SCALE_MIN, RENDER_SCALE_MAX,
   useMaxFps, setMaxFps, MAX_FPS_CHOICES,
+  useLivePreview, setLivePreview,
 } from '../services/scene3dQuality';
 import { useLayout } from '../hooks/useLayout';
 
@@ -140,6 +141,7 @@ const GpuSection: React.FC = () => {
   const [scene3dGpu, setScene3dGpu] = useState(false);
   const renderScale = useRenderScale();
   const maxFps = useMaxFps();
+  const livePreview = useLivePreview();
 
   useEffect(() => {
     try { setForced(localStorage.getItem('artlux.forceWebGL') === '1'); } catch { /* ignore */ }
@@ -214,6 +216,13 @@ const GpuSection: React.FC = () => {
         show: mapping, LED sampling and Art-Net keep running at the engine FPS, so capping the preview
         gives the output GPU time back rather than costing it any. Reach for this when the 3D view is
         slow and the render scale did not help — that means whole frames are expensive, not pixels.
+      </div>
+      <Toggle label="Live gizmo preview" checked={livePreview} onChange={setLivePreview}
+              title="Fixtures follow the 3D transform gizmo while you drag it, instead of jumping to the new pose when you release. Per-machine; the project is still written once, on release." />
+      <div className="text-micro text-fg-3 px-0.5">
+        <strong>On by default.</strong> Turn it off on a weak machine or a very large rig: previewing
+        recomputes the dragged fixtures' LED positions every frame. A big selection already drops to
+        moving the fixture <em>bodies</em> only, and the show file is written once on release either way.
       </div>
       <Toggle label="3D Scene on WebGPU" checked={scene3dGpu} onChange={toggleScene3dGpu}
               title="Render the 3D Scene viewport with WebGPU instead of WebGL. ON by default — turning it off is a diagnostic. Per-machine (localStorage), reload to apply, and it falls back to WebGL by itself if WebGPU is unavailable." />

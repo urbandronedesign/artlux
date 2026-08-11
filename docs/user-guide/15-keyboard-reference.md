@@ -95,6 +95,20 @@ Live only while the timeline drawer is hovered or focused (`Ctrl+T` opens it).
 | `O` | Set out point |
 | `Delete` or `Backspace` | Delete selected (ripple) — Hold Shift to lift (no ripple) |
 
+### 3D scene
+
+Live only while the pointer is over the 3D viewport.
+
+**Tools**
+
+| Shortcut | Action |
+|---|---|
+| `W` | Move tool |
+| `E` | Rotate tool |
+| `R` | Scale tool |
+| `Q` | Box select tool — Drag to select fixtures; hold Shift to add to the selection |
+| `X` | World / Object axes — Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way |
+
 ### Show state-graph editor
 
 Live only while the Show graph has focus.

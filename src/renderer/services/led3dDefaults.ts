@@ -54,3 +54,33 @@ export function spawnPosition3D(n: number): { x: number; y: number; z: number } 
 export function effectiveRotObj(f: Fixture): { pitch: number; yaw: number; roll: number } {
   return f.rotation3D ? { ...f.rotation3D } : { pitch: 0, yaw: 0, roll: f.rotation || 0 };
 }
+
+// THE ONE PLACE THAT DECIDES HOW BIG A FIXTURE IS — same doctrine as fixtureKind and fixtureFootprint.
+//
+// A fixture carries two scale fields: the legacy uniform `scale3D` that every project on disk has, and
+// the per-axis `scaleXYZ` that the gizmo now writes. Per-axis wins when present. Nothing outside this
+// function may ask which is set: a call site that reads `f.scale3D` directly silently ignores a
+// stretched fixture, and it does so by drawing something plausible — a bar at the wrong length is not
+// an error anyone notices until they measure the rig.
+//
+// The axes are the FIXTURE's own, applied before its rotation: X runs along the LED line (and the
+// matrix columns), Y across the rows, Z through the housing. That is what makes "stretch this panel
+// wider" mean the same thing whatever angle it hangs at.
+export function effectiveScale3(f: Fixture): { x: number; y: number; z: number } {
+  const s = f.scaleXYZ;
+  if (s) return { x: pos(s[0]), y: pos(s[1]), z: pos(s[2]) };
+  const u = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
+  return { x: u, y: u, z: u };
+}
+
+/** One number for the few things that genuinely cannot take three (a beam cone, a light's reach).
+ *  The mean, so a fixture that has never been stretched reports exactly its old uniform scale. */
+export function meanScale(f: Fixture): number {
+  const s = effectiveScale3(f);
+  return (s.x + s.y + s.z) / 3;
+}
+
+/** A scale of 0 collapses a fixture to a point it can never be dragged back out of. */
+function pos(v: number): number {
+  return Number.isFinite(v) && v > 0 ? v : 1;
+}

@@ -62,12 +62,13 @@ function parseShortcuts() {
   return defs;
 }
 
-// Human headings for the four listener scopes. The scope is not cosmetic: conflict detection is
+// Human headings for the listener scopes. The scope is not cosmetic: conflict detection is
 // per-scope, so a timeline key may legitimately reuse a global one, and the reader needs to know WHEN a
 // key is live. Anything added to ShortcutScope without a heading here fails the build.
 const SCOPES = {
   global: ['Global', 'Live anywhere in the editor, and suppressed while you are typing in a field.'],
   timeline: ['Timeline', 'Live only while the timeline drawer is hovered or focused (`Ctrl+T` opens it).'],
+  scene3d: ['3D scene', 'Live only while the pointer is over the 3D viewport.'],
   stategraph: ['Show state-graph editor', 'Live only while the Show graph has focus.'],
   projector: ['Projector window', "Live only in a projector window's warp-edit mode."],
 };

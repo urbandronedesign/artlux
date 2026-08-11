@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Fixture, FixtureProfile } from '../../types';
-import { effectivePos, effectiveRot } from '../../services/led3dLayout';
+import { effectivePos, effectiveRot, meanScale } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { rigMetrics, halfAngle } from '../../services/profileRig';
 import { isResolvedLight } from '../../services/fixtureKind';
@@ -69,7 +69,9 @@ export const MoverLights: React.FC<Props> = ({ fixtures, profiles, gain = 1 }) =
 
       const { f, st } = entry;
       const profile = profiles.get(f.profileId!)!;
-      const scale = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
+      // One number — this positions the LENS and sizes the light's reach, neither of which a per-axis
+      // stretch has a meaningful answer for. Same choice as Beams; see meanScale.
+      const scale = meanScale(f);
 
       const rm = rigMetrics(profile);
       q.setFromEuler(effectiveRot(f));

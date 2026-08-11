@@ -1,13 +1,19 @@
 import * as THREE from 'three';
 import { Fixture } from '../types';
-import { effectiveLayout, effectivePosObj, effectiveRotObj } from './led3dDefaults';
+import { effectiveLayout, effectivePosObj, effectiveRotObj, effectiveScale3 } from './led3dDefaults';
 
 // three-based 3D layout (only imported by the lazy Simulator3D components).
 // Produces per-LED world positions; the 3D analog of GPUMapper.updateMapping.
 
 const DEG = Math.PI / 180;
 
-export { effectiveLayout } from './led3dDefaults';
+export { effectiveLayout, effectiveScale3, meanScale } from './led3dDefaults';
+
+/** The fixture's own scale as a three-vector — for the 3D components, which all want it that way. */
+export function effectiveScale(f: Fixture): THREE.Vector3 {
+  const s = effectiveScale3(f);
+  return new THREE.Vector3(s.x, s.y, s.z);
+}
 
 export function effectivePos(f: Fixture): THREE.Vector3 {
   const p = effectivePosObj(f);
@@ -55,10 +61,13 @@ export function computeLedPositions(f: Fixture): Float32Array {
 
   if (f.reverse) local.reverse();
 
-  const scale = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
+  // Per-axis, and applied BEFORE the rotation — the scale is in the fixture's own frame, so stretching
+  // a panel wider means the same thing whatever angle it hangs at. See effectiveScale3.
+  const s = effectiveScale3(f);
+  const scale = new THREE.Vector3(s.x, s.y, s.z);
   const v = new THREE.Vector3();
   for (let i = 0; i < n; i++) {
-    v.copy(local[i]).multiplyScalar(scale).applyEuler(euler).add(pos);
+    v.copy(local[i]).multiply(scale).applyEuler(euler).add(pos);
     out[i * 3] = v.x; out[i * 3 + 1] = v.y; out[i * 3 + 2] = v.z;
   }
   return out;

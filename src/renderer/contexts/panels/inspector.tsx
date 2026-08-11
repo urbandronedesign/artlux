@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType,
+  Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Fixture,
 } from '../../types';
 import { AlertTriangle } from 'lucide-react';
 import { ContentEditor } from '../../components/ContentEditor';
@@ -11,7 +11,7 @@ import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveMode } from '../../services/addressing';
 import { isPixel, profileOf } from '../../services/fixtureKind';
 import { channelValue, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
-import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../../services/led3dDefaults';
+import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 
 // Parameter-column panels — the sections `InspectorPanel` used to render as one component.
@@ -604,6 +604,35 @@ export const FixturePositionPanel: React.FC = () => {
       <NumberInput label="Pitch" value={+rot.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
       <NumberInput label="Yaw" value={+rot.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
       <NumberInput label="Roll" value={+rot.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
+      {/* A head has no LED run to lay out, but it does have a body, and this is what sizes it — so the
+          same three numbers belong here too rather than only on the pixel card. */}
+      <ScaleFields f={f} />
+    </>
+  );
+};
+
+// Scale, per axis, in the FIXTURE's own frame — X along the LED line and the matrix columns, Y across
+// the rows, Z through the housing. The gizmo's scale handles write the same three numbers (three drives
+// them independently and always in local space), so this is the typed half of the same control rather
+// than a second way to size a fixture.
+//
+// Shared by both position cards, because a light has no `3D Layout` section to put it in and its body
+// is scaled by exactly this.
+const ScaleFields: React.FC<{ f: Fixture }> = ({ f }) => {
+  const a = useEditorActions();
+  const s = effectiveScale3(f);
+  // Always writes the per-axis field, and retires the legacy uniform one on the same edit — the same
+  // rule the gizmo follows, so a fixture never carries two answers to how big it is.
+  const set = (k: 'x' | 'y' | 'z', v: number) => a.updateFixture(f.id, {
+    scaleXYZ: [k === 'x' ? v : s.x, k === 'y' ? v : s.y, k === 'z' ? v : s.z],
+    scale3D: undefined,
+  });
+  return (
+    <>
+      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Scale (×)</div>
+      <NumberInput label="X" value={+s.x.toFixed(3)} step={0.05} onChange={(v) => set('x', Math.max(0.01, v))} />
+      <NumberInput label="Y" value={+s.y.toFixed(3)} step={0.05} onChange={(v) => set('y', Math.max(0.01, v))} />
+      <NumberInput label="Z" value={+s.z.toFixed(3)} step={0.05} onChange={(v) => set('z', Math.max(0.01, v))} />
     </>
   );
 };
@@ -629,6 +658,7 @@ export const FixtureLayout3DPanel: React.FC = () => {
       <NumberInput label="Pitch" value={+rot.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
       <NumberInput label="Yaw" value={+rot.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
       <NumberInput label="Roll" value={+rot.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
+      <ScaleFields f={f} />
 
       <div className="flex items-center justify-between text-xs gap-2 pt-1">
         <label className="text-fg-2 w-16 truncate">Layout</label>

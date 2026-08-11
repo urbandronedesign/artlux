@@ -3,9 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Fixture, FixtureProfile } from '../../types';
-import { effectivePos, effectiveRot } from '../../services/led3dLayout';
+import { effectivePos, effectiveRot, effectiveScale3 } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { rigMetrics } from '../../services/profileRig';
+import { hasPreview, livePose } from './fixturePreview';
 
 // A fixture drawn from its REAL GDTF geometry, articulated by its live pan/tilt.
 //
@@ -62,6 +63,7 @@ function loadMesh(path: string): Promise<THREE.Group | null> {
 export const GdtfFixture: React.FC<Props> = ({ fixture, profile, selected, onSelect, onUnavailable }) => {
   const geometry = profile.geometry;
   const [root, setRoot] = useState<THREE.Group | null>(null);
+  const groupRef = useRef<THREE.Group | null>(null);
   // The nodes that move, resolved once so the frame loop is a couple of quaternion writes.
   const joints = useRef<Array<{ obj: THREE.Object3D; axis: 'pan' | 'tilt' }>>([]);
   const scratch = useMemo(() => ({ q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), right: new THREE.Vector3(1, 0, 0) }), []);
@@ -112,7 +114,24 @@ export const GdtfFixture: React.FC<Props> = ({ fixture, profile, selected, onSel
     return () => { alive = false; };
   }, [geometry, fixture.id, onUnavailable]);
 
+  // THE LIVE DRAG. The group's pose is declarative (props below), which is right for the committed
+  // document and wrong for a gesture in flight — the transform gizmo publishes the drag outside React
+  // precisely so nothing re-renders at pointer rate. So while a preview names this fixture, the group's
+  // transform is written here instead, and once more on the frame the preview ends: that last write is
+  // what puts a GDTF head back if a gesture is abandoned rather than committed. When no gesture is
+  // running this costs one boolean per frame and the props remain the only thing positioning the group.
+  const posed = useRef(false);
   useFrame(() => {
+    const g = groupRef.current;
+    const dragged = hasPreview(fixture.id);
+    if (g && (dragged || posed.current)) {
+      const f = dragged ? livePose(fixture) : fixture;
+      g.position.copy(effectivePos(f));
+      g.rotation.copy(effectiveRot(f));
+      const s = effectiveScale3(f);
+      g.scale.set(s.x, s.y, s.z);
+      posed.current = dragged;
+    }
     if (!joints.current.length) return;
     const st = fixtureSignal.snapshot().get(fixture.id);
     if (!st) return;
@@ -130,10 +149,12 @@ export const GdtfFixture: React.FC<Props> = ({ fixture, profile, selected, onSel
 
   const pos = effectivePos(fixture);
   const rot = effectiveRot(fixture);
-  const scale = fixture.scale3D && fixture.scale3D > 0 ? fixture.scale3D : 1;
+  const s = effectiveScale3(fixture);
+  const scale: [number, number, number] = [s.x, s.y, s.z];
 
   return (
     <group
+      ref={groupRef}
       position={pos}
       rotation={rot}
       scale={scale}

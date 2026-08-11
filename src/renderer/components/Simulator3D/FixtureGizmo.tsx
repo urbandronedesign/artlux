@@ -1,17 +1,22 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { Fixture, Vec3, Euler3 } from '../../types';
-import { effectivePos, effectiveRot } from '../../services/led3dLayout';
+import { Fixture } from '../../types';
+import { effectivePos, effectiveRot, effectiveScale } from '../../services/led3dLayout';
+import { gizmoDelta, type GizmoBasis, type GizmoStart } from './gizmoDelta';
+import { setPreview, clearPreview, type FixtureTransform } from './fixturePreview';
+import { getLivePreview } from '../../services/scene3dQuality';
 
-const DEG = Math.PI / 180;
-
-export interface FixtureTransform { position3D?: Vec3; rotation3D?: Euler3; scale3D?: number }
+export type { FixtureTransform } from './fixturePreview';
 
 interface Props {
   /** The whole selection. Empty ⇒ no gizmo. */
   fixtures: Fixture[];
   mode: 'translate' | 'rotate' | 'scale';
+  /** Handle orientation: the room's axes, or the active fixture's own. Never the pivot — see below. */
+  space?: 'world' | 'local';
+  /** The fixture the handles take their orientation from in 'local'. Defaults to the first selected. */
+  activeId?: string | null;
   onRecordHistory: () => void;
   /** One call per gesture, carrying every fixture the drag moved. */
   onCommit: (updates: Array<{ id: string } & FixtureTransform>) => void;
@@ -24,45 +29,63 @@ interface Props {
 // and then had to move them one at a time. Rigs are built in rows and arcs; that is the wrong unit
 // of work.
 //
-// HOW A MULTI-DRAG IS EXPRESSED. The gizmo anchors at the selection's CENTROID and the drag is read
-// as a DELTA off that anchor, which is then applied to every selected fixture:
-//   · translate — add the world delta to each position;
-//   · rotate    — orbit each position about the centroid AND add the same rotation to each fixture's
-//                 own orientation (a rotated row of heads must both swing around and turn);
-//   · scale     — scale each fixture's OFFSET from the centroid, spreading or tightening the group.
-//                 The per-fixture `scale3D` is left alone: it sizes a fixture's own LED layout, and
-//                 multiplying it here would make a row of heads physically bigger when the operator
-//                 asked for them to be further apart.
-// A single fixture is just the one-element case, so there is no second code path to keep in step.
-export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, onRecordHistory, onCommit }) => {
+// The maths of a drag lives in gizmoDelta.ts, because it is needed TWICE: once per frame to draw the
+// live preview, and once on release to commit. See that file for what a gesture means.
+//
+// WHAT IS PUBLISHED AND WHAT IS WRITTEN. Every `objectChange` publishes the gesture to the preview
+// channel — the 3D renderers pick it up in their own frame loop and move the LEDs and bodies under the
+// handle. Nothing touches React or the document until `mouseUp`, which commits once. So the picture is
+// live and the document still changes exactly one time per gesture, i.e. one undo step and one
+// re-render. See fixturePreview.ts for why that split is not negotiable.
+export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world', activeId, onRecordHistory, onCommit }) => {
   const anchor = useMemo(() => new THREE.Group(), []);
   const controls = useRef<any>(null);
 
   // The selection as it was when the drag STARTED. Deltas are applied to this, never to the live
   // fixtures: reading committed state mid-drag would compound each frame's delta into the next.
-  const startRef = useRef<{ pos: THREE.Vector3; rot: THREE.Euler; scale: number; id: string }[]>([]);
-  const centroidRef = useRef(new THREE.Vector3());
+  const startRef = useRef<GizmoStart[]>([]);
+  // The ANCHOR's own basis at grab time — the other half of every subtraction (see gizmoDelta).
+  const basisRef = useRef<GizmoBasis>({
+    centroid: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1),
+  });
   const dragging = useRef(false);
   const moved = useRef(false);
+  // Read once per gesture rather than per frame: toggling the preference mid-drag would change what a
+  // gesture means half way through it.
+  const previewing = useRef(false);
 
   const ids = fixtures.map((f) => f.id).join(',');
 
   // Park the anchor on the selection centroid whenever the selection (or its transforms) changes.
   // Skipped while dragging — TransformControls owns the anchor then, and resetting it would fight
   // the pointer.
+  //
+  // THE PIVOT IS ALWAYS THE CENTROID; only the AXES change. That separation is what makes "Object"
+  // safe to leave on: switching it can never move where a rotation turns about or where a spread
+  // spreads from, so it is a change of grip and not a change of gesture. (Blender calls this median
+  // point + active orientation, and it is the right default for a row of bars on an angled truss.)
   useEffect(() => {
     if (!fixtures.length || dragging.current) return;
     const c = new THREE.Vector3();
     for (const f of fixtures) c.add(effectivePos(f));
     c.divideScalar(fixtures.length);
     anchor.position.copy(c);
-    // A single fixture keeps its own orientation under the gizmo (so a rotate handle starts aligned
-    // to the thing being rotated); a multi-selection has no meaningful shared orientation, so the
-    // anchor stays world-aligned and rotation is read as a pure delta.
-    if (fixtures.length === 1) anchor.rotation.copy(effectiveRot(fixtures[0]));
+    // In 'local' the handles follow the ACTIVE fixture — the one the operator clicked last, which is
+    // the one they are thinking in the frame of. In 'world' the anchor keeps exactly what it always
+    // had: a lone fixture's own rotation (three forces SCALE handles to local regardless, so this is
+    // what has always aligned them to the bar), and identity for a multi-selection, which has no
+    // shared orientation to speak of. So 'world' is unchanged, to the frame.
+    const active = (activeId && fixtures.find((f) => f.id === activeId)) || fixtures[0];
+    if (space === 'local') anchor.rotation.copy(effectiveRot(active));
+    else if (fixtures.length === 1) anchor.rotation.copy(effectiveRot(fixtures[0]));
     else anchor.rotation.set(0, 0, 0);
     anchor.scale.setScalar(1);
-  }, [anchor, fixtures, ids]);
+  }, [anchor, fixtures, ids, space, activeId]);
+
+  // A preview that outlives its gesture would freeze the rig at wherever the handle was. Unmounting
+  // is one of the ways a gesture ends (the selection is cleared, the model gizmo takes over, the
+  // context switches away), and none of them fire `mouseUp`.
+  useEffect(() => clearPreview, []);
 
   useEffect(() => {
     const c = controls.current;
@@ -71,60 +94,38 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, onRecordHistory,
     const onDown = () => {
       moved.current = false;
       dragging.current = true;
+      previewing.current = getLivePreview();
       // Snapshot the selection AND the anchor the deltas will be measured from.
-      centroidRef.current.copy(anchor.position);
+      basisRef.current = {
+        centroid: anchor.position.clone(),
+        quat: anchor.quaternion.clone(),
+        scale: anchor.scale.clone(),
+      };
       startRef.current = fixtures.map((f) => ({
         id: f.id,
         pos: effectivePos(f),
         rot: effectiveRot(f),
-        scale: f.scale3D && f.scale3D > 0 ? f.scale3D : 1,
+        scale: effectiveScale(f),
       }));
     };
 
     // Record history on the first real movement, not on grab: TransformControls fires mouseDown even
     // for a click that never drags, and recording there pushed a junk undo entry per click.
-    const onChange = () => { if (!moved.current) { moved.current = true; onRecordHistory(); } };
+    const onChange = () => {
+      if (!moved.current) { moved.current = true; onRecordHistory(); }
+      // The live picture. No state, no document — see fixturePreview.ts.
+      if (previewing.current) setPreview(gizmoDelta(startRef.current, basisRef.current, anchor, mode));
+    };
 
     const onUp = () => {
       dragging.current = false;
+      clearPreview();
       if (!moved.current) return; // a pure click on a handle — nothing to record or commit
-      const start = startRef.current;
-      const centroid = centroidRef.current;
-
-      const delta = new THREE.Vector3().subVectors(anchor.position, centroid);
-      const spread = Math.max(0.001, anchor.scale.x);
-      const rotQuat = new THREE.Quaternion().setFromEuler(anchor.rotation);
-
-      const updates = start.map((s) => {
-        const out: { id: string } & FixtureTransform = { id: s.id };
-
-        if (mode === 'translate') {
-          const p = s.pos.clone().add(delta);
-          out.position3D = { x: p.x, y: p.y, z: p.z };
-        } else if (mode === 'rotate') {
-          // Orbit the position about the centroid…
-          const p = s.pos.clone().sub(centroid).applyQuaternion(rotQuat).add(centroid);
-          out.position3D = { x: p.x, y: p.y, z: p.z };
-          // …and turn the fixture itself by the same amount. Composed as quaternions so a rotation
-          // about two axes does not gimbal into something the operator did not ask for.
-          const e = new THREE.Euler().setFromQuaternion(
-            rotQuat.clone().multiply(new THREE.Quaternion().setFromEuler(s.rot)), 'XYZ',
-          );
-          out.rotation3D = { pitch: e.x / DEG, yaw: e.y / DEG, roll: e.z / DEG };
-        } else if (start.length === 1) {
-          // Scale SPREADS the group; a lone fixture instead scales its own layout, because a
-          // one-element "spread" would move nothing and the handle would appear dead.
-          out.scale3D = Math.max(0.01, s.scale * spread);
-        } else {
-          const p = s.pos.clone().sub(centroid).multiplyScalar(spread).add(centroid);
-          out.position3D = { x: p.x, y: p.y, z: p.z };
-        }
-        return out;
-      });
-
-      onCommit(updates);
-      // Re-park the anchor for the next gesture: the fixtures have moved under it, and a rotate/scale
-      // anchor must return to identity or the next drag would start from a stale basis.
+      onCommit(gizmoDelta(startRef.current, basisRef.current, anchor, mode));
+      // Re-park the anchor for the next gesture: the fixtures have moved under it, so the effect above
+      // re-centres it on the new centroid (and re-aligns it for a single fixture). Zeroing rotation and
+      // scale here keeps the HANDLES where the operator expects to find them — the next drag's maths no
+      // longer depends on it, because the deltas are measured against whatever the grab found.
       anchor.rotation.set(0, 0, 0);
       anchor.scale.setScalar(1);
     };
@@ -144,7 +145,11 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, onRecordHistory,
   return (
     <>
       <primitive object={anchor} />
-      <TransformControls ref={controls} object={anchor} mode={mode} size={0.8} />
+      {/* `space` only orients the HANDLES (three: TransformControls.js:1538 — the gizmo quaternion is
+          the object's in local and identity in world). The commit is unaffected either way, because a
+          gesture is read as a delta against whatever basis the grab found — which is exactly why that
+          had to be fixed before this switch could exist. */}
+      <TransformControls ref={controls} object={anchor} mode={mode} space={space} size={0.8} />
     </>
   );
 };

@@ -35,6 +35,7 @@ function score(needle: string, hay: string): number {
 
 const SCOPE_LABEL: Record<string, string> = {
   global: 'Global', timeline: 'Timeline', projector: 'Projector', stategraph: 'State graph',
+  scene3d: '3D scene',
 };
 
 const Chip: React.FC<{ children: React.ReactNode }> = ({ children }) => (

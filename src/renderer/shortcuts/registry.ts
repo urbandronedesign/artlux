@@ -58,6 +58,17 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   // The recovery gesture for the unbounded graph canvas — same job as the Stage's Fit button.
   { id: 'stategraph.fitView', label: 'Fit graph in view', category: 'View', scope: 'stategraph', defaultBinding: ['F'], description: 'Frames every state and region. The toolbar Fit button does the same; Alt-click it to reset the view to 1:1.' },
 
+  // ── 3D scene (active while the 3D viewport is hovered) ────────────────────────────────────────────
+  // NOT seeded from working code, unlike every other block here: the viewport's toolbar has advertised
+  // "Move (W)", "Rotate (E)", "Scale (R)" and "Box select (Q)" in its tooltips since it shipped, and the
+  // user guide tells the operator to press them — and NOTHING was ever listening. Only the buttons
+  // worked. So these are the bindings the app has been claiming to have, made real and rebindable.
+  { id: 'scene3d.modeTranslate', label: 'Move tool',       category: 'Tools', scope: 'scene3d', defaultBinding: ['W'] },
+  { id: 'scene3d.modeRotate',    label: 'Rotate tool',     category: 'Tools', scope: 'scene3d', defaultBinding: ['E'] },
+  { id: 'scene3d.modeScale',     label: 'Scale tool',      category: 'Tools', scope: 'scene3d', defaultBinding: ['R'] },
+  { id: 'scene3d.modeSelect',    label: 'Box select tool', category: 'Tools', scope: 'scene3d', defaultBinding: ['Q'], description: 'Drag to select fixtures; hold Shift to add to the selection.' },
+  { id: 'scene3d.gizmoSpace',    label: 'World / Object axes', category: 'Tools', scope: 'scene3d', defaultBinding: ['X'], description: 'Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way.' },
+
   // ── Projector warp editing (active only in a projector window's warp-edit mode) ───────────────────
   // The projector runs in its own renderer window (ProjectorApp); it hydrates the keymap from prefs on
   // mount, so these are live there. Esc-to-dismiss stays hardcoded (universal cancel).

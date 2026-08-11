@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { ThreeEvent } from '@react-three/fiber';
+import { ThreeEvent, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Fixture } from '../../types';
-import { effectivePos, effectiveRot, effectiveLayout } from '../../services/led3dLayout';
+import { effectivePos, effectiveRot, effectiveLayout, effectiveScale3 } from '../../services/led3dLayout';
 import { LED_PICK } from './pickPriority';
+import { isPreviewing, previewRev, livePose, hasPreview } from './fixturePreview';
 
 // The fixture BODY — one slim bar per fixture, behind its LEDs.
 //
@@ -57,36 +58,75 @@ export const FixtureBodies: React.FC<Props> = ({ fixtures, selectedIds, onSelect
 
   // Rebuild only when something that MOVES or RESIZES a bar changes — not on colour or selection.
   const sig = useMemo(() => JSON.stringify(fixtures.map((f) => ({
-    c: f.ledCount, p: f.position3D, r: f.rotation3D, l: f.layout3D, s: f.scale3D,
+    c: f.ledCount, p: f.position3D, r: f.rotation3D, l: f.layout3D, s: f.scale3D, sxyz: f.scaleXYZ,
   }))), [fixtures]);
+
+  // Scratch shared by the committed rebuild and the live drag below — neither may allocate per frame.
+  const scratch = useMemo(() => ({
+    m: new THREE.Matrix4(), q: new THREE.Quaternion(),
+    pos: new THREE.Vector3(), scl: new THREE.Vector3(), off: new THREE.Vector3(),
+  }), []);
+
+  /** One bar's instance matrix, from whatever pose it is being drawn at. */
+  const writeBar = (mesh: THREE.InstancedMesh, i: number, f: Fixture) => {
+    const { m, q, pos, scl, off } = scratch;
+    const { length, radius } = barSize(f);
+    // Per-axis, in the fixture's own frame: X is the bar's length, Y its height across the rows, Z its
+    // depth. Stretching a matrix panel wider must widen the housing with it, or the proxy stops
+    // describing the thing it is standing in for.
+    const s = effectiveScale3(f);
+    const euler = effectiveRot(f);
+    q.setFromEuler(euler);
+    // Sit the housing behind the LED line, in the fixture's own frame.
+    off.set(0, 0, -radius * s.z).applyEuler(euler);
+    pos.copy(effectivePos(f)).add(off);
+    scl.set(length * s.x, radius * s.y, radius * s.z);
+    m.compose(pos, q, scl);
+    mesh.setMatrixAt(i, m);
+  };
 
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh || count === 0) return;
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const pos = new THREE.Vector3();
-    const scl = new THREE.Vector3();
-    const off = new THREE.Vector3();
-    for (let i = 0; i < count; i++) {
-      const f = fixtures[i];
-      const { length, radius } = barSize(f);
-      const fs = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
-      const euler = effectiveRot(f);
-      q.setFromEuler(euler);
-      // Sit the housing behind the LED line, in the fixture's own frame.
-      off.set(0, 0, -radius * fs).applyEuler(euler);
-      pos.copy(effectivePos(f)).add(off);
-      scl.set(length * fs, radius * fs, radius * fs);
-      m.compose(pos, q, scl);
-      mesh.setMatrixAt(i, m);
-    }
+    for (let i = 0; i < count; i++) writeBar(mesh, i, fixtures[i]);
     mesh.instanceMatrix.needsUpdate = true;
     // Same trap as InstancedLeds: three caches boundingSphere from the first raycast and
     // `needsUpdate` does not invalidate it, so a moved fixture would stop being clickable.
     mesh.computeBoundingSphere();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig, count]);
+
+  // ── THE LIVE DRAG ─────────────────────────────────────────────────────────────────────────
+  // The housings follow the transform gizmo while it is held (see fixturePreview.ts). One instance per
+  // dragged fixture, so this is cheap enough to be the LAST thing that stops previewing — past the LED
+  // budget the pixels sit still and these bars are all that moves, which still shows the operator where
+  // the selection is going.
+  //
+  // No computeBoundingSphere here: it is an O(count) walk whose only job is keeping the bars clickable,
+  // and the committed rebuild above runs on release, which is when a click can next happen.
+  const appliedRev = useRef(-1);
+  const dirty = useRef<number[]>([]);
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh || count === 0) return;
+    const rev = previewRev();
+    if (rev === appliedRev.current) return;
+    appliedRev.current = rev;
+    const live = isPreviewing();
+
+    const next: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const f = fixtures[i];
+      const dragged = live && hasPreview(f.id);
+      // Written while dragged, and once more on the frame that stops dragging it — see InstancedLeds
+      // on why the restore cannot be left to the commit alone.
+      if (!dragged && !dirty.current.includes(i)) continue;
+      writeBar(mesh, i, dragged ? livePose(f) : f);
+      if (dragged) next.push(i);
+    }
+    dirty.current = next;
+    mesh.instanceMatrix.needsUpdate = true;
+  });
 
   // Selection tint — per instance, so highlighting costs no extra draw.
   useEffect(() => {

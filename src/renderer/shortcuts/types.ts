@@ -10,7 +10,7 @@ export type Chord = string;
 // The scope is the listener that owns a shortcut. Conflict detection is per-scope: a timeline-only key
 // (active only when the timeline panel is focused) may legitimately reuse a global key, so the editor
 // only blocks a duplicate WITHIN the same scope.
-export type ShortcutScope = 'global' | 'timeline' | 'projector' | 'stategraph';
+export type ShortcutScope = 'global' | 'timeline' | 'projector' | 'stategraph' | 'scene3d';
 
 export interface ShortcutDef {
   /** Stable id, never shown to the user, never changed once shipped (it is the prefs key). */

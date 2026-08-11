@@ -31,6 +31,16 @@ export const scene3dHelp: HelpEntry[] = [
     shortcut: 'R',
   },
 
+  {
+    id: 'scene3d.gizmo-space',
+    title: 'World / Object axes',
+    short: 'Align the gizmo handles to the world, or to the fixture itself.',
+    body: 'World keeps the handles on the room\'s X/Y/Z, which is what you want for hanging things level. Object turns them to match the selected fixture, so a bar angled across a truss can be slid along its OWN length or aimed around its own axis. With several fixtures selected, the handles take the orientation of the last one you clicked and still pivot on the middle of the selection.',
+    group: '3D Scene',
+    keywords: ['world', 'object', 'local', 'space', 'axes', 'gizmo', 'align', 'orientation'],
+    shortcut: 'X',
+  },
+
   // ── Objects browser + header actions ────────────────────────────────────────────────────────
   {
     id: 'scene3d.model-visibility',

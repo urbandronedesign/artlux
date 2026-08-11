@@ -132,6 +132,134 @@ check(
     ? null : 'src/renderer/components/Simulator3D/FixtureBodies.tsx is gone'),
 );
 
+// ── 3D: a gizmo gesture is a DELTA against the anchor's basis at grab time ────────────────────
+check(
+  'the fixture gizmo commits deltas, not the anchor\'s absolute transform',
+  'The gizmo anchor does NOT always start at identity: for a single-fixture selection it is parked on ' +
+  "that fixture's own rotation so the handles start aligned to it. Reading the anchor's absolute " +
+  'orientation as if it were the drag then multiplies the fixture\'s rotation onto itself — a bar at ' +
+  'yaw 30 dragged by 10 committed at yaw 70, silently, and only for fixtures that were already ' +
+  'rotated (at yaw 0 the bug is the identity). Both halves of the subtraction must be snapshotted on ' +
+  'mouseDown, and the same holds for scale.',
+  () => {
+    const G = 'src/renderer/components/Simulator3D/FixtureGizmo.tsx';
+    const D = 'src/renderer/components/Simulator3D/gizmoDelta.ts';
+    if (!exists(G)) return `${G} is gone — nothing owns the 3D transform gesture`;
+    if (!exists(D)) return `${D} is gone — the preview and the commit have no shared maths to agree on`;
+    const giz = stripComments(read(G));
+    const del = stripComments(read(D));
+    const problems = [];
+    // The grab must capture the anchor's own basis, not only the centroid.
+    if (!/quat:\s*anchor\.quaternion\.clone\(\)/.test(giz))
+      problems.push('mouseDown no longer snapshots the anchor quaternion — the rotation delta has no origin to subtract');
+    // …and the maths must subtract it. Reading the anchor's absolute rotation is the exact regression.
+    if (/setFromEuler\(\s*anchor\.rotation\s*\)/.test(del))
+      problems.push("the delta reads the anchor's ABSOLUTE rotation again (setFromEuler(anchor.rotation))");
+    // The inverse may be named (it is also needed to scale a group in the anchor's frame), so accept
+    // either form — what must hold is that the basis is INVERTED and multiplied onto the anchor.
+    const inverted = /basis\.quat\.clone\(\)\.invert\(\)/.test(del);
+    const applied = /anchor\.quaternion\.clone\(\)\.multiply\(\s*(?:invBasis|basis\.quat\.clone\(\)\.invert\(\))\s*\)/.test(del);
+    if (!inverted || !applied)
+      problems.push('the rotation is not anchorNow · anchorAtGrab⁻¹');
+    // Per axis: three drives the three scale handles independently, so reading only .x throws two of
+    // them away — which is exactly how "scale each axis" looked like it did nothing.
+    for (const ax of ['x', 'y', 'z']) {
+      if (!new RegExp(`anchor\\.scale\\.${ax}\\s*/\\s*\\(?basis\\.scale\\.${ax}`).test(del))
+        problems.push(`the ${ax} scale factor is not measured against the anchor scale at grab time`);
+    }
+    // ONE implementation, called from both places. A second copy is how the preview and the committed
+    // result drift — and that drift is only discoverable by letting go of the handle.
+    const calls = (giz.match(/gizmoDelta\(/g) ?? []).length;
+    if (calls < 2)
+      problems.push(`FixtureGizmo calls gizmoDelta() ${calls}× — the live preview and the commit must both go through it`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── 3D: ONE place decides how big a fixture is ────────────────────────────────────────────────
+check(
+  'a fixture\'s scale is read through effectiveScale3',
+  'A fixture carries two scale fields — the legacy uniform `scale3D` every project on disk has, and ' +
+  'the per-axis `scaleXYZ` the gizmo writes. `effectiveScale3` is the only thing allowed to choose ' +
+  'between them, the same doctrine as fixtureKind and fixtureFootprint. A call site that reads ' +
+  '`f.scale3D` itself ignores a stretched fixture AND does it by drawing something plausible: a bar ' +
+  'at the wrong length is not an error anybody notices until they measure the rig. The two places ' +
+  'that genuinely cannot take three numbers (a beam cone, a light\'s reach) go through meanScale.',
+  () => {
+    const D = 'src/renderer/services/led3dDefaults.ts';
+    if (!read(D).includes('export function effectiveScale3'))
+      return `${D} no longer owns effectiveScale3 — nothing arbitrates the two scale fields`;
+    const bad = [];
+    for (const f of walk('src/renderer').concat(walk('plugins'))) {
+      if (f.endsWith('led3dDefaults.ts')) continue;             // the resolver itself
+      // The preview channel MERGES the two fields onto a fixture copy; it never decides a size from
+      // them (its consumers still go through effectiveScale3), so a passthrough there is correct.
+      if (f.endsWith('fixturePreview.ts')) continue;
+      const src = stripComments(read(f));
+      // Reading the RAW field anywhere else is the regression. `scaleXYZ:` as a written key is fine —
+      // it is the read that has to be funnelled, and the layout signatures must name it to notice a
+      // change at all, which is why this looks for a value read rather than any mention.
+      if (/\bf(?:ixture)?\.scale3D\s*(?:&&|\?|\|\||[><=+*/)])/.test(src)) bad.push(f);
+    }
+    return bad.length ? `reads f.scale3D directly instead of effectiveScale3: ${bad.join(', ')}` : null;
+  },
+);
+
+// ── 3D: a layout signature must name every field that MOVES a fixture ─────────────────────────
+check(
+  'the 3D layout signatures cover the whole transform',
+  'InstancedLeds and FixtureBodies rebuild their instance buffers only when a JSON signature of the ' +
+  'fixtures changes. A transform field missing from that signature does not throw and does not warn: ' +
+  'the fixture simply never moves, and the inspector cheerfully shows the new value. Every field ' +
+  'that positions, orients, sizes or lays out a fixture has to be named there.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/components/Simulator3D/InstancedLeds.tsx',
+                     'src/renderer/components/Simulator3D/FixtureBodies.tsx']) {
+      const src = stripComments(read(f));
+      const sig = src.match(/const \w*[Ss]ig\w* = useMemo\(\(\) => JSON\.stringify\([\s\S]*?\)\), \[fixtures\]\);/);
+      if (!sig) { bad.push(`${f} (no layout signature found)`); continue; }
+      for (const field of ['position3D', 'rotation3D', 'layout3D', 'scale3D', 'scaleXYZ', 'ledCount']) {
+        if (!sig[0].includes(field)) bad.push(`${f} omits ${field}`);
+      }
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+// ── 3D: the drag preview is a pointer-rate channel, never React state ─────────────────────────
+check(
+  'the fixture drag preview never re-renders',
+  'The gizmo commits ONCE on release because App owns all state: pushing the fixtures array per ' +
+  'pointer move re-renders the whole editor and re-runs computeLedPositions over every fixture ' +
+  '(the same rule the Stage drag check states). The live preview exists so the operator can still ' +
+  'see the drag — which only holds if it stays outside React entirely: a module channel the 3D ' +
+  'renderers poll by revision in their own useFrame. A hook in that channel would reintroduce, at ' +
+  'pointer rate, the exact cost the deferred commit was protecting.',
+  () => {
+    const P = 'src/renderer/components/Simulator3D/fixturePreview.ts';
+    if (!exists(P)) return null; // preview removed entirely — the deferred commit alone is still valid
+    const src = stripComments(read(P));
+    const problems = [];
+    if (/from ['"]react['"]/.test(src) || /useState|useEffect|useRef/.test(src))
+      problems.push(`${P} imports React — it is a pointer-rate channel and must hold no hooks`);
+    if (!/rev\+\+/.test(src))
+      problems.push(`${P} no longer bumps a revision — consumers poll it to skip unchanged frames`);
+    // Every consumer must poll, and none may recompute the pick geometry per frame: computeBoundingSphere
+    // is an O(instances) walk whose only job is keeping a MOVED fixture clickable, which cannot happen
+    // mid-drag. The committed rebuild does it on release.
+    for (const f of ['src/renderer/components/Simulator3D/InstancedLeds.tsx',
+                     'src/renderer/components/Simulator3D/FixtureBodies.tsx']) {
+      const c = stripComments(read(f));
+      if (!/previewRev\(\)/.test(c)) { problems.push(`${f} does not poll the preview revision`); continue; }
+      const frame = c.match(/useFrame\(\(\)\s*=>\s*\{[\s\S]*?\n  \}\);/);
+      if (frame && /computeBoundingSphere/.test(frame[0]))
+        problems.push(`${f} recomputes its bounding sphere inside the frame loop — an O(n) walk per drag frame`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── 3D: an overlay pick target must be sized in PIXELS, not world units ───────────────────────
 check(
   'calibration anchor markers are screen-constant',

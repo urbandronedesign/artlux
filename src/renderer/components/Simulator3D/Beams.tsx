@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { nodes, isWebGPURenderer } from './renderer3d';
 import { Fixture, FixtureProfile } from '../../types';
-import { effectivePos, effectiveRot } from '../../services/led3dLayout';
+import { effectivePos, effectiveRot, meanScale } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { rigMetrics, halfAngle } from '../../services/profileRig';
 import { isResolvedLight } from '../../services/fixtureKind';
@@ -246,7 +246,10 @@ export const Beams: React.FC<Props> = ({ fixtures, profiles, hazeDensity }) => {
       const f = movers[i];
       const profile = profiles.get(f.profileId!)!;
       const st = states.get(f.id);
-      const scale = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
+      // ONE number, not three: a beam is a cone whose apex sits at the lens, and there is no honest
+      // reading of "stretched twice as wide on X" for the light it throws. The mean equals the old
+      // uniform scale for any fixture nobody has stretched. See meanScale.
+      const scale = meanScale(f);
 
       // A dark (or budgeted-out) fixture is collapsed to zero size rather than skipped: the instance
       // count is fixed, so there is no "skip" — leaving a stale matrix would freeze a beam in mid-air

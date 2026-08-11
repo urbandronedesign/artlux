@@ -3,11 +3,12 @@ import { ThreeEvent } from '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Fixture, FixtureProfile } from '../../types';
-import { effectivePos, effectiveRot } from '../../services/led3dLayout';
+import { effectivePos, effectiveRot, effectiveScale3 } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { rigMetrics } from '../../services/profileRig';
 import { isResolvedLight } from '../../services/fixtureKind';
 import { LED_PICK } from './pickPriority';
+import { livePose } from './fixturePreview';
 
 // PROFILED fixtures in 3D — a base, a yoke and a head, articulated by the fixture's live Pan/Tilt.
 //
@@ -92,10 +93,16 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
     const { m, q, qp, qt, p, s, off, up, right, headCol, yokeQ, headQ } = scratch;
 
     for (let i = 0; i < count; i++) {
-      const f = movers[i];
+      // The gizmo's live gesture, when one is running — the head follows the handle instead of jumping
+      // on release. Free here: this loop already rewrites every matrix from `effectivePos/Rot` each
+      // frame for pan/tilt, so previewing is a question of WHICH pose it reads, not extra work.
+      const f = livePose(movers[i]);
       const profile = profiles.get(f.profileId!);
       const d = dims(profile);
-      const scale = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
+      // Per-axis in the head's own frame. The STACKING offsets below use the Y component alone,
+      // because they walk up the fixture (base → yoke → head) and a body stretched sideways must not
+      // pull its own head off the top of its yoke.
+      const scale = effectiveScale3(f);
       const st = states.get(f.id);
 
       const rootPos = effectivePos(f);
@@ -104,7 +111,7 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
 
       // BASE — the fixture's own frame, sitting at its origin.
       p.copy(rootPos);
-      s.set(d.base[0] * scale, d.base[1] * scale, d.base[2] * scale);
+      s.set(d.base[0] * scale.x, d.base[1] * scale.y, d.base[2] * scale.z);
       m.compose(p, q, s);
       b.setMatrixAt(i, m);
 
@@ -121,9 +128,9 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
       qp.setFromAxisAngle(up, ((st?.pan ?? panMid) - panMid) * DEG);
       yokeQ.copy(q).multiply(qp);
 
-      off.set(0, (d.base[1] * 0.5 + d.yoke[1] * 0.5) * scale, 0).applyQuaternion(q);
+      off.set(0, (d.base[1] * 0.5 + d.yoke[1] * 0.5) * scale.y, 0).applyQuaternion(q);
       p.copy(rootPos).add(off);
-      s.set(d.yoke[0] * scale, d.yoke[1] * scale, d.yoke[2] * scale);
+      s.set(d.yoke[0] * scale.x, d.yoke[1] * scale.y, d.yoke[2] * scale.z);
       m.compose(p, yokeQ, s);
       y.setMatrixAt(i, m);
 
@@ -133,9 +140,9 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
       // The head pivots at the TOP of the yoke, so a tilt sweeps the barrel about that point rather
       // than about the fixture's base — which is where a real head's trunnion is, and what makes the
       // motion read as a light aiming instead of a box spinning in place.
-      off.set(0, (d.base[1] * 0.5 + d.yoke[1]) * scale, 0).applyQuaternion(q);
+      off.set(0, (d.base[1] * 0.5 + d.yoke[1]) * scale.y, 0).applyQuaternion(q);
       p.copy(rootPos).add(off);
-      s.set(d.head[0] * scale, d.head[1] * scale, d.head[2] * scale);
+      s.set(d.head[0] * scale.x, d.head[1] * scale.y, d.head[2] * scale.z);
       m.compose(p, headQ, s);
       hd.setMatrixAt(i, m);
 

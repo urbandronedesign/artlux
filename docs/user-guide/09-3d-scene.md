@@ -22,11 +22,65 @@ split‑view button in the Stage's top‑right toolbar; drag the divider to resi
 
 ## Transform a fixture in 3D
 
-Select a fixture, then **W** move / **E** rotate / **R** scale (or the gizmo buttons), and drag the
-gizmo. For exact values, use the Inspector's **3D Layout** card:
+Select a fixture, then **W** move / **E** rotate / **R** scale / **Q** box‑select (or the gizmo buttons
+in the viewport header), and drag the gizmo. The tool keys answer **only while the pointer is over the
+3D viewport**, so they never take a key away from the timeline drawer below it, and they are rebindable
+like every other shortcut — see [Keyboard reference](15-keyboard-reference.md).
+
+The gizmo moves the **whole selection**, not just the fixture you clicked last: it sits on the
+selection's centre, translate adds the same offset to every fixture, rotate swings them around that
+centre *and* turns each one, and scale spreads them apart (a single fixture has nothing to spread from,
+so scale resizes its own LED run instead).
+
+### Scale — each axis on its own
+
+The scale gizmo's three handles are **independent**, and they always work in the fixture's own frame:
+
+| Axis | What it stretches |
+|---|---|
+| **X** | along the LED line — the matrix's columns |
+| **Y** | across the matrix's rows |
+| **Z** | through the housing (depth) |
+
+So a 16×16 panel can be made **wider than it is tall**, and an arc can be flattened, without touching
+the LED count or the patch. On a plain **line** strip only X moves the pixels — there is nothing along
+Y or Z to move — but Y and Z still thicken or thin the drawn housing. Typing exact numbers works too:
+**Scale (×)** in the Inspector's 3D Layout card (or Position card, for a light).
+
+Scaling **several** fixtures at once spreads them apart instead, per axis — pull a row apart along the
+truss without also lifting it off.
+
+### World or Object axes
+
+The **globe / cube** button (or **X**) switches what the handles line up with:
+
+- **World** — the room's X / Y / Z. What you want for hanging things level.
+- **Object** — the selected fixture's own axes. A bar angled across a truss can then be slid along
+  **its own length**, or turned about its own axis, instead of along a room axis you have to correct
+  for afterwards.
+
+With several fixtures selected the handles take the orientation of the **last one you clicked**. Only
+the axes change: the gizmo still pivots on the **middle of the selection** in both modes, so switching
+can never move where a rotation turns about or where a spread spreads from. The setting is remembered
+per machine and never travels inside a project.
+
+### While you drag
+
+The fixtures **follow the handle as you drag**, and the project is written once when you **release** —
+one move, one undo step. Two limits are deliberate, so the drag stays smooth on a big rig:
+
+- On a very large selection the LEDs stop following and only the fixture **bodies** move with the
+  handle. The pixels land in place on release.
+- Beams and simulated fixture lighting do not follow a drag; they re‑aim when you let go.
+
+If the drag feels heavy on this machine, turn off **Preferences ▸ GPU rendering ▸ Live gizmo preview**:
+the rig then jumps to its new pose on release, exactly as it used to.
+
+For exact values, use the Inspector's **3D Layout** card:
 
 - **Position (m)** — X / Y / Z in metres.
 - **Rotation** — pitch / yaw / roll (degrees).
+- **Scale (×)** — per axis, in the fixture's own frame (see above).
 - **Layout** — `line` (spacing), `matrix` (cols / rows / serpentine), or `arc` (radius / angle). This is
   the *physical* arrangement of the LEDs in space, independent of the 2D stage placement.
 

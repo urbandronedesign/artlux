@@ -1222,6 +1222,16 @@ export interface Prefs {
       This does NOT touch the frame engine: compositing, GPU sampling and Art-Net stay at the engine
       FPS regardless, so capping the preview GIVES the show GPU time rather than costing it any. */
   scene3dMaxFps?: number;
+  /** Do the fixtures follow the 3D transform gizmo WHILE it is dragged? Absent = true (they do).
+      Per-MACHINE like the two above: it is a drawing cost this GPU either can or cannot afford, and it
+      changes nothing about the show. Turning it off restores the older behaviour where the rig jumps to
+      its new pose on release — see components/Simulator3D/fixturePreview.ts for what is previewed and
+      what is not (the document is written once on release either way). */
+  scene3dLivePreview?: boolean;
+  /** Transform-gizmo handle orientation in the 3D Scene: 'world' (the room's axes) or 'local' (the
+      selected fixture's own). Absent = 'world', which is what the viewport has always drawn. A tool
+      preference, so per-MACHINE and never inside a project — the pivot is unaffected either way. */
+  scene3dGizmoSpace?: 'world' | 'local';
   /** User keyboard-shortcut overrides, keyed by stable shortcut id → its bound chords (e.g. ["Ctrl+Z"]).
       Renderer-owned blob (the full registry of default bindings lives in the renderer, this stores only
       the deltas the user changed). Absent / missing keys = the registry default. */

@@ -142,7 +142,14 @@ export interface Fixture {
   position3D?: Vec3;
   rotation3D?: Euler3;   // degrees
   layout3D?: Layout3D;
-  scale3D?: number;      // uniform scale of the physical LED layout (1 = as authored)
+  scale3D?: number;      // LEGACY uniform scale of the physical LED layout (1 = as authored)
+  // Per-axis scale, in the fixture's OWN frame (so X runs along the LED line / matrix columns).
+  //
+  // Two fields rather than one, exactly like SceneModel.scale / scaleXYZ: `scale3D` is what every
+  // project on disk carries and it keeps meaning what it always meant, so there is no migration and an
+  // older build reading a newer file still sizes the fixture sensibly. When this is present it WINS.
+  // Read both through `effectiveScale3()` — never branch on the fields at a call site.
+  scaleXYZ?: [number, number, number];
 }
 
 export interface Vec3 { x: number; y: number; z: number; }

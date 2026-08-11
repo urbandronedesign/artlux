@@ -1,9 +1,9 @@
-import React, { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -36,13 +36,21 @@ import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
-import { useRenderScale, useMaxFps } from '../../services/scene3dQuality';
+import { useRenderScale, useMaxFps, useGizmoSpace, getGizmoSpace, setGizmoSpace } from '../../services/scene3dQuality';
 import { FrameRateCap } from './FrameRateCap';
 import { glProp, wantsWebGPU } from './renderer3d';
 import { AxisTriad } from './AxisTriad';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
+import { keymap } from '../../shortcuts/keymapStore';
+import { formatChord } from '../../shortcuts/chord';
+
+/** " (W)" for a bound action, "" for one the operator has unbound. Read live, never hardcoded. */
+function keyHint(id: string): string {
+  const c = keymap.resolve(id)[0];
+  return c ? ` (${formatChord(c)})` : '';
+}
 
 // Streams the dragged anchor's new position while a marker drag is live: the venue meshes update the
 // snap-hover channel on every pointermove (ModelObject/PlaneObject), so the drag target is simply
@@ -80,7 +88,7 @@ interface Props {
    * Commit a transform gesture. Takes an ARRAY because the gizmo moves the whole selection: ten
    * fixtures dragged together must land as ONE state change and therefore one undo step.
    */
-  onCommitFixture3D: (updates: Array<{ id: string; position3D?: Vec3; rotation3D?: Euler3; scale3D?: number }>) => void;
+  onCommitFixture3D: (updates: Array<{ id: string; position3D?: Vec3; rotation3D?: Euler3; scaleXYZ?: [number, number, number]; scale3D?: number }>) => void;
   onCommitModel?: (id: string, t: ModelTransform) => void;
   onModelNaturalSize?: (id: string, maxDim: number) => void;
   onSceneConfig?: (patch: Partial<Scene3D>) => void;
@@ -222,10 +230,37 @@ const Simulator3D: React.FC<Props> = ({
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
+  // ── TOOL KEYS ─────────────────────────────────────────────────────────────────────────────
+  // W/E/R/Q, scoped to this viewport by HOVER — the same gate the timeline uses, and the only one
+  // available here: the canvas is not a focusable element and clicking it is a selection gesture, so
+  // there is nothing to focus. Hover is tracked on a ref rather than in state because a bare pointer
+  // crossing must not re-render a tree that owns a WebGL context.
+  //
+  // These are single unmodified letters, which is only safe because of the scope: bare W/E/R/Q are
+  // free everywhere else in the app, and both this and the timeline's block bail out while an input is
+  // focused, so typing a fixture name never reaches here.
+  const hovered = useRef(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!hovered.current) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (keymap.matches(e, 'scene3d.modeTranslate')) setMode('translate');
+      else if (keymap.matches(e, 'scene3d.modeRotate')) setMode('rotate');
+      else if (keymap.matches(e, 'scene3d.modeScale')) setMode('scale');
+      else if (keymap.matches(e, 'scene3d.modeSelect')) setMode('select');
+      else if (keymap.matches(e, 'scene3d.gizmoSpace')) setGizmoSpace(getGizmoSpace() === 'world' ? 'local' : 'world');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   // Per-machine render scale (Preferences › GPU rendering). Subscribed here rather than passed down,
   // so a slider drag re-renders this component and nothing else — see services/scene3dQuality.
   const renderScale = useRenderScale();
   const maxFps = useMaxFps();
+  // Which axes the gizmo handles follow. Per-machine (see scene3dQuality) — a grip preference, not
+  // anything about the show, so it must not travel inside a project.
+  const gizmoSpace = useGizmoSpace();
   // The renderer is built ONCE, at Canvas mount. Memoized with no deps on purpose: r3f only reads `gl`
   // when it has no renderer yet, and handing it a new factory later would do nothing but churn.
   const [glFallback, setGlFallback] = useState<string | null>(null);
@@ -323,15 +358,35 @@ const Simulator3D: React.FC<Props> = ({
   const venueLit = (scene3D.lightIntensity ?? 1) > 0;
 
   return (
-    <div className="flex flex-col w-full h-full bg-surface-0">
+    <div
+      className="flex flex-col w-full h-full bg-surface-0"
+      // The tool keys above answer only while the pointer is over this viewport. Ref writes, not state.
+      onPointerEnter={() => { hovered.current = true; }}
+      onPointerLeave={() => { hovered.current = false; }}
+    >
       {/* Docked viewport header — transform-mode tools live in reserved chrome, not over the canvas
           (Houdini-style). The 3D view below renders clean with nothing painted on top. */}
       <div className="h-9 shrink-0 flex items-center gap-1 px-2 bg-surface-1 border-b border-line-1">
-        <ToolBtn active={mode === 'translate'} title="Move (W)" helpId="scene3d.gizmo-translate" onClick={() => setMode('translate')}><Move3d size={14} /></ToolBtn>
-        <ToolBtn active={mode === 'rotate'} title="Rotate (E)" helpId="scene3d.gizmo-rotate" onClick={() => setMode('rotate')}><Rotate3d size={14} /></ToolBtn>
-        <ToolBtn active={mode === 'scale'} title="Scale (R)" helpId="scene3d.gizmo-scale" onClick={() => setMode('scale')}><Maximize size={14} /></ToolBtn>
+        {/* The key in each tooltip is READ FROM THE KEYMAP, never spelled out here. A hardcoded "(W)"
+            is how these tooltips came to promise four keys that nothing was listening for, and it
+            would go wrong a second way now that they are rebindable. */}
+        <ToolBtn active={mode === 'translate'} title={`Move${keyHint('scene3d.modeTranslate')}`} helpId="scene3d.gizmo-translate" onClick={() => setMode('translate')}><Move3d size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'rotate'} title={`Rotate${keyHint('scene3d.modeRotate')}`} helpId="scene3d.gizmo-rotate" onClick={() => setMode('rotate')}><Rotate3d size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'scale'} title={`Scale${keyHint('scene3d.modeScale')}`} helpId="scene3d.gizmo-scale" onClick={() => setMode('scale')}><Maximize size={14} /></ToolBtn>
+        {/* WORLD ⇄ OBJECT. Not a ToolBtn pair: this is one setting with two states, and the label is
+            the state it is IN — a rigger reads "Object" and knows the handles are on the fixture.
+            Only the axes change; the pivot stays on the middle of the selection (see FixtureGizmo). */}
+        <ToolBtn
+          active={gizmoSpace === 'local'}
+          title={`Handle axes: ${gizmoSpace === 'local' ? 'the selected fixture\'s own' : "the room's"}${keyHint('scene3d.gizmoSpace')} — the pivot stays on the selection's centre either way`}
+          helpId="scene3d.gizmo-space"
+          onClick={() => setGizmoSpace(gizmoSpace === 'local' ? 'world' : 'local')}
+        >
+          {gizmoSpace === 'local' ? <Box size={14} /> : <Globe size={14} />}
+        </ToolBtn>
+        <span className="text-micro text-fg-3 -ml-0.5 mr-0.5 select-none">{gizmoSpace === 'local' ? 'Object' : 'World'}</span>
         <div className="w-px h-4 bg-line-1 mx-1" />
-        <ToolBtn active={mode === 'select'} title="Box select (Q) — drag to select fixtures; hold Shift to add" helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
         {/* LOOK THROUGH A PROJECTOR. Only calibrated outputs can offer a viewpoint, so the control
             appears once one exists rather than sitting there empty. The choice is stored on the
             scene (Scene3D.viewFrom), so it is still the view you left when the project reopens. */}
@@ -528,6 +583,10 @@ const Simulator3D: React.FC<Props> = ({
         {mode !== 'select' && <FixtureGizmo
           fixtures={gizmoFixtures}
           mode={mode}
+          space={gizmoSpace}
+          // The handles orient to the fixture the operator clicked LAST — the one they are thinking in
+          // the frame of — not to whichever happens to sort first in the selection.
+          activeId={selectedFixtureId}
           onRecordHistory={onRecordHistory}
           onCommit={onCommitFixture3D}
         />}

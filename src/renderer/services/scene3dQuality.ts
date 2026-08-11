@@ -58,6 +58,27 @@ function clampFps(v: number): number {
   return Math.min(240, Math.max(1, Math.round(v)));
 }
 
+// The THIRD knob: do the fixtures follow the transform gizmo while it is being dragged?
+//
+// ON by default, because a handle you drag blind is not a placement tool — that was the state before
+// the preview channel existed and it is what makes precise work impossible. It is a preference at all
+// because the preview recomputes the dragged fixtures' LED positions every frame, and the whole reason
+// the gizmo commits on release is that doing this for the WHOLE rig at pointer rate is ruinous. The
+// preview's own budget (fixturePreview.PREVIEW_LED_BUDGET) already drops to bodies-only on a huge
+// selection, so this switch is the blunt escape hatch under that: off = exactly the old behaviour, one
+// jump on release, reachable by an operator on a weak machine without a build.
+let livePreview = true;
+
+// The FOURTH knob, and the only one that is not about cost: which axes the transform gizmo's handles
+// follow. 'world' is the room — what you want for hanging things level, and what this viewport has
+// always drawn. 'local' turns the handles to the selected fixture, so a bar angled across a truss can
+// be slid along its OWN length instead of along a room axis you then have to correct for.
+//
+// It lives here, with the per-machine settings, rather than in Scene3D: it describes how this operator
+// likes to work, not anything about the show, and a handle orientation travelling to the venue inside
+// a project file would be surprising in both directions.
+let gizmoSpace: 'world' | 'local' = 'world';
+
 // Read the saved value once, on first use rather than at module load. Both consumers (the Canvas and
 // the Preferences slider) call this from their own mount, so there is no boot-order coupling to get
 // wrong and no import side effect — and the 3D canvas mounts lazily anyway, so the read still lands
@@ -72,6 +93,10 @@ export function ensureLoaded(): Promise<void> {
         if (typeof v === 'number') renderScale = clamp(v);
         const f = p?.scene3dMaxFps;
         if (typeof f === 'number') maxFps = clampFps(f);
+        const lp = p?.scene3dLivePreview;
+        if (typeof lp === 'boolean') livePreview = lp;
+        const gs = p?.scene3dGizmoSpace;
+        if (gs === 'world' || gs === 'local') gizmoSpace = gs;
         subs.forEach((fn) => fn());
       } catch { /* prefs unavailable — keep the default */ }
     })();
@@ -113,6 +138,28 @@ export function setMaxFps(v: number): void {
 
 export const MAX_FPS_CHOICES = FPS_CHOICES;
 
+/** Read by the gizmo at grab time, NOT through a hook: the drag must not depend on a component having
+ *  re-rendered, and flipping this mid-gesture would change what that gesture means half way through. */
+export function getLivePreview(): boolean { return livePreview; }
+
+/** Set + persist. Applies to the NEXT gesture. */
+export function setLivePreview(v: boolean): void {
+  if (v === livePreview) return;
+  livePreview = v;
+  subs.forEach((f) => f());
+  void window.artlux?.setPrefs?.({ scene3dLivePreview: v });
+}
+
+export function getGizmoSpace(): 'world' | 'local' { return gizmoSpace; }
+
+/** Set + persist. Applies live — the handles reorient on the next frame. */
+export function setGizmoSpace(v: 'world' | 'local'): void {
+  if (v === gizmoSpace) return;
+  gizmoSpace = v;
+  subs.forEach((f) => f());
+  void window.artlux?.setPrefs?.({ scene3dGizmoSpace: v });
+}
+
 /** React binding for the Canvas. Re-renders only the component that asks — not the tree. */
 export function useRenderScale(): number {
   const [v, setV] = useState(renderScale);
@@ -130,6 +177,28 @@ export function useMaxFps(): number {
   useEffect(() => {
     const off = subscribe(() => setV(getMaxFps()));
     void ensureLoaded().then(() => setV(getMaxFps()));
+    return off;
+  }, []);
+  return v;
+}
+
+/** Drives the viewport header's World/Object button — and, through it, the gizmo. */
+export function useGizmoSpace(): 'world' | 'local' {
+  const [v, setV] = useState(gizmoSpace);
+  useEffect(() => {
+    const off = subscribe(() => setV(getGizmoSpace()));
+    void ensureLoaded().then(() => setV(getGizmoSpace()));
+    return off;
+  }, []);
+  return v;
+}
+
+/** For the Preferences toggle only — the 3D scene itself reads getLivePreview() at grab time. */
+export function useLivePreview(): boolean {
+  const [v, setV] = useState(livePreview);
+  useEffect(() => {
+    const off = subscribe(() => setV(getLivePreview()));
+    void ensureLoaded().then(() => setV(getLivePreview()));
     return off;
   }, []);
   return v;
