@@ -270,6 +270,10 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Tile** | Repeat space. `cell` is which tile you are in, `uv` is where inside it. | `repeat`, `grid`, `instance` |
 | **Polar** | Radius and angle instead of x and y — stripes become rings and rays. | `radial`, `angle`, `rings` |
 | **Kaleidoscope** | Fold the angle into N mirrored segments. | `mirror`, `symmetry` |
+| **Pan** | Scroll the coordinates over time. Unreal calls this Panner. | `panner`, `scroll`, `drift`, `conveyor` |
+| **Spin** | Rotate the coordinates over time. Unreal calls this Rotator. | `rotator`, `turntable`, `rotate over time` |
+| **Mirror** | Fold space about the centre, so one half is the reflection of the other. | `fold`, `symmetry`, `flip`, `abs` |
+| **Pixelate** | Snap the coordinates to a grid — big soft blocks, and cheaper detail. | `quantise uv`, `blocks`, `mosaic`, `lowres` |
 
 **Math**
 
@@ -294,6 +298,20 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Length** | Distance from the origin to a point. | `distance`, `magnitude`, `radius` |
 | **Split** | Take a vector apart into x and y. | `unpack`, `components`, `xy` |
 | **Combine** | Build a vector from two numbers. | `make vec2`, `pack`, `join` |
+| **Sine** | sin of a value, in TURNS — 1 is a full cycle, so no π anywhere. | `sin`, `oscillate`, `wave` |
+| **Cosine** | cos of a value, in turns. A quarter-turn ahead of Sine. | `cos` |
+| **Angle of** | The direction of a vector, 0..1 turns. atan2, without the sign traps. | `atan2`, `direction`, `arctangent`, `heading` |
+| **Floor** | Down to the whole number below. Quantise a value into steps. | `quantise`, `quantize`, `posterise`, `round down`, `int` |
+| **Round** | To the nearest whole number. | `nearest` |
+| **Modulo** | The remainder of x ÷ n. Fract with a divisor of your own. | `mod`, `fmod`, `remainder`, `wrap`, `repeat` |
+| **Sign** | −1 below zero, 0 at zero, 1 above. | `polarity`, `direction` |
+| **Square root** | Also how you soften a falloff without a curve editor. | `sqrt`, `root` |
+| **Saturate** | Clamp to 0..1 — the clamp you reach for nine times out of ten. | `clamp01`, `limit`, `01` |
+| **Distance** | How far apart two points are. Length measures from the origin; this measures between. | `dist`, `between`, `separation` |
+| **Dot product** | How much one direction points along another. Gradients and lighting-style falloffs. | `dot`, `projection` |
+| **Normalise** | Keep a direction, drop its length. | `normalize`, `unit`, `direction` |
+| **Bias · scale** | Add, then multiply. The one-node way to turn −1..1 into 0..1 (bias 1, scale 0.5). | `constantbiasscale`, `offset scale`, `range` |
+| **Greater than** | 1 when a is above b, 0 when it is not. Feed it into Switch to make a decision. | `compare`, `if`, `test`, `above` |
 
 **LFO**
 
@@ -358,6 +376,10 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Mix colours** | Blend two colours by t. | `lerp`, `blend`, `crossfade`, `color` |
 | **Switch colour** | Choose colour a or b. Below 0.5 takes a, above takes b. | `select`, `choose`, `color` |
 | **Brightness** | Scale a colour. | `gain`, `dim`, `multiply`, `color` |
+| **Luminance** | How bright a colour reads to the eye, as one number. | `desaturate`, `greyscale`, `grayscale`, `mono`, `value`, `color` |
+| **Saturation** | Pull a colour towards grey (0) or push it past its own (>1). | `desaturation`, `vibrance`, `color` |
+| **Hue shift** | Rotate a colour around the wheel, in turns. The knob a VJ reaches for first. | `hue`, `rotate colour`, `rotate color`, `color` |
+| **Contrast** | Push values away from mid grey (>1) or towards it (<1). | `gamma`, `punch`, `color` |
 
 **Output**
 

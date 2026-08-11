@@ -240,6 +240,34 @@ not two hundred.
   because a parameter name is a uniform name and the same uniform declared twice compiles to nothing.
   The add path already did this; paste is a second door to the same fault.
 
+## 9 · What Unreal has that we did not (2026-08-11)
+
+Read against Unreal's Material Expressions reference — Math, Utility and Coordinates. **22 nodes
+added, 83 in the catalogue, every one of them compiled on the real driver** (one graph per node,
+wired through to Output so it survives into the code; an unreachable node emits nothing and would
+prove nothing).
+
+- **Math (14):** Sine, Cosine, Angle of (atan2), Floor, Round, Modulo, Sign, Square root, Saturate,
+  Distance, Dot product, Normalise, Bias·scale (Unreal's ConstantBiasScale), Greater than.
+- **UV (4):** Pan (Panner), Spin (Rotator), Mirror, Pixelate.
+- **Colour (4):** Luminance, Saturation, Hue shift, Contrast — the VJ knobs, and the gap that stood
+  out most: there was no way to desaturate anything.
+
+**Trig is in TURNS, not radians** (`Sine` of 0.25 is a quarter cycle). Every other angle in this
+catalogue is already in turns — Rotate, Polar, Angle of — and mixing the two units inside one graph
+is a class of bug with no error message.
+
+**Deliberately not taken, with reasons:** Fresnel, BumpOffset, DepthFade, BlackBody, the WorldPosition
+/ ObjectPosition / VertexNormal family, DDX/DDY, and the Quality/FeatureLevel switches. They are 3D,
+PBR or engine-pipeline nodes: there is no camera, no mesh and no depth buffer behind an ArtLux
+surface, so they would be inputs that always read zero. Arccosine/Arcsine and the "Fast" variants are
+skipped for now as unused; Ceil, Truncate and Logarithm are one Floor or one Power away.
+
+**A separate feasibility study for reusable subpatches** — select, collapse into one node, save and
+reuse — is in [plans/shader-subgraphs.md](shader-subgraphs.md).
+
+---
+
 ## 8 · No palette column — the menu comes to the cursor (2026-08-11)
 
 Owner's call, and Houdini's: a permanent 160px palette spends width on every graph you will ever

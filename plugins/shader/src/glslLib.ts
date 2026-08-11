@@ -167,6 +167,19 @@ export const LIB: Record<string, string> = {
   return smoothstep(edge - w, edge + w, x);
 }`,
 
+  // Hue rotation without a round trip through HSV. The matrix is the standard YIQ rotation: cheaper
+  // than rgb→hsv→rgb, has no branch, and cannot produce the hue-wrap seam that a naive conversion
+  // shows on greys — where hue is undefined and any formula has to invent one.
+  hueShift: `vec3 hueShift(vec3 c, float turns) {
+  float a = turns * 6.2831853;
+  float s = sin(a), co = cos(a);
+  mat3 m = mat3(
+    0.299 + 0.701 * co + 0.168 * s, 0.587 - 0.587 * co + 0.330 * s, 0.114 - 0.114 * co - 0.497 * s,
+    0.299 - 0.299 * co - 0.328 * s, 0.587 + 0.413 * co + 0.035 * s, 0.114 - 0.114 * co + 0.292 * s,
+    0.299 - 0.300 * co + 1.250 * s, 0.587 - 0.588 * co - 1.050 * s, 0.114 + 0.886 * co - 0.203 * s);
+  return clamp(c * m, 0.0, 1.0);
+}`,
+
   rotate2: `vec2 rotate2(vec2 p, float a) {
   float s = sin(a), c = cos(a);
   return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
