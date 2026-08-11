@@ -160,6 +160,10 @@ picture reads left to right and ends at `Output`. Nodes you have added but not w
 parked together past the output, where they read as "not in the graph yet". **Fit** frames everything
 without moving a node.
 
+**To remove a wire**, click it — it turns accent-coloured — and press `Delete`. Or grab it near the end
+and drop it on empty canvas, which is the same move without the selecting. Dropping that end on another
+port rewires it instead.
+
 Delete removes selected nodes and any wires that touched them. Mouse wheel zooms; **dragging on empty
 canvas draws a selection box**, and **middle-drag** (or right-drag) pans. Where you put a node is part
 of the graph and is saved with it, so a layout you arranged by hand comes back as you left it.
@@ -176,7 +180,9 @@ of the graph and is saved with it, so a layout you arranged by hand comes back a
 | middle-drag / right-drag | pan the canvas |
 | `Ctrl+G` | collapse the selected nodes into one reusable node |
 | `Ctrl+Shift+G` | expand a subpatch back onto the canvas |
-| `Delete` | remove the selected nodes and their wires |
+| `Delete` | remove the selected nodes and wires |
+| click a wire | select it (accent-coloured), then `Delete` removes it |
+| drag a wire's end onto empty canvas | remove that wire |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo and redo, on ArtLux's ordinary document history |
 
 Pasted nodes are copies, not links, and a pasted **parameter** is given its own name — two knobs called

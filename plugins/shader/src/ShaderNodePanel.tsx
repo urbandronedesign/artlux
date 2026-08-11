@@ -576,6 +576,14 @@ export const ShaderNodePanel: React.FC = () => {
   >(null);
   /** The port a wire is being dragged from, while it is in the air. */
   const dragging = useRef<LooseEnd | null>(null);
+  /**
+   * True while an EXISTING wire's end is being dragged.
+   *
+   * React Flow fires the connect events during a reconnect as well, so without this the "drag a wire
+   * away to delete it" gesture also popped the add-a-node menu: you asked to remove something and were
+   * offered something new, over the spot you had just cleared.
+   */
+  const reconnecting = useRef(false);
   const [examplesOpen, setExamplesOpen] = useState(false);
   /** What is selected, for the keyboard commands. See the note on the keydown effect. */
   const selectedIds = useRef<string[]>([]);
@@ -660,12 +668,36 @@ export const ShaderNodePanel: React.FC = () => {
     });
   }, [graph.nodes, connected, onParam, defs]);
 
-  const rfEdges: Edge[] = useMemo(() => graph.edges.map((e, i) => ({
-    id: `e${i}`,
-    source: e.from.node, sourceHandle: e.from.port,
-    target: e.to.node, targetHandle: e.to.port,
-    style: { stroke: 'var(--line-2)', strokeWidth: 1.5 },
-  })), [graph.edges]);
+  /**
+   * React Flow owns its EDGES too — the same rule as the nodes, and it was broken here in the same way.
+   *
+   * Deriving them fresh on every render threw away the `selected` flag React Flow had just set, so a
+   * wire could never stay selected: clicking one looked like nothing happened, and Delete had nothing
+   * to delete. The bug is invisible in the source because everything else about the edge is correct.
+   *
+   * Ids are built from the ENDPOINTS rather than the array index. Index ids re-number when any wire is
+   * removed, which hands the selection to a different wire than the one that was clicked.
+   */
+  const edgeId = (e: { from: { node: string; port: string }; to: { node: string; port: string } }) =>
+    `${e.from.node}.${e.from.port}->${e.to.node}.${e.to.port}`;
+  const [rfEdges, setRfEdges] = useState<Edge[]>([]);
+  useEffect(() => {
+    setRfEdges((prev) => {
+      const wasSelected = new Set(prev.filter((e) => e.selected).map((e) => e.id));
+      return graph.edges.map((e) => {
+        const id = edgeId(e);
+        const selected = wasSelected.has(id);
+        return {
+          id,
+          source: e.from.node, sourceHandle: e.from.port,
+          target: e.to.node, targetHandle: e.to.port,
+          selected,
+          // A selection you cannot see is a selection you do not trust: the wire says so itself.
+          style: { stroke: selected ? 'var(--accent)' : 'var(--line-2)', strokeWidth: selected ? 2.5 : 1.5 },
+        };
+      });
+    });
+  }, [graph.edges]);
 
   /**
    * Write the graph WITHOUT regenerating. Moving a node changes where it is drawn and nothing else, so
@@ -702,10 +734,40 @@ export const ShaderNodePanel: React.FC = () => {
   }, [graph, commit]);
 
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    const next = applyEdgeChanges(changes, rfEdges);
-    const kept = graph.edges.filter((_, i) => next.some((e) => e.id === `e${i}`));
-    if (kept.length !== graph.edges.length) commit({ ...graph, edges: kept });
-  }, [graph, rfEdges, commit]);
+    // Every change reaches React Flow — including `select`, which is the one that was being dropped.
+    setRfEdges((es) => applyEdgeChanges(changes, es).map((e) => ({
+      ...e,
+      style: { stroke: e.selected ? 'var(--accent)' : 'var(--line-2)', strokeWidth: e.selected ? 2.5 : 1.5 },
+    })));
+    const removed = new Set(changes.flatMap((c) => (c.type === 'remove' ? [c.id] : [])));
+    if (!removed.size) return;
+    commit({ ...graph, edges: graph.edges.filter((e) => !removed.has(edgeId(e))) });
+  }, [graph, commit]);
+
+  /**
+   * Drag a wire's end away and let go: the wire is gone.
+   *
+   * The second way to delete one, and the one that needs no selection at all — click-then-Delete works
+   * but only tells you it worked after the fact, while this is the gesture the wire itself suggests.
+   * Dropped on another port it REWIRES instead, which is the same move ending somewhere useful.
+   */
+  const onReconnectStart = useCallback(() => { reconnecting.current = true; }, []);
+
+  const onReconnect = useCallback((oldEdge: Edge, c: Connection) => {
+    if (!c.source || !c.target || !c.sourceHandle || !c.targetHandle) return;
+    const without = graph.edges.filter((e) => edgeId(e) !== oldEdge.id
+      && !(e.to.node === c.target && e.to.port === c.targetHandle));
+    commit({ ...graph, edges: [...without, { from: { node: c.source, port: c.sourceHandle }, to: { node: c.target, port: c.targetHandle } }] });
+  }, [graph, commit]);
+
+  const onReconnectEnd = useCallback((_: unknown, edge: Edge, __: unknown, state?: { isValid?: boolean | null }) => {
+    // Cleared on the NEXT frame, not here: onConnectEnd fires after this one, and it is the handler
+    // that has to know this was a reconnect rather than a new wire.
+    requestAnimationFrame(() => { reconnecting.current = false; });
+    if (state?.isValid) return;   // it landed somewhere legal; onReconnect has already handled it
+    commit({ ...graph, edges: graph.edges.filter((e) => edgeId(e) !== edge.id) });
+    setStatus({ ok: true, message: 'wire removed' });
+  }, [graph, commit]);
 
   const isValid = useCallback((c: Connection | Edge) => {
     const from = defs[graph.nodes.find((n) => n.id === c.source)?.type ?? '']?.outputs.find((o) => o.name === c.sourceHandle);
@@ -746,6 +808,7 @@ export const ShaderNodePanel: React.FC = () => {
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent, state: { isValid?: boolean | null; toHandle?: unknown }) => {
     const end = dragging.current;
     dragging.current = null;
+    if (reconnecting.current) return;   // a wire was being detached, not a new one drawn
     if (!end || state?.isValid || state?.toHandle) return;
     const pt = 'clientX' in event ? event : (event as TouchEvent).changedTouches?.[0];
     if (!pt) return;
@@ -1180,6 +1243,7 @@ export const ShaderNodePanel: React.FC = () => {
             nodes={rfNodes} edges={rfEdges} nodeTypes={nodeTypes}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
             onConnect={onConnect} isValidConnection={isValid}
+            onReconnectStart={onReconnectStart} onReconnect={onReconnect} onReconnectEnd={onReconnectEnd} reconnectRadius={16}
             onConnectStart={onConnectStart} onConnectEnd={onConnectEnd}
             fitView fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
             // React Flow's default floor is 0.5, and a shader graph is WIDE — thirteen columns of it.
@@ -1246,7 +1310,7 @@ export const ShaderNodePanel: React.FC = () => {
         )}
 
         <div className={`shrink-0 border-t border-line-1 px-2 py-1 text-micro ${status && !status.ok ? 'text-danger' : 'text-fg-3'}`}>
-          {status ? status.message : 'Double-click (or Tab) to add a node · drag a box to select · Ctrl+G collapses the selection · middle-drag pans'}
+          {status ? status.message : 'Double-click (or Tab) to add a node · drag a box to select · Ctrl+G collapses it · click a wire and press Delete, or drag its end away'}
         </div>
       </div>
 
