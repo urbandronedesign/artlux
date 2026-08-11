@@ -199,6 +199,17 @@ const DEFS: NodeDef[] = [
     emit: (i) => ({ out: `mix(${i.a}, ${i.b}, ${i.t})` }),
   },
   {
+    // SWITCH IS NOT MIX. Mix blends and is what you want most of the time; a switch CHOOSES, and the
+    // difference matters when a half-and-half value is meaningless — one pattern or the other, this
+    // palette or that one, the take you are testing or the one you had. It is still a mix under the
+    // hood, because a branch per pixel is the one thing a fragment shader should not do: `step` turns
+    // the number into a hard 0 or 1 and the blend becomes a choice.
+    id: 'math.switch', label: 'Switch', category: 'Math', hint: 'Choose a or b. Below 0.5 takes a, above takes b — no blending in between.',
+    inputs: [{ name: 'a', type: 'float', def: 0 }, { name: 'b', type: 'float', def: 1 }, { name: 'which', type: 'float', def: 0 }],
+    outputs: [{ name: 'out', type: 'float' }],
+    emit: (i) => ({ out: `mix(${i.a}, ${i.b}, step(0.5, ${i.which}))` }),
+  },
+  {
     id: 'math.clamp', label: 'Clamp', category: 'Math', hint: 'Keep a value inside a range.',
     inputs: [{ name: 'x', type: 'float', def: 0 }, { name: 'min', type: 'float', def: 0 }, { name: 'max', type: 'float', def: 1 }],
     outputs: [{ name: 'out', type: 'float' }],
@@ -524,6 +535,17 @@ const DEFS: NodeDef[] = [
     inputs: [{ name: 'a', type: 'vec3', def: [0, 0, 0] }, { name: 'b', type: 'vec3', def: [1, 1, 1] }, { name: 't', type: 'float', def: 0.5 }],
     outputs: [{ name: 'color', type: 'vec3' }],
     emit: (i) => ({ color: `mix(${i.a}, ${i.b}, ${i.t})` }),
+  },
+  {
+    // The colour half of Switch — see math.switch. Two of them rather than one polymorphic node,
+    // because every port in this catalogue has ONE type: that is what lets a wire's legality be
+    // decided before it is dropped, and a node whose output type depended on what you plugged in
+    // would take that away for the sake of one entry in the menu.
+    id: 'color.switch', label: 'Switch colour', category: 'Colour',
+    hint: 'Choose colour a or b. Below 0.5 takes a, above takes b.',
+    inputs: [{ name: 'a', type: 'vec3', def: [0, 0, 0] }, { name: 'b', type: 'vec3', def: [1, 1, 1] }, { name: 'which', type: 'float', def: 0 }],
+    outputs: [{ name: 'color', type: 'vec3' }],
+    emit: (i) => ({ color: `mix(${i.a}, ${i.b}, step(0.5, ${i.which}))` }),
   },
   {
     id: 'color.brightness', label: 'Brightness', category: 'Colour', hint: 'Scale a colour.',

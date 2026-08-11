@@ -126,4 +126,71 @@ export const EXAMPLES: Example[] = [
       ],
     ),
   },
+  {
+    id: 'noise-basics',
+    name: '5 · Noise, and how to read it',
+    teach: 'Noise is a number per point. Scale the coordinates to set its size, and move them to make it drift.',
+    graph: g(
+      [
+        { id: 'uv_1', type: 'input.uv', x: 0, y: 40, params: {} },
+        // SCALE IS THE ONLY CONTROL THAT MATTERS AT FIRST. Noise fed raw 0..1 uv is one smooth blob:
+        // you are looking at a single cell of it. Multiply the coordinates and you see the field.
+        { id: 'zoom', type: 'uv.scale', x: 200, y: 40, params: { scale: [4, 4] } },
+        // Drift: a slow LFO slides the coordinates, so the field moves past the surface.
+        { id: 'lfo_1', type: 'lfo.wave', x: 0, y: 240, params: { shape: 'saw', rate: 0.05, phase: 0, amount: 2, offset: 0 } },
+        { id: 'drift', type: 'vec.combine', x: 200, y: 240, params: { x: 0, y: 0 } },
+        { id: 'move', type: 'uv.translate', x: 400, y: 40, params: { offset: [0, 0] } },
+        { id: 'fbm_1', type: 'noise.fbm', x: 600, y: 40, params: { octaves: 4 } },
+        // fBm comes back around 0..1 but rarely uses the whole range; Remap stretches what is there
+        // so the palette is not sampled from a thin slice in the middle.
+        { id: 'spread', type: 'math.remap', x: 800, y: 40, params: { inMin: 0.25, inMax: 0.75, outMin: 0, outMax: 1 } },
+        { id: 'pal_1', type: 'color.palette', x: 1020, y: 40, params: { index: 5, t: 0 } },
+        { id: 'out', type: 'output.color', x: 1240, y: 40, params: { alpha: 1 } },
+      ],
+      [
+        e('uv_1', 'uv', 'zoom', 'uv'), e('lfo_1', 'out', 'drift', 'x'),
+        e('zoom', 'uv', 'move', 'uv'), e('drift', 'v', 'move', 'offset'),
+        e('move', 'uv', 'fbm_1', 'uv'), e('fbm_1', 'out', 'spread', 'x'),
+        e('spread', 'out', 'pal_1', 't'), e('pal_1', 'color', 'out', 'color'),
+      ],
+    ),
+  },
+  {
+    id: 'noise-warp',
+    name: '6 · Warp space with noise',
+    teach: 'Feed noise back into the coordinates of more noise. One wire, and the field starts to flow.',
+    graph: g(
+      [
+        { id: 'uv_1', type: 'input.uv', x: 0, y: 120, params: {} },
+        { id: 'zoom', type: 'uv.scale', x: 190, y: 120, params: { scale: [3, 3] } },
+
+        // ── The warp field: two noises read at slightly different places give an x and a y offset.
+        // Reading the SAME noise twice would move every point along the diagonal, which reads as a
+        // slide rather than as flow — the offset in the second lookup is what breaks that symmetry.
+        { id: 'nx', type: 'noise.gradient', x: 400, y: 40, params: {} },
+        { id: 'shift', type: 'uv.translate', x: 400, y: 220, params: { offset: [5.2, 1.3] } },
+        { id: 'ny', type: 'noise.gradient', x: 600, y: 220, params: {} },
+        { id: 'warp', type: 'vec.combine', x: 800, y: 120, params: { x: 0, y: 0 } },
+
+        // ── Strength. This is the knob to play with: 0 is plain noise, 1 is soup.
+        { id: 'amount', type: 'param.float', x: 800, y: 320, params: { label: 'Warp', name: 'warp', min: 0, max: 1, default: 0.35 } },
+        { id: 'scaled', type: 'uv.scale', x: 1000, y: 200, params: { scale: [1, 1] } },
+        { id: 'moved', type: 'uv.translate', x: 1180, y: 120, params: { offset: [0, 0] } },
+
+        // ── The picture: noise read at the warped coordinates.
+        { id: 'field', type: 'noise.fbm', x: 1360, y: 120, params: { octaves: 4 } },
+        { id: 'pal_1', type: 'color.palette', x: 1540, y: 120, params: { index: 6, t: 0 } },
+        { id: 'out', type: 'output.color', x: 1740, y: 120, params: { alpha: 1 } },
+      ],
+      [
+        e('uv_1', 'uv', 'zoom', 'uv'),
+        e('zoom', 'uv', 'nx', 'uv'), e('zoom', 'uv', 'shift', 'uv'), e('shift', 'uv', 'ny', 'uv'),
+        e('nx', 'out', 'warp', 'x'), e('ny', 'out', 'warp', 'y'),
+        e('warp', 'v', 'scaled', 'uv'), e('amount', 'out', 'scaled', 'scale'),
+        e('zoom', 'uv', 'moved', 'uv'), e('scaled', 'uv', 'moved', 'offset'),
+        e('moved', 'uv', 'field', 'uv'), e('field', 'out', 'pal_1', 't'),
+        e('pal_1', 'color', 'out', 'color'),
+      ],
+    ),
+  },
 ];

@@ -182,7 +182,7 @@ graph, which is the quickest way to reuse part of something you have already bui
 
 ### Learn it by taking a patch apart
 
-**Examples** in the toolbar opens four **help patches**. Each one is an ordinary graph, so it arrives
+**Examples** in the toolbar opens six **help patches**. Each one is an ordinary graph, so it arrives
 on the surface fully editable: read the wires, change a number, pull one out and see what breaks.
 Opening one replaces what is on the surface, and it asks first if there is anything to lose.
 
@@ -192,6 +192,8 @@ Opening one replaces what is on the surface, and it asks first if there is anyth
 | **2 · Make it move** | An LFO is the clock of a patch: wire it into any number and that number breathes. |
 | **3 · Trails with Last frame** | Feedback. `Last frame` reads what this shader drew a frame ago; dim it, draw on top, and motion leaves a tail. |
 | **4 · Follow the music** | `Audio band` gives one number per frequency band. Here it is the height of a bar. |
+| **5 · Noise, and how to read it** | Noise is a number per point. Scaling the coordinates sets its size; moving them makes it drift. |
+| **6 · Warp space with noise** | Noise fed back into the coordinates of more noise — one wire, and the field starts to flow. |
 
 **Reading the feedback patch** (the one worth studying):
 
@@ -205,6 +207,21 @@ Opening one replaces what is on the surface, and it asks first if there is anyth
   the faded frame, 1 paints the new colour.
 - The graph asks for feedback **by using the node** — `REQUIRES_LAST_FRAME` appears in the generated
   header on its own. There is nothing to switch on.
+
+**Reading the noise patches:**
+
+- **Scale is the control that matters first.** Noise fed raw 0..1 coordinates is *one smooth blob* —
+  you are looking at a single cell of it. `Scale` at 4 shows the field; at 40 it is static.
+- **Noise does not drift by itself.** It is a function of position, so nothing moves until the
+  coordinates do: patch 5 slides them with a slow saw LFO. `Value noise 3D` is the other way — wire
+  time into its `z` and the field evolves *in place* instead of sliding past.
+- **`Remap` before the palette.** fBm rarely uses its whole range, so mapping 0.25..0.75 onto 0..1
+  stops the gradient being sampled from a thin slice in the middle.
+- **The warp is the whole trick in patch 6:** two noise lookups become an x and a y offset, that offset
+  moves the coordinates, and a third noise is read at the moved position. Its **Warp** knob is a
+  parameter node, so it is also a timeline lane — turn it to 0 for plain noise, to 1 for soup.
+  The second lookup is deliberately offset (`5.2, 1.3`); reading the *same* noise for both x and y
+  moves every point along the diagonal, which reads as a slide rather than as flow.
 
 ### The inspector
 
@@ -263,6 +280,7 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Subtract** | a − b |
 | **Divide** | a ÷ b, guarded against zero. |
 | **Mix** | Blend a and b by t (0 = a, 1 = b). |
+| **Switch** | Choose a or b. Below 0.5 takes a, above takes b — no blending in between. |
 | **Clamp** | Keep a value inside a range. |
 | **Smoothstep** | A soft 0→1 ramp between two edges. |
 | **Step** | A hard cut: 0 below the edge, 1 above. Antialiased. |
@@ -338,6 +356,7 @@ only the wording changed. It is also why two parameters can never collide by bei
 |---|---|
 | **Palette** | Sample one of ArtLux’s gradients by index. |
 | **Mix colours** | Blend two colours by t. |
+| **Switch colour** | Choose colour a or b. Below 0.5 takes a, above takes b. |
 | **Brightness** | Scale a colour. |
 
 **Output**
