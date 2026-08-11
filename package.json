@@ -1,7 +1,7 @@
 {
   "name": "artlux",
   "private": true,
-  "version": "0.25.2",
+  "version": "0.25.3",
   "description": "GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN",
   "author": "Zaki Jawhari and Bérenger Recoules",
   "license": "SEE LICENSE IN LICENSE",

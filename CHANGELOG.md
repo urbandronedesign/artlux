@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+## v0.25.3
+
+### Shaders — content you write, patch by wiring, and reuse
+
+A surface can now run a **GLSL shader**: nothing is decoded and nothing is loaded, so the picture never
+loops, never runs out and costs no disk. Write it in the app — `Ctrl+Enter` compiles, and **only a
+shader that builds is saved**, so a half-typed one never reaches the wall. Declare a parameter in the
+header and it becomes an inspector knob, a timeline lane, an OSC address and a state-machine value at
+once. Save it to an effect library that **copies the text into the project** rather than referencing
+it, because a venue machine has a different `userData` and a project must carry what it renders.
+
+Shaders hear the show: a 16-band FFT, an overall level, and four-channel beat detection (kick, snare,
+mid, high) with per-shader damping, all as uniforms a shader can simply read.
+
+### The node editor — build the same shaders by wiring boxes
+
+**Shader Nodes** builds a shader out of 83 nodes and generates the GLSL. It is not a second kind of
+content: everything downstream — the compile cache, the loop lint, the frame budget, the header, the
+automation registry, the effect library, the projector path — sees an ordinary shader and never learns
+a graph was involved.
+
+Double-click the canvas (or press `Tab`) and a menu opens **at the cursor**, on its categories, with
+search that answers to the other names for a thing — `lerp` finds Mix, `voronoi` finds Worley. Ports
+are typed and coloured, so an illegal wire will not land; drop a wire on empty canvas and the menu
+offers only the nodes that can receive it, then adds **and connects** the one you pick. **Tidy** lays
+the whole graph out left to right by what feeds what. The inspector draws itself from the catalogue, so
+a node added tomorrow is inspectable the day it is added.
+
+**Subpatches:** drag a box over part of a graph, press `Ctrl+G`, and it collapses into one reusable
+node — with the inputs and outputs the selection had, derived from the wires that crossed it. Go inside
+to edit the definition and every copy follows; save it to a library and any project can use it. A
+subpatch is expanded before the code is generated, so the GLSL is identical to the flat version and it
+costs nothing at all on the wall.
+
+**Six help patches** ship with it — coordinates, motion, feedback with `Last frame`, audio, noise, and
+a domain warp — each an ordinary graph you can open, read and take apart.
+
+### Documentation that cannot drift from the code
+
+[SHADERS.md](docs/SHADERS.md) for using it, [SHADER-COOKBOOK.md](docs/SHADER-COOKBOOK.md) for technique,
+and a per-node reference, [SHADER-NODES.md](docs/SHADER-NODES.md), whose **GLSL is produced by calling
+each node's own generator** — so a node cannot be documented doing something it does not do.
+`npm run verify` fails if the pages and the catalogue disagree.
+
+The docs pane itself now reads the design tokens rather than a generic grey, and its in-page links
+work: they were doing nothing at all, because the pane scrolls and the document does not.
+
 ### Spout is now a GPU path, end to end — and refuses rather than degrading
 
 A Spout frame reaches the compositor as **the texture itself**. Nothing is read back to system memory
