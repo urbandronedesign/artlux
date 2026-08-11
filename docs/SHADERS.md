@@ -172,6 +172,8 @@ by hand comes back as you left it.
 | `Escape` in the node menu | closes it |
 | `Ctrl+C` / `Ctrl+V` | copy the selected nodes and paste them, wires between them included |
 | `Ctrl+D` | duplicate the selection in place |
+| `Ctrl+G` | collapse the selected nodes into one reusable node |
+| `Ctrl+Shift+G` | expand a subpatch back onto the canvas |
 | `Delete` | remove the selected nodes and their wires |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo and redo, on ArtLux's ordinary document history |
 
@@ -179,6 +181,31 @@ Pasted nodes are copies, not links, and a pasted **parameter** is given its own 
 the same thing would be one uniform declared twice, which compiles to nothing at all. `Output` never
 copies: every graph has exactly one. A copied selection can be pasted into a **different** surface's
 graph, which is the quickest way to reuse part of something you have already built.
+
+### Make your own node — collapse a selection
+
+Select two or more nodes (`Shift`+click to add, or `Shift`+drag a box) and press **Collapse**
+(`Ctrl+G`). They become **one node** with the inputs and outputs the selection had: a wire that came
+into the selection is an input pin, a wire that left is an output pin. **Expand** (`Ctrl+Shift+G`)
+puts the contents back.
+
+The new node is a real node type for this project: rename it in the inspector, and add more copies
+from the node menu under **Subpatch**. Each copy is independent — its own values, its own knobs.
+
+**The shader does not change when you collapse.** A subpatch is expanded before the code is
+generated, so the GLSL is identical to the flat version and the wall does not flicker: collapsing a
+patch that works cannot break it. It also costs nothing to render — there is no such thing as a
+"subpatch" by the time the graphics card sees it.
+
+**The definition travels with the project**, like your shader code does. A project opened on a venue
+machine carries the subpatches it uses, whether or not that machine has ever seen them.
+
+**One thing to know before collapsing a knob.** A parameter's name is also its automation address, and
+every copy of a subpatch needs its own — so a parameter that goes inside gets a new address, and any
+timeline lane or OSC send aimed at the old one stops matching. ArtLux says which knobs are affected
+and asks before doing it.
+
+`Output` cannot go inside a subpatch: it is what the surface draws.
 
 ### Learn it by taking a patch apart
 

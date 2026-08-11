@@ -8,7 +8,7 @@
 // need node sizes we only learn after a render; here the sizes come from React Flow when it has them
 // and from a per-node estimate when it does not, which is exactly good enough to stop the overlap.
 
-import { NODES } from './nodeCatalog';
+import { NODES, type NodeDef } from './nodeCatalog';
 import type { ShaderGraph } from './nodeGraph';
 
 /** Measured size of a rendered node, when React Flow has one. */
@@ -19,8 +19,8 @@ const ROW_GAP = 26;
 const MIN_W = 150;
 
 /** What a node will be about this tall, before it has ever been rendered. */
-export function estimate(type: string): NodeSize {
-  const def = NODES[type];
+export function estimate(type: string, defs: Record<string, NodeDef> = NODES): NodeSize {
+  const def = defs[type];
   const rows = (def?.inputs.length ?? 0) + (def?.outputs.length ?? 0) + (def?.id === 'lfo.wave' ? 1 : 0);
   return { width: MIN_W, height: 26 + rows * 17 };
 }
@@ -29,11 +29,13 @@ export function estimate(type: string): NodeSize {
  * Assign every node an x/y. Pure: it reads the graph and the sizes, and returns a new node list —
  * nothing here touches React Flow, which is what lets the ordering be checked without a canvas.
  */
-export function layoutGraph(graph: ShaderGraph, sizes: Record<string, NodeSize> = {}): ShaderGraph {
+export function layoutGraph(graph: ShaderGraph, sizes: Record<string, NodeSize> = {}, defs?: Record<string, NodeDef>): ShaderGraph {
   const nodes = graph.nodes;
   if (!nodes.length) return graph;
-  const sizeOf = (id: string, type: string) => sizes[id] ?? estimate(type);
+  const sizeOf = (id: string, type: string) => sizes[id] ?? estimate(type, defs);
 
+  const catalogue = defs ?? NODES;
+  void catalogue;
   const upstream = new Map<string, string[]>();   // node ← the nodes feeding it
   const downstream = new Map<string, string[]>();
   for (const n of nodes) { upstream.set(n.id, []); downstream.set(n.id, []); }

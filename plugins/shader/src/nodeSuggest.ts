@@ -33,9 +33,9 @@ export interface Suggestion {
  * The Output node is offered like any other: dropping a colour wire on empty canvas and being shown
  * "Output" is often exactly what was meant. It is only ever ONE node, so it cannot clutter the list.
  */
-export function suggestFor(end: LooseEnd): Suggestion[] {
+export function suggestFor(end: LooseEnd, catalogue: NodeDef[] = NODE_LIST): Suggestion[] {
   const out: Suggestion[] = [];
-  for (const def of NODE_LIST) {
+  for (const def of catalogue) {
     // A wire out of a node needs an INPUT to land in; a wire out of an input needs an OUTPUT to feed it.
     const ports = end.side === 'source' ? def.inputs : def.outputs;
     let best: Suggestion | null = null;

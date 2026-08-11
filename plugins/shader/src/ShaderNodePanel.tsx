@@ -31,6 +31,7 @@ import { compile } from './shaderDrawable';
 import { layoutGraph, type NodeSize } from './nodeLayout';
 import { suggestFor, type LooseEnd, type Suggestion } from './nodeSuggest';
 import { EXAMPLES } from './nodeExamples';
+import { collapse, defsFor, expand, isSubpatchType, type SubpatchDef } from './subpatch';
 import { nextNumberedName } from '@artlux/sdk';
 
 /** One colour per port type, so a wire's legality is readable before it is dragged. */
@@ -186,9 +187,11 @@ const NodeMenu: React.FC<{
   maxHeight: number;
   /** Set when a wire was dropped on empty canvas: the list then answers "what takes this?". */
   link?: LooseEnd;
+  /** Built-ins plus this project's subpatches — the menu never reads the static table directly. */
+  catalogue: NodeDef[];
   onPick: (def: NodeDef, port?: string) => void;
   onClose: () => void;
-}> = ({ at, maxHeight, link, onPick, onClose }) => {
+}> = ({ at, maxHeight, link, catalogue, onPick, onClose }) => {
   const [q, setQ] = useState('');
   // A dropped wire opens straight into the answer, not into the categories: the question was asked by
   // the gesture, and making the operator choose a category to see it again would be asking it back.
@@ -196,7 +199,7 @@ const NodeMenu: React.FC<{
   const [showAll, setShowAll] = useState(false);
 
   /** What the loose wire can reach, best first — exact type matches above coercions. */
-  const suggested = useMemo(() => (link && !showAll ? suggestFor(link) : null), [link, showAll]);
+  const suggested = useMemo(() => (link && !showAll ? suggestFor(link, catalogue) : null), [link, showAll, catalogue]);
   const portFor = useCallback(
     (def: NodeDef) => suggested?.find((s) => s.def.id === def.id)?.port.name,
     [suggested],
@@ -224,9 +227,9 @@ const NodeMenu: React.FC<{
   /** Categories in catalogue order, each with how many nodes are in it. */
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const d of NODE_LIST) counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
+    for (const d of catalogue) counts.set(d.category, (counts.get(d.category) ?? 0) + 1);
     return [...counts].map(([name, count]) => ({ name, count }));
-  }, []);
+  }, [catalogue]);
 
   const found = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -244,9 +247,9 @@ const NodeMenu: React.FC<{
       if (d.hint.toLowerCase().includes(needle)) return 5;
       return 99;
     };
-    return NODE_LIST.map((d) => ({ d, s: score(d) })).filter((x) => x.s < 99)
+    return catalogue.map((d) => ({ d, s: score(d) })).filter((x) => x.s < 99)
       .sort((a, b) => a.s - b.s).map((x) => x.d);
-  }, [q]);
+  }, [q, catalogue]);
 
   /** What is on screen right now: categories, one category's nodes, or search results. */
   const rows: ({ kind: 'category'; name: string; count: number } | { kind: 'node'; def: NodeDef })[] =
@@ -255,7 +258,7 @@ const NodeMenu: React.FC<{
       // wire cannot land on, because its name matched, would be offering an error.
       ? suggested.filter((s) => !found || found.some((d) => d.id === s.def.id)).map((s) => ({ kind: 'node' as const, def: s.def }))
       : found ? found.map((def) => ({ kind: 'node' as const, def }))
-        : category ? NODE_LIST.filter((d) => d.category === category).map((def) => ({ kind: 'node' as const, def }))
+        : category ? catalogue.filter((d) => d.category === category).map((def) => ({ kind: 'node' as const, def }))
           : categories.map((c) => ({ kind: 'category' as const, name: c.name, count: c.count }));
 
   useEffect(() => { setCursor(0); }, [q, category]);
@@ -374,9 +377,12 @@ const NodeMenu: React.FC<{
 const NodeInspector: React.FC<{
   node: ShaderGraph['nodes'][number];
   graph: ShaderGraph;
+  defs: Record<string, NodeDef>;
   onParam: (nodeId: string, key: string, value: number | string) => void;
-}> = ({ node, graph, onParam }) => {
-  const def = NODES[node.type];
+  onRenameSubpatch: (type: string, name: string) => void;
+  onExpand: () => void;
+}> = ({ node, graph, defs, onParam, onRenameSubpatch, onExpand }) => {
+  const def = defs[node.type];
   if (!def) {
     return <div className="p-2 text-micro text-danger">This node’s type ({node.type}) is not in the catalogue.</div>;
   }
@@ -385,7 +391,7 @@ const NodeInspector: React.FC<{
     const e = graph.edges.find((x) => x.to.node === node.id && x.to.port === port);
     if (!e) return null;
     const from = graph.nodes.find((n) => n.id === e.from.node);
-    return `${NODES[from?.type ?? '']?.label ?? e.from.node} · ${e.from.port}`;
+    return `${defs[from?.type ?? '']?.label ?? e.from.node} · ${e.from.port}`;
   };
 
   return (
@@ -394,6 +400,27 @@ const NodeInspector: React.FC<{
         <div className="text-mini font-semibold text-fg-1">{def.label}</div>
         <div className="mt-0.5 text-micro leading-snug text-fg-3">{def.hint}</div>
       </div>
+
+      {/* A SUBPATCH IS A NODE WITH A DEFINITION, so its inspector edits the definition too: renaming
+          it renames the node type everywhere it is used in this graph, and Expand puts its contents
+          back on the canvas. Neither belongs on a built-in node, which is why this is the one special
+          case in an inspector that is otherwise entirely catalogue-driven. */}
+      {isSubpatchType(node.type) && (
+        <div className="flex flex-col gap-1.5 border-t border-line-1 pt-2">
+          <div className="flex items-center gap-1.5">
+            <label className="w-14 shrink-0 truncate text-micro text-fg-2">Name</label>
+            <SettingText value={def.label} onCommit={(v) => onRenameSubpatch(node.type, v)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-micro text-fg-3">
+              {graph.subpatches?.find((sp) => sp.id === node.type)?.nodes.length ?? 0} nodes inside
+            </span>
+            <Button size="sm" variant="ghost" onClick={onExpand} title="Put its contents back on the canvas">
+              Expand
+            </Button>
+          </div>
+        </div>
+      )}
 
       {!!def.settings?.length && (
         <div className="flex flex-col gap-1.5 border-t border-line-1 pt-2">
@@ -483,6 +510,13 @@ export const ShaderNodePanel: React.FC = () => {
   /** The previous pointerdown, for detecting a double-click ourselves — see the pane handler. */
   const lastDown = useRef<{ x: number; y: number; t: number } | null>(null);
   const confirmDialog = useConfirm();
+  /**
+   * Built-ins plus this graph's own subpatches. EVERY lookup in this panel goes through here — a
+   * subpatch is a node type that exists only inside one project, so the static table cannot answer.
+   */
+  const defs = useMemo(() => defsFor(graph), [graph]);
+  const catalogue = useMemo(() => Object.values(defs), [defs]);
+
   /** The node menu: where to draw it, and the graph point a picked node lands on. */
   const [menu, setMenu] = useState<
     { x: number; y: number; h: number; at: { x: number; y: number }; link?: LooseEnd } | null
@@ -490,6 +524,8 @@ export const ShaderNodePanel: React.FC = () => {
   /** The port a wire is being dragged from, while it is in the air. */
   const dragging = useRef<LooseEnd | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
+  /** What is selected, for the keyboard commands. See the note on the keydown effect. */
+  const selectedIds = useRef<string[]>([]);
   // Is the operator working in this canvas? Focus alone is not enough: React Flow focuses a NODE when
   // you click one, but clicking the background focuses nothing at all, so a focus-only gate makes
   // Ctrl+V dead in exactly the state you paste from. Hover answers the same question and survives it.
@@ -559,13 +595,13 @@ export const ShaderNodePanel: React.FC = () => {
     setRfNodes((prev) => {
       const seen = new Map(prev.map((n) => [n.id, n]));
       return graph.nodes.map((n) => {
-        const data = { def: NODES[n.type], params: n.params ?? {}, connected, onParam };
+        const data = { def: defs[n.type], params: n.params ?? {}, connected, onParam };
         const old = seen.get(n.id);
         const position = { x: n.x ?? 0, y: n.y ?? 0 };
         return old ? { ...old, position, data } : { id: n.id, type: 'shaderNode', position, data };
       });
     });
-  }, [graph.nodes, connected, onParam]);
+  }, [graph.nodes, connected, onParam, defs]);
 
   const rfEdges: Edge[] = useMemo(() => graph.edges.map((e, i) => ({
     id: `e${i}`,
@@ -615,10 +651,10 @@ export const ShaderNodePanel: React.FC = () => {
   }, [graph, rfEdges, commit]);
 
   const isValid = useCallback((c: Connection | Edge) => {
-    const from = NODES[graph.nodes.find((n) => n.id === c.source)?.type ?? '']?.outputs.find((o) => o.name === c.sourceHandle);
-    const to = NODES[graph.nodes.find((n) => n.id === c.target)?.type ?? '']?.inputs.find((p) => p.name === c.targetHandle);
+    const from = defs[graph.nodes.find((n) => n.id === c.source)?.type ?? '']?.outputs.find((o) => o.name === c.sourceHandle);
+    const to = defs[graph.nodes.find((n) => n.id === c.target)?.type ?? '']?.inputs.find((p) => p.name === c.targetHandle);
     return !!from && !!to && canConnect(from.type, to.type);
-  }, [graph.nodes]);
+  }, [graph.nodes, defs]);
 
   /** Open the menu at a screen point, remembering the graph position under it. */
   const openMenu = useCallback((clientX: number, clientY: number, link?: LooseEnd) => {
@@ -637,12 +673,12 @@ export const ShaderNodePanel: React.FC = () => {
   /** Remember which port a wire is coming out of, and its GLSL type. */
   const onConnectStart = useCallback((_: unknown, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
     const node = graph.nodes.find((n) => n.id === params.nodeId);
-    const def = node && NODES[node.type];
+    const def = node && defs[node.type];
     if (!def || !params.handleId || !params.handleType) { dragging.current = null; return; }
     const side = params.handleType === 'source' ? 'source' : 'target';
     const port = (side === 'source' ? def.outputs : def.inputs).find((x) => x.name === params.handleId);
     dragging.current = port ? { node: node.id, port: port.name, type: port.type, side } : null;
-  }, [graph.nodes]);
+  }, [graph.nodes, defs]);
 
   /**
    * A wire dropped on empty canvas is a QUESTION — "what takes a vec2?" — so answer it: the menu opens
@@ -734,6 +770,52 @@ export const ShaderNodePanel: React.FC = () => {
     requestAnimationFrame(() => flow.current?.fitView({ duration: 250, maxZoom: 1, padding: 0.2 }));
   }, [graph.nodes.length, commit, confirmDialog]);
 
+  /**
+   * Collapse the selected nodes into one, and give the graph a node type of its own.
+   *
+   * It ASKS when the selection contains parameters, because a parameter's name is its automation path
+   * and every instance of a subpatch must own a different one — so any timeline lane, OSC address or
+   * state value aimed at that knob stops matching. Losing a lane silently is how a show breaks the
+   * night after it worked.
+   */
+  const collapseSelection = useCallback(async () => {
+    const ids = selectedIds.current;
+    if (ids.length < 2) { setStatus({ ok: false, message: 'select at least two nodes to collapse' }); return; }
+    // NOT the list length: delete the first subpatch and the next collapse would mint a name already
+    // in use, which is the fault nextNumberedName exists to prevent — it takes the highest number
+    // ALREADY WEARING the word. Here it would give two subpatches the same label in the same menu.
+    const name = nextNumberedName('Subpatch', (graph.subpatches ?? []).map((sp) => ({ name: sp.name })));
+    const probe = collapse(graph, ids, name);
+    if (probe.error) { setStatus({ ok: false, message: probe.error }); return; }
+    if (probe.renamedParams.length) {
+      const yes = await confirmDialog({
+        title: 'Collapse these nodes?',
+        message: `${probe.renamedParams.join(', ')} ${probe.renamedParams.length > 1 ? 'move' : 'moves'} inside the subpatch, so ${probe.renamedParams.length > 1 ? 'their automation addresses change' : 'its automation address changes'}. Timeline lanes and OSC sends aimed at ${probe.renamedParams.length > 1 ? 'them' : 'it'} will need repointing.`,
+        confirmLabel: 'Collapse',
+      });
+      if (!yes) return;
+    }
+    if (commit(probe.graph)) {
+      setStatus({ ok: true, message: `${ids.length} nodes → “${name}”. Rename it in the inspector; it is in the node menu under Subpatch.` });
+    }
+  }, [graph, commit, confirmDialog]);
+
+  /** Put a subpatch instance's nodes back on the canvas. The inverse of collapse, and never lossy. */
+  const expandSelection = useCallback(() => {
+    const inst = graph.nodes.find((n) => selectedIds.current.includes(n.id) && isSubpatchType(n.type));
+    if (!inst) { setStatus({ ok: false, message: 'select a subpatch node to expand it' }); return; }
+    if (commit(expand(graph, inst.id))) setStatus({ ok: true, message: `expanded “${defs[inst.type]?.label ?? inst.type}”` });
+  }, [graph, commit, defs]);
+
+  /** Rename a subpatch — the definition, so every instance of it in this graph follows. */
+  const renameSubpatch = useCallback((type: string, name: string) => {
+    commit({
+      ...graph,
+      subpatches: (graph.subpatches ?? []).map((sp) => (sp.id === type ? { ...sp, name } : sp)),
+      nodes: graph.nodes.map((n) => (n.type === type ? { ...n, label: name } : n)),
+    });
+  }, [graph, commit]);
+
   /** Arrange the whole graph left to right. Uses the sizes React Flow has actually MEASURED, falling
    *  back to the estimate for anything not yet rendered — the two differ most for tall nodes, which
    *  are exactly the ones that would otherwise overlap their neighbour below. */
@@ -743,9 +825,9 @@ export const ShaderNodePanel: React.FC = () => {
       const m = (n as { measured?: { width?: number; height?: number } }).measured;
       if (m?.width && m?.height) sizes[n.id] = { width: m.width, height: m.height };
     }
-    commit(layoutGraph(graph, sizes));
+    commit(layoutGraph(graph, sizes, defs));
     requestAnimationFrame(() => flow.current?.fitView({ duration: 250, maxZoom: 1, padding: 0.25 }));
-  }, [graph, rfNodes, commit]);
+  }, [graph, rfNodes, commit, defs]);
 
   /**
    * Hand the graph's code to the code editor and stop being a graph.
@@ -785,7 +867,7 @@ export const ShaderNodePanel: React.FC = () => {
    */
   const copySelection = useCallback((): number => {
     const ids = new Set(rfNodes.filter((n) => n.selected).map((n) => n.id));
-    const nodes = graph.nodes.filter((n) => ids.has(n.id) && NODES[n.type]?.id !== 'output.color');
+    const nodes = graph.nodes.filter((n) => ids.has(n.id) && defs[n.type]?.id !== 'output.color');
     if (!nodes.length) return 0;
     const keep = new Set(nodes.map((n) => n.id));
     clipboard = {
@@ -793,7 +875,7 @@ export const ShaderNodePanel: React.FC = () => {
       edges: graph.edges.filter((e) => keep.has(e.from.node) && keep.has(e.to.node)).map((e) => ({ ...e })),
     };
     return nodes.length;
-  }, [graph, rfNodes]);
+  }, [graph, rfNodes, defs]);
 
   const paste = useCallback((): number => {
     if (!clipboard?.nodes.length) return 0;
@@ -840,6 +922,11 @@ export const ShaderNodePanel: React.FC = () => {
       }
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
+      if (k === 'g') {
+        e.preventDefault(); e.stopPropagation();
+        if (e.shiftKey) expandSelection(); else void collapseSelection();
+        return;
+      }
       if (k !== 'c' && k !== 'v' && k !== 'd') return;
       e.preventDefault(); e.stopPropagation();
       if (k === 'c') { const n = copySelection(); setStatus({ ok: true, message: n ? `${n} node${n > 1 ? 's' : ''} copied` : 'nothing selected' }); return; }
@@ -849,7 +936,7 @@ export const ShaderNodePanel: React.FC = () => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [copySelection, paste, openMenu]);
+  }, [copySelection, paste, openMenu, collapseSelection, expandSelection]);
 
   // Which nodes the inspector is looking at. React Flow owns selection, so this reads its model
   // rather than keeping a second one that could disagree with the highlight on screen.
@@ -857,6 +944,7 @@ export const ShaderNodePanel: React.FC = () => {
     const ids = new Set(rfNodes.filter((n) => n.selected).map((n) => n.id));
     return graph.nodes.filter((n) => ids.has(n.id));
   }, [rfNodes, graph.nodes]);
+  selectedIds.current = selectedNodes.map((n) => n.id);
 
   if (!surface) {
     return <div className="p-2 text-micro italic text-fg-3">Select a shader surface to edit its graph.</div>;
@@ -879,6 +967,18 @@ export const ShaderNodePanel: React.FC = () => {
           <Button size="sm" variant="ghost" onClick={convertToCode} disabled={graph.nodes.length < 2} title="Hand the generated GLSL to the Shader tab and stop being a graph">
             Convert to code
           </Button>
+          <Button
+            size="sm" variant="ghost" onClick={() => void collapseSelection()}
+            disabled={selectedNodes.length < 2}
+            title="Collapse the selected nodes into one reusable node (Ctrl+G)"
+          >
+            Collapse
+          </Button>
+          {selectedNodes.some((n) => isSubpatchType(n.type)) && (
+            <Button size="sm" variant="ghost" onClick={expandSelection} title="Put its contents back on the canvas (Ctrl+Shift+G)">
+              Expand
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setExamplesOpen((v) => !v)} title="Open a worked example and take it apart">
             Examples
           </Button>
@@ -930,6 +1030,11 @@ export const ShaderNodePanel: React.FC = () => {
             // Double-click is the ADD gesture here, so React Flow must not spend it on zooming — its
             // d3-zoom handler swallowed the event and the menu never opened. Zoom keeps the wheel.
             zoomOnDoubleClick={false}
+            // SHIFT MUST ALSO ADD TO A SELECTION. React Flow defaults this to Ctrl (Cmd on a Mac),
+            // and shift-click is what everyone tries first — it silently replaced the selection
+            // instead, so Collapse stayed greyed out however many nodes you thought you had picked.
+            // Shift+drag on empty canvas still draws a selection box, which is the other half of it.
+            multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
             onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: true }}
             deleteKeyCode={['Delete', 'Backspace']}
             style={{ background: 'var(--surface-0)' }}
@@ -961,7 +1066,7 @@ export const ShaderNodePanel: React.FC = () => {
 
         {menu && (
           <NodeMenu
-            at={{ x: menu.x, y: menu.y }} maxHeight={menu.h} link={menu.link}
+            at={{ x: menu.x, y: menu.y }} maxHeight={menu.h} link={menu.link} catalogue={catalogue}
             onPick={(def, port) => {
               addNode(def, menu.at, menu.link && port ? { end: menu.link, port } : undefined);
               setMenu(null);
@@ -980,7 +1085,7 @@ export const ShaderNodePanel: React.FC = () => {
           different selections cannot share one inspector without one of them lying. */}
       <div className="flex w-52 shrink-0 flex-col overflow-auto border-l border-line-1">
         {selectedNodes.length === 1
-          ? <NodeInspector node={selectedNodes[0]} graph={graph} onParam={onParam} />
+          ? <NodeInspector node={selectedNodes[0]} graph={graph} defs={defs} onParam={onParam} onRenameSubpatch={renameSubpatch} onExpand={expandSelection} />
           : (
             <div className="p-2 text-micro leading-snug text-fg-3">
               {selectedNodes.length

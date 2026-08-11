@@ -24,6 +24,7 @@
 
 import { resolveHelpers } from './glslLib';
 import { NODES, type NodeDef, type PortType } from './nodeCatalog';
+import { flatten } from './subpatch';
 
 export type { PortType };
 
@@ -50,6 +51,12 @@ export interface ShaderGraph {
   version: 1;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /**
+   * Subpatch definitions this graph carries. Typed loosely here to keep the compiler free of the
+   * subpatch module — flatten() removes every instance before generation, so nothing below this line
+   * ever meets one. See subpatch.ts for why the definitions travel with the project.
+   */
+  subpatches?: import('./subpatch').SubpatchDef[];
 }
 
 export interface GenerateResult {
@@ -134,7 +141,13 @@ function coerce(expr: string, from: PortType, to: PortType): { expr?: string; er
  * Never throws: a broken graph returns errors, because this runs while an operator is dragging wires
  * and half of every graph is momentarily invalid by construction.
  */
-export function generateGlsl(graph: ShaderGraph): GenerateResult {
+export function generateGlsl(input: ShaderGraph): GenerateResult {
+  // SUBPATCHES ARE GONE BY THE SECOND LINE. Everything below compiles an ordinary flat graph, which
+  // is the whole reason a subpatch cost no compiler work: inlining is what this generator already did.
+  const flat = flatten(input);
+  if (flat.error) return { source: '', errors: [flat.error] };
+  const graph = flat.graph;
+
   const errors: string[] = [];
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
 
