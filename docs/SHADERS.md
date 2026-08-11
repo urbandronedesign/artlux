@@ -655,6 +655,17 @@ shader is drawn every frame: on a modest laptop GPU a shader costs roughly a ten
 at 720p and about ten times that at 1080p. Ten shader surfaces at 720p is still a small fraction of a
 frame; ten at 1080p is not. There is rarely a reason to leave 720p.
 
+**How high the list goes depends on the graphics card.** A machine with a discrete GPU — which is what
+a machine driving projectors has — is offered **1440p and 2160p** as well; one running on integrated
+graphics stops at 1080p and says so under the control, naming the card it found. That is not a
+judgement about speed, which the frame budget already handles: a 4K shader buffer **killed the graphics
+process outright** on an integrated Intel part during development, twice, taking every shader on the
+wall with it. A card that cannot be identified is treated as the cautious case.
+
+**A project keeps the Detail it was saved with.** Open one authored at 2160p on a laptop and the
+control still shows 2160p rather than quietly reinterpreting your work — it renders at what it says on
+the machine that can.
+
 ## In a show launch
 
 Started with `--broadcast`, ArtLux runs your shaders and shows them on the outputs, with **no editor

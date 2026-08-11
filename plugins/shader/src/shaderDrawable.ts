@@ -8,13 +8,19 @@
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in augmentaDrawable)
 import { reportFault } from '@/services/faultReporter';
-import { getProgram, renderToBitmap, failedProgram, dropHistory, type CompiledProgram } from './shaderContext';
+import { getProgram, renderToBitmap, failedProgram, dropHistory, maxRenderHeight, type CompiledProgram } from './shaderContext';
 import { sourceOf } from './shaderSource';
 import { lintLoops, noteDraw, isDisabled, rearm, BUDGET } from './shaderGuard';
 import { resolve as resolveParams } from './shaderParams';
 
-/** Detail rungs offered in the MAIN window — a PIXEL BUDGET each, not a literal size (see sizeFor). */
-export const RENDER_HEIGHTS = [360, 720, 1080] as const;
+/**
+ * Detail rungs — a PIXEL BUDGET each, not a literal size (see sizeFor).
+ *
+ * How far up the ladder a machine may go is decided by its GPU, not by this list: see
+ * `maxRenderHeight()`. The two rungs above 1080 exist for the machines that drive projectors, where a
+ * 4K wash costs a discrete card nothing and a 1080p one shows its pixels on a 12 m wall.
+ */
+export const RENDER_HEIGHTS = [360, 720, 1080, 1440, 2160] as const;
 export const DEFAULT_HEIGHT = 720;
 
 interface Entry {

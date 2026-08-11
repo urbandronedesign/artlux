@@ -9,6 +9,7 @@ import React from 'react';
 import type { SurfaceContent } from '@/types';
 import { STARTERS } from './starters';
 import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDrawable';
+import { maxRenderHeight, rendererDescription } from './shaderContext';
 import { compileStatus } from './shaderDrawable';
 import { inputsOf, headerProblems } from './shaderParams';
 import { ShaderParamControls } from './ShaderParamControls';
@@ -78,13 +79,25 @@ export function ShaderContentEditor({
           spent in whatever shape the surface has — not 1280 × 720 literally. */}
       <div className="flex items-center gap-1">
         <label className="text-fg-2 w-12 text-micro">Detail</label>
+        {/* Rungs above what this GPU is trusted with are not offered. An integrated part died
+            outright on a 4K buffer — see maxRenderHeight — so the ladder is cut to the machine
+            rather than to the weakest machine anyone might ever run this on. A value already saved
+            in a project is still shown, because hiding it would silently reinterpret the project:
+            it renders at what it says, on the machine that can. */}
         <select className={SELECT} value={content.shaderRes ?? DEFAULT_HEIGHT}
           onChange={(e) => onChange({ shaderRes: +e.target.value })}>
-          {RENDER_HEIGHTS.map((h) => (
-            <option key={h} value={h}>{h}p{h === DEFAULT_HEIGHT ? ' · default' : ''}</option>
-          ))}
+          {RENDER_HEIGHTS
+            .filter((h) => h <= maxRenderHeight() || h === (content.shaderRes ?? DEFAULT_HEIGHT))
+            .map((h) => (
+              <option key={h} value={h}>{h}p{h === DEFAULT_HEIGHT ? ' · default' : ''}</option>
+            ))}
         </select>
       </div>
+      {maxRenderHeight() < 2160 && (
+        <div className="pl-[3.4rem] text-micro leading-snug text-fg-3">
+          Above 1080p needs a discrete GPU — this one reports “{rendererDescription() || 'no name'}”.
+        </div>
+      )}
 
       {/* The shader's own knobs, drawn from its header. */}
       <ShaderParamControls inputs={inputs} content={content} onChange={onChange} />

@@ -115,7 +115,51 @@ function ensure(): WebGL2RenderingContext | null {
 
   canvas = c;
   gl = ctx;
+  // Ask what we are actually running on, once, while the context is fresh.
+  rendererName = readRenderer(ctx);
   return gl;
+}
+
+/** What the driver calls itself, e.g. "NVIDIA GeForce RTX 4090". Empty when it will not say. */
+let rendererName = '';
+
+function readRenderer(ctx: WebGL2RenderingContext): string {
+  try {
+    const ext = ctx.getExtension('WEBGL_debug_renderer_info');
+    const raw = ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER);
+    return typeof raw === 'string' ? raw : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The tallest buffer this machine is trusted with.
+ *
+ * NOT a guess about speed — a shader that is merely slow is caught by the frame budget and disabled
+ * with a message. This is about a HARD failure: resizing this context's canvas to 4K killed the GPU
+ * PROCESS on the Intel Iris Xe development machine, twice and reproducibly, taking every shader on
+ * the wall with it and leaving every later compile returning an empty info log. That is why the ladder
+ * stopped at 1080p for everyone.
+ *
+ * A machine driving projectors has a discrete card, and 4K is nothing to one. So the ceiling is now
+ * read from the GPU: integrated parts stay at 1080p, discrete cards get the full ladder, and a name we
+ * do not recognise is treated as the weaker case — a wall that could have been sharper is a
+ * disappointment, a dead GPU process at 21:00 is a show.
+ */
+export function maxRenderHeight(): number {
+  const n = rendererName.toLowerCase();
+  if (!n) return 1080;
+  if (/apple m\d/.test(n)) return 2160;              // Apple silicon is discrete-class here
+  if (/\barc\b/.test(n)) return 2160;                // Intel's discrete Arc, unlike its iGPUs
+  if (/intel|iris|uhd graphics|hd graphics|microsoft basic|swiftshader|llvmpipe|software/.test(n)) return 1080;
+  if (/nvidia|geforce|quadro|rtx|radeon|amd|firepro/.test(n)) return 2160;
+  return 1080;
+}
+
+/** For the inspector, so a missing rung can be read rather than guessed at. */
+export function rendererDescription(): string {
+  return rendererName;
 }
 
 /**
