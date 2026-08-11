@@ -38,6 +38,18 @@ import {
 } from './subpatch';
 import { nextNumberedName } from '@artlux/sdk';
 
+/**
+ * A MacBook has no middle mouse button.
+ *
+ * Left-drag draws a selection box here (that is the gesture a subpatch is made with), so panning went
+ * to the middle and right buttons — which on a trackpad leaves nothing to pan with, and two-finger
+ * scroll was zooming. On macOS the canvas therefore pans with two fingers and zooms with ⌘+scroll,
+ * which is what every other Mac canvas does; elsewhere the wheel keeps zooming, which is what every
+ * Windows user of this app already has in their hands. Space+drag pans on both, and needs no mouse
+ * at all.
+ */
+const IS_MAC = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
+
 /** One colour per port type, so a wire's legality is readable before it is dragged. */
 const TYPE_COLOR: Record<PortType, string> = {
   float: '#27b6c4', int: '#7dd3fc', bool: '#f0abfc',
@@ -1263,7 +1275,14 @@ export const ShaderNodePanel: React.FC = () => {
             // subpatch is made with — reachable only by knowing to hold Shift first. Panning moves to
             // the middle and right buttons, where every other canvas in this trade puts it, and the
             // wheel still zooms.
-            selectionOnDrag panOnDrag={[1, 2]}
+            selectionOnDrag
+            // Middle and right always pan; on a Mac, space does too, because that is the only one of
+            // the three a trackpad can actually produce.
+            panOnDrag={[1, 2]}
+            panOnScroll={IS_MAC}
+            zoomOnScroll={!IS_MAC}
+            zoomActivationKeyCode={IS_MAC ? ['Meta', 'Control'] : null}
+            panActivationKeyCode="Space"
             // PARTIAL: a node the box touches is caught. Requiring the box to swallow a node whole
             // means missing the one at the edge and collapsing a selection with a hole in it.
             selectionMode={SelectionMode.Partial}
@@ -1310,7 +1329,7 @@ export const ShaderNodePanel: React.FC = () => {
         )}
 
         <div className={`shrink-0 border-t border-line-1 px-2 py-1 text-micro ${status && !status.ok ? 'text-danger' : 'text-fg-3'}`}>
-          {status ? status.message : 'Double-click (or Tab) to add a node · drag a box to select · Ctrl+G collapses it · click a wire and press Delete, or drag its end away'}
+          {status ? status.message : `Double-click (or Tab) to add a node · drag a box to select · ${IS_MAC ? '⌘G' : 'Ctrl+G'} collapses it · click a wire and press Delete, or drag its end away · space-drag pans`}
         </div>
       </div>
 

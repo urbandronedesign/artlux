@@ -177,7 +177,9 @@ of the graph and is saved with it, so a layout you arranged by hand comes back a
 | `Ctrl+C` / `Ctrl+V` | copy the selected nodes and paste them, wires between them included |
 | `Ctrl+D` | duplicate the selection in place |
 | drag on empty canvas | select a box of nodes |
+| `Space`+drag | pan the canvas — works with any mouse or trackpad |
 | middle-drag / right-drag | pan the canvas |
+| two-finger scroll (macOS) | pan · `⌘`+scroll zooms. On Windows the wheel zooms. |
 | `Ctrl+G` | collapse the selected nodes into one reusable node |
 | `Ctrl+Shift+G` | expand a subpatch back onto the canvas |
 | `Delete` | remove the selected nodes and wires |
