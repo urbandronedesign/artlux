@@ -240,6 +240,32 @@ not two hundred.
   because a parameter name is a uniform name and the same uniform declared twice compiles to nothing.
   The add path already did this; paste is a second door to the same fault.
 
+## 8 · No palette column — the menu comes to the cursor (2026-08-11)
+
+Owner's call, and Houdini's: a permanent 160px palette spends width on every graph you will ever
+build to answer a question you ask for two seconds. **Double-click empty canvas (or press `Tab`) and
+the searchable list opens at the pointer**; type, `↑`/`↓`, `Enter`. The node lands where the menu was
+opened, which also settles placement — you point at the space you want it in. Ranking puts a name
+match above a category match above a description match, so "mix" finds Mix and not the four nodes
+whose hint says "blend".
+
+**Two measurements, both of which contradicted the obvious implementation:**
+
+- **The canvas never emits a `dblclick` at all.** With listeners on the pane, the wrapper AND
+  `document`, a double-click produced nothing — React Flow's d3-zoom pointer handling eats it, and
+  `zoomOnDoubleClick={false}` does not bring it back. The gesture is therefore read from the pointer
+  stream: two `pointerdown`s within 400ms and 6px. (`zoomOnDoubleClick` is still off — double-click
+  is the add gesture here and must not also zoom.)
+- **`autoFocus` lost the race.** The field rendered focused-looking and empty, and every keystroke went
+  to the canvas: React Flow puts focus back on its own pane after the click that opened the menu.
+  Measured — `document.activeElement` stayed `BODY`. Focus is now taken on the next animation frame,
+  and Escape is handled at the window rather than on the field, which cannot be assumed to have focus.
+
+Verified end to end: menu opens on double-click and on Tab, "worl" filters to Worley alone, Enter adds
+it **1px from the click point**, Escape closes. A double-click on a node or a wire does not open it.
+
+---
+
 ## 7 · The node inspector, and why `Setting` exists (2026-08-11)
 
 The catalogue will keep growing, and a node body is 148px wide. Rather than let each new node add a

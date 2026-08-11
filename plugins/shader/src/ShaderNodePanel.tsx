@@ -161,6 +161,106 @@ const GraphNodeBody: React.FC<NodeProps> = ({ id, data, selected }) => {
 const nodeTypes = { shaderNode: GraphNodeBody };
 
 /**
+ * The node menu — Houdini's Tab menu, in ArtLux's clothes.
+ *
+ * A permanent palette column costs width on every graph you will ever build, to answer a question you
+ * ask for two seconds at a time. So the list comes to the cursor instead: double-click empty canvas (or
+ * press Tab), type, Enter. The node lands where you opened it, which is also the placement problem
+ * solved — you point at the space you want it in.
+ *
+ * Keyboard first, because that is what makes it fast: the field takes focus on open, ↑/↓ walk the
+ * matches, Enter adds the highlighted one, Escape closes. The mouse works too and costs nothing.
+ */
+const NodeMenu: React.FC<{
+  at: { x: number; y: number };
+  onPick: (def: NodeDef) => void;
+  onClose: () => void;
+}> = ({ at, onPick, onClose }) => {
+  const [q, setQ] = useState('');
+  const [cursor, setCursor] = useState(0);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const fieldRef = useRef<HTMLInputElement | null>(null);
+
+  // FOCUS IT OURSELVES, on the next frame. `autoFocus` alone lost the race: the click that opens this
+  // menu is still being processed by React Flow, which puts focus back on its own pane afterwards — so
+  // the field rendered, looked ready, and every keystroke went to the canvas instead. Measured: with
+  // autoFocus only, document.activeElement stayed BODY and typing filtered nothing.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => fieldRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Escape closes it from anywhere, not only from the field — see above for why focus cannot be assumed.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  const matches = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return NODE_LIST;
+    // Rank a label match above a description match: typing "mix" wants the Mix node, not the four
+    // nodes whose hint happens to say "blend".
+    const score = (d: NodeDef) => {
+      const label = d.label.toLowerCase();
+      if (label.startsWith(needle)) return 0;
+      if (label.includes(needle)) return 1;
+      if (d.category.toLowerCase().includes(needle)) return 2;
+      if (d.hint.toLowerCase().includes(needle)) return 3;
+      return 99;
+    };
+    return NODE_LIST.map((d) => ({ d, s: score(d) })).filter((x) => x.s < 99)
+      .sort((a, b) => a.s - b.s).map((x) => x.d);
+  }, [q]);
+
+  useEffect(() => { setCursor(0); }, [q]);
+  // Keep the highlighted row on screen when walking a 59-entry list with the arrow keys.
+  useEffect(() => {
+    listRef.current?.querySelector('[data-cursor="1"]')?.scrollIntoView({ block: 'nearest' });
+  }, [cursor]);
+
+  const take = (i: number) => { const d = matches[i]; if (d) onPick(d); };
+
+  return (
+    <div
+      className="absolute z-30 flex w-60 flex-col rounded-md border border-line-2 bg-surface-1 shadow-lg"
+      style={{ left: at.x, top: at.y, maxHeight: 320 }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={fieldRef} autoFocus
+        value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search nodes"
+        className="m-1 rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent focus:outline-none"
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, matches.length - 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
+          else if (e.key === 'Enter') { e.preventDefault(); take(cursor); }
+          else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+          e.stopPropagation();   // this field owns its keys; the canvas shortcuts must not see them
+        }}
+      />
+      <div ref={listRef} className="min-h-0 flex-1 overflow-auto pb-1">
+        {!matches.length && <div className="px-2 py-1 text-micro italic text-fg-3">no node matches “{q}”</div>}
+        {matches.map((d, i) => (
+          <button
+            key={d.id} type="button"
+            data-cursor={i === cursor ? '1' : undefined}
+            onPointerEnter={() => setCursor(i)}
+            onClick={() => onPick(d)}
+            title={d.hint}
+            className={`block w-full px-2 py-[3px] text-left text-micro ${i === cursor ? 'bg-accent/10 text-accent' : 'text-fg-1'}`}
+          >
+            <span className="truncate">{d.label}</span>
+            <span className="ml-1 text-fg-3">{d.category}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
  * The node inspector.
  *
  * It knows nothing about any particular node. Everything it draws — the title, the explanation, each
@@ -274,11 +374,17 @@ export const ShaderNodePanel: React.FC = () => {
 
   const [graph, setGraph] = useState<ShaderGraph>(() => emptyGraph());
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
-  const [filter, setFilter] = useState('');
   const loadedFor = useRef<string | null>(null);
   const flow = useRef<ReactFlowInstance | null>(null);
   const pane = useRef<HTMLDivElement | null>(null);
+  const shell = useRef<HTMLDivElement | null>(null);
+  /** Where the pointer last was over the canvas, so Tab can open the menu there. */
+  const pointer = useRef({ x: 0, y: 0 });
+  /** The previous pointerdown, for detecting a double-click ourselves — see the pane handler. */
+  const lastDown = useRef<{ x: number; y: number; t: number } | null>(null);
   const confirmDialog = useConfirm();
+  /** The node menu: where to draw it, and the graph point a picked node lands on. */
+  const [menu, setMenu] = useState<{ x: number; y: number; at: { x: number; y: number } } | null>(null);
   // Is the operator working in this canvas? Focus alone is not enough: React Flow focuses a NODE when
   // you click one, but clicking the background focuses nothing at all, so a focus-only gate makes
   // Ctrl+V dead in exactly the state you paste from. Hover answers the same question and survives it.
@@ -412,7 +518,7 @@ export const ShaderNodePanel: React.FC = () => {
     commit({ ...graph, edges: [...edges, { from: { node: c.source, port: c.sourceHandle }, to: { node: c.target, port: c.targetHandle } }] });
   }, [graph, commit]);
 
-  const addNode = useCallback((def: NodeDef) => {
+  const addNode = useCallback((def: NodeDef, at?: { x: number; y: number }) => {
     const id = `${def.id.split('.').pop()}_${Math.max(0, ...graph.nodes.map((n) => Number(n.id.split('_').pop()) || 0)) + 1}`;
     const params: Record<string, number | number[] | string | boolean> = {};
     for (const p of def.inputs) if (p.def !== undefined) params[p.name] = p.def as never;
@@ -429,16 +535,16 @@ export const ShaderNodePanel: React.FC = () => {
       params.default = def.id === 'param.float' ? 0.5 : 0;
       if (def.id === 'param.float') { params.min = 0; params.max = 1; }
     }
-    // A NEW NODE LANDS WHERE THE OPERATOR IS LOOKING, not at the graph's origin. Placing it in graph
-    // coordinates put the first seven nodes outside the framed view, so the palette looked inert; and a
-    // fitView on every add would keep yanking the canvas out from under a pan. Cascade the drop point so
-    // a run of clicks fans out instead of stacking one node on top of the last.
+    // A NEW NODE LANDS WHERE YOU ASKED FOR IT — under the double-click that opened the menu. Without a
+    // point (the menu opened from the keyboard) it falls back to where the operator is looking, cascaded
+    // so a run of adds fans out instead of stacking. Never the graph's ORIGIN: nodes placed there landed
+    // outside the framed view and the whole thing looked inert.
     const rect = pane.current?.getBoundingClientRect();
     const step = (graph.nodes.length % 6) * 26;
-    const at = rect && flow.current
+    const pos = at ?? (rect && flow.current
       ? flow.current.screenToFlowPosition({ x: rect.x + rect.width * 0.28 + step, y: rect.y + rect.height * 0.22 + step })
-      : { x: 40 + step, y: 40 + step };
-    commit({ ...graph, nodes: [...graph.nodes, { id, type: def.id, x: Math.round(at.x), y: Math.round(at.y), params }] });
+      : { x: 40 + step, y: 40 + step });
+    commit({ ...graph, nodes: [...graph.nodes, { id, type: def.id, x: Math.round(pos.x), y: Math.round(pos.y), params }] });
   }, [graph, commit]);
 
   /** Arrange the whole graph left to right. Uses the sizes React Flow has actually MEASURED, falling
@@ -531,12 +637,31 @@ export const ShaderNodePanel: React.FC = () => {
     return nodes.length;
   }, [graph, commit]);
 
+  /** Open the menu at a screen point, remembering the graph position under it. */
+  const openMenu = useCallback((clientX: number, clientY: number) => {
+    const box = shell.current?.getBoundingClientRect();
+    const at = flow.current?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 };
+    // Anchor in PANEL coordinates and keep the whole menu inside the panel — opened near the bottom
+    // edge it would otherwise hang off the dock, where a 320px list is unreachable.
+    const x = Math.max(4, Math.min((clientX - (box?.x ?? 0)) , (box?.width ?? 400) - 248));
+    const y = Math.max(4, Math.min((clientY - (box?.y ?? 0)), (box?.height ?? 300) - 200));
+    setMenu({ x, y, at });
+  }, []);
+
   // Keyboard, gated on the canvas actually having focus — these are global chords elsewhere in ArtLux,
   // and a panel that grabbed Ctrl+C whenever it was merely MOUNTED would break copying in every other
   // dock tab of the same workbench.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!hovering.current && !pane.current?.contains(document.activeElement)) return;
+      // TAB opens the node menu at the pointer — Houdini's gesture, and the reason there is no palette
+      // column any more. Taken before the Ctrl check because it wears no modifier.
+      if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault(); e.stopPropagation();
+        const box = pane.current?.getBoundingClientRect();
+        if (box) openMenu(pointer.current.x || box.x + box.width / 2, pointer.current.y || box.y + box.height / 2);
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
       if (k !== 'c' && k !== 'v' && k !== 'd') return;
@@ -548,7 +673,7 @@ export const ShaderNodePanel: React.FC = () => {
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [copySelection, paste]);
+  }, [copySelection, paste, openMenu]);
 
   // Which nodes the inspector is looking at. React Flow owns selection, so this reads its model
   // rather than keeping a second one that could disagree with the highlight on screen.
@@ -557,43 +682,13 @@ export const ShaderNodePanel: React.FC = () => {
     return graph.nodes.filter((n) => ids.has(n.id));
   }, [rfNodes, graph.nodes]);
 
-  const shown = filter
-    ? NODE_LIST.filter((d) => (d.label + d.category + d.hint).toLowerCase().includes(filter.toLowerCase()))
-    : NODE_LIST;
-
   if (!surface) {
     return <div className="p-2 text-micro italic text-fg-3">Select a shader surface to edit its graph.</div>;
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* The palette. Grouped by job — you look for "the thing that makes a grid", not for a return type. */}
-      <div className="flex w-40 shrink-0 flex-col border-r border-line-1">
-        <input
-          value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search nodes"
-          onKeyDown={(e) => { if (e.key === 'Enter' && shown.length) { addNode(shown[0]); if (!e.shiftKey) setFilter(''); } }}
-          className="m-1 rounded border border-line-1 bg-surface-0 px-1.5 py-0.5 text-micro text-fg-1 focus:border-accent focus:outline-none"
-        />
-        <div className="min-h-0 flex-1 overflow-auto pb-1">
-          {[...new Set(shown.map((d) => d.category))].map((cat) => (
-            <div key={cat}>
-              <div className="px-2 pt-1 text-micro uppercase tracking-wide text-fg-3">{cat}</div>
-              {shown.filter((d) => d.category === cat).map((d) => (
-                <Button
-                  key={d.id} onClick={() => addNode(d)} title={d.hint}
-                  variant="ghost" size="sm"
-                  // `!justify-start`: Button's base sets justify-center, and which of two same-specificity
-                  // utilities wins is decided by their order in the STYLESHEET, not in the class list —
-                  // so a plain justify-start here loses and the whole palette reads centred.
-                  className="w-full !justify-start truncate rounded-none px-2 font-normal text-fg-1"
-                >{d.label}</Button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div ref={shell} className="flex h-full min-h-0">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         {/* The canvas toolbar. React Flow's own <Controls> is deliberately NOT mounted: it draws its
             own zoom buttons bottom-left in its own styling, which is a second visual language inside
             one panel. Wheel-zoom and drag-pan are unaffected, and Fit does what the zoom buttons were
@@ -623,6 +718,25 @@ export const ShaderNodePanel: React.FC = () => {
           ref={pane} className="min-h-0 flex-1"
           onPointerEnter={() => { hovering.current = true; }}
           onPointerLeave={() => { hovering.current = false; }}
+          onPointerMove={(e) => { pointer.current = { x: e.clientX, y: e.clientY }; }}
+          onPointerDown={(e) => {
+            setMenu(null);
+            // THE DOUBLE-CLICK IS DETECTED HERE, not from a `dblclick` event, because the canvas never
+            // emits one: React Flow's d3-zoom handling of the pointer stream means no dblclick reaches
+            // this element — measured, with listeners on the pane, the wrapper AND document, all silent.
+            // Two pointerdowns close together in time and space are the same gesture, and this reads
+            // them straight from the events we do get.
+            const last = lastDown.current;
+            const now = e.timeStamp;
+            const near = last && Math.abs(e.clientX - last.x) < 6 && Math.abs(e.clientY - last.y) < 6;
+            lastDown.current = { x: e.clientX, y: e.clientY, t: now };
+            if (!near || now - last!.t > 400) return;
+            // Only on EMPTY canvas. Double-clicking a node is how you select and edit it, and opening
+            // an add-a-node menu on top of the node you just aimed at is the opposite of the intent.
+            if ((e.target as HTMLElement).closest('.react-flow__node, .react-flow__edge, .react-flow__handle')) return;
+            lastDown.current = null;   // a third click must not open it again
+            openMenu(e.clientX, e.clientY);
+          }}
         >
           <ReactFlow
             nodes={rfNodes} edges={rfEdges} nodeTypes={nodeTypes}
@@ -633,6 +747,9 @@ export const ShaderNodePanel: React.FC = () => {
             // At that floor Fit simply cannot frame the graph: it zooms to 0.5, reports success, and
             // leaves a third of the nodes off the right edge, with the wheel unable to pull back either.
             minZoom={0.1} maxZoom={2}
+            // Double-click is the ADD gesture here, so React Flow must not spend it on zooming — its
+            // d3-zoom handler swallowed the event and the menu never opened. Zoom keeps the wheel.
+            zoomOnDoubleClick={false}
             onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: true }}
             deleteKeyCode={['Delete', 'Backspace']}
             style={{ background: 'var(--surface-0)' }}
@@ -640,8 +757,16 @@ export const ShaderNodePanel: React.FC = () => {
             <Background color="var(--line-1)" gap={16} />
           </ReactFlow>
         </div>
+        {menu && (
+          <NodeMenu
+            at={{ x: menu.x, y: menu.y }}
+            onPick={(def) => { addNode(def, menu.at); setMenu(null); }}
+            onClose={() => setMenu(null)}
+          />
+        )}
+
         <div className={`shrink-0 border-t border-line-1 px-2 py-1 text-micro ${status && !status.ok ? 'text-danger' : 'text-fg-3'}`}>
-          {status ? status.message : 'Add nodes from the left, wire them into Output.'}
+          {status ? status.message : 'Double-click the canvas (or press Tab) to add a node, then wire it into Output.'}
         </div>
       </div>
 

@@ -129,8 +129,10 @@ never learns a graph was involved.
 The loop is short:
 
 1. **Select a shader surface.** The editor edits whatever is selected; with nothing selected it says so.
-2. **Click nodes in the left palette.** Each one lands where you are looking, so a run of clicks fans
-   out across the canvas rather than piling up at the origin.
+2. **Double-click empty canvas to add a node** — or press `Tab`. A searchable list opens at the cursor:
+   type a few letters, `↑`/`↓` to move, `Enter` to take it. The node lands where you opened the menu,
+   so you point at the space you want it in. Double-clicking a *node* does not open it; that is a
+   different gesture.
 3. **Drag from an output dot to an input dot.** Dots are coloured by type — a `vec2` will not drop onto
    a `float` port, and an illegal wire simply refuses to land. Dropping a wire on an input that already
    has one **replaces** it; that gesture means "rewire", not "mistake".
@@ -157,7 +159,8 @@ by hand comes back as you left it.
 
 | Key | Does |
 |---|---|
-| `Enter` in the search box | adds the first node in the list — search, Enter, keep typing |
+| `Tab` | opens the node menu at the pointer |
+| `Enter` in the node menu | adds the highlighted node; `↑`/`↓` move, `Escape` closes |
 | `Ctrl+C` / `Ctrl+V` | copy the selected nodes and paste them, wires between them included |
 | `Ctrl+D` | duplicate the selection in place |
 | `Delete` | remove the selected nodes and their wires |
@@ -190,7 +193,7 @@ shows below the field (`value_1` and the like), and that is what the generated G
 and the OSC address use. So a timeline lane recorded before the rename still drives the knob after it —
 only the wording changed. It is also why two parameters can never collide by being called the same thing.
 
-### The palette
+### Every node
 
 <!-- generated:shader-nodes — DO NOT EDIT BY HAND. Regenerate with: npm run docs:gen -->
 
@@ -309,6 +312,9 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Output** | What the surface shows. Every graph has exactly one. |
 
 <!-- /generated:shader-nodes -->
+
+This is the whole list, and the node menu searches it — by name, by category and by description, so
+"noise" finds the noise nodes and "blend" finds Mix. You never have to remember which group a node is in.
 
 **Parameter** nodes are the bridge to everything else in ArtLux: one becomes a knob in the inspector
 with the name you give it, and therefore a timeline lane, an OSC address and a state-machine target —
