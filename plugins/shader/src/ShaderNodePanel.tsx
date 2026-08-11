@@ -17,7 +17,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ReactFlow, Background, Handle, Position, applyNodeChanges, applyEdgeChanges,
+  ReactFlow, Background, Handle, Position, SelectionMode, applyNodeChanges, applyEdgeChanges,
   type Node, type Edge, type NodeChange, type EdgeChange, type Connection, type NodeProps,
   type ReactFlowInstance,
 } from '@xyflow/react';
@@ -1194,6 +1194,15 @@ export const ShaderNodePanel: React.FC = () => {
             // instead, so Collapse stayed greyed out however many nodes you thought you had picked.
             // Shift+drag on empty canvas still draws a selection box, which is the other half of it.
             multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
+            // DRAG ON EMPTY CANVAS SELECTS, it does not pan. React Flow's default is the other way
+            // round, which makes "rubber-band a few nodes and collapse them" — the whole gesture a
+            // subpatch is made with — reachable only by knowing to hold Shift first. Panning moves to
+            // the middle and right buttons, where every other canvas in this trade puts it, and the
+            // wheel still zooms.
+            selectionOnDrag panOnDrag={[1, 2]}
+            // PARTIAL: a node the box touches is caught. Requiring the box to swallow a node whole
+            // means missing the one at the edge and collapsing a selection with a hole in it.
+            selectionMode={SelectionMode.Partial}
             onInit={(inst) => { flow.current = inst; }} proOptions={{ hideAttribution: true }}
             deleteKeyCode={['Delete', 'Backspace']}
             style={{ background: 'var(--surface-0)' }}
@@ -1237,7 +1246,7 @@ export const ShaderNodePanel: React.FC = () => {
         )}
 
         <div className={`shrink-0 border-t border-line-1 px-2 py-1 text-micro ${status && !status.ok ? 'text-danger' : 'text-fg-3'}`}>
-          {status ? status.message : 'Double-click the canvas (or press Tab) to add a node, then wire it into Output.'}
+          {status ? status.message : 'Double-click (or Tab) to add a node · drag a box to select · Ctrl+G collapses the selection · middle-drag pans'}
         </div>
       </div>
 

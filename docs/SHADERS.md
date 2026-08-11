@@ -160,9 +160,9 @@ picture reads left to right and ends at `Output`. Nodes you have added but not w
 parked together past the output, where they read as "not in the graph yet". **Fit** frames everything
 without moving a node.
 
-Delete removes selected nodes and any wires that touched them. Mouse wheel zooms and dragging empty
-canvas pans. Where you put a node is part of the graph and is saved with it, so a layout you arranged
-by hand comes back as you left it.
+Delete removes selected nodes and any wires that touched them. Mouse wheel zooms; **dragging on empty
+canvas draws a selection box**, and **middle-drag** (or right-drag) pans. Where you put a node is part
+of the graph and is saved with it, so a layout you arranged by hand comes back as you left it.
 
 | Key | Does |
 |---|---|
@@ -172,6 +172,8 @@ by hand comes back as you left it.
 | `Escape` in the node menu | closes it |
 | `Ctrl+C` / `Ctrl+V` | copy the selected nodes and paste them, wires between them included |
 | `Ctrl+D` | duplicate the selection in place |
+| drag on empty canvas | select a box of nodes |
+| middle-drag / right-drag | pan the canvas |
 | `Ctrl+G` | collapse the selected nodes into one reusable node |
 | `Ctrl+Shift+G` | expand a subpatch back onto the canvas |
 | `Delete` | remove the selected nodes and their wires |
@@ -184,8 +186,9 @@ graph, which is the quickest way to reuse part of something you have already bui
 
 ### Make your own node — collapse a selection
 
-Select two or more nodes (`Shift`+click to add, or `Shift`+drag a box) and press **Collapse**
-(`Ctrl+G`). They become **one node** with the inputs and outputs the selection had: a wire that came
+**Drag a box** across the canvas to select the nodes you want — a plain left-drag, no modifier — then
+press `Ctrl+G` (or **Collapse**). `Shift`+click adds a node to the selection, and the box catches
+anything it touches rather than only what it swallows whole. They become **one node** with the inputs and outputs the selection had: a wire that came
 into the selection is an input pin, a wire that left is an output pin. **Expand** (`Ctrl+Shift+G`)
 puts the contents back.
 
