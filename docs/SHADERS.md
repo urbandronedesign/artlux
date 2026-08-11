@@ -129,10 +129,12 @@ never learns a graph was involved.
 The loop is short:
 
 1. **Select a shader surface.** The editor edits whatever is selected; with nothing selected it says so.
-2. **Double-click empty canvas to add a node** — or press `Tab`. A searchable list opens at the cursor:
-   type a few letters, `↑`/`↓` to move, `Enter` to take it. The node lands where you opened the menu,
-   so you point at the space you want it in. Double-clicking a *node* does not open it; that is a
-   different gesture.
+2. **Double-click empty canvas to add a node** — or press `Tab`. The list opens at the cursor, in its
+   sections (Input, UV, Math, LFO, Pattern, Noise, Shape, Audio, Parameter, Colour, Output) so you can
+   find a node you cannot name. Type a few letters and the sections give way to the best matches, each
+   labelled with the section it came from; `↑`/`↓` move, `Enter` takes it. The node lands where you
+   opened the menu, so you point at the space you want it in. Double-clicking a *node* does not open
+   the menu; that is a different gesture.
 3. **Drag from an output dot to an input dot.** Dots are coloured by type — a `vec2` will not drop onto
    a `float` port, and an illegal wire simply refuses to land. Dropping a wire on an input that already
    has one **replaces** it; that gesture means "rewire", not "mistake".

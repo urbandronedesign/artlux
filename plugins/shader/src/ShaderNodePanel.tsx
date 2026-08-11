@@ -173,9 +173,11 @@ const nodeTypes = { shaderNode: GraphNodeBody };
  */
 const NodeMenu: React.FC<{
   at: { x: number; y: number };
+  /** How tall it may be here — the panel is a dock tab and can be short. */
+  maxHeight: number;
   onPick: (def: NodeDef) => void;
   onClose: () => void;
-}> = ({ at, onPick, onClose }) => {
+}> = ({ at, maxHeight, onPick, onClose }) => {
   const [q, setQ] = useState('');
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -225,7 +227,7 @@ const NodeMenu: React.FC<{
   return (
     <div
       className="absolute z-30 flex w-60 flex-col rounded-md border border-line-2 bg-surface-1 shadow-lg"
-      style={{ left: at.x, top: at.y, maxHeight: 320 }}
+      style={{ left: at.x, top: at.y, maxHeight }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <input
@@ -243,17 +245,29 @@ const NodeMenu: React.FC<{
       <div ref={listRef} className="min-h-0 flex-1 overflow-auto pb-1">
         {!matches.length && <div className="px-2 py-1 text-micro italic text-fg-3">no node matches “{q}”</div>}
         {matches.map((d, i) => (
-          <button
-            key={d.id} type="button"
-            data-cursor={i === cursor ? '1' : undefined}
-            onPointerEnter={() => setCursor(i)}
-            onClick={() => onPick(d)}
-            title={d.hint}
-            className={`block w-full px-2 py-[3px] text-left text-micro ${i === cursor ? 'bg-accent/10 text-accent' : 'text-fg-1'}`}
-          >
-            <span className="truncate">{d.label}</span>
-            <span className="ml-1 text-fg-3">{d.category}</span>
-          </button>
+          <React.Fragment key={d.id}>
+            {/* SECTION HEADERS while browsing, none while searching. Unsearched, the list is the
+                catalogue in its own order and the headers are how you find the noise nodes without
+                knowing one by name. Searched, the order is by RELEVANCE — headers over a ranked list
+                would be a heading per row, and would imply a grouping the order no longer has. Each
+                row keeps its category on the right, so a match still says where it came from. */}
+            {!q.trim() && d.category !== matches[i - 1]?.category && (
+              <div className="sticky top-0 bg-surface-1 px-2 pb-0.5 pt-1.5 text-micro uppercase tracking-wide text-fg-3">
+                {d.category}
+              </div>
+            )}
+            <button
+              type="button"
+              data-cursor={i === cursor ? '1' : undefined}
+              onPointerEnter={() => setCursor(i)}
+              onClick={() => onPick(d)}
+              title={d.hint}
+              className={`flex w-full items-baseline gap-2 px-2 py-[3px] text-left text-micro ${i === cursor ? 'bg-accent/10 text-accent' : 'text-fg-1'}`}
+            >
+              <span className="min-w-0 flex-1 truncate">{d.label}</span>
+              {!!q.trim() && <span className="shrink-0 text-fg-3">{d.category}</span>}
+            </button>
+          </React.Fragment>
         ))}
       </div>
     </div>
@@ -384,7 +398,7 @@ export const ShaderNodePanel: React.FC = () => {
   const lastDown = useRef<{ x: number; y: number; t: number } | null>(null);
   const confirmDialog = useConfirm();
   /** The node menu: where to draw it, and the graph point a picked node lands on. */
-  const [menu, setMenu] = useState<{ x: number; y: number; at: { x: number; y: number } } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; h: number; at: { x: number; y: number } } | null>(null);
   // Is the operator working in this canvas? Focus alone is not enough: React Flow focuses a NODE when
   // you click one, but clicking the background focuses nothing at all, so a focus-only gate makes
   // Ctrl+V dead in exactly the state you paste from. Hover answers the same question and survives it.
@@ -643,9 +657,12 @@ export const ShaderNodePanel: React.FC = () => {
     const at = flow.current?.screenToFlowPosition({ x: clientX, y: clientY }) ?? { x: 0, y: 0 };
     // Anchor in PANEL coordinates and keep the whole menu inside the panel — opened near the bottom
     // edge it would otherwise hang off the dock, where a 320px list is unreachable.
-    const x = Math.max(4, Math.min((clientX - (box?.x ?? 0)) , (box?.width ?? 400) - 248));
-    const y = Math.max(4, Math.min((clientY - (box?.y ?? 0)), (box?.height ?? 300) - 200));
-    setMenu({ x, y, at });
+    // Height first: in a short dock tab there may be less than the 320px it would like, and a menu
+    // taller than its panel is one whose last section cannot be reached.
+    const h = Math.min(320, Math.max(140, (box?.height ?? 300) - 16));
+    const x = Math.max(4, Math.min(clientX - (box?.x ?? 0), (box?.width ?? 400) - 248));
+    const y = Math.max(4, Math.min(clientY - (box?.y ?? 0), (box?.height ?? 300) - h - 8));
+    setMenu({ x, y, h, at });
   }, []);
 
   // Keyboard, gated on the canvas actually having focus — these are global chords elsewhere in ArtLux,
@@ -759,7 +776,7 @@ export const ShaderNodePanel: React.FC = () => {
         </div>
         {menu && (
           <NodeMenu
-            at={{ x: menu.x, y: menu.y }}
+            at={{ x: menu.x, y: menu.y }} maxHeight={menu.h}
             onPick={(def) => { addNode(def, menu.at); setMenu(null); }}
             onClose={() => setMenu(null)}
           />
