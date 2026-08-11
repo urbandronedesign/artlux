@@ -203,6 +203,13 @@ export const FixtureArrangePanel: React.FC = () => {
   const [radius, setRadius] = useState(4);
   const [sweep, setSweep] = useState(180);
   const [fanAmount, setFanAmount] = useState(45);
+  // The offset/turn amounts are RELATIVE, so they are held here and applied on a button rather than
+  // written through as they are typed: a field that committed per keystroke would move the rig 2 m,
+  // then 25 m, then 250 m on the way to typing "0.25".
+  const [dx, setDx] = useState(0);
+  const [dy, setDy] = useState(0);
+  const [dz, setDz] = useState(0);
+  const [turn, setTurn] = useState(15);
 
   // Selection ORDER, not list order — a spread runs along the order the operator picked.
   const selection = selectedFixtureIds
@@ -229,6 +236,31 @@ export const FixtureArrangePanel: React.FC = () => {
   return (
     <>
       <div className="text-mini text-fg-3">{selection.length} fixtures, in selection order</div>
+
+      {/* MOVE AND TURN BY AN EXACT AMOUNT — the typed twin of a gizmo drag, and the one thing a drag
+          cannot do however finely it snaps: "250 mm that way, from wherever this is now". The whole
+          selection keeps its shape; the turn orbits it about its own centre and turns each fixture
+          with it, exactly as the gizmo's rotate does. */}
+      <div className="text-mini text-fg-2 mt-1">Move by (m)</div>
+      <NumberField label="X" value={dx} step={0.05} onChange={setDx} />
+      <NumberField label="Y" value={dy} step={0.05} onChange={setDy} />
+      <NumberField label="Z" value={dz} step={0.05} onChange={setDz} />
+      <Row>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.offset(selection, { x: dx, y: dy, z: dz }))}>Apply offset</Button>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.offset(selection, { x: -dx, y: -dy, z: -dz }))}>Reverse</Button>
+      </Row>
+
+      <div className="text-mini text-fg-2 mt-1">Turn about the centre</div>
+      <NumberField label="Angle °" value={turn} min={-360} max={360} step={5} onChange={setTurn} />
+      <Row>
+        {(['y', 'x', 'z'] as const).map((ax) => (
+          <Button key={ax} size="sm" variant="ghost" className="flex-1"
+            title={ax === 'y' ? 'Swing the selection round (about the vertical)' : `Tip it about world ${ax.toUpperCase()}`}
+            onClick={() => apply(layout.orbit(selection, ax, turn))}>{ax.toUpperCase()}</Button>
+        ))}
+      </Row>
 
       <div className="text-mini text-fg-2 mt-1">Align</div>
       <Row>

@@ -185,6 +185,18 @@ fixtures are selected**, three "offset selection by" fields (X/Y/Z, and a rotate
 with an Apply button → one `onCommit` array → one undo step. This is how a row of bars gets moved
 exactly 250 mm, and it reuses the Phase-1a delta function with a synthetic anchor.
 
+> **Built 2026-08-11, and NOT as a new panel.** The multi-selection **Arrange** card already existed
+> (align / distribute / line / arc / fan, `FixtureArrangePanel` + `services/fixtureLayout.ts`), so this
+> is two more rows in it — `layout.offset` and `layout.orbit` — rather than a second place to move a
+> selection from. It also does not reuse `gizmoDelta`: **the Inspector must not pull three into the main
+> bundle**, which is why `led3dDefaults` exists at all. So the rotation composes through a hand-written
+> three-free `services/rotate3.ts`, checked against three itself to 4.4e-16 before anything used it.
+> `yaw += angle` was the tempting shortcut and it is exact only for a fixture whose pitch and roll are
+> zero — i.e. wrong for every head already tilted on a truss.
+>
+> Found on the way: **the Arrange card is documented nowhere** and has no help entries, which is the
+> shipped-but-unfindable failure again. Chapter 9 now covers the whole card, not just the new rows.
+
 ---
 
 ## 4. Phase 3 — object (local) vs world space
@@ -253,7 +265,7 @@ exactly 250 mm, and it reuses the Phase-1a delta function with a synthetic ancho
 | 1 | ✅ **DONE** — `gizmoDelta.ts` + `fixturePreview.ts` + LEDs/bodies preview | The actual complaint |
 | 1b | ✅ **DONE** — movers/GDTF preview, budget guard, `scene3dLivePreview` pref | Consistency + the escape hatch |
 | 2 | ✅ **DONE** — readout, snapping (+ Ctrl invert), nudge keys | "Precisely" |
-| 2d | **NOT BUILT** — offset-selection numeric entry | Cheap, high value for rows |
+| 2d | ✅ **DONE** — offset + turn-about-centre, in the existing **Arrange** card | Cheap, high value for rows |
 | 3 | ✅ **DONE** — World/Object toggle (header button + `X`, per-machine) | Needs step 0 |
 
 Each step is independently shippable and independently revertible. Nothing before step 3 changes what

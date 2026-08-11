@@ -110,6 +110,27 @@ For exact values, use the Inspector's **3D Layout** card:
 
 ---
 
+## Arrange a selection — building a rig, not moving one fixture
+
+Select **two or more** fixtures and the Inspector grows an **Arrange** card. Nobody places twelve heads
+on a truss by typing twelve coordinates; this is the set of gestures that replaces that.
+
+- **Move by (m)** — shift the whole selection by an exact offset, keeping its shape. *Reverse* applies
+  the same offset the other way, so an experiment is one click to undo by hand. This is the one thing a
+  drag cannot do however finely it snaps: *250 mm that way, from wherever this is now*.
+- **Turn about the centre** — swing the selection around its own middle by an exact angle. **Y** is the
+  usual one (round, about the vertical); **X** / **Z** tip it. Each fixture turns *with* the group, so a
+  row keeps its relative aim.
+- **Align** — put every fixture on the same X, Y or Z.
+- **Distribute evenly** — even out the spacing along one axis, leaving the two end fixtures put.
+- **Lay on a line** / **Lay on an arc** — respace the selection at a spacing, or onto a curve of a given
+  radius and sweep. *Arc + aim out* also turns each fixture to face along its own radius.
+- **Fan the aim** — spread yaw, pitch or roll linearly across the selection: select a row, fan tilt, and
+  the beams open into a wedge.
+
+Everything except *Distribute* and *Align* works in **selection order** — the order you clicked them —
+so a spread runs the way you built it. Each action is one undo step.
+
 ## The outliner (top‑right of the pane)
 
 Lists everything in the scene under **OBJECTS** and **FIXTURES**:

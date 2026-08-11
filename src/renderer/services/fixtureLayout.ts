@@ -1,5 +1,6 @@
 import type { Fixture, Vec3, Euler3 } from '../types';
 import { effectivePosObj, effectiveRotObj } from './led3dDefaults';
+import { rotateAbout, turnBy } from './rotate3';
 
 // Laying out a SELECTION of fixtures in 3D — align, distribute, spread on a line or arc, and fan.
 //
@@ -97,6 +98,41 @@ export function fan(fixtures: Fixture[], axis: keyof Euler3, amountDeg: number):
   return fixtures.map((f, i) => ({
     id: f.id,
     rotation3D: { ...rot(f), [axis]: base + start + step * i },
+  }));
+}
+
+/**
+ * MOVE THE WHOLE SELECTION by an exact offset, in metres, on the world axes.
+ *
+ * The typed twin of dragging the gizmo, and the reason it is worth having: a drag can be snapped to a
+ * grid but it cannot be told "250 mm, that way, from wherever this happens to be now". Shape is
+ * preserved exactly — every fixture takes the same vector, so a row stays a row.
+ */
+export function offset(fixtures: Fixture[], d: Vec3): LayoutUpdate[] {
+  if (!fixtures.length) return [];
+  if (!d.x && !d.y && !d.z) return [];
+  return fixtures.map((f) => {
+    const p = pos(f);
+    return { id: f.id, position3D: { x: p.x + d.x, y: p.y + d.y, z: p.z + d.z } };
+  });
+}
+
+/**
+ * TURN THE WHOLE SELECTION about its own centre, on a world axis — positions orbit AND each fixture
+ * turns with them, which is what makes a row of heads swing round without also scrambling their aim
+ * relative to each other. Exactly the gizmo's rotate, driven by a typed angle.
+ *
+ * The orientation half goes through `turnBy` rather than adding degrees to yaw/pitch/roll: that shortcut
+ * is exact only for a fixture whose other two angles are zero, and quietly wrong for every head already
+ * tilted on a truss. See services/rotate3.ts.
+ */
+export function orbit(fixtures: Fixture[], axis: Axis, angleDeg: number): LayoutUpdate[] {
+  if (fixtures.length < 1 || !angleDeg) return [];
+  const c = centroid(fixtures);
+  return fixtures.map((f) => ({
+    id: f.id,
+    position3D: rotateAbout(pos(f), c, axis, angleDeg),
+    rotation3D: turnBy(rot(f), axis, angleDeg),
   }));
 }
 
