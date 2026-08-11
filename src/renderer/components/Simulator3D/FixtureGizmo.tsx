@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { Fixture } from '../../types';
 import { effectivePos, effectiveRot, effectiveScale } from '../../services/led3dLayout';
-import { gizmoDelta, type GizmoBasis, type GizmoStart } from './gizmoDelta';
-import { setPreview, clearPreview, type FixtureTransform } from './fixturePreview';
-import { getLivePreview } from '../../services/scene3dQuality';
+import { gizmoDelta, gestureSummary, type GizmoBasis, type GizmoStart } from './gizmoDelta';
+import { setPreview, clearPreview, beginPreview, type FixtureTransform } from './fixturePreview';
+import { getLivePreview, type SnapSettings } from '../../services/scene3dQuality';
 
 export type { FixtureTransform } from './fixturePreview';
+
+const DEG = Math.PI / 180;
 
 interface Props {
   /** The whole selection. Empty ⇒ no gizmo. */
@@ -17,6 +19,8 @@ interface Props {
   space?: 'world' | 'local';
   /** The fixture the handles take their orientation from in 'local'. Defaults to the first selected. */
   activeId?: string | null;
+  /** Grid the drag lands on. `on: false` = free, which is what this has always done. */
+  snap?: SnapSettings;
   onRecordHistory: () => void;
   /** One call per gesture, carrying every fixture the drag moved. */
   onCommit: (updates: Array<{ id: string } & FixtureTransform>) => void;
@@ -37,7 +41,7 @@ interface Props {
 // handle. Nothing touches React or the document until `mouseUp`, which commits once. So the picture is
 // live and the document still changes exactly one time per gesture, i.e. one undo step and one
 // re-render. See fixturePreview.ts for why that split is not negotiable.
-export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world', activeId, onRecordHistory, onCommit }) => {
+export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world', activeId, snap, onRecordHistory, onCommit }) => {
   const anchor = useMemo(() => new THREE.Group(), []);
   const controls = useRef<any>(null);
 
@@ -87,6 +91,23 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world',
   // context switches away), and none of them fire `mouseUp`.
   useEffect(() => clearPreview, []);
 
+  // HOLD CTRL TO INVERT THE SNAP — the DCC convention, and the reason snapping can be left ON: the
+  // grid is what you want for nine placements out of ten, and the tenth is reachable without hunting
+  // for the toggle. State only ever changes MID-DRAG (the listeners are live always, but the guard is
+  // what stops every Ctrl+S in the app re-rendering this), and it resets on release so a gesture
+  // cannot inherit the last one's modifier.
+  const [invertSnap, setInvertSnap] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!dragging.current || e.key !== 'Control') return;
+      setInvertSnap(e.type === 'keydown');
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKey);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKey); };
+  }, []);
+  const snapping = snap ? (invertSnap ? !snap.on : snap.on) : false;
+
   useEffect(() => {
     const c = controls.current;
     if (!c || !fixtures.length) return;
@@ -95,6 +116,7 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world',
       moved.current = false;
       dragging.current = true;
       previewing.current = getLivePreview();
+      beginPreview(previewing.current);
       // Snapshot the selection AND the anchor the deltas will be measured from.
       basisRef.current = {
         centroid: anchor.position.clone(),
@@ -113,12 +135,18 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world',
     // for a click that never drags, and recording there pushed a junk undo entry per click.
     const onChange = () => {
       if (!moved.current) { moved.current = true; onRecordHistory(); }
-      // The live picture. No state, no document — see fixturePreview.ts.
-      if (previewing.current) setPreview(gizmoDelta(startRef.current, basisRef.current, anchor, mode));
+      // The live picture AND the live numbers. No state, no document — see fixturePreview.ts. The
+      // transforms are published even when the rig is not drawing them: the readout is the cheap half
+      // and the half that makes a drag precise, so it must not disappear with the preview.
+      setPreview(
+        gizmoDelta(startRef.current, basisRef.current, anchor, mode),
+        gestureSummary(startRef.current, basisRef.current, anchor, mode),
+      );
     };
 
     const onUp = () => {
       dragging.current = false;
+      setInvertSnap(false);
       clearPreview();
       if (!moved.current) return; // a pure click on a handle — nothing to record or commit
       onCommit(gizmoDelta(startRef.current, basisRef.current, anchor, mode));
@@ -149,7 +177,15 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world',
           the object's in local and identity in world). The commit is unaffected either way, because a
           gesture is read as a delta against whatever basis the grab found — which is exactly why that
           had to be fixed before this switch could exist. */}
-      <TransformControls ref={controls} object={anchor} mode={mode} space={space} size={0.8} />
+      {/* Snapping is three props on the control, and `null` is three's own word for "free" — so an
+          operator with the magnet off gets byte-identically the drag this always had. Rotation is in
+          RADIANS here and degrees everywhere a human reads it. */}
+      <TransformControls
+        ref={controls} object={anchor} mode={mode} space={space} size={0.8}
+        translationSnap={snapping && snap ? snap.move : null}
+        rotationSnap={snapping && snap ? snap.rotate * DEG : null}
+        scaleSnap={snapping && snap ? snap.scale : null}
+      />
     </>
   );
 };

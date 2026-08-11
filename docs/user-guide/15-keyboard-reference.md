@@ -108,6 +108,18 @@ Live only while the pointer is over the 3D viewport.
 | `R` | Scale tool |
 | `Q` | Box select tool — Drag to select fixtures; hold Shift to add to the selection |
 | `X` | World / Object axes — Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way |
+| `S` | Toggle snapping — Hold Ctrl during a drag to invert it for that drag only |
+
+**Editing**
+
+| Shortcut | Action |
+|---|---|
+| `Left` | Nudge left |
+| `Right` | Nudge right |
+| `Up` | Nudge away |
+| `Down` | Nudge towards |
+| `PageUp` | Nudge up |
+| `PageDown` | Nudge down — All six move by the snap step (10 mm when snapping is off). Shift = ×10, Alt = ÷10. In rotate mode the four arrows turn the selection instead |
 
 ### Show state-graph editor
 

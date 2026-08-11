@@ -1,7 +1,35 @@
 import * as THREE from 'three';
-import type { FixtureTransform } from './fixturePreview';
+import type { FixtureTransform, GestureSummary } from './fixturePreview';
 
 const DEG = Math.PI / 180;
+
+/**
+ * The same gesture, said in the operator's terms — for the header readout.
+ *
+ * Derived from the anchor and the grab basis, NOT from the per-fixture results: "you have moved this
+ * 250 mm" is a property of the drag, and re-deriving it from twelve committed positions would give
+ * twelve slightly different answers.
+ */
+export function gestureSummary(
+  start: { length: number }, basis: GizmoBasis, anchor: THREE.Object3D,
+  mode: 'translate' | 'rotate' | 'scale',
+): GestureSummary {
+  const d = new THREE.Vector3().subVectors(anchor.position, basis.centroid);
+  const q = anchor.quaternion.clone().multiply(basis.quat.clone().invert()).normalize();
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+  return {
+    mode,
+    count: start.length,
+    at: { x: anchor.position.x, y: anchor.position.y, z: anchor.position.z },
+    delta: { x: d.x, y: d.y, z: d.z },
+    turn: { pitch: e.x / DEG, yaw: e.y / DEG, roll: e.z / DEG },
+    factor: {
+      x: anchor.scale.x / (basis.scale.x || 1),
+      y: anchor.scale.y / (basis.scale.y || 1),
+      z: anchor.scale.z / (basis.scale.z || 1),
+    },
+  };
+}
 
 /** One selected fixture as it was when the handle was grabbed. Deltas apply to THIS, never to the
  *  live record — reading committed state mid-drag would compound each frame's delta into the next. */

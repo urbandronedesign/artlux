@@ -32,6 +32,30 @@ selection's centre, translate adds the same offset to every fixture, rotate swin
 centre *and* turns each one, and scale spreads them apart (a single fixture has nothing to spread from,
 so scale resizes its own LED run instead).
 
+### Snap and nudge — placing something exactly
+
+The **magnet** (or **S**) makes a drag land on whole steps; the step next to it is the one it uses, and
+it follows whichever tool is armed (millimetres to move, degrees to rotate, a factor to scale). Hold
+**Ctrl** during a drag to invert it for that drag only — so snapping can be left on and still get out of
+the way.
+
+The same step drives the **arrow keys**, which is usually the faster way to be exact:
+
+| Key | Move tool | Rotate tool |
+|---|---|---|
+| ← → | one step left / right | yaw the selection |
+| ↑ ↓ | one step away / towards you | tip the selection |
+| PageUp / PageDown | one step up / down | — |
+| **Shift** | ×10 | ×10 |
+| **Alt** | ÷10 | ÷10 |
+
+Left and right follow **your view** — whichever world axis currently points leftish on screen — so they
+keep meaning the same thing after you orbit, while still moving along an exact axis. With the magnet off
+the arrows fall back to a fine 10 mm / 1°. One press is one undo step.
+
+While you drag, the header shows what the gesture amounts to: the offset and total distance, the angle
+turned, or the scale factor — so a placement can be checked *before* you let go.
+
 ### Scale — each axis on its own
 
 The scale gizmo's three handles are **independent**, and they always work in the fixture's own frame:

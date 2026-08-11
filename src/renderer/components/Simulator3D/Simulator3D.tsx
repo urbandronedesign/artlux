@@ -3,7 +3,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -17,10 +17,12 @@ import { cameraPose, glProjectionMatrix, resolveProjectedScene } from '@artlux/p
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
 import { setSnapHover, getSnapHover } from './vertexSnap';
-import { registerViewerCamera } from './viewerCamera';
+import { registerViewerCamera, getViewerCamera } from './viewerCamera';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureBodies } from './FixtureBodies';
 import { FixtureGizmo } from './FixtureGizmo';
+import { GizmoReadout } from './GizmoReadout';
+import { nudgeUpdates, nudgeStep, type NudgeDir } from './nudge';
 import { MarqueePicker, type MarqueeRect } from './MarqueePicker';
 import { MoverBodies } from './MoverBodies';
 import { GdtfFixture } from './GdtfFixture';
@@ -36,7 +38,10 @@ import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
-import { useRenderScale, useMaxFps, useGizmoSpace, getGizmoSpace, setGizmoSpace } from '../../services/scene3dQuality';
+import {
+  useRenderScale, useMaxFps, useGizmoSpace, getGizmoSpace, setGizmoSpace,
+  useSnap, getSnap, setSnap, SNAP_MOVE_CHOICES, SNAP_ROTATE_CHOICES, SNAP_SCALE_CHOICES,
+} from '../../services/scene3dQuality';
 import { FrameRateCap } from './FrameRateCap';
 import { glProp, wantsWebGPU } from './renderer3d';
 import { AxisTriad } from './AxisTriad';
@@ -44,7 +49,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { keymap } from '../../shortcuts/keymapStore';
-import { formatChord } from '../../shortcuts/chord';
+import { formatChord, eventToChord } from '../../shortcuts/chord';
 
 /** " (W)" for a bound action, "" for one the operator has unbound. Read live, never hardcoded. */
 function keyHint(id: string): string {
@@ -240,6 +245,13 @@ const Simulator3D: React.FC<Props> = ({
   // free everywhere else in the app, and both this and the timeline's block bail out while an input is
   // focused, so typing a fixture name never reaches here.
   const hovered = useRef(false);
+  // What the key handler needs to read at press time. Mirrored into a ref, not closed over: the
+  // listener attaches once (a re-registering window listener per render is its own bug), and a nudge
+  // has to act on the CURRENT selection and step, not the ones that existed when it mounted.
+  const keyCtx = useRef<{
+    fixtures: Fixture[]; mode: Mode; step: number;
+    commit: Props['onCommitFixture3D']; record: () => void;
+  }>({ fixtures: [], mode: 'translate', step: 0.01, commit: () => {}, record: () => {} });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!hovered.current) return;
@@ -250,6 +262,31 @@ const Simulator3D: React.FC<Props> = ({
       else if (keymap.matches(e, 'scene3d.modeScale')) setMode('scale');
       else if (keymap.matches(e, 'scene3d.modeSelect')) setMode('select');
       else if (keymap.matches(e, 'scene3d.gizmoSpace')) setGizmoSpace(getGizmoSpace() === 'world' ? 'local' : 'world');
+      else if (keymap.matches(e, 'scene3d.toggleSnap')) setSnap({ on: !getSnap().on });
+      else {
+        // NUDGE. One press = one commit and one history entry, exactly like the projector's warp
+        // nudge — holding a key repeats, and each repeat is its own undo step, which is the behaviour
+        // an operator can predict without being told.
+        const dirs: Array<[string, NudgeDir]> = [
+          ['scene3d.nudgeLeft', 'left'], ['scene3d.nudgeRight', 'right'],
+          ['scene3d.nudgeFwd', 'fwd'], ['scene3d.nudgeBack', 'back'],
+          ['scene3d.nudgeUp', 'up'], ['scene3d.nudgeDown', 'down'],
+        ];
+        // Shift/Alt are ORTHOGONAL step modifiers, not part of the binding, so match with any leading
+        // modifier stripped — the same trick the timeline's ripple-delete uses.
+        const chord = eventToChord(e).replace(/^(?:Shift|Alt)\+/, '');
+        const hit = dirs.find(([id]) => keymap.resolve(id).includes(chord));
+        if (!hit) return;
+        const c = keyCtx.current;
+        if (c.mode === 'select' || !c.fixtures.length) return;
+        const updates = nudgeUpdates(
+          c.fixtures, hit[1], nudgeStep(c.step, e), c.mode, getViewerCamera(),
+        );
+        if (!updates.length) return;   // e.g. PageUp in rotate mode — no meaning, so no keystroke eaten
+        e.preventDefault();            // arrows would otherwise scroll the workspace behind the canvas
+        c.record();
+        c.commit(updates);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -261,6 +298,7 @@ const Simulator3D: React.FC<Props> = ({
   // Which axes the gizmo handles follow. Per-machine (see scene3dQuality) — a grip preference, not
   // anything about the show, so it must not travel inside a project.
   const gizmoSpace = useGizmoSpace();
+  const snap = useSnap();
   // The renderer is built ONCE, at Canvas mount. Memoized with no deps on purpose: r3f only reads `gl`
   // when it has no renderer yet, and handing it a new factory later would do nothing but churn.
   const [glFallback, setGlFallback] = useState<string | null>(null);
@@ -347,6 +385,16 @@ const Simulator3D: React.FC<Props> = ({
   // Model gizmos only understand the three transform modes. 'select' is a fixture-marquee tool, so
   // models fall back to translate rather than the mode type leaking into their props.
   const transformMode = mode === 'select' ? 'translate' : mode;
+  // Refresh what the key handler reads. The nudge step is the SNAP step when snapping is on, so the
+  // header's one control governs both ways of moving a fixture exactly; with the magnet off it falls
+  // back to a fine 10 mm / 1°, which is a nudge rather than a jump.
+  keyCtx.current = {
+    fixtures: gizmoFixtures,
+    mode,
+    step: mode === 'rotate' ? (snap.on ? snap.rotate : 1) : (snap.on ? snap.move : 0.01),
+    commit: onCommitFixture3D,
+    record: onRecordHistory,
+  };
   // Resolve any LIVE projected-mapping source (a model's uvProjFrom → that projector's solved matrix)
   // before rendering. The same call runs at App's scene push for the projector windows, so the editor
   // and the wall are driven by one function rather than two implementations of the same matrix.
@@ -386,6 +434,34 @@ const Simulator3D: React.FC<Props> = ({
         </ToolBtn>
         <span className="text-micro text-fg-3 -ml-0.5 mr-0.5 select-none">{gizmoSpace === 'local' ? 'Object' : 'World'}</span>
         <div className="w-px h-4 bg-line-1 mx-1" />
+        {/* SNAP — a magnet and the step for whichever gesture is armed. The step select follows the
+            mode rather than showing three of them: only one can apply to the drag you are about to
+            make, and a header is not a preferences page. */}
+        <ToolBtn
+          active={snap.on}
+          title={`Snap ${snap.on ? 'on' : 'off'}${keyHint('scene3d.toggleSnap')} — hold Ctrl during a drag to invert it`}
+          helpId="scene3d.gizmo-snap"
+          onClick={() => setSnap({ on: !snap.on })}
+        >
+          <Magnet size={14} />
+        </ToolBtn>
+        <select
+          value={String(mode === 'rotate' ? snap.rotate : mode === 'scale' ? snap.scale : snap.move)}
+          onChange={(e) => setSnap(
+            mode === 'rotate' ? { rotate: Number(e.target.value) }
+              : mode === 'scale' ? { scale: Number(e.target.value) }
+                : { move: Number(e.target.value) },
+          )}
+          title="Step a snapped drag — and an arrow-key nudge — lands on"
+          className={`bg-surface-0 border rounded px-1 py-0.5 text-micro focus:outline-none ${snap.on ? 'border-line-2 text-fg-1' : 'border-line-1 text-fg-3'}`}
+        >
+          {mode === 'rotate'
+            ? SNAP_ROTATE_CHOICES.map((v) => <option key={v} value={v}>{v}°</option>)
+            : mode === 'scale'
+              ? SNAP_SCALE_CHOICES.map((v) => <option key={v} value={v}>{v}×</option>)
+              : SNAP_MOVE_CHOICES.map((v) => <option key={v} value={v}>{v < 1 ? `${v * 1000} mm` : `${v} m`}</option>)}
+        </select>
+        <div className="w-px h-4 bg-line-1 mx-1" />
         <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
         {/* LOOK THROUGH A PROJECTOR. Only calibrated outputs can offer a viewpoint, so the control
             appears once one exists rather than sitting there empty. The choice is stored on the
@@ -408,6 +484,9 @@ const Simulator3D: React.FC<Props> = ({
         {selectionCount > 1 && (
           <span className="ml-2 text-mini text-fg-3 tabular-nums">{selectionCount} selected</span>
         )}
+        {/* The live drag readout. Pushed right by its own `ml-auto`; empty (and so invisible) between
+            gestures. It writes its own text node — see GizmoReadout on why it must not re-render. */}
+        {!placing && !calibPickMode && <GizmoReadout />}
         {/* AN ARMED MODE WITH NO INDICATOR IS A TRAP: the next click would do something the operator
             has forgotten they asked for. Says what is being placed and how to get out. */}
         {placing && (
@@ -587,6 +666,7 @@ const Simulator3D: React.FC<Props> = ({
           // The handles orient to the fixture the operator clicked LAST — the one they are thinking in
           // the frame of — not to whichever happens to sort first in the selection.
           activeId={selectedFixtureId}
+          snap={snap}
           onRecordHistory={onRecordHistory}
           onCommit={onCommitFixture3D}
         />}

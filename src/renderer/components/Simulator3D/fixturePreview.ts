@@ -26,30 +26,72 @@ export interface FixtureTransform {
   scale3D?: number;
 }
 
+/** What the gesture IS, in the operator's terms — the readout's input. Metres and degrees. */
+export interface GestureSummary {
+  mode: 'translate' | 'rotate' | 'scale';
+  count: number;
+  /** Where the gizmo sits now (world metres) — "where is it", next to "how far has it come". */
+  at: { x: number; y: number; z: number };
+  delta: { x: number; y: number; z: number };
+  /** Degrees turned about each axis. */
+  turn: { pitch: number; yaw: number; roll: number };
+  /** Scale factor per axis. For a multi-selection this is the SPREAD, not a resize. */
+  factor: { x: number; y: number; z: number };
+}
+
 // Consumers compare this against the last value they applied, so an unchanged frame costs one integer
 // compare. Bumped on CLEAR as well as on write — the clearing frame is what puts the committed
 // transforms back on screen if a consumer wrote a pose it no longer owns.
 let rev = 0;
 let map: Map<string, FixtureTransform> | null = null;
+// Does the RIG follow the handle, or only the readout? Decided once per gesture (Preferences ▸ GPU
+// rendering ▸ Live gizmo preview) and held here rather than at the publisher, so that turning the
+// drawing off never also turns the NUMBERS off — reading the drag is the cheaper half and the half
+// that makes it precise.
+let visual = true;
+let gesture: GestureSummary | null = null;
+// The readout lives in the viewport header, outside the Canvas, so it has no frame loop to poll from.
+// It is the ONLY subscriber; every in-scene consumer polls by revision instead.
+const subs = new Set<() => void>();
+
+/** Start a gesture. `drawIt` = whether the fixtures themselves should follow (see `visual`). */
+export function beginPreview(drawIt: boolean): void {
+  visual = drawIt;
+}
 
 /** Publish the live gesture. Called from the gizmo's `objectChange`, i.e. at pointer rate. */
-export function setPreview(updates: Array<{ id: string } & FixtureTransform>): void {
+export function setPreview(updates: Array<{ id: string } & FixtureTransform>, summary?: GestureSummary): void {
   const next = new Map<string, FixtureTransform>();
   for (const u of updates) next.set(u.id, u);
   map = next;
+  gesture = summary ?? null;
   rev++;
+  subs.forEach((f) => f());
 }
 
 /** The gesture ended (committed or abandoned). The committed document is the truth again. */
 export function clearPreview(): void {
-  if (!map) return;
+  if (!map && !gesture) return;
   map = null;
+  gesture = null;
   rev++;
+  subs.forEach((f) => f());
+}
+
+/** What the drag currently amounts to, or null between gestures. Drives the header readout. */
+export function getGesture(): GestureSummary | null { return gesture; }
+
+/** For the readout only — everything inside the Canvas polls `previewRev()` in its own frame loop. */
+export function subscribeGesture(cb: () => void): () => void {
+  subs.add(cb);
+  return () => { subs.delete(cb); };
 }
 
 export function previewRev(): number { return rev; }
-export function isPreviewing(): boolean { return map !== null; }
-export function hasPreview(id: string): boolean { return map?.has(id) ?? false; }
+// Both answer for the DRAWING, so both are false when the preview is off — which is what makes the
+// pref one gate in one file instead of four components each remembering to ask.
+export function isPreviewing(): boolean { return visual && map !== null; }
+export function hasPreview(id: string): boolean { return visual && (map?.has(id) ?? false); }
 
 /**
  * The fixture as it should be DRAWN this frame: the committed record when nothing is being dragged,

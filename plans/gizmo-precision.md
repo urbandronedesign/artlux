@@ -252,8 +252,8 @@ exactly 250 mm, and it reuses the Phase-1a delta function with a synthetic ancho
 | 0 | ✅ **DONE** — rotate delta fixed + guarded, W/E/R/Q bound | Wrong today; Phase 3 depends on the fix |
 | 1 | ✅ **DONE** — `gizmoDelta.ts` + `fixturePreview.ts` + LEDs/bodies preview | The actual complaint |
 | 1b | ✅ **DONE** — movers/GDTF preview, budget guard, `scene3dLivePreview` pref | Consistency + the escape hatch |
-| 2 | Readout, snapping, nudge keys | "Precisely" |
-| 2d | Offset-selection numeric entry | Cheap, high value for rows |
+| 2 | ✅ **DONE** — readout, snapping (+ Ctrl invert), nudge keys | "Precisely" |
+| 2d | **NOT BUILT** — offset-selection numeric entry | Cheap, high value for rows |
 | 3 | ✅ **DONE** — World/Object toggle (header button + `X`, per-machine) | Needs step 0 |
 
 Each step is independently shippable and independently revertible. Nothing before step 3 changes what

@@ -10,6 +10,12 @@ export function registerViewerCamera(cam: THREE.Camera | null): void {
   viewer = cam;
 }
 
+/** The live camera, or null when no 3D viewport is mounted. Used by the arrow-key nudge to decide
+ *  which world axis currently points leftish on screen — see nudge.ts. */
+export function getViewerCamera(): THREE.Camera | null {
+  return viewer;
+}
+
 // Snapshot the camera's view-projection matrix (proj * worldInverse) as a plain array, the form
 // SceneModel.uvProjView persists — plus WHERE the camera was. Null when no 3D viewport is mounted:
 // the caller's button should be inert then, not throw.

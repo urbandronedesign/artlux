@@ -41,6 +41,16 @@ export const scene3dHelp: HelpEntry[] = [
     shortcut: 'X',
   },
 
+  {
+    id: 'scene3d.gizmo-snap',
+    title: 'Snap',
+    short: 'Make a drag land on a grid, and set the step it uses.',
+    body: 'With the magnet on, dragging the gizmo moves in whole steps — the one next to it — so a fixture can be placed at exactly 250 mm or turned exactly 15°. Hold Ctrl while dragging to invert it for that drag only, so a snapped rig can still be nudged freely without hunting for the toggle. The same step is what the arrow keys move by: with a fixture selected, the arrows shift the whole selection one step (Shift for ten, Alt for a tenth) and PageUp / PageDown raise and lower it. Left and right follow YOUR view — whichever world axis currently points leftish — so they keep meaning the same thing after you orbit.',
+    group: '3D Scene',
+    keywords: ['snap', 'grid', 'step', 'magnet', 'nudge', 'arrow', 'precise', 'increment'],
+    shortcut: 'S',
+  },
+
   // ── Objects browser + header actions ────────────────────────────────────────────────────────
   {
     id: 'scene3d.model-visibility',

@@ -68,6 +68,17 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'scene3d.modeScale',     label: 'Scale tool',      category: 'Tools', scope: 'scene3d', defaultBinding: ['R'] },
   { id: 'scene3d.modeSelect',    label: 'Box select tool', category: 'Tools', scope: 'scene3d', defaultBinding: ['Q'], description: 'Drag to select fixtures; hold Shift to add to the selection.' },
   { id: 'scene3d.gizmoSpace',    label: 'World / Object axes', category: 'Tools', scope: 'scene3d', defaultBinding: ['X'], description: 'Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way.' },
+  { id: 'scene3d.toggleSnap',    label: 'Toggle snapping', category: 'Tools', scope: 'scene3d', defaultBinding: ['S'], description: 'Hold Ctrl during a drag to invert it for that drag only.' },
+
+  // NUDGE — the precise half of placing a fixture. A rigger works in round numbers, and a 12mm LED on
+  // a big venue is not a target you hit by eye; these move the whole selection by the snap step, so
+  // "250 mm along the truss" is two keystrokes rather than a careful drag.
+  { id: 'scene3d.nudgeLeft',  label: 'Nudge left',     category: 'Editing', scope: 'scene3d', defaultBinding: ['Left'] },
+  { id: 'scene3d.nudgeRight', label: 'Nudge right',    category: 'Editing', scope: 'scene3d', defaultBinding: ['Right'] },
+  { id: 'scene3d.nudgeFwd',   label: 'Nudge away',     category: 'Editing', scope: 'scene3d', defaultBinding: ['Up'] },
+  { id: 'scene3d.nudgeBack',  label: 'Nudge towards',  category: 'Editing', scope: 'scene3d', defaultBinding: ['Down'] },
+  { id: 'scene3d.nudgeUp',    label: 'Nudge up',       category: 'Editing', scope: 'scene3d', defaultBinding: ['PageUp'] },
+  { id: 'scene3d.nudgeDown',  label: 'Nudge down',     category: 'Editing', scope: 'scene3d', defaultBinding: ['PageDown'], description: 'All six move by the snap step (10 mm when snapping is off). Shift = ×10, Alt = ÷10. In rotate mode the four arrows turn the selection instead.' },
 
   // ── Projector warp editing (active only in a projector window's warp-edit mode) ───────────────────
   // The projector runs in its own renderer window (ProjectorApp); it hydrates the keymap from prefs on

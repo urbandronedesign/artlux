@@ -1232,6 +1232,10 @@ export interface Prefs {
       selected fixture's own). Absent = 'world', which is what the viewport has always drawn. A tool
       preference, so per-MACHINE and never inside a project — the pivot is unaffected either way. */
   scene3dGizmoSpace?: 'world' | 'local';
+  /** The grid a 3D transform drag (and an arrow-key nudge) lands on: whether it is on at all, and the
+      step for each kind of gesture — metres, DEGREES, and a scale factor. Absent = off, at 50 mm /
+      15° / 0.1. Per-MACHINE, like the rest of this group. */
+  scene3dSnap?: { on?: boolean; move?: number; rotate?: number; scale?: number };
   /** User keyboard-shortcut overrides, keyed by stable shortcut id → its bound chords (e.g. ["Ctrl+Z"]).
       Renderer-owned blob (the full registry of default bindings lives in the renderer, this stores only
       the deltas the user changed). Absent / missing keys = the registry default. */

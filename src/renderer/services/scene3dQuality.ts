@@ -79,6 +79,31 @@ let livePreview = true;
 // a project file would be surprising in both directions.
 let gizmoSpace: 'world' | 'local' = 'world';
 
+// THE GRID A DRAG LANDS ON. A rigger works in round numbers — 250 mm along the truss, 15° of tilt —
+// and a free drag can only approach one by eye. Snapping is three numbers plus a switch, and OFF by
+// default because free-dragging is what this viewport has always done and is still the right tool for
+// roughing a rig in. Hold Ctrl during a drag to invert whichever state it is in (see FixtureGizmo).
+//
+// `rotate` is DEGREES here and converted at the one place three wants radians. Storing radians would
+// mean every reader — the header select, the nudge step, the readout — converting back.
+export interface SnapSettings {
+  on: boolean;
+  /** Metres per step for a move. */
+  move: number;
+  /** Degrees per step for a rotate. */
+  rotate: number;
+  /** Factor per step for a scale (0.1 = 10% notches). */
+  scale: number;
+}
+
+const SNAP_DEFAULT: SnapSettings = { on: false, move: 0.05, rotate: 15, scale: 0.1 };
+let snap: SnapSettings = { ...SNAP_DEFAULT };
+
+/** The steps offered in the viewport header. Free-typing is not worth a text field up there. */
+export const SNAP_MOVE_CHOICES = [0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1] as const;
+export const SNAP_ROTATE_CHOICES = [1, 5, 10, 15, 30, 45, 90] as const;
+export const SNAP_SCALE_CHOICES = [0.01, 0.05, 0.1, 0.25, 0.5] as const;
+
 // Read the saved value once, on first use rather than at module load. Both consumers (the Canvas and
 // the Preferences slider) call this from their own mount, so there is no boot-order coupling to get
 // wrong and no import side effect — and the 3D canvas mounts lazily anyway, so the read still lands
@@ -97,6 +122,15 @@ export function ensureLoaded(): Promise<void> {
         if (typeof lp === 'boolean') livePreview = lp;
         const gs = p?.scene3dGizmoSpace;
         if (gs === 'world' || gs === 'local') gizmoSpace = gs;
+        const sn = p?.scene3dSnap;
+        if (sn) {
+          snap = {
+            on: typeof sn.on === 'boolean' ? sn.on : SNAP_DEFAULT.on,
+            move: num(sn.move, SNAP_DEFAULT.move),
+            rotate: num(sn.rotate, SNAP_DEFAULT.rotate),
+            scale: num(sn.scale, SNAP_DEFAULT.scale),
+          };
+        }
         subs.forEach((fn) => fn());
       } catch { /* prefs unavailable — keep the default */ }
     })();
@@ -150,7 +184,23 @@ export function setLivePreview(v: boolean): void {
   void window.artlux?.setPrefs?.({ scene3dLivePreview: v });
 }
 
+/** A saved step of 0 or NaN would freeze every drag on one spot; fall back rather than trust it. */
+function num(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
 export function getGizmoSpace(): 'world' | 'local' { return gizmoSpace; }
+
+export function getSnap(): SnapSettings { return snap; }
+
+/** Set + persist. Applies to the next drag AND to the next arrow-key nudge, which shares the step. */
+export function setSnap(patch: Partial<SnapSettings>): void {
+  const next = { ...snap, ...patch };
+  if (next.on === snap.on && next.move === snap.move && next.rotate === snap.rotate && next.scale === snap.scale) return;
+  snap = next;
+  subs.forEach((f) => f());
+  void window.artlux?.setPrefs?.({ scene3dSnap: next });
+}
 
 /** Set + persist. Applies live — the handles reorient on the next frame. */
 export function setGizmoSpace(v: 'world' | 'local'): void {
@@ -188,6 +238,17 @@ export function useGizmoSpace(): 'world' | 'local' {
   useEffect(() => {
     const off = subscribe(() => setV(getGizmoSpace()));
     void ensureLoaded().then(() => setV(getGizmoSpace()));
+    return off;
+  }, []);
+  return v;
+}
+
+/** Drives the header's magnet + step selects, and through them the gizmo. */
+export function useSnap(): SnapSettings {
+  const [v, setV] = useState(snap);
+  useEffect(() => {
+    const off = subscribe(() => setV(getSnap()));
+    void ensureLoaded().then(() => setV(getSnap()));
     return off;
   }, []);
   return v;
