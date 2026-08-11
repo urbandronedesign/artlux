@@ -180,6 +180,32 @@ the same thing would be one uniform declared twice, which compiles to nothing at
 copies: every graph has exactly one. A copied selection can be pasted into a **different** surface's
 graph, which is the quickest way to reuse part of something you have already built.
 
+### Learn it by taking a patch apart
+
+**Examples** in the toolbar opens four **help patches**. Each one is an ordinary graph, so it arrives
+on the surface fully editable: read the wires, change a number, pull one out and see what breaks.
+Opening one replaces what is on the surface, and it asks first if there is anything to lose.
+
+| Patch | What it teaches |
+|---|---|
+| **1 · Coordinates are colour** | Every shader starts with UV — *where am I on the surface* — and turns that into a colour. |
+| **2 · Make it move** | An LFO is the clock of a patch: wire it into any number and that number breathes. |
+| **3 · Trails with Last frame** | Feedback. `Last frame` reads what this shader drew a frame ago; dim it, draw on top, and motion leaves a tail. |
+| **4 · Follow the music** | `Audio band` gives one number per frequency band. Here it is the height of a bar. |
+
+**Reading the feedback patch** (the one worth studying):
+
+- **`Last frame` samples in 0..1 space, from the raw UV** — not from the centred coordinates the shapes
+  use. It is a texture lookup: hand it centred (-0.5..0.5) coordinates and most of the picture is off
+  the edge, which reads as "feedback is broken" rather than as a wrong lookup.
+- **`Brightness` at 0.94 is the decay,** and it is the whole tail. Take it to 0.99 and the trail runs
+  for seconds; take it to 0.8 and there is barely a smear. Anything at or above 1.0 never fades, so the
+  picture fills in and whites out — that is worth doing once, to see it.
+- **`Mix colours` draws the head over the tail,** with the circle's fill as the blend amount: 0 keeps
+  the faded frame, 1 paints the new colour.
+- The graph asks for feedback **by using the node** — `REQUIRES_LAST_FRAME` appears in the generated
+  header on its own. There is nothing to switch on.
+
 ### The inspector
 
 Select a node and the column on the right of the canvas shows what it is: its name, the one-line

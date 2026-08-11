@@ -30,6 +30,7 @@ import { generateGlsl, canConnect, emptyGraph, type ShaderGraph } from './nodeGr
 import { compile } from './shaderDrawable';
 import { layoutGraph, type NodeSize } from './nodeLayout';
 import { suggestFor, type LooseEnd, type Suggestion } from './nodeSuggest';
+import { EXAMPLES } from './nodeExamples';
 import { nextNumberedName } from '@artlux/sdk';
 
 /** One colour per port type, so a wire's legality is readable before it is dragged. */
@@ -476,6 +477,7 @@ export const ShaderNodePanel: React.FC = () => {
   >(null);
   /** The port a wire is being dragged from, while it is in the air. */
   const dragging = useRef<LooseEnd | null>(null);
+  const [examplesOpen, setExamplesOpen] = useState(false);
   // Is the operator working in this canvas? Focus alone is not enough: React Flow focuses a NODE when
   // you click one, but clicking the background focuses nothing at all, so a focus-only gate makes
   // Ctrl+V dead in exactly the state you paste from. Hover answers the same question and survives it.
@@ -505,18 +507,23 @@ export const ShaderNodePanel: React.FC = () => {
     }
   }, [surfaceId, surface]);
 
-  /** Generate, compile, and write to the surface — but only when the result actually builds. */
-  const commit = useCallback((next: ShaderGraph) => {
+  /**
+   * Generate, compile, and write to the surface — but only when the result actually builds.
+   * Returns whether it did, so a caller with something of its own to report (an example's lesson)
+   * can hold its tongue when the news is bad.
+   */
+  const commit = useCallback((next: ShaderGraph): boolean => {
     setGraph(next);
-    if (!surfaceId || !surface) return;
+    if (!surfaceId || !surface) return false;
     const gen = generateGlsl(next);
-    if (gen.errors.length) { setStatus({ ok: false, message: gen.errors[0] }); return; }
+    if (gen.errors.length) { setStatus({ ok: false, message: gen.errors[0] }); return false; }
     const built = compile(gen.source);
-    if (!built.ok) { setStatus({ ok: false, message: built.log.split('\n')[0] || 'the generated shader did not compile' }); return; }
+    if (!built.ok) { setStatus({ ok: false, message: built.log.split('\n')[0] || 'the generated shader did not compile' }); return false; }
     setStatus({ ok: true, message: `${next.nodes.length} nodes` });
     const json = JSON.stringify(next);
     wrote.current = json;
     updateSurface(surfaceId, { content: { ...surface.content, shaderGraph: json, shaderSource: gen.source } });
+    return true;
   }, [surfaceId, surface, updateSurface]);
 
   // ── React Flow's model, derived from ours. Ours stays the source of truth; this is a projection.
@@ -687,6 +694,34 @@ export const ShaderNodePanel: React.FC = () => {
     commit({ ...graph, nodes, edges: [...edges, edge] });
   }, [graph, commit]);
 
+  /**
+   * Open a help patch on this surface.
+   *
+   * An example is an ORDINARY GRAPH, so it arrives editable and everything learned from it transfers.
+   * It replaces what is on the surface, which is why it asks first whenever there is anything to lose —
+   * and "anything" means more than the lone Output node a new graph starts with.
+   */
+  const openExample = useCallback(async (id: string) => {
+    const ex = EXAMPLES.find((x) => x.id === id);
+    if (!ex) return;
+    setExamplesOpen(false);
+    if (graph.nodes.length > 1) {
+      const yes = await confirmDialog({
+        title: `Open “${ex.name}”?`,
+        message: 'It replaces the graph on this surface. Save the current one to the Effects library first if you want to keep it.',
+        confirmLabel: 'Open',
+        danger: true,
+      });
+      if (!yes) return;
+    }
+    // A deep copy: the operator is going to edit this, and EXAMPLES is a module-level constant that
+    // every surface and every later "open" reads from.
+    // Say what it teaches ONLY if it actually built. Overwriting the reason a patch failed with a
+    // cheerful lesson would hide our own bug behind the operator's confusion.
+    if (commit(JSON.parse(JSON.stringify(ex.graph)) as ShaderGraph)) setStatus({ ok: true, message: ex.teach });
+    requestAnimationFrame(() => flow.current?.fitView({ duration: 250, maxZoom: 1, padding: 0.2 }));
+  }, [graph.nodes.length, commit, confirmDialog]);
+
   /** Arrange the whole graph left to right. Uses the sizes React Flow has actually MEASURED, falling
    *  back to the estimate for anything not yet rendered — the two differ most for tall nodes, which
    *  are exactly the ones that would otherwise overlap their neighbour below. */
@@ -832,6 +867,9 @@ export const ShaderNodePanel: React.FC = () => {
           <Button size="sm" variant="ghost" onClick={convertToCode} disabled={graph.nodes.length < 2} title="Hand the generated GLSL to the Shader tab and stop being a graph">
             Convert to code
           </Button>
+          <Button size="sm" variant="ghost" onClick={() => setExamplesOpen((v) => !v)} title="Open a worked example and take it apart">
+            Examples
+          </Button>
           <span className="ml-auto truncate text-micro text-fg-3">{graph.nodes.length} nodes · {graph.edges.length} wires</span>
         </div>
 
@@ -887,6 +925,28 @@ export const ShaderNodePanel: React.FC = () => {
             <Background color="var(--line-1)" gap={16} />
           </ReactFlow>
         </div>
+        {examplesOpen && (
+          <>
+            {/* Click anywhere else to dismiss. A popover you can only close by pressing its own button
+                is one you will keep pressing the canvas behind. */}
+            <div className="fixed inset-0 z-20" onPointerDown={() => setExamplesOpen(false)} />
+            <div className="absolute left-2 top-9 z-30 w-72 rounded-md border border-line-2 bg-surface-1 shadow-lg">
+              <div className="border-b border-line-1 px-2 py-1 text-micro uppercase tracking-wide text-fg-3">
+                Help patches — open one and take it apart
+              </div>
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex.id} type="button" onClick={() => void openExample(ex.id)}
+                  className="block w-full px-2 py-1.5 text-left hover:bg-surface-3"
+                >
+                  <div className="text-micro font-semibold text-fg-1">{ex.name}</div>
+                  <div className="text-micro leading-snug text-fg-3">{ex.teach}</div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         {menu && (
           <NodeMenu
             at={{ x: menu.x, y: menu.y }} maxHeight={menu.h} link={menu.link}
