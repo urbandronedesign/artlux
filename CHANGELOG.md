@@ -54,6 +54,27 @@ typing 0.25.
 Found while building it: the Arrange card — align, distribute, line, arc, fan — was documented nowhere
 and had no help entries. Guide chapter 9 now covers the whole card.
 
+### An alignment aid can follow the warp instead of the raster
+
+A rig setup has two halves that want opposite things, and only the first was served. On the ladder the
+aid must stay in the projector's raw raster — you are moving light, and a grid that followed the
+corner-pin would hide the very error you are chasing. Once the machine is hung and you are shaping the
+picture in software, that same unwarped grid answers a question nobody is asking: what you need to see
+is where the **warped** picture's edge falls against its neighbour's.
+
+**Follow the warp**, beside Dim, sends the pattern through exactly the geometry the content takes — so
+grid squares land on the picture and two outputs' grids can be matched across an overlap *after*
+warping. The WARPED caption goes away, because the aid and the picture now agree. Off by default: the
+ladder comes first.
+
+Nothing else is applied to it — no soft edge, no gamma, no brightness — because an aid you hold up
+against a neighbour's must not be feathered away in the overlap where you compare them. Dim still
+works and still costs nothing. **1:1, White and Black stay in the raw raster always** (bending a
+device-pixel checker destroys the one thing it measures), as does an output playing a baked
+calibration file. One extra pass per output while an aid is up, and nothing when none is — and note
+that a warped pattern is *in* the picture, so unlike the raster aid it also reaches that output's NDI
+send.
+
 ### Shaders reach 1440p and 2160p on the cards that can take them
 
 The Detail ladder stopped at 1080p for everyone because a 4K shader buffer killed the GPU process on
