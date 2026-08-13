@@ -15,6 +15,7 @@ import { projectorChannelRegistry, projectorPanelRegistry } from '../host/regist
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AppIconMark, AppWordmark } from '../components/brand/AppMark';
 import { AlignAids, type AlignAidSpec } from './AlignAids';
+import { rasterizeAidSvg } from './aidRaster';
 import { reportFault } from '../services/faultReporter';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 
@@ -127,6 +128,15 @@ export const ProjectorApp: React.FC = () => {
   const [identify, setIdentify] = useState(false);    // transient rigging aid — see bridge.ts 'identify'
   const [windowed, setWindowed] = useState(false);    // a preview window on the operator's screen, not a projector
   const [aid, setAid] = useState<AlignAidSpec | null>(null); // physical-setup pattern — see AlignAids.tsx
+  // WARPED AIDS. The aid's own SVG node, rasterised and handed to the GL pass so the pattern takes the
+  // corner-pin / Bézier mesh with the picture. `aidWarped` is what actually hides the DOM copy, and it
+  // is set only once the texture is resident — a toggle that removed the visible aid before its
+  // replacement existed would blank the wall mid-alignment.
+  const aidSvgRef = useRef<SVGSVGElement | null>(null);
+  const [aidWarped, setAidWarped] = useState(false);
+  // `{ dim }` or null, read by the frame loop — the scrim travels with the pattern into the GL pass
+  // (see AlignAids' note). A ref, so dragging the Dim slider changes a uniform and nothing else.
+  const aidWarpedRef = useRef<{ dim: number } | null>(null);
   // The main window's cold-start hold, mirrored here (see bridge.ts 'boot'). The REF is what the frame
   // loop reads — it must not wait for a React commit to stop drawing — and the state drives the sign.
   const bootingRef = useRef(false);
@@ -211,6 +221,47 @@ export const ProjectorApp: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // ── WARPED AIDS: rasterise the aid's own SVG and hand it to the GL pass ────────────────────────
+  //
+  // Runs when the PICTURE of the aid changes — pattern, hue, label, soft edge, raster size — and
+  // deliberately not when `dim` does: the scrim is a DOM layer that never reaches the texture, so
+  // dragging the Dim slider costs nothing here. That is the whole reason the two are separate layers.
+  //
+  // Flat fields and the 1:1 checker are excluded at the source: they are CSS, they have no SVG, and
+  // the checker measures DEVICE pixels — bending it destroys the only thing it is for.
+  //
+  // The overlay is dropped (freeing a full-raster texture) the moment any of that stops holding.
+  const aidSig = aid && aid.warp && aid.pattern !== 'white' && aid.pattern !== 'black' && aid.pattern !== 'checker'
+    ? `${aid.pattern}|${aid.hue}|${aid.label}|${aid.soft.left},${aid.soft.right},${aid.soft.top},${aid.soft.bottom}|${size.w}x${size.h}`
+    : '';
+  // Dim is deliberately outside `aidSig` — it must not re-rasterise anything, it is one uniform on a
+  // pass that is already running. This keeps the live object in step without touching the texture.
+  useEffect(() => {
+    if (aidWarpedRef.current) aidWarpedRef.current = { dim: aid?.dim ?? 0 };
+  }, [aid?.dim]);
+  useEffect(() => {
+    const drop = () => {
+      glRef.current?.setOverlay(null);
+      aidWarpedRef.current = null;
+      setAidWarped(false);
+    };
+    if (!aidSig) { drop(); return; }
+    const svg = aidSvgRef.current;
+    // No GL context yet (the canvas effect has not run) or no node to read: keep the DOM aid, which
+    // is already on the wall, and let the next change try again.
+    if (!svg || !glRef.current) { drop(); return; }
+    let dead = false;
+    void rasterizeAidSvg(svg, size.w, size.h, window.devicePixelRatio || 1).then((img) => {
+      if (dead) return;
+      if (!img || !glRef.current) { drop(); return; }
+      glRef.current.setOverlay(img);
+      // Only NOW does the DOM copy come off the wall — see the ref's declaration.
+      aidWarpedRef.current = { dim: aid?.dim ?? 0 };
+      setAidWarped(true);
+    });
+    return () => { dead = true; };
+  }, [aidSig]);
 
   // Activate first-party plugins in this projector window so projector-channel `apply()` (e.g. the
   // LiDAR tracking snapshot → its store) runs here before any pluginData messages arrive.
@@ -420,7 +471,10 @@ export const ProjectorApp: React.FC = () => {
       const warp = warpRef.current;
       if (meshRef.current.src !== warp) meshRef.current = { src: warp, mesh: warp ? tessellateBezier(warp, RENDER_TESS) : null };
       const mesh = meshRef.current.mesh;
-      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES };
+      // `overlay` is the warped alignment aid — a blended second pass through this same geometry,
+      // drawn only once the texture is actually resident (aidWarpedRef), so the DOM copy and the GL
+      // copy can never both be on the wall.
+      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES, overlay: aidWarpedRef.current };
       // ── THE COLD-START HOLD ─────────────────────────────────────────────────────────────────────
       // The main window is still decoding a freshly-opened project, so THIS OUTPUT SHOWS NOTHING —
       // black under the "PRELOADING SHOW" sign below. Half a look is worse than none: the warm pool has
@@ -503,7 +557,7 @@ export const ProjectorApp: React.FC = () => {
         //
         // No `srcGen`: a live canvas mutates in place, so it must re-upload every frame — the same
         // rule as a locally-decoded drawable below.
-        gl.draw(src, { cornerPin: pinRef.current, warp: mesh, softEdge: NO_FEATHER, aa: 1 });
+        gl.draw(src, { cornerPin: pinRef.current, warp: mesh, softEdge: NO_FEATHER, aa: 1, overlay: aidWarpedRef.current });
         // An NDI send of a calibrated output used to be BLACK, because the capture below sat after the
         // early return. Warping restores it.
         captureNdi(now);
@@ -714,7 +768,12 @@ export const ProjectorApp: React.FC = () => {
       {/* ALIGNMENT AIDS — the physical-setup patterns. Under Identify and the boot sign (both are
           about "stop and read this"), over the content and the plugin panels (an aid you cannot see
           through a calibration overlay is no aid). */}
-      {aid && <AlignAids aid={aid} size={size} warped={hasResidualWarp(pin, warp)} dpr={window.devicePixelRatio || 1} />}
+      {aid && (
+        <AlignAids
+          aid={aid} size={size} warped={hasResidualWarp(pin, warp)} dpr={window.devicePixelRatio || 1}
+          svgOut={aidSvgRef} offscreenSvg={aidWarped}
+        />
+      )}
 
       {!connected && <div style={overlayCenter}>Waiting for the main window… {name}</div>}
 

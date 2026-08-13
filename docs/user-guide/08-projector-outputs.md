@@ -90,6 +90,29 @@ rather than a blank field. Nothing here is saved with the project, so an aid can
 > would hide the very error you are looking for. If an output already carries a warp, the aid says so
 > on the projection. Do the physical work first, then **Align** the software on top.
 
+### Follow the warp — the aid after the machine is hung
+
+A rig setup has two halves that want opposite things, and **Follow the warp** (beside **Dim**) is the
+second half. Once the projectors are physically aimed and you are shaping the picture with the
+corner‑pin or the Bézier mesh, the raw‑raster grid is answering a question you have finished asking:
+what you need to see now is where the **warped** picture's edge falls, and whether it meets its
+neighbour's.
+
+Turn it on and the pattern goes through exactly the geometry the content takes — grid squares land on
+the picture, and two outputs' grids can be matched across an overlap *after* warping. The WARPED
+caption disappears, because the aid and the picture now agree.
+
+- Nothing else is applied to the pattern — no soft edge, no gamma, no brightness. An aid you hold up
+  against a neighbour's must not be feathered away in the overlap where you compare them.
+- **1:1, White and Black stay in the raw raster always.** The checker measures *device* pixels, so
+  bending it would destroy the one thing it is for.
+- An output playing a **baked calibration file** also keeps its pattern in the raster.
+- **Dim still works, and still costs nothing** — the darkening travels into the picture with the
+  pattern, so the aid stays at full brightness on top of a dimmed show, exactly as it does unwarped.
+- **A warped pattern is inside the picture, so it also appears in that output's NDI send** and in any
+  capture of it. The unwarped aid does not.
+- It costs one extra pass per output while an aid is up, and nothing when none is.
+
 ### A working order for a wall
 
 1. **Identify** every output so you know which machine is which.

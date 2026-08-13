@@ -42,12 +42,43 @@ their mix), and **Blend** draws the output's real `SoftEdge` as a hatched band w
 bright and a *ladder* across it: matching a neighbour's ladder matches zoom, aim and roll at once.
 
 Two design points that are load-bearing:
-- **Drawn unwarped, in the raw raster** (DOM/SVG over the canvas, never through the warp pipeline).
+- **Drawn unwarped, in the raw raster by default** (DOM/SVG over the canvas, outside the warp pipeline).
   You are adjusting where the projector's *light* goes, so an aid that moved with the corner-pin would
   hide the error being hunted. An output with a residual warp says so on the projection.
 - **The band comes from the output's real `softEdge`, not from the `render` payload** — under NVAPI
   scanout warp the GPU is deliberately handed a flat soft edge (the double-blend guard), while the band
   still physically exists on the wall.
+
+**Follow the warp** (the checkbox beside Dim) is the other half of a rig setup: once the machine is
+hung and you are shaping the picture in software, an unwarped grid answers a question nobody is asking.
+It sends the pattern through the *same* corner-pin / Bézier mesh the content takes, as a second blended
+GL pass — `ProjectorGL.setOverlay()` + `DrawOpts.overlay`, geometry shared with the content pass so the
+two cannot bend differently.
+
+How it is built, and why each piece is where it is:
+- **The live SVG node is serialised and rasterised** (`projector/aidRaster.ts`), never re-drawn in
+  Canvas2D — one source for the picture, so a pattern added tomorrow warps the day it is added.
+  Re-rasterised on pattern / size / soft-edge changes only; **`dim` never reaches the texture**, so
+  dragging Dim costs nothing.
+- **The scrim moves into the GL pass with the pattern**, drawn in raster space immediately under it.
+  It has to: the aid sits *on* the scrim, and a scrim left in the DOM would sit on top of the canvas
+  and therefore on top of the warped aid — measured at dim 90%, which put the grid at 10% brightness
+  and made it unreadable. `dim` stays a uniform, so the slider still costs nothing.
+- **The 1:1 checker and the WARPED banner stay in the DOM.** The checker measures *device* pixels, so
+  bending it destroys the only thing it is for, and the banner is a message to a person — it also goes
+  away in warp mode, where the aid and the picture agree by construction. `WARPABLE_AIDS` in
+  `OutputsPanel` is the one list that decides which patterns can take the warp at all.
+- **A warped aid IS in the picture, so it reaches an NDI send and any capture** (`captureRGBA` reads
+  the resolved framebuffer). The raw-raster aid, like Identify and the cold-start sign, does not. That
+  is a real difference in kind, not an oversight: the pattern is now content.
+- **The DOM copy is hidden only once the texture is resident** (`aidWarped`), so a failed rasterisation
+  degrades to the raw-raster aid rather than to a blank wall.
+- **No photometrics.** Soft edge, gamma, brightness, colour gain and black lift are all identity on the
+  overlay pass: an aid is compared against a *neighbour's*, and feathering it would dim it to nothing
+  exactly in the overlap where the comparison happens.
+- **On the baked-calibration path the pattern stays in the raster** — a baked map is raster→content and
+  has no inverse to bend an aid through. It is still drawn (through the identity mesh) rather than
+  skipped, so the aid cannot vanish on a calibrated output.
 
 Transient App state (like Identify), never persisted. Design + what was left out:
 [plans/projector-alignment-aids.md](../plans/projector-alignment-aids.md).

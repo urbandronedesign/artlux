@@ -16,6 +16,9 @@ export interface DrawOpts {
   colorGain?: [number, number, number]; // per-projector white-point/brightness match (default 1,1,1)
   blackLift?: [number, number, number]; // per-projector additive black floor (default 0,0,0)
   aa?: number;         // MSAA samples (0/1 = off)
+  /** Draw the alignment-aid overlay through this same geometry (see setOverlay). `dim` is the aid's
+   *  scrim, which moves in here with it — see drawOverlay for why it cannot stay in the DOM. */
+  overlay?: { dim: number } | null;
 }
 
 const VERT = `
@@ -26,6 +29,42 @@ void main() {
   vUVQ = aUVQ;
   gl_Position = vec4(aPos, 0.0, 1.0);
 }`;
+
+// ── THE ALIGNMENT-AID OVERLAY ───────────────────────────────────────────────────────────────────
+// A second, blended pass that puts an already-rasterised RGBA image through EXACTLY the geometry the
+// content just took — the corner-pin or the Bézier mesh — and through nothing else. No soft edge, no
+// gamma, no brightness, no colour gain, no black lift.
+//
+// That asymmetry is the point, not an omission. An aid is a measuring instrument held up against the
+// NEIGHBOURING projector's: feathering it would dim it to nothing exactly in the overlap, which is the
+// one place two of them have to be compared. The blend pattern draws the band's geometry itself, so
+// applying the ramp on top would be drawing it twice in two different spaces.
+//
+// The texture arrives premultiplied (see setOverlay) so the blend is ONE / 1-SRC_ALPHA — an SVG is all
+// antialiased hairlines and text, and straight-alpha compositing fringes every one of them.
+const FRAG_OVERLAY = `
+precision mediump float;
+varying vec3 vUVQ;
+uniform sampler2D uTex;
+void main() {
+  vec2 uv = vUVQ.xy / vUVQ.z;
+  gl_FragColor = texture2D(uTex, uv);
+}`;
+
+// The aid's SCRIM — how far the show underneath is darkened so the pattern reads. It is a DOM layer
+// while the aid is, and it has to come in HERE the moment the aid does, because the layer order is the
+// whole point: the aid sits ON the scrim. Left in the DOM it would sit on top of the canvas and
+// therefore on top of the warped aid, dimming the instrument instead of the picture — measured at
+// dim 90%, which put the grid at 10% brightness and made it unreadable on a wall.
+//
+// Raster space, not the warp mesh: it darkens the whole projector, exactly as `inset: 0` did.
+const VERT_SOLID = `
+attribute vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FRAG_SOLID = `
+precision mediump float;
+uniform float uDim;
+void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, uDim); }`;
 
 // The soft-edge ramp itself lives in blendGlsl.ts because the calibrated render path (which draws
 // OVER this canvas and so never reaches this shader) has to apply exactly the same one.
@@ -230,6 +269,17 @@ export class ProjectorGL {
   private canMip = false;
   private maxAniso = 0;
   private quadBuf: WebGLBuffer | null = null;
+
+  // ── Alignment-aid overlay (lazy: an output that never shows an aid compiles nothing and holds no
+  // texture). The image is uploaded when the AID changes — pattern, size, soft edge — not per frame,
+  // which is what keeps this to one extra pass rather than one extra upload at display rate.
+  private ovProg: WebGLProgram | null = null;
+  private ovAPos = -1;
+  private ovAUVQ = -1;
+  private ovTex: WebGLTexture | null = null;
+  private dimProg: WebGLProgram | null = null;
+  private dimAPos = -1;
+  private uDim: WebGLUniformLocation | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl2 = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -484,9 +534,7 @@ export class ProjectorGL {
       const missing = Object.keys(this.bakedU).filter((k) => !this.bakedU[k]);
       if (missing.length) console.warn(`[ProjectorGL] baked uniforms unresolved: ${missing.join(', ')} — a sampler among these reads unit 0 (the content) instead`);
     }
-    this.quadBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); // one big triangle
+    this.ensureQuadBuf(); // one big triangle, shared with the aid scrim
     return true;
   }
 
@@ -547,6 +595,12 @@ export class ProjectorGL {
     // context, and a stale array pointing at a smaller buffer reads out of bounds and kills the GPU
     // process. Same rule as warpFromTexture.
     gl.disableVertexAttribArray(this.bakedAPos);
+    // The aid, over a baked calibration. It goes through the MESH geometry, which on a baked output is
+    // the identity quad — so the pattern lands in the raw raster, exactly where the DOM copy used to
+    // put it. A baked map is raster→content and has no inverse, so there is nothing here to bend an
+    // aid THROUGH; drawing it anyway is what stops the aid vanishing on a calibrated output the moment
+    // the toggle is on.
+    if (o.overlay) this.drawOverlay(o);
     return true;
   }
 
@@ -595,13 +649,11 @@ export class ProjectorGL {
     gl.viewport(0, 0, w, h);
     gl.disable(gl.BLEND);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    if (!tex) { this.resolve(useMS, w, h); return; }
+    // No content — but an aid still has to be on the wall. This is the cold-start hold and the
+    // producer-lost black, and those are exactly the moments an operator is standing at the projector.
+    if (!tex) { if (o.overlay) this.drawOverlay(o); this.resolve(useMS, w, h); return; }
 
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    // Rebuild + re-upload the mesh only when the warp/corner-pin actually changed (reference
-    // compare — see lastPin/lastWarp). Uniforms below are cheap and always set; the vertex buffer
-    // is the expensive part and its contents persist in `buf` between draws.
-    const geomChanged = o.cornerPin !== this.lastPin || o.warp !== this.lastWarp || this.lastGeomLen === 0;
     const soft = o.softEdge;
     gl.useProgram(this.prog);
     gl.uniform4f(this.uSoft, soft?.left ?? 0, soft?.right ?? 0, soft?.top ?? 0, soft?.bottom ?? 0);
@@ -611,8 +663,27 @@ export class ProjectorGL {
     const cg = o.colorGain ?? [1, 1, 1], bl = o.blackLift ?? [0, 0, 0];
     gl.uniform3f(this.uColorGain, cg[0], cg[1], cg[2]);
     gl.uniform3f(this.uBlackLift, bl[0], bl[1], bl[2]);
+    this.bindGeometry(o, this.aPos, this.aUVQ);
+    gl.drawArrays(gl.TRIANGLES, 0, this.lastGeomLen / 5);
+    // Leave no enabled attrib arrays behind (the blob pass shares this context — a stale array
+    // pointing at a smaller buffer would read out of bounds and crash the GPU process).
+    gl.disableVertexAttribArray(this.aPos);
+    gl.disableVertexAttribArray(this.aUVQ);
+
+    if (o.overlay) this.drawOverlay(o);
+    this.resolve(useMS, w, h);
+  }
+
+  // Upload the warp mesh if it changed and point a program's attributes at it. Shared by the content
+  // pass and the aid overlay so the two cannot bend differently: one buffer, one cache, one geometry.
+  //
+  // Rebuilt only when the warp/corner-pin actually changed (reference compare — see lastPin/lastWarp).
+  // Uniforms are cheap and always set; the vertex buffer is the expensive part and its contents
+  // persist in `buf` between draws.
+  private bindGeometry(o: DrawOpts, aPos: number, aUVQ: number): void {
+    const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
-    if (geomChanged) {
+    if (o.cornerPin !== this.lastPin || o.warp !== this.lastWarp || this.lastGeomLen === 0) {
       const data = this.buildGeometry(o);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
       this.lastGeomLen = data.length;
@@ -620,17 +691,126 @@ export class ProjectorGL {
       this.lastWarp = o.warp;
     }
     const stride = 5 * 4;
-    gl.enableVertexAttribArray(this.aPos);
-    gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(this.aUVQ);
-    gl.vertexAttribPointer(this.aUVQ, 3, gl.FLOAT, false, stride, 2 * 4);
-    gl.drawArrays(gl.TRIANGLES, 0, this.lastGeomLen / 5);
-    // Leave no enabled attrib arrays behind (the blob pass shares this context — a stale array
-    // pointing at a smaller buffer would read out of bounds and crash the GPU process).
-    gl.disableVertexAttribArray(this.aPos);
-    gl.disableVertexAttribArray(this.aUVQ);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, stride, 0);
+    gl.enableVertexAttribArray(aUVQ);
+    gl.vertexAttribPointer(aUVQ, 3, gl.FLOAT, false, stride, 2 * 4);
+  }
 
-    this.resolve(useMS, w, h);
+  /**
+   * Hand the overlay its picture, or `null` to drop it.
+   *
+   * Called when the AID changes, never per frame — a full-raster RGBA texture is 8 MB at 1080p and
+   * 33 MB at 4K, so `null` deletes it rather than parking it: an output showing no aid must cost
+   * exactly what it cost before this existed.
+   *
+   * Premultiplied on upload, because everything in an aid is an antialiased hairline or a glyph edge
+   * and straight-alpha compositing fringes all of them. The flag is global GL state shared with the
+   * content upload, so it is restored immediately.
+   */
+  setOverlay(src: TexImageSource | null): void {
+    const gl = this.gl;
+    if (!src) {
+      if (this.ovTex) { gl.deleteTexture(this.ovTex); this.ovTex = null; }
+      return;
+    }
+    if (!this.ovTex) {
+      this.ovTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, this.ovTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      // No mip chain: the aid is authored at the raster's own resolution and a warp that minifies it
+      // far enough to want one has already made it unreadable.
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    } else {
+      gl.bindTexture(gl.TEXTURE_2D, this.ovTex);
+    }
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+    try {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    } catch (err) {
+      console.warn('[ProjectorGL] alignment-aid overlay upload failed — the aid stays in the raw raster', err);
+      gl.deleteTexture(this.ovTex); this.ovTex = null;
+    }
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+    // `lastSrcGen` is deliberately NOT reset: it says whether `tex` holds the current frame's pixels,
+    // and uploadContent rebinds `tex` itself — so a rebind here cannot invalidate it. Clearing it
+    // would force a full content re-upload on the next frame for no reason at all.
+  }
+
+  /** Is there an aid resident? The caller keeps the DOM copy visible while this is false. */
+  hasOverlay(): boolean { return !!this.ovTex; }
+
+  // The scrim's fullscreen triangle. `quadBuf` is the baked path's, built lazily there; an output can
+  // show an aid without ever having a calibration file, so the buffer's creation cannot live inside
+  // that path's program setup.
+  private ensureQuadBuf(): void {
+    if (this.quadBuf) return;
+    const gl = this.gl;
+    this.quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  }
+
+  private ensureDimProgram(): boolean {
+    if (this.dimProg) { this.ensureQuadBuf(); return true; }
+    const gl = this.gl;
+    const p = gl.createProgram()!;
+    gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, VERT_SOLID));
+    gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, FRAG_SOLID));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.warn('[ProjectorGL] scrim link:', gl.getProgramInfoLog(p)); return false; }
+    this.dimProg = p;
+    this.dimAPos = gl.getAttribLocation(p, 'aPos');
+    this.uDim = gl.getUniformLocation(p, 'uDim');
+    this.ensureQuadBuf();
+    return true;
+  }
+
+  private ensureOverlayProgram(): boolean {
+    if (this.ovProg) return true;
+    if (!this.ovTex) return false;
+    const gl = this.gl;
+    const p = gl.createProgram()!;
+    gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, VERT));
+    gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, FRAG_OVERLAY));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.warn('[ProjectorGL] overlay link:', gl.getProgramInfoLog(p)); return false; }
+    this.ovProg = p;
+    this.ovAPos = gl.getAttribLocation(p, 'aPos');
+    this.ovAUVQ = gl.getAttribLocation(p, 'aUVQ');
+    return true;
+  }
+
+  // The aid's two passes: the raster scrim, then the aid through the content's own geometry. Both are
+  // blended full-raster draws over an already-resident buffer and an already-uploaded texture, so
+  // there is nothing per-frame here but fill rate.
+  private drawOverlay(o: DrawOpts): void {
+    if (!this.ensureOverlayProgram()) return;
+    const gl = this.gl;
+    const dim = o.overlay?.dim ?? 0;
+    if (dim > 0 && this.ensureDimProgram()) {
+      gl.useProgram(this.dimProg);
+      gl.uniform1f(this.uDim, Math.min(1, dim));
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied black == CSS rgba(0,0,0,dim)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
+      gl.enableVertexAttribArray(this.dimAPos);
+      gl.vertexAttribPointer(this.dimAPos, 2, gl.FLOAT, false, 8, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.disableVertexAttribArray(this.dimAPos);
+      gl.disable(gl.BLEND);
+    }
+    gl.useProgram(this.ovProg);
+    gl.bindTexture(gl.TEXTURE_2D, this.ovTex);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    this.bindGeometry(o, this.ovAPos, this.ovAUVQ);
+    gl.drawArrays(gl.TRIANGLES, 0, this.lastGeomLen / 5);
+    gl.disableVertexAttribArray(this.ovAPos);
+    gl.disableVertexAttribArray(this.ovAUVQ);
+    gl.disable(gl.BLEND);
   }
 
   // Resolve the multisampled FBO to the screen (no-op when MSAA is off — we drew direct).

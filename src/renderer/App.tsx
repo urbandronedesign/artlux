@@ -439,7 +439,10 @@ const App: React.FC = () => {
   // and overlapped (plans/projector-alignment-aids.md). One control for the whole wall on purpose:
   // aligning means seeing all of it at once, and a per-output pattern would mostly be a way to get
   // confused. Transient for the same reason identify is — nothing here may reach a saved project.
-  const [alignAid, setAlignAid] = useState<{ pattern: AidPattern | 'off'; dim: number }>({ pattern: 'off', dim: 0.9 });
+  // `warp` sends the pattern through each output's corner-pin / Bézier mesh instead of its raw raster.
+  // Off by default: raster space is what you want on the ladder, and warp space is what you want once
+  // the machine is hung. See AlignAids.tsx.
+  const [alignAid, setAlignAid] = useState<{ pattern: AidPattern | 'off'; dim: number; warp: boolean }>({ pattern: 'off', dim: 0.9, warp: false });
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
@@ -3960,6 +3963,7 @@ const App: React.FC = () => {
               label: out?.name || surface.name,
               soft: out?.softEdge ?? defaultSoftEdge(),
               dim: alignAid.dim,
+              warp: alignAid.warp,
           },
       });
       // The cold-start hold. Sent HERE as well as on every gate change because a window can open INTO a

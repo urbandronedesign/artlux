@@ -4012,15 +4012,73 @@ check(
       problems.push(`${F} has no uploadContent — the two draw paths would each have to remember to regenerate the mip chain`);
     if (!/generateMipmap\(gl\.TEXTURE_2D\)/.test(src))
       problems.push('nothing regenerates the content mip chain — with a mipmap MIN_FILTER the texture is incomplete and the output goes black');
-    // Exactly one place may fill the content texture. A second is the regression.
-    const fills = (src.match(/texImage2D\(gl\.TEXTURE_2D, 0, gl\.RGBA, gl\.RGBA, gl\.UNSIGNED_BYTE, src\)/g) ?? []).length;
-    if (fills > 1)
-      problems.push(`the content texture is filled from ${fills} places — every one of them must regenerate the mip chain, and the one that forgets renders black`);
+    // Exactly one place may fill THE CONTENT texture, and it must regenerate the chain.
+    //
+    // Resolved per call site by the texture last bound before it, rather than by counting uploads in
+    // the file: the aid overlay legitimately fills a SECOND texture here, and that one is deliberately
+    // unmipped (LINEAR), so a flat count would have to be either wrong or disabled. Attributing each
+    // fill to its texture keeps the check pointed at the actual hazard — an incomplete `this.tex`.
+    let contentFills = 0;
+    for (const m of src.matchAll(/texImage2D\(gl\.TEXTURE_2D, 0, gl\.RGBA, gl\.RGBA, gl\.UNSIGNED_BYTE, \w+\)/g)) {
+      const bound = [...src.slice(0, m.index).matchAll(/bindTexture\(gl\.TEXTURE_2D, ([\w.]+)\)/g)].pop();
+      if (bound?.[1] !== 'this.tex') continue; // another texture, another lifetime, its own filter
+      contentFills++;
+      if (!/generateMipmap\(gl\.TEXTURE_2D\)/.test(src.slice(m.index, m.index + 400)))
+        problems.push('a fill of the content texture does not regenerate the mip chain — that texture is incomplete and the output goes BLACK');
+    }
+    if (contentFills !== 1)
+      problems.push(`the content texture is filled from ${contentFills} places, not 1 — every one of them must regenerate the mip chain, and the one that forgets renders black`);
     if (!/LINEAR_MIPMAP_LINEAR/.test(src))
       problems.push('the content texture is no longer mipped — minified content aliases and crawls as it plays');
     // WebGL1 cannot mip NPOT: mipping there would make the texture incomplete instead of prettier.
     if (!/this\.canMip = !!this\.gl2/.test(src))
       problems.push('mipping is no longer gated on WebGL2 — a WebGL1 fallback cannot mip a non-power-of-two texture and would render black');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── A warped alignment aid must bend with the picture, and must never be the only copy ─────────────
+check(
+  'the warped alignment aid shares the content geometry and outlives its own failure',
+  'An aid is a measuring instrument, and both ways this can break are silent on the machine that ' +
+  'built it. (1) IF THE OVERLAY BUILDS ITS OWN GEOMETRY it can bend differently from the content — ' +
+  'and a grid that is 4 px off the picture it claims to describe is worse than no grid, because an ' +
+  'operator on a ladder will trust it and chase the difference with a lens. One buffer, one cache, ' +
+  'one bindGeometry, so the two cannot drift. (2) IF THE DOM COPY IS HIDDEN ON THE INTENT rather ' +
+  'than on the texture actually being resident, a rasterisation that fails — an SVG the browser ' +
+  'declines to decode, no GL context yet — takes the aid off the wall completely and leaves the ' +
+  'operator with nothing, mid-alignment, in a dark venue. `aidWarped` is set only after ' +
+  'setOverlay(); `aid.warp` is the request, not the answer. The overlay pass also stays photometric ' +
+  'identity on purpose: an aid feathered by the soft edge dims to nothing exactly in the overlap ' +
+  'where two of them have to be compared.',
+  () => {
+    const GL = 'src/renderer/projector/ProjectorGL.ts';
+    const APP = 'src/renderer/projector/ProjectorApp.tsx';
+    const gl = stripComments(read(GL));
+    const app = stripComments(read(APP));
+    const problems = [];
+
+    // (1) One geometry for both passes.
+    if (!/private bindGeometry\(/.test(gl))
+      problems.push(`${GL} has no bindGeometry — the content pass and the aid overlay would each build their own mesh and could bend differently`);
+    if (/private drawOverlay\(/.test(gl)) {
+      const body = gl.slice(gl.indexOf('private drawOverlay('));
+      const end = body.indexOf('\n  }');
+      const fn = end > 0 ? body.slice(0, end) : body;
+      if (!/this\.bindGeometry\(/.test(fn))
+        problems.push('the aid overlay does not draw through bindGeometry — it can bend differently from the picture it is measuring');
+      if (/uSoft|uGamma|uBrightness|uColorGain|uBlackLift/.test(fn))
+        problems.push('the aid overlay applies a photometric stage — feathering an aid dims it to nothing in the overlap, which is the one place two of them are compared');
+    }
+
+    // (2) The DOM aid comes off the wall only once the texture is up.
+    if (!/offscreenSvg=\{aidWarped\}/.test(app))
+      problems.push(`${APP} hides the DOM aid on something other than aidWarped — a failed rasterisation would leave no aid on the wall at all`);
+    if (!/setOverlay\(img\)[\s\S]{0,200}?setAidWarped\(true\)/.test(app))
+      problems.push('aidWarped is set without the texture having been uploaded first — the aid can blink out between the two');
+    if (!/overlay: aidWarpedRef\.current/.test(app))
+      problems.push('the draw no longer gates the overlay pass on aidWarpedRef — the DOM copy and the GL copy can both be on the wall at once');
+
     return problems.length ? problems.join('; ') : null;
   },
 );

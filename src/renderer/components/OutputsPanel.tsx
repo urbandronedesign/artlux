@@ -19,8 +19,8 @@ interface Props {
   onIdentifyMany: (surfaceIds: string[]) => void;
   onSetOutputName: (surfaceId: string, name: string) => void;
   // The pattern projected on every live output while a rig is physically hung (AlignAids.tsx).
-  alignAid: { pattern: AidPattern | 'off'; dim: number };
-  onSetAlignAid: (v: { pattern: AidPattern | 'off'; dim: number }) => void;
+  alignAid: { pattern: AidPattern | 'off'; dim: number; warp: boolean };
+  onSetAlignAid: (v: { pattern: AidPattern | 'off'; dim: number; warp: boolean }) => void;
   fpsCap: number;
   // Spanning one surface across several projectors (see SpanEditor / services/outputSpan.ts).
   spans: OutputSpan[];
@@ -62,6 +62,10 @@ const AID_BUTTONS: Array<{ id: AidPattern | 'off'; label: string; help: string }
   { id: 'white', label: 'White', help: 'A flat white field — coverage and spill.' },
   { id: 'black', label: 'Black', help: 'A flat black field — black level, and how much the overlap lifts it.' },
 ];
+
+// Which patterns can be sent through the warp. The flat fields have no geometry to bend, and the 1:1
+// checker measures DEVICE pixels — resampling it through a mesh destroys the only thing it is for.
+const WARPABLE_AIDS = new Set<AidPattern | 'off'>(['grid', 'blend', 'focus', 'grey', 'bars']);
 
 const cell = 'bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-fg-1 text-mini focus:border-accent focus:outline-none disabled:opacity-40';
 const numCell = 'w-12 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-micro focus:border-accent focus:outline-none';
@@ -183,19 +187,43 @@ export const OutputsPanel: React.FC<Props> = ({
                 ))}
               </div>
               {alignAid.pattern !== 'off' && (
-                <label className="flex items-center gap-1.5 text-micro text-fg-2 ml-auto" title="How far the show underneath is darkened — you often want to align against the real content, not a blank field">
-                  Dim
-                  <input type="range" min={0} max={1} step={0.05} value={alignAid.dim}
-                    onChange={(e) => onSetAlignAid({ ...alignAid, dim: +e.target.value })} className="w-24 accent-accent" />
-                  <span className="num w-8 text-right">{Math.round(alignAid.dim * 100)}%</span>
-                </label>
+                <div className="flex items-center gap-3 ml-auto">
+                  {/* The second half of a rig setup. Raster space is for the ladder; once the machine
+                      is hung and you are shaping the picture in software, an unwarped grid answers a
+                      question nobody is asking. Disabled where it would be meaningless rather than
+                      hidden, so the operator learns the aid HAS this rather than wondering. */}
+                  <Tooltip id="outputs.align-aids-warp">
+                    <label
+                      className={`flex items-center gap-1.5 text-micro cursor-pointer ${WARPABLE_AIDS.has(alignAid.pattern) ? 'text-fg-2' : 'text-fg-3 opacity-50 cursor-not-allowed'}`}
+                      {...help('outputs.align-aids-warp')}
+                    >
+                      <input
+                        type="checkbox" checked={alignAid.warp} disabled={!WARPABLE_AIDS.has(alignAid.pattern)}
+                        onChange={(e) => onSetAlignAid({ ...alignAid, warp: e.target.checked })}
+                        className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
+                      />
+                      Follow the warp
+                    </label>
+                  </Tooltip>
+                  <label className="flex items-center gap-1.5 text-micro text-fg-2" title="How far the show underneath is darkened — you often want to align against the real content, not a blank field">
+                    Dim
+                    <input type="range" min={0} max={1} step={0.05} value={alignAid.dim}
+                      onChange={(e) => onSetAlignAid({ ...alignAid, dim: +e.target.value })} className="w-24 accent-accent" />
+                    <span className="num w-8 text-right">{Math.round(alignAid.dim * 100)}%</span>
+                  </label>
+                </div>
               )}
             </div>
             {alignAid.pattern !== 'off' && (
               <div className="text-micro text-fg-3">
                 {AID_BUTTONS.find((b) => b.id === alignAid.pattern)?.help}
                 {' '}Each output is tinted its own colour — the first three are red/green/blue, so an overlap
-                reads as their mix. Patterns are drawn in the raw projector raster, unwarped.
+                reads as their mix.
+                {' '}{!WARPABLE_AIDS.has(alignAid.pattern)
+                  ? 'This pattern is always drawn in the raw projector raster.'
+                  : alignAid.warp
+                    ? 'Following the warp: the pattern is bent by this output’s corner-pin / Bézier mesh, so it lands where the picture lands.'
+                    : 'Drawn in the raw projector raster, unwarped — aim, zoom and roll the real machine against it.'}
               </div>
             )}
           </div>

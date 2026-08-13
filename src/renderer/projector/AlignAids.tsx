@@ -29,6 +29,18 @@ export interface AlignAidSpec {
   /** How far the content underneath is darkened, 0..1. Not always 1: you often want to align against
    *  the actual show, not a blank field. */
   dim: number;
+  /**
+   * Send the pattern through the output's corner-pin / Bézier warp instead of drawing it in the raw
+   * raster — the SECOND half of the job the raw raster serves.
+   *
+   * Raster space is right while you are still on the ladder: you are moving light, and an aid that
+   * followed the software warp would hide the error you are chasing. It is exactly wrong once the
+   * machine is hung and you are shaping the picture in software, because then the operator needs to
+   * see where the WARPED picture's edge lands against the neighbour's, and an unwarped grid answers a
+   * question nobody is asking any more. One toggle, both halves of a rig setup; off by default,
+   * because the ladder comes first.
+   */
+  warp?: boolean;
 }
 
 // Distinct, saturated, and — for the first three — the ADDITIVE PRIMARIES, on purpose. Red and green
@@ -61,9 +73,20 @@ interface Props {
   warped: boolean;
   /** Device pixels per CSS pixel — the 1:1 checker is meaningless without it. */
   dpr: number;
+  /**
+   * Warp mode (`aid.warp` AND the GL pass actually holding a texture — see ProjectorApp). The SVG
+   * layer is not painted here; it is handed over by this ref so the GL pass can draw it through the
+   * warp mesh, and the DOM copy is taken out of the paint entirely.
+   *
+   * Everything else stays where it is. The scrim is a flat darkening of the raster and warping it
+   * would leave the corners of the show undimmed; the 1:1 checker measures DEVICE pixels, so bending
+   * it destroys the only thing it is for; and the banner is a message to a person.
+   */
+  svgOut?: React.Ref<SVGSVGElement>;
+  offscreenSvg?: boolean;
 }
 
-export const AlignAids: React.FC<Props> = ({ aid, size, warped, dpr }) => {
+export const AlignAids: React.FC<Props> = ({ aid, size, warped, dpr, svgOut, offscreenSvg }) => {
   const { w, h } = size;
   if (w < 2 || h < 2) return null;
   const C = hsl(aid.hue, 90, 60);
@@ -74,7 +97,11 @@ export const AlignAids: React.FC<Props> = ({ aid, size, warped, dpr }) => {
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', inset: 0, background: scrim }} />
+      {/* The scrim goes WITH the pattern. In warp mode the pattern is drawn inside the canvas, so a
+          scrim left here would sit on top of it and dim the instrument instead of the show — 90% dim
+          put the grid at 10% brightness, which is unreadable on a wall. ProjectorGL draws it in the
+          same pass, in raster space, immediately under the aid. */}
+      {!offscreenSvg && <div style={{ position: 'absolute', inset: 0, background: scrim }} />}
 
       {/* The 1:1 check is a CSS pattern rather than SVG because it has to land on DEVICE pixels: a
           "1px" CSS square is not one projector pixel on a scaled desktop, and a checker that is
@@ -87,8 +114,22 @@ export const AlignAids: React.FC<Props> = ({ aid, size, warped, dpr }) => {
         }} />
       )}
 
+      {/* `display: none` rather than hidden-but-laid-out: nothing here is measured (every coordinate
+          is an explicit attribute), so the node serialises perfectly while costing no paint and no
+          compositor layer. Warping an aid must not mean drawing it twice. */}
       {!flat && (
-        <svg width={w} height={h} style={{ position: 'absolute', inset: 0 }} shapeRendering="crispEdges">
+        <div style={offscreenSvg ? { display: 'none' } : undefined}>
+        <svg
+          ref={svgOut} width={w} height={h} style={{ position: 'absolute', inset: 0 }}
+          // crispEdges is right for a 1:1 raster overlay and wrong through a warp: it turns off
+          // antialiasing, and the mesh then resamples the hard edges into stair-steps. Rasterised for
+          // the GPU, every hairline wants to be smooth BEFORE it is bent.
+          //
+          // Keyed on the INTENT (`aid.warp`) and not on `offscreenSvg`, which is the achieved state:
+          // the rasteriser reads this node on the commit where the toggle arrives, one render before
+          // the node is hidden, so keying on the later flag would bake the crisp-edged version.
+          shapeRendering={aid.warp ? 'geometricPrecision' : 'crispEdges'}
+        >
           <defs>
             {/* Hatch for the blend bands — dense enough to read as a texture from the floor, open
                 enough that the neighbour's hatch is still visible through the overlap. */}
@@ -111,11 +152,14 @@ export const AlignAids: React.FC<Props> = ({ aid, size, warped, dpr }) => {
 
           <Chrome w={w} h={h} c={C} label={aid.label} />
         </svg>
+        </div>
       )}
 
-      {warped && !flat && (
+      {warped && !flat && !offscreenSvg && (
         // The picture below is being bent by software while this is not. Say it, or the operator
         // chases a physical error that is actually a corner-pin they left in from last time.
+        // Gone in warp mode, where the two now agree by construction — a banner that cried wolf on
+        // the one setting that fixes it would be worse than none.
         <div style={{
           position: 'absolute', left: '50%', bottom: 18, transform: 'translateX(-50%)',
           padding: '5px 12px', borderRadius: 5, background: 'rgba(0,0,0,0.75)', color: '#ffcf6b',
