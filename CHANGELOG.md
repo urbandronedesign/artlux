@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+## v0.25.4
+
+### A fixture can now be placed exactly, in 3D
+
+The transform gizmo was a roughing tool: you could nudge a head about by eye and nothing told you by how
+much. It is now precise, and three defects that made it lie are gone.
+
+**Rotate double-applied a fixture's own rotation.** The handles are parked on the active fixture so they
+start aligned to it, and the commit then read that *absolute* orientation as if it were the drag — a bar
+sitting at yaw 30, dragged by 10, committed at yaw 70. A fixture at yaw 0 is the identity case, which is
+why it survived this long. Gestures are now read as a delta between two snapshots taken at grab and at
+release.
+
+**W/E/R/Q existed only in the tooltips.** The tooltips and guide chapter 9 both told you to press them;
+nothing was bound. There is now a `scene3d` shortcut scope, live while the pointer is over the viewport
+and rebindable like everything else, and the tooltips read their key from the keymap rather than
+hardcoding one.
+
+**Scale silently meant two different things.** A fixture gains `scaleXYZ` beside the legacy `scale3D`,
+resolved in one place — the commit read a single axis, so two of the three handles did nothing.
+
+On top of that:
+
+- **The rig follows the handle.** The document is still written once, on release — App owns all state,
+  so a push per pointer-move would re-render the whole editor — so the drag is published on a
+  React-free channel the 3D renderers poll in their own frame loop. Past 20k previewed LEDs only the
+  fixture bodies follow; *Preferences ▸ GPU rendering ▸ Live gizmo preview* turns it off.
+- **Snap**, from a magnet in the viewport header, with a step that follows the armed tool — millimetres
+  to move, degrees to rotate, a factor to scale. **Hold Ctrl during a drag to invert it**, so leaving it
+  on costs nothing on the tenth placement that does not want the grid. With the magnet off a drag is
+  byte-identically what it always was.
+- **Arrow-key nudge** on that same step: the arrows in the horizontal plane, PageUp/PageDown for height,
+  Shift ×10, Alt ÷10, and in rotate mode the arrows turn the selection about its own centre. One press
+  is one undo step. Left means left *on screen* — the camera chooses the axis and the world owns it, so
+  a snapped step still lands on a round number instead of a diagonal.
+- **A live readout** in the header while the drag is happening: offset and distance, angle turned, or
+  scale factor — and *spread* rather than scale for a multi-selection, which is where that ambiguity
+  stops being a secret.
+- **World / object axes**, from a header button or `X`. Only the axes change; the pivot stays on the
+  selection's centre.
+
+### Move and turn a whole selection by an exact amount
+
+Two rows in the multi-selection **Arrange** card, not a new panel: *Move by* (X/Y/Z, apply or reverse,
+shape preserved) and *Turn about the centre* (an angle about Y/X/Z — positions orbit the centroid **and**
+each fixture turns with them, so a row keeps its relative aim). Both are applied on a button, because a
+relative field that committed per keystroke would move the rig 2 m, then 25 m, then 250 m on the way to
+typing 0.25.
+
+Found while building it: the Arrange card — align, distribute, line, arc, fan — was documented nowhere
+and had no help entries. Guide chapter 9 now covers the whole card.
+
+### Shaders reach 1440p and 2160p on the cards that can take them
+
+The Detail ladder stopped at 1080p for everyone because a 4K shader buffer killed the GPU process on
+this project's Intel Iris Xe development machine — reproducibly, taking every shader on the wall with
+it. That was the right cap to ship and the wrong one to keep: a machine driving projectors has a
+discrete card, and 1080p shows its pixels on a 12 m wall.
+
+The ceiling is now read from the GPU. Integrated parts and software renderers stay at 1080p; NVIDIA,
+AMD, Apple silicon and Intel's discrete Arc get the full ladder; a card that will not name itself is
+treated as the cautious case. This is about the hard failure, not about speed — a shader that is merely
+slow is still caught by the frame budget and disabled with a message. The Detail select says which card
+it read underneath, and **a project keeps the Detail it was saved with** even where that rung is not
+offered here, because hiding it would silently reinterpret somebody's work.
+
 ## v0.25.3
 
 ### Shaders — content you write, patch by wiring, and reuse
