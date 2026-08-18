@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Fix: the macOS build was dead on arrival on Apple Silicon
+
+Every mac dmg from **v0.19.1 through v0.25.4** installed an app macOS refused to launch, reporting
+*"ArtLux is damaged and can't be opened. You should move it to the Trash."* -- and unlike the ordinary
+un-notarized warning, the documented `xattr -dr com.apple.quarantine` workaround did **not** clear it.
+
+The app was not damaged; its code signature was. On Apple Silicon every Mach-O must carry a *valid*
+signature to run at all, so an invalid one is fatal rather than merely noisy. v0.2.1 had ad-hoc signed
+the .app from an electron-builder `afterPack` hook, which worked. v0.19.1 then added
+`electronFuses: { runAsNode: false }` to stop the packaged binary launching headless -- and
+electron-builder flips fuses *after* `afterPack`, rewriting bytes inside the Electron binary and
+invalidating the signature the hook had just applied. With no Developer ID in CI, the built-in signing
+step that runs next re-signed nothing. Two correct fixes, six months apart, silently cancelled out.
+
+Signing is now electron-builder's own job (`mac.identity: "-"`), which happens after the fuse flip and
+signs nested helpers in the right order, with `electronFuses.resetAdHocDarwinSignature: true` re-sealing
+the binary in between. `hardenedRuntime` is explicitly off -- unnotarized it buys nothing, and its
+library validation would have blocked the bundled `.node` addons.
+
+The release job never went red for this, so a new hard gate makes sure it would: `npm run verify:macsign`
+runs `codesign --verify --deep --strict` on the packed .app in `npm run package` and in the macOS CI job,
+and fails the build on an invalid signature. The install note in README now leads with `xattr` and covers
+macOS 15, which removed the right-click -> Open shortcut.
+
+macOS builds remain arm64-only and un-notarized: first launch still needs the one-time Gatekeeper bypass.
+
 ## v0.25.4
 
 ### A fixture can now be placed exactly, in 3D

@@ -542,19 +542,38 @@ well at 256px can be an illegible smudge in the taskbar. See
 [DESIGN-SYSTEM.md § 7](DESIGN-SYSTEM.md#7-brand-marks--one-source-never-hand-drawn) for the pipeline.
 
 ### macOS signing
-No Apple Developer account → the app is **ad-hoc signed** in `scripts/mac-adhoc-sign.cjs`
-(electron-builder `afterPack`) so it runs on Apple Silicon, but it is **not notarized**. Downloaded
-dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", or
-`xattr -dr com.apple.quarantine "/Applications/ArtLux.app"`. Builds are arm64-only. A no-warning dmg
-(and Intel/universal) would require a paid Developer ID + notarization + hardened runtime/entitlements
-(outlined in SURFACES/PROGRESS notes).
+No Apple Developer account -> the app is **ad-hoc signed by electron-builder itself**
+(`build.mac.identity: "-"` in package.json), not notarized. Builds are arm64-only.
+
+**Ad-hoc signing is not cosmetic on Apple Silicon**: an arm64 Mach-O must carry a *valid* signature
+to execute at all. An **invalid** one is worse than none -- the kernel refuses to map the binary and
+Gatekeeper reports *"ArtLux is damaged and can't be opened"*, which looks like a corrupt download and
+which `xattr -dr com.apple.quarantine` does **not** fix.
+
+> **Never sign the .app from an `afterPack` hook.** electron-builder flips `electronFuses` *after*
+> `afterPack` and *before* signing ("the fuses MUST be flipped right before signing" --
+> `app-builder-lib/platformPackager`), and flipping a fuse rewrites bytes inside the Electron binary,
+> invalidating any signature already on it. That is exactly how **v0.19.1 - v0.25.4 shipped dead mac
+> dmgs**: v0.2.1 added an ad-hoc `afterPack` hook, v0.19.1 added `runAsNode: false`, and the fuse flip
+> silently broke the hook's signature. Signing is now electron-builder's job, which runs after the flip;
+> `electronFuses.resetAdHocDarwinSignature: true` re-seals the binary in between as a second belt.
+
+`npm run verify:macsign` (`scripts/verify-mac-signature.cjs`, wired into `npm run package` and the
+macOS CI job) runs `codesign --verify --deep --strict` on the packed .app so this can never regress
+green again. `hardenedRuntime` is **off**: without notarization it buys nothing, and with an ad-hoc
+identity its library validation would refuse to load the bundled `.node` addons.
+
+Downloaded dmgs still need a one-time Gatekeeper bypass -- see the macOS install note in README.
+A no-warning dmg (and Intel/universal) would require a paid Developer ID + notarization + hardened
+runtime/entitlements (outlined in SURFACES/PROGRESS notes).
 
 ## Environment gotchas (this dev machine)
 - The sandbox sets `ELECTRON_RUN_AS_NODE=1` → launch dev with `env -u ELECTRON_RUN_AS_NODE npm run dev`.
   The **packaged** app is protected from this: the electron-builder `electronFuses: { runAsNode: false }`
   (package.json `build`) makes the shipped binary ignore `ELECTRON_RUN_AS_NODE` and always start as the
   app — don't remove it (a packaged binary that inherits the var would otherwise run as bare Node with
-  no window). Added v0.19.1.
+  no window). Added v0.19.1. **Touching `electronFuses` invalidates the macOS code signature** --
+  the flip rewrites the Electron binary; see [macOS signing](#macos-signing) before changing it.
 - `cargo` is not on PATH by default → prepend `~/.cargo/bin` before `npm run build:native`.
 - A separate **Artnetominator** app may hold UDP **6454** and intercept loopback Art-Net during output
   tests — stop it first (`Get-NetUDPEndpoint -LocalPort 6454`).

@@ -108,9 +108,22 @@ jobs:
       - name: Package
         run: npx electron-builder --publish never
         env:
-          # Skip macOS code-signing in CI (unsigned artifacts).
+          # No Developer ID in CI -- do not let electron-builder hunt the keychain for one. macOS
+          # artifacts are still AD-HOC signed (package.json `mac.identity: "-"`), which is not a
+          # nicety: an arm64 Mach-O must carry a valid signature to execute at all. They are not
+          # notarized, so first launch needs the Gatekeeper bypass documented in README.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Hard gate: assert the packed .app has a VALID signature. On Apple Silicon an *invalid*
+      # signature is fatal -- the kernel will not map the binary and Gatekeeper reports "ArtLux is
+      # damaged and can't be opened", which `xattr -dr com.apple.quarantine` does NOT fix. That shipped
+      # from v0.19.1 to v0.25.4: the fuse flip rewrites the Electron binary AFTER afterPack, so the
+      # ad-hoc signature the old hook applied there was invalidated, and with no Developer ID nothing
+      # re-signed. Every mac dmg was DOA and this job stayed green. It cannot stay green now.
+      - name: Verify macOS code signature
+        if: runner.os == 'macOS'
+        run: npm run verify:macsign
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

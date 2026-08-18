@@ -20,6 +20,7 @@
     "verify:docs": "node scripts/verify-docs.cjs",
     "verify:plugins": "node scripts/verify-plugins.cjs",
     "verify:resources": "node scripts/verify-package-resources.cjs",
+    "verify:macsign": "node scripts/verify-mac-signature.cjs",
     "preflight": "powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1 -Mode all",
     "assets:mediapipe": "node scripts/fetch-mediapipe-assets.cjs",
     "fetch:redist": "node scripts/fetch-redist.cjs",
@@ -31,7 +32,7 @@
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "build:calib": "powershell -ExecutionPolicy Bypass -File scripts/build-calib.ps1",
     "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
-    "package": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder --publish never",
+    "package": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder --publish never && npm run verify:macsign",
     "package:dir": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder --dir",
     "gen:brand": "node scripts/gen-wordmark.cjs && node scripts/gen-icon.cjs",
     "gen:icon": "node scripts/gen-icon.cjs",
@@ -91,9 +92,9 @@
   "build": {
     "appId": "com.urbandronedesign.artlux",
     "productName": "ArtLux",
-    "afterPack": "./scripts/mac-adhoc-sign.cjs",
     "electronFuses": {
-      "runAsNode": false
+      "runAsNode": false,
+      "resetAdHocDarwinSignature": true
     },
     "publish": {
       "provider": "github",
@@ -207,7 +208,9 @@
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "identity": "-",
+      "hardenedRuntime": false
     },
     "linux": {
       "icon": "build/icon.png",

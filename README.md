@@ -254,14 +254,23 @@ party to the work or a JUCE licensee for it (`NOTICE` (g)).
 ### macOS install note
 
 ArtLux is **ad-hoc signed but not notarized** (no Apple Developer account), so macOS Gatekeeper
-flags the downloaded app. After dragging **ArtLux** to Applications, open it once via **right-click →
-Open → "Open Anyway"**, or run:
+flags the downloaded app. Builds are **Apple Silicon / arm64**. After dragging **ArtLux** to
+Applications, clear the quarantine flag once:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/ArtLux.app"
 ```
 
-This is a one-time step per install. (Builds are Apple Silicon / arm64.)
+Then open it normally. This is a one-time step per install.
+
+On **macOS 14 and earlier** you can instead right-click -> **Open** -> *"Open Anyway"*. macOS 15
+(Sequoia) removed that shortcut: use the `xattr` command above, or open the app once, dismiss the
+warning, and go to **System Settings -> Privacy & Security -> "Open Anyway"**.
+
+> If macOS says *"ArtLux is damaged and can't be opened"* **even after** clearing the quarantine
+> flag, that is not a corrupt download -- it is a broken signature in the build itself. Report it;
+> see [DEVELOPMENT.md - macOS signing](docs/DEVELOPMENT.md#macos-signing). Affected releases:
+> **v0.19.1 - v0.25.4**.
 
 ### Acknowledgements
 
