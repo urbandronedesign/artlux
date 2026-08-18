@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.25.5
+
 ### Fix: the macOS build was dead on arrival on Apple Silicon
 
 Every mac dmg from **v0.19.1 through v0.25.4** installed an app macOS refused to launch, reporting
