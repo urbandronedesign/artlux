@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### A sound's position is an angle now — the metres were never real
+
+A spatial source was authored as `{x, y, z}` in metres. It never was a point in a room. The engine
+encodes with libspatialaudio's `AmbisonicEncoder`, whose own header says it "only takes the source's
+azimuth and elevation into account" -- `toPolar` computes a distance and the encoder throws it away. So
+dragging a source from 1 m to 6 m along the same bearing was **inaudible**, while the pad, the readout
+and three automation targets all reported metres to two decimal places.
+
+A position is now **angle** (degrees clockwise from front -- 0 front, 90 right, 180 behind, 270 left),
+**height** (elevation in degrees) and **attenuation** (0 at the listener, 1 silent). All three are
+automatable, including height, which was previously offered as "Position Y" in metres and meant nothing
+on its own.
+
+**The angle is unbounded**, and that is the feature. A lane interpolates, so an angle penned into 0-360
+makes a full orbit unexpressible -- `0 -> 360` is a lane that does not move -- and makes `350 -> 10`
+sweep backwards through 180, sending a sound the long way across the room at the exact moment it should
+cross the front. The widget still reads 0-360; only the stored value winds, and dragging the pad round
+past the front winds it too. The shipped automation example is now one straight ramp to 720: two laps,
+one lane, which the old model could not express at all.
+
+**Attenuation is a level, not a distance cue.** It is gain -- quadratic, -12 dB at 0.5, true silence at
+1 -- folded into the number the driver already re-pushes only when it changes. `AmbisonicEncoderDist`
+would give real distance cues and was deliberately not used: it puts a per-source delay line in the
+path, and a source moving along a sliding delay is a pitch artefact in a show bed. So the pad's radius
+is **level**: the ring is full level with a well-defined bearing, the centre is silence. That puts the
+singularity where it belongs -- a direction is meaningless at zero radius, and at zero radius nothing
+can be heard.
+
+**Existing projects open unchanged.** Positions migrate on load, in the sanitizers, so the bed, the
+global timeline, every scene's timeline and every video clip's audio block are covered by one edit. A
+migrated position gets full level -- NOT a level derived from its old distance, which was inaudible;
+deriving one would quietly change the loudness of every existing show in proportion to how far its
+author had dragged a dot that did nothing. Lanes already written against `spatial.x` / `.y` / `.z` keep
+playing: they are no longer offered for new work, but the driver still folds them back into a bearing
+against the vector they were authored with.
+
 ## v0.25.6
 
 ### Fix: a dropped sound landed at the wrong length and could not be resized
