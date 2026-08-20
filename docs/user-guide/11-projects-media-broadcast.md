@@ -75,7 +75,16 @@ do — the per‑asset inspector — is the **bottom section of the library itse
 look instead of two. *Consolidate* is an action‑bar item.
 
 Select an asset and the inspector shows its size, duration, dimensions, path, and whether it is
-missing on disk. From here you can also see its **usage** (click a surface usage to jump to it), **Relink** a
+missing on disk. An **audio** asset also gets a **▶ preview** — play/pause and a scrub bar, for the file
+whose name does not say which take it is.
+
+> **The preview plays on the machine's default output, not the show's audio interface.** It shares
+> nothing with the native engine — no bus, no voice — so auditioning a file during a live cue cannot put
+> a sound in the room, and it still works when the audio engine is missing entirely. The trade is that it
+> tells you *which* file this is, not how it sounds through the rig; for that, put it on a lane. It stops
+> by itself when you select something else.
+
+From here you can also see its **usage** (click a surface usage to jump to it), **Relink** a
 moved/missing file (every reference updates), **Reveal in folder**, **Remove**, and **Consolidate**
 (copy any still‑external media into the folder and relativize paths — the successor to *Collect
 Assets*). See [ASSETS.md](../ASSETS.md).

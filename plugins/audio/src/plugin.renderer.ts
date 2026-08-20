@@ -35,7 +35,8 @@
 
 import type { RendererPlugin, RendererPluginContext, RendererHostServices } from '@artlux/sdk/renderer';
 import { setIpc, audioClient } from './audioClient';
-import { setConformIpc, conformAudio, conformOf, conformGeneration } from './conformClient';
+import { setConformIpc, conformAudio, conformOf, conformGeneration, onConformLanded } from './conformClient';
+import { needsConform } from './conformFormats';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
@@ -86,6 +87,7 @@ let unsubMix: (() => void) | null = null;
 let unsubCfg: (() => void) | null = null;
 let unsubBoot: (() => void) | null = null; // cold-start readiness probe (host.boot)
 let unsubPreload: (() => void) | null = null; // warm-scene participation (host.preload)
+let unsubConform: (() => void) | null = null; // a conform landed → re-read the containers it unblocks
 
 // The fallbacks for a junk container, as SHARED FROZEN CONSTANTS — never fresh literals. readTlAudio runs
 // EVERY FRAME and pruneOrphans gates on the clip array's IDENTITY, so a fresh `[]` per call would defeat
@@ -104,11 +106,53 @@ const CONFORM_WAIT_SEC = 2.5;
 const EMPTY_TRACKS = Object.freeze([]) as unknown as BedTrack[];
 const EMPTY_BUSES = Object.freeze([]) as unknown as BedBus[];
 
+// ── SOURCES THE ENGINE CANNOT OPEN, IN THE ORDINARY CONTAINERS ───────────────────────────────────
+//
+// A bed/timeline clip's `path` goes straight to `audioClient.loadClip`, which asks JUCE for a decoder.
+// For an mp3 there ISN'T one (see conformFormats.ts for why that is a licence decision and not an
+// oversight), so the path has to become the clip's conformed WAV first — exactly the translation
+// readVideoAudio already does for a video's soundtrack, applied to the two persisted containers.
+//
+// ⚠ IDENTITY IS THE WHOLE DIFFICULTY. Both readers run EVERY FRAME and pruneOrphans gates on the clip
+// array's IDENTITY (see EMPTY_CLIPS), so a mapped copy per call would kick a syncLoaded pass sixty times
+// a second, forever. Two things follow, and both are load-bearing:
+//   · A container with NOTHING to translate returns THE SOURCE ARRAY ITSELF — same reference, no memo
+//     entry consulted, no allocation. That is every project that has never seen an mp3, i.e. nearly all
+//     of them, and it must cost precisely what it cost before this function existed.
+//   · A container that DOES translate is memoised on the source array's identity plus the conform
+//     generation (a conform landing changes the mapping with the document standing still), so a steady
+//     frame returns the same mapped array too.
+//
+// A clip whose conform has not landed is DROPPED rather than passed through with a path the engine will
+// refuse: it is simply silent until the WAV exists, and `conformGeneration` brings it back the moment it
+// does. Answered-null (no decodable audio in there at all) drops it permanently, which is the honest
+// answer — and the ONE ask is kicked from here, where the memo actually misses, never on a steady frame.
+const conformMemo = new WeakMap<BedClip[], { gen: number; out: BedClip[] }>();
+
+function conformClips(clips: BedClip[]): BedClip[] {
+  let needs = false;
+  for (const c of clips) if (needsConform(c.path)) { needs = true; break; }
+  if (!needs) return clips;                      // the common case: same reference, nothing allocated
+  const gen = conformGeneration();
+  const hit = conformMemo.get(clips);
+  if (hit && hit.gen === gen) return hit.out;
+  const out: BedClip[] = [];
+  for (const c of clips) {
+    if (!needsConform(c.path)) { out.push(c); continue; }
+    const wav = conformOf(c.path);
+    if (wav === undefined) { void conformAudio(c.path); continue; } // never asked — ask once, stay silent
+    if (!wav) continue;                                             // asked and answered: nothing to play
+    out.push({ ...c, path: wav });
+  }
+  conformMemo.set(clips, { gen, out });
+  return out;
+}
+
 function readBed(host: RendererHostServices): Bed {
   const mix = (host.audio.getMix() as Partial<Bed>) ?? {};
   return {
     tracks: Array.isArray(mix.tracks) ? mix.tracks : EMPTY_TRACKS,
-    clips: Array.isArray(mix.clips) ? mix.clips : EMPTY_CLIPS,
+    clips: conformClips(Array.isArray(mix.clips) ? mix.clips : EMPTY_CLIPS),
     buses: Array.isArray(mix.buses) ? mix.buses : EMPTY_BUSES,
   };
 }
@@ -116,7 +160,7 @@ function readTlAudio(host: RendererHostServices): TlAudio {
   const a = (host.audio.getTimelineAudio() as Partial<TlAudio>) ?? {};
   return {
     tracks: Array.isArray(a.tracks) ? a.tracks : EMPTY_TRACKS,
-    clips: Array.isArray(a.clips) ? a.clips : EMPTY_CLIPS,
+    clips: conformClips(Array.isArray(a.clips) ? a.clips : EMPTY_CLIPS),
   };
 }
 
@@ -249,6 +293,7 @@ export const plugin: RendererPlugin = {
     };
     applyDeviceCfg();                                          // startup
     unsubCfg = host.settings.subscribe(applyDeviceCfg);        // and on every settings change
+
 
     // ── Audio scheduler: TWO containers, TWO clocks ───────────────────────────────────────────
     let bed: Bed = readBed(host);            // ProjectData.audio — the BED. Show clock.
@@ -912,6 +957,20 @@ export const plugin: RendererPlugin = {
       syncClips();
       void syncLoaded().then(syncClips);
     });
+
+    // A CONFORM LANDING IS A CONTAINER CHANGE THAT NO DOCUMENT EDIT ANNOUNCES.
+    //
+    // `conformClips` drops a clip whose conform has not arrived, so the clip becomes real only when the
+    // WAV does — and for the BED that moment is invisible: `bed` is re-read on the fan-out above and
+    // nowhere else, so with nobody touching the document a conformed mp3 in the bed would stay dropped
+    // indefinitely. (The bound timeline's audio and video-clip audio are re-read every frame and were
+    // never exposed to this.) Same work as the fan-out, on the other thing that can change a container.
+    unsubConform = onConformLanded(() => {
+      bed = readBed(host);
+      refreshTlAudio();
+      syncClips();
+      void syncLoaded().then(syncClips);
+    });
     unsubTick = ctx.onPlayhead(tick);
 
     // ── COLD START: THE SHOW WAITS FOR ITS SOUND ─────────────────────────────────────────────────
@@ -990,11 +1049,22 @@ export const plugin: RendererPlugin = {
       //
       // This is the same judgement the gate already makes about live sources (it never waits on NDI,
       // a camera or Spout): hold for what will arrive imminently, never for what may take minutes.
-      if (videoAudioOn && ctx.host.boot.elapsedSec() < CONFORM_WAIT_SEC) {
-        const raw = (host.audio.getVideoAudio() as Partial<TlAudio>) ?? {};
-        for (const c of Array.isArray(raw.clips) ? raw.clips : EMPTY_CLIPS) {
-          if (conformOf(c.path) === undefined) pending.push(`conform: ${c.path.split(/[\\/]/).pop() || c.path}`);
+      if (ctx.host.boot.elapsedSec() < CONFORM_WAIT_SEC) {
+        const waitConform = (cs: BedClip[]) => {
+          for (const c of cs) if (needsConform(c.path) && conformOf(c.path) === undefined) pending.push(`conform: ${c.path.split(/[\\/]/).pop() || c.path}`);
+        };
+        // The video-audio container is gated on the venue's kill switch; the two PERSISTED containers are
+        // not — an mp3 in the bed is the show's music, not a video's incidental sound. It is dropped from
+        // allClips() by the same conform translation (conformClips), so it is invisible above for exactly
+        // the same reason, and calling the sound ready while it is missing is the same lie.
+        if (videoAudioOn) {
+          const raw = (host.audio.getVideoAudio() as Partial<TlAudio>) ?? {};
+          waitConform(Array.isArray(raw.clips) ? raw.clips : EMPTY_CLIPS);
         }
+        const bed = (host.audio.getMix() as Partial<Bed>) ?? {};
+        waitConform(Array.isArray(bed.clips) ? bed.clips : EMPTY_CLIPS);
+        const tla = (host.audio.getTimelineAudio() as Partial<TlAudio>) ?? {};
+        waitConform(Array.isArray(tla.clips) ? tla.clips : EMPTY_CLIPS);
       }
       return { ready: pending.length === 0, pending };
     });
@@ -1006,6 +1076,7 @@ export const plugin: RendererPlugin = {
     unsubCfg?.(); unsubCfg = null;
     unsubBoot?.(); unsubBoot = null;
     unsubPreload?.(); unsubPreload = null;
+    unsubConform?.(); unsubConform = null;
     audioClient.stopAll();
   },
 };

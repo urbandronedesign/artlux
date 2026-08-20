@@ -35,6 +35,14 @@ export const mediaHelp: HelpEntry[] = [
     keywords: ['audio', 'sound', 'wav', 'mp3', 'music', 'import'],
   },
   {
+    id: 'media.audio-preview',
+    title: 'Preview Audio',
+    short: 'Audition the selected sound to identify it.',
+    body: 'Plays the selected audio file on the machine’s DEFAULT output device — not the show’s audio interface — so it can never put a sound in the room during a live cue, and it works even when the native audio engine is missing. It answers “which file is this?”, not “how does it sound through the rig”: for that, put the clip on a lane. Scrub with the slider; the preview stops when you select something else.',
+    group: 'Media',
+    keywords: ['audio', 'preview', 'audition', 'play', 'listen', 'scrub', 'identify'],
+  },
+  {
     id: 'media.scan',
     title: 'Scan Assets Folder',
     short: 'Scan the project’s assets folder for media added outside ARTLux.',

@@ -63,6 +63,9 @@ import { X, Plus, Music, Trash2, Volume2, VolumeX, Headphones, AlertTriangle, Pl
 import { type PanelProps, nextNumberedName } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
+import { SPEAKER_LAYOUTS, channelFor, unitFor, type Speaker, type SpeakerLayoutId } from './speakerLayouts';
+import { conformAudio } from './conformClient';
+import { needsConform } from './conformFormats';
 import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
 import { Fader } from './Fader';
 import { MASTER_BUS_ID } from './effectDefs';
@@ -87,6 +90,10 @@ type Sel = { kind: 'clip'; id: string } | { kind: 'audioClip'; id: string; sourc
 
 // Metres shown across the positioner pad (listener at the centre).
 const RANGE = 3;
+// Where the speaker ring is drawn, as a fraction of the pad's half-width. Speakers have no METRIC
+// distance in an ambisonic decode — the decoder only ever uses their direction — so drawing them at a
+// radius in `RANGE` metres would be inventing a number. They sit near the edge and mean “that way”.
+const RING = 0.78;
 
 // Top-down positioner: horizontal = x (left/right), vertical = z (up = IN FRONT of the listener).
 // Ambisonic encoding places the source from this; height (y) is a separate slider.
@@ -116,7 +123,26 @@ const SpatialPad: React.FC<{
   docKey?: () => string;
   onDraft: (x: number, z: number) => void;
   onCommit: (x: number, z: number) => void;
-}> = ({ x, z, docKey, onDraft, onCommit }) => {
+  /**
+   * The rig this pad is drawn over, or null for BINAURAL — where there is no room to draw, because the
+   * decode target is a pair of headphones and every direction is rendered by HRTF.
+   *
+   * `deviceChannels` is what the device ACTUALLY OPENED WITH, not what was asked for, so a marker can
+   * say that its channel does not exist on this interface — the silent-speaker case AudioSettings
+   * warns about in words (`hasOverRangeChannel`), said in the picture instead.
+   */
+  speakers?: { list: Speaker[]; patch?: number[]; deviceChannels: number } | null;
+  /**
+   * AUDITION — every pointermove, straight at the engine, bypassing the document entirely.
+   *
+   * The panel has always CLAIMED “you hear it move”; until this it did not, because the only write was
+   * the commit on pointerup, so a drag was silent and the sound jumped when you let go — which is the
+   * one gesture where hearing the result as you make it is the entire point. Invariant 7 is untouched:
+   * that invariant is about writing the DOCUMENT (a setMix per pointermove is an App re-render, an
+   * automation recompile and an engine lock per clip), and this writes no document at all.
+   */
+  onAudition?: (x: number, z: number) => void;
+}> = ({ x, z, docKey, onDraft, onCommit, speakers, onAudition }) => {
   const ref = useRef<HTMLDivElement>(null);
   // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
   const pending = useRef<{ x: number; z: number } | null>(null);
@@ -135,6 +161,8 @@ const SpatialPad: React.FC<{
     const nz = Number(((0.5 - py) * 2 * RANGE).toFixed(2));
     pending.current = { x: nx, z: nz };
     onDraft(nx, nz);
+    onAudition?.(nx, nz);   // `dead()` already returned above — a rebound gesture is silent as well as unwritten
+
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -156,12 +184,45 @@ const SpatialPad: React.FC<{
   return (
     <div ref={ref} onPointerDown={onDown}
       title="Drag to place the source (top-down; up = in front of the listener)"
-      className="relative w-24 h-24 rounded border border-line-1 bg-surface-0 shrink-0 cursor-crosshair">
+      className="relative w-32 h-32 rounded border border-line-1 bg-surface-0 shrink-0 cursor-crosshair">
       <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-1/60" />
       <div className="absolute top-1/2 left-0 right-0 h-px bg-line-1/60" />
+      {/* ── THE RIG, UNDER THE SOURCE ──────────────────────────────────────────────────────────────
+          The pad used to be an abstract square: it said where the sound was relative to a listener, and
+          nothing about the room it would come out of. Correlating “front-left on the pad” with “the box
+          on the second output of the interface” was a job done on paper. These are the DECODER's own
+          speaker positions (speakerLayouts.ts, transcribed from libspatialaudio) with the DEVICE CHANNEL
+          each one is patched to — so the number on the marker is the number to look for on the back of
+          the amp.
+          Drawn beneath the source dot and non-interactive: it is a reference, not a control. */}
+      {speakers?.list.map((sp) => {
+        const u = unitFor(sp);
+        // The cube's two rings share four azimuths, so top-down they would land on ONE marker each.
+        // Separate them by RADIUS and say which is which — the alternative is a picture that quietly
+        // claims a 3D rig has four speakers.
+        const r = RING + (sp.elevation > 0 ? 0.14 : sp.elevation < 0 ? -0.14 : 0);
+        const ch = channelFor(sp.index, speakers.patch);
+        const over = speakers.deviceChannels > 0 && ch >= speakers.deviceChannels;
+        const label = sp.lfe ? 'LFE' : String(ch + 1);
+        const title = `${sp.name ? sp.name + ' — ' : ''}speaker ${sp.index + 1} → device channel ${ch + 1}`
+          + (sp.lfe ? ' (LFE — it has no direction, so it is drawn off the ring rather than given a position it does not have)' : '')
+          + (sp.elevation ? ` · ${sp.elevation > 0 ? 'upper' : 'lower'} ring` : '')
+          + (over ? ' · THE DEVICE DOES NOT HAVE THIS CHANNEL' : '');
+        return (
+          <div key={sp.index} title={title}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-sm
+              w-3.5 h-3 text-[8px] leading-none tabular-nums pointer-events-none
+              ${over ? 'bg-warn/25 text-warn border border-warn/60' : 'bg-surface-2 text-fg-3 border border-line-1'}`}
+            style={sp.lfe
+              ? { left: '50%', top: '76%' }
+              : { left: `${50 + u.x * r * 50}%`, top: `${50 - u.z * r * 50}%` }}>
+            {label}
+          </div>
+        );
+      })}
       <div className="absolute left-1/2 top-1/2 w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-fg-3" title="listener" />
       <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-micro leading-none text-fg-3/70">front</span>
-      <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent"
+      <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent ring-1 ring-surface-0"
         style={{ left: `${((x / RANGE) * 0.5 + 0.5) * 100}%`, top: `${(0.5 - (z / RANGE) * 0.5) * 100}%` }} />
     </div>
   );
@@ -311,6 +372,14 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const [tlAudio, setTlAudio] = useState<TlAudio>(() => (host?.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL);
   const [sel, setSel] = useState<Sel>(() => host?.show.getSelection() ?? null);
   const [meter, setMeter] = useState({ peak: 0, rms: 0, peakL: 0, peakR: 0 });
+  // WHAT THE DEVICE ACTUALLY OPENED WITH. Asked-for and got are different numbers (AudioSettings makes
+  // the same distinction): an 8-channel layout on a card that opened stereo has six speakers whose audio
+  // the engine silently drops. The pad says which ones, so it is read from the meters — the only place
+  // that reports the LIVE device — rather than from the requested config.
+  const [deviceChannels, setDeviceChannels] = useState(0);
+  // Output mode + layout + patch, straight off the plugin's own settings block. Subscribed, not polled:
+  // changing the layout in Preferences must redraw the pad, not wait for the next meter tick.
+  const [outCfg, setOutCfg] = useState<{ outputMode?: string; speakerLayout?: string; speakerPatch?: number[] }>({});
   const [clipping, setClipping] = useState(false);
   const clipUntil = useRef(0); // hold the warning ~1.5 s — a transient overshoot would otherwise flash past
   // THE BED RIDES THE SHOW CLOCK — so this mirrors showTime/showEnd, never playhead/duration. `sceneBound`
@@ -334,6 +403,9 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // no automation at all pays nothing.
   const [drive, setDrive] = useState<ReadonlyMap<string, Driven>>(drivenSnapshot);
   const [error, setError] = useState<string | null>(null);
+  // A source being CONFORMED on its way in (an mp3 — see conformFormats.ts). This is seconds of work on a
+  // long file, and the drop otherwise looks like nothing happened: no clip appears until the decode ends.
+  const [preparing, setPreparing] = useState<string | null>(null);
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
   const [padDraft, setPadDraft] = useState<{ x: number; z: number } | null>(null);
@@ -430,6 +502,19 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     return host.show.subscribeSelection(() => setSel(host.show.getSelection()));
   }, [host]);
 
+  // The output config the positioner draws over. Read once and on every settings change — the same
+  // `host.settings` the driver reads its device config from (plugin.renderer's applyDeviceCfg).
+  useEffect(() => {
+    if (!host) return;
+    const read = () => {
+      const all = host.settings.get() as { plugins?: Record<string, unknown> };
+      const c = (all.plugins?.['audio'] as { outputMode?: string; speakerLayout?: string; speakerPatch?: number[] }) ?? {};
+      setOutCfg({ outputMode: c.outputMode, speakerLayout: c.speakerLayout, speakerPatch: c.speakerPatch });
+    };
+    read();
+    return host.settings.subscribe(read);
+  }, [host]);
+
   // Master meter (~10 Hz) with peak-hold decay.
   useEffect(() => {
     if (!host) return;
@@ -445,6 +530,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
         // meters object with no `deviceLive` at all — `undefined` is falsy, and a bare setDeviceLive(m.deviceLive)
         // would light a "no output device" alarm over a perfectly healthy rig. Only an EXPLICIT false lights it.
         setDeviceLive(m.deviceLive !== false);
+        setDeviceChannels(m.deviceChannels ?? 0);
       }).catch(() => {});   // a rejected poll lights NOTHING — see the badge
       // THE BED RIDES THE SHOW CLOCK — st.showTime, and NEVER the BOUND DOCUMENT'S PLAYHEAD (the other
       // number on this status object). Mirroring that one here was a LIE about the bed the moment a scene
@@ -693,9 +779,22 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     // where the bed is actually playing.)
     const start = Math.max(0, host?.show.getStatus().showTime ?? 0);
     const clipId = uid();
+    // ⚠ THE ENGINE IS ASKED FOR THE PLAYABLE PATH, NOT THE DOCUMENT'S. An mp3 has no JUCE decoder, so it
+    // becomes a cached WAV first (conformFormats.ts explains why that is a licence decision). The DOCUMENT
+    // still records the mp3 — a project must stay portable, and the conform cache is machine-local and
+    // derivable — and the driver performs the same translation on every frame (conformClips).
+    let playable = asset.path;
+    if (needsConform(asset.path)) {
+      setPreparing(baseName(asset.path));
+      try { playable = (await conformAudio(asset.path)) ?? ''; } catch { playable = ''; } finally { setPreparing(null); }
+      if (!playable) {
+        setError(`Couldn't decode "${baseName(asset.path)}" — no audio in it, or a codec this build cannot read.`);
+        return;
+      }
+    }
     let meta = null as { durationSec: number } | null;
     try {
-      meta = await audioClient.loadClip(clipId, asset.path); // decode → real duration (also preloads it)
+      meta = await audioClient.loadClip(clipId, playable); // decode → real duration (also preloads it)
     } catch {
       meta = null; // loadClip REJECTS on an undecodable/missing source — never let it escape as a silent no-op
     }
@@ -787,6 +886,27 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const spatial = vec3(selClip?.spatial);
   const padX = padDraft?.x ?? spatial?.x ?? 0;
   const padZ = padDraft?.z ?? spatial?.z ?? 0;
+  // THE RIG UNDER THE SOURCE — null for BINAURAL, where there is no rig: the B-format is decoded to a
+  // pair of headphones by HRTF, so drawing a speaker ring would be describing a room that is not there.
+  // (An unknown layout name also draws nothing rather than guessing at a default: a pad that quietly
+  // shows Stereo over a Cube rig is worse than a pad that shows no rig at all.)
+  const padSpeakers = useMemo(() => {
+    if (outCfg.outputMode !== 'speakers') return null;
+    const list = SPEAKER_LAYOUTS[(outCfg.speakerLayout ?? '') as SpeakerLayoutId];
+    return list ? { list, patch: outCfg.speakerPatch, deviceChannels } : null;
+  }, [outCfg.outputMode, outCfg.speakerLayout, outCfg.speakerPatch, deviceChannels]);
+  // LIVE POSITION, STRAIGHT AT THE ENGINE — see SpatialPad.onAudition. The clip's OWN id is what the
+  // driver loaded it under (allClips() merges both containers into one engine id space), so this
+  // addresses exactly the voice the document's commit will later address.
+  //
+  // ⚠ IT DOES NOT RELEASE A FADE OR TOUCH A LANE — deliberately. Those are DOCUMENT concepts, and the
+  // release belongs with the write (setClipSpatialXZ, on pointerup). An axis a lane owns will be
+  // re-pushed by the driver on its next frame, so the audition is simply overridden, which is the
+  // correct outcome: a read-only parameter must not become audible-only-while-you-drag.
+  const auditionSpatial = (id: string, x: number, y: number, z: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+    audioClient.setClipSpatial(id, x, y, z);
+  };
   // What the ENGINE is playing for the house level. The master bus is PROJECT-GLOBAL — one output chain —
   // so this path names one thing and cannot alias across containers; it needs no drivenOn gate.
   const masterDrive = drive.get('audio.master.gain');
@@ -926,6 +1046,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
             className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Bed</button>
         </div>
 
+        {preparing && (
+          <div className="px-3 py-1.5 flex items-center gap-2 border-b border-line-1 bg-surface-2 text-fg-2 text-micro shrink-0">
+            <span className="flex-1">Preparing “{preparing}” — decoding it once into the cache the engine plays from.</span>
+          </div>
+        )}
+
         {error && (
           <div className="px-3 py-1.5 flex items-center gap-2 border-b border-line-1 bg-warn/10 text-warn text-micro shrink-0">
             <AlertTriangle size={12} className="shrink-0" />
@@ -1056,8 +1182,10 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                     readout={g2} readoutClassName="text-micro text-fg-2 tabular-nums w-16 text-right shrink-0" />
                 </div>
 
-                {/* Spatial positioner — ambisonic encode + binaural HRTF decode. Drag the pad to move the
-                    source around the listener; you hear it move and the L/R meters shift. */}
+                {/* Spatial positioner — ambisonic encode, decoded to headphones (HRTF) or to the speaker
+                    layout in Preferences ▸ Audio. Drag the pad to move the source around the listener: the
+                    position goes to the engine on every pointermove, so you HEAR it travel and the L/R
+                    meters shift with it, while the document is still written exactly once on release. */}
                 <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
                   <div className="flex items-center gap-1.5">
                     <Orbit size={12} className={spatial ? 'text-accent' : 'text-fg-3'} />
@@ -1070,7 +1198,9 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   {spatial ? (
                     <div className="flex items-center gap-3">
                       <SpatialPad x={padX} z={padZ} docKey={gestureDocKey}
+                        speakers={padSpeakers}
                         onDraft={(x, z) => setPadDraft({ x, z })}
+                        onAudition={(x, z) => auditionSpatial(selClip.id, x, spatial.y, z)}
                         onCommit={(x, z) => { setPadDraft(null); setClipSpatialXZ(selClip.id, x, z); }} />
                       <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -1079,6 +1209,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                             ariaLabel="spatial height"
                             docKey={gestureDocKey}
                             title={(v) => `y ${v.toFixed(1)} m`}
+                            onDraft={(y) => auditionSpatial(selClip.id, padX, y, padZ)}
                             onCommit={(y) => setClipSpatialY(selClip.id, y)}
                             className="w-24"
                             readout={(v) => `${v.toFixed(1)} m`}
@@ -1087,6 +1218,19 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                         <span className="text-micro text-fg-3 tabular-nums">
                           x {padX.toFixed(1)} · z {padZ.toFixed(1)} m
                         </span>
+                        {/* What the numbers on the pad MEAN. Without this the markers read as speaker
+                            ordinals, and the number an operator needs at the amp is the DEVICE CHANNEL. */}
+                        {padSpeakers ? (
+                          <span className="text-micro text-fg-3 leading-tight">
+                            {outCfg.speakerLayout} · numbers are <span className="text-fg-2">device channels</span>
+                            {padSpeakers.list.some((sp) => padSpeakers.deviceChannels > 0 && channelFor(sp.index, padSpeakers.patch) >= padSpeakers.deviceChannels)
+                              ? <span className="text-warn"> — amber ones the device does not have</span> : null}
+                          </span>
+                        ) : (
+                          <span className="text-micro text-fg-3 leading-tight">
+                            Binaural — decoded to headphones, so there is no speaker layout to draw.
+                          </span>
+                        )}
                       </div>
                     </div>
                   ) : (

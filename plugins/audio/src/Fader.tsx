@@ -24,6 +24,16 @@ export interface FaderProps {
   step: number;
   /** Called ONCE per gesture, with the final value. This is the only write. */
   onCommit: (v: number) => void;
+  /**
+   * AUDITION — every draft value, i.e. on every pointermove. THIS IS NOT A WRITE, AND IT MUST NEVER
+   * BECOME ONE. Invariant 7 is about the DOCUMENT (a setMix is an App re-render, an automation recompile
+   * and an engine lock per clip); pushing one number straight at the engine so the operator can HEAR the
+   * control move costs none of that.
+   *
+   * It is skipped for a gesture whose document rebound (see docKey) and for a disabled control, on the
+   * same reasoning as the commit: a dead gesture must not be audible either.
+   */
+  onDraft?: (v: number) => void;
   disabled?: boolean;
   /** Built from the live value, so the tooltip tracks the thumb too. */
   title?: (live: number) => string;
@@ -61,7 +71,7 @@ export interface FaderProps {
 }
 
 export const Fader: React.FC<FaderProps> = ({
-  value, min, max, step, onCommit, disabled, title, className, ariaLabel, readout, readoutClassName, docKey,
+  value, min, max, step, onCommit, onDraft, disabled, title, className, ariaLabel, readout, readoutClassName, docKey,
 }) => {
   const [draft, setDraft] = useState<number | null>(null);
   // The draft is MIRRORED IN A REF and `commit` reads the REF, never the closure. A blur dispatched from
@@ -98,6 +108,11 @@ export const Fader: React.FC<FaderProps> = ({
     // A gesture OPENS on its first draft (a plain click fires no `input` event and opens nothing).
     if (v !== null && draftRef.current === null) gestureDoc.current = docKey ? docKey() : null;
     draftRef.current = v; setDraft(v);
+    // …and the audition rides along, on exactly the gestures the commit would honour. Read the doc key
+    // LIVE here, not the latched one: a rebind mid-drag kills the gesture from that moment on, and a
+    // sound that goes on moving after the panel has been rebound is describing a document nobody is
+    // looking at any more.
+    if (v !== null && onDraft && !disabledRef.current && (!docKey || gestureDoc.current === docKey())) onDraft(v);
   };
   const live = draft ?? value;
   // A COMPLETED GESTURE **IS** A TAKEOVER, WHEREVER IT LANDS. The gate is "a gesture happened" — NOT

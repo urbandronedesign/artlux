@@ -1,5 +1,14 @@
-// MAIN-PROCESS AUDIO CONFORM — a video file's soundtrack, decoded ONCE into a plain WAV the JUCE engine
-// can already open, cached per machine.
+// MAIN-PROCESS AUDIO CONFORM — a source the JUCE engine cannot open, decoded ONCE into a plain WAV it
+// can, cached per machine.
+//
+// TWO KINDS OF SOURCE ARRIVE HERE, for two different reasons (the one table that decides is
+// conformFormats.ts):
+//   · A VIDEO CONTAINER, because the engine has no ISO-BMFF reader. That is the original case, and the
+//     rest of this header is about it.
+//   · An MP3, because JUCE's mp3 decoder is a BUILD FLAG carrying JUCE's own patent disclaimer, and
+//     ArtLux declines a licence obligation it can avoid. It is not demuxable here (not ISO-BMFF), so it
+//     goes straight to the renderer's whole-file branch and Chromium's decoder — which ships with
+//     Electron and obliges us to nothing.
 //
 // THE ENGINE CANNOT OPEN AN MP4. `formats()` (native/audio-engine/src/engine.cpp) registers WAV/AIFF/FLAC/
 // Ogg and nothing that reads an ISO-BMFF container, so `loadClip("movie.mp4")` answers "no decoder for …".
@@ -27,14 +36,15 @@ import {
   closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, statSync, unlinkSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { needsConform } from './conformFormats';
 import { demuxAudio, type AudioTrack } from './movDemux';
 import {
   abortWav, closeWav, conformPcm, isPcmCodec, openWav, writeWav, type WavSink,
 } from './wavPcm';
 
-/** Containers worth demuxing. Anything else is not a video file we conform. */
-const VIDEO_EXT = /\.(mp4|m4v|mov|mkv|webm)$/i;
-export const isVideoContainer = (p: string): boolean => VIDEO_EXT.test(p);
+// WHAT GETS CONFORMED — the table is shared with the renderer half (conformFormats.ts), because a format
+// main will conform but the renderer will not TRANSLATE is a clip that stays silent forever.
+export { isVideoContainer, needsConform } from './conformFormats';
 
 const cacheDir = (): string => {
   const dir = join(app.getPath('userData'), 'audio-conform');
@@ -88,7 +98,7 @@ export interface ConformStart {
  * decoder); hands anything else back to the renderer as a job.
  */
 export function conformStart(src: string): ConformStart {
-  if (!src || !isVideoContainer(src)) return { kind: 'none' };
+  if (!src || !needsConform(src)) return { kind: 'none' };
   const key = cacheKey(src);
   if (!key) return { kind: 'none' };
   const wav = wavPathFor(key);

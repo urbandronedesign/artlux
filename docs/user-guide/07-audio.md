@@ -44,7 +44,12 @@ back. *You can hear the bed everywhere; you can only edit it on Global.*
 - **Add a bed track** — **`+ Bed`** in the Audio Bed header, or the **`+`** on the bed lanes' gutter. Same
   door.
 - **Add a sound** — drag an audio file from the **Media** library onto a lane. Formats: **`wav`, `aiff`,
-  `flac`, `ogg`** (MP3/AAC are not enabled).
+  `flac`, `ogg`, `mp3`**. The first four the engine plays straight off disk; an **`mp3` is converted once**
+  into a cached WAV the first time you use it, so it is silent for a few seconds and then behaves like any
+  other clip. (AAC/`m4a` are still not accepted — nothing converts them, so a clip could not sound.)
+- **Which file is this?** — select a sound in the **Media** library and use the ▶ **preview** under its
+  name. It plays on the machine's **default output**, not the show's audio interface, so you can identify a
+  file mid-show without putting it in the room.
 - **Place / trim / blade / fade** — on the **lane**, exactly like a video clip. The corner handles are fades.
 - **Name, mute, solo, gain** — the lane's **gutter**, *or* the Audio Bed. The same fields, two doors.
 - **Solo is scoped per container** — soloing a *bed* track does not silence a Scene's own audio. They are two
@@ -59,8 +64,14 @@ arrangement/mixer split: you **place** on the lane, you **shape** here.
 
 - **Gain** — the clip's level.
 - **Spatial** — tick it, and a **top-down positioner pad** appears (left/right × front/back) plus a **height**
-  slider. Drag the dot and the sound moves **around your head**. 🎧 *Binaural decoding is an HRTF — it only
-  works over headphones.* On a real installation, switch to a **speaker layout** in Preferences.
+  slider. Drag the dot and the sound moves **around your head** — **you hear it travel as you drag**, not
+  only when you let go. 🎧 *Binaural decoding is an HRTF — it only works over headphones.* On a real
+  installation, switch to a **speaker layout** in Preferences.
+- **The pad draws your rig.** In **Speaker layout** mode the pad shows the layout's actual speaker
+  positions, each marked with the **device channel** it is patched to — so "front-left on the pad" and
+  "output 1 on the interface" are the same statement. A marker turns **amber** when its channel does not
+  exist on the device that opened, which is the silent-speaker case Preferences warns about, shown in the
+  picture. In **Binaural** mode there is no rig to draw and the pad says so.
 - **FX** — an **insert chain** on the source: **reverb, filter, delay, compressor**.
 
 > **The insert runs *before* the sound is placed** — so a reverb puts the source in a room, and then **the

@@ -1007,13 +1007,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       void probeAudioDuration(path).then(d => place(path, name, d && d > 0 ? d : null));
       return;
     }
-    // Route 2 — an OS file. The extension list is MAIN's (projectFolder.ts ASSET_CATEGORIES.audio) and
-    // NOT a broader `f.type.startsWith('audio')` mime test, on purpose: those five are what the JUCE
-    // engine registers a decoder for (engine.cpp formats(); mp3/aac are gated on extra codecs). Accepting
-    // an .mp3 here would import a file, draw a clip, move the playhead across it — and play NOTHING,
-    // which is precisely the silence-behind-a-confident-UI failure docs/AUDIO.md takes most seriously.
-    // Better to decline the drop than to draw a clip that cannot sound.
-    const file = Array.from(e.dataTransfer.files).find(f => /\.(wav|aiff?|flac|ogg)$/i.test(f.name));
+    // Route 2 — an OS FILE dragged from Explorer/Finder. The extension list is MAIN's (projectFolder.ts
+    // ASSET_CATEGORIES.audio) and NOT a broader `f.type.startsWith('audio')` mime test, on purpose: it is
+    // exactly the set ArtLux can make a sound out of. Four of them the JUCE engine decodes itself
+    // (engine.cpp formats()); mp3 it cannot, and is CONFORMED to a cached WAV instead — the audio driver
+    // performs that translation on every frame (plugins/audio conformClips), so a dropped mp3 plays like
+    // any other clip, just silent for the seconds its first decode takes.
+    //
+    // Anything OUTSIDE that set is still declined rather than accepted, and the reason has not changed:
+    // accepting an .m4a here would import a file, draw a clip, move the playhead across it — and play
+    // NOTHING, which is precisely the silence-behind-a-confident-UI failure docs/AUDIO.md takes most
+    // seriously. Better to decline the drop than to draw a clip that cannot sound.
+    const file = Array.from(e.dataTransfer.files).find(f => /\.(wav|aiff?|flac|ogg|mp3)$/i.test(f.name));
     if (!file) return;
     const srcPath = window.artlux?.getPathForFile?.(file);
     if (!srcPath) return;

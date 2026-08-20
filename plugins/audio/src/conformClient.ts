@@ -39,18 +39,42 @@ export const conformOf = (src: string): string | null | undefined => resolved.ge
 let generation = 0;
 export const conformGeneration = (): number => generation;
 
+// ⚠ THE COUNTER IS NOT ENOUGH ON ITS OWN, AND ASSUMING IT WAS COST A SILENT BED.
+//
+// A memo keyed on `conformGeneration()` only re-derives when SOMETHING READS IT. That is true every frame
+// for the containers the driver re-reads every frame (the bound timeline's audio, and video-clip audio —
+// both are re-read because a recall repoints the engine synchronously). It is NOT true for the BED, which
+// the driver re-reads only on the audio fan-out: with nothing else touching the document, a bed clip whose
+// conform landed would go on being dropped from the container until some unrelated edit happened to fire
+// the fan-out. Silence, indefinitely, on the one container that carries the show's music.
+//
+// So a landing conform ANNOUNCES ITSELF. Subscribers re-read whatever they cache and reconcile.
+const landed = new Set<() => void>();
+
+/** Fires once each time a conform resolves (successfully or not). Returns an unsubscribe. */
+export function onConformLanded(cb: () => void): () => void {
+  landed.add(cb);
+  return () => landed.delete(cb);
+}
+
+const announce = (): void => {
+  generation++;
+  // A throwing subscriber must not poison the others, nor the conform that has just succeeded.
+  for (const cb of [...landed]) { try { cb(); } catch (e) { console.warn('[audio] conform subscriber threw:', e); } }
+};
+
 export function conformAudio(src: string): Promise<string | null> {
   const hit = inFlight.get(src);
   if (hit) return hit;
   const job = run(src).then((wav) => {
     resolved.set(src, wav);
-    generation++;
     inFlight.delete(src);
+    announce();
     return wav;
   }).catch(() => {
     resolved.set(src, null);   // a failed conform is an answer: silent, and not retried every frame
-    generation++;
     inFlight.delete(src);
+    announce();
     return null;
   });
   inFlight.set(src, job);

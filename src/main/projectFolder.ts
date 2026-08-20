@@ -17,7 +17,10 @@ const ASSET_CATEGORIES: Record<string, string[]> = {
   video: ['mp4', 'webm', 'mov', 'mkv'],
   models: ['glb', 'gltf'],
   images: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
-  audio: ['wav', 'aiff', 'aif', 'flac', 'ogg'], // native JUCE decode (mp3/aac gated on extra codecs)
+  // wav/aiff/flac/ogg decode NATIVELY in the JUCE engine; mp3 is CONFORMED to a cached WAV on the way in
+  // (plugins/audio/src/conformFormats.ts explains why the JUCE mp3 flag is deliberately off). AAC/m4a are
+  // still absent: nothing conforms a bare .m4a today, so importing one would draw a clip that cannot sound.
+  audio: ['wav', 'aiff', 'aif', 'flac', 'ogg', 'mp3'],
   tracking: ['lblob'], // recorded LiDAR-blob takes
 };
 

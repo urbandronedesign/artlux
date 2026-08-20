@@ -112,6 +112,34 @@ it changes the chain's channel count (2 ⇔ 1) and **forces a full rebuild** —
 must never happen on the audio thread. You can fly a source across the room sixty times a second. You cannot
 rebuild its DSP graph sixty times a second.
 
+### The positioner pad draws the DECODER's rig, and auditions without writing
+
+Two things about the pad are easy to get wrong, and both were wrong until they were fixed.
+
+**It auditions on every pointermove; it writes once, on release.** Invariant 7 says a continuous control
+must not write the document per frame — a `setMix` is an App re-render, an automation recompile and an
+engine lock per clip, sixty times a second while somebody idly drags a source round the room. It says
+nothing about the ENGINE. So the pad (and the height fader beside it) push the position straight to
+`setClipSpatial` on every move and commit the document exactly once, which is how a control whose whole
+purpose is *hearing where the sound goes* can be both live and cheap. A gesture whose document rebound
+under it (`docKey`) stops being audible at the same instant it stops being committable — a sound that goes
+on moving after a recall is describing a document nobody is looking at.
+
+**The speaker markers are transcribed from libspatialaudio's own presets**, not from the names of the
+layouts (`plugins/audio/src/speakerLayouts.ts`, checked against `source/AmbisonicDecoder.cpp`). This
+matters more than it sounds: the ring layouts (Hexagon, Octagon, Cube) run **clockwise** from a different
+start angle than the discrete ITU ones do, and azimuth is **anticlockwise, positive = LEFT** — the
+convention `engine.cpp`'s `toPolar` derived from the decoder's coefficients. Get either backwards and the
+pad silently mirrors the room: it would look right, read right, and place every sound on the wrong side.
+
+Each marker carries the **device channel** it is patched to (`speakerPatch`, identity when unpatched), not
+the speaker ordinal — the number that is useful is the one written on the back of the interface. A marker
+whose channel is beyond what the device actually opened with is drawn **amber**: that is the
+`hasOverRangeChannel` case, where the engine's write site silently drops the speaker's audio
+(`if (dst >= 0 && dst < outCh)`) and its meter simply never moves. The LFE is drawn off the ring, because
+it has no direction — libspatialaudio parks it at the centre speaker's angle only so the array has
+something to hold. **Binaural** draws no rig at all, because there isn't one.
+
 ### There are exactly TWO insert points, and there never will be a third
 
 **A spatial source is a point in a field.** It cannot be summed into a bus *before* it is placed — the
@@ -217,8 +245,13 @@ When a layer owns a fader it says so:
 
 ## Formats, devices, degradation
 
-- **Files:** `wav`, `aiff`/`aif`, `flac`, `ogg` (JUCE's `registerBasicFormats`). MP3/AAC are gated behind
-  extra codecs and are **not** enabled.
+- **Files:** `wav`, `aiff`/`aif`, `flac`, `ogg` — decoded natively (JUCE's `registerBasicFormats`).
+  **`mp3` is CONFORMED, not decoded natively**: JUCE's mp3 decoder is a build flag
+  (`JUCE_USE_MP3AUDIOFORMAT`) that attaches JUCE's own patent disclaimer to every build, and ArtLux does
+  not take on a licence obligation it can avoid — so an mp3 goes down the same path a video's soundtrack
+  does (*A video clip's own soundtrack*, below), decoded once by **Chromium** into a cached WAV. One table
+  decides this for both processes: `plugins/audio/src/conformFormats.ts`. AAC/`m4a` are **not** accepted in
+  the library at all — nothing conforms a bare one, so importing it would draw a clip that cannot sound.
 - **Video containers** (`mp4`/`m4v`/`mov`/`mkv`/`webm`) are **conformed**, not opened: the engine still only
   ever plays a WAV. See *A video clip's own soundtrack* below.
 - **Output:** Preferences ▸ Audio — 1/2/4/6/8 channels, **binaural** (HRTF, for headphones) or a **speaker

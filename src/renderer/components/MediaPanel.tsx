@@ -3,6 +3,7 @@ import { gridWindow } from './mediaGridWindow';
 import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search, RefreshCw, X, LayoutGrid, Grid3x3, List, Loader2 } from 'lucide-react';
 import { AssetEntry, AssetType, MediaView, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
+import { AudioPreview } from './AudioPreview';
 import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
 import { layoutStore } from '../services/layoutStore';
 import { useLayoutValue } from '../hooks/useLayout';
@@ -296,6 +297,11 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
             <div className="break-all text-fg-3/80" title={selected.path}>{selected.path}</div>
             {missing.has(normPath(selected.path)) && <div className="text-warn">Missing on disk — relink to fix.</div>}
           </div>
+          {/* Audition — for the file whose NAME does not say which take it is. Plays on the system
+              default device and touches nothing the show is using; see AudioPreview. */}
+          {selected.type === 'audio' && (
+            <AudioPreview path={selected.path} missing={missing.has(normPath(selected.path))} />
+          )}
           <div className="flex items-center gap-1">
             {(selected.type === 'video' || selected.type === 'image') && (
               <Tooltip id="media.use-on-surface"><button onClick={() => onUseOnSurface(selected)} disabled={!selectedSurfaceId} title={selectedSurfaceId ? 'Set as the selected surface’s content' : 'Select a surface first'} {...help('media.use-on-surface')}
