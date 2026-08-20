@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.25.6
+
 ### Fix: a dropped sound landed at the wrong length and could not be resized
 
 Dragging an audio file from the Media library onto a **timeline** lane produced a clip of a default
