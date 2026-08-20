@@ -46,6 +46,10 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
     const file = e.target.files?.[0];
     if (!file) return;
     const path = window.artlux?.getPathForFile?.(file);
+    // Picked, not imported: the surface points at the file where it lies and nothing copies it into the
+    // project. So nothing else admits it to `artlux-media://` either, and an unadmitted path serves a
+    // 403 — which downstream looks exactly like a black surface. See src/main/mediaAccess.
+    if (path) window.artlux?.admitDroppedMedia?.(path);
     onChange({ type, url: path || URL.createObjectURL(file) });
   };
 

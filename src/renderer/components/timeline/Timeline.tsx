@@ -1027,6 +1027,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       if (projectPath) {
         const entry = await window.artlux?.importAssetFile?.(projectPath, srcPath, 'audio', name);
         if (entry) { path = entry.path; onRegisterAsset?.(entry); }
+      } else {
+        // Referenced where it lies — so nothing has told main this path is part of the session, and
+        // `artlux-media://` refuses everything it has not been told about. The probe below reads over
+        // that scheme: without this it 403s, `d` is null, and the clip lands at DEFAULT_AUDIO_DURATION
+        // with no `sourceDuration` — which is also what pins its right-trim handle (onAudioDragMove's
+        // cap). A clip the wrong length that cannot be resized. See src/main/mediaAccess.
+        window.artlux?.admitDroppedMedia?.(srcPath);
       }
       // ⚠ TWO awaits now stand between the gesture and the commit (a file copy, then the probe) — twice
       // the window the `place()` guards above were written for, and the copy is the slow one on a 15 MB
@@ -1240,6 +1247,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       if (projectPath) {
         const entry = await window.artlux?.importAssetFile?.(projectPath, srcPath, isImage ? 'image' : 'video', name);
         if (entry) { path = entry.path; onRegisterAsset?.(entry); }
+      } else {
+        // No folder to collect into ⇒ referenced in place ⇒ main has never heard of this path, and the
+        // media scheme serves only what it has been told about. Same admission the audio lane makes.
+        window.artlux?.admitDroppedMedia?.(srcPath);
       }
       // Images have no intrinsic duration → place a default-length IMAGE content clip.
       if (isImage) {

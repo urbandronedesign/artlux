@@ -73,16 +73,26 @@ Media reaches the UI over the `artlux-media://` scheme rather than being read wh
 and that scheme serves **only** what the open project needs:
 
 - everything inside the **project folder** and the app's own `userData`;
-- any folder you picked in an **Import / Open** dialog this session;
 - the **exact files this project references**, wherever they live — which is why a show that points at
   a media library on another drive keeps working. Assets outside the project folder are stored as
   absolute paths on purpose (that is what `relativizeAssets` preserves), and they are admitted
-  individually rather than by opening up their whole directory.
+  individually rather than by opening up their whole directory;
+- **anything you add during the session** — an import, a **⟳ Scan**, a relink, a file picked in a dialog,
+  a file dropped onto a lane in a project that has no folder to copy it into, and the folder a first
+  **Save** has just created. Each is admitted the moment it arrives, one file at a time.
 
 The list is rebuilt from scratch each time a project opens, so **closing a show revokes access to its
-media**, and a playlist stepping through shows never accumulates the union of everything it has
-played. A refused path is logged once as `[media] refused (not in the open project)` — if a clip is
-unexpectedly black, that line in the log is the thing to look for.
+media**, and a playlist stepping through shows never accumulates the union of everything it has played —
+the session's own additions go with it. A refused path is logged once as
+`[media] refused (not in the open project)` — if a clip is unexpectedly black, that line in the log is the
+thing to look for.
+
+> **A refusal does not announce itself as one.** Downstream a `403` is indistinguishable from a file that
+> will not decode: an image does not appear, a video is black, and an audio clip lands at a default length
+> with a **right-trim handle that will not move** (the trim cap refuses to invent source it cannot prove
+> exists). The tell is that the **Audio Bed** places the same file perfectly — it asks the native engine,
+> which reads the file directly and never goes through this scheme at all. If the two disagree about one
+> file, look for that log line before you suspect the file.
 
 ### IPC
 | Channel | Direction | Purpose |

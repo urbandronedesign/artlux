@@ -11,6 +11,7 @@ import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
+import * as mediaAccess from './mediaAccess';
 import * as thumbCache from './thumbCache';
 import * as docs from './docs';
 import * as fixtureLibrary from './fixtureLibrary';
@@ -191,13 +192,31 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.SAVE_TRACKING_TAKE, (_e, id: string, json: string) => persistence.saveTrackingTake(id, json));
 
     // ---- Asset library: import (copy-in), reveal, existence checks ----
-    ipcMain.handle(IPC.IMPORT_ASSETS, (_e, projectFile: string, type: AssetType) =>
-        projectFolder.importAssets(getWindow(), projectFile, type));
-    ipcMain.handle(IPC.IMPORT_ASSET_FILE, (_e, projectFile: string, srcPath: string, type: AssetType, name?: string) =>
-        projectFolder.importAssetFile(projectFile, srcPath, type, name));
-    ipcMain.handle(IPC.SCAN_ASSETS, (_e, projectFile: string, knownPaths: string[]) =>
-        projectFolder.scanAssets(projectFile, knownPaths ?? []));
+    //
+    // ⚠ EVERY ONE OF THESE ADMITS WHAT IT RETURNS TO THE MEDIA SCHEME (mediaAccess.allowAssets), AND THAT
+    // IS NOT OPTIONAL. `mediaAccess.setProject` runs only inside openProjectTimed, so without this an
+    // asset acquired during the session is invisible to `artlux-media://` until the app RE-OPENS the
+    // project — and the renderer cannot tell that 403 apart from an undecodable file. See the long note
+    // on allowAssets for what that looked like from the outside (an audio clip stuck at its default
+    // length with a dead right-trim handle).
+    ipcMain.handle(IPC.IMPORT_ASSETS, async (_e, projectFile: string, type: AssetType) => {
+        const added = await projectFolder.importAssets(getWindow(), projectFile, type);
+        mediaAccess.allowAssets(added);
+        return added;
+    });
+    ipcMain.handle(IPC.IMPORT_ASSET_FILE, async (_e, projectFile: string, srcPath: string, type: AssetType, name?: string) => {
+        const entry = await projectFolder.importAssetFile(projectFile, srcPath, type, name);
+        mediaAccess.allowAssets(entry ? [entry] : []);
+        return entry;
+    });
+    ipcMain.handle(IPC.SCAN_ASSETS, async (_e, projectFile: string, knownPaths: string[]) => {
+        const found = await projectFolder.scanAssets(projectFile, knownPaths ?? []);
+        mediaAccess.allowAssets(found);
+        return found;
+    });
     ipcMain.on(IPC.SHOW_ITEM_IN_FOLDER, (_e, path: string) => { if (path) shell.showItemInFolder(path); });
+    // A file dropped into a project that has no folder to copy it into. See IPC.MEDIA_ADMIT_DROPPED.
+    ipcMain.on(IPC.MEDIA_ADMIT_DROPPED, (_e, path: string) => { if (path) mediaAccess.allowPath(path); });
     // ASYNC, and the concurrency is the point. This is called with the WHOLE library — every path, on
     // every change to the asset list — and `existsSync` per entry blocks main's event loop for the sum
     // of them. On a network volume a single stat can take tens of milliseconds, so a 300-asset library
@@ -212,7 +231,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
         const opts = { title: 'Import video', properties: ['openFile' as const], filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'mov', 'mkv'] }] };
         const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
-        return res.canceled || !res.filePaths[0] ? null : res.filePaths[0];
+        if (res.canceled || !res.filePaths[0]) return null;
+        // The dialog IS the consent (mediaAccess' header says so) — and this picker does not copy the
+        // file anywhere, so nothing else will ever admit it. Without this the operator picks a video and
+        // the surface shows black.
+        mediaAccess.allowPath(res.filePaths[0]);
+        return res.filePaths[0];
     });
     ipcMain.handle(IPC.APP_INFO, () => ({ name: app.getName(), version: app.getVersion() }));
     ipcMain.on(IPC.OPEN_EXTERNAL, (_e, url: string) => {

@@ -237,10 +237,18 @@ Three things are load-bearing and guarded by `npm run verify:invariants`:
   `crossOrigin="anonymous"` — inert under `blob:`, but a custom scheme makes each load a CORS request.
   The attribute cannot simply be dropped either: it is what keeps frames **untainted** so the 2D
   composite and the WebGPU LED sampler may read them.
-- **A path is served only if `mediaAccess` admits it** — the open project's folder, `userData`,
-  directories the operator chose in a dialog, plus the exact set of paths the project references
-  (harvested with the same visitor `resolveAssets` uses, so the two cannot drift). Anything else is a
-  `403`, logged once. The allowlist is rebuilt on every project open, so closing a show revokes it.
+- **A path is served only if `mediaAccess` admits it** — the open project's folder, `userData`, and the
+  exact set of paths the project references (harvested with the same visitor `resolveAssets` uses, so the
+  two cannot drift). Anything else is a `403`, logged once. The allowlist is rebuilt on every project
+  open, so closing a show revokes it.
+- **…and rebuilt-on-open is not sufficient by itself.** Media acquired DURING a session — an import, a
+  scan, a relink, a picked file, a file dropped into a project that has no folder to copy it into, or the
+  folder a first Save has just created — is admitted as it arrives (`allowAssets` / `allowPath` /
+  `allowRoot`), because otherwise it stays refused until the app re-opens the project. That gap was silent
+  and did not read as a permission failure: downstream a `403` is indistinguishable from an undecodable
+  file, so a dropped sound landed as a default-length clip with a dead trim handle while the same file
+  placed perfectly in the Audio Bed — which asks the native engine, not this scheme. The additions are
+  additive within a session; the next open still clears everything.
 
 Base64url rather than a percent-encoded path is deliberate: Chromium normalizes standard-scheme URLs
 (backslashes, `..`, `%2e%2e`, unicode), and every one of those transformations is also a traversal

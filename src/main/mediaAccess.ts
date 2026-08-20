@@ -87,3 +87,33 @@ export function noteDenied(absPath: string): boolean {
 /** Diagnostics: what the scheme would currently serve. */
 export const stats = (): { roots: number; exact: number; denied: number } =>
   ({ roots: roots.size, exact: exact.size, denied: denied.size });
+
+/**
+ * Admit media that arrived AFTER the project was opened.
+ *
+ * ⚠ THIS EXISTS BECAUSE `setProject` IS NOT ENOUGH, AND THE GAP WAS SILENT.
+ *
+ * `setProject` runs in exactly one place — `openProjectTimed` — so for a long time the scheme knew only
+ * what a project referenced AT OPEN. Everything acquired during the session was invisible to it:
+ *
+ *   · An import into an UNSAVED project. There is no project folder to admit as a root, so the entry
+ *     references the file where it lies — outside every root, absent from every exact path. 403.
+ *   · The first Save (Save As). It creates the project folder but never re-admits anything, so assets
+ *     under a folder the operator just made stayed refused until the app re-opened the project.
+ *   · A scan that adopts files copied in by hand, into a project that was never opened from disk.
+ *
+ * And a 403 does not look like a permission failure downstream — it looks like an undecodable file.
+ * Timeline.tsx's duration probe resolves `null`, the clip is placed at a default length with NO
+ * `sourceDuration`, and `onAudioDragMove`'s cap then pins the right-trim handle to that length: a clip
+ * that is the wrong size and CANNOT BE RESIZED. Meanwhile the Audio Bed panel places the same file
+ * perfectly, because it asks the native engine (which reads the file directly) instead of Chromium
+ * (which must come through here). That divergence is what the bug was reported as.
+ *
+ * ADDITIVE WITHIN A SESSION, and that is the whole security argument: this only ever admits a path the
+ * OPERATOR just chose in a dialog or just copied into their own project. The next `setProject` still
+ * clears everything, so closing a project still stops its media being readable and a playlist still does
+ * not accumulate the union of every show it has played.
+ */
+export function allowAssets(entries: ReadonlyArray<{ path?: string } | null | undefined> | null | undefined): void {
+  for (const e of entries ?? []) if (e?.path) allowPath(e.path);
+}

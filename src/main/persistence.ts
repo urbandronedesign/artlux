@@ -131,6 +131,11 @@ export async function saveProject(win: BrowserWindow | null, data: ProjectData, 
   }
   // Store asset paths under the project folder as folder-relative (portable); keep externals absolute.
   if (!writeJson(target, relativizeAssets(data, dirname(target)))) return null;
+  // ADMIT THE FOLDER WE JUST WROTE INTO. A first Save (Save As) MAKES a project folder, and until this
+  // line nothing admitted it: `setProject` runs only on OPEN, so every asset the operator then imported
+  // into assets/ was refused by the media scheme until the app re-opened the project. Additive, so it
+  // does not disturb setProject's clear-and-rebuild discipline. See src/main/mediaAccess.
+  mediaAccess.allowRoot(dirname(target));
   pushRecent(target);
   return target;
 }

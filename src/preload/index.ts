@@ -148,6 +148,9 @@ const api: ArtluxApi = {
     showItemInFolder: (path: string) => ipcRenderer.send(IPC.SHOW_ITEM_IN_FOLDER, path),
     assetExists: (paths: string[]) => ipcRenderer.invoke(IPC.ASSET_EXISTS, paths),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
+    // Admit a dropped file to the media scheme when there is no project folder to copy it into. See
+    // IPC.MEDIA_ADMIT_DROPPED for why this exists and what it does (and does not) widen.
+    admitDroppedMedia: (path: string) => ipcRenderer.send(IPC.MEDIA_ADMIT_DROPPED, path),
     // Projector outputs
     listDisplays: () => ipcRenderer.invoke(IPC.PROJECTOR_LIST_DISPLAYS),
     openProjector: (surfaceId: string, displayId: number) => ipcRenderer.send(IPC.PROJECTOR_OPEN, surfaceId, displayId),

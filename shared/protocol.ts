@@ -156,6 +156,19 @@ export const IPC = {
   SHOW_ITEM_IN_FOLDER: 'asset:show-in-folder',
   /** Renderer → main (invoke): which of these paths exist on disk → boolean[]. */
   ASSET_EXISTS: 'asset:exists',
+  /**
+   * Renderer → main: admit ONE dropped file to `artlux-media://` (mediaAccess.allowPath).
+   *
+   * For the no-project-folder case ONLY. With a project open, a dropped file is COPIED IN
+   * (IMPORT_ASSET_FILE) and admitted by that handler; with no folder there is nowhere to collect it, so
+   * the document references it where it lies and main never otherwise learns the path exists.
+   *
+   * ⚠ THE PATH IS RENDERER-ASSERTED, and that is worth being honest about rather than dressing up. It
+   * grants strictly LESS than this renderer already has: `readFile` (used by the audio conform's
+   * whole-file fallback) reads any absolute path outright. So this widens no boundary — it just keeps
+   * the media scheme's view of the session in step with the document's.
+   */
+  MEDIA_ADMIT_DROPPED: 'media:admit-dropped',
   /** Renderer → main (invoke): a persisted thumbnail for (path, quantized time), or null. */
   THUMB_GET: 'thumb:get',
   /** Renderer → main: store an encoded thumbnail. Fire-and-forget — a failure costs a re-decode. */
@@ -1548,6 +1561,14 @@ export interface ArtluxApi {
   assetExists(paths: string[]): Promise<boolean[]>;
   /** Resolve a dropped File to its absolute path (Electron webUtils). */
   getPathForFile(file: File): string;
+  /**
+   * Admit a dropped file to `artlux-media://` when there is no project folder to copy it into.
+   *
+   * Call it ONLY on the no-project branch of a drop: with a folder open, `importAssetFile` copies the
+   * file in and admits the copy, and admitting the original as well would keep a path readable that the
+   * document does not reference. See IPC.MEDIA_ADMIT_DROPPED.
+   */
+  admitDroppedMedia(path: string): void;
   // Projector outputs (per-surface fullscreen on a physical display). The bridge
   // MessagePort arrives via a window 'artlux:projector-port' message (preload), not here.
   listDisplays(): Promise<DisplayInfo[]>;
