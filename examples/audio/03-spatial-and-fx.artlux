@@ -398,9 +398,9 @@
         "gain": 0.8,
         "mute": false,
         "spatial": {
-          "x": 0,
-          "y": 0,
-          "z": 1.5
+          "angle": 0,
+          "elevation": 0,
+          "attenuation": 0
         },
         "effects": [
           {
@@ -428,9 +428,9 @@
         "gain": 0.8,
         "mute": false,
         "spatial": {
-          "x": 0,
-          "y": 0,
-          "z": 1.5
+          "angle": 0,
+          "elevation": 0,
+          "attenuation": 0
         },
         "effects": []
       },
@@ -446,9 +446,9 @@
         "gain": 0.8,
         "mute": false,
         "spatial": {
-          "x": 0,
-          "y": 0,
-          "z": 1.5
+          "angle": 0,
+          "elevation": 0,
+          "attenuation": 0
         },
         "effects": []
       },
@@ -464,9 +464,9 @@
         "gain": 0.8,
         "mute": false,
         "spatial": {
-          "x": 0,
-          "y": 0,
-          "z": 1.5
+          "angle": 0,
+          "elevation": 0,
+          "attenuation": 0
         },
         "effects": []
       }

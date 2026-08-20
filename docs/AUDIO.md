@@ -112,9 +112,60 @@ it changes the chain's channel count (2 ⇔ 1) and **forces a full rebuild** —
 must never happen on the audio thread. You can fly a source across the room sixty times a second. You cannot
 rebuild its DSP graph sixty times a second.
 
+### A position is an angle, not a point — the metres were never real
+
+A source used to be authored as `{x, y, z}` in metres. It never was a point in a room. `engine.cpp`
+encodes with libspatialaudio's `AmbisonicEncoder`, whose own header says it "only takes the source's
+azimuth and elevation into account" — `toPolar` computes a distance and the encoder **discards it**. So
+moving a source from 1 m to 6 m along the same bearing was inaudible, while the pad, the readout and
+three automation targets all reported metres to two decimal places.
+
+The model (`shared/spatial.ts`) now says what the engine does, plus the one thing the metres were
+standing in for:
+
+| Field | Unit | Means |
+|---|---|---|
+| `angle` | degrees, **clockwise from front** — 0 front, 90 right, 180 behind, 270 left | which way |
+| `elevation` | degrees, −90 below … +90 above | how high |
+| `attenuation` | 0 = at the listener … 1 = silent | how far |
+
+**The angle is clockwise; the ambisonic azimuth underneath is anticlockwise** (`atan2(-x, z)`, positive
+= LEFT). The two meet in exactly one function each — `directionOf` and `angleOfVector` — because getting
+the sign wrong does not fail, it silently **mirrors the room**: it looks right, reads right, and puts
+every sound on the wrong side. Same hazard, same containment, as the speaker table.
+
+**The angle is unbounded** (±1440° at the lane, four turns each way). A lane *interpolates*, so an angle
+penned into 0–360 makes a full orbit unexpressible — `0 → 360` is a lane that does not move — and makes
+`350 → 10` sweep **backwards through 180**, sending a sound the long way across the room at exactly the
+moment it should cross the front. The widget still reads 0–360; only the stored value winds. Dragging
+the pad winds it too, so a gesture round the ring from 350° authors 370° rather than a discontinuity.
+
+**Attenuation is a level, not a distance cue.** It is applied as gain, quadratic (−12 dB at 0.5, true
+silence at 1), folded into `effGain` — the number the driver already re-pushes only when it changes, so
+an attenuation lane costs one `setClipGain` per frame and a still source costs nothing.
+`AmbisonicEncoderDist` would give real distance cues (propagation delay, the W-panning interior effect)
+and was deliberately not used: it puts a per-source **delay line** in the path, and a source moving
+along a delay that slides is a pitch artefact in a show bed.
+
+That is also why the pad's radius is **level** and not distance: the ring is full level with a
+well-defined bearing, the centre is silence. The singularity ends up where it belongs — direction is
+undefined at zero radius, and at zero radius nothing can be heard.
+
+> **Documents written before this migrate on load** (`migrateSpatial`, called from the sanitizers, so
+> the bed, the global timeline, every scene's timeline and every video clip's audio block are all
+> covered by one edit). A migrated position gets `attenuation: 0` — NOT a value derived from its old
+> distance, which was inaudible; deriving one would quietly change the level of every existing show in
+> proportion to how far its author had dragged a dot that did nothing.
+>
+> **Lanes on the old `spatial.x` / `.y` / `.z` keep playing.** They are no longer offered by
+> `enumerate()`, so nothing new can be written against them, but the override layer still writes those
+> leaves and `resolveLegacyAxes` folds them back into a bearing. That needs the vector the lane was
+> authored against — an x-sweep of ±3 against `z = 1.5` is ±63°, and against a unit z it would be
+> ±71.6° — so migration keeps it as `legacyVec`, and every write from the panel drops it.
+
 ### The positioner pad draws the DECODER's rig, and auditions without writing
 
-Two things about the pad are easy to get wrong, and both were wrong until they were fixed.
+Two more things about the pad are easy to get wrong, and both were wrong until they were fixed.
 
 **It auditions on every pointermove; it writes once, on release.** Invariant 7 says a continuous control
 must not write the document per frame — a `setMix` is an App re-render, an automation recompile and an
@@ -201,7 +252,9 @@ the core parameters use, so an audio lane on the timeline is the same object as 
 | `audio.master.fx.<fxId>.<param>` | per the FX catalog | e.g. `audio.master.fx.fx_comp.thresholdDb` |
 | `audio.track.<trackId>.gain` | 0 – 1.5 | |
 | `audio.clip.<clipId>.gain` | 0 – 1.5 | |
-| `audio.clip.<clipId>.spatial.<x\|y\|z>` | −6 – 6 m | only when the clip **is** spatial |
+| `audio.clip.<clipId>.spatial.angle` | ±1440° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
+| `audio.clip.<clipId>.spatial.elevation` | −90 – 90° | how high |
+| `audio.clip.<clipId>.spatial.attenuation` | 0 – 1 | how far: 0 at the listener, 1 silent |
 | `audio.clip.<clipId>.fx.<fxId>.<param>` | per the FX catalog | |
 
 **These are BED paths.** The provider enumerates `ProjectData.audio` and nothing else, so a clip in a

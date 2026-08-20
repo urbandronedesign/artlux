@@ -17,14 +17,21 @@ is a lane.
 Look at the timeline. Below the clips there are two new lanes with curves drawn on them:
 
 - **Master ▸ Gain** — flat, then a steep drop at 0:08, a long plateau, and a climb back at 0:26.
-- **Orbit ▸ Position X** — a triangle, sweeping back and forth.
+- **Orbit ▸ Angle** — a straight ramp, climbing from 0 to 720.
 
 Listen:
 
 - At **0:12** the whole room **ducks** to about a quarter, and stays there. (The announcement is speaking.)
 - At **0:31** it comes **back up**.
-- Meanwhile the buzzy orbit source is sweeping **left → right → left**, on its own, without you touching the
-  pad.
+- Meanwhile the buzzy orbit source is **circling you** — twice, over sixteen seconds — without you touching
+  the pad.
+
+> **Look at that lane again: it is a straight line to 720.** Not a sine, not a triangle, and not two lanes
+> beating against each other — one ramp, two turns. The angle is **unbounded on purpose**: a lane
+> *interpolates*, so an angle penned into 0–360 makes an orbit unexpressible (0 → 360 is a lane that does
+> not move) and makes 350 → 10 sweep **backwards through 180**, sending the sound the long way across the
+> room at exactly the moment it should cross the front. Let the number run past a turn and the whole class
+> of problem disappears. The pad still reads 0–360; only the stored value winds.
 
 Nobody is holding a fader. That is the point.
 
@@ -130,7 +137,9 @@ Anything the audio provider publishes. Click **`+`** in the automation gutter an
 | `audio.master.fx.<id>.<param>` | any master-FX parameter (the compressor's threshold, say) |
 | `audio.track.<id>.gain` | a track's level |
 | `audio.clip.<id>.gain` | one clip's level |
-| `audio.clip.<id>.spatial.x` / `.y` / `.z` | **a source's position** — this is how you fly a sound around a room |
+| `audio.clip.<id>.spatial.angle` | **which way** — degrees clockwise from front, and it may run past 360 |
+| `audio.clip.<id>.spatial.elevation` | **how high** — degrees, −90 below … +90 above |
+| `audio.clip.<id>.spatial.attenuation` | **how far** — 0 at the listener, 1 silent |
 | `audio.clip.<id>.fx.<id>.<param>` | any clip-FX parameter — automate a filter sweep, a reverb's wet |
 
 Note what is **not** there: the **Spatial checkbox**, and **mute**. Neither is a number. Flipping spatial
@@ -152,10 +161,13 @@ paths. **If it is not a number, it is not automatable**, and the list simply wil
 
 ## Try it yourself
 
-1. **Fly a sound around the room.** Add a lane on `audio.clip.acl_orbit0.spatial.z` (front/back) with a
-   sine-ish set of keyframes, out of phase with the existing X lane. The source now traces a **circle** around
-   your head, hands-free. Two lanes, one orbit.
-2. **Automate a filter sweep.** Put a **Filter** on the orbit clip, then add a lane on its `cutoff` and sweep
+1. **Make it dive.** The orbit is flat — every lap passes through ear level. Add a lane on
+   `audio.clip.acl_orbit0.spatial.elevation` and give it a slow rise and fall, out of step with the angle:
+   4 s at −40°, 12 s at +40°. The source now spirals rather than circling.
+2. **Then make it leave.** Add `…spatial.attenuation`, flat at 0 until 0:12, then a ramp to 1 by 0:16. It
+   circles away into silence. Note that this is the one axis you can hear *without* headphones: attenuation
+   is a level, so it survives a stereo speaker pair that has no idea where anything is.
+3. **Automate a filter sweep.** Put a **Filter** on the orbit clip, then add a lane on its `cutoff` and sweep
    it from 200 Hz to 12 kHz over eight seconds. Note the lane's axis is **logarithmic** — because your ears
    are, and a linear cutoff sweep sounds wrong at both ends.
 3. **Build the classic.** Give **Main** a lane on `audio.master.gain` that ducks to 0.3 over 1 s on entry and

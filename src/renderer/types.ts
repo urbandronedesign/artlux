@@ -4,6 +4,11 @@ import type {
   // keyed by role, and `export type { … } from` alone does not bring a name into local scope.
   ChannelRole,
 } from '../../shared/protocol';
+// A source's POSITION -- angle + elevation + attenuation, and the migration off the old {x,y,z}. It
+// lives in shared/ because BOTH halves need it: core sanitizes documents with it, and the audio plugin
+// converts it to a direction for the engine. Two copies of the angle convention is how a room silently
+// gets mirrored.
+import { migrateSpatial, type SpatialPos } from '../../shared/spatial';
 
 // DMX fixture profiles live in shared/protocol.ts, not here, because THREE consumers need them: the
 // renderer (patching, the packer, the 3D scene), MAIN (it reads the bundled library off disk and
@@ -942,10 +947,9 @@ const sanitizeClip = (c: VideoClip): VideoClip => ({
  */
 const sanitizeClipAudio = (a: VideoClipAudio | undefined): VideoClipAudio | undefined => {
   if (!a || typeof a !== 'object') return undefined;
-  const s = a.spatial;
-  const spatial = s && typeof s === 'object'
-    && finiteNum(s.x) !== undefined && finiteNum(s.y) !== undefined && finiteNum(s.z) !== undefined
-    ? s : undefined;
+  // Migrated AND coerced in one call -- see shared/spatial.ts. A malformed position still reads as NO
+  // position (the clip is simply not spatialised), which is what this test always did.
+  const spatial = migrateSpatial(a.spatial);
   return {
     ...a,
     // `enabled` is a tri-state on purpose: absent ⇒ audible. Only an explicit `false` silences a clip, so
@@ -1011,6 +1015,17 @@ export const sanitizeEffects = (v: unknown): AudioEffect[] | undefined => {
 
 export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
   ...c,
+  // ⚠ AND THE POSITION, WHICH THIS FUNCTION DID NOT TOUCH AT ALL UNTIL THE ANGLE MODEL LANDED.
+  //
+  // Two jobs in one call, and both matter. It MIGRATES the old {x,y,z} (see shared/spatial.ts), and
+  // because it runs on every load of the bed, of the global timeline's audio and of every scene's
+  // timeline audio, that migration cannot be forgotten at one of those doors. It also COERCES, which
+  // the bed never had: a spatial reaches the ambisonic encoder, every spatial source is summed into ONE
+  // shared B-format bus, and a NaN on a single clip poisons the whole bus -- silence or full-scale
+  // noise, on the audio thread, in a venue. sanitizeClipAudio has guarded the VIDEO side of exactly
+  // this since Wave B; the bed was defended only downstream (the panel's vec3, the driver's
+  // finiteVec3), which left the DOCUMENT free to carry the poison from one save to the next.
+  spatial: migrateSpatial(c.spatial),
   start: finiteNum(c.start) ?? 0,
   duration: finiteNum(c.duration) ?? 0,
   inPoint: finiteNum(c.inPoint) ?? 0,
@@ -1185,12 +1200,11 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
 
 // A source position in listener-relative metres (listener at origin, +z forward). Encoded to
 // B-format by the ambisonic bus; absent ⇒ the clip routes straight to its bus (non-spatial).
-export interface AudioSpatial {
-  x: number;
-  y: number;
-  z: number;
-  order?: number;        // ambisonic-order override for this source (default: project/device setting)
-}
+// A source's position: angle + elevation + attenuation, NOT a point in metres. The metres were never
+// real -- the ambisonic encoder discards distance -- so the model, the migration off {x,y,z} and the
+// legacy-lane compatibility all live in shared/spatial.ts. Aliased here because every call site in core
+// imports its document types from this module.
+export type AudioSpatial = SpatialPos;
 export type AudioEffectType = 'gain' | 'filter' | 'reverb' | 'delay' | 'compressor';
 // One node in an effect chain.
 //

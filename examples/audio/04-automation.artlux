@@ -381,25 +381,25 @@
         ]
       },
       {
-        "id": "lane_orbit_x",
-        "targetPath": "audio.clip.acl_orbit0.spatial.x",
+        "id": "lane_orbit_angle",
+        "targetPath": "audio.clip.acl_orbit0.spatial.angle",
         "enabled": true,
         "height": 64,
         "color": "#38bdf8",
         "keyframes": [
           {
             "t": 0,
-            "v": -3,
-            "curve": "linear"
-          },
-          {
-            "t": 4,
-            "v": 3,
+            "v": 0,
             "curve": "linear"
           },
           {
             "t": 8,
-            "v": -3,
+            "v": 360,
+            "curve": "linear"
+          },
+          {
+            "t": 16,
+            "v": 720,
             "curve": "linear"
           }
         ]
@@ -458,9 +458,9 @@
         "gain": 0.8,
         "mute": false,
         "spatial": {
-          "x": 0,
-          "y": 0,
-          "z": 1.5
+          "angle": 0,
+          "elevation": 0,
+          "attenuation": 0
         },
         "effects": []
       }

@@ -64,6 +64,7 @@ import { type PanelProps, nextNumberedName } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 import { SPEAKER_LAYOUTS, channelFor, unitFor, type Speaker, type SpeakerLayoutId } from './speakerLayouts';
+import { angleOfVector, attenGain, directionOf, migrateSpatial, normAngle, type SpatialPos } from '../../../shared/spatial';
 import { conformAudio } from './conformClient';
 import { needsConform } from './conformFormats';
 import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
@@ -71,7 +72,7 @@ import { Fader } from './Fader';
 import { MASTER_BUS_ID } from './effectDefs';
 import { releaseFade, drivenSnapshot, type Driven } from './automationTargets';
 
-interface Spatial { x: number; y: number; z: number }
+type Spatial = SpatialPos;
 interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
 interface Track { id: string; name: string; gain?: number; mute?: boolean; solo?: boolean }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
@@ -88,11 +89,12 @@ interface SceneRef { id: string; name: string }
 // every scene recall, under a live show.
 type Sel = { kind: 'clip'; id: string } | { kind: 'audioClip'; id: string; source: 'bed' | 'timeline' } | null;
 
-// Metres shown across the positioner pad (listener at the centre).
-const RANGE = 3;
-// Where the speaker ring is drawn, as a fraction of the pad's half-width. Speakers have no METRIC
-// distance in an ambisonic decode — the decoder only ever uses their direction — so drawing them at a
-// radius in `RANGE` metres would be inventing a number. They sit near the edge and mean “that way”.
+// THE RING — where the speakers are drawn AND where a source at full level sits, as a fraction of the
+// pad's half-width. One radius for both, because they mean the same thing: a direction at unit level.
+//
+// Nothing here is in metres, and the pad no longer pretends otherwise. It used to span a RANGE of 3 m
+// and report a position to two decimal places — over an encoder that discards distance entirely. Radius
+// is LEVEL now (ring = full, centre = silent) and the angle is the only geometry. See shared/spatial.ts.
 const RING = 0.78;
 
 // Top-down positioner: horizontal = x (left/right), vertical = z (up = IN FRONT of the listener).
@@ -117,12 +119,15 @@ const RING = 0.78;
 // that catches it, and it is IDENTITY, not value: the clone's values match too. (Core mints the same string
 // and refuses the same way — Timeline.tsx:117, `endDrag`.)
 const SpatialPad: React.FC<{
-  x: number; z: number;
+  /** Degrees, clockwise from front. UNBOUNDED — the pad normalises for drawing, never for storage. */
+  angle: number;
+  /** 0 = at the listener (full level) … 1 = far (silent). The pad draws it as RADIUS — see below. */
+  attenuation: number;
   /** Identity of the rebindable document this pad writes, or undefined for the BED (never rebound, never
    *  abandoned — see Fader.docKey). Read LIVE at both ends of the gesture, never from a polled mirror. */
   docKey?: () => string;
-  onDraft: (x: number, z: number) => void;
-  onCommit: (x: number, z: number) => void;
+  onDraft: (angle: number, attenuation: number) => void;
+  onCommit: (angle: number, attenuation: number) => void;
   /**
    * The rig this pad is drawn over, or null for BINAURAL — where there is no room to draw, because the
    * decode target is a pair of headphones and every direction is rendered by HRTF.
@@ -141,11 +146,17 @@ const SpatialPad: React.FC<{
    * that invariant is about writing the DOCUMENT (a setMix per pointermove is an App re-render, an
    * automation recompile and an engine lock per clip), and this writes no document at all.
    */
-  onAudition?: (x: number, z: number) => void;
-}> = ({ x, z, docKey, onDraft, onCommit, speakers, onAudition }) => {
+  onAudition?: (angle: number, attenuation: number) => void;
+}> = ({ angle, attenuation, docKey, onDraft, onCommit, speakers, onAudition }) => {
   const ref = useRef<HTMLDivElement>(null);
   // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
-  const pending = useRef<{ x: number; z: number } | null>(null);
+  const pending = useRef<{ angle: number; attenuation: number } | null>(null);
+  // THE UNWRAPPED ANGLE, so a drag can WIND. The pointer only ever reports a bearing in [0, 360), but the
+  // authored value is unbounded — so dragging clockwise past the front from 350° must produce 370°, not 10°.
+  // Without this the one gesture that would naturally author an orbit instead authors a discontinuity, and
+  // a lane keyframed from it sweeps the whole room backwards on playback. Seeded from the authored value at
+  // pointerdown so the winding continues from wherever the source already was.
+  const wound = useRef(0);
   // The document the in-flight drag was started against. `null` when there is no doc to guard (the bed).
   const gestureDoc = useRef<string | null>(null);
   // A gesture whose document rebound under it is DEAD. It stops drafting and it never commits — the same
@@ -155,18 +166,33 @@ const SpatialPad: React.FC<{
     const el = ref.current; if (!el) return;
     if (dead()) return;                      // rebound mid-drag — do not paint the incoming scene's dot either
     const r = el.getBoundingClientRect();
-    const px = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    const py = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
-    const nx = Number(((px - 0.5) * 2 * RANGE).toFixed(2));
-    const nz = Number(((0.5 - py) * 2 * RANGE).toFixed(2));
-    pending.current = { x: nx, z: nz };
-    onDraft(nx, nz);
-    onAudition?.(nx, nz);   // `dead()` already returned above — a rebound gesture is silent as well as unwritten
-
+    // Pointer → (bearing, radius) about the pad's centre. `dx` is right-positive and `dy` is UP-positive
+    // (screen y is inverted), which is the frame `angleOfVector` reads: atan2(right, front).
+    const dx = (clientX - r.left) / r.width - 0.5;
+    const dy = 0.5 - (clientY - r.top) / r.height;
+    const radius = Math.min(1, Math.hypot(dx, dy) / (0.5 * RING));
+    // ⚠ RADIUS IS LEVEL, NOT DISTANCE — the ring is full level and the centre is silence. That inversion
+    // is deliberate and is explained in shared/spatial.ts: direction is undefined at zero radius, so the
+    // singularity belongs where the source cannot be heard rather than where it is loudest.
+    const attenuation = Number((1 - radius).toFixed(3));
+    // Below a few pixels of the centre the bearing is pointer noise, not an intention — hold the last one
+    // rather than letting the source spin wildly while it is being faded out.
+    if (radius > 0.06) {
+      const bearing = angleOfVector(dx, dy);                     // [0, 360)
+      // Unwrap onto the running value: take the SHORTER arc from where we were, then add it. This is what
+      // makes a drag round the ring produce 350 → 370 rather than 350 → 10.
+      let delta = bearing - normAngle(wound.current);
+      if (delta > 180) delta -= 360; else if (delta < -180) delta += 360;
+      wound.current = Number((wound.current + delta).toFixed(2));
+    }
+    pending.current = { angle: wound.current, attenuation };
+    onDraft(wound.current, attenuation);
+    onAudition?.(wound.current, attenuation);  // dead() returned above — a rebound gesture is silent too
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
     gestureDoc.current = docKey ? docKey() : null;
+    wound.current = Number.isFinite(angle) ? angle : 0;   // continue winding from the authored value
     set(e.clientX, e.clientY);
     const move = (ev: PointerEvent) => set(ev.clientX, ev.clientY);
     const up = () => {
@@ -175,15 +201,21 @@ const SpatialPad: React.FC<{
       window.removeEventListener('pointercancel', up);
       const p = pending.current; pending.current = null;
       const alive = !dead(); gestureDoc.current = null;
-      if (p && alive) onCommit(p.x, p.z);   // ONE write per drag, and only into the document it was made on
+      if (p && alive) onCommit(p.angle, p.attenuation); // ONE write per drag, into the document it was made on
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
   };
+  // Where the source dot lands, in pad units (−1 … 1 across the box). Bearing → direction, level → radius.
+  const level = 1 - Math.min(1, Math.max(0, Number.isFinite(attenuation) ? attenuation : 0));
+  const rad = (normAngle(Number.isFinite(angle) ? angle : 0) * Math.PI) / 180;
+  const dotX = Math.sin(rad) * level * RING;
+  const dotY = Math.cos(rad) * level * RING;
   return (
     <div ref={ref} onPointerDown={onDown}
-      title="Drag to place the source (top-down; up = in front of the listener)"
+      title={'Drag to place the source. Round the ring = which way (0° front, 90° right). In toward the '
+        + 'centre = further away, and quieter — the centre is silent.'}
       className="relative w-32 h-32 rounded border border-line-1 bg-surface-0 shrink-0 cursor-crosshair">
       <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-1/60" />
       <div className="absolute top-1/2 left-0 right-0 h-px bg-line-1/60" />
@@ -220,10 +252,21 @@ const SpatialPad: React.FC<{
           </div>
         );
       })}
-      <div className="absolute left-1/2 top-1/2 w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-fg-3" title="listener" />
+      {/* THE LEVEL RING — where a source sits at full level, and where the speakers are. Drawn rather
+          than implied, because the pad's radius means LEVEL and an operator has to be able to see the
+          value it is measured against. */}
+      <div className="absolute rounded-full border border-line-1/50 pointer-events-none"
+        style={{ left: `${50 - RING * 50}%`, top: `${50 - RING * 50}%`, width: `${RING * 100}%`, height: `${RING * 100}%` }} />
+      {/* The centre is SILENCE, not the listener. There used to be a listener dot here; it cannot stay,
+          because the point it marks now means the source has been faded out — and one glyph meaning both
+          "you are here" and "nothing is audible" is exactly the ambiguity this pad is being fixed for.
+          A ring of speakers already says where the listener is without a dot. */}
+      <div className="absolute left-1/2 top-1/2 w-1 h-1 -ml-[2px] -mt-[2px] rounded-full bg-line-1" title="silent" />
       <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-micro leading-none text-fg-3/70">front</span>
-      <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent ring-1 ring-surface-0"
-        style={{ left: `${((x / RANGE) * 0.5 + 0.5) * 100}%`, top: `${(0.5 - (z / RANGE) * 0.5) * 100}%` }} />
+      {/* The source. Bearing sets the direction, LEVEL sets the radius — so a source at full level lands
+          on the ring among the speakers, and fading it pulls it inward to nothing. */}
+      <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent ring-1 ring-surface-0 pointer-events-none"
+        style={{ left: `${50 + dotX * 50}%`, top: `${50 - dotY * 50}%` }} />
     </div>
   );
 };
@@ -336,15 +379,12 @@ const num = (v: unknown): number | undefined => (typeof v === 'number' && Number
 //
 // Returns the value ITSELF when it is valid (never a rebuilt copy), so a sane document round-trips
 // byte-for-byte through the panel's writes — invariant 6, the same way finiteVec3 hands `s` back.
-const vec3 = (s: unknown): Spatial | undefined => {
-  const v = s as Partial<Spatial> | null | undefined;
-  return v && typeof v === 'object' && !Array.isArray(v)
-    && typeof v.x === 'number' && Number.isFinite(v.x)
-    && typeof v.y === 'number' && Number.isFinite(v.y)
-    && typeof v.z === 'number' && Number.isFinite(v.z)
-    ? (v as Spatial)
-    : undefined;
-};
+// The panel's read of a position is the SAME coercion the document sanitizer runs (migrateSpatial), so a
+// clip that reached this panel without passing through a normalizer — a live in-memory Timeline, a plugin
+// write through patchTimelineClip — is read exactly as one that did, INCLUDING the migration off the old
+// {x,y,z}. Anything malformed reads as NO position, i.e. the clip is simply not spatial, which is what the
+// old vec3 guard promised and is always recoverable by ticking the box again.
+const vec3 = (s: unknown): Spatial | undefined => migrateSpatial(s);
 
 // A non-array chain reads as an EMPTY chain — the same fallback EffectChain makes for its own render and the
 // driver's fxOf makes for the engine. Needed on every RAW read of `effects`, and most of all on the ones that
@@ -408,7 +448,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const [preparing, setPreparing] = useState<string | null>(null);
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
-  const [padDraft, setPadDraft] = useState<{ x: number; z: number } | null>(null);
+  const [padDraft, setPadDraft] = useState<{ angle: number; attenuation: number } | null>(null);
   // A RENDERABLE mirror of docKeyOf(), for the ONE thing that needs a re-render when the binding changes:
   // dropping a stale pad draft (see the reset effect). It is NOT the guard — the guard is docKeyOf(), read
   // live — so this may lag by up to one meter tick without costing correctness. Refreshed from the audio
@@ -738,23 +778,47 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // rendered, these writers cannot be reached for it, and the one gesture that IS offered (tick the box)
   // writes a clean {0,0,1}. Whatever they do write is a fully-formed vec3, by construction.
   const spatialOf = (id: string): Spatial | undefined => vec3(selClipIn(id)?.spatial);
-  const setClipSpatialXZ = (id: string, x: number, z: number) => {
-    const cur = spatialOf(id); if (!cur) return;
-    releaseSel(`audio.clip.${id}.spatial.x`); releaseSel(`audio.clip.${id}.spatial.z`);
-    patchSelClip(id, { spatial: { ...cur, x, z } });
+  // ⚠ EVERY WRITE DROPS `legacyVec`, AND THAT IS THE RULE THAT KEEPS IT HONEST.
+  //
+  // `legacyVec` is the vector a migrated position was converted FROM, kept only so an automation lane
+  // written against the old `spatial.x` / `.y` / `.z` paths still lands where it used to. The moment the
+  // operator moves the source themselves, the vector it used to be is not a fact about anything — keeping
+  // it would let a legacy lane go on combining its axis against a position nobody authored any more.
+  // (The lane still plays; resolveLegacyAxes falls back to the CURRENT direction. See shared/spatial.ts.)
+  const rewrite = (id: string, cur: Spatial, patch: Partial<Spatial>) => {
+    const { legacyVec: _dropped, ...rest } = cur;
+    void _dropped;
+    patchSelClip(id, { spatial: { ...rest, ...patch } });
   };
-  const setClipSpatialY = (id: string, y: number) => {
+  const setClipSpatialAim = (id: string, angle: number, attenuation: number) => {
     const cur = spatialOf(id); if (!cur) return;
-    releaseSel(`audio.clip.${id}.spatial.y`);
-    patchSelClip(id, { spatial: { ...cur, y } });
+    // The pad moves BOTH in one gesture, so both are released — and the legacy axes with them: a lane on
+    // `spatial.x` is a lane on this same bearing, and leaving it shadowing a position the operator just
+    // dragged is the takeover failure the fader's docKey note describes.
+    releaseSel(`audio.clip.${id}.spatial.angle`); releaseSel(`audio.clip.${id}.spatial.attenuation`);
+    for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
+    rewrite(id, cur, { angle, attenuation });
+  };
+  const setClipSpatialElevation = (id: string, elevation: number) => {
+    const cur = spatialOf(id); if (!cur) return;
+    releaseSel(`audio.clip.${id}.spatial.elevation`); releaseSel(`audio.clip.${id}.spatial.y`);
+    rewrite(id, cur, { elevation });
+  };
+  const setClipSpatialAtten = (id: string, attenuation: number) => {
+    const cur = spatialOf(id); if (!cur) return;
+    releaseSel(`audio.clip.${id}.spatial.attenuation`);
+    rewrite(id, cur, { attenuation });
   };
   // Flipping spatialisation REBUILDS the clip's container, so every axis fade over it is stale by
   // definition — a fade holding x = 2.4 from a scene recall must not silently re-shadow the fresh
   // {0,0,1} the operator just created. (The FLAG itself is not fadeable — it changes the chain's channel
   // count 2⇔1 — so there is no fade on it to release.)
   const setClipSpatialOn = (id: string, on: boolean) => {
-    for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
-    patchSelClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
+    // Both spellings, because a document migrated from {x,y,z} can still be carrying lanes on the old one.
+    for (const ax of ['x', 'y', 'z', 'angle', 'elevation', 'attenuation'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
+    // Dead ahead at full level — the position with no opinion, and the one that is audibly identical to
+    // the flat clip the operator just ticked the box on.
+    patchSelClip(id, { spatial: on ? { angle: 0, elevation: 0, attenuation: 0 } : undefined });
   };
 
   // ⚠ `Audio N`, NOT `Track N` — AND IT MUST STAY THE SAME WORD CORE MINTS (Timeline.addAudioTrack). There
@@ -882,10 +946,11 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // passed the truthy gate, and threw `undefined.toFixed` IN RENDER the moment the clip was SELECTED. The
   // host wraps every plugin render site now, so that costs the Audio Bed and not the editor — but losing
   // the bed's controls mid-show, from a click, is still the bug. Coerce.
-  // (`padX ?? 0` did not save it either — `??` does not catch a present-but-non-numeric `"0"`.)
+  // (`?? 0` on the individual leaves did not save it either — `??` does not catch a present-but-non-numeric
+  // `"0"`. The coercion has to happen on the way in, which is what vec3 → migrateSpatial does.)
   const spatial = vec3(selClip?.spatial);
-  const padX = padDraft?.x ?? spatial?.x ?? 0;
-  const padZ = padDraft?.z ?? spatial?.z ?? 0;
+  const padAngle = padDraft?.angle ?? spatial?.angle ?? 0;
+  const padAtten = padDraft?.attenuation ?? spatial?.attenuation ?? 0;
   // THE RIG UNDER THE SOURCE — null for BINAURAL, where there is no rig: the B-format is decoded to a
   // pair of headphones by HRTF, so drawing a speaker ring would be describing a room that is not there.
   // (An unknown layout name also draws nothing rather than guessing at a default: a pad that quietly
@@ -900,12 +965,21 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // addresses exactly the voice the document's commit will later address.
   //
   // ⚠ IT DOES NOT RELEASE A FADE OR TOUCH A LANE — deliberately. Those are DOCUMENT concepts, and the
-  // release belongs with the write (setClipSpatialXZ, on pointerup). An axis a lane owns will be
+  // release belongs with the write (setClipSpatialAim, on pointerup). An axis a lane owns will be
   // re-pushed by the driver on its next frame, so the audition is simply overridden, which is the
   // correct outcome: a read-only parameter must not become audible-only-while-you-drag.
-  const auditionSpatial = (id: string, x: number, y: number, z: number) => {
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
-    audioClient.setClipSpatial(id, x, y, z);
+  // ⚠ ATTENUATION AUDITIONS THROUGH `setClipGain`, NOT THROUGH THE POSITION, because that is what it IS
+  // in this engine (shared/spatial.ts). And the level it sends must be the SAME product the driver would
+  // push — clip gain × track gain × attenuation — or letting go of the pad would jump the level from
+  // whatever the audition sent to whatever effGain computes. `driverGain` is that product, minus the clip
+  // fade envelope, which is a function of the playhead and not of this gesture.
+  const auditionSpatial = (id: string, pos: { angle: number; elevation: number; attenuation: number }) => {
+    if (!Number.isFinite(pos.angle) || !Number.isFinite(pos.elevation)) return;
+    const v = directionOf(pos);
+    audioClient.setClipSpatial(id, v.x, v.y, v.z);
+    const clip = selClipIn(id);
+    const track = (selSource === 'bed' ? mixRef.current.tracks : tlRef.current.tracks).find((t) => t.id === clip?.trackId);
+    audioClient.setClipGain(id, (num(clip?.gain) ?? 1) * (num(track?.gain) ?? 1) * attenGain(pos.attenuation));
   };
   // What the ENGINE is playing for the house level. The master bus is PROJECT-GLOBAL — one output chain —
   // so this path names one thing and cannot alias across containers; it needs no drivenOn gate.
@@ -1197,26 +1271,45 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   </div>
                   {spatial ? (
                     <div className="flex items-center gap-3">
-                      <SpatialPad x={padX} z={padZ} docKey={gestureDocKey}
+                      <SpatialPad angle={padAngle} attenuation={padAtten} docKey={gestureDocKey}
                         speakers={padSpeakers}
-                        onDraft={(x, z) => setPadDraft({ x, z })}
-                        onAudition={(x, z) => auditionSpatial(selClip.id, x, spatial.y, z)}
-                        onCommit={(x, z) => { setPadDraft(null); setClipSpatialXZ(selClip.id, x, z); }} />
+                        onDraft={(angle, attenuation) => setPadDraft({ angle, attenuation })}
+                        onAudition={(angle, attenuation) => auditionSpatial(selClip.id, { angle, elevation: spatial.elevation, attenuation })}
+                        onCommit={(angle, attenuation) => { setPadDraft(null); setClipSpatialAim(selClip.id, angle, attenuation); }} />
                       <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
-                          <Fader value={spatial.y} min={-2} max={2} step={0.1}
+                          {/* ELEVATION, IN DEGREES, NOT METRES. There is no distance in this engine, so a
+                              height in metres had nothing to be a height ABOVE — it only ever mattered as
+                              the angle it made with the horizontal, which is now the number itself. */}
+                          <Fader value={spatial.elevation} min={-90} max={90} step={1}
                             ariaLabel="spatial height"
                             docKey={gestureDocKey}
-                            title={(v) => `y ${v.toFixed(1)} m`}
-                            onDraft={(y) => auditionSpatial(selClip.id, padX, y, padZ)}
-                            onCommit={(y) => setClipSpatialY(selClip.id, y)}
+                            title={(v) => `${v.toFixed(0)}° — ${v > 0 ? 'above' : v < 0 ? 'below' : 'level with'} the listener`}
+                            onDraft={(elevation) => auditionSpatial(selClip.id, { angle: padAngle, elevation, attenuation: padAtten })}
+                            onCommit={(elevation) => setClipSpatialElevation(selClip.id, elevation)}
                             className="w-24"
-                            readout={(v) => `${v.toFixed(1)} m`}
+                            readout={(v) => `${v.toFixed(0)}°`}
+                            readoutClassName="text-micro text-fg-2 tabular-nums w-12 shrink-0" />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-micro text-fg-3 w-10 shrink-0">distance</span>
+                          {/* The pad's radius and this slider are ONE parameter seen twice — dragging the
+                              dot inward moves this, and moving this moves the dot. It is here as well
+                              because a bearing and a level are separable intentions, and the pad couples
+                              them into one gesture. */}
+                          <Fader value={padAtten} min={0} max={1} step={0.01}
+                            ariaLabel="spatial attenuation"
+                            docKey={gestureDocKey}
+                            title={(v) => `${v === 0 ? 'at the listener, full level' : v >= 1 ? 'far away — silent' : `${(20 * Math.log10(Math.max(1e-6, attenGain(v)))).toFixed(1)} dB`}`}
+                            onDraft={(attenuation) => auditionSpatial(selClip.id, { angle: padAngle, elevation: spatial.elevation, attenuation })}
+                            onCommit={(attenuation) => setClipSpatialAtten(selClip.id, attenuation)}
+                            className="w-24"
+                            readout={(v) => (v >= 1 ? 'silent' : `${(20 * Math.log10(Math.max(1e-6, attenGain(v)))).toFixed(0)} dB`)}
                             readoutClassName="text-micro text-fg-2 tabular-nums w-12 shrink-0" />
                         </div>
                         <span className="text-micro text-fg-3 tabular-nums">
-                          x {padX.toFixed(1)} · z {padZ.toFixed(1)} m
+                          {normAngle(padAngle).toFixed(0)}° · {spatial.elevation.toFixed(0)}° up
                         </span>
                         {/* What the numbers on the pad MEAN. Without this the markers read as speaker
                             ordinals, and the number an operator needs at the amp is the DEVICE CHANNEL. */}

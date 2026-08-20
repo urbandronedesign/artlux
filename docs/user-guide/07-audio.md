@@ -63,10 +63,17 @@ back. *You can hear the bed everywhere; you can only edit it on Global.*
 arrangement/mixer split: you **place** on the lane, you **shape** here.
 
 - **Gain** — the clip's level.
-- **Spatial** — tick it, and a **top-down positioner pad** appears (left/right × front/back) plus a **height**
-  slider. Drag the dot and the sound moves **around your head** — **you hear it travel as you drag**, not
-  only when you let go. 🎧 *Binaural decoding is an HRTF — it only works over headphones.* On a real
-  installation, switch to a **speaker layout** in Preferences.
+- **Spatial** — tick it and a **positioner pad** appears, plus **height** and **distance** sliders. Drag
+  the dot **round the ring** to choose which way the sound comes from (0° front, 90° right, 180° behind,
+  270° left) and **in toward the centre** to push it away — the ring is full level, the centre is silent.
+  **You hear it move as you drag**, not only when you let go. 🎧 *Binaural decoding is an HRTF — it only
+  works over headphones.* On a real installation, switch to a **speaker layout** in Preferences.
+
+  > **There are no metres here, and that is a correction.** The pad used to be a 3-metre square, but the
+  > ambisonic encoder only ever uses a direction — it throws the distance away. Sliding a source from 1 m
+  > to 6 m did nothing at all. "Further away" now means what it can actually mean: **quieter**. Distance 0
+  > is at the listener, 1 is silent. Old projects open with every source at full level, exactly as they
+  > sounded before.
 - **The pad draws your rig.** In **Speaker layout** mode the pad shows the layout's actual speaker
   positions, each marked with the **device channel** it is patched to — so "front-left on the pad" and
   "output 1 on the interface" are the same statement. A marker turns **amber** when its channel does not

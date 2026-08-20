@@ -18,9 +18,10 @@
 // target here lands on the engine's cheap in-place `updateParams` path, by construction.
 import type { AutomationTargetDef, AutomationTargetProvider } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
+import type { SpatialPos } from '../../../shared/spatial';
 import { MASTER_BUS_ID, defOf } from './effectDefs';
 
-interface Spatial { x: number; y: number; z: number }
+type Spatial = SpatialPos;
 interface Effect { id: string; type: string; params?: Record<string, number>; opts?: Record<string, string> }
 interface Clip { id: string; trackId: string; name: string; gain?: number; spatial?: Spatial; effects?: Effect[] }
 interface Track { id: string; name: string; gain?: number }
@@ -120,6 +121,9 @@ const layered = (path: string): number | undefined => ovr.get(path) ?? fade.get(
 
 export const autoOrFadeGain = (clipId: string): number | undefined => layered(`${NS}.clip.${clipId}.gain`);
 export const autoOrFadeTrackGain = (trackId: string): number | undefined => layered(`${NS}.track.${trackId}.gain`);
+// Attenuation is a LEVEL, so the driver reads it beside the gains rather than through the position --
+// see effGain in plugin.renderer.ts.
+export const autoOrFadeAtten = (clipId: string): number | undefined => layered(`${NS}.clip.${clipId}.spatial.attenuation`);
 export const autoOrFadeMasterGain = (): number | undefined => layered(`${NS}.master.gain`);
 export const hasAnyOverride = (ownerId: string): boolean =>
   (byOwner.get(ownerId)?.size ?? 0) > 0 || (fadeByOwner.get(ownerId)?.size ?? 0) > 0;
@@ -253,7 +257,21 @@ export function applyBusLayers<T extends OvBus>(bus: T): T {
 
 // ── The provider ────────────────────────────────────────────────────────────────────────────────
 const GAIN = { min: 0, max: 1.5, step: 0.01, def: 1 };
-const POS = { min: -6, max: 6, step: 0.05, def: 0, unit: 'm' };
+// ⚠ THE ANGLE'S RANGE IS FOUR TURNS EACH WAY, NOT 0–360, AND THAT IS THE FEATURE.
+//
+// A lane INTERPOLATES between keyframes. Bounded to one turn, a full orbit is unexpressible (0 → 360 is
+// a lane that does not move) and 350 → 10 sweeps BACKWARDS through 180 — the sound crosses the room the
+// long way at the exact moment it should pass the front. Unbounded, a spin is one straight ramp and the
+// short way round is simply the shorter number. The widget still READS 0–360 (normAngle); only the
+// stored and automated value is free to run past it.
+//
+// ±1440 rather than truly unbounded because a lane editor has to draw an axis. Four turns in either
+// direction is past anything anyone has asked a sound to do, and a curve that needs more can be built
+// from two lanes' worth of keyframes on one lane.
+const ANGLE = { min: -1440, max: 1440, step: 1, def: 0, unit: '°' };
+const ELEV = { min: -90, max: 90, step: 1, def: 0, unit: '°' };
+// 0 = at the listener, full level. 1 = far, silent. Quadratic in gain — see attenGain.
+const ATTEN = { min: 0, max: 1, step: 0.01, def: 0, unit: '' };
 
 /**
  * THE ENGINE DOOR FOR A GAIN — the LAST bound before a level reaches the amplifier.
@@ -296,10 +314,18 @@ export const audioAutomationProvider: AutomationTargetProvider = {
       out.push({ path: `${NS}.clip.${c.id}.gain`, label: 'Gain', group: g, ...GAIN, def: c.gain ?? 1 });
       // Position is only offered for a clip that is ALREADY spatial — turning spatialisation on changes
       // the engine chain's channel count (2⇔1) and forces a rebuild, which automation must never do.
+      //
+      // ⚠ THE OLD `spatial.x` / `.y` / `.z` PATHS ARE DELIBERATELY NOT LISTED, AND ARE STILL HONOURED.
+      // A lane already written against one keeps playing (applyClipPaths writes any leaf, and the driver
+      // folds a legacy axis back into a bearing through resolveLegacyAxes), so no existing show loses its
+      // movement. But they are not offered for NEW work, because they describe a geometry the engine does
+      // not have: `Position X` in metres never did anything except change a direction, and two lanes were
+      // needed to say what one Angle lane says. `enumerate()` is the catalog; the fadeable regex in core
+      // is only the gate, and it still admits both spellings.
       if (c.spatial) {
-        for (const ax of ['x', 'y', 'z'] as const) {
-          out.push({ path: `${NS}.clip.${c.id}.spatial.${ax}`, label: `Position ${ax.toUpperCase()}`, group: g, ...POS, def: c.spatial[ax] ?? 0 });
-        }
+        out.push({ path: `${NS}.clip.${c.id}.spatial.angle`, label: 'Angle', group: g, ...ANGLE, def: c.spatial.angle ?? 0 });
+        out.push({ path: `${NS}.clip.${c.id}.spatial.elevation`, label: 'Height', group: g, ...ELEV, def: c.spatial.elevation ?? 0 });
+        out.push({ path: `${NS}.clip.${c.id}.spatial.attenuation`, label: 'Attenuation', group: g, ...ATTEN, def: c.spatial.attenuation ?? 0 });
       }
       for (const fx of effectsOf(c)) {
         const def = defOf(fx.type);

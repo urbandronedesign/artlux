@@ -62,7 +62,7 @@ export function isGeometryPath(path: string): boolean {
 // Never a chain's length, never spatial on/off: each changes the SHAPE of the engine's chain and forces a
 // rebuild (a spatial flip changes its channel count 2⇔1), and a rebuild allocates.
 //   audio.clip.<id>.gain          audio.track.<id>.gain          audio.master.gain
-//   audio.clip.<id>.spatial.{x|y|z}
+//   audio.clip.<id>.spatial.{angle|elevation|attenuation}   (and the legacy {x|y|z} — see below)
 //   audio.clip.<id>.fx.<effectId>.<param>                        audio.master.fx.<effectId>.<param>
 //
 // ⚠ HARD CONSTRAINT ON EVERY CALLER: the `fx.<id>.<key>` arm CANNOT tell a continuous param from a discrete
@@ -72,7 +72,14 @@ export function isGeometryPath(path: string): boolean {
 // `provider.enumerate()`, which emits `def.params` and NOTHING else — never `opts`, never mute/solo, never
 // the spatial flag. That is the only thing standing between this regex and the fade engine handing a
 // filter's `mode` the value 0.37. isFadeablePath is a GATE, not a catalog; enumerate() is the catalog.
-export const AUDIO_FADEABLE_RE = /^(gain|spatial\.[xyz]|fx\.[^.]+\.[^.]+)$/;
+// ⚠ BOTH SPELLINGS OF A POSITION ARE ADMITTED, AND ONLY ONE IS OFFERED.
+//
+// `angle|elevation|attenuation` is the model (shared/spatial.ts). `x|y|z` is what documents written
+// before it carry, and dropping it here would silently break every cue and lane already authored
+// against a position — this regex is the GATE deciding whether an entry FADES or SNAPS, so a path
+// falling out of it does not error, it just starts jumping. The plugin's enumerate() no longer offers
+// the old spelling, so nothing NEW can be written against it; this keeps what exists working.
+export const AUDIO_FADEABLE_RE = /^(gain|spatial\.(angle|elevation|attenuation|[xyz])|fx\.[^.]+\.[^.]+)$/;
 
 // Whether a path addresses a fadeable numeric parameter (else a cue entry snaps on fire).
 export function isFadeablePath(path: string): boolean {

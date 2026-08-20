@@ -37,13 +37,14 @@ import type { RendererPlugin, RendererPluginContext, RendererHostServices } from
 import { setIpc, audioClient } from './audioClient';
 import { setConformIpc, conformAudio, conformOf, conformGeneration, onConformLanded } from './conformClient';
 import { needsConform } from './conformFormats';
+import { attenGain, directionOf, resolveLegacyAxes, type SpatialPos } from '../../../shared/spatial';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
 import type { AudioEffectSpec, ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
 import { MASTER_BUS_ID } from './effectDefs';
 import {
-  audioAutomationProvider, autoOrFadeGain, autoOrFadeTrackGain, autoOrFadeMasterGain,
+  audioAutomationProvider, autoOrFadeGain, autoOrFadeTrackGain, autoOrFadeMasterGain, autoOrFadeAtten,
   applyClipLayers, applyBusLayers, hasAnyOverride, takeDirty, boundGain,
 } from './automationTargets';
 
@@ -71,7 +72,7 @@ interface AudioPluginCfg {
 // host.audio.getTimelineAudio()). The concrete AudioMix/TimelineAudio live in the host types; we only read
 // these fields, so a local shape avoids a cross-package import. Both containers hold the SAME clip and
 // track shapes — which is why one reconcile serves both.
-interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; fadeIn?: number; fadeOut?: number; spatial?: { x: number; y: number; z: number }; effects?: AudioEffectSpec[] }
+interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; fadeIn?: number; fadeOut?: number; spatial?: SpatialPos; effects?: AudioEffectSpec[] }
 interface BedTrack { id: string; gain?: number; mute?: boolean; solo?: boolean }
 interface BedBus { id: string; gain?: number; effects?: AudioEffectSpec[] }
 interface Bed { tracks: BedTrack[]; clips: BedClip[]; buses: BedBus[] }
@@ -464,9 +465,18 @@ export const plugin: RendererPlugin = {
     // the target's declared range; the PERSISTED clip/track gain never was — sanitizeAudioClip coerces it
     // for finiteness only. A `"gain": 20` in the file played at 20×. It is bounded HERE, per factor, and
     // NOT in the normalizer, which would persist the clamp on the next save and destroy the authored value.
+    // ⚠ AND ATTENUATION IS ONE OF THE FACTORS. A source's distance is expressed as a level in this
+    // engine (shared/spatial.ts explains why it is not a delay-line distance cue), so it multiplies in
+    // here rather than travelling with the position. Two things fall out of that, both wanted:
+    // reconcileContainer already re-pushes gain ONLY when it changes, so an attenuation automation lane
+    // costs exactly one setClipGain per frame and a still source costs nothing; and the lane is read
+    // through the SAME override layer as everything else, so a scene fade on attenuation works with no
+    // further plumbing. Read straight from the layer rather than through eff(), which allocates a whole
+    // clip -- this runs per sounding clip per frame.
     const effGain = (clip: BedClip, tLocal: number) =>
       boundGain(autoOrFadeGain(clip.id) ?? clip.gain)
       * boundGain(autoOrFadeTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain)
+      * attenGain(autoOrFadeAtten(clip.id) ?? clip.spatial?.attenuation)
       * fadeGain(clip, tLocal);
     /** The clip as it should SOUND: authored, with the scene fade laid on, with the lane's leaves over that. */
     const eff = (clip: BedClip): BedClip => (hasAnyOverride(clip.id) ? applyClipLayers(clip) : clip);
@@ -647,19 +657,37 @@ export const plugin: RendererPlugin = {
     // every other call site. A non-array chain reads as an EMPTY chain — which is also what the deliberately
     // tolerant native parseEffects() would make of it, but the driver must not be the thing that RELIES on
     // that, and `sentEffects` must key off what was actually pushed rather than off a junk payload.
-    const finiteVec3 = (s: BedClip['spatial']): BedClip['spatial'] =>
-      s && typeof s.x === 'number' && Number.isFinite(s.x)
-        && typeof s.y === 'number' && Number.isFinite(s.y)
-        && typeof s.z === 'number' && Number.isFinite(s.z) ? s : undefined;
+    // The same refusal, against the angle model. `resolveLegacyAxes` runs FIRST because an old
+    // `spatial.x` lane writes its axis straight onto the position (applyClipPaths is generic over leaf
+    // names) and that axis is exactly the number that could be NaN -- guarding the angle it produces
+    // rather than the angle it was authored with is the only order that actually protects the bus.
+    const finitePos = (raw: BedClip['spatial']): BedClip['spatial'] => {
+      if (!raw || typeof raw !== 'object') return undefined;
+      const s = resolveLegacyAxes(raw);
+      return Number.isFinite(s.angle) && Number.isFinite(s.elevation) ? s : undefined;
+    };
     const fxOf = (o: { effects?: AudioEffectSpec[] } | undefined): AudioEffectSpec[] => {
       const fx = o?.effects;
       return Array.isArray(fx) ? fx : [];
     };
+    // ⚠ THE ENGINE TAKES A DIRECTION, NOT THE AUTHORED NUMBERS. `setClipSpatial` feeds toPolar(), which
+    // wants a vector; the document holds a bearing. directionOf() is the one place the two conventions
+    // meet (the document's angle is CLOCKWISE from front, the ambisonic azimuth is anticlockwise) and it
+    // returns a UNIT vector, because the encoder discards magnitude and a number with no meaning has no
+    // business crossing to the audio thread.
+    //
+    // ATTENUATION IS NOT PUSHED HERE. It is a level, so it belongs where levels are pushed -- folded into
+    // effGain, which the transport already re-pushes only when it changes. Sending it as part of the
+    // position would mean rebuilding a coefficient set for a change that is pure gain.
+    //
+    // The dedupe key is the AUTHORED triple rather than the derived vector: two bearings 0.0001 apart
+    // produce the same rounded direction and re-pushing for that is free to skip, but a lane winding the
+    // angle past 360 must still be seen as a change even though the direction repeats.
     const pushSpatial = (clip: BedClip) => {
-      const s = finiteVec3(clip.spatial);
-      const key = s ? `${s.x},${s.y},${s.z}` : '';
+      const s = finitePos(clip.spatial);
+      const key = s ? `${s.angle},${s.elevation}` : '';
       if (sentSpatial.get(clip.id) === key) return;
-      if (s) audioClient.setClipSpatial(clip.id, s.x, s.y, s.z);
+      if (s) { const v = directionOf(s); audioClient.setClipSpatial(clip.id, v.x, v.y, v.z); }
       else audioClient.clearClipSpatial(clip.id);
       sentSpatial.set(clip.id, key);
     };

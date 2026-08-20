@@ -133,13 +133,27 @@ That flip is not free. A spatial clip's chain is **mono** (the encoder needs one
 exactly why the *flag* cannot be automated while the three *axes* can be (chapter 5): you can slide a source
 across the room sixty times a second, but you cannot rebuild its DSP graph sixty times a second.
 
+> **Why the pad has no metres on it.** It used to: a 3-metre square you dropped a source into. The
+> numbers were fiction. The ambisonic encoder takes an azimuth and an elevation and *discards the
+> distance* — libspatialaudio says so in its own header — so sliding a source from 1 m to 6 m along the
+> same bearing changed **nothing at all**, while the readout reported the move to two decimal places.
+>
+> So the pad now measures the two things that are real. **Round the ring** is the bearing. **In toward
+> the centre** is level — the ring is full level, the centre is silence. That is not distance pretending
+> to be gain; it *is* gain, and it is the only kind of "further away" this engine has. It also puts the
+> awkward spot in the right place: a direction is meaningless at zero radius, and at zero radius the
+> source cannot be heard anyway.
+
+---
+
 ## 6. The pieces, named
 
 | Concept | Here | In the file |
 |---|---|---|
-| **A spatial source** | the orbit clip | `clip.spatial = { x, y, z }` — absent ⇒ not spatial |
-| **The pad** | top-down x/z | `spatial.x` (left/right), `spatial.z` (front/back) |
-| **Height** | the slider | `spatial.y` |
+| **A spatial source** | the orbit clip | `clip.spatial = { angle, elevation, attenuation }` — absent ⇒ not spatial |
+| **Which way** | round the pad | `spatial.angle` — degrees **clockwise from front** (0 front, 90 right, 180 behind, 270 left) |
+| **How far** | in toward the centre | `spatial.attenuation` — 0 at the listener, 1 silent |
+| **Height** | the slider | `spatial.elevation` — degrees, −90 below … +90 above |
 | **A clip insert** | the reverb | `clip.effects[]` |
 | **A master insert** | the compressor | `audio.buses[0].effects[]` (id `master`) |
 | **The output mode** | binaural | Preferences ▸ Audio |
