@@ -4,7 +4,7 @@
 > You'll learn: how a **recorded LiDAR take** (`.lblob`) replays from a **tracking lane** with **no
 > tracker and no emitter**, how to **record your own** from the synthetic emitter, and the three moves
 > that take this **from the bench to a real venue** — the OSC **bind address**, the **1‑person‑2‑blobs**
-> field test, and **Merge People** in the 3D Scene.
+> field test, and **Merge People** (which only a projector output window shows).
 
 Chapters [01](01-blob-viewer.md) and [02](02-calibrated-projection.md) needed the emitter running to put
 blobs on the floor. This one doesn't: the project **carries its own recording**. A **take** is a capture
@@ -27,18 +27,18 @@ shown. No emitter, no tracker — and even with **OSC receive** enabled in **Pre
 (a *machine* setting, not carried in the `.artlux`), **nothing is sending**, so every bit of motion is
 coming from the timeline.
 
-Open the **Timeline** dock. You'll see two layers:
+Pull up the **Timeline** drawer (`Ctrl+T`). You'll see two layers:
 
 - **Tracking** (`lay_track`, `kind: "tracking"`) — carrying one clip, **Demo SOL take**
   (`clip_sol_take`), with a green **blob‑density sparkline** instead of a filmstrip.
 - **Backdrop** (`lay_bg`) — empty here; it's the layer `srf_sol` names as its `bgLayerId`, ready for you
   to drop an effect or video *under* the blobs (that's Chapter 02's move).
 
-![Timeline — the tracking lane with its blob-density sparkline, and the Takes strip](images/03-tracking-lane.png)
-<!-- TODO screenshot: Timeline dock. The Tracking lane (lay_track) with the "Demo SOL take" clip drawn as a green blob-density sparkline (not a filmstrip); the Backdrop lane empty below; the Takes strip in the toolbar with the ● Record button. -->
+![Timeline — the tracking lane with its blob-density sparkline](images/03-tracking-lane.png)
+<!-- TODO screenshot: Timeline dock. The Tracking lane (lay_track) with the "Demo SOL take" clip drawn as a green blob-density sparkline (not a filmstrip); the empty Backdrop lane ABOVE it (timeline.layers is [lay_bg, lay_track], rendered in order). The ● Record button needs its OWN shot of the Tracking Takes dock tab on the 3D context - the old Takes strip under the timeline toolbar no longer exists. -->
 
-Press **Play**. The playhead sweeps the clip and the three blobs trace their recorded path. Now **stop and
-drag the playhead by hand** — scrubbing works too, because replay is driven by the playhead every frame,
+The playhead is already sweeping the clip — the transport comes up running — and the three blobs trace
+their recorded path. Now **pause and drag the playhead by hand** — scrubbing works too, because replay is driven by the playhead every frame,
 not by the transport running. Let it play to the end: `timeline.loop` is **true** with the loop range
 `inPoint 0 → outPoint 18`, so the 18‑second take **re‑plays forever**. (Without the loop, playback clears
 the blobs past the clip and the floor would go empty after one pass.)
@@ -96,10 +96,14 @@ Now make a take from the synthetic emitter and place it on the lane.
    ([`../../../scripts/lidar-emitter.cjs`](../../../scripts/lidar-emitter.cjs)). Sanity‑check with **View
    ▸ OSC Monitor** (`Ctrl+Shift+M`): a green **SOL** card reading **2 active**. The floor surface should
    now move live.
-   > **Move the playhead off the demo clip first** (or the record button stays disabled). Recording is
-   > blocked while a take is playing under the playhead, so you never record replayed data.
-3. **Record.** In the **Takes** strip under the Timeline toolbar press **Record** (the **●** button); it
-   turns into **REC 0:12** while capturing — let it run ~10–20 s, then press it again (now **■**) to stop.
+   > **Move the playhead off the demo clip first.** The button is *not* disabled — pressing it while a
+   > take is playing under the playhead pops an error toast (**"Cannot record now"**) and captures
+   > nothing, so you can never accidentally record replayed data.
+3. **Record.** Open the **Tracking Takes** dock tab on the **3D** (Venue & Rig) context — the old Takes
+   strip under the timeline toolbar is gone — or use the workbench action **Record Tracking Take**
+   (`Ctrl+Alt+R`). Press **Record** (the **●** button); it
+   becomes **■ Stop 00:12** — square icon, the word *Stop*, an `MM:SS` clock — with a **Cancel** button
+   beside it that discards the capture. Let it run ~10–20 s, then press **Stop**.
    A new **take chip** appears (and a Tracking lane is created if you'd removed the shipped one).
 4. **Where it landed.** The take is written to `userData/tracking-takes/<id>.lblob`, then **copied into
    the project you have open**, at `<this‑project>/assets/tracking/`. That copy‑in is why you open the
@@ -137,19 +141,22 @@ fill in) is [`docs/TRACKING_SYNC.md`](../../../docs/TRACKING_SYNC.md).
 
 **c) Merge People — and *where* you see it.** To make ArtLux count one person as **one** marker, turn on
 **Merge people (2 blobs → 1)** in the **Tracking** inspector section (`SceneTrackingPanel` — open the
-**3D** or **Tracking** workspace context); **Merge radius** defaults to **0.8 m** (lower it if distinct
+**3D** workspace context); **Merge radius** defaults to **0.8 m** (lower it if distinct
 people merge, raise toward 1.0 if one person still shows two markers). This is a **Scene3D per‑project
 setting** — `scene3D.trackingMergePeople` / `scene3D.trackingMergeRadius` in the file (Scene3D *is*
 persisted, unlike the ignored `settings` block), both shipped here at their defaults (`false` / `0.8`).
 
 ![Merge People: two blobs from one person collapse to one marker](images/merge-people.svg)
-*One person on a real floor reads as **two blobs with different ids** (pair by distance, not id). **Merge People** (radius 0.8 m) collapses them to a single marker — but only in the **3D Scene / projector output**; the 2D editor Stage always shows the raw two markers.*
+*One person on a real floor reads as **two blobs with different ids** (pair by distance, not id). **Merge People** (radius 0.8 m) collapses them to a single marker — but only in a **projector output window** (and in trigger-zone counting). The 2D Stage AND the editor 3D Scene both show the raw two markers.*
 
-> **Watch it in the 3D Scene or a projector output — not the 2D Stage.** Merge is applied only in the viz
-> and the projector channel build; the 2D editor Stage **intentionally shows the raw, un‑merged blobs**
-> so you can always see the ground truth. Enable **Tracking zones (LiDAR)** in the **Tracking** inspector
-> section (the 3D or Tracking context), replay a two‑people‑close take, and toggle Merge to see two
-> markers collapse into one there.
+> **Watch it in a PROJECTOR OUTPUT WINDOW — no editor view will show it.** The merge runs in exactly two
+> places: the projector channel build (`plugin.renderer.ts`), whose merged snapshot is applied to each
+> *projector window's* store, and trigger-zone occupancy counting. The main window is never merged, so
+> the 2D Stage **and** the editor 3D Scene both keep showing the raw, un-merged blobs — that is the
+> ground truth, deliberately. To see two markers collapse into one, bind the floor surface to an output
+> in **Projection Outputs**, enable it, replay a two-people-close take and toggle Merge while watching
+> that window. With no projector bound, the toggle changes nothing you can see (a zone's live headcount
+> is the other way to read it).
 
 ## 5. Trigger zones — make the room drive the show
 
@@ -157,7 +164,7 @@ A replayed take drives the **same store** the live tracker fills — so it also 
 the mechanism that lets the room advance the show. You can author and tune the whole interaction right
 here, looping `demo.lblob`, with **no venue and no emitter**.
 
-1. **Draw a zone.** Open the **Tracking** workspace context (rail ▸ **Radar**) → **Trigger Zones** dock
+1. **Draw a zone.** Open the **3D** (Venue & Rig) workspace context (rail ▸ the **cube** icon) → **Trigger Zones** dock
    tab. With the take looping (§1), the flat **SOL** map shows the raw blobs drifting. **Drag a
    rectangle** across a part of the floor the blobs cross — it becomes a zone; drag its body to move, a
    corner to resize. It fills in (and shows a live **· headcount**) whenever a blob is inside. Each zone
@@ -195,7 +202,7 @@ A **take** is the live blob feed frozen to a `.lblob` and replayed from a `kind:
 `assets/tracking/…` path referenced in both the take ref and the clip. You recorded your own from the
 emitter (it copies into the open project), then took the three steps to a real venue: bind **All / this
 machine's IP, never the server's**; the **1‑person‑2‑blobs / id≠0** field test; and **Merge People**
-(0.8 m) demoed in the **Tracking** inspector (3D / Tracking context), not the raw 2D Stage. And because
+(0.8 m), which only a projector output window shows. And because
 replay drives the same store as the live tracker, you built **trigger zones** against it — the room‑driven
 path into the **Show Machine**.
 

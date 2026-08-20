@@ -27,8 +27,12 @@ That's [`../../../scripts/lidar-emitter.cjs`](../../../scripts/lidar-emitter.cjs
 venue's OSC protocol on `SOL` and `MUR`. Leave it running. Then **File ▸ Open…** →
 `02-calibrated-projection.artlux`.
 
-On the 2D **Stage** you get one full-screen surface: a couple of coloured discs (the two emitter
-blobs) drifting in slow orbits, over an animated backdrop. Watch a disc for a second — it moves, but
+The backdrop is a timeline clip and rides the transport, and the transport comes up **running** — so it
+is already animating. Do not press Play: it is a toggle, and here it would pause the show and freeze the
+very wash this chapter is about. (The blobs move either way — live OSC does not care about the
+transport, which is exactly why a frozen wash is easy to miss. If you do see a still frame, something
+paused it and Play will bring it back.) On the 2D **Stage** you get one full-screen surface: a couple of
+coloured discs (the two emitter blobs) drifting in slow orbits, over an animated backdrop. Watch a disc for a second — it moves, but
 **the wrong way**. A blob the emitter is sweeping toward the *right* of its zone tracks toward the
 *left* of your surface. That horizontal mirror is the whole point of this chapter.
 
@@ -37,7 +41,7 @@ discs you'll also see an emerald zone border, a grid, corner labels `TL/TR/BR/BL
 gizmo and each blob's `#id` — that's your diagnostic. Reading it is step 2.
 
 > **Sanity check first.** If you see *no* discs at all, the feed isn't arriving — open the **OSC
-> Monitor** (**View ▸ OSC Monitor**, `Ctrl+Shift+M`; a dock tab on the **Tracking** context) and confirm
+> Monitor** (**View ▸ OSC Monitor**, `Ctrl+Shift+M`; a dock tab on the **3D** context) and confirm
 > a green **SOL** card with active blobs before chasing orientation. The emitter binds to
 > `127.0.0.1:10000`; keep **Preferences ▸ OSC / Tracking ▸ Bind address** on **All** so loopback works
 > (OSC receive is a machine setting, not carried in the `.artlux`). See
@@ -101,13 +105,13 @@ overlay canvas is drawn only while **Calibrate *or* Show IDs** is on — so with
 here it stays alive just for the `#id` labels; untick both for pure GPU blobs.) The orientation you set
 is saved in the surface's `content`.
 
-> On a real install you'd also open **Outputs ▸ Align** and drag the corner-pins so the emerald border
+> On a real install you'd also open the **Projection Outputs** workbench (rail ▸ *Proj*) and drag the corner-pins so the emerald border
 > sits on the physical floor edges; the full two-projector `SOL`+`MUR` workflow is in
 > [`../../../docs/OSC.md`](../../../docs/OSC.md) §4. This chapter stays on one editor surface.
 
 ## 4. The backdrop is a media-free EFFECT
 
-Those blobs aren't floating on black — there's an animated wash under them, and it ships with **no
+Those blobs aren't floating on black — there's a wash under them (animated once the transport is running), and it ships with **no
 video file**. Look at the **Background** dropdown in the same Tracking inspector: it's set to a
 timeline layer (**Backdrop**). That layer carries a clip whose content is a generated **EFFECT**, not
 a movie:
@@ -148,7 +152,7 @@ Note that `flipH/flipV/rotate` live on the **surface content**, so orientation i
    the gizmo just gets you close faster.
 3. **Swap the backdrop.** Change **Background** to **— none —** (blobs on black), then back. Or, in the
    EFFECT clip, try `effectId 4` (Fire) + `paletteId 4` (Lava) for a hotter floor. Still zero media.
-4. **Prove it reaches the projector.** Enable this surface on a display in the **Outputs** panel: the
+4. **Prove it reaches the projector.** Enable this surface on a display in the **Projection Outputs** workbench (rail ▸ *Proj*): the
    *same* corrected orientation shows there, because Flip/Rotate is a real transform, not an editor
    overlay.
 

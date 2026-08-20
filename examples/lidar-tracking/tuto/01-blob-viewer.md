@@ -43,14 +43,17 @@ The emitter speaks the exact venue protocol — for each surface it sends
 `id / tx / ty / u / v`. It emits **both `SOL` (floor) and `MUR` (wall)** every frame, so the wall zone
 is being fed too even though this project only shows the floor.
 
-> **What the Stage shows is raw.** The editor Stage intentionally draws **un-merged, un-smoothed**
-> blobs straight from the feed — one marker per active slot. Smoothing and the "2 blobs → 1 person"
-> merge happen downstream in the 3D Scene and projector output, not here.
+> **What the Stage shows is un-merged, but not unfiltered.** The editor Stage runs the *same* One-Euro
+> smoothing and prediction as the projector, from the same **Smoothing** / **Predict** settings — the
+> stage drawable and the projector share `trackingRenderer`, precisely so the look and the calibration
+> math cannot diverge. What the Stage does **not** do is the "2 blobs → 1 person" merge: that is applied
+> only in the projector-output channel (and in trigger-zone counting), so here you get one marker per
+> active slot. The editor 3D Scene shows raw blobs too — see chapter 03.
 
 ## 3. OSC Monitor — read the wire
 
-**View ▸ OSC Monitor…** (`Ctrl+Shift+M`) opens a live sniffer of the raw incoming stream — a dock tab on
-the **Tracking** workspace context (the menu action just switches there and selects it), and the fastest
+**View ▸ OSC Monitor** (`Ctrl+Shift+M`) opens a live sniffer of the raw incoming stream — a dock tab on
+the **3D** (Venue & Rig) workspace context (the menu action just switches there and selects it), and the fastest
 way to confirm *"is anything actually arriving on this machine?"* With the emitter running you'll see:
 
 - **Status strip** — a **green** dot (receiving), the bind target **`*:10000`**, live **msg/s**, the
@@ -62,8 +65,8 @@ way to confirm *"is anything actually arriving on this machine?"* With the emitt
   `SOL` in the **filter** box to isolate the floor: you'll see `/SOL/specs/Scalex`,
   `/SOL/specs/Scaley`, and `/SOL/blobs/blob0/…`, `/SOL/blobs/blob1/…` each ticking near the wire rate.
 
-![Tracking context — OSC Monitor dock tab](images/01-osc-monitor.png)
-<!-- TODO screenshot: Tracking context ▸ OSC Monitor dock tab, green status dot, bind target *:10000, live msg/s, SOL + MUR blob cards (green, 2 active), address table filtered to /SOL. -->
+![3D (Venue & Rig) context — OSC Monitor dock tab](images/01-osc-monitor.png)
+<!-- TODO screenshot: 3D (Venue & Rig) context ▸ OSC Monitor dock tab, green status dot, bind target *:10000, live msg/s, SOL + MUR blob cards (green, 2 active), address table filtered to /SOL. -->
 
 Because the Monitor taps the **raw wire**, the per-address rate reads close to the emitter's **61 fps**.
 ArtLux's tracking store then **coalesces** that to one update per animation frame before it reaches the
@@ -90,7 +93,7 @@ type is **Tracking**, you get the LiDAR content controls (grounded in `ContentEd
 |---|---|
 | **Source** | `SOL — floor` / `MUR — wall` / `SOL_MUR — combined` — which zone's blobs this surface draws. |
 | **Background** | a timeline video/effect layer drawn *under* the blobs (here **— none —**; chapter 02 wires an EFFECT wash in). |
-| **Blob size** | marker diameter as a % of the zone (0.01–0.15). |
+| **Blob size** | marker **radius** as a fraction of the zone **height** (0.01–0.15) — the shipped `0.06` draws a disc 12 % of the zone height across. |
 | **Trail (s)** | how long each blob smears a fading tail (0–3 s); the **Trail** checkbox turns it on/off. |
 | **Rotate** | 0 / 90 / 180 / 270° of the whole zone. |
 | **Flip H / Flip V** | mirror the mapping — used on-site to line the projection up with the real floor. |
@@ -111,15 +114,15 @@ type is **Tracking**, you get the LiDAR content controls (grounded in `ContentEd
 ## 5. The 3D tracking-zone viz
 
 ![The SOL floor and MUR wall in 3D, sharing their bottom edge](images/tracking-zones.svg)
-*The two zones at real scale — **SOL** floor on `y = 0` and **MUR** wall on `z = 0`, sharing their bottom edge. Each active blob is a bloom-lit marker; the amber **U/V** gizmo sits at the bottom-left origin (`u` across the width, `v` up the zone toward the wall).*
+*The two zones at real scale — **SOL** floor on `y = 0` and **MUR** wall on `z = 0`, sharing their bottom edge. Each active blob is a bloom-lit marker. (The amber **U/V** arrows are a diagram annotation showing the bottom-left origin — `u` across the width, `v` up the zone toward the wall. The 3D viz draws no gizmo; that lives on the 2D **Calibrate** overlay, which chapter 02 turns on.)*
 
-Blobs live in real 3D space, not just the flat Stage. Open the **3D** (Venue) or the dedicated
-**Tracking** workspace context from the left rail (the **Radar** icon), and in the right-hand
+Blobs live in real 3D space, not just the flat Stage. Open the
+**3D** (Venue & Rig) workspace context from the left rail (the **cube** icon), and in the right-hand
 **Inspector** find the **Tracking** section (`SceneTrackingPanel`, in
 `src/renderer/contexts/panels/scene3d.tsx` — the old floating `ScenePanel3D` column is gone). Enable
 **Tracking zones (LiDAR)**: the **SOL** floor (on `y = 0`) and **MUR** wall (on `z = 0`) appear at real
 scale in the 3D scene, sharing their bottom edge, with a glowing bloom-lit marker per active blob. (The
-**Tracking** context is the shortcut — it puts the 3D scene in its right pane, so you tune the overlays
+**3D** context is the shortcut — it puts the 3D scene in its right pane, so you tune the overlays
 with the venue in view.) Toggling it on reveals its sub-controls:
 
 - **Smoothing** (0–1) — One-Euro filter strength on the marker motion.
@@ -135,8 +138,9 @@ with the venue in view.) Toggling it on reveals its sub-controls:
 
 Below those, **Merge people (2 blobs → 1)** (and its **Merge radius**) is the on-site people-merge — also
 chapter 03's topic. Nudge **Smoothing** up and the orbiting markers glide more; drop it to `0` and they
-snap frame-to-frame. Unlike the Stage, this is the **smoothed** view — the same data, filtered the way the
-projectors will see it.
+snap frame-to-frame. **Smoothing and Predict drive the 2D Stage too** — one setting, read by both. What
+this view adds over the Stage is the 3D venue around the blobs. It does **not** add the people-merge:
+that runs only in a projector-output window and in zone counting.
 
 ## 6. The pieces, named
 
@@ -147,8 +151,8 @@ projectors will see it.
 | **Empty slot** | (not shown live) | `id == 0` in the protocol |
 | **Surface content** | Floor (SOL) surface | `content.type: "TRACKING"`, `trackingSource: "SOL"` |
 | **OSC listener** | receives the feed | **Preferences ▸ OSC / Tracking** — port `10000`, Bind **All** (not in the `.artlux`) |
-| **Raw view** | the 2D Stage | un-merged, un-smoothed markers |
-| **Smoothed view** | 3D / Tracking context | Tracking zones (LiDAR), One-Euro + prediction |
+| **Un-merged view** | the 2D Stage | one marker per slot; One-Euro + prediction still applied |
+| **Merged view** | a projector output window | the same data, plus "2 blobs → 1 person" |
 
 ## Recap
 

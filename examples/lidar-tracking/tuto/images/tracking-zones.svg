@@ -24,7 +24,7 @@
 
   <rect x="0" y="0" width="780" height="430" rx="12" fill="#14171d" stroke="#2b3140" stroke-width="1"/>
   <text x="34" y="40" class="title">The tracking zones in 3D — SOL floor + MUR wall</text>
-  <text x="34" y="64" class="sub">Both zones are 5.825 × 3.125 m and share their bottom edge. Markers are smoothed blobs (one per tracked person).</text>
+  <text x="34" y="64" class="sub">Both zones are 5.825 × 3.125 m and share their bottom edge. Markers are smoothed blobs — one per active blob, not per person (no merge here).</text>
 
   <!-- MUR wall (frontal, z = 0) -->
   <polygon points="250,110 560,110 560,238 250,238" fill="#0e1a17" fill-opacity="0.7" class="zedge"/>
@@ -74,5 +74,5 @@
   <text x="628" y="196" class="zsub">height / depth (+V)</text>
 
   <!-- note -->
-  <text x="34" y="408" class="note">Tracking context ▸ Tracking inspector ▸ Tracking zones (LiDAR) — the smoothed view (One-Euro filter + prediction), not the raw 2D Stage.</text>
+  <text x="34" y="408" class="note">3D (Venue &amp; Rig) ▸ Tracking inspector ▸ Tracking zones (LiDAR) — the venue around the blobs. Smoothing + prediction are shared with the 2D Stage; neither is people-merged.</text>
 </svg>

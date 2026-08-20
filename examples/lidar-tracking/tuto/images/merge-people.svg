@@ -46,7 +46,7 @@
   <text x="378" y="228" text-anchor="middle" class="asub">within 0.8 m → 1</text>
 
   <!-- Panel B: merged, one marker -->
-  <text x="580" y="100" text-anchor="middle" class="pcap">3D Scene / projector</text>
+  <text x="580" y="100" text-anchor="middle" class="pcap">Projector output window</text>
   <circle cx="580" cy="144" r="13" fill="#cbd5e1"/>
   <rect x="565" y="160" width="30" height="52" rx="9" fill="#94a3b8"/>
   <line x1="573" y1="210" x2="562" y2="250" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
@@ -56,6 +56,6 @@
 
   <!-- bottom callout -->
   <rect x="34" y="348" width="712" height="56" rx="8" fill="#171b22" stroke="#2b3140"/>
-  <text x="52" y="372" class="note">The 2D editor Stage always shows the raw 2 markers — the ground truth. Merge applies only in the 3D viz &amp; projector output.</text>
+  <text x="52" y="372" class="note">The 2D Stage AND the editor 3D Scene both show the raw 2 markers — the ground truth. Merge applies only in a projector output window (and in zone counting).</text>
   <text x="52" y="392" class="notek">Scene3D ▸ trackingMergePeople + trackingMergeRadius (0.8 m) — blobs pair by distance, not by id.</text>
 </svg>
