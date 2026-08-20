@@ -1,0 +1,751 @@
+{
+  "version": "1.2",
+  "timestamp": "2026-08-19T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_wall",
+      "name": "Wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 0.5,
+      "rotation": 0,
+      "zIndex": 1,
+      "content": {
+        "type": "SHADER",
+        "shaderId": "plasma",
+        "shaderSource": "/*{\n  \"TITLE\": \"Home - slow tide\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"speed\", \"LABEL\": \"Speed\", \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 1.5, \"DEFAULT\": 0.25 },\n    { \"NAME\": \"glow\",  \"LABEL\": \"Glow\",  \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 2.0, \"DEFAULT\": 1.0 }\n  ]\n}*/\n// HOME. Deliberately the calmest of the three: wide, slow bands, deep blue-green. \"Nothing has been\n// triggered yet\" has to read from across the room, and the way it reads is by NOT moving much.\nvec4 shaderColor(vec2 uv) {\n  vec2 p = (uv - 0.5) * vec2(iAspect, 1.0);\n  float w = sin(p.y * 5.0 + iTime * speed)\n          + 0.5 * sin(p.x * 3.0 - iTime * speed * 0.7);\n  float t = clamp(0.5 + 0.25 * w, 0.0, 1.0);\n  vec3 col = mix(vec3(0.02, 0.06, 0.18), vec3(0.10, 0.55, 0.75), t);\n  return vec4(col * glow, 1.0);\n}",
+        "shaderRes": 1080,
+        "opacity": 1
+      }
+    },
+    {
+      "id": "srf_floor",
+      "name": "Floor",
+      "x": 0,
+      "y": 0.5,
+      "width": 1,
+      "height": 0.5,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "TRACKING",
+        "trackingSource": "SOL",
+        "bgLayerId": "lay_pads",
+        "blobSize": 0.06,
+        "showIds": true,
+        "trail": true,
+        "trailSeconds": 0.8,
+        "flipH": false,
+        "flipV": false,
+        "rotate": 0,
+        "calibration": true,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [],
+  "controllers": [
+    {
+      "id": "ctl_local",
+      "name": "Loopback",
+      "protocol": "artnet",
+      "ip": "127.0.0.1",
+      "broadcast": false,
+      "startUniverse": 0
+    }
+  ],
+  "globalBrightness": 1,
+  "groups": [],
+  "scenes": [
+    {
+      "id": "sc_home",
+      "name": "Home",
+      "accent": "#22d3ee",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "SHADER",
+            "shaderId": "plasma",
+            "shaderSource": "/*{\n  \"TITLE\": \"Home - slow tide\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"speed\", \"LABEL\": \"Speed\", \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 1.5, \"DEFAULT\": 0.25 },\n    { \"NAME\": \"glow\",  \"LABEL\": \"Glow\",  \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 2.0, \"DEFAULT\": 1.0 }\n  ]\n}*/\n// HOME. Deliberately the calmest of the three: wide, slow bands, deep blue-green. \"Nothing has been\n// triggered yet\" has to read from across the room, and the way it reads is by NOT moving much.\nvec4 shaderColor(vec2 uv) {\n  vec2 p = (uv - 0.5) * vec2(iAspect, 1.0);\n  float w = sin(p.y * 5.0 + iTime * speed)\n          + 0.5 * sin(p.x * 3.0 - iTime * speed * 0.7);\n  float t = clamp(0.5 + 0.25 * w, 0.0, 1.0);\n  vec3 col = mix(vec3(0.02, 0.06, 0.18), vec3(0.10, 0.55, 0.75), t);\n  return vec4(col * glow, 1.0);\n}",
+            "shaderRes": 1080,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "bgLayerId": "lay_pads",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": true,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [],
+      "scene3D": {
+        "models": [],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_left",
+          "zn_right",
+          "zn_home"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "id": "lay_pads",
+            "name": "Floor pads",
+            "kind": "video",
+            "enabled": true,
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_pads",
+            "layerId": "lay_pads",
+            "name": "Pads",
+            "path": "",
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"showLeft\",   \"LABEL\": \"Left pad\",    \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showRight\",  \"LABEL\": \"Right pad\",   \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showReturn\", \"LABEL\": \"Return pad\",  \"TYPE\": \"bool\",  \"DEFAULT\": false },\n    { \"NAME\": \"border\",     \"LABEL\": \"Border\",      \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.014 },\n    { \"NAME\": \"pulse\",      \"LABEL\": \"Pulse rate\",  \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.9 },\n    { \"NAME\": \"interior\",   \"LABEL\": \"Interior\",    \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.10 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON. Drawn as the floor surface's BACKGROUND layer, with the live blobs\n// composited on top by the TRACKING content - so one projector shows the thing you step on and the\n// thing that proves the tracker saw you, in register, in one picture.\n//\n// uv HERE IS TRACKER SPACE: uv.x = u, uv.y = v, no flip. See the coordinate chain in sync-pads.cjs.\n//\n// GENERATED - do not hand-edit. Re-run sync-pads.cjs after moving a zone.\nconst vec4 R_LEFT   = vec4(0.0600, 0.2500, 0.3000, 0.7500);   // u0, v0, u1, v1\nconst vec4 R_RIGHT  = vec4(0.7000, 0.2500, 0.9400, 0.7500);\nconst vec4 R_RETURN = vec4(0.3800, 0.3000, 0.6200, 0.7000);\nconst vec3 C_LEFT   = vec3(0.9608, 0.6196, 0.0431);\nconst vec3 C_RIGHT  = vec3(0.8510, 0.2745, 0.9373);\nconst vec3 C_RETURN = vec3(0.1333, 0.8275, 0.9333);\n\n// Coverage of one pad at uv: a breathing border ring over a dim interior. The interior stays dim on\n// purpose - a bright fill would wash out the blob markers drawn over it, and those markers are the\n// reason the floor is projected at all.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  // Distance to the nearest edge, x scaled by iAspect so the ring reads about the same thickness along\n  // a wall as across it. NOTE iAspect is the SHADER BUFFER aspect, and for a timeline-layer clip that\n  // is the 16:9 fallback (shaderDrawable.aspectFor resolves surface ids, and this content key is\n  // layer:lay_pads) - not the LiDAR zone aspect, which for the shipped emitter is 5.825/3.125 = 1.86.\n  // Close enough that the correction is worth having, ~5% out; do not read it as exact.\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (showLeft)   { float t = padCover(uv, R_LEFT,   breath); col += C_LEFT   * t; a = max(a, t); }\n  if (showRight)  { float t = padCover(uv, R_RIGHT,  breath); col += C_RIGHT  * t; a = max(a, t); }\n  if (showReturn) { float t = padCover(uv, R_RETURN, breath); col += C_RETURN * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied - the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 720,
+              "shaderParams": {
+                "showLeft": true,
+                "showRight": true,
+                "showReturn": false,
+                "border": 0.014,
+                "pulse": 0.9,
+                "interior": 0.1
+              },
+              "opacity": 1
+            },
+            "start": 0,
+            "duration": 60,
+            "inPoint": 0
+          }
+        ],
+        "duration": 60,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true
+      }
+    },
+    {
+      "id": "sc_one",
+      "name": "Scene 1 (left)",
+      "accent": "#f59e0b",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "SHADER",
+            "shaderId": "plasma",
+            "shaderSource": "/*{\n  \"TITLE\": \"State 1 - amber bloom\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"speed\", \"LABEL\": \"Speed\", \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 2.0, \"DEFAULT\": 0.7 },\n    { \"NAME\": \"glow\",  \"LABEL\": \"Glow\",  \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 2.0, \"DEFAULT\": 1.0 }\n  ]\n}*/\n// STATE 1 (the LEFT pad). Amber, radial, clearly busier than home - you should be able to tell which\n// state the room is in from the far side of it, without reading a label.\nvec4 shaderColor(vec2 uv) {\n  vec2 p = (uv - 0.5) * vec2(iAspect, 1.0);\n  float r = length(p);\n  float ang = atan(p.y, p.x);\n  float petals = 0.5 + 0.5 * sin(ang * 6.0 + iTime * speed * 2.0 - r * 8.0);\n  float falloff = smoothstep(0.95, 0.0, r);\n  vec3 col = mix(vec3(0.18, 0.04, 0.00), vec3(1.00, 0.62, 0.15), petals * falloff);\n  return vec4(col * glow, 1.0);\n}",
+            "shaderRes": 1080,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "bgLayerId": "lay_pads",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": true,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [],
+      "scene3D": {
+        "models": [],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_left",
+          "zn_right",
+          "zn_home"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "id": "lay_pads",
+            "name": "Floor pads",
+            "kind": "video",
+            "enabled": true,
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_pads",
+            "layerId": "lay_pads",
+            "name": "Pads",
+            "path": "",
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"showLeft\",   \"LABEL\": \"Left pad\",    \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showRight\",  \"LABEL\": \"Right pad\",   \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showReturn\", \"LABEL\": \"Return pad\",  \"TYPE\": \"bool\",  \"DEFAULT\": false },\n    { \"NAME\": \"border\",     \"LABEL\": \"Border\",      \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.014 },\n    { \"NAME\": \"pulse\",      \"LABEL\": \"Pulse rate\",  \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.9 },\n    { \"NAME\": \"interior\",   \"LABEL\": \"Interior\",    \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.10 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON. Drawn as the floor surface's BACKGROUND layer, with the live blobs\n// composited on top by the TRACKING content - so one projector shows the thing you step on and the\n// thing that proves the tracker saw you, in register, in one picture.\n//\n// uv HERE IS TRACKER SPACE: uv.x = u, uv.y = v, no flip. See the coordinate chain in sync-pads.cjs.\n//\n// GENERATED - do not hand-edit. Re-run sync-pads.cjs after moving a zone.\nconst vec4 R_LEFT   = vec4(0.0600, 0.2500, 0.3000, 0.7500);   // u0, v0, u1, v1\nconst vec4 R_RIGHT  = vec4(0.7000, 0.2500, 0.9400, 0.7500);\nconst vec4 R_RETURN = vec4(0.3800, 0.3000, 0.6200, 0.7000);\nconst vec3 C_LEFT   = vec3(0.9608, 0.6196, 0.0431);\nconst vec3 C_RIGHT  = vec3(0.8510, 0.2745, 0.9373);\nconst vec3 C_RETURN = vec3(0.1333, 0.8275, 0.9333);\n\n// Coverage of one pad at uv: a breathing border ring over a dim interior. The interior stays dim on\n// purpose - a bright fill would wash out the blob markers drawn over it, and those markers are the\n// reason the floor is projected at all.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  // Distance to the nearest edge, x scaled by iAspect so the ring reads about the same thickness along\n  // a wall as across it. NOTE iAspect is the SHADER BUFFER aspect, and for a timeline-layer clip that\n  // is the 16:9 fallback (shaderDrawable.aspectFor resolves surface ids, and this content key is\n  // layer:lay_pads) - not the LiDAR zone aspect, which for the shipped emitter is 5.825/3.125 = 1.86.\n  // Close enough that the correction is worth having, ~5% out; do not read it as exact.\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (showLeft)   { float t = padCover(uv, R_LEFT,   breath); col += C_LEFT   * t; a = max(a, t); }\n  if (showRight)  { float t = padCover(uv, R_RIGHT,  breath); col += C_RIGHT  * t; a = max(a, t); }\n  if (showReturn) { float t = padCover(uv, R_RETURN, breath); col += C_RETURN * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied - the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 720,
+              "shaderParams": {
+                "showLeft": false,
+                "showRight": false,
+                "showReturn": true,
+                "border": 0.014,
+                "pulse": 0.9,
+                "interior": 0.1
+              },
+              "opacity": 1
+            },
+            "start": 0,
+            "duration": 60,
+            "inPoint": 0
+          }
+        ],
+        "duration": 60,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true
+      }
+    },
+    {
+      "id": "sc_two",
+      "name": "Scene 2 (right)",
+      "accent": "#d946ef",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "SHADER",
+            "shaderId": "plasma",
+            "shaderSource": "/*{\n  \"TITLE\": \"State 2 - magenta scan\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"speed\", \"LABEL\": \"Speed\", \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 2.0, \"DEFAULT\": 0.6 },\n    { \"NAME\": \"glow\",  \"LABEL\": \"Glow\",  \"TYPE\": \"float\", \"MIN\": 0.0, \"MAX\": 2.0, \"DEFAULT\": 1.0 }\n  ]\n}*/\n// STATE 2 (the RIGHT pad). Magenta, hard bars sweeping sideways - a different COLOUR and a different\n// kind of motion from state 1, so the two are not merely two hues of the same look.\nvec4 shaderColor(vec2 uv) {\n  vec2 p = (uv - 0.5) * vec2(iAspect, 1.0);\n  float bars = sin(p.x * 14.0 - iTime * speed * 3.0);\n  float pulsing = 0.5 + 0.5 * sin(iTime * speed * 1.5);\n  float m = smoothstep(-0.2, 1.0, bars) * mix(0.55, 1.0, pulsing);\n  vec3 col = mix(vec3(0.10, 0.00, 0.14), vec3(0.85, 0.15, 0.75), m);\n  return vec4(col * glow, 1.0);\n}",
+            "shaderRes": 1080,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "bgLayerId": "lay_pads",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": true,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [],
+      "scene3D": {
+        "models": [],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_left",
+          "zn_right",
+          "zn_home"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "id": "lay_pads",
+            "name": "Floor pads",
+            "kind": "video",
+            "enabled": true,
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_pads",
+            "layerId": "lay_pads",
+            "name": "Pads",
+            "path": "",
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"showLeft\",   \"LABEL\": \"Left pad\",    \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showRight\",  \"LABEL\": \"Right pad\",   \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showReturn\", \"LABEL\": \"Return pad\",  \"TYPE\": \"bool\",  \"DEFAULT\": false },\n    { \"NAME\": \"border\",     \"LABEL\": \"Border\",      \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.014 },\n    { \"NAME\": \"pulse\",      \"LABEL\": \"Pulse rate\",  \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.9 },\n    { \"NAME\": \"interior\",   \"LABEL\": \"Interior\",    \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.10 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON. Drawn as the floor surface's BACKGROUND layer, with the live blobs\n// composited on top by the TRACKING content - so one projector shows the thing you step on and the\n// thing that proves the tracker saw you, in register, in one picture.\n//\n// uv HERE IS TRACKER SPACE: uv.x = u, uv.y = v, no flip. See the coordinate chain in sync-pads.cjs.\n//\n// GENERATED - do not hand-edit. Re-run sync-pads.cjs after moving a zone.\nconst vec4 R_LEFT   = vec4(0.0600, 0.2500, 0.3000, 0.7500);   // u0, v0, u1, v1\nconst vec4 R_RIGHT  = vec4(0.7000, 0.2500, 0.9400, 0.7500);\nconst vec4 R_RETURN = vec4(0.3800, 0.3000, 0.6200, 0.7000);\nconst vec3 C_LEFT   = vec3(0.9608, 0.6196, 0.0431);\nconst vec3 C_RIGHT  = vec3(0.8510, 0.2745, 0.9373);\nconst vec3 C_RETURN = vec3(0.1333, 0.8275, 0.9333);\n\n// Coverage of one pad at uv: a breathing border ring over a dim interior. The interior stays dim on\n// purpose - a bright fill would wash out the blob markers drawn over it, and those markers are the\n// reason the floor is projected at all.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  // Distance to the nearest edge, x scaled by iAspect so the ring reads about the same thickness along\n  // a wall as across it. NOTE iAspect is the SHADER BUFFER aspect, and for a timeline-layer clip that\n  // is the 16:9 fallback (shaderDrawable.aspectFor resolves surface ids, and this content key is\n  // layer:lay_pads) - not the LiDAR zone aspect, which for the shipped emitter is 5.825/3.125 = 1.86.\n  // Close enough that the correction is worth having, ~5% out; do not read it as exact.\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (showLeft)   { float t = padCover(uv, R_LEFT,   breath); col += C_LEFT   * t; a = max(a, t); }\n  if (showRight)  { float t = padCover(uv, R_RIGHT,  breath); col += C_RIGHT  * t; a = max(a, t); }\n  if (showReturn) { float t = padCover(uv, R_RETURN, breath); col += C_RETURN * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied - the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 720,
+              "shaderParams": {
+                "showLeft": false,
+                "showRight": false,
+                "showReturn": true,
+                "border": 0.014,
+                "pulse": 0.9,
+                "interior": 0.1
+              },
+              "opacity": 1
+            },
+            "start": 0,
+            "duration": 60,
+            "inPoint": 0
+          }
+        ],
+        "duration": 60,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true
+      }
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_home"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_one"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_two"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": true,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50,
+    "trackingLabels": true,
+    "trackingMergePeople": true,
+    "trackingMergeRadius": 0.8,
+    "trackingZoneEnterSec": 0.25,
+    "trackingZoneExitSec": 0.8,
+    "trackingZones": [
+      {
+        "id": "zn_left",
+        "name": "Left pad",
+        "surface": "SOL",
+        "u0": 0.06,
+        "u1": 0.3,
+        "v0": 0.25,
+        "v1": 0.75,
+        "color": "#f59e0b",
+        "minBlobs": 1
+      },
+      {
+        "id": "zn_right",
+        "name": "Right pad",
+        "surface": "SOL",
+        "u0": 0.7,
+        "u1": 0.94,
+        "v0": 0.25,
+        "v1": 0.75,
+        "color": "#d946ef",
+        "minBlobs": 1
+      },
+      {
+        "id": "zn_home",
+        "name": "Return pad",
+        "surface": "SOL",
+        "u0": 0.38,
+        "u1": 0.62,
+        "v0": 0.3,
+        "v1": 0.7,
+        "color": "#22d3ee",
+        "minBlobs": 1
+      }
+    ],
+    "activeZoneIds": [
+      "zn_left",
+      "zn_right",
+      "zn_home"
+    ]
+  },
+  "timeline": {
+    "layers": [
+      {
+        "id": "lay_pads",
+        "name": "Floor pads",
+        "kind": "video",
+        "enabled": true,
+        "opacity": 1,
+        "blendMode": "normal"
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_pads",
+        "layerId": "lay_pads",
+        "name": "Pads",
+        "path": "",
+        "content": {
+          "type": "SHADER",
+          "shaderId": "plasma",
+          "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"showLeft\",   \"LABEL\": \"Left pad\",    \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showRight\",  \"LABEL\": \"Right pad\",   \"TYPE\": \"bool\",  \"DEFAULT\": true },\n    { \"NAME\": \"showReturn\", \"LABEL\": \"Return pad\",  \"TYPE\": \"bool\",  \"DEFAULT\": false },\n    { \"NAME\": \"border\",     \"LABEL\": \"Border\",      \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.014 },\n    { \"NAME\": \"pulse\",      \"LABEL\": \"Pulse rate\",  \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.9 },\n    { \"NAME\": \"interior\",   \"LABEL\": \"Interior\",    \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.10 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON. Drawn as the floor surface's BACKGROUND layer, with the live blobs\n// composited on top by the TRACKING content - so one projector shows the thing you step on and the\n// thing that proves the tracker saw you, in register, in one picture.\n//\n// uv HERE IS TRACKER SPACE: uv.x = u, uv.y = v, no flip. See the coordinate chain in sync-pads.cjs.\n//\n// GENERATED - do not hand-edit. Re-run sync-pads.cjs after moving a zone.\nconst vec4 R_LEFT   = vec4(0.0600, 0.2500, 0.3000, 0.7500);   // u0, v0, u1, v1\nconst vec4 R_RIGHT  = vec4(0.7000, 0.2500, 0.9400, 0.7500);\nconst vec4 R_RETURN = vec4(0.3800, 0.3000, 0.6200, 0.7000);\nconst vec3 C_LEFT   = vec3(0.9608, 0.6196, 0.0431);\nconst vec3 C_RIGHT  = vec3(0.8510, 0.2745, 0.9373);\nconst vec3 C_RETURN = vec3(0.1333, 0.8275, 0.9333);\n\n// Coverage of one pad at uv: a breathing border ring over a dim interior. The interior stays dim on\n// purpose - a bright fill would wash out the blob markers drawn over it, and those markers are the\n// reason the floor is projected at all.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  // Distance to the nearest edge, x scaled by iAspect so the ring reads about the same thickness along\n  // a wall as across it. NOTE iAspect is the SHADER BUFFER aspect, and for a timeline-layer clip that\n  // is the 16:9 fallback (shaderDrawable.aspectFor resolves surface ids, and this content key is\n  // layer:lay_pads) - not the LiDAR zone aspect, which for the shipped emitter is 5.825/3.125 = 1.86.\n  // Close enough that the correction is worth having, ~5% out; do not read it as exact.\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (showLeft)   { float t = padCover(uv, R_LEFT,   breath); col += C_LEFT   * t; a = max(a, t); }\n  if (showRight)  { float t = padCover(uv, R_RIGHT,  breath); col += C_RIGHT  * t; a = max(a, t); }\n  if (showReturn) { float t = padCover(uv, R_RETURN, breath); col += C_RETURN * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied - the shader context is premultipliedAlpha:true\n}",
+          "shaderRes": 720,
+          "shaderParams": {
+            "showLeft": true,
+            "showRight": true,
+            "showReturn": false,
+            "border": 0.014,
+            "pulse": 0.9,
+            "interior": 0.1
+          },
+          "opacity": 1
+        },
+        "start": 0,
+        "duration": 60,
+        "inPoint": 0
+      }
+    ],
+    "duration": 60,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": true,
+    "holdAtEnd": false,
+    "trackingTakes": [],
+    "automation": [],
+    "audio": {
+      "tracks": [],
+      "clips": []
+    },
+    "boundedDuration": true
+  },
+  "stateMachine": {
+    "enabled": true,
+    "initialStateId": "st_home",
+    "regions": [
+      {
+        "id": "rg_idle",
+        "name": "Idle",
+        "x": 40,
+        "y": 40,
+        "w": 260,
+        "h": 200,
+        "color": "#155e75"
+      },
+      {
+        "id": "rg_react",
+        "name": "Triggered by the floor",
+        "x": 360,
+        "y": 40,
+        "w": 420,
+        "h": 340,
+        "color": "#4c1d95"
+      }
+    ],
+    "states": [
+      {
+        "id": "st_home",
+        "name": "Home",
+        "sceneId": "sc_home",
+        "x": 120,
+        "y": 120,
+        "entry": [
+          {
+            "kind": "play"
+          }
+        ],
+        "regionId": "rg_idle"
+      },
+      {
+        "id": "st_one",
+        "name": "State 1",
+        "sceneId": "sc_one",
+        "x": 440,
+        "y": 100,
+        "entry": [],
+        "regionId": "rg_react"
+      },
+      {
+        "id": "st_two",
+        "name": "State 2",
+        "sceneId": "sc_two",
+        "x": 440,
+        "y": 270,
+        "entry": [],
+        "regionId": "rg_react"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "tr_home_one",
+        "from": "st_home",
+        "to": "st_one",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_left",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_home_two",
+        "from": "st_home",
+        "to": "st_two",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_right",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_one_home",
+        "from": "st_one",
+        "to": "st_home",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_home",
+            "edge": "occupiedFor",
+            "seconds": 1.2
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_two_home",
+        "from": "st_two",
+        "to": "st_home",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_home",
+            "edge": "occupiedFor",
+            "seconds": 1.2
+          }
+        },
+        "fadeSec": 1
+      }
+    ],
+    "idleResetSec": 120
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [
+    {
+      "surfaceId": "srf_wall",
+      "name": "Wall",
+      "enabled": false,
+      "displayId": null,
+      "cornerPin": {
+        "tl": [
+          0,
+          0
+        ],
+        "tr": [
+          1,
+          0
+        ],
+        "br": [
+          1,
+          1
+        ],
+        "bl": [
+          0,
+          1
+        ]
+      },
+      "warp": null,
+      "softEdge": {
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "gamma": 2.2
+      },
+      "gamma": 1
+    },
+    {
+      "surfaceId": "srf_floor",
+      "name": "Floor",
+      "enabled": false,
+      "displayId": null,
+      "cornerPin": {
+        "tl": [
+          0,
+          0
+        ],
+        "tr": [
+          1,
+          0
+        ],
+        "br": [
+          1,
+          1
+        ],
+        "bl": [
+          0,
+          1
+        ]
+      },
+      "warp": null,
+      "softEdge": {
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "gamma": 2.2
+      },
+      "gamma": 1
+    }
+  ],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}
