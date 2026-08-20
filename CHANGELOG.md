@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+### Fix: a dropped sound landed at the wrong length and could not be resized
+
+Dragging an audio file from the Media library onto a **timeline** lane produced a clip of a default
+length whose right-trim handle would not move -- while dropping the same file on an **Audio Bed** track
+worked perfectly. That difference was the whole diagnosis: the bed asks the native engine for a file's
+length (it reads the file directly), and the timeline asks Chromium over the `artlux-media://` scheme.
+
+The scheme was refusing the file. `mediaAccess` -- the allowlist deciding what that scheme will serve --
+was populated in exactly one place, `openProjectTimed`, so it only ever knew what a project referenced
+**at open**. Anything acquired during the session was invisible to it: an import into a project that has
+no folder yet, the folder a first **Save** creates, a **Scan**, a relink, a file picked in a dialog. And
+a `403` does not look like a permission failure downstream -- it looks exactly like a file that will not
+decode. The duration probe resolved null, the clip was placed at the fallback length with no
+`sourceDuration`, and the trim cap then pinned the handle to that length (it refuses to invent source it
+cannot prove exists, which is correct -- the wrong thing was upstream).
+
+Media is now admitted as it arrives, one file at a time, and the docs that already claimed this happened
+have been corrected to describe what is actually implemented. Same fix, same cause: a video picked from
+the content editor's file button, and an image or video dropped on a lane with no project folder open,
+were black for the same reason.
+
+### MP3 support
+
+`.mp3` can be imported, dropped on a lane or on a bed track, and played. It is **converted once** into a
+cached WAV rather than decoded natively, which is a licence decision and not a limitation: JUCE's mp3
+decoder is a build flag that attaches JUCE's own patent disclaimer to every build, and the conversion
+machinery already existed for video soundtracks. Chromium's decoder does the work; the venue plays a WAV.
+A file is silent for the seconds its first conversion takes and behaves like any other clip after that,
+and the cold-start gate now waits briefly for a bed/timeline conversion the way it already waited for a
+video's. AAC/`m4a` are still declined -- nothing converts a bare one, so a clip could not sound.
+
+### Audition an audio asset from the Media library
+
+Selecting a sound in the library gives it a play/pause button and a scrub bar, for the file whose name
+does not say which take it is. It plays on the machine's **default output**, sharing nothing with the
+native engine -- so it cannot put a sound in the room during a live cue, and it works when the audio
+engine is missing entirely.
+
+### The spatial positioner moves the sound while you drag it, and draws your speakers
+
+The pad committed only on release, so a drag was silent and the sound jumped when you let go -- on the
+one control whose entire purpose is hearing where a sound goes. It now pushes the position to the engine
+on every pointermove and still writes the document exactly once, on release. The height slider does the
+same.
+
+It also draws the **speaker layout selected in Preferences**, taken from the decoder's own presets rather
+than from the names of the layouts (the ring layouts run clockwise from a different start angle than the
+discrete ones -- drawing them by eye would silently mirror the room). Each speaker is marked with the
+**device channel** it is patched to, so a position on the pad and an output on the interface are the same
+statement; a marker whose channel the device does not have is drawn amber, which is the silent-speaker
+case Preferences warns about in words. Binaural draws no rig, because there is none.
+
 ## v0.25.5
 
 ### Fix: the macOS build was dead on arrival on Apple Silicon
