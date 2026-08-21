@@ -1,4 +1,4 @@
-// THE COMMISSIONING SOURCE — a pink-noise file the engine can play as an ordinary clip.
+// THE COMMISSIONING SOURCE — a blip the engine can play as an ordinary clip.
 //
 // ── WHY A FILE, AND WHY NOT `setTestTone` ─────────────────────────────────────────────────────────
 //
@@ -21,7 +21,7 @@
 //
 // ── WHY GENERATED RATHER THAN SHIPPED ─────────────────────────────────────────────────────────────
 //
-// It is 1.8 MB of noise. Deriving it costs ~30 ms once per machine and keeps a binary blob out of the
+// It is a few MB of blips. Deriving it costs ~50 ms once per machine and keeps a binary blob out of the
 // repo. Cached in userData beside the conform cache, and keyed by the parameters that define it, so a
 // change to the generator produces a different file rather than silently reusing the old one.
 
@@ -31,57 +31,61 @@ import { join } from 'node:path';
 import { closeWav, openWav, writeWav } from './wavPcm';
 
 const RATE = 48000;
-const SECONDS = 20;      // longer than anyone holds a button; the transport simply runs out if they do
+// EXACTLY 90 BEATS at 90 BPM, and the whole number is what makes the loop work. The renderer restarts
+// the clip when it runs out (the engine has no looping transport), and a whole number of beats means the
+// restart lands ON a beat. It also lands in the ~0.6 s of silence between blips, so even a few
+// milliseconds of timer drift is inaudible — the beat is either exactly right or imperceptibly late,
+// never a doubled or clipped blip.
+const SECONDS = 60;
 const CHANNELS = 1;      // MONO, and it must stay mono: the engine folds a spatial source to mono anyway
                          // (a spatial clip's chain is 1 ch — see docs/AUDIO.md), so stereo would be
                          // downmixed and the file would be twice the size for the same sound.
 
 // ⚠ THE LEVEL IS THE DIRECT TONE'S OUTPUT LEVEL, NOT ITS PER-SAMPLE SCALING.
 //
-// engine.cpp writes `(pink) * 0.2f * toneGain` and AudioSettings holds toneGain at 0.5, so what the
-// direct test actually puts on a channel is `pink * 0.1`. Baking only the 0.2 and leaving the 0.5 to
-// playback gain CLIPPED: the Kellet sum reaches about ±5 for white input in [-1, 1], so ×0.2 lands on
-// full scale and the 16-bit clamp fires — a file made to judge a speaker by, with distortion in it.
-// Bake the whole 0.1 and play at unity instead. Measured peak after this: ~0.5 FS.
-const SCALE = 0.2 * 0.5;
+// engine.cpp writes `sin * env * 0.5f * toneGain`, and AudioSettings holds toneGain at 0.5 — so what the
+// direct test actually puts on a channel peaks at 0.25. Bake the whole thing and play at unity, rather
+// than baking half of it and leaving the rest to playback gain. (Doing exactly that with the pink noise
+// this replaced put the file ON full scale and made the 16-bit clamp fire: a file for judging a speaker,
+// with distortion in it.)
+const SCALE = 0.5 * 0.5;
 
-// ⚠ THE SAME NOISE THE DIRECT TEST MAKES, DELIBERATELY.
-//
-// Paul Kellet's economy pink filter, transcribed from engine.cpp's `setTestTone` including its 0.2
-// scaling. The two tests are meant to be compared BY EAR, one after the other, on the same speaker —
-// and an operator cannot compare two sounds that have different timbre. Identical source material means
+// ⚠ THE SAME BLIP THE DIRECT TEST MAKES, DELIBERATELY — same numbers, transcribed from engine.cpp's
+// kTone* constants. The two tests are meant to be compared BY EAR, one after the other, on the same
+// speaker, and an operator cannot compare two sounds of different timbre. Identical source material means
 // the only thing that can differ between them is WHICH BOX IT COMES OUT OF, which is the entire test.
 //
-// (Levels still will not match exactly: the placed source goes through the decoder, which applies its
-// own per-speaker gains. Timbre is what the ear compares; loudness is not the question being asked.)
-// ⚠ THE FILTER STATE AND THE SEED LIVE ACROSS BLOCKS, and that is not a detail.
+// A REPEATING TRANSIENT rather than a continuous tone, because that is what the ear localises: two
+// speakers a metre apart both playing steady hiss are genuinely hard to tell apart — there is no onset to
+// compare — while a blip at a walking tempo lets you stand between them and hear which starts first.
 //
-// The file is written in blocks so it never allocates whole. Reset either of these per block and the
-// result is not pink noise: the RNG replays the identical sequence every block (a 1.37-second loop,
-// plainly audible as a pattern) and the three filter poles snap back to zero at every seam (a click,
-// 15 times in a 20-second file). Both would show up exactly where they do most harm — an operator
-// listening closely to decide whether a speaker is working.
-function makePinkGenerator(): (frames: number) => Int16Array {
-  let b0 = 0, b1 = 0, b2 = 0;
-  // A FIXED SEED, so the file is byte-identical on every machine and across regenerations. Small
-  // xorshift — Math.random() would make the artefact unreproducible.
-  let s = 0x9e3779b9 >>> 0;
-  const rnd = (): number => {
-    s ^= s << 13; s >>>= 0;
-    s ^= s >>> 17;
-    s ^= s << 5; s >>>= 0;
-    return s / 0x100000000;
-  };
+// (Levels still will not match exactly: the placed source goes through the decoder, which applies its own
+// per-speaker gains. Timbre is what the ear compares; loudness is not the question being asked.)
+const TONE_HZ = 660;
+const TONE_BPM = 90;
+const ATTACK_SEC = 0.005;
+const DECAY_SEC = 0.050;
+// ⚠ THE SAMPLE COUNTER LIVES ACROSS BLOCKS. The file is written in blocks so it never allocates whole,
+// and the beat phase is derived from an absolute sample index — reset it per block and every block would
+// restart the pattern, putting a blip 1.37 s apart from the previous one instead of 0.67 s. (The pink
+// noise this replaced had the same hazard in a nastier form: a per-block seed made the whole file a
+// short repeating loop with a click at every seam.)
+function makeBeepGenerator(): (frames: number) => Int16Array {
+  let pos = 0;
+  const period = 60 / TONE_BPM;
   return (frames: number): Int16Array => {
     const out = new Int16Array(frames * CHANNELS);
-    for (let i = 0; i < frames; i++) {
-      const w = rnd() * 2 - 1;
-      b0 = 0.99765 * b0 + w * 0.0990460;
-      b1 = 0.96300 * b1 + w * 0.2965164;
-      b2 = 0.57000 * b2 + w * 1.0526913;
-      const v = (b0 + b1 + b2 + w * 0.1848) * SCALE;
-      // A BACKSTOP THAT SHOULD NEVER FIRE (see SCALE — it did, once). Pink noise is unbounded in
-      // principle, and a wrap at 16 bits would be an audible click in a file used to judge a speaker.
+    for (let i = 0; i < frames; i++, pos++) {
+      const t = pos / RATE;
+      const beat = t % period;
+      let env = 0;
+      if (beat < ATTACK_SEC) env = beat / ATTACK_SEC;
+      else if (beat < ATTACK_SEC + DECAY_SEC) env = 1 - (beat - ATTACK_SEC) / DECAY_SEC;
+      if (env <= 0) continue;                      // the silence between blips: leave the zeros
+      const v = Math.sin(2 * Math.PI * TONE_HZ * t) * env * SCALE;
+      // A backstop that should never fire — a sine at SCALE cannot reach full scale. Kept because the
+      // pink generator this replaced DID overflow, and the clamp is what made that audible rather than
+      // a wrap. (See SCALE.)
       out[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
     }
     return out;
@@ -91,7 +95,7 @@ function makePinkGenerator(): (frames: number) => Int16Array {
 let cached: string | null = null;
 
 /**
- * The path of the pink-noise test source, generating it on first use.
+ * The path of the blip test source, generating it on first use.
  *
  * Returns null if it cannot be written — the caller must degrade rather than throw, because this is a
  * commissioning aid and a venue with a read-only userData still needs the rest of Preferences to work.
@@ -105,7 +109,7 @@ export function testSourcePath(): string | null {
     // scaling was fixed (see SCALE): a machine that had already generated the clipping v1 would
     // otherwise have gone on playing it forever, since the size check below would have passed. That is
     // exactly the stale-artefact failure a plain `pink.wav` produces, and it caught me once already.
-    const file = join(dir, `pink-${RATE}-${SECONDS}s-v2.wav`);
+    const file = join(dir, `blip-${TONE_HZ}hz-${TONE_BPM}bpm-${SECONDS}s-v1.wav`);
     const frames = RATE * SECONDS;
     // 44-byte header + one 16-bit sample per frame. A short file means a truncated write (a full disk,
     // a crash mid-generate) and must be re-made rather than played as a click.
@@ -114,7 +118,7 @@ export function testSourcePath(): string | null {
     const sink = openWav(file, CHANNELS, RATE);
     // Written in blocks so a 20-second file never materialises as one large allocation. ONE generator
     // across all of them -- see makePinkGenerator for why per-block state would not be noise at all.
-    const nextBlock = makePinkGenerator();
+    const nextBlock = makeBeepGenerator();
     const BLOCK = 1 << 16;
     for (let done = 0; done < frames; done += BLOCK) {
       writeWav(sink, nextBlock(Math.min(BLOCK, frames - done)));

@@ -207,7 +207,7 @@ between them is the whole point.
 
 | | Signal path | Answers |
 |---|---|---|
-| **Wiring** | `setTestTone(channel, gain)` — pink noise written **straight onto a device channel**, after the master fader, around everything else | *is channel 5 the box behind me?* |
+| **Wiring** | `setTestTone(channel, gain)` — the blip written **straight onto a device channel**, after the master fader, around everything else | *is channel 5 the box behind me?* |
 | **Placed** | an ordinary clip positioned at the direction the positioner draws for that speaker: clip chain → encoder → B-format → **decoder** → patch → device | *does the geometry agree with the wiring?* |
 
 The wiring test is blind to the decode by design, and that blindness is the problem: a mirrored angle
@@ -226,11 +226,27 @@ re-patching channels will fix it.
 > button. **Silent Placed + working Wiring is very often a master at zero**, and the panel says so where
 > an operator will read it.
 
-The source is pink noise generated once per machine into `userData/audio-test/` rather than shipped
-(`testSource.main.ts`). It reuses the *same* Kellet filter as the direct tone at the same output level,
-so the two sound alike and the only thing an ear has to judge is which box it came from. It loads under
-a reserved clip id (`__speaker-check`) that no document can mint, and the audio driver never sees it:
-`syncLoaded` only unloads ids in its own map, so an externally-loaded clip is invisible to it.
+**Both are a repeating blip, and that is not decoration.** 660 Hz, 90 BPM, 5 ms attack and 50 ms decay.
+It used to be pink noise, on the reasoning that broadband localises better than a sine — true in the
+open, and wrong in the room this tool is used in. Two speakers a metre apart both playing steady hiss
+are genuinely hard to tell apart, because there is no onset to compare; the ear localises a *transient*.
+A blip at a walking tempo lets an operator stand between two boxes and hear which one starts first, and
+the ~0.6 s of silence between blips lets the room stop ringing so what you hear is the speaker rather
+than its reverb tail.
+
+**Both buttons are toggles, not press-and-hold.** Commissioning happens standing in the room, several
+metres from the keyboard — which is the one place from which two speakers *can* be told apart. A hold
+pins the operator to the desk. Click, walk, listen, come back. Only one signal sounds at a time:
+starting either button on any row stops whatever else was running.
+
+The placed source is generated once per machine into `userData/audio-test/` rather than shipped
+(`testSource.main.ts`), from the same numbers as `engine.cpp`'s `kTone*` constants, so the two tests
+sound identical and the only thing an ear has to judge is which box it came from. It loads under a
+reserved clip id (`__speaker-check`) that no document can mint, and the audio driver never sees it:
+`syncLoaded` only unloads ids in its own map, so an externally-loaded clip is invisible to it. The file
+is exactly 90 beats long and the renderer restarts it just before it ends — the engine has no looping
+transport, and a toggle left on while somebody walks the room would otherwise simply go quiet, which
+reads as a speaker that has just died. The seam lands in the silence between blips.
 
 The **LFE** row has no Placed button — it has no direction, so there is nowhere to place a source.
 
@@ -455,7 +471,7 @@ engine remaps the collision to a free channel rather than dropping either speake
 
 ### Speaker check — and why the tone bypasses the decoder *and* the master fader
 
-The **Speaker check** block (Speaker-layout mode only) holds a per-speaker button: hold it and pink noise
+The **Speaker check** block (Speaker-layout mode only) holds a per-speaker button: switch it on and a blip
 plays from exactly the device channel that speaker is currently patched to; release it and it stops.
 `setTestTone(deviceChannel, gain)` writes that noise **straight onto a device channel**, upstream of both the
 ambisonic decoder and the master fader (`Bus::setTestTone`, `native/audio-engine/src/engine.cpp` — written

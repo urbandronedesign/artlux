@@ -55,7 +55,7 @@ See [OSC.md](../OSC.md) for the full address map.
   a cable bump.
 - **Spatial output** — *Binaural* (headphones, HRTF) or *Speaker layout* (a real array: quad, 5.1, 7.1,
   octagon, cube…).
-- **Speaker check** *(speaker mode)* — **hold** a speaker to hear pink noise from exactly that output, and
+- **Speaker check** *(speaker mode)* — **click** a speaker to hear a repeating blip from exactly that output, and
   set which device **channel** each speaker is wired to. This is how you commission a ring whose speakers
   aren't cabled 1:1 — see the walkthrough in [chapter 7 ▸ Commissioning a speaker rig](07-audio.md).
 - **Meters** — a live per-channel level meter.

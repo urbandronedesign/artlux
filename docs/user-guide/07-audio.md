@@ -165,10 +165,10 @@ channels than you ask for — the panel tells you, and the master chain is built
 6. A **Speaker check** block appears, with **two buttons per speaker**. **Hold** the first one —
    **Speaker 1** — and you should hear a hiss from exactly one speaker in the room.
    - Wrong speaker, or nothing at all? Use the dropdown on that row to try another channel, then hold it
-     again. Keep trying channels until the *right* speaker hisses.
+     again. Keep trying channels until the *right* speaker blips.
 7. **Repeat for every speaker**, working your way around the room, until each one answers to its own button.
 8. If a warning says two speakers are set to the same channel, fix it — two speakers can't share one wire.
-9. **Now go round again with the second button — *Placed*.** Each speaker should hiss from the *same box*
+9. **Now go round again with the second button — *Placed*.** Each speaker should blip from the *same box*
    it just did.
 
 > ### ⚠ Step 9 is not a repeat of step 6. It is the only step that can catch a mirrored room.

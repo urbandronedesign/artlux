@@ -45,6 +45,15 @@ namespace {
 constexpr unsigned kAmbiOrder = 1;
 constexpr float    kPosFadeMs = 20.0f; // encoder crossfades coefficients over a move (no zipper noise)
 
+// The commissioning blip. A repeating transient rather than a continuous tone — see the test-tone block
+// in getNextAudioBlock for why that matters when two speakers are close together. Mirrored in the
+// renderer's generated test source (plugins/audio/src/testSource.main.ts) so the two speaker tests sound
+// identical and the only thing an ear has to judge is WHICH BOX it came from.
+constexpr double kToneHz        = 660.0;   // clear of most room modes, and easy to hear over a rig's noise floor
+constexpr double kToneBpm       = 90.0;    // ~0.6 s of silence between blips: the room stops ringing in between
+constexpr double kToneAttackSec = 0.005;   // a real transient, but not a click on a tweeter
+constexpr double kToneDecaySec  = 0.050;   // short enough that each blip is unambiguously one event
+
 juce::AudioFormatManager& formats() {
   static juce::AudioFormatManager fm;
   static bool inited = false;
@@ -229,8 +238,14 @@ public:
   //
   // It is written BEFORE metering (the metering source wraps this bus), so the operator sees the channel
   // light up in Preferences — which is how the rig is verified with no hardware at all.
+  // Switching on RESTARTS the pattern, so the first blip is immediate. Without that, toggling a speaker
+  // on could wait most of a beat before making a sound — which reads as "this speaker is dead".
   void setTestTone(int deviceChannel, float g) {
     const juce::ScopedLock sl(lock);
+    // Restart the pattern on a real switch-on only. Re-asserting the SAME channel (the renderer re-sends
+    // on a settings change) must not retrigger, or a held toggle would stutter its beat every time
+    // anything else in the panel moved.
+    if (deviceChannel >= 0 && (toneCh != deviceChannel || toneGain <= 0.0f)) tonePos = 0;
     toneCh = deviceChannel; toneGain = g;
   }
 
@@ -324,14 +339,36 @@ public:
     // ── TEST TONE: post-everything, straight onto a device channel ──────────────────────────────────
     // Deliberately AFTER the master fader: a commissioning tone that the house fader can silence is a tone
     // that will have you checking a speaker cable while the software is muting it.
-    if (toneCh >= 0 && toneCh < outCh && toneGain > 0.0f) {
+    //
+    // ⚠ A PULSE, NOT A CONTINUOUS SOUND, AND THAT IS THE WHOLE POINT ON A REAL RIG.
+    //
+    // This was pink noise, on the reasoning that broadband is easier to localise than a sine. True in the
+    // open, and wrong in the room this tool is actually used in: two speakers a metre apart both playing
+    // continuous hiss are very hard to tell apart, because there is no onset to compare. A repeating
+    // TRANSIENT is what the ear localises — the attack is the cue — so a short 660 Hz blip at a walking
+    // tempo lets an operator stand between two boxes and hear which one starts first.
+    //
+    // 90 BPM leaves ~0.6 s of silence between blips: long enough for a room to stop ringing, so what you
+    // hear is the speaker and not its reverb tail. The 5 ms attack is fast enough to be a real transient
+    // and slow enough not to click on a tweeter; the 50 ms decay keeps each blip clearly one event.
+    if (toneCh >= 0 && toneCh < outCh && toneGain > 0.0f && sampleRate > 0.0) {
       float* d = info.buffer->getWritePointer(toneCh, info.startSample);
+      const double period = 60.0 / kToneBpm;
       for (int i = 0; i < n; ++i) {
-        const float w = toneRng.nextFloat() * 2.0f - 1.0f;   // white
-        pinkB0 = 0.99765f * pinkB0 + w * 0.0990460f;         // → pink (Kellet). Broadband: a speaker is far
-        pinkB1 = 0.96300f * pinkB1 + w * 0.2965164f;         //   easier to localise by ear than a sine, and
-        pinkB2 = 0.57000f * pinkB2 + w * 1.0526913f;         //   a sine can null against a room mode.
-        d[i] += (pinkB0 + pinkB1 + pinkB2 + w * 0.1848f) * 0.2f * toneGain;
+        // Phase within the beat, from a sample counter reset when the tone was switched on — so the
+        // first blip lands immediately rather than wherever a free-running clock happened to be.
+        const double t = (double) tonePos / sampleRate;
+        const double beat = std::fmod(t, period);
+        float env = 0.0f;
+        if (beat < kToneAttackSec) {
+          env = (float) (beat / kToneAttackSec);
+        } else if (beat < kToneAttackSec + kToneDecaySec) {
+          env = (float) (1.0 - (beat - kToneAttackSec) / kToneDecaySec);
+        }
+        if (env > 0.0f) {
+          d[i] += (float) std::sin(juce::MathConstants<double>::twoPi * kToneHz * t) * env * 0.5f * toneGain;
+        }
+        ++tonePos;
       }
     }
   }
@@ -644,8 +681,11 @@ private:
                                               // (the same disease addClip/stop's comments are about)
   int toneCh = -1;                          // -1 = off
   float toneGain = 0.0f;
-  float pinkB0 = 0, pinkB1 = 0, pinkB2 = 0; // Paul Kellet's economy pink filter — no allocation, no state reset needed
-  juce::Random toneRng;
+  // Samples since the tone was switched on. Drives BOTH the beat phase and the oscillator phase, so the
+  // blip always starts at the top of a beat and the sine is continuous within it. `long long` because a
+  // toggle can be left on: an int overflows after ~13 hours at 48 kHz, and the resulting negative time
+  // would make fmod misbehave rather than merely wrap.
+  long long tonePos = 0;
 
   // Master insert chain + fader, applied post-decode. `outChannels` is what the device ACTUALLY opened
   // with (Engine::configure reads it back from the device — asking for 8 on a stereo card gives 2), and

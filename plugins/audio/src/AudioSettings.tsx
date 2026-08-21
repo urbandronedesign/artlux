@@ -110,7 +110,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const [tone, setTone] = useState<number | null>(null);
   // …and the same for the PLACED test, which is a different signal path entirely (see playPlaced).
   const [placed, setPlaced] = useState<number | null>(null);
-  // The pink-noise file, fetched once. `null` = asked and unavailable (a read-only userData, say);
+  // The blip file, fetched once. `null` = asked and unavailable (a read-only userData, say);
   // `undefined` = not asked yet. The two must not be confused or a failed fetch would retry forever.
   const testSrc = useRef<string | null | undefined>(undefined);
   const testLoaded = useRef(false);
@@ -164,6 +164,8 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // driver and this panel fighting over one engine voice, which the `__` prefix makes impossible
   // (crypto.randomUUID never produces it).
   const TEST_CLIP_ID = '__speaker-check';
+  // Only used if loadClip somehow answered without a duration — the real one comes off its meta.
+  const SECONDS_FALLBACK = 60;
   // The held speaker, in a ref: playPlaced reads it AFTER its awaits, where the closure's copy is stale.
   const placedRef = useRef<number | null>(null);
 
@@ -171,9 +173,18 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // awaits (a file generate, then a decode) precisely so a pointerup landing inside them cancels the
   // sound. Clearing only the STATE would leave the ref reading the held speaker until React commits —
   // the noise would start after the operator let go, with nothing held down to stop it, in the room.
+  // The clip's own length, so the restart timer below knows when it runs out. Set from loadClip's meta.
+  const testDurSec = useRef(0);
+  const loopTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ⚠ THE REF IS CLEARED SYNCHRONOUSLY, and that is the whole guard. `playPlaced` re-reads it after two
+  // awaits (a file generate, then a decode) precisely so a toggle switched off inside them cancels the
+  // sound. Clearing only the STATE would leave the ref reading the held speaker until React commits —
+  // the blips would start after the operator switched off, with nothing lit to stop them, in the room.
   const stopPlaced = () => {
     placedRef.current = null;
     setPlaced(null);
+    if (loopTimer.current) { clearInterval(loopTimer.current); loopTimer.current = null; }
     audioClient.stopClip(TEST_CLIP_ID);
   };
 
@@ -189,6 +200,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
     if (!testLoaded.current) {
       const meta = await audioClient.loadClip(TEST_CLIP_ID, path);
       if (!meta) return;                      // no engine — the badge above already says so
+      testDurSec.current = meta.durationSec ?? 0;
       testLoaded.current = true;
     }
     // ⚠ RE-CHECKED AFTER THE AWAITS. A generate + decode is two round trips, and a pointerup can land
@@ -198,11 +210,23 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
     if (placedRef.current !== speakerIndex) return;
     const v = unitFor(sp);
     audioClient.setClipSpatial(TEST_CLIP_ID, v.x, v.y, v.z);
-    audioClient.playClip(TEST_CLIP_ID, 0, 1);    // unity: the 0.5 is baked into the file (see SCALE)
+    audioClient.playClip(TEST_CLIP_ID, 0, 1);    // unity: the level is baked into the file (see SCALE)
+    // ⚠ THE ENGINE HAS NO LOOPING TRANSPORT, AND THIS IS NOW A TOGGLE. A press-and-hold could never
+    // outlast a 60 s file; a toggle left on while somebody walks the room absolutely can, and it would
+    // simply go quiet — which reads as a speaker that just died. So restart it just before it ends.
+    //
+    // The seam is inaudible by construction: the file is a whole number of beats, and the restart lands
+    // in the ~0.6 s of silence between blips, so a few ms of timer drift cannot double or clip one.
+    if (loopTimer.current) clearInterval(loopTimer.current);
+    const durMs = Math.max(1000, (testDurSec.current || SECONDS_FALLBACK) * 1000 - 400);
+    loopTimer.current = setInterval(() => {
+      if (placedRef.current === null) return;     // switched off between ticks
+      audioClient.playClip(TEST_CLIP_ID, 0, 1);
+    }, durMs);
   };
 
 
-  // A panel closed mid-hold would leave pink noise playing in the room with nothing on screen to stop it.
+  // A panel closed with a toggle ON would leave the blip playing in the room with nothing on screen to stop it.
   // BOTH signals, and the clip unloaded with them — an engine-resident source nobody can reach again is
   // exactly the orphan the driver's own comments are about.
   useEffect(() => () => {
@@ -537,11 +561,17 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
               const spk = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? '') as SpeakerLayoutId]?.[s];
               return (
                 <div key={s} className="flex items-center gap-1.5">
+                  {/* A TOGGLE, NOT A HOLD. Commissioning is done standing in the room, several metres
+                      from the keyboard — a press-and-hold pins the operator to the desk, which is the
+                      one place from which you cannot tell two speakers apart. Click, walk, listen, come
+                      back. Clicking any other speaker's button switches this one off (one tone at a
+                      time is the whole point of the test). */}
                   <button
-                    onPointerDown={() => { setTone(s); audioClient.setTestTone(dst, 0.5); }}
-                    onPointerUp={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
-                    onPointerLeave={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
-                    onPointerCancel={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
+                    onClick={() => {
+                      if (tone === s) { setTone(null); audioClient.setTestTone(-1, 0); return; }
+                      stopPlaced();                       // never two signals at once
+                      setTone(s); audioClient.setTestTone(dst, 0.5);
+                    }}
                     className={`px-2 h-6 rounded text-mini border tabular-nums ${tone === s ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}
                   >
                     Speaker {s + 1}{spk?.name ? ` (${spk.name})` : ''}
@@ -554,12 +584,11 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                     title={spk?.lfe
                       ? 'The LFE has no direction — there is nowhere to place a source'
                       : `Play a source from ${Math.round(normAngle(-(spk?.azimuth ?? 0)))}° — through the decoder, the way a real clip travels`}
-                    onPointerDown={(e) => {
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                      setPlaced(s); placedRef.current = s; void playPlaced(s);
+                    onClick={() => {
+                      if (placed === s) { stopPlaced(); return; }
+                      if (tone !== null) { setTone(null); audioClient.setTestTone(-1, 0); }
+                      placedRef.current = s; setPlaced(s); void playPlaced(s);
                     }}
-                    onPointerUp={stopPlaced}
-                    onPointerCancel={stopPlaced}
                     className={`px-2 h-6 rounded text-mini border ${placed === s ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'} disabled:opacity-40 disabled:hover:text-fg-2`}
                   >
                     Placed
