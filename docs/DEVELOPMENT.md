@@ -77,27 +77,54 @@ so every machine and every CI runner builds its own. It is gitignored (`*.node`)
 > (`LNK1104` on Windows) and **silently leaves the stale addon in place**, so you debug code that
 > isn't loaded. Stop `npm run dev` and kill stray `electron` processes first.
 
-### ASIO (optional)
-**Off by default, and that's a decision, not an oversight.** Multichannel output on Windows is
-already delivered by **WASAPI exclusive mode**, compiled into the addon unconditionally — that's
-the **supported** path for discrete multichannel (see the driver-type grouping in AudioSettings'
-device picker). A show bed does not need ASIO.
+### ASIO (optional, and sometimes not optional at all)
+**Off by default, and that's a licence decision.** WASAPI exclusive mode is compiled into the addon
+unconditionally and is the path this project supports (see the driver-type grouping in AudioSettings'
+device picker).
 
-What ASIO would buy: lower latency than WASAPI exclusive.
+> ### ⚠ This section used to say a show bed does not need ASIO. That is not reliably true on Windows.
+> **Measured on a Scarlett 6i6, same machine, same cables, one hour apart:**
+>
+> | Driver installed | WASAPI opens |
+> |---|---|
+> | Generic USB Audio Class 2.0 (what Windows installs by itself) | **6 channels** on every WASAPI mode |
+> | Focusrite's own driver (installed with Focusrite Control) | **2 channels** — every mode, every requested count |
+>
+> That is not a fault to debug and no setting reverses it. A vendor driver commonly presents outputs 1-2
+> as the Windows endpoint and routes everything above that through ASIO only. So on such an interface
+> ASIO is not a latency optimisation — **it is the only way to reach outputs 3 and up**, and the operator
+> is choosing between their vendor's routing software and their extra outputs.
+>
+> The honest summary: WASAPI exclusive delivers discrete multichannel **when the interface exposes it**,
+> which the class driver usually does and a vendor driver often does not. Check what the device actually
+> opened with — the **"Open:"** line under the device picker — before believing any channel count.
 
-What it costs: the **Steinberg ASIO SDK**, which is not redistributable, carries its own licence,
-cannot be vendored into this repo, and cannot be fetched by CI — plus **zero test coverage**,
-because nobody on this project has ASIO hardware to build against. Turning it on adds a **third**
-licence obligation to a build that already carries JUCE's (still **unelected** — see `NOTICE`) and
-libspatialaudio's LGPL.
+What ASIO costs: the **Steinberg ASIO SDK**, which is not redistributable, cannot be vendored into this
+repo, and cannot be fetched by CI — plus **zero test coverage**, because nobody on this project has ASIO
+hardware to build against. Turning it on adds a **third** licence obligation to a build that already
+carries JUCE's (still **unelected** — see `NOTICE`) and libspatialaudio's LGPL. That is why it cannot be
+the default, and why the SDK is something you download and accept for yourself.
 
-If a venue genuinely needs it: download the SDK from [steinberg.net](https://www.steinberg.net/developers/)
-(free registration required), then point CMake at its `common` directory:
+Download it from [steinberg.net](https://www.steinberg.net/developers/) (free registration), then:
+
+```bash
+# Windows — point at the SDK's `common` directory, the one holding iasiodrv.h
+set ARTLUX_ASIO_SDK=C:\path\to\asiosdk\common
+npm run build:audio
+```
+
+`build:audio` forwards the CMake defines and runs a `configure` pass before building — `build` alone
+reuses the existing cache, so flipping the flag on an already-configured tree would report success and
+produce the same addon with ASIO silently absent. It hard-fails if the directory has no `iasiodrv.h`.
+Doing it by hand is still fine:
+
 ```bash
 cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=C:/path/to/asiosdk/common
 ```
-The configure step hard-fails with a clear message if `ASIO_SDK_DIR` doesn't contain
-`iasiodrv.h`. Leave it `OFF` unless you have both the SDK and the hardware to test it against.
+
+An ASIO build prints its licence position at build time, and the driver type appears in the device
+picker beside the WASAPI ones. **A release must not be cut from an ASIO build unless you intend to ship
+under Steinberg's terms as well.**
 
 ### "The audio UI is all there and nothing plays" — no sound?
 There is no error dialog and no red UI: the loader degrades to a no-op by design, so a missing **or

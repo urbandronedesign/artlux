@@ -87,7 +87,57 @@ if (!fs.existsSync(cmakeJs)) {
 // JUCE 8.0.14 and libspatialaudio 0.4.0 on the first run (slow, then cached in build/).
 // NOTE: the addon is N-API (NAPI_VERSION=8), so it is runtime-agnostic — a build against Node's
 // headers loads in Electron 42 unchanged. No --runtime=electron needed.
+// ── ASIO: OPT-IN, VIA ONE ENVIRONMENT VARIABLE ──────────────────────────────────────────────────
+//
+// WHY ANYONE NEEDS THIS. On Windows, most multichannel interfaces expose only OUTPUTS 1-2 to WASAPI
+// once the vendor's own driver is installed, and everything above that through ASIO. Measured on a
+// Scarlett 6i6: on the generic USB-audio-class driver it opened SIX channels on every WASAPI mode; the
+// moment Focusrite's driver replaced it, the same device opened TWO, on every mode, at every requested
+// count. That is not a fault to debug — it is how the driver is built — and the only way to the other
+// four outputs is ASIO.
+//
+// It stays OFF by default and that is a licence decision, not an oversight: the Steinberg ASIO SDK is
+// not redistributable, cannot be vendored here, and cannot be fetched by CI. Enabling it also adds
+// Steinberg's terms to a build that already carries JUCE's and libspatialaudio's — see NOTICE and the
+// long note in native/audio-engine/CMakeLists.txt. So the SDK is something an operator downloads and
+// accepts for themselves; this only removes the need to hand-run cmake afterwards.
+//
+//     set ARTLUX_ASIO_SDK=C:\path\to\asiosdk\common   (the directory containing iasiodrv.h)
+//     npm run build:audio
+const asioSdk = process.env.ARTLUX_ASIO_SDK;
+const cmakeArgs = [];
+if (asioSdk) {
+  if (!fs.existsSync(path.join(asioSdk, 'iasiodrv.h'))) {
+    fail(`ARTLUX_ASIO_SDK is set to ${asioSdk}, but there is no iasiodrv.h there.`,
+         'Point it at the SDK\'s `common` directory — the one holding iasiodrv.h, asio.h, asiodrivers.cpp.');
+  }
+  // Forward slashes: CMake treats a backslash as an escape, so a Windows path pasted verbatim into a
+  // -D value silently mangles (C:\asiosdk\common → C:asiosdkcommon) and the SDK is then "not found"
+  // at a path nobody typed.
+  const sdk = asioSdk.replace(/\\/g, '/');
+  cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=ON', `--CDASIO_SDK_DIR=${sdk}`);
+  console.log(`[build-audio] ASIO ENABLED from ${sdk}`);
+  console.log('[build-audio] this build carries Steinberg\'s licence terms in addition to JUCE\'s — see NOTICE.');
+}
+
+// Build. cmake-js configures + builds in native/audio-engine/build; CMakeLists FetchContent-clones
+// JUCE 8.0.14 and libspatialaudio 0.4.0 on the first run (slow, then cached in build/).
+// NOTE: the addon is N-API (NAPI_VERSION=8), so it is runtime-agnostic — a build against Node's
+// headers loads in Electron 42 unchanged. No --runtime=electron needed.
+//
+// ⚠ A DEFINE NEEDS ITS OWN `configure` PASS. `build` configures only "if required", and an already-
+// configured tree is not required — so flipping ARTLUX_ENABLE_ASIO with `build` alone would print a
+// cheerful success and produce the SAME addon as before, ASIO silently absent. That is the stale-binary
+// failure this file's header is about, one layer further in.
+//
+// `configure`, NOT `reconfigure`: reconfigure CLEANS the build directory first, which throws away the
+// FetchContent clones of JUCE and libspatialaudio and turns a two-minute rebuild into a fresh download.
+// Passing -D to an existing cache updates it in place, which is all that is wanted.
 console.log('[build-audio] cmake-js build (JUCE + libspatialaudio)…');
+if (cmakeArgs.length) {
+  const cfg = spawnSync(process.execPath, [cmakeJs, 'configure', ...cmakeArgs], { cwd: base, stdio: 'inherit' });
+  if (cfg.status !== 0) fail('cmake-js configure failed with the ASIO defines (see the output above).');
+}
 const build = spawnSync(process.execPath, [cmakeJs, 'build'], { cwd: base, stdio: 'inherit' });
 if (build.status !== 0) {
   fail('cmake-js build failed (see the output above).',
