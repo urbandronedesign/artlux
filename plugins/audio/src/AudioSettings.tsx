@@ -229,7 +229,22 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // three questions separately. Do not reintroduce a single "is audio ok" flag: there isn't one.
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
   const need = LAYOUTS.find((l) => l.id === layout)?.speakers ?? 2;
-  const shortChannels = mode === 'speakers' && need > outCh;
+  // ⚠ AGAINST WHAT THE DEVICE ACTUALLY OPENED WITH, NOT WHAT WAS ASKED FOR.
+  //
+  // This compared `need > outCh` — the REQUEST — which is silent in the one case it most needs to fire:
+  // ask a 6-output interface for 8 channels, pick Octagon, and the two numbers agree perfectly, so no
+  // warning — while the device hands back 6 and speakers 7 and 8 are never heard. Measured on a Scarlett
+  // 6i6: asked 8, opened 6, nothing said. The panel a few lines down already knew to use `opened.channels`
+  // for exactly this reason (see patchOverRange); this predicate did not.
+  //
+  // Falls back to the request while `opened` is still null — the first render, before configure() has
+  // answered — which is the old behaviour and is correct for a state where nothing is known yet.
+  const liveCh = opened?.channels ?? outCh;
+  const shortChannels = mode === 'speakers' && need > liveCh;
+  // …and WHY it is short changes the fix entirely: raise the channel count, or accept that this interface
+  // cannot go higher and pick a layout that fits it.
+  const deviceCapped = shortChannels && opened != null && opened.channels < outCh;
+  const fitting = LAYOUTS.filter((l) => l.speakers <= liveCh).map((l) => l.label);
   const patchDuplicate = mode === 'speakers' && hasDuplicateChannel(cfg.speakerPatch, need);
   // Gated on `opened` being known — `opened.channels` is what the device ACTUALLY has; `outCh` is only
   // what was REQUESTED, and a stereo card asked for 8 channels opens with 2, so warning off the request
@@ -411,7 +426,21 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
         )}
         {shortChannels && (
           <div className="text-micro text-warn mt-1">
-            This layout needs {need} channels but the device is open with {outCh} — only the first {outCh} speakers will be heard. Raise the channel count below.
+            {deviceCapped ? (
+              <>
+                This layout needs {need} channels. You asked for {outCh} and the device opened{' '}
+                <span className="font-semibold">{liveCh}</span> — it has no more outputs to give, so raising
+                the channel count will not help. Only the first {liveCh} speakers will be heard.
+                {fitting.length > 0 && (
+                  <> Layouts that fit this device: <span className="font-semibold">{fitting.join(', ')}</span>.</>
+                )}
+              </>
+            ) : (
+              <>
+                This layout needs {need} channels but the device is open with {liveCh} — only the first{' '}
+                {liveCh} speakers will be heard. Raise the channel count below.
+              </>
+            )}
           </div>
         )}
       </div>
