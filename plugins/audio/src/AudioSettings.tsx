@@ -79,11 +79,30 @@ const LAYOUTS: { id: SpeakerLayout; label: string; speakers: number }[] = [
   { id: 'cube', label: 'Cube (8, 3D)', speakers: 8 },
 ];
 
+/**
+ * How many device channels a config actually WANTS.
+ *
+ * ⚠ NOT `outputChannels ?? 2`. A config that names a SPEAKER LAYOUT has already said how many outputs it
+ * needs — `quad` needs four — so falling back to 2 there makes the app contradict itself out loud: it
+ * asks the interface for two channels and then warns that "this layout needs 4 but the device is open
+ * with 2 — raise the channel count", about a request it made itself. An operator reads that as a hardware
+ * limit and goes hunting through driver control panels. (It sent one there. The interface had six.)
+ *
+ * An explicit value always wins, including an explicit 2 under an 8-speaker layout — that is a deliberate
+ * choice to audition a big rig on a small one, and the short-channel warning is the right response to it.
+ * The fallback only fills a gap, and it fills it with the only number the rest of the config implies.
+ */
+const wantedChannels = (c: AudioCfg): number => {
+  if (typeof c.outputChannels === 'number' && c.outputChannels > 0) return c.outputChannels;
+  if ((c.outputMode ?? 'binaural') !== 'speakers') return 2;   // binaural is a headphone pair, always
+  return LAYOUTS.find((l) => l.id === (c.speakerLayout ?? 'stereo'))?.speakers ?? 2;
+};
+
 // Settings are the host AppSettings (generic/unknown at this SDK boundary) — typed loosely here, like the
 // other first-party settings sections, and read/patched through the `plugins.audio` slice.
 export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => void }> = ({ settings, onChange }) => {
   const cfg: AudioCfg = settings?.plugins?.audio ?? {};
-  const outCh = cfg.outputChannels ?? 2;
+  const outCh = wantedChannels(cfg);
   const mode: OutputMode = cfg.outputMode ?? 'binaural';
   const layout: SpeakerLayout = cfg.speakerLayout ?? 'stereo';
 
@@ -118,7 +137,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const apply = (c: AudioCfg) =>
     audioClient.configure({
       deviceType: c.deviceType, deviceName: c.deviceName,
-      channels: c.outputChannels ?? 2, sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
+      channels: wantedChannels(c), sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
       mode: c.outputMode ?? 'binaural', layout: c.speakerLayout ?? 'stereo',
       patch: c.speakerPatch,
     })
