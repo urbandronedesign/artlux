@@ -22,6 +22,11 @@ cross the front. The widget still reads 0-360; only the stored value winds, and 
 past the front winds it too. The shipped automation example is now one straight ramp to 720: two laps,
 one lane, which the old model could not express at all.
 
+**A scene or cue fade between two angles takes the shorter way round.** A lane is left alone -- its
+keyframes are the path, so `0 -> 720` means two turns and gets two turns -- but a recall interpolates two
+stored numbers with nothing between them, and left linear a GO from 350 to 10 sent the sound the whole way
+round through the back of the room over the length of the fade.
+
 **Attenuation is a level, not a distance cue.** It is gain -- quadratic, -12 dB at 0.5, true silence at
 1 -- folded into the number the driver already re-pushes only when it changes. `AmbisonicEncoderDist`
 would give real distance cues and was deliberately not used: it puts a per-source delay line in the
