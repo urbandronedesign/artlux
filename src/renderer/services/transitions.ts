@@ -21,9 +21,9 @@ const EASES: Record<CueTransition, (t: number) => number> = {
 // `log`: interpolate in LOG space (a filter cutoff is 20 Hz–20 kHz with curve:'log', and so are a delay's
 // timeMs and a compressor's attack/release). Only PLUGIN-namespaced legs carry it — core legs never set it,
 // so their behaviour is byte-identical. See the plugin arm of apply() below (DC15).
-export interface FadeLeg extends FadeTarget { transition?: CueTransition; fadeSec?: number; log?: boolean }
+export interface FadeLeg extends FadeTarget { transition?: CueTransition; fadeSec?: number; log?: boolean; wrap?: boolean }
 
-interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean; log: boolean }
+interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean; log: boolean; wrap: boolean }
 interface ActiveFade { legs: ActiveLeg[]; startMs: number; onComplete?: () => void }
 
 // The heads that live on the StateView. Everything else is a PLUGIN NAMESPACE and is written through its
@@ -113,6 +113,15 @@ export interface SampleResult {
 
 const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 
+// The signed shortest way from one angle to another, in degrees: always within ±180. Used by a leg
+// whose target declares `wrap` — see the interpolation below for why an angle cannot fade linearly.
+const shortestArc = (from: number, to: number): number => {
+  const d = (((to - from) % 360) + 540) % 360 - 180;
+  // −180 and +180 are the same arc; prefer the positive one so a half-turn is not direction-unstable
+  // across a rounding error in `from`.
+  return d === -180 ? 180 : d;
+};
+
 // Begin a fade. `targets` carry absolute from→to numerics; discrete params are expected to have
 // already been committed to React state by the caller (they show their target immediately).
 // `opts.fadeSec`/`opts.transition` are the batch defaults; a leg may override either.
@@ -126,6 +135,7 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
       ease: EASES[trans] ?? EASES.smooth,
       geom: isGeometryPath(t.path),
       log: t.log ?? false,
+      wrap: t.wrap ?? false,
     };
   });
   const willAnimate = legs.some((l) => l.durMs > 0);
@@ -259,8 +269,18 @@ export function sample(nowMs: number): SampleResult | null {
         // identical curve drawn on a lane, which is the comparison the operator makes in the room. Guarded:
         // a hand-authored 0 endpoint falls back to linear rather than producing Math.log(0) = -Infinity →
         // NaN → setClipEffects(NaN).
+        // AN ANGLE FADES THE SHORT WAY ROUND (DC16). The same argument as the log case above, on a
+        // different axis: a linear fade of an angle is not merely a different curve, it goes the wrong
+        // WAY. 350° → 10° is a 20° slip across the front; interpolated linearly it is a 340° sweep
+        // backwards through the rear of the room, on a GO, in front of an audience.
+        //
+        // The arc is taken from the STORED numbers, not from normalised ones, so an unbounded angle
+        // keeps working: 720° → 10° moves +10° to 730°, it does not unwind seven hundred degrees. And
+        // `raw >= 1 ? leg.to` still lands on the authored endpoint exactly, so the value the document
+        // holds is the value the fade finishes on — never `to` plus a whole number of turns.
         const t = leg.ease(clamp01(raw));
         const val = raw >= 1 ? leg.to
+          : leg.wrap ? leg.from + shortestArc(leg.from, leg.to) * t
           : (leg.log && leg.from > 0 && leg.to > 0)
             ? Math.exp(Math.log(leg.from) + (Math.log(leg.to) - Math.log(leg.from)) * t)
             : leg.from + (leg.to - leg.from) * t;

@@ -140,6 +140,15 @@ penned into 0–360 makes a full orbit unexpressible — `0 → 360` is a lane t
 moment it should cross the front. The widget still reads 0–360; only the stored value winds. Dragging
 the pad winds it too, so a gesture round the ring from 350° authors 370° rather than a discontinuity.
 
+**A fade between two angles takes the shorter arc.** A lane needs no such rule — its keyframes *are* the
+path, so `0 → 720` means two turns and gets two turns. But a **scene or cue recall** interpolates two
+stored numbers with no path between them, and left linear a recall from 350° to 10° runs 350 → 180 → 10:
+the sound crosses the entire room, the long way, at the moment it should have slipped 20° across the
+front. The target declares `wrap: true` and `transitions.ts` interpolates along the signed shortest arc
+(`shortestArc`, always within ±180). It still lands on the authored endpoint exactly — a fade from 350°
+to 10° passes through 370° and then reads 10°, which is the same direction to the bit, so the engine
+receives no jump and the document never inherits a wound value.
+
 **Attenuation is a level, not a distance cue.** It is applied as gain, quadratic (−12 dB at 0.5, true
 silence at 1), folded into `effGain` — the number the driver already re-pushes only when it changes, so
 an attenuation lane costs one `setClipGain` per frame and a still source costs nothing.

@@ -268,7 +268,9 @@ const GAIN = { min: 0, max: 1.5, step: 0.01, def: 1 };
 // ±1440 rather than truly unbounded because a lane editor has to draw an axis. Four turns in either
 // direction is past anything anyone has asked a sound to do, and a curve that needs more can be built
 // from two lanes' worth of keyframes on one lane.
-const ANGLE = { min: -1440, max: 1440, step: 1, def: 0, unit: '°' };
+// `wrap` is what makes a scene/cue fade take the SHORT way round; see AutomationTargetDef.wrap. It is
+// deliberately NOT set on elevation, which is a bounded −90…90 and has no far side to go round.
+const ANGLE = { min: -1440, max: 1440, step: 1, def: 0, unit: '°', wrap: true };
 const ELEV = { min: -90, max: 90, step: 1, def: 0, unit: '°' };
 // 0 = at the listener, full level. 1 = far, silent. Quadratic in gain — see attenGain.
 const ATTEN = { min: 0, max: 1, step: 0.01, def: 0, unit: '' };

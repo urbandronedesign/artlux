@@ -77,6 +77,19 @@ export interface AutomationTargetDef {
   unit?: string;
   log?: boolean;   // log response: the lane's Y AXIS and its interpolation both run in log space
   /**
+   * THE VALUE IS AN ANGLE IN DEGREES, so a FADE between two of them must take the SHORTER ARC.
+   *
+   * A scene recall interpolates two stored numbers and has no path information between them. Left
+   * linear, a recall from 350° to 10° runs 350 → 180 → 10: the sound crosses the whole room, the long
+   * way, at exactly the moment it should have slipped 20° across the front. It is not a rounding error
+   * — it is the most visible thing in the room, and it happens on the GO.
+   *
+   * ⚠ THIS IS A FADE FLAG, NOT A LANE FLAG. A lane's keyframes ARE the path: an author who draws
+   * 0 → 720 means two turns and must get two turns, so `sampleLane` stays strictly linear. The
+   * ambiguity only exists where the path was never authored, which is exactly and only a fade.
+   */
+  wrap?: boolean;
+  /**
    * AUTHOR IN ONE UNIT, STORE IN ANOTHER — the axis the operator reads, when it differs from the
    * one the value is kept in.
    *

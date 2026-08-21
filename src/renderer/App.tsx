@@ -1365,6 +1365,9 @@ const App: React.FC = () => {
         transition: e.transition ?? transition ?? 'smooth',
         fadeSec: e.fadeSec ?? fadeSec,
         log: def?.log ?? false,
+        // …and an ANGLE fades the short way round rather than backwards through the room. See
+        // AutomationTargetDef.wrap and the interpolation in transitions.ts.
+        wrap: def?.wrap ?? false,
       });
     }
     return legs;
