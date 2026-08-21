@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Speaker check can now catch a mirrored room
+
+Each speaker in Preferences ▸ Audio ▸ Speaker check gets a second button, **Placed**, beside the
+existing one. The existing test writes pink noise straight onto a device channel -- it proves the
+cabling and is blind to the decode, by design. Placed sends a source from the direction the positioner
+draws for that speaker, through the same chain a real clip travels: encoder, B-format, decoder, patch,
+device.
+
+That difference is the point. If the software's idea of the room were mirrored, the old test would pass
+perfectly on every speaker while every sound in every show came out of the opposite side. Hold both
+buttons on one row: the same box means the layout and the room agree; different boxes mean the layout is
+wrong, and re-patching channels will not fix it.
+
+One asymmetry is deliberate and is spelled out in the panel: the direct tone is written after the master
+fader on purpose, and Placed is not -- so a silent Placed beside a working Wiring is usually a master at
+zero rather than a decode fault.
+
 ### A sound's position is an angle now — the metres were never real
 
 A spatial source was authored as `{x, y, z}` in metres. It never was a point in a room. The engine

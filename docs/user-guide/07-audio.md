@@ -162,12 +162,32 @@ channels than you ask for — the panel tells you, and the master chain is built
 5. Check the **"Open:"** line under the device picker. It should show the same channel count you just set.
    If it shows fewer, the interface couldn't actually give you that many — try a different entry in the
    list.
-6. A **Speaker check** block appears. **Hold** the **Speaker 1** button — you should hear a hiss from
-   exactly one speaker in the room.
-   - Wrong speaker, or nothing at all? Use the dropdown next to that button to try another channel, then
-     hold it again. Keep trying channels until the *right* speaker hisses.
+6. A **Speaker check** block appears, with **two buttons per speaker**. **Hold** the first one —
+   **Speaker 1** — and you should hear a hiss from exactly one speaker in the room.
+   - Wrong speaker, or nothing at all? Use the dropdown on that row to try another channel, then hold it
+     again. Keep trying channels until the *right* speaker hisses.
 7. **Repeat for every speaker**, working your way around the room, until each one answers to its own button.
 8. If a warning says two speakers are set to the same channel, fix it — two speakers can't share one wire.
+9. **Now go round again with the second button — *Placed*.** Each speaker should hiss from the *same box*
+   it just did.
+
+> ### ⚠ Step 9 is not a repeat of step 6. It is the only step that can catch a mirrored room.
+> The first button sends sound **straight down a wire** to one output. It proves your cabling — and it
+> knows nothing whatever about left and right. The second sends a sound **from a direction**, through the
+> same machinery a real clip in a real show goes through, and lets the software decide which speakers
+> should play it.
+>
+> If the software's idea of the room were mirrored — its "front-right" being your front-*left* — the
+> first button would still be perfect on all eight speakers, and **every sound in every show would come
+> out of the wrong side.** Only holding both buttons on the same row shows it up.
+>
+> **Same box from both = you are done.** Different boxes = the layout you picked in step 4 doesn't match
+> how the room is actually arranged. Change the layout, not the channels.
+>
+> **If *Placed* is silent but the first button works**, check the **master fader** in the Audio Bed
+> before anything else. The first button deliberately ignores the master — so that a muted show can't
+> have you out on a ladder checking a speaker cable — and *Placed* deliberately doesn't, because passing
+> through everything is the whole point of it.
 
 ⚠ This only needs doing **once per machine**. It's saved to this computer, not to the show file — opening a
 different project here won't undo it, and taking this project to another computer won't carry it along. See

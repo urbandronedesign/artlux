@@ -5,6 +5,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { audioClient } from './audioClient';
+import { SPEAKER_LAYOUTS, unitFor, type SpeakerLayoutId } from './speakerLayouts';
+// The table's azimuth is the AMBISONIC one (anticlockwise, positive = left); the number an operator
+// reads off the positioner is its mirror. normAngle is the single place that fold happens.
+import { normAngle } from '../../../shared/spatial';
 import type { DeviceEntry, OpenedCfg, OutputMode, SpeakerLayout } from './audioManager';
 
 interface AudioCfg {
@@ -104,6 +108,12 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // Which Speaker check button is currently held, for its highlight — not the tone state itself (the
   // engine has no "which speaker" concept, only setTestTone(deviceChannel, gain)).
   const [tone, setTone] = useState<number | null>(null);
+  // …and the same for the PLACED test, which is a different signal path entirely (see playPlaced).
+  const [placed, setPlaced] = useState<number | null>(null);
+  // The pink-noise file, fetched once. `null` = asked and unavailable (a read-only userData, say);
+  // `undefined` = not asked yet. The two must not be confused or a failed fetch would retry forever.
+  const testSrc = useRef<string | null | undefined>(undefined);
+  const testLoaded = useRef(false);
 
   const apply = (c: AudioCfg) =>
     audioClient.configure({
@@ -139,8 +149,68 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
     return () => clearInterval(iv);
   }, []);
 
+  // ── THE PLACED TEST — the one that can actually see a mirrored room ──────────────────────────
+  //
+  // `setTestTone` writes a device channel DIRECTLY: it proves the wiring and is blind to the decode.
+  // This instead plays an ordinary clip, positioned at the direction the positioner pad DRAWS for this
+  // speaker, so it travels the whole chain — clip → encoder → B-format → decoder → patch → device. If
+  // the two buttons on a row light the same physical box, the geometry and the wiring agree. If they
+  // light different boxes, the angle convention is mirrored and every source in every show is on the
+  // wrong side of the room. Nothing else in the app can tell you that.
+  //
+  // A RESERVED CLIP ID, and it must stay reserved. The audio driver keys everything by clip id and its
+  // syncLoaded() only ever unloads ids in ITS OWN `loaded` map — so a clip loaded from here is invisible
+  // to it and will not be swept. That also means a collision with a document's clip id would have the
+  // driver and this panel fighting over one engine voice, which the `__` prefix makes impossible
+  // (crypto.randomUUID never produces it).
+  const TEST_CLIP_ID = '__speaker-check';
+  // The held speaker, in a ref: playPlaced reads it AFTER its awaits, where the closure's copy is stale.
+  const placedRef = useRef<number | null>(null);
+
+  // ⚠ THE REF IS CLEARED SYNCHRONOUSLY, and that is the whole guard. `playPlaced` re-reads it after two
+  // awaits (a file generate, then a decode) precisely so a pointerup landing inside them cancels the
+  // sound. Clearing only the STATE would leave the ref reading the held speaker until React commits —
+  // the noise would start after the operator let go, with nothing held down to stop it, in the room.
+  const stopPlaced = () => {
+    placedRef.current = null;
+    setPlaced(null);
+    audioClient.stopClip(TEST_CLIP_ID);
+  };
+
+  const playPlaced = async (speakerIndex: number) => {
+    const list = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? '') as SpeakerLayoutId];
+    const sp = list?.[speakerIndex];
+    // An LFE has no direction — placing a source "at" it is meaningless, and the button is disabled
+    // for that row rather than playing something that cannot be interpreted.
+    if (!sp || sp.lfe) return;
+    if (testSrc.current === undefined) testSrc.current = await audioClient.testSource();
+    const path = testSrc.current;
+    if (!path) return;
+    if (!testLoaded.current) {
+      const meta = await audioClient.loadClip(TEST_CLIP_ID, path);
+      if (!meta) return;                      // no engine — the badge above already says so
+      testLoaded.current = true;
+    }
+    // ⚠ RE-CHECKED AFTER THE AWAITS. A generate + decode is two round trips, and a pointerup can land
+    // inside them — starting the noise after the operator let go would leave it playing with nothing
+    // held down to stop it. `placed` is set by the caller BEFORE this runs, so a cleared value means
+    // the gesture is over.
+    if (placedRef.current !== speakerIndex) return;
+    const v = unitFor(sp);
+    audioClient.setClipSpatial(TEST_CLIP_ID, v.x, v.y, v.z);
+    audioClient.playClip(TEST_CLIP_ID, 0, 1);    // unity: the 0.5 is baked into the file (see SCALE)
+  };
+
+
   // A panel closed mid-hold would leave pink noise playing in the room with nothing on screen to stop it.
-  useEffect(() => () => { audioClient.setTestTone(-1, 0); }, []);
+  // BOTH signals, and the clip unloaded with them — an engine-resident source nobody can reach again is
+  // exactly the orphan the driver's own comments are about.
+  useEffect(() => () => {
+    audioClient.setTestTone(-1, 0);
+    audioClient.stopClip(TEST_CLIP_ID);
+    audioClient.unloadClip(TEST_CLIP_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const patchCfg = (p: AudioCfg) =>
     onChange({ plugins: { ...(settings?.plugins ?? {}), audio: { ...cfg, ...p } } });
@@ -171,10 +241,17 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // speaker is held — including via keyboard, which fires no pointerup on the vanishing button — the
   // button can unmount with the tone still sounding and nothing on screen to stop it. Kill it whenever
   // any of those change.
+  // (Both signals, and the placed one ALSO drops its loaded source: reopening the device rebuilds the
+  // engine's bus, and a clip that outlived that rebuild is a voice this panel can no longer address.
+  // Reloading costs one decode of a 20 s file, on a gesture nobody is timing.)
   useEffect(() => {
     if (tone !== null) { setTone(null); audioClient.setTestTone(-1, 0); }
+    if (placed !== null) setPlaced(null);
+    audioClient.stopClip(TEST_CLIP_ID);
+    audioClient.unloadClip(TEST_CLIP_ID);
+    testLoaded.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, need, opened?.channels, cfg.deviceType, cfg.deviceName]);
+  }, [mode, need, opened?.channels, cfg.deviceType, cfg.deviceName, cfg.speakerLayout]);
 
   // ── OPTION VALUES ARE INDICES, NOT `${type} ${name}` STRINGS ────────────────────────────────────────
   // Driver type names and device names ROUTINELY CONTAIN SPACES — "Windows Audio (Exclusive Mode)",
@@ -381,9 +458,33 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
               Hold a speaker to hear pink noise from exactly that one output, then set which device channel
               it should come out of. The tone bypasses the ambisonic decoder entirely — it is testing the
               WIRING, not the decode. */}
-          <div className="text-micro text-fg-3 mb-1.5">
-            Hold a speaker to hear it. Set the channel each speaker is actually wired to — the ring is
-            rarely patched in order.
+          <div className="text-micro text-fg-3 mb-1.5 space-y-1">
+            <div>
+              Set the channel each speaker is actually wired to — the ring is rarely patched in order.
+              Then hold either button to hear that speaker.
+            </div>
+            {/* ⚠ THE TWO BUTTONS ARE NOT A CONVENIENCE — THEY ANSWER DIFFERENT QUESTIONS, AND ONLY THE
+                SECOND ONE CAN SEE A MIRRORED ROOM. Wiring writes the device channel directly and skips
+                the decoder; Placed sends a source THROUGH it, from the direction the positioner draws
+                for that speaker. Same box from both ⇒ geometry and wiring agree. Different boxes ⇒ every
+                source in every show is on the wrong side, and nothing else in the app would tell you. */}
+            <div>
+              <span className="text-fg-2">Wiring</span> goes straight to the device channel.{' '}
+              <span className="text-fg-2">Placed</span> sends a source through the decoder from where the
+              positioner draws that speaker. <span className="text-fg-2">Both should light the same box.</span>{' '}
+              If they don't, the layout is mirrored against the room.
+            </div>
+            {/* ⚠ AND THE ONE ASYMMETRY BETWEEN THEM, WHICH WOULD OTHERWISE READ AS A DECODE FAULT.
+                setTestTone is written AFTER the master fader on purpose (engine.cpp: "a commissioning
+                tone that the house fader can silence is a tone that will have you checking a speaker
+                cable while the software is muting it"). The placed source cannot be, because going
+                through the whole chain IS the test — so the master fader and any master insert apply to
+                it and not to the other button. Silent Placed + working Wiring is very often a master at
+                zero, and an operator who does not know that goes looking at the layout. */}
+            <div>
+              Placed passes the master fader and its inserts; Wiring does not. If Placed is silent and
+              Wiring is not, check the master in the Audio Bed before suspecting the layout.
+            </div>
           </div>
           {patchDuplicate && (
             <div className="text-micro text-warn mb-1.5">
@@ -400,6 +501,11 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
             {Array.from({ length: need }).map((_, s) => {
               const patch = cfg.speakerPatch ?? [];
               const dst = patch[s] ?? s;
+              // The DECODER's own record for this speaker (direction, name, whether it is the LFE) —
+              // the same table the positioner pad draws from, so the two cannot disagree about which
+              // way "speaker 3" points. Absent for a layout name we do not know, which disables the
+              // placed test rather than guessing at a direction.
+              const spk = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? '') as SpeakerLayoutId]?.[s];
               return (
                 <div key={s} className="flex items-center gap-1.5">
                   <button
@@ -409,7 +515,25 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                     onPointerCancel={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
                     className={`px-2 h-6 rounded text-mini border tabular-nums ${tone === s ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}
                   >
-                    Speaker {s + 1}
+                    Speaker {s + 1}{spk?.name ? ` (${spk.name})` : ''}
+                  </button>
+                  {/* THE PLACED TEST. Disabled for an LFE, which has no direction to place a source at
+                      — see speakerLayouts.ts. Pointer capture is what makes a hold survive the pointer
+                      wandering off the button: without it a drag off-target strands the noise playing. */}
+                  <button
+                    disabled={!!spk?.lfe}
+                    title={spk?.lfe
+                      ? 'The LFE has no direction — there is nowhere to place a source'
+                      : `Play a source from ${Math.round(normAngle(-(spk?.azimuth ?? 0)))}° — through the decoder, the way a real clip travels`}
+                    onPointerDown={(e) => {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      setPlaced(s); placedRef.current = s; void playPlaced(s);
+                    }}
+                    onPointerUp={stopPlaced}
+                    onPointerCancel={stopPlaced}
+                    className={`px-2 h-6 rounded text-mini border ${placed === s ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'} disabled:opacity-40 disabled:hover:text-fg-2`}
+                  >
+                    Placed
                   </button>
                   <span className="text-micro text-fg-3">→</span>
                   <select

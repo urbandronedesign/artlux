@@ -9,6 +9,7 @@ import * as engine from './audioManager';
 import {
   conformAppend, conformFinish, conformFrames, conformRewind, conformStart, pruneCache,
 } from './conform.main';
+import { testSourcePath } from './testSource.main';
 
 // Ceiling for the conform cache, swept after each conform lands. Generous on purpose: a conform is 16-bit
 // at the source rate (~10 MB/minute stereo), and re-conforming a show's media because the cache was
@@ -35,6 +36,9 @@ export const plugin: MainPlugin = {
     // INFER unavailability from configure() returning an empty device name. Mirrors calib:available and
     // ndi:available. A missing engine is silent by construction; this is the only way to see it.
     ipc.handle('audio:available', () => engine.available);
+    // The pink-noise file the Speaker check PLACES through the decoder (as opposed to setTestTone,
+    // which writes a channel directly and so cannot see the decode at all). Generated on first ask.
+    ipc.handle('audio:testSource', () => testSourcePath());
     ipc.handle('audio:loadClip', (id, path) => engine.loadClip(String(id), String(path)));
 
     // Fire-and-forget control (renderer send).

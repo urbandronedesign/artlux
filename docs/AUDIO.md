@@ -200,6 +200,42 @@ whose channel is beyond what the device actually opened with is drawn **amber**:
 it has no direction — libspatialaudio parks it at the centre speaker's angle only so the array has
 something to hold. **Binaural** draws no rig at all, because there isn't one.
 
+### Commissioning: two tests, and only one of them can see a mirrored room
+
+**Preferences ▸ Audio ▸ Speaker check** offers a *pair* of buttons per speaker, and the difference
+between them is the whole point.
+
+| | Signal path | Answers |
+|---|---|---|
+| **Wiring** | `setTestTone(channel, gain)` — pink noise written **straight onto a device channel**, after the master fader, around everything else | *is channel 5 the box behind me?* |
+| **Placed** | an ordinary clip positioned at the direction the positioner draws for that speaker: clip chain → encoder → B-format → **decoder** → patch → device | *does the geometry agree with the wiring?* |
+
+The wiring test is blind to the decode by design, and that blindness is the problem: a mirrored angle
+convention — the document's angle is clockwise, the ambisonic azimuth anticlockwise — would leave it
+**passing perfectly on every speaker** while every real source in every show came out of the opposite
+side of the room. Nothing else in the app can catch that, because everything else agrees with itself.
+
+So hold one, then the other, on the same row. **Same box from both ⇒ the layout and the room agree.**
+Different boxes ⇒ the table in `speakerLayouts.ts` does not describe this rig, and no amount of
+re-patching channels will fix it.
+
+> ⚠ **One asymmetry between them is deliberate.** `setTestTone` is written *after* the master fader on
+> purpose (`engine.cpp`: "a commissioning tone that the house fader can silence is a tone that will have
+> you checking a speaker cable while the software is muting it"). The placed source cannot be — passing
+> the whole chain **is** the test — so the master fader and its inserts apply to it and not to the other
+> button. **Silent Placed + working Wiring is very often a master at zero**, and the panel says so where
+> an operator will read it.
+
+The source is pink noise generated once per machine into `userData/audio-test/` rather than shipped
+(`testSource.main.ts`). It reuses the *same* Kellet filter as the direct tone at the same output level,
+so the two sound alike and the only thing an ear has to judge is which box it came from. It loads under
+a reserved clip id (`__speaker-check`) that no document can mint, and the audio driver never sees it:
+`syncLoaded` only unloads ids in its own map, so an externally-loaded clip is invisible to it.
+
+The **LFE** row has no Placed button — it has no direction, so there is nowhere to place a source.
+
+---
+
 ### There are exactly TWO insert points, and there never will be a third
 
 **A spatial source is a point in a field.** It cannot be summed into a bus *before* it is placed — the
