@@ -118,6 +118,19 @@ if (asioSdk) {
   cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=ON', `--CDASIO_SDK_DIR=${sdk}`);
   console.log(`[build-audio] ASIO ENABLED from ${sdk}`);
   console.log('[build-audio] this build carries Steinberg\'s licence terms in addition to JUCE\'s — see NOTICE.');
+} else {
+  // ⚠ TURNING IT OFF HAS TO BE SAID OUT LOUD. A CMake cache REMEMBERS: once a tree has been
+  // configured with ARTLUX_ENABLE_ASIO=ON, simply unsetting the environment variable changes
+  // nothing, because with no defines to pass this script used to skip the configure pass entirely
+  // and `build` happily reuses the cached ON. The result is the dangerous direction of a stale
+  // binary: a developer who clears ARTLUX_ASIO_SDK, rebuilds, sees a clean successful build, and
+  // ships an ASIO-enabled addon under a licence that requires a countersigned agreement first
+  // (NOTICE §1). The file header already warns about defines not taking effect; this is the same
+  // failure with the sign flipped, and it is the one that can put an unlicensed binary in a release.
+  //
+  // So OFF is now passed explicitly, every time, and scripts/verify-asio-licence.cjs re-checks the
+  // built artifact rather than trusting that this worked.
+  cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=OFF');
 }
 
 // Build. cmake-js configures + builds in native/audio-engine/build; CMakeLists FetchContent-clones
@@ -134,10 +147,10 @@ if (asioSdk) {
 // FetchContent clones of JUCE and libspatialaudio and turns a two-minute rebuild into a fresh download.
 // Passing -D to an existing cache updates it in place, which is all that is wanted.
 console.log('[build-audio] cmake-js build (JUCE + libspatialaudio)…');
-if (cmakeArgs.length) {
-  const cfg = spawnSync(process.execPath, [cmakeJs, 'configure', ...cmakeArgs], { cwd: base, stdio: 'inherit' });
-  if (cfg.status !== 0) fail('cmake-js configure failed with the ASIO defines (see the output above).');
-}
+// Unconditional: cmakeArgs always carries an explicit ARTLUX_ENABLE_ASIO now, ON or OFF, so the
+// cache can never keep a value the environment no longer asks for.
+const cfg = spawnSync(process.execPath, [cmakeJs, 'configure', ...cmakeArgs], { cwd: base, stdio: 'inherit' });
+if (cfg.status !== 0) fail('cmake-js configure failed (see the output above).');
 const build = spawnSync(process.execPath, [cmakeJs, 'build'], { cwd: base, stdio: 'inherit' });
 if (build.status !== 0) {
   fail('cmake-js build failed (see the output above).',

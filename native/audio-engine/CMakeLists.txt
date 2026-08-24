@@ -71,19 +71,42 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   DONT_SET_USING_JUCE_NAMESPACE=1
 )
 
-# ── ASIO: OFF by default, and that is a decision, not an oversight ───────────────────────────────────
-# ASIO needs the Steinberg ASIO SDK, which is NOT redistributable and carries its own licence — it cannot
-# be vendored here, and CI cannot fetch it. On top of that we have no ASIO hardware to test against, and
-# this project ships nothing it cannot hear.
+# ── ASIO: OFF by default because the SDK cannot live in this repo, NOT because it is optional ────────
 #
-# WASAPI *exclusive* mode is compiled in unconditionally and is what delivers discrete multichannel output
-# on Windows (see AudioSettings' device picker, which groups devices by driver type). ASIO buys lower
-# latency, which a show bed does not need.
+# ⚠ THIS BLOCK USED TO SAY TWO THINGS THAT MEASUREMENT DISPROVED (2026-08-21, Scarlett 6i6 2nd gen):
 #
-# To build with ASIO: download the SDK, then
-#     cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=C:/path/to/asiosdk/common
-# See docs/DEVELOPMENT.md ▸ ASIO. NOTE: doing so adds a THIRD licence obligation (Steinberg's) to a build
-# that already carries JUCE's — which is NOT YET ELECTED (see NOTICE) — and libspatialaudio's LGPL.
+#   "we have no ASIO hardware to test against"  — we do now, and this path has been built and run.
+#   "WASAPI exclusive delivers discrete multichannel; ASIO only buys latency"  — false on an interface
+#   whose VENDOR driver is installed. Same machine, same cables, one hour apart: on the generic USB
+#   audio-class driver the 6i6 opened SIX channels on every WASAPI mode; with Focusrite's own driver it
+#   opened TWO, on every mode, at every requested count. A vendor driver commonly presents outputs 1-2
+#   as the Windows endpoint and routes everything above that through ASIO ONLY. On such a device ASIO
+#   is not an optimisation — it is the ONLY route to outputs 3 and up.
+#
+# WHY IT IS STILL OFF BY DEFAULT: the SDK cannot be committed here (see below), so a default-ON build
+# would fail for everyone who has not downloaded it. That is a packaging constraint, not a judgement
+# about whether ASIO is needed.
+#
+# ── THE LICENCE, READ FROM THE SDK's OWN LICENSE.txt (2.3.4, 2025-10-15) ────────────────────────────
+# The SDK is DUAL-LICENSED — proprietary Steinberg ASIO Licence, or GPLv3, your choice per project.
+#
+#   PROPRIETARY: "The Software Development Kit may not be distributed in parts or its entirety without
+#   prior written agreement" — so the SDK stays off this repo and out of CI. But that restricts the
+#   SDK, NOT a binary compiled against it: shipping an ASIO-enabled application is exactly what every
+#   DAW does. The real gate is the next sentence — "Before publishing a software under the proprietary
+#   license, you need to obtain a copy of the License Agreement SIGNED by Steinberg Media Technologies
+#   GmbH." Building and running locally needs nothing; PUBLISHING a release does.
+#
+#   GPLv3: no paperwork, but it would force ArtLux's own source under GPLv3, and the GPL GRANTS
+#   COMMERCIAL RIGHTS — the precise thing LICENSE §2 withholds, and the same reason JUCE's AGPLv3
+#   option was rejected (NOTICE item (a)). Unavailable while ArtLux is non-commercial; it becomes the
+#   cheap route if the relicensing question in plans/licensing-relicensing.md ever lands on the GPL.
+#
+# To build with ASIO, prefer the env var so the configure pass is not skipped:
+#     set ARTLUX_ASIO_SDK=<sdk>/common   then   npm run build:audio
+#     cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=<sdk>/common          (by hand, equivalent)
+# See docs/DEVELOPMENT.md ▸ ASIO and NOTICE. This adds a THIRD licence position (Steinberg's) to a
+# build that already carries JUCE's (Starter — elected 2026-07-25) and libspatialaudio's LGPL.
 option(ARTLUX_ENABLE_ASIO "Build with ASIO support (requires the Steinberg ASIO SDK)" OFF)
 set(ASIO_SDK_DIR "" CACHE PATH "Path to the ASIO SDK 'common' directory")
 

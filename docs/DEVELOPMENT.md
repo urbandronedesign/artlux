@@ -99,17 +99,19 @@ device picker).
 > which the class driver usually does and a vendor driver often does not. Check what the device actually
 > opened with — the **"Open:"** line under the device picker — before believing any channel count.
 
-What ASIO costs: the **Steinberg ASIO SDK**, which is not redistributable, cannot be vendored into this
-repo, and cannot be fetched by CI — plus **zero test coverage**, because nobody on this project has ASIO
-hardware to build against. Turning it on adds a **third** licence obligation to a build that already
-carries JUCE's (still **unelected** — see `NOTICE`) and libspatialaudio's LGPL. That is why it cannot be
-the default, and why the SDK is something you download and accept for yourself.
+What ASIO costs: the **Steinberg ASIO SDK**, which cannot be committed to this repo or fetched by CI —
+which is the whole reason the flag is `OFF` by default. A default-`ON` build would simply fail for
+everyone who has not downloaded it. Turning it on adds a **third** licence position to a build already
+carrying JUCE's (Starter, elected 2026-07-25 — see `NOTICE`) and libspatialaudio's LGPL.
+
+**It is no longer untested.** Built and run against a Scarlett 6i6 2nd gen on 2026-08-21; JUCE lists an
+`ASIO` device type beside the WASAPI ones and enumerates the installed drivers.
 
 Download it from [steinberg.net](https://www.steinberg.net/developers/) (free registration), then:
 
 ```bash
 # Windows — point at the SDK's `common` directory, the one holding iasiodrv.h
-set ARTLUX_ASIO_SDK=C:\path\to\asiosdk\common
+set ARTLUX_ASIO_SDK=C:/Users/you/Downloads/ASIO-SDK_2.3.4/ASIOSDK/common
 npm run build:audio
 ```
 
@@ -123,8 +125,24 @@ cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=C:/path/to/asiosdk/common
 ```
 
 An ASIO build prints its licence position at build time, and the driver type appears in the device
-picker beside the WASAPI ones. **A release must not be cut from an ASIO build unless you intend to ship
-under Steinberg's terms as well.**
+picker beside the WASAPI ones.
+
+#### Local builds are free. Publishing is not — and the difference is one sentence in the SDK.
+The SDK is **dual-licensed**: the proprietary Steinberg ASIO Licence, or **GPLv3**. Both give the same
+SDK; the choice is per project.
+
+- **Proprietary** — what ArtLux must use, because GPLv3 would force ArtLux's own source under the GPL
+  and the GPL *grants commercial rights*, which `LICENSE` §2 withholds. Its restriction is on passing on
+  **the SDK**, not on binaries built with it — every Windows DAW ships ASIO support this way. But
+  `LICENSE.txt` also says: *"Before publishing a software under the proprietary license, you need to
+  obtain a copy of the License Agreement **signed by** Steinberg Media Technologies GmbH."*
+- **GPLv3** — no paperwork whatsoever, and unavailable while ArtLux is non-commercial. Worth knowing:
+  it makes the copyleft options *cheaper* for ASIO than MIT/Apache, which is a new input to the
+  relicensing question in `plans/licensing-relicensing.md`.
+
+**So: build and test with ASIO freely — that needs nothing from Steinberg. Do not push a `v*` tag from
+an ASIO-enabled tree until the countersigned agreement is in hand**, because the tag workflow publishes
+a GitHub Release, and that is publishing. `NOTICE` §1 carries the full checklist.
 
 ### "The audio UI is all there and nothing plays" — no sound?
 There is no error dialog and no red UI: the loader degrades to a no-op by design, so a missing **or

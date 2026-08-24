@@ -128,6 +128,61 @@ the two kinds of use, because they carry very different obligations:
     bundled or redistributed and no third-party SOFA terms attach. A user who supplies their
     own SOFA file at runtime brings their own terms with it, which is theirs to honour.
 
+  Steinberg ASIO SDK 2.3.4          https://www.steinberg.net/developers/
+    ⚠ ONLY IN A BUILD MADE WITH ARTLUX_ENABLE_ASIO=ON. Default builds compile JUCE_ASIO=0 and
+    link nothing of Steinberg's; this entry describes what attaches when it is turned ON.
+    WHAT IS COMPILED IN: interface headers only (iasiodrv.h / asio.h / asiosys.h from the SDK's
+    `common` folder, on JUCE's include path). No Steinberg .cpp, no library, no DLL. The ASIO
+    DRIVER itself is the audio interface vendor's, installed by the user with their hardware,
+    loaded at runtime by COM — we neither ship nor link it.
+
+    WHY IT IS NEEDED AT ALL — this is not a latency luxury. Measured on a Scarlett 6i6 2nd gen,
+    same machine and cables, 2026-08-21: on the generic USB audio-class driver the device opened
+    SIX channels on every WASAPI mode; with Focusrite's own driver installed it opened TWO, on
+    every mode, at every requested count. Vendor drivers commonly expose only outputs 1-2 to
+    Windows and route the rest through ASIO alone. For those interfaces ASIO is the only way to
+    reach outputs 3 and up, so a Windows build without it cannot drive a multi-speaker rig on the
+    hardware most venues own.
+
+    DUAL-LICENSED, and the choice matters — read from the SDK's own LICENSE.txt, not from memory:
+
+      (a) PROPRIETARY STEINBERG ASIO LICENCE — the route ArtLux must take today.
+          "The Software Development Kit may not be distributed in parts or its entirety without
+          prior written agreement." That is why the SDK is NOT in this repo and CI cannot fetch
+          it. It restricts the SDK, NOT binaries built against it — shipping an ASIO-enabled
+          application is ordinary practice for every DAW on Windows.
+          ⚠ THE ACTUAL GATE ON RELEASING: "Before publishing a software under the proprietary
+          license, you need to obtain a copy of the License Agreement SIGNED by Steinberg Media
+          Technologies GmbH." Building and testing locally requires nothing. PUBLISHING an
+          ASIO-enabled installer requires that countersigned agreement FIRST — a real exchange
+          with Steinberg, not a click-through. The form is in the SDK ("Steinberg ASIO Licensing
+          Agreement.pdf") and at steinberg.net/en/company/developers.html.
+
+      (b) GPLv3 — available, and unusable here. It needs no Steinberg paperwork at all, but it
+          would put ArtLux's own source under GPLv3, and the GPL GRANTS RECIPIENTS COMMERCIAL
+          RIGHTS. That is precisely what LICENSE §2 withholds, and it is the same reasoning that
+          rejected JUCE's AGPLv3 option in item (a) below. It also cannot combine with the JUCE
+          Starter EULA, which is proprietary and non-copyleft.
+          ⇒ NEW INPUT TO THE DEFERRED RELICENSING DECISION, item (h): if ArtLux ever moves to
+            GPLv3/AGPLv3, ASIO becomes free of paperwork. Under MIT/Apache the proprietary route
+            and its signed agreement stay necessary. Staying non-commercial keeps (a) as the only
+            option. plans/licensing-relicensing.md does not yet weigh this.
+
+    TRADEMARK — applies under EITHER licence, whenever the name or logo is shown. Steinberg's
+    Usage Guidelines (PDF in the SDK) permit "ASIO" and the ASIO-compatible logo in product
+    contexts — splash screens, about boxes, documentation, product sites — used unaltered. They
+    FORBID "ASIO" or derivatives in a company or product name. ArtLux shows "ASIO" as a
+    driver-type heading in the audio device picker, which is a product context and permitted;
+    it is a factual capability label either way. If a release ever ships ASIO, add the credit
+    line to shared/credits.ts beside JUCE's.
+
+    ⚠ NOT YET DONE — REQUIRED BEFORE ANY ASIO-ENABLED RELEASE IS PUBLISHED:
+      [ ] the countersigned Steinberg agreement, obtained and filed beside this NOTICE
+      [ ] the SDK reaching release CI privately (never committed to the public tree)
+      [ ] the ASIO credit in shared/credits.ts
+    Until all three are true, ASIO builds are for LOCAL USE ONLY — the tag workflow publishes a
+    GitHub Release (item (e)), which is publishing.
+
 --------------------------------------------------------------------------------------
 2. LOADED AT RUNTIME — NOT redistributed by us
 --------------------------------------------------------------------------------------
@@ -260,6 +315,12 @@ THE STARTER ELECTION: DONE, AND WHAT KEEPS IT TRUE
       the JUCE blocker is confined to the audio engine and its API surface is shallow enough to
       replace, and item (a)'s reasoning for rejecting AGPLv3 — that it grants commercial rights — is
       INVERTED under the new question. (a) is not wrong; the goal it was answering has changed.
+      ADDED 2026-08-21 — A THIRD THING THAT ANALYSIS DOES NOT WEIGH: ASIO, and it pulls the opposite
+      way from every other dependency. Windows multichannel on vendor-driver interfaces needs ASIO
+      (see section 1), and the Steinberg SDK is dual-licensed proprietary/GPLv3. Under GPLv3 or
+      AGPLv3 ArtLux could ship ASIO with NO Steinberg paperwork; under MIT/Apache or the current
+      non-commercial licence it needs a countersigned agreement before any release. So the copyleft
+      routes, which cost the most elsewhere, are the CHEAPEST here. Weigh it with the rest.
 
   (g) WHO OWNS THE COPYRIGHT — RESOLVED 2026-07-25: the two authors, as individuals. No
       company, studio or institution is a party to the work or holds any claim in it, and
