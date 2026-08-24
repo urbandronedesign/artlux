@@ -1,38 +1,43 @@
 #!/usr/bin/env node
 /*
- * ASIO release gate — run from `npm run package` / `package:dir`, AFTER the addon is built and
- * BEFORE electron-builder wraps it into an installer.
+ * ASIO build gate — runs from `npm run package` and from .github/workflows/build.yml, after the addon
+ * is built and before electron-builder wraps it into an installer.
  *
- * THE TRAP THIS EXISTS TO CLOSE. ASIO is enabled by an ENVIRONMENT VARIABLE (ARTLUX_ASIO_SDK), and
- * `npm run package` calls `scripts/build-audio.cjs` like any other build. So a machine where that
- * variable is set — a developer's shell profile, a system-wide variable set once and forgotten, a
- * terminal still open from an ASIO session — produces a perfectly successful, perfectly silent
- * ASIO-enabled installer. Nothing in the build output says "you have just built something you may
- * not publish yet".
+ * ⚠ THIS SCRIPT'S JOB IS THE OPPOSITE OF WHAT IT WAS, AND THAT IS DELIBERATE.
  *
- * And publishing is exactly what is gated. The Steinberg ASIO SDK's own LICENSE.txt (2.3.4):
+ * It was written to REFUSE an ASIO build, on the reasoning that ASIO was an accident waiting to be
+ * enabled by a stray environment variable. ASIO is now a shipped feature of ArtLux on Windows, so the
+ * accident it guards against has inverted: the danger is a release that SILENTLY LOST it.
  *
- *     "Before publishing a software under the proprietary license, you need to obtain a copy of
- *      the License Agreement signed by Steinberg Media Technologies GmbH."
+ * That is not hypothetical. A CMake cache remembers, and `cmake-js build` reuses it — so a tree
+ * configured before ASIO became the default kept producing a WASAPI-only addon while every log line
+ * said success. An installer built from it looks perfect and cannot reach outputs 3 and up on any
+ * interface with a vendor driver, which is the exact silence this whole feature exists to end. Nothing
+ * else in the build would notice: every native module in this app degrades quietly by design.
  *
- * Building and testing locally requires nothing. Handing someone an installer requires that
- * countersigned agreement first. Pushing a `v*` tag runs a CI matrix that publishes a GitHub
- * Release, so a tag is publishing. See NOTICE §1 (Steinberg ASIO SDK) for the full position and the
- * three-item checklist this script enforces the first item of.
+ * WHY IT READS THE BINARY. The obvious implementation is a flag or a marker file. Both describe what a
+ * build was ASKED to do; only the artifact says what it IS, and they came apart in practice — a build
+ * run with no environment variables at all still configured against a cached external SDK path. JUCE
+ * compiles `ASIOAudioIODeviceType` into juce_win32_ASIO.cpp only under JUCE_ASIO=1, so the symbol's
+ * presence is the answer and cannot disagree with what ships.
  *
- * WHY IT READS THE BINARY AND NOT A FLAG. The obvious implementation is a marker file written by
- * build-audio.cjs. Markers drift: the build that wrote it is not necessarily the build being
- * packaged, and a stale marker fails in the dangerous direction — it says OFF while the addon says
- * ON. So this reads ground truth out of the artifact itself. JUCE compiles `ASIOAudioIODeviceType`
- * into the binary only when JUCE_ASIO=1, so its presence IS the answer, and it cannot disagree with
- * what ships.
+ * Matching that class name rather than the bare word "ASIO" matters: driver NAMES like "ASIO
+ * DirectX Full Duplex" appear as string literals in unrelated code paths, so a naive search reports a
+ * false positive on an ordinary WASAPI-only build.
  *
  * Run:  node scripts/verify-asio-licence.cjs [--warn-only]
  *
- * To package an ASIO build deliberately, set the agreement reference — anything that identifies the
- * countersigned document, e.g. the date it was returned:
+ * To ship a deliberately ASIO-free build (the licence-free artifact), build it that way and say so:
+ *     set ARTLUX_ASIO=0
+ *     npm run build:audio && npm run package
  *
- *     set ARTLUX_ASIO_AGREEMENT=signed-2026-09-01-steinberg
+ * THE LICENCE POSITION, from the SDK's own LICENSE.txt (2.3.4, 2025-10-15): the ASIO SDK is dual
+ * licensed, proprietary or GPLv3. The proprietary branch restricts redistributing THE SDK, not a
+ * binary compiled against it, and gates publishing on an agreement countersigned by Steinberg; the
+ * GPLv3 branch requires the product itself be GPLv3. ArtLux ships ASIO under a decision its owners
+ * have taken and recorded in NOTICE. Attribution is required under either branch and is carried in
+ * NOTICE and shared/credits.ts — this script checks that it is still there, because an attribution
+ * that quietly disappears is the one licence obligation a build CAN violate by accident.
  */
 
 const fs = require('fs');
@@ -40,62 +45,89 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const ADDON = path.join(ROOT, 'native', 'audio-engine', 'audio_engine.node');
-
-// JUCE names this class in juce_win32_ASIO.cpp, which is compiled only under JUCE_ASIO=1. Matching a
-// class name rather than the bare word "ASIO" matters: "ASIO DirectX Full Duplex" and similar driver
-// NAMES appear as string literals in unrelated code paths, so a naive search for "ASIO" reports a
-// false positive on an ordinary WASAPI-only build.
 const ASIO_MARKER = 'ASIOAudioIODeviceType';
 
 const WARN_ONLY = process.argv.slice(2).includes('--warn-only');
-const AGREEMENT = (process.env.ARTLUX_ASIO_AGREEMENT || '').trim();
+const DELIBERATELY_OFF = process.env.ARTLUX_ASIO === '0';
 
 const red = (s) => `\x1b[31m${s}\x1b[0m`;
 const yellow = (s) => `\x1b[33m${s}\x1b[0m`;
 const green = (s) => `\x1b[32m${s}\x1b[0m`;
 
+const bail = (lines) => {
+  console.error('');
+  lines.forEach((l) => console.error(l));
+  console.error('');
+  process.exit(WARN_ONLY ? 0 : 1);
+};
+
+// ── 1. Is the addon there at all? Not this script's call to make. ────────────────────────────────
 if (!fs.existsSync(ADDON)) {
-  // Not this script's business. The audio addon is optional in some build paths, and
-  // verify-package-resources.cjs is the script that decides whether a missing resource is fatal.
-  console.log(`${green('✓')} [asio-gate] no audio addon present — nothing to check.`);
+  console.log(`${green('✓')} [asio] no audio addon present — nothing to check.`);
   process.exit(0);
 }
 
 const hasAsio = fs.readFileSync(ADDON).includes(ASIO_MARKER);
 
+// ── 2. Attribution must survive, whichever branch the project is on ──────────────────────────────
+const attributionMissing = [];
+if (hasAsio) {
+  const notice = fs.readFileSync(path.join(ROOT, 'NOTICE'), 'utf8');
+  if (!/steinberg/i.test(notice)) attributionMissing.push('NOTICE has no Steinberg / ASIO entry');
+  const creditsPath = path.join(ROOT, 'shared', 'credits.ts');
+  if (fs.existsSync(creditsPath) && !/asio/i.test(fs.readFileSync(creditsPath, 'utf8'))) {
+    attributionMissing.push('shared/credits.ts does not name ASIO (it is shown at startup and in About)');
+  }
+}
+
+// ── 3. The verdicts ──────────────────────────────────────────────────────────────────────────────
+if (process.platform !== 'win32') {
+  console.log(`${green('✓')} [asio] ${process.platform} build — ASIO is a Windows-only driver model, correctly absent.`);
+  process.exit(0);
+}
+
+if (DELIBERATELY_OFF) {
+  if (hasAsio) {
+    bail([
+      red('✗ [asio] ARTLUX_ASIO=0 was set, but the addon still has ASIO compiled in.'),
+      '',
+      '  The CMake cache almost certainly kept the previous value. Re-run the build so the define is',
+      '  passed explicitly — build-audio.cjs forces it in both directions:',
+      '      npm run build:audio',
+    ]);
+  }
+  console.log(`${yellow('!')} [asio] ARTLUX_ASIO=0 — packaging a deliberately ASIO-free build.`);
+  console.log('  On interfaces whose vendor driver exposes only outputs 1-2 to Windows, this installer');
+  console.log('  cannot reach outputs 3 and up. That is the intended trade for a Steinberg-free artifact.');
+  process.exit(0);
+}
+
 if (!hasAsio) {
-  console.log(`${green('✓')} [asio-gate] audio_engine.node carries no ASIO — free to publish.`);
-  process.exit(0);
+  bail([
+    red('✗ [asio] REFUSING TO PACKAGE: this Windows build has NO ASIO, and ASIO is a shipped feature.'),
+    '',
+    `  ${path.relative(ROOT, ADDON)} does not contain ${ASIO_MARKER}, so it was built with JUCE_ASIO=0.`,
+    '  An installer from this addon looks perfectly healthy and silently cannot reach outputs 3 and up',
+    '  on any interface with a vendor driver installed — measured on a Scarlett 6i6, where the vendor',
+    '  driver gives WASAPI two channels and routes the rest through ASIO alone.',
+    '',
+    '  The usual cause is a stale CMake cache from before ASIO became the default. Rebuild:',
+    '      npm run build:audio',
+    '',
+    '  If you MEANT to build without it, say so and this becomes a warning instead:',
+    '      set ARTLUX_ASIO=0',
+  ]);
 }
 
-if (AGREEMENT) {
-  console.log(`${yellow('!')} [asio-gate] PACKAGING AN ASIO-ENABLED BUILD.`);
-  console.log(`  Agreement reference: ${AGREEMENT}`);
-  console.log('  Confirm the rest of the NOTICE §1 checklist before this installer leaves the machine:');
-  console.log('    - the countersigned Steinberg agreement is filed beside NOTICE');
-  console.log('    - the ASIO credit is present in shared/credits.ts');
-  console.log('    - the ASIO trademark is used per Steinberg\'s Usage Guidelines (unaltered, product context)');
-  process.exit(0);
+if (attributionMissing.length) {
+  bail([
+    red('✗ [asio] REFUSING TO PACKAGE: ASIO is compiled in but its attribution is missing.'),
+    '',
+    ...attributionMissing.map((m) => `  - ${m}`),
+    '',
+    '  Attribution is required under BOTH branches of the Steinberg SDK licence. It is also the one',
+    '  obligation a build can drop by accident, which is why it is checked here rather than trusted.',
+  ]);
 }
 
-console.error('');
-console.error(red('✗ [asio-gate] REFUSING TO PACKAGE: this build has ASIO compiled in.'));
-console.error('');
-console.error(`  ${path.relative(ROOT, ADDON)} contains ${ASIO_MARKER}, so it was built with`);
-console.error('  ARTLUX_ASIO_SDK set. That is fine to build and fine to run here. It is NOT fine to');
-console.error('  publish, because the Steinberg ASIO SDK licence says:');
-console.error('');
-console.error('    "Before publishing a software under the proprietary license, you need to obtain');
-console.error('     a copy of the License Agreement signed by Steinberg Media Technologies GmbH."');
-console.error('');
-console.error('  Pushing a v* tag publishes a GitHub Release, which is publishing. See NOTICE §1.');
-console.error('');
-console.error('  TO BUILD A PUBLISHABLE INSTALLER — clear the variable and rebuild the addon:');
-console.error('      set ARTLUX_ASIO_SDK=');
-console.error('      npm run build:audio        (build-audio.cjs forces ASIO back OFF in the CMake cache)');
-console.error('');
-console.error('  TO PACKAGE ASIO DELIBERATELY, once the agreement is countersigned and filed:');
-console.error('      set ARTLUX_ASIO_AGREEMENT=signed-YYYY-MM-DD-steinberg');
-console.error('');
-
-process.exit(WARN_ONLY ? 0 : 1);
+console.log(`${green('✓')} [asio] ASIO compiled in, attribution present in NOTICE and credits.`);

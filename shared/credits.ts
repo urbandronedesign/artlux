@@ -37,7 +37,11 @@ export const LICENSE_HEADLINE = 'Educational and non-commercial use only — no 
  * AGPL would grant the commercial rights LICENSE §2 withholds); libspatialaudio is LGPL-2.1+ and
  * STATICALLY linked, which is why LICENSE §5 carries a relink offer. Full inventory: NOTICE.
  */
-export const LICENSE_DEPS = 'Audio engine built with JUCE 8 (Starter licence) · libspatialaudio LGPL-2.1+ · see NOTICE';
+// ASIO is named here because attribution is required under BOTH branches of the Steinberg SDK
+// licence, and this string is the surface a recipient actually sees (startup splash + About).
+// scripts/verify-asio-licence.cjs refuses to package an ASIO build if this line stops naming it.
+// "ASIO is a trademark and software of Steinberg Media Technologies GmbH."
+export const LICENSE_DEPS = 'Audio engine built with JUCE 8 (Starter licence) · libspatialaudio LGPL-2.1+ · ASIO Driver Technology by Steinberg Media Technologies GmbH · see NOTICE';
 
 /** Copyright line. The authors hold it — not the account the repository happens to live under. */
 export const COPYRIGHT = `© ${AUTHORS.join(' and ')}`;

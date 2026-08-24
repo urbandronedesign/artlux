@@ -83,54 +83,59 @@ if (!fs.existsSync(cmakeJs)) {
   if (install.status !== 0) fail('npm ci failed in native/audio-engine.');
 }
 
-// Build. cmake-js configures + builds in native/audio-engine/build; CMakeLists FetchContent-clones
-// JUCE 8.0.14 and libspatialaudio 0.4.0 on the first run (slow, then cached in build/).
-// NOTE: the addon is N-API (NAPI_VERSION=8), so it is runtime-agnostic — a build against Node's
-// headers loads in Electron 42 unchanged. No --runtime=electron needed.
-// ── ASIO: OPT-IN, VIA ONE ENVIRONMENT VARIABLE ──────────────────────────────────────────────────
+// ── ASIO: ON BY DEFAULT ON WINDOWS ──────────────────────────────────────────────────────────────
 //
-// WHY ANYONE NEEDS THIS. On Windows, most multichannel interfaces expose only OUTPUTS 1-2 to WASAPI
-// once the vendor's own driver is installed, and everything above that through ASIO. Measured on a
-// Scarlett 6i6: on the generic USB-audio-class driver it opened SIX channels on every WASAPI mode; the
-// moment Focusrite's driver replaced it, the same device opened TWO, on every mode, at every requested
-// count. That is not a fault to debug — it is how the driver is built — and the only way to the other
-// four outputs is ASIO.
+// WHY IT SHIPS. On Windows, most multichannel interfaces expose only OUTPUTS 1-2 to WASAPI once the
+// vendor's own driver is installed, and route everything above that through ASIO. Measured on a
+// Scarlett 6i6: on the generic USB audio-class driver it opened SIX channels on every WASAPI mode;
+// the moment Focusrite's driver replaced it, the same device opened TWO, on every mode, at every
+// requested count. That is how the driver is built, not a fault to debug. A venue installing a
+// released ArtLux and plugging in its own interface could not otherwise reach its own speakers.
 //
-// It stays OFF by default and that is a licence decision, not an oversight: the Steinberg ASIO SDK is
-// not redistributable, cannot be vendored here, and cannot be fetched by CI. Enabling it also adds
-// Steinberg's terms to a build that already carries JUCE's and libspatialaudio's — see NOTICE and the
-// long note in native/audio-engine/CMakeLists.txt. So the SDK is something an operator downloads and
-// accepts for themselves; this only removes the need to hand-run cmake afterwards.
+// ⚠ NOTHING HAS TO BE DOWNLOADED, AND THE OLD REQUIREMENT WAS GUARDING NOTHING. JUCE 8.0.14 vendors
+// asio.h, asiosys.h and iasiodrv.h — byte-identical to the SDK's common/, verified with cmp — and
+// juce_audio_devices includes ITS copies unless JUCE_ASIO_USE_EXTERNAL_SDK=1. So the previous
+// ARTLUX_ASIO_SDK gate hard-failed the build over a file the compile never opened. See the long note
+// in native/audio-engine/CMakeLists.txt.
 //
-//     set ARTLUX_ASIO_SDK=C:\path\to\asiosdk\common   (the directory containing iasiodrv.h)
-//     npm run build:audio
+//   ARTLUX_ASIO=0             build WITHOUT ASIO (the licence-free artifact)
+//   ARTLUX_ASIO_SDK=<dir>     OPTIONAL: build against an external SDK instead of JUCE's headers
 const asioSdk = process.env.ARTLUX_ASIO_SDK;
+const asioOff = process.env.ARTLUX_ASIO === '0';
+const wantAsio = process.platform === 'win32' && !asioOff;
 const cmakeArgs = [];
-if (asioSdk) {
+
+// ⚠ ALWAYS PASS THE FLAG EXPLICITLY, IN BOTH DIRECTIONS. A CMake cache REMEMBERS: once a tree has
+// been configured one way, changing the environment and rebuilding changes nothing, because `build`
+// reuses the cache. Turning ASIO OFF is the dangerous direction for licensing — clear the variable,
+// rebuild, get a clean successful build and still an ASIO binary. Turning it ON is the dangerous
+// direction for the product — a tree configured before this change keeps producing a WASAPI-only
+// addon, so the release silently lacks the feature it was cut for. scripts/verify-asio-licence.cjs
+// re-checks the ARTIFACT rather than trusting that any of this worked.
+cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=' + (wantAsio ? 'ON' : 'OFF'));
+
+if (wantAsio && asioSdk) {
   if (!fs.existsSync(path.join(asioSdk, 'iasiodrv.h'))) {
-    fail(`ARTLUX_ASIO_SDK is set to ${asioSdk}, but there is no iasiodrv.h there.`,
-         'Point it at the SDK\'s `common` directory — the one holding iasiodrv.h, asio.h, asiodrivers.cpp.');
+    fail('ARTLUX_ASIO_SDK is set to ' + asioSdk + ', but there is no iasiodrv.h there.',
+         "Point it at the SDK's `common` directory, or UNSET it to use JUCE's vendored headers.");
   }
   // Forward slashes: CMake treats a backslash as an escape, so a Windows path pasted verbatim into a
-  // -D value silently mangles (C:\asiosdk\common → C:asiosdkcommon) and the SDK is then "not found"
-  // at a path nobody typed.
-  const sdk = asioSdk.replace(/\\/g, '/');
-  cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=ON', `--CDASIO_SDK_DIR=${sdk}`);
-  console.log(`[build-audio] ASIO ENABLED from ${sdk}`);
-  console.log('[build-audio] this build carries Steinberg\'s licence terms in addition to JUCE\'s — see NOTICE.');
+  // -D value silently mangles and the SDK is then "not found" at a path nobody typed.
+  const SEP = String.fromCharCode(92);
+  cmakeArgs.push('--CDASIO_SDK_DIR=' + asioSdk.split(SEP).join('/'));
+  // JUCE ignores an include path without this define, so an "external SDK" build silently is not one.
+  cmakeArgs.push('--CDJUCE_ASIO_USE_EXTERNAL_SDK=1');
+  cmakeArgs.push('--CDARTLUX_ASIO_USE_EXTERNAL=ON');
+  console.log('[build-audio] ASIO ENABLED from the external SDK at ' + asioSdk);
+} else if (wantAsio) {
+  // ⚠ An empty --CD is DROPPED by cmake-js, so a stale cached ASIO_SDK_DIR cannot be cleared that way
+  // — measured: a run with no environment variables still configured against the external SDK. Turn
+  // the feature off by its own boolean instead, which is a value CMake can actually store.
+  cmakeArgs.push('--CDARTLUX_ASIO_USE_EXTERNAL=OFF');
+  console.log("[build-audio] ASIO ENABLED (JUCE's vendored headers) - carries Steinberg's terms, see NOTICE.");
 } else {
-  // ⚠ TURNING IT OFF HAS TO BE SAID OUT LOUD. A CMake cache REMEMBERS: once a tree has been
-  // configured with ARTLUX_ENABLE_ASIO=ON, simply unsetting the environment variable changes
-  // nothing, because with no defines to pass this script used to skip the configure pass entirely
-  // and `build` happily reuses the cached ON. The result is the dangerous direction of a stale
-  // binary: a developer who clears ARTLUX_ASIO_SDK, rebuilds, sees a clean successful build, and
-  // ships an ASIO-enabled addon under a licence that requires a countersigned agreement first
-  // (NOTICE §1). The file header already warns about defines not taking effect; this is the same
-  // failure with the sign flipped, and it is the one that can put an unlicensed binary in a release.
-  //
-  // So OFF is now passed explicitly, every time, and scripts/verify-asio-licence.cjs re-checks the
-  // built artifact rather than trusting that this worked.
-  cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=OFF');
+  console.log('[build-audio] ASIO disabled (' +
+    (asioOff ? 'ARTLUX_ASIO=0' : process.platform + ' is not Windows') + ').');
 }
 
 // Build. cmake-js configures + builds in native/audio-engine/build; CMakeLists FetchContent-clones

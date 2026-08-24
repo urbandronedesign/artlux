@@ -71,52 +71,69 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   DONT_SET_USING_JUCE_NAMESPACE=1
 )
 
-# ── ASIO: OFF by default because the SDK cannot live in this repo, NOT because it is optional ────────
+# ── ASIO: ON by default on Windows, because on real interfaces it is the only route to the outputs ───
 #
-# ⚠ THIS BLOCK USED TO SAY TWO THINGS THAT MEASUREMENT DISPROVED (2026-08-21, Scarlett 6i6 2nd gen):
+# MEASURED, 2026-08-21, Scarlett 6i6 2nd gen. Same machine, same cables, one hour apart: on the generic
+# USB audio-class driver it opened SIX channels on every WASAPI mode; with Focusrite's own driver
+# installed it opened TWO, on every mode, at every requested count. A vendor driver commonly presents
+# outputs 1-2 as the Windows endpoint and routes everything above through ASIO ONLY. On such a device
+# ASIO is not a latency optimisation — it is the ONLY route to outputs 3 and up, and a venue installing
+# a released build has no way to reach its own speakers without it.
 #
-#   "we have no ASIO hardware to test against"  — we do now, and this path has been built and run.
-#   "WASAPI exclusive delivers discrete multichannel; ASIO only buys latency"  — false on an interface
-#   whose VENDOR driver is installed. Same machine, same cables, one hour apart: on the generic USB
-#   audio-class driver the 6i6 opened SIX channels on every WASAPI mode; with Focusrite's own driver it
-#   opened TWO, on every mode, at every requested count. A vendor driver commonly presents outputs 1-2
-#   as the Windows endpoint and routes everything above that through ASIO ONLY. On such a device ASIO
-#   is not an optimisation — it is the ONLY route to outputs 3 and up.
+# ⚠ NO SDK DOWNLOAD IS NEEDED, AND THE OLD FATAL_ERROR HERE WAS GUARDING NOTHING.
+# JUCE 8.0.14 VENDORS the three ASIO headers at
+#   modules/juce_audio_devices/native/asio/{asio.h,asiosys.h,iasiodrv.h}
+# byte-for-byte identical to the SDK's common/ (verified with cmp), lists them in its own LICENSE.md,
+# and JUCE_ASIO_USE_EXTERNAL_SDK defaults to 0 — so juce_audio_devices.cpp includes ITS copy and never
+# looks at an include path. The previous block demanded ASIO_SDK_DIR contain iasiodrv.h and then added
+# that directory to the include path, i.e. it hard-failed the build over a file the compile did not
+# use. That requirement is why this had to be off by default and why CI could not build it; both
+# reasons were false.
 #
-# WHY IT IS STILL OFF BY DEFAULT: the SDK cannot be committed here (see below), so a default-ON build
-# would fail for everyone who has not downloaded it. That is a packaging constraint, not a judgement
-# about whether ASIO is needed.
+# ASIO_SDK_DIR is now genuinely optional and means what it says: point it at an external SDK and JUCE
+# is told to prefer that copy over its own. Leave it empty for the vendored headers.
 #
 # ── THE LICENCE, READ FROM THE SDK's OWN LICENSE.txt (2.3.4, 2025-10-15) ────────────────────────────
-# The SDK is DUAL-LICENSED — proprietary Steinberg ASIO Licence, or GPLv3, your choice per project.
+# Dual-licensed — proprietary Steinberg ASIO Licence, or GPLv3, elected per project. The proprietary
+# branch restricts distributing THE SDK, not a binary compiled against it (shipping an ASIO-enabled
+# application is what every DAW does); its gate is "Before publishing a software under the proprietary
+# license, you need to obtain a copy of the License Agreement signed by Steinberg Media Technologies
+# GmbH." The GPLv3 branch requires the product itself be GPLv3. Attribution is required either way —
+# see NOTICE and shared/credits.ts. Shipping ASIO is a decision the project owners have taken; this
+# file only records what it rests on.
 #
-#   PROPRIETARY: "The Software Development Kit may not be distributed in parts or its entirety without
-#   prior written agreement" — so the SDK stays off this repo and out of CI. But that restricts the
-#   SDK, NOT a binary compiled against it: shipping an ASIO-enabled application is exactly what every
-#   DAW does. The real gate is the next sentence — "Before publishing a software under the proprietary
-#   license, you need to obtain a copy of the License Agreement SIGNED by Steinberg Media Technologies
-#   GmbH." Building and running locally needs nothing; PUBLISHING a release does.
-#
-#   GPLv3: no paperwork, but it would force ArtLux's own source under GPLv3, and the GPL GRANTS
-#   COMMERCIAL RIGHTS — the precise thing LICENSE §2 withholds, and the same reason JUCE's AGPLv3
-#   option was rejected (NOTICE item (a)). Unavailable while ArtLux is non-commercial; it becomes the
-#   cheap route if the relicensing question in plans/licensing-relicensing.md ever lands on the GPL.
-#
-# To build with ASIO, prefer the env var so the configure pass is not skipped:
-#     set ARTLUX_ASIO_SDK=<sdk>/common   then   npm run build:audio
-#     cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=<sdk>/common          (by hand, equivalent)
-# See docs/DEVELOPMENT.md ▸ ASIO and NOTICE. This adds a THIRD licence position (Steinberg's) to a
-# build that already carries JUCE's (Starter — elected 2026-07-25) and libspatialaudio's LGPL.
-option(ARTLUX_ENABLE_ASIO "Build with ASIO support (requires the Steinberg ASIO SDK)" OFF)
-set(ASIO_SDK_DIR "" CACHE PATH "Path to the ASIO SDK 'common' directory")
+# Turn it off for a build with:  cmake -DARTLUX_ENABLE_ASIO=OFF   (or ARTLUX_ASIO=0 for build:audio)
+if(WIN32)
+  option(ARTLUX_ENABLE_ASIO "Build with ASIO support (Windows multichannel)" ON)
+else()
+  option(ARTLUX_ENABLE_ASIO "Build with ASIO support (Windows only)" OFF)
+endif()
+set(ASIO_SDK_DIR "" CACHE PATH "OPTIONAL external ASIO SDK 'common' directory; only used when ARTLUX_ASIO_USE_EXTERNAL=ON")
+# ⚠ A SEPARATE BOOLEAN, NOT "is ASIO_SDK_DIR non-empty".
+# A CMake CACHE entry cannot be cleared by passing an empty -D: cmake-js drops the argument entirely,
+# so a tree once configured with a path goes on using it forever. Measured — a build run with no
+# environment variables at all still printed "ASIO ENABLED using the EXTERNAL SDK at ...". The switch
+# has to be a value that can be set to OFF, not an absence that cannot be expressed.
+option(ARTLUX_ASIO_USE_EXTERNAL "Use an external ASIO SDK instead of JUCE's vendored headers" OFF)
+
+if(ARTLUX_ENABLE_ASIO AND NOT WIN32)
+  message(FATAL_ERROR "ARTLUX_ENABLE_ASIO=ON but ASIO is a Windows-only driver model.")
+endif()
 
 if(ARTLUX_ENABLE_ASIO)
-  if(NOT ASIO_SDK_DIR OR NOT EXISTS "${ASIO_SDK_DIR}/iasiodrv.h")
-    message(FATAL_ERROR "ARTLUX_ENABLE_ASIO=ON but ASIO_SDK_DIR does not contain iasiodrv.h. See docs/DEVELOPMENT.md.")
-  endif()
   target_compile_definitions(${PROJECT_NAME} PRIVATE JUCE_ASIO=1)
-  target_include_directories(${PROJECT_NAME} PRIVATE ${ASIO_SDK_DIR})
-  message(STATUS "ArtLux: ASIO ENABLED — this adds Steinberg's licence terms to this build.")
+  if(ARTLUX_ASIO_USE_EXTERNAL AND ASIO_SDK_DIR)
+    if(NOT EXISTS "${ASIO_SDK_DIR}/iasiodrv.h")
+      message(FATAL_ERROR "ASIO_SDK_DIR is set to '${ASIO_SDK_DIR}' but there is no iasiodrv.h there. Leave it empty to use JUCE's vendored headers.")
+    endif()
+    # JUCE_ASIO_USE_EXTERNAL_SDK=1 is REQUIRED for the include path to matter; without it JUCE includes
+    # its own copy regardless of what is on the path, and an "external SDK" build silently is not one.
+    target_compile_definitions(${PROJECT_NAME} PRIVATE JUCE_ASIO_USE_EXTERNAL_SDK=1)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${ASIO_SDK_DIR})
+    message(STATUS "ArtLux: ASIO ENABLED using the EXTERNAL SDK at ${ASIO_SDK_DIR}.")
+  else()
+    message(STATUS "ArtLux: ASIO ENABLED using JUCE's vendored headers. This build carries Steinberg's terms — see NOTICE.")
+  endif()
 else()
   target_compile_definitions(${PROJECT_NAME} PRIVATE JUCE_ASIO=0)
 endif()

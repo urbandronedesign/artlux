@@ -77,12 +77,13 @@ so every machine and every CI runner builds its own. It is gitignored (`*.node`)
 > (`LNK1104` on Windows) and **silently leaves the stale addon in place**, so you debug code that
 > isn't loaded. Stop `npm run dev` and kill stray `electron` processes first.
 
-### ASIO (optional, and sometimes not optional at all)
-**Off by default, and that's a licence decision.** WASAPI exclusive mode is compiled into the addon
-unconditionally and is the path this project supports (see the driver-type grouping in AudioSettings'
-device picker).
+### ASIO (on by default on Windows)
 
-> ### ⚠ This section used to say a show bed does not need ASIO. That is not reliably true on Windows.
+**ASIO ships.** Every Windows build, including released installers, compiles `JUCE_ASIO=1`, and the
+device picker shows an `ASIO` driver type beside the WASAPI ones with the machine's installed drivers
+under it.
+
+> ### ⚠ This section twice said things that measurement disproved. Read the table, not the reputation.
 > **Measured on a Scarlett 6i6, same machine, same cables, one hour apart:**
 >
 > | Driver installed | WASAPI opens |
@@ -90,59 +91,57 @@ device picker).
 > | Generic USB Audio Class 2.0 (what Windows installs by itself) | **6 channels** on every WASAPI mode |
 > | Focusrite's own driver (installed with Focusrite Control) | **2 channels** — every mode, every requested count |
 >
-> That is not a fault to debug and no setting reverses it. A vendor driver commonly presents outputs 1-2
-> as the Windows endpoint and routes everything above that through ASIO only. So on such an interface
-> ASIO is not a latency optimisation — **it is the only way to reach outputs 3 and up**, and the operator
-> is choosing between their vendor's routing software and their extra outputs.
+> No setting reverses it. A vendor driver commonly presents outputs 1-2 as the Windows endpoint and
+> routes everything above that through ASIO alone. So on such an interface ASIO is not a latency
+> optimisation — **it is the only route to outputs 3 and up**, and a venue running a released build
+> could not otherwise reach its own speakers. That is why it is on by default rather than opt-in.
 >
-> The honest summary: WASAPI exclusive delivers discrete multichannel **when the interface exposes it**,
-> which the class driver usually does and a vendor driver often does not. Check what the device actually
-> opened with — the **"Open:"** line under the device picker — before believing any channel count.
+> Always check the **"Open:"** line under the device picker before believing any channel count.
 
-What ASIO costs: the **Steinberg ASIO SDK**, which cannot be committed to this repo or fetched by CI —
-which is the whole reason the flag is `OFF` by default. A default-`ON` build would simply fail for
-everyone who has not downloaded it. Turning it on adds a **third** licence position to a build already
-carrying JUCE's (Starter, elected 2026-07-25 — see `NOTICE`) and libspatialaudio's LGPL.
-
-**It is no longer untested.** Built and run against a Scarlett 6i6 2nd gen on 2026-08-21; JUCE lists an
-`ASIO` device type beside the WASAPI ones and enumerates the installed drivers.
-
-Download it from [steinberg.net](https://www.steinberg.net/developers/) (free registration), then:
+**Nothing has to be downloaded, and the old instructions here were wrong about that.** JUCE 8.0.14
+vendors `asio.h`, `asiosys.h` and `iasiodrv.h` at `modules/juce_audio_devices/native/asio/` —
+byte-identical to the SDK's `common/`, verified with `cmp` — lists them in its own `LICENSE.md`, and
+includes *its* copies unless `JUCE_ASIO_USE_EXTERNAL_SDK=1`. The previous `ASIO_SDK_DIR` requirement
+hard-failed the build over a file the compile never opened, which is why this used to be off by
+default and unbuildable in CI. Both reasons were false.
 
 ```bash
-# Windows — point at the SDK's `common` directory, the one holding iasiodrv.h
-set ARTLUX_ASIO_SDK=C:/Users/you/Downloads/ASIO-SDK_2.3.4/ASIOSDK/common
+npm run build:audio          # ASIO included, on Windows, with no setup
+
+set ARTLUX_ASIO=0            # the deliberate exception: a Steinberg-free artifact
 npm run build:audio
 ```
 
-`build:audio` forwards the CMake defines and runs a `configure` pass before building — `build` alone
-reuses the existing cache, so flipping the flag on an already-configured tree would report success and
-produce the same addon with ASIO silently absent. It hard-fails if the directory has no `iasiodrv.h`.
-Doing it by hand is still fine:
+Two traps worth knowing, both of which have bitten this repo:
+
+- **A CMake cache remembers.** `cmake-js build` reuses it, so changing an environment variable and
+  rebuilding changes nothing. `build-audio.cjs` therefore passes `ARTLUX_ENABLE_ASIO` explicitly in
+  **both** directions on every run. An *empty* `-D` cannot clear a cached path — cmake-js drops the
+  argument — which is why the external-SDK switch is its own boolean (`ARTLUX_ASIO_USE_EXTERNAL`)
+  rather than "is `ASIO_SDK_DIR` non-empty". A build with no environment variables at all was
+  measured still configuring against a cached SDK path.
+- **`npm run verify:asio` reads the binary, not the build flags**, because those came apart in
+  practice. It refuses to package a Windows build with ASIO missing (a stale cache silently costing
+  the feature a release was cut for), refuses one whose attribution has gone from `NOTICE` or
+  `shared/credits.ts`, and warns rather than fails when `ARTLUX_ASIO=0` says the omission is meant.
+  It runs from `npm run package` **and** as its own step in `.github/workflows/build.yml`, because CI
+  does not use the `package` script.
+
+To build against an external SDK instead — rarely useful, since the headers are identical:
 
 ```bash
-cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=C:/path/to/asiosdk/common
+set ARTLUX_ASIO_SDK=C:/path/to/asiosdk/common
+npm run build:audio
 ```
 
-An ASIO build prints its licence position at build time, and the driver type appears in the device
-picker beside the WASAPI ones.
+**Licence position.** The SDK is dual-licensed: the proprietary Steinberg ASIO Licence, or GPLv3. The
+proprietary branch restricts redistributing **the SDK**, not binaries built with it — every Windows
+DAW ships ASIO this way — and gates *publishing* on an agreement countersigned by Steinberg. The
+GPLv3 branch needs no paperwork but requires the product itself be GPLv3, which makes copyleft
+*cheaper* for ASIO than MIT/Apache and is a live input to `plans/licensing-relicensing.md`.
+Attribution is required under either branch and is enforced by `verify:asio`. See `NOTICE` for the
+full inventory.
 
-#### Local builds are free. Publishing is not — and the difference is one sentence in the SDK.
-The SDK is **dual-licensed**: the proprietary Steinberg ASIO Licence, or **GPLv3**. Both give the same
-SDK; the choice is per project.
-
-- **Proprietary** — what ArtLux must use, because GPLv3 would force ArtLux's own source under the GPL
-  and the GPL *grants commercial rights*, which `LICENSE` §2 withholds. Its restriction is on passing on
-  **the SDK**, not on binaries built with it — every Windows DAW ships ASIO support this way. But
-  `LICENSE.txt` also says: *"Before publishing a software under the proprietary license, you need to
-  obtain a copy of the License Agreement **signed by** Steinberg Media Technologies GmbH."*
-- **GPLv3** — no paperwork whatsoever, and unavailable while ArtLux is non-commercial. Worth knowing:
-  it makes the copyleft options *cheaper* for ASIO than MIT/Apache, which is a new input to the
-  relicensing question in `plans/licensing-relicensing.md`.
-
-**So: build and test with ASIO freely — that needs nothing from Steinberg. Do not push a `v*` tag from
-an ASIO-enabled tree until the countersigned agreement is in hand**, because the tag workflow publishes
-a GitHub Release, and that is publishing. `NOTICE` §1 carries the full checklist.
 
 ### "The audio UI is all there and nothing plays" — no sound?
 There is no error dialog and no red UI: the loader degrades to a no-op by design, so a missing **or

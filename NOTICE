@@ -129,10 +129,17 @@ the two kinds of use, because they carry very different obligations:
     own SOFA file at runtime brings their own terms with it, which is theirs to honour.
 
   Steinberg ASIO SDK 2.3.4          https://www.steinberg.net/developers/
-    ⚠ ONLY IN A BUILD MADE WITH ARTLUX_ENABLE_ASIO=ON. Default builds compile JUCE_ASIO=0 and
-    link nothing of Steinberg's; this entry describes what attaches when it is turned ON.
-    WHAT IS COMPILED IN: interface headers only (iasiodrv.h / asio.h / asiosys.h from the SDK's
-    `common` folder, on JUCE's include path). No Steinberg .cpp, no library, no DLL. The ASIO
+    ⚠ CHANGED 2026-08-24 — THIS NOW SHIPS. This entry used to open "ONLY IN A BUILD MADE WITH
+    ARTLUX_ENABLE_ASIO=ON; default builds compile JUCE_ASIO=0 and link nothing of Steinberg's."
+    That is no longer true: ASIO is ON BY DEFAULT for every Windows build, including released
+    installers, because on an interface with its vendor driver installed it is the only route to
+    outputs 3 and up (measured, below). A build without it is now the deliberate exception,
+    produced with ARTLUX_ASIO=0.
+    WHAT IS COMPILED IN: interface headers only — and they come from JUCE, not from a download.
+    JUCE 8.0.14 VENDORS asio.h / asiosys.h / iasiodrv.h at modules/juce_audio_devices/native/asio/,
+    byte-identical to the SDK's `common` folder (verified with cmp), lists them in its own
+    LICENSE.md, and uses them unless JUCE_ASIO_USE_EXTERNAL_SDK=1. So no Steinberg file is fetched,
+    committed or redistributed by this project at all. No Steinberg .cpp, no library, no DLL. The ASIO
     DRIVER itself is the audio interface vendor's, installed by the user with their hardware,
     loaded at runtime by COM — we neither ship nor link it.
 
