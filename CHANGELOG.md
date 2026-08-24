@@ -1,6 +1,31 @@
 # Changelog
 
-## Unreleased
+## v0.26.1
+
+### ASIO ships
+
+Windows installers now carry ASIO, and the device picker shows an `ASIO` driver type beside the WASAPI
+ones with the machine's installed drivers under it.
+
+This is not a latency nicety. Measured on a Scarlett 6i6, same machine and cables, an hour apart: with
+the generic USB audio-class driver it opened **six** channels on every WASAPI mode; with Focusrite's own
+driver installed it opened **two**, on every mode, at every requested count. A vendor driver commonly
+gives Windows outputs 1-2 and routes everything above through ASIO alone — so on such an interface ASIO
+is the only route to outputs 3 and up, and a venue installing ArtLux could not otherwise reach its own
+speakers.
+
+Nothing has to be downloaded. JUCE vendors the three ASIO headers byte-identical to the SDK's and uses
+them unless told otherwise, so the previous `ARTLUX_ASIO_SDK` requirement was gating the build on a file
+the compile never opened — which is why this used to be off by default and unbuildable in CI. Build
+without it with `ARTLUX_ASIO=0`.
+
+### The launcher's Health tab reports ASIO
+
+A new `audio.asio` preflight check reports the registered ASIO drivers **and** whether the installed
+ArtLux can use them — read out of the binary rather than assumed from a version number. The combination
+that matters is "drivers present, build cannot use them": that is the machine whose Quad layout will
+open with two channels and quietly drop half the rig, and it now says so before load-in rather than
+after.
 
 ### There is no distance in the spatialisation any more
 
