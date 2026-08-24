@@ -1,6 +1,101 @@
 # Changelog
 
-## Unreleased
+## v0.26.0
+
+### Settings that actually reach the disk
+
+`artlux-prefs.json` holds everything a venue commissions: the audio interface, the channel count, and
+the speaker patch that says which amplifier is speaker 5. It was written with a truncating
+`writeFileSync` -- the first thing that call does is zero the file -- while an atomic writer with a long
+comment about exactly this hazard sat seventy lines below it in the same module, used for projects only.
+A power cut, or the watchdog's own `app.exit(0)` landing on the 400 ms settings debounce, left a stub.
+Next launch parsed nothing, silently took the defaults, and overwrote the remains.
+
+Three changes. Preferences now go through the same atomic write as projects, so what is on disk is
+either the whole old file or the whole new one. A prefs file that cannot be parsed is **kept** as
+`artlux-prefs.corrupt.json` rather than overwritten milliseconds later. And a write that fails is no
+longer swallowed: `setPrefs` reports it, and the app says so once, in the room, while there is still
+somebody there to act on it -- a machine that cannot persist its speaker patch used to behave perfectly
+for an entire commissioning session and lose all of it at exit.
+
+The debounce is also flushed before the window closes. The last gesture of a commissioning session is
+usually a patch dropdown, and commissioning edits no document -- so the close handshake took its fast
+path and the timer was cleared without ever firing. No save prompt appeared, because there was nothing
+in the project to save.
+
+### One answer to "how many outputs?"
+
+Two places configured the same engine and disagreed. The preferences panel infers the count from the
+layout when nothing explicit is stored -- Octagon means eight -- while the driver that runs
+broadcast and headless kept its own `outputChannels ?? 2`. Since the panel never mounts in broadcast,
+a venue that picked Octagon and never touched the channel buttons (they already highlight 8ch, so nobody
+clicks them) **ran the show in stereo**. In the editor it was stranger: the panel opened eight and
+reported "Open: 8 ch", then the next unrelated settings change had the driver silently re-open the same
+device at two, with the panel still showing eight over a stereo rig.
+
+The rule now lives beside the speaker table it depends on, and both callers ask it. The panel's separate
+transcription of the speaker counts is gone as well -- they come from the table the decoder itself is
+built from.
+
+### A speaker patch survives a layout change
+
+An octagon ring patched `[3,2,1,0,7,6,5,4]` -- because the amplifiers are not wired in order -- kept all
+eight entries when the layout selector was dropped to Quad to check the front of house. The next patch
+edit made under Quad wrote back four. Speakers 5-8 were gone, no warning, and back on Octagon those rows
+read 5,6,7,8: plausible, identity, and wrong. Rebuilding a patch is a day with a ladder.
+
+Both the row editor and "Reset to 1:1" now span the whole stored patch, so the rows you can see are
+editable and the ones you cannot are carried through untouched.
+
+### The audio panel stops contradicting itself
+
+Four places where it stated something false, each of which sends an operator to the wrong end of the room:
+
+- A stored channel the device does not have displayed as **"Channel 1"**. A `<select>` whose value
+  matches no option does not render blank -- it shows the first one. So the warning said speaker 5 is on
+  a channel this device lacks, the row said Channel 1, and channel 1 demonstrably worked. It now renders
+  the real value, disabled, so the control and the warning agree.
+- A **renamed or swapped interface** was reported as "usually a bumped USB cable", because the badge
+  branched on whether a device had ever opened rather than on what the engine actually returned. The
+  saved name simply not being in the device list is now its own sentence, with the fix in it.
+- A **failed setup change** printed "Audio engine unavailable -- playback is disabled" over audible
+  sound. The engine handles a rejected open by restoring the previous setup and carrying on, on purpose;
+  that branch is only reachable when the engine is up and the room is playing.
+- A **pinned device that is missing** rendered as "System default", and re-picking System default fires
+  no change event -- so the one obvious escape was inert by construction. It is now visible as itself,
+  with a button that clears it.
+
+The device list is also no longer a snapshot taken once on mount. It can be rescanned, and Reconnect
+rescans before retrying -- the rack is routinely powered on after this pane was opened, which is the
+one case the old button could never recover from.
+
+### ASIO, for the outputs Windows will not give you
+
+Measured on a Scarlett 6i6, same machine and cables, one hour apart: on the generic USB audio-class
+driver it opened **six** channels on every WASAPI mode; with the vendor's own driver installed it opened
+**two**, on every mode, at every requested count. That is not a fault to debug and no setting reverses
+it -- vendor drivers routinely present outputs 1-2 to Windows and route everything above that through
+ASIO alone. So on a great many interfaces ASIO is not a latency optimisation, it is the only path to
+outputs 3 and up.
+
+The engine can now be built with it: set `ARTLUX_ASIO_SDK` and run `npm run build:audio`. Two things
+that are not obvious and cost an afternoon each. Turning it *off* has to be said out loud -- a CMake
+cache remembers, so clearing the variable and rebuilding used to produce a cheerful success and the same
+ASIO binary. And packaging is gated: `npm run package` reads the built addon and refuses if ASIO is
+compiled in, because the Steinberg SDK's proprietary branch requires an agreement countersigned by
+Steinberg before publishing, and its GPLv3 branch requires the product itself be GPLv3. Building and
+testing locally need neither. **Published releases are built without ASIO** until that is settled.
+
+### Fixed
+
+- The **Placed** speaker test lit up and played nothing whenever the layout had never been explicitly
+  picked -- which is the normal case, since the selector already shows Stereo and nobody changes it. Two
+  lookups defaulted the missing layout to an empty string where everything else defaulted it to
+  `stereo`, so the table lookup returned nothing and the test returned before making a sound. The engine
+  was decoding correctly the whole time; only the panel believed there was no layout.
+- The Placed test's restart interval outlived the panel. Closing preferences with a toggle on stopped
+  the clip but left a timer that started it again twenty seconds later, in a room with nothing on
+  screen to stop it.
 
 ### Speaker check can now catch a mirrored room
 
