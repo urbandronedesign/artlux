@@ -47,6 +47,17 @@ const BY_ID: Record<string, Triage> = {
     severity: 'note',
     plain: 'No audio output device. The audio UI will render and play nothing, with no error.',
   },
+  'audio.asio': {
+    severity: 'note',
+    plain:
+      'ASIO drivers are registered on this machine, which means an audio interface has its vendor ' +
+      'driver installed. Published ArtLux builds are WASAPI-only. This matters for multichannel and ' +
+      'nothing else: a vendor driver commonly gives Windows outputs 1-2 only and routes the rest ' +
+      'through ASIO, so a Quad or Octagon layout can open with two channels and quietly drop the other ' +
+      'speakers. Check the "Open:" line under the device picker in Preferences › Audio before ' +
+      'trusting a channel count — reverting to the generic USB audio-class driver often restores ' +
+      'every output to WASAPI.',
+  },
   'priv.admin': {
     severity: 'note',
     plain: 'Not running as administrator. Only affects checks that need it — installing does its own elevation.',

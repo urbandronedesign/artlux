@@ -403,6 +403,56 @@ function Invoke-RuntimeChecks {
     Add-Result $Grp 'audio.device' 'Audio output device' 'WARN' 'no enabled audio device found' 'The audio UI will render and play nothing, with no error. Enable an output device (WASAPI exclusive is the supported multichannel path).'
   }
 
+  # --- ASIO: the outputs Windows will not give you ---
+  #
+  # MEASURED, not assumed. On a Scarlett 6i6, same machine and cables, one hour apart: with the generic
+  # USB audio-class driver it opened SIX channels on every WASAPI mode; with Focusrite's own driver
+  # installed it opened TWO, on every mode, at every requested channel count. Vendor drivers routinely
+  # present outputs 1-2 to Windows and route everything above that through ASIO alone. No setting in
+  # ArtLux or in Windows reverses it.
+  #
+  # That failure is invisible until the room is silent: ArtLux asks for eight channels, the device gives
+  # two, the extra speakers are dropped at the decoder's patch write, and the meters look normal. So the
+  # question this check answers is not "is ASIO nice to have" -- it is "will this machine be able to
+  # reach the speakers you are about to commission".
+  #
+  # Two halves, and both are needed. Registered ASIO drivers say the interface has a vendor driver.
+  # Whether ArtLux can USE them is a property of the BUILD: JUCE compiles ASIOAudioIODeviceType only
+  # under JUCE_ASIO=1, so the symbol's presence in the installed addon is the answer, read from the
+  # artifact rather than assumed from a version number.
+  $asioNames = @()
+  foreach ($k in @('HKLM:\SOFTWARE\ASIO', 'HKLM:\SOFTWARE\WOW6432Node\ASIO')) {
+    if (Test-Path $k) {
+      $asioNames += @(Get-ChildItem $k -ErrorAction SilentlyContinue | ForEach-Object {
+        $d = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).Description
+        if ($d) { $d } else { $_.PSChildName }
+      })
+    }
+  }
+  $asioNames = @($asioNames | Sort-Object -Unique)
+
+  $asioBuild = $null   # $true / $false when ArtLux is installed, $null when it is not
+  $aDir = Find-ArtLuxInstall
+  if ($aDir) {
+    $aEngine = Join-Path (Join-Path $aDir 'resources') 'audio-engine.node'
+    if (Test-Path $aEngine) {
+      try {
+        $asioBuild = [bool](Select-String -Path $aEngine -Pattern 'ASIOAudioIODeviceType' -SimpleMatch -Quiet -ErrorAction Stop)
+      } catch { $asioBuild = $null }
+    }
+  }
+
+  $asioList = ($asioNames | Select-Object -First 4) -join '; '
+  if ($asioNames.Count -eq 0) {
+    Add-Result $Grp 'audio.asio' 'ASIO drivers' 'SKIP' 'none registered' 'Only matters for multichannel. WASAPI exclusive is the supported path and gives discrete outputs when the interface exposes them -- which the generic USB audio-class driver usually does.'
+  } elseif ($asioBuild -eq $true) {
+    Add-Result $Grp 'audio.asio' 'ASIO drivers' 'PASS' "$($asioNames.Count) registered: $asioList -- and this ArtLux build can use them"
+  } elseif ($asioBuild -eq $false) {
+    Add-Result $Grp 'audio.asio' 'ASIO drivers' 'WARN' "$($asioNames.Count) registered ($asioList) but this ArtLux build is WASAPI-only" 'Published builds ship without ASIO. If Preferences > Audio reports fewer channels open than your speaker layout needs, this is why: the vendor driver is giving Windows only outputs 1-2. Check the "Open:" line under the device picker before trusting a channel count. Reverting to the generic USB audio-class driver often restores every output to WASAPI.'
+  } else {
+    Add-Result $Grp 'audio.asio' 'ASIO drivers' 'SKIP' "$($asioNames.Count) registered: $asioList" 'Install ArtLux and re-run to see whether this build can use them.'
+  }
+
   # --- Network posture ---
   $profiles = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue)
   foreach ($p in $profiles) {
