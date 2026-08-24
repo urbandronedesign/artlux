@@ -96,6 +96,14 @@ jobs:
       - name: Build audio engine (JUCE)
         run: npm run build:audio
 
+      # Licence gate on the ARTEFACT, not on the environment that produced it. It matters HERE and not
+      # only in `npm run package`, because this workflow does not use that script -- it runs the same
+      # steps by hand, so anything wired only into `package` never protects a release. CI does not set
+      # ARTLUX_ASIO_SDK today, which makes this a no-op; that is the point. It stays a no-op instead of
+      # becoming an unlicensed publish the first time someone adds the variable to repository secrets.
+      - name: Verify ASIO licence position
+        run: npm run verify:asio
+
       - name: Build app (main/preload/renderer)
         run: npm run build
 
