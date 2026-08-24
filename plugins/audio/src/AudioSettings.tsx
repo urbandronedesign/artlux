@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { audioClient } from './audioClient';
-import { SPEAKER_LAYOUTS, unitFor, type SpeakerLayoutId } from './speakerLayouts';
+import { SPEAKER_LAYOUTS, unitFor, speakerCount, wantedChannels, type SpeakerLayoutId } from './speakerLayouts';
 // The table's azimuth is the AMBISONIC one (anticlockwise, positive = left); the number an operator
 // reads off the positioner is its mirror. normAngle is the single place that fold happens.
 import { normAngle } from '../../../shared/spatial';
@@ -66,37 +66,47 @@ function firstOverRangeChannel(patch: number[] | undefined, need: number, channe
 const SAMPLE_RATES = [0, 44100, 48000, 88200, 96000];
 const BUFFER_SIZES = [0, 128, 256, 512, 1024];
 
-// name → speaker count, so the UI can warn when a layout needs more channels than the device is opened with.
-const LAYOUTS: { id: SpeakerLayout; label: string; speakers: number }[] = [
-  { id: 'stereo', label: 'Stereo', speakers: 2 },
-  { id: 'quad', label: 'Quad', speakers: 4 },
-  { id: '5.0', label: '5.0', speakers: 5 },
-  { id: '5.1', label: '5.1', speakers: 6 },
-  { id: '7.0', label: '7.0', speakers: 7 },
-  { id: '7.1', label: '7.1', speakers: 8 },
-  { id: 'hexagon', label: 'Hexagon (6, ring)', speakers: 6 },
-  { id: 'octagon', label: 'Octagon (8, ring)', speakers: 8 },
-  { id: 'cube', label: 'Cube (8, 3D)', speakers: 8 },
-];
+// The picker's labels. The COUNTS are not written here: they come from SPEAKER_LAYOUTS, which is the
+// table the decoder itself is built from. This used to be a second transcription of the same numbers,
+// which is one edit away from a picker that promises six speakers for a layout the decoder gives five.
+const LAYOUTS: { id: SpeakerLayout; label: string; speakers: number }[] = ([
+  { id: 'stereo', label: 'Stereo' },
+  { id: 'quad', label: 'Quad' },
+  { id: '5.0', label: '5.0' },
+  { id: '5.1', label: '5.1' },
+  { id: '7.0', label: '7.0' },
+  { id: '7.1', label: '7.1' },
+  { id: 'hexagon', label: 'Hexagon (6, ring)' },
+  { id: 'octagon', label: 'Octagon (8, ring)' },
+  { id: 'cube', label: 'Cube (8, 3D)' },
+] as { id: SpeakerLayout; label: string }[]).map((l) => ({ ...l, speakers: speakerCount(l.id) }));
 
-/**
- * How many device channels a config actually WANTS.
- *
- * ⚠ NOT `outputChannels ?? 2`. A config that names a SPEAKER LAYOUT has already said how many outputs it
- * needs — `quad` needs four — so falling back to 2 there makes the app contradict itself out loud: it
- * asks the interface for two channels and then warns that "this layout needs 4 but the device is open
- * with 2 — raise the channel count", about a request it made itself. An operator reads that as a hardware
- * limit and goes hunting through driver control panels. (It sent one there. The interface had six.)
- *
- * An explicit value always wins, including an explicit 2 under an 8-speaker layout — that is a deliberate
- * choice to audition a big rig on a small one, and the short-channel warning is the right response to it.
- * The fallback only fills a gap, and it fills it with the only number the rest of the config implies.
- */
-const wantedChannels = (c: AudioCfg): number => {
-  if (typeof c.outputChannels === 'number' && c.outputChannels > 0) return c.outputChannels;
-  if ((c.outputMode ?? 'binaural') !== 'speakers') return 2;   // binaural is a headphone pair, always
-  return LAYOUTS.find((l) => l.id === (c.speakerLayout ?? 'stereo'))?.speakers ?? 2;
+// wantedChannels now lives in speakerLayouts.ts — see the long note there. It moved because the panel
+// was not its only caller: plugin.renderer.ts configures the same engine on the broadcast/headless path
+// and kept its own `outputChannels ?? 2`, so the two silently disagreed about how many outputs to open.
+
+// ⚠ A PATCH IS LONGER THAN THE LAYOUT YOU ARE LOOKING AT, AND THE TAIL IS REAL COMMISSIONING.
+//
+// speakerPatch is stored whole and survives a layout change untouched — an octagon ring patched
+// [3,2,1,0,7,6,5,4] is still all eight entries after someone drops the selector to Quad to check the
+// front of house. What used to destroy it was the next PATCH EDIT: the writer rebuilt the array at the
+// CURRENT layout's length, so nudging one channel while Quad was selected wrote back four entries and
+// speakers 5-8 were gone. Nothing warned, because both inline warnings only inspect the first `need`
+// slots. Back on Octagon the missing rows silently read 5,6,7,8 — plausible, identity, and wrong for a
+// venue whose amps are not wired in order. The re-patch is a day's work with a ladder.
+//
+// So every rebuild spans max(need, patch.length): the visible rows are editable, the invisible tail is
+// carried through untouched.
+const withPatched = (patch: number[], need: number, slot: number, channel: number): number[] => {
+  const next = Array.from({ length: Math.max(need, patch.length) }, (_, i) => patch[i] ?? i);
+  next[slot] = channel;
+  return next;
 };
+
+// "Reset to 1:1" means the speakers you can SEE, for the same reason. Wiping entries for a layout that
+// is not on screen is not a reset, it is a deletion the operator did not ask for and cannot see happen.
+const resetPatch = (patch: number[], need: number): number[] =>
+  Array.from({ length: Math.max(need, patch.length) }, (_, i) => (i < need ? i : patch[i] ?? i));
 
 // Settings are the host AppSettings (generic/unknown at this SDK boundary) — typed loosely here, like the
 // other first-party settings sections, and read/patched through the `plugins.audio` slice.
@@ -143,6 +153,17 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
     })
       .then((got) => { setOpened(got); setDevice(got.deviceName); setError(null); })
       .catch((e) => setError(String(e?.message ?? e)));
+
+  // ⚠ THE DEVICE LIST WAS A SNAPSHOT TAKEN ONCE, ON MOUNT, AND NOTHING EVER REFRESHED IT.
+  //
+  // The load-in order that happens every single time is: laptop on, ARTLux up, Preferences ▸ Audio open,
+  // THEN the rack gets powered. The interface that appears thirty seconds later was never in the list and
+  // never would be. Worse, the recovery button beside the dead-device badge only re-ran apply() — it
+  // retried opening a name that still was not there — directly underneath its own instruction to
+  // "reconnect the interface, then press Reconnect". The native side rescans properly on every call
+  // (engine.cpp's scanForDevices), so the fresh list was always one IPC away; the panel simply never asked.
+  const rescanDevices = React.useCallback(() =>
+    audioClient.getDevices().then((d) => { setDevices(d ?? []); }).catch(() => {}), []);
 
   useEffect(() => {
     let live = true;
@@ -208,7 +229,17 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   };
 
   const playPlaced = async (speakerIndex: number) => {
-    const list = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? '') as SpeakerLayoutId];
+    // ⚠ THE DEFAULT HERE MUST BE THE ONE apply() SENDS THE ENGINE, WHICH IS 'stereo' (see the layout arg
+    // at the configure() call above). It used to be '', and '' is not a layout id: the lookup returned
+    // undefined, `sp` was undefined, and playPlaced returned at the !sp guard without a sound.
+    //
+    // That is worse than it looks, because of WHEN it fires. cfg.speakerLayout is only set once someone
+    // CHANGES the dropdown — and the dropdown already shows Stereo, so an operator commissioning a fresh
+    // machine has no reason to touch it. They switch to Speaker layout, run the two-button check the
+    // panel's own text calls the only way to catch a mirrored room, and get: Wiring blips on both boxes,
+    // Placed silent on both. The engine is fine and decoding to stereo the whole time. The panel is the
+    // only thing that thinks there is no layout, so every diagnosis points at the rig.
+    const list = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? 'stereo') as SpeakerLayoutId];
     const sp = list?.[speakerIndex];
     // An LFE has no direction — placing a source "at" it is meaningless, and the button is disabled
     // for that row rather than playing something that cannot be interpreted.
@@ -249,6 +280,13 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // BOTH signals, and the clip unloaded with them — an engine-resident source nobody can reach again is
   // exactly the orphan the driver's own comments are about.
   useEffect(() => () => {
+    // THE TIMER FIRST, AND THIS ORDER MATTERS. playPlaced arms a setInterval that restarts the clip
+    // just before it ends (the engine has no looping transport). Stopping the clip without killing the
+    // interval leaves a timer that fires ~20 s later and starts it again — blips in the room with no
+    // panel on screen to stop them, which is the exact failure this cleanup was written to prevent.
+    // placedRef is nulled too: the interval body reads it, and so does the post-await guard.
+    if (loopTimer.current) { clearInterval(loopTimer.current); loopTimer.current = null; }
+    placedRef.current = null;
     audioClient.setTestTone(-1, 0);
     audioClient.stopClip(TEST_CLIP_ID);
     audioClient.unloadClip(TEST_CLIP_ID);
@@ -305,6 +343,10 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   useEffect(() => {
     if (tone !== null) { setTone(null); audioClient.setTestTone(-1, 0); }
     if (placed !== null) setPlaced(null);
+    // Same orphan-timer hazard as the unmount cleanup above — a layout change unmounts the button but
+    // the interval outlives it.
+    if (loopTimer.current) { clearInterval(loopTimer.current); loopTimer.current = null; }
+    placedRef.current = null;
     audioClient.stopClip(TEST_CLIP_ID);
     audioClient.unloadClip(TEST_CLIP_ID);
     testLoaded.current = false;
@@ -330,7 +372,13 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // 'default' is not a valid array index and can never collide with a real flat-index value — it means
   // "no device picked yet" as well as the explicit "System default" choice, both of which resolve to
   // {deviceType: undefined, deviceName: undefined} (today's "that driver type's default device").
-  const selectValue = selectedIndex >= 0 ? String(selectedIndex) : 'default';
+  // ⚠ "NOTHING PINNED" AND "THE PINNED DEVICE IS NOT HERE" ARE DIFFERENT, AND BOTH USED TO RENDER AS
+  // "System default". A cfg still naming a renamed or unplugged interface showed a dropdown reading
+  // System default while every apply() kept sending the dead name and failing — and re-picking System
+  // default, the one obvious escape, fires no onChange at all because the value has not changed. The
+  // control was inert by construction, which is a bad thing to hand someone ten minutes into a load-in.
+  const savedMissing = !!cfg.deviceName && selectedIndex < 0;
+  const selectValue = selectedIndex >= 0 ? String(selectedIndex) : savedMissing ? 'missing' : 'default';
 
   return (
     <div className="space-y-4">
@@ -357,14 +405,29 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                 has no sound card at all sends them hunting for a cable that never existed. The Audio Bed's
                 badge stays the neutral "no output device", which is true either way; this panel knows more,
                 so it says more. */}
+            {/* ⚠ THREE CAUSES NOW, BECAUSE THE THIRD ONE SENDS PEOPLE TO THE WRONG END OF THE ROOM.
+                This used to branch on `device` alone — i.e. on "has this panel ever opened anything" —
+                which is not the same question as "why is there no sound". A Windows update that RENAMES an
+                interface between two shows leaves `device` set, so the operator was told their working
+                interface had been unplugged and to go check a USB cable, while `error` — holding the
+                engine's verbatim "No such device: <old name>" — sat unread in a text-micro line below.
+                The saved name simply not being in the device list is a fact this panel can check, so it
+                does, and it says the one thing that actually fixes it. */}
             <div className="text-mini text-danger flex items-center gap-1.5">
               <AlertTriangle size={12} className="shrink-0" />
-              <span><strong>{device
-                ? 'The output device is gone — the room is silent.'
-                : 'No audio output device — there is no sound.'}</strong></span>
+              <span><strong>{savedMissing
+                ? 'The saved interface is not on this machine — the room is silent.'
+                : device
+                  ? 'The output device is gone — the room is silent.'
+                  : 'No audio output device — there is no sound.'}</strong></span>
             </div>
             <div className="text-micro text-fg-3">
-              {device ? (
+              {savedMissing ? (
+                <>This project is pinned to <span className="text-fg-2">{cfg.deviceName}</span>, and no device by
+                that name is present. A driver update that renames an interface does this, as does swapping one
+                unit for another — the cable is not the problem.{' '}
+                <strong className="text-fg-2">Pick the interface again above, or use system default.</strong></>
+              ) : device ? (
                 <>The engine is loaded and the show is still running, but <span className="text-fg-2">{device}</span> —
                 the interface it was playing through — has disappeared. Usually a bumped USB cable, a driver
                 reload, or Windows power-cycling the device.{' '}
@@ -376,22 +439,37 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
               )}
             </div>
             <div className="text-micro text-fg-3">
-              {device
-                ? 'Reconnect the interface, then press Reconnect. Sound returns with no restart.'
-                : 'Connect an output device, then press Reconnect.'}
+              {savedMissing
+                ? 'Rescan first — if the interface is powered on now it will appear in the list above.'
+                : device
+                  ? 'Reconnect the interface, then press Reconnect. Sound returns with no restart.'
+                  : 'Connect an output device, then press Reconnect.'}
             </div>
             {/* THE RECOVERY GESTURE, WHICH DID NOT EXIST. configure() used to take (channels, mode, layout) and
                 open the DEFAULT device — there was no device picker anywhere in this panel, so "just pick it
                 again" was never actually possible. It now re-opens the NAMED device (cfg.deviceType/deviceName),
                 so the recovery gesture finally reaches the interface that actually vanished. */}
-            <button onClick={() => void apply(cfg)}
+            {/* RESCAN THEN RETRY. The instruction directly above says "reconnect the interface, then press
+                Reconnect" — so the button has to look at the world again, not re-send a name from a list
+                captured before the rack was switched on. */}
+            <button onClick={() => void rescanDevices().then(() => apply(cfg))}
               className="inline-flex items-center gap-1.5 px-2 h-7 rounded border border-danger/40 bg-danger/10 text-danger text-mini hover:bg-danger/20">
               <RefreshCw size={12} /> Reconnect
             </button>
             {error && <div className="text-micro text-warn">Last attempt failed — {error}</div>}
           </div>
         ) : error ? (
-          <div className="text-mini text-warn">Audio engine unavailable — {error}. Playback is disabled.</div>
+          /* ⚠ BOTH HALVES OF THE OLD SENTENCE WERE FALSE HERE, OVER AUDIBLE SOUND. This branch is only
+             reached when the engine is up AND the device is live — so the failure being reported is a
+             REJECTED SETUP CHANGE, not a dead engine. The native side handles a failed open by restoring
+             the previous device and setup, re-registering the callback, and returning the error so the
+             caller knows the REQUEST failed: the show never stops. Telling an operator mid-load-in that
+             the audio engine is unavailable and playback is disabled, while the room is still playing,
+             is a five-minute panic over a setting that simply did not take. */
+          <div className="text-mini text-warn">
+            Could not apply that setup — {error}.{' '}
+            <span className="text-fg-2">Still playing through {device || 'the current device'}.</span>
+          </div>
         ) : (
           <div className="text-mini text-fg-3">Native JUCE + ambisonic engine active · output device: <span className="text-fg-1">{device || 'default'}</span></div>
         )}
@@ -410,6 +488,9 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
           className="w-full bg-surface-2 border border-line-1 rounded px-1.5 h-6 text-mini text-fg-1 outline-none"
         >
           <option value="default">System default</option>
+          {savedMissing && (
+            <option value="missing" disabled>{cfg.deviceName} — not found on this machine</option>
+          )}
           {(() => {
             let offset = 0;
             return deviceGroups.map(([type, ds]) => {
@@ -427,14 +508,53 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
             });
           })()}
         </select>
+        <div className="flex items-center gap-1.5 mt-1">
+          <button onClick={() => void rescanDevices()}
+            className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 text-fg-2 text-micro hover:text-fg-1">
+            <RefreshCw size={11} /> Rescan
+          </button>
+          {savedMissing && (
+            <button onClick={() => patchAndApply({ deviceType: undefined, deviceName: undefined })}
+              className="px-1.5 h-6 rounded border border-line-1 bg-surface-2 text-fg-2 text-micro hover:text-fg-1">
+              Use system default
+            </button>
+          )}
+        </div>
         {/* ── THE SENTENCE THAT MAKES MULTICHANNEL POSSIBLE ────────────────────────────────────────────────
             An operator cannot be expected to know that "Windows Audio" and "Windows Audio (Exclusive Mode)"
             are the difference between a stereo downmix and eight discrete outputs. The dropdown groups by
-            driver type; this says what the groups MEAN. Do not shorten it to "choose a device". */}
+            driver type; this says what the groups MEAN. Do not shorten it to "choose a device".
+
+            ⚠ IT USED TO STOP AT "choose Exclusive Mode", AND THAT SENT AN OPERATOR HUNTING FOR HOURS.
+            Exclusive Mode gets the discrete outputs only if the DRIVER exposes them to Windows at all.
+            Measured on a Scarlett 6i6, same machine and cables, one hour apart: on the generic USB
+            audio-class driver it opened SIX channels on every WASAPI mode; with the vendor driver
+            installed it opened TWO, on every mode, at every requested count. Vendor drivers routinely
+            publish outputs 1-2 to Windows and route the rest through ASIO alone. Nothing in this panel
+            or in the vendor control app reverses that, so the honest advice names ASIO first when the
+            group exists — otherwise the panel confidently recommends the option that cannot work, and
+            the operator concludes their hardware is broken. (It did. The interface was fine.)
+
+            The ASIO group only appears in an ASIO-enabled build (ARTLUX_ENABLE_ASIO — see NOTICE); the
+            conditional keeps the advice truthful in builds where choosing it is impossible. */}
         <div className="text-micro text-fg-3 mt-1">
-          Devices are grouped by <span className="text-fg-2">driver type</span>. For a multichannel interface
-          choose <span className="text-fg-2">Exclusive Mode</span> — it hands ARTLux the card's discrete outputs.
-          Shared mode routes through the Windows mixer and will usually give you stereo, whatever the card can do.
+          Devices are grouped by <span className="text-fg-2">driver type</span>.
+          {flatDevices.some((d) => d.type === 'ASIO') ? (
+            <>
+              {' '}For a multichannel interface prefer <span className="text-fg-2">ASIO</span> — it is the
+              card&apos;s own driver, and on many interfaces it is the only route to outputs 3 and up.
+              {' '}<span className="text-fg-2">Exclusive Mode</span> is the next best thing and works well on
+              cards that publish every output to Windows.
+            </>
+          ) : (
+            <>
+              {' '}For a multichannel interface choose <span className="text-fg-2">Exclusive Mode</span> — it
+              hands ARTLux the card&apos;s discrete outputs.
+            </>
+          )}
+          {' '}Shared mode routes through the Windows mixer and will usually give you stereo, whatever the
+          card can do. Whichever you pick, believe the <span className="text-fg-2">Open:</span> line below
+          rather than the card&apos;s spec sheet — it says how many channels you actually got.
         </div>
         {opened && (
           <div className="text-micro text-fg-3 mt-1">
@@ -577,7 +697,9 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
               // the same table the positioner pad draws from, so the two cannot disagree about which
               // way "speaker 3" points. Absent for a layout name we do not know, which disables the
               // placed test rather than guessing at a direction.
-              const spk = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? '') as SpeakerLayoutId]?.[s];
+              // Same default as playPlaced, and for the same reason — this one decides whether the row's
+              // Placed button is enabled at all, so a mismatch here disables the control silently.
+              const spk = SPEAKER_LAYOUTS[(cfg.speakerLayout ?? 'stereo') as SpeakerLayoutId]?.[s];
               return (
                 <div key={s} className="flex items-center gap-1.5">
                   {/* A TOGGLE, NOT A HOLD. Commissioning is done standing in the room, several metres
@@ -599,7 +721,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                       — see speakerLayouts.ts. Pointer capture is what makes a hold survive the pointer
                       wandering off the button: without it a drag off-target strands the noise playing. */}
                   <button
-                    disabled={!!spk?.lfe}
+                    disabled={!spk || !!spk.lfe}
                     title={spk?.lfe
                       ? 'The LFE has no direction — there is nowhere to place a source'
                       : `Play a source from ${Math.round(normAngle(-(spk?.azimuth ?? 0)))}° — through the decoder, the way a real clip travels`}
@@ -616,22 +738,32 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                   <select
                     value={dst}
                     onChange={(e) => {
-                      const next = Array.from({ length: need }, (_, i) => patch[i] ?? i);
-                      next[s] = Number(e.target.value);
-                      patchAndApply({ speakerPatch: next });
+                      patchAndApply({ speakerPatch: withPatched(patch, need, s, Number(e.target.value)) });
                     }}
                     className="bg-surface-2 border border-line-1 rounded px-1.5 h-6 text-mini text-fg-1 outline-none tabular-nums"
                   >
                     {Array.from({ length: opened?.channels ?? outCh }).map((_, c) => (
                       <option key={c} value={c}>Channel {c + 1}</option>
                     ))}
+                    {/* ⚠ AN OUT-OF-RANGE STORED CHANNEL MUST STILL APPEAR, OR THE CONTROL CONTRADICTS
+                        THE WARNING ABOVE IT. A <select> whose value matches no <option> does not render
+                        blank — React falls through its match loop and displays the FIRST option. So a
+                        patch commissioned on a 16-out interface, opened on a machine that fell back to
+                        onboard stereo, showed "Channel 1" on every over-range row. The warning above said
+                        speaker 5 is on a channel this device lacks; the row said Channel 1; channel 1
+                        demonstrably worked. The only conclusion available to the operator was that the
+                        warning was stale — and both test buttons stayed silent, because they correctly
+                        fire at the STORED channel. Render the truth, disabled, so the two agree. */}
+                    {dst >= (opened?.channels ?? outCh) && (
+                      <option value={dst} disabled>Channel {dst + 1} — not on this device</option>
+                    )}
                   </select>
                 </div>
               );
             })}
           </div>
           <button
-            onClick={() => patchAndApply({ speakerPatch: Array.from({ length: need }, (_, i) => i) })}
+            onClick={() => patchAndApply({ speakerPatch: resetPatch(cfg.speakerPatch ?? [], need) })}
             className="mt-1.5 px-2 h-6 rounded text-mini border bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1"
           >
             Reset to 1:1

@@ -89,3 +89,41 @@ export function unitFor(s: Speaker): { x: number; z: number; y: number } {
 
 /** Decoder speaker index → the DEVICE channel it is patched to (identity when unpatched). */
 export const channelFor = (index: number, patch?: number[]): number => patch?.[index] ?? index;
+
+/** How many speakers a layout has. The table above is the only place that knows, so ask it. */
+export const speakerCount = (id?: string): number =>
+  SPEAKER_LAYOUTS[(id ?? 'stereo') as SpeakerLayoutId]?.length ?? 2;
+
+/** The device-config fields that determine a channel count. Both AudioCfg (AudioSettings.tsx) and
+ *  AudioPluginCfg (plugin.renderer.ts) satisfy this structurally. */
+export interface ChannelWants {
+  outputChannels?: number;
+  outputMode?: string;
+  speakerLayout?: string;
+}
+
+/**
+ * How many device channels a config actually WANTS.
+ *
+ * ⚠ NOT `outputChannels ?? 2`. A config that names a SPEAKER LAYOUT has already said how many outputs it
+ * needs — `quad` needs four — so falling back to 2 there makes the app contradict itself out loud: it
+ * asks the interface for two channels and then warns that "this layout needs 4 but the device is open
+ * with 2 — raise the channel count", about a request it made itself. An operator reads that as a hardware
+ * limit and goes hunting through driver control panels. (It sent one there. The interface had six.)
+ *
+ * An explicit value always wins, including an explicit 2 under an 8-speaker layout — that is a deliberate
+ * choice to audition a big rig on a small one, and the short-channel warning is the right response to it.
+ * The fallback only fills a gap, and it fills it with the only number the rest of the config implies.
+ *
+ * ⚠ IT LIVES HERE, NOT IN THE PANEL, BECAUSE TWO CALLERS CONFIGURE THE SAME ENGINE. AudioSettings' apply()
+ * is the editor path; plugin.renderer's applyDeviceCfg is the BROADCAST/HEADLESS path — the one a venue
+ * actually runs, where the panel never mounts. While the panel owned this rule privately, the driver kept
+ * `outputChannels ?? 2`, so the two disagreed: the panel opened an octagon at 8 channels and reported
+ * "Open: 8 ch", and the next unrelated settings change had the driver silently re-open the SAME device at
+ * 2 — over a stereo rig, with the panel still showing eight. One owner, both callers.
+ */
+export const wantedChannels = (c: ChannelWants): number => {
+  if (typeof c.outputChannels === 'number' && c.outputChannels > 0) return c.outputChannels;
+  if ((c.outputMode ?? 'binaural') !== 'speakers') return 2;   // binaural is a headphone pair, always
+  return speakerCount(c.speakerLayout);
+};

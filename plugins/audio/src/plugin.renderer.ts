@@ -38,6 +38,7 @@ import { setIpc, audioClient } from './audioClient';
 import { setConformIpc, conformAudio, conformOf, conformGeneration, onConformLanded } from './conformClient';
 import { needsConform } from './conformFormats';
 import { attenGain, directionOf, resolveLegacyAxes, type SpatialPos } from '../../../shared/spatial';
+import { wantedChannels } from './speakerLayouts';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
@@ -282,7 +283,10 @@ export const plugin: RendererPlugin = {
       lastCfgKey = key;
       void audioClient.configure({
         deviceType: c.deviceType, deviceName: c.deviceName,
-        channels: c.outputChannels ?? 2, sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
+        // wantedChannels, NOT `c.outputChannels ?? 2` — see speakerLayouts.ts. A venue that picked
+        // Octagon and never touched the channel buttons (they already highlight 8ch, so nobody clicks
+        // them) has no persisted outputChannels, and the old fallback opened this show in STEREO.
+        channels: wantedChannels(c), sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
         mode: c.outputMode ?? 'binaural', layout: c.speakerLayout ?? 'stereo',
         // THE FIX: without this, broadcast/headless — the mode a venue actually runs, since AudioSettings
         // never mounts there — opens the engine with NO patch, native setPatch({}) builds the IDENTITY
