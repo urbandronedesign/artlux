@@ -12,6 +12,8 @@ import * as thumbCache from './thumbCache';
 
 const MAX_RECENTS = 10;
 const prefsFile = () => join(app.getPath('userData'), 'artlux-prefs.json');
+// Where an unparseable prefs file is moved rather than overwritten — see getPrefs.
+const corruptPrefsFile = () => join(app.getPath('userData'), 'artlux-prefs.corrupt.json');
 
 let prefsCache: Prefs | null = null;
 
@@ -19,22 +21,61 @@ const defaultPrefs = (): Prefs => ({ recentFiles: [] });
 
 export function getPrefs(): Prefs {
   if (prefsCache) return prefsCache;
+  const path = prefsFile();
   try {
-    prefsCache = { ...defaultPrefs(), ...JSON.parse(readFileSync(prefsFile(), 'utf-8')) };
-  } catch {
+    prefsCache = { ...defaultPrefs(), ...JSON.parse(readFileSync(path, 'utf-8')) };
+  } catch (e) {
+    // TWO DIFFERENT EVENTS SHARE THIS CATCH, AND ONLY ONE OF THEM IS NORMAL.
+    //
+    // No file at all is a first run — say nothing, take the defaults, carry on.
+    //
+    // A file that EXISTS but will not parse is a machine that has LOST ITS COMMISSIONING. Every
+    // venue-specific thing lives in here: the audio interface, the output channel count, the speaker
+    // patch that says which amp is speaker 5. Falling silently back to defaults would be survivable
+    // on its own — except that the very next setPrefs writes those defaults straight over the file,
+    // 400 ms later, and the only copy of the patch is gone for good.
+    //
+    // So move it aside first. Renaming costs nothing, and it turns "the rig is wrong and nobody knows
+    // why" into a file an operator can hand back to us. Truncation was the likely cause (see the
+    // note on writeJson) and a truncated file often still holds most of the settings as text.
+    if (existsSync(path)) {
+      try {
+        renameSync(path, corruptPrefsFile());
+        console.error('[persistence] artlux-prefs.json was unreadable and has been kept as ' +
+                      'artlux-prefs.corrupt.json — settings have been reset to defaults', e);
+      } catch (renameErr) {
+        console.error('[persistence] artlux-prefs.json is unreadable AND could not be preserved', renameErr);
+      }
+    }
     prefsCache = defaultPrefs();
   }
   return prefsCache;
 }
 
-export function setPrefs(patch: Partial<Prefs>): void {
+// ⚠ THIS USED TO BE A RAW writeFileSync, AND IT LOST A COMMISSIONED SPEAKER PATCH ON A REAL MACHINE.
+//
+// Two independent faults, both fixed here:
+//
+// 1. TRUNCATION. writeFileSync opens with 'w', which zeroes the file before writing a byte. Kill the
+//    process inside that window — a power cut, or the watchdog's own app.exit(0) landing on the 400 ms
+//    settings debounce — and artlux-prefs.json is left as a stub. writeJson (below) already solves
+//    exactly this for PROJECTS, with a long comment about it. Preferences never used it. They hold the
+//    audio device, the channel count and the speaker patch, so the stakes are the same.
+//
+// 2. A SWALLOWED FAILURE. The old body caught the write error, logged to a console nobody has open,
+//    and returned void — so a machine that CANNOT persist (a locked-down profile, an endpoint-security
+//    product holding the file, a full disk) behaved perfectly for a whole commissioning session and
+//    lost all of it at exit. Returning the result is what lets a caller say so while the operator is
+//    still standing in the room.
+//
+// The cache is still updated even when the write fails, and that is deliberate: the session stays
+// self-consistent, and a later write that succeeds then carries EVERY change rather than only the last
+// one. Desynchronising the cache would not have prevented the loss — it would only have made the
+// symptoms stranger. Surfacing the failure is the fix.
+export function setPrefs(patch: Partial<Prefs>): boolean {
   const next = { ...getPrefs(), ...patch };
   prefsCache = next;
-  try {
-    writeFileSync(prefsFile(), JSON.stringify(next, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('[persistence] setPrefs failed', e);
-  }
+  return writeJson(prefsFile(), next);
 }
 
 function pushRecent(path: string): void {

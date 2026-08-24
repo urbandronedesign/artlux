@@ -113,7 +113,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
-    ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => { persistence.setPrefs(patch); });
+    // Returns whether it reached DISK. The renderer needs this: a settings write that fails silently
+    // is how a commissioned speaker patch disappears overnight (see persistence.setPrefs).
+    ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => persistence.setPrefs(patch));
     ipcMain.handle(IPC.UI_SCALE_SET, (_e, scale: number) => { uiScale.setUiScale(getWindow(), scale); });
     ipcMain.handle(IPC.UI_SCALE_DETECT, () => uiScale.detectDefaultUiScale());
     ipcMain.handle(IPC.ARTNET_DISCOVER, () => discovery.discover());

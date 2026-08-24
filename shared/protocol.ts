@@ -1432,7 +1432,8 @@ export interface ArtluxApi {
   exportRig(rig: RigData): Promise<string | null>;
   importRig(): Promise<RigData | null>;
   getPrefs(): Promise<Prefs>;
-  setPrefs(patch: Partial<Prefs>): Promise<void>;
+  /** Resolves TRUE if the settings reached disk. False means they are in memory only and will be lost. */
+  setPrefs(patch: Partial<Prefs>): Promise<boolean>;
   /** Clamp to [0.8, 2.0], persist to Prefs.uiScale, and apply to the main window immediately. */
   setUiScale(scale: number): Promise<void>;
   /** First-run default UI scale computed from the primary display (physical px vs OS scale). */

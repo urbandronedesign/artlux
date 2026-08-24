@@ -3020,6 +3020,9 @@ const App: React.FC = () => {
           case 'close-request': void (async () => {
               const cmd = window.artlux?.windowCommand;
               try {
+                  // BEFORE ANY EXIT PATH. A settings change still sitting in the 400 ms debounce is lost
+                  // the moment this window goes, and the `!pending` path below leaves in microseconds.
+                  flushPrefs();
                   const pending = docDirtyRef.current || sceneLookDirtyRef.current;
                   if (!pending) { cmd?.('force-close'); return; }
                   const answer = await confirmRef.current({
@@ -4302,12 +4305,48 @@ const App: React.FC = () => {
   useEffect(() => { bootGate.setTimeoutSec(settings.bootPreloadSec ?? 15); }, [settings.bootPreloadSec]);
 
   // Persist settings + master brightness (debounced) so they survive restarts.
+  //
+  // ⚠ THE DEBOUNCE HAD NO FLUSH, AND THE LAST GESTURE OF A COMMISSIONING SESSION IS THE ONE THAT LOSES.
+  //
+  // Picking a device channel for the last speaker writes settings, which arms this 400 ms timer. Click
+  // the window's X inside that window and the close handshake answers 'force-close' immediately whenever
+  // `docDirty` is false — and it IS false, because commissioning a rig edits no document. The unmount
+  // cleanup then does the one thing that guarantees loss: clearTimeout. No save prompt appears, because
+  // there is nothing in the project to save. The speaker patch simply never existed.
+  //
+  // Same shape for the watchdog's relaunch and for Ctrl+Shift+Q. So: keep the pending value in a ref and
+  // let the close path write it synchronously before it answers.
+  const pendingPrefs = useRef<{ appSettings: AppSettings; globalBrightness: number } | null>(null);
+  // A write that does not reach disk must SAY SO, here, now — while the operator is still standing in
+  // the room with the ladder. setPrefs used to swallow its own failure and return void, so a machine
+  // that physically cannot persist (a locked-down profile, endpoint security holding the file open, a
+  // full disk) behaved perfectly for a whole commissioning session and lost every bit of it at exit.
+  // Warned once per session: it will not fix itself, and a toast on every settings keystroke is noise
+  // that gets dismissed reflexively.
+  const prefsWarned = useRef(false);
+  const reportPrefs = useCallback((wrote: boolean | undefined) => {
+      if (wrote !== false || prefsWarned.current) return;
+      prefsWarned.current = true;
+      toastRef.current.error('Settings are not being saved',
+          'This machine could not write artlux-prefs.json. The audio device, channel count and speaker ' +
+          'patch will be lost when ARTLux closes. Check permissions on the ARTLux folder in %APPDATA%.');
+  }, []);
+
+  const flushPrefs = useCallback(() => {
+      const p = pendingPrefs.current;
+      if (!p) return;
+      pendingPrefs.current = null;
+      void window.artlux?.setPrefs?.(p)?.then(reportPrefs);
+  }, [reportPrefs]);
+
   useEffect(() => {
+      pendingPrefs.current = { appSettings: settings, globalBrightness };
       const t = setTimeout(() => {
-          window.artlux?.setPrefs?.({ appSettings: settings, globalBrightness });
+          pendingPrefs.current = null;
+          void window.artlux?.setPrefs?.({ appSettings: settings, globalBrightness })?.then(reportPrefs);
       }, 400);
       return () => clearTimeout(t);
-  }, [settings, globalBrightness]);
+  }, [settings, globalBrightness, reportPrefs]);
 
   const updateSettings = (patch: Partial<AppSettings>) => setSettings(s => ({ ...s, ...patch }));
 
