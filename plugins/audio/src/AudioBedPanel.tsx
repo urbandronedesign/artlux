@@ -64,7 +64,7 @@ import { type PanelProps, nextNumberedName } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 import { SPEAKER_LAYOUTS, channelFor, unitFor, type Speaker, type SpeakerLayoutId } from './speakerLayouts';
-import { angleOfVector, attenGain, directionOf, migrateSpatial, normAngle, type SpatialPos } from '../../../shared/spatial';
+import { angleOfVector, directionOf, migrateSpatial, normAngle, type SpatialPos } from '../../../shared/spatial';
 import { conformAudio } from './conformClient';
 import { needsConform } from './conformFormats';
 import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
@@ -121,13 +121,11 @@ const RING = 0.78;
 const SpatialPad: React.FC<{
   /** Degrees, clockwise from front. UNBOUNDED — the pad normalises for drawing, never for storage. */
   angle: number;
-  /** 0 = at the listener (full level) … 1 = far (silent). The pad draws it as RADIUS — see below. */
-  attenuation: number;
   /** Identity of the rebindable document this pad writes, or undefined for the BED (never rebound, never
    *  abandoned — see Fader.docKey). Read LIVE at both ends of the gesture, never from a polled mirror. */
   docKey?: () => string;
-  onDraft: (angle: number, attenuation: number) => void;
-  onCommit: (angle: number, attenuation: number) => void;
+  onDraft: (angle: number) => void;
+  onCommit: (angle: number) => void;
   /**
    * The rig this pad is drawn over, or null for BINAURAL — where there is no room to draw, because the
    * decode target is a pair of headphones and every direction is rendered by HRTF.
@@ -146,11 +144,11 @@ const SpatialPad: React.FC<{
    * that invariant is about writing the DOCUMENT (a setMix per pointermove is an App re-render, an
    * automation recompile and an engine lock per clip), and this writes no document at all.
    */
-  onAudition?: (angle: number, attenuation: number) => void;
-}> = ({ angle, attenuation, docKey, onDraft, onCommit, speakers, onAudition }) => {
+  onAudition?: (angle: number) => void;
+}> = ({ angle, docKey, onDraft, onCommit, speakers, onAudition }) => {
   const ref = useRef<HTMLDivElement>(null);
   // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
-  const pending = useRef<{ angle: number; attenuation: number } | null>(null);
+  const pending = useRef<number | null>(null);
   // THE UNWRAPPED ANGLE, so a drag can WIND. The pointer only ever reports a bearing in [0, 360), but the
   // authored value is unbounded — so dragging clockwise past the front from 350° must produce 370°, not 10°.
   // Without this the one gesture that would naturally author an orbit instead authors a discontinuity, and
@@ -171,12 +169,12 @@ const SpatialPad: React.FC<{
     const dx = (clientX - r.left) / r.width - 0.5;
     const dy = 0.5 - (clientY - r.top) / r.height;
     const radius = Math.min(1, Math.hypot(dx, dy) / (0.5 * RING));
-    // ⚠ RADIUS IS LEVEL, NOT DISTANCE — the ring is full level and the centre is silence. That inversion
-    // is deliberate and is explained in shared/spatial.ts: direction is undefined at zero radius, so the
-    // singularity belongs where the source cannot be heard rather than where it is loudest.
-    const attenuation = Number((1 - radius).toFixed(3));
-    // Below a few pixels of the centre the bearing is pointer noise, not an intention — hold the last one
-    // rather than letting the source spin wildly while it is being faded out.
+    // ⚠ RADIUS MEANS NOTHING NOW, AND THAT IS THE POINT. It used to be level (ring = full level, centre
+    // = silence), which made one gesture author two unrelated things and drew a picture of a room with
+    // distance in it. The encoder has no distance; a level is a level and belongs on the clip's gain.
+    // So the pad authors a BEARING, the dot rides the ring, and radius survives only as the guard
+    // below: within a few pixels of the centre the bearing is pointer noise rather than an intention,
+    // so hold the last one instead of letting the source spin as the pointer crosses the middle.
     if (radius > 0.06) {
       const bearing = angleOfVector(dx, dy);                     // [0, 360)
       // Unwrap onto the running value: take the SHORTER arc from where we were, then add it. This is what
@@ -185,9 +183,9 @@ const SpatialPad: React.FC<{
       if (delta > 180) delta -= 360; else if (delta < -180) delta += 360;
       wound.current = Number((wound.current + delta).toFixed(2));
     }
-    pending.current = { angle: wound.current, attenuation };
-    onDraft(wound.current, attenuation);
-    onAudition?.(wound.current, attenuation);  // dead() returned above — a rebound gesture is silent too
+    pending.current = wound.current;
+    onDraft(wound.current);
+    onAudition?.(wound.current);               // dead() returned above — a rebound gesture is silent too
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -201,17 +199,17 @@ const SpatialPad: React.FC<{
       window.removeEventListener('pointercancel', up);
       const p = pending.current; pending.current = null;
       const alive = !dead(); gestureDoc.current = null;
-      if (p && alive) onCommit(p.angle, p.attenuation); // ONE write per drag, into the document it was made on
+      // `p !== null`, not `p` — an angle of exactly 0 (dead ahead) is falsy and would drop the commit.
+      if (p !== null && alive) onCommit(p);   // ONE write per drag, into the document it was made on
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
   };
-  // Where the source dot lands, in pad units (−1 … 1 across the box). Bearing → direction, level → radius.
-  const level = 1 - Math.min(1, Math.max(0, Number.isFinite(attenuation) ? attenuation : 0));
+  // Where the source dot lands, in pad units (−1 … 1 across the box). A bearing on the ring, full stop.
   const rad = (normAngle(Number.isFinite(angle) ? angle : 0) * Math.PI) / 180;
-  const dotX = Math.sin(rad) * level * RING;
-  const dotY = Math.cos(rad) * level * RING;
+  const dotX = Math.sin(rad) * RING;
+  const dotY = Math.cos(rad) * RING;
   return (
     <div ref={ref} onPointerDown={onDown}
       title={'Drag to place the source. Round the ring = which way (0° front, 90° right). In toward the '
@@ -448,7 +446,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const [preparing, setPreparing] = useState<string | null>(null);
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
-  const [padDraft, setPadDraft] = useState<{ angle: number; attenuation: number } | null>(null);
+  const [padDraft, setPadDraft] = useState<number | null>(null);
   // A RENDERABLE mirror of docKeyOf(), for the ONE thing that needs a re-render when the binding changes:
   // dropping a stale pad draft (see the reset effect). It is NOT the guard — the guard is docKeyOf(), read
   // live — so this may lag by up to one meter tick without costing correctness. Refreshed from the audio
@@ -790,24 +788,21 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     void _dropped;
     patchSelClip(id, { spatial: { ...rest, ...patch } });
   };
-  const setClipSpatialAim = (id: string, angle: number, attenuation: number) => {
+  const setClipSpatialAim = (id: string, angle: number) => {
     const cur = spatialOf(id); if (!cur) return;
-    // The pad moves BOTH in one gesture, so both are released — and the legacy axes with them: a lane on
-    // `spatial.x` is a lane on this same bearing, and leaving it shadowing a position the operator just
-    // dragged is the takeover failure the fader's docKey note describes.
+    // The legacy axes are released with it: a lane on `spatial.x` is a lane on this same bearing, and
+    // leaving it shadowing a position the operator just dragged is the takeover failure the fader's
+    // docKey note describes. `spatial.attenuation` is released too — the parameter is gone in 0.27, but
+    // a document written by 0.26 can still carry a lane on it, and a dead lane that still shadows is
+    // worse than one that merely does nothing.
     releaseSel(`audio.clip.${id}.spatial.angle`); releaseSel(`audio.clip.${id}.spatial.attenuation`);
     for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
-    rewrite(id, cur, { angle, attenuation });
+    rewrite(id, cur, { angle });
   };
   const setClipSpatialElevation = (id: string, elevation: number) => {
     const cur = spatialOf(id); if (!cur) return;
     releaseSel(`audio.clip.${id}.spatial.elevation`); releaseSel(`audio.clip.${id}.spatial.y`);
     rewrite(id, cur, { elevation });
-  };
-  const setClipSpatialAtten = (id: string, attenuation: number) => {
-    const cur = spatialOf(id); if (!cur) return;
-    releaseSel(`audio.clip.${id}.spatial.attenuation`);
-    rewrite(id, cur, { attenuation });
   };
   // Flipping spatialisation REBUILDS the clip's container, so every axis fade over it is stale by
   // definition — a fade holding x = 2.4 from a scene recall must not silently re-shadow the fresh
@@ -818,7 +813,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     for (const ax of ['x', 'y', 'z', 'angle', 'elevation', 'attenuation'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
     // Dead ahead at full level — the position with no opinion, and the one that is audibly identical to
     // the flat clip the operator just ticked the box on.
-    patchSelClip(id, { spatial: on ? { angle: 0, elevation: 0, attenuation: 0 } : undefined });
+    patchSelClip(id, { spatial: on ? { angle: 0, elevation: 0 } : undefined });
   };
 
   // ⚠ `Audio N`, NOT `Track N` — AND IT MUST STAY THE SAME WORD CORE MINTS (Timeline.addAudioTrack). There
@@ -949,8 +944,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // (`?? 0` on the individual leaves did not save it either — `??` does not catch a present-but-non-numeric
   // `"0"`. The coercion has to happen on the way in, which is what vec3 → migrateSpatial does.)
   const spatial = vec3(selClip?.spatial);
-  const padAngle = padDraft?.angle ?? spatial?.angle ?? 0;
-  const padAtten = padDraft?.attenuation ?? spatial?.attenuation ?? 0;
+  const padAngle = padDraft ?? spatial?.angle ?? 0;
   // THE RIG UNDER THE SOURCE — null for BINAURAL, where there is no rig: the B-format is decoded to a
   // pair of headphones by HRTF, so drawing a speaker ring would be describing a room that is not there.
   // (An unknown layout name also draws nothing rather than guessing at a default: a pad that quietly
@@ -968,18 +962,14 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // release belongs with the write (setClipSpatialAim, on pointerup). An axis a lane owns will be
   // re-pushed by the driver on its next frame, so the audition is simply overridden, which is the
   // correct outcome: a read-only parameter must not become audible-only-while-you-drag.
-  // ⚠ ATTENUATION AUDITIONS THROUGH `setClipGain`, NOT THROUGH THE POSITION, because that is what it IS
-  // in this engine (shared/spatial.ts). And the level it sends must be the SAME product the driver would
-  // push — clip gain × track gain × attenuation — or letting go of the pad would jump the level from
-  // whatever the audition sent to whatever effGain computes. `driverGain` is that product, minus the clip
-  // fade envelope, which is a function of the playhead and not of this gesture.
-  const auditionSpatial = (id: string, pos: { angle: number; elevation: number; attenuation: number }) => {
+  // A position audition is now PURELY a position: no gain travels with it. It used to push a level too,
+  // because attenuation lived inside the position and the audition had to send the SAME product effGain
+  // would compute, or releasing the pad jumped the volume. With attenuation gone there is nothing to
+  // keep in step — this gesture does not touch the clip's gain, so the driver's value is already right.
+  const auditionSpatial = (id: string, pos: { angle: number; elevation: number }) => {
     if (!Number.isFinite(pos.angle) || !Number.isFinite(pos.elevation)) return;
     const v = directionOf(pos);
     audioClient.setClipSpatial(id, v.x, v.y, v.z);
-    const clip = selClipIn(id);
-    const track = (selSource === 'bed' ? mixRef.current.tracks : tlRef.current.tracks).find((t) => t.id === clip?.trackId);
-    audioClient.setClipGain(id, (num(clip?.gain) ?? 1) * (num(track?.gain) ?? 1) * attenGain(pos.attenuation));
   };
   // What the ENGINE is playing for the house level. The master bus is PROJECT-GLOBAL — one output chain —
   // so this path names one thing and cannot alias across containers; it needs no drivenOn gate.
@@ -1271,11 +1261,11 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   </div>
                   {spatial ? (
                     <div className="flex items-center gap-3">
-                      <SpatialPad angle={padAngle} attenuation={padAtten} docKey={gestureDocKey}
+                      <SpatialPad angle={padAngle} docKey={gestureDocKey}
                         speakers={padSpeakers}
-                        onDraft={(angle, attenuation) => setPadDraft({ angle, attenuation })}
-                        onAudition={(angle, attenuation) => auditionSpatial(selClip.id, { angle, elevation: spatial.elevation, attenuation })}
-                        onCommit={(angle, attenuation) => { setPadDraft(null); setClipSpatialAim(selClip.id, angle, attenuation); }} />
+                        onDraft={(angle) => setPadDraft(angle)}
+                        onAudition={(angle) => auditionSpatial(selClip.id, { angle, elevation: spatial.elevation })}
+                        onCommit={(angle) => { setPadDraft(null); setClipSpatialAim(selClip.id, angle); }} />
                       <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
@@ -1286,28 +1276,19 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                             ariaLabel="spatial height"
                             docKey={gestureDocKey}
                             title={(v) => `${v.toFixed(0)}° — ${v > 0 ? 'above' : v < 0 ? 'below' : 'level with'} the listener`}
-                            onDraft={(elevation) => auditionSpatial(selClip.id, { angle: padAngle, elevation, attenuation: padAtten })}
+                            onDraft={(elevation) => auditionSpatial(selClip.id, { angle: padAngle, elevation })}
                             onCommit={(elevation) => setClipSpatialElevation(selClip.id, elevation)}
                             className="w-24"
                             readout={(v) => `${v.toFixed(0)}°`}
                             readoutClassName="text-micro text-fg-2 tabular-nums w-12 shrink-0" />
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-micro text-fg-3 w-10 shrink-0">distance</span>
-                          {/* The pad's radius and this slider are ONE parameter seen twice — dragging the
-                              dot inward moves this, and moving this moves the dot. It is here as well
-                              because a bearing and a level are separable intentions, and the pad couples
-                              them into one gesture. */}
-                          <Fader value={padAtten} min={0} max={1} step={0.01}
-                            ariaLabel="spatial attenuation"
-                            docKey={gestureDocKey}
-                            title={(v) => `${v === 0 ? 'at the listener, full level' : v >= 1 ? 'far away — silent' : `${(20 * Math.log10(Math.max(1e-6, attenGain(v)))).toFixed(1)} dB`}`}
-                            onDraft={(attenuation) => auditionSpatial(selClip.id, { angle: padAngle, elevation: spatial.elevation, attenuation })}
-                            onCommit={(attenuation) => setClipSpatialAtten(selClip.id, attenuation)}
-                            className="w-24"
-                            readout={(v) => (v >= 1 ? 'silent' : `${(20 * Math.log10(Math.max(1e-6, attenGain(v)))).toFixed(0)} dB`)}
-                            readoutClassName="text-micro text-fg-2 tabular-nums w-12 shrink-0" />
-                        </div>
+                        {/* A "distance" fader used to sit here, and it was a gain fader wearing the
+                            name of a dimension this engine does not have. Two controls, one pad radius
+                            and one slider, both writing spatial.attenuation, both multiplying into the
+                            clip's gain at playback — while the clip's OWN gain fader sat a few rows up
+                            doing the same job under its real name. Removed in 0.27: a position is a
+                            direction, loudness is loudness, and old projects keep their exact levels
+                            because the sanitizer folds the stored attenuation into clip.gain. */}
                         <span className="text-micro text-fg-3 tabular-nums">
                           {normAngle(padAngle).toFixed(0)}° · {spatial.elevation.toFixed(0)}° up
                         </span>

@@ -4,11 +4,12 @@ import type {
   // keyed by role, and `export type { … } from` alone does not bring a name into local scope.
   ChannelRole,
 } from '../../shared/protocol';
-// A source's POSITION -- angle + elevation + attenuation, and the migration off the old {x,y,z}. It
-// lives in shared/ because BOTH halves need it: core sanitizes documents with it, and the audio plugin
+// A source's POSITION -- angle + elevation, and the migrations off the old {x,y,z} metres and the
+// 0.26 attenuation. It lives in shared/ because BOTH halves need it: core sanitizes documents with it,
+// and the audio plugin
 // converts it to a direction for the engine. Two copies of the angle convention is how a room silently
 // gets mirrored.
-import { migrateSpatial, type SpatialPos } from '../../shared/spatial';
+import { migrateSpatial, legacyAttenGain, type SpatialPos } from '../../shared/spatial';
 
 // DMX fixture profiles live in shared/protocol.ts, not here, because THREE consumers need them: the
 // renderer (patching, the packer, the 3D scene), MAIN (it reads the bundled library off disk and
@@ -956,7 +957,14 @@ const sanitizeClipAudio = (a: VideoClipAudio | undefined): VideoClipAudio | unde
     // a junk value must fall back to ABSENT and not to `false` — coercing junk into silence would be the
     // one coercion in this file that destroys the operator's sound rather than a number.
     enabled: a.enabled === false ? false : undefined,
-    gain: finiteNum(a.gain),
+    // Same legacy-attenuation fold as sanitizeAudioClip — see the long note there. A video clip's
+    // soundtrack could be spatialised too, so it could carry the level, so it has to be preserved the
+    // same way or the same clips come back louder.
+    gain: (() => {
+      const g = finiteNum(a.gain);
+      const fold = legacyAttenGain(a.spatial);
+      return fold === 1 ? g : (g ?? 1) * fold;
+    })(),
     offsetMs: finiteNum(a.offsetMs),
     fadeIn: finiteNum(a.fadeIn),
     fadeOut: finiteNum(a.fadeOut),
@@ -1030,7 +1038,26 @@ export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
   duration: finiteNum(c.duration) ?? 0,
   inPoint: finiteNum(c.inPoint) ?? 0,
   sourceDuration: finiteNum(c.sourceDuration) ?? undefined,
-  gain: finiteNum(c.gain) ?? undefined,
+  // ⚠ THE OLD `spatial.attenuation` IS FOLDED IN HERE, AND IT HAS TO BE.
+  //
+  // Attenuation was a LEVEL wearing the name of a distance, and the driver multiplied it into the
+  // clip's gain at playback time. 0.27 removed it from the position model (a source has a direction;
+  // loudness is loudness), so deleting the field alone would make every clip that used it LOUDER — by
+  // any amount up to silence-becomes-full-level, in a venue, on a show nobody re-checked. Folding it
+  // into the stored gain preserves the sound exactly and lets the parameter disappear.
+  //
+  // IDEMPOTENT, which is what allows it to live in a sanitizer that runs on every load and every save:
+  // `migrateSpatial` builds its result field by field and never copies `attenuation` through, so the
+  // second pass reads no attenuation and legacyAttenGain returns 1. Were that not true the document
+  // would get quieter every time it was opened.
+  //
+  // `?? undefined` is preserved for the untouched case: an absent gain must stay absent rather than
+  // becoming an explicit 1, or every legacy clip gains a field on first load and every file churns.
+  gain: (() => {
+    const g = finiteNum(c.gain);
+    const fold = legacyAttenGain(c.spatial);
+    return fold === 1 ? (g ?? undefined) : (g ?? 1) * fold;
+  })(),
   mute: boolOrAbsent(c.mute),
   fadeIn: finiteNum(c.fadeIn) ?? undefined,
   fadeOut: finiteNum(c.fadeOut) ?? undefined,
@@ -1200,7 +1227,7 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
 
 // A source position in listener-relative metres (listener at origin, +z forward). Encoded to
 // B-format by the ambisonic bus; absent ⇒ the clip routes straight to its bus (non-spatial).
-// A source's position: angle + elevation + attenuation, NOT a point in metres. The metres were never
+// A source's position: angle + elevation, NOT a point in metres and NOT a level. The metres were never
 // real -- the ambisonic encoder discards distance -- so the model, the migration off {x,y,z} and the
 // legacy-lane compatibility all live in shared/spatial.ts. Aliased here because every call site in core
 // imports its document types from this module.

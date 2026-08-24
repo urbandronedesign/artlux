@@ -62,7 +62,7 @@ export function isGeometryPath(path: string): boolean {
 // Never a chain's length, never spatial on/off: each changes the SHAPE of the engine's chain and forces a
 // rebuild (a spatial flip changes its channel count 2⇔1), and a rebuild allocates.
 //   audio.clip.<id>.gain          audio.track.<id>.gain          audio.master.gain
-//   audio.clip.<id>.spatial.{angle|elevation|attenuation}   (and the legacy {x|y|z} — see below)
+//   audio.clip.<id>.spatial.{angle|elevation}   (and the legacy {attenuation|x|y|z} — see below)
 //   audio.clip.<id>.fx.<effectId>.<param>                        audio.master.fx.<effectId>.<param>
 //
 // ⚠ HARD CONSTRAINT ON EVERY CALLER: the `fx.<id>.<key>` arm CANNOT tell a continuous param from a discrete
@@ -72,13 +72,16 @@ export function isGeometryPath(path: string): boolean {
 // `provider.enumerate()`, which emits `def.params` and NOTHING else — never `opts`, never mute/solo, never
 // the spatial flag. That is the only thing standing between this regex and the fade engine handing a
 // filter's `mode` the value 0.37. isFadeablePath is a GATE, not a catalog; enumerate() is the catalog.
-// ⚠ BOTH SPELLINGS OF A POSITION ARE ADMITTED, AND ONLY ONE IS OFFERED.
+// ⚠ THREE GENERATIONS OF SPELLING ARE ADMITTED, AND ONLY ONE IS OFFERED.
 //
-// `angle|elevation|attenuation` is the model (shared/spatial.ts). `x|y|z` is what documents written
-// before it carry, and dropping it here would silently break every cue and lane already authored
-// against a position — this regex is the GATE deciding whether an entry FADES or SNAPS, so a path
-// falling out of it does not error, it just starts jumping. The plugin's enumerate() no longer offers
-// the old spelling, so nothing NEW can be written against it; this keeps what exists working.
+// `angle|elevation` is the model (shared/spatial.ts). `x|y|z` is the original metres, and
+// `attenuation` is the level 0.26 briefly carried inside the position — both are still matched here
+// because THIS REGEX IS THE GATE DECIDING WHETHER AN ENTRY FADES OR SNAPS, not whether it exists. A
+// path falling out of it does not error; it starts JUMPING. So a document written against either old
+// spelling keeps the smooth behaviour it was authored with, even though the value it carries no longer
+// reaches the engine (0.27 folds a stored attenuation into the clip's gain and the position stops
+// having a level at all). The plugin's enumerate() offers only the current names, so nothing NEW can
+// be written against either; this keeps what exists from changing character.
 export const AUDIO_FADEABLE_RE = /^(gain|spatial\.(angle|elevation|attenuation|[xyz])|fx\.[^.]+\.[^.]+)$/;
 
 // Whether a path addresses a fadeable numeric parameter (else a cue entry snaps on fire).

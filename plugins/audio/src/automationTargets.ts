@@ -121,9 +121,8 @@ const layered = (path: string): number | undefined => ovr.get(path) ?? fade.get(
 
 export const autoOrFadeGain = (clipId: string): number | undefined => layered(`${NS}.clip.${clipId}.gain`);
 export const autoOrFadeTrackGain = (trackId: string): number | undefined => layered(`${NS}.track.${trackId}.gain`);
-// Attenuation is a LEVEL, so the driver reads it beside the gains rather than through the position --
-// see effGain in plugin.renderer.ts.
-export const autoOrFadeAtten = (clipId: string): number | undefined => layered(`${NS}.clip.${clipId}.spatial.attenuation`);
+// (There was an autoOrFadeAtten here. `spatial.attenuation` was removed in 0.27 — a source has a
+// direction, and a level belongs on the clip's own gain, which already has a lane one line above.)
 export const autoOrFadeMasterGain = (): number | undefined => layered(`${NS}.master.gain`);
 export const hasAnyOverride = (ownerId: string): boolean =>
   (byOwner.get(ownerId)?.size ?? 0) > 0 || (fadeByOwner.get(ownerId)?.size ?? 0) > 0;
@@ -272,8 +271,6 @@ const GAIN = { min: 0, max: 1.5, step: 0.01, def: 1 };
 // deliberately NOT set on elevation, which is a bounded −90…90 and has no far side to go round.
 const ANGLE = { min: -1440, max: 1440, step: 1, def: 0, unit: '°', wrap: true };
 const ELEV = { min: -90, max: 90, step: 1, def: 0, unit: '°' };
-// 0 = at the listener, full level. 1 = far, silent. Quadratic in gain — see attenGain.
-const ATTEN = { min: 0, max: 1, step: 0.01, def: 0, unit: '' };
 
 /**
  * THE ENGINE DOOR FOR A GAIN — the LAST bound before a level reaches the amplifier.
@@ -327,7 +324,6 @@ export const audioAutomationProvider: AutomationTargetProvider = {
       if (c.spatial) {
         out.push({ path: `${NS}.clip.${c.id}.spatial.angle`, label: 'Angle', group: g, ...ANGLE, def: c.spatial.angle ?? 0 });
         out.push({ path: `${NS}.clip.${c.id}.spatial.elevation`, label: 'Height', group: g, ...ELEV, def: c.spatial.elevation ?? 0 });
-        out.push({ path: `${NS}.clip.${c.id}.spatial.attenuation`, label: 'Attenuation', group: g, ...ATTEN, def: c.spatial.attenuation ?? 0 });
       }
       for (const fx of effectsOf(c)) {
         const def = defOf(fx.type);

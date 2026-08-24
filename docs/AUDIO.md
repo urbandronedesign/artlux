@@ -127,7 +127,6 @@ standing in for:
 |---|---|---|
 | `angle` | degrees, **clockwise from front** — 0 front, 90 right, 180 behind, 270 left | which way |
 | `elevation` | degrees, −90 below … +90 above | how high |
-| `attenuation` | 0 = at the listener … 1 = silent | how far |
 
 **The angle is clockwise; the ambisonic azimuth underneath is anticlockwise** (`atan2(-x, z)`, positive
 = LEFT). The two meet in exactly one function each — `directionOf` and `angleOfVector` — because getting
@@ -149,21 +148,32 @@ front. The target declares `wrap: true` and `transitions.ts` interpolates along 
 to 10° passes through 370° and then reads 10°, which is the same direction to the bit, so the engine
 receives no jump and the document never inherits a wound value.
 
-**Attenuation is a level, not a distance cue.** It is applied as gain, quadratic (−12 dB at 0.5, true
+**There is no third component, and there was for exactly one release.** 0.26 offered `attenuation` —
+a level, named as a distance — and 0.27 removed it. It was applied as gain, quadratic (−12 dB at 0.5, true
 silence at 1), folded into `effGain` — the number the driver already re-pushes only when it changes, so
 an attenuation lane costs one `setClipGain` per frame and a still source costs nothing.
 `AmbisonicEncoderDist` would give real distance cues (propagation delay, the W-panning interior effect)
 and was deliberately not used: it puts a per-source **delay line** in the path, and a source moving
 along a delay that slides is a pitch artefact in a show bed.
 
-That is also why the pad's radius is **level** and not distance: the ring is full level with a
+The removal is not a loss of capability: it was a second gain fader, hidden inside the position, sitting
+a few rows below the clip's own gain fader doing the same job under its real name. Automate `gain`.
+
+**Old projects keep their exact levels.** `sanitizeAudioClip` folds a stored `attenuation` into
+`clip.gain` through the same quadratic law the driver used to apply, so a 0.26 show sounds identical.
+The fold is idempotent — `migrateSpatial` never copies `attenuation` through, so the second sanitize
+multiplies by 1 — which is what allows it to live in a sanitizer that runs on every load *and* save.
+Simply dropping the field would have made every clip that used it **louder**, up to
+silent-becomes-full-level, in a venue.
+
+The pad's radius used to be **level** and no longer means anything: the ring is full level with a
 well-defined bearing, the centre is silence. The singularity ends up where it belongs — direction is
 undefined at zero radius, and at zero radius nothing can be heard.
 
 > **Documents written before this migrate on load** (`migrateSpatial`, called from the sanitizers, so
 > the bed, the global timeline, every scene's timeline and every video clip's audio block are all
-> covered by one edit). A migrated position gets `attenuation: 0` — NOT a value derived from its old
-> distance, which was inaudible; deriving one would quietly change the level of every existing show in
+> covered by one edit). A migrated position is a DIRECTION ONLY. The old metres are dropped outright —
+> they never made a sound; deriving a level from them would quietly change every existing show in
 > proportion to how far its author had dragged a dot that did nothing.
 >
 > **Lanes on the old `spatial.x` / `.y` / `.z` keep playing.** They are no longer offered by
@@ -315,7 +325,6 @@ the core parameters use, so an audio lane on the timeline is the same object as 
 | `audio.clip.<clipId>.gain` | 0 – 1.5 | |
 | `audio.clip.<clipId>.spatial.angle` | ±1440° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
 | `audio.clip.<clipId>.spatial.elevation` | −90 – 90° | how high |
-| `audio.clip.<clipId>.spatial.attenuation` | 0 – 1 | how far: 0 at the listener, 1 silent |
 | `audio.clip.<clipId>.fx.<fxId>.<param>` | per the FX catalog | |
 
 **These are BED paths.** The provider enumerates `ProjectData.audio` and nothing else, so a clip in a

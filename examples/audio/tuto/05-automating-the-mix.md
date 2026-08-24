@@ -139,7 +139,6 @@ Anything the audio provider publishes. Click **`+`** in the automation gutter an
 | `audio.clip.<id>.gain` | one clip's level |
 | `audio.clip.<id>.spatial.angle` | **which way** — degrees clockwise from front, and it may run past 360 |
 | `audio.clip.<id>.spatial.elevation` | **how high** — degrees, −90 below … +90 above |
-| `audio.clip.<id>.spatial.attenuation` | **how far** — 0 at the listener, 1 silent |
 | `audio.clip.<id>.fx.<id>.<param>` | any clip-FX parameter — automate a filter sweep, a reverb's wet |
 
 Note what is **not** there: the **Spatial checkbox**, and **mute**. Neither is a number. Flipping spatial
@@ -164,8 +163,8 @@ paths. **If it is not a number, it is not automatable**, and the list simply wil
 1. **Make it dive.** The orbit is flat — every lap passes through ear level. Add a lane on
    `audio.clip.acl_orbit0.spatial.elevation` and give it a slow rise and fall, out of step with the angle:
    4 s at −40°, 12 s at +40°. The source now spirals rather than circling.
-2. **Then make it leave.** Add `…spatial.attenuation`, flat at 0 until 0:12, then a ramp to 1 by 0:16. It
-   circles away into silence. Note that this is the one axis you can hear *without* headphones: attenuation
+2. **Then make it leave.** Add `…gain`, flat until 0:12, then a ramp to 0 by 0:16. It circles away into
+   silence. Note that this is the one part you can hear *without* headphones: a level
    is a level, so it survives a stereo speaker pair that has no idea where anything is.
 3. **Automate a filter sweep.** Put a **Filter** on the orbit clip, then add a lane on its `cutoff` and sweep
    it from 200 Hz to 12 kHz over eight seconds. Note the lane's axis is **logarithmic** — because your ears

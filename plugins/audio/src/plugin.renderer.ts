@@ -37,7 +37,7 @@ import type { RendererPlugin, RendererPluginContext, RendererHostServices } from
 import { setIpc, audioClient } from './audioClient';
 import { setConformIpc, conformAudio, conformOf, conformGeneration, onConformLanded } from './conformClient';
 import { needsConform } from './conformFormats';
-import { attenGain, directionOf, resolveLegacyAxes, type SpatialPos } from '../../../shared/spatial';
+import { directionOf, resolveLegacyAxes, type SpatialPos } from '../../../shared/spatial';
 import { wantedChannels } from './speakerLayouts';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
@@ -45,7 +45,7 @@ import { AudioBedPanel } from './AudioBedPanel';
 import type { AudioEffectSpec, ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
 import { MASTER_BUS_ID } from './effectDefs';
 import {
-  audioAutomationProvider, autoOrFadeGain, autoOrFadeTrackGain, autoOrFadeMasterGain, autoOrFadeAtten,
+  audioAutomationProvider, autoOrFadeGain, autoOrFadeTrackGain, autoOrFadeMasterGain,
   applyClipLayers, applyBusLayers, hasAnyOverride, takeDirty, boundGain,
 } from './automationTargets';
 
@@ -469,18 +469,14 @@ export const plugin: RendererPlugin = {
     // the target's declared range; the PERSISTED clip/track gain never was — sanitizeAudioClip coerces it
     // for finiteness only. A `"gain": 20` in the file played at 20×. It is bounded HERE, per factor, and
     // NOT in the normalizer, which would persist the clamp on the next save and destroy the authored value.
-    // ⚠ AND ATTENUATION IS ONE OF THE FACTORS. A source's distance is expressed as a level in this
-    // engine (shared/spatial.ts explains why it is not a delay-line distance cue), so it multiplies in
-    // here rather than travelling with the position. Two things fall out of that, both wanted:
-    // reconcileContainer already re-pushes gain ONLY when it changes, so an attenuation automation lane
-    // costs exactly one setClipGain per frame and a still source costs nothing; and the lane is read
-    // through the SAME override layer as everything else, so a scene fade on attenuation works with no
-    // further plumbing. Read straight from the layer rather than through eff(), which allocates a whole
-    // clip -- this runs per sounding clip per frame.
+    // (A fourth factor used to sit here: `attenGain(spatial.attenuation)`. The position model carried a
+    // level called attenuation, which multiplied in at this point. It was removed in 0.27 — the encoder
+    // has no distance, so it was a second gain fader hidden inside the position. Old documents keep
+    // their loudness: the sanitizer folds the stored attenuation into `clip.gain`, which is the first
+    // factor below.)
     const effGain = (clip: BedClip, tLocal: number) =>
       boundGain(autoOrFadeGain(clip.id) ?? clip.gain)
       * boundGain(autoOrFadeTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain)
-      * attenGain(autoOrFadeAtten(clip.id) ?? clip.spatial?.attenuation)
       * fadeGain(clip, tLocal);
     /** The clip as it should SOUND: authored, with the scene fade laid on, with the lane's leaves over that. */
     const eff = (clip: BedClip): BedClip => (hasAnyOverride(clip.id) ? applyClipLayers(clip) : clip);

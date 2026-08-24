@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### There is no distance in the spatialisation any more
+
+A source has an **angle** and a **height**. That is the whole model.
+
+0.26 added a third component, `attenuation`, and called it "distance" in the Audio Bed. It was never a
+distance — the ambisonic encoder has no such input, which the 0.26 notes below say at length. It was a
+**gain**, quadratic, multiplied into the clip's level at playback. So the panel offered two controls
+for loudness a few rows apart: the clip's own gain fader, under its real name, and a slider called
+"distance" that did the same thing while implying a spatial dimension the engine does not have. The
+positioner pad encoded it as radius, which meant one gesture authored two unrelated intentions and drew
+a picture of a room with depth in it.
+
+All of it is gone. The pad authors a bearing and the dot rides the ring. The `Attenuation` automation
+lane is withdrawn — automate `gain`, which is what it always was.
+
+**Your existing projects sound exactly the same, to the decibel.** The sanitizer folds a stored
+`attenuation` into `clip.gain` using the same quadratic law the driver applied, so nothing changes
+level. That fold matters more than it sounds: simply deleting the field would have made every clip that
+used it **louder** — a source faded away to silence would have come back at full level, in a venue, on
+a show nobody thought to re-check. The fold is idempotent (`migrateSpatial` never copies the field
+through, so a second pass multiplies by 1), which is what lets it live in a sanitizer that runs on
+every load *and* every save rather than in a one-shot migration that one of the four document doors
+would eventually forget.
+
+Automation lanes written against `spatial.attenuation` in a 0.26 project are inert rather than broken:
+the fade gate still admits the path, so they neither error nor start snapping — they simply no longer
+reach anything. Re-point them at `gain`.
+
 ## v0.26.0
 
 ### Settings that actually reach the disk

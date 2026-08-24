@@ -139,7 +139,10 @@ across the room sixty times a second, but you cannot rebuild its DSP graph sixty
 > same bearing changed **nothing at all**, while the readout reported the move to two decimal places.
 >
 > So the pad now measures the two things that are real. **Round the ring** is the bearing. **In toward
-> the centre** is level — the ring is full level, the centre is silence. That is not distance pretending
+> the centre** does nothing at all: the dot rides the ring, because a source has a bearing and a height
+> and no third thing. If you want it quieter, that is the clip's **gain** fader. (0.26 briefly offered an
+> "attenuation" here — a level wearing the name of a distance — and 0.27 removed it. Projects that used
+> it keep their exact levels: the value is folded into the clip's gain on load.) That is not distance pretending
 > to be gain; it *is* gain, and it is the only kind of "further away" this engine has. It also puts the
 > awkward spot in the right place: a direction is meaningless at zero radius, and at zero radius the
 > source cannot be heard anyway.
@@ -150,9 +153,8 @@ across the room sixty times a second, but you cannot rebuild its DSP graph sixty
 
 | Concept | Here | In the file |
 |---|---|---|
-| **A spatial source** | the orbit clip | `clip.spatial = { angle, elevation, attenuation }` — absent ⇒ not spatial |
+| **A spatial source** | the orbit clip | `clip.spatial = { angle, elevation }` — absent ⇒ not spatial |
 | **Which way** | round the pad | `spatial.angle` — degrees **clockwise from front** (0 front, 90 right, 180 behind, 270 left) |
-| **How far** | in toward the centre | `spatial.attenuation` — 0 at the listener, 1 silent |
 | **Height** | the slider | `spatial.elevation` — degrees, −90 below … +90 above |
 | **A clip insert** | the reverb | `clip.effects[]` |
 | **A master insert** | the compressor | `audio.buses[0].effects[]` (id `master`) |

@@ -13,7 +13,11 @@
 //
 //   angle        WHICH WAY, in degrees. The only part the encoder has ever used.
 //   elevation    HOW HIGH, in degrees. Likewise.
-//   attenuation  HOW FAR, expressed as what "far" is actually allowed to mean here: a level.
+//
+// There is NO third component. "How far" was offered for one release as `attenuation`, a level
+// dressed as a distance, and it was removed in 0.27.0: the encoder has no distance, so the control was
+// a gain fader sitting inside the position model, duplicating the clip gain immediately above it and
+// implying a spatial dimension that does not exist. A source has a DIRECTION. Loudness is loudness.
 //
 // ── ANGLE IS CLOCKWISE FROM FRONT, AND THE ENGINE'S IS NOT ────────────────────────────────────────
 //
@@ -50,8 +54,6 @@ export interface SpatialPos {
   angle: number;
   /** Degrees, −90 (directly below) … +90 (directly above). */
   elevation: number;
-  /** 0 = at the listener (full level) … 1 = far (silent). Applied as gain. */
-  attenuation: number;
   /** Ambisonic-order override for this source (default: the project/device setting). */
   order?: number;
   /**
@@ -85,17 +87,36 @@ export const normAngle = (deg: number): number => ((deg % 360) + 360) % 360;
 const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 /**
- * The gain a given attenuation produces.
+ * The gain an OLD position's `attenuation` implied. **MIGRATION ONLY** — nothing in the live signal
+ * path calls this any more.
  *
- * Quadratic, so it follows the inverse-square falloff of a real room across the 0–1 range and reaches
- * TRUE SILENCE at 1 rather than merely getting quiet. A linear law sounds like a fader rather than like
- * distance; an inverse-square law with a floor never actually goes away, which makes "fade it out into
- * the distance" impossible to author exactly.
+ * ⚠ IT EXISTS SO THE UPGRADE IS SILENT. Attenuation was folded into the clip's gain at playback time,
+ * so simply deleting the field would make every clip that used it LOUDER — by up to +∞ dB, since 1
+ * meant true silence. A show that faded a source away would come back at full level, in a venue, on a
+ * rig nobody re-checked. So the sanitizer multiplies this into the clip's stored gain instead: the
+ * parameter disappears and the level does not change by a decibel.
+ *
+ * The law is the one that was in force: quadratic, reaching true silence at 1.
  */
-export const attenGain = (attenuation: number | undefined): number => {
+const attenGainOf = (attenuation: number | undefined): number => {
   const a = clamp01(finite(attenuation) ?? 0);
   const g = 1 - a;
   return g * g;
+};
+
+/**
+ * Read the legacy attenuation off a RAW (pre-migration) spatial object and return the gain factor to
+ * fold into the clip.
+ *
+ * Returns 1 for anything already migrated, which is what makes the fold IDEMPOTENT: `migrateSpatial`
+ * builds its result field by field and never copies `attenuation` through, so the second sanitize of
+ * the same document sees no attenuation and multiplies by 1. Without that property a document would
+ * get quieter on every save.
+ */
+export const legacyAttenGain = (raw: unknown): number => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 1;
+  const a = finite((raw as { attenuation?: unknown }).attenuation as number | undefined);
+  return a === undefined ? 1 : attenGainOf(a);
 };
 
 /**
@@ -128,11 +149,12 @@ export const elevationOfVector = (x: number, y: number, z: number): number =>
  * timeline audio, and on every video clip's audio block, and a migration that had to be remembered at
  * each of those is a migration that will be forgotten at one of them.
  *
- * ⚠ A MIGRATED POSITION GETS `attenuation: 0`, NOT SOME NUMBER DERIVED FROM ITS OLD DISTANCE. The old
- * distance was inaudible (the encoder discarded it), so deriving attenuation from it would CHANGE THE
- * SOUND of every existing show on upgrade — quietly, and in proportion to how far the author happened
- * to have dragged a dot that never did anything. Full level is the only value that preserves what the
- * project actually sounded like.
+ * ⚠ A MIGRATED POSITION IS A DIRECTION AND NOTHING ELSE. Two generations of stored shape arrive here:
+ * the original `{x,y,z}` metres (a distance the encoder always discarded) and the 0.26 `attenuation`
+ * (a level). Neither becomes a field of the position. The metres are simply dropped — they never made
+ * a sound. The attenuation is NOT dropped: `legacyAttenGain` above hands it to the clip sanitizer,
+ * which folds it into the clip's gain, so the show sounds identical and the model stops pretending
+ * distance exists.
  */
 export function migrateSpatial(raw: unknown): SpatialPos | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
@@ -149,7 +171,6 @@ export function migrateSpatial(raw: unknown): SpatialPos | undefined {
     return {
       angle,
       elevation: finite(s.elevation) ?? 0,
-      attenuation: clamp01(finite(s.attenuation) ?? 0),
       ...(order !== undefined ? { order } : {}),
       ...(legacyVec ? { legacyVec } : {}),
     };
@@ -162,7 +183,6 @@ export function migrateSpatial(raw: unknown): SpatialPos | undefined {
   return {
     angle: angleOfVector(x, z),
     elevation: elevationOfVector(x, y, z),
-    attenuation: 0,
     ...(order !== undefined ? { order } : {}),
     legacyVec: { x, y, z },
   };
