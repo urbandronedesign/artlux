@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### A sound can be in the middle of the room
+
+Drop the source in the **centre of the positioner pad** and it plays equally in every speaker.
+
+This is a place, not a level — it is the one position a ring of bearings genuinely cannot express, and
+the pad's middle had been sitting there meaning nothing since attenuation was removed. In ambisonics
+"everywhere" is order 0: **W alone**, with the directional components weighted to zero, which decodes to
+the same gain in every speaker of any layout. Measured on a stereo pair: 0.0188 in both channels omni,
+against 0.0375 in one channel and silence in the other when placed hard right.
+
+The bearing is **retained** underneath, so dragging back out of the centre returns the source to where
+it was rather than to dead ahead. The centre is drawn as a target and the dot goes hollow when it lands
+there, because that spot has meant three different things across three releases — the listener, then
+silence, now everywhere — and an operator who remembers either of the first two would never go looking
+for the third.
+
+Switching between everywhere and somewhere **fades** rather than clicks: the new coefficients go through
+the same interpolator as a position change. (Two traps behind that, both recorded in the code: order
+weights only reach the coefficients through a `Refresh()`, and `SetPosition` is what performs one — so
+the weight must be set first. libspatialaudio has this bug itself in the cube decoder.)
+
+An omni source is quieter *per speaker* than a directional one, because its energy is spread across the
+whole array instead of concentrated at a bearing. Use the clip's gain if you want the two to match.
+
+Note that unticking **spatial** is not the same thing and never was: a flat clip is copied to the device
+channels with `min(channel, clipChannels-1)`, so a stereo file on a quad rig puts its left channel in
+speaker 1 and its right channel in speakers 2, 3 and 4.
+
 ## v0.26.1
 
 ### ASIO ships

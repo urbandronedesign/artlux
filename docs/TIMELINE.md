@@ -91,7 +91,7 @@ SmTrigger   { kind: manual|afterDelay|atTime|onMarker|onClipEnd|onTimelineEnd, s
 SmState     { id, name, x, y, entry: SmAction[] }
 SmTransition{ id, from, to, trigger: SmTrigger }
 StateMachine{ enabled, states[], transitions[], initialStateId }
-AudioSpatial{ angle, elevation, order? }                     // absent on a clip ⇒ non-spatial
+AudioSpatial{ angle, elevation, omni?, order? }              // absent on a clip ⇒ non-spatial
 AudioClip   { id, trackId, name, path, start, duration, inPoint, sourceDuration?, gain?, mute?,
               fadeIn?, fadeOut?, spatial?: AudioSpatial, effects? }
 AudioTrack  { id, name, busId?, gain?, mute?, solo?, color? }   // NO height: audio lanes are a constant

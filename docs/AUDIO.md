@@ -166,9 +166,26 @@ multiplies by 1 — which is what allows it to live in a sanitizer that runs on 
 Simply dropping the field would have made every clip that used it **louder**, up to
 silent-becomes-full-level, in a venue.
 
-The pad's radius used to be **level** and no longer means anything: the ring is full level with a
-well-defined bearing, the centre is silence. The singularity ends up where it belongs — direction is
-undefined at zero radius, and at zero radius nothing can be heard.
+**The centre of the pad is a place, and it means EVERYWHERE.** A source dropped there is encoded at
+order 0 — W alone, with the directional components weighted to zero — which decodes to the same gain in
+every speaker of any layout. It is the one position a ring of bearings cannot express, and it is what an
+operator means by "put it in the middle of the room": not quieter, not nearer, but present equally
+everywhere. `spatial.omni` carries it; the bearing is retained underneath, so dragging back out returns
+the source where it was rather than to dead ahead.
+
+Two things worth knowing. The order weights only reach the coefficients through a `Refresh()`, and
+`AmbisonicEncoder::SetPosition` does one — so `SetOrderWeight` must be called *before* it (libspatialaudio
+has this bug itself in the cube decoder's 3D branch). And because the new coefficients are pushed through
+the same `GainInterp` as a position change, toggling between everywhere and somewhere **fades** over
+`kPosFadeMs` rather than clicking.
+
+An omni source is quieter *per speaker* than a directional one — its energy is spread across the whole
+array rather than concentrated at a bearing. On a stereo pair, measured: 0.0188 in both channels omni
+against 0.0375 in one channel hard-right. Use the clip's gain if you want it to match.
+
+The pad's radius used to be **level** and no longer encodes a value: the ring is where a directional
+source sits, the centre is everywhere, and nothing in between means anything. That also disposes of the
+old singularity: a direction is undefined at zero radius, and the centre no longer claims to have one.
 
 > **Documents written before this migrate on load** (`migrateSpatial`, called from the sanitizers, so
 > the bed, the global timeline, every scene's timeline and every video clip's audio block are all

@@ -687,7 +687,7 @@ export const plugin: RendererPlugin = {
       const s = finitePos(clip.spatial);
       const key = s ? `${s.angle},${s.elevation}` : '';
       if (sentSpatial.get(clip.id) === key) return;
-      if (s) { const v = directionOf(s); audioClient.setClipSpatial(clip.id, v.x, v.y, v.z); }
+      if (s) { const v = directionOf(s); audioClient.setClipSpatial(clip.id, v.x, v.y, v.z, s.omni); }
       else audioClient.clearClipSpatial(clip.id);
       sentSpatial.set(clip.id, key);
     };

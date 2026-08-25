@@ -76,7 +76,7 @@ interface NativeAudio {
   stopClip(id: string): void;
   setClipGain(id: string, gain: number): void;
   // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
-  setClipSpatial(id: string, x: number, y: number, z: number): void;
+  setClipSpatial(id: string, x: number, y: number, z: number, omni?: boolean): void;
   clearClipSpatial(id: string): void;
   // Insert chain on one source, applied BEFORE it is spatialised. Replaces the whole chain; the engine
   // diffs it and updates params in place when only values changed (no rebuild, no click).
@@ -135,7 +135,10 @@ export function unloadClip(id: string): void { native?.unloadClip(id); }
 export function playClip(id: string, seekSec: number, gain: number): void { native?.playClip(id, seekSec, gain); }
 export function stopClip(id: string): void { native?.stopClip(id); }
 export function setClipGain(id: string, gain: number): void { native?.setClipGain(id, gain); }
-export function setClipSpatial(id: string, x: number, y: number, z: number): void { native?.setClipSpatial(id, x, y, z); }
+// `omni` is OPTIONAL all the way down to the addon, which defaults it to false — so a venue running an
+// older audio_engine.node against this renderer keeps working, with omni sources simply playing at their
+// stored bearing instead of everywhere.
+export function setClipSpatial(id: string, x: number, y: number, z: number, omni?: boolean): void { native?.setClipSpatial(id, x, y, z, omni === true); }
 export function clearClipSpatial(id: string): void { native?.clearClipSpatial(id); }
 export function setClipEffects(id: string, effects: AudioEffectSpec[]): void { native?.setClipEffects(id, effects); }
 export function setMasterEffects(effects: AudioEffectSpec[]): void { native?.setMasterEffects(effects); }

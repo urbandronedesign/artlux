@@ -36,7 +36,7 @@ export const audioClient = {
   stopClip: (id: string): void => { ipc?.send('audio:stopClip', id); },
   setClipGain: (id: string, gain: number): void => { ipc?.send('audio:setClipGain', id, gain); },
   // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
-  setClipSpatial: (id: string, x: number, y: number, z: number): void => { ipc?.send('audio:setClipSpatial', id, x, y, z); },
+  setClipSpatial: (id: string, x: number, y: number, z: number, omni?: boolean): void => { ipc?.send('audio:setClipSpatial', id, x, y, z, omni === true); },
   clearClipSpatial: (id: string): void => { ipc?.send('audio:clearClipSpatial', id); },
   // Effect chains — the WHOLE chain each time; the engine diffs it (a params-only change updates in
   // place, no rebuild). Call these only when the chain actually changed, never on the playhead tick:

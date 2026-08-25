@@ -102,6 +102,13 @@ struct Clip {
   double lengthSec = 0.0;
   int channels = 0;
   bool spatial = false;
+  // OMNIDIRECTIONAL: the source is EVERYWHERE rather than somewhere — equal in every speaker.
+  //
+  // This is not a position and not a level, which is why it is a flag beside `pos` rather than a value
+  // inside it. In ambisonics "everywhere" is order 0: W alone, with the directional components zeroed.
+  // A first-order B-format of [W, 0, 0, 0] decodes to the same gain in every speaker of any layout,
+  // which is exactly what an operator means by "put it in the middle of the room".
+  bool omni = false;
   std::unique_ptr<spaudio::AmbisonicEncoder> encoder;   // only when spatial
   spaudio::PolarPosition<float> pos {};
   // The authored chain (the truth — it outlives a device re-open and a spatial flip) and the prepared
@@ -460,7 +467,7 @@ public:
   // a source in the positioner UI can flip a clip's `spatial` on as a routine gesture, not a one-off. A
   // MOVE (spatial already on) stays on the cheap SetPosition/Refresh path, entirely under one lock, exactly
   // as before.
-  void setSpatial(const std::string& id, float x, float y, float z) {
+  void setSpatial(const std::string& id, float x, float y, float z, bool omni) {
     const spaudio::PolarPosition<float> pos = toPolar(x, y, z);
     double sr = 0.0;
     {
@@ -468,18 +475,26 @@ public:
       Clip* c = find(id);
       if (c == nullptr) return;
       c->pos = pos;
+      // Stored even on the rebuild path below, because configureEncoder (prepareToPlay, i.e. every device
+      // re-open) builds from the CLIP rather than from this call's arguments. A source left omni that lost
+      // its omni-ness the next time the operator changed the buffer size would be a lovely bug to chase.
+      const bool wasOmni = c->omni;
+      c->omni = omni;
       if (!c->spatial || c->encoder == nullptr) {
         c->spatial = true; // set now, under the lock — see the comment on the swap below for the brief
                             // window this opens (spatial==true, encoder still null) and why it's benign
         sr = sampleRate;
       } else {
-        c->encoder->SetPosition(c->pos);   // a move: just re-aim (the fade smooths it)
+        // A move: just re-aim, and re-weight if the source crossed between everywhere and somewhere.
+        // applyOmni FIRST — SetPosition is what refreshes the coefficients (see applyOmni's note).
+        if (omni != wasOmni) applyOmni(*c->encoder, omni);
+        c->encoder->SetPosition(c->pos);   // the fade smooths both
         c->encoder->Refresh();
         return;
       }
     }
     // Reached only on first enable, with no lock held.
-    std::unique_ptr<spaudio::AmbisonicEncoder> enc = buildEncoder(pos, sr); // ← the allocation, OUTSIDE the lock
+    std::unique_ptr<spaudio::AmbisonicEncoder> enc = buildEncoder(pos, sr, omni); // ← the allocation, OUTSIDE the lock
     std::unique_ptr<spaudio::AmbisonicEncoder> old; // destroyed when this scope ends — outside the lock
     {
       const juce::ScopedLock sl(lock);
@@ -597,17 +612,34 @@ private:
   // no member — everything it needs is a parameter — so it is safe to call with the lock released.
   // configureEncoder() below (prepareToPlay's path, already safe to allocate under its lock) is just this
   // plus an assignment.
-  static std::unique_ptr<spaudio::AmbisonicEncoder> buildEncoder(spaudio::PolarPosition<float> pos, double sr) {
+  static std::unique_ptr<spaudio::AmbisonicEncoder> buildEncoder(spaudio::PolarPosition<float> pos, double sr, bool omni) {
     auto enc = std::make_unique<spaudio::AmbisonicEncoder>();
     enc->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sr), kPosFadeMs);
+    applyOmni(*enc, omni);
     enc->SetPosition(pos);
     enc->Refresh();
     return enc;
   }
 
+  // ⚠ ORDER WEIGHTS ONLY REACH THE COEFFICIENTS THROUGH A Refresh(), AND SetPosition DOES ONE.
+  //
+  // AmbisonicSource::Refresh multiplies each order's spherical-harmonic terms by m_pfOrderWeights[order]
+  // (AmbisonicSource.cpp: `m_pfCoeff[1] = (fSinAzim * fCosElev) * m_pfOrderWeights[1]` and so on), so a
+  // weight set AFTER the last Refresh does nothing at all until the next one. libspatialaudio has this
+  // bug itself in ConfigureDecoderMatrix's 3D branch, where the cube's weights are set and never
+  // refreshed. So this must be called BEFORE SetPosition, which refreshes on the caller's behalf.
+  //
+  // Zeroing order 1 leaves [W, 0, 0, 0] — the omnidirectional encoding. It travels through the SAME
+  // GainInterp as a position change (AmbisonicEncoder::SetPosition pushes the new coefficients into
+  // m_coeffInterp with m_fadingSamples), so toggling a source between everywhere and somewhere fades
+  // over kPosFadeMs instead of clicking.
+  static void applyOmni(spaudio::AmbisonicEncoder& enc, bool omni) {
+    for (unsigned o = 1; o <= kAmbiOrder; ++o) enc.SetOrderWeight(o, omni ? 0.0f : 1.0f);
+  }
+
   void configureEncoder(Clip& c) { // caller holds the lock — only prepareToPlay calls this (off the audio
                                     // thread, callback not yet attached, so allocating here is fine)
-    c.encoder = buildEncoder(c.pos, sampleRate);
+    c.encoder = buildEncoder(c.pos, sampleRate, c.omni);
   }
 
   // Everything a freshly-built decoder needs. AmbisonicDecoder cannot be rebuilt in place with the lock
@@ -1011,8 +1043,8 @@ public:
   }
   // Flipping `spatial` changes the clip chain's channel count (2 ⇔ 1), so the chain is rebuilt after —
   // refreshClipChain is a no-op when the shape didn't actually move, so dragging the positioner is free.
-  void setClipSpatial(const std::string& id, float x, float y, float z) {
-    bus.setSpatial(id, x, y, z);
+  void setClipSpatial(const std::string& id, float x, float y, float z, bool omni) {
+    bus.setSpatial(id, x, y, z, omni);
     bus.refreshClipChain(id);
   }
   void clearClipSpatial(const std::string& id) {
@@ -1191,11 +1223,16 @@ static Napi::Value SetClipGain(const Napi::CallbackInfo& info) {
 // setClipSpatial(id, x, y, z) — listener at origin, +x right, +y up, +z forward (metres).
 static Napi::Value SetClipSpatial(const Napi::CallbackInfo& info) {
   if (info.Length() > 3 && info[0].IsString() && info[1].IsNumber() && info[2].IsNumber() && info[3].IsNumber()) {
+    // The 4th argument is OPTIONAL and defaults to false, so an older renderer calling this with three
+    // numbers keeps working unchanged. `ToBoolean` rather than IsBoolean+As: the renderer may send a
+    // number, and a truthy 1 meaning "everywhere" should not be silently ignored.
+    const bool omni = info.Length() > 4 && info[4].ToBoolean().Value();
     ensureEngine().setClipSpatial(
       info[0].As<Napi::String>().Utf8Value(),
       (float) info[1].As<Napi::Number>().DoubleValue(),
       (float) info[2].As<Napi::Number>().DoubleValue(),
-      (float) info[3].As<Napi::Number>().DoubleValue());
+      (float) info[3].As<Napi::Number>().DoubleValue(),
+      omni);
   }
   return info.Env().Undefined();
 }

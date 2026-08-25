@@ -54,6 +54,18 @@ export interface SpatialPos {
   angle: number;
   /** Degrees, −90 (directly below) … +90 (directly above). */
   elevation: number;
+  /**
+   * EVERYWHERE, rather than somewhere: equal in every speaker of any layout.
+   *
+   * Not a position and not a level, which is why it is a flag rather than a value on `angle`. In
+   * ambisonics "everywhere" is order 0 — W alone, with the directional components zeroed — and a
+   * first-order B-format of [W, 0, 0, 0] decodes to the same gain in every speaker. `angle` and
+   * `elevation` are RETAINED while it is set, so unticking it puts the source back where it was
+   * rather than dead ahead.
+   *
+   * Absent ⇒ directional, which is what every document written before this carried.
+   */
+  omni?: boolean;
   /** Ambisonic-order override for this source (default: the project/device setting). */
   order?: number;
   /**
@@ -171,6 +183,7 @@ export function migrateSpatial(raw: unknown): SpatialPos | undefined {
     return {
       angle,
       elevation: finite(s.elevation) ?? 0,
+      ...(s.omni === true ? { omni: true } : {}),   // absent ⇒ directional; only `true` survives
       ...(order !== undefined ? { order } : {}),
       ...(legacyVec ? { legacyVec } : {}),
     };

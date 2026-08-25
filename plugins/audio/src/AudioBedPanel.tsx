@@ -96,6 +96,11 @@ type Sel = { kind: 'clip'; id: string } | { kind: 'audioClip'; id: string; sourc
 // and report a position to two decimal places — over an encoder that discards distance entirely. Radius
 // is LEVEL now (ring = full, centre = silent) and the angle is the only geometry. See shared/spatial.ts.
 const RING = 0.78;
+// How close to the middle counts as EVERYWHERE. Generous on purpose: it is a discrete state rather than
+// a value being dialled, so it wants a target you can hit while looking at the room instead of at the
+// screen. Below it the bearing is also pointer noise, which is why the existing guard sits at a similar
+// radius -- the two thresholds describe the same fact about the middle of a circle.
+const OMNI_R = 0.18;
 
 // Top-down positioner: horizontal = x (left/right), vertical = z (up = IN FRONT of the listener).
 // Ambisonic encoding places the source from this; height (y) is a separate slider.
@@ -121,11 +126,13 @@ const RING = 0.78;
 const SpatialPad: React.FC<{
   /** Degrees, clockwise from front. UNBOUNDED — the pad normalises for drawing, never for storage. */
   angle: number;
+  /** EVERYWHERE: the source is drawn at the centre and plays equally in every speaker. */
+  omni: boolean;
   /** Identity of the rebindable document this pad writes, or undefined for the BED (never rebound, never
    *  abandoned — see Fader.docKey). Read LIVE at both ends of the gesture, never from a polled mirror. */
   docKey?: () => string;
-  onDraft: (angle: number) => void;
-  onCommit: (angle: number) => void;
+  onDraft: (angle: number, omni: boolean) => void;
+  onCommit: (angle: number, omni: boolean) => void;
   /**
    * The rig this pad is drawn over, or null for BINAURAL — where there is no room to draw, because the
    * decode target is a pair of headphones and every direction is rendered by HRTF.
@@ -144,11 +151,11 @@ const SpatialPad: React.FC<{
    * that invariant is about writing the DOCUMENT (a setMix per pointermove is an App re-render, an
    * automation recompile and an engine lock per clip), and this writes no document at all.
    */
-  onAudition?: (angle: number) => void;
-}> = ({ angle, docKey, onDraft, onCommit, speakers, onAudition }) => {
+  onAudition?: (angle: number, omni: boolean) => void;
+}> = ({ angle, omni, docKey, onDraft, onCommit, speakers, onAudition }) => {
   const ref = useRef<HTMLDivElement>(null);
   // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
-  const pending = useRef<number | null>(null);
+  const pending = useRef<{ angle: number; omni: boolean } | null>(null);
   // THE UNWRAPPED ANGLE, so a drag can WIND. The pointer only ever reports a bearing in [0, 360), but the
   // authored value is unbounded — so dragging clockwise past the front from 350° must produce 370°, not 10°.
   // Without this the one gesture that would naturally author an orbit instead authors a discontinuity, and
@@ -169,6 +176,11 @@ const SpatialPad: React.FC<{
     const dx = (clientX - r.left) / r.width - 0.5;
     const dy = 0.5 - (clientY - r.top) / r.height;
     const radius = Math.min(1, Math.hypot(dx, dy) / (0.5 * RING));
+    // ⚠ THE CENTRE IS A PLACE YOU CAN PUT A SOURCE, and it is not "quiet" — it is EVERYWHERE, equal in
+    // every speaker. In ambisonics that is order 0: W alone, which decodes to the same gain in every
+    // speaker of any layout. It is the one position a ring of bearings genuinely cannot express, and
+    // the pad already had a middle doing nothing, so the middle is where it belongs.
+    const nowOmni = radius <= OMNI_R;
     // ⚠ RADIUS MEANS NOTHING NOW, AND THAT IS THE POINT. It used to be level (ring = full level, centre
     // = silence), which made one gesture author two unrelated things and drew a picture of a room with
     // distance in it. The encoder has no distance; a level is a level and belongs on the clip's gain.
@@ -183,9 +195,9 @@ const SpatialPad: React.FC<{
       if (delta > 180) delta -= 360; else if (delta < -180) delta += 360;
       wound.current = Number((wound.current + delta).toFixed(2));
     }
-    pending.current = wound.current;
-    onDraft(wound.current);
-    onAudition?.(wound.current);               // dead() returned above — a rebound gesture is silent too
+    pending.current = { angle: wound.current, omni: nowOmni };
+    onDraft(wound.current, nowOmni);
+    onAudition?.(wound.current, nowOmni);      // dead() returned above — a rebound gesture is silent too
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -199,21 +211,21 @@ const SpatialPad: React.FC<{
       window.removeEventListener('pointercancel', up);
       const p = pending.current; pending.current = null;
       const alive = !dead(); gestureDoc.current = null;
-      // `p !== null`, not `p` — an angle of exactly 0 (dead ahead) is falsy and would drop the commit.
-      if (p !== null && alive) onCommit(p);   // ONE write per drag, into the document it was made on
+      if (p !== null && alive) onCommit(p.angle, p.omni); // ONE write per drag, into the doc it was made on
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
   };
-  // Where the source dot lands, in pad units (−1 … 1 across the box). A bearing on the ring, full stop.
+  // Where the source dot lands, in pad units (−1 … 1 across the box). A bearing on the ring — or dead
+  // centre when the source is everywhere, which is the one place off the ring that means something.
   const rad = (normAngle(Number.isFinite(angle) ? angle : 0) * Math.PI) / 180;
-  const dotX = Math.sin(rad) * RING;
-  const dotY = Math.cos(rad) * RING;
+  const dotX = omni ? 0 : Math.sin(rad) * RING;
+  const dotY = omni ? 0 : Math.cos(rad) * RING;
   return (
     <div ref={ref} onPointerDown={onDown}
-      title={'Drag to place the source. Round the ring = which way (0° front, 90° right). In toward the '
-        + 'centre = further away, and quieter — the centre is silent.'}
+      title={'Drag to place the source. Round the ring = which way (0° front, 90° right). '
+        + 'Drop it in the CENTRE and it plays equally in every speaker.'}
       className="relative w-32 h-32 rounded border border-line-1 bg-surface-0 shrink-0 cursor-crosshair">
       <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-1/60" />
       <div className="absolute top-1/2 left-0 right-0 h-px bg-line-1/60" />
@@ -250,20 +262,23 @@ const SpatialPad: React.FC<{
           </div>
         );
       })}
-      {/* THE LEVEL RING — where a source sits at full level, and where the speakers are. Drawn rather
-          than implied, because the pad's radius means LEVEL and an operator has to be able to see the
-          value it is measured against. */}
+      {/* THE RING — where the speakers are, and where a directional source sits. */}
       <div className="absolute rounded-full border border-line-1/50 pointer-events-none"
         style={{ left: `${50 - RING * 50}%`, top: `${50 - RING * 50}%`, width: `${RING * 100}%`, height: `${RING * 100}%` }} />
-      {/* The centre is SILENCE, not the listener. There used to be a listener dot here; it cannot stay,
-          because the point it marks now means the source has been faded out — and one glyph meaning both
-          "you are here" and "nothing is audible" is exactly the ambiguity this pad is being fixed for.
-          A ring of speakers already says where the listener is without a dot. */}
-      <div className="absolute left-1/2 top-1/2 w-1 h-1 -ml-[2px] -mt-[2px] rounded-full bg-line-1" title="silent" />
+      {/* ⚠ THE CENTRE IS A TARGET, NOT A DECORATION — DRAW IT OR NOBODY WILL FIND IT.
+          It has meant three different things across three releases: the listener, then silence, and now
+          EVERYWHERE (order 0 — equal in every speaker). An operator who remembers either of the first two
+          will not go looking for the third, so it is drawn as something you can obviously drop a source
+          onto, sized to the hit area that actually accepts one. */}
+      <div className={`absolute rounded-full pointer-events-none border border-dashed transition-colors
+          ${omni ? 'border-accent/70 bg-accent/10' : 'border-line-1/60'}`}
+        title="everywhere — equal in every speaker"
+        style={{ left: `${50 - OMNI_R * 50}%`, top: `${50 - OMNI_R * 50}%`, width: `${OMNI_R * 100}%`, height: `${OMNI_R * 100}%` }} />
       <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-micro leading-none text-fg-3/70">front</span>
-      {/* The source. Bearing sets the direction, LEVEL sets the radius — so a source at full level lands
-          on the ring among the speakers, and fading it pulls it inward to nothing. */}
-      <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent ring-1 ring-surface-0 pointer-events-none"
+      {/* The source. A bearing puts it on the ring among the speakers; EVERYWHERE puts it dead centre,
+          drawn hollow so the two states are distinguishable at a glance and not only by position. */}
+      <div className={`absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full ring-1 ring-surface-0 pointer-events-none
+          ${omni ? 'bg-surface-0 border-2 border-accent' : 'bg-accent'}`}
         style={{ left: `${50 + dotX * 50}%`, top: `${50 - dotY * 50}%` }} />
     </div>
   );
@@ -446,7 +461,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const [preparing, setPreparing] = useState<string | null>(null);
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
-  const [padDraft, setPadDraft] = useState<number | null>(null);
+  const [padDraft, setPadDraft] = useState<{ angle: number; omni: boolean } | null>(null);
   // A RENDERABLE mirror of docKeyOf(), for the ONE thing that needs a re-render when the binding changes:
   // dropping a stale pad draft (see the reset effect). It is NOT the guard — the guard is docKeyOf(), read
   // live — so this may lag by up to one meter tick without costing correctness. Refreshed from the audio
@@ -788,7 +803,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     void _dropped;
     patchSelClip(id, { spatial: { ...rest, ...patch } });
   };
-  const setClipSpatialAim = (id: string, angle: number) => {
+  const setClipSpatialAim = (id: string, angle: number, omni: boolean) => {
     const cur = spatialOf(id); if (!cur) return;
     // The legacy axes are released with it: a lane on `spatial.x` is a lane on this same bearing, and
     // leaving it shadowing a position the operator just dragged is the takeover failure the fader's
@@ -797,7 +812,10 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     // worse than one that merely does nothing.
     releaseSel(`audio.clip.${id}.spatial.angle`); releaseSel(`audio.clip.${id}.spatial.attenuation`);
     for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
-    rewrite(id, cur, { angle });
+    // The BEARING IS KEPT while omni is set, so dragging back out of the centre returns the source to
+    // where it was rather than to dead ahead. `omni: undefined` rather than `false` when directional —
+    // absent is the default, and writing an explicit false into every position churns every document.
+    rewrite(id, cur, { angle, omni: omni ? true : undefined });
   };
   const setClipSpatialElevation = (id: string, elevation: number) => {
     const cur = spatialOf(id); if (!cur) return;
@@ -944,7 +962,8 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // (`?? 0` on the individual leaves did not save it either — `??` does not catch a present-but-non-numeric
   // `"0"`. The coercion has to happen on the way in, which is what vec3 → migrateSpatial does.)
   const spatial = vec3(selClip?.spatial);
-  const padAngle = padDraft ?? spatial?.angle ?? 0;
+  const padAngle = padDraft?.angle ?? spatial?.angle ?? 0;
+  const padOmni = padDraft?.omni ?? spatial?.omni === true;
   // THE RIG UNDER THE SOURCE — null for BINAURAL, where there is no rig: the B-format is decoded to a
   // pair of headphones by HRTF, so drawing a speaker ring would be describing a room that is not there.
   // (An unknown layout name also draws nothing rather than guessing at a default: a pad that quietly
@@ -966,10 +985,10 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // because attenuation lived inside the position and the audition had to send the SAME product effGain
   // would compute, or releasing the pad jumped the volume. With attenuation gone there is nothing to
   // keep in step — this gesture does not touch the clip's gain, so the driver's value is already right.
-  const auditionSpatial = (id: string, pos: { angle: number; elevation: number }) => {
+  const auditionSpatial = (id: string, pos: { angle: number; elevation: number; omni?: boolean }) => {
     if (!Number.isFinite(pos.angle) || !Number.isFinite(pos.elevation)) return;
     const v = directionOf(pos);
-    audioClient.setClipSpatial(id, v.x, v.y, v.z);
+    audioClient.setClipSpatial(id, v.x, v.y, v.z, pos.omni);
   };
   // What the ENGINE is playing for the house level. The master bus is PROJECT-GLOBAL — one output chain —
   // so this path names one thing and cannot alias across containers; it needs no drivenOn gate.
@@ -1261,11 +1280,11 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   </div>
                   {spatial ? (
                     <div className="flex items-center gap-3">
-                      <SpatialPad angle={padAngle} docKey={gestureDocKey}
+                      <SpatialPad angle={padAngle} omni={padOmni} docKey={gestureDocKey}
                         speakers={padSpeakers}
-                        onDraft={(angle) => setPadDraft(angle)}
-                        onAudition={(angle) => auditionSpatial(selClip.id, { angle, elevation: spatial.elevation })}
-                        onCommit={(angle) => { setPadDraft(null); setClipSpatialAim(selClip.id, angle); }} />
+                        onDraft={(angle, omni) => setPadDraft({ angle, omni })}
+                        onAudition={(angle, omni) => auditionSpatial(selClip.id, { angle, elevation: spatial.elevation, omni })}
+                        onCommit={(angle, omni) => { setPadDraft(null); setClipSpatialAim(selClip.id, angle, omni); }} />
                       <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
@@ -1290,7 +1309,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                             direction, loudness is loudness, and old projects keep their exact levels
                             because the sanitizer folds the stored attenuation into clip.gain. */}
                         <span className="text-micro text-fg-3 tabular-nums">
-                          {normAngle(padAngle).toFixed(0)}° · {spatial.elevation.toFixed(0)}° up
+                          {/* The bearing is RETAINED under omni (dragging back out returns the source to
+                              where it was), so printing it would assert a direction the engine is not
+                              using. Say what is actually happening instead. */}
+                          {padOmni
+                            ? <span className="text-fg-2">everywhere — equal in every speaker</span>
+                            : <>{normAngle(padAngle).toFixed(0)}° · {spatial.elevation.toFixed(0)}° up</>}
                         </span>
                         {/* What the numbers on the pad MEAN. Without this the markers read as speaker
                             ordinals, and the number an operator needs at the amp is the DEVICE CHANNEL. */}
