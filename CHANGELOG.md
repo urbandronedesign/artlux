@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.26.2
 
 ### A sound can be in the middle of the room
 
