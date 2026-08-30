@@ -1,5 +1,157 @@
 # Changelog
 
+## v0.26.3
+
+### You can aim a moving head again
+
+Dragging Pan, Tilt or any other channel in the fixture **Channels** strip now moves the rig **while you
+drag** — and moves **every selected light**, not just the primary one.
+
+Neither was true before, and together they made the whole light-show authoring loop unusable while every
+piece downstream of it was correct. `Slider` commits on pointer release (deliberately: a React write per
+drag tick re-renders the app and, through `handleUpdateFixture`, pushes an undo entry per tick), and
+nothing implemented the `live override` layer the packer has named at the top of its precedence stack
+since lighting shipped. Measured on the wire, a four-second pan drag produced **one** transition, at the
+release. The head did not follow your hand; it jumped when you let go.
+
+That is not only unpleasant to aim with. The take recorder samples the RESOLVED fixture signal, so a busk
+recorded a **step**, not a movement:
+
+```
+pan [[0.02, 136.4], [5.68, 136.4], [5.83, 403.6], [10.11, 403.6]]
+```
+
+The fader now writes a render-free live layer — the top of the stack, above a running clip, because your
+hand on a fader beats the show — and the document is still written once, on release, as one undo entry.
+Across different makes of head the fan-out matches by **role in degrees**, so a 540° head and a 230° head
+land on the same angle rather than the same fraction of travel: the same head-morphing rule that lets a
+take replay on a rig it was not recorded on.
+
+Same rig, same gesture, after: 96 distinct DMX values on all four heads during the drag, and a take whose
+pan is *changing* for 53% of its own duration instead of 1.5%.
+
+### A lighting take can be dropped on a lighting lane
+
+The take chip has been draggable since recording left the timeline drawer, and its tooltip has said to
+drag it onto a lighting lane. The lane never accepted it: `Timeline.onDropFile` had a branch for tracking
+takes and none for lighting, so the drop fell through and nothing happened — silently, because a failed
+drop looks exactly like a missed one. The only way to place a take was a clip inspector you could reach
+only by first making a clip you did not want.
+
+Dropping now makes a clip as long as the take, in the nearest **free space** (a lighting clip created by
+right-clicking the lane no longer stacks on one already there either), with the target group filled in
+when the answer is not a guess: a take carries one part per head it was recorded from, so a light group
+of exactly that size is the rig it came off. Otherwise the clip inspector's *"Pick a group"* line still
+explains the silence.
+
+### CMY is a filter, not an emitter
+
+A discharge head is a white lamp behind three dichroic flags, and the DMX convention is that 0 means the
+flag is **out** — so cyan/magenta/yellow at zero is open white. They were being read off the additive
+emitter table, which said *no light*: every MAC-class fixture rendered **black** in the 3D scene at full
+dimmer, and the resolved signal published red/green/blue = 0. That is exactly what a busk records and a
+pose key stores, so the colour half of a take on a CMY rig was not merely wrong, it was inverted.
+
+Subtractive heads now start from the lamp and multiply the flags down. An RGB(W)+CM LED wash, where those
+roles really are emitters, is unchanged — the two are told apart by whether the mode also emits
+red/green/blue, never by the model name. And a colour recorded in RGB now reaches a CMY head at all: the
+packer bridges `cyan = 1 − red` and so on, where before a recorded colour move landed on such a rig as
+silence.
+
+### The beams were invisible, and now they draw the cone
+
+Two separate faults, and between them a rig of moving heads showed nothing in 3D but its housings.
+
+**The beams did not render on the renderer the 3D scene defaults to.** They tinted per instance through
+three's `instanceColor` + `setColorAt` — the natural WebGL idiom — and read it back on the node path as
+`attribute('instanceColor')`, which resolves to *nothing* on a `WebGPURenderer`: three does not expose
+instanceColor as a plain geometry attribute there, it wraps it into an `instancedDynamicBufferAttribute`
+and hands it to the material as `instanceColorNode`. So every cone resolved to colour 0, and 0 through an
+additive blend is exactly nothing. A material that draws black and a material that does not draw look
+identical, which is why this went unnoticed from the day the scene moved to WebGPU. The tint now travels
+in a buffer we own, named by us, read the same way in both shading languages.
+
+**And a beam is now drawn as the diagram every fixture datasheet prints** — the apex at the lens, the
+edges at the head's **beam angle**, the **optical axis**, and the **illumination boundary** where the
+light lands. It comes off the head's live parameters, so it swings under Pan and Tilt and opens and
+closes under **Zoom** while you drag; the boundary is intersected with the floor ray by ray, so it is a
+circle under a vertical beam and a true ellipse under a tilted one. The **selected** heads get the whole
+diagram and every other lit head keeps just its boundary, so a forty-head rig stays readable.
+
+It is separate from Haze on purpose, because the two answer different questions: haze is how the room
+will *look* — at 0 there is no shaft of light at all, exactly as a venue with no hazer looks — and the
+diagram is where a head is *aimed*, which is precisely what you need in that venue. **Lighting ▸ Beam
+cones** turns it off.
+
+The costs are not comparable and only one of them is capped. The volumetric shell is fill-rate bound —
+a cone is metres across, drawn with depth writes off, and they all overlap — so it keeps its hard cap on
+the brightest few. The outline is lines: a few hundred pixels whatever the throw, so every lit fixture
+gets one, uncapped. Measured on this machine at 200 heads with the camera among them: **60 fps**, vsync,
+with all 200 cones drawn. The numbers still written into `Beams.tsx` were measured on WebGL, where the
+same scene managed 10; they are now labelled as such, because that intuition has been wrong twice in
+opposite directions.
+
+### The black rectangle in the 3D scene was the floor
+
+The ground grid was drei's `<Grid>`: a 30 × 30 plane, deliberately *unrotated*, whose **`ShaderMaterial`
+is what flattens it onto the floor and makes it infinite**. three's node renderer rejects a raw
+ShaderMaterial outright, so on the WebGPU backend — the one the 3D scene defaults to — the shader never
+ran and what was left was the bare geometry: a black wall standing at the origin, thirty metres across,
+occluding the rig behind it.
+
+It is now `LineSegments` + `LineBasicMaterial`, which both backends render identically, with the
+distance fade baked into its vertex colours and the fine 0.25 m cells kept near the origin where they
+are legible. One honest change: the grid is **finite** now, out to 15 m, where the old one had already
+faded to nothing at 12.
+
+That makes three features lost the same way — the projector frustum (drei's fat `LineMaterial`), the
+beam tint, and now the floor. A guard now fails the build for a raw `ShaderMaterial` anywhere in the 3D
+scene that does not ship a TSL twin beside it, and for drei's `<Grid>` and `<Line>` outright.
+
+### A light is bolted to the floor or hung from the ceiling
+
+**Position ▸ Mount** — *Floor* stands the fixture upright with its base flat on the ground; *Ceiling*
+**inverts** it, so the base is bolted up under the truss and the yoke and head hang beneath; *Free*
+leaves the orientation to Pitch / Yaw / Roll alone.
+
+The mount is where a fixture is **bolted**. Pan and tilt are where it **points** — exactly as on the
+real thing, which beams horizontally with its tilt centred whichever way up it is. Inverting a hung head
+is what makes tilting it sweep the beam down onto the stage instead of up into the roof. A newly created
+light is given a quarter-turn of tilt so it starts aimed away from whatever it is bolted to.
+
+Two things this had to get right, and the first version of it got both wrong:
+
+- **A mounting is not a 90° tip.** Pitching the whole fixture does point the beam up or down, but it
+  points the *housing* there too: the base ends up on its edge and the fixture lies on its back. It is
+  a 180° inversion for a hung head and nothing at all for a floor one.
+- **Y is the mounting FACE.** The body is drawn centred on the fixture's origin, which is invisible
+  until you mount one — an operator who types Y = 0 for a floor light got it buried to the waist in the
+  floor. With a mount declared, the number you type is the floor or the truss, and the body is lifted
+  off it by half a base. One owner (`profileRig.mountShift`), shared by the body, the beam and the
+  spotlight so they cannot disagree about where the head is.
+
+Pitch / Yaw / Roll stay your own trim on top of the mounting: a hung head yawed 30° still reads as 30.
+The composition order that buys that is `authored ∘ mount`, which is also what lets a world-space gizmo
+delta stay `d ∘ authored`, so neither the gizmo nor the arrow-key nudge has to know a mount exists — as
+long as both keep writing back the **authored** rotation. Guarded, because the failure is a fixture that
+tips the first time it is nudged and corrupts the very field you would read to find out why.
+
+It applies to the whole light selection in one undo step, because a rig is mounted a truss at a time.
+Absent ⇒ *Free*, so **every existing project loads unchanged**; new lights are created *Ceiling*, which
+is the half of `DEFAULT_TRIM_HEIGHT`'s own assumption — "a head is rigged on a truss, not stood on the
+floor" — that nothing had been acting on.
+
+### New: a lighting example set, and a runtime proof
+
+[`examples/lighting/`](examples/lighting/README.md) — two openable projects on a rig with **no pixels in
+it at all** (four Martin MAC 250 Beams and two ADJ RGB heads, zero surfaces), plus a four-chapter
+walkthrough of the loop: aim, record, place, spread. `02-a-recorded-busk.artlux` replays a real recorded
+take as a four-head chase the moment you press Play — verified on the wire, 0.60 s apart, looping.
+
+`scripts/test-lighting-take.cjs` drives that loop against the running app and reads the answer off
+Art-Net, phase stagger included, because not one of the four defects above was visible to a typechecker
+or to a source-reading guard. Four new invariants now hold each of them.
+
 ## v0.26.2
 
 ### A sound can be in the middle of the room
