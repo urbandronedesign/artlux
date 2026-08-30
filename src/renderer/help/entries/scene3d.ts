@@ -206,6 +206,14 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['haze', 'fog', 'atmosphere', 'beam', 'volumetric', 'smoke'],
   },
   {
+    id: 'scene3d.beam-cones',
+    title: 'Beam cones',
+    short: 'Draw each lit fixture as the cone diagram: beam angle, optical axis, illumination boundary.',
+    body: 'The outline every fixture datasheet prints — an apex at the lens, the cone edges at the fixture’s BEAM ANGLE, the optical axis, and the ILLUMINATION BOUNDARY where the light lands. It is drawn from the head’s live parameters, so dragging Pan, Tilt or Zoom in the Channels strip swings and opens it as you drag. The SELECTED heads get the whole diagram; every other lit head keeps just its boundary, so a big rig stays readable. Separate from Haze on purpose: haze is how the room will LOOK, this is where a head is AIMED — which you need most in a venue with no haze, where the volumetric cone is invisible by design. Lines, so leaving it on costs nothing.',
+    group: '3D Scene',
+    keywords: ['beam', 'cone', 'angle', 'aim', 'boundary', 'axis', 'zoom', 'diagram', 'previz'],
+  },
+  {
     id: 'scene3d.ambient-env',
     title: 'Ambient (env)',
     short: 'Toggle image-based ambient environment lighting.',

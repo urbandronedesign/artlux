@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Fixture,
+  type FixtureMount,
 } from '../../types';
 import { AlertTriangle } from 'lucide-react';
 import { ContentEditor } from '../../components/ContentEditor';
@@ -9,8 +10,9 @@ import { Button, Field, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveMode } from '../../services/addressing';
-import { isPixel, profileOf } from '../../services/fixtureKind';
-import { channelValue, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
+import { isLight, isPixel, profileOf } from '../../services/fixtureKind';
+import { channelValue, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
+import { livePreview } from '../../services/livePreview';
 import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 
@@ -146,16 +148,73 @@ export const FixtureProfilePanel: React.FC = () => {
 };
 
 // ── Fixture ▸ Channels ──────────────────────────────────────────────────────────────────────
-// The live channel strip of a profiled fixture: one control per channel of the ACTIVE MODE, in DMX
-// order, so what you see matches what goes on the wire address by address.
+/**
+ * The live channel strip of a profiled fixture: one control per channel of the ACTIVE MODE, in DMX
+ * order, so what you see matches what goes on the wire address by address — and the one control in
+ * the app that AIMS a head.
+ *
+ * Two things it did not do, both of which broke the loop docs/LIGHTING-SHOW.md is written around
+ * ("select a light → aim it → Store Key / Record"), and both of which only show up on a rig:
+ *
+ * 1. IT DROVE ONE FIXTURE. The Lighting Takes panel promises "4 lights · selection order is the
+ *    take", and the recorder duly opened four parts — but only the PRIMARY of the selection could
+ *    be moved, so a four-head busk came back with three empty parts and a phase spread with nothing
+ *    to spread. A console moves the whole selection off one wheel; so does this now.
+ * 2. IT WAS NOT LIVE. `Slider` commits on release, so the rig sat still while you aimed and jumped
+ *    when you let go — and because the take recorder samples the RESOLVED signal, a four-second pan
+ *    busk recorded as a STEP. The drag now writes the render-free live layer (services/livePreview)
+ *    and React state is still only touched once, on release, as one undo entry.
+ *
+ * ACROSS DIFFERENT HEADS, THE MATCH IS BY ROLE AND THE VALUE TRAVELS IN DEGREES. Two heads with
+ * different travel must land on the same ANGLE, not the same fraction — the same head-morphing rule
+ * that makes a take replayable on a rig it was not recorded on (docs/LIGHTING-SHOW.md → Role space).
+ */
 export const FixtureChannelsPanel: React.FC = () => {
-  const { fixtureProfiles } = useEditor();
+  const { fixtureProfiles, fixtures, selectedFixtureIds } = useEditor();
   const a = useEditorActions();
   const f = useSelectedFixture();
   if (!f || isPixel(f)) return null;
   const profile = fixtureProfiles.get(f.profileId!);
   const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
   if (!profile || !mode) return null;
+
+  // Every selected LIGHT, primary first, de-duplicated. The primary leads because it is the one
+  // whose channels are on screen; the rest follow by role.
+  const targets: Fixture[] = [f, ...selectedFixtureIds
+    .filter((id) => id !== f.id)
+    .map((id) => fixtures.find((x) => x.id === id))
+    .filter((x): x is Fixture => !!x && isLight(x))];
+
+  /**
+   * Where a value written to `channel` on the primary lands on every other selected light.
+   *
+   * Matched on ROLE, not on channel key: two makes of head both call it Pan and almost never call
+   * the channel the same thing. A role that the other head's MODE does not emit is skipped rather
+   * than guessed at, and an ambiguous role (two channels with the same role in one mode) is skipped
+   * too — writing to an arbitrary one of them is worse than writing to none.
+   */
+  const fanOut = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
+    const out: Array<{ fixture: Fixture; key: string; v: number }> = [{ fixture: f, key: channel.key, v }];
+    for (const t of targets.slice(1)) {
+      const p = fixtureProfiles.get(t.profileId!);
+      const m = p ? modeOf(p, t.profileMode) : undefined;
+      if (!p || !m) continue;
+      const emitted = new Set(m.slots.filter(Boolean).map((sl) => sl!.channelKey));
+      const matches = p.channels.filter((c) => emitted.has(c.key) && c.role === channel.role);
+      if (matches.length !== 1) continue;
+      const c = matches[0];
+      // DEGREES, not fractions, whenever both sides declare a physical range: 270° on a 540° head
+      // and 270° on a 630° head are the same aim and different normalised values.
+      let value = v;
+      if (channel.min !== undefined && channel.max !== undefined && c.min !== undefined && c.max !== undefined) {
+        const deg = channel.min + (channel.max - channel.min) * v;
+        const span = c.max - c.min;
+        value = span === 0 ? 0 : Math.max(0, Math.min(1, (deg - c.min) / span));
+      }
+      out.push({ fixture: t, key: c.key, v: value });
+    }
+    return out;
+  };
 
   // The channels this MODE actually emits, in slot order, de-duplicated across a 16-bit pair's two
   // slots — an operator adjusts "Pan", not "Pan" and "Pan fine".
@@ -165,7 +224,20 @@ export const FixtureChannelsPanel: React.FC = () => {
     .map((s) => ({ slot: s, channel: profile.channels.find((c) => c.key === s.channelKey) }))
     .filter((e): e is { slot: NonNullable<typeof e.slot>; channel: NonNullable<typeof e.channel> } => !!e.channel);
 
-  const set = (key: string, v: number) => a.updateFixture(f.id, { dmx: { ...(f.dmx ?? {}), [key]: v } });
+  /** A discrete pick, or a fader RELEASE: one committed change over the whole selection, one undo entry. */
+  const set = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
+    const writes = fanOut(channel, v);
+    a.recordHistory();
+    a.commitFixtures(writes.map((w) => ({ id: w.fixture.id, dmx: { ...(w.fixture.dmx ?? {}), [w.key]: w.v } })));
+    // Hand the live layer back to the document. It keeps driving until the commit lands, so there is
+    // no frame in which the rig snaps to the old value — see services/livePreview.
+    for (const w of writes) livePreview.releaseFixtureChannel(w.fixture.id, w.key);
+  };
+
+  /** A fader TICK. Render-free by construction: nothing here touches React or the undo stack. */
+  const live = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
+    for (const w of fanOut(channel, v)) livePreview.setFixtureChannel(w.fixture.id, w.key, w.v);
+  };
 
   return (
     <>
@@ -181,7 +253,7 @@ export const FixtureChannelsPanel: React.FC = () => {
               <label className="text-fg-2 w-16 truncate" title={`${channel.label} — DMX ${address}`}>{channel.label}</label>
               <Select
                 value={current ? String(current.from) : ''}
-                onChange={(e) => set(channel.key, valueForRange({ from: Number(e.target.value), to: channel.ranges!.find((r) => r.from === Number(e.target.value))!.to }))}
+                onChange={(e) => set(channel, valueForRange({ from: Number(e.target.value), to: channel.ranges!.find((r) => r.from === Number(e.target.value))!.to }))}
               >
                 {channel.ranges.map((r) => <option key={r.from} value={r.from}>{r.label}</option>)}
               </Select>
@@ -203,11 +275,19 @@ export const FixtureChannelsPanel: React.FC = () => {
               const p = physicalValue(channel, v);
               return p !== null ? `${Math.round(p)}${channel.unit === 'deg' ? '°' : ''}` : `${Math.round(v * 100)}%`;
             }}
-            onChange={(v) => set(channel.key, v)}
+            onInput={(v) => live(channel, v)}
+            onChange={(v) => set(channel, v)}
           />
         );
       })}
       {!channels.length && <div className="text-mini text-fg-3">This mode emits no channels.</div>}
+      {/* Say what a move will actually reach. The recorder's Arm line already counts the selection;
+          this is the same count on the control that does the moving, so the two cannot disagree. */}
+      {targets.length > 1 && (
+        <div className="text-micro text-fg-3 pt-1">
+          Driving {targets.length} lights — matched by role, {f.name} first.
+        </div>
+      )}
     </>
   );
 };
@@ -587,6 +667,7 @@ export const FixtureRoutingPanel: React.FC = () => {
 // then nudge exactly. So the position/rotation half of 3D Layout lives here too, for the kind that
 // has no layout to go with it.
 export const FixturePositionPanel: React.FC = () => {
+  const { fixtures, selectedFixtureIds } = useEditor();
   const a = useEditorActions();
   const f = useSelectedFixture();
   if (!f) return null;
@@ -594,9 +675,31 @@ export const FixturePositionPanel: React.FC = () => {
   const rot = effectiveRotObj(f);
   const setPos = (k: 'x' | 'y' | 'z', v: number) => a.updateFixture(f.id, { position3D: { ...p, [k]: v } });
   const setRot = (k: 'pitch' | 'yaw' | 'roll', v: number) => a.updateFixture(f.id, { rotation3D: { ...rot, [k]: v } });
+  // Applied to the whole light selection, not just the primary: a rig is mounted a truss at a time,
+  // and "these eight are on the floor" is one statement about eight fixtures — one undo entry too.
+  const setMount = (m: FixtureMount | undefined) => {
+    const targets = [f, ...selectedFixtureIds
+      .filter((id) => id !== f.id)
+      .map((id) => fixtures.find((x) => x.id === id))
+      .filter((x): x is Fixture => !!x && isLight(x))];
+    a.recordHistory();
+    a.commitFixtures(targets.map((t) => ({ id: t.id, mount: m })));
+  };
   return (
     <>
-      <div className="text-micro text-fg-3 uppercase tracking-wider">Position (m)</div>
+      {/* WHICH WAY IT POINTS BEFORE ANYONE AIMS IT — above the numbers, because it is the coarse
+          statement those numbers then trim, and because typing pitch −90 by hand is what it replaces. */}
+      <Tooltip id="fixture.mount">
+        <div className="flex items-center justify-between text-xs gap-2" {...help('fixture.mount')}>
+          <label className="text-fg-2 w-16 truncate">Mount</label>
+          <Select value={f.mount ?? ''} onChange={(e) => setMount((e.target.value || undefined) as FixtureMount | undefined)}>
+            <option value="ceiling">Ceiling — points down</option>
+            <option value="floor">Floor — points up</option>
+            <option value="">Free — pitch/yaw/roll only</option>
+          </Select>
+        </div>
+      </Tooltip>
+      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Position (m)</div>
       <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
       <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
       <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />

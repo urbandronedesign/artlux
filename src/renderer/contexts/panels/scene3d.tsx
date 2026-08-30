@@ -227,7 +227,7 @@ export const FixtureArrangePanel: React.FC = () => {
   const apply = (updates: layout.LayoutUpdate[]) => {
     if (!updates.length) return;
     a.recordHistory();
-    a.commitFixture3D(updates);
+    a.commitFixtures(updates);
   };
   const Row: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="flex items-center gap-1">{children}</div>
@@ -541,6 +541,10 @@ export const SceneLightingPanel: React.FC = () => {
           honest preview for a venue that is not hazing. */}
       <NumRow label="Haze" value={scene3D.hazeDensity ?? 0.35} step={0.05} helpId="scene3d.haze"
         onChange={(v) => a.sceneConfig({ hazeDensity: Math.max(0, Math.min(1, v)) })} />
+      {/* Beside Haze because they are the two halves of "can I see the beam": haze is how the room
+          will look, the cone is where the head is pointed. A venue with no haze needs the second. */}
+      <Toggle label="Beam cones" checked={scene3D.beamCones !== false} helpId="scene3d.beam-cones"
+        onChange={(v) => a.sceneConfig({ beamCones: v })} />
       <Toggle label="Ambient (env)" checked={scene3D.environment} helpId="scene3d.ambient-env" onChange={(v) => a.sceneConfig({ environment: v })} />
       <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} helpId="scene3d.reflective-floor" onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
       <Toggle label="Glow (bloom)" checked={scene3D.glow === true} helpId="scene3d.glow" onChange={(v) => a.sceneConfig({ glow: v || undefined })} />

@@ -84,7 +84,21 @@ export function modePlan(profile: FixtureProfile, mode: ProfileMode): ModePlan {
  * here — they lay their values over the fixture BEFORE the packer sees it, exactly as the pixel path
  * already does with automationOverlay, so this function only ever reads committed state.
  */
-export function channelValue(f: Fixture, channel: ProfileChannel, override?: RoleOverride): number {
+export function channelValue(
+  f: Fixture,
+  channel: ProfileChannel,
+  override?: RoleOverride,
+  live?: ChannelOverride,
+): number {
+  // THE TOP OF THE STACK — a fader under a hand right now, in the channel's OWN normalised space.
+  // It is read before the role override for the reason services/livePreview spells out: everything
+  // below speaks roles, but a fader is a channel, and a drag must beat the clip that happens to be
+  // running the way an operator's hand beats everything else.
+  const now = live?.(f, channel);
+  if (now !== undefined) {
+    const c = now < 0 ? 0 : now > 1 ? 1 : now;
+    return channel.invert ? 1 - c : c;
+  }
   // A LIGHTING CLIP speaks in roles and physical units; the fixture stores normalised channel
   // values. Converting here — with THIS fixture's own range — is what lets one clip drive a mixed
   // rig, and what makes a movement recorded on a 540° head land at the same ANGLE on a 630° one.
@@ -113,6 +127,16 @@ export function channelValue(f: Fixture, channel: ProfileChannel, override?: Rol
 export type RoleOverride = (fixtureId: string, channel: ProfileChannel) => number | undefined;
 
 /**
+ * The LIVE layer: what a fader is doing to one channel of one fixture RIGHT NOW, in that channel's
+ * own normalised 0..1 space — the same space `Fixture.dmx` stores, so the handover back to the
+ * committed value on release is an identity, not a conversion.
+ *
+ * Takes the whole fixture rather than its id because retiring a released entry is decided by
+ * comparing against that fixture's authored value; see services/livePreview.
+ */
+export type ChannelOverride = (f: Fixture, channel: ProfileChannel) => number | undefined;
+
+/**
  * Emit one profiled fixture's channels, in mode order, through the caller's channel writer.
  *
  * `writeCh` is Stage's existing per-fixture writer: it owns the 512-channel spill to the next
@@ -126,11 +150,12 @@ export function packProfiled(
   mode: ProfileMode,
   writeCh: (value: number) => void,
   override?: RoleOverride,
+  live?: ChannelOverride,
 ): void {
   const plan = modePlan(profile, mode);
   for (const slot of plan) {
     if (!slot) { writeCh(0); continue; }
-    const value = channelValue(f, slot.channel, override);
+    const value = channelValue(f, slot.channel, override, live);
     // Fixed point over the bytes this mode emits, most-significant byte first.
     const max = 256 ** slot.bytes - 1;
     const raw = Math.round(value * max);

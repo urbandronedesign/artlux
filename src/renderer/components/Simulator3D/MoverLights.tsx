@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Fixture, FixtureProfile } from '../../types';
 import { effectivePos, effectiveRot, meanScale } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
-import { rigMetrics, halfAngle } from '../../services/profileRig';
+import { mountShift, rigMetrics, halfAngle } from '../../services/profileRig';
 import { isResolvedLight } from '../../services/fixtureKind';
 
 // TIER 2 of the beam budget: a handful of REAL spotlights, so a beam actually lights the floor and
@@ -81,6 +81,8 @@ export const MoverLights: React.FC<Props> = ({ fixtures, profiles, gain = 1 }) =
 
       off.set(rm.lens.x * scale, rm.lens.y * scale, rm.lens.z * scale).applyQuaternion(q);
       pos.copy(effectivePos(f)).add(off);
+      // …and the same mounting lift the body gets, or the spotlight sits where the head is not.
+      pos.y += mountShift(f.mount, rm, scale);
 
       // Bind the light to its target object here rather than as a prop: the ref is null on the
       // first render, so a prop would wire up a target that does not exist yet and the light would

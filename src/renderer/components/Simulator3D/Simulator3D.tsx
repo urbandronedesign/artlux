@@ -653,7 +653,14 @@ const Simulator3D: React.FC<Props> = ({
         ))}
         <MoverBodies fixtures={proceduralFixtures} profiles={fixtureProfiles} selectedIds={selectedFixtureIds} onSelectFixture={onSelectFixture} />
         {/* Tier 1 of the beam budget: every lit fixture's volumetric cone, in ONE draw call. */}
-        <Beams fixtures={fixtures} profiles={fixtureProfiles} hazeDensity={scene3D.hazeDensity} />
+        <Beams
+          fixtures={fixtures}
+          profiles={fixtureProfiles}
+          hazeDensity={scene3D.hazeDensity}
+          // The heads being aimed get the whole diagram; see Beams' `selectedIds`.
+          selectedIds={selectedFixtureIds}
+          cones={scene3D.beamCones !== false}
+        />
         {/* Tier 2: a few REAL spotlights so the brightest beams actually light the room. Capped —
             see MoverLights on why lights are not additive in cost — and skipped outright at zero
             gain, for the reason spelled out on FixtureLights above. */}

@@ -22,6 +22,7 @@ import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
+import { groupKind } from '../../services/fixtureKind';
 import type { AutomationLane as AutoLane, ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
@@ -1067,13 +1068,42 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const tl = timelineRef.current;
     const clip: VideoClip = {
       id: crypto.randomUUID(), layerId, name: 'Pan sweep', path: '', kind: 'lighting',
-      start, duration: 8, inPoint: 0,
+      // Free space, like every other placement path: right-clicking ON an existing clip used to
+      // stack a second one exactly under it, where activeClip()'s last-match rule makes it invisible
+      // and unpickable while it lives in the saved document for good.
+      start: freeStartOn(layerId, Math.max(0, start), 8), duration: 8, inPoint: 0,
       lighting: {
         effect: { form: 'sine', role: 'pan', centre: 270, amplitude: 60, periodSec: 4 },
-        groupId: undefined, phase: 0.25, phaseMode: 'spread',
+        groupId: soleLightGroup(), phase: 0.25, phaseMode: 'spread',
       },
     };
     onChangeRef.current({ ...tl, clips: [...tl.clips, clip] });
+  };
+
+  /**
+   * The group a new lighting clip should aim at — ONLY when the answer is not a guess.
+   *
+   * A clip with no group is silent, and the comment above says a clip that does nothing on arrival
+   * is a dead end. But aiming one at an arbitrary group would be worse: the wrong heads move and the
+   * operator has to work out why. So this answers only when the project leaves no choice — exactly
+   * one group that holds lights and nothing else. Anything more ambiguous stays undefined, and the
+   * clip inspector's "Pick a group" line is what speaks.
+   */
+  const soleLightGroup = (): string | undefined => {
+    const lit = fixtureGroups.filter((g) => groupKind(g, rigFixtures) === 'light');
+    return lit.length === 1 ? lit[0].id : undefined;
+  };
+
+  /**
+   * …and for a dropped TAKE there is one more piece of evidence, which is not a guess either: a take
+   * has one part per fixture it was recorded from, so a light group of exactly that size is very
+   * likely the rig it came off. Used only when exactly one group matches; otherwise fall back to the
+   * unambiguous rule above, and then to the inspector's "Pick a group".
+   */
+  const groupForTake = (parts: number): string | undefined => {
+    const lit = fixtureGroups.filter((g) => groupKind(g, rigFixtures) === 'light');
+    const sized = lit.filter((g) => g.fixtureIds.length === parts);
+    return sized.length === 1 ? sized[0].id : soleLightGroup();
   };
   const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
   const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
@@ -1209,6 +1239,34 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       if (!ref) return;
       const start = freeStartOn(layerId, clientXToTime(e.clientX), ref.duration);
       onChangeRef.current({ ...tl, clips: [...tl.clips, { id: crypto.randomUUID(), layerId, name: ref.name, path: ref.path, kind: 'tracking', takeId: ref.id, start, duration: ref.duration, inPoint: 0, sourceDuration: ref.duration }] });
+      return;
+    }
+    // LIGHTING lane: a recorded busk, dropped where it should play.
+    //
+    // The chip has advertised this since takes left the drawer — it sets `application/artlux-take`
+    // on dragstart and its own tooltip reads "Drag it onto a lighting lane" — but this handler had
+    // no lighting branch, so the drop fell through to the `return` below and NOTHING happened. The
+    // only way to place a take was the clip inspector's Source dropdown, which you can only reach
+    // by first creating a clip you did not want.
+    //
+    // Unlike a tracking take there is no payload fallback, and there must not be: a lighting take is
+    // stored INLINE in the document it was recorded against (docs/LIGHTING-SHOW.md — "A lighting take
+    // belongs to ONE timeline"), so a take this document does not hold is one it could not play.
+    if (layer?.kind === 'lighting') {
+      if (!takeId) return;
+      const take = (tl.lightingTakes ?? []).find((t) => t.id === takeId);
+      if (!take) return;
+      const duration = Math.max(0.1, take.duration);
+      onChangeRef.current({
+        ...tl,
+        clips: [...tl.clips, {
+          id: crypto.randomUUID(), layerId, name: take.name, path: '', kind: 'lighting',
+          start: freeStartOn(layerId, clientXToTime(e.clientX), duration), duration, inPoint: 0,
+          // No phase: the take is placed as it was played. A spread is something you ADD afterwards,
+          // and starting one at 0.25 s would make a straight drop look like a chase nobody asked for.
+          lighting: { takeId: take.id, groupId: groupForTake(take.parts.length), phase: 0, phaseMode: 'spread' },
+        }],
+      });
       return;
     }
     if (takeId) return; // a take can't go on a video lane

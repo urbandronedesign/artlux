@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
@@ -54,6 +54,7 @@ import { timeline as timelineEngine, GLOBAL_POOL, PROGRAM_LAYER_ID } from './ser
 import * as fixtureSignal from './services/fixtureSignal';
 import { planStoreKey, poseForGroup, upsertKey } from './services/lightingStoreKey';
 import * as lightingCue from './services/lightingCue';
+import { livePreview } from './services/livePreview';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
@@ -1066,6 +1067,28 @@ const App: React.FC = () => {
   // fixture then holds the state the manufacturer says it powers up in (a centred head, not pan 0),
   // and — the load-bearing one — setByPath refuses to fabricate a missing nested container, so a
   // fixture with no `dmx` object silently ignores every cue, lane and scene aimed at its channels.
+  /**
+   * A QUARTER TURN OF TILT, away from whatever the fixture is bolted to.
+   *
+   * At tilt centre a head beams horizontally — that is true of the real fixture and of the 3D one.
+   * A light dropped into a rig therefore points at the back wall until somebody aims it, which is
+   * a poor first impression of a rig that is otherwise correct. 90° off centre puts a hung head on
+   * the stage and a floor head up the wall, which is what each is usually for.
+   *
+   * Written as a normalised CHANNEL value through the tilt channel’s own declared range, so a 230°
+   * head and a 270° head both land on a real quarter turn rather than on the same fraction.
+   */
+  const aimForMount = (profile: FixtureProfile, mount: FixtureMount): Record<string, number> => {
+    const tilt = profile.channels.find((c) => c.role === 'tilt');
+    if (!tilt || tilt.min === undefined || tilt.max === undefined) return {};
+    const span = tilt.max - tilt.min;
+    if (span <= 0) return {};
+    const mid = (tilt.min + tilt.max) / 2;
+    // Both mounts turn the same way in the fixture’s own frame: the ceiling one is already inverted,
+    // so +90° of tilt sends it down while the same +90° sends a floor head up. See mountRot.
+    const deg = Math.max(tilt.min, Math.min(tilt.max, mid + 90));
+    return { [tilt.key]: (deg - tilt.min) / span };
+  };
   const applyProfile = (f: Fixture, profile: FixtureProfile, modeKey?: string): Fixture => ({
     ...f,
     profileId: profile.id,
@@ -1086,7 +1109,16 @@ const App: React.FC = () => {
     // for EXISTING projects (where the 2D rect is a true record of where the operator put it); only
     // new lights get an explicit position, and they get spread instead of stacked.
     position3D: f.position3D ?? spawnPosition3D(fixtures.filter(isLight).length),
-    dmx: { ...profiles.seedValues(profile), ...(f.dmx ?? {}) },
+    // …and hung from it, pointing DOWN. spawnPosition3D already puts the fixture at trim height on
+    // the grounds that "a head is rigged on a truss, not stood on the floor"; leaving it aimed
+    // horizontally was the half of that assumption nothing acted on. An existing fixture keeps
+    // whatever it had, including nothing.
+    mount: f.mount ?? 'ceiling',
+    // AIMED AWAY FROM WHAT IT IS BOLTED TO. The mount says which way the housing faces; TILT is what
+    // says where the light goes, exactly as on the real fixture — so a new hung head is given the
+    // quarter-turn of tilt that puts its beam on the stage instead of on the back wall. Only a
+    // default: it is an ordinary channel value the operator overwrites the moment they aim it.
+    dmx: { ...profiles.seedValues(profile), ...aimForMount(profile, f.mount ?? 'ceiling'), ...(f.dmx ?? {}) },
   });
 
   const handleSetFixtureProfile = async (id: string, profileId: string | null, modeKey?: string) => {
@@ -1239,7 +1271,7 @@ const App: React.FC = () => {
   // 3D gizmo commit: history already recorded at drag-start, so don't re-record.
   // ONE state change per gesture, however many fixtures the gizmo moved — so dragging ten heads is
   // one undo step, not ten, and the fade engine sees a single coherent before/after.
-  const handleCommitFixture3D = (updates: Array<{ id: string } & Partial<Fixture>>) => {
+  const handleCommitFixtures = (updates: Array<{ id: string } & Partial<Fixture>>) => {
     if (!updates.length) return;
     const byId = new Map(updates.map(u => [u.id, u]));
     const next = fixtures.map(f => { const u = byId.get(f.id); return u ? { ...f, ...u } : f; });
@@ -2196,6 +2228,10 @@ const App: React.FC = () => {
       // would drive the incoming rig from a look it never had.
       setLightingPoses(normalizeNamedPoses(data?.lightingPoses));
       lightingCue.clear();
+      // …and the LIVE layer above it, for the same reason. It normally retires itself the moment the
+      // released value is committed, but a project opened mid-drag leaves an entry keyed to a fixture
+      // the incoming document may not even have — and that entry outranks a lighting clip.
+      livePreview.clearFixtureChannels();
       // Scenes: normalize any per-scene timeline and assign a stable accent to scenes missing one
       // (older projects / scenes captured before accents). The current edit target is bound below.
       const rawScenes: Scene[] = Array.isArray(data?.scenes) ? data.scenes : [];
@@ -4455,7 +4491,7 @@ const App: React.FC = () => {
     updateFixture: handleUpdateFixture,
     setFixtures,
     autoPatch: handleAutoPatch,
-    commitFixture3D: handleCommitFixture3D,
+    commitFixtures: handleCommitFixtures,
     createGroup: handleCreateGroup,
     addSelectedToGroup: handleAddSelectedToGroup,
     removeGroup: handleRemoveGroup,
@@ -4597,7 +4633,7 @@ const App: React.FC = () => {
                                 onSelectFixture={(id: string) => handleSelectFixture(id || null)}
                                 onSelectFixtures={handleSelectFixtures}
                                 onSelectModel={handleSelectModel}
-                                onCommitFixture3D={handleCommitFixture3D}
+                                onCommitFixture3D={handleCommitFixtures}
                                 onCommitModel={handleCommitModel}
                                 onModelNaturalSize={handleModelNaturalSize}
                                 onSceneConfig={handleSceneConfig}

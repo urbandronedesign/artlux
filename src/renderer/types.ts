@@ -81,6 +81,12 @@ export enum RGBWMode {
   NONE = 'NONE'          // W = 0; full RGB kept (use for RGB strips)
 }
 
+/**
+ * Where a light fixture is rigged. `floor` points it UP, `ceiling` points it DOWN, and absent leaves
+ * it alone — see `Fixture.mount`. Persisted, so it lives here rather than in the 3D scene.
+ */
+export type FixtureMount = 'floor' | 'ceiling';
+
 export interface Fixture {
   id: string;
   name: string;
@@ -146,6 +152,21 @@ export interface Fixture {
   dmx?: Record<string, number>;
   // Phase G — 3D physical layout (optional; derived from 2D when absent).
   position3D?: Vec3;
+  /**
+   * HOW THIS LIGHT IS RIGGED — and therefore which way it points before anyone aims it.
+   *
+   * A moving head hangs from a truss with its yoke DOWN, or stands on the floor with its yoke UP.
+   * The DMX is identical either way; what differs is the fixture's own orientation in the room, and
+   * an operator describes a rig in exactly these words ("that bar is on the floor, those are on the
+   * upstage truss"). Making it a mode rather than a pitch value keeps that vocabulary, and keeps the
+   * pitch/yaw/roll fields meaning what they always meant: the operator's own trim ON TOP of the
+   * mounting, not a number they have to remember to set to −90.
+   *
+   * Absent ⇒ FREE: no implied orientation, which is exactly how every existing project behaves, so
+   * there is no migration. New lights are created `ceiling`, matching DEFAULT_TRIM_HEIGHT's own note
+   * that a head is rigged on a truss rather than stood on the floor.
+   */
+  mount?: FixtureMount;
   rotation3D?: Euler3;   // degrees
   layout3D?: Layout3D;
   scale3D?: number;      // LEGACY uniform scale of the physical LED layout (1 = as authored)

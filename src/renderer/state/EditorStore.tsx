@@ -101,10 +101,18 @@ export interface EditorActions {
   setFixtures(next: Fixture[]): void;
   autoPatch(): void;
   /**
-   * Commit a 3D transform gesture as ONE change. Takes an array because the gizmo moves the whole
-   * selection — ten fixtures dragged together must be one undo step, not ten.
+   * Commit a patch to MANY fixtures as ONE change — no repatch, no history entry of its own.
+   *
+   * It takes an array because the gestures that need it move a whole selection: the 3D gizmo (ten
+   * heads dragged together must be one undo step, not ten) and, since the channel strip learned to
+   * drive a selection, a fader release. `updateFixture` cannot stand in for it — calling that once
+   * per fixture would read the same stale `fixtures` array each time, so only the last write would
+   * survive, and each call would push its own undo entry.
+   *
+   * Was `commitFixture3D`; renamed when the second caller arrived, because a DMX channel value is
+   * not a 3D transform and the old name would have made this look like the wrong door.
    */
-  commitFixture3D(updates: Array<{ id: string } & Partial<Fixture>>): void;
+  commitFixtures(updates: Array<{ id: string } & Partial<Fixture>>): void;
   // groups
   createGroup(): void;
   addSelectedToGroup(groupId: string): void;

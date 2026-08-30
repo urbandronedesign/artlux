@@ -20,9 +20,54 @@ export function effectivePos(f: Fixture): THREE.Vector3 {
   return new THREE.Vector3(p.x, p.y, p.z);
 }
 
-export function effectiveRot(f: Fixture): THREE.Euler {
+/**
+ * The operator's OWN pitch/yaw/roll, as an Euler — what the Position fields show and what a gizmo
+ * gesture writes back. NOT what anything draws: see effectiveRot.
+ */
+export function authoredRot(f: Fixture): THREE.Euler {
   const r = effectiveRotObj(f);
   return new THREE.Euler(r.pitch * DEG, r.yaw * DEG, r.roll * DEG, 'XYZ');
+}
+
+/**
+ * The base orientation a MOUNT implies — and it is an INVERSION, not a tip.
+ *
+ * A fixture's own frame is a floor-standing head: the BASE sits at the origin, the yoke stacks up its
+ * local +Y, the head sits on top of that, and the beam leaves along local −Z. So:
+ *   floor   → identity. The base is already flat on the floor with the fixture standing on it.
+ *   ceiling → 180° about Z. Local +Y becomes world −Y, so the base is on TOP and the yoke and head
+ *             hang beneath it — a fixture bolted upside down under a truss, which is what hanging is.
+ *             The beam axis (−Z) is untouched, so the head still aims horizontally at tilt centre and
+ *             TILT is what takes it down to the stage, exactly as on the real fixture.
+ *
+ * ⚠ IT WAS ±90° ABOUT X, AND THAT IS THE MISTAKE THIS COMMENT EXISTS TO PREVENT. Pitching the fixture
+ * 90° does point the beam up or down, but it points the whole BODY there too: the base ends up
+ * standing on its edge and the fixture lies on its back on the floor. A mounting is about which way
+ * the housing is bolted; where the light goes is pan and tilt's job.
+ *
+ * Absent ⇒ identity, which is every project written before this existed.
+ */
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+export function mountRot(f: Fixture): THREE.Quaternion {
+  const q = new THREE.Quaternion();
+  if (f.mount === 'ceiling') q.setFromAxisAngle(Z_AXIS, 180 * DEG);
+  return q;
+}
+
+/**
+ * WHERE THE FIXTURE ACTUALLY POINTS — the mounting, then the operator's trim on top of it. Every
+ * renderer reads this, so a mounted head's body, beam, cone and spotlight cannot disagree.
+ *
+ * ⚠ THE ORDER IS LOAD-BEARING, and it is what keeps the gizmo simple. `authored ∘ mount` means a
+ * WORLD-space gesture d gives `authored' = d ∘ authored` — the composition the gizmo and the nudge
+ * keys already compute — so neither of them has to know a mount exists. Written the other way round
+ * (`mount ∘ authored`) the write-back would need conjugating by the mount at both sites, and the
+ * first one anybody forgot would bake −90° into the fixture the first time it was nudged.
+ */
+export function effectiveRot(f: Fixture): THREE.Euler {
+  if (!f.mount) return authoredRot(f);
+  const q = new THREE.Quaternion().setFromEuler(authoredRot(f)).multiply(mountRot(f));
+  return new THREE.Euler().setFromQuaternion(q, 'XYZ');
 }
 
 // Per-LED world positions as a flat Float32Array (xyz triples), in fixture LED order.

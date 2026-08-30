@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { Fixture } from '../../types';
-import { effectivePos, effectiveRot, effectiveScale } from '../../services/led3dLayout';
+import { authoredRot, effectivePos, effectiveRot, effectiveScale } from '../../services/led3dLayout';
 import { gizmoDelta, gestureSummary, type GizmoBasis, type GizmoStart } from './gizmoDelta';
 import { setPreview, clearPreview, beginPreview, type FixtureTransform } from './fixturePreview';
 import { getLivePreview, type SnapSettings } from '../../services/scene3dQuality';
@@ -126,7 +126,10 @@ export const FixtureGizmo: React.FC<Props> = ({ fixtures, mode, space = 'world',
       startRef.current = fixtures.map((f) => ({
         id: f.id,
         pos: effectivePos(f),
-        rot: effectiveRot(f),
+        // The gesture is applied to and written back as the AUTHORED trim, while the ANCHOR above
+        // orients to the EFFECTIVE rotation so the handles line up with the body you can see. That
+        // split is only safe because effectiveRot composes as authored ∘ mount — read its note.
+        rot: authoredRot(f),
         scale: effectiveScale(f),
       }));
     };

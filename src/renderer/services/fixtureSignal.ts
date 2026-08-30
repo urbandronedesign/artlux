@@ -1,5 +1,5 @@
 import type { ChannelRole, Fixture, FixtureProfile } from '../types';
-import { channelValue, modeOf, physicalValue, selectedRange, type RoleOverride } from './profilePack';
+import { channelValue, modeOf, physicalValue, selectedRange, type ChannelOverride, type RoleOverride } from './profilePack';
 
 // The RESOLVED state of every profiled fixture, once per frame.
 //
@@ -84,10 +84,31 @@ const EMITTERS: Partial<Record<ChannelRole, [number, number, number]>> = {
 };
 
 /**
+ * CMY IS A FILTER, NOT AN EMITTER — and getting that backwards made every discharge head black.
+ *
+ * A MAC 250, a Mac Viper, an Alpha Spot: white lamp, three dichroic flags, and the DMX convention is
+ * that 0 = flag OUT. Reading cyan/magenta/yellow off the EMITTERS table above therefore said "no
+ * light" for a head that is wide open, so a CMY fixture rendered BLACK in the 3D scene at full
+ * dimmer, and `roleValue(st,'red'|'green'|'blue')` published 0 — which is what a busk records and a
+ * pose key stores. The colour half of a take on a CMY rig was not merely wrong, it was inverted.
+ *
+ * The table is kept for the fixtures where those roles really ARE emitters: an RGB(W)+CM LED wash
+ * genuinely adds cyan light. The two cases are told apart by whether the mode also emits red/green/
+ * blue — a subtractive head never does — rather than by guessing from the fixture's name.
+ */
+const SUBTRACTIVE: Partial<Record<ChannelRole, 0 | 1 | 2>> = { cyan: 0, magenta: 1, yellow: 2 };
+const ADDITIVE_PRIMARIES: ReadonlySet<ChannelRole> = new Set<ChannelRole>(['red', 'green', 'blue']);
+
+/**
  * Resolve one fixture. Exported so a take recorder and the packer can share the interpretation
  * rather than each inventing its own idea of what "intensity" means.
  */
-export function resolveFixture(f: Fixture, profile: FixtureProfile, override?: RoleOverride): FixtureState {
+export function resolveFixture(
+  f: Fixture,
+  profile: FixtureProfile,
+  override?: RoleOverride,
+  live?: ChannelOverride,
+): FixtureState {
   const mode = modeOf(profile, f.profileMode);
   const out: FixtureState = { id: f.id, intensity: 1, r: 0, g: 0, b: 0, pan: 0, tilt: 0, blackout: false };
   if (!mode) return out;
@@ -97,13 +118,32 @@ export function resolveFixture(f: Fixture, profile: FixtureProfile, override?: R
   const inMode = new Set<string>();
   for (const s of mode.slots) if (s) inMode.add(s.channelKey);
 
+  // Does this MODE mix SUBTRACTIVELY? Decided before the loop, because a channel's meaning depends
+  // on the answer: cyan is an emitter on an RGB+CM LED wash and a dichroic flag on a discharge head.
+  // The test is the mode's own channel list — a subtractive head never emits red/green/blue.
+  let hasCmy = false;
+  let hasPrimaries = false;
+  for (const c of profile.channels) {
+    if (!inMode.has(c.key)) continue;
+    if (SUBTRACTIVE[c.role] !== undefined) hasCmy = true;
+    else if (ADDITIVE_PRIMARIES.has(c.role)) hasPrimaries = true;
+  }
+  const subtractive = hasCmy && !hasPrimaries;
+
   let dimmer = 1;
   let hasEmitter = false;
   let shutterOpen = true;
+  // Flag positions, 0 = out. Held apart from r/g/b because they MULTIPLY the lamp rather than add.
+  const cmy: [number, number, number] = [0, 0, 0];
 
   for (const c of profile.channels) {
     if (!inMode.has(c.key)) continue;
-    const v = channelValue(f, c, override);
+    const v = channelValue(f, c, override, live);
+
+    if (subtractive) {
+      const axis = SUBTRACTIVE[c.role];
+      if (axis !== undefined) { cmy[axis] = v; continue; }
+    }
 
     const emitter = EMITTERS[c.role];
     if (emitter) {
@@ -145,6 +185,16 @@ export function resolveFixture(f: Fixture, profile: FixtureProfile, override?: R
   // A fixture with a dimmer but no colour channels is a white light, not a black one — that is most
   // conventional fixtures, and defaulting them to black would make a whole rig invisible in 3D.
   if (!hasEmitter) { out.r = 1; out.g = 1; out.b = 1; }
+
+  // …then the flags come down over whatever the lamp is. Cyan subtracts red, magenta green, yellow
+  // blue — the standard dichroic assignment, and the reason all three OUT is open white rather than
+  // black. A colour WHEEL, if the head also has one, has already set r/g/b above and is filtered by
+  // the flags exactly as it is on the real fixture.
+  if (subtractive) {
+    out.r *= 1 - cmy[0];
+    out.g *= 1 - cmy[1];
+    out.b *= 1 - cmy[2];
+  }
 
   const peak = Math.max(out.r, out.g, out.b);
   if (peak > 1) { out.r /= peak; out.g /= peak; out.b /= peak; }

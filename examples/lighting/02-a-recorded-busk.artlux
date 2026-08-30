@@ -1,0 +1,493 @@
+{
+  "version": "1.2",
+  "timestamp": "2026-08-30T00:00:00.000Z",
+  "surfaces": [],
+  "fixtures": [
+    {
+      "id": "fx_mover_1",
+      "name": "Mover 1",
+      "x": 0,
+      "y": 0,
+      "width": 0.02,
+      "height": 0.02,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 1,
+      "reverse": false,
+      "colorData": [],
+      "profileId": "martin/mac-250-beam",
+      "profileMode": "16bt",
+      "dmx": {
+        "shutter-strobe": 0.13725490196078433,
+        "dimmer": 1,
+        "pan": 0.5,
+        "tilt": 0.8501945525291829,
+        "cyan-intensity": 0,
+        "magenta-intensity": 0,
+        "yellow-intensity": 0
+      },
+      "position3D": {
+        "x": -3,
+        "y": 5,
+        "z": -4
+      },
+      "mount": "ceiling",
+      "controllerId": "ctl_dmx"
+    },
+    {
+      "id": "fx_mover_2",
+      "name": "Mover 2",
+      "x": 0,
+      "y": 0,
+      "width": 0.02,
+      "height": 0.02,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 14,
+      "ledCount": 1,
+      "reverse": false,
+      "colorData": [],
+      "profileId": "martin/mac-250-beam",
+      "profileMode": "16bt",
+      "dmx": {
+        "shutter-strobe": 0.13725490196078433,
+        "dimmer": 1,
+        "pan": 0.5,
+        "tilt": 0.8501945525291829,
+        "cyan-intensity": 0,
+        "magenta-intensity": 0,
+        "yellow-intensity": 0
+      },
+      "position3D": {
+        "x": -1,
+        "y": 5,
+        "z": -4
+      },
+      "mount": "ceiling",
+      "controllerId": "ctl_dmx"
+    },
+    {
+      "id": "fx_mover_3",
+      "name": "Mover 3",
+      "x": 0,
+      "y": 0,
+      "width": 0.02,
+      "height": 0.02,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 27,
+      "ledCount": 1,
+      "reverse": false,
+      "colorData": [],
+      "profileId": "martin/mac-250-beam",
+      "profileMode": "16bt",
+      "dmx": {
+        "shutter-strobe": 0.13725490196078433,
+        "dimmer": 1,
+        "pan": 0.5,
+        "tilt": 0.8501945525291829,
+        "cyan-intensity": 0,
+        "magenta-intensity": 0,
+        "yellow-intensity": 0
+      },
+      "position3D": {
+        "x": 1,
+        "y": 5,
+        "z": -4
+      },
+      "mount": "ceiling",
+      "controllerId": "ctl_dmx"
+    },
+    {
+      "id": "fx_mover_4",
+      "name": "Mover 4",
+      "x": 0,
+      "y": 0,
+      "width": 0.02,
+      "height": 0.02,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 40,
+      "ledCount": 1,
+      "reverse": false,
+      "colorData": [],
+      "profileId": "martin/mac-250-beam",
+      "profileMode": "16bt",
+      "dmx": {
+        "shutter-strobe": 0.13725490196078433,
+        "dimmer": 1,
+        "pan": 0.5,
+        "tilt": 0.8501945525291829,
+        "cyan-intensity": 0,
+        "magenta-intensity": 0,
+        "yellow-intensity": 0
+      },
+      "position3D": {
+        "x": 3,
+        "y": 5,
+        "z": -4
+      },
+      "mount": "ceiling",
+      "controllerId": "ctl_dmx"
+    },
+    {
+      "id": "fx_wash_1",
+      "name": "Wash 1",
+      "x": 0,
+      "y": 0,
+      "width": 0.02,
+      "height": 0.02,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 53,
+      "ledCount": 1,
+      "reverse": false,
+      "colorData": [],
+      "profileId": "chauvet-professional/rogue-r1-wash",
+      "profileMode": "15ch",
+      "dmx": {
+        "shutter": 0.08627450980392157,
+        "dimmer": 1,
+        "pan": 0.5,
+        "tilt": 0.8913043478260869,
+        "red": 1,
+        "green": 0,
+        "blue": 0,
+        "white": 0,
+        "zoom": 0.5
+      },
+      "position3D": {
+        "x": -2,
+        "y": 0,
+        "z": 2
+      },
+      "mount": "floor",
+      "controllerId": "ctl_dmx"
+    },
+    {
+      "id": "fx_wash_2",
+      "name": "Wash 2",
+      "x": 0,
+      "y": 0,
+      "width": 0.02,
+      "height": 0.02,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 68,
+      "ledCount": 1,
+      "reverse": false,
+      "colorData": [],
+      "profileId": "chauvet-professional/rogue-r1-wash",
+      "profileMode": "15ch",
+      "dmx": {
+        "shutter": 0.08627450980392157,
+        "dimmer": 1,
+        "pan": 0.5,
+        "tilt": 0.8913043478260869,
+        "red": 0,
+        "green": 0.4,
+        "blue": 1,
+        "white": 0,
+        "zoom": 0.5
+      },
+      "position3D": {
+        "x": 2,
+        "y": 0,
+        "z": 2
+      },
+      "mount": "floor",
+      "controllerId": "ctl_dmx"
+    }
+  ],
+  "controllers": [
+    {
+      "id": "ctl_dmx",
+      "name": "Lighting interface",
+      "protocol": "artnet",
+      "ip": "127.0.0.1",
+      "broadcast": false,
+      "startUniverse": 0,
+      "drives": "light"
+    }
+  ],
+  "globalBrightness": 1,
+  "groups": [
+    {
+      "id": "grp_movers",
+      "name": "Movers",
+      "fixtureIds": [
+        "fx_mover_1",
+        "fx_mover_2",
+        "fx_mover_3",
+        "fx_mover_4"
+      ]
+    },
+    {
+      "id": "grp_washes",
+      "name": "Washes",
+      "fixtureIds": [
+        "fx_wash_1",
+        "fx_wash_2"
+      ]
+    }
+  ],
+  "scenes": [],
+  "cueBanks": [],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50
+  },
+  "timeline": {
+    "layers": [
+      {
+        "id": "lay_lighting",
+        "name": "Lighting",
+        "kind": "lighting",
+        "color": "#f5a623",
+        "enabled": true
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_sweep",
+        "layerId": "lay_lighting",
+        "name": "Sweep",
+        "path": "",
+        "kind": "lighting",
+        "start": 0,
+        "duration": 8.91,
+        "inPoint": 0,
+        "lighting": {
+          "takeId": "take_sweep",
+          "groupId": "grp_movers",
+          "phase": 0.6,
+          "phaseMode": "spread"
+        }
+      }
+    ],
+    "duration": 12,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": true,
+    "trackingTakes": [],
+    "lightingTakes": [
+      {
+        "version": 1,
+        "id": "take_sweep",
+        "name": "Sweep",
+        "duration": 8.91,
+        "parts": [
+          {
+            "channels": {
+              "pan": [
+                {
+                  "t": 0.02,
+                  "v": 430.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 0.6,
+                  "v": 430.4,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 5.26,
+                  "v": 136.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 136.4,
+                  "curve": "linear"
+                }
+              ],
+              "tilt": [
+                {
+                  "t": 0.02,
+                  "v": 128.5,
+                  "curve": "linear"
+                },
+                {
+                  "t": 5.65,
+                  "v": 128.5,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 8.31,
+                  "v": 52.2,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 52.2,
+                  "curve": "linear"
+                }
+              ]
+            }
+          },
+          {
+            "channels": {
+              "pan": [
+                {
+                  "t": 0.02,
+                  "v": 430.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 0.6,
+                  "v": 430.4,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 5.26,
+                  "v": 136.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 136.4,
+                  "curve": "linear"
+                }
+              ],
+              "tilt": [
+                {
+                  "t": 0.02,
+                  "v": 128.5,
+                  "curve": "linear"
+                },
+                {
+                  "t": 5.65,
+                  "v": 128.5,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 8.31,
+                  "v": 52.2,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 52.2,
+                  "curve": "linear"
+                }
+              ]
+            }
+          },
+          {
+            "channels": {
+              "pan": [
+                {
+                  "t": 0.02,
+                  "v": 430.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 0.6,
+                  "v": 430.4,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 5.26,
+                  "v": 136.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 136.4,
+                  "curve": "linear"
+                }
+              ],
+              "tilt": [
+                {
+                  "t": 0.02,
+                  "v": 128.5,
+                  "curve": "linear"
+                },
+                {
+                  "t": 5.65,
+                  "v": 128.5,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 8.31,
+                  "v": 52.2,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 52.2,
+                  "curve": "linear"
+                }
+              ]
+            }
+          },
+          {
+            "channels": {
+              "pan": [
+                {
+                  "t": 0.02,
+                  "v": 430.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 0.6,
+                  "v": 430.4,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 5.26,
+                  "v": 136.4,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 136.4,
+                  "curve": "linear"
+                }
+              ],
+              "tilt": [
+                {
+                  "t": 0.02,
+                  "v": 128.5,
+                  "curve": "linear"
+                },
+                {
+                  "t": 5.65,
+                  "v": 128.5,
+                  "curve": "bezier"
+                },
+                {
+                  "t": 8.31,
+                  "v": 52.2,
+                  "curve": "linear"
+                },
+                {
+                  "t": 8.91,
+                  "v": 52.2,
+                  "curve": "linear"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "lightingSequences": []
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}

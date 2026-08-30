@@ -3,6 +3,14 @@ import type { HelpEntry } from '../types';
 // Fixture editor / LED-map controls (group: "Fixtures"). Authored during the help-system migration.
 export const fixturesHelp: HelpEntry[] = [
   {
+    id: 'fixture.mount',
+    title: 'Mount',
+    short: 'Whether this light is rigged on the floor or on the ceiling — and therefore which way it points.',
+    body: 'A moving head hangs from a truss with its yoke down, or stands on the floor with its yoke up. The DMX is identical either way; what changes is which way it faces before you aim it. CEILING points it down, FLOOR points it up, and FREE leaves the orientation entirely to the Pitch / Yaw / Roll fields below — which is how every project made before this setting existed behaves. Those three fields are your own trim ON TOP of the mounting, so a hung head yawed 30 degrees still reads as 30, not -90 and something. Applies to every selected light at once, because a rig is mounted a truss at a time. It does not MOVE the fixture: set the height in Position (Y) as well, 0 for a floor rig.',
+    group: 'Fixtures',
+    keywords: ['mount', 'rig', 'truss', 'hang', 'hanging', 'ceiling', 'floor', 'invert', 'upside down', 'orientation'],
+  },
+  {
     id: 'fixtures.add',
     title: 'Add fixture',
     short: 'Create a new fixture and select it for editing.',

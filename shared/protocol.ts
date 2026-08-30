@@ -884,6 +884,14 @@ export interface Scene3D {
   // to match what the room will actually look like on the night rather than always showing the
   // hazed-up version.
   hazeDensity?: number;
+  // THE BEAM CONE AS A DIAGRAM — apex, beam angle, optical axis, illumination boundary — drawn as
+  // lines over the volumetric cone (absent ⇒ ON).
+  //
+  // It is a separate control from haze because it answers a different question. Haze is how the room
+  // will LOOK; this is where a head is AIMED, which you need most when the room has no haze in it and
+  // the volumetric cone is therefore invisible by design. Lines, so it costs nothing to leave on: the
+  // shell is fill-rate bound and capped, the outline is neither.
+  beamCones?: boolean;
   reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
   // BLOOM. Off unless asked for, and the polarity is the point: the glow is a full-screen
   // render-to-texture plus a mipmap blur chain every frame, on a viewport that may be 4K, and it was

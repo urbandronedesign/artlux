@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Fixture, FixtureProfile } from '../../types';
 import { effectivePos, effectiveRot, effectiveScale3 } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
-import { rigMetrics } from '../../services/profileRig';
+import { mountShift, rigMetrics } from '../../services/profileRig';
 import { isResolvedLight } from '../../services/fixtureKind';
 import { LED_PICK } from './pickPriority';
 import { livePose } from './fixturePreview';
@@ -105,7 +105,16 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
       const scale = effectiveScale3(f);
       const st = states.get(f.id);
 
+      // Cached per profile — see services/profileRig. Re-deriving these with two channel scans per
+      // fixture per frame cost more than everything else in this loop at 200 movers.
+      const rm = profile ? rigMetrics(profile) : { panMid: 0, tiltMid: 0, lensHalf: 7, bodyH: 0.45, lensY: 0.3, lens: { x: 0, y: 0.3, z: 0 } };
+      const panMid = rm.panMid, tiltMid = rm.tiltMid;
+
+      // The body is lifted so its MOUNTING FACE sits at position3D — the underside of the base for a
+      // floor rig, the top of it for a hung one. Without this a light at Y = 0 is buried to its waist
+      // in the floor. One owner: services/profileRig.mountShift, shared with the beam's lens.
       const rootPos = effectivePos(f);
+      rootPos.y += mountShift(f.mount, rm, scale.y);
       const rootRot = effectiveRot(f);
       q.setFromEuler(rootRot);
 
@@ -120,11 +129,6 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
       // so subtract the mid-point: a head at its centre default must face straight ahead, not
       // sideways. (This is the same "degrees are absolute, not a fraction" property that lets a
       // recorded movement replay on a head with a different sweep.)
-      // Cached per profile — see services/profileRig. Re-deriving these with two channel scans per
-      // fixture per frame cost more than everything else in this loop at 200 movers.
-      const rm = profile ? rigMetrics(profile) : { panMid: 0, tiltMid: 0, lensHalf: 7, bodyH: 0.45, lensY: 0.3 };
-      const panMid = rm.panMid, tiltMid = rm.tiltMid;
-
       qp.setFromAxisAngle(up, ((st?.pan ?? panMid) - panMid) * DEG);
       yokeQ.copy(q).multiply(qp);
 

@@ -69,6 +69,26 @@ export function rigMetrics(profile: FixtureProfile): RigMetrics {
   return m;
 }
 
+/**
+ * How far to lift the whole body so its MOUNTING FACE — not its centre — sits at `position3D`.
+ *
+ * The base box is drawn centred on the fixture's origin, which is invisible until you mount one:
+ * an operator who types Y = 0 for a floor light gets a fixture buried to its waist in the floor, and
+ * one who hangs a head at the trim height gets a base sticking up through the truss. Neither is what
+ * the number they typed meant. With a mount declared, that number is the FLOOR (or the truss), and
+ * this is the half-base-height that makes it so.
+ *
+ * ONE OWNER, because two consumers need it and they are in different files: the body stacks from it
+ * (MoverBodies) and the beam leaves from a lens measured off the same stack (Beams, MoverLights).
+ * Returns 0 for an unmounted fixture, so nothing that existed before this moves.
+ */
+export function mountShift(mount: 'floor' | 'ceiling' | undefined, m: RigMetrics, scaleY = 1): number {
+  if (!mount) return 0;
+  // The base is 30% of the body height (MoverBodies.dims), so half of it is what clears the surface.
+  const halfBase = m.bodyH * 0.30 * 0.5 * scaleY;
+  return mount === 'ceiling' ? -halfBase : halfBase;
+}
+
 /** Beam half-angle in degrees: a live zoom channel overrides the fixture's fixed lens. */
 export function halfAngle(m: RigMetrics, zoomDeg?: number): number {
   return zoomDeg !== undefined && zoomDeg > 0 ? Math.max(0.5, zoomDeg / 2) : m.lensHalf;

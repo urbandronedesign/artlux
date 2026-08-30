@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Fixture } from '../../types';
-import { effectivePos, effectiveRot } from '../../services/led3dLayout';
+import { authoredRot, effectivePos } from '../../services/led3dLayout';
 import type { FixtureTransform } from './fixturePreview';
 
 const DEG = Math.PI / 180;
@@ -96,8 +96,10 @@ export function nudgeUpdates(
 
   return fixtures.map((f) => {
     const p = effectivePos(f).sub(centroid).applyQuaternion(q).add(centroid);
+    // AUTHORED, not effective: what is written back is the operator's own trim, and a mounted head
+    // must not have its −90° baked into that field by being nudged. See led3dLayout.effectiveRot.
     const e = new THREE.Euler().setFromQuaternion(
-      q.clone().multiply(new THREE.Quaternion().setFromEuler(effectiveRot(f))), 'XYZ',
+      q.clone().multiply(new THREE.Quaternion().setFromEuler(authoredRot(f))), 'XYZ',
     );
     return {
       id: f.id,

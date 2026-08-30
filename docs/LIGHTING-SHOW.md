@@ -143,6 +143,11 @@ app already follows ("a lane always wins"), so there is one precedence story acr
 and fixtures. Enforced in exactly one place — the packer asks `automationOverlay.owns(path)`
 before consulting the lighting overlay.
 
+The top rung is a **fader under your hand right now** — [livePreview](../src/renderer/services/livePreview.ts),
+the render-free channel the channel strip writes while you drag. It sits above a running clip on purpose:
+grabbing Pan during a show must aim the head, not lose to whatever is playing. An entry retires the moment
+the released value is committed, so the layer never outlives the hand.
+
 **A pose cue sits between the clip and the lane**, and the two obvious alternatives are both wrong.
 Putting it on top would break "a lane always wins"; and the top layer means something specific —
 `livePreview`, the render-free channel a fader drag writes to, which a cue fired by the scheduler at
@@ -202,6 +207,51 @@ each hand-checked:
 
 The arm is optional and additive, so an older build ignores it and still fires the cue's ordinary
 `entries`.
+
+## Aiming a head — the channel strip
+
+Every verb below (Store Key, Save Pose, Record) captures **what the rig is doing right now**, so the one
+control that changes it is worth a section of its own: the **Channels** section of the parameter column,
+in *Venue & Rig* (the `3d` workbench) or *Mapping*. It is the selected head's real channel strip, drawn
+from its profile — Pan and Tilt read in **degrees**, a gobo wheel reads *"Beam three dots"* rather than
+0.42, and a 16-bit channel has 16-bit resolution under the thumb.
+
+Three things about it that decide how a busk comes out:
+
+- **It is LIVE.** The rig, the 3D scene and the take recorder all follow the fader *while you drag*, not
+  when you let go. That is what makes aiming possible at all, and it is what makes a recorded sweep a
+  movement rather than a jump — see [*Recording*](#recording).
+- **It drives the whole selection, matched by ROLE.** Select four heads and one fader moves four heads.
+  Pan is pan whatever the manufacturer named the channel, so a mixed selection works; and where both
+  profiles declare a physical range the value travels in **degrees**, so a 540° head and a 230° head land
+  on the same *angle* rather than the same fraction of travel. Same head-morphing rule as a take.
+- **Only the release is an edit.** The drag writes a render-free live layer at the top of the precedence
+  stack; the document is written once, on release. So one sweep is one undo step, and dragging a fader
+  costs no React render.
+
+The strip says how many lights it is reaching, so it cannot disagree with the recorder's *Arm* line.
+
+### The cone — what you are aiming, drawn as a diagram
+
+Every lit head in the 3D scene draws the outline a fixture datasheet prints: the apex at the **lens**,
+the edges at the head's **beam angle**, the **optical axis**, and the **illumination boundary** where the
+light lands. It is built from that head's live parameters, so it swings under Pan and Tilt and opens and
+closes under **Zoom** as you drag — the same live layer the recorder samples feeds it.
+
+The boundary is intersected with the floor **ray by ray**, which is why it is a circle under a vertical
+beam and a true ellipse under a tilted one, and why a beam aimed at nothing draws a clean cone in the air
+at its nominal throw rather than a pair of lines running off to the horizon.
+
+Two limits, both deliberate:
+
+- **The selected heads get the whole diagram**; every other lit head keeps just its boundary, so a
+  forty-head rig stays readable while the one you are aiming stands out.
+- **It is separate from Haze, and from the volumetric cone.** Haze is how the room will LOOK — at 0 there
+  is no shaft of light, exactly as a venue without a hazer looks. The diagram is where a head is AIMED,
+  which is precisely what you need in that venue. Turn it off in **Lighting ▸ Beam cones**.
+
+The two representations also have completely different costs, which is why only one of them is capped —
+see [*The beam budget*](#the-beam-budget) below.
 
 ## The authoring loop — Store Key
 
@@ -321,7 +371,11 @@ phase spread runs along. With nothing selected the recorder refuses and says why
 
 Capture is **independent of the transport** — you busk the look with the playhead stopped, press
 stop, and the take appears in the panel's library ready to drag onto a lighting lane or pick in a
-clip's *Source*. It records the RESOLVED fixture signal (the packer's own output), so a take comes out
+clip's *Source*. **Dropping it on the lane makes a clip as long as the take, playing it** — placed in the
+nearest free space, never stacked on top of a clip already there, and with the target group filled in when
+the answer is not a guess (a take has one part per head it was recorded from, so a light group of exactly
+that size is the rig it came off). Otherwise the clip inspector's *"Pick a group"* line is what speaks: a
+clip with no group is silent. It records the RESOLVED fixture signal (the packer's own output), so a take comes out
 in the same role space it will be replayed in. Each take lists its length, its part count and **the
 roles it actually carries** — which is not decoration; see the second bullet below.
 
@@ -411,6 +465,66 @@ Plus reduction fidelity on a jittered 10 s pan sine: 600 samples → 66 points, 
 
 <!-- audience:contributor -->
 
+## What only running it found (2026-08-30)
+
+The sampler's 30 hand-computed checks, the 19 for poses and the 18 for cues were all green, the invariant
+guards were green, and the loop above was still unusable on a rig — because every one of those checks
+starts from a take, and **the take was wrong before any of them saw it**.
+
+- **Nothing implemented the top of the precedence stack.** The packer has named `live override` since
+  lighting shipped and `lightingCue`'s header calls it "the render-free channel a fader drag writes to",
+  but `livePreview` held one number: master brightness. `Slider` commits on pointer RELEASE — correctly,
+  because a React write per drag tick re-renders the app and pushes an undo entry per tick — so **nothing
+  moved until you let go**. Measured on the wire: a four-second pan drag produced ONE transition. And
+  since the recorder samples the RESOLVED fixture signal, the take that came back was a step:
+  `pan [[0.02,136.4],[5.68,136.4],[5.83,403.6],[10.11,403.6]]`.
+- **The channel strip drove one head.** The Lighting Takes panel promised *"4 lights · selection order is
+  the take"* and the recorder duly opened four parts — three of them empty, and a phase spread with
+  nothing to spread along.
+- **A take could not be dropped on a lighting lane.** The chip set `application/artlux-take` and its own
+  tooltip said to drag it there; `Timeline.onDropFile` had a `tracking` branch and no `lighting` one, so
+  the drop fell through to *"a take can't go on a video lane"* and vanished. A failed drop looks exactly
+  like a missed one.
+- **CMY was read off the additive emitter table.** A discharge head is a white lamp behind three dichroic
+  flags and 0 means *flag out*, so every MAC-class fixture rendered BLACK in the 3D scene at full dimmer
+  and `roleValue` published red/green/blue = 0 — which is what a busk records and a pose key stores. The
+  colour half of a take on a CMY rig was not merely wrong, it was inverted. And there was no way back
+  either: a take stores colour as RGB, a CMY head has no channel with role `red`, so a recorded colour
+  move landed on such a rig as silence.
+
+All four are guarded now, and `scripts/test-lighting-take.cjs` drives the loop against the real app and
+reads the answer off Art-Net. What it measured after the fix, on the four-MAC rig of
+[examples/lighting/](../examples/lighting/README.md):
+
+```
+during a 4 s pan drag ....... 96 distinct DMX values, on all four heads   (was 1, on one head)
+the take .................... 4 parts, each pan 94 keys + tilt            (was 1 part of 4 non-empty)
+replayed off the lane ....... DMX 66..204 = 139°..432° on all four
+phase 0.6 s, mid-travel at .. 7.93 / 8.53 / 9.13 / 9.71 s  → 0.60 s apart
+```
+
+The transferable part is the shape: **five layers of correct machinery, and an input that was never
+live.** Every guard here reads the take; none of them could ask whether the take described anything that
+happened.
+
+## The beam budget
+
+Two representations of the same beam, two completely different costs, and only one of them is capped.
+
+| | volumetric cone | cone diagram |
+|---|---|---|
+| what it is | an additive hollow shell — the haze the light passes through | lines: apex, edges, optical axis, illumination boundary |
+| cost | **fill rate.** A cone is metres across and drawn with depth writes off, so it shades every pixel it covers and they all overlap | a few hundred pixels, whatever the throw |
+| budget | hard-capped (`MAX_BEAMS`), spent on the brightest | none — every lit fixture gets one |
+| off switch | **Lighting ▸ Haze** = 0 | **Lighting ▸ Beam cones** |
+
+"One InstancedMesh means 200 beams cost one draw call" is the trap the cap exists to correct: draw calls
+were never the limit. The numbers in `Beams.tsx` were measured **on WebGL**, which is no longer the
+renderer the 3D scene defaults to; re-measured on WebGPU, 200 cones with the camera among them held
+**60 fps** (vsync) where WebGL had managed 10. Anyone tuning `MAX_BEAMS` should re-measure on the backend
+they actually ship, and say which one — the intuition being corrected here has now been wrong twice, in
+opposite directions.
+
 ## Storage
 
 Takes are stored **inline in the project**, not as sidecar files the way LiDAR takes are: a
@@ -439,6 +553,8 @@ default. But a project saved by this build is **read incompletely** by a build f
 
 ## Related
 
+- [examples/lighting/](../examples/lighting/README.md) — **two openable projects and a four-chapter
+  walkthrough** of exactly this loop, on a rig of nothing but moving heads: aim, record, place, spread
 - [FIXTURE-LIBRARY.md](FIXTURE-LIBRARY.md) — profiles, roles, and why pan/tilt are degrees
 - [TIMELINE.md](TIMELINE.md) — the NLE these clips live on
 - [SCENES.md](SCENES.md), [STATE-MACHINE.md](STATE-MACHINE.md) — a lighting clip lives on a *scene's*

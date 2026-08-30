@@ -600,9 +600,9 @@ check(
     const cm = src.indexOf('const handleCommitModel');
     if (cm < 0) problems.push('could not find handleCommitModel in App.tsx');
     else if (src.slice(cm, cm + 300).includes('recordHistory(')) problems.push('handleCommitModel records — double-record with the gizmo latch');
-    const cf = fnBody(src, 'handleCommitFixture3D');
-    if (!cf) problems.push('could not find handleCommitFixture3D in App.tsx');
-    else if (cf.includes('recordHistory(')) problems.push('handleCommitFixture3D records — double-record with the gizmo latch');
+    const cf = fnBody(src, 'handleCommitFixtures');
+    if (!cf) problems.push('could not find handleCommitFixtures in App.tsx');
+    else if (cf.includes('recordHistory(')) problems.push('handleCommitFixtures records — double-record with the gizmo latch');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -2892,7 +2892,7 @@ check(
   () => {
     const F = 'src/renderer/engine/frameEngine.ts';
     const src = read(F);
-    const m = /const roleOverride[\s\S]{0,700}?\n      : undefined;/.exec(src);
+    const m = /const roleOverride[\s\S]{0,2200}?\n      : undefined;/.exec(src);
     if (!m) return `${F} no longer builds roleOverride in one closure — the precedence stack has moved`;
     const body = m[0];
     const lane = body.indexOf('automationOverlay.owns');
@@ -2904,6 +2904,223 @@ check(
     if (!(lane < cue && cue < clip))
       return `precedence is out of order (lane ${lane}, cue ${cue}, clip ${clip}) — must be lane, then cue, then clip`;
     return null;
+  },
+);
+
+// ── Lighting: a fader drag is LIVE, and reaches the recorder as well as the wire ──────────────
+check(
+  'aiming a head is live, and the take recorder sees it',
+  'The whole authoring loop docs/LIGHTING-SHOW.md is written around — select a light, aim it, Store ' +
+  'Key or Record — rests on the rig following your hand. It did not. Slider commits on pointer ' +
+  'RELEASE (deliberately: a React write per drag tick re-renders the app and, through ' +
+  'handleUpdateFixture, pushes an undo entry per tick), and nothing implemented the "live override" ' +
+  'layer the packer has named at the top of its precedence stack since lighting shipped. Measured on ' +
+  'the wire: a four-second pan drag produced ONE transition, at the release. The second half is the ' +
+  'subtle one — the take recorder samples the RESOLVED fixture signal, so resolveFixture must ' +
+  'receive the live layer too, or a busk still records a STEP while the wire looks correct. The take ' +
+  'that came back was pan [[0.02,136.4],[5.68,136.4],[5.83,403.6],[10.11,403.6]].',
+  () => {
+    const P = 'src/renderer/services/profilePack.ts';
+    const F = 'src/renderer/engine/frameEngine.ts';
+    const I = 'src/renderer/contexts/panels/inspector.tsx';
+    const problems = [];
+    const pack = read(P);
+    if (!/export type ChannelOverride/.test(pack)) problems.push(P + ' no longer declares ChannelOverride — the live layer has no type');
+    const live = pack.indexOf('live?.(f, channel)');
+    const role = pack.indexOf('override?.(f.id, channel)');
+    if (live < 0) problems.push(P + '.channelValue no longer reads the live layer');
+    else if (role >= 0 && live > role) problems.push(P + '.channelValue reads the live layer AFTER the clip — a fader drag would lose to a running clip');
+    const eng = read(F);
+    if (!/livePreview\.readFixtureChannel\(/.test(eng)) problems.push(F + ' never consults livePreview.readFixtureChannel — a drag would not reach the wire');
+    if (!/packProfiled\([^)]*liveOverride\)/.test(eng)) problems.push(F + ' does not pass the live layer to packProfiled — the rig would not follow the hand');
+    if (!/resolveFixture\([^)]*liveOverride\)/.test(eng)) problems.push(F + ' does not pass the live layer to resolveFixture — the 3D scene and the TAKE RECORDER would see the committed value only');
+    const insp = read(I);
+    if (!/onInput=\{\(v\) => live\(channel, v\)\}/.test(insp)) problems.push(I + ': the channel strip fader no longer drives the live layer while dragging');
+    if (!/livePreview\.releaseFixtureChannel\(/.test(insp)) problems.push(I + ': nothing releases the live layer on commit — an entry sitting above a lighting clip would pin the channel');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Lighting: one wheel moves the whole selection ─────────────────────────────────────────────
+check(
+  'a channel edit drives every selected light, as one change',
+  'The Lighting Takes panel promises "N lights - selection order is the take" and the recorder duly ' +
+  'opens N parts. But the channel strip drove only the PRIMARY of the selection, so a four-head busk ' +
+  'came back with three EMPTY parts and a phase spread with nothing to spread along. It must also be ' +
+  'ONE commit: updateFixture per fixture would read the same stale array each time (only the last ' +
+  'write surviving) and push one undo entry each. The fan-out matches by ROLE in degrees, not by ' +
+  'channel key in fractions, because two heads with different travel must land on the same ANGLE — ' +
+  'the same head-morphing rule that lets a take replay on a rig it was not recorded on.',
+  () => {
+    const I = 'src/renderer/contexts/panels/inspector.tsx';
+    const src = read(I);
+    const m = /export const FixtureChannelsPanel[\s\S]*?\n};/.exec(src);
+    if (!m) return I + ' no longer defines FixtureChannelsPanel';
+    const body = m[0];
+    const problems = [];
+    if (!/selectedFixtureIds/.test(body)) problems.push('the channel strip ignores the selection — only the primary head would move');
+    if (!/c\.role === channel\.role/.test(body)) problems.push('the fan-out no longer matches by role — a second make of head would be skipped or mis-driven');
+    if (!/a\.commitFixtures\(/.test(body)) problems.push('the commit is not commitFixtures() — writing per fixture loses every write but the last');
+    if (/a\.updateFixture\(/.test(body)) problems.push('the channel strip still calls updateFixture() — the per-fixture door this panel must not use');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Lighting: CMY is a filter, not an emitter ─────────────────────────────────────────────────
+check(
+  'subtractive colour mixing is subtractive',
+  'A discharge head is a white lamp behind three dichroic flags, and the DMX convention is 0 = flag ' +
+  'OUT, so cyan/magenta/yellow at zero is OPEN WHITE. Read off the additive emitter table they said ' +
+  '"no light", so every CMY fixture rendered BLACK in the 3D scene at full dimmer and roleValue ' +
+  'published red/green/blue = 0 — which is exactly what a busk records and a pose key stores, so the ' +
+  'colour half of a take on a CMY rig was not merely wrong but inverted. The table is still right for ' +
+  'an RGB(W)+CM LED wash, where those roles really are emitters; the two are told apart by whether ' +
+  'the MODE also emits red/green/blue, never by guessing from the model name.',
+  () => {
+    const F = 'src/renderer/services/fixtureSignal.ts';
+    const E = 'src/renderer/engine/frameEngine.ts';
+    const src = read(F);
+    const problems = [];
+    if (!/const SUBTRACTIVE/.test(src)) problems.push(F + ' no longer separates the subtractive flags from the emitter table');
+    if (!/const subtractive = hasCmy && !hasPrimaries;/.test(src)) problems.push(F + " no longer decides subtractive-vs-additive from the mode's own channel list");
+    if (!/out\.r \*= 1 - cmy\[0\]/.test(src)) problems.push(F + ' no longer applies the flags multiplicatively — CMY would add light instead of removing it');
+    if (!/CMY_FROM_RGB/.test(read(E))) problems.push(E + ' has no RGB→CMY bridge — a recorded colour move would land on a CMY rig as silence');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Lighting: a take can be placed by dropping it where it plays ──────────────────────────────
+check(
+  'a lighting take can be dropped onto a lighting lane',
+  'The take chip sets application/artlux-take on dragstart and its own tooltip reads "Drag it onto a ' +
+  'lighting lane", but Timeline.onDropFile had no lighting branch: the drop fell through to the "a ' +
+  'take cannot go on a video lane" return and NOTHING happened — silently, because a failed drop ' +
+  'looks exactly like a missed one. The only way to place a take was a clip inspector you can reach ' +
+  'only by first creating a clip you did not want. Unlike a tracking take there is no payload ' +
+  'fallback and there must not be: a lighting take is stored INLINE in its own document, so one this ' +
+  'timeline does not hold is one it could not play.',
+  () => {
+    const T = 'src/renderer/components/timeline/Timeline.tsx';
+    const src = read(T);
+    const m = /const onDropFile = [\s\S]*?\n  };/.exec(src);
+    if (!m) return T + ' no longer defines onDropFile';
+    const body = m[0];
+    const lighting = body.indexOf("layer?.kind === 'lighting'");
+    const reject = body.indexOf('if (takeId) return;');
+    if (lighting < 0) return 'onDropFile has no lighting branch — dropping a take on a lighting lane does nothing';
+    if (reject >= 0 && lighting > reject) return 'the lighting branch is AFTER the take rejection — the drop is still swallowed';
+    if (!/lightingTakes \?\? \[\]\)\.find/.test(body)) return 'the lighting branch does not resolve the take against THIS document';
+    return null;
+  },
+);
+
+// ── 3D: a beam is drawn on BOTH backends, and its colour survives the crossing ────────────────
+check(
+  'a beam carries its own tint buffer',
+  'The beams were invisible on the renderer the 3D scene DEFAULTS to. They tinted per instance through ' +
+  "three's instanceColor + setColorAt — the natural WebGL idiom — and read it back on the node path " +
+  "as attribute('instanceColor'), which resolves to NOTHING on a WebGPURenderer: three does not expose " +
+  'instanceColor as a plain geometry attribute there, it wraps it into an instancedDynamicBufferAttribute ' +
+  'and hands it to the material as instanceColorNode. So every cone resolved to colour 0, and 0 through ' +
+  'an ADDITIVE blend is exactly nothing — a material that draws black and a material that does not draw ' +
+  'look identical, which is why it went unnoticed from the day the scene moved to WebGPU. The fix is to ' +
+  'own the buffer: one attribute, named by us, read the same way in both languages.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/Beams.tsx';
+    const src = read(F);
+    const problems = [];
+    if (/setColorAt\(/.test(src)) problems.push(F + ' is back on setColorAt/instanceColor — that tint is unreadable on the node path');
+    if (/attribute\('instanceColor'/.test(src)) problems.push(F + " reads attribute('instanceColor'), which resolves to nothing on a WebGPURenderer");
+    if (!/instancedDynamicBufferAttribute\(/.test(src)) problems.push(F + ' no longer reads its tint through instancedDynamicBufferAttribute on the node path');
+    if (!/attribute vec3 aTint/.test(raw(F))) problems.push(F + ' no longer declares the aTint attribute in its GLSL');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── 3D: the cone DIAGRAM is lines, and is not on the volumetric budget ────────────────────────
+check(
+  'the beam cone diagram is uncapped lines',
+  'Two representations, two costs, and the whole point is that they are not the same. The volumetric ' +
+  'shell is FILL-RATE bound — 200 cones overlapping is 200 screenfuls of shaded pixels — so it is ' +
+  'hard-capped by MAX_BEAMS and only the brightest are drawn. The cone DIAGRAM (apex, beam angle, ' +
+  'optical axis, illumination boundary) is lines: a few hundred pixels whatever the throw, so every lit ' +
+  'fixture gets one and no cap applies. Put the outline behind the volumetric cap and a rig of fifty ' +
+  'heads silently stops showing where half of them are pointed, which is the one question the diagram ' +
+  'exists to answer. It must also stay a LineBasicMaterial: the fat-line LineMaterial is WebGL-only and ' +
+  "three's node renderer rejects it outright — the same trap that made every projector frustum vanish.",
+  () => {
+    const F = 'src/renderer/components/Simulator3D/Beams.tsx';
+    const src = read(F);
+    const problems = [];
+    if (!/lineBasicMaterial/.test(src)) problems.push(F + ' no longer draws the diagram with a lineBasicMaterial');
+    if (/from '@react-three\/drei'/.test(src) && /<Line\b/.test(src)) problems.push(F + " uses drei's fat <Line>, which the node renderer rejects");
+    // The outline must be written BEFORE the MAX_BEAMS branch, or the cap silently applies to it too.
+    const outline = src.indexOf('if (cones)');
+    const cap = src.indexOf('if (!drawn.has(i))');
+    if (outline < 0) problems.push(F + ' no longer builds the cone diagram');
+    else if (cap >= 0 && outline > cap) problems.push(F + ' builds the diagram AFTER the MAX_BEAMS cap — capped heads would lose their outline');
+    // …and it must come off the fixture's own live parameters, not a constant.
+    if (!/halfAngle\(rm, st!\.zoomDeg\)/.test(src)) problems.push(F + ' no longer takes the beam angle from the fixture profile + its live zoom channel');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── 3D: nothing in this scene may depend on a raw ShaderMaterial alone ────────────────────────
+check(
+  'the 3D scene draws on both backends',
+  "three's node renderer REJECTS a raw ShaderMaterial and drei's fat LineMaterial outright, and it " +
+  'does it silently: the object is simply not drawn, or is drawn as its bare geometry. The 3D scene ' +
+  'defaults to the WebGPU backend, so this has now cost three separate features. The projector ' +
+  'frustum vanished (LineMaterial). The beams vanished (an instanceColor tint that reads as nothing ' +
+  'on the node path, and 0 through an additive blend IS nothing). And the ground grid — drei <Grid>, ' +
+  'a 30x30 plane whose shader is what flattens it onto the floor and makes it infinite — rendered as ' +
+  'a BLACK WALL standing at the origin, which is how an operator reported it. A LineBasicMaterial ' +
+  'renders identically on both; a shader that genuinely needs to exist must ship a TSL twin, the way ' +
+  'Beams does, and be chosen by which RENDERER is live rather than by which modules happen to be loaded.',
+  () => {
+    const DIR = 'src/renderer/components/Simulator3D';
+    const problems = [];
+    for (const rel of walk(DIR)) {
+      const src = read(rel);
+      if (/<Grid\b/.test(src) || /\bGrid\b[^\n]*from '@react-three\/drei'/.test(src))
+        problems.push(rel + " uses drei's <Grid>, whose ShaderMaterial does not run on the node renderer");
+      if (/LineMaterial|<Line\b/.test(src) && /@react-three\/drei/.test(src))
+        problems.push(rel + " uses drei's fat <Line>, which the node renderer rejects — use lineSegments + lineBasicMaterial");
+      // A ShaderMaterial is allowed only where a node twin is built beside it.
+      if (/new THREE\.ShaderMaterial|<shaderMaterial\b/.test(src) && !/isWebGPURenderer|nodes\(\)/.test(src))
+        problems.push(rel + ' builds a raw ShaderMaterial with no node twin — it will not draw on the WebGPU backend');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── 3D: a fixture's mounting is composed in ONE place, and the gizmo never bakes it in ────────
+check(
+  'a mounted fixture keeps its authored trim',
+  'A light is rigged on the ceiling (pointing down) or on the floor (pointing up), and that mounting ' +
+  'is a base orientation composed UNDER the operator pitch/yaw/roll — so those three fields keep ' +
+  'meaning the trim the operator typed rather than becoming -90 plus something. The composition order ' +
+  'is authored then mount, and it is load-bearing: it is what makes a WORLD-space gizmo delta d give ' +
+  "authored' = d * authored, which is exactly what the gizmo and the arrow-key nudge already compute, " +
+  'so neither has to know a mount exists. But both must therefore START from the AUTHORED rotation. ' +
+  'Start one of them from the effective rotation instead and the mounting is baked into the fixture ' +
+  'the first time it is nudged — it would tip 90 degrees and stay there, and the field it corrupted ' +
+  'is the one the operator would look at to work out why.',
+  () => {
+    const L = 'src/renderer/services/led3dLayout.ts';
+    const N = 'src/renderer/components/Simulator3D/nudge.ts';
+    const G = 'src/renderer/components/Simulator3D/FixtureGizmo.tsx';
+    const problems = [];
+    const lay = read(L);
+    if (!/export function mountRot\(/.test(lay)) problems.push(L + ' no longer owns the mount rotation');
+    if (!/export function authoredRot\(/.test(lay)) problems.push(L + ' no longer exposes the authored rotation the write-back needs');
+    if (!/setFromEuler\(authoredRot\(f\)\)\.multiply\(mountRot\(f\)\)/.test(lay))
+      problems.push(L + ' no longer composes effectiveRot as authored * mount — the gizmo write-back assumes that order');
+    for (const f of [N, G]) {
+      const src = read(f);
+      if (!/authoredRot\(/.test(src)) problems.push(f + ' writes rotation back from something other than authoredRot — a mount would be baked into the fixture');
+    }
+    return problems.length ? problems.join('; ') : null;
   },
 );
 

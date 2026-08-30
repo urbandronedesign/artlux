@@ -53,6 +53,35 @@ and the ledmap remaps it, so they are the same question asked twice. And `Fixtur
 name so its history stays greppable, the same reason `RoutingModal.tsx` did. Guarded by *the fixture
 docks hold only what exists nowhere else*.
 
+### Mount — floor or ceiling
+
+A moving head is bolted to the floor the right way up, or **hung upside down** under a truss. The DMX is
+identical either way and so is the fixture; what differs is which way the housing faces. That is what
+**Position ▸ Mount** says:
+
+| | |
+|---|---|
+| **Floor** | upright. The base sits flat on the floor and the yoke and head stack above it — an uplighter, a floor pack, a bar of washes across the front |
+| **Ceiling** | **inverted**. The base is bolted up under the truss and the yoke and head hang beneath it. What a new light is created as |
+| **Free** | no implied orientation; Pitch / Yaw / Roll alone decide. Every project made before this setting existed reads as Free, so nothing moved |
+
+**The mount is where it is BOLTED. Pan and tilt are where it POINTS** — exactly as on the real fixture,
+which beams horizontally with its tilt centred whichever way up it is. Inverting a hung head is what
+makes tilting it sweep the beam *down onto the stage* instead of up into the roof; a floor pack tilted
+the same way throws up the wall. A newly created light is given a quarter-turn of tilt so it starts
+aimed away from whatever it is bolted to, rather than at the back wall.
+
+**Y is the MOUNTING FACE, not the middle of the fixture.** With a mount declared, the number you type
+is the floor (or the truss): `0` stands a light on the floor with its base flush, and the trim height
+hangs one with its base against the truss. Without a mount it is the body centre, as it always was.
+
+**Pitch / Yaw / Roll stay your own trim, on top of the mounting.** A hung head yawed 30° still reads as
+30 — not 180 and something you have to work out. That is the whole reason it is a mode and not a number.
+
+It applies to the **whole light selection**, because a rig is mounted a truss at a time, and it is one
+undo step. In the 3D scene the body, the beam, the spotlight and the
+[cone diagram](LIGHTING-SHOW.md#the-cone--what-you-are-aiming-drawn-as-a-diagram) all follow it.
+
 ## The problem this solves
 
 A `Fixture` ([types.ts](../src/renderer/types.ts)) began as a **pixel array**: `ledCount` cells

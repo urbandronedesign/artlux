@@ -1,4 +1,4 @@
-import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type OutputProtocol } from '../types';
+import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type ChannelRole, type OutputProtocol } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
@@ -113,6 +113,10 @@ export const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
 const PREVIEW_MS = 1000 / 30;
 
 // Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
+// A subtractive flag and the primary it takes out. Used by the lighting overlay's role lookup so a
+// colour recorded in RGB can drive a CMY head — see the comment at its call site in packAndPublish.
+const CMY_FROM_RGB: Partial<Record<ChannelRole, ChannelRole>> = { cyan: 'red', magenta: 'green', yellow: 'blue' };
+
 const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
   [ColorOrder.RGB]: [0, 1, 2],
   [ColorOrder.RBG]: [0, 2, 1],
@@ -616,8 +620,27 @@ class FrameEngine {
       ? (fixtureId, channel) => {
           if (automationOverlay.owns(`fixtures.${fixtureId}.dmx.${channel.key}`)) return undefined;
           const cued = cueLive ? lightingCue.get(fixtureId, channel.role) : undefined;
-          return cued ?? lightingOverlay.get(fixtureId, channel.role);
+          const direct = cued ?? lightingOverlay.get(fixtureId, channel.role);
+          if (direct !== undefined) return direct;
+          // COLOUR CROSSES THE MIXING MODEL. A take and a pose key store colour as red/green/blue
+          // (fixtureSignal.ROLES_CAPTURED has no cyan/magenta/yellow, because the resolved signal is
+          // an RGB reading whatever the head does internally). A discharge head has no channel with
+          // role `red`, so without this every recorded colour move landed on a CMY rig as silence —
+          // the clip looked right, the heads never changed. Cyan takes out red, and so on: the same
+          // dichroic assignment fixtureSignal reads them back with, so the round trip closes.
+          const complement = CMY_FROM_RGB[channel.role];
+          if (!complement) return undefined;
+          const rgb = (cueLive ? lightingCue.get(fixtureId, complement) : undefined)
+            ?? lightingOverlay.get(fixtureId, complement);
+          return rgb === undefined ? undefined : 1 - rgb;
         }
+      : undefined;
+
+    // THE LIVE LAYER — a fader under a hand right now, above everything else including a running
+    // clip. Skipped entirely (no closure, no lookup) whenever nothing is being dragged, which is
+    // every frame of a show. See services/livePreview for why this exists at all.
+    const liveOverride: profilePack.ChannelOverride | undefined = livePreview.liveChannels > 0
+      ? (fx, channel) => livePreview.readFixtureChannel(fx.id, channel.key, fx.dmx?.[channel.key])
       : undefined;
 
     // Per-destination universe maps, keyed by `${protocol}|${ip}|${broadcast}`.
@@ -693,11 +716,15 @@ class FrameEngine {
         // the same case, so the patch and the wire still agree — a fixture we cannot describe occupies
         // no channels and disturbs no neighbour.
         if (profile && mode) {
-          profilePack.packProfiled(f, profile, mode, writeCh, roleOverride);
+          profilePack.packProfiled(f, profile, mode, writeCh, roleOverride, liveOverride);
           // Publish what this fixture is DOING, in roles and degrees, for the 3D scene and the beams.
           // Resolved here rather than in the scene so there is exactly one interpretation of
           // "intensity"/"pan" in the app — see fixtureSignal.
-          fixtureStates.set(f.id, fixtureSignal.resolveFixture(f, profile, roleOverride));
+          //
+          // ⚠ THE LIVE LAYER MUST REACH HERE TOO, not just the wire. This is the signal the take
+          // recorder samples, so a drag that moved the rig but not this map would still record a
+          // step; and it is what the 3D scene draws, so the head would not follow your hand.
+          fixtureStates.set(f.id, fixtureSignal.resolveFixture(f, profile, roleOverride, liveOverride));
         }
         offset += f.ledCount;
         continue;
