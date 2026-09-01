@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Fixture,
-  type FixtureMount,
+  type FixtureMount, type OutputProtocol,
 } from '../../types';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { ContentEditor } from '../../components/ContentEditor';
 import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
 import { Button, Field, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { fixtureFootprint, resolveMode } from '../../services/addressing';
+import { fixtureFootprint, resolveDest, resolveMode } from '../../services/addressing';
 import { isLight, isPixel, profileOf } from '../../services/fixtureKind';
 import { channelValue, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { livePreview } from '../../services/livePreview';
@@ -598,64 +598,137 @@ export const FixtureOutputPanel: React.FC = () => {
 };
 
 // ── Fixture ▸ Routing ───────────────────────────────────────────────────────────────────────
+// THIS PANEL DECIDES WHERE A FIXTURE'S DMX GOES, and it used to be unable to say so.
+//
+// The destination resolves per-fixture override → controller → global default (resolveDest). The
+// override silently wins, and nothing here showed which rung had answered — so a fixture patched to
+// a USB widget, carrying a stale `output.protocol = 'artnet'`, rendered as a perfectly healthy row
+// while its head sat dark. Worse, the Protocol list offered Art-Net and sACN but NOT USB DMX, so
+// this control could only ever override AWAY from a widget, never onto one; and its blank entry was
+// labelled with the GLOBAL protocol — "Default (artnet)" on a fixture whose controller is a COM
+// port, naming the one destination it would not use. Every part of it pointed away from the truth.
+// It cost two hardware sessions before anyone looked at the field.
+//
+// So: USB DMX is selectable, the blank entry says what it actually falls through to for THIS
+// fixture, and the panel always ends with the resolved destination and which rung supplied it.
 export const FixtureRoutingPanel: React.FC = () => {
-  const { settings } = useEditor();
+  const { settings, controllers } = useEditor();
   const a = useEditorActions();
   const f = useSelectedFixture();
+
+  // USB DMX interfaces for the device picker. Enumerated on mount and on demand, for the reason the
+  // Routing modal gives: a widget is routinely plugged in AFTER the app is open, so a one-shot list
+  // at startup leaves the picker permanently empty in the most common case.
+  const [devices, setDevices] = useState<Array<{ path: string; label: string }>>([]);
+  const rescan = useCallback(async () => {
+    setDevices((await window.artlux?.listSerialDevices?.()) ?? []);
+  }, []);
+  useEffect(() => { void rescan(); }, [rescan]);
+
   if (!f) return null;
+
+  // Resolved through the SAME function the frame loop and the collision detector use, so this
+  // readout cannot drift from what actually goes on the wire.
+  const def = { protocol: settings.protocol, ip: settings.artNetIp, broadcast: settings.broadcast };
+  const ctrl = f.controllerId ? controllers.find((c) => c.id === f.controllerId) : undefined;
+  const dest = resolveDest(f, ctrl, def);
+  const inherited = resolveDest({ ...f, output: undefined }, ctrl, def); // what clearing it would give
+  const describe = (d: { protocol: OutputProtocol; ip: string; broadcast: boolean; port?: string }) =>
+    d.protocol === 'enttec' ? `USB DMX ${d.port || '— no device'}`
+      : d.protocol === 'sacn' ? `sACN ${d.ip}`
+        : `Art-Net ${d.ip}${d.broadcast ? ' (broadcast)' : ''}`;
+  const overridden = !!f.output?.protocol;
+  const serial = dest.protocol === 'enttec';
+  const noDevice = serial && !dest.port; // a widget destination with no port transmits nowhere
+  const setOut = (patch: Partial<NonNullable<Fixture['output']>>) =>
+    a.updateFixture(f.id, { output: { ...f.output, ...patch } });
+
+  const field = 'flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none';
   return (
     <>
       <div className="flex items-center justify-between text-xs gap-2">
         <label className="text-fg-2 w-16 truncate">Protocol</label>
         <select
           value={f.output?.protocol ?? ''}
-          onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, protocol: (e.target.value || undefined) as ('artnet' | 'sacn' | undefined) } })}
-          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
+          onChange={(e) => setOut({ protocol: (e.target.value || undefined) as OutputProtocol | undefined })}
+          className={field}
         >
-          <option value="">Default ({settings.protocol})</option>
+          {/* Names what THIS fixture falls through to, not the global protocol. */}
+          <option value="">Default — {describe(inherited)}</option>
           <option value="artnet">Art-Net</option>
           <option value="sacn">sACN (E1.31)</option>
+          <option value="enttec">USB DMX</option>
         </select>
       </div>
-      {(f.output?.protocol ?? settings.protocol) === 'sacn' && (
+      {dest.protocol === 'sacn' && (
         <NumberInput
           label="Priority" value={f.output?.priority ?? 100} step={1}
-          onChange={(v) => a.updateFixture(f.id, { output: { ...f.output, priority: Math.max(0, Math.min(200, Math.round(v))) } })}
+          onChange={(v) => setOut({ priority: Math.max(0, Math.min(200, Math.round(v))) })}
         />
       )}
-      <div className="flex items-center justify-between text-xs gap-2">
-        <label className="text-fg-2 w-16 truncate">Target IP</label>
-        <Tooltip id="general.fixture-target-ip">
-          <input
-            type="text" value={f.output?.ip ?? ''}
-            onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, ip: e.target.value || undefined } })}
-            placeholder={settings.artNetIp + ' (default)'}
-            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none font-mono"
-            {...help('general.fixture-target-ip')}
-          />
-        </Tooltip>
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-fg-2">Broadcast (override)</span>
-        <input
-          type="checkbox" checked={f.output?.broadcast ?? false}
-          onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, broadcast: e.target.checked } })}
-          className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
-        />
-      </div>
+      {serial ? (
+        // A widget has no address — it has a PORT, and the operator must never have to type "COM3".
+        <div className="flex items-center justify-between text-xs gap-2">
+          <label className="text-fg-2 w-16 truncate">Device</label>
+          <div className="flex-1 flex items-center gap-1 min-w-0">
+            <select value={f.output?.port ?? ''} onChange={(e) => setOut({ port: e.target.value || undefined })} className={`${field} min-w-0`}>
+              <option value="">{ctrl?.port ? `Default (${ctrl.port})` : 'Default — no device'}</option>
+              {/* A port saved in the project but not attached right now must stay selectable, or
+                  opening the show on another machine silently clears it. */}
+              {f.output?.port && !devices.some((d) => d.path === f.output?.port) && (
+                <option value={f.output.port}>{f.output.port} (not connected)</option>
+              )}
+              {devices.map((d) => <option key={d.path} value={d.path}>{d.label} — {d.path}</option>)}
+            </select>
+            <button onClick={() => void rescan()} title="Rescan for USB DMX interfaces" className="shrink-0 text-fg-3 hover:text-fg-1">
+              <RefreshCw size={12} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between text-xs gap-2">
+            <label className="text-fg-2 w-16 truncate">Target IP</label>
+            <Tooltip id="general.fixture-target-ip">
+              <input
+                type="text" value={f.output?.ip ?? ''}
+                onChange={(e) => setOut({ ip: e.target.value || undefined })}
+                placeholder={settings.artNetIp + ' (default)'}
+                className={`${field} text-right font-mono`}
+                {...help('general.fixture-target-ip')}
+              />
+            </Tooltip>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-fg-2">Broadcast (override)</span>
+            <input
+              type="checkbox" checked={f.output?.broadcast ?? false}
+              onChange={(e) => setOut({ broadcast: e.target.checked })}
+              className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
+            />
+          </div>
+        </>
+      )}
       <div className="flex items-center justify-between">
         <Tooltip id="general.sparse-output">
           <span className="text-xs text-fg-2" title="Skip universes whose data is unchanged" {...help('general.sparse-output')}>Sparse output</span>
         </Tooltip>
         <input
           type="checkbox" checked={f.output?.sparse ?? false}
-          onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, sparse: e.target.checked } })}
+          onChange={(e) => setOut({ sparse: e.target.checked })}
           className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
         />
       </div>
-      <div className="text-micro text-fg-3 font-mono">
-        Blank IP → global target. Each fixture can address its own controller.
+      {/* THE ANSWER TO "where does this fixture send?", always visible, with the rung that decided. */}
+      <div className="text-micro font-mono text-fg-3">
+        Sends to <span className={noDevice ? 'text-warn' : 'text-fg-1'}>{describe(dest)}</span>
+        {overridden ? ' · fixture override' : ctrl ? ` · from ${ctrl.name}` : ' · global default'}
       </div>
+      {noDevice && (
+        <div className="flex items-center gap-1.5 text-mini text-warn">
+          <AlertTriangle size={11} /> No USB device — this fixture transmits nowhere.
+        </div>
+      )}
     </>
   );
 };

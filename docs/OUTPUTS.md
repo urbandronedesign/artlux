@@ -218,6 +218,33 @@ of changing what a box drives.
 A `enttec` row also shows its fixture count beside its real capacity (`4fx · 1u`), so an overflow is
 predictable before auto-patch rather than badged after it.
 
+### A fixture that will not light — check its own Routing first
+
+A fixture's destination is resolved on three rungs, and the first one that answers wins:
+
+**its own Routing override → its controller → the global default** (Preferences ▸ DMX Output).
+
+So a fixture patched to a perfectly configured USB widget still sends over the network if its *own*
+Protocol is set to Art-Net. The controller is never consulted, the widget is never opened, and the
+Routing screen shows nothing wrong — because nothing is wrong there. This is the single most common
+reason a correctly-patched head stays dark.
+
+**Fixture ▸ Routing** now ends with the answer, so you never have to reason it out:
+
+```
+Sends to  USB DMX COM3 · from Controller 1     ← inherited, which is normally what you want
+Sends to  Art-Net 127.0.0.1 · fixture override ← this fixture ignores its controller
+```
+
+- **Protocol** — `Default`, Art-Net, sACN, or **USB DMX**. `Default` means *"no opinion — use my
+  controller"*, and its label spells out where that lands for this particular fixture. Choosing
+  `Default` is how you route a fixture to a widget in almost every case, because the controller
+  already knows the port.
+- **Device** — replaces Target IP when the destination is USB DMX, listing attached interfaces by
+  their own product name. `↻` rescans, for a widget plugged in after the app opened. Leave it on
+  `Default` to follow the controller's port.
+- A USB destination with **no device** is called out in the panel: it transmits nowhere.
+
 ### One widget, one universe
 
 A DMX USB Pro transmits a single universe (the Mk2's second port is not addressed yet). `autoPatch`
