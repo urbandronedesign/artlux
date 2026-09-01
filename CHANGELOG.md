@@ -2,6 +2,35 @@
 
 ## v0.26.4
 
+### A fixture now says where its DMX actually goes
+
+Found the hard way in the same session, and it cost more time than the bug above: a moving head
+patched to a correctly configured USB widget stayed dark, because the *fixture* carried its own stale
+routing override pointing at Art-Net. A fixture's destination resolves **its own override → its
+controller → the global default**, the override wins silently, and nothing on screen said which rung
+had answered. Every panel looked right.
+
+The control worked against you twice over. The Protocol list offered Art-Net and sACN but **not USB
+DMX**, so it could only ever override a fixture *away* from a widget, never onto one — the sole route
+to a widget was the blank entry. And that blank entry was labelled with the *global* protocol:
+`Default (artnet)` on a fixture whose controller is a COM port, naming the one destination it would
+never use. The entry that reaches the widget looked exactly like the entry that avoids it.
+
+**Fixture ▸ Routing** now ends with the answer, always visible:
+
+```
+Sends to  USB DMX COM3 · from Controller 1      ← inherited, the normal case
+Sends to  Art-Net 127.0.0.1 · fixture override  ← this fixture is ignoring its controller
+```
+
+**USB DMX is selectable**, the blank entry spells out where *this* fixture falls through to, and a
+**Device** picker (with a rescan button, for a widget plugged in after launch) replaces Target IP and
+Broadcast when the destination is serial — a widget has a port, not an address. A serial destination
+with no device is called out as transmitting nowhere. The readout is computed by the same function
+the frame loop and the address-collision detector use, so it cannot drift from the wire.
+
+If a patched fixture will not light, this line is now the first place to look.
+
 ### A USB DMX interface that drops out comes back by itself
 
 Found while running a real **ENTTEC DMX USB Pro** and an Art-Net universe at the same time — the first
