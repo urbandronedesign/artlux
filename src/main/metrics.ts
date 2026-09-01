@@ -50,6 +50,19 @@ const universes = new Gauge({
     help: 'Number of active output universes',
     registers: [register],
 });
+// USB DMX (ENTTEC) writer health. Worth its own series because `artlux_output_universes` counts a
+// serial destination whether or not the widget is attached: unplug one mid-show and every existing
+// gauge stays flat and healthy while the moving lights go dark. `serial_down > 0` is the alert.
+const serialOk = new Gauge({
+    name: 'artlux_output_serial_ok',
+    help: 'USB DMX (ENTTEC) ports with a live writer thread',
+    registers: [register],
+});
+const serialDown = new Gauge({
+    name: 'artlux_output_serial_down',
+    help: 'USB DMX (ENTTEC) ports whose widget is unreachable (waiting on a re-open)',
+    registers: [register],
+});
 // 1 while output is connected/ready, 0 otherwise — useful for an "is it live?" panel/alert.
 const outputUp = new Gauge({
     name: 'artlux_output_up',
@@ -85,6 +98,8 @@ export interface EngineStats {
     fps: number;
     pps: number;
     universes: number;
+    serialOk?: number;
+    serialDown?: number;
 }
 
 /** Mirror the existing 1 Hz engine stats into Prometheus gauges. Cheap; safe to call always. */
@@ -96,6 +111,8 @@ export function updateEngineStats(stats: EngineStats | null): void {
     fps.set(stats.fps ?? 0);
     pps.set(stats.pps ?? 0);
     universes.set(stats.universes ?? 0);
+    serialOk.set(stats.serialOk ?? 0);
+    serialDown.set(stats.serialDown ?? 0);
     outputUp.set(stats.fps > 0 ? 1 : 0);
 }
 

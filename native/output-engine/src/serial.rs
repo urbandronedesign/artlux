@@ -61,39 +61,84 @@ struct Mailbox {
     pending: Mutex<Option<Vec<u8>>>,
     cv: Condvar,
     stop: AtomicBool,
-    /// False once the port has failed to open — the destination is disabled, never retried in a
-    /// tight loop, and never allowed to take the show down with it.
+    /// False once THIS WRITER's port has failed to open or write. The writer is then finished — but
+    /// the destination is not: `send` reaps a dead writer and starts a new one on a backoff, so a
+    /// widget that is unplugged and plugged back in comes back by itself. It used to stay false for
+    /// the life of the process, which meant a one-frame USB glitch took the moving lights out for
+    /// the rest of the show while Art-Net carried on as if nothing had happened — the failure was
+    /// invisible precisely because the network half stayed perfect.
     alive: AtomicBool,
 }
 
-pub struct SerialPorts {
-    ports: HashMap<String, Arc<Mailbox>>,
+impl Mailbox {
+    fn new() -> Arc<Self> {
+        Arc::new(Mailbox {
+            pending: Mutex::new(None),
+            cv: Condvar::new(),
+            stop: AtomicBool::new(false),
+            alive: AtomicBool::new(true),
+        })
+    }
 }
+
+/// One destination's current writer, plus when it may next be re-opened.
+struct PortEntry {
+    mailbox: Arc<Mailbox>,
+    /// Set once the current writer has died; no new open is attempted before this instant. Without
+    /// it a missing widget would spawn a thread on EVERY frame — sixty a second, each one failing
+    /// to open — which is a worse failure than the one this fixes.
+    retry_at: Option<Instant>,
+}
+
+pub struct SerialPorts {
+    ports: HashMap<String, PortEntry>,
+}
+
+/// How long to wait before re-opening a port whose writer died. Long enough that an absent widget
+/// costs one failed open every couple of seconds; short enough that a replugged one is back before
+/// the operator has finished looking at the cable.
+const RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 impl SerialPorts {
     pub fn new() -> Self {
         Self { ports: HashMap::new() }
     }
 
-    /// Hand one universe to a port. NEVER BLOCKS. Returns false if the port is not usable.
+    /// Hand one universe to a port. NEVER BLOCKS. Returns false if the port is not usable — which
+    /// now means "not usable RIGHT NOW", never "disabled for good".
     pub fn send(&mut self, path: &str, channels: &[u8]) -> bool {
-        let mailbox = match self.ports.get(path) {
-            Some(m) => m.clone(),
-            None => {
-                let m = Arc::new(Mailbox {
-                    pending: Mutex::new(None),
-                    cv: Condvar::new(),
-                    stop: AtomicBool::new(false),
-                    alive: AtomicBool::new(true),
-                });
-                spawn_writer(path.to_string(), m.clone());
-                self.ports.insert(path.to_string(), m.clone());
-                m
-            }
-        };
-        if !mailbox.alive.load(Ordering::Relaxed) {
-            return false;
+        // contains_key + get_mut rather than `entry(path.to_string())`: this runs once per port per
+        // frame, and the entry API would allocate a String on every one of them.
+        if !self.ports.contains_key(path) {
+            let mailbox = Mailbox::new();
+            spawn_writer(path.to_string(), mailbox.clone(), false);
+            self.ports.insert(path.to_string(), PortEntry { mailbox, retry_at: None });
         }
+        let Some(entry) = self.ports.get_mut(path) else { return false };
+
+        // This port's writer has died (failed open, or failed write). Start a fresh one, but not
+        // before the backoff has elapsed.
+        if !entry.mailbox.alive.load(Ordering::Relaxed) {
+            let now = Instant::now();
+            match entry.retry_at {
+                None => {
+                    entry.retry_at = Some(now + RETRY_INTERVAL);
+                    return false;
+                }
+                Some(t) if now < t => return false,
+                Some(_) => {
+                    // Retries are QUIET. An unplugged widget would otherwise write a line every
+                    // couple of seconds for as long as the show runs, and a log that scrolls is a
+                    // log nobody reads. A successful open still logs, so RECOVERY stays visible.
+                    let mailbox = Mailbox::new();
+                    spawn_writer(path.to_string(), mailbox.clone(), true);
+                    entry.mailbox = mailbox;
+                    entry.retry_at = None;
+                }
+            }
+        }
+
+        let mailbox = entry.mailbox.clone();
         // Latest-frame-wins. The lock is held only long enough to swap a Vec, and the guard is
         // dropped before `mailbox` goes out of scope (hence the explicit binding rather than
         // returning straight out of the `if let`).
@@ -109,16 +154,28 @@ impl SerialPorts {
         queued
     }
 
+    /// (live, down) writer counts, for the stats the app exposes. A port is DOWN from the moment
+    /// its writer dies until a retry gets it open again. Without this the engine reported a widget
+    /// sitting unplugged on the floor exactly the same as one lighting a rig.
+    pub fn status(&self) -> (u32, u32) {
+        let mut live = 0;
+        let mut down = 0;
+        for e in self.ports.values() {
+            if e.mailbox.alive.load(Ordering::Relaxed) { live += 1 } else { down += 1 }
+        }
+        (live, down)
+    }
+
     pub fn close(&mut self) {
-        for m in self.ports.values() {
-            m.stop.store(true, Ordering::Relaxed);
-            m.cv.notify_all();
+        for e in self.ports.values() {
+            e.mailbox.stop.store(true, Ordering::Relaxed);
+            e.mailbox.cv.notify_all();
         }
         self.ports.clear();
     }
 }
 
-fn spawn_writer(path: String, mailbox: Arc<Mailbox>) {
+fn spawn_writer(path: String, mailbox: Arc<Mailbox>, quiet: bool) {
     thread::spawn(move || {
         // The widget is an FTDI virtual COM port. The DMX wire runs at 250 kbaud, but that is the
         // widget's job on the far side — the USB side is a virtual port whose baud the driver
@@ -133,7 +190,9 @@ fn spawn_writer(path: String, mailbox: Arc<Mailbox>) {
             Err(e) => {
                 // Loud, once. Graceful degradation is the house rule for every native module here:
                 // the destination goes quiet, the rest of the show carries on.
-                eprintln!("[output-engine] serial open failed on {path}: {e}");
+                if !quiet {
+                    eprintln!("[output-engine] serial open failed on {path}: {e}");
+                }
                 mailbox.alive.store(false, Ordering::Relaxed);
                 return;
             }
@@ -169,7 +228,7 @@ fn spawn_writer(path: String, mailbox: Arc<Mailbox>) {
                 thread::sleep(MIN_INTERVAL - since);
             }
             if port.write_all(&frame).is_err() {
-                eprintln!("[output-engine] serial write failed on {path} — disabling this port");
+                eprintln!("[output-engine] serial write failed on {path} — releasing it, will retry");
                 mailbox.alive.store(false, Ordering::Relaxed);
                 return;
             }

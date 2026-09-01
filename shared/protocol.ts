@@ -417,6 +417,12 @@ export interface OutputStats {
   pps: number;        // packets/sec
   fps: number;        // frames/sec (incl. keep-alive)
   universes: number;  // universes in the last frame
+  // USB DMX (ENTTEC) writer health. `universes` counts a serial destination whether or not the
+  // widget is plugged in, so it cannot by itself tell a lit rig from an unplugged interface — the
+  // Art-Net half keeps running perfectly, which is exactly what makes that failure easy to miss.
+  // Optional so an older native engine (no such counters) still satisfies the type.
+  serialOk?: number;    // USB DMX ports with a live writer
+  serialDown?: number;  // USB DMX ports waiting on a re-open (widget absent or failing)
 }
 
 // Renderer-side per-frame timing over a rolling window (services/perfMonitor). Distinct from

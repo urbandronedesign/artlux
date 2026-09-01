@@ -240,7 +240,32 @@ than queues).
 
 Verified by patching a fixture to a **nonexistent** port and leaving it running: 446 Art-Net frames
 delivered, the network head still outputting correctly, and one log line —
-`[output-engine] serial open failed on COM99`. Loud once, destination disabled, show carries on.
+`[output-engine] serial open failed on COM99`. Loud once, show carries on.
+
+**Confirmed on hardware 2026-09-01** with a real ENTTEC DMX USB Pro on COM3 driving a Cameo MOVO BEAM
+100, alongside an Art-Net universe. Both ran together — `universes 2`, Art-Net steady at 60 pkt/s with
+the widget transmitting — and **unplugging the widget mid-run did not disturb Art-Net at all**: the
+network universe held 60 pkt/s across the yank while the USB port failed and released itself. That is
+the design working exactly as written above.
+
+### A widget that dies comes back on its own
+
+The same test found the other half missing. A failed write parked the port for the life of the
+process, and **nothing in the app ever called `outputManager.close()`** — the only thing that cleared
+it — so plugging the widget back in did nothing. Recovery required relaunching ArtLux. A one-frame USB
+glitch therefore cost the moving lights for the rest of the show, and it was easy to miss precisely
+*because* Art-Net was unaffected: half the rig kept working and every gauge stayed healthy.
+
+Now a dead writer is reaped and re-opened on a **2-second backoff** ([serial.rs](../native/output-engine/src/serial.rs)),
+so a replugged widget resumes by itself. Retries are silent — an absent widget would otherwise write a
+log line every two seconds all night — but a successful re-open still logs
+`[output-engine] serial DMX open on COM3`, so recovery is visible. The failure logs once, as
+`serial write failed on COM3 — releasing it, will retry`.
+
+**Watch it in Prometheus.** `artlux_output_universes` counts a serial destination whether or not the
+widget is attached, so on its own it cannot tell a lit rig from an unplugged interface. Two series
+can: **`artlux_output_serial_ok`** and **`artlux_output_serial_down`**. Alert on
+`artlux_output_serial_down > 0`.
 
 ### Details worth knowing
 
@@ -255,10 +280,13 @@ delivered, the network head still outputting correctly, and one log line —
   makes the widget ignore the packet silently — the rig simply does not light, with nothing in a log.
 - **USB DMX needs the native engine.** The pure-TypeScript fallback transport has no serial support,
   and explicitly drops those targets with a warning rather than blasting UDP at a host called "COM3".
-- **Not yet verified on hardware.** Everything above is checked against the spec, unit tests, and a
-  deliberately absent device. The baud used to open the port (115200) follows other open
-  implementations; the DMX wire itself runs at 250 kbaud on the widget's far side. Confirm against a
-  real Pro before a show, and see ENTTEC's API spec v1.44 if the Mk2's second port is ever needed.
+- **Verified on a real DMX USB Pro** (FTDI `VID_0403+PID_6001`) on 2026-09-01, in 15-channel mode at
+  address 1. The baud used to open the port (115200) is confirmed working; the DMX wire itself runs at
+  250 kbaud on the widget's far side. **The Mk2's second port is still unconfirmed** — see ENTTEC's API
+  spec v1.44 if it is ever needed.
+- **`artlux_output_pps` over-reports USB DMX.** It counts a packet when a frame is *queued* to a port,
+  but the writer paces to the widget's 40 Hz ceiling and drops the rest by design — so a 60 fps show
+  reads 60 where 40 are transmitted. Use `artlux_output_serial_ok` / `_down` for widget health, not pps.
 
 <!-- audience:contributor -->
 

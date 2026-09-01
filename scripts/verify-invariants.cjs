@@ -4490,6 +4490,42 @@ check(
   },
 );
 
+// ── A USB DMX widget that dies must be RETRIED, and its death must be visible ─────────────────
+check(
+  'a failed USB DMX port recovers and is reported',
+  'A write failure used to park the port at alive=false for the life of the process, and nothing ' +
+  'ever called outputManager.close() to clear it — so a one-frame USB glitch took the moving ' +
+  'lights out for the WHOLE show, recoverable only by relaunching. It was invisible too: Art-Net ' +
+  'kept running perfectly and artlux_output_universes still counted the dead widget. Measured ' +
+  '2026-09-01 by unplugging a DMX USB Pro mid-show: Art-Net held 60 pkt/s, DMX never came back.',
+  () => {
+    const f = 'native/output-engine/src/serial.rs';
+    if (!exists(f)) return `${f} is missing`;
+    const src = read(f);
+    const bad = [];
+    // The RETRY. spawn_writer must be reachable from more than the first-ever open, on a backoff.
+    if (!src.includes('RETRY_INTERVAL')) bad.push('no RETRY_INTERVAL backoff — a dead port is never re-opened');
+    if ((src.match(/spawn_writer\(/g) || []).length < 3) {
+      bad.push('spawn_writer() is not called from a retry path (definition + first open only)');
+    }
+    // The REPORT. Counting live/down writers is what tells a lit rig from an unplugged interface.
+    if (!src.includes('pub fn status(')) bad.push('SerialPorts::status() is gone — writer health is unreportable');
+    const lib = 'native/output-engine/src/lib.rs';
+    if (!exists(lib)) return `${lib} is missing`;
+    const libsrc = read(lib);
+    if (!libsrc.includes('serial_down')) bad.push(`${lib} does not carry serial_down into Stats`);
+    if (!libsrc.includes('serial_ports.status()')) bad.push(`${lib} never reads serial writer health into stats`);
+    // And it has to survive the trip to Prometheus, or the alert nobody can write is the alert
+    // nobody has: this is the ONLY series that separates a dead widget from a live one.
+    const met = 'src/main/metrics.ts';
+    if (!exists(met)) return `${met} is missing`;
+    if (!read(met).includes('artlux_output_serial_down')) {
+      bad.push(`${met} does not export artlux_output_serial_down`);
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

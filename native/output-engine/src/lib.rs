@@ -36,6 +36,11 @@ struct StatsData {
     pps: u32,        // packets per second
     fps: u32,        // frames sent per second (incl. keep-alive)
     universes: u32,  // universes in the last frame
+    // USB DMX writer health. `universes` counts a serial destination whether or not the widget is
+    // actually there, so on its own it cannot tell a lit rig from one whose interface was unplugged
+    // — the network half keeps reporting perfectly and nothing looks wrong. These two can.
+    serial_ok: u32,   // ports with a live writer
+    serial_down: u32, // ports whose writer has died and is waiting on a retry
 }
 
 struct Shared {
@@ -54,6 +59,10 @@ pub struct Stats {
     pub pps: u32,
     pub fps: u32,
     pub universes: u32,
+    /// USB DMX ports with a live writer thread.
+    pub serial_ok: u32,
+    /// USB DMX ports whose widget is not currently reachable (waiting on a re-open).
+    pub serial_down: u32,
 }
 
 #[napi]
@@ -81,9 +90,15 @@ pub fn configure(broadcast: bool, fps: f64, keep_alive: bool, sync: bool) -> nap
 pub fn get_stats() -> Stats {
     if let Some(shared) = ENGINE.get() {
         let s = *shared.stats.lock().unwrap();
-        Stats { pps: s.pps, fps: s.fps, universes: s.universes }
+        Stats {
+            pps: s.pps,
+            fps: s.fps,
+            universes: s.universes,
+            serial_ok: s.serial_ok,
+            serial_down: s.serial_down,
+        }
     } else {
-        Stats { pps: 0, fps: 0, universes: 0 }
+        Stats { pps: 0, fps: 0, universes: 0, serial_ok: 0, serial_down: 0 }
     }
 }
 
@@ -193,8 +208,11 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
             );
             pkt_count += pkts;
             frame_count += 1;
+            let (serial_ok, serial_down) = serial_ports.status();
             if let Ok(mut st) = shared.stats.lock() {
                 st.universes = unis;
+                st.serial_ok = serial_ok;
+                st.serial_down = serial_down;
             }
         }
 

@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { OutputConfig } from '../../../shared/protocol';
+import type { OutputConfig, OutputStats } from '../../../shared/protocol';
 import { decodeFrame } from '../../../shared/frameCodec';
 import * as artnet from './artnet';
 import * as sacn from './sacn';
@@ -16,7 +16,7 @@ interface NativeEngine {
   configure(broadcast: boolean, fps: number, keepAlive: boolean, sync: boolean): void;
   isReady(): boolean;
   pushFrame(frame: Buffer): void;
-  getStats(): { pps: number; fps: number; universes: number };
+  getStats(): { pps: number; fps: number; universes: number; serialOk?: number; serialDown?: number };
   /** Present only on engines built with USB DMX support; older .node files simply lack it. */
   listSerialDevices?(): Array<{ path: string; label: string }>;
   close(): void;
@@ -62,8 +62,12 @@ export function configure(cfg: OutputConfig): void {
   sacn.configure(cfg);
 }
 
-export function getStats(): { pps: number; fps: number; universes: number } | null {
-  return native ? native.getStats() : null;
+export function getStats(): OutputStats | null {
+  if (!native) return null;
+  const s = native.getStats();
+  // An engine built before USB DMX health reporting simply lacks these, so default them rather than
+  // letting `undefined` reach a Prometheus gauge (which would export NaN and break the whole scrape).
+  return { ...s, serialOk: s.serialOk ?? 0, serialDown: s.serialDown ?? 0 };
 }
 
 export function isReady(): boolean {
