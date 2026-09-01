@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.26.4
+
+### A USB DMX interface that drops out comes back by itself
+
+Found while running a real **ENTTEC DMX USB Pro** and an Art-Net universe at the same time — the first
+time the USB DMX path had been driven against hardware at all.
+
+The good news first: the two transports coexist exactly as designed. With a moving head on the widget
+and an LED strip on Art-Net, both ran together indefinitely, and **unplugging the widget mid-run did not
+disturb Art-Net in the slightest** — the network universe held 60 pkt/s straight across the yank. The
+per-port writer thread that exists solely to stop a stalled USB device taking the show down did its job.
+
+The bad news was on the other side of that. A failed write parked the port for the **life of the
+process**, and nothing in the app ever called the one function that could clear it — so plugging the
+widget back in did nothing at all. Recovery required quitting and relaunching ArtLux. A one-frame USB
+glitch, a knocked cable, a hub brownout: your moving lights were gone for the rest of the show.
+
+What made it genuinely dangerous is that it was *silent*. Art-Net carried on perfectly, every gauge
+stayed flat and healthy, and the Routing panel went on showing a correct, connected interface. Half the
+rig kept working, which is the best possible disguise for the other half being dead.
+
+**Now a dead port is re-opened on a 2-second backoff.** Unplug a widget and plug it back in and it
+resumes on its own, with no restart and nothing to click. Retries are silent — an absent widget would
+otherwise write a log line every two seconds all night — but a successful re-open still logs
+`serial DMX open on COM3`, so recovery is traceable after the fact.
+
+**And it is now visible while it is happening.** Two new Prometheus series, `artlux_output_serial_ok`
+and `artlux_output_serial_down`, report USB DMX writer health. `artlux_output_universes` never could:
+it counts a serial destination whether or not the widget is attached. **Alert on
+`artlux_output_serial_down > 0`.**
+
+Also from the same session: the ENTTEC path is **confirmed against real hardware** for the first time —
+115200 baud on an FTDI Pro, 15-channel mode, framing accepted at the full 40 packets/second. The Mk2's
+second port remains unconfirmed.
+
+Two known gaps, both documented rather than fixed: `artlux_output_pps` **over-reports** USB DMX (it
+counts frames *queued* to a port, while the writer paces to the widget's 40 Hz ceiling and drops the
+rest by design), and the Routing panel still shows a dead widget as healthy — per-port liveness has not
+been plumbed to the UI yet.
+
 ## v0.26.3
 
 ### You can aim a moving head again

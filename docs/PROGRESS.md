@@ -933,6 +933,58 @@ Four invariants added, each negative-tested. Verified one variable at a time in 
 the packaged run was driven through the real relaunch from the editor (pid changed, successor carried
 `--broadcast` and correctly no `--built-renderer`, `render_fps` 59.9 at `mode="broadcast"`).
 
+## v0.26.4 — a USB DMX widget that dies is retried, and its death is reportable (2026-09-01)
+
+First time the ENTTEC path had been run against hardware: a real DMX USB Pro (FTDI `VID_0403+PID_6001`)
+on COM3 driving a Cameo MOVO BEAM 100 in 15-channel mode, alongside an Art-Net universe.
+
+**What held.** Both transports ran together — `universes 2`, Art-Net steady at 60 pkt/s with the widget
+transmitting — and pulling the USB cable mid-run did not perturb the network side at all: universe 1
+held 60 pkt/s across the yank, `pps` dropped by exactly the serial half, the app did not crash. The
+per-port writer thread and single-slot mailbox did the one job they exist for. The 115200 open baud is
+confirmed working; the Mk2's second port is still unconfirmed.
+
+**What did not.** `alive=false` was terminal. `SerialPorts::send` only spawned a writer when the path was
+ABSENT from the map, so the dead entry sat there returning false forever; `serial_ports.close()` is the
+only thing that clears it, and it runs solely when the engine thread stops — reached through
+`outputManager.close()`, which **nothing in main has ever called** (`grep -n "output\.\(close\|configure\)" src/main/*.ts`
+returns one hit, and it is `configure`). `configure()` is not even passed `cfg.enabled`, so the
+Preferences output toggle could not do it either. **The only recovery was relaunching the app**, and
+replugging the widget was measured doing nothing: COM3 back in the device tree, port free, no second
+`serial DMX open` line, `pps` flat at the Art-Net rate.
+
+It was invisible in every channel an operator has. Art-Net was unaffected, so nothing looked wrong;
+`artlux_output_universes` still reported **2** with the widget unplugged on the bench, because universes
+are counted per destination processed regardless of whether the write landed; and `alive` never left
+serial.rs — `grep -rn "serialAlive\|portAlive\|serialStatus" src shared packages` returned **zero**
+hits. Half the rig keeps working, which is the best disguise the other half could have.
+
+**The fix.** A dead writer is reaped and re-opened on a 2 s backoff (`PortEntry.retry_at`), so a
+replugged widget resumes by itself. The backoff is the whole reason this is not a one-liner: without it
+a missing widget spawns a thread on every frame, sixty a second, each failing to open — a worse failure
+than the one being fixed. Retries are quiet (an absent widget would otherwise log every two seconds for
+the length of a show); a successful re-open still logs, so recovery stays traceable. `SerialPorts::status()`
+returns (live, down) writer counts, carried through `StatsData`/`Stats` into `OutputStats` and out as
+`artlux_output_serial_ok` / `artlux_output_serial_down`. The hot path keeps `contains_key` + `get_mut`
+rather than the `entry` API, which would allocate a `String` per port per frame.
+
+**Verified.** Recovery proven by seizing COM3 from another process so the open fails, then releasing it:
+`serial_down=1` held for 16 s across ~8 silent retries with exactly ONE failure line, then an automatic
+re-open and `pps` back to 69 within a second of release. The rebuilt engine drove the head for 90 s
+continuously with no regression, and the built app exports the new gauges alongside `universes 2`.
+`cargo test` (4 framing tests) and `npm run verify` (149 invariants incl. the new one, 11 doc checks,
+typecheck) pass.
+
+**Not verified: a physical cable pull inside the app.** The seize/release test fails on OPEN; a real
+yank fails mid-WRITE first. Same recovery code, different entry into it. Two watch windows were left
+running for the operator to pull the cable and neither yank happened, so that path is reasoned, not
+measured.
+
+**Left undone, deliberately.** The Routing panel still shows a dead widget as healthy — per-port
+liveness means widening the `Copy` stats struct the pacer writes under a lock, plus IPC and renderer
+work, which is its own change. And `artlux_output_pps` still over-reports USB DMX (queued, not written);
+fixing that means counting on the writer thread. Both are documented in OUTPUTS.md instead.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
