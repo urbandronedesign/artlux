@@ -4557,6 +4557,32 @@ check(
   },
 );
 
+// ── A DRAWABLE'S SIZE MUST BE READABLE FROM A VideoFrame ──────────────────────────────────────
+check(
+  'drawable sizing understands VideoFrame (displayWidth/displayHeight)',
+  'CanvasImageSource is a union with three spellings of "how big are you", and the mp4 codec hands ' +
+  'back a live VideoFrame — which has NONE of videoWidth / naturalWidth / width, only displayWidth. ' +
+  'Miss it and every measurement of an mp4 layer silently returns 0: captureCodecHold bails on its ' +
+  '`w > 0` guard so the boundary hold is never captured, and every clip cut goes BLACK on every ' +
+  'output anyway. Measured: 18 codec-no-frame-and-no-hold runs in 40 s, one per cut, with the hold ' +
+  'code present and correct and doing nothing. Nothing throws and nothing logs.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/services/timeline.ts', 'src/renderer/services/surfaceMedia.ts']) {
+      if (!exists(f)) { bad.push(`${f} is missing`); continue; }
+      const src = read(f);
+      // The union probes are exactly the ones that also reach for `naturalWidth`. A direct
+      // `el.videoWidth` on a real HTMLVideoElement (captureHold) is NOT one, and a type annotation
+      // is not a probe -- flagging either would make this fire forever and get skimmed past.
+      for (const line of src.split('\n')) {
+        if (!/naturalWidth/.test(line) || /\?: number/.test(line)) continue;
+        if (!/displayWidth/.test(line)) bad.push(f + ': ' + line.trim().slice(0, 80));
+      }
+    }
+    return bad.length ? `size probe cannot measure a VideoFrame: ${bad.join(' | ')}` : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

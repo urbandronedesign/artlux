@@ -223,6 +223,11 @@ export class ProjectorGL {
   private gl2: WebGL2RenderingContext | null;
   private prog: WebGLProgram;
   private tex: WebGLTexture;
+  // Dimensions `this.tex` is currently allocated at, so a same-size frame can be written INTO the
+  // existing storage instead of re-specifying it. 0 = nothing uploaded yet (or the size is unknown,
+  // in which case we always re-specify — see uploadContent).
+  private texW = 0;
+  private texH = 0;
   private buf: WebGLBuffer;
   private aPos: number;
   private aUVQ: number;
@@ -304,6 +309,7 @@ export class ProjectorGL {
 
     this.buf = gl.createBuffer()!;
     this.tex = gl.createTexture()!;
+    this.texW = 0; this.texH = 0; // fresh texture — nothing allocated in it yet
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -408,7 +414,24 @@ export class ProjectorGL {
   private uploadContent(src: TexImageSource): void {
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    // ⚠ `texImage2D` RE-SPECIFIES THE TEXTURE — it reallocates the storage on every call, per frame,
+    // per window. `texSubImage2D` writes into storage that already exists, which is the same pixels
+    // for less work, and on an integrated GPU feeding several outputs at once that difference is real.
+    // Re-specify only when the source size actually changes (first frame, a clip whose file has other
+    // dimensions, a resized live source); a show is overwhelmingly the same size frame after frame.
+    //
+    // The size is duck-typed because TexImageSource is a union: a VideoFrame (what the mp4 codec
+    // returns) spells it `displayWidth`, a <video> `videoWidth`, everything else `width`. Unknown ⇒ 0
+    // ⇒ take the re-specify path, which is always correct if slower.
+    const a = src as unknown as Record<string, number>;
+    const w = a['videoWidth'] || a['naturalWidth'] || a['displayWidth'] || a['width'] || 0;
+    const h = a['videoHeight'] || a['naturalHeight'] || a['displayHeight'] || a['height'] || 0;
+    if (w > 0 && h > 0 && w === this.texW && h === this.texH) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+      this.texW = w; this.texH = h;
+    }
     // Per frame, because the content IS per frame. ~1/3 extra texels over the base level, which buys
     // a correctly filtered minification — the cheapest quality in this whole path.
     if (this.canMip) gl.generateMipmap(gl.TEXTURE_2D);
@@ -421,7 +444,7 @@ export class ProjectorGL {
     if (fresh) {
       try {
         this.uploadContent(src);
-      } catch { this.lastSrcGen = null; this.warpFromTexture(null, o); return; } // not decodable this frame
+      } catch { this.lastSrcGen = null; this.texW = 0; this.texH = 0; this.warpFromTexture(null, o); return; } // not decodable, and the size claim above may be a lie now
       this.lastSrcGen = srcGen ?? null;
     }
     this.warpFromTexture(this.tex, o);

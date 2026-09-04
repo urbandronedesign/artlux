@@ -271,6 +271,9 @@ function syncLayer(layerId: string, t: number): void {
   if (!clip) {
     if (!lv.el.paused) lv.el.pause();
     releaseContent(lv, layerId);
+    // A REAL GAP MUST STILL GO BLACK. The hold covers a decoder opening mid-cut, never "this track has
+    // nothing under the playhead" — keeping it here would freeze a finished clip on the wall forever.
+    lv.hold = null;
     lv.clipId = null; lv.mode = null;
     return;
   }
@@ -372,9 +375,33 @@ if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>)['__artluxLayerGapsReset'] = () => { gapLog.length = 0; };
 }
 
+// Snapshot whatever the codec last gave this layer, so a BOUNDARY does not black the output.
+//
+// ⚠ A COPY, NOT THE SOURCE OBJECT. The mp4 codec hands back a live `VideoFrame` from a bounded ring
+// (MAX_BUFFER) and CLOSES it on eviction; holding that reference would hand the compositor a closed
+// frame a moment later. HAP hands back a canvas it repaints in place, which is just as wrong to keep.
+// One drawImage per clip change is the whole cost, and only at a change.
+function captureCodecHold(lv: LayerVid): void {
+  const src = lv.codec?.canvas;
+  if (!src) return;
+  const w = drawableWidth(src), h = Math.round(w / (drawableAspect(src) || 1));
+  if (!(w > 0 && h > 0)) return;
+  if (!lv.hold) lv.hold = document.createElement('canvas');
+  if (lv.hold.width !== w || lv.hold.height !== h) { lv.hold.width = w; lv.hold.height = h; }
+  const ctx = lv.hold.getContext('2d');
+  if (!ctx) return;
+  try { ctx.drawImage(src, 0, 0, w, h); } catch { /* already closed — keep whatever we had */ }
+}
+
 function syncCodecLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number, codec: VideoCodecContribution): void {
   if (!lv.el.paused) lv.el.pause(); // not using the <video> for this clip
   if (!lv.codec || lv.codec.path !== clip.path) {
+    // THE CUT. The next file's decoder has to open and seek before it can answer, and until it does
+    // layerFrame returns null — which the compositor draws as BLACK, and which the projector pump
+    // reports as `frameIdle`, blacking every mirror too. Measured on two outputs: a hole at EVERY
+    // boundary, 19-125 ms each, ~6 per lap, for the life of the show. Keep the outgoing frame and show
+    // it through the gap — the same trade the <video> path has always made with `hold`.
+    captureCodecHold(lv);
     lv.codec = { path: clip.path, canvas: null, codecId: codec.id };
   }
   // MEASUREMENT: this layer just changed clip — the boundary any gap would follow.
@@ -1126,13 +1153,56 @@ function frame(now: number): void {
 // why a scrub used to strobe black. Fall back to the last good frame (captureHold) rather than cutting
 // to black: the docs promise the output holds a picture, and a venue would rather see a frame one or
 // two late than a black projector. Only a layer with NO CLIP under the playhead is legitimately black.
+// ── MEASUREMENT: WHY DOES A LAYER HAVE NO PICTURE? ───────────────────────────────────────────────
+// A null here is what the projector pump turns into `frameIdle` — a mirror going BLACK. COUNTING the
+// events was not enough to fix them: the count matched the clip-boundary count, a change that closed
+// the boundary hole did NOT move it, and only naming the reason showed why (the hold was empty,
+// because a VideoFrame measured zero). Correlation sent this the wrong way twice; a reason does not.
+//
+// Consecutive nulls with the same reason coalesce into ONE run, so the log is the handful of real
+// events rather than one line per frame. Read with window.__artluxNullLog().
+interface NullRun { layer: string; why: string; t0: number; t1: number; head0: number; head1: number; frames: number; clip: string | null }
+const nullLog: NullRun[] = [];
+const nullOpen = new Map<string, NullRun>();
+function noteNull(layerId: string, why: string): null {
+  const cur = nullOpen.get(layerId);
+  if (cur && cur.why === why) { cur.t1 = performance.now(); cur.head1 = playhead; cur.frames++; return null; }
+  const run: NullRun = { layer: layerId, why, t0: performance.now(), t1: performance.now(),
+    head0: +playhead.toFixed(3), head1: +playhead.toFixed(3), frames: 1,
+    clip: activeClip(layerId, playhead)?.id ?? null };
+  nullOpen.set(layerId, run);
+  nullLog.push(run);
+  if (nullLog.length > 200) nullLog.shift();
+  return null;
+}
+const noteOk = (layerId: string): void => { nullOpen.delete(layerId); };
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxNullLog'] = () => nullLog.map(r => ({
+    layer: r.layer, why: r.why, clip: r.clip, ms: +(r.t1 - r.t0).toFixed(1), frames: r.frames,
+    head: r.head0 + '->' + r.head1,
+  }));
+  (window as unknown as Record<string, unknown>)['__artluxNullLogReset'] = () => { nullLog.length = 0; nullOpen.clear(); };
+}
+
 function layerDrawable(layerId: string): CanvasImageSource | null {
   const lv = layerVideos.get(layerId);
-  if (!lv || !lv.clipId) return null;
-  if (lv.mode === 'content') return lv.content ? contentSource.getDrawable(layerKey(layerId), lv.content, lv.contentLocalTime ?? 0) : null;
-  if (lv.mode === 'codec') return lv.codec ? lv.codec.canvas : null;
-  if (lv.mode !== 'video') return null;
-  return lv.el.readyState >= 2 ? lv.el : (lv.hold ?? null);
+  if (!lv) return noteNull(layerId, 'no-layer-state');
+  if (!lv.clipId) return noteNull(layerId, activeClip(layerId, playhead) ? 'clipId-unset-but-clip-active' : 'no-clip-under-playhead');
+  if (lv.mode === 'content') {
+    const d = lv.content ? contentSource.getDrawable(layerKey(layerId), lv.content, lv.contentLocalTime ?? 0) : null;
+    if (!d) return noteNull(layerId, lv.content ? 'content-not-ready' : 'content-unset');
+    noteOk(layerId); return d;
+  }
+  // `?? lv.hold` is what turns a boundary from a black flash into a held frame — see captureCodecHold.
+  if (lv.mode === 'codec') {
+    const d = lv.codec?.canvas ?? lv.hold ?? null;
+    if (!d) return noteNull(layerId, lv.codec ? 'codec-no-frame-and-no-hold' : 'codec-state-unset');
+    noteOk(layerId); return d;
+  }
+  if (lv.mode !== 'video') return noteNull(layerId, 'mode-' + lv.mode);
+  const d = lv.el.readyState >= 2 ? lv.el : (lv.hold ?? null);
+  if (!d) return noteNull(layerId, 'video-readyState-' + lv.el.readyState + '-no-hold');
+  noteOk(layerId); return d;
 }
 
 // "Has this layer got NEW pixels since last time?" — the layer twin of contentSource's
@@ -1158,9 +1228,14 @@ function layerGeneration(layerId: string): number | undefined {
 // so videoWidth has to win.)
 function drawableAspect(d: CanvasImageSource | null): number | null {
   if (!d) return null;
-  const anyD = d as unknown as { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
-  const w = anyD.videoWidth || anyD.naturalWidth || anyD.width || 0;
-  const h = anyD.videoHeight || anyD.naturalHeight || anyD.height || 0;
+  // WITHOUT `displayWidth/Height` THIS MEASURES AN mp4 LAYER AS ZERO, and the boundary hold below
+  // then bails on its `w > 0` guard and never captures — so every clip cut goes black on every output
+  // with the hold code present and looking correct. Measured: 18 `codec-no-frame-and-no-hold` runs in
+  // 40 s, one per cut, nothing thrown and nothing logged. A VideoFrame (what the mp4 codec returns)
+  // has none of the other three spellings. surfaceMedia.drawableSize duck-types all four already.
+  const anyD = d as unknown as { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number; displayWidth?: number; displayHeight?: number; width?: number; height?: number };
+  const w = anyD.videoWidth || anyD.naturalWidth || anyD.displayWidth || anyD.width || 0;
+  const h = anyD.videoHeight || anyD.naturalHeight || anyD.displayHeight || anyD.height || 0;
   return w > 0 && h > 0 ? w / h : null;
 }
 
@@ -1171,8 +1246,9 @@ function drawableAspect(d: CanvasImageSource | null): number | null {
 // attribute, so videoWidth has to win.
 function drawableWidth(d: CanvasImageSource | null): number {
   if (!d) return 0;
-  const a = d as unknown as { videoWidth?: number; naturalWidth?: number; width?: number };
-  return a.videoWidth || a.naturalWidth || a.width || 0;
+  // `displayWidth` for a VideoFrame — see drawableAspect for what omitting it costs.
+  const a = d as unknown as { videoWidth?: number; naturalWidth?: number; displayWidth?: number; width?: number };
+  return a.videoWidth || a.naturalWidth || a.displayWidth || a.width || 0;
 }
 
 // How often buildProgram re-probes its sources for a size (in builds, so ~1/s at 30 fps).

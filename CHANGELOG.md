@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Two 1080p videos, two outputs, without the stutter
+
+Reported from a real rig: two windowed projector outputs, a wall and a floor, each playing its own
+lane of back-to-back mp4s — and both stuttering. Selecting one output from the taskbar, so it was the
+only thing on screen, made it play perfectly. That last detail is the whole diagnosis: nothing was
+being *throttled*, there was simply more GPU work than the machine had, and hiding two windows gave it
+back.
+
+**A cut no longer blanks the output.** At every clip boundary the next file's decoder has to open and
+seek, and until it answers the track had no picture at all — so the compositor painted black, and each
+projector was *told* to go black. A quarter of a second, at every cut, forever. The track now shows the
+outgoing frame through that gap, which is the same thing the plain-video path has always done. On the
+test rig: **6-9 forced blackouts per 30 s per output → none**.
+
+That fix was written twice before it worked, because the first version did nothing and said nothing.
+It measures the frame it is about to keep, and the measurement did not understand the frame format the
+MP4 decoder returns — so it read zero, decided there was nothing to keep, and returned. Every cut still
+went black with the code sitting right there looking correct. `npm run verify` now fails if that
+measurement loses the format again.
+
+**Each output stops redrawing pictures that have not changed.** A projector was running a full
+antialiased pass over its whole frame on every single display refresh, whether or not a new frame had
+arrived — for 25 fps video on a 60 Hz screen, about half of that work redrew a picture already on the
+wall. It now paints when something actually changes. Measured with all three windows visible, the
+worst case: **the per-output GPU passes halve (55 → 29 per second) while the number of pictures
+delivered goes UP**, and the worst frame interval falls by a third.
+
+Uploading a frame no longer reallocates the texture every time either — same pixels, less work.
+
+The mipmap chain is deliberately **kept**: it is what holds a projection onto an angled surface sharp,
+and dropping it would buy frames by making exactly the surfaces a projector aims at look worse.
+
 ## v0.26.5
 
 ### An image on a track survives the show coming back to its state

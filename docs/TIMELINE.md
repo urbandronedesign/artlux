@@ -159,6 +159,27 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
 - All new fields are optional and back-compatible. `normalizeTimeline()` defaults old projects on
   load (`loop:false`, an empty disabled `stateMachine`). Save/broadcast carry the whole object.
 
+## Several clips on one track — what happens at the cut
+
+A track plays one file at a time, so reaching the next clip means opening and seeking a different
+decoder. Until that decoder answers, the track has **no frame to give** — and a track with no frame is
+not a frozen picture, it is BLACK: the compositor clears and repaints from live drawables every frame,
+and the projector pump reports the gap as `frameIdle`, which blanks every mirror as well. Measured on
+two outputs: a hole at every boundary, 19-125 ms each, once per clip, for the length of the show.
+
+So the track **holds the outgoing frame across the cut** (`captureCodecHold` in
+`services/timeline.ts`) — a copy, not the codec's own object, because the mp4 decoder hands back a
+live `VideoFrame` from a bounded ring and closes it on eviction. The visible result is a frame or two
+of the old clip lingering instead of a black flash, which is the same trade the plain `<video>` path
+has always made with `hold`. A **real** gap — nothing under the playhead — still goes black, which is
+what it should do; the hold covers a decoder opening mid-cut and nothing else.
+
+> ⚠ The hold depends on being able to MEASURE the frame it keeps, and `CanvasImageSource` spells its
+> size three different ways. A `VideoFrame` — what the mp4 codec returns — uses `displayWidth`, and
+> nothing else. Miss that spelling and the hold measures zero, declines to capture, and every cut goes
+> black again with this code present and looking right. Nothing throws and nothing logs, which is why
+> `npm run verify` asserts it. `window.__artluxNullLog()` names the reason a layer has no picture.
+
 ## Key design decisions (read before extending)
 
 - **One track, one clip at a time.** Two clips on a track may **touch** (one ends exactly where the

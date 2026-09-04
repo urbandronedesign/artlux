@@ -49,6 +49,10 @@ const OWNS_NO_MEDIA = (s: Surface): boolean =>
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
+// Repaint at least this often even when nothing appears to have changed — the backstop behind every
+// skip condition in the draw loop. 250 ms is invisible for a static picture and bounds any missed
+// invalidation to a quarter second rather than "for the rest of the show".
+const REPAINT_MS = 250;
 const RENDER_TESS = 24; // patch → render mesh subdivisions per axis
 // Identity feather, hoisted so the calibrated-warp path does not allocate one per frame per window.
 const NO_FEATHER = defaultSoftEdge();
@@ -59,6 +63,31 @@ const NDI_BCAST_W = 1920, NDI_BCAST_H = 1080; // broadcast mode: send NDI at up 
 // bicubic Bézier warp (tessellated to a mesh) with soft-edge + gamma, MSAA-resolved. Edit
 // mode overlays draggable handles (4 corners, or the 16 Bézier control points) + a curved
 // calibration grid.
+// ── MEASUREMENT: WHAT THIS WINDOW ACTUALLY PUTS ON THE WALL ──────────────────────────────────────
+// A CDP screencast cannot answer this: it reports the COMPOSITOR's output, so an occluded or
+// unfocused window reads as "stuck" no matter how well playback is going, and two runs of the same
+// build disagree by 10x. That mistake cost real time. These four counters live on the consumer side
+// of every gate, so they measure the picture this projector is drawing regardless of who is on top.
+//   received — `frame` bitmaps arrived from main (0 when this window decodes locally)
+//   draws    — rAF passes that reached the GL draw
+//   uploads  — passes that carried a NEW picture; this is the number that must match the source fps
+// Read with window.__artluxProjStats().
+const projStats = { received: 0, draws: 0, uploads: 0, skipped: 0, lastGen: -1, since: 0 };
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxProjStats'] = () => {
+    const secs = (performance.now() - projStats.since) / 1000;
+    return { ...projStats, secs: +secs.toFixed(1),
+      skippedPerSec: +(projStats.skipped / secs).toFixed(1),
+      receivedPerSec: +(projStats.received / secs).toFixed(1),
+      drawsPerSec: +(projStats.draws / secs).toFixed(1),
+      uploadsPerSec: +(projStats.uploads / secs).toFixed(1) };
+  };
+  (window as unknown as Record<string, unknown>)['__artluxProjStatsReset'] = () => {
+    projStats.received = 0; projStats.draws = 0; projStats.uploads = 0; projStats.skipped = 0; projStats.since = performance.now();
+  };
+  projStats.since = performance.now();
+}
+
 export const ProjectorApp: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const glRef = useRef<ProjectorGL | null>(null);
@@ -207,8 +236,22 @@ export const ProjectorApp: React.FC = () => {
     ndiFullResRef.current = !!r.ndiFullRes;
   };
 
-  // External mirror, but decode HAP layers locally: this window is visible/full-speed, so it
-  // plays HAP smoothly even when the hidden broadcast main window throttles its frame pump.
+  // ── EVERYTHING THAT CAN CHANGE THIS OUTPUT'S PICTURE, COUNTED ────────────────────────────────
+  // The draw loop below repaints only when this number, the source generation, or the canvas size
+  // has moved. Bump it from EVERY input that feeds the draw — a message, a resize, a warp keystroke,
+  // an alignment aid landing. Miss one and that output freezes on a stale frame until something else
+  // happens to move it, which is a far worse failure than the repaint it saves. See canSkipPaint.
+  const paintDirtyRef = useRef(0);
+  // What the last painted frame was painted FROM. Compared against the live values each vsync.
+  const paintedRef = useRef({ gen: undefined as number | undefined, dirty: -1, w: 0, h: 0, at: -1e9 });
+
+  // External mirror, but decode codec layers locally: this window is visible/full-speed, so it
+  // plays smoothly even when the hidden broadcast main window throttles its frame pump.
+  //
+  // ⚠ `setHapLocal` IS NAMED FOR HAP AND HAS NEVER BEEN ABOUT HAP. It gates a codec-AGNOSTIC path —
+  // this window's own monotonic clock (slew-locked to the bridged transport), its syncLayer decode
+  // loop, and getLayerDrawable preferring a locally-decoded canvas over the streamed bitmap. The
+  // name is why mp4 was never wired up here.
   useEffect(() => { engine.setExternal(true); engine.setHapLocal(true); }, []);
 
   // This is a SEPARATE renderer window (projector.html) with its own module instances, so it must adopt
@@ -217,7 +260,7 @@ export const ProjectorApp: React.FC = () => {
   useEffect(() => { window.artlux?.getPrefs?.().then((p) => keymap.hydrate(p?.shortcuts)).catch(() => {}); }, []);
 
   useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    const onResize = () => { paintDirtyRef.current++; setSize({ w: window.innerWidth, h: window.innerHeight }); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -239,11 +282,12 @@ export const ProjectorApp: React.FC = () => {
   // pass that is already running. This keeps the live object in step without touching the texture.
   useEffect(() => {
     if (aidWarpedRef.current) aidWarpedRef.current = { dim: aid?.dim ?? 0 };
+    paintDirtyRef.current++;
   }, [aid?.dim]);
   useEffect(() => {
     const drop = () => {
       glRef.current?.setOverlay(null);
-      aidWarpedRef.current = null;
+      aidWarpedRef.current = null; paintDirtyRef.current++;
       setAidWarped(false);
     };
     if (!aidSig) { drop(); return; }
@@ -257,7 +301,7 @@ export const ProjectorApp: React.FC = () => {
       if (!img || !glRef.current) { drop(); return; }
       glRef.current.setOverlay(img);
       // Only NOW does the DOM copy come off the wall — see the ref's declaration.
-      aidWarpedRef.current = { dim: aid?.dim ?? 0 };
+      aidWarpedRef.current = { dim: aid?.dim ?? 0 }; paintDirtyRef.current++;
       setAidWarped(true);
     });
     return () => { dead = true; };
@@ -322,6 +366,20 @@ export const ProjectorApp: React.FC = () => {
       const port = e.ports[0];
       portRef.current = port;
       port.onmessage = (ev: MessageEvent) => {
+        // A DENY-LIST, NOT AN ALLOW-LIST — the polarity is the safety property. Anything not named
+        // here counts as "might have changed the picture" and forces a repaint, so a message type
+        // added later is safe by default; an allow-list would silently freeze this output the day
+        // someone adds one. What is excluded, and why each is genuinely invisible to `gl.draw`:
+        //   frame     — its change IS `srcGen`; counting it too would defeat the skip entirely
+        //   transport — moves the playhead. For a streamed mirror the resulting pixels arrive as a
+        //               `frame`; for a window that decodes locally `srcGen` is undefined and the
+        //               skip never engages in the first place
+        //   timeline  — same: a new document changes what will be decoded, not what is on screen now
+        //   pluginData— projector-channel data (LiDAR snapshots); it reaches the wall through the
+        //               render-from-projector branch, which returns long before the skip
+        // Measured: without this the dirty counter moved ~60x/s and the skip fired once a second.
+        const mt = (ev.data as MainToProjector)?.t;
+        if (mt !== 'frame' && mt !== 'transport' && mt !== 'timeline' && mt !== 'pluginData') paintDirtyRef.current++;
         const m = ev.data as MainToProjector;
         // The single choke point for everything the main window says to this output — so it is also
         // the only honest liveness signal we have about the producer. See PRODUCER_TIMEOUT_MS.
@@ -367,6 +425,7 @@ export const ProjectorApp: React.FC = () => {
           applyLocalLayers();
           if (!STREAMED.has(eff.content.type)) { frameRef.current?.close(); frameRef.current = null; }
         } else if (m.t === 'frame') {
+        projStats.received++;
           frameRef.current?.close();
           frameRef.current = m.bitmap;
           frameGenRef.current++;
@@ -623,6 +682,40 @@ export const ProjectorApp: React.FC = () => {
         // Uploaded above, before the render-from-projector branch — see the note there for why the
         // order matters. Still falls through to the mesh path if drawBaked declines, so a machine that
         // cannot take this path keeps exactly the output it had before.
+        // ── DO NOT REPAINT PIXELS THAT DID NOT CHANGE ────────────────────────────────────────
+        // `gl.draw` runs a 4xMSAA pass at output resolution plus a resolve blit — ~8.3 M samples and
+        // a whole-frame copy — and it ran on EVERY vsync, whether or not the picture had moved. Only
+        // the texture UPLOAD was ever gated. Against 25 fps content on a 60 Hz output that repainted
+        // an identical frame ~58% of the time, per window; with several outputs visible at once on
+        // one GPU that waste is what tips the rig from smooth into stuttering (measured: three
+        // windows visible 55.4 draws/s and p95 49.6 ms, versus 59.5 and 33.8 with two of them
+        // covered — the cost tracks how many are compositing, not which one has focus).
+        //
+        // ONLY the streamed-bitmap path can be skipped, and the conditions are deliberately narrow:
+        //   · `srcGen !== undefined` — a generation is the only honest "these pixels are the same"
+        //     signal. A locally-decoded drawable (HAP, or mp4 in a window that decodes its own) is a
+        //     live canvas/VideoFrame mutating IN PLACE, so it carries none and must always repaint.
+        //   · nothing else that feeds the draw has moved — see paintDirtyRef.
+        //   · not sending NDI: captureNdi reads the framebuffer back, and with no
+        //     preserveDrawingBuffer there is nothing to read after a skipped pass.
+        //   · REPAINT_MS is the backstop. Every skip condition above is a claim about state I might
+        //     have got wrong; this bounds the damage of being wrong to a quarter second instead of
+        //     "until the operator notices". A frozen output is worse than a wasted pass.
+        //
+        // Safe to simply not draw: the context is created without preserveDrawingBuffer, so the last
+        // presented frame stays on screen. It is CLEARING and then not drawing that would go black.
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const canSkip = srcGen !== undefined && srcGen === paintedRef.current.gen
+          && paintDirtyRef.current === paintedRef.current.dirty
+          && vw === paintedRef.current.w && vh === paintedRef.current.h
+          && !ndiSendRef.current
+          && now - paintedRef.current.at < REPAINT_MS;
+        if (canSkip) { projStats.skipped++; return; }
+        paintedRef.current = { gen: srcGen, dirty: paintDirtyRef.current, w: vw, h: vh, at: now };
+
+        projStats.draws++;
+        if (srcGen !== undefined && srcGen !== projStats.lastGen) { projStats.uploads++; projStats.lastGen = srcGen; }
+        else if (srcGen === undefined && src) projStats.uploads++; // a live canvas re-uploads every pass
         if (!(bakedRef.current?.uploaded && gl.drawBaked(src as TexImageSource | null, opts, srcGen))) {
           gl.draw(src as TexImageSource | null, opts, srcGen);
         }
@@ -692,6 +785,7 @@ export const ProjectorApp: React.FC = () => {
       ]);
       commitDebounced();
     };
+    window.addEventListener('keydown', () => { paintDirtyRef.current++; });
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
