@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.26.5
 
 ### Two 1080p videos, two outputs, without the stutter
 
@@ -33,8 +33,6 @@ Uploading a frame no longer reallocates the texture every time either — same p
 
 The mipmap chain is deliberately **kept**: it is what holds a projection onto an angled surface sharp,
 and dropping it would buy frames by making exactly the surfaces a projector aims at look worse.
-
-## v0.26.5
 
 ### An image on a track survives the show coming back to its state
 

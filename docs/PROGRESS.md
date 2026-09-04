@@ -1040,6 +1040,51 @@ scene look and recall writes them back — so the routing must be re-saved on th
 do this at all: `surfaceParams()` publishes no `content.layerId`, and `applyCues` never swaps a timeline.
 See [SCENE-TIMELINES.md](SCENE-TIMELINES.md) → Sending a different track to each surface.
 
+## v0.26.5 (re-cut) — a cut that blanked every output, and half the GPU spent redrawing the same frame (2026-09-04)
+
+Reported as two 1080p mp4s stuttering on two windowed projector outputs. The operator's own clue was
+the diagnosis: selecting ONE output from the taskbar, so nothing else was on screen, played perfectly.
+Nothing was being throttled — the app disables every focus/occlusion throttle Chromium has — there was
+simply more GPU work than the machine had. Covering windows measured BETTER than tiling them (59.5
+draws/s, p95 33.8 ms vs 55.4 and 49.6), which is the opposite of what throttling predicts.
+
+**Three defects.**
+1. *A cut blanked the output.* At a clip boundary the next decoder must open and seek; until it answers
+   `layerFrame` returns null, the compositor paints black, and the pump reports `frameIdle` so every
+   mirror blacks out too. 19–125 ms at every boundary, ~6 per lap, forever. The track now holds the
+   outgoing frame across the gap — a COPY, since the mp4 decoder returns a live `VideoFrame` from a
+   bounded ring and closes it on eviction. Forced blackouts 6–9 per 30 s per output → **0**.
+2. *That fix silently did nothing the first time.* `captureCodecHold` measures the frame it keeps, and
+   the probe did not know the `VideoFrame` spelling (`displayWidth`) — so an mp4 layer measured 0, the
+   `w > 0` guard returned, the hold stayed empty, and every cut went black with the code present and
+   looking right. Nothing thrown, nothing logged. Invariant #151 now fails the build on it.
+3. *Each output redrew unchanged pictures.* A full 4×MSAA pass plus resolve blit ran on EVERY vsync;
+   only the texture upload was gated. For 25 fps content on a 60 Hz output that repainted an identical
+   frame ~half the time, per window. Passes 55.4 → **29.0/s** while pictures delivered went
+   27.9 → **29.0/s**; pump gap p95 49.6 → **33.6 ms**.
+
+Also: `uploadContent` used `texImage2D`, reallocating the texture every frame per window — now
+`texSubImage2D` unless the size changed. The mipmap chain is deliberately KEPT: it holds an angled
+projection sharp and bounds the silhouette halo on the calibrated path.
+
+**Three measurement traps, each of which sent this the wrong way.** A CDP screencast measures the
+COMPOSITOR, so an occluded window reads as stuck regardless of playback — two runs of one build
+disagreed 10×, and a commit was reverted partly on that number. Byte LENGTH is not a change detector
+(similar frames compress alike). And counting an event is not diagnosing it: the blackout count matched
+the boundary count exactly, a real boundary fix did not move it (because of defect 2), so boundaries
+were wrongly ruled out. Only logging the REASON settled it. Both hooks that did —
+`window.__artluxProjStats()` and `window.__artluxNullLog()` — ship.
+
+**Two approaches measured and abandoned.** Keying a codec decoder per (layer, clip) so a lane holds the
+current clip and the next collapsed the engine (28.6 → 13.9 fps on two outputs) and left `gapMax` at
+4.5 s even after latching its per-frame `preRoll`; reverted in `a12fbf2`. Note `docs/CODECS.md:123`
+claims WebCodecs has no hardware-session cap — that did not survive contact with this rig, and the
+collapse is still unexplained. Projector-local mp4 decode (one `setEnabled` away, and already claimed by
+`docs/CALIBRATION.md`) cost draws 56.6 → 47.2/s with no benefit, because main keeps shipping regardless.
+
+**Not verified: fullscreen on two real displays** — the shipping mode, and a lighter load than three
+windows on one screen. `render_frame_p99` still spikes to ~115 ms in the tiled case.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
