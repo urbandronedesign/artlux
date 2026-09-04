@@ -985,6 +985,61 @@ liveness means widening the `Copy` stats struct the pacer writes under a lock, p
 work, which is its own change. And `artlux_output_pps` still over-reports USB DMX (queued, not written);
 fixing that means counting on the writer thread. Both are documented in OUTPUTS.md instead.
 
+## v0.26.5 — a global release paired with a per-pool memo, and the image that went black (2026-09-04)
+
+Reported as "an image on a track is not playing when we switch from state to state". It was not an
+image bug and not a timeline bug: `contentSource` is keyed `layer:<id>` **globally**, while the "do I
+already hold this?" memo (`lv.content` / `lv.contentClipId`) is **per pool**. Four sites released the
+registry entry and left the memo standing, so `syncContentLayer`'s guard —
+`lv.contentClipId !== clip.id || lv.content !== content` — read "already acquired" forever and the layer
+**never re-acquired**. Black for the rest of the session, on that layer and then on every other, with
+nothing logged, nothing thrown, the transport still running and the FSM still advancing.
+
+**Why the guard was always true across a swap.** Both halves survive re-normalisation byte-identically:
+`clip.id` obviously, and `clip.content` because `normalizeTimeline` SHALLOW-copies each clip
+(`sanitizeClip` is `{...c, …coerced numbers}`), so the content object keeps its identity. A guard written
+to detect "the clip changed" cannot detect "the thing behind the clip was freed".
+
+**Why only images were reported.** `getDrawable` re-creates a missing EFFECT on the spot, so effects
+self-heal and hid the fault; IMAGE / VIDEO / CAMERA / DMX-in and every plugin live source return null
+and stay black. The symptom names the one content type that neither heals nor is live.
+
+**Why it needed the SECOND entry.** A first cut acquires normally; only a swap AWAY leaves the lie
+behind. So a click-through of the show passes, and `releasePool` masks it further — a pool the LRU has
+demoted is deleted outright, so the next entry builds a fresh `lv` and works. It bites exactly the
+small, warm, cycling show: the shape an installation runs all night.
+
+**The fix.** `forgetLayerContent(layerId)` clears the memo in EVERY pool (the key it frees is global, so
+any pool holding that id is now lying too), paired at all four bare `contentSource.release(layerKey(...))`
+sites. `releaseContent()` stays the paired form for the one case that holds an `lv` already. Alongside:
+`warmPoolVideos` now acquires an IMAGE start clip with its pool — an image decodes asynchronously
+(fetch → `createImageBitmap`), so re-entering a state used to flash black while the bitmap landed.
+Live receivers are deliberately NOT warmed (only the active pool may open a camera or an NDI feed).
+
+**Verified on the wire, both directions.** A two-scene project, one image clip per scene on its own
+track, each scene's surfaces bound to its own track, FSM cycling on a 4 s delay, Art-Net to loopback
+(6469 — 6454 is the app's own input socket):
+
+```
+before   RED · BLUE · BLACK …and black from there on
+after    RED · BLUE · RED · BLUE · RED · BLUE
+```
+
+The control run was done by reverting the one file and rebuilding, so the two runs differ in exactly
+that. Invariant #150 (`contentSource.release(layerKey(...)) clears the pool memo`) negative-tested by
+removing a pairing; `npm run verify` = 150 invariants + 11 doc checks + typecheck.
+
+**The class is not closed.** Anywhere a globally keyed shared resource is guarded by a per-consumer
+boolean memo, the same silent black is reachable. `codecResidency` is the other holder of this shape and
+is safe because it refcounts; the layer path had a bare memo, which is not the same thing.
+
+**Also documented, and NOT a bug:** a surface's track choice (`SourceType.LAYER` + `layerId`) resolves
+only against the currently bound scene's timeline, and every scene mints its own track ids
+(`defaultTimeline()` has no layers). It works because `buildSceneSnapshot` captures `surfaces` into the
+scene look and recall writes them back — so the routing must be re-saved on the state. A **cue** cannot
+do this at all: `surfaceParams()` publishes no `content.layerId`, and `applyCues` never swaps a timeline.
+See [SCENE-TIMELINES.md](SCENE-TIMELINES.md) → Sending a different track to each surface.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
