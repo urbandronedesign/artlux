@@ -43,59 +43,6 @@ type LayerVid = {
 
 const layerKey = (layerId: string): string => `layer:${layerId}`;
 
-// ── A LAYER'S CODEC DECODER IS KEYED PER CLIP FILE, NOT PER LAYER ────────────────────────────────
-//
-// It used to be the bare `layerId`, and that is ONE DECODER PER LAYER — so two clips back to back on
-// one track could not both be open. Reaching the cut CLOSED the outgoing decoder and opened the
-// incoming file from scratch (mp4Decoder.ensureLayerOpen does exactly that: `cur.dec.close()`, then a
-// fresh `open()` that demuxes the whole track). `layerFrame` returns null for the whole of that open,
-// and the compositor draws nothing from a null — so EVERY BOUNDARY BETWEEN TWO CLIPS ON A TRACK WAS
-// A BLACK FLASH. Measured on three back-to-back mp4s: a gap at every cut, ~86 ms, forever, with the
-// gap-to-gap spacing equal to the clip durations. The `<video>` path had the same hole for the same
-// reason (one element per layer, re-`src`ed at the cut) and measured ~89 ms, which is what says the
-// fault was never in a codec.
-//
-// `layerKey` is OPAQUE to a codec — hap keys `layerState` by it, mp4 keys `layerDecoders` by it, and
-// neither parses it. So per-clip decoders need no plugin change at all: hand them a key that carries
-// the path and a layer can hold the clip it is playing AND the one it is about to play.
-//
-// BOUNDED, because an mp4 decoder keeps the whole track's samples resident (see residentBytes) — a
-// 40-clip lane must not end the night holding 40 of them. Two is the working set of a cut: what is on
-// air, and what is next. The LRU is touched by syncCodecLayer (live) and deckNext (standby) on the
-// same frame, so in steady state it holds exactly those two and evicting is what frees the clip that
-// just finished.
-const CODEC_KEYS_PER_LAYER = 2;
-const codecLayerKeys = new Map<string, string[]>(); // layerId → keys, least-recently-used FIRST
-const codecLayerKey = (layerId: string, path: string): string => `${layerId}::${path}`;
-
-// Name this (layerId, path) decoder and mark it most-recently-used, releasing whatever falls off.
-function touchCodecLayerKey(layerId: string, path: string): string {
-  const key = codecLayerKey(layerId, path);
-  const keys = codecLayerKeys.get(layerId) ?? [];
-  const at = keys.indexOf(key);
-  if (at >= 0) keys.splice(at, 1);
-  keys.push(key);
-  while (keys.length > CODEC_KEYS_PER_LAYER) {
-    const drop = keys.shift()!;
-    for (const c of videoCodecRegistry.all()) c.releaseLayer(drop);
-  }
-  codecLayerKeys.set(layerId, keys);
-  return key;
-}
-
-// Free every decoder this layer has opened. Replaces the bare `c.releaseLayer(id)` at each teardown
-// site — a layer's decoders are no longer findable from its id alone, so a release that only knew the
-// id would leak every one of them.
-function releaseCodecLayer(layerId: string): void {
-  for (const key of codecLayerKeys.get(layerId) ?? []) {
-    for (const c of videoCodecRegistry.all()) c.releaseLayer(key);
-  }
-  codecLayerKeys.delete(layerId);
-  // …and the bare id too: a project opened before this build (or a codec that keyed something under
-  // it) can still be holding layer state there, and nothing else would ever free it.
-  for (const c of videoCodecRegistry.all()) c.releaseLayer(layerId);
-}
-
 // Per-scene decoupled timelines: each scene owns its own timeline, so each needs its own pool of
 // per-layer <video> elements. `pools` is keyed by poolKey (scene.id, or '__global__' for the shared
 // fallback timeline). Exactly ONE pool is ACTIVE (playing) at a time — `layerVideos` always points at
@@ -318,76 +265,6 @@ function forgetLayerContent(layerId: string): void {
   }
 }
 
-
-// ── THE STANDBY DECK: A LAYER OPENS ITS NEXT CLIP BEFORE THE PLAYHEAD GETS THERE ─────────────────
-//
-// The lane above this one used to say, out loud, that a future clip "has nowhere to be loaded INTO"
-// — one element, one decoder, per layer. That was true, and it is what made every cut on a track a
-// black flash: at the boundary the single source was repointed at a new file and the layer drew
-// nothing until it loaded. Now there is somewhere: a second <video> for the `<video>` path, and a
-// second decoder key for the codec path (see touchCodecLayerKey).
-//
-// Three seconds is enough for both — a streaming <video> reaches readyState 2 in well under that, and
-// a codec's preRoll fills its buffer while the gate polls it — and short enough that a lane of
-// two-second clips never has more than the next one open.
-const DECK_AHEAD_SEC = 3;
-
-// The clip this layer cuts to next, if it starts within the look-ahead. `cur` is the clip on air (null
-// in a gap, where the next clip is simply the next one after the playhead).
-function nextClipOnLayer(layerId: string, cur: VideoClip | null, t: number): VideoClip | null {
-  // THE LOOP WRAP IS A CUT TOO, and it is the one a look-ahead misses by construction: the clip that
-  // plays next is at the START of the timeline, which is BEHIND the playhead, so no "starts after this
-  // one" test can ever find it. Left out, a looping lane flashes black once per lap forever — measured
-  // as the only two gaps still standing after the forward cuts were fixed.
-  const end = timelineEnd(data);
-  if (data.loop && t > end - DECK_AHEAD_SEC) {
-    const first = startClip(data, layerId);
-    if (first && (!cur || first.clip.id !== cur.id)) return first.clip;
-  }
-  const after = cur ? cur.start + cur.duration - 1e-6 : t - 1e-6;
-  let best: VideoClip | null = null;
-  for (const c of data.clips) {
-    if (c.layerId !== layerId || c.start < after || c.start > t + DECK_AHEAD_SEC) continue;
-    if (cur && c.id === cur.id) continue;
-    if (!best || c.start < best.start) best = c;
-  }
-  return best;
-}
-
-// Open whatever this layer plays next, on the deck, so the cut costs nothing.
-//
-// ONLY WHILE PLAYING. A scrub changes the active clip several times a second, and decking each one
-// would open and evict decoders at pointer rate — strictly worse than the cut it exists to fix. A
-// stopped transport has no upcoming cut to be early for.
-function deckNext(layerId: string, cur: VideoClip | null, t: number): void {
-  if (!playing) return;
-  const nxt = nextClipOnLayer(layerId, cur, t);
-  if (!nxt) return;
-  if (isContentClip(nxt) || (nxt.kind && clipKindRegistry.has(nxt.kind))) return; // lazy / not a file
-  const codec = videoCodecRegistry.forPath(nxt.path);
-  if (codec) {
-    const known = codec.probed(nxt.path);
-    if (known === undefined) { void codec.probe(nxt.path); return; } // ask again next frame
-    if (known) {
-      codec.preWarm(nxt.path);
-      // preWarm opens the PATH-keyed surface decoder, which a timeline layer never reads from — the
-      // gap that made the cold-start gate vacuous for H.264 until preWarmLayer existed. Warm the
-      // decoder this layer will ACTUALLY ask for, under the key syncCodecLayer will name at the cut.
-      const key = touchCodecLayerKey(layerId, nxt.path);
-      const at = Math.max(0, nxt.inPoint);
-      codec.preWarmLayer?.(key, nxt.path, at);
-      // …AND FILL IT. preWarmLayer only OPENS the decoder (mp4's ensureLayerOpen demuxes and stops);
-      // a decode-ahead codec then starts EMPTY, so the first frame after the cut is still decoded on
-      // demand from the nearest keyframe. That is the difference between a 56 ms flash and none, and
-      // it is the same distinction the cold-start gate draws — a buffer, not a first frame.
-      codec.preRoll?.(nxt.path, at, PREROLL_SEC, key);
-      return;
-    }
-    // known === false: the codec declined this file and the host falls back to a <video>, which has
-    // nothing to deck INTO — see the note in syncVideoLayer.
-  }
-}
-
 function syncLayer(layerId: string, t: number): void {
   const lv = getLayerVideo(layerId);
   const clip = activeClip(layerId, t);
@@ -395,7 +272,6 @@ function syncLayer(layerId: string, t: number): void {
     if (!lv.el.paused) lv.el.pause();
     releaseContent(lv, layerId);
     lv.clipId = null; lv.mode = null;
-    deckNext(layerId, null, t); // a gap still ends in a cut — be ready for it
     return;
   }
 
@@ -415,13 +291,12 @@ function syncLayer(layerId: string, t: number): void {
   if (codec) {
     const known = codec.probed(clip.path);
     if (known === undefined) { void codec.probe(clip.path); return; } // still probing
-    if (known) { syncCodecLayer(layerId, lv, clip, t, codec); deckNext(layerId, clip, t); return; } // decode locally (any window)
+    if (known) { syncCodecLayer(layerId, lv, clip, t, codec); return; } // decode locally (any window)
     // known === false → the codec declined (e.g. a non-HAP .mov / H.264); fall through to <video>.
   }
   // Non-HAP clips are only decoded in the main window; mirror windows consume streamed frames.
   if (external) { lv.mode = null; return; }
   syncVideoLayer(lv, clip, t);
-  deckNext(layerId, clip, t);
 }
 
 // Snapshot the element's current frame so we can keep showing it while a seek is in flight. Called
@@ -441,15 +316,10 @@ function captureHold(lv: LayerVid): void {
 
 function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   if (lv.srcPath !== clip.path) {
-    // ⚠ A <video> LAYER STILL FLASHES BLACK AT A CLIP BOUNDARY, and this line is why: one element per
-    // layer, repointed at the next file, undrawable until readyState climbs back to 2. The codec path
-    // no longer does this (see deckNext) because a decoder can be opened under a second key while the
-    // first still plays; an ELEMENT cannot be doubled as cheaply, and a second <video> per layer was
-    // built, measured and REMOVED — it did not move the number (534 ms → 601 ms of dark over six cuts,
-    // i.e. no better than the fault it was meant to fix) and dead machinery in the show path is worse
-    // than an honest gap. Left as it was, deliberately, with the measurement recorded rather than a
-    // fix that only looked like one. It is reached only for files the codecs DECLINE (mp4 WebCodecs is
-    // on by default), so it is the rarer path.
+    // A streaming url is valid the instant it is built, so there is no "not loaded yet" branch to
+    // return from any more — the element simply starts fetching the ranges it needs. What used to be
+    // here (bail, kick a whole-file read, hope a later pass finds it) is the shape that let a pool
+    // promote on an empty element; see warmPoolVideos.
     lv.el.src = resolveMediaUrl(clip.path); lv.srcPath = clip.path; lv.hold = null; // new FILE: the held frame is a lie
   }
   lv.clipId = clip.id;
@@ -500,15 +370,6 @@ function gapNote(kind: GapEvent['kind'], layerId: string, clip: VideoClip, head:
 if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>)['__artluxLayerGaps'] = () => gapLog.slice();
   (window as unknown as Record<string, unknown>)['__artluxLayerGapsReset'] = () => { gapLog.length = 0; };
-  // MEASUREMENT: what each layer has on air, and which decoders it is holding. `codecKeys` is the
-  // deck: two entries means the clip playing AND the one it is about to cut to are both open, which is
-  // the whole reason a boundary costs nothing. One entry at a cut means the deck missed. Read with
-  // window.__artluxDeck().
-  (window as unknown as Record<string, unknown>)['__artluxDeck'] = () => [...layerVideos.entries()].map(([id, lv]) => ({
-    layer: id, mode: lv.mode, clipId: lv.clipId,
-    live: { src: lv.srcPath?.split(/[\/]/).pop() ?? null, readyState: lv.el.readyState, t: +lv.el.currentTime.toFixed(2) },
-    codecKeys: (codecLayerKeys.get(id) ?? []).map(k => k.split(/[\/]/).pop()),
-  }));
 }
 
 function syncCodecLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number, codec: VideoCodecContribution): void {
@@ -523,9 +384,7 @@ function syncCodecLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: numbe
   // The codec samples the exact frame for this clip-local playhead time and paints its per-layer
   // canvas (GPU decompress); it tracks the decoded index internally so it only re-uploads on advance.
   const clipTime = t - clip.start + clip.inPoint;
-  // The PER-CLIP key: when deckNext opened this file ahead of the cut, this is the decoder it opened,
-  // already demuxed and pre-rolled — so the first frame after a boundary is there to be drawn.
-  lv.codec.canvas = codec.layerFrame(touchCodecLayerKey(layerId, clip.path), clip.path, clipTime);
+  lv.codec.canvas = codec.layerFrame(layerId, clip.path, clipTime);
   // MEASUREMENT: null = this layer has no picture this frame. Only while PLAYING — a paused or
   // scrubbing transport legitimately asks for frames nobody has decoded, which would drown the signal.
   if (!lv.codec.canvas && playing) gapNote('gap', layerId, clip, t);
@@ -689,10 +548,7 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
       // read from. Without the second, the gate can pass while the layer is still opening, and the
       // layer is black through a whole demux with the show already running.
       codec.preWarm(sc.clip.path);
-      // Per-clip key, exactly as syncCodecLayer will ask for it at the cut. Under the bare `l.id` this
-      // opened a decoder the layer would never read — the same vacuous-warming shape preWarmLayer was
-      // added to fix, reintroduced by the keying change if it were left alone here.
-      codec.preWarmLayer?.(touchCodecLayerKey(l.id, sc.clip.path), sc.clip.path, Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint));
+      codec.preWarmLayer?.(l.id, sc.clip.path, Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint));
       continue;
     }
     // The source is available immediately (a streaming url is just a string), so the pre-roll can
@@ -754,9 +610,9 @@ function poolReadiness(poolKey: string, t: Timeline): { ready: boolean; pending:
       // opens on. Codecs without preRoll behave exactly as before.
       if (probed && codec.preRoll) {
         const at = Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint);
-        // The per-clip layer key, so a codec keying its timeline decoder by it (mp4) pre-rolls the
-        // decoder this layer will actually read from, not the surface one nobody here is about to ask.
-        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC, codecLayerKey(l.id, sc.clip.path))) pending.push(`${name} (buffering)`);
+        // `l.id` so a codec keying its timeline decoder per layer (mp4) pre-rolls the decoder this
+        // layer will actually read from, not the surface one nobody here is about to ask.
+        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC, l.id)) pending.push(`${name} (buffering)`);
       }
       continue;
     }
@@ -775,7 +631,7 @@ function pruneStaleLayers(pool: LayerPool, t: Timeline): void {
     lv.el.pause(); lv.el.removeAttribute('src');
     pool.delete(id);
     if (!data.layers.find(l => l.id === id)) { // not held by the active timeline → safe to free shared state
-      releaseCodecLayer(id);
+      for (const c of videoCodecRegistry.all()) c.releaseLayer(id);
       contentSource.release(layerKey(id)); forgetLayerContent(id);
     }
   }
@@ -1287,10 +1143,8 @@ function layerGeneration(layerId: string): number | undefined {
   const lv = layerVideos.get(layerId);
   if (!lv || !lv.clipId) return undefined;
   if (lv.mode === 'content') return lv.content ? contentSource.getDrawableGeneration(layerKey(layerId), lv.content) : undefined;
-  // The same key syncCodecLayer handed the codec — per CLIP, so it must be rebuilt from the path the
-  // layer is actually showing. Asking under the bare layerId would name a decoder nobody writes to,
-  // report `undefined` forever, and quietly turn every repeat-frame skip downstream back off.
-  if (lv.mode === 'codec') return lv.codec ? videoCodecRegistry.get(lv.codec.codecId)?.layerGeneration?.(codecLayerKey(layerId, lv.codec.path)) : undefined;
+  // The codec keys layer state by layerId — the same key it was handed in syncCodecLayer.
+  if (lv.mode === 'codec') return lv.codec ? videoCodecRegistry.get(lv.codec.codecId)?.layerGeneration?.(layerId) : undefined;
   if (lv.mode !== 'video') return undefined;
   // currentTime is a <video>'s natural frame identity; a repeated value means a repeated frame. While
   // holding (`lv.hold`, readyState < 2) we cannot say — the hold canvas has no clock of its own.
@@ -1510,7 +1364,7 @@ export const timeline = {
     if (!pool) return;
     for (const [id, lv] of pool) {
       lv.el.pause(); lv.el.removeAttribute('src');
-        if (!data.layers.find(l => l.id === id)) { releaseCodecLayer(id); contentSource.release(layerKey(id)); forgetLayerContent(id); }
+      if (!data.layers.find(l => l.id === id)) { for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); forgetLayerContent(id); }
     }
     // …AND THE PATH-KEYED DECODERS THIS POOL'S WARMING OPENED. Everything above is keyed by LAYER,
     // which is why demoting a pool used to leave it holding decoders: warmMedia opens a decoder per
@@ -1610,8 +1464,8 @@ export const timeline = {
       const lv = layerVideos.get(l.id);
       if (!lv) continue;
       lv.el.pause(); lv.el.removeAttribute('src');
-        lv.srcPath = null; lv.clipId = null; lv.mode = null;
-      releaseCodecLayer(l.id);
+      lv.srcPath = null; lv.clipId = null; lv.mode = null;
+      for (const c of videoCodecRegistry.all()) c.releaseLayer(l.id);
       contentSource.release(layerKey(l.id)); forgetLayerContent(l.id);
     }
   },

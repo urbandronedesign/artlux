@@ -1,34 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Several videos on one track cut cleanly
-
-Reported as "when we load multiple mp4 videos on one layer we have a bug", and it was one: a track
-holding clips back to back went **black at every cut**. Not once, not on the first pass — every
-boundary, every lap, for as long as the show ran.
-
-A track played **one file at a time**, and that meant it could only have one file *open* at a time.
-Reaching the end of a clip closed the outgoing video and opened the next one from scratch, and the
-track showed nothing at all until that finished. Measured on three clips in a row, looping: a gap at
-every cut, about **86 ms** — two or three frames of black, in the same three places, on a loop.
-
-The measurement that named it: a second track carrying **one** clip over the same span, cut-free, had
-**zero** gaps. Same files, same length, same run. And turning off the MP4 decoder entirely moved the
-number by 3 ms, which is what ruled the decoder out before any of it was read — the fault was never in
-a video format, it was in a track being able to hold only one thing.
-
-A track now opens the **next** clip while the current one is still playing, and has it decoded and
-waiting when the cut arrives, so the boundary costs nothing. Looping is covered too — the clip that
-plays after the last one is at the *start* of the timeline, which is the one case a look-ahead cannot
-find by looking ahead. Two clips' worth per track is the limit, so a long lane does not accumulate open
-files all night. Same measurement after: **no gaps at all**.
-
-> **One case is knowingly left as it was:** a file the decoders decline — anything MP4 and HAP will not
-> take — still flashes at a boundary. The same trick was built for that path, measured, and found not to
-> help, so it was removed rather than left in looking like a fix. MP4 decoding is on by default, so this
-> is the rare path.
-
 ## v0.26.5
 
 ### An image on a track survives the show coming back to its state
