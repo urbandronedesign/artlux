@@ -159,6 +159,36 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
 - All new fields are optional and back-compatible. `normalizeTimeline()` defaults old projects on
   load (`loop:false`, an empty disabled `stateMachine`). Save/broadcast carry the whole object.
 
+## Several clips on one track — the standby deck
+
+A track holds **one source at a time**, and for a long time that meant one *decoder* at a time: reaching
+a clip boundary closed the outgoing file and opened the incoming one from scratch, and the layer drew
+nothing for the length of that open. Measured on three back-to-back mp4s, looping: **a black gap at
+every cut, ~86 ms, forever**, with gap-to-gap spacing equal to the clip durations. A control lane
+carrying one clip over the same span had **zero** gaps, which is what proved the boundary was the
+variable rather than the files.
+
+The fix is that a **codec decoder is keyed per (layer, clip file)**, not per layer
+(`codecLayerKey`/`touchCodecLayerKey` in `services/timeline.ts`), so a lane can hold the clip it is
+playing *and* the one it is about to. `deckNext()` opens the next clip's decoder ahead of the cut and
+**pre-rolls** it — `preWarmLayer` alone only demuxes, which left ~56 ms of the gap still there, so the
+deck fills a buffer exactly as the cold-start gate does. The LRU is bounded at
+`CODEC_KEYS_PER_LAYER = 2` (an mp4 decoder keeps the whole track's samples resident, so a 40-clip lane
+must not end the night holding forty), and the loop **wrap** is decked explicitly — the clip that plays
+next is at the *start* of the timeline, so no "starts after this one" look-ahead could ever find it.
+
+`layerKey` is opaque to a codec (hap keys `layerState` by it, mp4 keys `layerDecoders` by it, neither
+parses it), so none of this needed a plugin change. Result on the same measurement: **0 gaps, 0 ms**.
+
+> ⚠ **A `<video>` layer still flashes at a boundary, and that is recorded rather than fixed.** An
+> element cannot be doubled as cheaply as a decoder key. A second `<video>` per layer was built and
+> measured and did **not** move the number (534 ms → 601 ms of dark over six cuts), so it was removed —
+> dead machinery in the show path is worse than an honest gap. This path is reached only for files the
+> codecs **decline**, and mp4 WebCodecs is on by default, so it is the rare one.
+
+`window.__artluxDeck()` reports what each layer has on air and which decoders it holds; two `codecKeys`
+at a cut means the deck is armed, one means it missed.
+
 ## Key design decisions (read before extending)
 
 - **One track, one clip at a time.** Two clips on a track may **touch** (one ends exactly where the

@@ -1378,9 +1378,26 @@ check(
       if (!/preRoll\s*:/.test(src)) problems.push(`${f} defines layerFrame but no preRoll — the gate cannot see its buffer and will arm on an empty one`);
     }
     // The host must pass the layer key through, or a per-layer codec pre-rolls the wrong decoder.
+    // The key is now PER CLIP (codecLayerKey(layerId, path)) so a lane can hold the clip it is playing
+    // and the one it is about to; a bare l.id was the one-decoder-per-layer shape that made every clip
+    // boundary a black flash. Either spelling satisfies the gate's contract -- what must NOT happen is
+    // preRoll being handed no layer key at all.
     const tl = read('src/renderer/services/timeline.ts');
-    if (!/codec\.preRoll\([^)]*l\.id\)/.test(tl))
+    if (!/codec\.preRoll\([^)]*l\.id/.test(tl))
       problems.push('poolReadiness does not pass the layer id to preRoll — a codec keying its timeline decoder per layer pre-rolls a decoder nobody reads');
+    // ...AND THE THREE MUST NAME THE SAME DECODER. preRoll fills a buffer, preWarmLayer opens it, and
+    // layerFrame reads it; key any one of them differently from the others and the gate measures a
+    // decoder nobody reads while the layer demuxes on air -- which is the exact bug the WHY above
+    // describes, reachable again by touching only one call site.
+    const keyed = (re) => re.test(tl);
+    if (keyed(/codec\.preRoll\([^)]*codecLayerKey\(/) || keyed(/preWarmLayer\?\.\(touchCodecLayerKey\(/)) {
+      if (!keyed(/layerFrame\(touchCodecLayerKey\(/))
+        problems.push('syncCodecLayer does not read the per-clip layer key that preRoll/preWarmLayer prime — the gate would measure a decoder the layer never asks for');
+      if (!keyed(/preWarmLayer\?\.\(touchCodecLayerKey\(/))
+        problems.push('the pre-roll is keyed per clip but preWarmLayer is not — the decoder the gate waits on is never opened');
+      if (!/function releaseCodecLayer\(/.test(tl))
+        problems.push('per-clip layer keys with no releaseCodecLayer() — a layer teardown that only knows the layer id leaks every decoder it opened');
+    }
     if (!/preWarmLayer\?\.\(/.test(tl))
       problems.push('warmPoolVideos never calls preWarmLayer — a per-layer codec opens lazily AFTER the gate has armed');
     return problems.length ? problems.join('; ') : null;
