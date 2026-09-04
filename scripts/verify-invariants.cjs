@@ -4526,6 +4526,37 @@ check(
   },
 );
 
+// ── TIMELINE: releasing a layer's content source must clear the per-pool memo ──────────────────
+check(
+  'contentSource.release(layerKey(...)) clears the pool memo',
+  'contentSource is keyed `layer:<id>` GLOBALLY while the "do I already hold this?" memo ' +
+  '(lv.content / lv.contentClipId) is PER POOL. Release one without the other and ' +
+  'syncContentLayer\'s guard reads "already acquired" forever: the layer never re-acquires and ' +
+  'draws NOTHING for the rest of the session. That is the image-on-a-track going black once a ' +
+  'show cycles back to its state — the clip id AND clip.content both survive a swap identically ' +
+  '(normalizeTimeline shallow-copies a clip), so the guard is true and the acquire never happens.',
+  () => {
+    const f = 'src/renderer/services/timeline.ts';
+    if (!exists(f)) return `${f} is missing`;
+    const src = read(f);
+    if (!src.includes('function forgetLayerContent(')) {
+      return 'forgetLayerContent() is gone — nothing clears the per-pool memo on release';
+    }
+    // `read` strips comments, so a line index here is NOT the file's line number — report the code.
+    const lines = src.split('\n');
+    const bad = [];
+    lines.forEach((line, i) => {
+      if (!/contentSource\.release\(layerKey\(/.test(line)) return;
+      // releaseContent() IS the paired form: it holds the one `lv` in hand and clears its memo on
+      // the very next line. Every OTHER site frees a GLOBAL key with no lv in scope, so it has to
+      // say forgetLayerContent() on the same line.
+      if (lines.slice(Math.max(0, i - 3), i + 1).join('\n').includes('function releaseContent')) return;
+      if (!line.includes("forgetLayerContent(")) bad.push("`" + line.trim().slice(0, 100) + "`");
+    });
+    return bad.length ? `releases a layer content key without forgetLayerContent(): ${bad.join(', ')}` : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

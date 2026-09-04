@@ -1,4 +1,4 @@
-import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
+import { Timeline, VideoClip, SurfaceContent, SourceType, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
 import { resolveMediaUrl } from './mediaCache';
 import * as contentSource from './contentSource';
 import * as codecResidency from './codecResidency';
@@ -235,6 +235,34 @@ function activeClip(layerId: string, t: number): VideoClip | null {
 function releaseContent(lv: LayerVid, layerId: string): void {
   if (lv.mode === 'content' || lv.content) contentSource.release(layerKey(layerId));
   lv.content = undefined; lv.contentClipId = null;
+}
+
+// ── FORGET, IN EVERY POOL, THAT A LAYER HELD A CONTENT SOURCE ────────────────────────────────────
+// PAIR THIS WITH EVERY BARE `contentSource.release(layerKey(...))` IN THIS FILE. The registry is keyed
+// `layer:<id>` GLOBALLY; the "do I already hold this?" memo (`lv.content` / `lv.contentClipId`) is
+// PER POOL. Four sites released the registry entry while leaving the memo standing, and
+// syncContentLayer's guard — `lv.contentClipId !== clip.id || lv.content !== content` — then read
+// "already acquired" and NEVER RE-ACQUIRED. The layer drew nothing for the rest of the session.
+//
+// That is exactly the shape of "an image on a track goes black once the show cycles back to its
+// state": a swap away releases the outgoing scene's layers, and BOTH halves of the guard survive the
+// round trip byte-identically — the clip id obviously, and `clip.content` because normalizeTimeline
+// SHALLOW-copies each clip (sanitizeClip is `{...c, …numbers}`), so the content object keeps its
+// identity across every re-normalisation of the same scene.
+//
+// Why only IMAGE was reported: getDrawable re-creates a missing EFFECT on the spot, so effects
+// self-heal; IMAGE / VIDEO / CAMERA / DMX-in and every plugin live source return null on a missing
+// entry and stay black. It is not an image bug — image is just the one that shows it.
+//
+// Every pool, not merely the outgoing one: the key it frees is global, so any pool holding that layer
+// id has a memo that is now a lie.
+function forgetLayerContent(layerId: string): void {
+  for (const pool of pools.values()) {
+    const lv = pool.get(layerId);
+    if (!lv) continue;
+    lv.content = undefined; lv.contentClipId = null;
+    if (lv.mode === 'content') lv.mode = null;
+  }
 }
 
 function syncLayer(layerId: string, t: number): void {
@@ -493,7 +521,26 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
   for (const l of t.layers) {
     if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
     const sc = startClip(t, l.id);
-    if (!sc || isContentClip(sc.clip)) continue;
+    if (!sc) continue;
+    if (isContentClip(sc.clip)) {
+      // AN IMAGE IS THE ONE CONTENT TYPE WORTH WARMING, and it is warmed for the same reason a
+      // <video> start clip is: it is neither live nor instant. contentSource decodes it
+      // ASYNCHRONOUSLY (fetch → createImageBitmap), so a layer whose start clip is an image draws
+      // NOTHING for the frames between the acquire and the bitmap landing — a black flash on every
+      // entry to that scene, every cycle of the show, because a swap away releases it again.
+      //
+      // Nothing else here: a live receiver (camera / Spout / NDI / DMX-in / tracking) is deliberately
+      // held ONLY by the ACTIVE pool — warming one would open a capture device for a scene that may
+      // never be cut to — and an EFFECT costs nothing to acquire at the cut.
+      //
+      // Idempotent, like everything else this function does: contentSource.acquire early-returns when
+      // the key already holds that url, so the boot gate's 10 Hz re-drive is free. It is NOT recorded
+      // in the pool's `lv` memo on purpose — syncContentLayer still does its own acquire at the cut
+      // (also idempotent), so the memo keeps meaning exactly what forgetLayerContent says it means.
+      const c = sc.clip.content;
+      if (c && c.type === SourceType.IMAGE && c.url) contentSource.acquire(layerKey(l.id), c);
+      continue;
+    }
     const codec = videoCodecRegistry.forPath(sc.clip.path);
     if (codec) {
       // Prime BOTH decoders a codec may use: the path-keyed one (preWarm) and — where the codec keys
@@ -585,7 +632,7 @@ function pruneStaleLayers(pool: LayerPool, t: Timeline): void {
     pool.delete(id);
     if (!data.layers.find(l => l.id === id)) { // not held by the active timeline → safe to free shared state
       for (const c of videoCodecRegistry.all()) c.releaseLayer(id);
-      contentSource.release(layerKey(id));
+      contentSource.release(layerKey(id)); forgetLayerContent(id);
     }
   }
 }
@@ -1251,7 +1298,7 @@ export const timeline = {
     if (prevKey !== poolKey) { const prev = pools.get(prevKey); if (prev) for (const lv of prev.values()) { if (!lv.el.paused) lv.el.pause(); } }
     // Only ACTIVE holds live receivers — release generalized-content the swap orphaned (layers the old
     // timeline had but the new one doesn't).
-    for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) contentSource.release(layerKey(l.id)); }
+    for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) { contentSource.release(layerKey(l.id)); forgetLayerContent(l.id); } }
     pruneStaleLayers(pool, t);
     poolDocs.set(poolKey, t);
     warmMedia(t, poolKey);
@@ -1317,7 +1364,7 @@ export const timeline = {
     if (!pool) return;
     for (const [id, lv] of pool) {
       lv.el.pause(); lv.el.removeAttribute('src');
-      if (!data.layers.find(l => l.id === id)) { for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); }
+      if (!data.layers.find(l => l.id === id)) { for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); forgetLayerContent(id); }
     }
     // …AND THE PATH-KEYED DECODERS THIS POOL'S WARMING OPENED. Everything above is keyed by LAYER,
     // which is why demoting a pool used to leave it holding decoders: warmMedia opens a decoder per
@@ -1419,7 +1466,7 @@ export const timeline = {
       lv.el.pause(); lv.el.removeAttribute('src');
       lv.srcPath = null; lv.clipId = null; lv.mode = null;
       for (const c of videoCodecRegistry.all()) c.releaseLayer(l.id);
-      contentSource.release(layerKey(l.id));
+      contentSource.release(layerKey(l.id)); forgetLayerContent(l.id);
     }
   },
   seek(sec: number): void {

@@ -233,6 +233,31 @@ moment it becomes active — `syncVideoLayer` already did that, which is what ma
   `recallByRefRef` → `handleRecallScene` → `swapTimelineForScene`, and the resolved scene carries its
   own `timeline` — so the show plays each state's own timeline in broadcast too.
 
+## Sending a different track to each surface
+
+A surface can show **one timeline track**: set its content to **Layer**, then pick the track in the
+**Track** dropdown under it — so within a state you point Wall Left at *Track 1*, Wall Right at
+*Track 2*, the floor at *Track 3*, and each plays its own clip. Drop anything on those tracks: a video, an **image**, an effect, a camera or a live feed.
+
+**Tracks belong to the state that owns them, so the routing does too.** Every state carries its own
+timeline, and the tracks you add to it are that state's tracks — a track in *Intro* is not the same
+track as the one with the same name in *Finale*, even though both read "Track 1". A surface's track
+choice therefore lives in the **state's own look**, and the loop is:
+
+1. Enter the state (`◆ Editing:` pill, or **Edit timeline** on its node in the state graph).
+2. Add the tracks that state needs and drop content on them.
+3. Point each surface at its track (content **Layer** → **Track**).
+4. **Save** the state (author strip → *Save*).
+
+Step 4 is the one to remember. The tracks and clips are stored the moment you make them, but the
+**surface routing is part of the look** — skip the save and the next GO onto that state restores the
+surfaces as they were, still pointing at tracks that state does not have, and those surfaces go black.
+A surface aimed at a track the current state doesn't own shows nothing; that is the symptom.
+
+Want one picture across the whole show instead — the same clip continuing under every state? Put it on
+the **Global timeline** (the pill → *Global timeline*) and route the surface there, or give the surface
+the **Timeline** content type to show the whole composite rather than a single track.
+
 ## UX (mistake-proof authoring)
 
 The design goal: the user always knows **which** timeline they're editing, and a new state gives a

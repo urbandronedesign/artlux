@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.26.5
+
+### An image on a track survives the show coming back to its state
+
+Found by running a two-state show in a loop: an **image** dropped on a timeline track played on the
+first pass through each state and then went **black on the second entry — and stayed black**, for that
+state and every other, for the rest of the session. Nothing was logged, nothing threw, the transport
+kept running and the state machine kept advancing. Only the picture was gone.
+
+Recalling a state hands the outgoing state's tracks back — the right thing to do, since a track can be
+holding a camera or an NDI feed that only the state on air should own. But the *engine* kept a private
+note saying it still held them, so when the show returned, it checked its note, decided it had nothing
+to acquire, and drew nothing. The note and the thing it described were freed by two different pieces
+of bookkeeping, and only one of them ran.
+
+It reads as an image bug because an image is what shows it: a generative effect quietly re-creates
+itself when it finds nothing there, so effects healed and hid the fault. Video, camera, Spout, NDI and
+DMX-in on a track were affected identically.
+
+Two states cycling on a four-second delay, watched on the wire:
+
+```
+before   RED · BLUE · BLACK …and black from there on
+after    RED · BLUE · RED · BLUE · RED · BLUE
+```
+
+Re-entering a state no longer flashes black either — an image is now decoded while its state is warm,
+alongside the video that already was, so the cut arrives with the picture ready. A guard in
+`npm run verify` fails the build if the two halves of that bookkeeping are ever separated again.
+
 ## v0.26.4
 
 ### A fixture now says where its DMX actually goes
