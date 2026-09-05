@@ -3,7 +3,8 @@
 > **Status:** 🔎 **INVESTIGATED, NOT BUILT** (2026-09-05, on `main@be7c34b`). The two defects that
 > *surrounded* this one are fixed and shipped in the v0.26.6 re-cut; this is what is left.
 > **Placement:** `native/audio-engine` + `plugins/audio` (main half only) · **Risk:** 🔴 high — the JS
-> surface is one line, the hazard is JUCE's threading contract and ASIO drivers we do not own.
+> surface is one line, the hazard is JUCE's threading contract and ASIO drivers we do not own. ·
+> **Tracked:** [#6](https://github.com/urbandronedesign/artlux/issues/6)
 
 Not a limitation-lift plan and it carries no §1–§10 template. It is the record of a measurement, the
 options it leaves open, and the question that has to be answered before any of them is worth starting.
