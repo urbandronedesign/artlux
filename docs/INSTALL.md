@@ -100,6 +100,86 @@ installed app.
 
 ---
 
+## Antivirus — when Defender calls the installer a trojan
+
+SmartScreen is the warning you get *before* running the file. This is the other one: Microsoft
+Defender quarantining the file **after** it is on disk, under a name like
+**`Trojan:Win32/Bearfoos.A!ml`** — often two at once (`.A!ml` and `.B!ml`), which is one scan pass
+with two models firing, not two separate findings.
+
+**Read the `!ml` suffix.** It means the verdict came from a machine-learning classifier, not a
+signature match: Defender is saying *this binary's shape and behaviour resemble malware*, not *this
+is a known sample*. `Bearfoos` is Microsoft's generic bucket for unclassified Win32 trojan-like
+behaviour, and is one of the most-reported false-positive families for unsigned software.
+
+**Why the Launcher in particular attracts it.** Its legitimate job is, step for step, the pattern the
+classifiers are trained on — it downloads an `.exe`, runs it silently (`/S`), elevates through
+`ShellExecuteEx`/`runas`, and calls `powershell.exe -ExecutionPolicy Bypass -File` for the preflight.
+Add: unsigned, small, freshly compiled, and carrying a **brand-new hash on every release**, so it
+never accumulates the reputation an ML model scores on. The classifier cannot see intent. Expect this
+to recur on future releases rather than being fixed once.
+
+### Settle it before you act on it
+
+A detection is not proof either way. Three steps, in order — none of them require trusting us:
+
+**1. Find out which file it actually flagged.** The notification shows a name, not a path:
+
+```powershell
+Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending |
+  Select-Object -First 5 InitialDetectionTime, ThreatID, Resources
+```
+
+`Resources` carries the full path. This alone answers most cases — a binary you just compiled
+yourself is a different situation from a downloaded release asset.
+
+**2. Prove the file is the one we published.** With no signature, this is the only thing that can
+answer it (the same reasoning as the section above):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\verify-download.ps1 -File .\ArtLux-<version>-x64.exe
+```
+
+Exit `0` means the bytes are what CI built. Anything else — **including exit `2`, "could not
+verify"** — is not a pass, and at that point the detection deserves to be taken at face value.
+
+**3. Get a second opinion.** Upload the file to [VirusTotal](https://www.virustotal.com). Defender
+alone, or Defender plus one or two other generic ML verdicts, is the signature of a false positive.
+A dozen engines naming concrete malware families is not — stop, and do not run it.
+
+### Then fix it properly
+
+**Report it to Microsoft**, at
+[the Defender file-submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission) — submit
+as a software developer, "incorrectly detected". It is free, usually corrected within a few days, and
+it fixes the detection for **every machine**, which no local change can. Treat it as part of the
+release ritual, not a one-off.
+
+**As a stopgap on a machine that has a show to run**, exclude the specific path — never the whole
+folder, and never by turning Defender off:
+
+```powershell
+Add-MpPreference -ExclusionPath "C:\Program Files\ArtLux\ArtLux.exe"
+```
+
+> **Do this deliberately, and only after step 2 passed.** A path exclusion on a show PC is a standing
+> hole; it is justified by having verified the file, not by the inconvenience.
+
+**What is *not* the fix:** code signing. ArtLux ships unsigned by decision (above), and reputation —
+not a certificate alone — is what these models score on, so a fresh certificate would not clear a
+first-release detection anyway.
+
+### The failure mode to plan for
+
+The dangerous case is not the warning you read. It is Defender quarantining the ArtLux installer
+**mid-install**, or removing `ArtLux.exe` from a machine that was already working — a show PC that
+booted fine last week and now has no application. Every native module in ArtLux degrades silently
+(that is why this document exists), and so does this: a quarantined file leaves an install that looks
+present in the Start Menu and does nothing when clicked. If a venue PC stops launching, check
+Defender's protection history **before** re-installing.
+
+---
+
 ## Machine 1 — the build machine (already has ArtLux installed)
 
 The common case, and the one with a trap: releases before 2026-07-22 installed **per-user** into
