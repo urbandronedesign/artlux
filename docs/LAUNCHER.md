@@ -53,6 +53,12 @@ installing ArtLux, which is a moment that makes sense.
 > "More info" link, Windows kept the file's mark-of-the-web — right-click → Properties → **Unblock**,
 > or `Unblock-File -Path .\ArtLuxLauncher_<version>_x64-setup.exe`. Full detail:
 > [INSTALL.md → Windows SmartScreen](INSTALL.md#windows-smartscreen--the-warning-you-will-see-first).
+>
+> **Defender may also quarantine it outright**, as `Trojan:Win32/Bearfoos.A!ml` or similar. The
+> `!ml` suffix means a machine-learning guess, not a signature match, and the launcher fits the
+> pattern it guesses on — it downloads an installer, runs it silently and elevates. Verify before
+> you act:
+> [INSTALL.md → Antivirus](INSTALL.md#antivirus--when-defender-calls-the-installer-a-trojan).
 
 Requires Windows 10/11 x64 and the WebView2 runtime, which ships with Windows 11 and is fetched
 automatically on older builds.
@@ -421,17 +427,30 @@ CI: [`.github/workflows/launcher.yml`](../.github/workflows/launcher.yml), trigg
 vice versa; the two tag patterns cannot match each other.
 
 ```bash
-# bump `version` in FOUR files — the two sources and the two lockfiles that quote them:
-#   launcher/package.json            Tauri reads this for the bundle filename
-#   launcher/package-lock.json       twice: the root, and packages."" 
-#   launcher/src-tauri/Cargo.toml    Cargo reads this for own_version()
-#   launcher/src-tauri/Cargo.lock    the artlux-launcher entry
-git tag -a launcher-v0.1.2 -m "…" && git push origin launcher-v0.1.2
+# Bump `version` in FIVE files, then let the guard confirm it:
+#   launcher/src-tauri/tauri.conf.json   the BUNDLE version: installer filename + PE version
+#   launcher/src-tauri/Cargo.toml        CARGO_PKG_VERSION -> own_version()
+#   launcher/src-tauri/Cargo.lock        the artlux-launcher entry
+#   launcher/package.json                the `version:` CI writes into launcher-latest.yml
+#   launcher/package-lock.json           twice: the root, and packages.""
+cd launcher && npm run verify:version      # refuses to let them disagree
+
+git tag -a launcher-v0.1.3 -m "…" && git push origin launcher-v0.1.3
 ```
 
-> The lockfiles are easy to forget and say nothing when you do: `package-lock.json` sat at 0.1.0
-> through the whole 0.1.1 release without CI complaining. `cargo check --locked` catches the Cargo
-> half; nothing catches the npm half, so it is written down here.
+> **This list was wrong until 0.1.3, and it shipped a mislabelled release.** It said *four* files
+> and credited `package.json` with the bundle filename — but Tauri prefers the `version` in
+> `tauri.conf.json` and only falls back when that field is absent. It was not absent, it was stale,
+> so the whole `launcher-v0.1.2` release carries an asset named
+> **`ArtLuxLauncher_0.1.1_x64-setup.exe`**, an installer whose product version is 0.1.1, and a
+> binary that reports 0.1.2 when you ask it. Nothing failed. It was the second miss of the same
+> shape: `package-lock.json` sat at 0.1.0 through the whole 0.1.1 release, equally silently.
+>
+> So it is no longer written down and trusted — `scripts/verify-version.cjs` asserts all five agree,
+> runs in `npm run package` and in CI **before** the build, and prints which file is the odd one
+> out. Each site has a different consumer, which is why they drift: a stale `package.json` offers an
+> update that installs the same build and never clears; a stale `tauri.conf.json` leaves NSIS
+> thinking a new install is the version already there.
 
 > ⚠ **Launcher releases are published as PRE-RELEASES, and that is load-bearing.** GitHub's
 > `/releases/latest` returns whichever release went out most recently, whatever it is — and **ArtLux's
@@ -461,6 +480,7 @@ inert while it is unused.
 | What you see | What it means |
 |---|---|
 | SmartScreen blocks it, with no "More info" | Windows kept the mark-of-the-web. Properties → **Unblock**, or `Unblock-File`. |
+| Defender quarantines it as `Trojan:Win32/…!ml` | A machine-learning guess, not a signature. Almost always a false positive here — but [verify the checksum before excluding anything](INSTALL.md#antivirus--when-defender-calls-the-installer-a-trojan). |
 | "the download does not match the checksum…" | The file is not what GitHub published. Retry; if it persists, download manually and compare against `latest.yml`. **It will not be run.** |
 | "Installation did not happen: the … prompt was declined" | Exactly that — nothing was installed. Run again and choose Yes. |
 | "ArtLux is running. Close it first" | An installer cannot replace files in use. |

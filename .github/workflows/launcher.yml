@@ -63,6 +63,12 @@ jobs:
       - name: Sync the bundled machine check
         run: npm run sync:preflight
 
+      # Assert the five version sites agree BEFORE the build, not after: launcher-v0.1.2 published an
+      # asset named ArtLuxLauncher_0.1.1_x64-setup.exe because tauri.conf.json was left behind, and
+      # nothing in the build, the bundle or the release step could see it.
+      - name: Verify the version is consistent
+        run: npm run verify:version
+
       - name: Build
         run: npx tauri build
 

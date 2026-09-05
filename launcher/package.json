@@ -1,9 +1,9 @@
 {
   "name": "artlux-launcher",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
-  "description": "ArtLux Launcher ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â installs ArtLux, checks the machine, and opens projects.",
+  "description": "ArtLux Launcher — installs ArtLux, checks the machine, and opens projects.",
   "comment": "Deliberately NOT a member of the root npm workspaces (packages/*, plugins/*). The root lockfile must stay reproducible for the app build; a UI dep tree for a separate product in it is how `npm ci` broke in v0.18.0. Install with `npm install` from inside this folder.",
   "scripts": {
     "dev": "node scripts/sync-preflight.cjs && node scripts/sync-tokens.cjs && vite",
@@ -11,10 +11,11 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "start": "tauri dev",
-    "package": "tauri build && node scripts/verify-bundle.cjs",
+    "package": "node scripts/verify-version.cjs && tauri build && node scripts/verify-bundle.cjs",
     "sync:preflight": "node scripts/sync-preflight.cjs",
     "sync:tokens": "node scripts/sync-tokens.cjs",
-    "verify:bundle": "node scripts/verify-bundle.cjs"
+    "verify:bundle": "node scripts/verify-bundle.cjs",
+    "verify:version": "node scripts/verify-version.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.0",
