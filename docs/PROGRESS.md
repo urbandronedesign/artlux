@@ -1142,6 +1142,55 @@ test is gated the same way, because the paint loop draws handles only for a live
 `activeZoneIds` again, so a routine off-and-on no longer leaves a scene carrying a set frozen against
 the zones that existed when it was written. Guarded by invariant #153.
 
+## v0.26.6 (re-cut) — a cold open that was 21 s of two things blocking each other (2026-09-05)
+
+The owner asked to shorten the preload and to cache processed sound and images in the project folder.
+The investigation found the caches would have saved **milliseconds**, and that the whole cold open was
+two mutually-blocking defects. Measured on their own project (2 scenes, 4 mp4s, 8 MB of media, built
+app): **21.1 s from page load to the show being ready → 6.5 s**, with the project itself now opening at
+**0.5 s instead of 6.1 s**.
+
+**1. The gate armed by TIMEOUT on every open, on any project with an mp4 in its opening scene.** A
+timeline layer decoder has two drivers during a cold start: the transport, already rolling (the gate
+holds the *state machine* and deliberately never writes `playing`), and the gate's `preRoll` poll,
+always about the START clip. mp4 answered the poll with `frame(atSec)`, which MOVES `wantUs` — so
+asking at 0 while the transport sat at 5 s read as a backward scrub, `seekSegment` threw the decoded
+buffer away, and the transport refilled it before the next poll undid that too. `fedAbs` sawtoothed
+21→7→3→8→3, the buffer oscillated 1↔9, `preRoll` was false forever. It also corrupted `lastFrameTs`,
+which *is* `layerGeneration`, so every consumer that skips repeated frames was told the layer had
+jumped back to the head of the clip ten times a second. **A pre-roll is a probe, not a seek** — it now
+tops up where a driven decoder actually is. 15,012 ms (timeout) → 5,607 ms (ready).
+
+**2. The sound card was opened twice, on main's thread.** `native.configure()` is a synchronous napi
+call into JUCE; on this rig it takes **5.7 s**, during which main serves nothing — no
+`artlux-media://` byte, no prefs read, no conform. It ran once at plugin activation against
+DEFAULT_SETTINGS and again when the machine's real setup arrived. A main-process CPU profile put
+`configure` at **11.0 s of self time out of 18 s**, with nothing else within 60 ms. The first call also
+blocked the prefs read that would have said it was the wrong device. The startup open now waits for a
+settings notification carrying an audio slice, with a bounded 1500 ms grace for a machine that has
+none. 11.0 s → 5.9 s of blocking, one call.
+
+**The caching plan this started as is deferred, on its own evidence.** The audio conform cache already
+works (hits resolve in ~0.1 s); moving it into `.artlux-cache/` still matters for a *fresh venue
+machine* and is unbuilt. mp4 demux — the item ranked first before measuring — is **1–4 ms**; the 3 s
+"open()" was the whole-file `fetch` waiting on a blocked main process. Image decode and HAP never
+appeared on the critical path at all. **⚠ The one real finding for that plan: `.artlux-cache` keys on
+the ABSOLUTE source path, so thumbnails do NOT survive the folder move that `docs/ASSETS.md` promises
+they do.** Fixing the key is the prerequisite for any of it.
+
+**Method notes.** (a) A CDP poller measuring a busy renderer *lies by omission* — 5.5 s of samples
+simply did not exist and the first row read as an 11-second plateau, which produced a wrong "11.7 s of
+startup" number. The recorder has to live in the page, where it competes with the app's own poll on
+equal terms. (b) Four successive "the cost is X" answers were wrong — demux, fetch, then main-side
+plugin IPC — and only a **CPU profile of the main process** (Node inspector over `--inspect`) named it
+in one line. Reach for the profiler earlier. (c) Two harness filters silently hid the answer they were
+built to surface; a log line you cannot see reads exactly like a log line that never fired.
+
+**Still open:** the remaining single 5.9 s device open still blocks main — it wants the JUCE call moved
+off that thread, which is a native change. Whether 5.7 s is normal for this Realtek device or
+particular to this machine is unmeasured. The no-audio-settings fallback path is reasoning, not a
+measurement (exercising it risks the commissioned device setting).
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

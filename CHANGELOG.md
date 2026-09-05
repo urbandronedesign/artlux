@@ -2,6 +2,56 @@
 
 ## v0.26.6
 
+### Opening a project no longer waits twice for the sound card
+
+Every cold start opened the audio device **twice**: once the moment the audio plugin woke up, against
+the built-in defaults, and again a heartbeat later when the machine's own setup arrived from
+Preferences and the right device had to be opened after all.
+
+That is not a small waste, because opening a sound card is a blocking call in the part of the app that
+also serves *everything else*. While it runs, no video byte reaches the screen, no preference can be
+read, no soundtrack can be prepared. On the test machine each open takes 5.7 seconds, so the app spent
+**11 seconds doing nothing else** — and the first of the two was the one blocking the very preference
+read that would have said it was opening the wrong device.
+
+The device is now opened **once**, when the app knows which one the machine wants. A machine that has
+never chosen a device still gets one opened promptly, on the defaults, which for that machine are the
+right answer.
+
+Measured end to end on a two-scene project with four mp4s, together with the pre-roll fix below:
+**21.1 s → 6.5 s** before the show is ready to start, and the project itself now opens at 0.5 s
+instead of 6.1 s. What is left is a single device open; making that one not block the app is a
+separate change.
+
+### A show with an mp4 in its opening scene no longer waits the full preload timeout
+
+Every cold open of such a project sat on the boot gate for the whole of **Preferences ▸ Engine ▸ boot
+preload** (15 seconds by default) and then started anyway, reporting the clip as "buffering" the entire
+time. It was not slow decoding. It was a tug-of-war.
+
+A timeline layer's decoder has two things asking it for pictures during a start-up, and only one of
+them owns the playhead. The transport is already rolling — the gate holds the *state machine*, not the
+transport — so it asks for frames at an advancing point in the clip. The preload check asked the same
+decoder for the clip's **first** frame, ten times a second. To the decoder that looked like someone
+scrubbing backwards, so it threw away everything it had decoded and started again; the transport pulled
+it forward; the next check pulled it back. Neither side ever got the small run of decoded frames the
+gate is waiting for, so the gate waited until it ran out of patience — on every open, forever.
+
+A readiness check is now a **question, not an instruction**: if something else is already driving the
+decoder, the check tops it up where it actually is and reports on that, and only rewinds a decoder that
+nobody is using. Measured on a two-scene project with four mp4s: **15.0 s, always by timeout → 5.7 s,
+by readiness**, with the clip's own buffering falling from "never" to 0.1 s. The same rule is now
+written into the codec contract in the SDK, because it applies to any codec a plugin adds, and
+`npm run verify` fails if either half of it is lost.
+
+The same bug was also lying to everything that skips repeated video frames — the 3D preview and the
+projector windows were told the clip had jumped back to its first frame ten times a second.
+
+**What is left of that 5.7 s**, measured, and none of it is this: 2.4 s waiting on the soundtracks of
+the video clips (bounded on purpose), 3.0 s opening one 1.5 MB mp4 for the first time, 0.1 s actually
+buffering.
+
+
 ### The 3D scene shows the video again, instead of one frozen frame
 
 The sequel to the projector work below, and caused by it. With the outputs finally fluid, the **3D
