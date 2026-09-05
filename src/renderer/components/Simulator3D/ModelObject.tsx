@@ -8,6 +8,7 @@ import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
 import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
+import { blankMap } from './blankMap';
 import { recenterClone, applyModelTransform } from './venuePlacement';
 import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from './projectedMapping';
 import { registerDepthCaster, unregisterDepthCaster, setDepthRequest } from './projectorDepth';
@@ -57,7 +58,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own
   // UVs); restore the original GLB materials when cleared. Shares the binding path with planes.
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
-  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  // Born WITH a map (the 1x1 stand-in), never mapless — blankMap.ts: three's WebGPU observer snapshots
+  // a material's uniforms once and skips whatever was null, so a map attached later is never watched.
+  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, map: blankMap() });
   // The projected-UV twin. A SECOND instance rather than a patch toggled on the one above — see
   // makeProjectedMaterial for why (three's program cache would otherwise hand back the wrong shader).
   const projMatRef = useRef<ProjectedMaterial | null>(null);
@@ -69,7 +72,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   const projected = usesProjectedUv(model);
   const applyTex = (tex: THREE.Texture | null) => {
     for (const mat of [layerMatRef.current!, projMatRef.current!.material]) {
-      mat.map = tex;
+      mat.map = tex ?? blankMap();   // never null — see blankMap.ts
       mat.color.set(tex ? '#ffffff' : '#161616');
       mat.needsUpdate = true;
     }

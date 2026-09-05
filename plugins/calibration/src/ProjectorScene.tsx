@@ -9,6 +9,7 @@ import type { Scene3D, SceneModel, ProjectorCalibration, ProjectorBlend, SoftEdg
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
+import { blankMap } from '@/components/Simulator3D/blankMap'; // host helper — transitional seam
 import { useStreamedSurfaceTexture } from './useStreamedSurfaceTexture';
 import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial, type ProjectedBasicMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
 import { ProjectorDepthPass, registerDepthCaster, unregisterDepthCaster, setDepthRequest } from '@/components/Simulator3D/projectorDepth'; // host module — the ONE depth pass
@@ -55,7 +56,10 @@ const CREASE_DEG = 25;
 // WebGPU path — a sibling class, not a subclass. Both satisfy what a mesh and this file actually need.
 function useContentMaterial(model: SceneModel): { material: ProjectedBasicMaterial; hasContent: boolean } {
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
-  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, side: THREE.DoubleSide });
+  // Born WITH a map — blankMap.ts. This window is on WebGL today, so it is not the one that froze; the
+  // rule is kept identical in both because `renderer3d` is one flag away from putting it on WebGPU too,
+  // and because assigning null back to a WATCHED map throws inside three's render loop.
+  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, side: THREE.DoubleSide, map: blankMap() });
   // The projected-UV twin, from the SAME shared module the editor uses — one definition of the
   // projection maths and of the V convention, so the two windows cannot disagree.
   const projMatRef = useRef<ProjectedMaterial | null>(null);
@@ -68,7 +72,7 @@ function useContentMaterial(model: SceneModel): { material: ProjectedBasicMateri
 
   const applyTex = (tex: THREE.Texture | null) => {
     for (const mat of [layerMatRef.current!, projMatRef.current!.material]) {
-      mat.map = tex; mat.color.set(tex ? '#ffffff' : '#161616'); mat.needsUpdate = true;
+      mat.map = tex ?? blankMap(); mat.color.set(tex ? '#ffffff' : '#161616'); mat.needsUpdate = true;
     }
     // Fragment-computed UVs bypass three's vertex-stage texture matrix, which is where
     // matchBitmapOrientation's ImageBitmap flip compensation lives. Mirror it into the uniforms or the

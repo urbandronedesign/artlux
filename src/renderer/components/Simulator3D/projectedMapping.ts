@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DEPTH_PACK_GLSL, DEPTH_FAR, DEPTH_PACK_COEFFS } from './projectorDepth';
 import { nodes } from './renderer3d';
+import { blankMap } from './blankMap';
 
 // PROJECTED UV MAPPING — content thrown onto venue geometry from a virtual projector, rather than
 // sampled through the mesh's authored UVs.
@@ -200,7 +201,9 @@ function makeProjectedGlslMaterial(): ProjectedMaterial {
     uProjBias: { value: DEFAULT_BIAS_M },
     uDepthFar: { value: DEPTH_FAR },
   };
-  const material = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  // `map` from construction, never null — see blankMap.ts. On the GLSL path it also means USE_MAP is
+  // defined before any content arrives, so BODY_FRAG's replacement of <map_fragment> is always live.
+  const material = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, map: blankMap() });
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -311,6 +314,10 @@ function makeProjectedNodeMaterial(): ProjectedMaterial {
   const mat = new MeshBasicNodeMaterial();
   mat.toneMapped = false;
   mat.color = new THREE.Color('#161616');
+  // The node path samples through `mapNode`, not `material.map` — but the OBSERVER reads `material.map`,
+  // and that is what decides whether this material's bindings (mapNode's texture included) are refreshed
+  // at all. So it is born mapped for exactly the reason in blankMap.ts.
+  mat.map = blankMap();
   // mix on a 0/1 uniform rather than a branch: exact at both endpoints and it keeps one compiled
   // shader, matching the GLSL path's `#ifdef USE_MAP` behaviour of falling back to the flat colour.
   mat.colorNode = mix(vec3(mat.color.r, mat.color.g, mat.color.b), mapNode.rgb.mul(vis), uHasMap);

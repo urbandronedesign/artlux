@@ -9,6 +9,7 @@ import { ModelTransform } from './ModelObject';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
 import { registerDepthCaster, unregisterDepthCaster } from './projectorDepth';
+import { blankMap } from './blankMap';
 
 const DEG = Math.PI / 180;
 
@@ -38,7 +39,9 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
   const applyTex = (tex: THREE.Texture | null) => {
     const mat = matRef.current;
     if (!mat) return;
-    mat.map = tex;
+    // NEVER null — see blankMap.ts. A material whose map was null when three's WebGPU observer first
+    // snapshotted it stops monitoring `map` forever, and the plane freezes on its first frame.
+    mat.map = tex ?? blankMap();
     mat.color.set(tex ? '#ffffff' : '#161616');
     mat.needsUpdate = true;
   };
@@ -114,7 +117,9 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
       >
         <mesh>
           <planeGeometry args={[16 / 9, 1]} />
-          <meshBasicMaterial ref={matRef} side={THREE.DoubleSide} toneMapped={false} color="#161616" />
+          {/* `map` is set HERE, at construction, not only in applyTex — blankMap.ts explains why a
+              material that is born mapless can never be given a live texture on WebGPU. */}
+          <meshBasicMaterial ref={matRef} map={blankMap()} side={THREE.DoubleSide} toneMapped={false} color="#161616" />
         </mesh>
       </primitive>
       {/* Hidden while calibrating — the gizmo sits over the very surface being picked and would eat

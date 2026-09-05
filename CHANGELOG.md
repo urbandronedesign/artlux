@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.26.6
+
+### The 3D scene shows the video again, instead of one frozen frame
+
+The sequel to the projector work below, and caused by it. With the outputs finally fluid, the **3D
+viewport** was sitting on a single frame: the wall in the scene showed the first picture of the clip
+and never moved, while the same clip played correctly on the projector and on the 2D stage. A still
+image on the plane beside it kept updating, which is what made it look arbitrary.
+
+It was not the video. The source frame advanced 25 times a second and the texture was handed to the
+GPU driver on every one of them — and the driver was never asked to upload it. three.js's WebGPU
+renderer decides whether a mesh needs new data by diffing a snapshot of its material, and that
+snapshot is taken **once**, skipping anything that was empty at the time. A venue plane is created
+with no picture and given one a few frames later — as soon as the decoder has opened — so `map` was
+never in the snapshot, and from then on nothing about that texture could ever look changed. Measured:
+the frame counter passed 14 000 while the picture on the GPU was still number 2.
+
+It is a race, which is why a photo won it and a video never did. And it only became permanent with the
+cut-hold above: before that, every clip boundary briefly had no picture, which threw the texture away
+and built a new one — an accident that had been papering over this at every cut.
+
+Every 3D material that can be given content is now **created with a 1×1 stand-in** rather than empty,
+so the picture is watched from the first frame. The empty state looks exactly as it did.
+`npm run verify` fails if a material goes back to being born blank.
+
+
 ## v0.26.5
 
 ### Two 1080p videos, two outputs, without the stutter

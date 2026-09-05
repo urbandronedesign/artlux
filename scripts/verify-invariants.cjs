@@ -4614,6 +4614,62 @@ check(
   },
 );
 
+// ── A 3D MATERIAL THAT WILL BE TEXTURED IS BORN WITH A MAP ────────────────────────────────────
+check(
+  'every material fed by a timeline/surface texture is constructed with map: blankMap()',
+  "three's WebGPU renderer decides whether to re-upload a texture by diffing a SNAPSHOT of the " +
+  "material's uniforms (NodeMaterialObserver), and that snapshot is built once per material with " +
+  '`if (value === null || value === undefined) continue`. A material created with no `map` and given ' +
+  'one a few frames later therefore has `map` UNWATCHED for its whole life: needsRefresh() answers ' +
+  'no, bindings.updateForRender never runs, textures.updateTexture is never called, and the mesh ' +
+  'freezes on whichever frame happened to land during its first draws. Measured in the 3D viewport ' +
+  'with an mp4 on a venue plane: the VideoFrame advanced at 25 fps, texture.version passed 14000, the ' +
+  'GPU texture was still the one from version 2 — nothing thrown, nothing logged. It is a RACE (a ' +
+  'still image usually wins it, an mp4 decoder never does), and it went from intermittent to ' +
+  'permanent when captureCodecHold removed the null-drawable churn that had been forcing a new ' +
+  'texture at every cut. Assigning null BACK is worse than a missed refresh: once `map` is watched ' +
+  "the observer reads `mtlValue.isTexture` on it and a null throws inside the render loop. See " +
+  'src/renderer/components/Simulator3D/blankMap.ts.',
+  () => {
+    const bad = [];
+    const NL = String.fromCharCode(10);
+    // Every material that a `mat.map = ...` writes to must be born mapped, and no assignment may
+    // hand it a bare, possibly-null texture.
+    const files = [
+      'src/renderer/components/Simulator3D/PlaneObject.tsx',
+      'src/renderer/components/Simulator3D/ModelObject.tsx',
+      'src/renderer/components/Simulator3D/projectedMapping.ts',
+      'plugins/calibration/src/ProjectorScene.tsx',
+    ];
+    for (const f of files) {
+      if (!exists(f)) { bad.push(`${f} is missing`); continue; }
+      const src = read(f);
+      if (!/blankMap\(\)/.test(src)) { bad.push(`${f} no longer references blankMap()`); continue; }
+      for (const line of src.split(NL)) {
+        const m = /(?:^|[^\w.])(?:mat|material)\.map\s*=\s*(.+?);/.exec(line);
+        if (!m) continue;
+        if (!/blankMap\(\)/.test(m[1])) bad.push(`${f}: \`map = ${m[1].trim()}\` can be null — write \`tex ?? blankMap()\``);
+      }
+      // The construction half. Only the materials that ACTUALLY get textured — a wireframe overlay
+      // beside them is rightly mapless, and demanding a map of every MeshBasicMaterial in the tree
+      // would be a rule nobody could satisfy. The three that carry content are named here: the two
+      // `layerMatRef` singletons (plane/GLB and the projector window's twin) and projectedMapping's
+      // own `material`. The JSX form is the plane's inline one.
+      for (const line of src.split(NL)) {
+        const textured = /layerMatRef\.current\s*=\s*new THREE\.MeshBasicMaterial/.test(line)
+          || /const material\s*=\s*new THREE\.MeshBasicMaterial/.test(line);
+        if (textured && !/map:/.test(line)) {
+          bad.push(`${f}: a textured MeshBasicMaterial is constructed without \`map: blankMap()\``);
+        }
+        if (/<meshBasicMaterial /.test(line) && !/map=/.test(line)) {
+          bad.push(`${f}: <meshBasicMaterial> is declared without \`map={blankMap()}\``);
+        }
+      }
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
