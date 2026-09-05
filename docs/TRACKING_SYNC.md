@@ -181,13 +181,19 @@ and the transition inspector says so rather than letting it be discovered during
 **3D Scene** workbench → **Trigger Zones** dock tab, or the **Trigger Zones** button in its action bar
 (the *Draw trigger zones…* button in the tracking inspector section goes to the same place).
 
-- **drag on empty space** to draw a new zone;
+- **drag on empty space** to draw a new zone — or on top of a zone whose **eye is off**, which is how
+  you add a zone to a map the existing ones already cover (see the eye below). If nothing is free and
+  nothing is hidden, **+ Zone in the centre** at the foot of the list makes one you can then drag into
+  place;
 - **click** a zone to select it, **drag its body** to move, **drag a corner** to resize;
 - **delete** it with the **bin** on its row, or select it and press **Del** on the map. This removes the
   rectangle from the **room** — every scene, not just this one. `Ctrl+Z` brings it back;
 - the **eye** toggle is the other half of that pair and is *not* a delete: it sets whether the **current
   scene** listens to the zone (dim + hollow = ignored here), leaving it taped to the floor for every
-  other scene;
+  other scene. It is also the **editing** lever, because an eye-off zone is out of the pointer's way as
+  well as the show's: you can draw straight over it, and in exchange you cannot move or resize it until
+  you switch the eye back on. Switching every zone back on returns the scene to the default
+  (`activeZoneIds` absent ⇒ all live), so using the eye to clear a path costs the scene nothing;
 - the list carries **People needed** per zone; **dwell follows the venue-wide value** unless you tick
   **Override dwell for this zone**.
 

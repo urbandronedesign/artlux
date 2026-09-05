@@ -85,9 +85,18 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   };
   // Toggling "active in this scene" MATERIALISES the list on first use: absent means "all", so the
   // first time anything is switched off the implicit set has to become an explicit one.
+  //
+  // …and it DEMATERIALISES again on the way back. Now that the eye is also how you get an oversized
+  // zone out of the pointer's way to draw under it, off→on is a routine round trip rather than a rare
+  // authoring choice, and without this every such trip would leave a scene carrying an explicit set
+  // listing every zone. That set is equivalent to `undefined` today but it is not the same thing
+  // later: it is frozen against the zones that existed when it was written, so a zone drawn afterwards
+  // would be silently OFF in that scene — a zone that quietly does nothing, from a toggle the operator
+  // put back. Collapsing to `undefined` keeps "absent ⇒ all live" meaning what it says.
   const toggleActive = (id: string): void => {
     const base = active ?? list.map((z) => z.id);
-    setActiveZoneIds(base.includes(id) ? base.filter((x) => x !== id) : [...base, id]);
+    const next = base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+    setActiveZoneIds(list.every((z) => next.includes(z.id)) ? undefined : next);
   };
 
   // ── The live map. One rAF loop, zero React. ─────────────────────────────────────────────────────
@@ -191,17 +200,31 @@ export const ZonePanel: React.FC<PanelProps> = () => {
     }
     return null;
   };
+  // ⚠ AN EYE-OFF ZONE IS NOT A TARGET. This test used to run over EVERY zone on the surface, and that
+  // made the panel a dead end: a zone drawn large enough to cover the map (an entrance zone spanning a
+  // whole floor is normal) left no empty pixel, so every pointerdown became a `move` and the `draw`
+  // branch below was UNREACHABLE — there was no gesture left that could create a zone. Dimming it did
+  // not help, because a dim rectangle still hit-tested.
+  //
+  // So the eye now does what it looks like it does: a zone this scene ignores is out of the way for
+  // BOTH the pixels and the pointer, and drawing over it is how you add a zone to a full map. The cost
+  // is deliberate and worth naming — to move or resize an eye-off zone you switch its eye back on
+  // first. That is a rule you can state in one line; "some rectangles are clickable and some are not,
+  // and it does not show" is not.
   const zoneAt = (u: number, v: number): TrackingZone | undefined =>
     // Last match wins, so the most recently drawn zone is on top — the same rule the compositor and the
     // timeline's overlapping clips use.
-    [...list].reverse().find((z) => z.surface === surface && u >= Math.min(z.u0, z.u1) && u <= Math.max(z.u0, z.u1) && v >= Math.min(z.v0, z.v1) && v <= Math.max(z.v0, z.v1));
+    [...list].reverse().find((z) => z.surface === surface && isLive(z.id) && u >= Math.min(z.u0, z.u1) && u <= Math.max(z.u0, z.u1) && v >= Math.min(z.v0, z.v1) && v <= Math.max(z.v0, z.v1));
 
   const onPointerDown = (e: React.PointerEvent): void => {
     if (e.button !== 0) return;
     const p = toUV(e);
     const sel = list.find((z) => z.id === selId);
     // A corner of the SELECTED zone wins over everything — it is a deliberate 9px target.
-    const anchor = sel && sel.surface === surface ? cornerAnchor(sel, p.u, p.v) : null;
+    // `isLive` gates it for the same reason zoneAt does, and to stay honest with the paint loop: it
+    // draws the four handles only `if (sel && inScene)`, so grabbing them on an eye-off zone would be
+    // four invisible 9px holes punched through the one area the operator was told they could draw in.
+    const anchor = sel && sel.surface === surface && isLive(sel.id) ? cornerAnchor(sel, p.u, p.v) : null;
     if (sel && anchor) dragRef.current = { kind: 'resize', id: sel.id, rect: { u0: anchor.au, v0: anchor.av, u1: p.u, v1: p.v }, anchorU: anchor.au, anchorV: anchor.av };
     else {
       const hit = zoneAt(p.u, p.v);
@@ -272,9 +295,14 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   const sel = list.find((z) => z.id === selId) ?? null;
   const track = trackingStore.getSurfaceTrack(surface);
   const dims = track && track.scaleX && track.scaleY ? `${track.scaleX.toFixed(2)} × ${track.scaleY.toFixed(2)} m` : 'size unknown';
+  // The hint carries the one rule that is not visible in the pixels: an eye-off zone cannot be grabbed.
+  // Without saying so, "I clicked my zone and it drew a new one on top" is the report we would get.
+  const anyHidden = list.some((z) => z.surface === surface && !isLive(z.id));
   const hint = dragging ? 'release to apply'
-    : sel ? 'drag the body to move · a corner to resize · Del to remove · empty space for a new zone'
-      : 'drag on the map to draw a zone · click one to select it';
+    : sel && !isLive(sel.id) ? 'ignored in this scene — switch its eye on to move or resize it'
+      : sel ? `drag the body to move · a corner to resize · Del to remove · ${anyHidden ? 'empty space or a hidden zone' : 'empty space'} for a new zone`
+        : anyHidden ? 'drag on empty space or over a hidden zone to draw · click one to select it'
+          : 'drag on the map to draw a zone · click one to select it';
 
   return (
     <div className="h-full flex text-mini">
@@ -297,7 +325,8 @@ export const ZonePanel: React.FC<PanelProps> = () => {
         <div className="text-fg-3 text-micro">
           Origin is bottom-left, matching the tracker. Zones are normalized and belong to the ROOM — they
           are not captured into a scene, so a GO never changes them; the eye toggle sets which ones the
-          current scene listens to.
+          current scene listens to. A zone whose eye is off is also out of the pointer's way — draw
+          straight over it, which is how you add a zone to a map the existing ones already cover.
         </div>
       </div>
 
@@ -321,7 +350,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               {st?.occupied && <Users size={11} className="text-warn shrink-0" />}
               {/* PER-SCENE: does the CURRENT look listen to this zone? A rule naming a zone that is off
                   here is inert in this scene — the trigger inspector says so too. */}
-              <button onClick={() => toggleActive(z.id)} title={live ? 'Active in this scene — click to ignore it here' : 'Ignored in this scene — click to listen to it'}
+              <button onClick={() => toggleActive(z.id)} title={live ? 'Active in this scene — click to ignore it here (and to draw over it)' : 'Ignored in this scene — click to listen to it again, and to make it draggable'}
                 className={`shrink-0 ${live ? 'text-accent' : 'text-fg-3'}`}>
                 {live ? <Eye size={12} /> : <EyeOff size={12} />}
               </button>

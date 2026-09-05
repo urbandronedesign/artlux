@@ -4583,6 +4583,37 @@ check(
   },
 );
 
+// ── A HIDDEN TRIGGER ZONE MUST NOT SWALLOW THE POINTER ────────────────────────────────────────
+check(
+  'the zone map hit-tests only zones the current scene listens to',
+  'The Trigger Zones map creates a zone by dragging on space no zone occupies, so the hit-test is ' +
+  'the ONLY thing standing between the operator and a dead end: a zone drawn large enough to cover ' +
+  'the surface (an entrance zone spanning a whole floor is normal, and the venue rig had one) means ' +
+  'every pointerdown resolves to a `move` drag and the `draw` branch is UNREACHABLE. There is then ' +
+  'no gesture left anywhere in the panel that can add a zone. Nothing throws, nothing logs, and the ' +
+  'hint text still advertises the gesture that cannot happen. Filtering on isLive() is what makes ' +
+  'the eye toggle the way out — hide the zone on top, draw underneath, switch it back on — so if ' +
+  'either the body test or the corner-handle test drops that filter, the dead end is back. The ' +
+  'corner test matters as much as the body one: the paint loop draws handles only for a live zone, ' +
+  'so an unfiltered cornerAnchor is four INVISIBLE 9px holes in the drawable area.',
+  () => {
+    const f = 'plugins/lidar-tracking/src/ZonePanel.tsx';
+    if (!exists(f)) return `${f} is missing`;
+    const src = read(f);
+    const bad = [];
+    // The body test. `read` strips comments, so these are real code lines.
+    const zoneAt = src.split('\n').find((l) => l.includes('[...list].reverse().find('));
+    if (!zoneAt) bad.push('zoneAt() no longer reads as `[...list].reverse().find(` — re-check it by hand');
+    else if (!/isLive\(/.test(zoneAt)) bad.push('zoneAt() hit-tests every zone, ignoring the eye');
+    // The corner test, gated at its ONE call site rather than inside cornerAnchor (which is also the
+    // shape a future second caller would copy).
+    const anchor = src.split('\n').find((l) => l.includes('cornerAnchor(sel,'));
+    if (!anchor) bad.push('the cornerAnchor(sel, ...) call site is gone — re-check the handle gate by hand');
+    else if (!/isLive\(/.test(anchor)) bad.push('corner handles grab on a zone the scene ignores, which the map does not draw');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

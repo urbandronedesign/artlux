@@ -474,6 +474,10 @@ and state shares them.
   create a zone, click to select, drag its body to move, drag a corner to resize. Set **People
   needed** per zone. Live (raw) blobs are drawn on the map so you can see them land, and the same
   zones appear in the 3D Scene with a live headcount.
+- **No empty space left?** A zone big enough to cover the map leaves nowhere to start a new one. Switch
+  a zone's **eye** off and draw straight over it — a hidden zone ignores the pointer as well as the
+  show — then switch the eye back on. Failing that, **+ Zone in the centre** at the foot of the list
+  always makes one you can drag into place.
 - **Wire a zone to a transition** — in the transition inspector pick trigger **LiDAR zone**, then
   choose **One zone** (*someone enters / everyone leaves / occupied for N s / empty for N s / at least
   N people*) or **Combination** (ALL/ANY of several zones, each optionally **NOT** — e.g. "someone in
@@ -485,6 +489,7 @@ and state shares them.
 - **Per-scene listening (optional)** — the **eye** toggle in the Trigger Zones panel sets whether the
   *current* scene listens to a zone. Every zone is live in every scene by default, so ignore this
   until you want "the welcome state watches the entrance, the performance state watches the stage."
+  An eye-off zone is also un-draggable on the map, which is what frees the space under it to draw in.
 
 Zones read the same blob store as take replay, so you can rehearse against a recorded LiDAR **take**
 (or `scripts/lidar-emitter.cjs`) with no tracker connected.
