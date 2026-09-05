@@ -267,6 +267,15 @@ export interface VideoCodecContribution {
    * what fills the ring — a pure predicate would answer "no" forever. Implement it as "top up, then
    * report", and keep it cheap and synchronous.
    *
+   * ⚠ …BUT IT MUST NEVER SEEK. A layer's decoder can have a SECOND driver: the transport keeps calling
+   * `layerFrame` at an advancing clip time all through the hold, because the gate holds the state
+   * machine and never writes `playing`. A pre-roll that repositions the decoder to `atSec` therefore
+   * reads as a backward scrub, and a codec that responds by dropping its buffer will never accumulate
+   * one — the two callers take it in turns to undo each other and the gate arms by TIMEOUT on every
+   * open. That is not hypothetical: it is what mp4 did, silently, for the whole `bootPreloadSec`.
+   * Top up where the decoder ALREADY IS when something else is driving it past `atSec`, and report
+   * against that position; only kick at `atSec` when the decoder is idle.
+   *
    * Omit it and the host only waits for the first frame, exactly as before.
    */
   preRoll?(path: string, atSec: number, aheadSec: number, layerKey?: string): boolean;

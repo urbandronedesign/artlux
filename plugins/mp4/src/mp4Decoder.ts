@@ -157,8 +157,36 @@ class FileDecoder {
    *     over a clip that is entirely ready. (HAP takes the same view of a permanently-failed frame.)
    */
   preRoll(atSec: number, aheadSec: number): boolean {
-    this.frame(atSec, false); // THE KICK — the gate's polling is what fills the buffer
-    const wantUs = atSec * 1e6;
+    // ⚠ A PRE-ROLL IS A PROBE, NOT A SEEK — AND THIS CALLED frame() UNCONDITIONALLY, WHICH MADE IT BOTH.
+    //
+    // A timeline layer's decoder has TWO drivers, and only one of them owns the playhead:
+    //   · the TRANSPORT (syncCodecLayer → layerFrame) at an advancing clip time — it runs throughout
+    //     the cold-start hold, because the gate holds the STATE MACHINE and never writes `playing`;
+    //   · this, from the gate's poolReadiness, ~10×/s, always at the START CLIP's time (usually 0).
+    //
+    // `frame()` moves `wantUs`, so asking at 0 while the transport is at 5 s looked like a BACKWARD
+    // SCRUB: pump()'s `wentBackward && !havePresentable` branch fired, seekSegment(0) threw the buffer
+    // away, and the transport dragged it forward again before the next poll. Neither ever got its lead.
+    // Measured on a 1.5 MB / 145-sample clip: `fedAbs` sawtoothing 21→7→3→8→3, `buffer` oscillating
+    // 1↔9, `preRoll` false forever — so the gate armed by TIMEOUT, burning the whole `bootPreloadSec`
+    // (15 s by default) on EVERY open of ANY project with an mp4 in its opening scene. Nothing threw
+    // and nothing logged; the pending list just said `(buffering)` until the deadline.
+    //
+    // It also corrupted `lastFrameTs`, which is `layerGeneration` — so every consumer that skips a
+    // repeated frame on it (the 3D texture upload, the projector pump) was told the layer had jumped
+    // back to the head of the clip ten times a second.
+    //
+    // So: kick ONLY an idle decoder. When somebody else is already driving this one past the position
+    // we would ask for, top it up WHERE IT ACTUALLY IS and report on that — which is the honest
+    // readiness question anyway ("is this decoder holding a lead at the point it is being read at"),
+    // and is what the gate wanted to know in the first place.
+    const askUs = Math.max(0, atSec) * 1e6;
+    // `lastWantUs` is whatever the last frame() call asked for, from any caller — so this reads as
+    // "another consumer owns the playhead, and it is ahead of us".
+    const driven = this.lastWantUs > askUs + EPS_US && this.buffer.length > 0;
+    if (driven) this.topUp();          // same feed, same position — never a seek
+    else this.frame(atSec, false);     // idle decoder: THE KICK, exactly as before
+    const wantUs = driven ? this.wantUs : askUs;
     // ⚠ ASK FOR WHAT THE PUMP WILL ACTUALLY PRODUCE, WHICH IS TARGET_AHEAD — NOT what the requested
     // seconds imply. `pump()` stops feeding at `framesAhead + decodeQueueSize < TARGET_AHEAD`, so the
     // buffer never holds more than ~5 frames ahead no matter how long anyone waits. The first version

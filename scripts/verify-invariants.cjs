@@ -4614,6 +4614,49 @@ check(
   },
 );
 
+// ── A PRE-ROLL IS A PROBE, NOT A SEEK ─────────────────────────────────────────────────────────
+check(
+  "the codec pre-roll never repositions a decoder another consumer is driving",
+  'A timeline layer decoder has TWO drivers during a cold start, and only one owns the playhead: the ' +
+  'TRANSPORT keeps calling layerFrame at an advancing clip time all through the hold (the gate holds ' +
+  'the STATE MACHINE and deliberately never writes `playing`), while the gate polls preRoll ~10x/s at ' +
+  'the START CLIP time. mp4 answered the poll by calling frame(atSec), which MOVES wantUs — so asking ' +
+  'at 0 while the transport sat at 5 s read as a backward scrub, pump() took its ' +
+  '`wentBackward && !havePresentable` branch, seekSegment threw the buffer away, and the transport ' +
+  'refilled it before the next poll undid that too. Measured: fedAbs sawtoothing 21->7->3->8->3, the ' +
+  'buffer oscillating 1<->9, preRoll false FOREVER — so the gate armed by TIMEOUT and burned the whole ' +
+  'bootPreloadSec (15 s) on every open of any project with an mp4 in its opening scene, while the show ' +
+  'played blind through it. It also corrupted lastFrameTs, which IS layerGeneration, so every consumer ' +
+  'that skips repeated frames on it was told the layer had jumped back to the head of the clip 10x a ' +
+  'second. The rule that fixes it is general, not mp4-specific, so the SDK contract has to carry it.',
+  () => {
+    const bad = [];
+    const f = 'plugins/mp4/src/mp4Decoder.ts';
+    if (!exists(f)) return `${f} is missing`;
+    // ⚠ NOT fnBody(): it matches `function preRoll(` and would find the MODULE-LEVEL registry wrapper,
+    // which legitimately mentions none of this — a check that passes by looking at the wrong function.
+    // The rule lives in the CLASS METHOD, so slice that one out by hand.
+    const srcM = read(f);
+    const at = srcM.indexOf('preRoll(atSec');
+    const body = at < 0 ? null : srcM.slice(at, srcM.indexOf(String.fromCharCode(10) + '  }', at));
+    if (!body) bad.push('mp4Decoder FileDecoder.preRoll(atSec…) not found — re-check the no-seek guard by hand');
+    else {
+      // The ownership test. `lastWantUs` is the only thing that can say "somebody else is driving".
+      if (!/lastWantUs/.test(body)) bad.push('preRoll no longer consults lastWantUs — it cannot tell whether another consumer owns the playhead');
+      // …and frame() must be the ELSE of it, never unconditional. One `this.frame(` reachable without
+      // passing the guard is the whole bug back.
+      const framesAt = body.indexOf('this.frame(');
+      const guardAt = body.indexOf('lastWantUs');
+      if (framesAt >= 0 && guardAt >= 0 && framesAt < guardAt) bad.push('preRoll calls this.frame() BEFORE testing lastWantUs — the seek is back');
+    }
+    const sdk = 'packages/sdk/src/renderer.ts';
+    if (!exists(sdk)) bad.push(`${sdk} is missing`);
+    // raw(), not read(): the contract is a DOC COMMENT, and read() strips comments.
+    else if (!/MUST NEVER SEEK/.test(raw(sdk))) bad.push(`${sdk}: the preRoll contract no longer states that a pre-roll must not seek`);
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── A 3D MATERIAL THAT WILL BE TEXTURED IS BORN WITH A MAP ────────────────────────────────────
 check(
   'every material fed by a timeline/surface texture is constructed with map: blankMap()',
