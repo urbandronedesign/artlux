@@ -25,6 +25,22 @@ Every 3D material that can be given content is now **created with a 1×1 stand-i
 so the picture is watched from the first frame. The empty state looks exactly as it did.
 `npm run verify` fails if a material goes back to being born blank.
 
+### A full trigger-zone map is no longer a dead end
+
+You draw a trigger zone by dragging on empty space — so a zone big enough to cover the map, which an
+entrance zone spanning a whole floor usually is, left **no gesture anywhere in the panel that could
+add another one**. Every drag landed on the big zone and moved it instead, and the hint line went on
+advertising the gesture that could not happen.
+
+Switching a zone's **eye** off now takes it out of the pointer's way as well as out of the show, so you
+draw straight over it and switch the eye back on. The trade is stated where you need it: an eye-off
+zone cannot be moved or resized until you switch it back on. **+ Zone in the centre** at the foot of
+the list is still there as the always-works route.
+
+Switching every zone back on also returns the scene to the plain default instead of leaving it holding
+a list — which matters because such a list is frozen against the zones that existed when it was
+written, and a zone drawn afterwards would have been silently ignored in that scene.
+
 
 ## v0.26.5
 

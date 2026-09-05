@@ -1085,6 +1085,63 @@ collapse is still unexplained. Projector-local mp4 decode (one `setEnabled` away
 **Not verified: fullscreen on two real displays** — the shipping mode, and a lighter load than three
 windows on one screen. `render_frame_p99` still spikes to ~115 ms in the tiled case.
 
+## v0.26.6 — a texture three stopped watching, and a zone map with nowhere left to draw (2026-09-05)
+
+**The 3D preview froze on one video frame while the same clip played on the projector and the 2D
+stage.** Not the video and not our upload: `surfaceTextureCache` set `image` + `needsUpdate` on every
+one of the 25 frames a second the decoder produced, `texture.version` passed 14 000 — and the GPU
+texture was still the one written at **version 2**. Nothing threw and nothing logged.
+
+three's WebGPU renderer gates every upload behind `NodeMaterialObserver.needsRefresh()`: no refresh, no
+`bindings.updateForRender`, no `textures.updateTexture`, no copy — however many times you set
+`needsUpdate`. The observer diffs a **snapshot of the material** built once into a module-level WeakMap
+with `if (value === null || value === undefined) continue`, so **a property that was null at snapshot
+time is never monitored again for the life of that material**, and `material.needsUpdate` does not
+rebuild it. A venue plane is constructed mapless and handed a map a few frames later, when the decoder
+answers.
+
+It is a **race**, which is why a photo won it and an mp4 never did — and it only became permanent with
+`508df9d`'s `captureCodecHold`. Before that a codec layer returned null at every cut, which released
+the cache entry, disposed the texture and built a new one; that accidental churn had been papering over
+the freeze at every boundary. **A fix that removes incidental churn can expose a latent cache bug
+downstream** — worth carrying forward.
+
+Fixed by giving every texturable 3D material a 1×1 opaque-white stand-in at construction
+(`Simulator3D/blankMap.ts`) and never assigning null back. White × `#161616` is `#161616`, so the empty
+state is pixel-identical, and `USE_MAP` is now defined from the start so arriving content no longer
+forces a program rebuild. Assigning null back is worse than a missed refresh: once `map` is watched the
+observer reads `mtlValue.isTexture` on it and a null **throws inside the render loop**. Guarded by
+invariant #154.
+
+**The method, because no single step was sufficient.** (1) Probe `surfaceTextureCache` — acquires,
+uploads and the `VideoFrame` timestamp all advancing, so the source half and `useFrame` are fine.
+(2) Hash the 3D canvas region against a **full-window control region**: 1 distinct in 8 versus 6 in 6.
+A CDP screenshot measures the compositor, so the control is what makes it admissible at all.
+(3) Patch `GPUQueue.prototype.copyExternalImageToTexture` from CDP — only ImageBitmap sources, never a
+VideoFrame, so the upload is not failing, it is **never requested**. (4) Compare `texture.version`
+against `renderer._textures.get(tex).version` — 14 597 versus 2, which is the whole diagnosis in one
+pair. (5) Patch `_bindings.updateForRender` and `backend.draw` and count per `object.id`: the wall mesh
+was **drawn 60×/s with zero bindings updates**, which points straight at `needsRefresh`. (6) Prove
+before fixing — swap in a fresh material whose `map` is already set, 4/4 distinct frames.
+
+⚠ **`browser.pages()[0]` is not the editor** when projector windows are open. Filtering on
+`projector.html` is what stops you measuring a black "Waiting for the main window…" page and concluding
+the fix failed — it did exactly that here, once.
+
+Measured after: 3D viewport 57 distinct in 66 samples over 30 s, no repeat longer than one sample, with
+the editor and two projector windows up. **Not verified:** the projected-UV materials (no projected
+model in the test project) and the calibration `ProjectorScene` (on WebGL, so it never froze).
+
+**A Trigger Zones map with no empty space had no gesture left that could add a zone.** The panel draws
+a zone by dragging on space no zone occupies, so one zone large enough to cover the surface — an
+entrance zone spanning a whole floor is normal — made every `pointerdown` a `move` drag and the `draw`
+branch unreachable, while the hint text still advertised it. The eye toggle now takes a zone out of the
+pointer's way as well as the show's, so drawing over a hidden zone is the way out; the corner-handle
+test is gated the same way, because the paint loop draws handles only for a live zone and an ungated
+`cornerAnchor` is four invisible 9px holes. Toggling every zone back on **dematerialises**
+`activeZoneIds` again, so a routine off-and-on no longer leaves a scene carrying a set frozen against
+the zones that existed when it was written. Guarded by invariant #153.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
