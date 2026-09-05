@@ -4614,6 +4614,36 @@ check(
   },
 );
 
+// ── THE SOUND CARD IS NOT OPENED ON THE DEFAULTS ──────────────────────────────────────────────
+check(
+  'the audio plugin waits for the machine settings before opening the device',
+  "`native.configure()` is a SYNCHRONOUS napi call into JUCE that opens the sound card, and it runs on " +
+  "MAIN's JS thread — so for as long as it takes, main serves nothing: not a byte over " +
+  "artlux-media://, not a prefs read, not an audio conform. Measured on this rig (Windows Audio / " +
+  "Realtek) it is 5.7 s per call, and the plugin used to make TWO: one at activate() against " +
+  "DEFAULT_SETTINGS (no `plugins` key at all) and one when the machine's real setup arrived from prefs " +
+  "and the key diff re-opened the right device. A CPU profile of main across a cold open put " +
+  "`configure` at 11.0 s of self time out of 18 s, with nothing else within 60 ms. The first call is " +
+  "not merely wasted: it blocks the prefs read that would have said it was the wrong device, so it " +
+  "delays the project open by its own duration and then the media fetches by the second call's. " +
+  "End to end on a 2-scene / 4-mp4 project: 21.1 s to arm, of which 11.3 s was this. Deferring the " +
+  "startup open to the first settings notification carrying an audio slice — with a bounded grace for " +
+  "a machine that genuinely has none — took it to 6.5 s. Re-wiring activate() straight to " +
+  "applyDeviceCfg puts all of it back, silently.",
+  () => {
+    const f = 'plugins/audio/src/plugin.renderer.ts';
+    if (!exists(f)) return `${f} is missing`;
+    const src = read(f);
+    const bad = [];
+    // The old shape, exactly: an unconditional startup open wired straight to the subscription.
+    if (/subscribe\(applyDeviceCfg\)/.test(src)) bad.push('host.settings.subscribe(applyDeviceCfg) is back — the startup open is unconditional again');
+    if (!/STARTUP_DEVICE_GRACE_MS/.test(src)) bad.push('the startup grace is gone — nothing defers the first device open');
+    // …and the grace must be cancellable, or a plugin torn down inside it still opens the card later.
+    if (!/clearTimeout\(startupDeviceTimer\)/.test(src)) bad.push('deactivate no longer cancels the pending startup open');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── A PRE-ROLL IS A PROBE, NOT A SEEK ─────────────────────────────────────────────────────────
 check(
   "the codec pre-roll never repositions a decoder another consumer is driving",

@@ -87,6 +87,9 @@ const SYNC_THRESHOLD = 0.05; // s — per-clip source-offset drift (retime / mis
 let unsubTick: (() => void) | null = null;
 let unsubMix: (() => void) | null = null;
 let unsubCfg: (() => void) | null = null;
+// The deferred startup device open (see activate). Module-scoped so deactivate can cancel one that has
+// not fired — otherwise a plugin torn down inside the grace still opens the sound card 1.5 s later.
+let startupDeviceTimer = 0;
 let unsubBoot: (() => void) | null = null; // cold-start readiness probe (host.boot)
 let unsubPreload: (() => void) | null = null; // warm-scene participation (host.preload)
 let unsubConform: (() => void) | null = null; // a conform landed → re-read the containers it unblocks
@@ -264,14 +267,10 @@ export const plugin: RendererPlugin = {
     let avOffsetMs = 0;
 
     let lastCfgKey = '';
+    const cfgOf = (): AudioPluginCfg =>
+      ((host.settings.get() as { plugins?: Record<string, unknown> }).plugins?.['audio'] as AudioPluginCfg) ?? {};
     const applyDeviceCfg = () => {
-      const s = host.settings.get() as { plugins?: Record<string, unknown> };
-      const c = (s.plugins?.['audio'] as AudioPluginCfg) ?? {};
-      // Read BEFORE the device-key early-out below: these two have nothing to do with the device, and
-      // gating them on a device-config change would mean flipping the kill switch did nothing until the
-      // operator also changed their sound card.
-      videoAudioOn = c.videoAudio !== false;
-      avOffsetMs = Number.isFinite(c.avOffsetMs) ? (c.avOffsetMs as number) : 0;
+      const c = cfgOf();
       // ⚠ c.speakerPatch MUST be in this key. It is machine-commissioned (Speaker check, AudioSettings.tsx)
       // and lives in the SAME cfg slice as everything else here, but it is an ARRAY, not a scalar — easy to
       // forget in a tuple built by eye. Omitting it does not just drop the patch from the call below; it
@@ -296,8 +295,54 @@ export const plugin: RendererPlugin = {
         patch: c.speakerPatch,
       }).catch(() => { /* engine absent → no-op */ });
     };
-    applyDeviceCfg();                                          // startup
-    unsubCfg = host.settings.subscribe(applyDeviceCfg);        // and on every settings change
+    // ── DO NOT OPEN THE DEVICE ON THE DEFAULTS ──────────────────────────────────────────────────────
+    //
+    // `native.configure()` is a SYNCHRONOUS napi call into JUCE that opens the sound card, and on this
+    // machine (Windows Audio / Realtek) it takes **5.7 seconds** — on the MAIN process's JS thread.
+    // Everything main serves is stalled behind it: `artlux-media://` cannot answer a byte, prefs cannot
+    // be read, an audio conform cannot start. Profiled at the cold open, `configure` was 11.0 s of self
+    // time out of 18 s wall, and nothing else in main came within 60 ms of it.
+    //
+    // ELEVEN, because it ran TWICE: once here against DEFAULT_SETTINGS (which carry no `plugins` key at
+    // all), and again a moment later when the machine's real setup arrived from prefs and the key diff
+    // below re-opened the device it should have opened in the first place. The first open is pure loss,
+    // and worse than loss: it blocks the prefs read that would have told us it was the wrong device.
+    // Measured end to end, that is 5.7 s before the project can even be read and another 5.6 s before
+    // the first frame of video can be fetched.
+    //
+    // So the startup open WAITS for a settings notification that actually carries an audio slice — the
+    // prefs restore — and only falls back to opening on the defaults if none arrives inside the grace.
+    // Both paths still go through the same key diff, so whichever wins, the other is a no-op:
+    //   · machine WITH persisted audio setup (every commissioned rig): one open, with the right device;
+    //   · machine with NONE (fresh install): one open at the grace deadline, on the defaults — which for
+    //     that machine ARE its real setup;
+    //   · settings that change later (Preferences ▸ Audio, a commissioning edit): unchanged.
+    // The knobs that are NOT the device (`videoAudio`, `avOffsetMs`) are read immediately and on every
+    // change, because they cost nothing and gating them on the device would be a second bug.
+    //
+    // The remaining single 5.7 s open is the driver's, not ours — it wants the native call moved off
+    // main's thread, which is a separate change.
+    const readKnobs = () => {
+      const c = cfgOf();
+      videoAudioOn = c.videoAudio !== false;
+      avOffsetMs = Number.isFinite(c.avOffsetMs) ? (c.avOffsetMs as number) : 0;
+    };
+    // Generous: the prefs round trip is a few milliseconds once main is not blocked by the very open
+    // this defers. It is a safety net for "this machine has no audio setup", not a schedule.
+    const STARTUP_DEVICE_GRACE_MS = 1500;
+    startupDeviceTimer = window.setTimeout(() => { startupDeviceTimer = 0; applyDeviceCfg(); }, STARTUP_DEVICE_GRACE_MS);
+    const onSettings = () => {
+      readKnobs();
+      if (startupDeviceTimer) {
+        // An empty slice is the pre-prefs default state, not a machine that chose nothing: keep waiting.
+        // Any slice at all — even one holding only `videoAudio` — is this machine's real answer.
+        if (Object.keys(cfgOf()).length === 0) return;
+        clearTimeout(startupDeviceTimer); startupDeviceTimer = 0;
+      }
+      applyDeviceCfg();
+    };
+    readKnobs();                                               // startup: the non-device knobs, now
+    unsubCfg = host.settings.subscribe(onSettings);            // the device, and every later change
 
 
     // ── Audio scheduler: TWO containers, TWO clocks ───────────────────────────────────────────
@@ -1102,6 +1147,7 @@ export const plugin: RendererPlugin = {
     unsubTick?.(); unsubTick = null;
     unsubMix?.(); unsubMix = null;
     unsubCfg?.(); unsubCfg = null;
+    if (startupDeviceTimer) { clearTimeout(startupDeviceTimer); startupDeviceTimer = 0; }
     unsubBoot?.(); unsubBoot = null;
     unsubPreload?.(); unsubPreload = null;
     unsubConform?.(); unsubConform = null;
