@@ -206,7 +206,10 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
   draw to 540, clamp nothing, and pin the head at its end stop for the whole curve.
 
   So `display` is read **only** by the lane UI (axis readout, keyframe values, typed entry), never by
-  the clamp and never by the write path. That the engine — timeline, `automationOverlay`,
+  the clamp and never by the write path. **Typed entry is the keyframe editor** — double-click a keyframe
+  for a value / time / curve panel — and it is the one place `fromDisplay` is used: the field reads and
+  writes the authored unit, and the keyframe stores what the engine wants. A field taking storage under a
+  label printing degrees would have asked the operator to type `0.5` beside a readout saying `270 °`. That the engine — timeline, `automationOverlay`,
   `automation`, `frameEngine` — may not read it at all is invariant-guarded. A profiled channel gets
   its display map from its own declared physical range, and *only* when it declares one: a gobo wheel
   or a macro has no honest unit, and inventing one would be a label that lies.

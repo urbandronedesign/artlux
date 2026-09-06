@@ -9,7 +9,7 @@
 // re-sync; doing that 60×/s while dragging would be brutal).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
-import { toDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
+import { toDisplay, fromDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER, clamp } from './geometry';
@@ -19,6 +19,10 @@ import { help } from '../../services/helpBus';
 
 export const AUTO_LANE_H = 64;
 const PAD = 8; // px of headroom top/bottom so a keyframe at min/max is still grabbable
+// Seeds the editor's value field. Enough places to hold any axis this app has, few enough that a stored
+// 0.5000000000000001 (which is what a display round-trip on a 16-bit channel produces) does not land in
+// the field looking like a bug the operator caused.
+const round4 = (v: number): number => Math.round(v * 1e4) / 1e4;
 
 /**
  * One value readout, in the unit the operator authors in.
@@ -76,6 +80,13 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   const draftRef = useRef<Keyframe[] | null>(null);
   draftRef.current = draft;
   const [sel, setSel] = useState<number | null>(null);
+  // WHICH KEYFRAME IS OPEN IN THE EDITOR (an index into the lane's keys), and the two drafts its inputs
+  // hold while they are being typed into. Drafts, not direct commits: every keystroke would otherwise be a
+  // whole-document write — invariant 7 — and typing "-180" would commit "-", then "-1", then "-18" on the
+  // way, each one clamped to the target's range and each one a re-render of the timeline.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editV, setEditV] = useState('');
+  const [editT, setEditT] = useState('');
   // ⚠ THE DOCUMENT CAN REBIND UNDER A LIVE POINTER — AND THIS LANE SURVIVES IT.
   //
   // <TimelinePanel> has no React `key`, so a recall does not remount it; and a cloned scene's automation
@@ -88,7 +99,15 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   const docKeyRef = useRef(docKey); docKeyRef.current = docKey;
   // Belt to the braces below: drop a live drag's draft the moment the document changes, so the curve on
   // screen is the bound document's and not the departed one's.
-  React.useEffect(() => { setDraft(null); setSel(null); }, [docKey]);
+  React.useEffect(() => { setDraft(null); setSel(null); setEditing(null); }, [docKey]);
+  // ⚠ AND THE EDITOR MUST NOT OUTLIVE THE KEYFRAME IT NAMES. `editing` is an INDEX, and every write path
+  // here re-sorts the array — so a key deleted from under the panel (its own delete button, the alt-click,
+  // a recall) would leave the index pointing at a DIFFERENT key, which the fields would then write. Both
+  // the length changing and the index falling off the end close it. (setTime clamps between neighbours, so
+  // a time edit cannot reorder and cannot strand the index on its own.)
+  React.useEffect(() => {
+    if (editing !== null && editing >= lane.keyframes.length) setEditing(null);
+  }, [editing, lane.keyframes.length]);
 
   const h = lane.height ?? AUTO_LANE_H;
   const kfs = draft ?? lane.keyframes;
@@ -276,18 +295,75 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
     commit(lane.keyframes.filter((_, j) => j !== i));
   };
 
-  // Clicking a segment cycles the LEFT key's curve. Order: linear → hold → bezier.
-  const cycleCurve = (i: number) => {
+  // ⚠ THE CURVE USED TO BE A HIDDEN CYCLE ON DOUBLE-CLICK — linear → hold → bezier, one step per click,
+  // with no way to see the three options or to go back except by going round. It is a NAMED CHOICE in the
+  // keyframe editor now (the same double-click opens it), which is the same control made legible rather
+  // than a control removed.
+  const setCurve = (i: number, curve: Keyframe['curve']) => {
+    if (readOnly) return;
+    commit(lane.keyframes.map((x, j) => (j === i ? { ...x, curve, ...(curve === 'bezier' ? BEZ_DEFAULT : {}) } : x)));
+  };
+
+  /**
+   * TYPE THE NUMBER. A keyframe could only ever be DRAGGED, and a drag is a poor way to say 90° — the pad
+   * is a few dozen pixels tall over the target's whole range, so one pixel is a coarse quantum on anything
+   * with a wide axis and a value like "exactly -180" was unhittable. The label already showed the number;
+   * this is the other half, the ability to set it.
+   *
+   * Clamped to the TARGET's declared range, not the lane's drawing: `def.min`/`def.max` are what the
+   * automation engine will accept, and a value typed outside them would be silently clamped later and
+   * disagree with what the operator typed. Quantised to the target's step for the same reason a drag is.
+   */
+  const setValue = (i: number, shown: number) => {
+    if (readOnly) return;
+    if (!Number.isFinite(shown)) return;
+    // ⚠ THE FIELD IS IN THE **DISPLAY** UNIT, THE KEYFRAME IS IN STORAGE, AND THIS IS THE SEAM.
+    // A target may read in one unit and store in another (docs/TIMELINE.md — a Pan lane stores the 0..1
+    // fraction that lands in `Fixture.dmx` and reads 0..540°). The label above the diamond has always
+    // printed `toDisplay`, so a field that took storage would have asked the operator to type `0.5` under
+    // a label saying `270 °`. `fromDisplay` is the declared exact inverse; it is the identity for every
+    // target that declares no `display`, which is all of audio.
+    const v = quant(clamp(fromDisplay(def, shown), min, max));
+    commit(lane.keyframes.map((x, j) => (j === i ? { ...x, v } : x)));
+  };
+  // Open on the key's CURRENT values, as strings — the inputs are drafts (see the state), and seeding them
+  // from the live keyframe is what makes the editor a starting point rather than a blank form.
+  const openEditor = (i: number) => {
     if (readOnly) return;
     const k = lane.keyframes[i];
-    const next: Keyframe['curve'] = k.curve === 'linear' ? 'hold' : k.curve === 'hold' ? 'bezier' : 'linear';
-    commit(lane.keyframes.map((x, j) => (j === i ? { ...x, curve: next, ...(next === 'bezier' ? BEZ_DEFAULT : {}) } : x)));
+    if (!k) return;
+    setSel(i);
+    setEditV(String(round4(toDisplay(def, k.v))));   // seeded in the unit the field reads — see setValue
+    setEditT(k.t.toFixed(3));
+    setEditing(i);
+  };
+  const closeEditor = () => setEditing(null);
+  // Both fields land, then the panel closes. `onBlur` commits each field on its own for the ordinary path
+  // (tab out, click away); this is the Enter/`done` path, where neither field has necessarily blurred.
+  const commitEditor = (i: number) => {
+    setValue(i, parseFloat(editV));
+    setTime(i, parseFloat(editT));
+    closeEditor();
+  };
+  const setTime = (i: number, raw: number) => {
+    if (readOnly) return;
+    if (!Number.isFinite(raw)) return;
+    // Between the neighbours, exactly as a drag is — the sampler's cursor walks a SORTED array, and a key
+    // typed past its neighbour would put the curve out of order rather than reorder it.
+    const base = lane.keyframes;
+    const lo = i > 0 ? base[i - 1].t + 0.001 : 0;
+    const hi = i < base.length - 1 ? base[i + 1].t - 0.001 : Number.MAX_SAFE_INTEGER;
+    commit(base.map((x, j) => (j === i ? { ...x, t: Math.max(0, clamp(raw, lo, hi)) } : x)));
   };
 
   // The value at MOUNT/RE-RENDER time — the readout's first paint, before the subscription's next tick
   // takes the element over. Everything live goes through `liveNow()`.
   const live = liveNow();
   const fmt = (v: number) => fmtIn(def, v);
+  // The axis as the keyframe editor's field speaks it — see setValue for why storage is not that unit.
+  const dispMin = toDisplay(def, min);
+  const dispMax = toDisplay(def, max);
+  const dispUnit = def.display?.unit ?? def.unit;
 
   // A GLOBAL lane seen from a scene is dimmed; a SHADOWED one (a scene lane owns the same targetPath, so
   // timeline.ts:519 has filtered this one out of the compile) is dimmed harder and struck through. That
@@ -381,11 +457,77 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
                 <div onPointerDown={dragKf(i)}
                   onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
                   onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
-                  onDoubleClick={(e) => { e.stopPropagation(); cycleCurve(i); }}
+                  onDoubleClick={(e) => { e.stopPropagation(); openEditor(i); }}
                   {...help('timeline.automation-keyframe')}
-                  title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: curve · right-click: delete`}
+                  title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: edit value, time and curve · right-click: delete`}
                   className={`absolute left-0 top-0 -ml-[4.5px] -mt-[4.5px] w-[9px] h-[9px] rotate-45 cursor-pointer ${active ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`} />
               </Tooltip>
+
+              {/* ── THE KEYFRAME EDITOR ────────────────────────────────────────────────────────────────
+                  A keyframe could only be DRAGGED, and a drag is a poor way to say -180: the lane is a few
+                  dozen pixels tall over the target's WHOLE range, so a pixel is a coarse quantum on a wide
+                  axis and an exact value was simply unhittable. The label has always shown the number; this
+                  is the other half of it.
+
+                  ⚠ EVERY POINTER EVENT IS STOPPED AT THIS BOX. The lane body underneath it seeks on
+                  pointerdown and ADDS A KEYFRAME on double-click — so a click into the value field would
+                  otherwise scrub the show, and a double-click to select a number would drop a new key
+                  behind the panel that is editing one. */}
+              {editing === i && !readOnly && (
+                <div
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    // Enter commits whichever field has focus and closes; Escape abandons BOTH drafts.
+                    if (e.key === 'Escape') { e.stopPropagation(); closeEditor(); }
+                    if (e.key === 'Enter') { e.stopPropagation(); commitEditor(i); }
+                  }}
+                  className={`absolute top-3 ${flip ? 'right-2' : 'left-2'} z-20 w-44 p-2 rounded border border-line-2 bg-surface-0 shadow-lg space-y-1.5`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-micro text-fg-3 w-9 shrink-0">value</span>
+                    {/* min/max/step/unit ALL IN THE DISPLAY UNIT — the same seam setValue documents. A
+                        `min={0} max={1}` under a field reading degrees would have the browser reject every
+                        legal bearing. `step` goes free whenever a display map is in play: the stored step
+                        (1/65535 for a 16-bit Pan) is not a step in the unit being typed. */}
+                    <input autoFocus type="number" value={editV}
+                      step={def.display ? 'any' : (def.step || 'any')}
+                      min={Math.min(dispMin, dispMax)} max={Math.max(dispMin, dispMax)}
+                      onChange={(e) => setEditV(e.target.value)}
+                      onBlur={() => setValue(i, parseFloat(editV))}
+                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro num text-fg-1 outline-none focus:border-accent" />
+                    {dispUnit && <span className="text-micro text-fg-3 shrink-0">{dispUnit}</span>}
+                  </div>
+                  {/* The range is the TARGET's, and it is printed rather than only enforced: a value typed
+                      outside it is clamped, and a clamp the operator did not expect reads as the field
+                      ignoring them. */}
+                  <div className="text-micro text-fg-3/70 leading-none">{fmt(min)} … {fmt(max)}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-micro text-fg-3 w-9 shrink-0">time</span>
+                    <input type="number" value={editT} step={0.01} min={0}
+                      onChange={(e) => setEditT(e.target.value)}
+                      onBlur={() => setTime(i, parseFloat(editT))}
+                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro num text-fg-1 outline-none focus:border-accent" />
+                    <span className="text-micro text-fg-3 shrink-0">s</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-micro text-fg-3 w-9 shrink-0">curve</span>
+                    <select value={k.curve ?? 'linear'}
+                      onChange={(e) => setCurve(i, e.target.value as Keyframe['curve'])}
+                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro text-fg-1 outline-none focus:border-accent">
+                      <option value="linear">linear</option>
+                      <option value="hold">hold</option>
+                      <option value="bezier">bezier</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <button onClick={() => removeKf(i)} disabled={lane.keyframes.length <= 1}
+                      title={lane.keyframes.length <= 1 ? 'A lane always holds at least one keyframe — remove the lane instead' : 'Delete this keyframe'}
+                      className="text-micro text-fg-3 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">delete</button>
+                    <button onClick={() => commitEditor(i)}
+                      className="ml-auto px-1.5 py-0.5 rounded bg-accent/15 text-accent text-micro hover:bg-accent/25">done</button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
