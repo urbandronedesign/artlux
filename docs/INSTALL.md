@@ -28,9 +28,14 @@ in a venue does not go stale:
 | ArtLux — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) |
 
 These are fixed-name copies published beside the versioned assets, not replacements for them. The
-versioned files — `ArtLux-<version>-x64.exe` and the rest — remain on
-[every release](https://github.com/urbandronedesign/artlux/releases), which is where you go for a
-specific older build or to put a machine back on the version it was running last week.
+versioned files — `ArtLux-<version>-x64.exe` and the rest — are what you go to
+[the releases page](https://github.com/urbandronedesign/artlux/releases) for: a specific build, or
+putting a machine back on the version it was running last week.
+
+**The three most recent versions stay installable there**; older ones are retired to drafts by CI so
+the list stays short. Retired is not deleted — the assets and the notes are intact, the git tag never
+moves, and any of them can be restored on request. If you need a version older than the three on the
+page, ask rather than assuming it is gone.
 
 > **A file downloaded from those links names no version**, so nothing can read the release off its
 > filename. `scripts/verify-download.ps1` handles that by resolving the newest release itself

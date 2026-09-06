@@ -194,14 +194,15 @@ jobs:
             gh release create launcher-latest "$dir/$alias_name" --prerelease --title "ArtLux Launcher (latest)" --notes "$notes"
           fi
 
-      # RETENTION -- the launcher's half of the rule build.yml applies to the app. The tag always
-      # survives (no --cleanup-tag), and TWO releases are kept rather than one, so the version before
-      # last stays installable without a rebuild.
+      # RETENTION -- the launcher's half of the rule build.yml applies to the app. Old releases are
+      # retired to DRAFTS, never deleted: invisible to visitors and to the public API, assets and tag
+      # intact, and `gh release edit <tag> --draft=false` puts one back. TWO are kept visible rather
+      # than one, so the version before last stays installable without a rebuild.
       #
       # `^launcher-v[0-9]` is what keeps this off the app's releases AND off `launcher-latest`: the
-      # rolling tag matches no product pattern, so it can never be pruned out from under the README's
-      # download link.
-      - name: Prune old launcher releases
+      # rolling tag matches no product pattern, so it can never be retired out from under the
+      # README's download link.
+      - name: Retire old launcher releases to drafts
         if: startsWith(github.ref, 'refs/tags/launcher-v')
         # Untidiness must not fail a release that already published.
         continue-on-error: true
@@ -211,12 +212,12 @@ jobs:
         run: |
           set -uo pipefail
           KEEP=2
-          tags=$(gh release list --limit 200 --json tagName,isDraft \
-                   --jq '.[] | select(.isDraft == false) | .tagName' | grep -E '^launcher-v[0-9]' || true)
-          if [ -z "$tags" ]; then echo "nothing to prune"; exit 0; fi
-          echo "$tags" | head -n "$KEEP" | sed 's/^/  keep   /'
+          tags=$(gh release list --limit 200 --exclude-drafts --json tagName \
+                   --jq '.[].tagName' | grep -E '^launcher-v[0-9]' || true)
+          if [ -z "$tags" ]; then echo "nothing to retire"; exit 0; fi
+          echo "$tags" | head -n "$KEEP" | sed 's/^/  keep    /'
           for t in $(echo "$tags" | tail -n +$((KEEP + 1))); do
-            if [ "$t" = "${GITHUB_REF_NAME:-}" ]; then echo "  keep   $t (this build)"; continue; fi
-            echo "  remove $t (tag kept)"
-            gh release delete "$t" --yes || echo "::warning::could not remove $t"
+            if [ "$t" = "${GITHUB_REF_NAME:-}" ]; then echo "  keep    $t (this build)"; continue; fi
+            echo "  retire  $t (draft; tag and assets kept)"
+            gh release edit "$t" --draft || echo "::warning::could not retire $t"
           done

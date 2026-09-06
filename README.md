@@ -162,8 +162,15 @@ Installing ArtLux by hand still works and is documented in [docs/INSTALL.md](doc
 | **ArtLux** — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) | |
 
 **Those links never change and always give the newest build** — they are fixed-name copies published
-alongside the versioned assets, so nothing here has to be edited when a release goes out. The
-versioned files are still there for [an older build or a rollback](https://github.com/urbandronedesign/artlux/releases).
+alongside the versioned assets, so nothing here has to be edited when a release goes out.
+
+The [releases page](https://github.com/urbandronedesign/artlux/releases) keeps the **three most
+recent** versions installable, which is what a rollback needs. Older ones are *retired to drafts* by
+CI, not deleted: they vanish from the list and their installers stop resolving, but the release, its
+notes and every asset are intact and one command away
+(`gh release edit v0.25.3 --draft=false`) — and the **git tag never moves either way**, so
+`git checkout v0.25.3` and every link to source at that version work regardless. Ask if you need an
+old build put back.
 
 > A file downloaded through one of those links carries no version in its name, which is exactly why
 > `scripts/verify-download.ps1` resolves the release itself rather than reading it off the filename.

@@ -210,22 +210,27 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
 
-      # RETENTION. Old installers are pruned so the releases page stays a short list of things
-      # someone might actually install, rather than every build ever cut. Two rules make it safe to
-      # run unattended:
+      # RETENTION. Old releases are RETIRED TO DRAFTS, not deleted, so the releases page stays a
+      # short list of things someone might actually install without anything being destroyed. Three
+      # rules make it safe to run unattended:
       #
-      #   1. THE TAG SURVIVES. Removing a release without --cleanup-tag takes the release page and
-      #      its assets; the git tag stays. History, `git checkout <tag>` and every link to source at
-      #      that version keep working. Only the built binary goes, and only for versions nobody is
-      #      being offered any more.
-      #   2. THREE ARE KEPT, NOT ONE. The one before last is the rollback. ArtLux runs unattended in
-      #      venues, unsigned, and re-cuts are done on the same version number, so "put this machine
-      #      back on what it ran yesterday" has to stay possible without a rebuild -- which here
-      #      means the whole three-OS native matrix, and never byte-identical.
+      #   1. NOTHING IS LOST. A draft is invisible to anonymous visitors and absent from the public
+      #      API, and its assets stop resolving -- which is the whole point -- but the release, its
+      #      notes and all its installers are still there, and `gh release edit <tag> --draft=false`
+      #      puts one back exactly as it was. The git tag never moves either way, so history,
+      #      `git checkout <tag>` and source links at that version are untouched regardless.
+      #   2. THE LAUNCHER ALREADY SKIPS DRAFTS. `newest_release` filters on `!r.draft`
+      #      (launcher/src-tauri/src/releases.rs), so a retired release cannot be resolved and
+      #      offered as an install. That check predates this step; it is what makes drafting the
+      #      safe verb here rather than a clever one.
+      #   3. THREE ARE KEPT VISIBLE, NOT ONE. The one before last is the rollback. ArtLux runs
+      #      unattended in venues, unsigned, and re-cuts are done on the same version number, so
+      #      "put this machine back on what it ran yesterday" has to stay possible without a rebuild
+      #      -- which here means the whole three-OS native matrix, and never byte-identical.
       #
       # This is not a storage measure: the repo is public, so release assets cost nothing. It is
-      # about what a person sees when they arrive.
-      - name: Prune old releases
+      # about what a person sees when they arrive. Deleting would buy nothing that drafting does not.
+      - name: Retire old releases to drafts
         # Never fail a release that has already published. Untidiness is not a broken build, and
         # failing here would read as one.
         continue-on-error: true
@@ -235,16 +240,17 @@ jobs:
         run: |
           set -uo pipefail
           KEEP=3
-          # Newest first, filtered to THIS product's tag shape, so the two products can never prune
+          # Newest first, filtered to THIS product's tag shape, so the two products can never retire
           # each other -- and `launcher-latest` matches no product pattern, so the rolling tag is
-          # never a candidate.
-          tags=$(gh release list --limit 200 --json tagName,isDraft \
-                   --jq '.[] | select(.isDraft == false) | .tagName' | grep -E '^v[0-9]' || true)
-          if [ -z "$tags" ]; then echo "nothing to prune"; exit 0; fi
-          echo "$tags" | head -n "$KEEP" | sed 's/^/  keep   /'
+          # never a candidate. --exclude-drafts makes the step idempotent: already-retired releases
+          # are not candidates, and they cannot crowd out the list of live ones either.
+          tags=$(gh release list --limit 200 --exclude-drafts --json tagName \
+                   --jq '.[].tagName' | grep -E '^v[0-9]' || true)
+          if [ -z "$tags" ]; then echo "nothing to retire"; exit 0; fi
+          echo "$tags" | head -n "$KEEP" | sed 's/^/  keep    /'
           for t in $(echo "$tags" | tail -n +$((KEEP + 1))); do
             # The tag being built is kept whatever the ordering says.
-            if [ "$t" = "${GITHUB_REF_NAME:-}" ]; then echo "  keep   $t (this build)"; continue; fi
-            echo "  remove $t (tag kept)"
-            gh release delete "$t" --yes || echo "::warning::could not remove $t"
+            if [ "$t" = "${GITHUB_REF_NAME:-}" ]; then echo "  keep    $t (this build)"; continue; fi
+            echo "  retire  $t (draft; tag and assets kept)"
+            gh release edit "$t" --draft || echo "::warning::could not retire $t"
           done
