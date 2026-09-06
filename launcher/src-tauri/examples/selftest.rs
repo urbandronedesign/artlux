@@ -118,6 +118,26 @@ async fn main() {
         Err(e) => println!("   published launcher: none yet ({e})"),
     }
 
+    // HOW DEEP each product sits in the shared feed. Both resolvers walk the list rather than
+    // trusting /releases/latest, so the depth of the newest launcher-v* is a real operating number:
+    // it only ever grows (the app releases ~10x more often), and when it crossed a page boundary
+    // self-update failed everywhere at once with nothing local to see. Printed so it can be watched,
+    // not asserted — the number is allowed to grow, it just must stay inside what the walk covers.
+    const OLD_PAGE_WINDOW: usize = 30; // what a single un-paginated request used to cover
+    match releases::list_tags().await {
+        Ok(tags) => {
+            let app = tags.iter().position(|t| releases::is_app_tag_for_test(t));
+            let launcher = tags.iter().position(|t| t.starts_with("launcher-v"));
+            println!("   feed depth: {} releases listed", tags.len());
+            println!("   newest app release      at position {}", app.map_or("(none)".to_string(), |i| (i + 1).to_string()));
+            println!("   newest launcher release at position {}", launcher.map_or("(none)".to_string(), |i| (i + 1).to_string()));
+            if launcher.is_some_and(|i| i >= OLD_PAGE_WINDOW) {
+                println!("   .. beyond the first {OLD_PAGE_WINDOW}: this needed pagination to resolve at all");
+            }
+        }
+        Err(e) => println!("   feed depth: unavailable ({e})"),
+    }
+
     line();
     println!("3. CHECKSUM REFUSAL  (a download that does not match must NOT be returned)");
     line();

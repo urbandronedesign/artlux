@@ -321,10 +321,21 @@ survived only on its path fallback.
 Public repo, so unauthenticated access works — 60 requests/hour/IP, and a rate-limit response is a
 real state to name rather than spin on.
 
-- `GET /repos/urbandronedesign/artlux/releases` → filtered by **tag shape**, newest first.
+- `GET /repos/urbandronedesign/artlux/releases?per_page=100&page=N` → filtered by **tag shape**,
+  newest first, **walked page by page** (up to 5 pages) until a tag matches.
 - `…/releases/download/<tag>/latest.yml` → `version`, `path`, `sha512`. The same metadata
   `electron-updater` consumes, so it is the only correct source for the hash.
-- Windows asset name: `ArtLux-<version>-x64.exe` (arch is `x64`, not `x86_64`).
+- Windows asset name: `ArtLux-<version>-x64.exe` (arch is `x64`, not `x86_64`) — read from
+  `latest.yml`'s `path`, never by scanning the release's asset list.
+
+> ⚠ **The walk is load-bearing, because the two products share one list.** The request was a single
+> un-paginated page of 30 until 2026-09-06. App releases land roughly ten times as often as launcher
+> ones, so the newest `launcher-v*` sinks steadily down the list — and the first time it passed the
+> 30th row, `resolve_launcher_latest` would have started answering *"no published launcher release
+> was found"* on every installed launcher at once. Nothing local changes, no build fails, and CI
+> cannot see it: the break is remote, and it lands on the product whose whole job is installing
+> things. It had twelve app releases of headroom when it was found. `cargo run --example selftest`
+> now prints the depth of each product in the feed so the number is watchable.
 
 > ⚠ **`sha512` is base64, not hex.** Comparing a hex digest fails every download and reads as a
 > network problem.

@@ -21,6 +21,12 @@ const OWNER_REPO: &str = "urbandronedesign/artlux";
 const WIN_ARCH: &str = "x64";
 /// Launcher releases carry their own tag prefix so the two products never contend for "latest".
 const LAUNCHER_TAG_PREFIX: &str = "launcher-v";
+/// GitHub's maximum page size for the releases list.
+const RELEASES_PER_PAGE: u32 = 100;
+/// How far back `newest_release` will walk before giving up — 500 releases, far past anything this
+/// repo will hold. A cap rather than "until the list ends" so a feed that keeps answering (a proxy,
+/// a mangled response) cannot turn a missing tag into an unbounded request loop.
+const MAX_RELEASE_PAGES: u32 = 5;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReleaseInfo {
@@ -127,23 +133,65 @@ async fn check(resp: reqwest::Response, what: &str) -> Result<reqwest::Response,
 
 /// The newest release whose tag satisfies `want`. Lists rather than asking for "latest" — see
 /// `is_app_tag` for why that endpoint cannot be trusted in a repo shipping two products.
+///
+/// ⚠ IT PAGINATES, and that is not tidiness. One page was enough while the repo held one product;
+/// two products publishing into the same list changed the arithmetic. App releases land roughly ten
+/// times as often as launcher ones, so the newest `launcher-v*` marches steadily down the list and
+/// eventually off the first page — at which point `resolve_launcher_latest` reports "no published
+/// launcher release was found" on every installed launcher at once. Nothing local changes, no build
+/// fails, and CI cannot see it: the break is remote, and it lands on the product whose entire job is
+/// installing things. A single page of 30 left twelve app releases of headroom when this was found.
 async fn newest_release(
     http: &reqwest::Client,
     want: impl Fn(&GhRelease) -> bool,
     what: &str,
 ) -> Result<GhRelease, String> {
-    let api = format!("https://api.github.com/repos/{OWNER_REPO}/releases?per_page=30");
+    for page in 1..=MAX_RELEASE_PAGES {
+        let all = fetch_page(http, page).await?;
+        // A short page is the last page, and an empty one is past the end. Either way, stop here
+        // rather than spending an anonymous 60-requests-per-hour budget on pages that cannot exist.
+        let last_page = all.len() < RELEASES_PER_PAGE as usize;
+        // GitHub returns newest first, within the page and across pages.
+        if let Some(found) = all.into_iter().find(|r| !r.draft && want(r)) {
+            return Ok(found);
+        }
+        if last_page {
+            break;
+        }
+    }
+    Err(format!("no published {what} was found in this repository"))
+}
+
+/// One page of the release list, newest first.
+async fn fetch_page(http: &reqwest::Client, page: u32) -> Result<Vec<GhRelease>, String> {
+    let api = format!(
+        "https://api.github.com/repos/{OWNER_REPO}/releases?per_page={RELEASES_PER_PAGE}&page={page}"
+    );
     let resp = check(
         http.get(&api).header("Accept", "application/vnd.github+json").send().await
             .map_err(|e| format!("could not reach GitHub: {e}"))?,
         "listing releases",
     )
     .await?;
-    let all: Vec<GhRelease> = resp.json().await.map_err(|e| format!("could not read GitHub's answer: {e}"))?;
-    // GitHub returns newest first.
-    all.into_iter()
-        .find(|r| !r.draft && want(r))
-        .ok_or_else(|| format!("no published {what} was found in this repository"))
+    resp.json().await.map_err(|e| format!("could not read GitHub's answer: {e}"))
+}
+
+/// Every published release tag the feed returns, newest first — a diagnostic for the self-test, not
+/// a resolution path. It exists so the self-test can report HOW DEEP the newest launcher release
+/// sits: that depth is the number that silently crossed a page boundary and took self-update with
+/// it, and a depth is only alarming when you can see it growing.
+pub async fn list_tags() -> Result<Vec<String>, String> {
+    let http = client()?;
+    let mut tags = Vec::new();
+    for page in 1..=MAX_RELEASE_PAGES {
+        let all = fetch_page(&http, page).await?;
+        let last_page = all.len() < RELEASES_PER_PAGE as usize;
+        tags.extend(all.into_iter().filter(|r| !r.draft).map(|r| r.tag_name));
+        if last_page {
+            break;
+        }
+    }
+    Ok(tags)
 }
 
 pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
