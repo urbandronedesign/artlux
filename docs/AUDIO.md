@@ -339,15 +339,33 @@ the core parameters use, so an audio lane on the timeline is the same object as 
 | `audio.master.gain` | 0 – 1.5 | the house level — *the* lane a show recall exists to move |
 | `audio.master.fx.<fxId>.<param>` | per the FX catalog | e.g. `audio.master.fx.fx_comp.thresholdDb` |
 | `audio.track.<trackId>.gain` | 0 – 1.5 | |
-| `audio.clip.<clipId>.gain` | 0 – 1.5 | |
+| `audio.clip.<clipId>.gain` | 0 – 1.5 | any container — a bed clip, a scene's own clip, or a `va:`-prefixed video soundtrack |
 | `audio.clip.<clipId>.spatial.angle` | ±1440° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
 | `audio.clip.<clipId>.spatial.elevation` | −90 – 90° | how high |
 | `audio.clip.<clipId>.fx.<fxId>.<param>` | per the FX catalog | |
 
-**These are BED paths.** The provider enumerates `ProjectData.audio` and nothing else, so a clip in a
-`Timeline.audio` has no lane and no fade over it. And because Capture Scene deep-clones a timeline, clip ids
-**alias across containers** — an id from a scene's audio will happily *resolve* against a bed path of the
-same name. Anything reading these paths must gate on the container first.
+**These paths cover ALL THREE containers.** They used to name the bed alone — `enumerate()` read
+`ProjectData.audio` and nothing else, so a clip in a scene's own `Timeline.audio`, or a video clip's
+soundtrack, had no lane you could draw over it. The catalog now enumerates all three, and the path does
+**not** say which: `audio.clip.<id>` names the clip that holds that id, wherever it lives.
+
+That is safe because **every id is a `crypto.randomUUID()`** (and a video clip's derived id carries a `va:`
+prefix besides), so a cross-container collision is not producible. It is also why this was a catalog change
+and not a re-modelling — `ownerOf`, `write`, `release`, the driver's `autoOrFadeGain` / `applyClipLayers`
+and core's `pathLeaf` were already container-blind and none of them moved.
+
+| Container | Group in the picker | Clock |
+|---|---|---|
+| the bed (`ProjectData.audio`) | `Bed ▸ …` · `Track ▸ …` | the **show** clock |
+| the bound timeline (`Timeline.audio`) | `This timeline ▸ …` | that timeline's **playhead** |
+| a video clip's soundtrack (derived) | `Video clip ▸ …` | the **playhead**, with its picture |
+
+> **The last two belong to the BOUND document, so the catalog changes on every recall** — a scene's lanes
+> wake with the scene and sleep when it leaves. `compileAutomation()` already runs at the recall and on
+> every document edit, so this needs no invalidation of its own.
+>
+> **A lane is not a fade.** The scene/cue *fade* layer is still bed-only: nothing writes a fade over the
+> other two containers, so their controls never need a takeover (`releaseFade`) the way the bed's do.
 
 ### Which clock a lane rides
 

@@ -722,16 +722,18 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // the BED's namespace: because clip ids ALIAS across containers, releasing one for a timeline clip could
   // drop a LIVE fade on a real bed clip that happens to share the id. Silence here is not laziness.
   const releaseSel = (path: string) => { if (selSource === 'bed') releaseFade(path); };
-  // ⚠ THE READ-SIDE TWIN OF releaseSel, AND IT NEEDS THE SAME GATE FOR EXACTLY THE SAME REASON.
-  // `drive` is keyed by BED paths — the audio automation provider enumerates the BED and only the bed
-  // (automationTargets readMix), so a Timeline.audio clip or track has no lane and no fade over it, ever.
-  // But clip and track ids ALIAS across the two containers (Capture Scene structuredClones the bound
-  // timeline into a scene, ids verbatim), so looking a TIMELINE row's id up in this map RESOLVES — against
-  // the wrong container. The fader would draw a BED lane's value, the badge would name a lane that does not
-  // exist for it, and it would go READ-ONLY for that phantom lane. `bed` ⇒ read it; anything else ⇒ nobody
-  // is driving this control, which is the truth.
-  const drivenOn = (source: SelSource | null, path: string): Driven | undefined =>
-    (source === 'bed' ? drive.get(path) : undefined);
+  // ⚠ THIS USED TO BE GATED TO THE BED, AND UN-GATING IT IS A FIX, NOT A RELAXATION.
+  // The gate was there because the provider catalogued the BED alone, so a timeline row's id could only
+  // ever resolve here by ALIASING onto a real bed lane — drawing someone else's value and going read-only
+  // for a lane that did not exist. Both halves of that are now false: enumerate() catalogs all three
+  // containers, so a timeline or video clip CAN be driven; and every id in every container is a
+  // `crypto.randomUUID()`, so a cross-container hit is not producible. Keeping the gate would now cause
+  // the very failure it was written to prevent, one container over — a fader sitting at the authored
+  // value, live, while a lane moves the room.
+  //
+  // (`releaseSel` on the WRITE side keeps its bed gate: a takeover releases a scene/cue FADE, and nothing
+  // writes a fade over the other two containers. Two different layers, two different questions.)
+  const drivenOn = (_source: SelSource | null, path: string): Driven | undefined => drive.get(path);
 
   // ---- THE AUTHORED WRITES. Every one names its PATH. -------------------------------------------------
   // Once the scene/cue fade layer exists the driver reads `laneOverride ?? sceneFade ?? authored`, and a

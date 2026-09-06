@@ -917,9 +917,11 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
    * DROPPED.** A recall that lands between the gesture and the commit therefore loses the edit, which is
    * correct: the operator is no longer looking at that clip.
    *
-   * NOT AN AUTOMATION TARGET. `Timeline.audio` is outside the audio automation provider's world (it
-   * enumerates the BED's tracks/clips/master only), so a clip patched here has no lane and no scene/cue
-   * fade over it: callers must NOT pair this with releaseFade()/dropFadeLeg() the way the bed's writes do.
+   * AN AUTOMATION TARGET, BUT NOT A FADE TARGET — and the halves of that came from different changes, so
+   * do not collapse them. The audio provider now catalogs `Timeline.audio` as well as the bed, so a clip
+   * patched here CAN have a lane over it and a caller drawing its value must read the driven value rather
+   * than the authored one. It still has no scene/cue FADE over it (nothing writes one outside the bed), so
+   * callers must NOT pair this with releaseFade()/dropFadeLeg() the way the bed's writes do.
    *
    * COSTLY — INVARIANT 7 IS NOT OPTIONAL HERE. One call is a core document commit: engine.setData →
    * clampPlayheadIntoDoc + warmMedia + pruneStaleLayers + compileAutomation, PLUS a structured-clone

@@ -65,6 +65,12 @@ function ovEffectsOf(x: { effects?: unknown }): OvEffect[] | undefined {
 }
 
 const readMix = (): Mix => (getAudioHost()?.audio.getMix() as Mix) ?? { tracks: [], clips: [], buses: [] };
+// THE OTHER TWO CONTAINERS. `enumerate()` read the bed and only the bed until now — which is why a scene's
+// own audio, and a video clip's soundtrack, had no lane and no curve over them. Both are `{tracks, clips}`
+// in the same shape, and both belong to whichever timeline is BOUND right now.
+const EMPTY_CONTAINER: { tracks: Track[]; clips: Clip[] } = { tracks: [], clips: [] };
+const readTimelineAudio = () => (getAudioHost()?.audio.getTimelineAudio() as { tracks: Track[]; clips: Clip[] }) ?? EMPTY_CONTAINER;
+const readVideoAudio = () => (getAudioHost()?.audio.getVideoAudio() as { tracks: Track[]; clips: Clip[] }) ?? EMPTY_CONTAINER;
 
 // ── The live override layer ─────────────────────────────────────────────────────────────────────
 const ovr = new Map<string, number>();          // targetPath → live value
@@ -161,11 +167,15 @@ const NOTHING_DRIVEN: ReadonlyMap<string, Driven> = new Map();
  *     a lane (Fader.tsx:89), so the write lands in the document, changes nothing audible, and is overwritten
  *     on the next frame. The fader must go READ-ONLY, or it tells its second lie of the day.
  *
- * ⚠ THESE ARE BED PATHS. `audio.clip.<id>` / `audio.track.<id>` name the BED (readMix enumerates the bed and
- * only the bed), and clip/track ids ALIAS across containers — Capture Scene structuredClones the timeline —
- * so a caller rendering a TIMELINE row must not look its ids up in here. It would resolve, against the wrong
- * container, and paint a bed lane's value onto a timeline fader. This is the same gate releaseSel makes on
- * the write side, for the same reason, and it belongs to the CALLER: this map cannot know who is asking.
+ * ⚠ THIS WARNING USED TO SAY "THESE ARE BED PATHS", AND IT NO LONGER DOES. enumerate() now catalogs all
+ * three containers, so `audio.clip.<id>` names a clip wherever it lives and a caller rendering a TIMELINE
+ * or VIDEO row SHOULD look its id up here — drawing the authored value under a live lane is the
+ * self-reporting-healthy failure this map exists to end. What made the old gate necessary was a fear of
+ * id aliasing; what makes it unnecessary is that every id in every container is a `crypto.randomUUID()`
+ * (and a video clip's carries a `va:` prefix besides), so there is nothing to alias INTO.
+ *
+ * The `fade` layer is a different question and is still bed-only — nothing writes a scene/cue fade over
+ * the other two containers — which is why releaseSel's gate on the WRITE side stays exactly as it was.
  */
 export function drivenSnapshot(): ReadonlyMap<string, Driven> {
   if (ovr.size === 0 && fade.size === 0) return NOTHING_DRIVEN;
@@ -303,14 +313,29 @@ export const audioAutomationProvider: AutomationTargetProvider = {
   enumerate(): AutomationTargetDef[] {
     const mix = readMix();
     const out: AutomationTargetDef[] = [];
-    const named = (c: Clip) => c.name || 'clip';
 
-    for (const t of mix.tracks) {
-      out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group: `Track ▸ ${t.name || t.id}`, ...GAIN, def: t.gain ?? 1 });
-    }
-    for (const c of mix.clips) {
-      const g = `Bed ▸ ${named(c)}`;
-      out.push({ path: `${NS}.clip.${c.id}.gain`, label: 'Gain', group: g, ...GAIN, def: c.gain ?? 1 });
+    // ── ONE EMITTER, THREE CONTAINERS ────────────────────────────────────────────────────────────────
+    //
+    // THE PATHS DO NOT CARRY THE CONTAINER, AND THEY MUST NOT START. `audio.clip.<id>` names a clip in
+    // whichever container holds that id, and that is safe for one reason worth stating rather than
+    // rediscovering: every clip and track id in all three is a `crypto.randomUUID()` (AudioBedPanel's
+    // `uid`, Timeline.tsx's mints) and a video clip's derived id additionally carries a `va:` prefix. A
+    // bed↔timeline collision is not merely improbable, it is not producible.
+    //
+    // That is what makes this a five-line change instead of a re-modelling. Every consumer already
+    // resolves by id and is already container-blind, all the way down: `ownerOf`, `write`, `release`, the
+    // driver's `autoOrFadeGain(clip.id)` / `hasAnyOverride(clip.id)` / `applyClipLayers`, and core's
+    // `pathLeaf` (which splits `audio.<kind>.<id>.<leaf>` generically). Not one of them needed to learn
+    // what a container is — the driver's own comment already said so, that these lookups "enumerate the
+    // BED's and the bound timeline's clips alike". Only the CATALOG was bed-only.
+    //
+    // ⚠ THE TWO NEW CONTAINERS BELONG TO THE **BOUND** DOCUMENT, so this catalog changes on every recall.
+    // compileAutomation() already runs there (timeline.ts, after the recall seek) and on every setData, so
+    // a scene's lanes wake with the scene and sleep when it leaves. The BED's entries are unaffected by a
+    // recall, which is the same difference the two clocks make everywhere else in this subsystem.
+    const named = (c: Clip) => c.name || 'clip';
+    const emitClip = (c: Clip, group: string): void => {
+      out.push({ path: `${NS}.clip.${c.id}.gain`, label: 'Gain', group, ...GAIN, def: c.gain ?? 1 });
       // Position is only offered for a clip that is ALREADY spatial — turning spatialisation on changes
       // the engine chain's channel count (2⇔1) and forces a rebuild, which automation must never do.
       //
@@ -322,8 +347,8 @@ export const audioAutomationProvider: AutomationTargetProvider = {
       // needed to say what one Angle lane says. `enumerate()` is the catalog; the fadeable regex in core
       // is only the gate, and it still admits both spellings.
       if (c.spatial) {
-        out.push({ path: `${NS}.clip.${c.id}.spatial.angle`, label: 'Angle', group: g, ...ANGLE, def: c.spatial.angle ?? 0 });
-        out.push({ path: `${NS}.clip.${c.id}.spatial.elevation`, label: 'Height', group: g, ...ELEV, def: c.spatial.elevation ?? 0 });
+        out.push({ path: `${NS}.clip.${c.id}.spatial.angle`, label: 'Angle', group, ...ANGLE, def: c.spatial.angle ?? 0 });
+        out.push({ path: `${NS}.clip.${c.id}.spatial.elevation`, label: 'Height', group, ...ELEV, def: c.spatial.elevation ?? 0 });
       }
       for (const fx of effectsOf(c)) {
         const def = defOf(fx.type);
@@ -331,13 +356,39 @@ export const audioAutomationProvider: AutomationTargetProvider = {
         for (const p of def.params) {
           out.push({
             path: `${NS}.clip.${c.id}.fx.${fx.id}.${p.key}`,
-            label: p.label, group: `${g} ▸ ${def.label}`,
+            label: p.label, group: `${group} ▸ ${def.label}`,
             min: p.min, max: p.max, step: p.step, unit: p.unit, log: p.curve === 'log',
             def: fx.params?.[p.key] ?? p.def,
           });
         }
       }
+    };
+
+    for (const t of mix.tracks) {
+      out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group: `Track ▸ ${t.name || t.id}`, ...GAIN, def: t.gain ?? 1 });
     }
+    for (const c of mix.clips) emitClip(c, `Bed ▸ ${named(c)}`);
+    // THE BOUND TIMELINE'S OWN AUDIO — the scene's clips, on the scene's playhead. The group names match
+    // the mixer's container badge word for word ('this timeline' / 'video clip'), because the picker and the
+    // inspector are two views of one decision and an operator should not have to translate between them.
+    const tl = readTimelineAudio();
+    for (const t of tl.tracks) {
+      out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group: `This timeline · track ▸ ${t.name || t.id}`, ...GAIN, def: t.gain ?? 1 });
+    }
+    for (const c of tl.clips) emitClip(c, `This timeline ▸ ${named(c)}`);
+
+    // AND THE DERIVED ONE — a video clip's own soundtrack. Authored on the VIDEO clip (`VideoClipAudio`),
+    // recomputed into `va:`-prefixed clips every read; a lane over one is read by the driver through the
+    // same override layer as any other clip, so nothing has to write back into a container that has no
+    // document. A clip contributes here only while it is audible at all, which is exactly the set that can
+    // be selected in the mixer — the picker and the inspector agree on what exists.
+    //
+    // NO TRACK ENTRIES. The derived `vl:` tracks mirror the timeline's video LAYERS, whose audio gain is
+    // authored on the layer and already reachable from the lane gutter; offering a second, derived path to
+    // the same number would be two writers on one control.
+    const vid = readVideoAudio();
+    for (const c of vid.clips) emitClip(c, `Video clip ▸ ${named(c)}`);
+
     const master = mix.buses.find(b => b.id === MASTER_BUS_ID);
     out.push({ path: `${NS}.master.gain`, label: 'Gain', group: 'Master', ...GAIN, def: master?.gain ?? 1 });
     for (const fx of master ? effectsOf(master) : []) {
