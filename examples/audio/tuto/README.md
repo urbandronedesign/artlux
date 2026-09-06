@@ -14,9 +14,9 @@ because the fastest way to understand a rule is to watch what happens without it
 | # | Chapter | Project | You will learn |
 |---|---|---|---|
 | **1** | [The bed and the show clock](01-the-bed-and-the-show-clock.md) | [`01-the-bed`](../01-the-bed.artlux) | the **bed**; the **show clock** vs the **playhead**; why a GO does not restart your music; the parked show |
-| **2** | [The mixer](02-the-mixer.md) | [`01-the-bed`](../01-the-bed.artlux) | the **Audio Bed** panel; tracks, faders, mute/solo; the master strip; meters, **headroom** and the clipping badge |
+| **2** | [The mixer](02-the-mixer.md) | [`01-the-bed`](../01-the-bed.artlux) | the **Audio Bed** panel; its **three track lists**, one per container; faders, mute/solo; the master strip; meters, **headroom** and the clipping badge |
 | **3** | [A scene's own audio](03-a-scenes-own-audio.md) | [`02-per-scene-audio`](../02-per-scene-audio.artlux) | the **second container**; the sting that *should* restart; two clocks, heard side by side; which one to put a sound in |
-| **4** | [Spatial audio and FX](04-spatial-audio-and-fx.md) | [`03-spatial-and-fx`](../03-spatial-and-fx.artlux) | the **positioner pad**; ambisonics + HRTF; the **clip insert chain**; **why a reverb on the master does nothing** |
+| **4** | [Spatial audio and FX](04-spatial-audio-and-fx.md) | [`03-spatial-and-fx`](../03-spatial-and-fx.artlux) | the **positioner pad**; ambisonics + HRTF; the **clip insert chain**; the same two controls **on the track**, where chains stack and positions rank; **why a reverb on the master does nothing** |
 | **5** | [Automating the mix](05-automating-the-mix.md) | [`04-automation`](../04-automation.artlux) | **lanes**; which **clock** a lane rides; the `GLOBAL` and `LANE` badges; taking a parameter back |
 | **6** | [The unattended show](06-the-unattended-show.md) | [`05-the-unattended-show`](../05-the-unattended-show.artlux) | the **state machine** driving all of it; what breaks at 3 a.m. and how you would know |
 

@@ -50,6 +50,7 @@
   "examples": [
     "audio",
     "lidar-tracking",
+    "lighting",
     "shader",
     "state-machine"
   ],

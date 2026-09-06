@@ -565,7 +565,7 @@ Sound-reactive values are judged by how long they take to **let go**. Too short 
 strobe; too long and the room never goes dark between hits. The right number depends on the music and
 on the size of what you are lighting — a wall wants a slower fall than a strip.
 
-So it is a knob, in **Preferences → Shaders**:
+So it is a knob, in **Preferences ▸ Shaders**:
 
 - **Beat fall** — how long a beat flash takes to fade. Default 0.25 s.
 - **Spectrum fall** — how long the sixteen bands take to come back down. Default 0.25 s.
@@ -590,7 +590,7 @@ Nothing else changes — `iBeat[c]` is read exactly as before, it simply decays 
 slider says. Two surfaces can react to the same kick at very different speeds, and because it is an
 ordinary parameter it travels with the project and can ride a timeline lane.
 
-A shader that declares none uses **Preferences → Shaders ▸ Beat fall**, the machine default. The
+A shader that declares none uses **Preferences ▸ Shaders ▸ Beat fall**, the machine default. The
 built-in **Beat quads** declares one, so it is the quickest place to feel the difference.
 ## Trails, decay, and anything that remembers
 

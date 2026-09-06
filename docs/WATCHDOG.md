@@ -114,13 +114,13 @@ UAC). It runs **at logon** and **every minute**; the action
 [scripts/watchdog-check.ps1](../scripts/watchdog-check.ps1) relaunches ArtLux into broadcast on the
 configured project **only if** the process is gone and the tripped marker is absent. Remove it with
 [scripts/uninstall-watchdog-task.ps1](../scripts/uninstall-watchdog-task.ps1). Install/remove from
-**Preferences → Unattended / Watchdog** (buttons shell out to these scripts; the scripts ship as packaged
+**Preferences ▸ Unattended / Watchdog** (buttons shell out to these scripts; the scripts ship as packaged
 `extraResources`). Windows-only.
 
 ## Configuration — `Prefs.unattended`
 
 Persisted in `artlux-prefs.json` ([shared/protocol.ts](../shared/protocol.ts) `UnattendedPrefs`); edited in
-**Preferences → Unattended / Watchdog**. Changes take effect on the next launch/relaunch (the watchdog
+**Preferences ▸ Unattended / Watchdog**. Changes take effect on the next launch/relaunch (the watchdog
 arms + attaches its detectors at process start).
 
 | field | default | meaning |
@@ -145,7 +145,7 @@ on an editor install this file is the only durable record that the app white-scr
 names the project that was open, whether it had drawn a frame yet, and the plugin at fault if there was
 one. The tail shows in:
 
-- **Preferences → Unattended / Watchdog** (in-app), and
+- **Preferences ▸ Unattended / Watchdog** (in-app), and
 - the **tablet Metrics tab** (forwarded through show-control's metrics SSE stream — the watchdog is core,
   so disabling the remote loses only the display, never the log).
 

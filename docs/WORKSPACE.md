@@ -28,7 +28,7 @@ arbitrary widths uniformly, with zero token refactor. Owner: [`src/main/uiScale.
   `screen.getPrimaryDisplay()` — physical pixels vs. the OS scale factor, *not* `devicePixelRatio` alone
   (a 4K panel at 100% OS scaling has DPR≈1 but tiny chrome). It's only a first-run default; a saved
   `uiScale` always wins and is never recomputed. Untouched installs adapt to whatever display they launch on.
-- **Controls:** the Preferences → **Appearance** section (slider 80–200% + "Reset to detected"), and
+- **Controls:** the Preferences ▸ **Appearance** section (slider 80–200% + "Reset to detected"), and
   the `Ctrl +/− / 0` window commands — both route through `setUiScale`/`resetUiScale`, so they're one
   persisted source of truth (`WINDOW_COMMAND` in [`src/main/ipc.ts`](../src/main/ipc.ts)).
 - **IPC:** `setUiScale(scale)` / `detectUiScale()` on `ArtluxApi` (protocol + preload + ipc).

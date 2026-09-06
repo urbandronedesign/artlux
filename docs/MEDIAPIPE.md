@@ -81,8 +81,8 @@ disabled` and no-ops (never crashes) — the app-wide native-degradation contrac
 1. `npm run assets:mediapipe` once, then `npm run dev`.
 2. Select a surface → content type **MediaPipe**. Configure marker size / skeleton / IDs / trails /
    flip / rotate in the inspector.
-3. Pick the camera + model in **Preferences → Pose Tracking (MediaPipe)**.
-4. Open **View → Pose Monitor…** to see the live feed, fps, and tracked-people count.
+3. Pick the camera + model in **Preferences ▸ Pose Tracking (MediaPipe)**.
+4. Open **View ▸ Pose Monitor…** to see the live feed, fps, and tracked-people count.
 5. Toggle **Camera pose markers (MediaPipe)** in the 3D scene panel for the simulator overlay.
 
 ## Floor calibration & real-world position preview
@@ -92,7 +92,7 @@ say where a person actually stands. A floor is a **plane**, so a **4-point homog
 feed to real floor metres exactly (no camera intrinsics/lens solve). This drives a real-world position
 preview on the 3D floor.
 
-- **Calibrate:** **View → Pose Floor Calibration…**. Point the camera at the floor, drag the four
+- **Calibrate:** **View ▸ Pose Floor Calibration…**. Point the camera at the floor, drag the four
   handles onto the corners of a floor rectangle whose real size you know (tape/measure e.g. 3×2 m), enter
   its **width × depth** in metres, and **Save**. Order is top-left, top-right, bottom-right, bottom-left,
   with the image's top edge as the *far* side of the floor.

@@ -80,14 +80,14 @@ blob system's bottom-left origin so the shared render math applies unchanged. Th
 gracefully rather than crashing.
 
 > **The exact wire schema is finalized on hardware.** Firmware/Fusion versions differ in address
-> spelling and argument order. Open **View → Augmenta Monitor** with the real box streaming, read the
+> spelling and argument order. Open **View ▸ Augmenta Monitor** with the real box streaming, read the
 > actual `/au/…` addresses + argument order, and adjust `augmentaStore.upsertFromArgs` if they differ.
 
 ## Using it
 
-1. **Enable OSC receive** and set the listen port in **Preferences → OSC / Tracking**.
+1. **Enable OSC receive** and set the listen port in **Preferences ▸ OSC / Tracking**.
 2. Configure the **Augmenta box (Fusion)** to send its **OSC v2** output to this machine on that port.
-3. Open **View → Augmenta Monitor…** — confirm `/au/…` messages are arriving (the status dot turns
+3. Open **View ▸ Augmenta Monitor…** — confirm `/au/…` messages are arriving (the status dot turns
    green) and check the live object count + field size.
 4. Select a surface → content type **Augmenta**. Configure marker size / trails / IDs / calibration
    overlay / flip / rotate in the inspector.

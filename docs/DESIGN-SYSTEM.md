@@ -401,7 +401,7 @@ dismiss hint, present in the DOM at zero pixels tall):
   returned, timed with `performance.now()`.
 - **Never in `--headless` / `--broadcast`.** Broadcast is the watchdog's relaunch mode: an always-on-top
   window over live fullscreen projector output, mid-show, unattended. Guarded (§8). `Prefs.showSplash`
-  turns it off in the editor too (Preferences → Appearance).
+  turns it off in the editor too (Preferences ▸ Appearance).
 - **It contains and reports its own faults, silently.** The splash entry installs the global fault net
   (`installGlobalNet('splash')`) and wraps in a `silent` `ErrorBoundary` — a throw here would otherwise
   leave the splash on screen forever, with "it never opened" as the operator's only symptom. Silent

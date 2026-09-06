@@ -14,6 +14,13 @@ binding, so a shortcut written `Ctrl+Z` is `Cmd+Z` on a Mac.
 > The one exception is the **native menu accelerators** further down: those belong to the application menu
 > and are fixed.
 
+> ### ⚠ "Next / Previous workspace" moves between **workbenches**
+> `Ctrl+Tab` and `Ctrl+Shift+Tab` cycle the **workbenches** — Map, Show, Venue and the rest, the tabs on
+> the left rail. They have nothing to do with a saved **workspace** (a named layout you switch from the
+> title-bar chip or `Ctrl+K`; see [Interface tour](01-interface-tour.md)). The two words meant the same
+> thing before named workspaces existed, and these two action labels still carry the old one. The keys do
+> what this note says, not what the table below calls them.
+
 ---
 
 ## Rebindable shortcuts
@@ -204,8 +211,10 @@ Mouse behaviour is not rebindable.
 | Input | Action |
 |---|---|
 | Wheel | Zoom toward the cursor |
+| Wheel **over the track names** | Scroll the track list (`Shift` for horizontal) — it does not zoom |
 | `Shift` + wheel | Scroll horizontally |
 | Middle-drag | Pan both axes |
+| Double-click a keyframe | Open its value / time / curve editor |
 
 ### 3D scene
 

@@ -119,7 +119,14 @@ Bind **Global**. On the **Master ▸ Gain** lane:
 - **Drag** a keyframe → moves it. The **value and the time are printed right next to it while you drag**,
   because a number you cannot see while you are setting it is a number you do not have.
 - **Shift-drag** → value only (time locked). **Alt-drag** → time only.
-- **Double-click a keyframe** → cycles its curve: `linear → hold → bezier`.
+- **Double-click a keyframe** → opens a small editor with its **value**, its **time** and its **curve**.
+  Type an exact number instead of hunting for it with the mouse — a lane is a few dozen pixels tall over
+  the whole range of what it drives, so `-180` or `0.25` is not something you can reliably hit by dragging.
+  The curve (`linear` / `hold` / `bezier`) is a named dropdown in that panel.
+
+  > **This used to be a click-cycle.** Double-clicking stepped `linear → hold → bezier`, one per click,
+  > with no way to see the three options and no way back except all the way round. Same gesture, same
+  > three curves — you can now see them.
 - **Right-click** → deletes it.
 - The **⧫** button in the gutter → adds a keyframe *at the playhead*, holding the current value. This is how
   you "punch in" a value where you are.
@@ -136,10 +143,21 @@ Anything the audio provider publishes. Click **`+`** in the automation gutter an
 | `audio.master.gain` | the house level — **the** lane a show recall exists to move |
 | `audio.master.fx.<id>.<param>` | any master-FX parameter (the compressor's threshold, say) |
 | `audio.track.<id>.gain` | a track's level |
+| `audio.track.<id>.spatial.angle` | **which way** the whole track points, for every clip that has no position of its own |
+| `audio.track.<id>.spatial.elevation` | how high the whole track sits |
+| `audio.track.<id>.fx.<id>.<param>` | any parameter of the **track's** insert chain |
 | `audio.clip.<id>.gain` | one clip's level |
-| `audio.clip.<id>.spatial.angle` | **which way** — degrees clockwise from front, and it may run past 360 |
+| `audio.clip.<id>.spatial.angle` | **which way** — degrees clockwise from front, **−360° to +360°** |
 | `audio.clip.<id>.spatial.elevation` | **how high** — degrees, −90 below … +90 above |
 | `audio.clip.<id>.fx.<id>.<param>` | any clip-FX parameter — automate a filter sweep, a reverb's wet |
+
+**The path does not say which container the sound is in**, and that is deliberate: `audio.clip.<id>` names
+the clip holding that id, wherever it lives. So a clip in a **Scene's own** audio and a **video clip's
+soundtrack** are automated exactly as a bed clip is. The target list follows whichever document is bound —
+a scene's lanes wake with the scene and sleep when it leaves.
+
+**Where a clip lane and a track lane both exist**, the clip's is the more specific statement and wins. Same
+rule as the positions in chapter 4.
 
 Note what is **not** there: the **Spatial checkbox**, and **mute**. Neither is a number. Flipping spatial
 rebuilds the clip's DSP chain (chapter 4), and a mute is a boolean — the fade grammar admits only continuous

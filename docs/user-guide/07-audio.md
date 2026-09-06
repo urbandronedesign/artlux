@@ -9,22 +9,30 @@ The mixer is the **Audio Bed** panel: **View ▸ Audio Bed…**. Placement lives
 lanes.
 
 ![The Audio Bed panel](images/18-audio-bed.png)
-*The Audio Bed, with a scene bound. Read it top to bottom and the whole design is there: the **show clock** (`♪ 0:12`) in the header; **`TRACKS — THE BED`** (Bed, Room) above **`TRACKS — Look A`** — the two containers, side by side — with the scene's own track **read-only here**, because a timeline's tracks are mixed on their lane; the **clip inspector** on the right, empty until you select a clip on the timeline; and along the bottom the **master strip**, greyed out and wearing a **`LANE`** badge, its fader pinned at **0.35** because an automation lane owns the house level. Nothing in this picture is idle.*
+*The Audio Bed, with a scene bound. Read it top to bottom and the whole design is there: the **show clock** (`♪ 0:12`) in the header; **`TRACKS — THE BED`** (Bed, Room) above **`TRACKS — Look A`**, the containers stacked in one column; the **clip inspector** on the right, empty until you select a clip or click a track row; and along the bottom the **master strip**, greyed out and wearing a **`LANE`** badge, its fader pinned at **0.35** because an automation lane owns the house level. Nothing in this picture is idle.*
+
+> **This shot predates 0.27.** It shows two track lists, and the scene's own tracks greyed out. There are
+> **three** lists now and every one of them is writable — see [The mixer's three lists](#the-mixers-three-lists)
+> below.
 
 ---
 
-## The one thing to understand first: two containers, two clocks
+## The one thing to understand first: three containers, two clocks
 
 Almost every question about ArtLux audio — *"why did it restart?"*, *"why **didn't** it restart?"* — is
 answered by asking **which container the sound is in**.
 
-| | **The BED** | **A timeline's OWN audio** |
-|---|---|---|
-| Lives in | the **project** — one bed, always | the **timeline** — so **one per Scene** |
-| Rides | the **SHOW clock** | the **playhead** |
-| A Scene recall (a GO) | **does not touch it** | **restarts it** |
-| Edit it on the timeline | only while **Global** is bound | whenever that timeline is bound |
-| Use it for | house music, room tone, a long ambient bed — **the thing that must not stutter when you fire a cue** | the scene's **sting** — the thing that *should* fire again on every entry |
+| | **The BED** | **A timeline's OWN audio** | **A video clip's SOUNDTRACK** |
+|---|---|---|---|
+| Lives in | the **project** — one bed, always | the **timeline** — so **one per Scene** | the **video clip**, on its layer |
+| Rides | the **SHOW clock** | the **playhead** | the **playhead**, locked to its own picture |
+| A Scene recall (a GO) | **does not touch it** | **restarts it** | **restarts it**, with the picture |
+| You author it | on the bed's lanes, or the mixer | on that scene's lanes, or the mixer | in the clip inspector, and on its **layer** |
+| Use it for | house music, room tone, a long ambient bed — **the thing that must not stutter when you fire a cue** | the scene's **sting** — the thing that *should* fire again on every entry | the sound that came with the shot, and must stay with it |
+
+Two clocks, not three: the third container rides the **same playhead** as the second. What makes it its
+own container is **ownership** — you never placed those clips, the video layer did, so they are *derived*
+and there is nothing to trim. Mute the picture and its sound goes with it.
 
 > **The question to ask, every time you add a sound:** *"When I fire this cue again, should this start over?"*
 > **Yes** → the Scene's timeline. **No** → the bed. There is no flag to set — **put it in the right container
@@ -52,8 +60,84 @@ back. *You can hear the bed everywhere; you can only edit it on Global.*
   file mid-show without putting it in the room.
 - **Place / trim / blade / fade** — on the **lane**, exactly like a video clip. The corner handles are fades.
 - **Name, mute, solo, gain** — the lane's **gutter**, *or* the Audio Bed. The same fields, two doors.
-- **Solo is scoped per container** — soloing a *bed* track does not silence a Scene's own audio. They are two
-  mixes on two clocks.
+- **Solo is scoped per container** — it silences every other track in **that list only**. Soloing a *bed*
+  track does not silence a Scene's own audio, or a video layer's.
+
+---
+
+## The mixer's three lists
+
+The Audio Bed's left column stacks **one list per container**, and all three are writable.
+
+| List | What is in it | What you can change |
+|---|---|---|
+| **`TRACKS — THE BED`** | the project's own tracks | everything, plus **drop an audio file here** to add a clip |
+| **`TRACKS — <scene>`** | the bound timeline's own tracks | name, gain, mute, solo, position, chain |
+| **the video layers** | every layer on the bound timeline that is **making sound** | gain, mute, solo, position, chain — **not** the name |
+
+Two things are read-only, and both for the same reason: **one owner per field.** A video layer's **name**
+belongs to its lane on the timeline, so rename it there. And only the bed takes a **dropped audio file**,
+because neither other list has clips it could mint — a scene's are placed on its own lane, and a layer's
+are derived from its picture.
+
+**The video-layer list is derived, so it holds only what is contributing.** A layer whose clips are all
+silent, switched off, or still conforming is not in the list and is not drawn. If a layer you expected is
+missing, that is the panel telling you it is making no sound.
+
+**Click a track row** and the inspector on the right switches to that track; select a clip on the timeline
+and it switches back. Both draw the same controls writing the same fields. A row carrying a position or an
+insert chain shows a small **●**, so the column says which tracks are shaped without your opening each one.
+
+> The track you pick here is a **panel-local** choice. It does not move the timeline's cursor, which
+> means a clip — so clicking a mixer row never moves a selection you did not touch.
+
+---
+
+## Placing and shaping a whole track
+
+Everything below is authored **once, on the track**, and applies to every clip on it. It is how you fly a
+video layer around the room without positioning each cut by hand.
+
+**An insert chain on the track *appends* to each clip's own.** Order is the ordinary console order: the
+clip's chain, then the track's, then the encoder. Nothing is summed — the chain is authored once and run
+per clip — so this is not a bus, and the reason is acoustic rather than technical: a spatial source is a
+point in a field, and the encoder needs each source's signal **on its own**. Summing a track's clips before
+encoding them would destroy exactly the placement you are reaching for.
+
+> **One audible difference from a real bus:** a reverb or delay **tail stops at a cut** instead of ringing
+> across it. The outgoing clip's source stops and its chain stops with it.
+
+**A position on the track does *not* append — it ranks.** A sound has exactly one place in the field, so
+there is nothing to compose:
+
+| The clip | Where it is encoded |
+|---|---|
+| has its own **Spatial** ticked | **the clip's** position wins |
+| has none | wherever its **track** says |
+
+The clip is the more specific statement, which is the same precedence its FX lane already has over its
+track's. The inspector says which is in effect: a clip with no position of its own reads **"Placed by its
+track (*name*) at 90°"** where an empty positioner would otherwise be, and points at the **Spatial**
+checkbox that takes the position back.
+
+**Both are automatable on the track** — `Angle`, `Height`, gain and every FX parameter appear as track
+lanes wherever the track lives, including a video layer's. A track lane is the coarser statement; a lane on
+the clip's own copy of that parameter is more specific and wins.
+
+### A video clip's soundtrack: level on the clip, place on the layer
+
+The split is by **scope**, and the panel is arranged to say so:
+
+| | What | Whose | Reaches |
+|---|---|---|---|
+| **level** | gain, mute | the **clip** | this shot |
+| **place** | position, FX chain | the **layer** | every clip on the lane |
+| **gate** | on/off, A/V offset | the **clip** | this shot |
+
+A video layer is a track of shots. Placing *the layer* in the room is a gesture you have; placing each cut
+separately is one you would have to re-dial on every re-edit — so per-clip position and FX were **removed**
+in 0.27, not hidden. A 0.26 project cannot carry either (no control ever wrote them), and a hand-edited one
+has them stripped on load.
 
 ---
 
@@ -63,17 +147,23 @@ back. *You can hear the bed everywhere; you can only edit it on Global.*
 arrangement/mixer split: you **place** on the lane, you **shape** here.
 
 - **Gain** — the clip's level.
-- **Spatial** — tick it and a **positioner pad** appears, plus **height** and **distance** sliders. Drag
-  the dot **round the ring** to choose which way the sound comes from (0° front, 90° right, 180° behind,
-  270° left) and **in toward the centre** to push it away — the ring is full level, the centre is silent.
-  **You hear it move as you drag**, not only when you let go. 🎧 *Binaural decoding is an HRTF — it only
-  works over headphones.* On a real installation, switch to a **speaker layout** in Preferences.
+- **Spatial** — tick it and a **positioner pad** appears, plus a **height** slider. Drag the dot **round
+  the ring** to choose which way the sound comes from — **0° front, 90° right, 180° behind, 270° left**,
+  the bearing you would read off a room plan. Height runs **−90° (below) to +90° (above)**. **You hear it
+  move as you drag**, not only when you let go. 🎧 *Binaural decoding is an HRTF — it only works over
+  headphones.* On a real installation, switch to a **speaker layout** in Preferences.
 
-  > **There are no metres here, and that is a correction.** The pad used to be a 3-metre square, but the
-  > ambisonic encoder only ever uses a direction — it throws the distance away. Sliding a source from 1 m
-  > to 6 m did nothing at all. "Further away" now means what it can actually mean: **quieter**. Distance 0
-  > is at the listener, 1 is silent. Old projects open with every source at full level, exactly as they
-  > sounded before.
+  > **A source has a direction and a height, and no third thing.** The pad is not a map and there are no
+  > metres on it. The ambisonic encoder takes an azimuth and an elevation and **discards the distance** —
+  > so sliding a source from 1 m to 6 m along the same bearing changed nothing at all, while the readout
+  > reported the move to two decimal places. If you want it quieter, that is the clip's **gain** fader,
+  > immediately above. A 0.26 project that used the short-lived **attenuation** control keeps its exact
+  > levels: the value is folded into the clip's gain when the project opens.
+
+- **The centre of the pad is *everywhere*, not silence.** Drag the dot to the middle and the source goes
+  **omni** — equal in every speaker of any layout, which in ambisonics is order 0. Use it for room tone
+  that should not come from a direction. Its bearing is **remembered** while it is omni, so dragging back
+  out to the ring returns the sound where it was rather than jumping to dead ahead.
 - **The pad draws your rig.** In **Speaker layout** mode the pad shows the layout's actual speaker
   positions, each marked with the **device channel** it is patched to — so "front-left on the pad" and
   "output 1 on the interface" are the same statement. A marker turns **amber** when its channel does not
@@ -107,9 +197,20 @@ The bottom of the Audio Bed: the **house level**, an **FX** chain, and the **L/R
 Audio is automated by the **same curve engine** as everything else — an audio lane *is* a lane. Add one from
 the **`+`** in the timeline's automation gutter.
 
-You can automate the **master gain**, any **track** or **clip** gain, a source's **position** (`x`/`y`/`z` —
-this is how you fly a sound around a room), and any **FX parameter**. You *cannot* automate the **Spatial
-checkbox** or a **mute** — neither is a number.
+You can automate the **master gain**, any **track** or **clip** gain, a source's **Angle** and **Height**
+(this is how you fly a sound around a room), and any **FX parameter** — on a clip *or* on its track. You
+*cannot* automate the **Spatial checkbox**, the **omni** centre or a **mute** — none of them is a number.
+
+**Angle runs −360° to +360°**, and the sign is what makes an orbit expressible. A lane *interpolates*, so
+0 → 360 would be a lane that does not move, and 350 → 10 would sweep **backwards through 180** — the sound
+crossing the room the long way at exactly the moment it should pass the front. Signed and a turn wide
+either way, every orbit is a single straight ramp and the short way round is simply the shorter number. A
+spin of more than one turn is two segments. **Height** is bounded −90° to +90° and has no far side to go
+round.
+
+**Lanes reach all three containers.** A clip in a scene's own audio and a video clip's soundtrack are
+automatable exactly as a bed clip is — the target list follows whichever document is bound, so a scene's
+lanes wake with the scene and sleep when it leaves.
 
 **A lane rides the clock of the document it lives in.** A lane on the **Global** timeline rides the **show
 clock**, so it keeps driving underneath every Scene. A lane on a **Scene's** timeline rides that scene's

@@ -15,7 +15,7 @@ No external library — a small, self-contained OSC 1.0 codec lives in the main 
 ## For users — setup & use
 
 ### 1. Enable OSC receive
-**Preferences → OSC / Tracking**:
+**Preferences ▸ OSC / Tracking**:
 
 - **OSC receive** — bind the UDP listener.
 - **Listen port** — installation default **`10000`**.

@@ -126,13 +126,13 @@ interface both backends implement.
 ## Plugin architecture
 ArtLux is being restructured into an **in-process, contribution-based plugin system** (VS Code style):
 features become self-contained first-party plugins in `plugins/*`, wired through the internal SDK
-(`@artlux/sdk`, `packages/sdk`, subpaths `/main` + `/renderer`). **Ten plugins ship today** —
-`lidar-tracking`, `ndi`, `calibration`, `spout`, `hap`, `mp4`, `mediapipe`, `augmenta`, `audio`,
-`show-control`. A plugin contributes to **eleven contribution registries** (content source, clip kind,
+(`@artlux/sdk`, `packages/sdk`, subpaths `/main` + `/renderer`). **Eleven plugins ship today** —
+`lidar-tracking`, `ndi`, `calibration`, `spout`, `hap`, `mp4`, `mediapipe`, `augmenta`, `shader`,
+`show-control`, `audio`. A plugin contributes to **eleven contribution registries** (content source, clip kind,
 projector channel/panel, settings section, scene-viz, panel, context, SM trigger, video codec,
 automation target — `src/renderer/host/registries.ts`) and consumes **host services** it is handed at
-activation. Activation: `src/renderer/host/plugins.ts` (10 renderer plugins) + `src/main/host/plugins.ts`
-(6 with a main half). Cross-process plugins talk over a **generic preload bridge** (`plugin:<ch>`
+activation. Activation: `src/renderer/host/plugins.ts` (11 renderer plugins) + `src/main/host/plugins.ts`
+(7 with a main half). Cross-process plugins talk over a **generic preload bridge** (`plugin:<ch>`
 channels). Persisted project types stay in core (`shared/protocol.ts` / `renderer/types.ts`); only
 *behaviour* moves into a plugin, so there is **zero project-file migration**. Canonical: [PLUGINS.md](PLUGINS.md);
 API surface: [SDK.md](SDK.md).
@@ -195,9 +195,10 @@ is a point in an ambisonic field, encoded into one shared B-format bus and decod
 audible lives in `plugins/audio/`, which registers an `automationTargets` provider (see
 [SDK.md](SDK.md)) so an audio lane on the timeline is **the same object** as any other automation lane.
 
-**Two containers, two clocks** — the invariant the whole subsystem turns on: the **bed** rides the **SHOW
+**Three containers, two clocks** — the invariant the whole subsystem turns on: the **bed** rides the **SHOW
 clock** and a scene recall does not touch it; a timeline's **own** audio rides the **playhead** and restarts
-with it. See **[AUDIO.md](AUDIO.md)** for the signal path, the two insert points, the automation target
+with it; a **video clip's soundtrack** rides that same playhead, locked to its picture, and is *derived*
+rather than authored. One read path (`reconcileContainer`) serves all three. See **[AUDIO.md](AUDIO.md)** for the signal path, the two insert points, the automation target
 grammar, the three-layer read order (`lane ?? fade ?? authored`) and the real-time invariants — chiefly
 *never block the audio thread*, because a dropout resuming mid-waveform is a step discontinuity, which is a
 **click**.

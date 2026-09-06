@@ -41,9 +41,10 @@ fallback), a **Rust** output engine (napi-rs) that owns UDP transmission on a de
   **ArtSync**).
 - **Art-Net device discovery** — ArtPoll/ArtPollReply; pick a controller instead of typing its IP.
 - **Spatial audio, on the show's clock** — a native **JUCE + libspatialaudio** engine: every source is a
-  point in an **ambisonic** field, decoded **binaurally** (HRTF) or to a **speaker array**. Two containers on
-  two clocks — a project-wide **bed** that a cue never restarts, and a Scene's **own** audio that always does.
-  Insert chains (reverb / filter / delay / compressor), a mixer, and full **automation** of gain and position.
+  point in an **ambisonic** field, decoded **binaurally** (HRTF) or to a **speaker array**. Three containers on
+  two clocks — a project-wide **bed** that a cue never restarts, a Scene's **own** audio that always does, and
+  the soundtrack that came with a video clip. Insert chains (reverb / filter / delay / compressor) on a clip
+  *or* a whole track, a three-list mixer, and full **automation** of gain and position across all three.
   ▶ [docs/AUDIO.md](docs/AUDIO.md) · [a six-chapter tutorial](examples/audio/tuto/README.md).
 - **Headless mode** — run the compute + output engine with no UI to save resources.
 - **Projects & rigs** — native save/load (`.artlux`), auto-restore on launch, recent files, and a

@@ -5,9 +5,10 @@
 > You'll learn: the **positioner pad**; **ambisonics + HRTF**, and why that means headphones; the **clip
 > insert chain**; and **why a reverb on the master does nothing at all**.
 
-ArtLux audio is **object-based**. A sound is not "panned 30% left" — it is *a point in the room*, at
-`x, y, z` metres from the listener. The engine encodes every placed source into one shared **ambisonic**
-field, then decodes that field to whatever you are listening on.
+ArtLux audio is **object-based**. A sound is not "panned 30% left" — it is *a direction in the room*: a
+**bearing** (0° front, 90° right, 180° behind, 270° left) and a **height** (−90° to +90°). The engine
+encodes every placed source into one shared **ambisonic** field, then decodes that field to whatever you
+are listening on. There is no distance in that model, and later in this chapter you will see why.
 
 ## 1. Put your headphones on, and press Play
 
@@ -138,22 +139,56 @@ across the room sixty times a second, but you cannot rebuild its DSP graph sixty
 > distance* — libspatialaudio says so in its own header — so sliding a source from 1 m to 6 m along the
 > same bearing changed **nothing at all**, while the readout reported the move to two decimal places.
 >
-> So the pad now measures the two things that are real. **Round the ring** is the bearing. **In toward
-> the centre** does nothing at all: the dot rides the ring, because a source has a bearing and a height
-> and no third thing. If you want it quieter, that is the clip's **gain** fader. (0.26 briefly offered an
+> So the pad now measures the two things that are real. **Round the ring** is the bearing. Dragging **in
+> to the centre** is not a distance either — it is a *place*: the source goes **omni**, equal in every
+> speaker of any layout. Its bearing is remembered, so dragging back out to the ring returns it where it
+> was. If you want it quieter, that is the clip's **gain** fader. (0.26 briefly offered an
 > "attenuation" here — a level wearing the name of a distance — and 0.27 removed it. Projects that used
-> it keep their exact levels: the value is folded into the clip's gain on load.) That is not distance pretending
-> to be gain; it *is* gain, and it is the only kind of "further away" this engine has. It also puts the
-> awkward spot in the right place: a direction is meaningless at zero radius, and at zero radius the
-> source cannot be heard anyway.
+> it keep their exact levels: the value is folded into the clip's gain on load.) That is not distance
+> pretending to be gain; it *is* gain, and it is the only kind of "further away" this engine has.
+>
+> The centre earns its keep for a different reason: a **bearing is meaningless at zero radius**, so the
+> one gesture the ring genuinely cannot express is "from everywhere at once" — and that is exactly what
+> the middle of the pad now authors.
 
 ---
+
+## 5b. The same two controls, one level up: the track
+
+Everything so far has been authored on **one clip**. Both controls also exist on the **track**, where they
+apply to every clip on it — and that is how you place a whole layer of sound without dialling each one.
+
+**Try it.** Click the **track row** on the left (not the clip). The inspector switches to the track, and you
+get the same **positioner pad** and the same **FX** chain. Give the track a position — drag its dot hard
+right — and play.
+
+Two rules, and they are different from each other. This is the part worth getting into your hands:
+
+1. **Chains stack.** The clip's chain runs, then the track's, then the sound is placed. So a filter on the
+   track colours everything on that track, on top of whatever each clip already does. Nothing is replaced.
+2. **Positions do not stack — they rank.** A sound has exactly one place in the room, so there is nothing to
+   add together. **The clip's own position wins.** A clip with no position of its own goes wherever its
+   track says.
+
+**Prove the second one.** With the track aimed hard right, select a clip on it that has **Spatial** ticked
+and aim *that* hard left. It goes left, and stays left — the clip is the more specific statement. Now untick
+its **Spatial** box. It jumps to the right, with the track, and the inspector tells you so in words:
+*"Placed by its track (Bed) at 90°."* Tick the box again to take the position back.
+
+> **Why not the other way round?** If the track overrode the clip, then the moment a track had a position
+> every clip's own pad would move and change nothing — a control that lies. This panel is built not to have
+> those.
+
+> **One real difference from a mixing desk's bus:** the track's chain is run **per clip**, not on a summed
+> signal — it has to be, because a spatial source has to reach the encoder on its own or its placement is
+> destroyed. You will only ever hear the difference in a **reverb or delay tail**, which stops at a cut
+> instead of ringing across it.
 
 ## 6. The pieces, named
 
 | Concept | Here | In the file |
 |---|---|---|
-| **A spatial source** | the orbit clip | `clip.spatial = { angle, elevation }` — absent ⇒ not spatial |
+| **A spatial source** | the orbit clip | `clip.spatial = { angle, elevation, omni? }` — absent ⇒ not spatial |
 | **Which way** | round the pad | `spatial.angle` — degrees **clockwise from front** (0 front, 90 right, 180 behind, 270 left) |
 | **Height** | the slider | `spatial.elevation` — degrees, −90 below … +90 above |
 | **A clip insert** | the reverb | `clip.effects[]` |
@@ -173,5 +208,8 @@ across the room sixty times a second, but you cannot rebuild its DSP graph sixty
 3. **Break the master, then fix it.** Set the master compressor's ratio to **20:1** and its threshold to
    **−45 dB**. Everything goes flat and lifeless and pumps on every beep. That is over-compression, and it is
    what a limiter set wrong does to a show. Put it back.
+4. **Fight the track and win.** Aim the **track** hard left and a clip on it hard right, then play. The clip
+   is on the right — it said so more specifically. Untick that clip's **Spatial** and it snaps left to join
+   the rest. That one gesture is the whole precedence rule, and you can hear it.
 
 ➡ **[Chapter 5 — Automating the mix](05-automating-the-mix.md)**

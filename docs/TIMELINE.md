@@ -267,6 +267,14 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
   {passive:false})` (React `onWheel` is passive and can't `preventDefault`). It preserves the
   time-under-cursor by setting `scrollLeft` in a `requestAnimationFrame` after the new width lays out,
   using the same `GUTTER` offset as `clientXToTime`.
+- **…but not over the gutter.** A wheel event whose x falls inside the first `GUTTER` px of the viewport
+  returns early **without `preventDefault`**, handing the event back to the browser, which scrolls this
+  same `overflow-auto` container — vertically for a plain wheel, horizontally with Shift, with the
+  platform's own momentum and rubber-banding. Nothing here reimplements any of that. The bound is measured
+  from the container's left edge and stays correct under horizontal scroll for the same reason the zoom
+  has to subtract `GUTTER` at all: the column is `sticky left-0`, so it is always the first `GUTTER` px
+  of the viewport. Zooming the time axis from a column that does not move was the one gesture that could
+  not be what anyone meant.
 
 <!-- audience:operator -->
 
@@ -282,7 +290,8 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
   >0.5s branch snaps; the slew path is for small drift). The region's edges are **draggable on the
   ruler**, and toolbar **Set In** / **Set Out** buttons set them without needing the `I`/`O` keys.
   **Stop** returns to the in-point (not hard 0).
-- **Mouse:** wheel = zoom (anchored at the cursor), **Shift+wheel** = horizontal scroll, **middle-button
+- **Mouse:** wheel = zoom (anchored at the cursor) **except over the track-name gutter, where it scrolls
+  the track list**, **Shift+wheel** = horizontal scroll, **middle-button
   drag** = pan both axes (imperative — zero re-renders). Left-button-only guards on the lane/ruler seek
   handlers keep middle-click free for panning.
 - **Maximize:** the dock is drag-resizable (top edge), and **F** / the toolbar button toggle a

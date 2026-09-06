@@ -6,9 +6,9 @@ automated by the same curve engine that drives everything else. The engine is a 
 **libspatialaudio** ambisonics — every source is a *point in a field*, encoded into a shared B-format bus
 and decoded to headphones (HRTF binaural) or to a real speaker array.
 
-Shipped in **Wave 3** (its changelog sits under **v0.22.0** in `CHANGELOG.md`). `package.json` is at
-**v0.24.0**; note the last *tagged/distributed* release is **v0.21.0** — v0.22.0–v0.24.0 were prepared
-but not tagged (see the CHANGELOG header). For the hands-on course, start at
+Shipped in **Wave 3**, whose changelog sits under **v0.22.0** in `CHANGELOG.md`; the subsystem has moved
+every release since, so read that file forward from there rather than trusting a version number here.
+For the hands-on course, start at
 **[`examples/audio/`](../examples/audio/README.md)** — five ready-to-open projects and a six-chapter
 tutorial.
 
@@ -139,7 +139,7 @@ makes `350 → 10` sweep **backwards through 180**, sending a sound the long way
 the moment it should cross the front. The widget still reads 0–360; only the stored value winds. Dragging
 the pad winds it too, so a gesture round the ring from 350° authors 370° rather than a discontinuity.
 
-> It was **±1440°** (four turns each way) until 0.28, chosen as "past anything anyone would ask". The cost
+> It was **±1440°** (four turns each way) until 0.27, chosen as "past anything anyone would ask". The cost
 > of that headroom fell on every lane that is *not* spinning: a keyframe is dragged against the target's
 > whole range over a lane a few dozen pixels tall, so a pixel was ~40° and an ordinary bearing could not be
 > set by hand at all. One turn each way keeps every orbit a single ramp and makes the drag **eight times

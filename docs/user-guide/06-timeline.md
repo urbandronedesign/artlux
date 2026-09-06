@@ -30,6 +30,11 @@ Out** buttons and draggable ruler handles set the region without needing the **I
 **Navigation:** **wheel** zooms toward the cursor, **Shift+wheel** scrolls horizontally, **middle‑drag**
 pans in any direction. **Home / End** seek start / content end.
 
+**Over the track names, the wheel scrolls the list instead.** The gutter is a list — track headers, lane
+names, their buttons — and in a show with more tracks than fit, reading down it is the whole reason to put
+a cursor there. Plain wheel scrolls it vertically, **Shift+wheel** horizontally, with your platform's usual
+momentum. Zooming still works everywhere to the right of the gutter.
+
 ---
 
 ## Takes on a lane (replay LiDAR and lighting without the source)

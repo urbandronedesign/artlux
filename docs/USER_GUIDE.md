@@ -125,7 +125,7 @@ workspace** turns it off and restores the fixed layout.
    parameters column on the right is where you shape it (*2D / Output* → Line or Matrix).
 4. **Place & link it.** Drag the fixture over the surface and resize it to cover the area you want.
    With the fixture selected, set the Inspector's *Mapping → Surface* to your surface.
-5. **Send output.** Open **Preferences → DMX Output**, set your protocol (Art-Net/sACN), target IP
+5. **Send output.** Open **Preferences ▸ DMX Output**, set your protocol (Art-Net/sACN), target IP
    and enable output. Click **Auto-patch** (the Map action bar, or the Routing header) to assign
    addresses. Your LEDs now mirror the content under the fixture.
 
@@ -169,7 +169,7 @@ Select a surface, then choose a type in the Inspector's **Content** grid:
 | **NDI** | An NDI source name | Network video. Requires the free **NDI Runtime/Tools** installed; if missing the panel shows an install link. **Refresh** rescans; blank = first source. |
 | **Layer** | A timeline track | The surface shows whatever clip is under the timeline playhead on that track. |
 | **Effect** | An effect + palette | A built-in generative effect (e.g. solid, rainbow, wave, fire) with **Speed** and **Intensity** sliders. No media file needed. |
-| **Tracking** | A tracking **Source** (`SOL`/`MUR`/`SOL_MUR`) | Live **LiDAR blob** positions as content — for interactive floors/walls. Options below. Needs OSC enabled (Preferences → OSC / Tracking). |
+| **Tracking** | A tracking **Source** (`SOL`/`MUR`/`SOL_MUR`) | Live **LiDAR blob** positions as content — for interactive floors/walls. Options below. Needs OSC enabled (Preferences ▸ OSC / Tracking). |
 | **MediaPipe** | — (uses a connected webcam) | Camera **body-pose** tracking (Google BlazePose) — each person becomes a marker, like a LiDAR blob, from an ordinary webcam. See below. |
 | **Augmenta** | — (an Augmenta box over OSC) | Optical people/object tracking from a pre-calibrated [Augmenta](https://augmenta.tech) box streaming **OSC v2** (shares the app's OSC listener). See below. |
 
@@ -206,11 +206,11 @@ exactly like a LiDAR blob, with no special sensor (inference runs in-app, no clo
 
 1. Select a surface → content type **MediaPipe**. Set marker size / skeleton / IDs / trails / flip /
    rotate in the surface inspector.
-2. Pick the camera and model in **Preferences → Pose Tracking (MediaPipe)**.
-3. Open **View → Pose Monitor…** to see the live feed, frame rate and tracked-people count.
+2. Pick the camera and model in **Preferences ▸ Pose Tracking (MediaPipe)**.
+3. Open **View ▸ Pose Monitor…** to see the live feed, frame rate and tracked-people count.
 4. For a 3D preview, toggle **Camera pose markers (MediaPipe)** in the 3D Scene panel.
 
-**Floor calibration (real-world position):** when the camera looks *down* at the floor, run **View →
+**Floor calibration (real-world position):** when the camera looks *down* at the floor, run **View ▸
 Pose Floor Calibration…** — drag the four handles onto the corners of a floor rectangle whose real
 size you know, enter its **width × depth** in metres and **Save**. The 3D floor then shows each person
 at their true position. (Accurate for a standing/walking person; a jumping one is momentarily off the
@@ -222,10 +222,10 @@ plane.)
 Connect an [Augmenta](https://augmenta.tech) box — a self-contained, pre-calibrated optical tracker
 that streams tracked people/objects over **OSC v2**.
 
-1. **Enable OSC receive** and set the listen port in **Preferences → OSC / Tracking**.
+1. **Enable OSC receive** and set the listen port in **Preferences ▸ OSC / Tracking**.
 2. Point the Augmenta box (Fusion) OSC output at this machine on that port — it **shares ArtLux's OSC
    listener**, so there's no extra port to open.
-3. Open **View → Augmenta Monitor…** and confirm `/au/…` messages are arriving (status dot turns
+3. Open **View ▸ Augmenta Monitor…** and confirm `/au/…` messages are arriving (status dot turns
    green, with a live object count and field size).
 4. Select a surface → content type **Augmenta** (marker size / trails / IDs / flip / rotate in the
    inspector).
@@ -321,7 +321,7 @@ packs fixtures back-to-back — each consumes `LEDs × channels` — wrapping to
 target IP, broadcast mode, sACN priority, or enable **Sparse output** (don't resend a universe whose
 data hasn't changed). A blank IP falls back to the global target.
 
-**Global output** (Preferences → *DMX Output*): protocol, output on/off, target IP, port, broadcast,
+**Global output** (Preferences ▸ *DMX Output*): protocol, output on/off, target IP, port, broadcast,
 and **Discover devices** to scan for Art-Net nodes. *Engine* settings include output **FPS**,
 keep-alive, ArtSync and **Gamma**.
 
@@ -353,7 +353,7 @@ Serpentine**.
 - **Color order** (per fixture) — fixes swapped R/G/B (e.g. GRB for WS2812B).
 - **RGBW white mode** (per fixture) — *Subtract min* vs *None* (see Fixtures above).
 - **Master brightness** (right panel *Global Params*) — scales every fixture 0–100%.
-- **Output gamma** (Preferences → *Engine*) — global non-linear brightness correction (1.0–3.0).
+- **Output gamma** (Preferences ▸ *Engine*) — global non-linear brightness correction (1.0–3.0).
 - **Per-projector gamma & soft-edge** — set independently per projector output (see Outputs).
 
 ---
@@ -457,7 +457,7 @@ default**; open its editor from the Timeline dock's **state lane** (**Edit logic
 - **Cold start** — opening a project doesn't start the machine until the opening look has **decoded**:
   the status bar shows a *Preloading n/m* chip and any open projector reads **PRELOADING SHOW** until
   the picture is ready, then the show starts from the top. It always fails open after the *Preload
-  wait* (Preferences → Engine, default 15 s).
+  wait* (Preferences ▸ Engine, default 15 s).
 
 The Play/Pause button always reflects the real transport, whoever changed it. Turn the machine off any
 time to return to fully manual control.
@@ -572,7 +572,7 @@ tracking takes in one place.
 
 See [ASSETS.md](ASSETS.md) for details.
 
-**Broadcast (show) mode:** File → **Launch in Broadcast Mode** opens every enabled output fullscreen
+**Broadcast (show) mode:** File ▸ **Launch in Broadcast Mode** opens every enabled output fullscreen
 and streams Art-Net/sACN with no editor UI. Quit it from the system-tray icon or with
 **Ctrl/Cmd+Shift+Q**.
 
@@ -580,8 +580,8 @@ and streams Art-Net/sACN with no editor UI. Quit it from the system-tray icon or
 ArtLux can serve a small web app to any phone/tablet on the same LAN, and run a venue unattended on a
 clock — the classic museum / retail / façade install workflow.
 
-1. **Enable it:** Preferences → **Show Control** → tick *Enable the tablet remote*. Note the LAN
-   URL(s) and the 4-digit **PIN** (or open **View → Show Control…** for a QR code to scan — one scan
+1. **Enable it:** Preferences ▸ **Show Control**, then tick *Enable the tablet remote*. Note the LAN
+   URL(s) and the 4-digit **PIN** (or open **View ▸ Show Control…** for a QR code to scan — one scan
    pairs the tablet with no typing).
 2. **On the tablet:** open the URL, enter the PIN once (the device is remembered). You get **Control**
    (recall scenes, fire cues, transport), **States** (drive the state machine — fire manual
@@ -602,7 +602,7 @@ machine itself. The operator panel has a **Lock** that freezes and kicks remotes
 
 ▶ Full detail: [docs/SHOW-CONTROL.md](SHOW-CONTROL.md).
 
-**Updates:** Help → *Check for Updates…* (Windows/Linux auto-update; macOS prompts you to download).
+**Updates:** Help ▸ *Check for Updates…* (Windows/Linux auto-update; macOS prompts you to download).
 
 ---
 

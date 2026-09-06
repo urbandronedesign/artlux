@@ -277,7 +277,7 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
   on UDP 6454 (coexists with `input.ts` via `reuseAddr`), collects **ArtPollReply** (`0x2100`) for
   ~3s, parses node IP/short+long name/MAC/OEM per the Art-Net offsets (matching the `artnet_protocol`
   crate's `PollReply` layout), de-dups by IP. IPC `artnet:discover` (invoke) →
-  `protocol.ts`/`preload`/`ipc.ts`; `ArtNetDevice` type. **Preferences → DMX Output** gained a
+  `protocol.ts`/`preload`/`ipc.ts`; `ArtNetDevice` type. **Preferences ▸ DMX Output** gained a
   **Discover** button + clickable device list that sets `artNetIp`. Verified: UDP round-trip test
   (fake node → reply parsed: ip/names/MAC) **PASS**; `tsc`+build+launch clean.
 - **F2b — Art-Net Sync (done)**: after each frame's ArtDmx packets, emit an **ArtSync** (`0x5200`)
@@ -372,7 +372,7 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   S6 routing spreadsheet. Verified: `autoPatch` unit test (sequential / startUniverse / locked) PASS;
   headless controller routing PASS (output went to the controller IP, not the global setting).
 - **S6 (done)**: **routing spreadsheet modal** (`RoutingModal.tsx`) — opened from the TopBar Network
-  button or File → Routing…. A **Controllers** sub-panel (add/edit/remove: name/protocol/IP/broadcast/
+  button or File ▸ Routing…. A **Controllers** sub-panel (add/edit/remove: name/protocol/IP/broadcast/
   start-universe/priority) over a **fixtures patch grid** (rows = fixtures; columns = name · surface ·
   controller · universe · start · channels · LEDs · span · lock). Inline-editable; universe/start are
   read-only until a row is **locked** (auto otherwise); **Auto-patch** button. Wired to the S5

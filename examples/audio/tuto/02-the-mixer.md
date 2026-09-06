@@ -15,12 +15,16 @@ Go to the **Audio** context (the ♪ icon in the left rail) — the mixer **is**
 ```
 ┌─ header ─────────────────────────────────────────────────────────────────┐
 │  ♪ Audio Bed   [transport] [♪ 0:14] [══ scrub ══] [L/R meters]  [+ Bed]  │
-├─ TRACKS ────────────────┬─ CLIP INSPECTOR ───────────────────────────────┤
-│  Tracks — the bed       │   (select a clip on a timeline lane            │
-│    ▸ Bed   [M][S] ══╪══ │    and it appears here)                        │
+├─ TRACKS ────────────────┬─ INSPECTOR ─────────────────────────────────── ┤
+│  Tracks — the bed       │   (select a clip on a lane, or click a         │
+│    ▸ Bed   [M][S] ══╪══ │    track row on the left, and it appears here) │
 │                         │                                                │
 │  Tracks — Global        │    gain · spatial · FX                         │
 │    (empty)              │                                                │
+│                         │                                                │
+│  Video layers           │                                                │
+│    (only when a video   │                                                │
+│     layer is sounding)  │                                                │
 ├─ MASTER ────────────────┴────────────────────────────────────────────────┤
 │  Master  [FX]  ═══╪═══  1.00              "the bed plays when the SHOW…" │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -28,6 +32,13 @@ Go to the **Audio** context (the ♪ icon in the left rail) — the mixer **is**
 
 **The header carries the transport** — and it is the *same* transport as the timeline's and as `Space`. There
 is one. The `♪` readout and its scrub slider are the **show clock** (chapter 1).
+
+**Three lists, not one.** Each is a **container** — a separate place a sound can live. You have met the
+first (the bed, chapter 1). The second is a Scene's own audio, and chapter 3 is entirely about it. The
+third appears only when a **video clip on the timeline is playing its own soundtrack**, and it lists the
+video *layers* that are making sound right now — so a layer whose clips are silent or switched off is
+simply not drawn. All three are editable. If a layer you expected is missing from that list, the panel is
+telling you it is making no sound.
 
 ![The mixer viewport — tracks, master strip, and the clipping badge](images/02-mixer-regions.png)
 <!-- TODO screenshot: Audio context mixer showing the four regions, master fader pushed up with the red `clipping` badge lit -->
@@ -96,9 +107,17 @@ of the bed does not slam the master into the ceiling on the very first GO. Summi
 | rename a track, mute/solo/gain it | *either* here *or* the lane's **gutter** — the same fields, two doors |
 | a clip's gain, position, FX | the **clip inspector**, right-hand side — but you have to **select the clip on a lane first** |
 
-**The clip inspector follows the timeline selection.** That is the entire arrangement/mixer split: you *place*
-the clip on the lane, you *shape* it here. Click the bed clip on its lane now — the inspector fills in, and
-you get **gain**, a **Spatial** checkbox, and an **FX** chain. Chapter 4 is those three.
+**The inspector follows what you last picked.** That is the entire arrangement/mixer split: you *place* the
+clip on the lane, you *shape* it here. Click the bed clip on its lane now — the inspector fills in, and you
+get **gain**, a **Spatial** checkbox, and an **FX** chain. Chapter 4 is those three.
+
+Now click the **track row** itself, on the left. The inspector switches to the *track*, with the same
+controls writing the track's own fields — a position and a chain that apply to **every clip on it**.
+Click the clip again and the inspector goes back. One set of controls, two doors, and the panel always
+says which one you came through.
+
+> **The small ● beside a track name** means that track carries a position or an insert chain. It saves you
+> opening each row to find out which ones are shaped.
 
 ## 6. Two badges that mean "there is no sound", and they are not the same
 

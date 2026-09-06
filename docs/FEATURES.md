@@ -71,7 +71,7 @@ WebGPU path; the WebGL fallback samples the composite (degraded).
 ## Routing & auto-patch
 Universes/addresses are assigned **automatically**: as you add/remove fixtures (or change LED count,
 channels, or controller) the patch re-packs sequentially per controller. Open the **Routing**
-spreadsheet (File → Routing…) to:
+spreadsheet (File ▸ Routing…) to:
 - manage **Controllers** (physical output devices: name, protocol, IP, broadcast, start universe,
   sACN priority) — fixtures assigned to a controller are packed into its universes and output to its IP;
 - patch every fixture in a grid (surface link, controller, universe/start, channels, LED count);
@@ -126,7 +126,7 @@ fills the surface; linked fixtures sample it like any media. Per-fixture effects
 engine now samples each fixture's surface). Groups can still copy a fixture's look.
 
 ## Output: Art-Net / sACN
-Open **Preferences → DMX Output**:
+Open **Preferences ▸ DMX Output**:
 - **Protocol** — Art-Net or sACN (E1.31); **Target IP**, **Port**, **Broadcast/multicast**.
 - **Discover** — broadcasts an **ArtPoll**; lists responding nodes by name + IP. Click one to set the
   target IP.
@@ -139,7 +139,7 @@ Open **Preferences → DMX Output**:
 sParse / sACN priority per fixture, so one show can address many controllers.
 
 ## OSC in: external control & LiDAR tracking
-Open **Preferences → OSC / Tracking**: enable the UDP receiver (default port **10000**), pick the
+Open **Preferences ▸ OSC / Tracking**: enable the UDP receiver (default port **10000**), pick the
 **bind NIC** (this machine's IP), and set the **control prefix** (default `/artlux`). Two streams
 share the socket:
 - **Control** — `/artlux/transport/{play,pause,stop,seek,loop}` and `/artlux/state/trigger` drive the
@@ -163,13 +163,13 @@ type** on a surface, a projector self-render, and a 3D-scene overlay). Both are 
 
 - **Camera pose tracking (MediaPipe BlazePose)** — a **webcam** + Google MediaPipe pose model, running
   **in the renderer** (WebAssembly, GPU delegate) with no extra sensor. Run `npm run assets:mediapipe`
-  once, then select a surface → content **MediaPipe**, pick the camera + model in **Preferences → Pose
-  Tracking (MediaPipe)**, and open **View → Pose Monitor…** for the live feed / fps / tracked count.
-  A **4-point floor calibration** (**View → Pose Floor Calibration…**) maps the down-pointed camera to
+  once, then select a surface → content **MediaPipe**, pick the camera + model in **Preferences ▸ Pose
+  Tracking (MediaPipe)**, and open **View ▸ Pose Monitor…** for the live feed / fps / tracked count.
+  A **4-point floor calibration** (**View ▸ Pose Floor Calibration…**) maps the down-pointed camera to
   real floor metres for a world-space preview in the 3D scene. See [MEDIAPIPE.md](MEDIAPIPE.md).
 - **Augmenta optical tracking** — an [Augmenta](https://augmenta.tech) box streaming tracked objects over
   **OSC v2**. It shares the app's single OSC listener (no extra port): enable OSC receive in **Preferences
-  → OSC / Tracking**, point the box at that port, confirm arrivals in **View → Augmenta Monitor…**, then
+  ▸ OSC / Tracking**, point the box at that port, confirm arrivals in **View ▸ Augmenta Monitor…**, then
   select a surface → content **Augmenta**. Pre-calibrated (the box reports its field in metres), so no
   floor wizard. See [AUGMENTA.md](AUGMENTA.md).
 
