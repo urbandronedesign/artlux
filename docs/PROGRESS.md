@@ -1191,6 +1191,56 @@ off that thread, which is a native change. Whether 5.7 s is normal for this Real
 particular to this machine is unmeasured. The no-audio-settings fallback path is reasoning, not a
 measurement (exercising it risks the commissioned device setting).
 
+## v0.26.7 — the app was opening a sound card nobody asked for (2026-09-06)
+
+Sequel to v0.26.6, and the answer to the question that release left open. **Cold open on the owner's
+project (10 scenes / 36 clips / 57 MB): 7,806 ms → 707 ms**, `armedBy: ready`, `bench-open` 3 runs.
+
+**`deviceManager.initialise(0, ch, nullptr, true)` opens the platform default device** — the name says
+it builds the device-type list, and it does that too, but the open is the expensive half and it happens
+before the engine has said one word about the device the operator chose. Opening a sound card is a
+synchronous napi call on main's JS thread, so for its whole duration main serves nothing: no byte over
+`artlux-media://`, no prefs read, no conform, no metrics scrape.
+
+| | as shipped | fixed |
+|---|---|---|
+| ASIO selected | initialise 5471 + switch 1817 + open 54 = **7342 ms** | 62 + 288 + 53 = **403 ms** |
+| Windows Audio selected | 5409 + 0 + 344 = **5753 ms** | 64 + 0 + 5171 = **5235 ms** |
+
+⚠ **IT IS WORST WHERE IT IS LEAST VISIBLE, AND THAT COST TWO WRONG CONCLUSIONS.** With the PLATFORM
+DEFAULT device selected, `initialise` happens to open the very device we wanted, so removing it saves
+~370 ms and the defect hides. That is the configuration measured first — which produced *"nothing in our
+code can make the wait shorter"* and, worse, the advice to *switch the device type to ASIO*, which on the
+shipped build made the cold start **slower** (7.3 s vs 5.8 s) by adding a type switch on top of the
+wasted open. **A measurement in one configuration is not a measurement.**
+
+**The `true` was `selectDefaultDeviceOnFailure`, and two behaviours relied on it silently.** Both are now
+explicit and tested: a named device that will not open still leaves the DEFAULT one live (a renamed
+interface must not bring a venue up silent), and — the one that would have shipped — **JUCE reporting no
+error is not the same as a device existing**: asked for an empty device name, which is every machine that
+has never chosen one, `setAudioDeviceSetup` returns SUCCESS and creates nothing, and the engine reported
+an `OpenedCfg` over a silent machine. An empty `outputDeviceName` does not mean "the default" either;
+JUCE resolves that with the **private** `insertDefaultDeviceNames()` that `initialise()` called for us, so
+`defaultOutputName()` now names it explicitly. The first version of the fallback looked right and left
+`deviceLive` false — the exact silence it exists to prevent — and only testing the branch found it.
+
+**Verified per case in a fresh process, metering a test tone:** ASIO named (887 ms), WASAPI named
+(5331 ms), bogus name, bogus type, empty type+name — all leave `deviceLive` true and the tone audible.
+DirectSound opens but meters zero **on the pre-change build too** — pre-existing, uninvestigated, and the
+reason not to recommend it as a workaround. Invariant #156 guards both halves; both negative-tested.
+
+**What is NOT fixed, and is not ours:** opening this Realtek endpoint in WASAPI *shared* mode really does
+cost ~5.2 s, every time (exclusive 1.0 s, DirectSound 0.37 s, **ASIO 0.05 s** — same speakers). With this
+release in, **ASIO is the fast path** and the cold open is ~0.4 s. Unmeasured on any other machine; the
+venue PC is the one that counts. Tracked in [#6](https://github.com/urbandronedesign/artlux/issues/6) and
+[plans/audio-device-open.md](../plans/audio-device-open.md).
+
+**Method notes.** Reach for a **CPU profile of the main process** early — it is a Node inspector target
+over `--inspect`, `ws` is already in `node_modules`, and it named this in one line after four wrong
+answers from reading code. And a CDP poller measuring a busy renderer *lies by omission*: 5.5 s of
+samples did not exist and the gap read as a plateau, producing a startup number wrong by 5.9 s. The
+recorder has to live in the page.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

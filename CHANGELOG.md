@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.26.7
 
 ### The app stops opening a sound card nobody asked for
 
