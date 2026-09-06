@@ -478,6 +478,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // A SECOND, INDEPENDENT DRAFT for the track's pad. One shared draft would paint whichever pad was not
   // being dragged, because both read the same live value while a gesture is in flight.
   const [trackPadDraft, setTrackPadDraft] = useState<{ angle: number; omni: boolean } | null>(null);
+  // A TRACK PICKED OUT OF THE COLUMN, which takes the inspector over from the clip selection. Panel-local
+  // and deliberately NOT in core's selection store: that channel is the TIMELINE's cursor (a clip), and a
+  // track picked in the mixer is not a timeline selection — publishing it there would move a cursor the
+  // operator never touched. Carries its `source` for the same reason every writer now does: three
+  // containers share this column, and an id alone does not say which one a row came from.
+  const [pickedTrack, setPickedTrack] = useState<{ id: string; source: SelSource } | null>(null);
   // A RENDERABLE mirror of docKeyOf(), for the ONE thing that needs a re-render when the binding changes:
   // dropping a stale pad draft (see the reset effect). It is NOT the guard — the guard is docKeyOf(), read
   // live — so this may lag by up to one meter tick without costing correctness. Refreshed from the audio
@@ -652,6 +658,10 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   //     that fires, and without it the outgoing scene's dragged position would sit painted over the incoming
   //     scene's clip. (The commit is already refused by the pad's own docKey guard; this is the PAINT.)
   useEffect(() => { setPadDraft(null); setTrackPadDraft(null); }, [selId, selSource, boundDoc]);
+  // Picking a CLIP on the timeline hands the inspector back to it — otherwise clicking through clips while
+  // a track was picked would show the same track panel over and over with nothing responding. A rebind
+  // drops it too: the incoming scene's tracks are different objects even when their ids alias.
+  useEffect(() => { setPickedTrack(null); }, [selId, boundDoc]);
 
   // Every mutation builds a fresh bed and writes it back (host normalizes + persists + notifies the player).
   const commit = (next: Mix) => { mixRef.current = next; setMixState(next); host?.audio.setMix(next); };
@@ -723,11 +733,16 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // two go through the host's one track door, which routes on the `vl:` prefix. See the SDK.
   const tracksFor = (source: SelSource | null): Track[] =>
     source === 'video' ? vidRef.current.tracks : source === 'timeline' ? tlRef.current.tracks : mixRef.current.tracks;
-  const patchSelTrack = (id: string, p: Partial<Track>) => {
-    if (selSource === 'bed') { patchTrack(id, p); return; }
+  // ⚠ TAKES ITS SOURCE EXPLICITLY, and does not read `selSource`. The track column shapes tracks from all
+  // three containers at once, so "which container" is a property of the ROW being written, not of whatever
+  // clip happens to be selected in the inspector. Reading the selection here would send a video layer's
+  // gain to a bed track the moment the two were on screen together — which, since this panel now lists all
+  // three, is the normal case rather than a corner one.
+  const patchTrackIn = (source: SelSource, id: string, p: Partial<Track>) => {
+    if (source === 'bed') { patchTrack(id, p); return; }
     // Optimistic, like every other non-bed write here: the host hands nothing back and its fan-out
     // overwrites this a render later.
-    if (selSource === 'video') {
+    if (source === 'video') {
       const cur = vidRef.current;
       vidRef.current = { ...cur, tracks: cur.tracks.map((t) => (t.id === id ? { ...t, ...p } : t)) };
       setVidAudio(vidRef.current);
@@ -823,10 +838,16 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     releaseChangedFx('audio.master', fx, fxOf(mixRef.current.buses.find((b) => b.id === MASTER_BUS_ID)?.effects), touched);
     patchMaster({ effects: fx });
   };
-  const setTrackGain = (id: string, g: number) => { releaseFade(`audio.track.${id}.gain`); patchTrack(id, { gain: g }); }; // audio.track.<id>.gain
-  const setTrackMute = (id: string, m: boolean) => patchTrack(id, { mute: m });              // (not fadeable — discrete)
-  const setTrackSolo = (id: string, s: boolean) => patchTrack(id, { solo: s });              // (not fadeable — discrete)
-  const setTrackName = (id: string, n: string) => patchTrack(id, { name: n });
+  // ⚠ ALL FOUR TAKE THEIR CONTAINER. They wrote the bed unconditionally when the bed was the only list in
+  // the column that could be edited; the column now carries all three, so a bed-only write here would send
+  // a video layer's mute to a bed track with the same index in the operator's eye and none in the data.
+  const setTrackGain = (source: SelSource, id: string, g: number) => { releaseIn(source, `audio.track.${id}.gain`); patchTrackIn(source, id, { gain: g }); };
+  const setTrackMute = (source: SelSource, id: string, m: boolean) => patchTrackIn(source, id, { mute: m });   // (not fadeable — discrete)
+  const setTrackSolo = (source: SelSource, id: string, sl: boolean) => patchTrackIn(source, id, { solo: sl }); // (not fadeable — discrete)
+  // ⚠ NOT OFFERED FOR A VIDEO LAYER. `vl:` tracks are DERIVED from the timeline's layers, and their name is
+  // the LAYER's — owned by the timeline's own gutter, which is where it is renamed. Writing it from here
+  // would put a second name on one thing.
+  const setTrackName = (source: SelSource, id: string, n: string) => patchTrackIn(source, id, { name: n });
   // ── THE SELECTED CLIP'S WRITES — the same six controls against EITHER container (see selSource). ──────
   const setClipGain = (id: string, g: number) => { releaseSel(`audio.clip.${id}.gain`); patchSelClip(id, { gain: g }); }; // audio.clip.<id>.gain
   // ⚠ THIS BUTTON IS THE ONLY WRITER OF AudioClip.mute IN THE WHOLE APPLICATION, and it must stay that way
@@ -867,36 +888,40 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // writes a clean {0,0,1}. Whatever they do write is a fully-formed vec3, by construction.
   // THE TRACK'S CHAIN. Same shape as setClipEffects, one scope up — and the same bed-only release, for
   // the same reason: nothing writes a scene/cue fade over a track's fx params outside the bed.
-  const setTrackEffects = (id: string, fx: Effect[], touched?: FxParamRef) => {            // audio.track.<id>.fx.<fxId>.<key>
-    if (selSource === 'bed') releaseChangedFx(`audio.track.${id}`, fx, fxOf(mixRef.current.tracks.find((t) => t.id === id)?.effects), touched);
-    patchSelTrack(id, { effects: fx });
+  const setTrackEffects = (source: SelSource, id: string, fx: Effect[], touched?: FxParamRef) => {  // audio.track.<id>.fx.<fxId>.<key>
+    if (source === 'bed') releaseChangedFx(`audio.track.${id}`, fx, fxOf(mixRef.current.tracks.find((t) => t.id === id)?.effects), touched);
+    patchTrackIn(source, id, { effects: fx });
   };
   // ── THE TRACK'S POSITION — the same three gestures as a clip's, one scope up ──────────────────────
   // Releases are bed-only for the same reason every other release here is: nothing writes a scene/cue fade
   // over a track's position outside the bed.
-  const trackSpatialOf = (id: string): Spatial | undefined =>
-    vec3(tracksFor(selSource).find((t) => t.id === id)?.spatial);
-  const setTrackSpatialOn = (id: string, on: boolean) => {
-    for (const ax of ['x', 'y', 'z', 'angle', 'elevation', 'attenuation'] as const) releaseSel(`audio.track.${id}.spatial.${ax}`);
-    patchSelTrack(id, { spatial: on ? { angle: 0, elevation: 0 } : undefined });
+  // Releases are bed-scoped throughout, for the reason releaseSel states: nothing writes a scene/cue fade
+  // over a track outside the bed. `releaseIn` is releaseSel with the row's source instead of the
+  // selection's, for the same reason patchTrackIn takes one.
+  const releaseIn = (source: SelSource, path: string) => { if (source === 'bed') releaseFade(path); };
+  const trackSpatialOf = (source: SelSource, id: string): Spatial | undefined =>
+    vec3(tracksFor(source).find((t) => t.id === id)?.spatial);
+  const setTrackSpatialOn = (source: SelSource, id: string, on: boolean) => {
+    for (const ax of ['x', 'y', 'z', 'angle', 'elevation', 'attenuation'] as const) releaseIn(source, `audio.track.${id}.spatial.${ax}`);
+    patchTrackIn(source, id, { spatial: on ? { angle: 0, elevation: 0 } : undefined });
   };
-  const rewriteTrack = (id: string, cur: Spatial, patch: Partial<Spatial>) => {
+  const rewriteTrack = (source: SelSource, id: string, cur: Spatial, patch: Partial<Spatial>) => {
     const { legacyVec: _dropped, ...rest } = cur;
     void _dropped;
-    patchSelTrack(id, { spatial: { ...rest, ...patch } });
+    patchTrackIn(source, id, { spatial: { ...rest, ...patch } });
   };
-  const setTrackSpatialAim = (id: string, angle: number, omni: boolean) => {
-    const cur = trackSpatialOf(id); if (!cur) return;
-    releaseSel(`audio.track.${id}.spatial.angle`); releaseSel(`audio.track.${id}.spatial.attenuation`);
-    for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.track.${id}.spatial.${ax}`);
+  const setTrackSpatialAim = (source: SelSource, id: string, angle: number, omni: boolean) => {
+    const cur = trackSpatialOf(source, id); if (!cur) return;
+    releaseIn(source, `audio.track.${id}.spatial.angle`); releaseIn(source, `audio.track.${id}.spatial.attenuation`);
+    for (const ax of ['x', 'y', 'z'] as const) releaseIn(source, `audio.track.${id}.spatial.${ax}`);
     // Same two rules as the clip's aim: the BEARING survives an omni flip so dragging back out returns the
     // source where it was, and `undefined` rather than `false` keeps the field out of the file.
-    rewriteTrack(id, cur, { angle: normAngle(angle), omni: omni || undefined });
+    rewriteTrack(source, id, cur, { angle: normAngle(angle), omni: omni || undefined });
   };
-  const setTrackSpatialElevation = (id: string, elevation: number) => {
-    const cur = trackSpatialOf(id); if (!cur) return;
-    releaseSel(`audio.track.${id}.spatial.elevation`);
-    rewriteTrack(id, cur, { elevation });
+  const setTrackSpatialElevation = (source: SelSource, id: string, elevation: number) => {
+    const cur = trackSpatialOf(source, id); if (!cur) return;
+    releaseIn(source, `audio.track.${id}.spatial.elevation`);
+    rewriteTrack(source, id, cur, { elevation });
   };
   const spatialOf = (id: string): Spatial | undefined => vec3(selClipIn(id)?.spatial);
   // ⚠ EVERY WRITE DROPS `legacyVec`, AND THAT IS THE RULE THAT KEEPS IT HONEST.
@@ -1029,6 +1054,14 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const selVideo = selSource === 'video';         // likewise — a video clip's own soundtrack
   // The selected clip's TRACK, for the Track FX section. Off the RENDER's containers (not the refs), so it
   // repaints when the host's fan-out lands; `null` when the clip's track has gone, which the section hides.
+  // The picked row, re-read from the RENDER's containers so it repaints when the host's fan-out lands.
+  // `null` when the track has gone (a scene edit, a layer deleted), which drops the inspector back to the
+  // clip view rather than shaping something that no longer exists.
+  const pickedTrackRow: Track | null = useMemo(() => {
+    if (!pickedTrack) return null;
+    const pool = pickedTrack.source === 'video' ? vidAudio.tracks : pickedTrack.source === 'timeline' ? tlAudio.tracks : mix.tracks;
+    return pool.find((t) => t.id === pickedTrack.id) ?? null;
+  }, [pickedTrack, mix, tlAudio, vidAudio]);
   const selTrack: Track | null = useMemo(() => {
     if (!selClip) return null;
     const pool = selSource === 'video' ? vidAudio.tracks : selSource === 'timeline' ? tlAudio.tracks : mix.tracks;
@@ -1037,6 +1070,92 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // What the ENGINE is playing for the selected clip's gain. BED clips only — a timeline clip has no lane
   // and no fade over it, and its id aliases into the bed's namespace (see drivenOn).
   const selGainDrive = selClip ? drivenOn(selSource, `audio.clip.${selClip.id}.gain`) : undefined;
+
+  // ── THE TRACK SHAPER — one implementation, three containers, two places on screen ────────────────
+  // Rendered for the selected CLIP's track (so shaping follows the clip you are working on) and for a
+  // track picked straight out of the column beside it. Everything it writes is routed by the `source`
+  // it is handed, never by the inspector's selection: the column now shows all three containers at once,
+  // so "which container" is a property of the row, not of whatever clip happens to be selected.
+  const trackShaper = (t: Track, source: SelSource) => {
+    const sp = vec3(t.spatial);
+    const ang = trackPadDraft?.angle ?? sp?.angle ?? 0;
+    const omni = trackPadDraft?.omni ?? sp?.omni === true;
+    const isVideo = source === 'video';
+    return (
+    <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
+      {/* THE TRACK'S POSITION — a DEFAULT for the clips on it, never an override. A position
+          cannot be laid over a position the way a chain is appended to a chain (a source has
+          one place in the field), so the two RANK: the clip's own wins, and a clip without one
+          is encoded where the track says. Were it the other way round, the clip's own pad
+          would go dead the moment its track had a position. See types.ts AudioTrack.spatial. */}
+      <div className="flex items-center gap-1.5">
+        <Orbit size={12} className={sp ? 'text-accent' : 'text-fg-3'} />
+        <label className="flex items-center gap-1.5 text-micro text-fg-2">
+          <input type="checkbox" checked={!!sp} className="accent-accent"
+            onChange={(e) => setTrackSpatialOn(source, t.id, e.target.checked)} />
+          Track spatial
+        </label>
+        <span className="text-micro text-fg-3 truncate" title={`Applies to every clip on “${t.name}”`}>
+          ▸ {t.name}
+        </span>
+      </div>
+      {sp ? (
+        <>
+          <div className="flex items-center gap-3">
+            {/* NO onAudition. A clip's pad auditions by pushing straight at the engine's own
+                source id; a track has no source, so it would have to fan out over every clip
+                on it — including ones not even loaded. The commit is heard on the next frame,
+                like any other document write. */}
+            <SpatialPad angle={ang} omni={omni} docKey={gestureDocKey}
+              speakers={padSpeakers}
+              onDraft={(angle, omni) => setTrackPadDraft({ angle, omni })}
+              onCommit={(angle, omni) => { setTrackPadDraft(null); setTrackSpatialAim(source, t.id, angle, omni); }} />
+            <div className="flex flex-col gap-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
+                <Fader value={sp.elevation} min={-90} max={90} step={1}
+                  ariaLabel="track spatial height" docKey={gestureDocKey}
+                  title={(v) => `${v.toFixed(0)}° — ${v > 0 ? 'above' : v < 0 ? 'below' : 'level with'} the listener`}
+                  onCommit={(e) => setTrackSpatialElevation(source, t.id, e)}
+                  className="flex-1 min-w-0"
+                  readout={(v) => `${v.toFixed(0)}°`}
+                  readoutClassName="text-micro text-fg-2 tabular-nums w-10 text-right shrink-0" />
+              </div>
+              <p className="text-micro text-fg-3 leading-snug">
+                {isVideo
+                  ? 'Every clip on this layer is placed here — a video clip has no position of its own.'
+                  : 'Every clip on this track that has no position of its own is placed here. A clip with one keeps it.'}
+              </p>
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="text-micro text-fg-3 italic">
+          {isVideo
+            ? 'Off — clips on this layer play flat (unspatialised) into the mix.'
+            : 'Off — clips on this track are placed only by their own positions.'}
+        </p>
+      )}
+
+      <div className="flex items-center gap-1.5 pt-1.5 border-t border-line-1">
+        <Sliders size={12} className={fxOf(t.effects).length ? 'text-accent' : 'text-fg-3'} />
+        <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">
+          Track FX{fxOf(t.effects).length ? ` (${fxOf(t.effects).length})` : ''}
+        </span>
+        <span className="text-micro text-fg-3 truncate" title={`Applies to every clip on “${t.name}”`}>
+          ▸ {t.name}
+        </span>
+      </div>
+      <p className="text-micro text-fg-3 leading-snug">
+        {isVideo
+          ? 'Runs on every clip on this layer — a video clip has no chain of its own. One instance per clip, so a reverb tail stops at a cut instead of ringing across it.'
+          : 'Runs after this clip’s own chain, on every clip on this track. One instance per clip, so a reverb tail stops at a cut instead of ringing across it.'}
+      </p>
+      <EffectChain scope="clip" effects={fxOf(t.effects)} docKey={gestureDocKey}
+        onChange={(fx, touched) => setTrackEffects(source, t.id, fx, touched)} />
+    </section>
+    );
+  };
 
   // ── THE TWO SHAPES THE BOUND DOCUMENT'S NAME IS SPOKEN IN ────────────────────────────────────────────
   // `boundName` is null for the global timeline — and also for the (impossible-but-cheap-to-survive) case
@@ -1120,44 +1239,58 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // so this path names one thing and cannot alias across containers; it needs no drivenOn gate.
   const masterDrive = drive.get('audio.master.gain');
 
-  const trackRow = (t: Track, source: 'bed' | 'timeline') => {
-    const ro = source === 'timeline';
-    const roTitle = "Read-only here — edit this track on its timeline lane (the gutter carries its name, mute, solo and gain). It rides the PLAYHEAD and restarts with its timeline.";
-    // What the ENGINE is playing for this track's gain. BED tracks only — a timeline track's id aliases into
-    // the bed's namespace and would resolve against the wrong container (see drivenOn).
+  const trackRow = (t: Track, source: SelSource) => {
+    // ⚠ `ro` NO LONGER MEANS "a timeline track". It used to: the column could write the bed and nothing
+    // else, so every non-bed row was disabled and told the operator to go and use the lane gutter. There is
+    // a write path into both other containers now (host.audio.patchAudioTrack), so the only thing still
+    // read-only is a DERIVED name — a `vl:` track's name IS its layer's, owned by the timeline's gutter,
+    // and a second writer for one string is how two names for one thing start.
+    const roName = source === 'video';
+    const roNameTitle = 'The layer’s name — rename it on its timeline lane; this row follows.';
+    const picked = pickedTrack?.id === t.id && pickedTrack.source === source;
     const drv = drivenOn(source, `audio.track.${t.id}.gain`);
+    const shaped = fxOf(t.effects).length > 0 || !!t.spatial;
+    // Only the BED accepts a drop: an audio file dragged onto a track becomes a CLIP on it, and neither of
+    // the other two has clips you can mint here — a scene's are placed on its lane, and a video layer's are
+    // derived from its picture and have no existence of their own.
+    const droppable = source === 'bed';
     return (
-      <div key={t.id} onDrop={ro ? undefined : onDrop(t.id)} onDragOver={ro ? undefined : allowDrop}
-        className={`px-2 py-1.5 rounded border border-line-1 ${t.solo ? 'bg-accent/5' : 'bg-surface-2'} ${t.mute ? 'opacity-60' : ''} ${ro ? 'border-dashed' : ''}`}>
+      <div key={`${source}:${t.id}`} onDrop={droppable ? onDrop(t.id) : undefined} onDragOver={droppable ? allowDrop : undefined}
+        onClick={() => setPickedTrack(picked ? null : { id: t.id, source })}
+        title={picked ? 'Click again to go back to the clip inspector' : 'Click to shape this track — position and FX apply to every clip on it'}
+        className={`px-2 py-1.5 rounded border cursor-pointer ${picked ? 'border-accent bg-accent/10' : 'border-line-1'} ${t.solo && !picked ? 'bg-accent/5' : picked ? '' : 'bg-surface-2'} ${t.mute ? 'opacity-60' : ''}`}>
         <div className="flex items-center gap-1.5">
           <Music size={11} className="text-fg-3 shrink-0" />
-          <TrackName value={t.name} disabled={ro} title={ro ? roTitle : 'Rename (Enter commits, Escape abandons)'}
-            onCommit={(n) => setTrackName(t.id, n)} />
-          {!ro && (
-            <button onClick={() => removeTrack(t.id)} title="Remove track (and its clips)"
+          <TrackName value={t.name} disabled={roName} title={roName ? roNameTitle : 'Rename (Enter commits, Escape abandons)'}
+            onCommit={(n) => setTrackName(source, t.id, n)} />
+          {/* A dot when the track carries a position or a chain, so the column says WHICH tracks are
+              shaped without every row having to be opened. */}
+          {shaped && <span className="shrink-0 text-accent text-micro" title="This track has a position and/or an insert chain">●</span>}
+          {source === 'bed' && (
+            <button onClick={(e) => { e.stopPropagation(); removeTrack(t.id); }} title="Remove track (and its clips)"
               className="shrink-0 text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
           )}
         </div>
-        <div className="mt-1 flex items-center gap-1.5">
-          <button onClick={() => setTrackMute(t.id, !t.mute)} disabled={ro} title={ro ? roTitle : (t.mute ? 'Unmute' : 'Mute')}
-            className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${t.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>
+        <div className="mt-1 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => setTrackMute(source, t.id, !t.mute)} title={t.mute ? 'Unmute' : 'Mute'}
+            className={`shrink-0 ${t.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>
             {t.mute ? <VolumeX size={12} /> : <Volume2 size={12} />}
           </button>
-          <button onClick={() => setTrackSolo(t.id, !t.solo)} disabled={ro} title={ro ? roTitle : (t.solo ? 'Un-solo' : 'Solo — silences every other track in THIS container')}
-            className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${t.solo ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
+          <button onClick={() => setTrackSolo(source, t.id, !t.solo)} title={t.solo ? 'Un-solo' : 'Solo — silences every other track in THIS container'}
+            className={`shrink-0 ${t.solo ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
             <Headphones size={12} />
           </button>
           {drv && <DriveBadge d={drv} />}
           {/* `drv?.value ?? …` — THE LEVEL IN THE ROOM, not the level in the file. Disabled under a LANE,
               because a move there is silently overwritten on the next frame; live under a FADE, because
               there a move is a real takeover (setTrackGain → releaseFade). See DriveBadge. */}
-          <Fader value={drv?.value ?? t.gain ?? 1} min={0} max={1.5} step={0.01} disabled={ro || drv?.by === 'lane'}
+          <Fader value={drv?.value ?? t.gain ?? 1} min={0} max={1.5} step={0.01} disabled={drv?.by === 'lane'}
             ariaLabel={`${t.name} gain`}
-            title={(v) => (ro ? roTitle
-              : drv?.by === 'lane' ? `gain ${g2(v)} — an automation lane owns this. Switch the lane off in the timeline to take it back.`
+            docKey={source === 'bed' ? undefined : docKeyOf}
+            title={(v) => (drv?.by === 'lane' ? `gain ${g2(v)} — an automation lane owns this. Switch the lane off in the timeline to take it back.`
               : drv ? `gain ${g2(v)} — a scene/cue fade is holding this. Move the fader to take it back.`
               : `gain ${g2(v)}`)}
-            onCommit={(g) => setTrackGain(t.id, g)}
+            onCommit={(g) => setTrackGain(source, t.id, g)}
             className="flex-1 min-w-0"
             readout={g2} readoutClassName="text-micro text-fg-3 tabular-nums w-8 text-right shrink-0" />
         </div>
@@ -1308,20 +1441,56 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                 <p className="text-micro text-fg-3/70 italic px-0.5 py-2">
                   Nothing yet — {boundPhrase} has no audio tracks of its own.
                 </p>
-              ) : (
-                <>
-                  {tlAudio.tracks.map((t) => trackRow(t, 'timeline'))}
-                  <p className="text-micro text-fg-3/70 italic px-0.5">
-                    Read-only here — a timeline's own tracks are mixed on their lane (name, mute, solo, gain live in the gutter).
-                  </p>
-                </>
-              )}
+              ) : tlAudio.tracks.map((t) => trackRow(t, 'timeline'))}
+            </section>
+
+            {/* ── THE THIRD LIST: THE VIDEO LAYERS THAT ARE MAKING SOUND ──────────────────────────────
+                Absent from this column until now, which made the mixer a partial account of the room: a
+                scene could be playing four video layers' soundtracks and the panel that calls itself the
+                mixer listed none of them. Every OTHER surface here was already honest about being
+                incomplete (the two headings name their document); this one was simply missing.
+
+                DERIVED, so the list is exactly the layers that CONTRIBUTE — a layer whose clips are all
+                silent, switched off, or still conforming is not in the container and is not drawn. That is
+                the same set the clip inspector can select, so the two agree about what exists. */}
+            <section className="space-y-1.5">
+              <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5 truncate"
+                title="The video LAYERS of the bound timeline whose clips carry sound. Derived from the picture, so there is nothing to place here — but the layer's level, position and insert chain are all yours, and apply to every clip on the lane.">
+                Tracks — video layers
+              </h3>
+              {vidAudio.tracks.length === 0 ? (
+                <p className="text-micro text-fg-3/70 italic px-0.5 py-2">
+                  No video layer is making sound. A layer appears here once one of its clips has a
+                  soundtrack that is switched on and conformed.
+                </p>
+              ) : vidAudio.tracks.map((t) => trackRow(t, 'video'))}
             </section>
           </div>
 
           {/* ── CLIP INSPECTOR — follows the timeline selection ───────────────────────────────────── */}
           <div className="flex-1 min-w-0 overflow-auto p-3 space-y-3">
-            {!selClip ? (
+            {/* A TRACK PICKED IN THE COLUMN TAKES THE INSPECTOR OVER, ahead of the clip selection. Same
+                shaper either way (trackShaper), so a track shaped from here and one shaped through a
+                selected clip are the same controls writing the same fields — there is no second
+                implementation to drift. */}
+            {pickedTrackRow ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Music size={13} className="text-fg-2 shrink-0" />
+                  <span className="text-mini font-semibold text-fg-1 truncate">{pickedTrackRow.name}</span>
+                  <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${pickedTrack!.source === 'bed' ? 'bg-accent/15 text-accent' : 'bg-surface-3 text-fg-2'}`}>
+                    {pickedTrack!.source === 'video' ? 'video layer' : pickedTrack!.source === 'timeline' ? 'this timeline' : 'bed'}
+                  </span>
+                  <button onClick={() => setPickedTrack(null)} title="Back to the clip inspector"
+                    className="ml-auto shrink-0 text-micro text-fg-3 hover:text-fg-1">done</button>
+                </div>
+                <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
+                  Shaping the whole track. Its level, mute and solo are in the row you picked; the position
+                  and the insert chain below apply to <em>every</em> clip on it.
+                </p>
+                {trackShaper(pickedTrackRow, pickedTrack!.source)}
+              </>
+            ) : !selClip ? (
               <div className="h-full flex flex-col items-center justify-center gap-1 text-center px-6">
                 <Sliders size={18} className="text-fg-3/50" />
                 <p className="text-mini text-fg-3">Select an audio clip on the timeline to shape it.</p>
@@ -1522,83 +1691,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                     timeline enforces one clip at a time per track, and only a reverb TAIL across a cut can
                     tell the difference.
 
-                    Authored from the clip inspector rather than the track list on the left, for a plain
-                    reason: that list is read-only for timeline tracks and does not show video layers at all,
-                    so two of the three containers could never have reached it. */}
-                {selTrack && (
-                  <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
-                    {/* THE TRACK'S POSITION — a DEFAULT for the clips on it, never an override. A position
-                        cannot be laid over a position the way a chain is appended to a chain (a source has
-                        one place in the field), so the two RANK: the clip's own wins, and a clip without one
-                        is encoded where the track says. Were it the other way round, the clip's own pad
-                        would go dead the moment its track had a position. See types.ts AudioTrack.spatial. */}
-                    <div className="flex items-center gap-1.5">
-                      <Orbit size={12} className={trackSpatial ? 'text-accent' : 'text-fg-3'} />
-                      <label className="flex items-center gap-1.5 text-micro text-fg-2">
-                        <input type="checkbox" checked={!!trackSpatial} className="accent-accent"
-                          onChange={(e) => setTrackSpatialOn(selTrack.id, e.target.checked)} />
-                        Track spatial
-                      </label>
-                      <span className="text-micro text-fg-3 truncate" title={`Applies to every clip on “${selTrack.name}”`}>
-                        ▸ {selTrack.name}
-                      </span>
-                    </div>
-                    {trackSpatial ? (
-                      <>
-                        <div className="flex items-center gap-3">
-                          {/* NO onAudition. A clip's pad auditions by pushing straight at the engine's own
-                              source id; a track has no source, so it would have to fan out over every clip
-                              on it — including ones not even loaded. The commit is heard on the next frame,
-                              like any other document write. */}
-                          <SpatialPad angle={trackPadAngle} omni={trackPadOmni} docKey={gestureDocKey}
-                            speakers={padSpeakers}
-                            onDraft={(angle, omni) => setTrackPadDraft({ angle, omni })}
-                            onCommit={(angle, omni) => { setTrackPadDraft(null); setTrackSpatialAim(selTrack.id, angle, omni); }} />
-                          <div className="flex flex-col gap-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
-                              <Fader value={trackSpatial.elevation} min={-90} max={90} step={1}
-                                ariaLabel="track spatial height" docKey={gestureDocKey}
-                                title={(v) => `${v.toFixed(0)}° — ${v > 0 ? 'above' : v < 0 ? 'below' : 'level with'} the listener`}
-                                onCommit={(e) => setTrackSpatialElevation(selTrack.id, e)}
-                                className="flex-1 min-w-0"
-                                readout={(v) => `${v.toFixed(0)}°`}
-                                readoutClassName="text-micro text-fg-2 tabular-nums w-10 text-right shrink-0" />
-                            </div>
-                            <p className="text-micro text-fg-3 leading-snug">
-                              {selVideo
-                                ? 'Every clip on this layer is placed here — a video clip has no position of its own.'
-                                : 'Every clip on this track that has no position of its own is placed here. A clip with one keeps it.'}
-                            </p>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-micro text-fg-3 italic">
-                        {selVideo
-                          ? 'Off — clips on this layer play flat (unspatialised) into the mix.'
-                          : 'Off — clips on this track are placed only by their own positions.'}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-1.5 pt-1.5 border-t border-line-1">
-                      <Sliders size={12} className={fxOf(selTrack.effects).length ? 'text-accent' : 'text-fg-3'} />
-                      <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">
-                        Track FX{fxOf(selTrack.effects).length ? ` (${fxOf(selTrack.effects).length})` : ''}
-                      </span>
-                      <span className="text-micro text-fg-3 truncate" title={`Applies to every clip on “${selTrack.name}”`}>
-                        ▸ {selTrack.name}
-                      </span>
-                    </div>
-                    <p className="text-micro text-fg-3 leading-snug">
-                      {selVideo
-                        ? 'Runs on every clip on this layer — a video clip has no chain of its own. One instance per clip, so a reverb tail stops at a cut instead of ringing across it.'
-                        : 'Runs after this clip’s own chain, on every clip on this track. One instance per clip, so a reverb tail stops at a cut instead of ringing across it.'}
-                    </p>
-                    <EffectChain scope="clip" effects={fxOf(selTrack.effects)} docKey={gestureDocKey}
-                      onChange={(fx, touched) => setTrackEffects(selTrack.id, fx, touched)} />
-                  </section>
-                )}
+                    Reachable from BOTH doors now: pick the track in the column on the left, or select any
+                    clip on it and shape its track from here. One shaper (trackShaper) serves both, so they
+                    are the same controls writing the same fields. It lived only here at first because the
+                    column was read-only for timeline tracks and did not list video layers at all — both of
+                    which have since been fixed, which is what made the second door possible. */}
+                {selTrack && trackShaper(selTrack, selSource ?? 'bed')}
               </>
             )}
           </div>

@@ -313,9 +313,9 @@ track that fed a true bus could hold no spatial sources at all.
 Order is the ordinary console order: **the clip's chain, then the track's, then the encoder.** A spatial
 clip's chain is mono, so the track's is mono there too.
 
-Authored in the **clip inspector**, under the clip's own FX, labelled with the track it belongs to — *not*
-in the mixer's track list on the left, which is read-only for timeline tracks and does not show video
-layers at all.
+Authored from **either door**: click a track's row in the Audio Bed's column, or select any clip on that
+track and use the **Track** section of the clip inspector. One implementation (`trackShaper`) serves both,
+so they are the same controls writing the same fields.
 
 #### The track also has a POSITION — and it ranks rather than combines
 
@@ -354,6 +354,12 @@ The **Audio Bed** panel — **View ▸ Audio Bed…** — is the mixer. It answe
 like"*. The **timeline lanes** answer *"when"*. The split is not taste — it falls straight out of the two
 insert points above.
 
+**Its track column lists all three containers**, which is what makes it a complete account of the room:
+the bed's tracks, the bound timeline's own, and the **video layers whose clips carry sound**. That last
+list is derived, so it holds exactly the layers actually contributing — a layer whose clips are silent,
+switched off, or still conforming is not in it. All three are writable; the only read-only field is a
+video layer's **name**, which is the layer's own and is renamed on its timeline lane.
+
 > It is a **plugin modal**, registered with `menuAction: 'audio-bed'` (`plugin.renderer.ts`), and that
 > registration is **unconditional** — the panel opens and renders even when the native addon failed to load.
 > It will simply have nothing to make sound with, and it says so (see the badges below). **There is no
@@ -366,6 +372,8 @@ insert points above.
 | a clip's gain, mute, position, FX | the **clip inspector** — select the clip on a lane, shape it in the Audio Bed |
 | the house level, master FX | the **master strip**, bottom of the Audio Bed |
 | add a bed track | **`+ Bed`** in the Audio Bed header, *or* the `+` on the bed lanes' gutter — same door |
+| a track's level, mute, solo | its **row** in the Audio Bed's track column — all three containers, all writable |
+| a track's position + insert chain | **click its row** to shape it, *or* select any clip on it and use the **Track** section of the clip inspector — one implementation, two doors |
 
 **The clip inspector follows the timeline selection**, across *both* containers. While a Scene is bound the
 timeline draws no bed lanes at all (the bed rides the show clock; the ruler is the scene's), so the only
