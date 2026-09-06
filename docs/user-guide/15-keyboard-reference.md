@@ -167,7 +167,9 @@ These live in the **application menu** (or are universal dialog keys), not in th
 | `Ctrl+S` | Save | File |
 | `Ctrl+Shift+S` | Save As… | File |
 | `Ctrl+,` | Preferences… | File |
-| `Ctrl+Shift+Q` | Quit (also quits broadcast mode) | File |
+| `Cmd+Q` (macOS) | Quit the editor | ARTLux |
+| `Ctrl+Shift+Q` (Win/Linux) | Quit the editor | File |
+| `Ctrl/Cmd+Shift+Q` | Quit broadcast mode | — |
 | `Ctrl+R` | Reload | View |
 | `Ctrl+Shift+I` | Toggle Developer Tools | View |
 | `Ctrl+Shift+M` | OSC Monitor… | View |

@@ -350,6 +350,8 @@ For an install that runs for days with nobody watching:
 
 ## Keyboard
 - **Ctrl/Cmd+Z** undo · **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** redo.
-- **Ctrl/Cmd+Shift+Q** quit — works in both the editor and broadcast mode, even from a focused
-  fullscreen projector window (closes every projector cleanly).
+- Quit — closes every projector cleanly, and works even from a focused fullscreen projector window.
+  **macOS: ⌘Q**, from the application menu, like every other Mac app. **Windows/Linux:
+  Ctrl+Shift+Q**, a global hotkey (their menus are per-window, so a frameless output has no other
+  route). Broadcast mode keeps Ctrl/Cmd+Shift+Q on every platform — it builds no menu at all.
 - **Esc** closes the Preferences dialog.

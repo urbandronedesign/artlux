@@ -76,7 +76,10 @@ function buildMenus(recents: string[], workspaceItems: Item[]): Menu[] {
         { label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', action: 'calibration-profile' },
         { label: 'Launch in Broadcast Mode', action: 'broadcast' },
         { sep: true },
-        { label: 'Quit', accel: 'Ctrl+Shift+Q', cmd: 'quit' },
+        // macOS quits with ⌘Q from the application menu (src/main/menu.ts); everywhere else the
+        // global Ctrl+Shift+Q is the handler. Written in the Ctrl spelling either way because acc()
+        // is what maps it to ⌘ — see the helper at the top of this file.
+        { label: 'Quit', accel: isMac ? 'Ctrl+Q' : 'Ctrl+Shift+Q', cmd: 'quit' },
       ],
     },
     {

@@ -1,4 +1,4 @@
-import { Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
+import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { IPC, CONTEXT_MENU_ITEMS, contextAction } from '../../shared/protocol';
 import * as persistence from './persistence';
 import { CALIBRATION_ENABLED } from './runProfile';
@@ -9,6 +9,8 @@ import { CALIBRATION_ENABLED } from './runProfile';
 
 const REPO = 'https://github.com/urbandronedesign/artlux';
 const DOCS = `${REPO}/blob/main/docs/FEATURES.md`;
+
+const isMac = process.platform === 'darwin';
 
 let getWindowRef: (() => BrowserWindow | null) | null = null;
 
@@ -29,6 +31,36 @@ function template(): MenuItemConstructorOptions[] {
     : [{ label: 'No recent files', enabled: false }];
 
   return [
+    // THE macOS APPLICATION MENU — and ⌘Q lives here, nowhere else.
+    //
+    // macOS hands the FIRST submenu of any template to the application menu and titles it with the app
+    // name, whatever label you gave it. So this template's 'File' was being swallowed: there was no
+    // File menu on a Mac at all, its contents appeared under "ARTLux", and every standard item the app
+    // menu is supposed to carry — Quit above all — was simply missing. ⌘Q did nothing, and the only
+    // way out was ⌘⇧Q, which is the system's Log Out shortcut.
+    //
+    // ⚠ QUIT MUST BE A MENU ROLE, NOT A globalShortcut. `globalShortcut.register` takes an OS-WIDE
+    // hotkey: registering ⌘Q there would steal Quit from every other application on the machine for as
+    // long as ARTLux runs. A menu accelerator is scoped to this app and still fires for ANY of our
+    // windows — frameless fullscreen projector outputs included, since on macOS the menu bar belongs
+    // to the application and not to the window. That is precisely the case the global hotkey existed
+    // to cover on Windows, and it is covered here for free. See index.ts.
+    ...(isMac ? [{
+      label: app.getName(),
+      submenu: [
+        { label: `About ${app.getName()}`, click: () => send('about') },
+        { type: 'separator' },
+        { label: 'Preferences…', accelerator: 'CmdOrCtrl+,', registerAccelerator: false, click: () => send('preferences') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }, // ⌘Q, and it is registered — this is the one accelerator that really quits
+      ],
+    } as MenuItemConstructorOptions] : []),
     {
       label: 'File',
       submenu: [
@@ -56,10 +88,14 @@ function template(): MenuItemConstructorOptions[] {
         // The label says which way the switch goes, because the menu is the only place that knows.
         { label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', click: () => send('calibration-profile') },
         { label: 'Launch in Broadcast Mode', click: () => send('broadcast') },
-        { type: 'separator' },
-        // Accelerator shown for discoverability; the real handler is the global shortcut
-        // registered in main (so it also works from a focused fullscreen projector window).
-        { role: 'quit', accelerator: 'CmdOrCtrl+Shift+Q', registerAccelerator: false },
+        // Windows/Linux only: they have no application menu, so File is where Quit belongs. The
+        // accelerator is shown for discoverability and NOT registered here — the real handler is the
+        // global shortcut in main, which also reaches a focused fullscreen projector window. On macOS
+        // both the item and its shortcut live in the application menu above, as ⌘Q.
+        ...(isMac ? [] : [
+          { type: 'separator' },
+          { role: 'quit', accelerator: 'CmdOrCtrl+Shift+Q', registerAccelerator: false },
+        ] as MenuItemConstructorOptions[]),
       ],
     },
     {

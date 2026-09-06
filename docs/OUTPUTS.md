@@ -170,9 +170,19 @@ ArtLux.exe --broadcast --project="C:\path\to\show.artlux"
 > broadcast adds the fullscreen projector outputs + tray control.
 
 ### Quitting (both modes)
-**Ctrl/Cmd+Shift+Q** quits cleanly from anywhere — editor **and** broadcast — including when a
-frameless fullscreen projector window is focused (where the app menu can't be reached). The editor's
-**File ▸ Quit** shows the same shortcut; broadcast also has the tray ▸ Quit. Any quit path runs the
+Quitting is clean from anywhere — editor **and** broadcast — including when a frameless fullscreen
+projector window is focused. The shortcut differs by platform, because what can reach that focused
+output differs:
+
+| | Editor | Broadcast |
+|---|---|---|
+| **macOS** | **⌘Q** (application menu ▸ Quit) | **⌘⇧Q** (global hotkey) or tray ▸ Quit |
+| **Windows/Linux** | **Ctrl+Shift+Q** (global hotkey); **File ▸ Quit** shows it | **Ctrl+Shift+Q** or tray ▸ Quit |
+
+On macOS the menu bar belongs to the *application*, not the window, so a menu accelerator already
+reaches a frameless output and no global grab is needed — which matters, because a global grab is
+system-wide and would take ⌘Q away from every other app on the machine. Broadcast builds no menu, so
+there it is a global hotkey on every platform. Any quit path runs the
 same teardown: unregister the shortcut, destroy the tray, and close every projector window.
 
 ---

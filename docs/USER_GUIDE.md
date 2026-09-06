@@ -625,7 +625,8 @@ Text-field typing suppresses these shortcuts.
 | Ctrl/Cmd+, | Preferences |
 | Ctrl/Cmd+Shift+M | OSC Monitor (LiDAR feed sniffer) |
 | F1 | Toggle the searchable Help modal |
-| Ctrl/Cmd+Shift+Q | Quit (also quits broadcast mode) |
+| ⌘Q (macOS) · Ctrl+Shift+Q (Win/Linux) | Quit the editor |
+| Ctrl/Cmd+Shift+Q | Quit broadcast mode |
 | Ctrl/Cmd+R | Reload |
 | Esc | Close the open dialog |
 
