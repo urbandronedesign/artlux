@@ -206,6 +206,9 @@ record control — a light you cannot switch off would be a trap.
 
 ## Help
 
+![The Help modal, searching all three tiers at once](images/16-help-panel.png)
+*One search box over the topic guides, the per-control entries and the documentation itself.*
+
 Open it with **F1**, a tooltip's **? Learn more** link, or **Help ▸ Help…**. One searchable modal
 over **three** tiers of content: the coarse **topic guides** (with an **EN / FR** toggle that is
 remembered between sessions), a **per-function entry** for every control that carries a tooltip, and

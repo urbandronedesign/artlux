@@ -24,6 +24,8 @@ machine (localhost).
 
 All series carry `app="artlux"`, `version=`, and `mode="editor|broadcast|headless"`.
 
+<!-- audience:contributor -->
+
 ## Config (env vars)
 
 | Var | Default | Notes |
@@ -64,6 +66,8 @@ Keeps everything on loopback; no `0.0.0.0` needed.
    (instead of `host.docker.internal:9464`), run it → <http://localhost:9090>.
 3. Download Grafana, add a Prometheus datasource (`http://localhost:9090`),
    then import `monitoring/grafana/dashboards/artlux.json`.
+
+<!-- audience:operator -->
 
 ## Viewing from another machine
 

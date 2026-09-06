@@ -308,13 +308,6 @@ can: **`artlux_output_serial_ok`** and **`artlux_output_serial_down`**. Alert on
 
 - **Paced at 40 Hz**, independent of the app's frame rate: the widget's own output rate tops out at
   40 packets/second and discards the rest.
-- **The frame format needed no new field.** A serial target is `protocol == 2` with the COM path
-  travelling in the same slot the network protocols use for their address
-  ([frameCodec.ts](../shared/frameCodec.ts), [serial.rs](../native/output-engine/src/serial.rs)).
-- **The packet**: `0x7E | label | len_lo | len_hi | 0x00 | channels… | 0xE7`. Label 6 is *Output Only
-  Send DMX Packet*; note the end delimiter is `0xE7`, **not** `0x7E`. Four Rust unit tests pin the
-  framing byte-for-byte (`cargo test -p artlux-output-engine`) because a wrong length or end byte
-  makes the widget ignore the packet silently — the rig simply does not light, with nothing in a log.
 - **USB DMX needs the native engine.** The pure-TypeScript fallback transport has no serial support,
   and explicitly drops those targets with a warning rather than blasting UDP at a host called "COM3".
 - **Verified on a real DMX USB Pro** (FTDI `VID_0403+PID_6001`) on 2026-09-01, in 15-channel mode at
@@ -328,6 +321,16 @@ can: **`artlux_output_serial_ok`** and **`artlux_output_serial_down`**. Alert on
 <!-- audience:contributor -->
 
 ## For developers / architecture
+
+### USB DMX — the wire format
+
+- **The frame format needed no new field.** A serial target is `protocol == 2` with the COM path
+  travelling in the same slot the network protocols use for their address
+  ([frameCodec.ts](../shared/frameCodec.ts), [serial.rs](../native/output-engine/src/serial.rs)).
+- **The packet**: `0x7E | label | len_lo | len_hi | 0x00 | channels… | 0xE7`. Label 6 is *Output Only
+  Send DMX Packet*; note the end delimiter is `0xE7`, **not** `0x7E`. Four Rust unit tests pin the
+  framing byte-for-byte (`cargo test -p artlux-output-engine`) because a wrong length or end byte
+  makes the widget ignore the packet silently — the rig simply does not light, with nothing in a log.
 
 ### Data model — `Controller.drives`
 `drives?: 'pixel' | 'light'` on `Controller` ([types.ts](../src/renderer/types.ts)). Additive and

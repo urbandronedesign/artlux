@@ -149,6 +149,8 @@ one. The tail shows in:
 - the **tablet Metrics tab** (forwarded through show-control's metrics SSE stream — the watchdog is core,
   so disabling the remote loses only the display, never the log).
 
+<!-- audience:contributor -->
+
 ## Verifying
 
 Drive the real app (no unit runner — see [DEVELOPMENT.md](DEVELOPMENT.md)). Launch

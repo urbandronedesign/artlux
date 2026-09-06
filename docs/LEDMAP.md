@@ -13,6 +13,8 @@ question for the renderer:
 
 This matches WLED's `ledmap.json` so maps exported from a WLED controller load as-is.
 
+<!-- audience:contributor -->
+
 ## Data model
 - `Fixture.ledMap?: number[]` — `physical index → geometry index` (see [types.ts](../src/renderer/types.ts)).
   Optional; absent means identity (physical order == geometry order).
@@ -21,6 +23,8 @@ This matches WLED's `ledmap.json` so maps exported from a WLED controller load a
   `// reverse- + ledmap-aware` block). `g` then drives matrix row/col or line position.
 - Ordering of transforms: **reverse** flips the whole fixture first (`gi = reverse ? ledCount-1-i : i`),
   **then** the ledmap lookup, **then** serpentine column flip for matrices.
+
+<!-- audience:operator -->
 
 ## Accepted file formats (import)
 Parsed in `handleLedmapUpload` ([FixtureEditor.tsx](../src/renderer/components/FixtureEditor.tsx)).

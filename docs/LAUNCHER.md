@@ -202,6 +202,8 @@ the app version.
 
 ---
 
+<!-- audience:contributor -->
+
 ## How it works
 
 ```
@@ -502,6 +504,8 @@ infrastructure to stand up and keep correct, for an outcome that is otherwise id
 inert while it is unused.
 
 ---
+
+<!-- audience:operator -->
 
 ## Troubleshooting
 

@@ -23,6 +23,10 @@ from the title‑bar **Outputs** icon. Each surface gets a row.
 ![An output enabled in Windowed mode](images/11b-outputs-windowed.png)
 *"Logo Wall" output On, set to Windowed — status **Live**, and the **Align** button is now active.*
 
+![An output row expanded, showing its per-output controls](images/11c-outputs-expanded.png)
+*The same output expanded: the per-output settings — display, mode, the surface it carries, and the
+warp/blend controls — all live under the row rather than in a separate panel.*
+
 > The projector window itself is hardware‑accelerated and isn't shown here, but it mirrors the surface
 > exactly. On a real rig you'd see the surface content filling the projector.
 
