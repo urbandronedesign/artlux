@@ -96,5 +96,10 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["node_modules", "launcher"]
+  // "native" holds C++/Rust only — no TypeScript of ours. It is excluded because CMake writes
+  // `compiler_depend.ts` TIMESTAMP stubs into native/audio-engine/build (CMake's .ts, not
+  // TypeScript's), and with no "include" this config sweeps the whole tree: the moment a contributor
+  // ran `npm run build:audio` locally, `npm run verify` drowned in TS1127 parse errors from files
+  // that are not code. CI never saw it — it builds the addon but does not typecheck afterwards.
+  "exclude": ["node_modules", "launcher", "native"]
 }
