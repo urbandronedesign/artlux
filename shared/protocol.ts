@@ -33,6 +33,11 @@ export const IPC = {
   RIG_EXPORT: 'rig:export',
   /** Renderer → main (invoke): import a rig file. */
   RIG_IMPORT: 'rig:import',
+  /** Renderer → main (invoke): write named workspaces (saved shell arrangements) to a `.artws` file. */
+  WORKSPACE_EXPORT: 'workspace:export',
+  /** Renderer → main (invoke): read a `.artws` file back. Main parses JSON and validates NOTHING —
+      the model lives in the renderer (services/workspaceStore.ts) and so does every rule about it. */
+  WORKSPACE_IMPORT: 'workspace:import',
   /** Renderer → main (invoke): read persisted preferences. */
   PREFS_GET: 'prefs:get',
   /** Renderer → main (invoke): merge + persist preferences. */
@@ -1223,6 +1228,15 @@ export interface Prefs {
   /** Serialized editor layout (panel sizes/visibility/tabs + active preset). Renderer-owned blob —
       typed as WorkspaceLayout in the renderer; kept `unknown` here like appSettings. */
   layoutState?: unknown;
+  /** NAMED WORKSPACES — saved shell arrangements the operator can switch between and share between
+      machines, plus which one is live. Renderer-owned blob (`{ v, activeId?, items }`, typed in
+      services/workspaceStore.ts) for the same reason as layoutState.
+   *
+   *  NOT a replacement for layoutState, which stays the LIVE layout: an install that never saves a
+   *  workspace is unchanged, and a workspaces blob that cannot be read costs the operator nothing but
+   *  the list. The per-MACHINE keys below (uiScale, the scene3d group, calibrationFile) deliberately
+   *  do NOT travel inside one — a workspace describes the job, those describe this machine. */
+  workspaces?: unknown;
   /** Unattended self-healing watchdog config (broadcast/show installs). Absent = defaults, disabled. */
   unattended?: UnattendedPrefs;
   /** Show the startup splash (credits + licence + the plugin/native boot console). Default: true.
@@ -1445,6 +1459,11 @@ export interface ArtluxApi {
   collectAssetsTo(data: ProjectData): Promise<(CollectResult & { projectFile: string }) | null>;
   exportRig(rig: RigData): Promise<string | null>;
   importRig(): Promise<RigData | null>;
+  /** Write named workspaces to a `.artws` file the operator picks. Resolves the path, or null if
+      cancelled. The payload is typed in the renderer (WorkspaceFile) and opaque here. */
+  exportWorkspaces(file: unknown): Promise<string | null>;
+  /** Read a `.artws` file back, unvalidated. The renderer decides whether to accept it. */
+  importWorkspaces(): Promise<unknown | null>;
   getPrefs(): Promise<Prefs>;
   /** Resolves TRUE if the settings reached disk. False means they are in memory only and will be lost. */
   setPrefs(patch: Partial<Prefs>): Promise<boolean>;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert } from 'lucide-react';
+import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert, LayoutGrid, Lock } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm } from './ui';
@@ -14,6 +14,7 @@ import {
   useLivePreview, setLivePreview,
 } from '../services/scene3dQuality';
 import { useLayout } from '../hooks/useLayout';
+import { useWorkspaceActions } from '../hooks/useWorkspaceActions';
 
 interface Props {
   settings: AppSettings;
@@ -35,6 +36,68 @@ const Tile: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     {children}
   </div>
 );
+
+/**
+ * The named-workspace manager (plans/named-workspaces.md). The chip in the title bar is the switcher;
+ * this is where a workspace is renamed, locked, reset, deleted, and — the reason the feature exists —
+ * carried to another machine.
+ *
+ * The `authored at` line is deliberate: a workspace built on a 4K desk has its columns CLAMPED, not
+ * rescaled, when it opens on a laptop (see clampToViewport), and the only thing that makes that
+ * legible rather than mysterious is saying where it came from.
+ */
+const WorkspacesSection: React.FC = () => {
+  const ws = useWorkspaceActions();
+  return (
+    <div className="space-y-2">
+      <p className="text-mini text-fg-3">
+        A workspace saves the arrangement of every workbench — panels, columns, tabs, and which one opens
+        first. UI scale, 3D quality and the calibration file stay with this machine and never travel.
+      </p>
+      {ws.list.length > 0 ? (
+        <div className="border border-line-1 rounded-sm divide-y divide-line-1">
+          {ws.list.map((w) => {
+            const isActive = w.id === ws.active?.id;
+            return (
+              <div key={w.id} className={`px-2 py-1.5 ${isActive ? 'bg-accent/10' : ''}`}>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => ws.switchTo(w.id)} title={isActive ? 'This is the live workspace' : 'Switch to this workspace'}
+                          className="flex-1 min-w-0 text-left text-xs text-fg-1 truncate flex items-center gap-1.5">
+                    <Check size={12} className={isActive ? 'text-accent shrink-0' : 'opacity-0 shrink-0'} aria-hidden />
+                    <span className="truncate">{w.name}</span>
+                    {w.locked && <Lock size={10} className="text-fg-3 shrink-0" aria-label="Locked" />}
+                  </button>
+                  <Button variant="tonal" size="sm" onClick={() => { void ws.rename(w.id); }}>Rename</Button>
+                  <Button variant="tonal" size="sm" onClick={() => ws.duplicate(w.id)}>Duplicate</Button>
+                  <Button variant="tonal" size="sm" onClick={() => ws.toggleLock(w.id)}
+                          title={w.locked ? 'Save changes into it again' : 'Stop saving changes into it — the arrangement is frozen'}>
+                    {w.locked ? 'Unlock' : 'Lock'}
+                  </Button>
+                  <Button variant="tonal" size="sm" onClick={() => { void ws.exportAll([w.id]); }}>Export</Button>
+                  <Button variant="tonal" size="sm" onClick={() => { void ws.reset(w.id); }}
+                          title="Every workbench in it goes back to its shipped arrangement">Reset</Button>
+                  <Button variant="tonal" size="sm" onClick={() => { void ws.remove(w.id); }}>Delete</Button>
+                </div>
+                {w.authored && (
+                  <div className="text-micro text-fg-3 pl-[18px]">
+                    authored at {w.authored.w}×{w.authored.h} · updated {new Date(w.updatedAt).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-mini text-fg-3">No saved workspaces. The layout is still remembered per machine.</p>
+      )}
+      <div className="flex items-center gap-1.5">
+        <Button variant="tonal" size="sm" onClick={() => { void ws.saveAs(); }}>Save current layout…</Button>
+        <Button variant="tonal" size="sm" onClick={() => { void ws.importFile(); }}>Import…</Button>
+        <Button variant="tonal" size="sm" disabled={!ws.list.length} onClick={() => { void ws.exportAll(); }}>Export all…</Button>
+      </div>
+    </div>
+  );
+};
 
 const WATCHDOG_UI_DEFAULTS: UnattendedPrefs = {
   enabled: false, crashRecovery: true, outputDownSec: 15, renderStallSec: 10,
@@ -311,6 +374,10 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
           <Toggle label="Dockable workspace" checked={!layout.dockingOff}
             onChange={(v) => layoutStore.set({ dockingOff: !v })}
             title="Drag panels into tabs and splits, per workbench. Off restores the fixed browser / viewport / dock / parameters layout." />
+        </Section></Tile>
+
+        <Tile><Section title="Workspaces" icon={<LayoutGrid size={12} />}>
+          <WorkspacesSection />
         </Section></Tile>
 
         <Tile><Section title="DMX Output" icon={<Cpu size={12} />}>

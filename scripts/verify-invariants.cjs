@@ -987,6 +987,64 @@ check(
 );
 
 check(
+  'a named workspace is prepared before it is applied, and carries nothing machine-specific',
+  'A workspace (services/workspaceStore.ts) is a saved shell arrangement that can arrive from ANOTHER ' +
+  'MACHINE, so every way it can be wrong is silent: the app boots, nothing throws, and the shell is the ' +
+  'wrong shape. Four rules hold it together. (1) `preparePortable` is the single door — it clamps a ' +
+  "4K-authored column onto a laptop, refuses a dock tree this build cannot read, and remaps a workbench " +
+  'id that has been retired or is absent here; skipping it is how a workspace lands on a workbench that ' +
+  "does not exist and leaves the rail with NOTHING SELECTED, because goToContext() no-ops on an id it " +
+  'cannot resolve. (2) That file stays pure (dockTree + types only), which is what lets the rules be ' +
+  'tested without an app. (3) An apply never routes through layoutStore.set(), which would stamp ' +
+  "activePreset='custom' and re-enter the manual-edit path mid-apply. (4) PortableLayout carries no " +
+  'per-MACHINE key: `Prefs` draws that line already (uiScale, the scene3d group, calibrationFile, ' +
+  'mediaView, shortcuts describe THIS machine, not the job), and a shared file that quietly rewrote a ' +
+  "recipient's UI scale or their keyboard would be worse than no sharing at all.",
+  () => {
+    const problems = [];
+    const pure = 'src/renderer/services/workspacePortable.ts';
+    const store = 'src/renderer/services/workspaceStore.ts';
+    const src = read(pure);
+
+    // 2 — purity. Only dockTree (itself import-free) and type-only imports may appear.
+    for (const m of src.matchAll(/(^|\n)\s*import\s+(type\s+)?([^;]*?)from\s*['"]([^'"]+)['"]/g)) {
+      const typeOnly = !!m[2] || /^\s*\{\s*type\s/.test(m[3]);
+      if (m[4] !== './dockTree' && !typeOnly) {
+        problems.push(`${pure} imports ${m[4]} at runtime — it must stay verifiable without an app`);
+      }
+    }
+    if (!/export function preparePortable\(/.test(src)) problems.push(`${pure} lost preparePortable, the single door onto a saved workspace`);
+    // The three things prepare() must still do. Each was a silent failure before it existed.
+    if (!/sanitizeDockTree\(/.test(src)) problems.push(`${pure} no longer sanitizes a saved dock tree`);
+    if (!/hasContext\(/.test(src)) problems.push(`${pure} no longer verifies the workbench exists on this machine`);
+    if (!/env\.remap\(/.test(src)) problems.push(`${pure} no longer remaps a retired workbench id`);
+
+    // 1 — nobody applies a workspace layout without going through it.
+    if (!/preparePortable\(/.test(read(store))) problems.push(`${store} applies a workspace without preparing it`);
+    for (const f of walk('src/renderer').concat(walk('plugins'))) {
+      if (f.endsWith('workspaceStore.ts') || f.endsWith('workspacePortable.ts')) continue;
+      const s = read(f);
+      // `.applyPortable(` is the CALL; layoutStore.ts's own method definition has no dot.
+      if (/\.applyPortable\(/.test(s)) problems.push(`${f} calls layoutStore.applyPortable directly — go through workspaceStore`);
+    }
+
+    // 3 — an apply is not a manual edit.
+    if (/applyPortable\([^)]*\)[\s\S]{0,200}?layoutStore\.set\(/.test(read(store))) {
+      problems.push(`${store} routes an apply through layoutStore.set()`);
+    }
+
+    // 4 — the per-machine keys stay out of the portable type AND out of what is captured.
+    const portableType = /export type PortableLayout =([\s\S]*?);\n/.exec(src);
+    const captured = /export function captureLive\(\)[\s\S]*?\n}/.exec(read(store));
+    for (const key of ['uiScale', 'mediaView', 'scene3dRenderScale', 'scene3dMaxFps', 'calibrationFile', 'shortcuts']) {
+      if (portableType && portableType[1].includes(`'${key}'`)) problems.push(`PortableLayout carries the per-machine key ${key}`);
+      if (captured && captured[0].includes(key)) problems.push(`captureLive() puts the per-machine key ${key} into a workspace`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the persistent viewports are positioned, never reparented, and never followed through React state',
   'Stage, Simulator3D and TimelinePanel are elements App owns, and a dock tree may place a panel ' +
   'anywhere — so the tree renders empty slots and PersistentLayer draws the real element over the ' +

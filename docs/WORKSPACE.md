@@ -548,7 +548,78 @@ All three were reported by the operator within minutes of real use, and all thre
 
 The **bottom drawer** (its 28px strip, `Ctrl+T` and never-remounting fixed position are the fix that killed the lost-zoom bug), the context rail, the action bar, the palette, and the help and shortcut editors. **Split view** is still a layout flag rather than a tree node — it is a runtime toggle, so it cannot be compiled into a shipped tree; it becomes redundant once a viewport can simply be dragged into a pane.
 
+## Named workspaces (save one, switch, carry it to another machine)
+
+The rail switches **workbenches**. A **workspace** is one level up: a named snapshot of *every*
+workbench at once — the panels, the columns, the tabs, which one opens first — so the app can be
+shaped for a job ("Patch day", "Programming", "Show night") and put back with one click. Plan:
+[plans/named-workspaces.md](../plans/named-workspaces.md).
+
+**The chip in the title bar**, just right of the menus, names the workspace you are in (it reads
+*Default* until you save one) and drops down everything below. The same items are under
+**Context ▸ Workspace**, and every workspace is a `Ctrl+K` command.
+
+- **Save Current Layout as Workspace…** — names what is on screen now.
+- **Switch** — pick one from the list. Your workbench arrangements are replaced by its; the show is
+  untouched, because output has not depended on the UI since the frame loop left it.
+- **There is no Save.** Whatever you rearrange is kept in the workspace you are in, automatically.
+- **Lock** — stop saving changes into a workspace. You can still drag panels around; they are simply
+  discarded when you leave. This is for the show workspace nobody may quietly redecorate at 17:55.
+- **Reset to Shipped Arrangement** — every workbench in it goes back to what ArtLux ships, keeping the
+  name. It recompiles from what is registered *now*, so a panel a plugin added since appears.
+- **Import… / Export All…** — a `.artws` file. That is how a workspace reaches a second machine.
+
+**What a workspace does NOT carry, and why.** UI scale, the 3D render scale / FPS cap / gizmo and snap
+settings, the baked calibration file, and your keyboard shortcuts all stay on the machine they are set
+on. A workspace describes *the job*; those describe *this computer and this room*. A file that silently
+rewrote a colleague's UI scale or their keyboard would be worse than no sharing at all.
+
+**When a workspace comes from a different machine**, three things can differ, and ArtLux says so in a
+notice rather than leaving you to wonder:
+
+| What differs | What happens |
+|---|---|
+| A smaller screen | Columns and drawers are **clamped** to fit (never rescaled), so nothing lands off-screen. The Preferences list shows the size it was authored at. |
+| A missing plugin (no NDI, no Spout, no calibration) | Its panels are **skipped, not deleted** — the workspace keeps their placement and they come back when the plugin does. |
+| A different ArtLux version | A workbench arrangement the build cannot read falls back to the shipped one for that workbench; you are told how many. |
+
+**Manage them** in *Preferences ▸ Appearance ▸ Workspaces*: rename, duplicate, lock, reset, delete,
+export one, or import a file — with the window size each was authored at.
+
 <!-- audience:contributor -->
+
+### How a workspace is stored, and the four rules that keep it portable
+
+`Prefs.layoutState` stays exactly what it is — **the live layout**. A workspace is a *named copy of the
+shareable part of it*, in a separate `Prefs.workspaces` blob. So an install that never saves one behaves
+byte-identically to before, boot needs no new step, and a workspaces blob that cannot be read costs the
+operator the list and nothing else.
+
+1. **`preparePortable()` ([`services/workspacePortable.ts`](../src/renderer/services/workspacePortable.ts))
+   is the single door.** It clamps, sanitizes every dock tree, and remaps the workbench id. Both import
+   and apply go through it, so the two cannot diverge.
+2. **That file imports only `dockTree` and types**, for the same reason `dockTree` imports nothing: every
+   failure it prevents is silent, so its rules have to be testable without an app.
+3. **An apply never routes through `layoutStore.set()`** — that would stamp `activePreset = 'custom'`
+   and re-enter the manual-edit path mid-apply. `layoutStore.applyPortable()` is the entry, and only
+   `workspaceStore` calls it.
+4. **`PortableLayout` carries no per-machine key.** `Prefs` already draws that line (see the field
+   comment on `scene3dRenderScale`); the guard asserts the type and `captureLive()` both keep it.
+
+The sharpest edge is the **workbench id**: `goToContext()` no-ops on an id it cannot resolve, so a
+workspace naming a workbench this machine does not have would leave the rail with *nothing selected* —
+the failure `RETIRED_CONTEXTS` exists for, arriving by a new road. Hence remap (one hop, through
+`layoutStore.remapContextId`, never a second copy of the table) → verify against the registry → fall
+back. A retired id that remaps cleanly is **not** reported as a fallback; only a genuinely absent
+workbench is.
+
+Because `workspacePortable.ts` imports only `dockTree`, **`npm run test:workspace`** checks the clamp,
+the tree refusal and the workbench remap in about a second with no app. The half that needs a live
+shell — banking, locking, the file round trip, and *does a switch disturb the show* — is
+**`npm run test:workspace:live`** (with `npm run dev` running); it drives the store rather than
+hunting for menu items, because a fuzzy selector once opened *"Delete scene Scene 1?"* on a real
+project. Measured on the dev machine: output held **54–60 fps through 32 switches in 2.6 s**, against
+a 52–58 idle band.
 
 ## Regression guards
 

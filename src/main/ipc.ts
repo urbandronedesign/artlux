@@ -112,6 +112,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         projectFolder.collectAssetsToFolder(getWindow(), data));
     ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
+    ipcMain.handle(IPC.WORKSPACE_EXPORT, (_e, file: unknown) => persistence.exportWorkspaces(getWindow(), file));
+    ipcMain.handle(IPC.WORKSPACE_IMPORT, () => persistence.importWorkspaces(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
     // Returns whether it reached DISK. The renderer needs this: a settings write that fails silently
     // is how a commissioned speaker patch disappears overnight (see persistence.setPrefs).

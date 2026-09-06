@@ -44,7 +44,9 @@
     "test:docktree": "tsc scripts/test-docktree.ts --outDir .tmp-docktree --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-docktree/scripts/test-docktree.js",
     "test:logic": "tsc -p scripts/tsconfig.test.json",
     "test:blend": "npm run test:logic && node .tmp-tests/scripts/test-blend.js",
-    "test:recal": "npm run test:logic && node .tmp-tests/scripts/test-recal.js"
+    "test:recal": "npm run test:logic && node .tmp-tests/scripts/test-recal.js",
+    "test:workspace": "tsc scripts/test-workspace.ts --outDir .tmp-workspace --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-workspace/scripts/test-workspace.js",
+    "test:workspace:live": "node scripts/test-workspace-live.cjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

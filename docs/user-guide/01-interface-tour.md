@@ -42,6 +42,9 @@ A single dark strip carrying everything that frames the app:
 - **The ArtLux mark** on the far left.
 - **File / Edit / Context / View / Window / Help** menus — app‑styled dropdowns (the native menu is
   also registered, so every keyboard accelerator keeps working).
+- **The workspace chip** — right of the menus, naming the saved layout you are in (it reads
+  **Default** until you save one). Click it to switch, save, lock, or share a workspace; see
+  *Saving a workspace* below.
 - A draggable empty middle — drag it to move the window, double‑click to maximize.
 - **Action icons** (right side): **3D Scene**, **Outputs**, **Routing**, **DMX Monitor**,
   **Preferences**, and **Help (F1)**. Hover any icon for a tooltip.
@@ -55,7 +58,7 @@ The menus, in brief:
 |------|-----------|
 | **File** | New / Open / Open Project Folder, Save / Save As, Collect Assets, Export/Import Rig, Routing, Preferences, **Launch in Broadcast Mode**, Quit |
 | **Edit** | Undo / Redo, Cut / Copy / Paste, Select All |
-| **Context** | jump to any of the nine workbenches |
+| **Context** | **Workspace ▸** (save / switch / import / export a saved layout), then jump to any of the nine workbenches |
 | **View** | Reload, Developer Tools, **Timeline** (the drawer), **OSC Monitor**, zoom, full screen |
 | **Window** | Minimize, Close |
 | **Help** | Help… (F1), Check for Updates, Documentation, GitHub, **About ArtLux** |
@@ -143,6 +146,49 @@ have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable w
 
 > None of this touches the show. The rendering engine does not live in the interface: output keeps
 > running while you rearrange, and it keeps running even if a panel crashes.
+
+---
+
+## Saving a workspace (and taking it to another machine)
+
+Once the app is shaped for a job, name that shape. A **workspace** is a snapshot of *every* workbench
+at once — panels, columns, tabs, and which workbench opens first — so you can keep one for patching,
+one for programming and one for the show, and move between them in a click.
+
+Everything lives on the **workspace chip** in the title bar (also under **Context ▸ Workspace**, and
+searchable with **Ctrl+K**):
+
+1. Arrange the app the way the job wants it.
+2. Chip ▸ **Save Current Layout as Workspace…**, and give it a name.
+3. Rearrange whenever you like — **there is no Save**. What you change is kept in the workspace you
+   are in.
+4. To move to another one, open the chip and pick it from the list. The show is untouched either way.
+
+**Lock the show workspace.** Chip ▸ **Lock** stops changes being written into it. Panels still move
+while you work; they are simply forgotten when you leave. It is the answer to a layout quietly
+drifting on the night.
+
+**Reset** puts every workbench in the workspace back to the arrangement ArtLux ships, keeping the
+name — and it picks up any panel a plugin has added since.
+
+### Sharing one between machines
+
+Chip ▸ **Export All Workspaces…** writes a `.artws` file; **Import Workspaces…** reads one back on the
+other machine. Manage the whole set — rename, duplicate, lock, export one, delete — in
+**Preferences ▸ Appearance ▸ Workspaces**.
+
+What travels is the *shape of the app*. What stays behind is anything describing the machine or the
+room: **UI scale**, the **3D quality settings**, the **calibration file**, and your **keyboard
+shortcuts**. That is deliberate — importing a colleague's workspace must never resize your interface
+or rebind your keys.
+
+Three differences between machines are handled for you, and ArtLux tells you when one applies:
+
+| If the other machine has… | …then |
+|---|---|
+| A smaller screen | Columns and drawers are trimmed to fit — never scaled — so nothing ends up off-screen. |
+| Fewer plugins (no NDI, Spout, calibration) | Their panels are skipped but keep their place, and reappear when the plugin is there. |
+| A different ArtLux version | Any workbench arrangement it cannot read falls back to the shipped one, and you are told how many. |
 
 ---
 

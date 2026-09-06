@@ -86,6 +86,7 @@ plugins/graphify-out/
 .graphify_*
 .tmp-docktree/
 .tmp-tests/
+.tmp-workspace/
 .tmp-venue/
 # Chromium traces from scripts/trace-cdp.cjs — tens of MB each, and a trace is a
 # measurement of one machine on one day, never a fact about the tree.

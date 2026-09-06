@@ -5,8 +5,10 @@ import { contextRegistry } from '../../host/registries';
 import { goToContext } from '../../contexts/nav';
 import { useEditorActions } from '../../state/EditorStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useWorkspaceActions } from '../../hooks/useWorkspaceActions';
 
-// Ctrl/Cmd+K — every workspace context and every action any context declares, in one searchable list.
+// Ctrl/Cmd+K — every workbench, every action any of them declares, and every saved workspace, in
+// one searchable list.
 //
 // This is nearly free because the contexts already ARE the index: a WorkspaceContext names its
 // functions as `ContextAction`s so the shell can draw an action bar, and the same declaration answers
@@ -48,6 +50,7 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
   const [q, setQ] = useState('');
   const [i, setI] = useState(0);
   const actions = useEditorActions();
+  const ws = useWorkspaceActions();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -78,10 +81,23 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
   const commands = useMemo<Cmd[]>(() => {
     if (!open) return [];
     const list: Cmd[] = [];
+    // Named workspaces first in the source order (the score decides what the operator actually sees).
+    // A workspace is a level ABOVE the workbenches below it, so it gets its own group rather than
+    // being mixed into "Go to".
+    for (const w of ws.list) {
+      list.push({
+        key: `ws:${w.id}`, label: w.name, group: 'Workspace',
+        hint: w.id === ws.active?.id ? 'current' : undefined,
+        enabled: true, run: () => ws.switchTo(w.id),
+      });
+    }
+    list.push({ key: 'ws:save', label: 'Save Current Layout as Workspace…', group: 'Workspace', enabled: true, run: () => { void ws.saveAs(); } });
+    list.push({ key: 'ws:import', label: 'Import Workspaces…', group: 'Workspace', enabled: true, run: () => { void ws.importFile(); } });
+    list.push({ key: 'ws:export', label: 'Export All Workspaces…', group: 'Workspace', enabled: ws.list.length > 0, run: () => { void ws.exportAll(); } });
     const contexts = contextRegistry.all();
     for (const c of contexts) {
       list.push({
-        key: `ctx:${c.id}`, label: c.title, group: 'Go to', hint: 'workspace',
+        key: `ctx:${c.id}`, label: c.title, group: 'Go to', hint: 'workbench',
         run: () => goToContext(c.id), enabled: true,
       });
     }
@@ -108,7 +124,7 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
       }
     }
     return list;
-  }, [open, selection, actions]);
+  }, [open, selection, actions, ws]);
 
   const results = useMemo(() => {
     const scored = commands

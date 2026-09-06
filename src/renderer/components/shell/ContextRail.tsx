@@ -65,7 +65,7 @@ export const ContextRail: React.FC = () => {
       className="w-12 shrink-0 h-full bg-surface-1 border-r border-line-1 flex flex-col items-center py-1.5 gap-0.5 overflow-y-auto"
       role="tablist"
       aria-orientation="vertical"
-      aria-label="Workspace context"
+      aria-label="Workbench"
     >
       {contexts.map((c, i) => {
         const active = c.id === activeId;

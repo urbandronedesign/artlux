@@ -66,6 +66,7 @@ import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
+import { workspaceStore } from './services/workspaceStore';
 import { CALIBRATION_ENABLED } from './services/runProfile';
 import { keymap } from './shortcuts/keymapStore';
 import { openHelp } from './services/helpNav';
@@ -4303,6 +4304,11 @@ const App: React.FC = () => {
           // Adopt the user's keyboard-shortcut overrides (absent → registry defaults). Migrated keydown
           // handlers read keymap.matches(); the editor reads/writes through the same store.
           keymap.hydrate(prefs.shortcuts);
+          // Named workspaces: adopt the LIST and start banking live edits into the active one. It
+          // deliberately does not apply anything — `layoutState`, hydrated two lines up, already IS
+          // the active workspace's layout (the two are kept in step), and applying here would undo the
+          // Safe-Mode rule above that boots defaults rather than whatever the operator left open.
+          workspaceStore.hydrate(prefs.workspaces);
           if (Array.isArray(prefs.fixtureTemplates)) setTemplates(prefs.fixtureTemplates as FixtureTemplate[]);
           // Reopen the last project — UNLESS an explicit --project= was given, which owns the load in
           // its own effect above. Without this guard the two race and the document is whichever IPC

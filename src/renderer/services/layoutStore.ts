@@ -161,6 +161,35 @@ export const layoutStore = {
     subs.forEach((f) => f());
     persistSoon();
   },
+  // Apply a NAMED WORKSPACE's layout (services/workspaceStore.ts) over the defaults.
+  //
+  // Deliberately NOT routed through set(): applying a workspace is not a manual edit, and set() would
+  // stamp `activePreset = 'custom'` — the vestige of the retired preset system, which must not become
+  // entangled with workspaces (a resize inside "Programming" leaves you in Programming; the active
+  // workspace id lives in the workspaces blob and never in this object).
+  //
+  // The keys NOT taken from the workspace are the per-MACHINE ones: `mediaView` is a density the
+  // operator picked for THIS screen and THIS media (see its field comment), and `dockTab` is the core
+  // enum superseded by each slice's `dockPanel`. Everything else in WorkspaceLayout is UI shape and
+  // comes from the workspace — including the absence of a key, which is why this spreads over
+  // DEFAULT_LAYOUT rather than over the live state: a workspace that hides the right column must be
+  // able to hide it, and a workspace saved with docking ON must clear a `dockingOff` set here since.
+  //
+  // The caller applies the active context's own slice afterwards, exactly as boot does — see
+  // enterActiveContext().
+  applyPortable(p: Partial<WorkspaceLayout>): void {
+    state = {
+      ...DEFAULT_LAYOUT,
+      ...p,
+      contexts: p.contexts ?? {},
+      dockTrees: p.dockTrees ?? {},
+      mediaView: state.mediaView,
+      dockTab: state.dockTab,
+      activePreset: state.activePreset,
+    };
+    subs.forEach((f) => f());
+    persistSoon();
+  },
   // Boot: merge the saved layout over the defaults (absent keys keep their default). Does NOT persist.
   hydrate(saved?: Partial<WorkspaceLayout>): void {
     state = { ...DEFAULT_LAYOUT, ...(saved ?? {}) };
@@ -208,6 +237,18 @@ function resolveContextLayout(saved: ContextLayout | undefined, defaults?: Conte
 const RETIRED_CONTEXTS: Record<string, string> = {
   map: 'mapping', led: 'mapping', media: 'mapping', timeline: 'mapping', tracking: '3d',
 };
+
+/**
+ * The one hop off a retired workbench id, for callers outside this module.
+ *
+ * A named workspace (services/workspaceStore.ts) can be years older than the build importing it, or
+ * come from a machine that had a plugin this one does not — so it faces the same problem hydrate()
+ * solves at boot, and must face it with the SAME table. Exported rather than duplicated because the
+ * failure is silent both times: an id that no longer resolves leaves the rail with nothing selected.
+ */
+export function remapContextId(id: string): string {
+  return RETIRED_CONTEXTS[id] ?? id;
+}
 
 // Retired presets → the context that replaced each. 'custom' is absent on purpose: a hand-tweaked
 // layout carries no hint about which job it was for, so it falls through to the default context.

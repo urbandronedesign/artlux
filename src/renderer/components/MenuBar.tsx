@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Minus, X, ChevronRight } from 'lucide-react';
+import { Minus, X, ChevronRight, ChevronDown, LayoutGrid, Lock, Check } from 'lucide-react';
 import type { WindowCommand } from '../../../shared/protocol';
 import { CONTEXT_MENU_ITEMS, contextAction } from '../../../shared/protocol';
 import { AppWordmark } from './brand/AppMark';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
+import { useWorkspaceActions } from '../hooks/useWorkspaceActions';
 
 // Custom window title bar (VSCode-style) for the frameless editor window: the ARTLux mark, the
 // File/Edit/View/Window/Help menus as app-styled dropdowns, a draggable spacer, and the
@@ -12,6 +13,10 @@ import { CALIBRATION_ENABLED } from '../services/runProfile';
 //
 // Items carry one of: `action` (an App menu action, dispatched via onMenuAction, same strings the
 // native menu sends), `cmd` (a window/role command sent straight to main), or `href` (open external).
+
+// The chip's slot in the same `open` state the top menus use, so an outside click or Escape
+// closes it by the effect that already exists.
+const WS_MENU = '__workspace__';
 
 const REPO = 'https://github.com/urbandronedesign/artlux';
 const DOCS = `${REPO}/blob/main/docs/FEATURES.md`;
@@ -27,12 +32,23 @@ const NODRAG = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
 
 type Item =
   | { sep: true }
-  | { label: string; accel?: string; action?: string; cmd?: WindowCommand; href?: string; submenu?: Item[]; disabled?: boolean };
+  | {
+      label: string; accel?: string; action?: string; cmd?: WindowCommand; href?: string;
+      submenu?: Item[]; disabled?: boolean;
+      /** A closure instead of an `action` string — for menus built from live state (the workspaces). */
+      run?: () => void;
+      /** Draws a ✓. Used for "this is the workspace you are in". */
+      checked?: boolean;
+      /** React key, when the label is not guaranteed unique (a workspace can be named anything). */
+      key?: string;
+    };
 
 interface Menu { label: string; items: Item[]; }
 
-// Mirror of src/main/menu.ts. `recents` is injected into File ▸ Open Recent.
-function buildMenus(recents: string[]): Menu[] {
+// Mirror of src/main/menu.ts. `recents` is injected into File ▸ Open Recent, `workspaceItems` into
+// Context ▸ Workspace (the same items the title-bar chip drops down — the menu bar is where a Windows
+// operator looks first, and a chip alone is easy to miss).
+function buildMenus(recents: string[], workspaceItems: Item[]): Menu[] {
   const recentItems: Item[] = recents.length
     ? recents.slice(0, 10).map((p) => ({ label: p, action: `open-recent:${p}` }))
     : [{ label: 'No recent files', disabled: true }];
@@ -76,12 +92,17 @@ function buildMenus(recents: string[]): Menu[] {
       ],
     },
     {
-      // Workspace contexts. Same list the native menu uses (shared/protocol.ts) so the two can't drift.
+      // Workbenches. Same list the native menu uses (shared/protocol.ts) so the two can't drift.
+      // The WORKSPACE submenu leads, because it is a level above the list under it: a workspace is a
+      // saved arrangement of every workbench, and the items below switch between the workbenches.
       label: 'Context',
-      items: CONTEXT_MENU_ITEMS.flatMap((c) => [
+      items: ([
+        { label: 'Workspace', submenu: workspaceItems },
+        { sep: true },
+      ] as Item[]).concat(CONTEXT_MENU_ITEMS.flatMap((c) => [
         ...(c.sepBefore ? [{ sep: true as const }] : []),
         { label: c.label, accel: c.accel, action: contextAction(c.id) },
-      ]),
+      ])),
     },
     {
       label: 'View',
@@ -154,11 +175,41 @@ interface Props {
 }
 
 export const MenuBar: React.FC<Props> = ({ onMenuAction, projectPath, docDirty, sceneLookDirty, sceneLookDiff, sceneName }) => {
-  const [open, setOpen] = useState<string | null>(null); // open top-level menu label
+  const [open, setOpen] = useState<string | null>(null); // open top-level menu label (WS = the chip)
   const [recents, setRecents] = useState<string[]>([]);
   const [maximized, setMaximized] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
-  const menus = buildMenus(recents);
+  const ws = useWorkspaceActions();
+
+  // The workspace menu, built once and used TWICE — the chip below and Context ▸ Workspace. Items
+  // carry closures rather than action strings because the list is live state, not a fixed mirror of
+  // the native menu.
+  const workspaceItems: Item[] = [
+    ...ws.list.map((w) => ({
+      key: w.id,
+      label: w.locked ? `${w.name}  🔒` : w.name,
+      checked: w.id === ws.active?.id,
+      run: () => ws.switchTo(w.id),
+    })),
+    ...(ws.list.length ? [{ sep: true as const }] : []),
+    { key: 'save', label: 'Save Current Layout as Workspace…', run: () => { void ws.saveAs(); } },
+    ...(ws.active ? [
+      { key: 'rename', label: `Rename “${ws.active.name}”…`, run: () => { void ws.rename(ws.active!.id); } },
+      { key: 'dup', label: 'Duplicate', run: () => ws.duplicate(ws.active!.id) },
+      // Locking is the answer to "nobody may rearrange my show workspace at 17:55" — which is the only
+      // form of "am I about to lose this?" the auto-saving model leaves open.
+      { key: 'lock', label: ws.active.locked ? 'Unlock (save changes into it again)' : 'Lock (stop saving changes into it)', run: () => ws.toggleLock(ws.active!.id) },
+      { key: 'reset', label: 'Reset to Shipped Arrangement', run: () => { void ws.reset(ws.active!.id); } },
+    ] : []),
+    { sep: true },
+    { key: 'import', label: 'Import Workspaces…', run: () => { void ws.importFile(); } },
+    { key: 'export', label: 'Export All Workspaces…', disabled: !ws.list.length, run: () => { void ws.exportAll(); } },
+    { sep: true },
+    // The full manager lives in Preferences ▸ Appearance; this is the same door the File menu uses.
+    { key: 'manage', label: 'Manage Workspaces…', action: 'preferences' },
+  ];
+
+  const menus = buildMenus(recents, workspaceItems);
 
   // Track maximized state to swap the maximize/restore glyph.
   useEffect(() => {
@@ -184,7 +235,8 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, projectPath, docDirty, 
 
   const run = (item: Extract<Item, { label: string }>) => {
     if (item.disabled || item.submenu) return;
-    if (item.action) onMenuAction(item.action);
+    if (item.run) item.run();
+    else if (item.action) onMenuAction(item.action);
     else if (item.cmd) window.artlux?.windowCommand?.(item.cmd);
     else if (item.href) window.artlux?.openExternal?.(item.href);
     setOpen(null);
@@ -237,6 +289,38 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, projectPath, docDirty, 
             )}
           </div>
         ))}
+      </div>
+
+      {/* THE WORKSPACE CHIP — a level ABOVE the workbench rail, so it belongs in the one strip of
+          chrome that is always on screen rather than inside any workbench. Reads "Default" until the
+          operator saves one, and offers only "Save Current Layout…" until then: someone who never uses
+          this never sees a list. Plan: plans/named-workspaces.md. */}
+      <div className="relative flex items-center pl-1" style={NODRAG}>
+        <button
+          data-topmenu
+          aria-haspopup="menu"
+          aria-expanded={open === WS_MENU}
+          title={ws.active
+            ? `Workspace: ${ws.active.name}${ws.active.locked ? ' (locked — changes are not saved into it)' : ''}`
+            : 'No saved workspace — the layout is remembered per machine. Click to save one.'}
+          onClick={() => setOpen(open === WS_MENU ? null : WS_MENU)}
+          onMouseEnter={() => { if (open) setOpen(WS_MENU); }}
+          className={`flex items-center gap-1 h-[22px] px-2 rounded-sm text-mini border transition-colors max-w-[22ch] ${
+            open === WS_MENU ? 'bg-white/10 border-line-2 text-fg-1' : 'border-line-1 text-fg-3 hover:text-fg-1 hover:bg-white/5'
+          }`}
+        >
+          <LayoutGrid size={11} className="shrink-0" />
+          <span className="truncate">{ws.active?.name ?? 'Default'}</span>
+          {ws.active?.locked && <Lock size={9} className="shrink-0 text-fg-3" />}
+          <ChevronDown size={11} className="shrink-0 text-fg-3" />
+        </button>
+        {open === WS_MENU && (
+          <Dropdown
+            items={workspaceItems}
+            onRun={run}
+            onClose={() => setOpen(null)}
+          />
+        )}
       </div>
 
       {/* Draggable spacer */}
@@ -330,10 +414,13 @@ const Dropdown: React.FC<{
         const item = it;
         const hasSub = !!item.submenu;
         return (
-          <div key={item.label} className="relative" onMouseEnter={() => setSubOpen(hasSub ? item.label : null)}>
+          <div key={item.key ?? item.label} className="relative" onMouseEnter={() => setSubOpen(hasSub ? item.label : null)}>
             <button
               data-menuitem
-              role="menuitem"
+              // A workspace row is one of a set with exactly one active member — that is a radio, and
+              // saying so is what makes the ✓ mean anything to a screen reader.
+              role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+              aria-checked={item.checked}
               aria-haspopup={hasSub ? 'menu' : undefined}
               aria-expanded={hasSub ? subOpen === item.label : undefined}
               disabled={item.disabled}
@@ -353,6 +440,12 @@ const Dropdown: React.FC<{
               }}
               className={`w-full flex items-center gap-6 px-3 h-7 text-[12.5px] text-left ${item.disabled ? 'text-fg-3 cursor-default' : 'text-fg-1 hover:bg-accent/20'}`}
             >
+              {/* The tick reserves its width in every item of a menu that has one, so a checked and an
+                  unchecked row start at the same x — a list whose labels shift by 15px as the
+                  selection moves reads as two lists. */}
+              {item.checked !== undefined && (
+                <Check size={12} className={`shrink-0 -ml-1 ${item.checked ? 'text-accent' : 'opacity-0'}`} aria-hidden />
+              )}
               <span className="flex-1 truncate">{item.label}</span>
               {item.accel && <span className="num text-mini text-fg-3">{acc(item.accel)}</span>}
               {hasSub && <ChevronRight size={13} className="text-fg-3 -mr-1" />}

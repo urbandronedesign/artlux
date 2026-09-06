@@ -5,11 +5,12 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 // The app's ONE feedback substrate. Before this there was nowhere to put a message: every confirmation
 // and error went through a blocking native window.confirm/alert (unthemed, focus-stealing, no aria) or
 // nothing at all — saves failed silently, imports swallowed errors, and status never reached a screen
-// reader. This provides two channels:
+// reader. This provides three channels:
 //   • useToast()   — transient, non-blocking notices with an aria-live region.
 //   • useConfirm() — a themed, focus-trapped confirmation (an awaitable replacement for window.confirm).
+//   • usePrompt()  — the same, for a single line of text (an awaitable replacement for window.prompt).
 //
-// Mount <FeedbackProvider> once, above App. Both hooks throw if used outside it.
+// Mount <FeedbackProvider> once, above App. All three hooks throw if used outside it.
 
 // ── Toasts ──────────────────────────────────────────────────────────────────────────────────────
 type ToastKind = 'success' | 'error' | 'info' | 'warn';
@@ -40,8 +41,25 @@ interface ConfirmOptions {
 type ConfirmResult = boolean | 'alt';
 type ConfirmFn = (opts: ConfirmOptions) => Promise<ConfirmResult>;
 
+// ── Prompt ──────────────────────────────────────────────────────────────────────────────────────
+// The third question this substrate has to be able to ask: "what should this be called?". Naming a
+// workspace, renaming one. Without it the only ways to ask are a native window.prompt (unthemed,
+// focus-stealing, no aria — the exact thing this module exists to replace) or a bespoke modal per
+// feature. Same shape as confirm, so it inherits the focus trap, Escape, and the backdrop rule.
+interface PromptOptions {
+  title: string;
+  message?: string;
+  /** Pre-filled and selected, so Enter alone accepts the suggestion. */
+  initial?: string;
+  placeholder?: string;
+  confirmLabel?: string;
+}
+/** null = cancelled (Escape, backdrop, Cancel). An empty string can never come back — see the dialog. */
+type PromptFn = (opts: PromptOptions) => Promise<string | null>;
+
 const ToastCtx = React.createContext<ToastApi | null>(null);
 const ConfirmCtx = React.createContext<ConfirmFn | null>(null);
+const PromptCtx = React.createContext<PromptFn | null>(null);
 
 export function useToast(): ToastApi {
   const ctx = React.useContext(ToastCtx);
@@ -51,6 +69,11 @@ export function useToast(): ToastApi {
 export function useConfirm(): ConfirmFn {
   const ctx = React.useContext(ConfirmCtx);
   if (!ctx) throw new Error('useConfirm must be used within <FeedbackProvider>');
+  return ctx;
+}
+export function usePrompt(): PromptFn {
+  const ctx = React.useContext(PromptCtx);
+  if (!ctx) throw new Error('usePrompt must be used within <FeedbackProvider>');
   return ctx;
 }
 
@@ -94,8 +117,23 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setConfirmState(null);
   }, []);
 
+  // Prompt — the same ref'd-promise pattern, kept separate so a confirmation and a naming question
+  // cannot cancel one another.
+  const [promptState, setPromptState] = React.useState<PromptOptions | null>(null);
+  const promptResolver = React.useRef<((v: string | null) => void) | null>(null);
+  const prompt = React.useCallback<PromptFn>((opts) => new Promise<string | null>((resolve) => {
+    promptResolver.current = resolve;
+    setPromptState(opts);
+  }), []);
+  const closePrompt = React.useCallback((value: string | null) => {
+    promptResolver.current?.(value);
+    promptResolver.current = null;
+    setPromptState(null);
+  }, []);
+
   return (
     <ToastCtx.Provider value={toastApi}>
+      <PromptCtx.Provider value={prompt}>
       <ConfirmCtx.Provider value={confirm}>
         {children}
 
@@ -115,8 +153,57 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         </div>
 
         {confirmState && <ConfirmDialog opts={confirmState} onClose={closeConfirm} />}
+        {promptState && <PromptDialog opts={promptState} onClose={closePrompt} />}
       </ConfirmCtx.Provider>
+      </PromptCtx.Provider>
     </ToastCtx.Provider>
+  );
+};
+
+const PromptDialog: React.FC<{ opts: PromptOptions; onClose: (v: string | null) => void }> = ({ opts, onClose }) => {
+  const trapRef = useFocusTrap(true);
+  const [value, setValue] = React.useState(opts.initial ?? '');
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  // An empty name is never an answer — the caller would have to guard it every time, and a nameless
+  // thing in a list is worse than no thing. Submitting empty is simply inert.
+  const accept = () => { if (value.trim()) onClose(value.trim()); };
+
+  return (
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={() => onClose(null)}>
+      <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={opts.title}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm bg-surface-1 border border-line-2 rounded-lg shadow-e3 p-5 animate-modal-in"
+      >
+        {/* A <form> so Enter in the field accepts — the shortest path from "type a name" to done. */}
+        <form onSubmit={(e) => { e.preventDefault(); accept(); }}>
+        <h2 className="text-sm font-semibold text-fg-1 mb-1">{opts.title}</h2>
+        {opts.message && <p className="text-fg-2 text-xs whitespace-pre-line mb-3">{opts.message}</p>}
+        <input
+          data-autofocus
+          value={value}
+          placeholder={opts.placeholder}
+          onChange={(e) => setValue(e.target.value)}
+          // Selected on mount, so Enter alone accepts the suggested name and typing replaces it.
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-full bg-surface-0 border border-line-1 rounded-sm px-2 py-1.5 text-xs text-fg-1 focus:border-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        />
+        <div className="flex justify-end gap-2 mt-4">
+          <button type="button" onClick={() => onClose(null)} className="px-3 py-1.5 text-xs rounded-md border border-line-2 text-fg-1">Cancel</button>
+          <button type="submit" disabled={!value.trim()} className="px-3 py-1.5 text-xs rounded-md font-medium bg-accent text-black disabled:opacity-40">
+            {opts.confirmLabel ?? 'OK'}
+          </button>
+        </div>
+        </form>
+      </div>
+    </div>
   );
 };
 

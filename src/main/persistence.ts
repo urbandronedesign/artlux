@@ -230,6 +230,35 @@ export async function exportRig(win: BrowserWindow | null, rig: RigData): Promis
   return writeJson(res.filePath, rig) ? res.filePath : null;
 }
 
+// ── Named workspaces (.artws) ─────────────────────────────────────────────────────────────────────
+//
+// Deliberately DUMB: a picker, a JSON write, a JSON read. Every rule about what a workspace is — the
+// envelope, the version, remapping a retired workbench, clamping a 4K column onto a laptop, refusing a
+// dock tree from a newer build — lives in renderer/services/workspaceStore.ts, next to the model it
+// protects. Split across the two processes, the two halves would drift the first time the model moved.
+
+export async function exportWorkspaces(win: BrowserWindow | null, file: unknown): Promise<string | null> {
+  const opts = {
+    title: 'Export Workspaces',
+    defaultPath: 'artlux-workspaces.artws',
+    filters: [{ name: 'ARTLux Workspace', extensions: ['artws', 'json'] }],
+  };
+  const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+  if (res.canceled || !res.filePath) return null;
+  return writeJson(res.filePath, file) ? res.filePath : null;
+}
+
+export async function importWorkspaces(win: BrowserWindow | null): Promise<unknown | null> {
+  const opts = {
+    title: 'Import Workspaces',
+    properties: ['openFile' as const],
+    filters: [{ name: 'ARTLux Workspace', extensions: ['artws', 'json'] }],
+  };
+  const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (res.canceled || !res.filePaths[0]) return null;
+  return readJson<unknown>(res.filePaths[0]);
+}
+
 export async function importRig(win: BrowserWindow | null): Promise<RigData | null> {
   const opts = {
     title: 'Import Rig',
