@@ -449,6 +449,23 @@ cd launcher && npm run verify:version      # refuses to let them disagree
 git tag -a launcher-v0.1.3 -m "…" && git push origin launcher-v0.1.3
 ```
 
+**Each release also force-moves a rolling `launcher-latest` tag** carrying one fixed-name installer,
+so the download link in the README never has to be edited:
+
+```
+…/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe
+```
+
+The app gets an equivalent for free — GitHub's `/releases/latest/download/<name>` — but the launcher
+cannot use that endpoint, because launcher releases are pre-releases on purpose and `latest` excludes
+exactly those. The tag name was chosen against the resolver, not for looks: `launcher-latest` does
+not start with `launcher-v` (so self-update skips it), is not `v<digit>` (so `is_app_tag` rejects it
+and it can never be served as ArtLux), is published as a pre-release (so `/releases/latest` still
+resolves the app), and matches neither workflow's tag trigger (so moving it cannot loop into a
+build). It deliberately carries **no `launcher-latest.yml`**: that file names the *versioned*
+installer in its `path`, which does not exist under this tag — self-update reads it from the
+`launcher-v*` tag, where it is true.
+
 > **This list was wrong until 0.1.3, and it shipped a mislabelled release.** It said *four* files
 > and credited `package.json` with the bundle filename — but Tauri prefers the `version` in
 > `tauri.conf.json` and only falls back when that field is absent. It was not absent, it was stale,

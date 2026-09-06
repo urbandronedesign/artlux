@@ -15,6 +15,31 @@ good, because that is the part that historically went wrong.
 
 ---
 
+## Where to download
+
+Every link here is permanent and always resolves to the newest build, so a bookmark or a note pinned
+in a venue does not go stale:
+
+| | Download |
+|---|---|
+| **Launcher** (recommended for a venue PC) | [`ArtLuxLauncher-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe) |
+| ArtLux — Windows | [`ArtLux-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Setup-x64.exe) |
+| ArtLux — macOS (Apple Silicon) | [`ArtLux-arm64.dmg`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-arm64.dmg) |
+| ArtLux — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) |
+
+These are fixed-name copies published beside the versioned assets, not replacements for them. The
+versioned files — `ArtLux-<version>-x64.exe` and the rest — remain on
+[every release](https://github.com/urbandronedesign/artlux/releases), which is where you go for a
+specific older build or to put a machine back on the version it was running last week.
+
+> **A file downloaded from those links names no version**, so nothing can read the release off its
+> filename. `scripts/verify-download.ps1` handles that by resolving the newest release itself
+> (below) — but it means the check has one extra failure mode worth knowing: if a release is
+> published *while* you are downloading, you will be comparing one build against the next one's
+> checksum. The script says so when it happens instead of reporting a bare mismatch.
+
+---
+
 ## What the installer does for you
 
 Run elevated (`nsis.perMachine: true`), from `build/installer.nsh`, on **first install and on every
@@ -64,8 +89,9 @@ comparing the wrong encoding makes a good file look corrupt):
 powershell -ExecutionPolicy Bypass -File scripts\verify-download.ps1 -File .\ArtLux-<version>-x64.exe
 ```
 
-It works out which release the file belongs to from its name, fetches the checksum GitHub published,
-and compares. **Read the exit code, not just the text** -- it distinguishes the three outcomes, and
+It works out which release the file belongs to from its name — or, for the fixed-name copies above
+which carry no version, by asking GitHub which release is newest — fetches the checksum GitHub
+published, and compares. **Read the exit code, not just the text** -- it distinguishes the three outcomes, and
 only one of them is a pass:
 
 | Exit | Meaning |

@@ -45,12 +45,68 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $REPO = 'urbandronedesign/artlux'
+# Set when the tag had to be resolved from a fixed-name copy rather than read off the filename; it
+# changes what a mismatch means. See the failure path at the bottom.
+$rolling = $false
 
 function Fail([string]$msg, [int]$code) {
   Write-Host "[FAIL] $msg" -ForegroundColor Red
   exit $code
 }
 function Note([string]$msg) { Write-Host "       $msg" -ForegroundColor DarkGray }
+
+# Fetch a URL and hand back the body as text. GitHub serves .yml as octet-stream and -UseBasicParsing
+# does not decode that, so .Content can be a Byte[]; treating it as a string yields nothing at all,
+# silently. Shared by the metadata fetch and the tag lookup so only one of them can get it wrong.
+function Get-Body([string]$url, [string]$what) {
+  try {
+    $resp = Invoke-WebRequest $url -UseBasicParsing
+  } catch {
+    Fail "could not fetch $what - $($_.Exception.Message)" 2
+  }
+  if ($resp.Content -is [byte[]]) { return [System.Text.Encoding]::UTF8.GetString($resp.Content) }
+  return [string]$resp.Content
+}
+
+# Which release is a FIXED-NAME copy a copy of? Those files (ArtLux-Setup-x64.exe,
+# ArtLuxLauncher-Setup-x64.exe) exist so a download link never has to be edited, which means they
+# carry no version and the tag cannot be read off the filename. It is always the newest release of
+# that product - but "newest" is per-PRODUCT here, because both publish into one list:
+#
+#   app      : /releases/latest, which excludes pre-releases - and every launcher release is one.
+#              That exclusion is the property the whole two-product arrangement rests on.
+#   launcher : the newest tag starting launcher-v, found by walking the list. NOT the launcher-latest
+#              release itself: that one deliberately publishes no .yml, because its metadata would
+#              name a versioned installer that does not exist under that tag.
+#
+# The walk is paged for the reason the launcher's own resolver is: app releases land far more often,
+# so the newest launcher-v* sinks down the list and a single page eventually stops containing it.
+function Resolve-LatestTag([string]$kind) {
+  if ($kind -eq 'app') {
+    $json = Get-Body "https://api.github.com/repos/$REPO/releases/latest" "the latest release"
+    $tag  = (ConvertFrom-Json -InputObject $json).tag_name
+    if (-not $tag) { Fail "GitHub did not name a latest release - pass -Tag" 2 }
+    return $tag
+  }
+  for ($page = 1; $page -le 5; $page++) {
+    $json = Get-Body "https://api.github.com/repos/$REPO/releases?per_page=100&page=$page" "the release list"
+    # ASSIGN, THEN WRAP - and never @(<a command that returns an array>). Windows PowerShell 5.1's
+    # ConvertFrom-Json emits a JSON array as ONE object, so @(ConvertFrom-Json ...) collects a single
+    # pipeline item and hands back a one-element list holding the array. The loop below then inspects
+    # that one item, finds no tag_name of its own, and reports "no published launcher release was
+    # found" - a wrong answer with a plausible message, never a parse error. Wrapping a VARIABLE that
+    # already holds the array is the version that flattens correctly. Both -InputObject and a pipe
+    # get this wrong; the difference is the assignment.
+    $parsed = ConvertFrom-Json -InputObject $json
+    $all    = @($parsed)
+    if ($all.Count -eq 0) { break }
+    foreach ($r in $all) {
+      if (-not $r.draft -and $r.tag_name -like 'launcher-v*') { return $r.tag_name }
+    }
+    if ($all.Count -lt 100) { break }
+  }
+  Fail "no published launcher release was found - pass -Tag" 2
+}
 
 if (-not (Test-Path -LiteralPath $File)) { Fail "no such file: $File" 2 }
 $path = (Resolve-Path -LiteralPath $File).Path
@@ -68,6 +124,9 @@ if (-not $Expected) {
     $name = Split-Path -Leaf $path
     if ($name -match '^ArtLuxLauncher_(\d+\.\d+\.\d+)_') { $Tag = 'launcher-v' + $Matches[1] }
     elseif ($name -match '^ArtLux-(\d+\.\d+\.\d+)-')      { $Tag = 'v' + $Matches[1] }
+    # The fixed-name copies, which name no version at all - see Resolve-LatestTag.
+    elseif ($name -match '^ArtLuxLauncher-Setup-') { $Tag = Resolve-LatestTag 'launcher'; $rolling = $true }
+    elseif ($name -match '^ArtLux-Setup-')         { $Tag = Resolve-LatestTag 'app';      $rolling = $true }
     else { Fail "cannot tell which release '$name' belongs to - pass -Tag" 2 }
     Note "inferred tag: $Tag"
   }
@@ -77,16 +136,7 @@ if (-not $Expected) {
   $url  = "https://github.com/$REPO/releases/download/$Tag/$meta"
   Note "metadata: $url"
 
-  try {
-    # -UseBasicParsing: without it this needs an interactive session and throws in automation.
-    $resp = Invoke-WebRequest $url -UseBasicParsing
-  } catch {
-    Fail "could not fetch $meta for $Tag - $($_.Exception.Message)" 2
-  }
-  # .Content is a Byte[] here: GitHub serves .yml as octet-stream and -UseBasicParsing does not
-  # decode it. Treating it as a string yields nothing at all, silently.
-  if ($resp.Content -is [byte[]]) { $yml = [System.Text.Encoding]::UTF8.GetString($resp.Content) }
-  else { $yml = [string]$resp.Content }
+  $yml = Get-Body $url "$meta for $Tag"
 
   foreach ($line in ($yml -split "`r?`n")) {
     # TOP-LEVEL only. The nested `files:` list repeats sha512, and an indented match would be the
@@ -129,5 +179,12 @@ Write-Host ''
 if ([string]::Equals($Expected, $actual, [System.StringComparison]::Ordinal)) {
   Write-Host "[OK] This is the file we published. Windows will still warn that it is unsigned." -ForegroundColor Green
   exit 0
+}
+# A mismatch on a fixed-name copy has one innocent explanation the versioned files do not: the tag
+# was resolved just now, so a release published while the download was in flight means the file is a
+# real installer being compared against the NEXT one's checksum. Say so - the advice is different.
+if ($rolling) {
+  Note "this file names no version, so it was compared against $Tag - the newest release as of a moment ago"
+  Note "if a release was published while you were downloading, download it again before drawing any conclusion"
 }
 Fail "MISMATCH - this is NOT the file we published. Do not run it. Download it again; if it keeps happening, say so before installing." 1

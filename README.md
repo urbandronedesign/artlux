@@ -148,11 +148,26 @@ Art-Net + sACN/E1.31
 ### Installing
 
 **The easiest way onto a Windows machine is the [Launcher](docs/LAUNCHER.md)** —
-`ArtLuxLauncher_<version>_x64-setup.exe` on the
-[releases page](https://github.com/urbandronedesign/artlux/releases). It downloads ArtLux, verifies
-it against the checksum GitHub published, installs the NDI and VC++ runtimes and the firewall rules,
-and checks the machine can actually run a show. Installing the `.exe` by hand still works and is
-documented in [docs/INSTALL.md](docs/INSTALL.md).
+**[download it here](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe)**.
+It downloads ArtLux, verifies it against the checksum GitHub published, installs the NDI and VC++
+runtimes and the firewall rules, and checks the machine can actually run a show.
+
+Installing ArtLux by hand still works and is documented in [docs/INSTALL.md](docs/INSTALL.md):
+
+| | Download | Notes |
+|---|---|---|
+| **Launcher** (recommended) | [`ArtLuxLauncher-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe) | Windows. Installs and provisions everything else. |
+| **ArtLux** — Windows | [`ArtLux-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Setup-x64.exe) | NSIS, per-machine, elevated. |
+| **ArtLux** — macOS | [`ArtLux-arm64.dmg`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-arm64.dmg) | Apple Silicon. Not notarized — see below. |
+| **ArtLux** — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) | |
+
+**Those links never change and always give the newest build** — they are fixed-name copies published
+alongside the versioned assets, so nothing here has to be edited when a release goes out. The
+versioned files are still there for [an older build or a rollback](https://github.com/urbandronedesign/artlux/releases).
+
+> A file downloaded through one of those links carries no version in its name, which is exactly why
+> `scripts/verify-download.ps1` resolves the release itself rather than reading it off the filename.
+> Verify it the same way regardless — see [docs/INSTALL.md](docs/INSTALL.md).
 
 Both are unsigned, so Windows SmartScreen warns on first run — **More info → Run anyway**. That is
 [a deliberate, permanent decision](docs/LAUNCHER.md#licence-and-signing), which is also why the
