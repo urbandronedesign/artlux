@@ -37,6 +37,7 @@ import { join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import type { OutputStats, RendererFault, UnattendedPrefs, WatchdogEvent, WatchdogStatus } from '../../shared/protocol';
 import { relaunchArgs } from './runProfile';
+import { deactivateMainPlugins } from './host/plugins';
 import * as logger from './logger';
 
 export const WATCHDOG_DEFAULTS: UnattendedPrefs = {
@@ -331,6 +332,11 @@ function maybeRelaunch(trigger: string, detail: string): void {
     // The self-heal path exits without before-quit, and it is the one an unattended machine takes
     // most often — so this is precisely where a missing end marker would hurt.
     logger.shutdown('relaunch', { trigger });
+    // …and where a segfault on the way out would hurt most, too. app.exit() runs neither quit event,
+    // so the main plugins get their teardown here or not at all — and the audio plugin's is the one
+    // that keeps the JUCE engine from being destroyed by a static destructor at process exit. A
+    // self-heal that crashes instead of exiting is a relaunch the supervisor has to guess about.
+    deactivateMainPlugins();
     app.relaunch({ args });
     app.exit(0);
   } catch (e) {

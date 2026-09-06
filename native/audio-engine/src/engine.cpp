@@ -1197,8 +1197,22 @@ private:
   OpenedCfg lastOpened;
 };
 
-std::unique_ptr<Engine> gEngine;
-Engine& ensureEngine() { if (!gEngine) gEngine = std::make_unique<Engine>(); return *gEngine; }
+// A RAW, DELIBERATELY-LEAKED POINTER — NOT a unique_ptr, and that is the whole point.
+//
+// As a std::unique_ptr this is a namespace-scope object with a non-trivial destructor, so the C++
+// runtime registers it with __cxa_finalize and destroys it during exit() — AFTER JUCE's own statics
+// have gone. ~AudioDeviceManager then unhooks its MIDI device-list connection from a list that no
+// longer exists, and the process dies with SIGSEGV in the middle of shutting down. On macOS that was
+// every single quit (EXC_BAD_ACCESS in ArtLux's crash reports, faulting thread CrBrowserMain,
+// __cxa_finalize_ranges → ~AudioDeviceManager → MidiDeviceListConnection).
+//
+// A raw pointer has a TRIVIAL destructor: nothing is registered, nothing runs at exit, and a process
+// that ends without calling close() simply leaks an engine it was about to stop owning anyway. The
+// orderly teardown still happens — the audio plugin's deactivate() calls close() below while the
+// process is alive (src/main/host/plugins.ts) — but it is no longer the only thing standing between
+// a quit and a crash report.
+Engine* gEngine = nullptr;
+Engine& ensureEngine() { if (!gEngine) gEngine = new Engine(); return *gEngine; }
 
 } // namespace
 
@@ -1466,7 +1480,9 @@ static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
 }
 
 static Napi::Value Close(const Napi::CallbackInfo& info) {
-  if (gEngine) { gEngine->closeDevice(); gEngine.reset(); }
+  // Destroyed HERE, on a live process with JUCE's statics still standing — the one place where
+  // ~AudioDeviceManager is safe. See the note on gEngine.
+  if (gEngine) { gEngine->closeDevice(); delete gEngine; gEngine = nullptr; }
   return info.Env().Undefined();
 }
 

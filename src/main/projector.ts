@@ -3,6 +3,7 @@ import type { Display } from 'electron';
 import { join } from 'node:path';
 import { IPC, WINDOWED_DISPLAY, type DisplayInfo } from '../../shared/protocol';
 import { profileQuery, rendererDevUrl } from './runProfile';
+import { quitRequested } from './quitState';
 import { APP_ICON } from './appIcon';
 
 // Per-Surface fullscreen projector outputs. Each enabled output gets its own frameless,
@@ -184,6 +185,12 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
     // fullscreen one is frameless, so in a venue this path is effectively unreachable.
     const byApp = closingByApp.delete(surfaceId);
     if (byApp) return;
+    // A quit closes every window on its way out. That is the app closing outputs, not an operator
+    // closing one, and reporting it as the latter would fire notifyClosed() at a renderer that is
+    // being torn down — and, in broadcast, re-enter app.quit() from inside the quit. Now that the
+    // teardown above runs on `will-quit` (after the windows are gone) rather than `before-quit`,
+    // closingByApp no longer covers this and the intent flag has to.
+    if (quitRequested()) return;
     notifyClosed(surfaceId);
     // Closing the LAST output by hand is the operator saying "stop". `windows` was pruned just
     // above, so an empty map here means nothing is left on screen. Only app-initiated closes are
@@ -281,5 +288,11 @@ export function registerProjectorWindows(getMainWindow: () => BrowserWindow | nu
     notify();
   });
 
-  app.on('before-quit', () => closeAllProjectors());
+  // OUTPUTS COME DOWN WHEN THE APP IS ACTUALLY GOING, NOT WHEN SOMEONE ASKS.
+  //
+  // This hung off `before-quit`, which fires before the editor's close guard has asked the operator
+  // anything — so answering "Keep editing" to the save prompt left you back in the editor with every
+  // projector output already dead, and no way to tell that had happened except by looking at the wall.
+  // `will-quit` is emitted only once the quit is unopposed. See quitState.ts.
+  app.on('will-quit', () => closeAllProjectors());
 }

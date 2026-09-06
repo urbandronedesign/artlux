@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { IPC } from '../../shared/protocol';
+import { abandonQuit, quitRequested, resumeQuit } from './quitState';
 
 // CLOSING THE EDITOR USED TO DISCARD EVERY UNSAVED CHANGE, SILENTLY.
 //
@@ -43,14 +44,27 @@ export function guardClose(win: BrowserWindow, enabled: boolean): void {
   });
 }
 
-/** The renderer is done (saved, or chose to discard): let the close through. */
+/**
+ * The renderer is done (saved, or chose to discard): let the close through.
+ *
+ * ⚠ AND RESUME THE QUIT, if a quit is what asked. `preventDefault()` in the `close` handler above does
+ * not merely delay a quit — it CANCELS it, and nothing re-issues it once the answer arrives. That is
+ * the whole of the "Cmd+Q leaves the app running with no window" bug: the window went, the process
+ * stayed. Re-issued from `closed` rather than straight after `close()` so the window is genuinely gone
+ * before the quit sequence walks the window list again. See quitState.ts.
+ */
 export function allowClose(win: BrowserWindow): void {
   waiting.delete(win);
   allowed.add(win);
-  if (!win.isDestroyed()) win.close();
+  if (win.isDestroyed()) { resumeQuit(); return; }
+  if (quitRequested()) win.once('closed', () => resumeQuit());
+  win.close();
 }
 
 /** The operator cancelled. Clear the latch so the NEXT close asks again rather than closing mutely. */
 export function cancelClose(win: BrowserWindow): void {
   waiting.delete(win);
+  // "Keep editing" answers the QUIT too, not just the window close — otherwise the aborted quit would
+  // sit armed and the next unrelated window close would silently end the app.
+  abandonQuit();
 }

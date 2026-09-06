@@ -20,6 +20,8 @@ import * as watchdog from './watchdog';
 import * as persistence from './persistence';
 import { profileQuery, CALIBRATION_ENABLED, rendererDevUrl, relaunchArgs, missingBuiltRenderer } from './runProfile';
 import { registerMediaScheme, registerMediaProtocol } from './mediaProtocol';
+import { deactivateMainPlugins } from './host/plugins';
+import { noteQuitRequested } from './quitState';
 import { IPC } from '../../shared/protocol';
 
 // ⚠ MODULE SCOPE, BEFORE app.whenReady() — NOT inside it. Chromium fixes its scheme registry during
@@ -53,6 +55,7 @@ const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
 const newProjectArg = argv.find((a) => a.startsWith('--new-project='));
 const NEW_PROJECT_PATH = newProjectArg ? newProjectArg.slice('--new-project='.length) : '';
 const RUN_MODE = HEADLESS ? 'headless' : BROADCAST ? 'broadcast' : 'editor';
+const isMac = process.platform === 'darwin';
 
 // Single instance: a watchdog / OS-supervisor respawn (or a stray double-launch) must never run two
 // copies fighting over the same Art-Net universes and displays. The primary holds the lock; a second
@@ -249,6 +252,9 @@ function createWindow(): void {
         // can just fix the dev server rather than have the app vanish from under them.
         if (HEADLESS || BROADCAST) {
             console.error('[main] no renderer means no output — exiting rather than lingering invisibly.');
+            // Same reasoning as the relaunch paths: app.exit() runs neither quit event, and exiting
+            // through a live JUCE engine's static destructor turns a clean failure into a segfault.
+            shutdownSubsystems('quit', { reason: 'renderer-load-failed' });
             app.exit(1);
         }
     });
@@ -392,7 +398,7 @@ app.whenReady().then(() => {
         const args = relaunchArgs();
         if (on) args.push('--calibrate');
         if (projectPath) args.push(`--project=${projectPath}`);
-        logger.shutdown('relaunch'); // app.exit() skips before-quit — close the session here or it has no end
+        shutdownSubsystems('relaunch'); // app.exit() skips before-quit AND will-quit — tear down here or nothing does
         releaseLockForRelaunch();
         app.relaunch({ args });
         app.exit(0);
@@ -402,7 +408,7 @@ app.whenReady().then(() => {
         const args = relaunchArgs();
         args.push('--broadcast');
         if (projectPath) args.push(`--project=${projectPath}`);
-        logger.shutdown('relaunch'); // app.exit() skips before-quit — close the session here or it has no end
+        shutdownSubsystems('relaunch'); // app.exit() skips before-quit AND will-quit — tear down here or nothing does
         releaseLockForRelaunch();
         app.relaunch({ args });
         app.exit(0);
@@ -429,9 +435,18 @@ app.whenReady().then(() => {
         app.quit();
     } : undefined);
     if (!HEADLESS) registerDocsWindow(() => mainWindow);
-    // One consistent, always-available quit for both editor and broadcast modes — works even
-    // when a frameless fullscreen projector window is focused (no reachable menu there).
-    if (!HEADLESS) globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
+    // A quit that is reachable even when a frameless fullscreen projector window is focused and there
+    // is no menu to pull down. `globalShortcut` is an OS-WIDE grab, so it is used as narrowly as it can
+    // be:
+    //   • macOS editor — NOT registered. The application menu owns ⌘Q (see menu.ts), and on macOS a
+    //     menu accelerator already fires for every window this app owns, projector outputs included.
+    //     Grabbing anything globally here would take the shortcut away from every OTHER app too, and
+    //     ⌘⇧Q in particular is the system's Log Out.
+    //   • macOS broadcast — registered, because broadcast builds no menu at all; the tray and this
+    //     hotkey are the operator's only way out, and on a venue machine that is worth the grab.
+    //   • Windows/Linux — registered as before, in both modes. Their menus are per-window, so a
+    //     focused frameless output genuinely has no other route.
+    if (!HEADLESS && (!isMac || BROADCAST)) globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
     if (BROADCAST) setupBroadcastControls();
     createWindow();
 
@@ -440,17 +455,40 @@ app.whenReady().then(() => {
     });
 });
 
-app.on('before-quit', () => {
-    logger.shutdown('quit');
+// EVERY WAY OUT OF THIS PROCESS ENDS HERE, AND IT RUNS EXACTLY ONCE.
+//
+// It used to be the body of `before-quit`, which is wrong twice over. `before-quit` fires BEFORE the
+// windows are asked to close, and the editor's close guard answers that question by calling
+// preventDefault() — which does not defer the quit, it CANCELS it. So a Cmd+Q that the operator then
+// answered normally had already stopped the watchdog, closed the session log, dropped the global
+// shortcuts and torn down NDI, and the app went on running in that gutted state. The second Cmd+Q ran
+// the whole teardown a SECOND time over already-freed natives, and that is the crash.
+//
+// `will-quit` is the event that is emitted only when the quit is genuinely going through (all windows
+// closed, nobody vetoed), so it is the only correct home for teardown. The `cleanedUp` latch is belt
+// and braces: the relaunch paths call this directly before `app.exit()`, which skips both events.
+let cleanedUp = false;
+function shutdownSubsystems(reason: 'quit' | 'relaunch', extra?: Record<string, unknown>): void {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    logger.shutdown(reason, extra);
     watchdog.stop();
     metrics.stop();
     globalShortcut.unregisterAll();
     broadcastTray?.destroy();
     broadcastTray = null;
-    ndi.stopAllSenders();
-    ndi.stopRecv();
+    // The main plugins' own teardown — NDI's senders and receiver among them, which is why the two
+    // hand-written ndi.stop* calls that used to stand here are gone: they were the transitional
+    // host-side copy of plugin-ndi's `deactivate`, and one of the two had to go. The one that matters
+    // most is the audio plugin's: without it the JUCE engine is destroyed by a static destructor at
+    // process exit and segfaults. See host/plugins.ts.
+    deactivateMainPlugins();
     nvwarp.clearAll();
-});
+}
+
+// Record the intent ONLY. See quitState.ts — everything that actually tears down moved to `will-quit`.
+app.on('before-quit', () => noteQuitRequested());
+app.on('will-quit', () => shutdownSubsystems('quit'));
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
