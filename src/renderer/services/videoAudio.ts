@@ -70,8 +70,11 @@ export function videoAudioOf(t: Timeline): TimelineAudio {
       mute: a?.mute,
       fadeIn: a?.fadeIn,
       fadeOut: a?.fadeOut,
-      spatial: a?.spatial,
-      effects: a?.effects,
+      // NO `spatial`, NO `effects`, and no fallback to the layer's here either. Placement and character
+      // are the LAYER's (VideoLayerAudio → the derived track below), and the driver applies them per clip
+      // at the point of encoding — `withTrack` in plugin.renderer.ts. Doing it HERE instead would stamp
+      // the layer's position onto every clip in a container that is rebuilt on every timeline edit, which
+      // is both wasted work and a second place for the same rule to live.
     });
   }
   if (!clips.length) { vaMemoOut = EMPTY_VIDEO_AUDIO; return vaMemoOut; }

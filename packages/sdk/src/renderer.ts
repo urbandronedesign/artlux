@@ -943,6 +943,10 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
    * explicit `1` where the operator returned a fader to centre puts a redundant field in every project
    * file forever. An `audio` block left with no keys is removed entirely.
    *
+   * ⚠ LEVEL AND TIMING ONLY. A video clip's soundtrack has no position and no insert chain of its own —
+   * those are the LAYER's, one control for the whole lane, written through `patchAudioTrack` below. See
+   * types.ts VideoClipAudio.
+   *
    * Same router, same three rules, same costs as `patchTimelineClip` above — the bound document only, a
    * miss is a DROP and never a search across scenes whose ids alias, and one call is a full core document
    * commit. Draft locally, commit once on release.

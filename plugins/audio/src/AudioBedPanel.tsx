@@ -1383,9 +1383,10 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                 {selVideo && (
                   <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
                     This is the soundtrack inside {boundPhrase}’s video clip, so it rides the PLAYHEAD with its
-                    picture — there is no separate lane and nothing to place. Gain, mute, position and FX are
-                    yours here; switching it off entirely and trimming its A/V offset live in the clip’s own
-                    inspector on the timeline.
+                    picture — there is no separate lane and nothing to place. <strong className="text-fg-2">Level is
+                    per clip; position and FX are the layer’s</strong>, in the Track section below, and apply to
+                    every clip on it. Switching this clip’s sound off entirely and trimming its A/V offset live
+                    in the clip’s own inspector on the timeline.
                   </p>
                 )}
 
@@ -1409,6 +1410,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                     layout in Preferences ▸ Audio. Drag the pad to move the source around the listener: the
                     position goes to the engine on every pointermove, so you HEAR it travel and the L/R
                     meters shift with it, while the document is still written exactly once on release. */}
+                {/* ⚠ NOT FOR A VIDEO CLIP — its position lives on its LAYER, and only there. A video layer
+                    is a track of shots; placing "the layer" in the room is the gesture an operator actually
+                    has, and per-cut placement is a control nobody asked to touch. The Track section below
+                    carries it, so this whole block (and the clip FX block after it) is simply absent
+                    rather than present-and-inert. See types.ts VideoClipAudio. */}
+                {!selVideo && (
                 <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
                   <div className="flex items-center gap-1.5">
                     <Orbit size={12} className={spatial ? 'text-accent' : 'text-fg-3'} />
@@ -1482,9 +1489,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                     <p className="text-micro text-fg-3 italic">Off — the clip plays flat (unspatialised) into the mix.</p>
                   )}
                 </section>
+                )}
 
                 {/* Insert chain on this source. It runs BEFORE spatialisation, so a reverb here puts the
-                    source in a room and then the room is placed with it — which is what you want. */}
+                    source in a room and then the room is placed with it — which is what you want.
+                    Video clips have none of their own, for the reason above: the chain is the layer's. */}
+                {!selVideo && (
                 <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
                   <div className="flex items-center gap-1.5">
                     {/* fxOf, so the COUNT is the count of the chain actually rendered below: `"effects":"abc"`
@@ -1501,6 +1511,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   <EffectChain scope="clip" effects={fxOf(selClip.effects)} docKey={gestureDocKey}
                     onChange={(fx, touched) => setClipEffects(selClip.id, fx, touched)} />
                 </section>
+                )}
 
                 {/* THE TRACK'S CHAIN — and it is here, under the clip's, because that is the order it RUNS
                     in: channel insert, then bus insert. It reads like a bus and it is not one. The engine
@@ -1555,14 +1566,19 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                                 readoutClassName="text-micro text-fg-2 tabular-nums w-10 text-right shrink-0" />
                             </div>
                             <p className="text-micro text-fg-3 leading-snug">
-                              Every clip on this track that has no position of its own is placed here. A clip
-                              with one keeps it.
+                              {selVideo
+                                ? 'Every clip on this layer is placed here — a video clip has no position of its own.'
+                                : 'Every clip on this track that has no position of its own is placed here. A clip with one keeps it.'}
                             </p>
                           </div>
                         </div>
                       </>
                     ) : (
-                      <p className="text-micro text-fg-3 italic">Off — clips on this track are placed only by their own positions.</p>
+                      <p className="text-micro text-fg-3 italic">
+                        {selVideo
+                          ? 'Off — clips on this layer play flat (unspatialised) into the mix.'
+                          : 'Off — clips on this track are placed only by their own positions.'}
+                      </p>
                     )}
 
                     <div className="flex items-center gap-1.5 pt-1.5 border-t border-line-1">
@@ -1575,8 +1591,9 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                       </span>
                     </div>
                     <p className="text-micro text-fg-3 leading-snug">
-                      Runs after this clip’s own chain, on <em>every</em> clip on this track. One instance per
-                      clip, so a reverb tail stops at a cut instead of ringing across it.
+                      {selVideo
+                        ? 'Runs on every clip on this layer — a video clip has no chain of its own. One instance per clip, so a reverb tail stops at a cut instead of ringing across it.'
+                        : 'Runs after this clip’s own chain, on every clip on this track. One instance per clip, so a reverb tail stops at a cut instead of ringing across it.'}
                     </p>
                     <EffectChain scope="clip" effects={fxOf(selTrack.effects)} docKey={gestureDocKey}
                       onChange={(fx, touched) => setTrackEffects(selTrack.id, fx, touched)} />

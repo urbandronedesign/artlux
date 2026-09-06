@@ -435,6 +435,19 @@ export interface VideoLayerAudio {
  * stale and a trim cannot desynchronise it. The audio placement is DERIVED from the video clip every frame
  * (timelineEngine.getBoundVideoAudio), which is what makes blade/slip/move/undo free.
  */
+/**
+ * A video clip's soundtrack carries LEVEL AND TIMING. Its placement and its character belong to the LAYER.
+ *
+ * ⚠ NO `spatial`, NO `effects`, AND THEIR ABSENCE IS THE DESIGN. Both were declared here from the day the
+ * third container landed and NEITHER WAS EVER AUTHORABLE — there has never been a control anywhere in the
+ * app that wrote one. When one was finally built, the answer was that it is the wrong scope: a video
+ * layer is a track of shots, and an operator placing a layer in the room means the layer, not each cut on
+ * it. So the position and the insert chain live on `VideoLayerAudio` (→ AudioTrack.spatial / .effects),
+ * one control for the whole lane, and every clip on it inherits.
+ *
+ * What stays here is what is genuinely per-clip: whether this shot is audible at all, how loud, and how
+ * far its sound sits from its picture.
+ */
 export interface VideoClipAudio {
   enabled?: boolean;     // absent ⇒ TRUE. false = deliberately silent.
   gain?: number;         // linear, default 1
@@ -442,8 +455,6 @@ export interface VideoClipAudio {
   offsetMs?: number;     // A/V trim, + = audio later. Folded into the derived clip's inPoint.
   fadeIn?: number;       // s
   fadeOut?: number;      // s
-  spatial?: AudioSpatial;  // absent ⇒ non-spatial (the engine gives this away free — see docs/AUDIO.md)
-  effects?: AudioEffect[]; // insert chain on the source, applied BEFORE spatialisation
 }
 // A clip placed on a track. All times are seconds.
 export interface VideoClip {
@@ -971,11 +982,12 @@ const sanitizeClip = (c: VideoClip): VideoClip => ({
  */
 const sanitizeClipAudio = (a: VideoClipAudio | undefined): VideoClipAudio | undefined => {
   if (!a || typeof a !== 'object') return undefined;
-  // Migrated AND coerced in one call -- see shared/spatial.ts. A malformed position still reads as NO
-  // position (the clip is simply not spatialised), which is what this test always did.
-  const spatial = migrateSpatial(a.spatial);
+  // `...a` FIRST, THEN THE FIELDS THAT SURVIVE — and the two retired ones are stripped explicitly, because
+  // the spread would otherwise carry a hand-edited `spatial`/`effects` straight back into the document.
+  const { spatial: _pos, effects: _fx, ...rest } = a as VideoClipAudio & { spatial?: unknown; effects?: unknown };
+  void _pos; void _fx;
   return {
-    ...a,
+    ...rest,
     // `enabled` is a tri-state on purpose: absent ⇒ audible. Only an explicit `false` silences a clip, so
     // a junk value must fall back to ABSENT and not to `false` — coercing junk into silence would be the
     // one coercion in this file that destroys the operator's sound rather than a number.
@@ -985,15 +997,22 @@ const sanitizeClipAudio = (a: VideoClipAudio | undefined): VideoClipAudio | unde
     // same way or the same clips come back louder.
     gain: (() => {
       const g = finiteNum(a.gain);
-      const fold = legacyAttenGain(a.spatial);
+      // READ THROUGH A CAST, BECAUSE THE FIELD IS GONE FROM THE TYPE BUT NOT FROM EVERY FILE. `spatial`
+      // was declared on VideoClipAudio for two releases without a single control that could write one, so
+      // no project made by this app carries it — but a hand-edited one might, and a 0.26-era position
+      // carried a LEVEL (`attenuation`) folded into gain everywhere else. Migrate it, then drop the field
+      // with everything else below: the value survives where the operator can still see it.
+      const fold = legacyAttenGain((a as { spatial?: unknown }).spatial);
       return fold === 1 ? g : (g ?? 1) * fold;
     })(),
     offsetMs: finiteNum(a.offsetMs),
     fadeIn: finiteNum(a.fadeIn),
     fadeOut: finiteNum(a.fadeOut),
     mute: a.mute === true ? true : undefined,
-    spatial,
-    effects: Array.isArray(a.effects) ? a.effects : undefined,
+    // …and `spatial` / `effects` are deliberately NOT carried through. A clip-scoped position or chain on a
+    // video clip is not authorable and is not read (services/videoAudio.ts projects neither), so keeping it
+    // in the document would be a value that sounds nowhere, shows nowhere and cannot be cleared. Placement
+    // and character are the LAYER's — see VideoClipAudio's own note.
   };
 };
 

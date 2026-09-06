@@ -287,7 +287,7 @@ Effects live at two scopes:
 
 | Scope | Field | Runs | Use it for |
 |---|---|---|---|
-| **Clip** | `AudioClip.effects` (and `VideoClipAudio.effects`) | on the source, **before** encoding | *character*: reverb, filter, delay — "put this voice in a room, then place the room" |
+| **Clip** | `AudioClip.effects` | on the source, **before** encoding | *character*: reverb, filter, delay — "put this voice in a room, then place the room" |
 | **Master** | `AudioBus.effects` (`ProjectData.audio.buses`, id `master`) | on the **decoded** N-channel output | *protection*: a compressor/limiter to keep the rig safe, a corrective filter |
 
 This is the standard **object-audio** convention, and it is forced by the engine rather than chosen.
@@ -408,7 +408,7 @@ and core's `pathLeaf` were already container-blind and none of them moved.
 |---|---|---|
 | the bed (`ProjectData.audio`) | `Bed ▸ …` · `Track ▸ …` | the **show** clock |
 | the bound timeline (`Timeline.audio`) | `This timeline ▸ …` | that timeline's **playhead** |
-| a video clip's soundtrack (derived) | `Video clip ▸ …` · `Video layer ▸ …` | the **playhead**, with its picture |
+| a video clip's soundtrack (derived) | `Video clip ▸ …` (gain only) · `Video layer ▸ …` (gain, position, FX) | the **playhead**, with its picture |
 
 > **The last two belong to the BOUND document, so the catalog changes on every recall** — a scene's lanes
 > wake with the scene and sleep when it leaves. `compileAutomation()` already runs at the recall and on
@@ -517,21 +517,28 @@ are the three ways to stop it:
 This is the inverse of the three silences below — *unexpected sound with a UI that says nothing is playing* —
 so it gets the same treatment: one named cause, one place to fix it.
 
-### It spatialises and takes an insert chain, like any other source
+### It spatialises and takes an insert chain — on its LAYER, not per clip
 
-Select the video clip on the timeline and the **Audio Bed's clip inspector follows it**, badged `VIDEO CLIP`
-— the same positioner pad, the same gain, the same insert chain a bed or scene clip gets. Nothing here is a
-special case: the derived clip is an `AudioClip` in shape, so the driver's one reconcile spatialises and
-processes it exactly as it does the other two containers.
+Select the video clip on the timeline and the **Audio Bed's clip inspector follows it**, badged `VIDEO CLIP`.
+What it offers is deliberately split by scope:
 
-**The two halves are in two panels, and that is deliberate.** *How it sounds* — gain, mute, position, FX —
-is the mixer's job and lives in the Audio Bed. *Whether it sounds at all*, and the A/V trim, stay in the
-clip's own inspector on the timeline, next to the picture they belong to.
+| | Where | Applies to |
+|---|---|---|
+| **level** — gain, mute | the clip | that shot |
+| **position, insert chain** | the **layer** (the Track section) | *every* clip on the lane |
+| **on/off, A/V offset** | the clip's own inspector on the timeline | that shot |
+
+**A video layer is a track of shots, and the room-placing gesture belongs to the layer.** Placing each cut
+separately is a control nobody reaches for, so `VideoClipAudio` carries no `spatial` and no `effects` at
+all — not hidden, absent. The layer's position and chain reach each clip at the point of encoding
+(`withTrack` in the driver), which is also the only place they *can* be applied, since the engine's insert
+is per source.
 
 > **The write does not land on the derived clip — there is no such document.** `va:` clips are recomputed
 > from the timeline every read, so the inspector writes the **video clip's own `audio` block**
-> (`host.audio.patchVideoClipAudio`, the third writer) and the derivation picks it up on the next read.
-> `patchTimelineClip` addresses `Timeline.audio` and will never find a `va:` id.
+> (`host.audio.patchVideoClipAudio`) or the **layer's** (`host.audio.patchAudioTrack`, on a `vl:` id), and
+> the derivation picks it up on the next read. `patchTimelineClip` addresses `Timeline.audio` and will
+> never find a `va:` id.
 
 ### Lipsync
 
