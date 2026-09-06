@@ -287,7 +287,7 @@ Effects live at two scopes:
 
 | Scope | Field | Runs | Use it for |
 |---|---|---|---|
-| **Clip** | `AudioClip.effects` | on the source, **before** encoding | *character*: reverb, filter, delay — "put this voice in a room, then place the room" |
+| **Clip** | `AudioClip.effects` (and `VideoClipAudio.effects`) | on the source, **before** encoding | *character*: reverb, filter, delay — "put this voice in a room, then place the room" |
 | **Master** | `AudioBus.effects` (`ProjectData.audio.buses`, id `master`) | on the **decoded** N-channel output | *protection*: a compressor/limiter to keep the rig safe, a corrective filter |
 
 This is the standard **object-audio** convention, and it is forced by the engine rather than chosen.
@@ -448,6 +448,22 @@ are the three ways to stop it:
 
 This is the inverse of the three silences below — *unexpected sound with a UI that says nothing is playing* —
 so it gets the same treatment: one named cause, one place to fix it.
+
+### It spatialises and takes an insert chain, like any other source
+
+Select the video clip on the timeline and the **Audio Bed's clip inspector follows it**, badged `VIDEO CLIP`
+— the same positioner pad, the same gain, the same insert chain a bed or scene clip gets. Nothing here is a
+special case: the derived clip is an `AudioClip` in shape, so the driver's one reconcile spatialises and
+processes it exactly as it does the other two containers.
+
+**The two halves are in two panels, and that is deliberate.** *How it sounds* — gain, mute, position, FX —
+is the mixer's job and lives in the Audio Bed. *Whether it sounds at all*, and the A/V trim, stay in the
+clip's own inspector on the timeline, next to the picture they belong to.
+
+> **The write does not land on the derived clip — there is no such document.** `va:` clips are recomputed
+> from the timeline every read, so the inspector writes the **video clip's own `audio` block**
+> (`host.audio.patchVideoClipAudio`, the third writer) and the derivation picks it up on the next read.
+> `patchTimelineClip` addresses `Timeline.audio` and will never find a `va:` id.
 
 ### Lipsync
 

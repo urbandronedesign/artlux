@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
@@ -1928,6 +1928,48 @@ const App: React.FC = () => {
       return out;
     });
   };
+  // ── THE SAME DOOR, ONTO A VIDEO CLIP'S `audio` BLOCK (host.audio.patchVideoClipAudio) ────────────
+  //
+  // The third container is DERIVED (services/videoAudio.ts): there is no document holding a `va:` clip, so
+  // patchBoundTimelineClipRef above cannot reach one — it addresses `Timeline.audio` and would simply drop
+  // the id. But the thing the derivation READS is authored and perfectly writable: `VideoClip.audio`.
+  //
+  // So this is the same router as above, one level across: the caller names the VIDEO clip, and the patch
+  // lands on its `audio` block, in the bound document only. Every rule from patchBoundTimelineClipRef
+  // carries over unchanged and for the same reasons — it routes off the active scene, and an id that is not
+  // in the bound document is DROPPED rather than searched for across scenes whose ids alias.
+  //
+  // `undefined` in the patch DELETES the key, which is what keeps a project file from filling with
+  // redundant defaults: the mixer writes `{ gain: undefined }` to mean "back to unity", not `{ gain: 1 }`.
+  // (`enabled` already relies on this — absent means audible.)
+  const patchVideoClipAudioRef = useRef<(clipId: string, patch: Partial<VideoClipAudio>) => void>(() => {});
+  patchVideoClipAudioRef.current = (clipId, patch) => {
+    const applied = (t: Timeline): Timeline | null => {
+      if (!t.clips.some(c => c.id === clipId)) return null;
+      return {
+        ...t,
+        clips: t.clips.map(c => {
+          if (c.id !== clipId) return c;
+          const audio = { ...(c.audio ?? {}), ...patch };
+          // Drop the keys the patch set to undefined, then drop the block entirely if nothing survives —
+          // an empty `audio: {}` on every video clip in the show is noise in the file and in every diff.
+          for (const k of Object.keys(audio) as (keyof VideoClipAudio)[]) if (audio[k] === undefined) delete audio[k];
+          return Object.keys(audio).length ? { ...c, audio } : { ...c, audio: undefined };
+        }),
+      };
+    };
+    const sceneId = activeSceneIdRef.current;
+    if (!sceneId) { setTimeline(prev => applied(prev) ?? prev); return; }   // `?? prev` — a drop must not re-render
+    setScenes(prev => {
+      const i = prev.findIndex(s => s.id === sceneId);
+      if (i < 0) return prev;
+      const next = applied(prev[i].timeline);
+      if (!next) return prev;                                              // not this document's clip — drop
+      const out = prev.slice();
+      out[i] = { ...prev[i], timeline: next };
+      return out;
+    });
+  };
   // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
   // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
   const timelineAuthor = {
@@ -3445,6 +3487,8 @@ const App: React.FC = () => {
       // id that is not in the bound document is DROPPED (clip ids alias across scenes — Capture Scene clones
       // them). The whole argument is on patchBoundTimelineClipRef above and in the SDK's AudioService.
       patchTimelineClip: (clipId, patch) => patchBoundTimelineClipRef.current(clipId, patch as Partial<AudioClip>),
+      // The third container's writer. Takes the VIDEO clip's id (not the derived `va:` one) — see the SDK.
+      patchVideoClipAudio: (clipId, patch) => patchVideoClipAudioRef.current(clipId, patch as Partial<VideoClipAudio>),
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
     },
     // Cold-start readiness: a plugin that loads content of its own (the audio plugin's conforms + engine

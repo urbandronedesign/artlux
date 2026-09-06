@@ -927,6 +927,25 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
    * param) must draft locally and call this ONCE, on release — never per pointermove.
    */
   patchTimelineClip(clipId: string, patch: Partial<TlClip>): void;
+
+  /**
+   * THE THIRD WRITER — patch a VIDEO clip's `audio` block, which is what `getVideoAudio()` is derived FROM.
+   *
+   * ⚠ `clipId` IS THE VIDEO CLIP'S ID, NOT THE DERIVED `va:` ONE. There is no document holding a `va:`
+   * clip — that container is recomputed every frame from the timeline's video clips — so there is nothing
+   * for an id-addressed write to land on. Strip the prefix (or keep the video clip's own id around) and
+   * write here; the derivation picks the change up on the next read, with no invalidation to remember.
+   *
+   * `undefined` in the patch DELETES that key rather than writing it, and callers should rely on it: the
+   * defaults are ABSENCES (absent `enabled` means audible, absent `gain` means unity), so writing an
+   * explicit `1` where the operator returned a fader to centre puts a redundant field in every project
+   * file forever. An `audio` block left with no keys is removed entirely.
+   *
+   * Same router, same three rules, same costs as `patchTimelineClip` above — the bound document only, a
+   * miss is a DROP and never a search across scenes whose ids alias, and one call is a full core document
+   * commit. Draft locally, commit once on release.
+   */
+  patchVideoClipAudio(clipId: string, patch: Record<string, unknown>): void;
   subscribe(cb: () => void): () => void;  // fires when EITHER container changes (the bed, or the bound timeline)
 }
 

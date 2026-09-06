@@ -87,7 +87,18 @@ interface SceneRef { id: string; name: string }
 // cannot import core's types) — and it is DISCRIMINATED for a reason: the two containers commit through
 // completely different paths, and a `source ?? 'bed'` guess would silently edit the bed, which survives
 // every scene recall, under a live show.
+//
+// A `clip` selection is a VIDEO clip, and it is no longer ignored here: its own soundtrack is the third
+// container (host.audio.getVideoAudio), whose derived clip carries the id `va:<that clip's id>`. It is the
+// only source whose clip is NOT a document — see patchVidClip.
 type Sel = { kind: 'clip'; id: string } | { kind: 'audioClip'; id: string; source: 'bed' | 'timeline' } | null;
+/** Which container the inspector is looking at. 'video' is derived; the other two are documents. */
+type SelSource = 'bed' | 'timeline' | 'video';
+// The derived container prefixes a video clip's id (services/videoAudio.ts). One place each way, because
+// getting it wrong means writing to a document that has no such clip and watching the edit vanish.
+const VA = 'va:';
+const vaId = (videoClipId: string): string => VA + videoClipId;
+const videoClipIdOf = (derivedId: string): string => derivedId.slice(VA.length);
 
 // THE RING — where the speakers are drawn AND where a source at full level sits, as a fraction of the
 // pad's half-width. One radius for both, because they mean the same thing: a direction at unit level.
@@ -506,6 +517,10 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // back), so the panel paints the result optimistically from this ref and lets the host's fan-out confirm
   // it a render later. Without the ref, an axis write would carry a stale copy of its siblings.
   const tlRef = useRef<TlAudio>(tlAudio);
+  // THE THIRD CONTAINER, read-only. Held so the inspector can READ a video clip's authored audio (gain,
+  // position, chain); every WRITE goes to the video clip itself through patchVidClip, never here.
+  const [vidAudio, setVidAudio] = useState<TlAudio>(() => (host?.audio.getVideoAudio() as TlAudio) ?? EMPTY_TL);
+  const vidRef = useRef<TlAudio>(vidAudio);
   // Floating (non-blocking) window — draggable by its header so it can be moved clear of the Media library.
 
   // Defaults TRUE so no badge flashes while the probe is in flight. Only an explicit false lights it, and
@@ -528,6 +543,11 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
       const t = (host.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL;
       tlRef.current = t;   // THE HOST IS THE TRUTH — it overwrites any optimistic patch below, including a dropped one
       setTlAudio(t);
+      // …and the derived one. Reference-stable while the timeline's clips are unchanged (the host promises
+      // it), so this setState bails out on every fire that did not touch a video clip.
+      const v = (host.audio.getVideoAudio() as TlAudio) ?? EMPTY_TL;
+      vidRef.current = v;
+      setVidAudio(v);
       // The fan-out fires on `[audioMix, activeTimeline]` — so a recall that rebinds the bound document
       // wakes it in the recall render. A primitive setState with an unchanged value is a React bail-out, so
       // this costs nothing on the (far commoner) bed-only fire.
@@ -606,8 +626,14 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     return () => clearInterval(iv);
   }, [host]);
 
-  const selId = sel && sel.kind === 'audioClip' ? sel.id : null;
-  const selSource: 'bed' | 'timeline' | null = sel?.kind === 'audioClip' ? sel.source : null;
+  // A VIDEO CLIP IS SELECTABLE HERE NOW, and it arrives as core's ordinary `clip` selection — no new
+  // channel, no change to services/selection.ts. It resolves to the DERIVED clip `va:<id>`, and only when
+  // the timeline actually contributes one: a clip with no audio track, with its soundtrack switched off, or
+  // whose conform has not landed is simply not in the container, and the inspector shows nothing rather
+  // than a set of controls that would write into silence.
+  const vidSelId = sel?.kind === 'clip' && vidAudio.clips.some(c => c.id === vaId(sel.id)) ? vaId(sel.id) : null;
+  const selId = sel && sel.kind === 'audioClip' ? sel.id : vidSelId;
+  const selSource: SelSource | null = sel?.kind === 'audioClip' ? sel.source : (vidSelId ? 'video' : null);
   // A new selection — OR A REBOUND DOCUMENT — abandons any half-finished pad drag, or the draft would paint
   // the NEW clip's dot at the OLD clip's position.
   //
@@ -643,7 +669,8 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   //     There is nothing to rebind and nothing to alias, so a bed gesture must NOT be abandoned — guarding
   //     it would throw away an edit that had nowhere else to go.
   // `undefined` for the bed is therefore not an omission; it is the statement that the bed cannot rebind.
-  const gestureDocKey = selSource === 'timeline' ? docKeyOf : undefined;
+  //   · a VIDEO clip's audio lives in the bound timeline too — same rebind, same aliasing, same guard.
+  const gestureDocKey = selSource === 'bed' ? undefined : docKeyOf;
   // Patch ONE clip in the bound timeline's own audio. Optimistic locally (the host hands nothing back), and
   // guarded by the SAME rule the host applies: an id that is not in the container we are looking at is
   // DROPPED, not searched for. The host's fan-out is the truth and overwrites this a render later.
@@ -661,13 +688,34 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     setTlAudio(next);
     host?.audio.patchTimelineClip(id, p);
   };
-  // The selected clip's writer, and its container's read side. `mixRef`/`tlRef`, never the React render —
-  // both are a render behind (see mixRef).
-  const patchSelClip = (id: string, p: Partial<Clip>) => {
-    if (selSource === 'timeline') patchTlClip(id, p); else patchClip(id, p);
+  // ── THE THIRD WRITER — AND THE ONE WHOSE CLIP IS NOT A DOCUMENT ──────────────────────────────────
+  //
+  // `va:` clips are DERIVED (services/videoAudio.ts recomputes them from the timeline's video clips every
+  // read), so there is nothing here to patch: writing into vidRef would be overwritten by the next
+  // derivation, and there is no document behind it to persist. The authored thing is the VIDEO clip's own
+  // `audio` block, so that is where this goes — id un-prefixed, through the host door built for it.
+  //
+  // Only the fields the two shapes share travel. An AudioClip's placement (start/duration/inPoint) has no
+  // meaning here: a video clip's soundtrack is placed BY the picture, which is the whole point of deriving
+  // it, and the inspector never offers those controls for this source.
+  const patchVidClip = (id: string, p: Partial<Clip>) => {
+    const cur = vidRef.current;
+    if (!cur.clips.some((c) => c.id === id)) return;   // gone from the container — abandon, exactly as patchTlClip does
+    // Optimistic paint, same as the timeline's writer: the derivation is a render behind us.
+    vidRef.current = { ...cur, clips: cur.clips.map((c) => (c.id === id ? { ...c, ...p } : c)) };
+    setVidAudio(vidRef.current);
+    host?.audio.patchVideoClipAudio(videoClipIdOf(id), p as Record<string, unknown>);
   };
-  const selClipIn = (id: string): Clip | undefined =>
-    (selSource === 'timeline' ? tlRef.current.clips : mixRef.current.clips).find((c) => c.id === id);
+  // The selected clip's writer, and its container's read side. `mixRef`/`tlRef`/`vidRef`, never the React
+  // render — all three are a render behind (see mixRef).
+  const patchSelClip = (id: string, p: Partial<Clip>) => {
+    if (selSource === 'video') patchVidClip(id, p);
+    else if (selSource === 'timeline') patchTlClip(id, p);
+    else patchClip(id, p);
+  };
+  const containerFor = (source: SelSource | null): Clip[] =>
+    source === 'video' ? vidRef.current.clips : source === 'timeline' ? tlRef.current.clips : mixRef.current.clips;
+  const selClipIn = (id: string): Clip | undefined => containerFor(selSource).find((c) => c.id === id);
   // ⚠ RELEASE ONLY THE BED'S PATHS. A takeover is a bed concept: the audio automation provider enumerates
   // the BED's tracks/clips/master and nothing else (automationTargets.ts readMix), so a Timeline.audio clip
   // has no lane and no scene/cue fade over it — there is nothing to take back. And `audio.clip.<id>.*` is
@@ -682,7 +730,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // the wrong container. The fader would draw a BED lane's value, the badge would name a lane that does not
   // exist for it, and it would go READ-ONLY for that phantom lane. `bed` ⇒ read it; anything else ⇒ nobody
   // is driving this control, which is the truth.
-  const drivenOn = (source: 'bed' | 'timeline' | null, path: string): Driven | undefined =>
+  const drivenOn = (source: SelSource | null, path: string): Driven | undefined =>
     (source === 'bed' ? drive.get(path) : undefined);
 
   // ---- THE AUTHORED WRITES. Every one names its PATH. -------------------------------------------------
@@ -904,10 +952,13 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // can legitimately exist in both (handleAddScene captures the global doc's timeline with structuredClone,
   // so a scene's Timeline.audio inherits its clip ids verbatim). Guessing would edit the wrong document.
   const selClip: Clip | null = useMemo(() => {
+    // A VIDEO clip resolves through the derived container, under its `va:` id. Everything below then works
+    // on it unchanged — it is an AudioClip in shape, and only its WRITER differs (patchVidClip).
+    if (sel?.kind === 'clip') return vidAudio.clips.find((c) => c.id === vaId(sel.id)) ?? null;
     if (!sel || sel.kind !== 'audioClip') return null;
     const pool = sel.source === 'bed' ? mix.clips : tlAudio.clips;
     return pool.find((c) => c.id === sel.id) ?? null;
-  }, [sel, mix, tlAudio]);
+  }, [sel, mix, tlAudio, vidAudio]);
   // ⚠ THERE IS NO `selReadOnly` ANY MORE, AND THERE MUST NOT BE ONE AGAIN. It used to disable every control
   // below for `source === 'timeline'` because the panel had no write path into Timeline.audio. It has one
   // now (patchTlClip → host.audio.patchTimelineClip), and while a scene is bound a timeline clip is the ONLY
@@ -915,6 +966,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // of a scene-authoring session. The container difference is now expressed where it actually lives: the
   // WRITE (selSource) and the RELEASE (releaseSel), not in a disabled attribute.
   const selTimeline = selSource === 'timeline';   // for the badge + the notes; NEVER for `disabled`
+  const selVideo = selSource === 'video';         // likewise — a video clip's own soundtrack
   // What the ENGINE is playing for the selected clip's gain. BED clips only — a timeline clip has no lane
   // and no fade over it, and its id aliases into the bed's namespace (see drivenOn).
   const selGainDrive = selClip ? drivenOn(selSource, `audio.clip.${selClip.id}.gain`) : undefined;
@@ -1201,7 +1253,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                 <p className="text-mini text-fg-3">Select an audio clip on the timeline to shape it.</p>
                 <p className="text-micro text-fg-3/70">
                   {sel?.kind === 'clip'
-                    ? 'A video clip is selected — this inspector shapes audio (gain, spatial position, effects).'
+                    ? 'This video clip contributes no sound — it has no audio track, its soundtrack is switched off in the clip inspector, or its conform has not finished yet.'
                     : 'Gain, spatial position and the insert chain live here; placement, trim and fades live on the lane.'}
                 </p>
               </div>
@@ -1220,11 +1272,13 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   </button>
                   {/* WHICH CONTAINER — and therefore WHICH CLOCK. Both are writable; they differ in WHEN they
                       are heard, which is the one thing the operator cannot see from the controls below. */}
-                  <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${selTimeline ? 'bg-surface-3 text-fg-2' : 'bg-accent/15 text-accent'}`}
-                    title={selTimeline
-                      ? "This clip is on the BOUND TIMELINE's own audio (Timeline.audio) — it rides the playhead and restarts with its timeline."
-                      : 'This clip is on the BED (ProjectData.audio) — it rides the show clock and survives a scene recall.'}>
-                    {selTimeline ? 'this timeline' : 'bed'}
+                  <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${selTimeline || selVideo ? 'bg-surface-3 text-fg-2' : 'bg-accent/15 text-accent'}`}
+                    title={selVideo
+                      ? "This is a VIDEO CLIP's own soundtrack, derived from the clip on the timeline — it rides the playhead with its picture. Its placement IS the picture's; there is nothing to trim here."
+                      : selTimeline
+                        ? "This clip is on the BOUND TIMELINE's own audio (Timeline.audio) — it rides the playhead and restarts with its timeline."
+                        : 'This clip is on the BED (ProjectData.audio) — it rides the show clock and survives a scene recall.'}>
+                    {selVideo ? 'video clip' : selTimeline ? 'this timeline' : 'bed'}
                   </span>
                 </div>
 
@@ -1246,6 +1300,18 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                     timeline does — it is not on the show clock. Gain, mute, position and FX are yours here;
                     its placement, trim and fades live on its lane, and its TRACK's mute, solo and gain live in
                     that lane's gutter.
+                  </p>
+                )}
+                {/* THE THIRD CONTAINER SAYS WHAT IT IS AND WHERE THE REST OF IT LIVES. Everything below
+                    writes the VIDEO clip's own `audio` block — but the controls this panel does NOT carry
+                    for it (On/off, the A/V offset) are in the video clip's own inspector on the timeline,
+                    and an operator who cannot find them will conclude the feature is missing. */}
+                {selVideo && (
+                  <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
+                    This is the soundtrack inside {boundPhrase}’s video clip, so it rides the PLAYHEAD with its
+                    picture — there is no separate lane and nothing to place. Gain, mute, position and FX are
+                    yours here; switching it off entirely and trimming its A/V offset live in the clip’s own
+                    inspector on the timeline.
                   </p>
                 )}
 
