@@ -1,6 +1,8 @@
 # The audio device open blocks the main process for ~6 seconds
 
-> **Status:** 🔎 **MEASURED, NOT BUILT** (sub-steps measured 2026-09-06; the surrounding two defects
+> **Status:** ☑ **PART BUILT 2026-09-06** (`c27c15b`) — the redundant device open is gone: 7.8 s → 0.7 s
+> end to end. What remains is the driver's own ~5.2 s WASAPI-shared open, which only a device-type
+> change avoids. Previously: 🔎 **MEASURED, NOT BUILT** (sub-steps measured 2026-09-06; the surrounding two defects
 > fixed 2026-09-05 on `main@be7c34b`). The two defects that
 > *surrounded* this one are fixed and shipped in the v0.26.6 re-cut; this is what is left.
 > **Placement:** `native/audio-engine` + `plugins/audio` (main half only) · **Risk:** 🔴 high — the JS
@@ -160,13 +162,39 @@ and any silence is bounded by the device open alone.
 - **Two harness log filters silently hid the answer they were built to surface.** A log line you cannot
   see reads exactly like a log line that never fired.
 
+## BUILT 2026-09-06 — the redundant open (`c27c15b`)
+
+The measurement above was taken with *Windows Audio* selected, which is the one configuration where this
+bug is invisible: `initialise` happens to open the very device we wanted, so removing it saves ~370 ms.
+With **ASIO** selected — which is what the machine was actually set to — the app opened the WASAPI
+default first at full price, discarded it, and then opened ASIO:
+
+| | as shipped | fixed |
+|---|---|---|
+| ASIO selected | initialise 5471 + switch 1817 + open 54 = **7342 ms** | 62 + 288 + 53 = **403 ms** |
+| Windows Audio selected | 5409 + 0 + 344 = **5753 ms** | 64 + 0 + 5171 = **5235 ms** |
+| **cold open, 10-scene project, 3 runs** | **7806 ms** | **707 ms** |
+
+`initialise(0, ch, nullptr, true)` is replaced by `getAvailableDeviceTypes()` — the scan, without the
+open. The `true` was `selectDefaultDeviceOnFailure`, and two things had been relying on it silently;
+both are now explicit and tested (a named device that will not open still leaves the default live; an
+empty device name really opens the default instead of reporting success over nothing). Guarded by
+invariant #156.
+
+**So the earlier conclusion here — "nothing in our code can make the wait shorter" — was wrong**, and
+wrong because it was measured in the single configuration that hides the defect. That is the fifth time
+in this investigation that a confident answer did not survive a second configuration.
+
 ## Open questions
 
-1. ~~Which sub-step costs the 5.7 s?~~ **Answered 2026-09-06: one WASAPI *shared-mode* open of the
-   Realtek endpoint. Not the scan, not ASIO, not a redundant open.**
-2. **Does switching the device type to ASIO or DirectSound actually fix the cold start end to end?**
-   Only the device open was timed; the app was never run that way. This is the cheapest thing left and
-   it needs no code.
+1. ~~Which sub-step costs the 5.7 s?~~ **Answered twice.** A WASAPI *shared-mode* open of the Realtek
+   endpoint really does cost ~5.2 s — but the app was ALSO opening a device nobody asked for, worth up
+   to 7 s on its own. That half is fixed (`c27c15b`); the driver's half is not ours.
+2. ~~Does switching the device type fix the cold start end to end?~~ **Answered: on the shipped build it
+   made things WORSE** (ASIO 7.3 s vs Windows Audio 5.8 s), because it added a device-type switch on top
+   of the wasted default open. With `c27c15b` in, ASIO is now the fast path: **0.4 s** against 5.2 s.
+   DirectSound is fast to open but meters silent on this machine, on the pre-change build too —
+   pre-existing, uninvestigated, and a reason not to recommend it.
 3. Is ~5.5 s particular to this Realtek driver? Almost certainly — a WASAPI shared open is normally tens
    of milliseconds — but it is unmeasured on any other machine, and the venue PC is the one that counts.
 4. If Option B lands, does the boot gate grow a "device open" probe — keeping the guarantee and the 6 s —
