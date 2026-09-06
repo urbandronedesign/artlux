@@ -1,7 +1,7 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand, type RendererFault } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand, type RendererFault, type LogRecord } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
@@ -18,6 +18,7 @@ import * as fixtureLibrary from './fixtureLibrary';
 import { importGdtf } from './gdtf';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
+import * as logger from './logger';
 import { rebuildAppMenu } from './menu';
 import { allowClose, cancelClose } from './closeGuard';
 import { activateMainPlugins } from './host/plugins';
@@ -67,6 +68,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const from = BrowserWindow.fromWebContents(e.sender) === getWindow() ? 'main' : 'aux';
         watchdog.noteRendererFault(fault, from);
     });
+
+    // ---- The machine log (plans/machine-logging.md) ----
+    // Main is the SINGLE WRITER; every other process ships batches here. Records arrive already
+    // level-gated and already stamped with their own process, clocks and sequence — `ingest` preserves
+    // all three, because renumbering would destroy the one property that makes a `seq` gap mean
+    // "records were dropped" rather than "nothing happened".
+    ipcMain.on(IPC.LOG_EVENT, (_e, records: LogRecord[]) => logger.ingest(records));
 
     // ---- Unattended watchdog (self-healing; Tier-1 lives in ./watchdog, armed in index.ts) ----
     ipcMain.handle(IPC.WATCHDOG_STATUS, () => watchdog.status());

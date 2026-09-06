@@ -5,6 +5,7 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackProvider } from './components/ui';
 import { installGlobalNet } from './services/faultReporter';
+import { installLogTap } from './services/log';
 
 // Before createRoot: catches what a React boundary structurally cannot — throws in effects' async
 // callbacks, in rAF/timeout ticks, and rejected promises. (Not a module-scope throw during import:
@@ -12,6 +13,9 @@ import { installGlobalNet } from './services/faultReporter';
 // listener ahead of that. THAT case is covered from the other side — main's watchdog starts its
 // first-heartbeat clock at 'did-finish-load' and relaunches a renderer that never paints.)
 installGlobalNet('main');
+
+// Adopt this window's existing console narration into the machine log (services/log.ts).
+installLogTap();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

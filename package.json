@@ -18,6 +18,7 @@
     "verify": "npm run verify:invariants && npm run verify:docs && npx tsc -p tsconfig.json --noEmit",
     "verify:invariants": "node scripts/verify-invariants.cjs",
     "verify:docs": "node scripts/verify-docs.cjs",
+    "logs:render": "node scripts/logs-render.cjs",
     "verify:plugins": "node scripts/verify-plugins.cjs",
     "verify:resources": "node scripts/verify-package-resources.cjs",
     "verify:asio": "node scripts/verify-asio-licence.cjs",

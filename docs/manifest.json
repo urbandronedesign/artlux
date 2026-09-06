@@ -22,7 +22,6 @@
     "",
     "Adding a doc? Add it here, or `npm run verify` fails. That is the point."
   ],
-
   "guideDir": "docs/user-guide",
   "guide": [
     "README.md",
@@ -45,11 +44,15 @@
     "17-installing.md",
     "18-unattended.md"
   ],
-  "guideExclude": ["PLAN.md"],
-
-  "examples": ["audio", "lidar-tracking",
-    "shader", "state-machine"],
-
+  "guideExclude": [
+    "PLAN.md"
+  ],
+  "examples": [
+    "audio",
+    "lidar-tracking",
+    "shader",
+    "state-machine"
+  ],
   "$referenceOrder": [
     "KEY ORDER IS THE READING ORDER, and src/main/docs.ts renders the operator sidebar in it. Do not",
     "sort this block alphabetically or group it by tag: the previous hand-kept list opened with the",
@@ -65,7 +68,6 @@
     "LAUNCHER.md": "usage",
     "WORKSPACE.md": "hybrid",
     "SHORTCUTS.md": "hybrid",
-
     "SURFACES.md": "hybrid",
     "EFFECTS.md": "hybrid",
     "SHADERS.md": "usage",
@@ -73,35 +75,29 @@
     "SHADER-NODES.md": "usage",
     "ASSETS.md": "hybrid",
     "CODECS.md": "usage",
-
     "TIMELINE.md": "hybrid",
     "AUDIO.md": "hybrid",
     "SCENES.md": "hybrid",
     "SCENE-TIMELINES.md": "hybrid",
     "STATE-MACHINE.md": "hybrid",
     "SHOW-CONTROL.md": "hybrid",
-
     "OUTPUTS.md": "hybrid",
     "FIXTURE-LIBRARY.md": "hybrid",
     "LIGHTING-SHOW.md": "hybrid",
     "LEDMAP.md": "usage",
-
     "CALIBRATION.md": "hybrid",
     "AUTO-ALIGN.md": "hybrid",
     "NVWARP.md": "hybrid",
-
     "OSC.md": "hybrid",
     "NDI.md": "hybrid",
     "SPOUT.md": "hybrid",
-
     "AUGMENTA.md": "hybrid",
     "MEDIAPIPE.md": "hybrid",
     "TRACKING_TAKES.md": "hybrid",
     "TRACKING_SYNC.md": "usage",
-
     "MONITORING.md": "usage",
     "WATCHDOG.md": "usage",
-
+    "LOGGING.md": "usage",
     "ARCHITECTURE.md": "code",
     "CALIB-OPTIMIZATIONS.md": "code",
     "DESIGN-SYSTEM.md": "code",
@@ -112,7 +108,6 @@
     "SDK.md": "code",
     "UI-UX-AUDIT.md": "code"
   },
-
   "generated": [
     {
       "block": "keymap",
@@ -139,7 +134,6 @@
       "why": "Ten noise generators, each compiled on a real driver by the release harness. A noise function that does not build is worse than none, because it is copied before it is tested."
     }
   ],
-
   "verifiedAgainstSource": [
     {
       "what": "OSC control addresses",

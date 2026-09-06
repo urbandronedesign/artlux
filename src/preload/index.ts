@@ -4,7 +4,7 @@ import {
     type ProjectData, type RigData, type Prefs, type UpdateEvent,
     type DisplayInfo, type OscConfig, type OscMessage,
     type WindowCommand, type RenderStats, type WatchdogEvent, type RendererFault,
-    type BootEntry, type BootReport,
+    type BootEntry, type BootReport, type LogRecord,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -25,6 +25,7 @@ const api: ArtluxApi = {
     // React error boundary and from window.onerror, i.e. from a tree that is already failing — an
     // awaited round-trip there is one more thing that can throw.
     reportRendererFault: (fault: RendererFault) => ipcRenderer.send(IPC.RENDERER_FAULT, fault),
+    logRecords: (records: LogRecord[]) => ipcRenderer.send(IPC.LOG_EVENT, records),
     configureInput: (cfg: InputConfig) => ipcRenderer.send(IPC.INPUT_CONFIGURE, cfg),
     onDmxInput: (cb: (frames: InputFrame[]) => void) => {
         const listener = (_e: unknown, frames: InputFrame[]) => cb(frames);

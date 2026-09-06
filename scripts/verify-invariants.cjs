@@ -4830,7 +4830,126 @@ check(
   },
 );
 
+// ── Machine logging: the four properties that keep it from becoming the problem ────────────────
+// (plans/machine-logging.md). Each of these is a change that would compile, boot, throw nothing, and
+// surface as something else entirely.
+
+check(
+  'the frame path never imports the logger',
+  'The frame loop runs at 30-60 Hz and touches every surface, fixture and universe. One log line per ' +
+  'frame is the FLOOR; per-fixture is tens of thousands a second. These modules exist precisely to ' +
+  'keep work off that path (see plans/engine-decoupling.md), and the symptom of breaking it is not an ' +
+  'error but "the venue judders" — investigated as a GPU problem. Console calls in these files are ' +
+  'fine: shared/consoleTap.ts rate-limits them.',
+  () => {
+    const bad = [];
+    const banned = [
+      'src/renderer/engine/frameEngine.ts',
+      'src/renderer/services/livePreview.ts',
+      'src/renderer/services/dmxSignal.ts',
+      'src/renderer/services/fixtureSignal.ts',
+      'src/renderer/services/automationOverlay.ts',
+    ];
+    for (const f of banned) {
+      if (!exists(f)) continue; // a deleted module is not a violation
+      const src = read(f);
+      if (/from\s+['"][^'"]*\/log['"]/.test(src) || /from\s+['"]\.\/log['"]/.test(src)) bad.push(f);
+    }
+    return bad.length ? `imports services/log: ${bad.join(', ')}` : null;
+  },
+);
+
+check(
+  "the logger's write path is asynchronous",
+  'appendFileSync on main\u2019s main thread blocks it. Art-Net survives (the native pacer has its own ' +
+  'thread) but IPC, the watchdog health timer and anything the renderer awaits stall behind it \u2014 and a ' +
+  'venue project folder can be an SMB share where a write hangs for SECONDS. The ONLY sanctioned sync ' +
+  'write is the final flush in the quit path, where blocking is correct.',
+  () => {
+    const f = 'src/main/logger.ts';
+    if (!exists(f)) return null;
+    const src = read(f);
+    const body = braceBody(src, 'function write(');
+    if (!body) return 'could not find write() \u2014 the guard cannot see what it is meant to protect';
+    if (/Sync\s*\(/.test(body)) return 'write() performs a SYNCHRONOUS fs call';
+    // …and the sync flush must stay behind the `sync` flag rather than becoming the default.
+    const flush = braceBody(src, 'export function flush(');
+    if (!flush) return 'could not find flush()';
+    if (/appendFileSync/.test(flush) && !/if\s*\(sync\)/.test(flush)) {
+      return 'flush() calls appendFileSync outside the `if (sync)` branch';
+    }
+    return null;
+  },
+);
+
+check(
+  'the console tap keeps its re-entrancy guard',
+  'The logger calls console.warn when a sink degrades. Without the `inside` flag that warning is ' +
+  'tapped, which logs, which warns \u2014 an infinite loop that ends the process, and it would fire for the ' +
+  'first time on the machine whose network share just dropped.',
+  () => {
+    const f = 'shared/consoleTap.ts';
+    if (!exists(f)) return null;
+    const src = read(f);
+    if (!/if\s*\(inside\)\s*return/.test(src)) return 'no `if (inside) return` guard';
+    if (!/inside\s*=\s*true/.test(src) || !/inside\s*=\s*false/.test(src)) return 'the guard is never set/cleared';
+    return null;
+  },
+);
+
+check(
+  'the renderer log client survives having no window',
+  'Several pure services (openTrace, dockTree, lookahead\u2026) are imported by tsc-checked scripts that ' +
+  'run under plain node \u2014 DEVELOPMENT.md \u2192 Testing. services/log.ts is imported by openTrace, so a ' +
+  'module-scope `window.location` there throws a ReferenceError on import and takes the script down ' +
+  'for a reason unrelated to what it was testing.',
+  () => {
+    const f = 'src/renderer/services/log.ts';
+    if (!exists(f)) return null;
+    const src = read(f);
+    if (!/typeof window !== 'undefined'/.test(src)) return 'no `typeof window` guard at module scope';
+    if (/new URLSearchParams\(window\.location/.test(src)) return 'reads window.location unguarded at module scope';
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+check(
+  'every process-exit path closes the log session',
+  'A log file is ONE RUN of the app: it opens with session.start and closes with session.end, and a ' +
+  'file whose last line is not session.end means the run died. app.exit() does NOT fire before-quit, ' +
+  'so a relaunch path that forgets logger.shutdown() silently produces a truncated session — and an ' +
+  'unattended machine takes those paths (watchdog self-heal, playlist switch) far more often than it ' +
+  'is ever quit by hand, so the sessions that matter most would be exactly the broken ones.',
+  () => {
+    const bad = [];
+    for (const f of walk('src/main')) {
+      const src = read(f);
+      if (!/\bapp\.exit\s*\(/.test(src)) continue;
+      if (!/logger\.shutdown\s*\(/.test(src)) bad.push(f);
+    }
+    return bad.length ? `calls app.exit() without logger.shutdown(): ${bad.join(', ')}` : null;
+  },
+);
+
+check(
+  'the log never splits one session across files',
+  'One file = one run is the property the whole log is arranged around. Rotating mid-session would ' +
+  'produce a second file that looks like a session of its own but carries no session.start, and a ' +
+  'reader would have to reassemble runs by timestamp — the very thing this design exists to avoid. ' +
+  'Reaching the size ceiling truncates the session with a marker instead.',
+  () => {
+    const f = 'src/main/logger.ts';
+    if (!exists(f)) return null;
+    const src = read(f);
+    const w = braceBody(src, 'function write(');
+    if (!w) return 'could not find write() — the guard cannot see what it is meant to protect';
+    if (!/log\.truncated/.test(w)) return 'write() no longer marks a session that hit the ceiling';
+    if (/sessionFileName\s*\(/.test(w)) return 'write() mints a new file mid-session (that is a rotation)';
+    return null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

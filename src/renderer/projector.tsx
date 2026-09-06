@@ -4,6 +4,7 @@ import './styles/index.css';
 import { ProjectorApp } from './projector/ProjectorApp';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installGlobalNet } from './services/faultReporter';
+import { installLogTap } from './services/log';
 
 // Dedicated projector-output window entry. One per Surface routed to a physical display:
 // renders the surface's content independently at native resolution and corner-pin warps it
@@ -17,6 +18,9 @@ import { installGlobalNet } from './services/faultReporter';
 // (audited as an 'aux' fault, so it never relaunches the show — that decision belongs to the main
 // window's own detectors, and two windows racing to relaunch is a bug).
 installGlobalNet('projector');
+
+// Adopt this window's existing console narration into the machine log (services/log.ts).
+installLogTap();
 
 const rootElement = document.getElementById('root');
 if (rootElement) {

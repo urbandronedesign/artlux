@@ -23,6 +23,7 @@ import type {
   WorkspaceContext, ContextRegistry,
   SelectionSnapshot,
 } from '@artlux/sdk/renderer';
+import * as mediaTiming from '../services/mediaTiming';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
 import type { WorkspaceLayout } from '../services/layoutStore';
 import type { Scene3D } from '../../../shared/protocol';
@@ -110,8 +111,50 @@ export const smTriggerRegistry: SmTriggerRegistry = {
 
 // ── Video codecs (pluggable decoders for non-<video> file content, e.g. HAP) ────────────────
 const videoCodecs: VideoCodecContribution[] = [];
+
+/**
+ * Time `probe` and `openSurface` on the way past — the two spans that decide how long a cold open
+ * waits on media, and the two nothing measured before (services/mediaTiming.ts).
+ *
+ * Done HERE, once, rather than inside each codec: hap and mp4 would otherwise each need the same
+ * bookkeeping, every future codec would need to remember it, and a plugin author would be carrying
+ * host diagnostics. Both methods are per-path and asynchronous — called once when a file enters the
+ * show, never per frame — so this wrapper cannot become a hot path.
+ *
+ * `openSurface` resolving FALSE is not a failure: it means "not this codec, fall back to a plain
+ * <video>". That distinction is preserved rather than flattened into an error.
+ */
+function timed(c: VideoCodecContribution): VideoCodecContribution {
+  const { probe, openSurface } = c;
+  return {
+    ...c,
+    async probe(path: string): Promise<boolean> {
+      const t0 = performance.now();
+      try {
+        const ok = await probe.call(c, path);
+        mediaTiming.noteProbe(path, c.id, performance.now() - t0, ok);
+        return ok;
+      } catch (e) {
+        mediaTiming.noteError(path, c.id, 'probe', e);
+        throw e;
+      }
+    },
+    async openSurface(path: string): Promise<boolean> {
+      const t0 = performance.now();
+      try {
+        const ok = await openSurface.call(c, path);
+        mediaTiming.noteOpen(path, c.id, performance.now() - t0, ok);
+        return ok;
+      } catch (e) {
+        mediaTiming.noteError(path, c.id, 'open', e);
+        throw e;
+      }
+    },
+  };
+}
+
 export const videoCodecRegistry: VideoCodecRegistry = {
-  register(c) { upsertById(videoCodecs, c, 'video-codec'); },
+  register(c) { upsertById(videoCodecs, timed(c), 'video-codec'); },
   all() { return videoCodecs.slice(); },
   forPath(path) { return videoCodecs.find((c) => c.canDecode(path)); },
   get(id) { return videoCodecs.find((c) => c.id === id); },

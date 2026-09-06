@@ -229,6 +229,16 @@ export const IPC = {
   SPLASH_FADE_OUT: 'splash:fade-out',
   /** Editor renderer → main: this window's plugin activation results, for the splash's console. */
   SPLASH_RENDERER_REPORT: 'splash:renderer-report',
+  /**
+   * Renderer → main: a BATCH of log records (see LogRecord).
+   *
+   * Batched, never one send per record: a batch makes the IPC cost bounded by the CLOCK (one send
+   * per ~250 ms) instead of by how fast the thing being logged happens. Fire-and-forget for the same
+   * reason RENDERER_FAULT is — the logging path must never make a caller wait, and must never be the
+   * thing that takes a renderer down. Main is the single writer; N processes appending to one file
+   * interleaves and corrupts it, and ArtLux routinely runs main + editor + N projector windows.
+   */
+  LOG_EVENT: 'log:event',
 } as const;
 
 export interface UpdateEvent {
@@ -1239,6 +1249,8 @@ export interface Prefs {
   workspaces?: unknown;
   /** Unattended self-healing watchdog config (broadcast/show installs). Absent = defaults, disabled. */
   unattended?: UnattendedPrefs;
+  /** Machine logging config. Per-MACHINE (it describes this install's disk and verbosity, not the show). */
+  logging?: LoggingPrefs;
   /** Show the startup splash (credits + licence + the plugin/native boot console). Default: true.
       Editor mode only — headless/broadcast never open it regardless (see main/splashWindow.ts). */
   showSplash?: boolean;
@@ -1288,6 +1300,73 @@ export interface Prefs {
 // does a full leak-safe process relaunch into the current --broadcast --project=…. A circuit breaker
 // caps relaunches so a crash-on-launch can't storm. Tier-2 (a Windows Scheduled Task) relaunches the
 // whole app if the process dies entirely. See docs/WATCHDOG.md.
+// ---- Machine logging (plans/machine-logging.md) ----
+// A per-install, per-machine record of what this copy of ArtLux did: the machine's configuration, how
+// long a project took to load, which video cost that time, and everything that failed. It exists
+// because a venue install runs unattended for days and the app already MEASURES most of this — it just
+// sends it to console.log, where it is visible to a developer with DevTools open and to nobody else.
+//
+// One JSON object per line (JSONL). That is still a .txt: it opens in Notepad and `type`s in a
+// terminal, while staying answerable by script — "every video over 1 s on machine 3 last week" is not
+// a question aligned prose can answer.
+
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+export interface LogRecord {
+  /** Wall clock, ISO-8601 with ms. What a human correlates against a cue sheet. */
+  t: string;
+  /**
+   * Milliseconds since this process started — monotonic.
+   *
+   * Both clocks are carried on purpose. A venue machine's clock can simply be wrong, and NTP can STEP
+   * it mid-show: `t` then jumps (possibly backwards) while `up` never does. Ordering and durations are
+   * read off `up`; `t` is for correlating with the outside world.
+   */
+  up: number;
+  lv: LogLevel;
+  /** 'app' | 'config' | 'boot' | 'open' | 'media' | 'editor' | 'output' | 'watchdog' | 'health' | 'plugin:<id>' | … */
+  cat: string;
+  /** `<object>.<verb>` — the stable grep key. Renaming one breaks every saved query. */
+  ev: string;
+  /** 'main' | 'editor' | 'projector:<n>' | 'headless' — which process emitted it. */
+  proc: string;
+  /** Correlation id minted per project open, so one show run groups. Absent before the first open. */
+  run?: string;
+  /**
+   * Per-process monotonic counter. A GAP PROVES A DROPPED RECORD — without it, back-pressure loss is
+   * invisible and the log quietly lies about what happened.
+   */
+  seq: number;
+  /** Payload. Small BY CONSTRUCTION (ids, counts, durations) — never a raw document. Capped at 1 KB. */
+  d?: Record<string, unknown>;
+  err?: { message: string; stack?: string };
+}
+
+/** Per-MACHINE logging configuration. Absent = enabled at 'info' with the documented defaults. */
+export interface LoggingPrefs {
+  /** Absent = on. Off writes nothing at all (the queue is never even filled). */
+  enabled?: boolean;
+  /** Floor for every category. Absent = 'info'. Operator actions live at 'debug', so they are off here. */
+  level?: LogLevel;
+  /** Per-category overrides — "turn media up on this machine only" without raising the whole log. */
+  categories?: Record<string, LogLevel>;
+  /**
+   * Absent = on. Mirror this session into `<project>/logs/` so a show folder carries its own history.
+   *
+   * ⚠ A project folder is the PORTABLE thing: copying one to another machine carries these logs with
+   * it, hostname and LAN addresses included. That is a known, accepted consequence — see
+   * plans/machine-logging.md §11. This pref is how you turn it off.
+   */
+  projectSink?: boolean;
+  /** Ceiling on ONE session's file. Reaching it truncates that session rather than splitting it
+   *  across two files, because one file = one session is the property the log is built on. */
+  maxFileMB?: number;   // absent = 32
+  maxFiles?: number;    // absent = 50  — session files kept locally…
+  maxAgeDays?: number;  // absent = 30  — …none older than this…
+  maxTotalMB?: number;  // absent = 256 — …and never more than this on disk in total
+  sessionKeep?: number; // absent = 50  — session files retained in a project's logs/
+}
+
 export interface UnattendedPrefs {
   enabled: boolean;              // master watchdog on/off
   crashRecovery: boolean;        // Tier-1 crash/hang/GPU recovery (webContents listeners)
@@ -1443,6 +1522,8 @@ export interface ArtluxApi {
    * forget by design — the reporting path must never be able to take the renderer down.
    */
   reportRendererFault(fault: RendererFault): void;
+  /** Renderer → main: ship a batch of log records to the single writer. Fire-and-forget. */
+  logRecords(records: LogRecord[]): void;
   configureInput(cfg: InputConfig): void;
   onDmxInput(cb: (frames: InputFrame[]) => void): () => void;
   // Persistence

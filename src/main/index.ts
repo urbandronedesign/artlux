@@ -2,6 +2,8 @@ import './threadpool'; // MUST stay first — sizes the libuv pool before anythi
 import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme, dialog } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
+import * as logger from './logger';
+import * as machineInfo from './machineInfo';
 import { openEnginePort, closeEnginePort } from './enginePort';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
@@ -344,6 +346,16 @@ app.whenReady().then(() => {
         app.quit();
         return;
     }
+    // THE MACHINE LOG. Started before anything else that could have something to say, so main-plugin
+    // activation, the boot report and any early failure all land in it — and so a machine that cannot
+    // open a project still leaves a record of what it IS. See main/logger.ts.
+    logger.start(persistence.getPrefs().logging, {
+        version: app.getVersion(),
+        mode: RUN_MODE,
+        install: machineInfo.installId(),
+        argv: process.argv.slice(1),
+        project: PROJECT_PATH || persistence.getPrefs().lastProjectPath || null,
+    });
     // Force dark UI so the native Windows menu bar (File/Edit/View/…) and other OS-drawn
     // chrome render dark instead of following the system light theme.
     nativeTheme.themeSource = 'dark';
@@ -365,6 +377,10 @@ app.whenReady().then(() => {
     // Before the first window loads, so a renderer can never race it with a media request.
     registerMediaProtocol();
     registerIpc(() => mainWindow);
+    // The machine snapshot + the diff against the last boot. AFTER registerIpc so the main-process
+    // plugin halves have already reported into bootReport, and deliberately NOT awaited — a sick GPU
+    // driver can make the probe slow, and that is exactly the machine that must still open a window.
+    void machineInfo.emitBoot();
     metrics.start(); // Prometheus /metrics endpoint (loopback by default; ARTLUX_METRICS=0 to disable)
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
     // SWITCH LAUNCH PROFILE. Calibration is not a runtime toggle (plugin activation happens once per
@@ -376,6 +392,7 @@ app.whenReady().then(() => {
         const args = relaunchArgs();
         if (on) args.push('--calibrate');
         if (projectPath) args.push(`--project=${projectPath}`);
+        logger.shutdown('relaunch'); // app.exit() skips before-quit — close the session here or it has no end
         releaseLockForRelaunch();
         app.relaunch({ args });
         app.exit(0);
@@ -385,6 +402,7 @@ app.whenReady().then(() => {
         const args = relaunchArgs();
         args.push('--broadcast');
         if (projectPath) args.push(`--project=${projectPath}`);
+        logger.shutdown('relaunch'); // app.exit() skips before-quit — close the session here or it has no end
         releaseLockForRelaunch();
         app.relaunch({ args });
         app.exit(0);
@@ -423,6 +441,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+    logger.shutdown('quit');
     watchdog.stop();
     metrics.stop();
     globalShortcut.unregisterAll();

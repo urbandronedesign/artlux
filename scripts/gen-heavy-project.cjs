@@ -289,7 +289,8 @@ function makeFixtures(surfaces) {
             surfaceId: surface.id,          // strict per-surface sampling
             controllerId: onB ? 'ctl_b' : 'ctl_a',
             channelsPerPixel: 4,
-            colorOrder: 0,
+            colorOrder: 'RGB', // ColorOrder is a STRING enum — a numeric 0 makes COLOR_ORDER[…] undefined
+                               // and frameEngine.packAndPublish throws on order[0], killing the frame loop.
         };
     });
 }

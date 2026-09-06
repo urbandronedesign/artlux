@@ -19,6 +19,7 @@
 import type { BootEntry, BootReport } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as nvwarp from './nvwarpManager';
+import * as logger from './logger';
 
 const entries: BootEntry[] = [];
 let mainDone = false;
@@ -31,6 +32,11 @@ const notify = (): void => { const r = snapshot(); subs.forEach((cb) => cb(r)); 
 
 export function record(entry: BootEntry): void {
   entries.push(entry);
+  // Also as a durable record. `ms` is the load duration this module already measures, and the state is
+  // what turns "why is there no NDI on this machine" from a load-in question into a grep.
+  logger.log(entry.state === 'ok' ? 'info' : 'warn', 'boot', 'boot.module', {
+    id: entry.id, group: entry.group, state: entry.state, ms: entry.ms ?? null, detail: entry.detail ?? null,
+  });
   notify();
 }
 

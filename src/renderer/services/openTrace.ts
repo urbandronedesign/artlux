@@ -15,6 +15,9 @@
 // A new `begin()` starts a fresh trace: opens can repeat in one session (playlist, watchdog relaunch)
 // and appending forever would make "the last open" unreadable.
 
+import { log, setRun } from './log';
+import * as mediaTiming from './mediaTiming';
+
 export interface OpenMark {
   phase: string;   // e.g. 'apply-start', 'scenes-normalized', 'gate-armed'
   at: number;      // ms since begin() (performance.now-based)
@@ -25,10 +28,22 @@ let t0 = 0;
 let marks: OpenMark[] = [];
 
 // Start a fresh trace. Called at the earliest renderer-side moment of an open (project data received).
+//
+// This is also where the machine log's RUN correlation id is minted, because "a fresh trace" and "a
+// fresh show run" are the same event. An unattended machine opens a project many times a night — the
+// playlist scheduler starts a clean process per show, the watchdog relaunches into one — so without a
+// run id the night's log is an undifferentiated stream that cannot be split back into runs.
 export function begin(): void {
   t0 = performance.now();
   marks = [{ phase: 'begin', at: 0, delta: 0 }];
+  runId = `r${Date.now().toString(36)}`;
+  setRun(runId);
+  mediaTiming.reset(); // last show's spans must not be attributed to this one (playlist machines)
+  log.info('open', 'open.begin', { run: runId });
 }
+
+let runId = '';
+export function run(): string { return runId; }
 
 // Record a named point. Safe to call with no begin() (e.g. the very first HMR load) — it self-starts,
 // so a missed begin degrades to slightly-wrong absolute times rather than a throw inside App.
@@ -49,6 +64,13 @@ export function logTable(): void {
   // console.table would be nicer to read but is invisible to a CDP console-drain; one line per mark
   // keeps the bench harness (and a venue log) able to parse it.
   console.log('[open-trace] ' + marks.slice(1).map(m => `${m.phase}=${m.at}ms(+${m.delta})`).join(' '));
+  // …and once as DATA: one record carrying the whole array, rather than one record per phase.
+  //
+  // Deliberate: the array IS the per-phase data, and a reader wanting "how long did `apply` take across
+  // the last fifty opens" gets it with a one-line filter into `marks`. Emitting eight records per open
+  // would triple the open's line count to answer the same question no better.
+  const totalMs = marks.length ? marks[marks.length - 1]!.at : 0;
+  log.info('open', 'open.trace', { totalMs, marks: marks.slice(1) });
 }
 
 // The bench harness reads this over CDP. Guarded like hapDecode's __artluxHapStats: this module is

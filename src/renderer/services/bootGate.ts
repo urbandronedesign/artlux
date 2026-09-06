@@ -33,6 +33,8 @@
 import { timeline as engine } from './timeline';
 import * as surfaceMedia from './surfaceMedia';
 import * as openTrace from './openTrace';
+import { log } from './log';
+import * as mediaTiming from './mediaTiming';
 import type { Surface, Timeline } from '../types';
 
 // A readiness contributor. `pending` names what is still missing (shown in the status chip and in the
@@ -83,7 +85,10 @@ let armedBy: BootProgress['armedBy'] = null;
 // while it pre-rolls; a label-keyed ledger counts that as two items, one of which never completes, so
 // the total inflates and the bar never fills. The key is the path (or the probe id); the label is
 // display text that may change under it.
-const ledger = new Map<string, { label: string; done: boolean }>();
+// `firstMs`/`doneMs` are what let the gate answer WHICH item was slow, not just how many were
+// outstanding. Poll-granular by nature — good enough for a wait measured in seconds, and free,
+// because the reconciliation below already visits every entry.
+const ledger = new Map<string, { label: string; done: boolean; firstMs: number; doneMs: number }>();
 
 /** `foo.mov (buffering)` → `foo.mov`. The identity is the thing; the parenthetical is its state. */
 const keyOf = (label: string): string => label.replace(/\s*\([^)]*\)\s*$/, '');
@@ -156,9 +161,14 @@ function tick(): void {
     const key = keyOf(label);
     seen.add(key);
     const e = ledger.get(key);
-    if (e) { e.label = label; e.done = false; } else ledger.set(key, { label, done: false });
+    const nowMs = performance.now() - startMs;
+    if (e) { e.label = label; e.done = false; } else ledger.set(key, { label, done: false, firstMs: nowMs, doneMs: 0 });
   }
-  for (const [key, e] of ledger) if (!seen.has(key)) e.done = true;
+  for (const [key, e] of ledger) {
+    if (seen.has(key)) continue;
+    if (!e.done) e.doneMs = performance.now() - startMs; // the poll it stopped being named
+    e.done = true;
+  }
   const elapsed = (performance.now() - startMs) / 1000;
   if (pending.length === 0) { finish(false, elapsed); return; }
   if (elapsed >= timeoutSec) { finish(true, elapsed); return; }
@@ -176,6 +186,26 @@ function finish(byTimeout: boolean, elapsedSec: number): void {
   openTrace.mark('gate-armed');
   openTrace.logTable();
   window.artlux?.perfOpenArmed?.();
+  // THE VERDICT, as data. This is the single most-wanted record in the whole machine log: it is what
+  // answers "why did the show open on black" the morning after, and it is knowable only here.
+  // `pending` is the full list, not the display-capped one — a log has no width limit and the item
+  // that never arrived is exactly the thing being looked for.
+  log[byTimeout ? 'error' : 'info']('open', 'open.armed', {
+    elapsedSec: Number(elapsedSec.toFixed(2)),
+    timedOut: byTimeout,
+    reason: byTimeout ? 'timeout' : 'ready',
+    items: ledger.size,
+    pendingCount: pending.length,
+    ...(pending.length ? { pending: pending.slice(0, 40) } : {}),
+  });
+  // Per-item readiness — which asset made the venue wait. Separate from `media.load`'s codec
+  // spans on purpose: these are gate LABELS, not paths, and inventing a join between them would
+  // be wrong in exactly the cases that matter (two clips of one file, a surface named after one).
+  mediaTiming.reportReady([...ledger.values()].map((e) => ({
+    label: e.label,
+    ms: (e.done ? e.doneMs : elapsedSec * 1000) - e.firstMs,
+    done: e.done,
+  })));
   if (byTimeout) {
     // ERROR, not warn: the show is about to open on a hole. This line is what the venue log will be
     // read for the morning after.

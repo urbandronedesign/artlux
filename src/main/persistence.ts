@@ -1,9 +1,10 @@
 import { app, dialog, type BrowserWindow } from 'electron';
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, statfsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { ProjectData, RigData, Prefs, OpenProjectResult } from '../../shared/protocol';
 import { relativizeAssets, resolveAssets } from './projectFolder';
 import * as mediaAccess from './mediaAccess';
+import * as logger from './logger';
 import * as thumbCache from './thumbCache';
 
 // All file I/O lives in main (the renderer is sandboxed with no fs access).
@@ -82,6 +83,17 @@ function pushRecent(path: string): void {
   const p = getPrefs();
   const recentFiles = [path, ...p.recentFiles.filter((f) => f !== path)].slice(0, MAX_RECENTS);
   setPrefs({ recentFiles, lastProjectPath: path });
+  // THE choke point for "the app is now working with this project" — save, open and load-path all
+  // funnel here, which is why the log's project sink is pointed from here rather than from three IPC
+  // handlers that would each have to remember.
+  logger.setProjectFolder(dirname(path));
+  // Free space on the PROJECT's volume, not just userData's — a show often lives on a second disk or
+  // a share, and "the drive holding the media is full" is a different fault from "the system disk is".
+  // Only knowable here, because at boot there is no project yet.
+  let volumeFreeMB: number | null = null;
+  try { const st = statfsSync(dirname(path)); volumeFreeMB = Math.round((Number(st.bavail) * Number(st.bsize)) / (1024 * 1024)); }
+  catch { /* a share that cannot be stat'd is itself worth seeing as null */ }
+  logger.log('info', 'project', 'project.active', { path, volumeFreeMB });
 }
 
 function readJson<T>(path: string): T | null {
@@ -130,6 +142,18 @@ function openProjectTimed(path: string): ProjectData | null {
     `[open] read=${(t1 - t0).toFixed(0)}ms parse=${(t2 - t1).toFixed(0)}ms resolve=${(t3 - t2).toFixed(0)}ms ` +
     `bytes=${text.length} scenes=${scenes} clips=${clips} rssMB=${(process.memoryUsage().rss / 1048576).toFixed(0)}`,
   );
+  // …and the same numbers as DATA. The console line above stays because it is what a developer reads
+  // in a terminal; this is what answers "which of the last fifty opens was slow, and in which phase".
+  logger.log('info', 'open', 'project.read', {
+    path,
+    bytes: text.length,
+    readMs: Math.round(t1 - t0),
+    parseMs: Math.round(t2 - t1),
+    resolveMs: Math.round(t3 - t2),
+    scenes,
+    clips,
+    rssMB: Math.round(process.memoryUsage().rss / 1048576),
+  });
   return resolved;
 }
 

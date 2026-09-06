@@ -37,6 +37,7 @@ import { join } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import type { OutputStats, RendererFault, UnattendedPrefs, WatchdogEvent, WatchdogStatus } from '../../shared/protocol';
 import { relaunchArgs } from './runProfile';
+import * as logger from './logger';
 
 export const WATCHDOG_DEFAULTS: UnattendedPrefs = {
   enabled: false,
@@ -144,10 +145,55 @@ export function stop(): void {
 // ─── Health feeds (called from the existing 1 Hz stat plumbing in ipc.ts) ─────────────────────────
 
 export function noteEngineStats(stats: OutputStats | null): void {
-  if (!armed) return;
   const fps = stats?.fps ?? 0;
+  // THE LOG'S EDGE DETECTION RUNS IN EVERY MODE — deliberately ahead of the `armed` guard below.
+  //
+  // The watchdog only arms in broadcast with the unattended pref on, so everything past this point is
+  // invisible in the editor. But "Art-Net stopped" is the most show-critical event there is and an
+  // operator wants it recorded wherever it happens, not only on an unattended machine. Nothing in the
+  // app logged it at all before: the watchdog tracked outputDownSince privately and never said so.
+  noteOutputEdge(fps, stats?.universes ?? 0);
+  if (!armed) return;
   if (fps > 0) { everUp = true; outputDownSince = null; }
   else if (everUp && outputDownSince === null) outputDownSince = Date.now();
+}
+
+// ─── Output up/down, for the machine log ──────────────────────────────────────────────────────
+// EDGES, NOT SAMPLES: the stats arrive at 1 Hz and logging each one would write 86,400 lines a day
+// that say nothing. Only a transition is recorded.
+//
+// Down is debounced, up is not. A single missed tick is a hiccup, not an outage — publishing it would
+// make the log flap and teach the reader to ignore the very event it exists for — so a stop must hold
+// for DOWN_TICKS before it is called one. Recovery is the opposite: it is unambiguous the instant it
+// happens, and its record carries how long the gap actually was (measured from the FIRST zero tick,
+// not from when we decided to believe it).
+const DOWN_TICKS = 3;
+let logEverUp = false;      // output has been live at least once — "down" means it died, not that it was never configured
+let zeroTicks = 0;
+let firstZeroAt = 0;
+let loggedDown = false;
+
+function noteOutputEdge(fps: number, universes: number): void {
+  if (fps > 0) {
+    if (loggedDown) {
+      logger.log('warn', 'output', 'output.up', {
+        downSec: Math.round((Date.now() - firstZeroAt) / 1000),
+        fps: Math.round(fps),
+        universes,
+      });
+    } else if (!logEverUp) {
+      logger.log('info', 'output', 'output.up', { first: true, fps: Math.round(fps), universes });
+    }
+    logEverUp = true;
+    loggedDown = false;
+    zeroTicks = 0;
+    return;
+  }
+  if (!logEverUp || loggedDown) return; // never started, or already reported
+  if (zeroTicks === 0) firstZeroAt = Date.now();
+  if (++zeroTicks < DOWN_TICKS) return;
+  loggedDown = true;
+  logger.log('error', 'output', 'output.down', { afterSec: Math.round((Date.now() - firstZeroAt) / 1000) });
 }
 
 // The payload is unused — its mere arrival is the heartbeat that the renderer frame loop is alive.
@@ -282,6 +328,9 @@ function maybeRelaunch(trigger: string, detail: string): void {
     if (project) args.push(`--project=${project}`);
     console.log('[watchdog] relaunch →', trigger, detail);
     try { app.releaseSingleInstanceLock(); } catch { /* ignore */ } // let the fresh process reclaim the lock
+    // The self-heal path exits without before-quit, and it is the one an unattended machine takes
+    // most often — so this is precisely where a missing end marker would hurt.
+    logger.shutdown('relaunch', { trigger });
     app.relaunch({ args });
     app.exit(0);
   } catch (e) {
