@@ -1241,6 +1241,50 @@ answers from reading code. And a CDP poller measuring a busy renderer *lies by o
 samples did not exist and the gap read as a plateau, producing a startup number wrong by 5.9 s. The
 recorder has to live in the page.
 
+### 2026-09-06 — the releases page: permanent download links, and a retention policy
+
+`11270bf`, `2148264`, `c2e9614`, `02fe230`, `55aeb13`, `d42411f`
+
+The question was "can I keep only the latest build?" The answer was that deleting is a destructive
+way to reach a **presentation** goal, and the two things actually wanted are separable: a download
+link that never changes, and a page that is not a list of every build ever cut.
+
+**Permanent links.** `artifactName` puts the version in every filename, so the only linkable thing was
+the releases *page* — which is why the README sent people to browse. Each release now also publishes
+fixed-name copies (`ArtLux-Setup-x64.exe`, `ArtLux-arm64.dmg`, `ArtLux-x86_64.AppImage`), and the
+launcher gets a rolling `launcher-latest` pre-release because it cannot use `/releases/latest` (that
+endpoint excludes pre-releases, and every launcher release is one). The aliases are inert to both
+updaters *by construction*: each reads the installer filename from `latest.yml`'s `path`, never from
+the asset list. Policy and the tag-name reasoning: [DEVELOPMENT.md → Release process](DEVELOPMENT.md#the-releases-page-permanent-links-and-what-happens-to-old-builds).
+
+**Retention by drafting, not deleting.** CI keeps 3 app / 2 launcher visible and retires the rest to
+drafts: invisible and unresolvable, assets and notes intact, `--draft=false` away from returning, and
+the git tag never moves either way. It is safe because the launcher's resolver already filtered on
+`!r.draft` before any of this existed. `v0.25.0`–`v0.25.6` were retired by hand the same day (18 rows
+→ 11). Not a storage measure — the repo is public and release assets are unbilled.
+
+**The bug the housekeeping question uncovered, which was the real find.** `newest_release` read the
+feed with a single un-paginated request of 30. Two products share that list and the app releases ~10×
+more often, so the newest `launcher-v*` sinks steadily down it — and the first time it passed row 30,
+every installed launcher would have started answering *"no published launcher release was found"* on
+self-update. Nothing local changes, no build fails, CI cannot see it, and it lands on the product
+whose whole job is installing things. It had **twelve app releases of headroom** when it was found.
+Now paged (100 × up to 5), and `cargo run --example selftest` prints how deep each product sits so the
+number is watchable rather than discovered.
+
+**Two things only running it caught.** Windows PowerShell 5.1's `ConvertFrom-Json` emits a JSON array
+as **one** object, so `@(ConvertFrom-Json …)` is a one-element list *holding* the array — the walk in
+`verify-download.ps1` inspected that single item, found no `tag_name`, and reported "no published
+launcher release was found". A wrong answer wearing a plausible message, not a parse error; assign,
+then wrap. And a URL fetched while its release is drafted can keep 404-ing **after** an undraft
+(CDN negative cache) — the API served the bytes fine, so do not read that as a lost asset.
+
+**Verification.** Live feed before and after (18 → 11 rows, app at position 1, launcher at 3);
+`/releases/latest` still `v0.26.7`; all seven tags and their source tarballs still resolve; the real
+launcher installer renamed to `ArtLuxLauncher-Setup-x64.exe` verifies (exit 0) while decoys under both
+fixed names fail as mismatches (exit 1) and versioned names still pass; and the retention selection
+dry-run against the live repo, with `echo` in place of every write.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

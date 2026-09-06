@@ -539,6 +539,57 @@ gh release view v0.4.0                  # confirm draft:false + assets incl. lat
 If a release re-run is needed, clear the broken one first:
 `gh release delete vX.Y.Z --yes --cleanup-tag`, then re-tag + push.
 
+### The releases page: permanent links, and what happens to old builds
+
+**Two products publish into one list**, and everything below follows from that. The rules that keep
+them from colliding — launcher releases are pre-releases so `/releases/latest` still means *the app*;
+both resolvers filter on tag shape and never trust ordering — are in
+[LAUNCHER.md](LAUNCHER.md#3-the-release-feed). This is the housekeeping half.
+
+**Every release publishes fixed-name copies** of its installers beside the versioned ones, so a link
+can exist that never needs editing. They are additional assets and **inert to both updaters by
+construction**: electron-updater and the launcher each read the installer's filename out of
+`latest.yml`'s `path`, never by scanning a release's asset list.
+
+```
+…/releases/latest/download/ArtLux-Setup-x64.exe          # + ArtLux-arm64.dmg, ArtLux-x86_64.AppImage
+…/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe
+```
+
+The launcher needs its own rolling tag because it *cannot* use `/releases/latest` — that endpoint
+excludes pre-releases, and every launcher release is one. `launcher-latest` was named against the
+resolver: it does not start with `launcher-v` (self-update skips it), is not `v<digit>` (`is_app_tag`
+rejects it), is a pre-release (the app still wins `latest`), and matches neither tag trigger (moving
+it cannot loop into a build). It deliberately carries **no `launcher-latest.yml`**.
+
+> ⚠ **A fixed-name file names no version**, so nothing can read the release off its filename.
+> `scripts/verify-download.ps1` resolves the newest release itself for those names. One consequence
+> worth stating to anyone verifying a download: if a release publishes *while* they download, they
+> are comparing one build against the next one's checksum. The script says so rather than reporting a
+> bare mismatch.
+
+**Old releases are RETIRED TO DRAFTS, never deleted.** CI keeps the newest **3 app / 2 launcher**
+releases visible and drafts the rest (`build.yml` / `launcher.yml`, after the publish step).
+
+- **Three, not one.** The one before last is the rollback. ArtLux runs unattended in venues, unsigned,
+  and re-cuts happen on the same version number, so "put this machine back on yesterday's build" must
+  not require rebuilding a three-OS native matrix that is never byte-identical anyway.
+- **A draft loses nothing.** Invisible to anonymous visitors, absent from the public API, assets stop
+  resolving — that is the point — but the release, its notes and every installer are intact.
+  `gh release edit vX.Y.Z --draft=false` restores it. The **git tag never moves either way**, so
+  `git checkout <tag>`, source tarballs and the tag page keep working while a release is retired.
+- **Safe because the launcher already skips drafts** (`!r.draft` in `newest_release`) — that filter
+  predates the retention step and is what makes drafting the correct verb rather than a clever one.
+- **Not a storage measure.** The repo is public; release assets are unbilled. It is about what a
+  person sees when they arrive.
+
+`v0.25.0`–`v0.25.6` were retired by hand on **2026-09-06**, taking the page from 18 rows to 11.
+
+> ⚠ **A download URL fetched while its release is drafted can keep 404-ing after you undraft it** —
+> GitHub's CDN caches the negative answer. Do not conclude the asset is gone: ask the API
+> (`gh api repos/<owner>/<repo>/releases/assets/<id>`), which serves the bytes directly. Observed on
+> exactly the one URL that had been probed during the drafted window; its siblings were fine.
+
 **Gotchas that have bitten the release:**
 - **`package-lock.json` must be in sync with the workspaces.** CI installs with `npm ci`, which fails
   hard when the lockfile is out of sync with `package.json` — and electron-builder also needs it to
