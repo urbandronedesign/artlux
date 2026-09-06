@@ -8,6 +8,7 @@
 // per pointermove (a commit re-enters App → setScenes → timelineEngine.setData → recompile + a full bed
 // re-sync; doing that 60×/s while dragging would be brutal).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
 import { toDisplay, fromDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
@@ -16,6 +17,7 @@ import { GUTTER, clamp } from './geometry';
 import { Trash2, Zap, ZapOff, Diamond, AlertTriangle } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
+import { usePopoverAnchor } from './usePopoverAnchor';
 
 export const AUTO_LANE_H = 64;
 const PAD = 8; // px of headroom top/bottom so a keyframe at min/max is still grabbable
@@ -112,6 +114,27 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   const h = lane.height ?? AUTO_LANE_H;
   const kfs = draft ?? lane.keyframes;
   const enabled = lane.enabled !== false;
+
+  // ── WHERE THE KEYFRAME EDITOR IS DRAWN ──────────────────────────────────────────────────────────
+  // PORTALLED AND PLACED FROM A MEASURED RECT, not `absolute` next to the diamond — see
+  // usePopoverAnchor, whose header documents this exact trap being walked into three times in this
+  // directory. This panel was the fourth: `absolute … z-20` inside a lane body that lives under the
+  // ruler's `sticky top-0 z-30` and, when the timeline is maximised, inside a `fixed inset-0 z-50`.
+  // Both are STACKING CONTEXTS, so the z-index stops meaning anything globally and the scroller's
+  // overflow-auto clips whatever hangs outside the 64px lane — which a value/time/curve panel always
+  // does. Nothing throws; only the pixels are wrong.
+  //
+  // The hook also answers what was actually asked for: it places the panel where it can be SEEN. Left
+  // is clamped into the viewport, and it prefers below the diamond and flips above when there is no
+  // room — which is the common case, the timeline being a bottom drawer.
+  const kfAnchorRef = useRef<HTMLDivElement | null>(null);
+  const kfBoxRef = useRef<HTMLDivElement | null>(null);
+  // ⚠ ABOVE THE `!def` BAIL, like every other hook here. estHeight is the panel's real height with all
+  // three rows and the button strip; it is only used for the flip on the very first frame, before
+  // boxRef measures.
+  const kfPos = usePopoverAnchor(editing !== null, kfAnchorRef, {
+    width: 176, estHeight: 190, boxRef: kfBoxRef, onDismiss: () => setEditing(null),
+  });
 
   // ⚠ EVERY HOOK IN THIS COMPONENT RUNS **ABOVE** THE `!def` BAIL — INCLUDING THE `path` MEMO. MOVING IT
   // BACK BELOW IS A WHITE SCREEN.
@@ -454,7 +477,10 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
                 {fmt(k.v)} <span className="text-fg-3">· {k.t.toFixed(2)}s</span>
               </span>
               <Tooltip id="timeline.automation-keyframe">
-                <div onPointerDown={dragKf(i)}
+                {/* The editor is placed from THIS element's measured rect (usePopoverAnchor), so the
+                    ref rides whichever diamond is open — one ref, never a list of them. */}
+                <div ref={editing === i ? kfAnchorRef : undefined}
+                  onPointerDown={dragKf(i)}
                   onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
                   onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
                   onDoubleClick={(e) => { e.stopPropagation(); openEditor(i); }}
@@ -473,16 +499,29 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
                   pointerdown and ADDS A KEYFRAME on double-click — so a click into the value field would
                   otherwise scrub the show, and a double-click to select a number would drop a new key
                   behind the panel that is editing one. */}
-              {editing === i && !readOnly && (
-                <div
+              {editing === i && !readOnly && createPortal(
+                <>
+                  {/* Click-away COMMITS, explicitly — not merely closes. Relying on the inputs' own
+                      onBlur would be a coin toss: a pointerdown on a non-focusable backdrop does not
+                      reliably blur first, and unmounting the portal can drop the event entirely, so a
+                      number typed and then dismissed by clicking the timeline would vanish. Backdrop
+                      before the box: they share the tier and DOM order decides, so the box is second. */}
+                  <div className="fixed inset-0 z-popover" onPointerDown={() => commitEditor(i)} />
+                  <div ref={kfBoxRef}
                   onPointerDown={(e) => e.stopPropagation()}
                   onDoubleClick={(e) => e.stopPropagation()}
+                  // The portal leaves the timeline scroller's subtree, which kills its non-passive
+                  // native wheel-zoom listener; this stops React's synthetic wheel travelling the React
+                  // tree too, so spinning over the panel cannot zoom the timeline underneath it.
+                  onWheel={(e) => e.stopPropagation()}
                   onKeyDown={(e) => {
                     // Enter commits whichever field has focus and closes; Escape abandons BOTH drafts.
                     if (e.key === 'Escape') { e.stopPropagation(); closeEditor(); }
                     if (e.key === 'Enter') { e.stopPropagation(); commitEditor(i); }
                   }}
-                  className={`absolute top-3 ${flip ? 'right-2' : 'left-2'} z-20 w-44 p-2 rounded border border-line-2 bg-surface-0 shadow-lg space-y-1.5`}>
+                  // Hidden until measured — a first paint at 0,0 flashes the panel in the window corner.
+                  style={{ left: kfPos?.left ?? 0, top: kfPos?.top ?? 0, visibility: kfPos ? 'visible' : 'hidden' }}
+                  className="fixed z-popover w-44 p-2 rounded border border-line-2 bg-surface-0 shadow-e3 space-y-1.5">
                   <div className="flex items-center gap-1.5">
                     <span className="text-micro text-fg-3 w-9 shrink-0">value</span>
                     {/* min/max/step/unit ALL IN THE DISPLAY UNIT — the same seam setValue documents. A
@@ -526,7 +565,9 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
                     <button onClick={() => commitEditor(i)}
                       className="ml-auto px-1.5 py-0.5 rounded bg-accent/15 text-accent text-micro hover:bg-accent/25">done</button>
                   </div>
-                </div>
+                  </div>
+                </>,
+                document.body,
               )}
             </div>
           );
