@@ -1369,6 +1369,66 @@ already drew on `scene3dRenderScale`.
 startup and would have gone straight into the file.
 
 
+## v0.27.1 — the documentation audited against the source that owns it (2026-09-07)
+
+`c965b5e`, `4b767fa`, `c5ec44d`, `51e1ced`, `80ddb81`, `fbabae4`, `b4791d6`
+
+Documentation only; no source file changed. Three review agents — code/architecture, depth, tone — then
+the depth pass **three times**. Every finding was verified against source before being acted on, and two
+were verified and **dropped**: a claimed stale "Tracking workbench" instruction in USER_GUIDE.md (no such
+string), and a claimed `→`-count of 27 (it was 39).
+
+**THE DEFECT SHAPE THAT MATTERED.** Not missing pages — *pages that were confidently wrong*, and wrong in
+the direction that costs a room time:
+
+- `07-audio.md` described a **distance slider** and a silent pad centre. `shared/spatial.ts` has no
+  distance (attenuation removed in 0.27) and the centre is **omni** — order 0, equal in every speaker. The
+  operator gesture for silence produced sound everywhere.
+- It listed `x`/`y`/`z` as automatable. `automationTargets.ts:369-370` emits `spatial.angle` and
+  `spatial.elevation` only, and has for two releases.
+- `AUDIO.md` and `DEVELOPMENT.md` **contradicted each other on ASIO**, where DEVELOPMENT.md carries the
+  measurement (Scarlett 6i6: generic driver 6 ch on WASAPI, vendor driver **2 ch**, every mode). On a
+  vendor driver ASIO is the only route to outputs 3+. `07-audio.md` did not mention ASIO at all, so the
+  chapter where the symptom appears had no route to the fix; it is now at step 5 of commissioning.
+
+**THE TAG WAS THE HOLE IN THE GUARD.** `verify:docs` fails a `hybrid` page that marks no seam. It cannot
+check the *tag*, and four pages were tagged `usage` — which declares a page entirely operator — while
+carrying a Tauri source tree (`LAUNCHER`), `docker compose` + an env-var table (`MONITORING`), the
+`Fixture.ledMap` data model and GPU sampling order (`LEDMAP`), and a verification step calling
+`webContents.forcefullyCrashRenderer()` (`WATCHDOG`). Retagged `hybrid`, seams marked. `OUTPUTS.md` had
+the same fault in miniature: the ENTTEC framing (`0x7E | label | … | 0xE7`) sat *above* its contributor
+marker; moved below rather than fragmenting a bullet list with a seam.
+
+**A PACKAGED INSTALL IS NOT A CHECKOUT.** `13-tracking.md` made `npm run assets:mediapipe` step 1 — no
+`package.json` ships, and CI stages those assets anyway (`build.yml`, "Stage MediaPipe offline assets"),
+so the step was both impossible and unnecessary there, *and* was the first troubleshooting answer for a
+symptom it cannot cause. `scripts/lidar-emitter.cjs` **is** in `build.extraResources`; `augmenta-emitter.cjs`
+is **not**. INSTALL.md offered a `.dmg` (`mac.identity: "-"` — ad-hoc, un-notarised, so Gatekeeper blocks
+first launch) and an `.AppImage`, then gave 250 lines of Windows-only instructions.
+
+**RUNNING THE CRITIC ONCE IS NOT ENOUGH, AND THE EVIDENCE IS THIS PASS.** Run 2 found **four errors run 1
+introduced**, all in the new `DOC-STYLE.md` — a grep result asserted without running it (`just` 111,
+`simply` 49, `seamless` 7, claimed as zero), a changelog heading misquoted in a way that inverted its
+tense, a quote attributed to the wrong file *and the wrong tier* in the document about tiers, and a wrong
+count substituted for a wrong count in CLAUDE.md. Run 3 found two rows of the new `TROUBLESHOOTING.md`
+pointing at pages that do not carry the promised fact, and an **ASCII diagram** still drawing `x`/`y` axes
+three paragraphs above the prose retiring them — a picture both earlier passes read past. Findings narrowed
+each run, which is the stop signal.
+
+**NEW.** `docs/DOC-STYLE.md` (`code`): how a page should read at each of the three tiers — tutorials
+beginner, the guide intermediate, `docs/*.md` expert — every rule grounded in a page already in this tree,
+with the repo's counter-examples quoted as what to avoid. `docs/TROUBLESHOOTING.md` (`usage`): a
+symptom-first index over seven scattered troubleshooting sections, holding no answers of its own by
+design. Its 19 fragments were checked by hand — `verify:docs` resolves links, **not anchors**, which is a
+gap worth a check if anyone adds one.
+
+**ALSO FOUND, NOT FIXED, NOT OURS TO FIX HERE.** The releases page shows **9 published app releases**
+against a documented policy of 3. The retention step ran and reported success on the v0.27.0 build, but
+every `gh release edit` inside its loop is followed by `|| echo "::warning::"` under
+`continue-on-error: true` — so a green step is not evidence the retirement happened. Needs a workflow
+change; this release contains none.
+
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

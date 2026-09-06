@@ -1,5 +1,114 @@
 # Changelog
 
+## v0.27.1
+
+Documentation only — no code changed. The docs ship inside the app, so this is a real release: the
+in-app Docs Browser, the F1 help search and the built HTML guide all carry what is below.
+
+### The audio chapter described a subsystem two releases old
+
+Three of its statements were not merely stale, they were **wrong in a way that costs time in a room**.
+
+It described a **distance slider** on the positioner pad and told you the centre of the pad was silent.
+There is no distance in this engine — the ambisonic encoder takes a bearing and a height and discards
+everything else — and the centre of the pad means **omni**: equal in every speaker of any layout. An
+operator dragging to the middle for silence got a sound in every box in the building. It listed
+`x`/`y`/`z` as the automatable position lanes; the targets have been **Angle** and **Height** for two
+releases, so anyone hunting the metres lanes the chapter promised found nothing and no explanation.
+And it taught **two containers** when there have been three since 0.26.
+
+Everything 0.27 added to audio was specified in the reference and taught nowhere: the mixer's three
+writable lists and what stays read-only in each, a chain and a position authored **on the track**, and
+the rule that separates them — chains **stack** (the clip's, then the track's, then the encoder) while
+positions **rank** (the clip's own always wins). The tutorials teach it now, including a step where you
+aim a track one way and a clip on it the other and hear which one takes.
+
+### ASIO: two pages said the opposite of each other, about a rig-breaking fact
+
+One said ASIO was off by default and WASAPI exclusive was the supported multichannel path. The other
+had **measured** it, on a Scarlett 6i6, an hour apart: with the generic driver Windows installs by
+itself, WASAPI opens 6 channels; with the manufacturer's own driver it opens **2**, in every mode, and
+no setting reverses it. On that hardware ASIO is not a latency tweak — it is the only route to outputs
+3 and up, which is why it ships enabled.
+
+The reference now agrees with the measurement, and the answer is also in the **speaker-commissioning
+procedure**, at the step where the "Open:" line says 2 and you are standing in the room. That chapter
+did not mention ASIO at all, so the one place the failure appears had no route to the fix.
+
+### macOS and Linux had download links and no instructions
+
+Every instruction past the download table was Windows. The macOS build is **ad-hoc signed and not
+notarised**, so Gatekeeper blocks it on first launch and says the app is damaged or the developer
+cannot be verified — neither of which is true, and neither of which you can act on without being told
+to right-click and choose **Open**, once. Now documented, with the quarantine command, the **Local
+Network** permission (refusing it leaves a perfectly running app with nothing on the wire, which reads
+exactly like a wiring fault), `chmod +x` and FUSE for the AppImage, and the UDP ports no installer
+opens on either platform.
+
+### Steps only a developer could follow, presented as step 1
+
+Enabling camera tracking began with `npm run assets:mediapipe`. There is no `package.json` on an
+installed ArtLux — and CI stages those assets into every build, so on a real install the step is not
+merely impossible, it is unnecessary. It was also offered as the first troubleshooting answer for a
+symptom it cannot cause there. The LiDAR emitter **is** packaged, so its path under the app's resources
+folder is given; the Augmenta one is **not**, and the page says so instead of naming an absent file.
+
+### Four pages were shipping Cargo layouts to venue techs
+
+A page tagged `usage` is documentation for whoever runs a show, and a page with no audience markers is
+declared entirely operator. **WATCHDOG**, **MONITORING**, **LEDMAP** and **LAUNCHER** were tagged
+`usage`, carried no markers, and between them contained a Tauri source tree, a release procedure that
+bumps a version in five files, `docker compose`, and a verification step that calls
+`webContents.forcefullyCrashRenderer()`. All four are now `hybrid` with the seams marked, so the
+implementation halves are demoted in search instead of being the first answer an operator gets. They
+still ship; only the ranking changes.
+
+### A troubleshooting index, and the network answer NDI was missing
+
+Seven troubleshooting sections were scattered across seven pages, findable only if you already knew
+which subsystem was at fault — which is the one thing you do not know at 3 a.m. There is now a
+**symptom-first index**: you arrive knowing what you can see, and it routes you to the page that owns
+the fix. It holds no answers of its own, deliberately, because the copy that gets updated is the one
+next to the feature.
+
+NDI's own troubleshooting covered building the addon and nothing about the commonest venue failure.
+Discovery is **mDNS**, mDNS does not route, and a source on another VLAN is invisible however good the
+link is. Also there now: IGMP snooping without a querier, the per-profile firewall rule that a
+re-plugged switch can strand, why Wi-Fi discovers but will not carry, and the one-second scan window.
+
+### Smaller, and one that was quietly wrong
+
+- Chapter 9's lead figure was the **main-editor screenshot** captioned as the 3D split pane, while the
+  correctly-named 3D shot sat unused on disk. Two other captured screenshots were also unreferenced;
+  all three are now in the chapters that needed them.
+- The keyboard reference calls `Ctrl+Tab` **"Next workspace"**. Since named workspaces landed, a
+  workspace is a saved layout and those keys move between **workbenches**. That chapter is generated
+  from the shortcut registry, so the label is corrected by a note rather than in the table — the source
+  label is a code change, and this release changes none.
+- Chapters 15–17 dead-ended at the index instead of continuing the guide's own chain.
+- The wheel over the track-name gutter scrolls the track list instead of zooming the time axis.
+- 39 menu paths used `→` where the convention is `▸` — a glyph this same prose also uses for data flow,
+  so it was doing two jobs. One line had both.
+- `SURFACES.md` listed 7 surface content types. There are 14, and the set is open to plugins.
+- `CLAUDE.md` asserted that three documentation defects were live in the tree. All three had been fixed
+  and replaced by machine checks; it now records which check replaced each, which is the actual
+  argument for the gate.
+- A new **[DOC-STYLE.md](docs/DOC-STYLE.md)** writes down what none of this had: how a page should read
+  at each of the three tiers, grounded in this repo's own good and bad examples.
+
+### How it was checked
+
+Three review agents — one on the code, one on depth, one on tone — then the depth pass run **three
+times**, because the second run found four errors the first pass had *introduced*, all of them in the
+new style guide, including a grep result asserted without running it. The third run found two rows of
+the new troubleshooting index pointing at pages that did not carry the promised fact, and an ASCII
+diagram still drawing the retired `x`/`y` axes three paragraphs above the text correcting them.
+
+Every factual claim in this release was verified against the source file that owns it before it was
+written down. `npm run verify` covers the rest: 163 invariants, 11 documentation checks, 940 resolving
+links, and every fragment in the new index checked by hand — because the link checker resolves files,
+not anchors.
+
 ## v0.27.0
 
 ### The mixer lists every track that is making sound
