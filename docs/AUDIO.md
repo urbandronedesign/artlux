@@ -133,11 +133,18 @@ standing in for:
 the sign wrong does not fail, it silently **mirrors the room**: it looks right, reads right, and puts
 every sound on the wrong side. Same hazard, same containment, as the speaker table.
 
-**The angle is unbounded** (±1440° at the lane, four turns each way). A lane *interpolates*, so an angle
-penned into 0–360 makes a full orbit unexpressible — `0 → 360` is a lane that does not move — and makes
-`350 → 10` sweep **backwards through 180**, sending a sound the long way across the room at exactly the
-moment it should cross the front. The widget still reads 0–360; only the stored value winds. Dragging
+**The angle is signed and winds** (±360° at the lane — one full turn each way). A lane *interpolates*, so
+an angle penned into 0–360 makes a full orbit unexpressible — `0 → 360` is a lane that does not move — and
+makes `350 → 10` sweep **backwards through 180**, sending a sound the long way across the room at exactly
+the moment it should cross the front. The widget still reads 0–360; only the stored value winds. Dragging
 the pad winds it too, so a gesture round the ring from 350° authors 370° rather than a discontinuity.
+
+> It was **±1440°** (four turns each way) until 0.28, chosen as "past anything anyone would ask". The cost
+> of that headroom fell on every lane that is *not* spinning: a keyframe is dragged against the target's
+> whole range over a lane a few dozen pixels tall, so a pixel was ~40° and an ordinary bearing could not be
+> set by hand at all. One turn each way keeps every orbit a single ramp and makes the drag **eight times
+> finer**; a multi-turn spin is now two segments instead of one. Either way an exact value can be typed —
+> **double-click a keyframe**.
 
 **A fade between two angles takes the shorter arc.** A lane needs no such rule — its keyframes *are* the
 path, so `0 → 720` means two turns and gets two turns. But a **scene or cue recall** interpolates two
@@ -395,10 +402,10 @@ the core parameters use, so an audio lane on the timeline is the same object as 
 | `audio.master.fx.<fxId>.<param>` | per the FX catalog | e.g. `audio.master.fx.fx_comp.thresholdDb` |
 | `audio.track.<trackId>.gain` | 0 – 1.5 | a bed track, a scene's audio track, or a `vl:`-prefixed video **layer** |
 | `audio.track.<trackId>.fx.<fxId>.<param>` | per the FX catalog | the TRACK's chain — one lane moves every clip on that track |
-| `audio.track.<trackId>.spatial.angle` | ±1440° | the TRACK's position — moves every clip on it that has no position of its own |
+| `audio.track.<trackId>.spatial.angle` | ±360° | the TRACK's position — moves every clip on it that has no position of its own |
 | `audio.track.<trackId>.spatial.elevation` | −90 – 90° | |
 | `audio.clip.<clipId>.gain` | 0 – 1.5 | any container — a bed clip, a scene's own clip, or a `va:`-prefixed video soundtrack |
-| `audio.clip.<clipId>.spatial.angle` | ±1440° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
+| `audio.clip.<clipId>.spatial.angle` | ±360° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
 | `audio.clip.<clipId>.spatial.elevation` | −90 – 90° | how high |
 | `audio.clip.<clipId>.fx.<fxId>.<param>` | per the FX catalog | |
 

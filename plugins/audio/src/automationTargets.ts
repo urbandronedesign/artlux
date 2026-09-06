@@ -280,20 +280,25 @@ export function applyBusLayers<T extends OvBus>(bus: T): T {
 
 // ── The provider ────────────────────────────────────────────────────────────────────────────────
 const GAIN = { min: 0, max: 1.5, step: 0.01, def: 1 };
-// ⚠ THE ANGLE'S RANGE IS FOUR TURNS EACH WAY, NOT 0–360, AND THAT IS THE FEATURE.
+// ⚠ THE ANGLE'S RANGE IS ONE FULL TURN EACH WAY, NOT 0–360, AND THAT IS THE FEATURE.
 //
-// A lane INTERPOLATES between keyframes. Bounded to one turn, a full orbit is unexpressible (0 → 360 is
-// a lane that does not move) and 350 → 10 sweeps BACKWARDS through 180 — the sound crosses the room the
-// long way at the exact moment it should pass the front. Unbounded, a spin is one straight ramp and the
-// short way round is simply the shorter number. The widget still READS 0–360 (normAngle); only the
-// stored and automated value is free to run past it.
+// A lane INTERPOLATES between keyframes. Bounded to a single turn 0–360, a full orbit is unexpressible
+// (0 → 360 is a lane that does not move) and 350 → 10 sweeps BACKWARDS through 180 — the sound crosses the
+// room the long way at the exact moment it should pass the front. Signed and a turn wide either way, a
+// spin is one straight ramp and the short way round is simply the shorter number. The widget still READS
+// 0–360 (normAngle); only the stored and automated value is free to run past it.
 //
-// ±1440 rather than truly unbounded because a lane editor has to draw an axis. Four turns in either
-// direction is past anything anyone has asked a sound to do, and a curve that needs more can be built
-// from two lanes' worth of keyframes on one lane.
+// ±360 rather than the ±1440 this shipped with. Four turns each way was chosen as "past anything anyone
+// would ask", and the cost of that headroom lands on every lane that is NOT spinning: the axis a keyframe
+// is dragged against spans 2880° over a few dozen pixels, so a pixel was ~40° and an ordinary bearing was
+// not settable by hand at all. One turn each way keeps every orbit expressible in a single ramp and makes
+// the drag eight times finer; a multi-turn spin is now two segments rather than one, which is the right
+// trade for a gesture nobody makes against one that everybody does. (Typing an exact value works
+// regardless — see the keyframe editor in components/timeline/AutomationLane.tsx.)
+//
 // `wrap` is what makes a scene/cue fade take the SHORT way round; see AutomationTargetDef.wrap. It is
 // deliberately NOT set on elevation, which is a bounded −90…90 and has no far side to go round.
-const ANGLE = { min: -1440, max: 1440, step: 1, def: 0, unit: '°', wrap: true };
+const ANGLE = { min: -360, max: 360, step: 1, def: 0, unit: '°', wrap: true };
 const ELEV = { min: -90, max: 90, step: 1, def: 0, unit: '°' };
 
 /**
