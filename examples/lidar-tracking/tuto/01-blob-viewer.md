@@ -66,7 +66,7 @@ way to confirm *"is anything actually arriving on this machine?"* With the emitt
   `/SOL/specs/Scaley`, and `/SOL/blobs/blob0/…`, `/SOL/blobs/blob1/…` each ticking near the wire rate.
 
 ![3D (Venue & Rig) context — OSC Monitor dock tab](images/01-osc-monitor.png)
-<!-- TODO screenshot: 3D (Venue & Rig) context ▸ OSC Monitor dock tab, green status dot, bind target *:10000, live msg/s, SOL + MUR blob cards (green, 2 active), address table filtered to /SOL. -->
+<!-- shot spec (this image exists; use when re-shooting): 3D (Venue & Rig) context ▸ OSC Monitor dock tab, green status dot, bind target *:10000, live msg/s, SOL + MUR blob cards (green, 2 active), address table filtered to /SOL. -->
 
 Because the Monitor taps the **raw wire**, the per-address rate reads close to the emitter's **61 fps**.
 ArtLux's tracking store then **coalesces** that to one update per animation frame before it reaches the
@@ -134,7 +134,7 @@ with the venue in view.) Toggling it on reveals its sub-controls:
   [`docs/TRACKING_SYNC.md`](../../../docs/TRACKING_SYNC.md), not to this viewer.
 
 ![Tracking inspector — SceneTrackingPanel](images/01-tracking-panel.png)
-<!-- TODO screenshot: the Tracking inspector section (SceneTrackingPanel) with "Tracking zones (LiDAR)" enabled, showing Smoothing / Predict (ms) / Show IDs / Zone enter dwell / Zone exit dwell, and below it the "Merge people (2 blobs → 1)" toggle + Merge radius. -->
+<!-- shot spec (this image exists; use when re-shooting): the Tracking inspector section (SceneTrackingPanel) with "Tracking zones (LiDAR)" enabled, showing Smoothing / Predict (ms) / Show IDs / Zone enter dwell / Zone exit dwell, and below it the "Merge people (2 blobs → 1)" toggle + Merge radius. -->
 
 Below those, **Merge people (2 blobs → 1)** (and its **Merge radius**) is the on-site people-merge — also
 chapter 03's topic. Nudge **Smoothing** up and the orbiting markers glide more; drop it to `0` and they

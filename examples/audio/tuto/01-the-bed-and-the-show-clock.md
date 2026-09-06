@@ -16,7 +16,7 @@ cluster) — its viewport is the mixer. When a step sends you to the lanes, pull
 just switches you to the Audio context.)
 
 ![The Audio context — the mixer, with the counting bed on one track](images/01-audio-context.png)
-<!-- TODO screenshot: Audio context selected in the rail, mixer viewport showing the single Bed track + master strip -->
+<!-- shot spec (this image exists; use when re-shooting): Audio context selected in the rail, mixer viewport showing the single Bed track + master strip -->
 
 Press **Play** (`Space`).
 
@@ -64,7 +64,7 @@ bed's audio lane, with its waveform.
 **vanishes from the timeline.**
 
 ![The timeline drawer — the bed's lane on Global vs a bound scene's own ruler](images/01-bed-lane-vs-ruler.png)
-<!-- TODO screenshot: the timeline drawer, top the bed lane with Global bound, bottom the same timeline with a scene bound (bed lane gone, scene ruler at 0) -->
+<!-- shot spec (this image exists; use when re-shooting): the timeline drawer, top the bed lane with Global bound, bottom the same timeline with a scene bound (bed lane gone, scene ruler at 0) -->
 
 That is deliberate, and it is a signal rather than a bug. The ruler you are now looking at belongs to the
 *scene's* timeline — its playhead, its length. The bed is not on that clock, so drawing it against that ruler

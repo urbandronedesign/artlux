@@ -86,7 +86,7 @@ A **trigger zone** is a named rectangle you draw on a tracking surface. You auth
 **3D** workbench ▸ **Trigger Zones** dock tab:
 
 ![Trigger Zones dock — a drawn zone with a live headcount over the raw blob map](images/zones-panel.png)
-<!-- TODO screenshot: 3D (Venue & Rig) context ▸ Trigger Zones dock tab. Left: the SOL flat map (bottom-left origin), one drawn amber zone lit "occupied" with "· 2" headcount, raw cyan blobs; right: the zone list with eye toggles + People needed + Override dwell. -->
+<!-- shot spec (this image exists; use when re-shooting): 3D (Venue & Rig) context ▸ Trigger Zones dock tab. Left: the SOL flat map (bottom-left origin), one drawn amber zone lit "occupied" with "· 2" headcount, raw cyan blobs; right: the zone list with eye toggles + People needed + Override dwell. -->
 
 - **draw** by dragging on empty map space; **click** a zone to select, **drag its body** to move, **drag
   a corner** to resize;

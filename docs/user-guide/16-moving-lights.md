@@ -215,4 +215,6 @@ head — check the model and mode against the fixture's own menu.
 Deeper reference: [LIGHTING‑SHOW.md](../LIGHTING-SHOW.md) (how movement is stored and replayed) and
 [FIXTURE‑LIBRARY.md](../FIXTURE-LIBRARY.md) (profiles, GDTF, regenerating the library).
 
+➡ Next: [Installing ArtLux](17-installing.md)
+
 ⬅ Back to the [User Guide index](README.md)

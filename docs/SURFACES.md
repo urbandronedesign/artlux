@@ -11,9 +11,27 @@ universe/address allocation and a multi-controller routing spreadsheet.
   and **unbounded** — the unit square is a reference frame, not a fence: a surface placed outside
   it keeps its content, its preview and its outputs. Only reduced/WebGL rendering mode samples the
   0..1 document, and the Stage shows a document frame + a warning chip there).
-- **SurfaceContent** — `{ type: NONE | VIDEO | IMAGE | CAMERA | SPOUT | DMX_IN | EFFECT, url?,
+- **SurfaceContent** — `{ type, url?,
   spoutName?, cameraDeviceId?, cameraWidth?, cameraHeight?, cameraFps?, cameraControls?, effectId?,
-  paletteId?, speed?, intensity? }`. A live input that a machine can have several of **names the one
+  paletteId?, speed?, intensity? }`. `type` is `SourceType | 'EFFECT' | (string & {})` — **thirteen
+  built-in values, and open**:
+
+  | | |
+  |---|---|
+  | `NONE` | nothing; the surface stays black |
+  | `VIDEO` `IMAGE` | a file, by `url` |
+  | `CAMERA` | a local video input, by `cameraDeviceId` |
+  | `SPOUT` `NDI` | another application's picture, by sender / source name |
+  | `DMX_IN` | incoming DMX driving the surface |
+  | `LAYER` `PROGRAM` | one timeline track (by `layerId`), or the whole timeline composited |
+  | `SLICE` | a cropped region of **another** surface — how one picture spans several projectors |
+  | `TRACKING` `MEDIAPIPE` `AUGMENTA` | live tracked positions — LiDAR blobs, BlazePose, an Augmenta box |
+  | `EFFECT` | a built-in generative effect, by `effectId` |
+
+  The union is deliberately **open** (`(string & {})`): the compositor dispatches an unrecognised type
+  through `contentSourceRegistry`, so a plugin adds a content type with **no core enum edit**. The
+  built-ins stay in the enum so persisted projects need no migration. Source: `src/renderer/types.ts`
+  (`SourceType`, `SurfaceContent`). A live input that a machine can have several of **names the one
   it wants**, exactly as Spout names a sender and NDI a source: `cameraDeviceId` picks the video
   input (absent ⇒ the OS default). It is a browser `deviceId`, stable per machine and salted per
   profile, so a project moved elsewhere falls back to the default camera and the inspector says so.

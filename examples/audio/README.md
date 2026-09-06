@@ -36,7 +36,7 @@ mixer, the media library and the lanes at once. (**View ▸ Audio Bed…** still
 you to the Audio context.)
 
 ![The Audio workspace context — the mixer as its viewport](tuto/images/audio-context.png)
-<!-- TODO screenshot: Audio context selected in the left rail, mixer viewport showing tracks + master strip -->
+<!-- shot spec (this image exists; use when re-shooting): Audio context selected in the left rail, mixer viewport showing tracks + master strip -->
 
 **No sound at all?** Look for a **`no audio engine`** badge in the Audio Bed header. Built from source, the
 native engine is a separate step — `npm run build:audio`, **with the app closed**. See

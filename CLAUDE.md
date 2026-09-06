@@ -71,12 +71,13 @@ the *same commits* as the feature, and let `npm run verify` say so. **Not covere
 and rework of something already shipped *and* already documented.
 
 **Scope is USAGE only.** Engine internals, the SDK, build/release and `plans/` stay repo-only and never
-enter the operator-facing docs. `docs/manifest.json` tags every page **`usage` (9) / `hybrid` (23) /
-`code` (9)**, and the 23 hybrids — "architecture *&* usage" in one file — carry
+enter the operator-facing docs. `docs/manifest.json` tags every page **`usage` / `hybrid` / `code`**
+(counts live in that file — do not transcribe them here, they were wrong by five within a month), and the
+hybrids — "architecture *&* usage" in one file — carry
 `<!-- audience:contributor -->` / `<!-- audience:operator -->` **toggles** at the seam. A toggle switches
 everything after it until the next one, so a one-line insert marks a seam and an interleaved page
 (STATE-MACHINE alternates seven times) still works. **A page with no markers is entirely operator**,
-which is why the 9 `usage` pages need no edit. Contributor slices are **demoted in search, not hidden** —
+which is why the `usage` pages need no edit. Contributor slices are **demoted in search, not hidden** —
 still true, still findable, never the first answer to an operator.
 
 **How docs stay true in a repo that commits ~2.6×/day — the three rules.** The shell was rebuilt three
@@ -113,13 +114,19 @@ Corollary for prose you write: describe **verbs and destinations**, never panel 
 let the text survive three shell rewrites.
 
 **Why it is a gate and not a backlog item:** docs written after a feature don't get written here. Wave 3's
-gate 2 (*"It is documented"*) was ticked ✅ and then silently re-broken by `473d259`. Three defects live in
-the tree right now — guide chapter 15 documents the *static* shortcut list `SHORTCUTS.md` says was replaced;
-`scripts/build-docs-html.cjs`'s hand-kept `PAGES` ends at a file that no longer exists, silently dropping
-two chapters; and `src/main/docs.ts` ships ARCHITECTURE/DEVELOPMENT/PLUGINS/SDK to venue techs while the
-in-app Docs Browser has **no search at all**. So the gate is machine-checked (a `verify-docs.cjs` in
-`npm run verify`), not a tick in a table. **When you touch a documented behaviour, update its usage page in
-the same commit.**
+gate 2 (*"It is documented"*) was ticked ✅ and then silently re-broken by `473d259`. Three defects were live
+in the tree when this rule was written, and each one is now a **check** rather than a memory — that is the
+whole point of the gate:
+
+| The defect | What it did | Now guarded by |
+|---|---|---|
+| chapter 15 documented the *static* shortcut list `SHORTCUTS.md` says was replaced | maintained, and still wrong | a `<!-- generated:keymap -->` block regenerated from `shortcuts/registry.ts` |
+| `build-docs-html.cjs`'s hand-kept `PAGES` ended at a file that no longer existed | silently dropped two chapters from the built guide | `PAGES` is read from `docs/manifest.json` |
+| `src/main/docs.ts` shipped ARCHITECTURE/DEVELOPMENT/PLUGINS/SDK to venue techs, and the Docs Browser had **no search at all** | contributor pages presented as operator documentation, unfindable | the sidebar is derived from the manifest and filtered on the `code` tag; one shared search index
+
+So the gate is machine-checked (a `verify-docs.cjs` in `npm run verify`), not a tick in a table. **When you
+touch a documented behaviour, update its usage page in the same commit.** For *how* a page should read at
+each tier, see [docs/DOC-STYLE.md](docs/DOC-STYLE.md).
 
 ## Commands & the working loop
 

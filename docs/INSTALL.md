@@ -45,7 +45,68 @@ page, ask rather than assuming it is gone.
 
 ---
 
-## What the installer does for you
+## macOS and Linux — read this before you double-click
+
+**Everything from here to the end of this document is Windows.** That is not an oversight about which
+platform matters — it is where the venue machines are, and where the installer, the watchdog scripts, the
+NDI runtime and the Art-Net firewall rules all have real work to do. The other two platforms need almost
+none of it, but they do need the paragraph below, because on macOS the app **will not open** without it.
+
+### macOS
+
+The `.dmg` is **ad-hoc signed** (`identity: "-"`), not signed with a Developer ID and **not notarised**.
+That is deliberate — a Developer ID costs an annual membership this project does not carry — and it has
+one consequence you will meet immediately: **Gatekeeper blocks the app on first launch**, with *"ArtLux
+cannot be opened because the developer cannot be verified"* or, if the quarantine flag survived the copy,
+*"ArtLux is damaged and can't be opened."* Neither message is true and neither means a bad download.
+
+1. Open the `.dmg` and drag **ArtLux** to **Applications**, as usual.
+2. **Right-click** (or Control-click) the app in Applications and choose **Open**, then **Open** again in
+   the dialog. Double-clicking will not offer that button; right-click is the whole trick. You do this
+   **once** — after that it launches normally.
+3. If you get *"is damaged"* instead, macOS quarantined the file. Clear the flag and open it again:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/ArtLux.app
+   ```
+4. macOS will ask for **microphone** and **camera** permission the first time a feature needs one
+   (camera surfaces, MediaPipe pose tracking) and for **Local Network** access the first time Art-Net,
+   sACN, OSC or the tablet remote tries to reach the LAN. **Say yes to Local Network** — refusing it
+   leaves the app running perfectly with no output on the wire, which looks exactly like a wiring fault.
+   Both live in **System Settings ▸ Privacy & Security** if you need to change your mind.
+
+> ⚠ **Apple Silicon only.** The published `.dmg` is `arm64`. There is no Intel build.
+
+**What macOS does not have:** the NSIS installer, so nothing is provisioned for you — no NDI runtime, no
+VC++ redistributable, no firewall rules, no watchdog service. The **audio** side is simpler in exchange:
+Core Audio has no WASAPI/ASIO split, so a multichannel interface opens all of its outputs with no driver
+argument (see [the audio chapter](user-guide/07-audio.md#commissioning-a-speaker-rig)).
+
+### Linux
+
+The `.AppImage` is a single self-contained file. Nothing installs; you make it executable and run it.
+
+```bash
+chmod +x ArtLux-x86_64.AppImage
+./ArtLux-x86_64.AppImage
+```
+
+- **It does nothing / "FUSE" error** — AppImages need FUSE 2. On a distribution that ships only FUSE 3,
+  install `libfuse2`, or extract and run instead: `./ArtLux-x86_64.AppImage --appimage-extract` then
+  `./squashfs-root/AppRun`.
+- **Art-Net and sACN need the firewall open** for UDP **6454** (Art-Net) and **5568** (sACN), plus your
+  OSC port if you use one. There is no installer to add those rules — `ufw allow 6454/udp`, or your
+  distribution's equivalent.
+- **Audio is ALSA/PulseAudio.** JUCE opens the default device; a multichannel interface may need to be
+  selected in your system's sound settings before ArtLux can see all of its outputs.
+- **Desktop integration** (a menu entry, an icon) is not automatic. Tools such as `appimaged` or
+  AppImageLauncher do it if you want it.
+
+> **The Launcher is Windows-only.** On macOS and Linux, download the app itself from the table above and
+> update it by downloading again — those permanent links always resolve to the newest build.
+
+---
+
+## What the installer does for you *(Windows)*
 
 Run elevated (`nsis.perMachine: true`), from `build/installer.nsh`, on **first install and on every
 electron-updater update**:

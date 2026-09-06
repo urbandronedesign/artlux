@@ -92,7 +92,7 @@ H** and the U arrow snaps to point rightward — a blob the emitter sweeps right
 on your surface. Here `Rotate` stays `0` and `Flip V` stays off; one checkbox is the whole fix.
 
 ![Stage with the Calibrate overlay, before and after unticking Flip H](images/02-calibrate-flip.png)
-<!-- TODO screenshot: two Stage panes side by side with Calibrate on — LEFT: Flip H ticked, amber U arrow pointing left / origin on the right edge; RIGHT: Flip H unticked, U arrow pointing right. Same emerald border + TL/TR/BR/BL labels in both. -->
+<!-- shot spec (this image exists; use when re-shooting): two Stage panes side by side with Calibrate on — LEFT: Flip H ticked, amber U arrow pointing left / origin on the right edge; RIGHT: Flip H unticked, U arrow pointing right. Same emerald border + TL/TR/BR/BL labels in both. -->
 
 
 Each toggle is live — the blobs, their comet **trails** and the `#id` labels all re-map together,

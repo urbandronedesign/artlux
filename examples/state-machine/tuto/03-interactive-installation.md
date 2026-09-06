@@ -66,7 +66,7 @@ Reaction ──[LiDAR zone: empty for 30s]──▶ Attract
 ```
 
 ![The canonical interactive graph — Attract holds, a LiDAR zone with a requireEnd guard advances to Reaction, and a global rule reaches Welcome from anywhere](images/03-interactive-graph.png)
-<!-- TODO screenshot: the Show Machine context showing Attract (snowflake hold badge) ──LiDAR zone + ⏱ requireEnd──▶ Reaction, a ⚡ global-rule badge on a Welcome state, and the timeline state lane below with a HOLDING chip -->
+<!-- shot spec (this image exists; use when re-shooting): the Show Machine context showing Attract (snowflake hold badge) ──LiDAR zone + ⏱ requireEnd──▶ Reaction, a ⚡ global-rule badge on a Welcome state, and the timeline state lane below with a HOLDING chip -->
 
 ### a. Hold at end — the attract loop that waits
 
@@ -213,7 +213,7 @@ silence out to a venue while decoders spin up.
 
 <!-- TODO screenshot (manual): images/03-preloading-show.png — a projector output draws "PRELOADING SHOW" only during the brief cold-start boot gate on project open; capture it from a projector window at launch. -->
 _Screenshot: the **PRELOADING SHOW** sign a projector output holds while the cold-start boot gate waits for the opening content to decode._
-<!-- TODO screenshot: a projector/broadcast output window showing the dim centred "PRELOADING SHOW · Front wall · 0/1" sign over black -->
+<!-- TODO screenshot (hand-shot): a projector/broadcast output window showing the dim centred "PRELOADING SHOW · Front wall · 0/1" sign over black -->
 
 Reference: [`docs/STATE-MACHINE.md`](../../../docs/STATE-MACHINE.md#the-cold-start).
 

@@ -1,9 +1,18 @@
 # ArtLux — User Guide
 
-> 📖 **Looking for the illustrated guide?** There's now a **screenshot‑driven, per‑screen user guide**
-> in **[docs/user-guide/](user-guide/README.md)** — one page per context (interface, surfaces, fixtures,
-> routing, timeline, outputs, 3D, calibration, projects, preferences) with a screenshot and walkthrough
-> for each. This single page remains as a text‑only quick reference.
+> # 📖 The manual is [docs/user-guide/](user-guide/README.md). Start there.
+> Eighteen illustrated chapters, one per screen, each with a walkthrough. **This page is a single-page
+> text quick reference** — useful for searching or reading offline in one go, and deliberately not
+> maintained to the same depth.
+>
+> ⚠ **Two whole subsystems are not on this page at all.** If you want either, the chapter is the only
+> place it exists:
+> - **Audio** — the mixer, the three containers, spatial sound, FX chains, automation →
+>   [chapter 7](user-guide/07-audio.md) and [AUDIO.md](AUDIO.md)
+> - **Moving lights** — profiles, heads in 3D, pose keys, takes, precedence →
+>   [chapter 16](user-guide/16-moving-lights.md) and [LIGHTING-SHOW.md](LIGHTING-SHOW.md)
+>
+> Where this page and a chapter disagree, **the chapter is right.**
 
 ArtLux is a professional **addressable-LED pixel-mapping console**. You point a *content source*
 (a video, image, live camera, network stream, or built-in effect) at one or more *surfaces*, lay
@@ -59,8 +68,9 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 
 ## 2. The interface
 
-ArtLux is organised as **workbenches**. The rail down the left switches between nine of them, and
-each one *ships* an arrangement around its viewport — the lists on the left, the parameters on the
+ArtLux is organised as **workbenches**. The rail down the left switches between them — the core set,
+plus any a plugin contributes and any your build enables — and each one *ships* an arrangement around
+its viewport — the lists on the left, the parameters on the
 right, the panels in the dock.
 
 **That arrangement is a starting point, not a fixture.** Every panel can be dragged into another

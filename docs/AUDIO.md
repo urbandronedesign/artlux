@@ -627,9 +627,19 @@ legacy `.artlux` that still carries the old `settings` key.
 
 ### ASIO
 
-Off by default, behind a build flag — WASAPI exclusive mode (above) is the supported multichannel path. See
-[DEVELOPMENT.md → ASIO (optional)](DEVELOPMENT.md#asio-optional) for the build flag and why it isn't on by
-default.
+**On by default on Windows.** Every Windows build, released installers included, compiles `JUCE_ASIO=1`,
+and the device picker shows an `ASIO` driver type beside the WASAPI ones.
+
+⚠ **On an interface with a vendor driver, ASIO is not a latency optimisation — it is the only route to
+outputs 3 and up.** Such a driver commonly presents outputs 1–2 as the Windows endpoint and routes
+everything above that through ASIO alone, so WASAPI opens **two channels** on every mode and no setting
+reverses it. Measured on a Scarlett 6i6, same machine, one hour apart: the generic USB Audio Class 2.0
+driver Windows installs by itself opens **6 channels** on WASAPI; Focusrite's own driver opens **2**. A
+venue on a released build could not otherwise reach its own speakers.
+
+Always read the **"Open:"** line under the device picker before believing any channel count. Build flags,
+the Steinberg-SDK vendoring and `npm run verify:asio` are in
+[DEVELOPMENT.md → ASIO](DEVELOPMENT.md#asio-on-by-default-on-windows).
 
 ---
 

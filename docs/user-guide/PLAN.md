@@ -52,7 +52,7 @@ captured by driving the running app.
 > **Added after the initial v0.17.0 pass (app v0.24.0):** chapters **13-tracking** and
 > **14-show-state-machine** were written to close the tracking + interactive-show gap; the keyboard
 > reference moved 13 → 15. Their prose is complete, but their **screenshots are pending capture** —
-> each figure is a `<!-- TODO screenshot: … -->` placeholder to be shot via `scripts/capture-docs.cjs`
+> each figure is a `<!-- TODO screenshot: … -->` placeholder to be shot by hand
 > (the demo project's seed needs an OSC blob feed / trigger zones / a small state graph to populate
 > the tracking + state-graph panels).
 

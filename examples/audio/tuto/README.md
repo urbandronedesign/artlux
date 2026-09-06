@@ -92,7 +92,7 @@ to disagree.
    Bed…** still works and simply switches you here — there is no keyboard shortcut for it.)
 
 ![The Audio workspace context — the mixer as its viewport](images/audio-context.png)
-<!-- TODO screenshot: Audio context selected in the left rail, mixer viewport showing tracks + master strip -->
+<!-- shot spec (this image exists; use when re-shooting): Audio context selected in the left rail, mixer viewport showing tracks + master strip -->
 2. **Check you have sound.** If the Audio Bed header shows a **`no audio engine`** badge, ArtLux started
    without its native audio addon and there will be **silence, with everything else working normally**.
    Built from source, that addon is a separate step: `npm run build:audio`, **with the app closed**

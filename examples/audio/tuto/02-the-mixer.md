@@ -41,7 +41,7 @@ simply not drawn. All three are editable. If a layer you expected is missing fro
 telling you it is making no sound.
 
 ![The mixer viewport — tracks, master strip, and the clipping badge](images/02-mixer-regions.png)
-<!-- TODO screenshot: Audio context mixer showing the four regions, master fader pushed up with the red `clipping` badge lit -->
+<!-- shot spec (this image exists; use when re-shooting): Audio context mixer showing the four regions, master fader pushed up with the red `clipping` badge lit -->
 
 ## 2. Faders, and the one thing that is unusual about them
 

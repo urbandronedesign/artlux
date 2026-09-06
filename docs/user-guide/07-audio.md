@@ -261,8 +261,26 @@ channels than you ask for — the panel tells you, and the master chain is built
 4. Under **Spatial output**, choose **Speaker layout**, then pick the layout that matches how the speakers
    are arranged in the room (an eight-speaker ring is **Octagon**).
 5. Check the **"Open:"** line under the device picker. It should show the same channel count you just set.
-   If it shows fewer, the interface couldn't actually give you that many — try a different entry in the
-   list.
+   **If it shows fewer, read the box below before going any further** — you are two channels into an
+   eight-speaker rig and no fader in this panel will fix it.
+   > ### ⚠ Only 2 channels open on a multi-output interface? Switch the driver type to **ASIO**.
+   > This is the commonest way a commissioning session stalls, and it is not your interface failing. An
+   > interface with its **manufacturer's own driver installed** typically presents outputs **1–2** as the
+   > Windows sound device and routes everything above that through ASIO alone. WASAPI then opens two
+   > channels whatever you ask for, in every mode, and no setting reverses it.
+   >
+   > Measured on one Scarlett 6i6, same machine, same cables, an hour apart:
+   >
+   > | Driver installed | WASAPI opens |
+   > |---|---|
+   > | the generic USB Audio driver Windows installs by itself | **6 channels** |
+   > | Focusrite's own driver (installed with Focusrite Control) | **2 channels** |
+   >
+   > So on a venue interface, **ASIO is not a latency tweak — it is the only route to outputs 3 and up.**
+   > It ships enabled in every Windows build: pick the **ASIO** driver type in **Preferences ▸ Audio**,
+   > choose your interface under it, and read the **"Open:"** line again. macOS and Linux have no such
+   > split and need none of this.
+
 6. A **Speaker check** block appears, with **two buttons per speaker**. **Hold** the first one —
    **Speaker 1** — and you should hear a hiss from exactly one speaker in the room.
    - Wrong speaker, or nothing at all? Use the dropdown on that row to try another channel, then hold it

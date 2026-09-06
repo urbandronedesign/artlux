@@ -28,7 +28,7 @@ This time it has a **Spatial** section: a checkbox (ticked), a small **top-down 
 **height** slider.
 
 ![The clip inspector — the Spatial pad, the FX chain, and a Reverb refused on the master](images/04-clip-inspector-spatial-fx.png)
-<!-- TODO screenshot: Audio context clip inspector showing the top-down Spatial pad + height slider, the clip FX chain with a Reverb, and the master FX popover where a dropped Reverb node shows dimmed/disabled -->
+<!-- shot spec (this image exists; use when re-shooting): Audio context clip inspector showing the top-down Spatial pad + height slider, the clip FX chain with a Reverb, and the master FX popover where a dropped Reverb node shows dimmed/disabled -->
 
 **Drag the dot.**
 

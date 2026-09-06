@@ -4,6 +4,12 @@ Two situations, and they are genuinely different: the machine you *build shows o
 PC** you leave behind running a show for weeks. This chapter is the short version for both. When
 something goes wrong, [INSTALL.md](../INSTALL.md) is the long one.
 
+> **This chapter is Windows**, because the Launcher, the installer, the SmartScreen warning and the
+> venue-PC provisioning all are. ArtLux also ships a macOS `.dmg` and a Linux `.AppImage`, and both need
+> a step this chapter does not cover — on macOS the app **will not open on a double-click** until you
+> right-click it and choose **Open**, once, because the build is not notarised. Both platforms are
+> covered in [INSTALL.md — macOS and Linux](../INSTALL.md#macos-and-linux--read-this-before-you-double-click).
+
 ---
 
 ## The easy path: the Launcher
@@ -151,5 +157,7 @@ UAC prompt during install is the usual cause.
 ---
 
 Full procedures: [INSTALL.md](../INSTALL.md) · the Launcher in depth: [LAUNCHER.md](../LAUNCHER.md)
+
+➡ Next: [Running unattended](18-unattended.md)
 
 ⬅ Back to the [User Guide index](README.md)

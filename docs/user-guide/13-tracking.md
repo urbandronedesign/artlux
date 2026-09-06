@@ -40,10 +40,17 @@ The venue tracker **sends** OSC to your machine; ArtLux **binds** to its own net
 > **Ping the server first.** Being on the same subnet is not enough — `ping 192.168.61.21` (the
 > tracker) before you expect blobs. 100% loss = the server is down or unreachable.
 
-No tracker on the bench? Drive the whole pipeline with synthetic blobs:
+No tracker on the bench? Drive the whole pipeline with synthetic blobs. The emitter **ships with the
+app** — it needs [Node.js](https://nodejs.org) on the machine, and nothing else:
 
 ```bash
+# from a source checkout
 node scripts/lidar-emitter.cjs 127.0.0.1 10000 3
+
+# from an installed build — the script is under the app's resources folder
+#   Windows  C:\Program Files\ArtLux\resources\scripts\lidar-emitter.cjs
+#   macOS    /Applications/ArtLux.app/Contents/Resources/scripts/lidar-emitter.cjs
+node "<that path>" 127.0.0.1 10000 3
 ```
 
 ---
@@ -53,8 +60,11 @@ node scripts/lidar-emitter.cjs 127.0.0.1 10000 3
 A webcam + BlazePose, running in‑app — no specialized sensor. Inference runs in the main editor
 window; projector windows receive the results.
 
-1. **One‑time asset download:** `npm run assets:mediapipe` (fetches the WASM runtime + pose models).
-   Without it the feature logs `[mediapipe] engine start failed` and no‑ops silently.
+1. **Nothing to install.** The WASM runtime and the pose models are staged into every released build, so
+   an installed ArtLux already has them and this step is not yours.
+   *Running from a source checkout?* Then they are not there until you fetch them once with
+   `npm run assets:mediapipe`; without it the feature logs `[mediapipe] engine start failed` and no-ops
+   silently.
 2. Select a surface → content type **MediaPipe**. Tune marker size / skeleton / IDs / trails / flip /
    rotate in the Inspector.
 3. **Preferences ▸ Pose Tracking (MediaPipe)** — pick the **camera**, model (lite/full/heavy), and
@@ -86,8 +96,10 @@ same OSC listener ArtLux already runs — no extra port, no native module.
 Because the box reports its field size in metres, the 3D viz places objects at their real position
 directly — Augmenta needs **no** floor‑calibration wizard.
 
-Testing without the box: `node scripts/augmenta-emitter.cjs 127.0.0.1 12000 3` (point it at the app's
-OSC listen port).
+Testing without the box: `node scripts/augmenta-emitter.cjs 127.0.0.1 12000 3`, pointed at the app's OSC
+listen port. ⚠ **Unlike the LiDAR emitter, this one is not packaged with the app** — it exists only in a
+source checkout of the repository. With an installed build and no Augmenta box, there is no way to
+simulate this source.
 
 ---
 
@@ -137,7 +149,7 @@ feed and the [state machine](14-show-state-machine.md).
 scene and state. You draw the entrance / stage / doorway **once**; changing the show's look never
 recreates or loses them.
 
-<!-- TODO screenshot: the 3D (Venue & Rig) workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields — capture via scripts/capture-docs.cjs -->
+<!-- TODO screenshot (hand-shot — see the note in README.md): the 3D (Venue & Rig) workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields -->
 *The Trigger Zones panel: draw zones on the tracking map, set People needed per zone, and toggle the per‑scene eye. Live blobs are drawn **raw** (not merged) so the two‑blobs‑per‑person is visible.*
 
 **Author them** in the **3D** (Venue & Rig) workbench, on the **Trigger Zones** dock tab. Three ways
@@ -239,7 +251,8 @@ is placed on, see [the timeline ▸ Takes on a lane](06-timeline.md#takes-on-a-l
 - **A zone rule never fires** — confirm the current scene isn't **listening‑off** to that zone (the
   eye), that the transition leaves the current state (or is a **⚡ global rule**), and that the dwell
   isn't so high the flickery feed never latches.
-- **MediaPipe does nothing** — you likely skipped `npm run assets:mediapipe`; check the log for
+- **MediaPipe does nothing** — on a source checkout you likely skipped `npm run assets:mediapipe`
+  (a released build ships the assets, so this cannot be the cause there); check the log for
   `engine start failed`.
 
 For the field procedure to sync with a real venue tracker (including the "1 person = 2 blobs" check),

@@ -90,7 +90,7 @@ With the Scene still bound, go back to the **timeline drawer**.
 The two lanes are **still drawn** — dimmed, and each badged **`GLOBAL`**.
 
 ![A GLOBAL lane struck through in the timeline, beside the read-only LANE master fader in the mixer](images/05-global-vs-lane.png)
-<!-- TODO screenshot: left, the timeline drawer with a base lane badged GLOBAL and struck through because a scene lane owns the same target; right, the Audio context master fader greyed out and badged LANE -->
+<!-- shot spec (this image exists; use when re-shooting): left, the timeline drawer with a base lane badged GLOBAL and struck through because a scene lane owns the same target; right, the Audio context master fader greyed out and badged LANE -->
 
 > ### Why they are on screen at all
 > They do not belong to this Scene. They belong to the **global** timeline, and they are *what is currently

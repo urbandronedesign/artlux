@@ -9,8 +9,8 @@ with corner‑pin / warp, run a video **timeline**, and be previewed in a true�
 This guide is **task‑oriented and illustrated** — every screen ("context") of the app has its own
 page with a screenshot and a walkthrough of what each control does and when you'd use it.
 
-> Screenshots are captured from a small built‑in demo project (two surfaces, a strip + a matrix
-> fixture, a timeline, a 3D scene and an output) so the panels look the way they will in real use.
+> Screenshots show a small demo project (two surfaces, a strip + a matrix fixture, a timeline, a 3D
+> scene and an output), so the panels look the way they will in real use rather than empty.
 
 > **Taking a screenshot for this guide? Read this.** Pictures are **hand-made** from 2026-08-07;
 > nothing measures whether they still match the shell, so assume they are older than the app unless
@@ -96,6 +96,8 @@ SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE, ASSETS, CALIBRATION, OSC, MONITORING).
 
 ---
 
-*Screenshots in this guide are produced by `scripts/capture-docs.cjs`, which launches the app,
-loads a deterministic demo project, and re‑shoots every panel — so they can be refreshed on each
-release with one command.*
+*Screenshots in this guide are **hand-made** (owner's decision, 2026-08-07) and nothing measures whether
+they still match the shell — see the note at the top of this page before you shoot one.
+`scripts/capture-docs.cjs`, which launches the app, loads a deterministic demo project and re-shoots every
+panel, is still in the tree and still works; it is simply not what produced the pictures you are looking
+at.*

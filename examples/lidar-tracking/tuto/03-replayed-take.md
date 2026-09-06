@@ -35,7 +35,7 @@ Pull up the **Timeline** drawer (`Ctrl+T`). You'll see two layers:
   to drop an effect or video *under* the blobs (that's Chapter 02's move).
 
 ![Timeline — the tracking lane with its blob-density sparkline](images/03-tracking-lane.png)
-<!-- TODO screenshot: Timeline dock. The Tracking lane (lay_track) with the "Demo SOL take" clip drawn as a green blob-density sparkline (not a filmstrip); the empty Backdrop lane ABOVE it (timeline.layers is [lay_bg, lay_track], rendered in order). The ● Record button needs its OWN shot of the Tracking Takes dock tab on the 3D context - the old Takes strip under the timeline toolbar no longer exists. -->
+<!-- shot spec (this image exists; use when re-shooting): Timeline dock. The Tracking lane (lay_track) with the "Demo SOL take" clip drawn as a green blob-density sparkline (not a filmstrip); the empty Backdrop lane ABOVE it (timeline.layers is [lay_bg, lay_track], rendered in order). The ● Record button needs its OWN shot of the Tracking Takes dock tab on the 3D context - the old Takes strip under the timeline toolbar no longer exists. -->
 
 The playhead is already sweeping the clip — the transport comes up running — and the three blobs trace
 their recorded path. Now **pause and drag the playhead by hand** — scrubbing works too, because replay is driven by the playhead every frame,
@@ -188,7 +188,7 @@ here, looping `demo.lblob`, with **no venue and no emitter**.
    walks in.*
 
 ![The Show Machine's LiDAR-zone trigger inspector — Trigger: LiDAR zone, the One zone / Combination toggle, the Zone and When dropdowns, and the "Only after the state has finished" guard](images/zone-trigger-inspector.png)
-<!-- TODO screenshot: the transition inspector with trigger = LiDAR zone. LEFT: One-zone mode (Zone dropdown + When = "someone enters"); RIGHT: Combination mode (Fires when ALL/ANY + two zone terms, one with NOT toggled), with the live occupancy dots. -->
+<!-- shot spec (this image exists; use when re-shooting): the transition inspector with trigger = LiDAR zone. LEFT: One-zone mode (Zone dropdown + When = "someone enters"); RIGHT: Combination mode (Fires when ALL/ANY + two zone terms, one with NOT toggled), with the live occupancy dots. -->
 
 Because it all reads `trackingStore`, drop the **demo take** on the tracking lane (or run the emitter),
 watch the zone light in the panel and in 3D, and tune the dwells against the recording. Full wiring:

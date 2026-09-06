@@ -240,4 +240,6 @@ Arrow-key nudging and `R` to reset are in the rebindable **Projector window** gr
 
 ---
 
+➡ Next: [Moving lights & light shows](16-moving-lights.md)
+
 ⬅ Back to the [User Guide index](README.md)

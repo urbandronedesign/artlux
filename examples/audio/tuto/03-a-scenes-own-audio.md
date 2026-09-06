@@ -45,7 +45,7 @@ with its waveform, a sharp attack at the very start. **That clip sits at zero.**
 it: the playhead resets to 0, and there is the clip.
 
 ![The timeline drawer — Main bound: the sting at 0:00 against the scene's own ruler](images/03-scene-ruler.png)
-<!-- TODO screenshot: the timeline drawer with the Main scene bound, one audio lane holding the sting clip at 0:00, the scene's playhead ruler (not the bed's show clock) -->
+<!-- shot spec (this image exists; use when re-shooting): the timeline drawer with the Main scene bound, one audio lane holding the sting clip at 0:00, the scene's playhead ruler (not the bed's show clock) -->
 
 Now look at the note under the clip inspector:
 

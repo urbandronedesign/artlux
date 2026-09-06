@@ -4,7 +4,7 @@ The **3D Scene** lays out fixtures in real‑world space and previews the show i
 design and client previews. It lives as a **split pane** beside the Stage (toggle it with the
 split‑view button in the Stage's top‑right toolbar; drag the divider to resize).
 
-![The 3D scene split pane and its outliner](images/00-main-editor.png)
+![The 3D scene split pane and its outliner](images/12-3d-scene.png)
 *The 3D Scene (center‑right) with its outliner: OBJECTS (a "Screen 1" plane, models), FIXTURES, and a LIGHTING section. The LEDs light up with live output colors, so the view matches what your rig is doing.*
 
 ---

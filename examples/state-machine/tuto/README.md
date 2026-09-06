@@ -39,7 +39,7 @@ arrows, and moves when a trigger fires — recalling the next look (optionally c
      timeline and is now a full-window **workspace context** of its own.
 
 ![Show Machine context and the timeline state lane](images/01-show-machine.png)
-<!-- TODO screenshot: the Show Machine workspace context (three-state ring, active node ringed) with the timeline state lane visible below showing the ⚙ toggle, current state and edit link -->
+<!-- shot spec (this image exists; use when re-shooting): the Show Machine workspace context (three-state ring, active node ringed) with the timeline state lane visible below showing the ⚙ toggle, current state and edit link -->
 
 That's the whole surface. Everything below happens in the **Show Machine** context and the state lane.
 

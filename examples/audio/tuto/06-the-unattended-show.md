@@ -44,7 +44,7 @@ Click **edit** on the state lane — it opens the **Show Machine** context (rail
 bound to a Scene. Then map it back:
 
 ![The Show Machine context — three states in a ring, each bound to a scene](images/06-show-machine.png)
-<!-- TODO screenshot: Show Machine context (Logic) showing the three-state ring graph, one state highlighted as current -->
+<!-- shot spec (this image exists; use when re-shooting): Show Machine context (Logic) showing the three-state ring graph, one state highlighted as current -->
 
 | Layer | Where it lives | Which clock | What it does here |
 |---|---|---|---|

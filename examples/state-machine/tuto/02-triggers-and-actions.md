@@ -98,7 +98,7 @@ Click **`edit`** on the state lane (or pick **Show Machine** from the rail — c
 - `onClipEnd` — a **Track** picker (→ *Track A*). Fires when that track's clip ends under the playhead.
 
 ![The transition inspector's Trigger dropdown, showing all seven kinds including LiDAR zone](images/02-transition-inspector.png)
-<!-- TODO screenshot: the Show Machine transition inspector — the Trigger dropdown open showing manual/afterDelay/atTime/onMarker/onClipEnd/onTimelineEnd + the LiDAR zone plugin option, plus the "Only after the state has finished" guard checkbox and Transition time field -->
+<!-- shot spec (this image exists; use when re-shooting): the Show Machine transition inspector — the Trigger dropdown open showing manual/afterDelay/atTime/onMarker/onClipEnd/onTimelineEnd + the LiDAR zone plugin option, plus the "Only after the state has finished" guard checkbox and Transition time field -->
 
 The **Trigger** dropdown lists all the kinds, not just these five. Two more sit below `onClipEnd`:
 **`onTimelineEnd`** (fires once when the timeline ends with Loop off — a loop wrap is *not* an end) and
