@@ -134,3 +134,62 @@ jobs:
 
             The installer is unsigned, so Windows SmartScreen will warn on first run:
             **More info → Run anyway**. See `docs/INSTALL.md`.
+
+      # A ROLLING DOWNLOAD DOOR. The app gets a permanent link for free -- GitHub's
+      # /releases/latest/download/<name> resolves it -- but the launcher cannot use that endpoint,
+      # because launcher releases are pre-releases on purpose (see the header) and `latest` excludes
+      # exactly those. Without this, the only way to link the launcher is a versioned tag URL that
+      # has to be hand-edited in the README at every launcher release: the same drift
+      # verify-version.cjs exists to catch, moved into a document nothing checks.
+      #
+      # So one tag is force-moved to each new launcher release and carries a fixed-name installer:
+      #
+      #   .../releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe
+      #
+      # ⚠ THE NAME IS LOAD-BEARING, in three ways that were each checked against the resolver:
+      #   - `launcher-latest` does NOT start with `launcher-v`, so the launcher's own self-update
+      #     (resolve_launcher_latest) skips it and keeps resolving real versioned releases.
+      #   - it is not `v<digit>`, so is_app_tag rejects it and it can never be served as ArtLux.
+      #   - it is a PRE-RELEASE, so /releases/latest still resolves the app and electron-updater in
+      #     every installed copy is untouched.
+      # Pushing it also re-triggers nothing: `launcher-latest` matches neither `launcher-v*` (this
+      # workflow) nor `v*` (build.yml), so moving the tag cannot loop back into a build.
+      #
+      # ⚠ AND IT CARRIES NO launcher-latest.yml, deliberately. That file names the VERSIONED
+      # installer in its `path`, which does not exist under this tag -- publishing it here would
+      # describe a file that 404s. Self-update reads it from the launcher-v* tag, where it is true.
+      # This release is a door for humans, not a metadata source.
+      - name: Refresh the rolling launcher-latest download
+        if: startsWith(github.ref, 'refs/tags/launcher-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir=src-tauri/target/release/bundle/nsis
+          exe=$(ls "$dir"/*-setup.exe | head -1)
+          alias_name=ArtLuxLauncher-Setup-x64.exe
+          cp "$exe" "$dir/$alias_name"
+          echo "$alias_name <- $exe"
+
+          # Move the tag onto this release's commit. -f on both sides: the tag exists after the
+          # first launcher release and must follow, not stay where it was cut.
+          git tag -f launcher-latest
+          git push -f origin launcher-latest
+
+          version=$(node -p "require('./package.json').version")
+          notes="Always the newest **ArtLux Launcher** — currently **$version** (\`$GITHUB_REF_NAME\`).
+
+          This release exists so the download link never changes. It is a pre-release for the same
+          reason every launcher release is: GitHub's \`/releases/latest\` is what ArtLux's own
+          auto-updater reads, and it must keep resolving the app.
+
+          The installer is unsigned, so Windows SmartScreen warns on first run:
+          **More info → Run anyway**."
+
+          if gh release view launcher-latest >/dev/null 2>&1; then
+            gh release upload launcher-latest "$dir/$alias_name" --clobber
+            gh release edit launcher-latest --prerelease --title "ArtLux Launcher (latest)" --notes "$notes"
+          else
+            gh release create launcher-latest "$dir/$alias_name" --prerelease --title "ArtLux Launcher (latest)" --notes "$notes"
+          fi
