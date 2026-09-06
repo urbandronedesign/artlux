@@ -1,6 +1,7 @@
 # The audio device open blocks the main process for ~6 seconds
 
-> **Status:** 🔎 **INVESTIGATED, NOT BUILT** (2026-09-05, on `main@be7c34b`). The two defects that
+> **Status:** 🔎 **MEASURED, NOT BUILT** (sub-steps measured 2026-09-06; the surrounding two defects
+> fixed 2026-09-05 on `main@be7c34b`). The two defects that
 > *surrounded* this one are fixed and shipped in the v0.26.6 re-cut; this is what is left.
 > **Placement:** `native/audio-engine` + `plugins/audio` (main half only) · **Risk:** 🔴 high — the JS
 > surface is one line, the hazard is JUCE's threading contract and ASIO drivers we do not own. ·
@@ -41,37 +42,58 @@ local file that takes **29–51 ms** once main is free.
 
 The remaining 6.5 s is essentially this one call.
 
-## What is NOT known, and it decides everything
+## MEASURED 2026-09-06 — it is the device open, and nothing else
 
-**Which sub-step costs the 5.7 s has never been measured.** `Engine::configure` does, in order:
+The sub-steps were timed inside `Engine::configure` (temporary `fprintf`s, reverted). Everything below
+is on this machine, built addon, Realtek onboard audio.
 
-1. `deviceManager.initialise(0, ch, nullptr, true)` — **first call only**, guarded by `initialised`
-   ([engine.cpp:882](../native/audio-engine/src/engine.cpp#L882)). Enumerates *every* device type. On
-   Windows that is ASIO (loading each installed driver DLL), WASAPI shared **and** exclusive, and
-   DirectSound.
-2. `setCurrentAudioDeviceType(type, true)` when the type differs — re-scans that type.
-3. `setAudioDeviceSetup(setup, true)` — the actual open.
+```
+[cfg-steps] close=0ms initialise=5471ms setType=0ms(skipped) setSetup=390ms TOTAL=5861ms
+            (type='Windows Audio' name='Haut-parleurs (Realtek(R) Audio)' ch=2)
+```
 
-The second of the two original calls **skipped step 1** (already initialised) and still took 5.6 s, so
-the cost is *not* only first-time enumeration. It is either the type re-scan, the open itself, or both.
+**93% of it is `deviceManager.initialise()`** — but *not* for the reason this plan first guessed.
+`initialise(0, ch, nullptr, true)` does not only build the device-type list: it **opens the default
+device**. Three hypotheses were tested and all three are dead:
 
-⚠ **This machine has `Realtek ASIO` installed** (`HKLM\SOFTWARE\ASIO`), and this build ships
-`JUCE_ASIO=1` (`native/audio-engine/CMakeLists.txt:124` — ASIO ships by default on Windows). ASIO
-enumeration loading a driver DLL is a live hypothesis for a multi-second scan and is trivially testable.
+| hypothesis | test | result |
+|---|---|---|
+| ASIO driver enumeration | rebuilt with `ARTLUX_ASIO=0` | `initialise` still **5368–5559 ms**. ❌ |
+| device-type scanning | timed `scanForDevices()` per type | **39 ms for all five** (WASAPI shared 6 · exclusive 6 · lowLatency 4 · DirectSound 12 · ASIO 11). ❌ |
+| a one-time process warm-up | opened the same device repeatedly | **every** open costs it. ❌ |
+| a redundant open (`initialise` *and* `setCurrentAudioDeviceType(.., true)` each open before ours) | prototype: scan only, set the type with `false`, one open | 5,939 ms → **5,570 ms**. The cost simply moved into the single remaining open. **Worth ~370 ms (6%).** ❌ |
 
-**Start here: a handful of timing lines inside `Engine::configure`.** Zero risk, and it decides whether
-the fix is a small scan restriction or a thread relocation. Do not start with the thread.
+**It is one `IAudioClient` open of this endpoint in WASAPI *shared* mode, and it costs ~5.5 s.**
 
-## Option A — restrict the scan (small, safe, maybe sufficient)
+## …and the same speakers open in a third of a second on another type
 
-If the cost is enumeration, do not scan what this app cannot use. JUCE lets you add only the device types
-you want before `initialise`, so ASIO/DirectSound need not be probed to open a WASAPI device.
+Every device type, opening the **same** Realtek endpoint, fresh process, two passes:
 
-Also fixes something **suspected but not measured**: `getDevices()` is the same synchronous enumeration
-([engine.cpp:1165](../native/audio-engine/src/engine.cpp#L1165)) and `AudioSettings.tsx` calls it twice on
-mount (lines 166, 171) — so opening **Preferences ▸ Audio** very likely freezes main the same way.
+| device type | total | of which the open |
+|---|---|---|
+| **Windows Audio** (WASAPI shared) | **5,894 ms** | 5,406 ms |
+| Windows Audio (Low Latency Mode) | 5,902 ms | 5,448 ms |
+| Windows Audio (Exclusive Mode) | 1,238 ms | 988 ms |
+| DirectSound — *Périphérique audio principal* | 837 ms | 349 ms |
+| DirectSound — *Haut-parleurs (Realtek)* | **374 ms** | — |
+| **ASIO — Realtek ASIO** | **412 ms** | 294 ms |
 
-Cost: contained inside the addon. No JS change at all.
+So the pathology is **WASAPI shared mode on this Realtek driver**, not JUCE, not ArtLux, and not the
+scan. ASIO opens the same speakers **14× faster**.
+
+⚠ **This is a settings answer before it is a code answer.** On this machine, switching
+**Preferences ▸ Audio ▸ device type** from *Windows Audio* to *ASIO* (or DirectSound) should take ~5.5 s
+off every cold start, with no code change at all. That has **not** been tried end-to-end in the app yet —
+only the device open was timed — and ASIO is exclusive-access, so it changes who else can make sound on
+the machine. Worth trying before anything is built.
+
+## Option A — restrict the device scan — **DEAD**
+
+The scan is 39 ms. Restricting it saves nothing. Struck out on its own evidence.
+
+`getDevices()` was measured at the same time and is **74 ms cold / 25 ms warm** — so the suspected
+*Preferences ▸ Audio* freeze is **not** real either. Both hypotheses in the first draft of this plan were
+wrong.
 
 ## Option B — move the call off main's thread (the one this is named for)
 
@@ -117,7 +139,9 @@ before the show starts — it simply waits on the device instead of on a blocked
 **moves the wait, it does not remove it.** What it buys is that nothing else is held hostage: the editor,
 the project, the pictures, the tablet server and the watchdog all come alive at ~0.5 s.
 
-Only Option A can make the wait itself shorter.
+**Nothing in our code can make the wait itself shorter** — Option A is dead and the redundant
+open is worth 370 ms. Only choosing a different device type does that, and that is the
+operator's setting, not a change to make for them.
 
 One thing that helps either way: `loadClip` does **not** need the device open
 ([engine.cpp:1002](../native/audio-engine/src/engine.cpp#L1002)) — it builds a reader and an
@@ -138,9 +162,19 @@ and any silence is bounded by the device open alone.
 
 ## Open questions
 
-1. Which sub-step costs the 5.7 s? (**Do this first.**)
-2. Is 5.7 s particular to this Realtek device, or normal? Unmeasured on any other machine.
-3. Does `getDevices()` freeze main when Preferences ▸ Audio mounts? Suspected, never measured.
-4. If Option B lands, does the boot gate grow a "device open" probe (keeping the guarantee, keeping the
-   6 s) or not (starting at 0.6 s with a silent opening)? That is a show-behaviour decision, not a
-   technical one.
+1. ~~Which sub-step costs the 5.7 s?~~ **Answered 2026-09-06: one WASAPI *shared-mode* open of the
+   Realtek endpoint. Not the scan, not ASIO, not a redundant open.**
+2. **Does switching the device type to ASIO or DirectSound actually fix the cold start end to end?**
+   Only the device open was timed; the app was never run that way. This is the cheapest thing left and
+   it needs no code.
+3. Is ~5.5 s particular to this Realtek driver? Almost certainly — a WASAPI shared open is normally tens
+   of milliseconds — but it is unmeasured on any other machine, and the venue PC is the one that counts.
+4. If Option B lands, does the boot gate grow a "device open" probe — keeping the guarantee and the 6 s —
+   or not? A show-behaviour decision, not a technical one.
+
+## What changed in this plan, and why that matters
+
+The first draft named two hypotheses with confidence — ASIO enumeration and "restrict the scan" — and
+**both were wrong**, along with a third (redundant opens) that is worth 6%. Every one of them was
+plausible from the code and none survived a timer. That is the fourth time in this investigation that
+reading the code produced a confident wrong answer; see the method notes above.
