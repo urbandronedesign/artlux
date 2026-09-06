@@ -56,11 +56,14 @@ the feed to one update per animation frame.)
 ## Making the show react — trigger zones
 
 Blobs on the floor are the *input*; **trigger zones** are how the room drives the show. A zone is a named
-rectangle you draw on a tracking surface (**3D** workbench ▸ **Trigger Zones** dock tab, or **View ▸ Trigger Zones**); the
-**Show Machine** can transition on it — *someone enters the entrance → play the reaction state*. Zones are
-project-scope geometry (drawn once, shared by every scene), read from the **same store** the live feed and
-take replay fill — so you can build and tune the whole interaction against the emitter or the bundled take,
-**no venue required**. The tutorial covers this in [`tuto/README.md`](tuto/README.md#trigger-zones--making-the-room-drive-the-show)
+rectangle you draw on a tracking surface (**3D** workbench ▸ **Trigger Zones** dock tab, or **View ▸ Trigger
+Zones**). The **Show Machine** can then change state when someone walks into it — *somebody enters the
+doorway → play the reaction state*.
+
+**You draw a zone once for the whole project**, not once per scene: every scene shares the same set. And a
+zone does not care where the tracking data comes from — the live emitter and a replayed take feed it
+identically. So you can build and tune the entire interaction at your desk, **with no venue and nothing
+plugged in**, and it will behave the same on the floor. The tutorial covers this in [`tuto/README.md`](tuto/README.md#trigger-zones--making-the-room-drive-the-show)
 and chapter 03; wiring a zone to a transition is in [`docs/STATE-MACHINE.md`](../../docs/STATE-MACHINE.md),
 the field-tuning knobs in [`docs/TRACKING_SYNC.md`](../../docs/TRACKING_SYNC.md).
 

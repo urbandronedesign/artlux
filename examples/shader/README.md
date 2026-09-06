@@ -28,7 +28,9 @@ That is the whole lesson of shaders on fixtures: **a strip samples one line acro
 Anything that varies up the surface is thrown away; only variation along it survives. Build for the
 output you actually have.
 
-**Then try:** select a surface, and switch its shader in the inspector. Watch its strip change.
+**Then try:** click one of the surfaces on the **Stage** (the 2D view in the middle), then look at the
+**parameters column** down the right-hand side. Open its **Content** card and pick a different shader from
+the list. Watch that surface's strip change under it.
 
 ## 02 · The same shader at two sizes
 

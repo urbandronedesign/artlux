@@ -31,7 +31,9 @@ whole rig lives in **Venue & Rig** (the `3D` workbench).
 | `Movers` | Mover 1–4 | Martin **MAC 250 Beam** | 16-Bit (13 ch) | universe 0, ch 1 / 14 / 27 / 40 |
 | `Washes` | Wash 1–2 | Chauvet **Rogue R1 Wash** | 15 ch | universe 0, ch 53 / 68 |
 
-The two makes are there on purpose, and they differ in the two ways that matter here.
+The two makes are there on purpose, and they differ in the two ways that matter here. *If you only want
+to start moving lights, skip to [Chapter 1](#chapter-1--aim-a-head) and come back when a colour surprises
+you.*
 
 **Colour.** The MAC mixes **subtractively** — cyan/magenta/yellow flags in front of a white lamp, so all
 three at zero is *open white*, not black. The Rogue mixes **additively** — red, green, blue emitters. A
@@ -53,10 +55,13 @@ axis a phase spread runs along. Nothing in the lighting path ever sorts a group.
 
 ## Chapter 1 — aim a head
 
-1. Open `01-a-rig-of-lights.artlux`, pick **3D** from the left rail.
-2. In the browser column, click **Mover 1**, then **Ctrl-click** Mover 2, 3 and 4. *That click order is
-   the order a spread will travel in* — pick them left to right.
-3. The parameter column now shows **Channels**: the MAC's real channel strip. Drag **Pan**.
+1. Open `01-a-rig-of-lights.artlux`, then pick **3D** from the **left rail** — the vertical strip of
+   workbench icons down the far left of the window. You are looking at the rig in 3D.
+2. Down the **left-hand list** (the *browser column* — whatever the current workbench gives you to pick
+   from; here it is the six fixtures), click **Mover 1**, then hold **Ctrl** and click Mover 2, 3 and 4 to
+   add them. *That click order is the order a spread will travel in* — pick them left to right.
+3. Look at the **right-hand column** (the *parameters column*). It now shows **Channels**: the MAC's real
+   channel strip. Drag **Pan**.
 
 Every selected head moves **while you drag**, together, and the readout is in degrees because the profile
 declares the head's travel. The line under the strip says how many lights the fader is reaching.
