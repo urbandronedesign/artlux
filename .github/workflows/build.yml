@@ -209,3 +209,42 @@ jobs:
             aliases/*
           generate_release_notes: true
           fail_on_unmatched_files: false
+
+      # RETENTION. Old installers are pruned so the releases page stays a short list of things
+      # someone might actually install, rather than every build ever cut. Two rules make it safe to
+      # run unattended:
+      #
+      #   1. THE TAG SURVIVES. Removing a release without --cleanup-tag takes the release page and
+      #      its assets; the git tag stays. History, `git checkout <tag>` and every link to source at
+      #      that version keep working. Only the built binary goes, and only for versions nobody is
+      #      being offered any more.
+      #   2. THREE ARE KEPT, NOT ONE. The one before last is the rollback. ArtLux runs unattended in
+      #      venues, unsigned, and re-cuts are done on the same version number, so "put this machine
+      #      back on what it ran yesterday" has to stay possible without a rebuild -- which here
+      #      means the whole three-OS native matrix, and never byte-identical.
+      #
+      # This is not a storage measure: the repo is public, so release assets cost nothing. It is
+      # about what a person sees when they arrive.
+      - name: Prune old releases
+        # Never fail a release that has already published. Untidiness is not a broken build, and
+        # failing here would read as one.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          KEEP=3
+          # Newest first, filtered to THIS product's tag shape, so the two products can never prune
+          # each other -- and `launcher-latest` matches no product pattern, so the rolling tag is
+          # never a candidate.
+          tags=$(gh release list --limit 200 --json tagName,isDraft \
+                   --jq '.[] | select(.isDraft == false) | .tagName' | grep -E '^v[0-9]' || true)
+          if [ -z "$tags" ]; then echo "nothing to prune"; exit 0; fi
+          echo "$tags" | head -n "$KEEP" | sed 's/^/  keep   /'
+          for t in $(echo "$tags" | tail -n +$((KEEP + 1))); do
+            # The tag being built is kept whatever the ordering says.
+            if [ "$t" = "${GITHUB_REF_NAME:-}" ]; then echo "  keep   $t (this build)"; continue; fi
+            echo "  remove $t (tag kept)"
+            gh release delete "$t" --yes || echo "::warning::could not remove $t"
+          done
