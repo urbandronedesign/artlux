@@ -24,7 +24,7 @@ import { MASTER_BUS_ID, defOf } from './effectDefs';
 type Spatial = SpatialPos;
 interface Effect { id: string; type: string; params?: Record<string, number>; opts?: Record<string, string> }
 interface Clip { id: string; trackId: string; name: string; gain?: number; spatial?: Spatial; effects?: Effect[] }
-interface Track { id: string; name: string; gain?: number }
+interface Track { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
 
@@ -248,10 +248,24 @@ export function releaseFade(path: string): void {
   dirty.add(owner);   // re-push, so the AUTHORED value reaches the engine on the next frame
 }
 
-/** A clip with its scene/cue fade laid on, then its automated leaves laid OVER that. Lane wins. */
-export function applyClipLayers<T extends OvClip>(clip: T): T {
+/**
+ * A clip with its scene/cue fade laid on, then its automated leaves laid OVER that. Lane wins.
+ *
+ * `trackId` brings the TRACK's own fx lanes down onto the clip, which is what makes a track chain
+ * automatable at all: the track's chain has already been appended to this clip by the driver
+ * (`withTrackFx`), so a path `audio.track.<tid>.fx.<fxId>.<param>` finds its effect by id in the very
+ * same array a clip path would. applyClipPaths reads `p[3]`/`p[4]`/`p[5]`, and the clip and track path
+ * shapes agree segment for segment from index 3 on — which is why it needs no branch and gets none.
+ *
+ * ⚠ TRACK PATHS ARE LAID ON BEFORE CLIP PATHS, in both layers. A track lane is the coarser statement; a
+ * lane on the clip's OWN copy of that parameter is the more specific one and must win, the same way the
+ * clip's chain runs before the track's.
+ */
+export function applyClipLayers<T extends OvClip>(clip: T, trackId?: string): T {
   let out = clip;
+  if (trackId) out = applyClipPaths(out, fadeByOwner.get(trackId), fade);
   out = applyClipPaths(out, fadeByOwner.get(clip.id), fade);   // fade first…
+  if (trackId) out = applyClipPaths(out, byOwner.get(trackId), ovr);
   out = applyClipPaths(out, byOwner.get(clip.id), ovr);        // …lane over it. ORDER IS THE PRIORITY.
   return out;
 }
@@ -364,17 +378,32 @@ export const audioAutomationProvider: AutomationTargetProvider = {
       }
     };
 
-    for (const t of mix.tracks) {
-      out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group: `Track ▸ ${t.name || t.id}`, ...GAIN, def: t.gain ?? 1 });
-    }
+    // A TRACK'S GAIN AND ITS CHAIN. The chain is authored once and runs per clip on the track (see
+    // types.ts AudioTrack.effects), so a lane here moves every clip on it at once — which is the point,
+    // and is why the fx params belong on the track rather than being duplicated onto each clip.
+    const emitTrack = (t: Track, group: string): void => {
+      out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group, ...GAIN, def: t.gain ?? 1 });
+      for (const fx of effectsOf(t)) {
+        const def = defOf(fx.type);
+        if (!def) continue;
+        for (const p of def.params) {
+          out.push({
+            path: `${NS}.track.${t.id}.fx.${fx.id}.${p.key}`,
+            label: p.label, group: `${group} ▸ ${def.label}`,
+            min: p.min, max: p.max, step: p.step, unit: p.unit, log: p.curve === 'log',
+            def: fx.params?.[p.key] ?? p.def,
+          });
+        }
+      }
+    };
+
+    for (const t of mix.tracks) emitTrack(t, `Track ▸ ${t.name || t.id}`);
     for (const c of mix.clips) emitClip(c, `Bed ▸ ${named(c)}`);
     // THE BOUND TIMELINE'S OWN AUDIO — the scene's clips, on the scene's playhead. The group names match
     // the mixer's container badge word for word ('this timeline' / 'video clip'), because the picker and the
     // inspector are two views of one decision and an operator should not have to translate between them.
     const tl = readTimelineAudio();
-    for (const t of tl.tracks) {
-      out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group: `This timeline · track ▸ ${t.name || t.id}`, ...GAIN, def: t.gain ?? 1 });
-    }
+    for (const t of tl.tracks) emitTrack(t, `This timeline · track ▸ ${t.name || t.id}`);
     for (const c of tl.clips) emitClip(c, `This timeline ▸ ${named(c)}`);
 
     // AND THE DERIVED ONE — a video clip's own soundtrack. Authored on the VIDEO clip (`VideoClipAudio`),
@@ -383,10 +412,15 @@ export const audioAutomationProvider: AutomationTargetProvider = {
     // document. A clip contributes here only while it is audible at all, which is exactly the set that can
     // be selected in the mixer — the picker and the inspector agree on what exists.
     //
-    // NO TRACK ENTRIES. The derived `vl:` tracks mirror the timeline's video LAYERS, whose audio gain is
-    // authored on the layer and already reachable from the lane gutter; offering a second, derived path to
-    // the same number would be two writers on one control.
+    // AND ITS TRACKS — the `vl:` ones, which mirror the timeline's video LAYERS. These were left out when
+    // the container was first catalogued, on the argument that a layer's audio gain is already reachable
+    // from the lane gutter and a second path to one number is two writers on one control. That was wrong
+    // about what a lane IS: the gutter fader is the AUTHORED value and a lane is a curve OVER it (the
+    // driver plays `lane ?? fade ?? authored`), so they are not two writers, they are two layers — exactly
+    // as `audio.track.<id>.gain` has always been for the bed. And with a chain now authorable on the
+    // layer, this is also where a track's fx params live: one lane, every video clip on that layer.
     const vid = readVideoAudio();
+    for (const t of vid.tracks) emitTrack(t, `Video layer ▸ ${t.name || t.id}`);
     for (const c of vid.clips) emitClip(c, `Video clip ▸ ${named(c)}`);
 
     const master = mix.buses.find(b => b.id === MASTER_BUS_ID);

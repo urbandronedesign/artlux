@@ -81,7 +81,14 @@ export function videoAudioOf(t: Timeline): TimelineAudio {
   const tracks: TimelineAudio['tracks'] = [];
   for (const l of t.layers) {
     if (!usedLayers.has(l.id)) continue;
-    tracks.push({ id: `vl:${l.id}`, name: l.name, gain: l.audio?.gain, mute: l.audio?.mute, solo: l.audio?.solo });
+    // `effects` is the LAYER's insert chain, run per clip on it — see AudioTrack.effects for why that is
+    // not the same thing as a bus, and why it is nevertheless the same sound here. Array.isArray, not
+    // truthiness: layers carry no audio sanitizer, so this projection is where the shape guard lives.
+    tracks.push({
+      id: `vl:${l.id}`, name: l.name,
+      gain: l.audio?.gain, mute: l.audio?.mute, solo: l.audio?.solo,
+      effects: Array.isArray(l.audio?.effects) ? l.audio.effects : undefined,
+    });
   }
   vaMemoOut = { tracks, clips };
   return vaMemoOut;

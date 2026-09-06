@@ -74,7 +74,9 @@ import { releaseFade, drivenSnapshot, type Driven } from './automationTargets';
 
 type Spatial = SpatialPos;
 interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
-interface Track { id: string; name: string; gain?: number; mute?: boolean; solo?: boolean }
+// `effects` is the TRACK's insert chain — authored once here, RUN PER CLIP on that track (the engine has
+// two insert points and cannot grow a third; see types.ts AudioTrack.effects and docs/AUDIO.md).
+interface Track { id: string; name: string; gain?: number; mute?: boolean; solo?: boolean; effects?: Effect[] }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
 // The BOUND timeline's own audio — the same clip/track shapes, no buses (one output chain, project-global).
@@ -713,6 +715,26 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     else if (selSource === 'timeline') patchTlClip(id, p);
     else patchClip(id, p);
   };
+  // ── THE SELECTED CLIP'S TRACK — read from its own container, written through the right door ──────
+  // The bed's tracks belong to a document the mixer replaces wholesale (setMix → patchTrack); the other
+  // two go through the host's one track door, which routes on the `vl:` prefix. See the SDK.
+  const tracksFor = (source: SelSource | null): Track[] =>
+    source === 'video' ? vidRef.current.tracks : source === 'timeline' ? tlRef.current.tracks : mixRef.current.tracks;
+  const patchSelTrack = (id: string, p: Partial<Track>) => {
+    if (selSource === 'bed') { patchTrack(id, p); return; }
+    // Optimistic, like every other non-bed write here: the host hands nothing back and its fan-out
+    // overwrites this a render later.
+    if (selSource === 'video') {
+      const cur = vidRef.current;
+      vidRef.current = { ...cur, tracks: cur.tracks.map((t) => (t.id === id ? { ...t, ...p } : t)) };
+      setVidAudio(vidRef.current);
+    } else {
+      const cur = tlRef.current;
+      tlRef.current = { ...cur, tracks: cur.tracks.map((t) => (t.id === id ? { ...t, ...p } : t)) };
+      setTlAudio(tlRef.current);
+    }
+    host?.audio.patchAudioTrack(id, p as Record<string, unknown>);
+  };
   const containerFor = (source: SelSource | null): Clip[] =>
     source === 'video' ? vidRef.current.clips : source === 'timeline' ? tlRef.current.clips : mixRef.current.clips;
   const selClipIn = (id: string): Clip | undefined => containerFor(selSource).find((c) => c.id === id);
@@ -840,6 +862,12 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // predicate with the driver means a junk vector reads as "not spatial" here too — so the pad is not even
   // rendered, these writers cannot be reached for it, and the one gesture that IS offered (tick the box)
   // writes a clean {0,0,1}. Whatever they do write is a fully-formed vec3, by construction.
+  // THE TRACK'S CHAIN. Same shape as setClipEffects, one scope up — and the same bed-only release, for
+  // the same reason: nothing writes a scene/cue fade over a track's fx params outside the bed.
+  const setTrackEffects = (id: string, fx: Effect[], touched?: FxParamRef) => {            // audio.track.<id>.fx.<fxId>.<key>
+    if (selSource === 'bed') releaseChangedFx(`audio.track.${id}`, fx, fxOf(mixRef.current.tracks.find((t) => t.id === id)?.effects), touched);
+    patchSelTrack(id, { effects: fx });
+  };
   const spatialOf = (id: string): Spatial | undefined => vec3(selClipIn(id)?.spatial);
   // ⚠ EVERY WRITE DROPS `legacyVec`, AND THAT IS THE RULE THAT KEEPS IT HONEST.
   //
@@ -969,6 +997,13 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // WRITE (selSource) and the RELEASE (releaseSel), not in a disabled attribute.
   const selTimeline = selSource === 'timeline';   // for the badge + the notes; NEVER for `disabled`
   const selVideo = selSource === 'video';         // likewise — a video clip's own soundtrack
+  // The selected clip's TRACK, for the Track FX section. Off the RENDER's containers (not the refs), so it
+  // repaints when the host's fan-out lands; `null` when the clip's track has gone, which the section hides.
+  const selTrack: Track | null = useMemo(() => {
+    if (!selClip) return null;
+    const pool = selSource === 'video' ? vidAudio.tracks : selSource === 'timeline' ? tlAudio.tracks : mix.tracks;
+    return pool.find((t) => t.id === selClip.trackId) ?? null;
+  }, [selClip, selSource, mix, tlAudio, vidAudio]);
   // What the ENGINE is playing for the selected clip's gain. BED clips only — a timeline clip has no lane
   // and no fade over it, and its id aliases into the bed's namespace (see drivenOn).
   const selGainDrive = selClip ? drivenOn(selSource, `audio.clip.${selClip.id}.gain`) : undefined;
@@ -1422,6 +1457,38 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                   <EffectChain scope="clip" effects={fxOf(selClip.effects)} docKey={gestureDocKey}
                     onChange={(fx, touched) => setClipEffects(selClip.id, fx, touched)} />
                 </section>
+
+                {/* THE TRACK'S CHAIN — and it is here, under the clip's, because that is the order it RUNS
+                    in: channel insert, then bus insert. It reads like a bus and it is not one. The engine
+                    has exactly two insert points (a clip, or the master) and cannot grow a third: a spatial
+                    source is a point in a field, so summing a track's clips before they are encoded would
+                    destroy the one thing the encoder needs. So this chain is APPENDED to every clip on the
+                    track and each gets its own instance — acoustically the same thing here, because the
+                    timeline enforces one clip at a time per track, and only a reverb TAIL across a cut can
+                    tell the difference.
+
+                    Authored from the clip inspector rather than the track list on the left, for a plain
+                    reason: that list is read-only for timeline tracks and does not show video layers at all,
+                    so two of the three containers could never have reached it. */}
+                {selTrack && (
+                  <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Sliders size={12} className={fxOf(selTrack.effects).length ? 'text-accent' : 'text-fg-3'} />
+                      <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">
+                        Track FX{fxOf(selTrack.effects).length ? ` (${fxOf(selTrack.effects).length})` : ''}
+                      </span>
+                      <span className="text-micro text-fg-3 truncate" title={`Applies to every clip on “${selTrack.name}”`}>
+                        ▸ {selTrack.name}
+                      </span>
+                    </div>
+                    <p className="text-micro text-fg-3 leading-snug">
+                      Runs after this clip’s own chain, on <em>every</em> clip on this track. One instance per
+                      clip, so a reverb tail stops at a cut instead of ringing across it.
+                    </p>
+                    <EffectChain scope="clip" effects={fxOf(selTrack.effects)} docKey={gestureDocKey}
+                      onChange={(fx, touched) => setTrackEffects(selTrack.id, fx, touched)} />
+                  </section>
+                )}
               </>
             )}
           </div>

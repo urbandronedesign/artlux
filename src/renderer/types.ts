@@ -419,6 +419,7 @@ export interface VideoLayerAudio {
   gain?: number;         // linear, default 1
   mute?: boolean;
   solo?: boolean;        // scoped to the video-audio container only — see the driver's audibleIn()
+  effects?: AudioEffect[]; // the TRACK's insert chain — see AudioTrack.effects for what that means here
 }
 /**
  * A video clip's OWN soundtrack — the audio track inside the `.mp4`/`.mov` the clip already points at.
@@ -1105,6 +1106,10 @@ export const sanitizeAudioTrack = (t: AudioTrack): AudioTrack => ({
   gain: finiteNum(t.gain) ?? undefined,
   mute: boolOrAbsent(t.mute),
   solo: boolOrAbsent(t.solo),
+  // Array.isArray, not truthiness — the `"effects": {"0": {...}}` array→object corruption this repo has
+  // already shipped once (see the `segments` repair in applyProjectData) is truthy, and `{}.map` is not a
+  // function. Shape only, exactly as the clip's chain is treated: the engine clamps every param itself.
+  effects: Array.isArray(t.effects) ? t.effects : undefined,
 });
 
 // Coerce a persisted audio container (Timeline.audio, or an AudioMix's tracks+clips). Never throws; a
@@ -1296,6 +1301,25 @@ export interface AudioTrack {
   mute?: boolean;
   solo?: boolean;
   color?: string;          // hex label color
+  /**
+   * THE TRACK'S INSERT CHAIN — authored once, RUN PER CLIP, and the difference matters.
+   *
+   * This reads like a bus and it is deliberately NOT one. The engine has exactly two insert points
+   * (native/audio-engine `applyEffects`: a clip, or the master) and cannot grow a third, because a spatial
+   * source is a point in a field — summing a track's clips before they are encoded would destroy the very
+   * thing the encoder needs, each source's signal on its own. See docs/AUDIO.md.
+   *
+   * So the driver APPENDS this chain to each clip's own on that track, and every clip gets its own
+   * instance. That is acoustically identical to a bus here, and for a reason the timeline enforces rather
+   * than hopes for: ONE TRACK, ONE CLIP AT A TIME (components/timeline/operations.ts — clips may touch but
+   * an overlap cannot be authored), so exactly one instance is ever audible. The single difference is a
+   * REVERB OR DELAY TAIL, which stops at a cut instead of ringing across it: the outgoing clip's source
+   * stops, and its chain stops with it.
+   *
+   * Runs AFTER the clip's own chain and BEFORE the encoder — channel insert, then bus insert, the ordinary
+   * console order. A spatial clip's chain is mono, so this one is mono there too.
+   */
+  effects?: AudioEffect[];
 }
 // A timeline's own audio container (Timeline.audio — see there for the clock doctrine). Tracks + clips,
 // deliberately NO buses: AudioBus is project-global (ProjectData.audio.buses) because there is exactly

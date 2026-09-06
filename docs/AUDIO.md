@@ -292,6 +292,31 @@ Effects live at two scopes:
 
 This is the standard **object-audio** convention, and it is forced by the engine rather than chosen.
 
+#### …and a TRACK chain, which is NOT a third one
+
+`AudioTrack.effects` (and `VideoLayerAudio.effects`) let you author a chain **once, on the track** — the
+thing everyone reaches for and calls a bus. It is not a bus, and the distinction is worth holding onto:
+
+> The driver **appends the track's chain to every clip on that track** (`withTrackFx`), so each clip runs
+> its own instance. Nothing is summed anywhere, and `applyEffects` still only ever sees a clip or the
+> master.
+
+**It sounds the same here, and not by luck.** The timeline enforces **one track, one clip at a time**
+(`components/timeline/operations.ts` — clips may touch, an overlap cannot be authored), so exactly one of
+those instances is ever audible. The single audible difference is a **reverb or delay tail**: it stops at a
+cut instead of ringing across it, because the outgoing clip's source stops and its chain stops with it.
+
+**A real bus would cost you spatialisation**, which is why it is not on offer. Summing a track's clips
+before they are encoded destroys the one thing the encoder needs — each source's signal on its own — so a
+track that fed a true bus could hold no spatial sources at all.
+
+Order is the ordinary console order: **the clip's chain, then the track's, then the encoder.** A spatial
+clip's chain is mono, so the track's is mono there too.
+
+Authored in the **clip inspector**, under the clip's own FX, labelled with the track it belongs to — *not*
+in the mixer's track list on the left, which is read-only for timeline tracks and does not show video
+layers at all.
+
 > ### ⚠ **A reverb on the master is silently DROPPED.**
 > `juce::dsp::Reverb` is a **≤ 2-channel** processor. The master chain runs *after* the ambisonic decode,
 > where the signal may be 8 channels wide — so a reverb there would pass **dry** and you would hear nothing
@@ -338,7 +363,8 @@ the core parameters use, so an audio lane on the timeline is the same object as 
 |---|---|---|
 | `audio.master.gain` | 0 – 1.5 | the house level — *the* lane a show recall exists to move |
 | `audio.master.fx.<fxId>.<param>` | per the FX catalog | e.g. `audio.master.fx.fx_comp.thresholdDb` |
-| `audio.track.<trackId>.gain` | 0 – 1.5 | |
+| `audio.track.<trackId>.gain` | 0 – 1.5 | a bed track, a scene's audio track, or a `vl:`-prefixed video **layer** |
+| `audio.track.<trackId>.fx.<fxId>.<param>` | per the FX catalog | the TRACK's chain — one lane moves every clip on that track |
 | `audio.clip.<clipId>.gain` | 0 – 1.5 | any container — a bed clip, a scene's own clip, or a `va:`-prefixed video soundtrack |
 | `audio.clip.<clipId>.spatial.angle` | ±1440° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
 | `audio.clip.<clipId>.spatial.elevation` | −90 – 90° | how high |
@@ -358,7 +384,7 @@ and core's `pathLeaf` were already container-blind and none of them moved.
 |---|---|---|
 | the bed (`ProjectData.audio`) | `Bed ▸ …` · `Track ▸ …` | the **show** clock |
 | the bound timeline (`Timeline.audio`) | `This timeline ▸ …` | that timeline's **playhead** |
-| a video clip's soundtrack (derived) | `Video clip ▸ …` | the **playhead**, with its picture |
+| a video clip's soundtrack (derived) | `Video clip ▸ …` · `Video layer ▸ …` | the **playhead**, with its picture |
 
 > **The last two belong to the BOUND document, so the catalog changes on every recall** — a scene's lanes
 > wake with the scene and sleep when it leaves. `compileAutomation()` already runs at the recall and on

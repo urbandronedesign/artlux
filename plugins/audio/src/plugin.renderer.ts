@@ -74,7 +74,10 @@ interface AudioPluginCfg {
 // these fields, so a local shape avoids a cross-package import. Both containers hold the SAME clip and
 // track shapes — which is why one reconcile serves both.
 interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; fadeIn?: number; fadeOut?: number; spatial?: SpatialPos; effects?: AudioEffectSpec[] }
-interface BedTrack { id: string; gain?: number; mute?: boolean; solo?: boolean }
+// `effects` is the TRACK's insert chain — authored once, and RUN PER CLIP on that track (see
+// types.ts AudioTrack.effects). The engine has two insert points and cannot grow a third, so this is
+// merged into each clip's own chain below rather than summed anywhere.
+interface BedTrack { id: string; gain?: number; mute?: boolean; solo?: boolean; effects?: AudioEffectSpec[] }
 interface BedBus { id: string; gain?: number; effects?: AudioEffectSpec[] }
 interface Bed { tracks: BedTrack[]; clips: BedClip[]; buses: BedBus[] }
 // The BOUND timeline's own audio — same clip/track shape, no buses (there is exactly ONE output chain,
@@ -523,8 +526,41 @@ export const plugin: RendererPlugin = {
       boundGain(autoOrFadeGain(clip.id) ?? clip.gain)
       * boundGain(autoOrFadeTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain)
       * fadeGain(clip, tLocal);
-    /** The clip as it should SOUND: authored, with the scene fade laid on, with the lane's leaves over that. */
-    const eff = (clip: BedClip): BedClip => (hasAnyOverride(clip.id) ? applyClipLayers(clip) : clip);
+    // ── THE TRACK'S CHAIN, MERGED INTO EVERY CLIP ON IT ────────────────────────────────────────────
+    //
+    // A "track bus" that is not a bus, because the engine cannot have one: `applyEffects` takes a CLIP or
+    // the MASTER and nothing else, and a third point is not addable — a spatial source is a point in a
+    // field, so summing a track's clips before they are encoded would destroy exactly what the encoder
+    // needs. See types.ts AudioTrack.effects and docs/AUDIO.md.
+    //
+    // Appending instead is acoustically identical HERE, and not by luck: the timeline enforces ONE TRACK,
+    // ONE CLIP AT A TIME (operations.ts — clips may touch, an overlap cannot be authored), so exactly one
+    // of these instances is ever audible. The one real difference is a reverb or delay TAIL, which stops
+    // at a cut rather than ringing across it.
+    //
+    // CLIP CHAIN FIRST, THEN THE TRACK'S — channel insert, then bus insert, the ordinary console order.
+    // fxOf on both sides: neither `effects` is coerced by any sanitizer for anything but shape, and this
+    // runs per clip per push.
+    // (`fxOf` is declared further down and a const arrow is NOT hoisted — safe only because nothing here
+    // runs until a tick, long after both are initialised. Do not call this during setup.)
+    const withTrackFx = (clip: BedClip): BedClip => {
+      const tfx = fxOf(trackOfClip(clip));
+      if (tfx.length === 0) return clip;
+      return { ...clip, effects: [...fxOf(clip), ...tfx] };
+    };
+    /**
+     * The clip as it should SOUND: authored, with the TRACK's chain appended, with the scene fade laid on,
+     * with the lane's leaves over that.
+     *
+     * ⚠ THE MERGE COMES FIRST, AND THE ORDER IS THE WHOLE REASON A TRACK FX LANE WORKS. `applyClipLayers`
+     * writes an fx param by finding the effect BY ID in the chain it is handed — so a lane on
+     * `audio.track.<id>.fx.<fxId>.<param>` can only land if that fxId is already in this clip's chain.
+     * Merge after, and every track-fx lane in the show would silently do nothing.
+     */
+    const eff = (clip: BedClip): BedClip => {
+      const merged = withTrackFx(clip);
+      return hasAnyOverride(clip.id) || hasAnyOverride(clip.trackId) ? applyClipLayers(merged, clip.trackId) : merged;
+    };
     // MUTE **AND SOLO** — solo has been persisted and silently ignored since Wave 3, and the lane's gutter
     // now offers the button, so ignoring it would make the button a lie.
     //

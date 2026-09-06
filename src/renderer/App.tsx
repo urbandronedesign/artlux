@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
@@ -1970,6 +1970,47 @@ const App: React.FC = () => {
       return out;
     });
   };
+  // ── AND THE SAME DOOR ONTO A TRACK (host.audio.patchAudioTrack) ──────────────────────────────────
+  //
+  // Two containers behind one entry point, told apart by the prefix the derivation already mints: `vl:` is
+  // a VIDEO LAYER (so the patch lands on `Layer.audio`), anything else is a track in `Timeline.audio`. The
+  // bed is deliberately not reachable here — its tracks live in a document the mixer replaces wholesale
+  // through setMix, and giving them a second writer would be two doors onto one field.
+  //
+  // Same rules as every writer above: the BOUND document only, and an id this document does not hold is
+  // DROPPED rather than searched for across scenes whose ids alias.
+  const patchAudioTrackRef = useRef<(trackId: string, patch: Record<string, unknown>) => void>(() => {});
+  patchAudioTrackRef.current = (trackId, patch) => {
+    const applied = (t: Timeline): Timeline | null => {
+      if (trackId.startsWith('vl:')) {
+        const layerId = trackId.slice(3);
+        if (!t.layers.some(l => l.id === layerId)) return null;
+        return {
+          ...t,
+          layers: t.layers.map(l => {
+            if (l.id !== layerId) return l;
+            const audio = { ...(l.audio ?? {}), ...patch } as Record<string, unknown>;
+            for (const k of Object.keys(audio)) if (audio[k] === undefined) delete audio[k];
+            return Object.keys(audio).length ? { ...l, audio: audio as VideoLayerAudio } : { ...l, audio: undefined };
+          }),
+        };
+      }
+      const tracks = timelineAudioTracks(t);
+      if (!tracks.some(x => x.id === trackId)) return null;
+      return { ...t, audio: { tracks: tracks.map(x => (x.id === trackId ? { ...x, ...patch } : x)), clips: timelineAudioClips(t) } };
+    };
+    const sceneId = activeSceneIdRef.current;
+    if (!sceneId) { setTimeline(prev => applied(prev) ?? prev); return; }
+    setScenes(prev => {
+      const i = prev.findIndex(s => s.id === sceneId);
+      if (i < 0) return prev;
+      const next = applied(prev[i].timeline);
+      if (!next) return prev;
+      const out = prev.slice();
+      out[i] = { ...prev[i], timeline: next };
+      return out;
+    });
+  };
   // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
   // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
   const timelineAuthor = {
@@ -3489,6 +3530,8 @@ const App: React.FC = () => {
       patchTimelineClip: (clipId, patch) => patchBoundTimelineClipRef.current(clipId, patch as Partial<AudioClip>),
       // The third container's writer. Takes the VIDEO clip's id (not the derived `va:` one) — see the SDK.
       patchVideoClipAudio: (clipId, patch) => patchVideoClipAudioRef.current(clipId, patch as Partial<VideoClipAudio>),
+      // A TRACK in either non-bed container — `vl:` routes to the video layer, else Timeline.audio.
+      patchAudioTrack: (trackId, patch) => patchAudioTrackRef.current(trackId, patch),
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
     },
     // Cold-start readiness: a plugin that loads content of its own (the audio plugin's conforms + engine

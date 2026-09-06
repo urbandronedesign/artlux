@@ -948,6 +948,21 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
    * commit. Draft locally, commit once on release.
    */
   patchVideoClipAudio(clipId: string, patch: Record<string, unknown>): void;
+
+  /**
+   * THE FOURTH WRITER — patch a TRACK in whichever non-bed container owns it, routed by the id's prefix.
+   *
+   *   · `vl:<layerId>` → the VIDEO LAYER's `audio` block (its gain/mute/solo, and its insert chain)
+   *   · anything else  → a track in the bound timeline's own `Timeline.audio`
+   *
+   * The BED's tracks do NOT come here: they live in `ProjectData.audio`, which `setMix` replaces wholesale
+   * and which the mixer already owns. Two containers, one door, because the prefix already distinguishes
+   * them and a caller holding a track id should not have to know which document minted it.
+   *
+   * Same router, same three rules, same costs as `patchTimelineClip` — the bound document only, a miss is
+   * a DROP, and one call is a full core commit. Draft locally, commit once on release.
+   */
+  patchAudioTrack(trackId: string, patch: Record<string, unknown>): void;
   subscribe(cb: () => void): () => void;  // fires when EITHER container changes (the bed, or the bound timeline)
 }
 
