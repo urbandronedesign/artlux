@@ -27,6 +27,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Unattended self-healing watchdog (crash/hang recovery + OS supervisor)** | [docs/WATCHDOG.md](docs/WATCHDOG.md) |
 | **Machine logging (what this install did: config, timings, media, failures)** | [docs/LOGGING.md](docs/LOGGING.md) |
 | **Design system — tokens, type, primitives, patterns (READ before adding UI)** | [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) |
+| **Doc style — the three tiers and how to pitch each (READ before writing docs)** | [docs/DOC-STYLE.md](docs/DOC-STYLE.md) |
 | UI/UX audit history + token-adherence guardrails | [docs/UI-UX-AUDIT.md](docs/UI-UX-AUDIT.md) |
 | **Workspace contexts (the editor shell), layout + high-DPI UI scaling** | [docs/WORKSPACE.md](docs/WORKSPACE.md) |
 | **Configurable keyboard shortcuts (registry + editor + rebinding)** | [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
