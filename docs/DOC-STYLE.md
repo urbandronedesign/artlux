@@ -28,16 +28,26 @@ past design was bad. It never sells.
 The clearest sample of it is this repo's own commit subjects and changelog headings:
 
 > "the mixer lists every track that is making sound"
-> "the app was opening a sound card nobody asked for"
+> "The app **stops** opening a sound card nobody asked for"
 > "quit on the first ask, and stop the segfault on the way out"
 
-**Never write:** *seamless, powerful, leverage, cutting-edge, simply, just, we're excited, please note.* As
-of this writing a grep for those returns nothing across all three tiers. That is a discipline, not an
-accident, and it is worth protecting — the place to watch is any page written for an outside audience.
+**Never write:** *powerful, leverage, cutting-edge, we're excited, feel free.* A grep across all three
+tiers finds none of them. That is a discipline rather than an accident, and it is worth protecting; the
+place to watch is any page written for an outside audience.
+
+*Seamless* appears, and correctly — it is the literal name of a thing here (seamless noise, a seamless
+loop). Keep it for those. It is only puff when it describes an experience rather than a property.
+
+*Simply* and *just* are common in this corpus and mostly harmless. Both are worth a second look when
+they sit in front of an instruction: "simply open Preferences" tells the reader the step is easy, which
+is a claim they will resent the moment it does not work. Delete the word and the sentence is unchanged.
 
 **Never soften a failure.** Not "may not work as expected" — say what actually happens. The model:
 
-> "**A reverb on the master does nothing, and the UI will still let you add one.**" — [AUDIO.md](AUDIO.md)
+> "**A reverb on the master does nothing, and the UI will still let you add one.**"
+> — [user-guide/07-audio.md](user-guide/07-audio.md) (the manual). [AUDIO.md](AUDIO.md) states the same
+> fact for the tier above it — "a reverb on the master is silently DROPPED" — which is what the same
+> warning pitched two altitudes apart looks like.
 
 **Say the consequence before the cause.** A reader who stops after one sentence should still have been
 warned.

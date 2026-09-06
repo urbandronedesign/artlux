@@ -58,6 +58,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Tablet show-control remote + scheduler + project playlist** | [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md) |
 | Assets / portable projects | [docs/ASSETS.md](docs/ASSETS.md) |
 | Metrics / monitoring | [docs/MONITORING.md](docs/MONITORING.md) |
+| **Troubleshooting index — symptom → the page that owns the fix** | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 | Feature overview / user guide | [docs/FEATURES.md](docs/FEATURES.md), [docs/USER_GUIDE.md](docs/USER_GUIDE.md), `docs/user-guide/` |
 | Build log (chronological) | [docs/PROGRESS.md](docs/PROGRESS.md), [CHANGELOG.md](CHANGELOG.md) |
 | Historical / superseded docs | [docs/archive/](docs/archive/) (pre-Electron `ARCHITECTURE_PLAN`, `UI_REFACTOR`, audio acceptance/plans) |
@@ -72,7 +73,8 @@ and rework of something already shipped *and* already documented.
 
 **Scope is USAGE only.** Engine internals, the SDK, build/release and `plans/` stay repo-only and never
 enter the operator-facing docs. `docs/manifest.json` tags every page **`usage` / `hybrid` / `code`**
-(counts live in that file — do not transcribe them here, they were wrong by five within a month), and the
+(counts live in that file — do not transcribe them here; the last hand-written totals were stale within
+weeks, and nothing checks a number typed into prose), and the
 hybrids — "architecture *&* usage" in one file — carry
 `<!-- audience:contributor -->` / `<!-- audience:operator -->` **toggles** at the seam. A toggle switches
 everything after it until the next one, so a one-line insert marks a seam and an interleaved page

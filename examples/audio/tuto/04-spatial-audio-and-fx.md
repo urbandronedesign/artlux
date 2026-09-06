@@ -14,8 +14,8 @@ are listening on. There is no distance in that model, and later in this chapter 
 
 **File ▸ Open…** → `03-spatial-and-fx.artlux`. Press **Play**.
 
-Under the counting bed you now hear a second sound: a pulsing, buzzy tone. It is sitting **in front of you**,
-about a metre and a half out.
+Under the counting bed you now hear a second sound: a pulsing, buzzy tone. It is sitting **in front of
+you** — dead ahead, at ear level.
 
 In the **Audio** context, look at **Tracks — the bed**: there are two now. *Bed* (the count) and *Orbit*.
 
@@ -127,11 +127,12 @@ engine's shape forces the mixer's shape.
 
 Untick the **Spatial** checkbox on the orbit clip. The sound goes flat — straight into the mix, unplaced.
 
-Tick it again: it comes back at `{0, 0, 1}`, a metre in front of you.
+Tick it again: it comes back at `{ angle: 0, elevation: 0 }` — **dead ahead**, the position with no
+opinion, and the one that sounds identical to the flat clip you just ticked the box on.
 
 That flip is not free. A spatial clip's chain is **mono** (the encoder needs one signal); a flat clip's is
 **stereo**. Flipping the flag changes the channel count and **forces the whole chain to rebuild**. That is
-exactly why the *flag* cannot be automated while the three *axes* can be (chapter 5): you can slide a source
+exactly why the *flag* cannot be automated while the two *angles* can be (chapter 5): you can slide a source
 across the room sixty times a second, but you cannot rebuild its DSP graph sixty times a second.
 
 > **Why the pad has no metres on it.** It used to: a 3-metre square you dropped a source into. The

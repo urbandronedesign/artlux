@@ -24,8 +24,6 @@ machine (localhost).
 
 All series carry `app="artlux"`, `version=`, and `mode="editor|broadcast|headless"`.
 
-<!-- audience:contributor -->
-
 ## Config (env vars)
 
 | Var | Default | Notes |
@@ -35,6 +33,23 @@ All series carry `app="artlux"`, `version=`, and `mode="editor|broadcast|headles
 | `ARTLUX_METRICS_PORT` | `9464` | |
 
 Loopback default means it is invisible on the network until you opt in.
+
+### Setting one on an installed ArtLux
+
+The recipes below set a variable in a developer's shell, which lasts for that shell only. On a machine
+running the shipped app, set it where the app will actually see it:
+
+- **Windows** — `setx ARTLUX_METRICS_HOST 0.0.0.0` in a terminal (persists for the user; it applies to
+  processes started *after* it, so restart ArtLux), or **System Properties ▸ Environment Variables** for
+  the same thing with a UI. For a machine that autostarts a show, set it as a **system** variable so the
+  scheduled task inherits it.
+- **macOS** — a variable exported in a shell does **not** reach an app launched from Finder. Either start
+  it from a terminal (`ARTLUX_METRICS_HOST=0.0.0.0 /Applications/ArtLux.app/Contents/MacOS/ArtLux`), or
+  set it for the login session with `launchctl setenv ARTLUX_METRICS_HOST 0.0.0.0` and relaunch.
+- **Linux** — export it in the shell that launches the AppImage, or add it to the `Environment=` line of
+  the systemd unit if the show is supervised.
+
+<!-- audience:contributor -->
 
 ## Quick local test (Docker — recommended)
 

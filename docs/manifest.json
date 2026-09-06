@@ -96,6 +96,7 @@
     "MEDIAPIPE.md": "hybrid",
     "TRACKING_TAKES.md": "hybrid",
     "TRACKING_SYNC.md": "usage",
+    "TROUBLESHOOTING.md": "usage",
     "MONITORING.md": "hybrid",
     "WATCHDOG.md": "hybrid",
     "LOGGING.md": "usage",

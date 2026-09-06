@@ -109,6 +109,34 @@ is a template to silently install the NDI Runtime during install/update once you
 <!-- audience:operator -->
 
 ## Troubleshooting
+
+### The sources list is empty, or a source you can see elsewhere is missing
+
+This is a **network** problem far more often than an ArtLux one, and the reason is how NDI finds things:
+discovery is **mDNS**, which is a link-local protocol. ArtLux asks the NDI runtime for whatever it can
+see and has no discovery settings of its own — so every fix below is made in the network or in NDI's own
+tools, not in ArtLux.
+
+- **The two machines are on different subnets or VLANs.** mDNS does not route, so neither machine will
+  ever see the other, however good the link is. Put them on the same subnet, or run an **NDI Discovery
+  Server** and point both machines at it in **NDI Access Manager** — the runtime honours that, and ArtLux
+  inherits it with no configuration.
+- **A managed switch is filtering multicast.** IGMP snooping without a querier, or a "block multicast"
+  policy, silently drops mDNS while unicast traffic keeps working perfectly — so the network looks fine
+  and only discovery is broken.
+- **The firewall is blocking it on the profile in use.** Windows applies rules per network profile, so an
+  interface that flips from *Private* to *Public* — which a re-plugged venue switch can cause — takes the
+  allow rule with it. Check the rule against the profile the adapter is actually on.
+- **Wi-Fi.** Discovery may work and video will not. A 1080p60 NDI stream is on the order of 100–150 Mbps
+  and intolerant of jitter. Use wired gigabit for anything you intend to project.
+- **The source announced itself late.** A scan waits one second. A device still booting can miss it —
+  re-open the list before concluding it is absent.
+
+Confirm the network half independently before suspecting ArtLux: if **NDI Studio Monitor** on the same
+machine cannot see the source either, nothing in this app will change that.
+
+### Runtime and build
+
 - **“NDI runtime not found” in the app** → install NDI Tools/Runtime; the addon links
   `Processing.NDI.Lib.x64.dll`, found via `NDI_RUNTIME_DIR_V6`.
 - **`runtimeAvailable` false in a script** → the NDI DLL isn't on the process PATH; add

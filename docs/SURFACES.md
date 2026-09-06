@@ -13,8 +13,8 @@ universe/address allocation and a multi-controller routing spreadsheet.
   0..1 document, and the Stage shows a document frame + a warning chip there).
 - **SurfaceContent** — `{ type, url?,
   spoutName?, cameraDeviceId?, cameraWidth?, cameraHeight?, cameraFps?, cameraControls?, effectId?,
-  paletteId?, speed?, intensity? }`. `type` is `SourceType | 'EFFECT' | (string & {})` — **thirteen
-  built-in values, and open**:
+  paletteId?, speed?, intensity? }`. `type` is `SourceType | 'EFFECT' | (string & {})` — the
+  thirteen `SourceType` members plus `'EFFECT'`, **fourteen built-in values, and open**:
 
   | | |
   |---|---|
