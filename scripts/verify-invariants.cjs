@@ -4614,6 +4614,35 @@ check(
   },
 );
 
+// ── THE ENGINE NEVER OPENS A DEVICE NOBODY ASKED FOR ──────────────────────────────────────────
+check(
+  'Engine::configure scans for device types without opening one',
+  "`deviceManager.initialise(0, ch, nullptr, true)` does not merely build the device-type list — it " +
+  'OPENS THE PLATFORM DEFAULT DEVICE, before the engine has said one word about the device the operator ' +
+  'chose. So every cold start opened a device nobody asked for, threw it away, and opened the right one. ' +
+  'Measured in the app with ASIO selected: initialise 5471ms + switch 1817ms + open 54ms = 7342ms, ' +
+  'against 62 + 288 + 53 = 403ms once the open is gone; end to end on a 10-scene project, 3 runs, ' +
+  '7806ms -> 707ms. It is worst exactly where it is least visible: with the PLATFORM DEFAULT device ' +
+  'selected initialise happens to open the one we wanted, so the waste is ~370ms and the bug hides. ' +
+  'getAvailableDeviceTypes() does the half that is needed (a 39ms scan) and opens nothing. ' +
+  'The `true` it replaced was selectDefaultDeviceOnFailure, so the two guards below are the safety net ' +
+  'it silently provided: a named device that will not open must still leave the DEFAULT one live ' +
+  '(or a venue with a renamed interface comes up silent), and JUCE reporting no error is NOT the same ' +
+  'as a device existing — asked for an empty name it returns success and creates nothing, which is ' +
+  'every machine that has never chosen a device.',
+  () => {
+    const f = 'native/audio-engine/src/engine.cpp';
+    if (!exists(f)) return `${f} is missing`;
+    const src = read(f);
+    const bad = [];
+    if (/deviceManager\.initialise\s*\(/.test(src)) bad.push('deviceManager.initialise() is back — it opens the platform default before the chosen device');
+    if (!/getAvailableDeviceTypes\(\)/.test(src)) bad.push('nothing scans for device types — setCurrentAudioDeviceType has no list to read');
+    if (!/defaultOutputName\(\)/.test(src)) bad.push('defaultOutputName() is gone — an empty device name creates NO device in JUCE, it does not mean "the default"');
+    if (!/no audio device was opened/.test(src)) bad.push('the "no error but no device" guard is gone — configure would report success over a silent machine');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── THE SOUND CARD IS NOT OPENED ON THE DEFAULTS ──────────────────────────────────────────────
 check(
   'the audio plugin waits for the machine settings before opening the device',

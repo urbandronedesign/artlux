@@ -804,6 +804,19 @@ public:
 
   struct OpenedCfg { juce::String deviceName, deviceType; double sampleRate = 0; int bufferSize = 0; int channels = 0; };
 
+  // The current type's default output device, BY NAME. JUCE resolves "" to the default with the private
+  // insertDefaultDeviceNames() — which initialise() used to call for us and we cannot reach — so an empty
+  // outputDeviceName does not mean "the default" here, it means "create nothing". Name it explicitly.
+  juce::String defaultOutputName() {
+    for (auto* t : deviceManager.getAvailableDeviceTypes()) {
+      if (t->getTypeName() != deviceManager.getCurrentAudioDeviceType()) continue;
+      const auto names = t->getDeviceNames(false);
+      const int di = t->getDefaultDeviceIndex(false);
+      return juce::isPositiveAndBelow(di, names.size()) ? names[di] : juce::String();
+    }
+    return {};
+  }
+
   juce::String configure(const DeviceCfg& c, OpenedCfg& out) {
     // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device, so this
     // MUST run before every guard below: none of them (dead-device check, idempotence guard, the
@@ -878,9 +891,29 @@ public:
 
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
 
-    // First call: initialise() is what builds the device-type list that setCurrentAudioDeviceType() needs.
+    // ⚠ SCAN, DO NOT OPEN. This was `deviceManager.initialise(0, ch, nullptr, true)`, and the name hid
+    // what it did: initialise() does not merely build the device-type list — it OPENS THE PLATFORM
+    // DEFAULT DEVICE, before we have said one word about the device the operator actually chose. So
+    // every cold start opened a device we did not want, threw it away, and opened the right one.
+    //
+    // On this rig that is the entire cold start. Opening the onboard Realtek endpoint in WASAPI SHARED
+    // mode — which is the platform default — costs ~5.4 s (measured; exclusive mode is 1.0 s, DirectSound
+    // 0.37 s, ASIO 0.05 s on the same speakers), and `configure` is synchronous on the main process's JS
+    // thread, so for that whole time main serves nothing: no byte over artlux-media://, no prefs read, no
+    // audio conform, no metrics scrape, no tablet request. Measured in the app, with ASIO selected:
+    //     initialise 5471ms + switch-to-ASIO 1817ms + open-ASIO 54ms  =  7342 ms
+    //     scan 62ms          + switch-to-ASIO  288ms + open-ASIO 53ms =   403 ms
+    // and end to end on a 10-scene project, 3 runs: cold open 7806 ms -> 706 ms.
+    //
+    // getAvailableDeviceTypes() does the half we actually need — it scans (39 ms for all five types
+    // here) and populates the list setCurrentAudioDeviceType() reads — and opens nothing.
+    //
+    // ⚠ IT ALSO TOOK A SAFETY NET AWAY, AND THAT IS THE HALF THAT IS EASY TO MISS. The `true` in the old
+    // call was `selectDefaultDeviceOnFailure`: a first-ever configure naming a device that will not open
+    // still left the DEFAULT one open, so the room made sound even though this function returned an
+    // error. Nothing else provided that. The `!hadGoodDevice` branch below now provides it explicitly.
     if (!initialised) {
-      deviceManager.initialise(0, ch, nullptr, true);
+      deviceManager.getAvailableDeviceTypes();   // scan only — opens no device
       initialised = true;
     }
     if (c.type.isNotEmpty() && c.type != deviceManager.getCurrentAudioDeviceType())
@@ -898,10 +931,63 @@ public:
     setup.outputChannels.clear();
     setup.outputChannels.setRange(0, ch, true);
     juce::String err = deviceManager.setAudioDeviceSetup(setup, true);
+    // ⚠ NO ERROR IS NOT THE SAME AS A DEVICE. Asked for an empty device name — which is every machine
+    // that has never chosen one, i.e. a fresh install — JUCE reports SUCCESS and creates nothing. The
+    // engine then took the success path, set `opened = true`, and reported an OpenedCfg with an empty
+    // device name over a silent machine. initialise() used to hide this by having already opened the
+    // default. Caught by testing configure({type:'', name:''}) and reading deviceLive back: false.
+    const auto deviceOrNull = [this] { return deviceManager.getCurrentAudioDevice(); };
+    if (err.isEmpty() && deviceOrNull() == nullptr) err = "no audio device was opened";
+    // A caller that named NO device is asking for the default, so resolve it and try once more. That
+    // keeps the ordinary unconfigured-machine path on the SUCCESS path below (it is not an error), and
+    // leaves the failure branch for a device that was actually named and actually could not open.
+    if (err.isNotEmpty() && c.name.isEmpty()) {
+      const auto defName = defaultOutputName();
+      if (defName.isNotEmpty()) {
+        setup.outputDeviceName = defName;
+        err = deviceManager.setAudioDeviceSetup(setup, true);
+        if (err.isEmpty() && deviceOrNull() == nullptr) err = "no audio device was opened";
+      }
+    }
     if (err.isNotEmpty()) {
       // Nothing was open before this call (first-ever configure, or the previous device had already died —
       // see the dead-device invalidation above) — there is no "last known good" to roll back to.
-      if (!hadGoodDevice) return err;
+      //
+      // ⚠ SO FALL BACK TO THE DEFAULT, WHICH IS WHAT initialise(..., selectDefaultDeviceOnFailure=true)
+      // USED TO DO FOR US. It is gone (see the scan above), and without this line a venue whose sound
+      // card is named wrong in the project — a renamed interface, a different machine, a typo — comes up
+      // SILENT instead of coming up on the built-in output. The error is still returned either way, so
+      // Preferences still says the requested device failed; the difference is whether the room can hear
+      // anything while somebody fixes it.
+      if (!hadGoodDevice) {
+        const auto defName = defaultOutputName();   // explicitly — see defaultOutputName()
+        if (defName.isEmpty()) return err;     // this type has no devices at all — nothing to fall back to
+        juce::AudioDeviceManager::AudioDeviceSetup fb;
+        deviceManager.getAudioDeviceSetup(fb);
+        fb.outputDeviceName = defName;
+        fb.inputDeviceName = {};
+        fb.sampleRate = 0; fb.bufferSize = 0;  // 0 ⇒ whatever the device prefers
+        fb.useDefaultInputChannels = false;
+        fb.inputChannels.clear();
+        fb.useDefaultOutputChannels = true;
+        if (deviceManager.setAudioDeviceSetup(fb, false).isNotEmpty()) return err; // nothing opened at all
+        int fbActual = 2;
+        if (auto* dev = deviceManager.getCurrentAudioDevice())
+          fbActual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+        bus.setOutputChannels(fbActual);       // BEFORE setSource — same order as the success path
+        // The decode was already rebuilt for the layout that just failed to open; the fallback device is
+        // not that device. Put it back to something the channel count can carry, exactly as the rollback
+        // branch below does with prevMode/prevLayout.
+        bus.setMode(openedMode, openedLayout);
+        if (!readThread.isThreadRunning()) readThread.startThread();
+        player.setSource(&metering);
+        deviceManager.addAudioCallback(&player);
+        opened = true;
+        // openedType/openedName/... are deliberately NOT updated — same reasoning as the rollback branch:
+        // the requested setup is not live, and recording it would make the idempotence guard believe it is,
+        // so the operator's next attempt to fix the name would take the early return and do nothing.
+        return err;
+      }
 
       // ⚠ ROLL BACK, NOT DOWN. Put the previous type + setup straight back — the SAME open sequence the
       // success path below uses, just with the OLD numbers — so the show keeps making sound. None of this

@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### The app stops opening a sound card nobody asked for
+
+Starting ArtLux opened the audio device **twice**: once the platform's default one, then the one you
+actually chose. The first open was invisible in the code — it hides inside a call named `initialise`,
+which sounds like it only lists what is available — and it is the single most expensive thing the app
+does at startup, because opening a sound card blocks the part of the app that also serves video frames,
+preferences and everything else.
+
+How expensive depends on which device you picked, and it is worst in the case that looks most innocent:
+
+- pick the **system default** and the wasted open happens to be the device you wanted, so it costs about
+  a third of a second and nothing looks wrong;
+- pick **anything else** — an ASIO interface, a specific card — and the app opens the wrong device at
+  full price, discards it, and opens yours. On the test machine that is **7.3 seconds of pure waste**.
+
+It now looks up what is available without opening anything, and opens one device: yours. Measured end to
+end on a ten-scene show: **7.8 s → 0.7 s** before the show is ready to start.
+
+Two things had been quietly relying on that first open, and both are now handled properly rather than by
+accident. A project naming a sound card that is not on this machine — a renamed interface, a different
+venue PC — still falls back to the built-in output, so the room makes sound while somebody fixes the
+name. And a machine that has never chosen a device at all now really gets the default one; it used to be
+told everything was fine while opening nothing.
+
 ## v0.26.6
 
 ### Opening a project no longer waits twice for the sound card
