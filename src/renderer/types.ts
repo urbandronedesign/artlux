@@ -420,6 +420,7 @@ export interface VideoLayerAudio {
   mute?: boolean;
   solo?: boolean;        // scoped to the video-audio container only — see the driver's audibleIn()
   effects?: AudioEffect[]; // the TRACK's insert chain — see AudioTrack.effects for what that means here
+  spatial?: AudioSpatial;  // where clips on this layer sit, unless they say otherwise — see AudioTrack.spatial
 }
 /**
  * A video clip's OWN soundtrack — the audio track inside the `.mp4`/`.mov` the clip already points at.
@@ -1110,6 +1111,9 @@ export const sanitizeAudioTrack = (t: AudioTrack): AudioTrack => ({
   // already shipped once (see the `segments` repair in applyProjectData) is truthy, and `{}.map` is not a
   // function. Shape only, exactly as the clip's chain is treated: the engine clamps every param itself.
   effects: Array.isArray(t.effects) ? t.effects : undefined,
+  // Migrated AND coerced in one call, exactly as a clip's is — a malformed position reads as NO position,
+  // i.e. the track simply places nothing and its clips fall back to being flat.
+  spatial: migrateSpatial(t.spatial),
 });
 
 // Coerce a persisted audio container (Timeline.audio, or an AudioMix's tracks+clips). Never throws; a
@@ -1320,6 +1324,19 @@ export interface AudioTrack {
    * console order. A spatial clip's chain is mono, so this one is mono there too.
    */
   effects?: AudioEffect[];
+  /**
+   * WHERE THE CLIPS ON THIS TRACK SIT — a DEFAULT, not an override.
+   *
+   * A position cannot be laid over another position the way a chain is appended to another chain: a source
+   * has exactly one place in the field. So the two do not combine, they RANK, and the clip is the more
+   * specific statement: a clip with its own `spatial` keeps it, and a clip without one is encoded where its
+   * track says. Same precedence as a track fx lane against a clip fx lane, for the same reason.
+   *
+   * That ranking is also what keeps the clip's own positioner honest. Were the track to override, a clip's
+   * pad would go dead whenever its track had a position — a control that moves and changes nothing, which
+   * is the one failure mode this panel exists to not have.
+   */
+  spatial?: AudioSpatial;
 }
 // A timeline's own audio container (Timeline.audio — see there for the clock doctrine). Tracks + clips,
 // deliberately NO buses: AudioBus is project-global (ProjectData.audio.buses) because there is exactly

@@ -24,7 +24,7 @@ import { MASTER_BUS_ID, defOf } from './effectDefs';
 type Spatial = SpatialPos;
 interface Effect { id: string; type: string; params?: Record<string, number>; opts?: Record<string, string> }
 interface Clip { id: string; trackId: string; name: string; gain?: number; spatial?: Spatial; effects?: Effect[] }
-interface Track { id: string; name: string; gain?: number; effects?: Effect[] }
+interface Track { id: string; name: string; gain?: number; effects?: Effect[]; spatial?: Spatial }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
 
@@ -383,6 +383,14 @@ export const audioAutomationProvider: AutomationTargetProvider = {
     // and is why the fx params belong on the track rather than being duplicated onto each clip.
     const emitTrack = (t: Track, group: string): void => {
       out.push({ path: `${NS}.track.${t.id}.gain`, label: 'Gain', group, ...GAIN, def: t.gain ?? 1 });
+      // The track's POSITION, offered on the same terms as a clip's — only when the track already has one,
+      // because turning spatialisation on rebuilds a chain and automation must never do that. A lane here
+      // moves every clip on the track that has NOT got a position of its own; one that has keeps it, and
+      // has its own lane. See types.ts AudioTrack.spatial.
+      if (t.spatial) {
+        out.push({ path: `${NS}.track.${t.id}.spatial.angle`, label: 'Angle', group, ...ANGLE, def: t.spatial.angle ?? 0 });
+        out.push({ path: `${NS}.track.${t.id}.spatial.elevation`, label: 'Height', group, ...ELEV, def: t.spatial.elevation ?? 0 });
+      }
       for (const fx of effectsOf(t)) {
         const def = defOf(fx.type);
         if (!def) continue;

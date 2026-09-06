@@ -88,6 +88,8 @@ export function videoAudioOf(t: Timeline): TimelineAudio {
       id: `vl:${l.id}`, name: l.name,
       gain: l.audio?.gain, mute: l.audio?.mute, solo: l.audio?.solo,
       effects: Array.isArray(l.audio?.effects) ? l.audio.effects : undefined,
+      // The layer's position — a DEFAULT for the clips on it, not an override. See AudioTrack.spatial.
+      spatial: l.audio?.spatial,
     });
   }
   vaMemoOut = { tracks, clips };

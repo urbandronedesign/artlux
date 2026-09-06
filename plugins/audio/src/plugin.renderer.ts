@@ -77,7 +77,7 @@ interface BedClip { id: string; trackId: string; path: string; start: number; du
 // `effects` is the TRACK's insert chain — authored once, and RUN PER CLIP on that track (see
 // types.ts AudioTrack.effects). The engine has two insert points and cannot grow a third, so this is
 // merged into each clip's own chain below rather than summed anywhere.
-interface BedTrack { id: string; gain?: number; mute?: boolean; solo?: boolean; effects?: AudioEffectSpec[] }
+interface BedTrack { id: string; gain?: number; mute?: boolean; solo?: boolean; effects?: AudioEffectSpec[]; spatial?: SpatialPos }
 interface BedBus { id: string; gain?: number; effects?: AudioEffectSpec[] }
 interface Bed { tracks: BedTrack[]; clips: BedClip[]; buses: BedBus[] }
 // The BOUND timeline's own audio — same clip/track shape, no buses (there is exactly ONE output chain,
@@ -541,24 +541,36 @@ export const plugin: RendererPlugin = {
     // CLIP CHAIN FIRST, THEN THE TRACK'S — channel insert, then bus insert, the ordinary console order.
     // fxOf on both sides: neither `effects` is coerced by any sanitizer for anything but shape, and this
     // runs per clip per push.
+    // …AND ITS POSITION, WHICH RANKS RATHER THAN COMBINES. A chain appends to a chain; a position cannot
+    // be laid over a position, because a source has exactly one place in the field. So the clip's own wins
+    // and the track's is the fallback — the clip being the more specific statement, the same precedence a
+    // clip fx lane has over a track fx lane. See types.ts AudioTrack.spatial.
+    //
     // (`fxOf` is declared further down and a const arrow is NOT hoisted — safe only because nothing here
     // runs until a tick, long after both are initialised. Do not call this during setup.)
-    const withTrackFx = (clip: BedClip): BedClip => {
-      const tfx = fxOf(trackOfClip(clip));
-      if (tfx.length === 0) return clip;
-      return { ...clip, effects: [...fxOf(clip), ...tfx] };
+    const withTrack = (clip: BedClip): BedClip => {
+      const tr = trackOfClip(clip);
+      const tfx = fxOf(tr);
+      const inherit = clip.spatial === undefined ? tr?.spatial : undefined;
+      if (tfx.length === 0 && !inherit) return clip;   // the common case allocates nothing
+      return {
+        ...clip,
+        ...(inherit ? { spatial: inherit } : null),
+        ...(tfx.length ? { effects: [...fxOf(clip), ...tfx] } : null),
+      };
     };
     /**
      * The clip as it should SOUND: authored, with the TRACK's chain appended, with the scene fade laid on,
      * with the lane's leaves over that.
      *
-     * ⚠ THE MERGE COMES FIRST, AND THE ORDER IS THE WHOLE REASON A TRACK FX LANE WORKS. `applyClipLayers`
-     * writes an fx param by finding the effect BY ID in the chain it is handed — so a lane on
-     * `audio.track.<id>.fx.<fxId>.<param>` can only land if that fxId is already in this clip's chain.
-     * Merge after, and every track-fx lane in the show would silently do nothing.
+     * ⚠ THE MERGE COMES FIRST, AND THE ORDER IS THE WHOLE REASON A TRACK LANE WORKS AT ALL. applyClipPaths
+     * writes an fx param by finding the effect BY ID in the chain it is handed, and writes a spatial leaf
+     * only `if (spatial)` — so a lane on `audio.track.<id>.fx.<fxId>.<param>` needs that fxId already in
+     * this clip's chain, and one on `audio.track.<id>.spatial.angle` needs the inherited position already
+     * on the clip. Merge after, and every track lane in the show would silently do nothing.
      */
     const eff = (clip: BedClip): BedClip => {
-      const merged = withTrackFx(clip);
+      const merged = withTrack(clip);
       return hasAnyOverride(clip.id) || hasAnyOverride(clip.trackId) ? applyClipLayers(merged, clip.trackId) : merged;
     };
     // MUTE **AND SOLO** — solo has been persisted and silently ignored since Wave 3, and the lane's gutter

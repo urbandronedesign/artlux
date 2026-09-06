@@ -317,6 +317,28 @@ Authored in the **clip inspector**, under the clip's own FX, labelled with the t
 in the mixer's track list on the left, which is read-only for timeline tracks and does not show video
 layers at all.
 
+#### The track also has a POSITION — and it ranks rather than combines
+
+`AudioTrack.spatial` places every clip on the track, so a whole video layer can sit at 90° and be flown
+from one lane. Unlike the chain, it is a **default, not an override**:
+
+```
+ clip has its own spatial  ──▶  the clip's position wins
+ clip has none             ──▶  encoded where its TRACK says
+```
+
+A chain appends to a chain; a position cannot be laid over a position, because a source has exactly one
+place in the field. So the two **rank**, and the clip is the more specific statement — the same precedence
+a clip's fx lane has over its track's. The other way round would kill the clip's own pad: it would move
+and change nothing the moment its track had a position, which is the failure this panel exists not to have.
+
+The inspector says which is in effect. A clip with no position of its own reads *"Placed by its track
+(Video 1) at 90°"* rather than showing an empty positioner.
+
+> **The track's pad does not audition while you drag it.** A clip's pad pushes straight at the engine's
+> source id; a track has no source, so auditioning would mean fanning out over every clip on it, loaded or
+> not. The commit is heard on the next frame, like any other document write.
+
 > ### ⚠ **A reverb on the master is silently DROPPED.**
 > `juce::dsp::Reverb` is a **≤ 2-channel** processor. The master chain runs *after* the ambisonic decode,
 > where the signal may be 8 channels wide — so a reverb there would pass **dry** and you would hear nothing
@@ -365,6 +387,8 @@ the core parameters use, so an audio lane on the timeline is the same object as 
 | `audio.master.fx.<fxId>.<param>` | per the FX catalog | e.g. `audio.master.fx.fx_comp.thresholdDb` |
 | `audio.track.<trackId>.gain` | 0 – 1.5 | a bed track, a scene's audio track, or a `vl:`-prefixed video **layer** |
 | `audio.track.<trackId>.fx.<fxId>.<param>` | per the FX catalog | the TRACK's chain — one lane moves every clip on that track |
+| `audio.track.<trackId>.spatial.angle` | ±1440° | the TRACK's position — moves every clip on it that has no position of its own |
+| `audio.track.<trackId>.spatial.elevation` | −90 – 90° | |
 | `audio.clip.<clipId>.gain` | 0 – 1.5 | any container — a bed clip, a scene's own clip, or a `va:`-prefixed video soundtrack |
 | `audio.clip.<clipId>.spatial.angle` | ±1440° | which way, **clockwise from front** — and unbounded on purpose (see *A position is an angle* above) |
 | `audio.clip.<clipId>.spatial.elevation` | −90 – 90° | how high |

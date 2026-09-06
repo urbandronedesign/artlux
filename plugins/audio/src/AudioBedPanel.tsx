@@ -76,7 +76,7 @@ type Spatial = SpatialPos;
 interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
 // `effects` is the TRACK's insert chain — authored once here, RUN PER CLIP on that track (the engine has
 // two insert points and cannot grow a third; see types.ts AudioTrack.effects and docs/AUDIO.md).
-interface Track { id: string; name: string; gain?: number; mute?: boolean; solo?: boolean; effects?: Effect[] }
+interface Track { id: string; name: string; gain?: number; mute?: boolean; solo?: boolean; effects?: Effect[]; spatial?: Spatial }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
 // The BOUND timeline's own audio — the same clip/track shapes, no buses (one output chain, project-global).
@@ -475,6 +475,9 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
   const [padDraft, setPadDraft] = useState<{ angle: number; omni: boolean } | null>(null);
+  // A SECOND, INDEPENDENT DRAFT for the track's pad. One shared draft would paint whichever pad was not
+  // being dragged, because both read the same live value while a gesture is in flight.
+  const [trackPadDraft, setTrackPadDraft] = useState<{ angle: number; omni: boolean } | null>(null);
   // A RENDERABLE mirror of docKeyOf(), for the ONE thing that needs a re-render when the binding changes:
   // dropping a stale pad draft (see the reset effect). It is NOT the guard — the guard is docKeyOf(), read
   // live — so this may lag by up to one meter tick without costing correctness. Refreshed from the audio
@@ -648,7 +651,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   //     the timeline, so a recall to a cloned scene changes neither of the other two — this is the only dep
   //     that fires, and without it the outgoing scene's dragged position would sit painted over the incoming
   //     scene's clip. (The commit is already refused by the pad's own docKey guard; this is the PAINT.)
-  useEffect(() => { setPadDraft(null); }, [selId, selSource, boundDoc]);
+  useEffect(() => { setPadDraft(null); setTrackPadDraft(null); }, [selId, selSource, boundDoc]);
 
   // Every mutation builds a fresh bed and writes it back (host normalizes + persists + notifies the player).
   const commit = (next: Mix) => { mixRef.current = next; setMixState(next); host?.audio.setMix(next); };
@@ -868,6 +871,33 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
     if (selSource === 'bed') releaseChangedFx(`audio.track.${id}`, fx, fxOf(mixRef.current.tracks.find((t) => t.id === id)?.effects), touched);
     patchSelTrack(id, { effects: fx });
   };
+  // ── THE TRACK'S POSITION — the same three gestures as a clip's, one scope up ──────────────────────
+  // Releases are bed-only for the same reason every other release here is: nothing writes a scene/cue fade
+  // over a track's position outside the bed.
+  const trackSpatialOf = (id: string): Spatial | undefined =>
+    vec3(tracksFor(selSource).find((t) => t.id === id)?.spatial);
+  const setTrackSpatialOn = (id: string, on: boolean) => {
+    for (const ax of ['x', 'y', 'z', 'angle', 'elevation', 'attenuation'] as const) releaseSel(`audio.track.${id}.spatial.${ax}`);
+    patchSelTrack(id, { spatial: on ? { angle: 0, elevation: 0 } : undefined });
+  };
+  const rewriteTrack = (id: string, cur: Spatial, patch: Partial<Spatial>) => {
+    const { legacyVec: _dropped, ...rest } = cur;
+    void _dropped;
+    patchSelTrack(id, { spatial: { ...rest, ...patch } });
+  };
+  const setTrackSpatialAim = (id: string, angle: number, omni: boolean) => {
+    const cur = trackSpatialOf(id); if (!cur) return;
+    releaseSel(`audio.track.${id}.spatial.angle`); releaseSel(`audio.track.${id}.spatial.attenuation`);
+    for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.track.${id}.spatial.${ax}`);
+    // Same two rules as the clip's aim: the BEARING survives an omni flip so dragging back out returns the
+    // source where it was, and `undefined` rather than `false` keeps the field out of the file.
+    rewriteTrack(id, cur, { angle: normAngle(angle), omni: omni || undefined });
+  };
+  const setTrackSpatialElevation = (id: string, elevation: number) => {
+    const cur = trackSpatialOf(id); if (!cur) return;
+    releaseSel(`audio.track.${id}.spatial.elevation`);
+    rewriteTrack(id, cur, { elevation });
+  };
   const spatialOf = (id: string): Spatial | undefined => vec3(selClipIn(id)?.spatial);
   // ⚠ EVERY WRITE DROPS `legacyVec`, AND THAT IS THE RULE THAT KEEPS IT HONEST.
   //
@@ -1053,6 +1083,13 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   const spatial = vec3(selClip?.spatial);
   const padAngle = padDraft?.angle ?? spatial?.angle ?? 0;
   const padOmni = padDraft?.omni ?? spatial?.omni === true;
+  const trackSpatial = vec3(selTrack?.spatial);
+  const trackPadAngle = trackPadDraft?.angle ?? trackSpatial?.angle ?? 0;
+  const trackPadOmni = trackPadDraft?.omni ?? trackSpatial?.omni === true;
+  // WHICH POSITION IS ACTUALLY ENCODING THIS CLIP. The clip's own wins; a clip without one is placed where
+  // its track says (plugin.renderer's withTrack). Said out loud in both sections, because a pad that is
+  // being overridden two boxes down is exactly the kind of silent lie this panel refuses elsewhere.
+  const inheritsTrackSpatial = !spatial && !!trackSpatial;
   // THE RIG UNDER THE SOURCE — null for BINAURAL, where there is no rig: the B-format is decoded to a
   // pair of headphones by HRTF, so drawing a speaker ring would be describing a room that is not there.
   // (An unknown layout name also draws nothing rather than guessing at a default: a pad that quietly
@@ -1381,6 +1418,13 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                       Spatial
                     </label>
                   </div>
+                  {!spatial && inheritsTrackSpatial && (
+                    <p className="text-micro text-fg-3 leading-snug">
+                      Placed by its track (<span className="text-fg-2">{selTrack?.name}</span>) at{' '}
+                      {trackPadOmni ? 'everywhere' : `${normAngle(trackPadAngle).toFixed(0)}°`}. Tick Spatial to
+                      give this clip a position of its own, which takes precedence.
+                    </p>
+                  )}
                   {spatial ? (
                     <div className="flex items-center gap-3">
                       <SpatialPad angle={padAngle} omni={padOmni} docKey={gestureDocKey}
@@ -1472,7 +1516,56 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                     so two of the three containers could never have reached it. */}
                 {selTrack && (
                   <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
+                    {/* THE TRACK'S POSITION — a DEFAULT for the clips on it, never an override. A position
+                        cannot be laid over a position the way a chain is appended to a chain (a source has
+                        one place in the field), so the two RANK: the clip's own wins, and a clip without one
+                        is encoded where the track says. Were it the other way round, the clip's own pad
+                        would go dead the moment its track had a position. See types.ts AudioTrack.spatial. */}
                     <div className="flex items-center gap-1.5">
+                      <Orbit size={12} className={trackSpatial ? 'text-accent' : 'text-fg-3'} />
+                      <label className="flex items-center gap-1.5 text-micro text-fg-2">
+                        <input type="checkbox" checked={!!trackSpatial} className="accent-accent"
+                          onChange={(e) => setTrackSpatialOn(selTrack.id, e.target.checked)} />
+                        Track spatial
+                      </label>
+                      <span className="text-micro text-fg-3 truncate" title={`Applies to every clip on “${selTrack.name}”`}>
+                        ▸ {selTrack.name}
+                      </span>
+                    </div>
+                    {trackSpatial ? (
+                      <>
+                        <div className="flex items-center gap-3">
+                          {/* NO onAudition. A clip's pad auditions by pushing straight at the engine's own
+                              source id; a track has no source, so it would have to fan out over every clip
+                              on it — including ones not even loaded. The commit is heard on the next frame,
+                              like any other document write. */}
+                          <SpatialPad angle={trackPadAngle} omni={trackPadOmni} docKey={gestureDocKey}
+                            speakers={padSpeakers}
+                            onDraft={(angle, omni) => setTrackPadDraft({ angle, omni })}
+                            onCommit={(angle, omni) => { setTrackPadDraft(null); setTrackSpatialAim(selTrack.id, angle, omni); }} />
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
+                              <Fader value={trackSpatial.elevation} min={-90} max={90} step={1}
+                                ariaLabel="track spatial height" docKey={gestureDocKey}
+                                title={(v) => `${v.toFixed(0)}° — ${v > 0 ? 'above' : v < 0 ? 'below' : 'level with'} the listener`}
+                                onCommit={(e) => setTrackSpatialElevation(selTrack.id, e)}
+                                className="flex-1 min-w-0"
+                                readout={(v) => `${v.toFixed(0)}°`}
+                                readoutClassName="text-micro text-fg-2 tabular-nums w-10 text-right shrink-0" />
+                            </div>
+                            <p className="text-micro text-fg-3 leading-snug">
+                              Every clip on this track that has no position of its own is placed here. A clip
+                              with one keeps it.
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-micro text-fg-3 italic">Off — clips on this track are placed only by their own positions.</p>
+                    )}
+
+                    <div className="flex items-center gap-1.5 pt-1.5 border-t border-line-1">
                       <Sliders size={12} className={fxOf(selTrack.effects).length ? 'text-accent' : 'text-fg-3'} />
                       <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">
                         Track FX{fxOf(selTrack.effects).length ? ` (${fxOf(selTrack.effects).length})` : ''}
