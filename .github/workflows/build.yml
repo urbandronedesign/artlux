@@ -160,9 +160,52 @@ jobs:
         with:
           path: artifacts
 
+      # Version-free copies of each installer, so a download link can exist that never needs
+      # editing: .../releases/latest/download/ArtLux-Setup-x64.exe. Without these, `artifactName`
+      # puts the version in every filename, so the only linkable thing is the releases PAGE -- which
+      # is why the README sent people to browse a list of every build ever cut.
+      #
+      # They are ADDITIONAL files; the versioned assets are untouched. And they are inert to both
+      # updaters by construction, which was checked rather than assumed: electron-updater and the
+      # launcher each take the installer's filename from latest.yml's `path` field, never by
+      # scanning the release's assets, so an extra .exe cannot be mistaken for a candidate build.
+      # No .blockmap is copied for the same reason -- nothing resolves an alias, so nothing would
+      # differential-download it.
+      #
+      # Built into a separate directory, not alongside the originals: `ArtLux-*-x64.exe` would
+      # otherwise match the copy it just made.
+      - name: Add fixed-name copies of the installers
+        run: |
+          set -uo pipefail
+          mkdir -p aliases
+          made=0
+          copy() {
+            src=$(find artifacts -name "$1" -type f | head -1)
+            if [ -z "$src" ]; then
+              # A platform can legitimately be absent: the package matrix is fail-fast: false, so a
+              # broken macOS job still publishes Windows and Linux. Warn, do not fail the release.
+              echo "::warning::no artifact matched $1 -- $2 will not be published"
+              return
+            fi
+            cp "$src" "aliases/$2"
+            made=$((made + 1))
+            echo "$2 <- $src"
+          }
+          copy 'ArtLux-*-x64.exe'         ArtLux-Setup-x64.exe
+          copy 'ArtLux-*-arm64.dmg'       ArtLux-arm64.dmg
+          copy 'ArtLux-*-x86_64.AppImage' ArtLux-x86_64.AppImage
+          # Zero is not a missing platform, it is a release with no installer in it at all. That has
+          # to stop here: fail_on_unmatched_files is false below, so nothing else would notice.
+          if [ "$made" -eq 0 ]; then
+            echo "::error::no installer was produced by any platform"
+            exit 1
+          fi
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*
+            aliases/*
           generate_release_notes: true
           fail_on_unmatched_files: false
