@@ -1,5 +1,260 @@
 # Changelog
 
+## v0.27.0
+
+### The mixer lists every track that is making sound
+
+The Audio Bed called itself the mixer and gave a partial account of the room. Its column listed two
+containers -- the bed's tracks, and the bound timeline's, the latter **disabled** with a note sending you
+off to the lane gutter. The video layers, which in a scene built out of video are usually every sound in
+it, were not listed at all.
+
+Three lists now, all writable. The timeline's tracks stop being read-only: that gate was honest when it
+was written and had been stale since a track writer landed. The video layers get a list of their own,
+derived, so it holds precisely the layers **contributing** -- a layer whose clips are all silent, switched
+off, or still conforming is not drawn. That is the same set the clip inspector can select, so the two
+surfaces agree about what exists.
+
+Every track writer now takes its container, and that is the part that would have been a real bug rather
+than a missing feature. Gain, mute, solo, name and the shaper all wrote the bed unconditionally -- correct
+while the bed was the only editable list, and wrong the instant three containers share one column: a video
+layer's mute would have gone to whichever bed track shared its id **in your eye and nothing in the data**.
+
+Clicking a row hands the inspector to that track; selecting a clip hands it back. Both draw the same
+controls writing the same fields, so there is no second implementation to drift. A row shows a dot when it
+carries a position or a chain, so the column says which tracks are shaped without opening each one.
+
+Two things stay read-only, both for one reason -- one owner per field. A video layer's **name** belongs to
+its lane. And only the bed accepts a dropped audio file, because neither other container has clips that can
+be minted there: a scene's are placed on its lane, a layer's are derived from its picture.
+
+### Place and shape a whole track, instead of every clip on it
+
+Asked for as a bus: put the FX and the position on the track and have them apply to every clip on it. The
+engine cannot have a bus, and the reason is the ambisonics rather than the code -- a spatial source is a
+point in a field, so the encoder needs each source's signal **on its own**. Summing a track's clips before
+they are encoded destroys exactly that, so a track feeding a true bus could hold no spatial sources at all.
+
+So the chain is authored once and run per clip: the driver appends the track's chain to each clip's own,
+nothing is summed, and the engine still only ever sees a clip or the master. Order is the ordinary console
+order -- the clip's chain, then the track's, then the encoder. That is acoustically identical here for a
+reason the timeline enforces rather than hopes for: one track plays one clip at a time, so exactly one
+instance is ever audible. The single audible difference is a reverb or delay **tail**, which stops at a cut
+instead of ringing across it.
+
+A position cannot work that way, and that is the one decision worth stating. A chain appends to a chain; a
+position cannot be laid over a position, because a source has exactly one place in the field. So the two
+**rank** instead:
+
+- the clip has its own position → the clip's wins
+- the clip has none → it is encoded where its **track** says
+
+The clip is the more specific statement, which is the same precedence its fx lane already has over its
+track's. The other order would have killed the clip's own pad -- a positioner that moves and changes
+nothing the moment its track has a position is a control that lies. Instead the inspector says which is in
+effect: a clip with no position of its own now reads *"Placed by its track (Video 1) at 90°"* where an
+empty positioner used to be, and points at the checkbox that takes the position back.
+
+### Automation reaches a scene's own audio, and a video clip's soundtrack
+
+An automation lane could only ever move the **bed**. Put one on a scene's timeline and it rode that scene's
+playhead correctly -- but the only targets on offer were the project's audio, so what it moved was the
+show-clock bed, under a scene. A clip in a scene's own timeline audio, and a video clip's soundtrack, had no
+lane and no curve at all.
+
+The engine was already there; enumerating the targets was the whole of it. The read path has been
+container-blind since the third container landed. Paths deliberately do **not** carry the container:
+`audio.clip.<id>` names the clip holding that id, wherever it lives. Every clip and track id in all three
+containers is a UUID, so a collision between them is not improbable, it is not producible -- and existing
+documents' lanes keep their exact meaning, because bed-only is what those paths meant when they were
+written.
+
+One stale gate comes off with it, which is a fix in its own right. A timeline row refused to look itself up
+in the drive map, on the reasoning that with a bed-only catalog an id could only resolve there by aliasing
+onto someone else's lane. Both halves of that premise are now false, and keeping the gate would have caused
+the very failure it prevented, one container over: a fader sitting at its authored value, live, while a lane
+moves the room.
+
+### ⚠ BEHAVIOUR CHANGE — the spatial angle spans one turn each way, not four
+
+±1440° was chosen as "past anything anyone would ask a sound to do". The cost of that headroom fell on every
+lane that is **not** spinning: a keyframe is dragged against its target's whole range over a lane a few
+dozen pixels tall, so 2880° across ~48 usable pixels made one pixel about **40°**. An ordinary bearing could
+not be set by hand at all, and the rest of the axis was empty space nobody ever visited.
+
+±360° keeps the property the range exists for. A lane **interpolates**, so an angle penned into 0–360 makes
+a full orbit unexpressible (0 → 360 is a lane that does not move) and makes 350 → 10 sweep *backwards*
+through 180 -- the sound crossing the room the long way at exactly the moment it should pass the front.
+Signed and a turn wide either way, every orbit is still a single straight ramp and the short way round is
+still simply the shorter number. What is lost is a multi-turn spin in **one** segment; it is now two. The
+drag is eight times finer.
+
+The positioner still **reads** 0–360; only the stored and automated value winds. Scene and cue fades are
+untouched and still take the short arc. A lane already carrying a keyframe past ±360 keeps its value in the
+document -- nothing rewrites it -- but the lane draws it at its end stop and it is clamped on the way to the
+engine. Only a hand-authored project can have one: the range was reachable only by dragging, which is the
+gesture the old span made impractical.
+
+### ⚠ BREAKING (project files) — a video clip has level; its layer has the position and the chain
+
+Per-clip spatialisation of a video soundtrack is removed -- not hidden behind a flag, removed. A video layer
+is a track of shots: placing *the layer* in the room is a gesture an operator has, while placing each cut
+separately is a control nobody reaches for and one that would have to be re-dialled on every re-edit.
+
+The split is now by scope, and the panel says so:
+
+| | what | whose | scope |
+|---|---|---|---|
+| **level** | gain, mute | the clip | this shot |
+| **place** | position, FX chain | the **layer** | every clip on the lane |
+| **gate** | on/off, A/V offset | the clip | this shot |
+
+Removed from the **model**, not just from the UI, and that is the part worth being deliberate about. Hiding
+a control whose field is still read and still projected leaves a value that sounds, cannot be seen and
+cannot be cleared. Nothing projects those two fields any more, so there is nothing left to be invisible.
+
+Both fields had been declared for two releases and **neither was ever authorable** -- no control anywhere
+in the app wrote one -- so no project this app has made can carry either. A hand-edited one might, and the
+sanitizer strips them explicitly. A legacy 0.26 per-clip attenuation is still folded into the clip's
+**gain** first: a level is not a thing to silently drop, so it survives where you can still see it.
+
+Bed and timeline audio clips keep their own positions and chains untouched. Those clips are authored one at
+a time on purpose, and that is the object-audio convention this engine is built on.
+
+### Type a keyframe's value, time and curve
+
+A keyframe could only be **dragged**. The lane is a few dozen pixels tall over the target's whole range, so
+a pixel is a coarse quantum on any wide axis and an exact value -- `-180`, `0.25` -- was not hittable at
+all. The value has been drawn beside the diamond for a while; this is the other half of it.
+
+Double-click a keyframe for a panel with value, time and curve. The curve is **kept and made legible**:
+double-click used to *cycle* it -- linear → hold → bézier, one step per click, with no way to see the three
+options, no way back except all the way round, and nothing on screen saying the gesture existed. It is a
+named dropdown now, on the same gesture. The same control, visible, rather than a control removed.
+
+The field is in the **display unit**, which is the seam that could have been quietly wrong. A target may
+read in one unit and store in another -- a Pan lane stores the fraction that lands in the fixture's DMX and
+reads 0–540°. A field taking storage would have asked you to type `0.5` beside a readout saying `270°`, and
+its own bounds would have rejected every legal bearing. Value, bounds, unit and seed all go through the
+declared conversion.
+
+Both fields are drafts. Committing per keystroke would make typing `-180` write `-`, then `-1`, then `-18`,
+each one clamped to the target's range and each one a whole-document write. Time is clamped between its
+neighbours exactly as a drag is, because the sampler walks a sorted array and a key typed past its
+neighbour would put the curve out of order rather than reorder it.
+
+### The keyframe editor appears where you can see it, and the wheel scrolls the track list
+
+The editor panel was positioned inside the lane body, which was wrong twice: it was clipped, and it did not
+follow the click. Clipped because the timeline is a lattice of stacking contexts -- a sticky ruler, a sticky
+gutter per lane, a maximised timeline pinned over everything -- so the panel's z-index stopped meaning
+anything globally and the scroller cropped whatever hung outside its 64px lane. Nothing threw: the panel was
+in the DOM at correct geometry with correct text, and only the pixels were wrong, which is why it survived
+every assertion and only an eye found it.
+
+It is now portalled out and placed from the diamond's measured rect, clamped into the window and flipping
+above when there is no room below -- which is the common case, because the timeline is a bottom drawer and a
+keyframe near the foot of the window had its editor off-screen. Dismissing the panel by clicking away now
+**commits** what you typed rather than trusting the field to blur first.
+
+Separately: spinning the wheel over the **track names** scrolls that list instead of zooming the time axis.
+The gutter is a list, and reading down it is the whole reason to put a cursor there; the column is pinned,
+so zooming from it was the one gesture that could not be what anyone meant -- you watched the clips scale
+sideways while the thing under your cursor sat perfectly still. Plain wheel scrolls vertically, shift+wheel
+horizontally, with the platform's own momentum.
+
+### Named workspaces — save, switch, lock, share
+
+Name the shape of the app and get it back later, on any machine. A workspace is a snapshot of **every
+workbench at once** -- dock trees, column widths, closed panels, dock tab, the timeline drawer, and which
+workbench opens first -- switched from a chip in the title bar, **Context ▸ Workspace**, or `Ctrl+K`, and
+carried between machines as a `.artws` file.
+
+There is no Save: edits bank into the workspace you are in. **Lock** is what replaces a dirty flag --
+panels still move, they are simply not written back, which is the answer to a show workspace drifting at
+17:55. Reset recompiles from the live manifest, so it picks up a panel a plugin has contributed since.
+
+What travels is UI shape. What stays per-machine is anything describing the machine or the room -- UI
+scale, the 3D render scale, the calibration file, the media view, and your keyboard. A shared file that
+quietly rewrote a colleague's UI scale or their shortcuts would be worse than no sharing at all, so an
+invariant keeps it out. An install that never saves a workspace behaves exactly as before.
+
+### A per-machine session log — config, timings, media, failures
+
+Every run now writes one JSONL file that opens with `session.start` and closes with `session.end`: what the
+machine is, how long the project took to open, which video cost that time, and everything that failed. On by
+default.
+
+Most of this was already **measured and then thrown away** -- the boot report, the open trace, the boot gate
+and the perf monitor all reported to the console, which is visible to a developer with DevTools open and to
+nobody else, ever. This gives it a durable home rather than a second measurement. The machine spec (OS, CPU,
+RAM, every GPU adapter with its driver, displays with refresh rate, NICs, disk) is recorded with a **diff
+against the last boot**, so *"what changed since it worked?"* is one line.
+
+The console tap adopts the ~253 existing log lines with no call-site edits, and it redacts secrets: the
+show-control PIN was being printed at startup and would have gone straight into the file.
+
+### The app quits on the first ask, and no longer crashes on the way out
+
+Reported together as "I have to quit twice and then it crashes". Two independent bugs; neither fixes the
+other.
+
+The first quit was **cancelled, not delayed**. Electron emits `before-quit`, then `close` on every window --
+and a window that prevents its own close does not defer the quit, it cancels it, with nothing to re-issue
+it. The unsaved-changes guard must prevent that close, because only the renderer knows whether the document
+is dirty, so every quit died there: the window closed when the renderer answered and the process stayed up
+with nothing on screen. Worse, all teardown lived in `before-quit`, which had **already run** -- so an
+aborted quit left the app going with the watchdog stopped, the session log closed, NDI torn down and every
+projector output dark, and answering "Keep editing" put you back in exactly that state with no way to tell
+except by looking at the wall. `before-quit` now only records the intent; the guard resumes the quit once
+the renderer answers, and "Keep editing" abandons it. Teardown moved to `will-quit`, which is emitted only
+when the quit is really going through.
+
+The second was a segfault in the JUCE audio engine's device teardown.
+
+### macOS gets an application menu, so Cmd+Q quits
+
+`Cmd+Q` did nothing on the Mac build, and the cause was not a missing accelerator: there was no application
+menu at all. macOS hands the **first** submenu of any template to the application menu and titles it with
+the app name, whatever label you gave it -- so *File* was being swallowed, its contents appeared under
+"ArtLux", and every standard item the app menu is supposed to carry was absent. Quit among them. The only
+way out was `Cmd+Shift+Q`, which is the system's Log Out.
+
+Quit is a menu **role** now. The obvious alternative -- pointing the existing global shortcut at
+`Cmd+Q` -- would have stolen Quit from every other application on the machine for as long as ArtLux was
+running.
+
+| | editor | broadcast |
+|---|---|---|
+| **macOS** | `Cmd+Q`, application menu | `Cmd+Shift+Q`, or the tray |
+| **Windows / Linux** | `Ctrl+Shift+Q` | `Ctrl+Shift+Q`, or the tray |
+
+On macOS the menu bar belongs to the application rather than the window, so a menu accelerator already
+reaches a focused frameless projector output -- the one case the global hotkey existed to cover, covered for
+free. Windows and Linux have per-window menus, so a frameless output there genuinely has no other route and
+keeps the global registration.
+
+### Downloads: permanent links, and a releases page that stays short
+
+Every release now publishes **fixed-name copies** of its installers beside the versioned ones, so a download
+link can exist that never needs editing:
+
+```
+…/releases/latest/download/ArtLux-Setup-x64.exe    # + ArtLux-arm64.dmg, ArtLux-x86_64.AppImage
+…/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe
+```
+
+They are additional assets and inert to both updaters by construction: electron-updater and the launcher
+each read the installer's filename out of `latest.yml`, never by scanning a release's asset list. Old
+releases are now **retired to drafts** rather than deleted -- their notes, their installers and their tags
+all survive, and one command puts a release back exactly as it was.
+
+The launcher also walks the whole release feed instead of its first page. Two products publish into one
+list and app releases land about ten times more often, so the newest launcher release sinks down it; the
+first time it passed row 30, every installed launcher at once would have answered "no published launcher
+release was found". It had twelve app releases of headroom when this was found. Nothing local changes and
+CI cannot see it -- the break is remote, and it lands on the product whose whole job is installing things.
+
 ## v0.26.7
 
 ### The app stops opening a sound card nobody asked for

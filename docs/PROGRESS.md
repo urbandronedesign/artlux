@@ -1285,6 +1285,90 @@ launcher installer renamed to `ArtLuxLauncher-Setup-x64.exe` verifies (exit 0) w
 fixed names fail as mismatches (exit 1) and versioned names still pass; and the retention selection
 dry-run against the live repo, with `echo` in place of every write.
 
+## v0.27.0 — three audio containers become one mixer, and a keyframe you can type (2026-09-06)
+
+`192f441`, `9b7c99c`, `6029727`, `87daf93`, `0bdb945`, `91c0660`, `f0096fe`, `581e1a7`, `cc51f4c`,
+`c6c7c13`, `233cee4`, `a59269a`, `d0ffba0`, `3bd29c4`
+
+The audio subsystem has had **three containers** — the bed, a scene's own `Timeline.audio`, and the
+derived video-layer tracks — since v0.26. This release finishes the authoring surface over all three,
+and the recurring finding is the same one each time: **the engine was already container-blind and the
+door was missing**. `reconcileContainer` serves all three; `enumerate()` was the whole of the automation
+change; `withTrack` already read `clip.spatial === undefined ? track.spatial : undefined`.
+
+**Two writer bugs of the same shape, one fixed and one prevented.** Every track writer
+(`setTrackGain/Mute/Solo/Name`, `patchSelTrack`) wrote the BED unconditionally — correct while the bed
+was the only editable list, and a silent mis-write the instant three containers share one column.
+`source` is now a property of the ROW being written, never of whatever clip happens to be selected.
+The same reasoning retired `drivenOn()`'s gate on timeline rows: with a container-blind catalog, keeping
+it would have caused the very failure it was written to prevent (a fader at its authored value, live,
+while a lane moves the room).
+
+**A bus was asked for and is not what shipped, for an acoustic reason rather than a code one.** A
+spatial source is a point in a field, so the encoder needs each source's signal on its own; summing a
+track's clips before encoding means a track feeding a true bus could hold **no spatial sources at all**.
+The chain is authored once and appended per clip instead — acoustically identical here because
+`operations.ts` forbids an overlap on one track, so exactly one instance is ever audible. The one real
+difference is a reverb tail stopping at a cut. `AudioTrack.busId` stays declared and unread.
+
+**Chain and position compose differently, and the difference is the decision.** A chain APPENDS
+(clip's, then track's, then the encoder). A position cannot — a source has one place in the field — so
+the two RANK: the clip's own position wins, and a clip without one is encoded where its track says.
+The other order would have made a clip's positioner a control that lies. Both merges happen BEFORE the
+overrides, and that order is load-bearing: `applyClipPaths` writes an fx param by finding the effect by
+id in the chain it is handed, and a spatial leaf only `if (spatial)` — merge after and every track lane
+in the show silently does nothing.
+
+**⚠ ±1440° → ±360°.** The headroom cost every lane that is not spinning: 2880° over ~48 usable pixels is
+**40° per pixel**, so an ordinary bearing was not settable by hand. Signed and one turn each way keeps
+what the range exists for — a lane interpolates, so 0–360 makes a full orbit unexpressible and sends
+350 → 10 backwards through 180. Lost: a multi-turn spin in one segment. The widget still reads via
+`normAngle`; `wrap` (scene/cue fades) is untouched; `compileAutomation` clamps on the way out.
+
+**⚠ Per-clip video spatial/FX removed from the MODEL, not hidden.** `VideoClipAudio.spatial`/`.effects`
+were declared for two releases with **no writer anywhere in the app** — building that writer (`192f441`)
+is what made the scope visible, and the scope was wrong: a video layer is a track of shots. Hiding a
+field that is still read and still projected leaves a value that sounds, cannot be seen and cannot be
+cleared — the same shape as the un-authorable `AudioClip.mute` this repo already documents. `videoAudioOf`
+projects neither; the sanitizer strips both explicitly and still folds a legacy 0.26 `spatial.attenuation`
+into `gain` through a cast.
+
+**The keyframe editor's one real hazard was the unit seam.** An `AutomationTargetDef` may read in one
+unit and store in another (Pan: stores the 0..1 fraction, reads 0..540°), so a field taking storage would
+have asked for `0.5` beside a readout of `270` and rejected every legal bearing on its own `min`/`max`.
+Everything routes through `toDisplay`/`fromDisplay`. Both fields are drafts — per-keystroke commit is a
+whole-document write per character (invariant 7, on a keyboard). Time clamps between neighbours because
+the sampler walks a SORTED array, which is also what keeps the `editing` INDEX valid.
+
+**And a fourth walk into the same trap.** The editor panel was `absolute` inside the lane body of a
+timeline that is a lattice of stacking contexts (`sticky top-0 z-30` ruler, `sticky left-0 z-20` gutters,
+`fixed inset-0 z-50` when maximised), so its z-index meant nothing globally and `overflow-auto` cropped
+it. `usePopoverAnchor`'s header documents the same trap being walked into three times in this directory.
+**Nothing throws** — correct geometry, correct text, wrong pixels — so it survives every DOM assertion
+and only an eye finds it. Also: the placement hook is called ABOVE the `!def` bail, because `def` goes
+defined → undefined under a mounted lane when an automated clip is deleted, and a render with one fewer
+hook is React's "rendered fewer hooks than expected", in render, from a delete.
+
+**Quit was two independent bugs reported as one.** `close`'s `preventDefault` CANCELS a quit rather than
+deferring it, and nothing re-issues it — while all teardown had already run in `before-quit`, so
+"Keep editing" returned you to a running app with the watchdog stopped and every projector output dark.
+Intent now records in `quitState.ts`, the guard resumes, teardown moved to `will-quit`. Separately,
+macOS had **no application menu at all** (the platform swallows the first submenu of any template into
+it), so `Cmd+Q` did not exist; it is a menu role now, because `globalShortcut.register('CommandOrControl+Q')`
+would have taken Quit from every other app on the machine.
+
+**Named workspaces** snapshot every workbench at once into a new `Prefs.workspaces` blob, leaving
+`Prefs.layoutState` exactly what it was — so an install that never saves one behaves byte-identically and
+boot needs no new step. Lock replaces a dirty flag. An invariant keeps per-machine fields (`uiScale`,
+`scene3d`, `calibrationFile`, `mediaView`, `shortcuts`) out of a shared `.artws`, drawing the line Prefs
+already drew on `scene3dRenderScale`.
+
+**The session log gives a durable home to what was already measured and thrown away** — `openTrace`,
+`bootReport`, `bootGate` and `perfMonitor` all reported to `console.log`. `shared/consoleTap.ts` adopts
+~253 existing call sites with no edits and redacts secrets: the show-control PIN was being printed at
+startup and would have gone straight into the file.
+
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
