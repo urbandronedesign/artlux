@@ -36,15 +36,16 @@ The sound *moves around your head*. Left, right, behind you, close, far. The **L
 shift as you drag. This is not a pan pot — you are moving an object through a field.
 
 ```
-                    front
+                  0° front
               ┌───────────────┐
-              │       ·       │      the pad is TOP-DOWN:
-              │               │        ← left        right →
-              │       ●───────│──▶ x     up = IN FRONT of you
-              │    listener   │        down = behind you
-              │               │
-              └───────────────┘      the HEIGHT slider is the third axis (y)
-                     back
+              │       ·       │      the pad is TOP-DOWN, and it is a
+              │               │      COMPASS, not a map:
+       270°   │       ●───────│──▶   90°     0° = in front of you
+       left   │    listener   │      right   90° = to your right
+              │               │              180° = behind you
+              └───────────────┘              270° = to your left
+                  180° back                  the HEIGHT slider is the
+                                             other angle: −90° to +90°
 ```
 
 Now drag the **height** slider. The source lifts above you and drops below.

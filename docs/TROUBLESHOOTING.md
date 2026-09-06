@@ -14,7 +14,7 @@ Read down the left column until a line matches what is actually in front of you.
 |---|---|
 | Fixtures are dark; the app looks fine | [Patching & routing](user-guide/04-patching-and-routing.md) — a fixture with no surface, or no patch, sends nothing |
 | Output is on, the DMX Monitor shows traffic, the rig is still dark | [Outputs](OUTPUTS.md) — target IP, universe, protocol, and per-fixture overrides |
-| Art-Net worked yesterday, nothing today | [Installing](user-guide/17-installing.md#troubleshooting) — a firewall rule follows the network *profile*, which a re-plugged switch can change |
+| Art-Net worked yesterday, nothing today | [INSTALL.md ▸ Troubleshooting](INSTALL.md#troubleshooting) — the rule may exist but be attached to a network *profile* the adapter is no longer on |
 | A projector output is black | [Projector outputs](user-guide/08-projector-outputs.md) — display picked, output enabled, a surface assigned |
 | Everything native is dead at once | [INSTALL.md ▸ Troubleshooting](INSTALL.md#troubleshooting) — usually the VC++ redistributable |
 
@@ -91,7 +91,7 @@ Read down the left column until a line matches what is actually in front of you.
 |---|---|
 | A white or blank screen, with the app still up | [WATCHDOG.md ▸ the white screen](WATCHDOG.md#the-white-screen--why-it-needed-its-own-detector) |
 | It restarted by itself, repeatedly | [WATCHDOG.md ▸ crash-loop circuit breaker](WATCHDOG.md#crash-loop-circuit-breaker) |
-| It will not quit, or quits twice | [Keyboard reference](user-guide/15-keyboard-reference.md) — the quit routes differ per platform and per build |
+| It will not quit, or quits twice | [OUTPUTS.md ▸ Quitting](OUTPUTS.md#quitting-both-modes) — the route differs per platform *and* between editor and broadcast |
 | You need to know what this machine did | [LOGGING.md](LOGGING.md) — one JSONL file per run, with a diff against the last boot |
 | You want to watch it from another machine | [MONITORING.md](MONITORING.md) — the metrics endpoint, and how to set the variable on an installed app |
 
