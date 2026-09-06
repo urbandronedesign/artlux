@@ -485,9 +485,24 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   useEffect(() => {
     const el = scrollRef.current; if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      const r = el.getBoundingClientRect();
+      // ── OVER THE TRACK NAMES, THE WHEEL SCROLLS. ───────────────────────────────────────────────
+      // The gutter is a LIST — track headers, lane names, their gutters' controls — and in a show with
+      // more tracks than fit, reading down it is the whole reason to put a cursor there. Zooming the
+      // time axis from it was the one gesture that could not be what anyone meant: the column is
+      // `sticky left-0`, so it does not move when the zoom happens, and the operator watches the
+      // clips scale sideways while the thing under their cursor sits still.
+      //
+      // Returning WITHOUT preventDefault hands the event back to the browser, which scrolls this same
+      // `overflow-auto` container — vertically for a plain wheel, horizontally for shift+wheel, both
+      // with the platform's own momentum and rubber-banding. Nothing here has to reimplement that.
+      //
+      // The bound is the gutter's own width from the container's left edge, and it stays correct
+      // under horizontal scroll for the reason the zoom below has to subtract GUTTER at all: the
+      // column is sticky, so it is always exactly the first GUTTER px of the viewport.
+      if (e.clientX - r.left < GUTTER) return;
       if (e.shiftKey) { el.scrollLeft += e.deltaY; e.preventDefault(); return; }
       e.preventDefault();
-      const r = el.getBoundingClientRect();
       const screenX = e.clientX - r.left - GUTTER;            // px from the t=0 column, in viewport
       const tUnder = (screenX + el.scrollLeft) / pxRef.current; // time under the cursor
       const next = clamp(pxRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1), 5, 300);
