@@ -1,0 +1,22 @@
+{
+  // The zone rules, compiled for `node` — no Electron, no bundler, no app.
+  //
+  // Separate from tsconfig.test.json because that one's modules must be reachable without any module
+  // mapping, and the zone code imports two TYPES from @artlux/sdk whose real modules reach React.
+  // stubs/sdk.d.ts stands in for exactly those two, so what runs here is the zone code alone.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": false,
+    "baseUrl": "..",
+    "paths": { "@artlux/sdk": ["scripts/stubs/sdk.ts"], "@artlux/sdk/renderer": ["scripts/stubs/sdk.ts"] },
+    "rootDir": "..",
+    "outDir": "../.tmp-take",
+    "types": ["node"]
+  },
+  "include": ["test-zone-take.ts", "stubs/sdk.ts"]
+}

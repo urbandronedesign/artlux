@@ -177,6 +177,7 @@ nothing to announce it. The dots now show the *term's* level including its NOT, 
 | Guards | `npm run verify` | 165 invariants + 11 doc checks + typecheck |
 | No sensor | `node scripts/lidar-emitter.cjs 127.0.0.1 10000 2 --pairs` | emits each person as 2 blobs 0.3 m apart, exactly like the venue |
 | A real venue | `npm run analyze:take -- <take.lblob>` | blobs/frame, the nearest-neighbour histogram (look for **two populations** — one person's blobs, and different people — the radius belongs in the valley between them), and the people count at every radius |
+| The rules, on real data | `npm run test:zone:take -- <project.artlux> <take.lblob>` | 8 checks, ~1 s: the reported doubling, a per-term dwell, the memo collision on state re-entry, and the take boundary — the real modules, stepped frame by frame off a recording |
 | …through real zones | `npm run analyze:take:zones -- <project.artlux> <take.lblob>` | what each authored zone would actually have counted, per radius. This is the tool that answers *"why did my zone set to 2 need four visitors"* from a recording, with no venue and no sensor |
 | End-to-end | `node scripts/test-zone-fsm.cjs` | ⚠ **written, never run green** — see below |
 
@@ -187,17 +188,41 @@ form.
 
 ---
 
+## What the venue recordings proved
+
+`npm run test:zone:take -- <project> <take>` steps a real recording through the **real** modules —
+trackingStore → people → zones → zoneTriggers — in about a second, with no Electron, no sensor and no
+venue. It is where a zone rule should be proved; the CDP harness is for the wiring above it. Against
+the owner's 34.3 s on-site take and their own six zones, all eight checks pass:
+
+- **The report itself**, from their data rather than an emitter: Zone 2 peaks at **4 raw blobs → 2
+  merged people**, so without merging a threshold of 2 needs four visitors.
+- **A per-term dwell**: `ALL[Zone 3 occupied for 1.5s][Zone 6 empty]` fires at **1780 ms** where the
+  same rule without the dwell fires at **270 ms** — the gap is the dwell, on real blobs.
+- **The memo collision** — the case listed here as never written. Re-enter a state with the zone still
+  occupied and evaluate a 600 s dwell alongside a plain rule: correct code fires the plain rule **0
+  times over 1647 occupied frames**; with `termSig` stripped of the per-term fields it fires **1647
+  times**. That is the 60 Hz strobe, demonstrated rather than predicted.
+- **The take boundary**: occupancy 4 → 0 across it, which is `people.reset()` doing the job it was
+  added for.
+
+> ⚠ **The first version of that collision test asserted the wrong thing** — "fires exactly once" — and
+> failed against correct code. A true rule *holds* true, deliberately, so a guarded transition still
+> fires when its guard opens; counting fires cannot tell a collision from correct behaviour. The
+> discriminator is **state re-entry**. Read a failing assertion against the design before believing it
+> found a bug.
+
 ## What is NOT proven
 
-- **`scripts/test-zone-fsm.cjs` has never gone green on this branch.** The dwell-inside-a-term case
-  (with its load-bearing *negative* assertion) and the NOT-vs-`emptyFor` discriminator are committed and
-  untested. Three runs were attempted: the first died on a stale dev server, the second on a **rotted
-  selector** (it opened the timeline by clicking a tab captioned `Time`, which stopped existing when the
-  timeline became a `Ctrl+T` drawer — now fixed to press the shortcut and assert the state lane is
-  readable), and the third was stopped because the harness takes ~5 min, kills any running Electron and
-  rewrites OSC prefs.
-- **The memo-collision "repeat hops" case** (a state re-entered while a zone stays occupied, asserting
-  ≤1 hop) was never written — it needs its own graph. The invariant covers the class instead.
+- **`scripts/test-zone-fsm.cjs` has never gone green on this branch.** Its dwell-inside-a-term case and
+  NOT-vs-`emptyFor` discriminator are committed and untested. Three runs were attempted: the first died
+  on a stale dev server, the second on a **rotted selector** (it opened the timeline by clicking a tab
+  captioned `Time`, which stopped existing when the timeline became a `Ctrl+T` drawer — now fixed to
+  press the shortcut and assert the state lane is readable), and the third was stopped because the
+  harness takes ~5 min, kills any running Electron and rewrites OSC prefs.
+  **The rule semantics it was going to check are now covered by `test:zone:take`**, on better data;
+  what it still uniquely covers is the FSM wiring above them — that a fired rule actually recalls a
+  scene, and that a global rule fires from a state it was never drawn from.
 - **Part A's A3 fix is not proven against a *scene* recall in the harness** — only against real FSM GOs
   fired over OSC in a live session, which did hold.
 

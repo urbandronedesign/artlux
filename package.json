@@ -48,6 +48,7 @@
     "test:recal": "npm run test:logic && node .tmp-tests/scripts/test-recal.js",
     "test:workspace": "tsc scripts/test-workspace.ts --outDir .tmp-workspace --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-workspace/scripts/test-workspace.js",
     "test:people": "tsc scripts/test-people.ts --outDir .tmp-people --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-people/scripts/test-people.js",
+    "test:zone:take": "tsc -p scripts/tsconfig.zone-take.json && node .tmp-take/scripts/test-zone-take.js",
     "analyze:take": "tsc scripts/analyze-take.ts --outDir .tmp-take --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-take/scripts/analyze-take.js",
     "analyze:take:zones": "tsc scripts/analyze-take-zones.ts --outDir .tmp-take --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-take/scripts/analyze-take-zones.js",
     "test:workspace:live": "node scripts/test-workspace-live.cjs"
