@@ -112,13 +112,28 @@ The SOL (floor) and MUR (wall) zones appear at real scale with a glowing marker 
 raw ids flicker hard (median lifetime ~0.13 s). Turn on **Merge people** to run a small predictive
 tracker that clusters blobs into stable people with steady ids:
 
-- **Merge radius (m)** — default **0.8**. Lower it if distinct people merge into one; raise it
-  (→1.0) if one person still shows two markers.
+- **Merge radius (m)** — default **0.8**. Lower it if distinct people merge into one; raise it if one
+  person still shows two markers. **Don't guess it** — the **Trigger Zones** map reads
+  `4 blobs → 2 people · closest pair 0.30m / merge 0.80m`. Stand *one* person on the surface:
+  `closest pair` is the gap between their own two blobs, and if it is bigger than the radius the line
+  turns **red** because nothing can merge. Raise the radius past it.
 - **Predict (ms)** / **Smoothing** — motion tuning (≈66–100 ms predict at 30 Hz).
 
+**A blob does not mean the same thing on every surface**, so you say which per surface, on the
+**Trigger Zones** tab next to the surface picker — *a blob is*:
+
+- **part of a person (merge)** — the **floor**, where the tracker paints ~2 blobs per visitor.
+- **one whole thing — a hand** — the **wall**, where a blob *is* a hand and a visitor raises one.
+  Never merged, so two people touching near each other stay two triggers; still tracked, so a hand
+  lost for a frame does not drop the trigger.
+
 A steady marker count that matches your real headcount, with each person keeping one `#id` as they
-move, means it's tuned. Counting downstream (zones, thresholds) is **post‑merge**: `1 person` means
-one person, not one blob.
+move, means it's tuned. Counting downstream (zones, thresholds) is **post‑merge**: `People needed 1`
+means one person, not one blob. These are **sensor** settings — they belong to the venue, not to a
+look, so a GO never reverts them.
+
+> **No sensor to hand?** `node scripts/lidar-emitter.cjs 127.0.0.1 10000 2 --pairs` emits two people
+> as four blobs 0.3 m apart, exactly like the venue does.
 
 ---
 
@@ -150,7 +165,7 @@ scene and state. You draw the entrance / stage / doorway **once**; changing the 
 recreates or loses them.
 
 <!-- TODO screenshot (hand-shot — see the note in README.md): the 3D (Venue & Rig) workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields -->
-*The Trigger Zones panel: draw zones on the tracking map, set People needed per zone, and toggle the per‑scene eye. Live blobs are drawn **raw** (not merged) so the two‑blobs‑per‑person is visible.*
+*The Trigger Zones panel: draw zones on the tracking map, set People needed per zone, and toggle the per‑scene eye. Live blobs are drawn **raw** so the two‑blobs‑per‑person is visible, with a ring around each person actually counted and the tally — `4 blobs → 2 people` — above them.*
 
 **Author them** in the **3D** (Venue & Rig) workbench, on the **Trigger Zones** dock tab. Three ways
 to it, all landing on the same tab — use whichever you are nearest:
@@ -251,6 +266,13 @@ is placed on, see [the timeline ▸ Takes on a lane](06-timeline.md#takes-on-a-l
 - **A zone rule never fires** — confirm the current scene isn't **listening‑off** to that zone (the
   eye), that the transition leaves the current state (or is a **⚡ global rule**), and that the dwell
   isn't so high the flickery feed never latches.
+- **A zone needs twice the people you asked for** — the count is in *blobs*, not people. Open
+  **Trigger Zones** and read the tally on the map: `4 blobs → 2 people` is right, `4 blobs · merge
+  off` means turn **Merge people** on, and a **red** `closest pair 1.20m / merge 0.80m` means the
+  radius is too small for this venue — raise it past the gap.
+- **The wall counts two people as one** — the wall's blobs are *hands*, not halves of a person. Set
+  *a blob is* → **one whole thing — a hand** for that surface (Trigger Zones, beside the surface
+  picker). Merging is per surface precisely so the floor and the wall can disagree.
 - **MediaPipe does nothing** — on a source checkout you likely skipped `npm run assets:mediapipe`
   (a released build ships the assets, so this cannot be the cause there); check the log for
   `engine start failed`.

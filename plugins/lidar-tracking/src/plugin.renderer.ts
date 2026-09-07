@@ -16,12 +16,13 @@ import type { TrackingZone } from '../../../shared/protocol';
 import * as trackingStore from './trackingStore';
 import type { TrackingSnapshot } from './trackingStore';
 import * as zones from './zones';
+import * as people from './people';
 import { ZONE_TRIGGER_SOURCE, zoneTriggerFires, describeZoneTrigger, type ZoneTriggerParams } from './zoneTriggers';
 import { ZoneTriggerInspector } from './ZoneTriggerInspector';
 import * as trackingDrawable from './trackingDrawable';
 import * as trackingProjector from './trackingProjector';
 import * as take from './trackingTake';
-import { clusterAndTrack } from './blobClustering';
+
 import TrackingViz from './TrackingViz';
 import { OscMonitor } from './OscMonitor';
 import { ZonePanel } from './ZonePanel';
@@ -96,11 +97,11 @@ export const plugin: RendererPlugin = {
       throttleMs: 16,
       appliesTo: (surface) => (surface as Surface).content.type === 'TRACKING',
       subscribe: (cb) => trackingStore.subscribe(cb),
-      build: () => {
-        const raw = trackingStore.snapshot();
-        const cfg = ctx.host.scene3D.get() as { trackingMergePeople?: boolean; trackingMergeRadius?: number };
-        return cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, performance.now()) : raw;
-      },
+      // Read the frame's people; do NOT compute them. people.refresh() ran once this frame from the
+      // callback below, and it is the tracker's single caller — computing here as well would advance
+      // every track twice against a ~0 dt and make the markers jitter. This throttles at 16 ms so it
+      // may serve the previous frame's answer, which is what a preview wants anyway.
+      build: () => people.snapshot(),
       apply: (payload) => trackingStore.applySnapshot(payload as TrackingSnapshot),
       // Projector GPU render (consumer side): the plugin composites bg + trails + blobs + overlay
       // into the host's source FBO; the host warps it. Replaces ProjectorGL.drawTracking, so host
@@ -128,11 +129,15 @@ export const plugin: RendererPlugin = {
       // through the host scene service. Push them on every scene change; configure() is idempotent
       // and deliberately keeps existing zone STATE, so renaming a zone does not re-fire its triggers.
       const pushZones = (): void => {
-        const s = ctx.host.scene3D.get() as { trackingZones?: TrackingZone[]; activeZoneIds?: string[]; trackingMergePeople?: boolean; trackingMergeRadius?: number; trackingZoneEnterSec?: number; trackingZoneExitSec?: number };
+        const s = ctx.host.scene3D.get() as { trackingZones?: TrackingZone[]; activeZoneIds?: string[]; trackingMergePeople?: boolean; trackingMergeRadius?: number; trackingSurfaceMerge?: Record<string, boolean>; trackingZoneEnterSec?: number; trackingZoneExitSec?: number };
         // `activeZoneIds` rides the LOOK (a scene recall replaces it), while `trackingZones` is the room
         // and does not — so a GO arrives here as a change of which zones are listened to, nothing more.
         // The venue-wide dwell (the on-site knob) rides along too; a zone follows it unless it overrides.
-        zones.configure(s.trackingZones, !!s.trackingMergePeople, s.trackingMergeRadius ?? 0.8, s.activeZoneIds, s.trackingZoneEnterSec, s.trackingZoneExitSec);
+        // The merge settings describe the SENSOR (does this LiDAR report ~2 blobs per person?) and so
+        // are owned by people.ts, which both the zones and the projectors read. They no longer reach
+        // zones.configure at all.
+        people.configure(!!s.trackingMergePeople, s.trackingMergeRadius ?? 0.8, s.trackingSurfaceMerge);
+        zones.configure(s.trackingZones, s.activeZoneIds, s.trackingZoneEnterSec, s.trackingZoneExitSec);
       };
       pushZones();
       sceneUnsub = ctx.host.scene3D.subscribe(pushZones);
@@ -140,7 +145,14 @@ export const plugin: RendererPlugin = {
       // transport is paused. That is required, not incidental: a state waiting for a person is
       // usually HOLDING its last frame, and a zone that only advanced with the playhead would never
       // notice anybody arrive.
-      frameUnsub = ctx.onPlayhead(() => zones.evaluate(performance.now()));
+      // ⚠ ORDER IS LOAD-BEARING: the people for THIS frame, then the zones that count them. One clock
+      // reading for both, so a dwell measured by a zone and a position drawn by a projector cannot
+      // disagree about when "now" was.
+      frameUnsub = ctx.onPlayhead(() => {
+        const now = performance.now();
+        people.refresh(now);
+        zones.evaluate(now);
+      });
     }
 
     // The zone triggers themselves. One `source`, several rules — the host persists

@@ -1733,22 +1733,37 @@ check(
 
 // ── Zones: the room is not part of a look ─────────────────────────────────────────────────────
 check(
-  'a scene snapshot never carries the trigger zones',
+  'a scene snapshot never carries the room or the sensor',
   'A trigger zone is a rectangle taped to a real floor — it does not change shape because the lighting ' +
   'did. Zones live on Scene3D, Scene3D rides in the look snapshot, and recall assigns the whole object: ' +
   'so every scene silently carried a COPY, and the first GO onto a scene captured BEFORE the zones were ' +
   'drawn replaced the live list with nothing. Every zone vanished and every zone-driven transition went ' +
-  'inert, with nothing logged and nothing on screen to explain it.',
+  'inert, with nothing logged and nothing on screen to explain it. ' +
+  'IT THEN HAPPENED A SECOND TIME, to the SENSOR settings, because the fix was written out separately ' +
+  'at each site instead of shared: trackingMergePeople/-Radius and the venue dwell were added to ' +
+  'Scene3D later and reached NEITHER list. So merging — "this venue reports two blobs per person" — ' +
+  'rode every snapshot and the first recall turned it back off; every zone then counted blobs, and a ' +
+  'zone asking for two visitors needed four, mid-show, with nothing logged. Found at the venue. ' +
+  'Hence ONE list, SCENE3D_NOT_A_LOOK, and hence this check on all three of its readers.',
   () => {
     const src = read('src/renderer/App.tsx');
-    const snap = fnBody(src, 'buildSceneSnapshot');
     const problems = [];
+    const list = src.match(/const SCENE3D_NOT_A_LOOK = \[([\s\S]*?)\] as const;/);
+    if (!list) return 'SCENE3D_NOT_A_LOOK is gone — the three sites have nothing to share';
+    for (const k of ['trackingZones', 'viewFrom', 'trackingMergePeople', 'trackingMergeRadius',
+                     'trackingSurfaceMerge', 'trackingZoneEnterSec', 'trackingZoneExitSec']) {
+      if (!list[1].includes(`'${k}'`)) problems.push(`SCENE3D_NOT_A_LOOK no longer covers ${k}`);
+    }
+    // All three readers must USE the list. A literal `trackingZones: undefined` at any of them is how
+    // the drift started, so it is itself the failure — not merely the absence of the helper.
+    const snap = fnBody(src, 'buildSceneSnapshot');
     if (!snap) problems.push('could not find buildSceneSnapshot in App.tsx');
-    else if (!/trackingZones:\s*undefined/.test(snap)) problems.push('buildSceneSnapshot does not strip `trackingZones` — a scene would capture the room');
-    // …and the other half: the recall must not assign a scene's (possibly older) scene3D wholesale.
+    else if (!/scene3D: stripNotALook\(scene3D\)/.test(snap)) problems.push('buildSceneSnapshot no longer strips via stripNotALook() — a scene would capture the room and the sensor');
     const recall = fnBody(src, 'handleRecallScene');
     if (!recall) problems.push('could not find handleRecallScene in App.tsx');
-    else if (!/trackingZones:\s*prev\.trackingZones/.test(recall)) problems.push('handleRecallScene does not preserve the live `trackingZones` — an old scene would still wipe them');
+    else if (!/keepNotALook\(scene\.scene3D!, prev\)/.test(recall)) problems.push('handleRecallScene no longer preserves via keepNotALook() — an old scene would still wipe them');
+    if (!/k === 'scene3D'[\s\S]{0,160}stripNotALook/.test(src)) problems.push('the unsaved-changes norm() no longer normalizes scene3D via stripNotALook() — the Update chip would light permanently');
+    if (/trackingZones:\s*undefined/.test(src)) problems.push('a site still spells the fields out inline — that is exactly how the sensor fields got missed');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -4947,6 +4962,24 @@ check(
     if (!/log\.truncated/.test(w)) return 'write() no longer marks a session that hit the ceiling';
     if (/sessionFileName\s*\(/.test(w)) return 'write() mints a new file mid-session (that is a rotation)';
     return null;
+  },
+);
+
+// ── The person tracker has exactly one caller ─────────────────────────────────────────────────
+check(
+  'clusterAndTrack is called only from people.ts',
+  'clusterAndTrack owns per-frame velocity state and is documented "call ONCE per frame, from a ' +
+  'single caller". A second caller advances every track twice against a ~0 dt, so predictions fling ' +
+  'and the projector markers jitter. people.ts is that caller and hands the answer to the zones and ' +
+  'the projector channel alike — which is also what stops the SHOW counting people with a weaker ' +
+  'algorithm than the 3D scene an operator validates against.',
+  () => {
+    const hits = [];
+    for (const f of walk('plugins/lidar-tracking/src')) {
+      if (!/\.tsx?$/.test(f) || /blobClustering\.ts$|people\.ts$/.test(f)) continue;
+      if (/\bclusterAndTrack\s*\(/.test(read(f))) hits.push(f);
+    }
+    return hits.length ? `clusterAndTrack called outside people.ts: ${hits.join(', ')}` : null;
   },
 );
 

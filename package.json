@@ -47,6 +47,7 @@
     "test:blend": "npm run test:logic && node .tmp-tests/scripts/test-blend.js",
     "test:recal": "npm run test:logic && node .tmp-tests/scripts/test-recal.js",
     "test:workspace": "tsc scripts/test-workspace.ts --outDir .tmp-workspace --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-workspace/scripts/test-workspace.js",
+    "test:people": "tsc scripts/test-people.ts --outDir .tmp-people --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-people/scripts/test-people.js",
     "test:workspace:live": "node scripts/test-workspace-live.cjs"
   },
   "dependencies": {

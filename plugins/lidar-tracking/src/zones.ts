@@ -1,6 +1,5 @@
 import type { TrackingZone } from '../../../shared/protocol';
-import * as trackingStore from './trackingStore';
-import { clusterBlobs } from './blobClustering';
+import * as people from './people';
 
 // TRIGGER ZONES — "is anybody standing there?", answered once per frame, with hysteresis.
 //
@@ -11,17 +10,17 @@ import { clusterBlobs } from './blobClustering';
 // Render-free singleton, exactly like trackingStore: evaluated from the host's per-frame callback and
 // published through subscribe(), so a person walking across a room never re-renders React.
 //
-// ── WHY THE COUNT IS CLUSTERED, AND WHY NOT WITH THE PEOPLE TRACKER ──────────────────────────────
+// ── THE COUNT IS PEOPLE, AND IT COMES FROM ONE PLACE ─────────────────────────────────────────────
 // The venue's LiDAR emits ~2 blobs PER PERSON, so a raw blob count double-counts everyone and every
-// threshold an operator authors would mean half what they typed. So the count goes through
-// clusterBlobs() — the PURE, stateless merge.
+// threshold an operator authors means half what they typed. The corrected number comes from people.ts
+// — read, never computed here.
 //
-// It deliberately does NOT use clusterAndTrack(): that one owns a multi-object tracker with per-frame
-// velocity state and is documented "call ONCE per frame, from a single caller" (the projector data
-// channel already is that caller). Calling it again here would advance every track twice per frame
-// against a ~0 dt — the predictions would fling, ids would churn, and the projector's markers would
-// visibly jitter as a side effect of a zone existing. Occupancy does not need stable identities
-// anyway: it needs a COUNT, and the temporal stability comes from the enter/exit dwell below.
+// This module used to run clusterBlobs() itself, declining clusterAndTrack() because that one owns
+// per-frame velocity state and must have a single caller (the projector data channel already was it).
+// The reasoning was right and the conclusion was wrong: it left the SHOW counting with a weaker
+// algorithm than the 3D markers an operator validates against, on a feed whose whole problem is
+// temporal instability. people.ts is now that single caller and hands the same answer to both. See
+// its header for what else that unified — notably which blobs count as live at all.
 //
 // ── HYSTERESIS IS THE FEATURE, AND "CONTINUOUS" WOULD BREAK IT ───────────────────────────────────
 // A bare "is a blob inside the rect" test fires on every flicker of a tracker whose blob ids have a
@@ -62,8 +61,6 @@ const DEF_ENTER_SEC = 0.2;   // ultimate fallback when neither the venue nor the
 const DEF_EXIT_SEC = 0.5;
 
 let zones: TrackingZone[] = [];
-let mergePeople = false;
-let mergeRadius = 0.8;
 // VENUE-WIDE dwell (Scene3D.trackingZoneEnterSec/ExitSec) — the default every zone follows unless it
 // carries its own override. Tuned once, on-site, in the tracking parameters. See configure().
 let venueEnterSec = DEF_ENTER_SEC;
@@ -80,13 +77,12 @@ const presence = new Map<string, Presence>();
 
 const blank = (id: string): ZoneState => ({ id, count: 0, occupied: false, occupiedSinceMs: 0, emptySinceMs: 0, enterSeq: 0, exitSeq: 0 });
 
-// Push the authored zones + the people-merge settings + this look's active set (all from Scene3D).
+// Push the authored zones + the venue dwell + this look's active set (all from Scene3D). The
+// people-merge settings are NOT here — they belong to people.ts, which every consumer reads.
 // Zone states are kept across a re-configure so editing a zone's NAME or COLOUR does not re-fire its
 // triggers; a zone that disappears — or that this look does not listen to — takes its state with it.
-export function configure(next: TrackingZone[] | undefined, merge: boolean, radiusM: number, active?: string[], enterSec?: number, exitSec?: number): void {
+export function configure(next: TrackingZone[] | undefined, active?: string[], enterSec?: number, exitSec?: number): void {
   zones = Array.isArray(next) ? next : [];
-  mergePeople = merge;
-  mergeRadius = radiusM;
   // Guard the venue dwell: a hand-edited or missing value must not poison the clock. A non-finite or
   // negative number falls back to the shipped default rather than making every zone's latch never fire
   // (a 0 enter is legal — "latch the instant presence is seen" — so only reject < 0 and non-finite).
@@ -127,17 +123,9 @@ export function evaluate(nowMs: number): void {
   if (zones.length === 0) return; // the no-zones cost is one compare
   let changed = false;
 
-  // Count per surface once, not per zone: several zones normally share a surface, and clusterBlobs is
-  // O(n²) in that surface's blob count.
-  const perSurface = new Map<string, { u: number; v: number }[]>();
-  for (const z of zones) {
-    if (activeIds && !activeIds.has(z.id)) continue;   // this look does not listen to it — don't even count
-    if (perSurface.has(z.surface)) continue;
-    const track = trackingStore.getSurfaceTrack(z.surface);
-    const raw = track ? [...track.blobs.values()].filter((b) => b.id !== 0) : [];
-    const merged = mergePeople ? clusterBlobs(raw, mergeRadius) : raw;
-    perSurface.set(z.surface, merged.map((b) => ({ u: b.u, v: b.v })));
-  }
+  // The per-surface people were computed once for this frame by people.refresh(), which the host's
+  // frame callback runs immediately before this. Nothing to gather here any more — and nothing to get
+  // subtly different from what the 3D scene and the projectors are showing.
 
   for (const z of zones) {
     // Inactive for this look: no state at all (configure() already deleted it), so getState() returns
@@ -145,7 +133,7 @@ export function evaluate(nowMs: number): void {
     // UNANSWERABLE, not answered "empty", or an `exit`/`emptyFor` rule would fire on a look that was
     // never listening to that part of the room.
     if (activeIds && !activeIds.has(z.id)) continue;
-    const pts = perSurface.get(z.surface) ?? [];
+    const pts = people.get(z.surface);
     let count = 0;
     for (const p of pts) if (inside(z, p.u, p.v)) count++;
 

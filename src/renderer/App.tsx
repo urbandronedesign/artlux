@@ -80,7 +80,7 @@ import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
-import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
+import { trackingPlayback, trackingDrawable } from '@artlux/plugin-lidar-tracking';
 import * as lightingPlayback from './services/lightingPlayback';
 import * as takeRecorder from './services/takeRecorder';
 import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
@@ -107,6 +107,48 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
  */
 const rendersVenue = (out: ProjectorOutput | undefined, s3d: Scene3D | undefined): boolean =>
   !!(out?.useCalibration && out.calibration?.poseRms != null && (s3d?.models ?? []).some(m => m.visible));
+
+// ⚠ THE Scene3D FIELDS THAT ARE THE ROOM OR THE SENSOR, NEVER THE LOOK — one list, read by all three
+// sites that care: buildSceneSnapshot strips them, the unsaved-changes norm() ignores them, and
+// handleRecallScene preserves whatever is live. The long argument at buildSceneSnapshot's
+// `trackingZones` applies verbatim to every entry here — a scene must not carry a copy, and a GO must
+// not replace what is live.
+//
+// IT IS ONE LIST BECAUSE IT WAS TWO, AND THAT COST A SHOW. The strip site and the restore site each
+// spelled the fields out; the SENSOR settings were added to Scene3D later and reached NEITHER. So
+// `trackingMergePeople` — "this venue's LiDAR reports two blobs per person" — rode every scene
+// snapshot, and the first GO onto a scene stored before it was switched on turned it back OFF. Every
+// zone then counted blobs instead of people, so a zone asking for two visitors needed four, mid-show,
+// with nothing logged and nothing on screen to explain it. The venue dwell — documented "tuned once,
+// on-site" — reverted by the same route.
+//
+// A merge radius and an enter/exit dwell describe the SENSOR and the ROOM. Neither changes because the
+// lighting changed. Add a field here the day you add one to Scene3D that is not part of a look.
+const SCENE3D_NOT_A_LOOK = [
+  'trackingZones',          // the room's geometry — see buildSceneSnapshot
+  'viewFrom',               // where the OPERATOR is looking, not part of the look
+  'trackingMergePeople',    // the sensor: does this LiDAR report ~2 blobs per person?
+  'trackingMergeRadius',    // …and how far apart those blobs sit
+  'trackingSurfaceMerge',   // …and what a blob MEANS per surface (floor = legs, wall = hands)
+  'trackingZoneEnterSec',   // the venue dwell — tuned once, on-site (docs/TRACKING_SYNC.md)
+  'trackingZoneExitSec',
+] as const;
+
+// Strip them on the way INTO a scene snapshot: a scene must not carry a copy at all.
+const stripNotALook = <T extends object>(s3d: T): T => {
+  const out = { ...s3d } as Record<string, unknown>;
+  for (const k of SCENE3D_NOT_A_LOOK) out[k] = undefined;
+  return out as T;
+};
+
+// Keep the LIVE value on the way OUT of one. This is both the invariant and the migration: a scene
+// stored before a field joined the list still carries its own copy in the file, so a recall must never
+// simply assign `scene.scene3D`.
+const keepNotALook = <T extends object>(next: T, live: T): T => {
+  const out = { ...next } as Record<string, unknown>;
+  for (const k of SCENE3D_NOT_A_LOOK) out[k] = (live as Record<string, unknown>)[k];
+  return out as T;
+};
 
 // Register the host's own workspace contexts + panels at module scope, i.e. before React mounts and
 // before plugins activate. Registration order does not actually matter (contextRegistry.extend queues
@@ -1443,7 +1485,11 @@ const App: React.FC = () => {
     // `viewFrom` is stripped for the same reason as trackingZones: it is where the OPERATOR is
     // looking in the editor, not part of the look. Captured, it would ride every scene and a GO
     // would yank the 3D viewport to whichever projector was selected when that scene was stored.
-    scene3D: { ...scene3D, trackingZones: undefined, viewFrom: undefined },
+    //
+    // The full list — and why the SENSOR settings (merge, merge radius, venue dwell) belong on it —
+    // is SCENE3D_NOT_A_LOOK at module scope. Do not spell fields out here again: they were spelled
+    // out at this site and at handleRecallScene, and the sensor fields reached neither.
+    scene3D: stripNotALook(scene3D),
     // ⚠ `projectorOutputs` IS STRIPPED — OUTPUTS ARE THE BUILDING, NOT THE SHOW.
     //
     // Same class as `groups` and `trackingZones` above, and the same bug: which display a surface is
@@ -1524,15 +1570,15 @@ const App: React.FC = () => {
     if (!fixtureLookEqual(fixtures, scene.fixtures)) out.push('fixtures');
     const snap = buildSceneSnapshot() as Record<string, unknown>;
     const stored = scene as unknown as Record<string, unknown>;
-    // ⚠ BOTH SIDES GET THE SAME NORMALIZATION. buildSceneSnapshot strips `trackingZones` and
-    // `viewFrom` out of scene3D (they are the room and the operator's viewpoint, not the look) — but
-    // a scene STORED BEFORE that rule existed still carries them, so comparing the stripped snapshot
-    // against the raw stored object reported a difference that no amount of pressing Update could
-    // ever resolve. Measured in the running app: it fired on load, every time.
+    // ⚠ BOTH SIDES GET THE SAME NORMALIZATION. buildSceneSnapshot strips SCENE3D_NOT_A_LOOK out of
+    // scene3D (the room, the sensor, and the operator's viewpoint — none of them the look) — but a
+    // scene STORED BEFORE a field joined that list still carries it, so comparing the stripped
+    // snapshot against the raw stored object reported a difference that no amount of pressing Update
+    // could ever resolve. Measured in the running app: it fired on load, every time. This is why the
+    // list is shared rather than respelled here — the day a field is added to it, this site must
+    // learn about it in the same edit or the chip lights permanently.
     const norm = (k: string, v: unknown): unknown =>
-      k === 'scene3D' && v && typeof v === 'object'
-        ? { ...(v as Record<string, unknown>), trackingZones: undefined, viewFrom: undefined }
-        : v;
+      k === 'scene3D' && v && typeof v === 'object' ? stripNotALook(v as Record<string, unknown>) : v;
     // ⚠ THE WARNING COVERS THE LOOK AN OPERATOR BUILT — fixtures, surfaces, brightness.
     //
     // `projectorOutputs` and `groups` are not here because they are no longer CAPTURED at all: both
@@ -1585,12 +1631,13 @@ const App: React.FC = () => {
     // any group made since the capture, and a lighting clip targets its group BY ID: the clip stays
     // on the timeline, configured correctly, driving nothing. Old files still carry `groups`; it is
     // ignored here (and no longer captured) exactly as trackingZones is.
-    // THE ROOM SURVIVES THE RECALL. `trackingZones` is project-scope geometry and is stripped from the
-    // snapshot (see buildSceneSnapshot) — but an OLD scene, captured before that rule existed, still
+    // THE ROOM AND THE SENSOR SURVIVE THE RECALL. Those fields are stripped from the snapshot (see
+    // buildSceneSnapshot) — but an OLD scene, captured before a field joined SCENE3D_NOT_A_LOOK, still
     // carries its own copy in the file, so this must not simply assign `scene.scene3D`. Keeping the live
-    // list is both the migration and the invariant: a GO can change WHICH zones a look listens to
-    // (activeZoneIds, which does travel), never which zones exist.
-    if (scene.scene3D) setScene3D(prev => ({ ...scene.scene3D!, trackingZones: prev.trackingZones, viewFrom: prev.viewFrom }));
+    // value is both the migration and the invariant: a GO can change WHICH zones a look listens to
+    // (activeZoneIds, which does travel), never which zones exist, and never whether this venue's LiDAR
+    // reports two blobs per person.
+    if (scene.scene3D) setScene3D(prev => keepNotALook(scene.scene3D!, prev));
     // THE OUTPUTS SURVIVE THE RECALL. This used to be `setProjectorOutputs(scene.projectorOutputs)`,
     // which replaced the live rig with whatever the scene froze — reverting display bindings, warps,
     // soft edges, labels and calibrations on a GO. Outputs are project-scope (see
@@ -3621,8 +3668,9 @@ const App: React.FC = () => {
   useEffect(() => {
       trackingDrawable.configure(scene3D.trackingSmoothing ?? 0.6, scene3D.trackingPredictMs ?? 50);
   }, [scene3D.trackingSmoothing, scene3D.trackingPredictMs]);
-  // Drop temporal person tracks when merging is off so a re-enable starts with fresh person ids.
-  useEffect(() => { if (!scene3D.trackingMergePeople) resetPeopleTracking(); }, [scene3D.trackingMergePeople]);
+  // (Dropping the person tracks when merging is switched off used to live here. It belongs to the
+  // plugin — people.configure() owns the tracker's lifecycle now, on the same scene3D subscription
+  // that feeds it the setting, so the host no longer reaches into it.)
   // Stream transport (playing + playhead) to the projector windows so their video/layer content stays
   // in sync with the main clock.
   //

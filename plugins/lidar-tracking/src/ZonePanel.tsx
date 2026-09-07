@@ -5,7 +5,8 @@ import type { PanelProps } from '@artlux/sdk/renderer';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import * as trackingStore from './trackingStore';
 import * as zones from './zones';
-import { useHostScene3D, setZones, setActiveZoneIds } from './trackingHost';
+import * as people from './people';
+import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge } from './trackingHost';
 
 // TRIGGER ZONES — the authoring surface. A dock tab on the `tracking` workspace context (registered
 // by the plugin; the host declares that context and knows nothing about zones).
@@ -176,6 +177,44 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           g.beginPath(); g.arc(X(b.u), Y(b.v), 4, 0, Math.PI * 2); g.fill();
         }
       }
+
+      // ⚠ AND THE PEOPLE THE ZONES ACTUALLY COUNT, DRAWN OVER THEM. Raw blobs alone answer "what does
+      // the sensor see"; they never answered "and what does the show think that MEANS", which is the
+      // question an operator is really asking when a zone set to two visitors needs four. A ring per
+      // person plus the tally below turns a doubled count into something visible in one glance —
+      // no manual, no arithmetic. Drawn from the same people.ts the zones read, so it cannot drift
+      // from the number that drives the show.
+      const tally = people.tally(surfaceRef.current);
+      const merging = people.isMerging(surfaceRef.current);
+      if (merging) {
+        g.strokeStyle = '#f59e0b'; g.lineWidth = 2;
+        for (const p of people.get(surfaceRef.current)) {
+          g.beginPath(); g.arc(X(p.u), Y(p.v), 9, 0, Math.PI * 2); g.stroke();
+        }
+      }
+      if (tally.blobs || tally.people) {
+        // ⚠ THE GAP IS SHOWN NEXT TO THE RADIUS BECAUSE THAT COMPARISON IS THE WHOLE DIAGNOSIS. A
+        // person's two blobs merge only if they are closer together than the merge radius; when the
+        // venue's are further apart, nothing merges, the count silently stays doubled, and the only
+        // visible symptom is a threshold meaning half what was typed. Stand ONE person on the sensor:
+        // if the gap reads larger than the radius, raise the radius past it. That was previously
+        // unmeasurable from inside the app, so the radius could only be guessed at.
+        const gap = people.closestPairM(surfaceRef.current);
+        // Only meaningful where blobs are SUPPOSED to merge. On a hand surface the closest pair is two
+        // different people's hands, and calling that gap a problem would be advice to break the wall.
+        const tooFar = merging && gap != null && gap > people.radius();
+        const txt = merging
+          ? `${tally.blobs} blobs → ${tally.people} people  ·  closest pair ${gap != null ? gap.toFixed(2) : '—'}m / merge ${people.radius().toFixed(2)}m`
+          : `${tally.blobs} blobs → ${tally.people} ${people.isMerging() ? 'hands (never merged here)' : 'counted raw · merge off'}`;
+        g.font = '10px ui-monospace, monospace';
+        g.textBaseline = 'top';
+        const tw = g.measureText(txt).width;
+        g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(4, 4, tw + 8, 15);
+        // Red when the closest two blobs are further apart than the radius — nothing can merge, so the
+        // count stays doubled and the radius is the thing to raise.
+        g.fillStyle = tooFar ? '#f87171' : merging ? '#f59e0b' : '#94a3b8';
+        g.fillText(txt, 8, 7);
+      }
     };
     raf = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(raf);
@@ -315,6 +354,28 @@ export const ZonePanel: React.FC<PanelProps> = () => {
             {[...new Set([...SURFACES, ...trackingStore.getSurfaces()])].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <span className="text-fg-3 text-micro">{dims}</span>
+          {/* ⚠ WHAT A BLOB MEANS, PER SURFACE — and it lives HERE, beside the surface selector,
+              because this is the one place an operator is already thinking about one surface at a
+              time. A single project-wide flag could not express a venue whose FLOOR paints two blobs
+              per visitor (legs) and whose WALL paints one per HAND: turning merging on for the floor
+              silently merged the wall too, so two people touching near each other became one trigger.
+              Opting a surface out still TRACKS it — flicker rejection and coasting — so a hand the
+              sensor loses for a frame does not drop the trigger; it just never merges. */}
+          {scene.trackingMergePeople && (
+            <>
+              <span className="text-fg-3 text-micro">a blob is</span>
+              <select
+                value={scene.trackingSurfaceMerge?.[surface] === false ? 'one' : 'half'}
+                onChange={(e) => setSurfaceMerge(surface, e.target.value === 'one' ? false : undefined)}
+                title={scene.trackingSurfaceMerge?.[surface] === false
+                  ? 'Each blob is one whole thing — a hand. Never merged; still tracked through dropouts.'
+                  : `Blobs within ${(scene.trackingMergeRadius ?? 0.8).toFixed(2)} m are one person — the floor's two-blobs-per-visitor.`}
+                className="bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-fg-1 focus:border-accent outline-none">
+                <option value="half">part of a person (merge)</option>
+                <option value="one">one whole thing — a hand</option>
+              </select>
+            </>
+          )}
           <span className="ml-auto text-fg-3 text-micro truncate">{hint}</span>
         </div>
         <div ref={boxRef} tabIndex={0} onKeyDown={onKeyDown}
@@ -379,11 +440,24 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               <input value={sel.name} onChange={(e) => patchZone(sel.id, { name: e.target.value })}
                 className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
             </label>
+            {/* ⚠ THE LABEL SAYS PEOPLE, SO THE NUMBER HAD BETTER BE PEOPLE. The persisted key is
+                `minBlobs` and stays that way (renaming it would be a project migration for a label),
+                but what it is compared against is a PERSON count only while merging is on. With
+                merging off this venue's two-blobs-per-person feed makes every threshold mean half what
+                was typed — which is exactly how a zone asking for two visitors came to need four. Say
+                so where the number is typed, not in a manual. */}
             <label className="block">
               <span className="text-fg-3 text-micro">People needed</span>
               <input type="number" min={1} step={1} value={sel.minBlobs ?? 1}
                 onChange={(e) => patchZone(sel.id, { minBlobs: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
                 className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
+              {!people.isMerging() && (
+                <span className="block mt-0.5 text-warn text-micro">
+                  Merge people is off, so this counts raw blobs — and a LiDAR that reports two per
+                  person makes this mean half what you type. Turn on <span className="text-fg-2">Merge
+                  people</span> in the 3D scene's tracking parameters.
+                </span>
+              )}
             </label>
             {/* DWELL: venue-wide by default, per-zone only if the operator deliberately overrides. The
                 on-site knob lives in the tracking parameters (Smoothing / Merge radius / Zone dwell) so

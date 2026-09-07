@@ -57,6 +57,16 @@ export function setZones(next: TrackingZone[]): void {
   host?.scene3D.patch({ trackingZones: next } as Partial<Scene3D>);
 }
 
+// WHAT A BLOB MEANS ON ONE SURFACE — the floor's legs vs the wall's hands. Project scope like the
+// geometry above and for the same reason: it describes the SENSOR, and a GO must never change it.
+// `undefined` clears the override so the surface follows the project-wide merge flag again.
+export function setSurfaceMerge(surface: string, merge: boolean | undefined): void {
+  const cur = (host?.scene3D.get() as Scene3D | undefined)?.trackingSurfaceMerge ?? {};
+  const next: Record<string, boolean> = { ...cur };
+  if (merge === undefined) delete next[surface]; else next[surface] = merge;
+  host?.scene3D.patch({ trackingSurfaceMerge: next } as Partial<Scene3D>);
+}
+
 // …and this is the LOOK's subscription to it: which zones the current scene listens to. Unlike the
 // geometry above, this DOES travel with the scene, so it is captured by "Update Scene" and swapped on
 // every GO. Passing `undefined` restores the default — every zone live.

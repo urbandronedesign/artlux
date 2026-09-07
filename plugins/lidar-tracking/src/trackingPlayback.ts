@@ -11,6 +11,7 @@ import { timeline as engine } from '@/services/timeline'; // host timeline engin
 import * as trackingStore from './trackingStore';
 import * as take from './trackingTake';
 import * as zones from './zones';
+import * as people from './people';
 import { resetZoneTriggers } from './zoneTriggers';
 import type { Timeline, VideoClip } from '@/types';        // host domain types (transitional; type-only)
 
@@ -48,7 +49,12 @@ export function start(): void {
       // "standing in" a zone a frame ago is a different world's person: keeping the latch would fire an
       // exit edge for someone who never left (or hold an occupancy that was never there). Re-arm from
       // empty, once, on the boundary — not per frame, which would defeat the dwell entirely.
-      if (!active) { zones.reset(); resetZoneTriggers(); }
+      //
+      // people.reset() belongs in this set for the same reason and was missing from it. The person
+      // tracker COASTS a confirmed track for MAX_COAST_MS (700 ms) through missed frames, so without
+      // this a take's opening frames inherit people from the world before the boundary — which now
+      // matters, because those tracks are what the zones count.
+      if (!active) { people.reset(); zones.reset(); resetZoneTriggers(); }
       trackingStore.setReplaySource(true); // global simulation override: live OSC is suppressed
       trackingStore.applySnapshot(take.frameAt(tk, local));
       active = true;
@@ -56,7 +62,7 @@ export function start(): void {
       // Left the last take clip: clear blobs (no frozen ghosts) and hand the store back to live OSC.
       trackingStore.setReplaySource(false);
       trackingStore.applySnapshot({ surfaces: [] });
-      zones.reset(); resetZoneTriggers();   // …and the same re-arm on the way back out
+      people.reset(); zones.reset(); resetZoneTriggers();   // …and the same re-arm on the way back out
       active = false;
     }
   });

@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased
+
+### A trigger zone counts people, not blobs — and a wall counts hands
+
+Reported from the venue: *"the LiDAR tracks 2 blobs for each person, so I had to put 4 instead of 2 to
+trigger a zone that means 2 people."* The people-merge existed and was correct. Four separate things
+stood between it and a right answer.
+
+**What a blob means is now a property of the SURFACE.** One venue can need both answers at once: on the
+**floor** the tracker paints ~2 blobs per visitor (legs), on the **wall** each blob is a **hand** and a
+visitor raises one. A single project-wide *Merge people* flag could not say that — so turning merging on
+for the floor was silently merging the wall too, and two people touching near each other became **one**
+trigger. Set it per surface on **Trigger Zones**, beside the surface picker: *a blob is* → **part of a
+person (merge)** or **one whole thing — a hand**. A hand surface is never merged but is still tracked,
+so a hand the sensor loses for a frame does not drop the trigger.
+
+**You can now see the number that decides the merge radius.** The zone map draws a ring around each
+person it actually counts and reads `4 blobs → 2 people · closest pair 0.30m / merge 0.80m`, turning
+**red** when the closest two blobs are further apart than the radius — the state in which nothing can
+merge and the count silently stays doubled. Stand one person on the surface and the gap between their
+own two blobs is right there. Previously the radius could only be guessed at from inside the app.
+
+**The show and the screen now count with the same algorithm.** Trigger zones ran a bare spatial merge
+while the projector outputs ran that *plus* the predictive tracker (flicker rejection, coasting through
+dropouts). On a feed whose blob ids have a ~0.13 s median lifetime that is not a nuance — the number an
+operator validated against was not the number the show acted on. Both now read one result computed once
+per frame. Two consequences worth knowing: a zone no longer holds forever on a blob the sensor stopped
+updating without releasing, and a person is held for up to **0.7 s** after they vanish, which adds to a
+zone's exit dwell — lower **Zone exit dwell** if a release feels late.
+
+**And the sensor settings stop riding the look.** *Merge people*, the merge radius, the new per-surface
+meaning and the venue-wide zone dwell were captured into every scene snapshot and reassigned on every
+GO, so tuning them on-site was undone by the next scene recall — merging back off, every count doubled,
+mid-show, with nothing logged. They are the sensor and the room, not the look; they are now project
+scope like the zone geometry. This is the same defect that once wiped the zones themselves; the fix
+then was written out separately at each site, the sensor fields were added later and reached none of
+them, so there is now **one** list and a guard that fails if a site stops using it.
+
+Also: `scripts/lidar-emitter.cjs --pairs` emits each virtual person as two blobs 0.3 m apart, so the
+whole chain is testable with no sensor, and `npm run test:people` checks the merge, the radius
+boundary, the tracker and the hand case in about a second.
+
 ## v0.27.1
 
 Documentation only — no code changed. The docs ship inside the app, so this is a real release: the

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, X } from 'lucide-react';
 import * as zones from './zones';
+import * as people from './people';
 import type { ZoneEdge, ZoneTriggerParams, ZoneTerm } from './zoneTriggers';
 
 // The params editor the host mounts inside the state-graph editor's transition inspector when a
@@ -44,6 +45,16 @@ const InactiveWarning: React.FC<{ ids: string[] }> = ({ ids }) => {
     </div>
   );
 };
+
+// A headcount rule says "people" and compares a count that is only in people while merging is on. On a
+// LiDAR reporting ~2 blobs per person that makes the threshold mean half what was typed — the defect
+// that had an operator entering 4 to mean two visitors. Warn where the number is entered.
+const MergeOffWarning: React.FC = () => people.isMerging() ? null : (
+  <span className="block mt-0.5 text-warn text-micro">
+    Merge people is off, so this counts raw blobs. Turn it on in the 3D scene's tracking parameters,
+    or this asks for half the visitors you typed.
+  </span>
+);
 
 export const ZoneTriggerInspector: React.FC<{ params: Record<string, unknown>; onChange: (p: Record<string, unknown>) => void }> = ({ params, onChange }) => {
   const p = params as ZoneTriggerParams;
@@ -93,6 +104,7 @@ export const ZoneTriggerInspector: React.FC<{ params: Record<string, unknown>; o
               <span className="text-fg-3 text-micro">People</span>
               <input type="number" min={1} step={1} value={p.n ?? 1}
                 onChange={(e) => patch({ n: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} className={FIELD} />
+              <MergeOffWarning />
             </label>
           )}
           <div className="text-fg-3 italic text-micro">{EDGES.find((e) => e.v === (p.edge ?? 'enter'))?.hint}</div>

@@ -85,17 +85,49 @@ so ids and motion stay stable. Validated on the recording (was → now):
 
 ## Step 2 — Enable & tune on-site (already implemented)
 1. Open the **3D Scene** window → tracking controls → turn on **Merge people (2 blobs → 1)**.
-2. Adjust **Merge radius (m)** (**default 0.8**): lower if distinct people merge; raise (→1.0) for
-   steadier counts if one person still shows two markers.
-3. Tune **Predict (ms)** / **Smoothing** for motion (≈66–100 ms predict at 30 Hz).
+2. Adjust **Merge radius (m)** (**default 0.8**): lower if distinct people merge; raise if one person
+   still shows two markers. **You no longer have to guess.** Open **Trigger Zones** and read the line
+   on the map:
+
+   ```
+   4 blobs → 2 people  ·  closest pair 0.30m / merge 0.80m
+   ```
+
+   Stand **one** person on the surface: `closest pair` is the gap between *their own two blobs*. If it
+   is larger than the merge radius nothing can merge, the count stays doubled, and the readout turns
+   **red**. Raise the radius past it. That single comparison is the whole tuning procedure.
+3. **Say what a blob MEANS on each surface** — *Trigger Zones ▸ a blob is*. This is per surface,
+   because one venue can need both answers:
+
+   | Surface | A blob is | Setting |
+   |---|---|---|
+   | floor | half a visitor (the LiDAR paints ~2 per person) | **part of a person (merge)** |
+   | wall | a **hand**, and a visitor raises one | **one whole thing — a hand** |
+
+   A surface set to *one whole thing* is **never merged** — two people touching near each other stay
+   two triggers — but it is still **tracked**, so a hand the sensor loses for a frame does not drop the
+   trigger. Before this existed a single project-wide flag covered both, so turning merging on for the
+   floor silently merged the wall too.
+4. Tune **Predict (ms)** / **Smoothing** for motion (≈66–100 ms predict at 30 Hz).
+
+> **These settings are the SENSOR, and they survive a GO.** Merge, merge radius, per-surface meaning
+> and the venue dwell are project-scope like the zone geometry — a scene never carries a copy, so
+> tuning them on-site is not undone by the next scene recall.
 
 ## Step 3 — Validate
 - Steady marker count = your real headcount; each person keeps one `#id` as they move.
 - 2 people apart → 2; 2 people close → if they merge, lower the radius (their closest approach is the
   upper bound). Re-record a take as a regression fixture.
-- Known limits (revisit if needed): one radius for all surfaces; merge feeds the viz/projector
-  outputs while the 2D editor stage preview still shows raw blobs; tracker constants (gate/confirm/
-  coast) are fixed (tunable in code if needed).
+- **Without a sensor:** `node scripts/lidar-emitter.cjs 127.0.0.1 10000 2 --pairs` emits 2 people as
+  4 blobs 0.3 m apart, exactly like the venue. The zone map must read `4 blobs → 2 people`, and a zone
+  set to *People needed 2* must latch for both and **not** for one.
+- **A person is held for up to 0.7 s after they vanish** (the tracker coasts through dropouts, so a
+  lost frame never drops a trigger). That adds to a zone's own exit dwell, so *everyone leaves* and
+  *empty for…* release up to 0.7 s later than the raw feed would suggest. Lower **Zone exit dwell**
+  if a release feels late.
+- Known limits (revisit if needed): merge feeds the zones and the projector outputs, while the 2D
+  editor stage preview and the 3D scene markers still show raw blobs; tracker constants
+  (gate/confirm/coast) are fixed (tunable in code if needed).
 
 ## What to bring back from the test
 1. The filled table above (slots, ids, separations).
@@ -296,10 +328,22 @@ on this feed**. The venue's blob ids have a **median lifetime of 0.13 s** (measu
 was caught in simulation (`scratch/zone-rules-sim.mjs`: 240 frames of a person standing still with a
 dropout every 7th frame → 0 enter edges) before it could be discovered in a venue.
 
-**Counting is post-merge.** With **Merge people** on, `minBlobs: 1` means one *person*, not one blob —
-which matters because this venue emits ~2 blobs per person and every authored threshold would
-otherwise mean half what it says. The zone panel deliberately draws the **raw** blobs, so the doubling
-is visible rather than mysterious.
+**Counting is post-merge, and the panel shows you both numbers.** With **Merge people** on,
+*People needed* means one *person*, not one blob — which matters because this venue emits ~2 blobs per
+person and every authored threshold would otherwise mean **half what it says**. That is not
+hypothetical: it is why a zone meaning "two visitors" once had to be typed as **4**.
+
+The zone map draws the **raw** blobs *and* a ring around each person it actually counts, with the
+tally above them — `4 blobs → 2 people` — so a doubled count is visible rather than mysterious. With
+merging off it says so out loud (`4 blobs · merge off`), and the *People needed* field warns you where
+you type the number.
+
+On a surface set to *one whole thing — a hand* it reads `4 blobs → 4 hands (never merged here)`: there
+is nothing to correct, because a hand is already a whole interaction.
+
+**The zones and the projectors count the same people.** Both read one per-frame result, so what the
+show acts on cannot drift from what the outputs draw. (The 3D scene's markers are still the raw feed —
+a deliberate diagnostic view of what the sensor reports.)
 
 ## Testing without the venue
 

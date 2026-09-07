@@ -932,6 +932,17 @@ export interface Scene3D {
   trackingLabels?: boolean;           // show each blob's tracking id
   trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
+  // ⚠ WHAT A BLOB MEANS IS A PROPERTY OF THE SURFACE, NOT OF THE PROJECT — and the two can disagree
+  // inside one venue. On the FLOOR the LiDAR paints ~2 blobs per visitor (legs), so a person is a
+  // merged pair. On the WALL each blob is a HAND, and a visitor is expected to raise ONE — so a blob
+  // there is already a whole interaction and merging it is wrong: two people touching near each other
+  // would collapse into one trigger and the wall would under-count.
+  //
+  // One flag could not say that, so turning merging on for the floor silently merged the wall as well.
+  // A surface listed here with `false` is never merged; it is still TRACKED (flicker rejection and
+  // coasting through dropouts), because a hand the sensor loses for a frame must not drop the trigger.
+  // Absent for a surface ⇒ follow `trackingMergePeople`, which is what every existing project gets.
+  trackingSurfaceMerge?: Record<string, boolean>;
   // VENUE-WIDE ZONE DWELL — the on-site tuning knob for every trigger zone at once. A zone's occupancy
   // latches once presence has lasted `enter` seconds and clears once absence has lasted `exit` seconds;
   // the right values depend on how hard the real tracker flickers, which is a property of the ROOM, not
