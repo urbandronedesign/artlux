@@ -179,8 +179,10 @@ here, looping `demo.lblob`, with **no venue and no emitter**.
    **LiDAR zone**. Its inspector (`ZoneTriggerInspector`) has two modes:
    - **One zone** — *someone enters · everyone leaves · occupied for N s · empty for N s · at least N
      people.*
-   - **Combination** — **ALL / ANY** of several zones, each optionally **NOT** (*"someone in the entrance
-     **and** nobody on the stage"* is one rule). A combination is about **occupancy**, not events.
+   - **Combination** — **ALL / ANY** of several zones, **each with its own rule** from that same list,
+     optionally **NOT** (*"somebody in the entrance for 5 s **and** nobody on the stage"* is one rule).
+     A term is a state of the room, not an event of its own, and the combination is simultaneous — for
+     a real sequence, put a state between the steps.
 
    Every rule is **armed once** — it will not re-fire while the visitor who tripped it is still standing
    there — and it **holds**, so paired with **hold at end** + **only after the state has finished** it
@@ -188,7 +190,17 @@ here, looping `demo.lblob`, with **no venue and no emitter**.
    walks in.*
 
 ![The Show Machine's LiDAR-zone trigger inspector — Trigger: LiDAR zone, the One zone / Combination toggle, the Zone and When dropdowns, and the "Only after the state has finished" guard](images/zone-trigger-inspector.png)
-<!-- shot spec (this image exists; use when re-shooting): the transition inspector with trigger = LiDAR zone. LEFT: One-zone mode (Zone dropdown + When = "someone enters"); RIGHT: Combination mode (Fires when ALL/ANY + two zone terms, one with NOT toggled), with the live occupancy dots. -->
+<!-- ⚠ THIS IMAGE IS STALE: it predates per-term rules, when a combination term was a single row of
+     zone + NOT. A term is now a two-line card carrying its own rule, so the picture no longer shows
+     what the text describes. The spec below is the durable artefact — re-shoot to it. -->
+<!-- shot spec (use when re-shooting): the transition inspector with trigger = LiDAR zone. LEFT:
+     One-zone mode (Zone dropdown + When = "someone enters"). RIGHT: Combination mode — "Fires when ALL
+     of these are true" over TWO term cards, each two lines: line 1 the live dot + zone dropdown + ✕,
+     line 2 the NOT chip + rule dropdown (+ its number). Make them differ, e.g. "Zone 1 · occupied
+     for… 5" and "Zone 2 · is empty", so the per-term rule is the point of the shot; have blobs live so
+     one dot is lit. Include the "Only after the state has finished" guard below. Redact by eye before
+     committing (Preferences ▸ OSC / Tracking, ▸ Show Control) — the capture harness's redactPrivate()
+     is retired. -->
 
 Because it all reads `trackingStore`, drop the **demo take** on the tracking lane (or run the emitter),
 watch the zone light in the panel and in 3D, and tune the dwells against the recording. Full wiring:

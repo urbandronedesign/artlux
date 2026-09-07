@@ -4965,6 +4965,47 @@ check(
   },
 );
 
+// ── The zone-trigger memo key covers the WHOLE rule ───────────────────────────────────────────
+check(
+  'the zone-trigger memo signature covers every field the rule reads',
+  'sig() keys the arm-and-hold memo by the RULE, not by the transition — the transition id is not ' +
+  'available at the call site, and two identical rules from one state ARE the same question. That is ' +
+  'sound only while the key is injective over the rule space. Miss a field and two genuinely different ' +
+  'rules share one memo: with ALL[zA] and ALL[zA occupiedFor 60s] out of one state, the 60s rule is ' +
+  'false every frame and sets armed = true, the plain rule reads that same armed and FIRES — 60 times ' +
+  'a second for as long as somebody stands there. Nothing throws, and the two params objects visibly ' +
+  'differ, so it is invisible on inspection. Add the field here the day you add one to ZoneRule.',
+  () => {
+    const f = 'plugins/lidar-tracking/src/zoneTriggers.ts';
+    if (!exists(f)) return null;
+    const src = read(f);
+    // ⚠ THE TWO HALVES ARE CHECKED SEPARATELY, and that is the whole point. Checking the combined
+    // region passes on broken code: the one-zone branch of sig() mentions edge/seconds/n anyway, so a
+    // termSig that had dropped the per-term rule still satisfied it. Verified by deleting the fields
+    // from termSig and watching the combined check stay green.
+    const tm = src.match(/const termSig[\s\S]*?;/);
+    const sm = src.match(/const sig = [\s\S]*?;/);
+    if (!tm || !sm) return 'termSig/sig are gone — the memo key cannot be checked';
+    // Regex LITERALS, not RegExp-from-string: a `\b` built through a template literal is a BACKSPACE
+    // character, so such a check silently matches nothing and passes forever. (It did, once.)
+    const RULE = [['edge', /\.edge\b/], ['seconds', /\.seconds\b/], ['n', /\.n\s*\?\?/]];
+    for (const [field, re] of [...RULE, ['zone', /\.zone\b/], ['not', /\.not\b/]]) {
+      if (!re.test(tm[0])) return `termSig no longer includes \`${field}\` — two terms differing only in that share one memo`;
+    }
+    for (const [field, re] of [...RULE, ['zoneId', /\.zoneId\b/], ['match', /\.match\b/]]) {
+      if (!re.test(sm[0])) return `sig no longer includes \`${field}\``;
+    }
+    if (!/termSig/.test(sm[0])) return 'sig no longer builds the combination key from termSig';
+    // …and every rule field zoneLevel actually reads must appear in the per-term key.
+    const lvl = src.match(/export function zoneLevel[\s\S]*?\n}/);
+    if (lvl) for (const [field, re] of RULE) {
+      if (new RegExp('r\.' + field).test(lvl[0]) && !re.test(tm[0]))
+        return `zoneLevel reads \`${field}\` but termSig ignores it`;
+    }
+    return null;
+  },
+);
+
 // ── The person tracker has exactly one caller ─────────────────────────────────────────────────
 check(
   'clusterAndTrack is called only from people.ts',

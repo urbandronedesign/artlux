@@ -110,9 +110,11 @@ modes:
 
 - **One zone** — *someone enters · everyone leaves · occupied for N s · empty for N s · at least N
   people.*
-- **Combination** — **ALL / ANY** of several zones, each optionally **NOT** (*"someone in the entrance
-  **and** nobody on the stage"* is one rule). A combination is about **occupancy**, not events: it fires
-  the moment the whole expression becomes true.
+- **Combination** — **ALL / ANY** of several zones, **each carrying its own rule** from that same list,
+  optionally **NOT** (*"somebody in the entrance for 5 s **and** nobody on the stage"* is one rule). A
+  term is a **state** of the room rather than an event of its own — it fires the moment the whole
+  sentence becomes true, and does not care which term completed it. For a real *sequence*, put a state
+  between the steps.
 
 Every rule is *armed once*: it will not re-fire while the visitor who tripped it is still standing there,
 and it **holds** so a rule that came true *during* a still-playing state fires the instant that state's

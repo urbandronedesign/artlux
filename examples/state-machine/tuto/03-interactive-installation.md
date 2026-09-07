@@ -119,8 +119,11 @@ the plugin's own editor appears (zone · when · seconds/people). The one-zone r
 | `at least N people` | the headcount reaches N |
 
 Choose **`someone enters`** for Attract → Reaction, and **`empty for 30s`** for Reaction → Attract. A
-**Combination** mode lets one rule watch **ALL / ANY** of several zones, each optionally **NOT** — *"someone
-in the entrance **and** nobody on the stage"* is one rule. Every zone rule is a **level** that **arms and
+**Combination** mode lets one rule watch **ALL / ANY** of several zones, **each carrying its own rule**
+from the table above and optionally **NOT** — *"somebody in the entrance for 5 s **and** nobody on the
+stage"* is one rule. It is simultaneous, though: for a genuine *sequence* ("dwell here, **then** go
+there"), put a state between the two steps rather than trying to say it in one edge. Every zone rule is
+a **level** that **arms and
 holds**: it can't fire until the world actually changes (so a visitor who's *still standing there* after a
 hop doesn't re-trigger), and it stays true for as long as the condition lasts — which is exactly what lets
 it fire the moment `requireEnd` opens the gate at the end of the hold. Full model, dwell tuning, and the

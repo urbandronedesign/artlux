@@ -34,21 +34,38 @@ export const ZONE_TRIGGER_SOURCE = 'lidar.zone';
 
 export type ZoneEdge = 'enter' | 'exit' | 'occupiedFor' | 'emptyFor' | 'countAtLeast';
 
-// One term of a combination: a zone's occupancy, optionally negated.
-export interface ZoneTerm { zone: string; not?: boolean }
-
-export interface ZoneTriggerParams {
-  // The ONE-ZONE form (unchanged, still what the simple editor writes).
-  zoneId?: string;
-  edge?: ZoneEdge;
+// THE RULE VOCABULARY — and the whole point of this type is that there is only ONE of it. The one-zone
+// form and every combination term ask the SAME five questions of a zone. `level()` always computed all
+// five; the combination path merely hardcoded `enter`, which is why stacking a dwell on one zone with
+// an emptiness on another used to need a chain of intermediate states.
+export interface ZoneRule {
+  edge?: ZoneEdge;   // absent = 'enter' = "is occupied"
   seconds?: number;  // occupiedFor / emptyFor
   n?: number;        // countAtLeast
+}
+
+// One term of a combination: a zone, its OWN rule, optionally negated.
+//
+// ZERO MIGRATION, and not by luck. A term written before per-term rules is `{zone}` or `{zone,not}`,
+// and `edge` defaulting to 'enter' makes that EXACTLY what it always meant — zoneLevel(zone, {}) is
+// `st.occupied`, the same expression the old code inlined. Every terms[] on disk evaluates, describes
+// and fires identically. (`{zone,not:true}` is also precisely `{zone,edge:'exit'}` now — so for those
+// two kinds NOT *is* the other rule. It stays essential for the other three: ¬(occupied for 5s) is
+// true whenever the zone is empty OR somebody has been there less than 5s, which is NOT "empty for 5s".)
+export interface ZoneTerm extends ZoneRule { zone: string; not?: boolean }
+
+export interface ZoneTriggerParams extends ZoneRule {
+  // The ONE-ZONE form (still what the simple editor writes). Its rule fields come from ZoneRule.
+  zoneId?: string;
   // The COMBINATION form. Present `terms` wins over the one-zone fields above.
   //
-  // ⚠ EDGES DO NOT "AND". "Someone enters A" and "someone enters B" are only ever both true on the SAME
-  // FRAME, which essentially never happens — so a combo is deliberately NOT a conjunction of events. It
-  // is a boolean expression over OCCUPANCY (a level), fed to the same arm-and-hold rule above. That is
-  // what an author means by "A and B": both zones have somebody in them.
+  // ⚠ A TERM IS A STATE OF THE ROOM, NOT AN EVENT — and that is not a limitation to route around, it
+  // is what makes the combination mean anything. "Someone enters A" and "someone enters B" are only
+  // ever both true on the SAME FRAME, which never happens in a real room. So a term contributes a
+  // LEVEL — is occupied / empty for 5s / 3+ people — and the arm-and-hold above is applied to the
+  // WHOLE SENTENCE, once, rather than to each word. A conjunction is therefore also ORDER-AGNOSTIC:
+  // it fires at whichever moment completes the pair. Order belongs in the state graph, as an
+  // intermediate state, which enforces it properly.
   //
   // ONE LEVEL DEEP, deliberately: ALL/ANY plus a per-term NOT covers the installation logic people
   // actually write, and a nested expression tree is a UI nobody can use under show pressure.
@@ -62,49 +79,68 @@ export interface ZoneTriggerParams {
 interface Memo { enteredAtSec: number; armed: boolean }
 const memos = new Map<string, Memo>();
 
+// ⚠ EVERY FIELD `level()` READS MUST APPEAR HERE. The memo is keyed by the RULE, not the transition —
+// "two identical rules from the same state are the same question" — and that is sound only while the
+// key is INJECTIVE over the rule space. Per-term rules widened that space, so a key covering only zone
+// ids and NOTs stopped telling genuinely different rules apart.
+//
+// The failure is not subtle once seen. Two edges out of one state: `ALL[zA]` and
+// `ALL[zA occupiedFor 60s]`. Sharing one key, a visitor walks in and stays: each frame the 60s rule is
+// false and sets armed = true, the plain rule reads that same armed and FIRES — 60 times a second, for
+// as long as somebody stands there. Nothing throws, and the two params objects visibly differ, so it is
+// invisible on inspection. Guarded by verify:invariants.
+const termSig = (t: ZoneTerm): string =>
+  `${t.not ? '!' : ''}${t.zone}@${t.edge ?? 'enter'}:${t.seconds ?? 0}:${t.n ?? 0}`;
+
 const sig = (p: ZoneTriggerParams): string =>
   p.terms?.length
-    ? `c:${p.match ?? 'all'}:${p.terms.map((t) => `${t.not ? '!' : ''}${t.zone}`).join(',')}`
+    ? `c:${p.match ?? 'all'}:${p.terms.map(termSig).join(',')}`
     : `z:${p.zoneId ?? ''}:${p.edge ?? 'enter'}:${p.seconds ?? 0}:${p.n ?? 0}`;
 
-// Is a single zone occupied RIGHT NOW? An inactive zone (not listened to by the current look) or a
-// deleted one has no state at all, and answers NEITHER true nor false — see `level` below.
-const occupied = (zoneId: string): boolean | undefined => zones.getState(zoneId)?.occupied;
-
-// The rule's current value as a LEVEL. `undefined` = unanswerable (the zone is gone, or this look does
-// not listen to it), which is NOT the same as false: answering "false" would make an `exit` or
+// ONE ZONE'S RULE, AS A LEVEL — the whole vocabulary, in one place, with two equal callers: the
+// one-zone form and every combination term. `undefined` = unanswerable (the zone is gone, or this look
+// does not listen to it), which is NOT the same as false: answering "false" would make an `exit` or
 // `empty for` rule fire in a scene that was never watching that part of the room.
-function level(p: ZoneTriggerParams, nowSec: number): boolean | undefined {
-  if (p.terms?.length) {
-    const vals = p.terms.map((t) => {
-      const o = occupied(t.zone);
-      return o === undefined ? undefined : (t.not ? !o : o);
-    });
-    // ONE UNANSWERABLE TERM POISONS THE WHOLE EXPRESSION. An `all` over a missing zone is not "false"
-    // and an `any` is not "whatever the others say" — the author asked about a zone this look cannot
-    // see, so the honest answer is "I don't know", and an unknown rule never fires.
-    if (vals.some((v) => v === undefined)) return undefined;
-    return (p.match ?? 'all') === 'any' ? vals.some(Boolean) : vals.every(Boolean);
-  }
-
-  if (!p.zoneId) return undefined;
-  const st = zones.getState(p.zoneId);
+export function zoneLevel(zoneId: string, r: ZoneRule, nowSec: number): boolean | undefined {
+  if (!zoneId) return undefined;
+  const st = zones.getState(zoneId);
   if (!st) return undefined;
-  switch (p.edge ?? 'enter') {
+  switch (r.edge ?? 'enter') {
     case 'enter': return st.occupied;
     case 'exit': return !st.occupied;
     // The dwell, as a level: true WHILE the zone has been occupied/empty for at least `seconds`. The old
     // "the run must have started inside this state" guard is gone because `armed` already provides it —
     // a dwell that was already satisfied when the state began arrives with armed=false.
     case 'occupiedFor':
-      return st.occupied && !!st.occupiedSinceMs && nowSec - st.occupiedSinceMs / 1000 >= (p.seconds ?? 0);
+      return st.occupied && !!st.occupiedSinceMs && nowSec - st.occupiedSinceMs / 1000 >= (r.seconds ?? 0);
     case 'emptyFor':
-      return !st.occupied && !!st.emptySinceMs && nowSec - st.emptySinceMs / 1000 >= (p.seconds ?? 0);
+      return !st.occupied && !!st.emptySinceMs && nowSec - st.emptySinceMs / 1000 >= (r.seconds ?? 0);
     // A crowd threshold. This used to be a bare level that re-fired every frame while the crowd stood
     // there; arm-and-hold makes it one shot per crowd, like every other rule.
-    case 'countAtLeast': return st.count >= Math.max(1, p.n ?? 1);
+    case 'countAtLeast': return st.count >= Math.max(1, r.n ?? 1);
   }
   return undefined;
+}
+
+// One term's contribution, with its NOT applied. Exported so the editor's live dot shows what the
+// RUNTIME computes rather than a re-implementation that can drift from it.
+export function termLevel(t: ZoneTerm, nowSec: number): boolean | undefined {
+  const v = zoneLevel(t.zone, t, nowSec);
+  return v === undefined ? undefined : (t.not ? !v : v);
+}
+
+// The whole rule's current value as a LEVEL — one zone, or a flat boolean expression over terms.
+function level(p: ZoneTriggerParams, nowSec: number): boolean | undefined {
+  if (p.terms?.length) {
+    const vals = p.terms.map((t) => termLevel(t, nowSec));
+    // ONE UNANSWERABLE TERM POISONS THE WHOLE EXPRESSION. An `all` over a missing zone is not "false"
+    // and an `any` is not "whatever the others say" — the author asked about a zone this look cannot
+    // see, so the honest answer is "I don't know", and an unknown rule never fires. It now poisons on a
+    // term's own rule as well as on its zone.
+    if (vals.some((v) => v === undefined)) return undefined;
+    return (p.match ?? 'all') === 'any' ? vals.some(Boolean) : vals.every(Boolean);
+  }
+  return zoneLevel(p.zoneId ?? '', p, nowSec);
 }
 
 export function zoneTriggerFires(p: ZoneTriggerParams, ctx: SmTriggerEvalContext): boolean {
@@ -125,10 +161,28 @@ export function zoneTriggerFires(p: ZoneTriggerParams, ctx: SmTriggerEvalContext
 
 const zoneName = (id: string): string => zones.getZones().find((z) => z.id === id)?.name || 'zone?';
 
+// A term's rule as a SUFFIX on its zone name, for the graph edge label — added only when the rule is
+// not the plain "is occupied" default, so every project written before per-term rules produces a
+// byte-identical label and no edge-label screenshot or doc example goes stale.
+//
+// `⌀` = nobody, `5s` = occupied that long, `⌀30s` = empty that long, `3+` = headcount. `⏱` is
+// deliberately NOT used: StateGraphEditor already prefixes it for requireEnd, and two meanings for one
+// glyph on one label is unreadable.
+const termSuffix = (r: ZoneRule): string => {
+  switch (r.edge ?? 'enter') {
+    case 'enter': return '';
+    case 'exit': return ' ⌀';
+    case 'occupiedFor': return ` ${r.seconds ?? 0}s`;
+    case 'emptyFor': return ` ⌀${r.seconds ?? 0}s`;
+    case 'countAtLeast': return ` ${r.n ?? 1}+`;
+  }
+  return '';
+};
+
 export function describeZoneTrigger(p: ZoneTriggerParams): string {
   if (p.terms?.length) {
     const join = (p.match ?? 'all') === 'any' ? ' ∨ ' : ' ∧ ';
-    return p.terms.map((t) => `${t.not ? '¬' : ''}${zoneName(t.zone)}`).join(join);
+    return p.terms.map((t) => `${t.not ? '¬' : ''}${zoneName(t.zone)}${termSuffix(t)}`).join(join);
   }
   const name = zoneName(p.zoneId ?? '');
   switch (p.edge ?? 'enter') {

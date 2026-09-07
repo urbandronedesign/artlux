@@ -208,9 +208,17 @@ Pick it in the transition inspector and choose a mode:
 
 - **One zone** — `someone enters` · `everyone leaves` · `occupied for…` · `empty for…` (the
   attract‑return rule) · `at least N people`.
-- **Combination** — **ALL / ANY** of several zones, each optionally **NOT** — e.g. *"someone in the
-  entrance **and** nobody on the stage"* as one rule. A combination is about **occupancy**, not
-  events, and is one level deep on purpose.
+- **Combination** — **ALL / ANY** of several zones, **each with its own rule** from that same list,
+  optionally **NOT** — so *"somebody has been in the entrance for 5 s **and** the stage is empty"* is
+  one edge instead of a chain of states. Each term shows a live dot while it is true. In a combination
+  a rule reads as a state (`is occupied`, `has N+ people`) rather than an event, because a term is
+  never an event of its own — the firing applies to the whole sentence.
+
+> Two things that surprise people. **NOT is not the opposite rule:** `NOT (occupied for 5s)` is true
+> when the zone is empty *or* somebody has been there under 5 s — that is not `empty for 5s`. And a
+> combination is **simultaneous and order‑agnostic**: it fires whenever the whole sentence is true, so
+> "stand here 5 s *then* walk over there" does not work as one rule if the visitor **leaves** the first
+> zone. For a real sequence, put a state between the two steps.
 
 Every rule is a **level** with an **arm‑and‑hold** behaviour: it can't fire until the world actually
 changes (so a visitor still standing where they triggered the last hop doesn't re‑fire), and it stays

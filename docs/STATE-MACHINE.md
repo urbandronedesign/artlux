@@ -556,7 +556,9 @@ migration**, and a project naming a source this build has no plugin for is **ine
 Shipped today: **`lidar.zone`** — LiDAR trigger zones
 ([TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room)). Pick
 **LiDAR zone** in the transition inspector's trigger dropdown and the plugin's own editor appears
-(zone · when · seconds/people). The edge label in the graph then describes the *rule* —
+(zone · when · seconds/people) — or a **Combination**, where each zone carries its own rule, so
+*"Zone 1 occupied for 5 s AND Zone 2 empty"* is one edge rather than a chain of states. The edge label
+in the graph then describes the *rule* —
 *Entrance: someone enters* — instead of just naming the destination.
 
 The canonical interactive state combines all three pieces:

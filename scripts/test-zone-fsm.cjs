@@ -113,6 +113,10 @@ function buildProject() {
             { id: 'S_COMBO', name: 'Combo', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#7ed957', timeline: tl('COMBO', 'ComboClip', effect(2, 1)), scene3D: { ...scene3D, trackingZones: undefined } },
             // Listens to NOTHING — the inert-zone assertion.
             { id: 'S_GLOBAL', name: 'Global', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#a855f7', timeline: tl('GLOB', 'GlobClip', effect(3, 2)), scene3D: { ...scene3D, trackingZones: undefined, activeZoneIds: [] } },
+            // Per-term rules: destinations for the mixed combination and the NOT-vs-emptyFor pair.
+            { id: 'S_MIXED', name: 'Mixed', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#22d3ee', timeline: tl('MIX', 'MixClip', effect(4, 3)), scene3D: { ...scene3D, trackingZones: undefined } },
+            { id: 'S_NOT', name: 'NotDwell', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#f87171', timeline: tl('NOT', 'NotClip', effect(5, 4)), scene3D: { ...scene3D, trackingZones: undefined } },
+            { id: 'S_EMPTY', name: 'EmptyFor', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#94a3b8', timeline: tl('EMP', 'EmpClip', effect(6, 5)), scene3D: { ...scene3D, trackingZones: undefined } },
         ],
         cueBanks: [{ id: 'bank1', name: 'Bank 1', rows: 8, cols: 16, cues: [], sceneCells: [] }],
         stateMachine: {
@@ -122,10 +126,25 @@ function buildProject() {
                 { id: 'stIdle', name: 'Idle', x: 140, y: 110, entry: [], sceneId: 'S_IDLE' },
                 { id: 'stCombo', name: 'Combo', x: 360, y: 110, entry: [], sceneId: 'S_COMBO' },
                 { id: 'stGlobal', name: 'Global', x: 580, y: 110, entry: [], sceneId: 'S_GLOBAL' },
+                { id: 'stMixed', name: 'Mixed', x: 360, y: 240, entry: [], sceneId: 'S_MIXED' },
+                { id: 'stNot', name: 'NotDwell', x: 200, y: 360, entry: [], sceneId: 'S_NOT' },
+                { id: 'stEmpty', name: 'EmptyFor', x: 520, y: 360, entry: [], sceneId: 'S_EMPTY' },
             ],
             transitions: [
-                // entrance AND NOT stage — the combination.
+                // ⚠ LEAVE THIS ONE BYTE-FOR-BYTE. Written before terms could carry a rule, it is the
+                // zero-migration regression: `{zone}` must still mean "is occupied" and `{zone,not}`
+                // must still mean "is empty". Do not "modernise" it to an explicit edge — §1 IS the
+                // migration test.
                 { id: 'combo', from: 'stIdle', to: 'stCombo', trigger: { kind: 'plugin', source: 'lidar.zone', params: { match: 'all', terms: [{ zone: 'zA' }, { zone: 'zB', not: true }] } } },
+                // PER-TERM RULES: a dwell on one zone AND an emptiness on another, in one edge. Before
+                // this existed the combination could only ask about bare occupancy, so this sentence
+                // needed a chain of intermediate states.
+                { id: 'mixed', from: 'stCombo', to: 'stMixed', trigger: { kind: 'plugin', source: 'lidar.zone', params: { match: 'all', terms: [{ zone: 'zA', edge: 'occupiedFor', seconds: 1.5 }, { zone: 'zB', edge: 'exit' }] } } },
+                // NOT IS NOT THE OPPOSITE RULE. These two are the only thing that pins that claim:
+                // ¬(occupied for 1.5s) becomes true the moment the zone empties, while "empty for 1.5s"
+                // needs a further 1.5s of emptiness. Same zone, same number, ~1.5s apart.
+                { id: 'notDwell', from: 'stMixed', to: 'stNot', trigger: { kind: 'plugin', source: 'lidar.zone', params: { match: 'all', terms: [{ zone: 'zB', edge: 'occupiedFor', seconds: 1.5, not: true }] } } },
+                { id: 'emptyFor', from: 'stMixed', to: 'stEmpty', trigger: { kind: 'plugin', source: 'lidar.zone', params: { match: 'all', terms: [{ zone: 'zB', edge: 'emptyFor', seconds: 1.5 }] } } },
                 // A GLOBAL rule: someone enters the stage zone → Global, from wherever the show is.
                 { id: 'glob', from: '', to: 'stGlobal', fromAny: true, trigger: { kind: 'plugin', source: 'lidar.zone', params: { zoneId: 'zC', edge: 'enter' } } },
             ],
@@ -198,6 +217,20 @@ const readZoneNames = (page) => page.evaluate(() => {
     return ['entrance', 'stage', 'doorway'].filter((n) => txt.includes(n));
 });
 
+// Open the timeline drawer and confirm the state lane is actually readable — a silent no-op here would
+// make every state assertion below read `null` and "fail" for the wrong reason.
+async function openTimeline(page) {
+    for (let i = 0; i < 3; i++) {
+        if (await readState(page) !== null) return true;
+        await page.keyboard.down('Control');
+        await page.keyboard.press('KeyT');
+        await page.keyboard.up('Control');
+        await sleep(900);
+    }
+    if (await readState(page) === null) throw new Error('timeline drawer never opened — the state lane is unreadable (Ctrl+T no longer opens it?)');
+    return true;
+}
+
 const results = [];
 const check = (name, pass, detail) => { results.push({ name, pass }); console.log(`  ${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`); };
 
@@ -245,7 +278,12 @@ async function main() {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => !!window.artlux && document.querySelectorAll('button').length > 3, { timeout: 60000 });
         await sleep(3000);
-        await clickByText(page, 'Time', { exact: true, wait: 800 });
+        // ⚠ OPEN THE TIMELINE BY ITS GESTURE, NOT BY A LABEL. readState() reads the state-machine lane
+        // in the timeline gutter, so the drawer has to be open. This used to click a tab captioned
+        // "Time"; the timeline became a DRAWER (Ctrl+T, one fixed tree position, collapsed to a 28px
+        // strip) and that caption stopped existing, so the whole harness failed before its first
+        // assertion. A shortcut is the stable contract here — the caption was not.
+        await openTimeline(page);
 
         const start = await readState(page);
         check('the show starts in Idle', start === 'Idle', `state = ${JSON.stringify(start)}`);
@@ -263,8 +301,35 @@ async function main() {
             `state = ${JSON.stringify(await readState(page))}`);
         await shoot(page, '01-combo.png');
 
-        // ── 2. THE GLOBAL RULE — from Combo, a state the edge was never drawn from ───────────────────
-        // Nothing leaves Combo in this graph. The only way on is the global rule, watching `doorway`.
+        // ── 1b. A DWELL INSIDE A TERM — "zA occupied for 1.5s AND zB empty" ──────────────────────────
+        // Clear the room first so the dwell is timed from a known zero: §1 left somebody standing in the
+        // entrance, and zA has been latched since then.
+        await hold([NOWHERE], 900);
+        // ⚠ THE NEGATIVE IS THE REAL TEST. occupiedSinceMs is stamped when the zone LATCHES — enterSec
+        // (0.2s) AFTER the arrival — so 1.5s of dwell is satisfied at ~1.7s of standing, not 1.5s. A
+        // term that ignored `seconds` and fell back to plain occupancy would fire at 0.2s and fail here.
+        const tooEarly = await waitForState(page, 'Mixed', [IN_A], 1200);
+        check('a term’s dwell is not satisfied early', tooEarly === false,
+            `state = ${JSON.stringify(await readState(page))}`);
+        const firedMixed = await waitForState(page, 'Mixed', [IN_A], 3000);
+        check('a combination fires on a per-term dwell + a per-term emptiness', firedMixed === true,
+            `state = ${JSON.stringify(await readState(page))}`);
+        await shoot(page, '01b-mixed.png');
+
+        // ── 1c. NOT IS NOT THE OPPOSITE RULE ────────────────────────────────────────────────────────
+        // Two edges leave Mixed, same zone and same 1.5s: ¬(occupied for 1.5s) and (empty for 1.5s).
+        // Stand in the stage long enough to ARM the negated one (it must go false before it can fire),
+        // then step off. ¬(occupied…) becomes true as soon as the zone unlatches (~exitSec); "empty
+        // for 1.5s" cannot be true for another 1.5s. If the two were the same rule this could not
+        // discriminate — the whole point is that they are ~1.5s apart.
+        await hold([IN_B], 2400);
+        const wentNot = await waitForState(page, 'NotDwell', [NOWHERE], 1200);
+        check('¬(occupied for N) fires before (empty for N) — they are different rules', wentNot === true,
+            `state = ${JSON.stringify(await readState(page))}`);
+        await shoot(page, '01c-not.png');
+
+        // ── 2. THE GLOBAL RULE — from a state the edge was never drawn from ──────────────────────────
+        // Nothing leaves NotDwell in this graph. The only way on is the global rule, watching `doorway`.
         await hold([NOWHERE], 800);
         const wentGlobal = await waitForState(page, 'Global', [IN_C], 5000);
         check('a global rule fires from a state it was never drawn from', wentGlobal === true,
@@ -280,7 +345,9 @@ async function main() {
             `state = ${JSON.stringify(await readState(page))}`);
 
         // ── 4. THE ROOM SURVIVED EVERY GO ───────────────────────────────────────────────────────────
-        // Three scene recalls have happened by now. Before the fix, the FIRST one wiped every zone.
+        // Five scene recalls have happened by now. Before the fix, the FIRST one wiped every zone —
+        // and later, the same class of bug reverted the SENSOR settings (merge, radius, venue dwell)
+        // on every one of them. Both are project scope now; see SCENE3D_NOT_A_LOOK in App.tsx.
         await clickByText(page, 'Track', { exact: true, wait: 800 });
         await clickByText(page, 'Trigger Zones', { wait: 900, optional: true });
         const names = await readZoneNames(page);

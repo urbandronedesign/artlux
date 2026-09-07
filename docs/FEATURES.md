@@ -214,8 +214,9 @@ A **trigger zone** is a named rectangle on a tracking surface that the show mach
 zones once in the **Tracking** workbench → **Trigger Zones** dock tab (they're project-scope room geometry,
 shared by every scene; also shown in the 3D scene with live headcount). A transition's **LiDAR zone**
 trigger watches **one zone** — `someone enters` / `everyone leaves` / `occupied for…` / `empty for…` /
-`at least N people` — or a **Combination** of zones (`ALL`/`ANY`, each optionally `NOT`, e.g. *someone in
-the entrance and nobody on the stage*). Occupancy uses an **arm-and-hold** rule so a still-present visitor
+`at least N people` — or a **Combination** of zones (`ALL`/`ANY`, **each zone carrying its own rule**,
+optionally `NOT`, e.g. *somebody in the entrance for 5 s and nobody on the stage*). Occupancy uses an
+**arm-and-hold** rule — applied to the whole expression — so a still-present visitor
 doesn't re-strobe the state. Enter/exit **dwell** is tuned **venue-wide** (a room property, in the tracking
 parameters), with an optional per-zone override; a per-scene **eye toggle** (`activeZoneIds`) can mute a
 zone for a given look. See [TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room).

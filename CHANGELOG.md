@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Every zone in a combination can now carry its own rule
+
+A transition's **LiDAR zone** trigger had two modes, and only one of them could think. **One zone**
+offered five rules — enters / leaves / occupied for… / empty for… / at least N people — while a
+**Combination** could only ask about bare occupancy. So *"somebody has been in the entrance for 5 s and
+the stage is empty"* was not one edge; it was a chain of intermediate states.
+
+Each term now picks its own rule from that same list, with its own seconds or headcount, still with an
+optional **NOT**. The change is smaller than it sounds: the rule evaluator always computed all five as
+*levels* — `someone enters` is literally "the zone is occupied" — and the combination path was using a
+hardcoded subset of a vocabulary that already existed. So **every project on disk means exactly what it
+meant before**, and its edge labels are byte-identical; a term with no rule is `is occupied`, which is
+what it always was.
+
+Terms read in a different voice inside a combination — `is occupied`, `has N+ people` — because the
+firing applies to the **whole sentence**, not to each word: a term is a state of the room, never an
+event of its own. Two consequences are now stated where you author them. **NOT is not the opposite
+rule** (`NOT (occupied for 5s)` is true when the zone is empty *or* somebody has been there under 5 s,
+which is not `empty for 5s`). And a combination is **simultaneous and order-agnostic**, so *"stand here
+5 s, then walk over there"* is not expressible as one rule when the visitor leaves the first zone — put
+a state between the steps and the graph enforces the order properly.
+
+Two defects fixed alongside. The arm-and-hold memo is keyed by the rule rather than the transition, and
+that key did not include the per-term fields — so two edges differing only in a dwell would have shared
+one memo and the plain one would have fired **60 times a second** for as long as somebody stood there,
+with nothing thrown and two visibly different rules on screen. It is now covered by an invariant.
+And the term dots were never live at all: the inspector had no subscription, so having selected a
+transition you could walk the room and watch nothing change. They now tick, show the **term's** value
+including its NOT, and distinguish "unanswerable" (a zone this scene does not listen to, which makes the
+whole rule inert) from merely false.
+
 ### A trigger zone counts people, not blobs — and a wall counts hands
 
 Reported from the venue: *"the LiDAR tracks 2 blobs for each person, so I had to put 4 instead of 2 to

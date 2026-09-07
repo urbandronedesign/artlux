@@ -264,30 +264,76 @@ The rectangle itself is the state display — **dashed while empty, solid once o
 
 Two modes in the inspector: **One zone** and **Combination**.
 
-### One zone
+### The five rules
 
-| Rule | Fires when |
-|---|---|
-| `someone enters` | a person arrives — *since this state was entered* |
-| `everyone leaves` | the last person leaves |
-| `occupied for…` | somebody has stayed N seconds |
-| `empty for…` | nobody for N seconds — the attract-return rule |
-| `at least N people` | the headcount reaches N |
+The same five in both modes — they are one vocabulary, read in two voices. Alone a rule sounds like an
+event; inside a combination it has to be read as a state, because there the arming is on the whole
+sentence rather than on any one term.
 
-### Combination — **ALL / ANY** of N zones, each optionally **NOT**
+| One zone | …the same rule, as a term | Fires / is true when |
+|---|---|---|
+| `someone enters` | `is occupied` | a person arrives — *since this state was entered* |
+| `everyone leaves` | `is empty` | the last person leaves |
+| `occupied for…` | `occupied for…` | somebody has stayed N seconds |
+| `empty for…` | `empty for…` | nobody for N seconds — the attract-return rule |
+| `at least N people` | `has N+ people` | the headcount reaches N |
 
-*"Someone in the entrance **and** nobody on the stage"* is one rule, not two. Pick **Combination**, choose
-**ALL** or **ANY**, and add a term per zone with an optional **NOT**.
+### Combination — **ALL / ANY** of N zones, **each with its own rule**
 
-> ⚠ **A combination is about occupancy, not events.** "Someone enters A" **and** "someone enters B" would
-> require two arrivals on the *same frame* — never, in a real room. So a combination evaluates *who is
-> standing where* and fires the moment the whole expression becomes true. It is one level deep on
-> purpose: ALL/ANY plus per-term NOT covers the logic people actually write, and a nested expression tree
-> is a UI nobody can use under show pressure.
+*"Somebody has been in the entrance for 5 s **and** the stage is empty"* is one rule, not a chain of
+states. Pick **Combination**, choose **ALL** or **ANY**, and add a term per zone — each term picks its
+own rule from the table above, with an optional **NOT**.
+
+```
+Fires when [ALL of these are true]
+ ● Zone 1  ·  occupied for… 5
+ ○ Zone 2  ·  is empty
+```
+
+The dot on each term is live: filled while that term is true *right now* (NOT already applied), hollow
+when the zone is one this scene does not listen to — see below. The graph's edge label spells the whole
+sentence out: `Zone 1 5s ∧ Zone 2 ⌀`.
+
+> ⚠ **A term is a state of the room, not an event of its own.** "Someone enters A" **and** "someone
+> enters B" would require two arrivals on the *same frame* — never, in a real room. So a term
+> contributes a condition and the combination fires the moment the whole sentence becomes true. It is
+> one level deep on purpose: ALL/ANY plus per-term NOT covers the logic people actually write, and a
+> nested expression tree is a UI nobody can use under show pressure.
+
+> ⚠ **NOT is not the opposite rule.** `NOT (occupied for 5s)` is true whenever the zone is empty **or**
+> somebody has been there less than 5 s — that is not `empty for 5s`, which needs a full 5 s of
+> emptiness. When you mean the dwell, pick the dwell. (For `is occupied` / `is empty` specifically, NOT
+> *is* simply the other one.)
+
+> ⚠ **Every zone named in a combination must be switched on for the scene the transition leaves FROM.**
+> One zone that is off makes the **whole** rule inert, not just its term — an unknown condition must
+> never fire. The editor warns you, but it checks the scene you currently have loaded, which is not
+> necessarily that one.
+
+#### A combination is simultaneous, and order-agnostic
+
+Both facts bite the same intention. *"Stand in Zone 1 for 5 s, **then** enter Zone 2"* written as
+`ALL[ Zone 1 occupied for 5s ][ Zone 2 is occupied ]`:
+
+- **works** when Zone 1 is still occupied at the moment of the Zone 2 entry — overlapping zones, or a
+  second person;
+- **does not work** for one person *walking out of* Zone 1 into Zone 2 — except by accident. Zone 1
+  stays latched for `exitSec` after they leave and Zone 2 latches `enterSec` after they arrive, so both
+  are briefly true only if the gap between the zones is under `exitSec − enterSec` (0.3 s at the
+  defaults). Touching zones cross in ~0 s and it fires; zones a metre apart never do. **That window is
+  made of two on-site dwell values**, so raising the exit dwell to smooth a flickery tracker silently
+  switches such a rule on. It works in rehearsal and fails on the night;
+- **does not enforce the order anyway** — the conjunction fires at whichever moment completes the pair,
+  so entering Zone 2 first and *then* dwelling 5 s in Zone 1 also fires it.
+
+**For a real sequence, put a state between the two:** `SC_1 —[Zone 1 occupied 5s]→ SC_1_wait —[Zone 2
+enters]→ SC_2`. The second edge can only fire once you are in the intermediate state, which can only
+happen after the 5 s. That is what the show graph is for.
 
 ### One firing rule for all of them: **arm and hold**
 
-Every rule above — single or combination — is a **level**, and firing is:
+Every rule above — single or combination — is a **level**, and in a combination **the level being armed
+is the whole expression, not each term**. Firing is:
 
 ```
 on a new state entry:   armed = !value      // already true when we arrived ⇒ it must go false first

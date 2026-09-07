@@ -490,8 +490,9 @@ and state shares them.
   always makes one you can drag into place.
 - **Wire a zone to a transition** — in the transition inspector pick trigger **LiDAR zone**, then
   choose **One zone** (*someone enters / everyone leaves / occupied for N s / empty for N s / at least
-  N people*) or **Combination** (ALL/ANY of several zones, each optionally **NOT** — e.g. "someone in
-  the entrance *and* nobody on the stage").
+  N people*) or **Combination** (ALL/ANY of several zones, **each with its own rule**, optionally
+  **NOT** — e.g. "somebody in the entrance for 5 s *and* nobody on the stage"). A combination is
+  simultaneous: for a real sequence, put a state between the steps.
 - **Dwell is tuned once, on-site** — the venue-wide **Zone enter dwell** (default 0.2 s) and **Zone
   exit dwell** (default 0.5 s) live in the tracking parameters (next to *Smoothing* / *Merge radius*);
   every zone follows them unless you tick **Override dwell for this zone**. Raise them if a flickery
