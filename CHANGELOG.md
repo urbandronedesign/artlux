@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Takes copied into a project are no longer invisible
+
+A project folder is portable by design, so people copy recordings into it — off a USB stick, out of a
+sync folder, from another machine's session. Every other media type is adopted when that happens; a
+`.lblob` take was adopted by **nothing**, and nothing said so. Five venue recordings sat in a project
+this way, present on disk and absent from the app, with no message and no way in: a take could only
+enter a project by being *recorded* into it.
+
+Opening a project now looks for takes the library does not list, and the **Tracking Takes** panel
+offers to add them. The check is a **directory listing, not a read** — a take is several megabytes of
+per-frame snapshots and this runs on every open, behind the boot gate — so only the takes you actually
+add are parsed, and that is where their name and duration come from.
+
+**They are not adopted automatically, deliberately.** Deleting a take removes it from the library but
+leaves the file, so the delete stays recoverable — which makes a stray `.lblob` indistinguishable from
+one you threw away. Takes are the most-deleted list in the app; adopting silently would resurrect four
+in five on every launch, for ever.
+
 ### Every zone in a combination can now carry its own rule
 
 A transition's **LiDAR zone** trigger had two modes, and only one of them could think. **One zone**

@@ -226,6 +226,17 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         mediaAccess.allowAssets(found);
         return found;
     });
+    // Orphaned .lblob takes. Paths only — see projectFolder.scanTakes for why this must not parse them,
+    // and why adopting them is the operator's call rather than something that happens at startup.
+    //
+    // ⚠ THE ALLOWLIST IS PART OF THE ANSWER, not an afterthought: adoption reads each file through
+    // IPC.READ_FILE, which only serves paths mediaAccess knows about. Reporting a take without
+    // admitting it would surface a list whose every Adopt then failed.
+    ipcMain.handle(IPC.SCAN_TAKES, async (_e, projectFile: string, knownPaths: string[]) => {
+        const found = projectFolder.scanTakes(projectFile, knownPaths ?? []);
+        for (const p of found) mediaAccess.allowPath(p);
+        return found;
+    });
     ipcMain.on(IPC.SHOW_ITEM_IN_FOLDER, (_e, path: string) => { if (path) shell.showItemInFolder(path); });
     // A file dropped into a project that has no folder to copy it into. See IPC.MEDIA_ADMIT_DROPPED.
     ipcMain.on(IPC.MEDIA_ADMIT_DROPPED, (_e, path: string) => { if (path) mediaAccess.allowPath(path); });

@@ -157,6 +157,7 @@ export const IPC = {
   IMPORT_ASSET_FILE: 'asset:import-file',
   /** Renderer → main (invoke): walk the project's assets/ for media the library doesn't have → AssetEntry[]. */
   SCAN_ASSETS: 'asset:scan',
+  SCAN_TAKES: 'asset:scan-takes',
   /** Renderer → main: reveal a file in the OS file manager. */
   SHOW_ITEM_IN_FOLDER: 'asset:show-in-folder',
   /** Renderer → main (invoke): which of these paths exist on disk → boolean[]. */
@@ -1681,6 +1682,9 @@ export interface ArtluxApi {
    * Copies nothing and modifies nothing on disk — the caller appends what it gets back.
    */
   scanAssets(projectFile: string, knownPaths: string[]): Promise<AssetEntry[]>;
+  // Orphaned .lblob takes under assets/tracking/ — paths only, so an open costs a readdir rather than
+  // a multi-megabyte parse per take. The renderer parses the ones an operator adopts.
+  scanTakes(projectFile: string, knownPaths: string[]): Promise<string[]>;
   /** Reveal a file in the OS file manager. */
   showItemInFolder(path: string): void;
   /** Which of these paths exist on disk. */

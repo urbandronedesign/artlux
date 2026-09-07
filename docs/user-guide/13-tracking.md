@@ -248,6 +248,13 @@ tracker present — replay is indistinguishable from the live feed.
 2. **Place** — drag the take out of the panel onto the tracking lane (or drag it from the **Media**
    library). It shows the same blob‑density sparkline the take row does; move/trim it like any clip.
    Click a take's name in the panel to rename it.
+
+   > **Takes recorded somewhere else.** Copy `.lblob` files into the project's `assets/tracking/`
+   > folder and the **Tracking Takes** panel notices them on the next open: *"3 takes in this project's
+   > assets/tracking/ are not in the library"*, with a button to add them. They are **not** adopted
+   > automatically — deleting a take leaves its file behind so the delete stays recoverable, which
+   > means a stray file could equally be one you discarded. Adding them is a document edit, so
+   > **Save** afterwards or they will be waiting again next time.
 3. **Replay** — with the tracker disconnected, **Play** or scrub: the recorded blobs drive the 3D
    scene, the trigger zones, and any *Tracking* projector outputs. Past the clip the blobs clear.
 4. **Mixing with a live tracker** — while a take plays, the live feed is globally suppressed and

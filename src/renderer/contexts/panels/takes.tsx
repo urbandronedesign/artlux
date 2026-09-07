@@ -4,7 +4,8 @@ import { trackingStore } from '@artlux/plugin-lidar-tracking';
 import * as takeRecorder from '../../services/takeRecorder';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { useEditor } from '../../state/EditorStore';
+import { useEditor, useEditorActions } from '../../state/EditorStore';
+import * as orphanTakes from '../../services/orphanTakes';
 import { isLight } from '../../services/fixtureKind';
 import type { ChannelRole, LightingTake, TrackingTakeRef } from '../../types';
 import { BlobSparkline } from '../../components/timeline/BlobSparkline';
@@ -254,6 +255,41 @@ const TrackingSignature: React.FC<{ t: TrackingTakeRef }> = ({ t }) => (
   </span>
 );
 
+// TAKES IN THE FOLDER THAT THE LIBRARY HAS NEVER HEARD OF — surfaced here, where takes live, rather
+// than as a startup dialog. A project folder is portable, so people copy recordings into it; every
+// other media type gets adopted when they do, and a `.lblob` used to be adopted by nothing at all.
+//
+// ⚠ NOT ADOPTED AUTOMATICALLY, and the reason is worth keeping: deleting a take drops its library row
+// and LEAVES THE FILE (so a delete stays recoverable), which makes an orphan indistinguishable from
+// something thrown away. Takes are the most-deleted list in the app — you record five and keep one —
+// so a silent adopt would resurrect four of them on every launch. One button, and it says how many.
+const OrphanTakes: React.FC = () => {
+  const a = useEditorActions();
+  const paths = useSyncExternalStore(orphanTakes.subscribe, orphanTakes.get);
+  const [busy, setBusy] = useState(false);
+  if (!paths.length) return null;
+  const n = paths.length;
+  return (
+    <div className="rounded border border-warn/40 bg-warn/10 p-1.5 space-y-1">
+      <div className="text-micro text-fg-2">
+        <span className="text-warn">{n}</span> take{n === 1 ? '' : 's'} in this project&rsquo;s
+        {' '}<span className="text-fg-3">assets/tracking/</span> {n === 1 ? 'is' : 'are'} not in the library.
+      </div>
+      {/* The names live inside the files, and reading them is the expensive part — so the list is
+          paths until somebody asks for them. */}
+      <div className="text-micro text-fg-3 truncate" title={paths.join('\n')}>
+        {paths.map((p) => p.split(/[\/]/).pop()).join(', ')}
+      </div>
+      <button
+        disabled={busy}
+        onClick={() => { setBusy(true); void a.adoptTakes(paths).finally(() => setBusy(false)); }}
+        className="w-full px-2 py-1 rounded border border-warn/50 bg-surface-2 text-fg-1 text-mini disabled:opacity-50">
+        {busy ? 'Reading…' : `Add ${n === 1 ? 'it' : 'them'} to the library`}
+      </button>
+    </div>
+  );
+};
+
 export const TrackingTakesDock: React.FC = () => {
   // THE PROJECT LIBRARY, not the bound document. A LiDAR take is captured reality — a recording of what
   // the venue did — so it belongs to the project and every scene can draw on it. `globalTimeline` is
@@ -279,6 +315,8 @@ export const TrackingTakesDock: React.FC = () => {
         <LiveBlobs />
         {!hasLane && <LaneButton onClick={takeRecorder.addTrackingLane} label="Tracking lane" helpId="timeline.take-add-lane" />}
       </div>
+
+      <OrphanTakes />
 
       <div className="space-y-1 pt-1">
         {takes.length === 0

@@ -56,6 +56,7 @@ import { planStoreKey, poseForGroup, upsertKey } from './services/lightingStoreK
 import * as lightingCue from './services/lightingCue';
 import { livePreview } from './services/livePreview';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
+import * as orphanTakes from './services/orphanTakes';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
 import * as timelinePreloader from './services/timelinePreloader';
@@ -3019,6 +3020,38 @@ const App: React.FC = () => {
       });
       return fresh.length;
   };
+  // ⚠ TAKES ARE NOT ADOPTED BY THE SCAN ABOVE, AND THAT IS NOT AN OVERSIGHT. `scanAssets` mints
+  // `assets[]` rows, and a take's library entry IS its Timeline.trackingTakes row (assetLibrary
+  // .takeToAsset), so minting one would show every take twice. But a `.lblob` copied into the folder
+  // by hand was therefore adopted by NOTHING, and nothing said so — which is how five venue recordings
+  // came to sit in a project invisibly.
+  //
+  // So they are NOTICED here (a readdir, no parse — see projectFolder.scanTakes) and adopted only when
+  // an operator says so, in the Tracking Takes panel where takes live. Not automatically: deleting a
+  // take leaves its file behind on purpose, so an orphan is indistinguishable from something thrown
+  // away, and auto-adopting would resurrect it on every launch.
+  //
+  // Keyed on the library's OWN view of what it holds — the same `libraryItems` the scan above dedupes
+  // against — so a take adopted here stops being reported without a second round-trip.
+  const takePaths = useMemo(
+    () => libraryItems(assets, timeline).filter(a => a.type === 'take').map(a => a.path).join('|'),
+    [assets, timeline],
+  );
+  useEffect(() => {
+      void orphanTakes.rescan(currentProjectPath, takePaths ? takePaths.split('|') : []);
+  }, [currentProjectPath, takePaths]);
+  // Adopt the chosen files: parse them (the only place that cost is paid) and put them in the global
+  // doc's take library, which is where a tracking take lives regardless of the scene being edited.
+  const handleAdoptTakes = async (paths: string[]): Promise<number> => {
+      const refs = await orphanTakes.adopt(paths);
+      if (!refs.length) { toast.error('Could not read those takes', 'The files are present but did not parse as recordings.'); return 0; }
+      // Through takeRecorder, not setTimeline: appending to the take list has ONE owner, so the
+      // recording door and this one cannot drift about where a take lands (verify:invariants).
+      takeRecorder.adoptTrackingTakes(refs);
+      orphanTakes.forget(refs.map(r => r.path));
+      toast.success(`Adopted ${refs.length} take${refs.length === 1 ? '' : 's'}`, 'They are in the library — drag one onto a tracking lane to replay it.');
+      return refs.length;
+  };
   // A media file dropped straight onto the timeline is copied into the project by the Timeline, then
   // registered here so it appears in the Media library — same as an explicit import. Dedupe by path.
   const handleRegisterAsset = (entry: AssetEntry) => {
@@ -4657,6 +4690,7 @@ const App: React.FC = () => {
     saveScene: handleSceneSave,
     importAssets: handleImportAssets,
     scanAssets: handleScanAssets,
+    adoptTakes: handleAdoptTakes,
     removeAsset: handleRemoveAsset,
     relinkAsset: handleRelinkAsset,
     useAssetOnSurface: handleUseAssetOnSurface,

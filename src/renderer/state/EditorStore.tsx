@@ -148,6 +148,8 @@ export interface EditorActions {
   importAssets(type: AssetType): void;
   /** Adopt media copied into assets/ by hand → how many entries were added. */
   scanAssets(): Promise<number>;
+  /** Adopt .lblob takes found in assets/tracking/ but absent from the library → how many were added. */
+  adoptTakes(paths: string[]): Promise<number>;
   removeAsset(asset: AssetEntry): void;
   relinkAsset(asset: AssetEntry): void;
   useAssetOnSurface(asset: AssetEntry): void;

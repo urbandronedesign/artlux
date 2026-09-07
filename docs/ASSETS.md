@@ -120,6 +120,28 @@ own `assets/` tree and adds a library entry for every media file the library doe
 - **Typed by extension, not by folder** — an `.mp4` dropped into `assets/images/` is still a video.
 - **Skipped:** dot-files, unknown extensions, and `.lblob` **takes** — a take's library entry *is* its
   `Timeline.trackingTakes` row (`takeToAsset`), so minting an `assets[]` entry would show it twice.
+  Takes have **their own route in**; see below.
+
+### Takes copied in by hand
+
+A `.lblob` cannot be an `assets[]` row (above), so for a long time it was adopted by *nothing*: copy a
+recording into `assets/tracking/` and it sat there invisible, with nothing to say so. Opening a project
+now also **looks for takes the library does not list**, and the **Tracking Takes** panel offers to add
+them.
+
+- **The check is a directory listing, not a read.** A take is a JSON blob of per-frame snapshots — a
+  30-second venue recording runs to about 4 MB and a fifth of a second to parse — and this happens on
+  every open, behind the boot gate. Only the takes you actually add are read, and that is where their
+  name and duration come from.
+- **Nothing is adopted automatically, and that is deliberate.** Deleting a take removes it from the
+  library but **leaves the file** (so the delete is recoverable), which makes a stray `.lblob`
+  indistinguishable from one you threw away. Takes are the most-deleted list in the app — you record
+  five and keep one — so adopting them silently would resurrect four of them every time you opened the
+  project.
+- **Adding them is a document edit**, like an import: the takes are in the library immediately, and a
+  **Save** is what keeps them. Without it the banner is back next time.
+- **De-duped by the take's own id**, which lives inside the file — so adding one that is already
+  listed does nothing, rather than making a second row that plays the same recording.
 - **De-dupe** is by normalized path (`normPath`, matching the renderer) against everything the library
   holds — imported assets *and* recorded takes.
 - The result is reported in the panel ("added 3 files" / "no new media"): a scan that found nothing must

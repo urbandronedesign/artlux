@@ -444,6 +444,33 @@ export function scanAssets(projectFile: string, knownPaths: string[]): AssetEntr
   return found;
 }
 
+// Orphaned `.lblob` takes under <root>/assets/tracking/ — files present on disk that the library does
+// not list. Returns PATHS ONLY, deliberately: this runs on every project open, and a take is a JSON
+// blob of per-frame snapshots (the venue recordings measured here run to 4 MB and ~180 ms each), so
+// reading them to learn a name and a duration would put seconds onto a startup that has a boot gate
+// and a splash deadline. The renderer parses only the ones an operator chooses to adopt.
+//
+// ⚠ AND THIS IS WHY ADOPTION IS NOT AUTOMATIC. Deleting a take removes its row from
+// Timeline.trackingTakes and LEAVES THE FILE (takeRecorder.removeTrackingTake — deliberately, so a
+// delete is recoverable). An orphan is therefore indistinguishable from something thrown away, and
+// takes are "the most-deleted list in the app, you record five and keep one" — so adopting silently
+// would resurrect four takes in five on every launch, for ever. Surfacing them is safe; adopting them
+// is the operator's call.
+export function scanTakes(projectFile: string, knownPaths: string[]): string[] {
+  const dir = join(dirname(projectFile), 'assets', 'tracking');
+  if (!existsSync(dir)) return [];
+  const have = new Set((knownPaths ?? []).map(normKey));
+  const out: string[] = [];
+  try {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (!e.isFile() || extname(e.name).toLowerCase() !== '.lblob') continue;
+      const full = join(dir, e.name);
+      if (!have.has(normKey(full))) out.push(full);
+    }
+  } catch { /* unreadable folder — report nothing rather than failing the open */ }
+  return out.sort();
+}
+
 // Copy every external asset into <root>/assets/<category>/ and remap references to point there.
 // Returns remapped data with *absolute* paths (the renderer applies it, then a save relativizes).
 function collectInto(root: string, data: ProjectData): CollectResult {

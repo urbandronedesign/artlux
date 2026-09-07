@@ -269,6 +269,24 @@ export function removeTrackingTake(id: string): void {
   host.commitGlobal({ ...g, trackingTakes: (g.trackingTakes ?? []).filter((t) => t.id !== id) });
 }
 
+// ADOPTION — a take that is already a file in this project, but not yet in the library. It shares this
+// module with recording for the reason the invariant states: appending to the take list has exactly
+// one owner, so the two doors cannot drift. It is NOT the recording sequence, and deliberately does
+// less: the file already exists and is already inside the project, so there is nothing to name, write,
+// copy or seed — only the ref to append.
+//
+// Deduped by the take's OWN id (which travels inside the .lblob), so adopting a file that is already
+// listed is a no-op rather than a second row playing the same recording.
+export function adoptTrackingTakes(refs: TrackingTakeRef[]): number {
+  if (!host || !refs.length) return 0;
+  const g = host.globalTimeline();
+  const have = new Set((g.trackingTakes ?? []).map((t) => t.id));
+  const fresh = refs.filter((r) => !have.has(r.id));
+  if (!fresh.length) return 0;
+  host.commitGlobal({ ...g, trackingTakes: [...(g.trackingTakes ?? []), ...fresh] });
+  return fresh.length;
+}
+
 export function renameTrackingTake(id: string, name: string): void {
   if (!host) return;
   const trimmed = name.trim();
