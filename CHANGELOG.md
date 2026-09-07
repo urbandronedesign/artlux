@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.27.2
+
+A venue report — *"the lidar tracks 2 blobs for each person, so I had to put 4 instead of 2 to trigger
+a zone that means 2 people"* — and everything that turned out to be behind it.
 
 ### Takes copied into a project are no longer invisible
 

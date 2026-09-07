@@ -1429,6 +1429,98 @@ every `gh release edit` inside its loop is followed by `|| echo "::warning::"` u
 change; this release contains none.
 
 
+## v0.28.0 — a trigger zone counts people, and each zone in a rule gets its own behaviour (2026-09-07)
+
+`a9a252d`, `8d5fc12`, `648baef`, `2335337`, `9d4f6af`, `a2de247`, `1466874`
+
+Started as a venue report — *"the lidar tracks 2 blobs for each person so I had to put 4 instead of 2"* —
+and the people-merge turned out to be correct all along. **Four** separate things stood between it and a
+right answer, and a follow-up message reframed the model itself: on the **wall** each blob is a **hand**,
+so what a blob *means* belongs to the **surface**, not the project. One flag could not say that, so
+merging for the floor was silently merging wall hands and two people touching became one trigger.
+
+Also: zones and the projector outputs were counting with **different algorithms** (a bare spatial merge
+vs the predictive tracker), so the number an operator validated against was not the number the show acted
+on; the sensor settings **rode the look** and were reassigned on every GO, undoing on-site tuning; and
+nothing exposed the closest-pair distance that decides the merge radius. Then per-term rules: a
+combination could only ask about bare occupancy, so *"entrance held 5 s AND stage empty"* needed a chain
+of states. It was an **extraction** — `level()` always computed all five kinds as levels, and the
+combination path used a hardcoded subset. Zero migration; byte-identical edge labels.
+
+**THE METHOD IS THE TRANSFERABLE PART.** The owner supplied five `.lblob` recordings and they **overturned
+the leading hypothesis**: replayed through their own zones, the 0.8 m radius is right and merging works
+(Zone 2 peaks at 4 raw blobs → 2 people), so the cause was merging being *off*, not mis-tuned — the
+reverse of what the plan had concluded. Three of the wrong turns are recorded next to the code that
+caused them, because each would otherwise repeat:
+
+- an analysis script labelled a raw÷merged ratio of 2.0 as *"still counting HALVES"* — the **exact
+  opposite** of what it means. Correct numbers, reversed conclusion.
+- a memo-collision test asserted *"fires exactly once"* and **failed against correct code**: a true rule
+  *holds* true by design, so counting fires cannot distinguish a collision. Only **state re-entry** can.
+- a `declare module` type stub for `@artlux/sdk` is **global** — the root tsconfig sweeps the tree, so it
+  shadowed the real SDK project-wide and `verify` collapsed in unrelated files.
+
+Two bugs found while building rather than reported: an arm-and-hold memo key that would have fired a
+transition **60×/s** with nothing thrown (0 vs **1647** fires over 1647 occupied frames, on real data),
+and live occupancy dots that **had no subscription at all** while the tutorial asserted they were live.
+
+**Ships with a behaviour change**: zones now read the person tracker, which coasts somebody up to
+**0.7 s** after they vanish, on top of each zone's exit dwell — `everyone leaves` and `empty for…`
+release later than before. Lower the venue **Zone exit dwell** if it feels late.
+
+New tooling: `test:people`, `test:zone:take`, `analyze:take`, `analyze:take:zones`, and
+`lidar-emitter.cjs --pairs`. Status doc: [plans/trigger-zone-rules.md](../plans/trigger-zone-rules.md).
+
+⚠ **`scripts/test-zone-fsm.cjs` reached `main` having never run green** — knowingly: it is in neither
+`verify` nor `package`, and its rule coverage is superseded by `test:zone:take` on real venue data. What
+it uniquely covers is the FSM wiring *above* the rules.
+
+## v0.27.2 — a trigger zone counts people, and each zone in a rule gets its own behaviour (2026-09-08)
+
+`a9a252d`, `8d5fc12`, `648baef`, `2335337`, `9d4f6af`, `a2de247`, `1466874`
+
+Started as a venue report — *"the lidar tracks 2 blobs for each person so I had to put 4 instead of 2"* —
+and the people-merge turned out to be correct all along. **Four** separate things stood between it and a
+right answer, and a follow-up message reframed the model itself: on the **wall** each blob is a **hand**,
+so what a blob *means* belongs to the **surface**, not the project. One flag could not say that, so
+merging for the floor was silently merging wall hands and two people touching became one trigger.
+
+Also: zones and the projector outputs were counting with **different algorithms** (a bare spatial merge
+vs the predictive tracker), so the number an operator validated against was not the number the show acted
+on; the sensor settings **rode the look** and were reassigned on every GO, undoing on-site tuning; and
+nothing exposed the closest-pair distance that decides the merge radius. Then per-term rules: a
+combination could only ask about bare occupancy, so *"entrance held 5 s AND stage empty"* needed a chain
+of states. It was an **extraction** — `level()` always computed all five kinds as levels, and the
+combination path used a hardcoded subset. Zero migration; byte-identical edge labels.
+
+**THE METHOD IS THE TRANSFERABLE PART.** The owner supplied five `.lblob` recordings and they **overturned
+the leading hypothesis**: replayed through their own zones, the 0.8 m radius is right and merging works
+(Zone 2 peaks at 4 raw blobs → 2 people), so the cause was merging being *off*, not mis-tuned — the
+reverse of what the plan had concluded. Three of the wrong turns are recorded next to the code that
+caused them, because each would otherwise repeat:
+
+- an analysis script labelled a raw÷merged ratio of 2.0 as *"still counting HALVES"* — the **exact
+  opposite** of what it means. Correct numbers, reversed conclusion.
+- a memo-collision test asserted *"fires exactly once"* and **failed against correct code**: a true rule
+  *holds* true by design, so counting fires cannot distinguish a collision. Only **state re-entry** can.
+- a `declare module` type stub for `@artlux/sdk` is **global** — the root tsconfig sweeps the tree, so it
+  shadowed the real SDK project-wide and `verify` collapsed in unrelated files.
+
+Two bugs found while building rather than reported: an arm-and-hold memo key that would have fired a
+transition **60×/s** with nothing thrown (0 vs **1647** fires over 1647 occupied frames, on real data),
+and live occupancy dots that **had no subscription at all** while the tutorial asserted they were live.
+
+**Ships with a behaviour change**: zones now read the person tracker, which coasts somebody up to
+**0.7 s** after they vanish, on top of each zone's exit dwell — `everyone leaves` and `empty for…`
+release later than before. Lower the venue **Zone exit dwell** if it feels late.
+
+New tooling: `test:people`, `test:zone:take`, `analyze:take`, `analyze:take:zones`, and
+`lidar-emitter.cjs --pairs`. Status doc: [plans/trigger-zone-rules.md](../plans/trigger-zone-rules.md).
+
+⚠ **`scripts/test-zone-fsm.cjs` reached `main` having never run green** — knowingly: it is in neither
+`verify` nor `package`, and its rule coverage is superseded by `test:zone:take` on real venue data. What
+it uniquely covers is the FSM wiring *above* the rules.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
