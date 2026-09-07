@@ -1,17 +1,28 @@
 # Trigger zones — counting people, and stacking rules per zone
 
-> **Status: BUILT + PUSHED — 2026-09-07, branch `trigger-zone-rules` (not merged to `main`).**
-> Two commits, in this order. Part A is a **bug fix** answering a venue report; Part B is the
-> **feature** that report interrupted. A went first deliberately: B makes `at least N people` far
-> easier to reach, and it had to be trustworthy before it became prominent.
+> **Status: MERGED TO `main` — 2026-09-07, fast-forward from `trigger-zone-rules` (`a2de247`).**
+> Part A is a **bug fix** answering a venue report; Part B is the **feature** that report interrupted.
+> A went first deliberately: B makes `at least N people` far easier to reach, and it had to be
+> trustworthy before it became prominent. Merged with one item knowingly open — see below.
 >
 > ```
-> 8d5fc12  feat(tracking): every zone in a combination carries its own rule      Part B
+> a2de247  test(zones): prove the rules against a real venue recording
+> 9d4f6af  feat(takes): a take copied into a project is no longer invisible
+> 2335337  feat(scripts): read a venue's real numbers out of a recorded take
+> 648baef  docs(plans): this document
+> 8d5fc12  feat(tracking): every zone in a combination carries its own rule       Part B
 > a9a252d  fix(tracking): a zone counts people, not blobs — and a wall counts hands  Part A
 > ```
 >
-> **Read [What is NOT proven](#what-is-not-proven) before trusting any of it.** One whole class of
-> verification — the end-to-end CDP harness — is written and was never run green.
+> ⚠ **`scripts/test-zone-fsm.cjs` reached `main` having NEVER run green** — a deliberate call, not an
+> oversight (it is in neither `npm run verify` nor `npm run package`, so it cannot break a build, and
+> the rule semantics it was going to check are covered by `npm run test:zone:take` on real venue data).
+> It remains the one thing here that is asserted rather than demonstrated: see
+> [What is NOT proven](#what-is-not-proven).
+>
+> ⚠ **A behaviour change ships with this.** Zones now read the person tracker, which coasts somebody for
+> up to **0.7 s** after they vanish, on top of each zone's exit dwell — so `everyone leaves` and
+> `empty for…` release later than before. Lower the venue **Zone exit dwell** if a release feels late.
 
 This says what was *built*, **how it was proved**, what was *decided* (so it is not re-litigated), and
 what the next session should know before touching any of it.
