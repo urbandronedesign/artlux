@@ -86,8 +86,10 @@ and the sensor fields, added to `Scene3D` later, reached none of them. Hence one
 `SCENE3D_NOT_A_LOOK` + `stripNotALook`/`keepNotALook`, read by all **three** sites (the third is the
 unsaved-changes `norm()`, which lights the Update chip permanently if it disagrees).
 
-> ⚠ **This was LATENT in the reporting project, not the cause.** All ten scenes in `tide.artlux`
-> already carried `merge=true`. Do not claim it fixed the report.
+> ⚠ **All ten scenes in `tide.artlux` carry `merge=true` NOW**, so this cannot be demonstrated
+> retroactively there. But once the venue's own recordings ruled out the merge radius (see
+> [What the takes settled](#what-the-takes-settled)), a setting that silently reverts became the
+> **leading explanation** for the report — the reverse of what this doc first concluded.
 
 ## A4. Nothing showed the number that decides the merge radius
 
@@ -102,8 +104,10 @@ The zone map now draws a ring per counted person and reads:
 ```
 
 …turning **red** when the closest pair exceeds the radius. Stand one person on the surface and the gap
-between their own two blobs is right there. **This is the most likely actual cause of the report** —
-see [The open venue question](#the-open-venue-question).
+between their own two blobs is right there. It was previously unmeasurable from inside the app.
+
+> **This was my leading hypothesis for the report, and the venue's own recordings disproved it.**
+> See [What the takes settled](#what-the-takes-settled).
 
 ---
 
@@ -172,6 +176,8 @@ nothing to announce it. The dots now show the *term's* level including its NOT, 
 | Merge math | `npm run test:people` | 12 checks, ~1 s: pair merge, the radius boundary, tracker confirm/coast, the wall/hand case, and *"two hands 0.4 m apart WOULD merge at the floor radius"* — the reported bug in a unit test |
 | Guards | `npm run verify` | 165 invariants + 11 doc checks + typecheck |
 | No sensor | `node scripts/lidar-emitter.cjs 127.0.0.1 10000 2 --pairs` | emits each person as 2 blobs 0.3 m apart, exactly like the venue |
+| A real venue | `npm run analyze:take -- <take.lblob>` | blobs/frame, the nearest-neighbour histogram (look for **two populations** — one person's blobs, and different people — the radius belongs in the valley between them), and the people count at every radius |
+| …through real zones | `npm run analyze:take:zones -- <project.artlux> <take.lblob>` | what each authored zone would actually have counted, per radius. This is the tool that answers *"why did my zone set to 2 need four visitors"* from a recording, with no venue and no sensor |
 | End-to-end | `node scripts/test-zone-fsm.cjs` | ⚠ **written, never run green** — see below |
 
 **Both new invariants were proved non-vacuous** by breaking the code and watching them fire — the
@@ -195,17 +201,47 @@ form.
 - **Part A's A3 fix is not proven against a *scene* recall in the harness** — only against real FSM GOs
   fired over OSC in a live session, which did hold.
 
-## The open venue question
+## What the takes settled
 
-**Was the merge radius the actual cause?** Unconfirmed. `tide.artlux` has no recorded tracking take, so
-the venue's real blob spacing could not be measured. On site, with the sensor connected:
+The owner supplied five `.lblob` recordings, including a **34.3 s on-site take** (1792 frames, up to 9
+blobs on the floor). Replayed through the project's own six zones with the real clustering code
+(`npm run analyze:take:zones`):
 
-1. Open **Trigger Zones**, pick the floor surface.
-2. Stand **one** person in view.
-3. Read `closest pair` — that is the gap between *their own two blobs*.
+```
+merge radius:          0.00  0.50  0.80  1.00  1.20  1.50
+Zone 1       peak         4     3     2     2     2     2
+Zone 2       peak         4     3     2     2     2     2
+Zone 3       peak         5     3     3     3     3     3
+```
 
-If it exceeds `merge` (and the line is red), the radius was too small for this venue and raising it past
-that number is the whole fix. If it is well under, the cause was something else and this doc is wrong.
+**The 0.8 m default is correct for this venue, and merging works.** Zone 1 peaks at *4 raw blobs → 2
+people*, which is exactly the reported symptom ("I had to put 4 instead of 2") — and exactly what the
+merge is supposed to turn it into. Widening to 1.0/1.2/1.5 m changes nothing.
+
+The nearest-neighbour histogram says the same thing structurally: SOL is **bimodal**, a dense population
+between 0.1–0.75 m (one person's two blobs) and a second one past 1.5 m (different people), with the
+valley around 1.0–1.5 m. 0.8 m sits inside that valley's approach — a sane place for it to be.
+
+⇒ **The radius was never the problem. Merging must simply have been OFF when the threshold was
+authored** — which makes **A3** (sensor settings reverted by every GO) the leading explanation after
+all, the opposite of what this doc first concluded. It cannot be proven retroactively: all ten scenes
+carry `merge=true` *now*, and the machine logs record nothing about the setting.
+
+Verified live as well, replaying that take through the running app: the zone map read
+`5 blobs → 4 people · closest pair 0.32m / merge 0.80m`, then `5 → 3 · 0.37m`, then `4 → 2 · 0.60m` —
+every closest-pair sample comfortably inside the radius.
+
+> ⚠ **A method note worth keeping.** The first version of `analyze-take-zones.ts` labelled a
+> raw÷merged ratio of 2.0 as *"still counting HALVES of people"* — the **exact opposite** of what it
+> means (2.0 is the merge working). The numbers were right and the label would have produced the
+> reverse conclusion. Read a derived flag against the raw columns before believing it.
+
+## A related finding: a `.lblob` cannot be imported
+
+The five takes were sitting in `assets/tracking/` but were **invisible to the app**. Takes live on
+`Timeline.trackingTakes` as sidecar refs, and the folder scanner **deliberately skips `.lblob`**
+(`src/main/projectFolder.ts:435`) — so a take can only enter a project by being **recorded** into it.
+Copying the files in does nothing, and nothing says so. Worth an import path, or at least a message.
 
 ---
 
