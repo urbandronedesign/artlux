@@ -38,6 +38,9 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'global.undo',        label: 'Undo',                 category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+Z'] },
   { id: 'global.redo',        label: 'Redo',                 category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+Shift+Z', 'Ctrl+Y'] },
   { id: 'global.selectAll',   label: 'Select all fixtures',  category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+A'] },
+  { id: 'global.copy',        label: 'Copy fixture / surface', category: 'Editing',  scope: 'global', defaultBinding: ['Ctrl+C'], description: 'Copies the selection. Ignored while you are typing, so a text field keeps its own copy.' },
+  { id: 'global.paste',       label: 'Paste',                category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+V'], description: 'Pastes offset from the original and RE-PATCHED to free DMX channels — never on top of what it was copied from.' },
+  { id: 'global.duplicate',   label: 'Duplicate',            category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+D'], description: 'Copy and paste in one press, without touching the clipboard.' },
   { id: 'global.perfDock',    label: 'Open Performance dock',category: 'View',       scope: 'global', defaultBinding: ['Ctrl+Alt+P'] },
   // The timeline is a tool you pull up inside whatever workbench you are in, not a place you go — this
   // is how you pull it up. Global on purpose: every context that names a bottom panel answers to it.

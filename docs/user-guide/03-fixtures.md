@@ -82,6 +82,33 @@ land at trim height.
 
 ---
 
+## Copy and paste
+
+Building a rig is repetitive — eight identical heads on a truss, six strips down a wall — so select a
+fixture and press **Ctrl+C**, then **Ctrl+V**. **Ctrl+D** does both in one press without touching the
+clipboard, so you can copy one thing, duplicate another, and still paste the first. Surfaces copy the
+same way.
+
+The copy keeps everything that made the original what it is: its profile and mode, its pixel type and
+colour order, its wiring, its layout, its ledmap and the surface it is mapped to. Two things
+deliberately change:
+
+- **It is re-patched.** A copy never inherits the original's start address — that would be two
+  fixtures answering to the same DMX channels, a patch that looks right in the list and is wrong on
+  the wire. It takes the next free span instead, exactly as a newly added fixture does.
+- **It is offset.** A light is nudged half a metre in the 3D scene, a pixel fixture a little way
+  across the stage, so the copy is not sitting invisibly on top of the original. Nudge or type it
+  where you want it from there.
+
+Select several fixtures first and all of them copy, **in selection order** — which for lights is the
+order a lighting clip spreads along, so a group pasted as a block keeps the order you picked it in.
+
+Pasting several times numbers them as it goes: `Head 2`, `Head 3`, `Head 4`. A fixture you have
+renamed to something without a number — `Front wash` — pastes as `Front wash 1`.
+
+> **Ctrl+C in a text field still copies text.** The shortcut steps aside whenever you are typing, so
+> copying an IP address out of Routing does what you expect.
+
 ## Templates (reusable fixture types)
 
 Configure a fixture, select it, and in the **Library** dock tab click **Save selected**. It stores

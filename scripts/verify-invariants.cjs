@@ -2673,6 +2673,42 @@ check(
   },
 );
 
+// ── Editing: copy/paste must not steal a text field's clipboard, or the source's DMX ─────────
+check(
+  'copy / paste yields to a text field, and never reuses the source address',
+  'Two ways this feature can do real damage quietly. (1) Ctrl+C is a TEXT FIELD\'s key first: an ' +
+  'operator copying an IP address out of Routing, or a cue name, must not silently get a fixture ' +
+  'instead - there is no error to see, and they find out at the paste. Every one of the three ' +
+  'bindings is therefore gated on the same `typing` predicate undo/redo uses. (2) A pasted fixture ' +
+  'must NOT carry the source\'s startAddress: that is two fixtures answering the same DMX channels, ' +
+  'a patch that reads correctly in the list and is wrong on the wire, and on a real rig two heads ' +
+  'doing the same thing. autoPatch already owns "where does this fit"; paste hands it the grown rig. ' +
+  'Proved on the running app: a MAC 250 at address 1 pastes to 14, its own footprint later.',
+  () => {
+    const APP = 'src/renderer/App.tsx';
+    const src = read(APP);
+    const problems = [];
+
+    // Every binding gated on `typing` — the same predicate the undo branch uses.
+    for (const id of ['global.copy', 'global.paste', 'global.duplicate']) {
+      const re = new RegExp(`!typing && keymap\\.matches\\(e, '${id}'\\)`);
+      if (!re.test(src)) problems.push(`${APP} '${id}' is not gated on \`typing\` — it would hijack a text field's own clipboard`);
+    }
+
+    const paste = /const handlePasteClipboard[\s\S]*?\n  };/.exec(src);
+    if (!paste) problems.push(`${APP} no longer defines handlePasteClipboard`);
+    else {
+      if (!/autoPatch\(/.test(paste[0]))
+        problems.push(`${APP} paste does not repatch through autoPatch — a copy would overlap the fixture it came from`);
+      if (/startAddress:/.test(paste[0]))
+        problems.push(`${APP} paste sets a startAddress itself — that is autoPatch's answer to give`);
+      if (!/recordHistory\(\)/.test(paste[0]))
+        problems.push(`${APP} paste does not record history — it would not be undoable`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Auto-key: an armed fader move is ONE gesture ─────────────────────────────────────────────
 check(
   'an armed fader move is one undo entry, and cannot arm itself',

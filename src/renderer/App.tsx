@@ -56,6 +56,8 @@ import { planStoreKey, poseForGroup, upsertKey } from './services/lightingStoreK
 import * as lightingCue from './services/lightingCue';
 import { livePreview } from './services/livePreview';
 import * as autoKey from './services/autoKey';
+import * as clipboard from './services/clipboard';
+import { effectivePosObj } from './services/led3dDefaults';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import * as orphanTakes from './services/orphanTakes';
 import { setCoreStateView } from './services/automationTargets.core';
@@ -635,6 +637,14 @@ const App: React.FC = () => {
   useEffect(() => { frameEngine.setHost({ onSurfacesAutoFitted: setSurfaces }); }, []);
 
 
+  // The keydown listener below is installed once and must call TODAY's handlers, not the ones that
+  // existed when it was attached — the same reason handleTimelineChangeRef exists. Seeded with
+  // no-ops and filled in where the handlers are defined, further down: a ref initialised FROM those
+  // handlers would be reading a const that does not exist yet at this point in the body.
+  const clipRef = useRef<{ copy: () => 'fixtures' | 'surface' | null; paste: () => 'fixtures' | 'surface' | null }>({
+    copy: () => null, paste: () => null,
+  });
+
   useEffect(() => {
     // No operator in broadcast/headless — the global undo/redo/select keybindings have no place there,
     // and undo()/redo() are no-ops in that mode anyway (see the SHOW_ENGINE gate above).
@@ -660,6 +670,26 @@ const App: React.FC = () => {
                 handleSelectFixtures(fixturesRef.current.map(f => f.id));
                 e.preventDefault();
             }
+        }
+        // ── COPY / PASTE / DUPLICATE ────────────────────────────────────────────────────────────
+        // ⚠ ALL THREE ARE GATED ON `typing`, AND Ctrl+C IS THE ONE THAT MATTERS. A text field owns it
+        // for its own selection, and hijacking it would mean an operator copying an IP address out of
+        // Routing silently got a fixture instead — with no error, and no way to tell until the paste.
+        //
+        // preventDefault ONLY when we actually did something. Ctrl+C with nothing selected must fall
+        // through to the browser so copying stays possible everywhere else in the shell.
+        else if (!typing && keymap.matches(e, 'global.copy')) {
+            if (clipRef.current.copy()) e.preventDefault();
+        }
+        else if (!typing && keymap.matches(e, 'global.paste')) {
+            if (clipRef.current.paste()) e.preventDefault();
+        }
+        // Duplicate is copy-then-paste, and deliberately does NOT disturb the clipboard: you can copy
+        // one thing, duplicate another, and still paste the first.
+        else if (!typing && keymap.matches(e, 'global.duplicate')) {
+            const keep = clipboard.read();
+            if (clipRef.current.copy()) { clipRef.current.paste(); e.preventDefault(); }
+            if (keep) clipboard.copy(keep); else clipboard.clear();
         }
         // Open the Performance dock tab (renderer frame-time metrics).
         else if (keymap.matches(e, 'global.perfDock')) {
@@ -1083,6 +1113,98 @@ const App: React.FC = () => {
     setSurfaces(next);
   };
   const handleRenameSurface = (id: string, name: string) => handleUpdateSurface(id, { name });
+
+  // ── COPY / PASTE ────────────────────────────────────────────────────────────────────────────
+  //
+  // Building a rig is repetitive: eight identical heads on a truss, six strips down a wall. Every one
+  // of them used to mean Add, then re-typing the mode, the wiring, the colour order and the layout
+  // the last one already had.
+  //
+  // Selection is mutually exclusive here (handleSelectFixture clears the surface and vice versa), so
+  // there is no ambiguity about WHAT copy takes.
+  const handleCopySelection = (): 'fixtures' | 'surface' | null => {
+    const ids = selectedFixtureIds.length ? selectedFixtureIds : (selectedFixtureId ? [selectedFixtureId] : []);
+    if (ids.length) {
+      // In SELECTION ORDER, not document order: for lights that order is the show (it is what a take
+      // spreads along), and a paste that silently re-sorted the copies would be a poor first surprise.
+      const byId = new Map(fixtures.map(f => [f.id, f]));
+      const items = ids.map(id => byId.get(id)).filter((f): f is Fixture => !!f);
+      if (!items.length) return null;
+      clipboard.copy({ kind: 'fixtures', items });
+      return 'fixtures';
+    }
+    const surf = surfaces.find(s => s.id === selectedSurfaceId);
+    if (surf) { clipboard.copy({ kind: 'surface', item: surf }); return 'surface'; }
+    return null;
+  };
+
+  /** "Head 4" → "Head"; "Front wash" → "Front wash". The stem nextNumberedName counts from. */
+  const nameStem = (name: string): string => name.trim().replace(/\s+\d+$/, '') || 'Copy';
+
+  const handlePasteClipboard = (): 'fixtures' | 'surface' | null => {
+    const payload = clipboard.read();
+    if (!payload) return null;
+    recordHistory();
+
+    if (payload.kind === 'surface') {
+      const src = payload.item;
+      const z = surfaces.reduce((m, s) => Math.max(m, s.zIndex), -1) + 1;
+      // Nudged, and CLAMPED so a surface copied at the edge cannot land off the document where it is
+      // invisible and only reachable by typing coordinates.
+      const copy: Surface = {
+        ...src,
+        id: generateId(),
+        name: nextNumberedName(nameStem(src.name ?? 'Surface'), surfaces),
+        x: Math.min(Math.max(0, src.x + 0.02), 1 - src.width),
+        y: Math.min(Math.max(0, src.y + 0.02), 1 - src.height),
+        zIndex: z,
+      };
+      setSurfaces([...surfaces, copy]);
+      handleSelectSurface(copy.id);
+      return 'surface';
+    }
+
+    const live = new Set(surfaces.map(s => s.id));
+    const made: Fixture[] = [];
+    let grown = [...fixtures];
+    for (const src of payload.items) {
+      const copy: Fixture = {
+        ...structuredClone(src),
+        id: generateId(),
+        // Counted against the rig AS IT GROWS, so pasting four at once gives 2, 3, 4, 5 rather than
+        // four fixtures all called "Head 2".
+        name: nextNumberedName(nameStem(src.name ?? 'Fixture'), grown),
+        // The live DMX frame, not authored state — the same field a Scene snapshot strips. Carrying
+        // it over would paste a fixture holding the colours the original happened to be showing.
+        colorData: [],
+        // A surface deleted since the copy would leave a dangling reference that renders nothing and
+        // reads as "paste is broken". Fall back to what is selected, then to the first surface.
+        surfaceId: src.surfaceId && live.has(src.surfaceId) ? src.surfaceId : (selectedSurfaceId ?? surfaces[0]?.id),
+      };
+      // OFFSET IT, or the copy lands exactly under the original and the paste looks like it did
+      // nothing. Where it moves depends on what kind of fixture it is — a light is placed in the 3D
+      // scene and is never drawn on the 2D canvas, a pixel strip is mapped on it — which is a
+      // question fixtureKind.ts owns.
+      if (isLight(copy)) {
+        const p = effectivePosObj(copy);
+        copy.position3D = { x: p.x + 0.5, y: p.y, z: p.z };
+      } else {
+        copy.x = Math.min(Math.max(0, copy.x + 0.02), 1 - copy.width);
+        copy.y = Math.min(Math.max(0, copy.y + 0.02), 1 - copy.height);
+      }
+      grown = [...grown, copy];
+      made.push(copy);
+    }
+    // ADDRESSES COME FROM autoPatch, never from the source. Copying the start address too would
+    // overlap the original byte for byte — two fixtures answering to the same channels, which on a
+    // real rig is two heads doing the same thing and a patch that looks correct until it does not.
+    // autoPatch already owns "where does this fit"; this hands it the grown rig and lets it answer.
+    setFixtures(autoPatch(grown, controllers, patchPolicy, undefined, fixtureProfiles));
+    handleSelectFixtures(made.map(f => f.id));
+    return 'fixtures';
+  };
+
+  clipRef.current = { copy: handleCopySelection, paste: handlePasteClipboard };
 
   const handleAddFixture = () => {
     recordHistory();
@@ -4757,6 +4879,8 @@ const App: React.FC = () => {
     enterAuthorScene: (sid) => enterAuthor(sid),
     recordHistory,
     writeAutomationKeys,
+    copySelection: handleCopySelection,
+    pasteClipboard: handlePasteClipboard,
     saveProject: () => { void handleSaveProject(); },
     menuAction: (a) => dispatchMenuRef.current(a),
   };

@@ -38,6 +38,9 @@ Live anywhere in the editor, and suppressed while you are typing in a field.
 | `Ctrl+Z` | Undo |
 | `Ctrl+Shift+Z` or `Ctrl+Y` | Redo |
 | `Ctrl+A` | Select all fixtures |
+| `Ctrl+C` | Copy fixture / surface — Copies the selection. Ignored while you are typing, so a text field keeps its own copy |
+| `Ctrl+V` | Paste — Pastes offset from the original and RE-PATCHED to free DMX channels — never on top of what it was copied from |
+| `Ctrl+D` | Duplicate — Copy and paste in one press, without touching the clipboard |
 
 **View**
 

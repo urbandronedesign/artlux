@@ -113,6 +113,17 @@ export interface EditorActions {
    * not a 3D transform and the old name would have made this look like the wrong door.
    */
   commitFixtures(updates: Array<{ id: string } & Partial<Fixture>>): void;
+  /**
+   * Copy the current selection (fixtures, in SELECTION order, or the selected surface) to the app's
+   * own clipboard. Returns what it took, or null when nothing was selected, so a caller can say so.
+   */
+  copySelection(): 'fixtures' | 'surface' | null;
+  /**
+   * Paste it: offset from the original so the copy is visible, and — for fixtures — RE-PATCHED
+   * through autoPatch rather than carrying the source's start address, which would overlap it byte
+   * for byte. Returns what it made, or null when the clipboard is empty.
+   */
+  pasteClipboard(): 'fixtures' | 'surface' | null;
   // groups
   createGroup(): void;
   addSelectedToGroup(groupId: string): void;
