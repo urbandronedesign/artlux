@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Fixture,
-  type FixtureMount, type OutputProtocol,
+  type FixtureMount, type OutputProtocol, type ProfileChannel,
 } from '../../types';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { ContentEditor } from '../../components/ContentEditor';
@@ -11,7 +11,7 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveDest, resolveMode } from '../../services/addressing';
 import { isLight, isPixel, profileOf } from '../../services/fixtureKind';
-import { channelValue, modeChannels, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
+import { channelValue, matchChannel, modeChannels, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { livePreview } from '../../services/livePreview';
 import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
@@ -193,25 +193,18 @@ export const FixtureChannelsPanel: React.FC = () => {
    * than guessed at, and an ambiguous role (two channels with the same role in one mode) is skipped
    * too — writing to an arbitrary one of them is worse than writing to none.
    */
-  const fanOut = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
+  const fanOut = (channel: ProfileChannel, v: number) => {
     const out: Array<{ fixture: Fixture; key: string; v: number }> = [{ fixture: f, key: channel.key, v }];
     for (const t of targets.slice(1)) {
       const p = fixtureProfiles.get(t.profileId!);
       const m = p ? modeOf(p, t.profileMode) : undefined;
       if (!p || !m) continue;
-      const emitted = new Set(m.slots.filter(Boolean).map((sl) => sl!.channelKey));
-      const matches = p.channels.filter((c) => emitted.has(c.key) && c.role === channel.role);
-      if (matches.length !== 1) continue;
-      const c = matches[0];
-      // DEGREES, not fractions, whenever both sides declare a physical range: 270° on a 540° head
-      // and 270° on a 630° head are the same aim and different normalised values.
-      let value = v;
-      if (channel.min !== undefined && channel.max !== undefined && c.min !== undefined && c.max !== undefined) {
-        const deg = channel.min + (channel.max - channel.min) * v;
-        const span = c.max - c.min;
-        value = span === 0 ? 0 : Math.max(0, Math.min(1, (deg - c.min) / span));
-      }
-      out.push({ fixture: t, key: c.key, v: value });
+      // profilePack.matchChannel owns the role match AND the degrees conversion, because the
+      // timeline duplicating a whole track onto another head has to reach the same channel this
+      // fader does — see its header.
+      const hit = matchChannel(channel, p, m);
+      if (!hit) continue;
+      out.push({ fixture: t, key: hit.channel.key, v: hit.convert(v) });
     }
     return out;
   };
@@ -222,7 +215,7 @@ export const FixtureChannelsPanel: React.FC = () => {
   const channels = modeChannels(profile, mode);
 
   /** A discrete pick, or a fader RELEASE: one committed change over the whole selection, one undo entry. */
-  const set = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
+  const set = (channel: ProfileChannel, v: number) => {
     const writes = fanOut(channel, v);
     a.recordHistory();
     a.commitFixtures(writes.map((w) => ({ id: w.fixture.id, dmx: { ...(w.fixture.dmx ?? {}), [w.key]: w.v } })));
@@ -232,7 +225,7 @@ export const FixtureChannelsPanel: React.FC = () => {
   };
 
   /** A fader TICK. Render-free by construction: nothing here touches React or the undo stack. */
-  const live = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
+  const live = (channel: ProfileChannel, v: number) => {
     for (const w of fanOut(channel, v)) livePreview.setFixtureChannel(w.fixture.id, w.key, w.v);
   };
 

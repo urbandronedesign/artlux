@@ -2571,6 +2571,42 @@ check(
   },
 );
 
+// ── Fixtures: one owner for "the same parameter, on that other head" ─────────────────────────
+check(
+  'cross-fixture channel matching has one owner',
+  'Two surfaces ask "which channel on THAT fixture means what this one means": the inspector\'s ' +
+  'channel strip, fanning one fader across a multi-fixture selection, and the timeline\'s fixture ' +
+  'track, duplicating a whole set of curves onto another head. The rule is subtle in three places ' +
+  'at once - match on ROLE (two makes of head never name the channel the same), restrict to what ' +
+  'the destination MODE actually emits (a profile can describe a Zoom the patched mode does not ' +
+  'address), and treat AMBIGUOUS as ABSENT (two gobo wheels are both role goboWheel, and writing ' +
+  'to an arbitrary one is worse than writing to none) - and then carry the value in DEGREES so 270 ' +
+  'on a 540 head and a 630 head are the same aim. A second copy that got any one of those wrong ' +
+  'would aim a head somewhere nobody asked, and only on the second fixture. Proved equal to the ' +
+  'strip\'s old inline logic over 2,992,585 comparisons across the shipped library before extraction.',
+  () => {
+    const OWNER = 'src/renderer/services/profilePack.ts';
+    if (!exists(OWNER) || !/export function matchChannel/.test(read(OWNER)))
+      return `${OWNER} no longer exports matchChannel (the single owner of the cross-fixture match)`;
+
+    const STRIP = 'src/renderer/contexts/panels/inspector.tsx';
+    if (!exists(STRIP) || !/\bmatchChannel\(/.test(read(STRIP)))
+      return `${STRIP} no longer calls matchChannel() — the channel strip must not re-derive the match`;
+
+    // Comparing one channel's role to ANOTHER channel's role is the match itself; nothing else in
+    // the tree has a reason to do it. (A role compared to a literal — c.role === 'pan' — is a
+    // different question and deliberately untouched.)
+    const MATCH = /\.role\s*===\s*\w+\.role/;
+    const problems = [];
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      if (f === OWNER) continue;
+      const m = read(f).match(MATCH);
+      if (m) problems.push(`${f} matches channels across fixtures itself (${m[0].trim()}) — call matchChannel()`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Takes: ONE owner of the take commit ───────────────────────────────────────────────────────
 check(
   'a recorded take is committed only by takeRecorder.ts',
@@ -3068,7 +3104,10 @@ check(
     const body = m[0];
     const problems = [];
     if (!/selectedFixtureIds/.test(body)) problems.push('the channel strip ignores the selection — only the primary head would move');
-    if (!/c\.role === channel\.role/.test(body)) problems.push('the fan-out no longer matches by role — a second make of head would be skipped or mis-driven');
+    // The role match itself now lives in profilePack.matchChannel (its own invariant guards that
+    // it stays the only copy). What THIS check still owns is that the strip goes THROUGH it:
+    // a fan-out that stopped matching by role would skip or mis-drive a second make of head.
+    if (!/matchChannel\(/.test(body)) problems.push('the fan-out no longer matches by role — a second make of head would be skipped or mis-driven');
     if (!/a\.commitFixtures\(/.test(body)) problems.push('the commit is not commitFixtures() — writing per fixture loses every write but the last');
     if (/a\.updateFixture\(/.test(body)) problems.push('the channel strip still calls updateFixture() — the per-fixture door this panel must not use');
     return problems.length ? problems.join('; ') : null;

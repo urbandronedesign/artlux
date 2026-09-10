@@ -65,6 +65,61 @@ export function modeChannels(
 }
 
 /**
+ * The channel on ANOTHER fixture that means the same thing as `src`, and how a value travels there.
+ *
+ * MATCHED ON ROLE, NOT ON CHANNEL KEY: two makes of head both call it Pan and almost never call the
+ * channel the same thing. Restricted to channels the destination's ACTIVE MODE actually emits — a
+ * profile may describe a Zoom the patched mode does not address, and writing to it would land on
+ * whatever channel really occupies that offset.
+ *
+ * AMBIGUOUS IS THE SAME ANSWER AS ABSENT: null. Two channels sharing one role in a mode (two gobo
+ * wheels are both `goboWheel`) cannot be told apart here, and writing to an arbitrary one of them
+ * is worse than writing to none.
+ *
+ * `convert` maps the SOURCE channel's normalised 0..1 into the DESTINATION's. It travels in DEGREES
+ * whenever both sides declare a physical range, because 270° on a 540° head and 270° on a 630° head
+ * are the same aim and different fractions — the head-morphing rule that makes a movement replayable
+ * on a rig it was not authored on (docs/LIGHTING-SHOW.md → Role space). With no declared range on
+ * either side the fraction is carried across unchanged, which is the only honest thing left.
+ *
+ * TWO CALLERS, ONE ANSWER: the inspector's channel strip fans one fader across a multi-fixture
+ * selection, and the timeline's fixture track duplicates a whole set of curves onto another head.
+ * They must agree about what "the same parameter over there" is, or a duplicate lands somewhere the
+ * strip would never have written.
+ *
+ * ⚠ Role `unknown` matches role `unknown`, so two unrelated unmapped channels can pair when each
+ * mode has exactly one. That is the behaviour the channel strip already had and it is preserved
+ * verbatim here; it is worth revisiting at the point a duplicate copies a whole curve through it.
+ */
+export function matchChannel(
+  src: ProfileChannel,
+  dstProfile: FixtureProfile,
+  dstMode: ProfileMode,
+): { channel: ProfileChannel; convert: (v: number) => number } | null {
+  const matches = modeChannels(dstProfile, dstMode)
+    .map((e) => e.channel)
+    .filter((c) => c.role === src.role);
+  if (matches.length !== 1) return null;
+  const dst = matches[0];
+
+  const physical = src.min !== undefined && src.max !== undefined
+    && dst.min !== undefined && dst.max !== undefined;
+  if (!physical) return { channel: dst, convert: (v) => v };
+
+  const srcMin = src.min as number;
+  const srcSpan = (src.max as number) - srcMin;
+  const dstMin = dst.min as number;
+  const dstSpan = (dst.max as number) - dstMin;
+  return {
+    channel: dst,
+    convert: (v) => {
+      const deg = srcMin + srcSpan * v;
+      return dstSpan === 0 ? 0 : Math.max(0, Math.min(1, (deg - dstMin) / dstSpan));
+    },
+  };
+}
+
+/**
  * One emitted DMX slot, resolved against a specific mode.
  *
  * `bytes` is the count of bytes THIS MODE emits for the channel, which is NOT the same as the
