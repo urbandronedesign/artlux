@@ -2607,6 +2607,39 @@ check(
   },
 );
 
+// ── Timeline: one curve editor, shared by every surface that draws a curve ───────────────────
+check(
+  'a keyframe curve is drawn by exactly one component',
+  'The polyline, the diamond drag and the per-key editor were part of AutomationLane, and the ' +
+  'fixture super track draws the same curve for a DMX channel. A forked copy would disagree about ' +
+  'bezier handles, about which neighbour a drag clamps against, or about which unit the typed field ' +
+  'speaks - and it would do it invisibly, because both copies would still look like a curve. The ' +
+  'lane keeps what is genuinely a LANE (gutter, live readout, target-missing policy) and nothing ' +
+  'else may re-implement the body. Proved byte-identical across the extraction: same 15,885-char ' +
+  'path, same diamonds, same titles.',
+  () => {
+    const OWNER = 'src/renderer/components/timeline/CurveEditor.tsx';
+    if (!exists(OWNER) || !/export const CurveEditor/.test(read(OWNER)))
+      return `${OWNER} no longer exports CurveEditor (the single owner of curve drawing and editing)`;
+
+    const LANE = 'src/renderer/components/timeline/AutomationLane.tsx';
+    if (!/<CurveEditor\b/.test(read(LANE)))
+      return `${LANE} no longer renders <CurveEditor> — the lane would be drawing its own curve again`;
+
+    // The signature is SAMPLING THE CURVE ACROSS THE ROW — walking x from 0 to the width and asking
+    // the engine's sampler for a value at each step. Not merely "builds a path": AudioLane draws a
+    // waveform from peak BUCKETS and is a different thing entirely. Not merely "calls sampleLane"
+    // either: the lane still samples it for the single live value in its gutter.
+    const POLYLINE = /for \(let x = 0; x <= width/;
+    const problems = [];
+    for (const f of walk('src/renderer/components')) {
+      if (f === OWNER) continue;
+      if (POLYLINE.test(read(f))) problems.push(`${f} builds a keyframe polyline itself — render <CurveEditor>`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Takes: ONE owner of the take commit ───────────────────────────────────────────────────────
 check(
   'a recorded take is committed only by takeRecorder.ts',
