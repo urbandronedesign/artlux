@@ -11,7 +11,7 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveDest, resolveMode } from '../../services/addressing';
 import { isLight, isPixel, profileOf } from '../../services/fixtureKind';
-import { channelValue, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
+import { channelValue, modeChannels, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { livePreview } from '../../services/livePreview';
 import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
@@ -216,13 +216,10 @@ export const FixtureChannelsPanel: React.FC = () => {
     return out;
   };
 
-  // The channels this MODE actually emits, in slot order, de-duplicated across a 16-bit pair's two
-  // slots — an operator adjusts "Pan", not "Pan" and "Pan fine".
-  const seen = new Set<string>();
-  const channels = mode.slots
-    .filter((s): s is NonNullable<typeof s> => !!s && !seen.has(s.channelKey) && !!seen.add(s.channelKey))
-    .map((s) => ({ slot: s, channel: profile.channels.find((c) => c.key === s.channelKey) }))
-    .filter((e): e is { slot: NonNullable<typeof e.slot>; channel: NonNullable<typeof e.channel> } => !!e.channel);
+  // The channels this MODE actually emits, in DMX order, 16-bit pairs collapsed to one control.
+  // profilePack.modeChannels OWNS that definition, so no second surface listing this fixture's
+  // parameters can quietly disagree with the strip about what it has. Guarded.
+  const channels = modeChannels(profile, mode);
 
   /** A discrete pick, or a fader RELEASE: one committed change over the whole selection, one undo entry. */
   const set = (channel: { key: string; role: string; min?: number; max?: number }, v: number) => {
@@ -241,9 +238,9 @@ export const FixtureChannelsPanel: React.FC = () => {
 
   return (
     <>
-      {channels.map(({ channel }) => {
+      {channels.map(({ channel, offset }) => {
         const value = channelValue(f, channel);
-        const address = f.startAddress + mode.slots.findIndex((s) => s?.channelKey === channel.key);
+        const address = f.startAddress + offset;
         if (channel.ranges?.length) {
           // A wheel is a LIST, not a percentage. Showing "0.42" for a gobo is unusable; showing
           // "Eclipse" is what the manual prints.

@@ -27,6 +27,44 @@ export function modeOf(profile: FixtureProfile, key?: string): ProfileMode | und
 }
 
 /**
+ * THE ONE DEFINITION OF "ALL THE PARAMETERS OF THIS FIXTURE": the channels this MODE actually
+ * emits, in DMX order, de-duplicated across a 16-bit pair's two slots — an operator adjusts "Pan",
+ * not "Pan" and "Pan fine".
+ *
+ * `offset` is the channel's 0-based position within the mode, so a caller adds its own fixture's
+ * `startAddress` to print a real DMX address. It is the FIRST slot naming the channel, which is the
+ * coarse byte of a multi-byte channel — the address the manual prints.
+ *
+ * EXTRACTED BECAUSE TWO SURFACES NOW ANSWER THIS QUESTION: the inspector's channel strip and the
+ * timeline's fixture track. They must agree channel-for-channel or one of them is lying about what
+ * the fixture has, and two copies of a five-line filter diverge on the first null slot or repeated
+ * key. The symptom — a parameter you can set in one place and not the other — looks like anything
+ * except a duplicated filter, which is why this is one function and an invariant rather than a
+ * convention.
+ *
+ * A slot naming a channel the profile does not define is dropped from this list but still OCCUPIES
+ * its DMX offset: see modePlan, which emits it as a reserved 0. Dropping it here and keeping it
+ * there is deliberate — it is not addressable, and it is not free.
+ */
+export function modeChannels(
+  profile: FixtureProfile,
+  mode: ProfileMode,
+): Array<{ channel: ProfileChannel; offset: number }> {
+  const byKey = new Map(profile.channels.map((c) => [c.key, c]));
+  const seen = new Set<string>();
+  const out: Array<{ channel: ProfileChannel; offset: number }> = [];
+  mode.slots.forEach((slot, offset) => {
+    // Marked seen BEFORE the profile lookup, so an unresolvable key cannot let a later duplicate
+    // slot through. That is the order the channel strip used, and it is load-bearing.
+    if (!slot || seen.has(slot.channelKey)) return;
+    seen.add(slot.channelKey);
+    const channel = byKey.get(slot.channelKey);
+    if (channel) out.push({ channel, offset });
+  });
+  return out;
+}
+
+/**
  * One emitted DMX slot, resolved against a specific mode.
  *
  * `bytes` is the count of bytes THIS MODE emits for the channel, which is NOT the same as the

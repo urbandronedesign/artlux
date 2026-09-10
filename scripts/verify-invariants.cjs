@@ -2535,6 +2535,42 @@ check(
   },
 );
 
+// ── Fixtures: one definition of "every parameter this fixture has" ───────────────────────────
+check(
+  '"all the parameters" has one definition',
+  'The channel strip and the timeline\'s fixture super track both answer "what parameters does this ' +
+  'fixture have?", and both must answer it identically: the ACTIVE MODE\'s slots, in DMX order, ' +
+  'de-duplicated across a 16-bit pair (an operator adjusts "Pan", not "Pan" and "Pan fine"). It was ' +
+  'a five-line inline filter in FixtureChannelsPanel; copied into a second surface it would diverge ' +
+  'on the first null slot or repeated channel key, and the symptom — a parameter you can set in one ' +
+  'place and not the other, or a DMX address that disagrees between two panels — looks like ' +
+  'anything except a duplicated filter. Proved equal to the old inline derivation across all 1659 ' +
+  'library modes / 11561 channel rows before extraction, so any drift from here is new.',
+  () => {
+    const OWNER = 'src/renderer/services/profilePack.ts';
+    if (!exists(OWNER) || !/export function modeChannels/.test(read(OWNER)))
+      return `${OWNER} no longer exports modeChannels (the single owner of the mode's channel list)`;
+
+    const STRIP = 'src/renderer/contexts/panels/inspector.tsx';
+    if (!exists(STRIP) || !/\bmodeChannels\b/.test(read(STRIP)))
+      return `${STRIP} no longer calls modeChannels() — the channel strip must not re-derive the list`;
+
+    // The MEMBERSHIP TEST is the ban, because any de-duplication has to contain one. A plain
+    // `set.add(s.channelKey)` is deliberately NOT banned: fixtureSignal builds an unordered
+    // "does this mode emit this channel" set for the colour model, which is a different question
+    // and not a row list. Testing `.has(...channelKey)` outside the owner means someone is
+    // rebuilding the deduped list.
+    const DEDUPE = /\.has\([^)\n]*channelKey/;
+    const problems = [];
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      if (f === OWNER) continue;
+      const m = read(f).match(DEDUPE);
+      if (m) problems.push(`${f} de-duplicates channel keys itself (${m[0].trim()}) — call modeChannels()`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Takes: ONE owner of the take commit ───────────────────────────────────────────────────────
 check(
   'a recorded take is committed only by takeRecorder.ts',
