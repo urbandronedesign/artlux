@@ -3,7 +3,7 @@ import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Fixture,
   type FixtureMount, type OutputProtocol, type ProfileChannel,
 } from '../../types';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Circle, CircleDot } from 'lucide-react';
 import { ContentEditor } from '../../components/ContentEditor';
 import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
 import { Button, Field, Select, Slider } from '../../components/ui';
@@ -13,6 +13,7 @@ import { fixtureFootprint, resolveDest, resolveMode } from '../../services/addre
 import { isLight, isPixel, profileOf } from '../../services/fixtureKind';
 import { channelValue, matchChannel, modeChannels, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { livePreview } from '../../services/livePreview';
+import * as autoKey from '../../services/autoKey';
 import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 
@@ -180,6 +181,10 @@ export const FixtureChannelsPanel: React.FC = () => {
 
   // Every selected LIGHT, primary first, de-duplicated. The primary leads because it is the one
   // whose channels are on screen; the rest follow by role.
+  // The arm, read from the service rather than held here: the timeline shows the same state, and two
+  // booleans for one mode drift the first time a third surface wants it.
+  const armed = React.useSyncExternalStore(autoKey.subscribe, autoKey.isArmed, autoKey.isArmed);
+
   const targets: Fixture[] = [f, ...selectedFixtureIds
     .filter((id) => id !== f.id)
     .map((id) => fixtures.find((x) => x.id === id))
@@ -219,6 +224,14 @@ export const FixtureChannelsPanel: React.FC = () => {
     const writes = fanOut(channel, v);
     a.recordHistory();
     a.commitFixtures(writes.map((w) => ({ id: w.fixture.id, dmx: { ...(w.fixture.dmx ?? {}), [w.key]: w.v } })));
+    // ARMED ⇒ THE FADER IS AN AUTHORING GESTURE. One key per driven fixture, at the playhead, on the
+    // BOUND timeline — so the whole selection is keyed by the same move that aimed it, and the same
+    // recordHistory() above covers fixtures and keys as ONE undo entry.
+    //
+    // The value needs no conversion: a lane over `fixtures.<id>.dmx.<key>` stores the channel's own
+    // normalised 0..1, which is exactly what `Fixture.dmx` holds and exactly what fanOut produced —
+    // including the degrees conversion it already did for a second make of head.
+    if (armed) a.writeAutomationKeys(writes.map((w) => ({ path: `fixtures.${w.fixture.id}.dmx.${w.key}`, value: w.v })));
     // Hand the live layer back to the document. It keeps driving until the commit lands, so there is
     // no frame in which the rig snaps to the old value — see services/livePreview.
     for (const w of writes) livePreview.releaseFixtureChannel(w.fixture.id, w.key);
@@ -231,6 +244,19 @@ export const FixtureChannelsPanel: React.FC = () => {
 
   return (
     <>
+      {/* ⚠ THE ARM IS HERE, NEXT TO THE FADERS, and not only on the timeline. This is the control that
+          changes what moving a fader MEANS, so it belongs where the hand already is; a record-enable
+          hidden in another panel is one an operator discovers by finding keys they did not mean to
+          write. It says what it does in full, because "auto-key" alone tells nobody. */}
+      <button
+        onClick={() => autoKey.toggle()}
+        title={armed
+          ? 'Armed — releasing a fader writes a keyframe at the playhead, on every selected light. Click to stop.'
+          : 'Off — moving a fader changes the fixture but records nothing. Click to arm.'}
+        className={`w-full flex items-center gap-1.5 px-1.5 py-1 rounded text-micro ${armed ? 'bg-danger/15 text-danger' : 'text-fg-3'}`}>
+        {armed ? <CircleDot size={11} className="shrink-0" /> : <Circle size={11} className="shrink-0" />}
+        <span className="truncate">{armed ? 'Recording — a fader writes a keyframe' : 'Record fader moves as keyframes'}</span>
+      </button>
       {channels.map(({ channel, offset }) => {
         const value = channelValue(f, channel);
         const address = f.startAddress + offset;

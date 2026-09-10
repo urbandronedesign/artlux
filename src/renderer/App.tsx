@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type Keyframe } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
@@ -55,6 +55,7 @@ import * as fixtureSignal from './services/fixtureSignal';
 import { planStoreKey, poseForGroup, upsertKey } from './services/lightingStoreKey';
 import * as lightingCue from './services/lightingCue';
 import { livePreview } from './services/livePreview';
+import * as autoKey from './services/autoKey';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import * as orphanTakes from './services/orphanTakes';
 import { setCoreStateView } from './services/automationTargets.core';
@@ -1824,6 +1825,52 @@ const App: React.FC = () => {
     else setTimeline(next);
   };
   const handleTimelineChangeRef = useRef(handleTimelineChange); handleTimelineChangeRef.current = handleTimelineChange;
+
+  /**
+   * AUTO-KEY — land a keyframe at the playhead for each path, on the BOUND document.
+   *
+   * ⚠ NOT handleTimelineChange, and the difference is the undo stack. That seam records history for
+   * itself because its callers (the timeline panel, takeRecorder) are gestures that touch nothing
+   * else. This one is called from the MIDDLE of another gesture — a channel-strip fader release,
+   * which has already called recordHistory() and is about to commit fixtures — so routing through it
+   * would push a second snapshot and cost the operator two undos for one fader move.
+   *
+   * Writing setScenes/setTimeline directly is exactly what the seam's own comment prescribes for a
+   * writer that is not its own gesture; the human-gesture guarantee is upheld one level up, by the
+   * strip.
+   */
+  const writeAutomationKeys = (keys: Array<{ path: string; value: number }>) => {
+    if (!keys.length) return;
+    // The BOUND document's clock. A scene lane rides the playhead — the same clock AutomationLane's
+    // add-key button reads, so a key placed by a fader and one placed by that button land together.
+    const at = Math.max(0, timelineEngine.getPlayhead());
+    const apply = (tl: Timeline): Timeline => {
+      const auto = (tl.automation ?? []).slice();
+      for (const { path, value } of keys) {
+        if (!Number.isFinite(value)) continue;
+        const key: Keyframe = { t: at, v: value, curve: 'linear' };
+        const i = auto.findIndex((l) => l.targetPath === path);
+        if (i < 0) {
+          // A brand-new lane holding ONE key is a constant, so arming and nudging a fader cannot
+          // change what the rig does anywhere except where you put the key.
+          auto.push({
+            id: `au-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+            targetPath: path, enabled: true, keyframes: [key],
+          });
+        } else {
+          // REPLACE a key already at this instant rather than stacking a second one on top of it —
+          // the sampler walks a sorted array and two keys at one `t` make the later one win
+          // invisibly. Same tolerance the lane's own add-key button uses.
+          const kfs = auto[i].keyframes.filter((k) => Math.abs(k.t - at) > 0.001).concat(key)
+            .sort((a, b) => a.t - b.t);
+          auto[i] = { ...auto[i], keyframes: kfs };
+        }
+      }
+      return { ...tl, automation: auto };
+    };
+    if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: apply(s.timeline) } : s));
+    else setTimeline(prev => apply(prev));
+  };
   // Hand the take recorder its view of the bound document. Installed ONCE (`[]` deps) and reading refs,
   // in the same idiom as frameEngine.setHost / setCoreStateView above — because the surfaces that arm a
   // recorder are deliberately NOT inside App's React subtree: the StatusBar chip renders outside
@@ -2364,6 +2411,10 @@ const App: React.FC = () => {
       // released value is committed, but a project opened mid-drag leaves an entry keyed to a fixture
       // the incoming document may not even have — and that entry outranks a lighting clip.
       livePreview.clearFixtureChannels();
+      // …and DISARM auto-key, for a harder reason than either: an install that comes up recording
+      // quietly rewrites a show nobody opened to edit. The arm is a mode an operator switches on for
+      // the take they are authoring, never a state a document can arrive in.
+      autoKey.disarm();
       // Scenes: normalize any per-scene timeline and assign a stable accent to scenes missing one
       // (older projects / scenes captured before accents). The current edit target is bound below.
       const rawScenes: Scene[] = Array.isArray(data?.scenes) ? data.scenes : [];
@@ -4705,6 +4756,7 @@ const App: React.FC = () => {
     setStateMachine,
     enterAuthorScene: (sid) => enterAuthor(sid),
     recordHistory,
+    writeAutomationKeys,
     saveProject: () => { void handleSaveProject(); },
     menuAction: (a) => dispatchMenuRef.current(a),
   };

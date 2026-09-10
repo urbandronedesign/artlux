@@ -2640,6 +2640,53 @@ check(
   },
 );
 
+// ── Auto-key: an armed fader move is ONE gesture ─────────────────────────────────────────────
+check(
+  'an armed fader move is one undo entry, and cannot arm itself',
+  'Arming the channel strip makes a fader release write BOTH the fixture value and a keyframe. Those ' +
+  'are one gesture and must be one undo entry: recordHistory() once, before both. writeAutomationKeys ' +
+  'must therefore NOT record for itself - if it did, every armed fader move would cost two presses of ' +
+  'undo, the second of which appears to do nothing, and the first of which leaves the rig holding a ' +
+  'value with no key. It also writes setScenes/setTimeline directly rather than through ' +
+  'handleTimelineChange, which records for itself and exists for gestures that touch nothing else. ' +
+  'And the arm is TRANSIENT with ONE owner: a persisted or duplicated arm is how an install comes up ' +
+  'recording and quietly rewrites a show nobody opened to edit.',
+  () => {
+    const problems = [];
+    const OWNER = 'src/renderer/services/autoKey.ts';
+    if (!exists(OWNER) || !/export function setArmed/.test(read(OWNER)))
+      return `${OWNER} no longer owns the auto-key arm`;
+    // The arm must not be persisted: a project or a pref that can carry it would let an install boot
+    // armed. The service holds a plain module-level boolean and nothing else may declare one.
+    if (/appSettings|prefs|localStorage/.test(read(OWNER)))
+      problems.push(`${OWNER} persists the arm — it must not survive a restart or a project load`);
+
+    const APP = 'src/renderer/App.tsx';
+    const app = read(APP);
+    const fn = /const writeAutomationKeys[\s\S]*?\n  };/.exec(app);
+    if (!fn) problems.push(`${APP} no longer defines writeAutomationKeys`);
+    else {
+      if (/recordHistory\(\)/.test(fn[0])) problems.push(`${APP} writeAutomationKeys records history itself — an armed fader move would cost two undos`);
+      if (/handleTimelineChange/.test(fn[0])) problems.push(`${APP} writeAutomationKeys routes through handleTimelineChange, which records for itself — same two-undo bug`);
+    }
+    if (!/autoKey\.disarm\(\)/.test(app)) problems.push(`${APP} no longer disarms auto-key on project load — an install could come up recording`);
+
+    const STRIP = 'src/renderer/contexts/panels/inspector.tsx';
+    const m = /export const FixtureChannelsPanel[\s\S]*?\n};/.exec(read(STRIP));
+    if (!m) problems.push(`${STRIP} no longer defines FixtureChannelsPanel`);
+    else {
+      const body = m[0];
+      if (!/writeAutomationKeys\(/.test(body)) problems.push(`${STRIP} the armed fader no longer writes keyframes — arming would do nothing`);
+      if (!/if \(armed\)/.test(body)) problems.push(`${STRIP} the strip writes keyframes without checking the arm — looking at a rig would author it`);
+      // The one recordHistory must come BEFORE both writes, or the snapshot misses them.
+      const i = body.indexOf('a.recordHistory()');
+      const j = body.indexOf('writeAutomationKeys(');
+      if (i < 0 || j < 0 || i > j) problems.push(`${STRIP} recordHistory() no longer precedes the keyframe write — the undo snapshot would miss it`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Takes: ONE owner of the take commit ───────────────────────────────────────────────────────
 check(
   'a recorded take is committed only by takeRecorder.ts',

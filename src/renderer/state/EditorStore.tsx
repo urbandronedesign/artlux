@@ -162,6 +162,20 @@ export interface EditorActions {
   setVideoPlaying(v: boolean): void;
   updateSettings(patch: Partial<AppSettings>): void;
   updatePatchPolicy(patch: Partial<PatchPolicy>): void;
+  /**
+   * AUTO-KEY: land a keyframe at the playhead on the BOUND timeline's lane for each path, creating
+   * the lane when it does not exist yet.
+   *
+   * An ARRAY, for the same reason commitFixtures takes one: the gesture that calls it is a fader
+   * release, and the channel strip drives the WHOLE selection off one fader. Ten heads must be one
+   * change, not ten.
+   *
+   * ⚠ IT DOES NOT RECORD HISTORY, AND THAT IS DELIBERATE. The caller already has: a fader release is
+   * ONE gesture that writes fixtures AND keys, so one recordHistory() before both is one undo entry
+   * for the thing the operator actually did. Recording again here would make every armed fader move
+   * cost two presses of undo, the second of which appears to do nothing.
+   */
+  writeAutomationKeys(keys: Array<{ path: string; value: number }>): void;
   // show machine
   setStateMachine(sm: StateMachine): void;
   /** Bind a scene's own timeline for authoring (what the timeline's scene pill does). */
