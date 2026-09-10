@@ -3130,7 +3130,21 @@ check(
     const src = read(F);
     const problems = [];
     if (!/const SUBTRACTIVE/.test(src)) problems.push(F + ' no longer separates the subtractive flags from the emitter table');
-    if (!/const subtractive = hasCmy && !hasPrimaries;/.test(src)) problems.push(F + " no longer decides subtractive-vs-additive from the mode's own channel list");
+    // ONE OWNER for the additive-vs-subtractive test. It lives in colorModel() because the PACKER
+    // needs the same answer: its RGB→CMY bridge is only correct on a head that really is subtractive,
+    // and while it fired on role alone, a clip driving the RED role also drove the CYAN CHANNEL on
+    // the 17 shipped modes that emit BOTH primaries and CMY (ETC Source Four LED Series 2/3, fos/4,
+    // cameo TS 200 FC, Clay Paky Spheriscan). The read path called those heads additive and the write
+    // path called them subtractive, about the same fixture. Proved on the wire, and the fix proved by
+    // removing it again, in scripts/test-cmy-bridge.cjs.
+    if (!/export function colorModel\(/.test(src)) problems.push(F + ' no longer exports colorModel — the single owner of the additive-vs-subtractive test');
+    if (!/subtractive: hasCmy && !hasPrimaries/.test(src)) problems.push(F + " no longer decides subtractive-vs-additive from the mode's own channel list");
+    if (!/colorModel\(profile, mode\)/.test(src)) problems.push(F + ' resolveFixture no longer asks colorModel — it would be re-deriving the test it owns');
+    for (const other of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins')]) {
+      if (other === F) continue;
+      if (/hasCmy\s*&&\s*!hasPrimaries/.test(read(other))) problems.push(other + ' re-derives the subtractive test — call fixtureSignal.colorModel()');
+    }
+    if (!/!complement \|\| !isSubtractive\(/.test(read(E))) problems.push(E + ' applies the RGB→CMY bridge without asking whether the head is subtractive — it would drive cyan on an additive wash');
     if (!/out\.r \*= 1 - cmy\[0\]/.test(src)) problems.push(F + ' no longer applies the flags multiplicatively — CMY would add light instead of removing it');
     if (!/CMY_FROM_RGB/.test(read(E))) problems.push(E + ' has no RGB→CMY bridge — a recorded colour move would land on a CMY rig as silence');
     return problems.length ? problems.join('; ') : null;

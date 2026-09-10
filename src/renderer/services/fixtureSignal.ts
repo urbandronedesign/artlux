@@ -1,4 +1,4 @@
-import type { ChannelRole, Fixture, FixtureProfile } from '../types';
+import type { ChannelRole, Fixture, FixtureProfile, ProfileMode } from '../types';
 import { channelValue, modeOf, physicalValue, selectedRange, type ChannelOverride, type RoleOverride } from './profilePack';
 
 // The RESOLVED state of every profiled fixture, once per frame.
@@ -100,6 +100,58 @@ const SUBTRACTIVE: Partial<Record<ChannelRole, 0 | 1 | 2>> = { cyan: 0, magenta:
 const ADDITIVE_PRIMARIES: ReadonlySet<ChannelRole> = new Set<ChannelRole>(['red', 'green', 'blue']);
 
 /**
+ * WHAT KIND OF COLOUR FIXTURE IS THIS MODE — the question `resolveFixture` has to answer before it
+ * can read a single colour channel, because a channel's MEANING depends on it: cyan is an emitter
+ * on an RGB+CM LED wash and a dichroic flag on a discharge head.
+ *
+ * EXTRACTED SO THERE IS ONE ANSWER. The packer needs it too: a take stores colour as red/green/blue,
+ * and the bridge that lands that on a CMY head (frameEngine's CMY_FROM_RGB) is only correct when the
+ * head really is subtractive. It used to apply unconditionally, so on the 17 modes in the shipped
+ * library that emit BOTH primaries and CMY (cameo TS 200 FC, Clay Paky Spheriscan, ETC fos/4 PD16 and
+ * PD24) a clip driving `red` also drove `cyan` to its complement — the read path and the write path
+ * disagreeing about the same fixture. Two copies of a rule this subtle will always end up doing that;
+ * one copy cannot.
+ */
+export interface ColorModel {
+  /**
+   * The channel keys this MODE actually emits. A colour channel the fixture HAS but the mode does
+   * not address is unreachable, and letting it tint anything would show light the rig cannot make.
+   */
+  inMode: ReadonlySet<string>;
+  /**
+   * True when cyan/magenta/yellow are dichroic FLAGS multiplying a white lamp (a discharge head),
+   * false when they are emitters adding light (an LED wash). Decided from the mode's own channel
+   * list — a subtractive head never emits red/green/blue — and never from the model name.
+   */
+  subtractive: boolean;
+}
+
+// A mode is immutable, so its colour model is too. Keyed on the mode OBJECT, exactly like
+// profilePack's modePlan cache and for the same reason: a reloaded project brings new objects and
+// recomputes by construction, with no invalidation to forget.
+const colorModelCache = new WeakMap<ProfileMode, ColorModel>();
+
+export function colorModel(profile: FixtureProfile, mode: ProfileMode): ColorModel {
+  const cached = colorModelCache.get(mode);
+  if (cached) return cached;
+
+  const inMode = new Set<string>();
+  for (const s of mode.slots) if (s) inMode.add(s.channelKey);
+
+  let hasCmy = false;
+  let hasPrimaries = false;
+  for (const c of profile.channels) {
+    if (!inMode.has(c.key)) continue;
+    if (SUBTRACTIVE[c.role] !== undefined) hasCmy = true;
+    else if (ADDITIVE_PRIMARIES.has(c.role)) hasPrimaries = true;
+  }
+
+  const model: ColorModel = { inMode, subtractive: hasCmy && !hasPrimaries };
+  colorModelCache.set(mode, model);
+  return model;
+}
+
+/**
  * Resolve one fixture. Exported so a take recorder and the packer can share the interpretation
  * rather than each inventing its own idea of what "intensity" means.
  */
@@ -113,22 +165,9 @@ export function resolveFixture(
   const out: FixtureState = { id: f.id, intensity: 1, r: 0, g: 0, b: 0, pan: 0, tilt: 0, blackout: false };
   if (!mode) return out;
 
-  // Only the channels this MODE emits: a colour channel the fixture has but the mode does not
-  // address is not reachable, and letting it tint the beam would show light the rig cannot make.
-  const inMode = new Set<string>();
-  for (const s of mode.slots) if (s) inMode.add(s.channelKey);
-
-  // Does this MODE mix SUBTRACTIVELY? Decided before the loop, because a channel's meaning depends
-  // on the answer: cyan is an emitter on an RGB+CM LED wash and a dichroic flag on a discharge head.
-  // The test is the mode's own channel list — a subtractive head never emits red/green/blue.
-  let hasCmy = false;
-  let hasPrimaries = false;
-  for (const c of profile.channels) {
-    if (!inMode.has(c.key)) continue;
-    if (SUBTRACTIVE[c.role] !== undefined) hasCmy = true;
-    else if (ADDITIVE_PRIMARIES.has(c.role)) hasPrimaries = true;
-  }
-  const subtractive = hasCmy && !hasPrimaries;
+  // Which channels are reachable, and whether cyan means "add cyan" or "take out red". Both come
+  // from colorModel, which the packer's RGB→CMY bridge reads too — see its header.
+  const { inMode, subtractive } = colorModel(profile, mode);
 
   let dimmer = 1;
   let hasEmitter = false;

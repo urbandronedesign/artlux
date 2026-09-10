@@ -171,6 +171,10 @@ class FrameEngine {
   // ── Per-frame scratch, reused so the hot loop allocates nothing ──
   private orderedSurfaces: Surface[] = [];
   private universeBuffers: Record<string, number[]> = {};
+  // Per-frame memo for "is this fixture's mode subtractive?", consulted only by the RGB→CMY bridge
+  // below. A field rather than a local so the packer still allocates nothing per frame; cleared each
+  // pass because a re-patch can change a fixture's mode between frames.
+  private cmySubtractive = new Map<string, boolean>();
   /** Per-surface key of the content already aspect-fitted, so we fit once per source. */
   private fittedAspect = new Map<string, string>();
 
@@ -616,6 +620,25 @@ class FrameEngine {
     // now, which a cue fired by the scheduler at 3 a.m. is not.
     lightingCue.tick(performance.now());
     const cueLive = lightingCue.isActive();
+
+    // Is THIS fixture's mode subtractive? Asked per channel per fixture by the bridge below, so it
+    // is memoised for the frame; fixtureSignal.colorModel caches on the mode object underneath, so
+    // even a miss is a lookup rather than a rescan of the profile.
+    const cmySubtractive = this.cmySubtractive;
+    cmySubtractive.clear();
+    const isSubtractive = (fixtureId: string): boolean => {
+      const hit = cmySubtractive.get(fixtureId);
+      if (hit !== undefined) return hit;
+      const fx = currentFixtures.find((x) => x.id === fixtureId);
+      // isLight, not a profileId truthiness test: fixtureKind.ts owns that question, and a fixture
+      // whose profile does not RESOLVE is a light we cannot describe, never a pixel.
+      const p = fx && isLight(fx) ? this.inputs.fixtureProfiles.get(fx.profileId!) : undefined;
+      const m = p && fx ? profilePack.modeOf(p, fx.profileMode) : undefined;
+      const v = !!(p && m) && fixtureSignal.colorModel(p, m).subtractive;
+      cmySubtractive.set(fixtureId, v);
+      return v;
+    };
+
     const roleOverride: profilePack.RoleOverride | undefined = (lightingOverlay.isActive() || cueLive)
       ? (fixtureId, channel) => {
           if (automationOverlay.owns(`fixtures.${fixtureId}.dmx.${channel.key}`)) return undefined;
@@ -628,8 +651,14 @@ class FrameEngine {
           // role `red`, so without this every recorded colour move landed on a CMY rig as silence —
           // the clip looked right, the heads never changed. Cyan takes out red, and so on: the same
           // dichroic assignment fixtureSignal reads them back with, so the round trip closes.
+          // ⚠ ONLY ON A GENUINELY SUBTRACTIVE HEAD. This used to fire on role alone, so a mode
+          // emitting BOTH primaries and CMY — an RGB+CM LED wash, where cyan really is an emitter —
+          // had a clip driving the red role ALSO drive the cyan CHANNEL to its complement,
+          // overwriting the value the operator authored there.
+          // fixtureSignal reads those modes back as additive, so the read path and the write
+          // path disagreed about the same fixture. 17 modes in the shipped library are affected.
           const complement = CMY_FROM_RGB[channel.role];
-          if (!complement) return undefined;
+          if (!complement || !isSubtractive(fixtureId)) return undefined;
           const rgb = (cueLive ? lightingCue.get(fixtureId, complement) : undefined)
             ?? lightingOverlay.get(fixtureId, complement);
           return rgb === undefined ? undefined : 1 - rgb;
