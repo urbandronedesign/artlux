@@ -1,48 +1,33 @@
 // One automation lane: a keyframe curve over the same time axis as the clips.
 //
-// The polyline is drawn by sampling `sampleLane` — the SAME function the engine samples in its frame
-// loop — so the curve you SEE is literally the curve you HEAR. A separate drawing routine would be free
-// to disagree with the audio, and eventually would.
+// THE CURVE ITSELF IS NOT HERE. Drawing, dragging, adding, deleting and the per-key editor live in
+// <CurveEditor>, because the timeline's fixture super track draws the same curve for a DMX channel
+// and two implementations would disagree about bezier handles or about which unit the typed field
+// speaks — invisibly, since both would still look like a curve. What is left in this file is what is
+// genuinely a LANE: the gutter, the live readout, the enable/remove verbs, and the policy for a lane
+// whose target has vanished.
+//
+// The polyline is drawn (in the editor) by sampling `sampleLane` — the SAME function the engine
+// samples in its frame loop — so the curve you SEE is literally the curve you HEAR. A separate
+// drawing routine would be free to disagree with the audio, and eventually would.
 //
 // Editing follows the clip conventions: drag with a local `draft` and commit ONCE on pointerup, never
-// per pointermove (a commit re-enters App → setScenes → timelineEngine.setData → recompile + a full bed
-// re-sync; doing that 60×/s while dragging would be brutal).
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+// per pointermove (a commit re-enters App → setScenes → timelineEngine.setData → recompile + a full
+// bed re-sync; doing that 60×/s while dragging would be brutal). The draft is owned HERE rather than
+// in the editor because this gutter's live readout has to sample it too — the number must track the
+// thumb while you drag.
+import React, { useEffect, useRef, useState } from 'react';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
-import { toDisplay, fromDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
-import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
+import { type AutomationTargetDef } from '@artlux/sdk/renderer';
+import { sampleLane } from '../../services/automation';
 import { timeline as engine } from '../../services/timeline';
-import { GUTTER, clamp } from './geometry';
+import { GUTTER } from './geometry';
 import { Trash2, Zap, ZapOff, Diamond, AlertTriangle } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { usePopoverAnchor } from './usePopoverAnchor';
+import { CurveEditor, fmtIn } from './CurveEditor';
 
 export const AUTO_LANE_H = 64;
-const PAD = 8; // px of headroom top/bottom so a keyframe at min/max is still grabbable
-// Seeds the editor's value field. Enough places to hold any axis this app has, few enough that a stored
-// 0.5000000000000001 (which is what a display round-trip on a 16-bit channel produces) does not land in
-// the field looking like a bug the operator caused.
-const round4 = (v: number): number => Math.round(v * 1e4) / 1e4;
-
-/**
- * One value readout, in the unit the operator authors in.
- *
- * ONE function because the lane prints values twice — the render-free live gutter (which writes
- * straight to the DOM) and the React keyframe list — and two formatters would eventually disagree
- * about the same number on the same lane.
- *
- * Precision follows the SPAN, not the storage step: a 0..540° axis wants whole degrees, a 0..1
- * opacity wants two decimals, and the stored `step` (1/65535 for a 16-bit Pan) describes neither.
- */
-const fmtIn = (d: AutomationTargetDef, v: number): string => {
-  const shown = toDisplay(d, v);
-  const unit = d.display?.unit ?? d.unit;
-  const whole = d.display ? Math.abs(d.display.max - d.display.min) >= 10 : (d.step ?? 0) >= 1;
-  const n = whole ? Math.round(shown) : Number(shown.toFixed(2));
-  return unit ? `${n} ${unit}` : `${n}`;
-};
 
 interface Props {
   lane: Lane;
@@ -77,108 +62,26 @@ interface Props {
 
 export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, clock, origin, shadowed, docKey, onChange, onRemove, onSnap, onSeek }) => {
   const readOnly = !onChange;
-  const bodyRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Keyframe[] | null>(null);
-  const draftRef = useRef<Keyframe[] | null>(null);
-  draftRef.current = draft;
-  const [sel, setSel] = useState<number | null>(null);
-  // WHICH KEYFRAME IS OPEN IN THE EDITOR (an index into the lane's keys), and the two drafts its inputs
-  // hold while they are being typed into. Drafts, not direct commits: every keystroke would otherwise be a
-  // whole-document write — invariant 7 — and typing "-180" would commit "-", then "-1", then "-18" on the
-  // way, each one clamped to the target's range and each one a re-render of the timeline.
-  const [editing, setEditing] = useState<number | null>(null);
-  const [editV, setEditV] = useState('');
-  const [editT, setEditT] = useState('');
+
   // ⚠ THE DOCUMENT CAN REBIND UNDER A LIVE POINTER — AND THIS LANE SURVIVES IT.
   //
   // <TimelinePanel> has no React `key`, so a recall does not remount it; and a cloned scene's automation
   // lane carries the SAME id (Capture Scene deep-clones), so `key={lane.id}` reconciles this very
-  // instance onto the incoming document's lane — draft and all. The `up` handler below lives on `window`
-  // and is removed only inside itself, so unmounting would not have saved us either: it still runs.
-  // A keyframe drag must therefore refuse to commit across a rebind, keyed on WHICH DOCUMENT IS BOUND
-  // (identity), never on the lane's value — the clone makes the values equal, which is what made the
-  // first version of this fix, elsewhere in the tree, completely inert.
-  const docKeyRef = useRef(docKey); docKeyRef.current = docKey;
-  // Belt to the braces below: drop a live drag's draft the moment the document changes, so the curve on
+  // instance onto the incoming document's lane — draft and all. The editor's `up` handler lives on
+  // `window` and is removed only inside itself, so unmounting would not have saved us either: it still
+  // runs. A keyframe drag must therefore refuse to commit across a rebind, keyed on WHICH DOCUMENT IS
+  // BOUND (identity), never on the lane's value — the clone makes the values equal, which is what made
+  // the first version of this fix, elsewhere in the tree, completely inert. (The editor enforces it;
+  // `docKey` is what it keys on.)
+  //
+  // Belt to those braces: drop a live drag's draft the moment the document changes, so the curve on
   // screen is the bound document's and not the departed one's.
-  React.useEffect(() => { setDraft(null); setSel(null); setEditing(null); }, [docKey]);
-  // ⚠ AND THE EDITOR MUST NOT OUTLIVE THE KEYFRAME IT NAMES. `editing` is an INDEX, and every write path
-  // here re-sorts the array — so a key deleted from under the panel (its own delete button, the alt-click,
-  // a recall) would leave the index pointing at a DIFFERENT key, which the fields would then write. Both
-  // the length changing and the index falling off the end close it. (setTime clamps between neighbours, so
-  // a time edit cannot reorder and cannot strand the index on its own.)
-  React.useEffect(() => {
-    if (editing !== null && editing >= lane.keyframes.length) setEditing(null);
-  }, [editing, lane.keyframes.length]);
+  useEffect(() => { setDraft(null); }, [docKey]);
 
   const h = lane.height ?? AUTO_LANE_H;
   const kfs = draft ?? lane.keyframes;
   const enabled = lane.enabled !== false;
-
-  // ── WHERE THE KEYFRAME EDITOR IS DRAWN ──────────────────────────────────────────────────────────
-  // PORTALLED AND PLACED FROM A MEASURED RECT, not `absolute` next to the diamond — see
-  // usePopoverAnchor, whose header documents this exact trap being walked into three times in this
-  // directory. This panel was the fourth: `absolute … z-20` inside a lane body that lives under the
-  // ruler's `sticky top-0 z-30` and, when the timeline is maximised, inside a `fixed inset-0 z-50`.
-  // Both are STACKING CONTEXTS, so the z-index stops meaning anything globally and the scroller's
-  // overflow-auto clips whatever hangs outside the 64px lane — which a value/time/curve panel always
-  // does. Nothing throws; only the pixels are wrong.
-  //
-  // The hook also answers what was actually asked for: it places the panel where it can be SEEN. Left
-  // is clamped into the viewport, and it prefers below the diamond and flips above when there is no
-  // room — which is the common case, the timeline being a bottom drawer.
-  const kfAnchorRef = useRef<HTMLDivElement | null>(null);
-  const kfBoxRef = useRef<HTMLDivElement | null>(null);
-  // ⚠ ABOVE THE `!def` BAIL, like every other hook here. estHeight is the panel's real height with all
-  // three rows and the button strip; it is only used for the flip on the very first frame, before
-  // boxRef measures.
-  const kfPos = usePopoverAnchor(editing !== null, kfAnchorRef, {
-    width: 176, estHeight: 190, boxRef: kfBoxRef, onDismiss: () => setEditing(null),
-  });
-
-  // ⚠ EVERY HOOK IN THIS COMPONENT RUNS **ABOVE** THE `!def` BAIL — INCLUDING THE `path` MEMO. MOVING IT
-  // BACK BELOW IS A WHITE SCREEN.
-  //
-  // `def` is not a constant: Timeline resolves it from the LIVE target registry and re-enumerates at 1 Hz
-  // (its `defsTick`) for the express purpose of noticing that "a lane whose target was just deleted"
-  // stopped being bound. So `def` goes defined → undefined UNDER A MOUNTED LANE, in the ordinary course
-  // of use: delete the bed clip (or the surface, or the effect) that an existing lane automates and the
-  // target it names is gone within the second. The lane itself is deliberately KEPT — dropping it would
-  // silently discard the user's curve — and simply re-renders through the "target missing" branch below.
-  //
-  // With the memo sitting after that early return, THAT render called one FEWER HOOK than the last one,
-  // and React throws `Rendered fewer hooks than expected` — IN RENDER, from deleting a clip. Hoisting
-  // the hooks makes the hook count constant across both branches.
-  //
-  // (There ARE boundaries now — this lane's panel is wrapped, and the fault reaches the watchdog — so
-  // the blast radius is a recovery card rather than the whole editor. Containment is not a licence to
-  // stop hoisting: the shipped symptom was the timeline dying while an operator was cutting to it.)
-  const min = def?.min ?? 0;
-  const max = def?.max ?? 1;
-  const log = def?.log ?? false;
-  const valueToY = (v: number) => PAD + (1 - normValue(v, min, max, log)) * (h - 2 * PAD);
-  const yToValue = (y: number) => denormValue(1 - (y - PAD) / (h - 2 * PAD), min, max, log);
-  const quant = (v: number) => {
-    const s = def?.step ?? 0;
-    return s > 0 ? Math.round(v / s) * s : v;
-  };
-
-  // Sample the curve across the lane — the engine's own function, so the drawing cannot drift from the
-  // sound. Memoized, and the point count is CAPPED: the timeline is unbounded (its width grows as the
-  // playhead advances), so a fixed 2px step would keep adding points forever, and this runs on every
-  // render — including every pointermove of a keyframe drag.
-  const path = useMemo(() => {
-    if (!def || kfs.length === 0) return '';   // no axis to draw against — the bail below renders instead
-    const step = Math.max(2, width / 1200);
-    const cur = { i: -1 };
-    const pts: string[] = [];
-    for (let x = 0; x <= width; x += step) {
-      const v = sampleLane(kfs, x / pxPerSec, cur, log);
-      pts.push(`${x.toFixed(1)},${valueToY(v).toFixed(1)}`);
-    }
-    return `M${pts.join(' L')}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def, kfs, width, pxPerSec, log, min, max, h]);
 
   // ── THE LIVE READOUT IS RENDER-FREE, AND THAT IS THE ENTIRE POINT ────────────────────────────────
   //
@@ -186,12 +89,17 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   // number was for, and delivering it through React cost the whole panel ten renders a second (see the
   // prop's note). So the lane reads its own clock and writes its own text straight to the DOM — exactly
   // how Timeline has always drawn the 60 Hz playhead and timecode (its `engine.subscribe`). Invariant 3:
-  // a clock never enters React state.
+  // a clock never enters React state. It is also why the DRAFT is owned here and not in <CurveEditor>:
+  // this readout has to see the keys being dragged.
   //
-  // ⚠ THESE HOOKS SIT **ABOVE** THE `!def` BAIL, for the reason spelled out below it: `def` goes
-  // defined → undefined under a mounted lane in ordinary use, and a render that calls fewer hooks than
-  // the last one throws in render — which now costs the timeline panel, not the whole app, but still
-  // costs it mid-cut.
+  // ⚠ THESE HOOKS SIT **ABOVE** THE `!def` BAIL. `def` is not a constant: Timeline resolves it from the
+  // LIVE target registry and re-enumerates at 1 Hz (its `defsTick`) precisely to notice that "a lane
+  // whose target was just deleted" stopped being bound. So `def` goes defined → undefined UNDER A
+  // MOUNTED LANE in the ordinary course of use — delete the bed clip, surface or effect an existing lane
+  // automates — and a render that calls FEWER hooks than the last one throws `Rendered fewer hooks than
+  // expected`, in render, from deleting a clip. Hoisting keeps the hook count constant across both
+  // branches. (Extracting the editor helped here rather than hurting: every hook the curve needs now
+  // belongs to a component that either mounts or does not, so it cannot straddle this bail at all.)
   const liveRef = useRef<HTMLDivElement>(null);
   // Refs, not closure captures: the subscription is made once and must see TODAY's keyframes (the DRAFT
   // while a key is being dragged), today's axis, and today's clock.
@@ -251,142 +159,21 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   // `onChange` is optional (absent ⇒ a GLOBAL lane, seen from a scene, which is edited on the Global pill).
   // This repo does NOT enable `strict` / `strictNullChecks` (tsconfig.json), so tsc will happily compile
   // `onChange(...)` on a possibly-undefined prop and say nothing. Every write path therefore checks for
-  // itself: without these guards, dragging a keyframe on a global lane would call `undefined(...)` and take
+  // itself: without these guards, adding a keyframe on a global lane would call `undefined(...)` and take
   // the whole timeline panel down with it. "No handler ⇒ structurally inert" is only true under strictNullChecks.
   const commit = (next: Keyframe[]) => {
     if (!onChange) return;
     onChange({ ...lane, keyframes: next.slice().sort((a, b) => a.t - b.t) });
   };
-
-  const dragKf = (i: number) => (e: React.PointerEvent) => {
-    if (readOnly) return;       // a global lane is not draggable from a scene
-    if (e.button !== 0) return; // middle-drag pans the timeline
-    e.stopPropagation();
-    e.preventDefault();
-    setSel(i);
-    const el = bodyRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const base = lane.keyframes;
-    const doc = docKeyRef.current;   // the document this gesture STARTED on
-    const move = (ev: PointerEvent) => {
-      if (doc !== docKeyRef.current) return;   // rebound mid-drag — the gesture is dead; don't re-arm the draft
-      const next = base.slice();
-      // Clamp between the neighbours so the array stays sorted — the sampler's cursor depends on it.
-      const lo = i > 0 ? base[i - 1].t + 0.001 : 0;
-      const hi = i < base.length - 1 ? base[i + 1].t - 0.001 : Number.MAX_SAFE_INTEGER;
-      const t = ev.shiftKey ? base[i].t : clamp(onSnap((ev.clientX - rect.left) / pxPerSec), lo, hi);
-      const v = ev.altKey ? base[i].v : quant(clamp(yToValue(ev.clientY - rect.top), min, max));
-      next[i] = { ...base[i], t: Math.max(0, t), v };
-      setDraft(next);
-    };
-    const done = (allowCommit: boolean) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-      // ONE commit, on release — and OUTSIDE the state updater. Committing inside setDraft(d => ...)
-      // would issue a render-phase update to App, which React 19 StrictMode double-invokes.
-      const d = draftRef.current;
-      setDraft(null);
-      if (!allowCommit || !d) return;
-      if (doc !== docKeyRef.current) return;   // the document rebound mid-drag → ABANDON, never merge
-      commit(d);
-    };
-    const up = () => done(true);
-    // pointercancel = the system took the gesture away (a touchscreen pan takeover); pointerup will never
-    // arrive. Tear down and abandon — leaving the listeners live let the keyframe follow an unpressed
-    // cursor and the next click anywhere commit it.
-    const cancel = () => done(false);
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
-  };
-
-  const addAt = (e: React.MouseEvent) => {
-    if (readOnly) return;   // see the note on commit(): no strictNullChecks, so every write path guards itself
-    const el = bodyRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const t = Math.max(0, onSnap((e.clientX - rect.left) / pxPerSec));
-    const v = quant(clamp(yToValue(e.clientY - rect.top), min, max));
-    commit([...lane.keyframes, { t, v, curve: 'linear' }]);
-  };
-
-  const removeKf = (i: number) => {
-    if (readOnly) return;
-    if (lane.keyframes.length <= 1) return; // a lane always holds at least one key — remove the lane instead
-    commit(lane.keyframes.filter((_, j) => j !== i));
-  };
-
-  // ⚠ THE CURVE USED TO BE A HIDDEN CYCLE ON DOUBLE-CLICK — linear → hold → bezier, one step per click,
-  // with no way to see the three options or to go back except by going round. It is a NAMED CHOICE in the
-  // keyframe editor now (the same double-click opens it), which is the same control made legible rather
-  // than a control removed.
-  const setCurve = (i: number, curve: Keyframe['curve']) => {
-    if (readOnly) return;
-    commit(lane.keyframes.map((x, j) => (j === i ? { ...x, curve, ...(curve === 'bezier' ? BEZ_DEFAULT : {}) } : x)));
-  };
-
-  /**
-   * TYPE THE NUMBER. A keyframe could only ever be DRAGGED, and a drag is a poor way to say 90° — the pad
-   * is a few dozen pixels tall over the target's whole range, so one pixel is a coarse quantum on anything
-   * with a wide axis and a value like "exactly -180" was unhittable. The label already showed the number;
-   * this is the other half, the ability to set it.
-   *
-   * Clamped to the TARGET's declared range, not the lane's drawing: `def.min`/`def.max` are what the
-   * automation engine will accept, and a value typed outside them would be silently clamped later and
-   * disagree with what the operator typed. Quantised to the target's step for the same reason a drag is.
-   */
-  const setValue = (i: number, shown: number) => {
-    if (readOnly) return;
-    if (!Number.isFinite(shown)) return;
-    // ⚠ THE FIELD IS IN THE **DISPLAY** UNIT, THE KEYFRAME IS IN STORAGE, AND THIS IS THE SEAM.
-    // A target may read in one unit and store in another (docs/TIMELINE.md — a Pan lane stores the 0..1
-    // fraction that lands in `Fixture.dmx` and reads 0..540°). The label above the diamond has always
-    // printed `toDisplay`, so a field that took storage would have asked the operator to type `0.5` under
-    // a label saying `270 °`. `fromDisplay` is the declared exact inverse; it is the identity for every
-    // target that declares no `display`, which is all of audio.
-    const v = quant(clamp(fromDisplay(def, shown), min, max));
-    commit(lane.keyframes.map((x, j) => (j === i ? { ...x, v } : x)));
-  };
-  // Open on the key's CURRENT values, as strings — the inputs are drafts (see the state), and seeding them
-  // from the live keyframe is what makes the editor a starting point rather than a blank form.
-  const openEditor = (i: number) => {
-    if (readOnly) return;
-    const k = lane.keyframes[i];
-    if (!k) return;
-    setSel(i);
-    setEditV(String(round4(toDisplay(def, k.v))));   // seeded in the unit the field reads — see setValue
-    setEditT(k.t.toFixed(3));
-    setEditing(i);
-  };
-  const closeEditor = () => setEditing(null);
-  // Both fields land, then the panel closes. `onBlur` commits each field on its own for the ordinary path
-  // (tab out, click away); this is the Enter/`done` path, where neither field has necessarily blurred.
-  const commitEditor = (i: number) => {
-    setValue(i, parseFloat(editV));
-    setTime(i, parseFloat(editT));
-    closeEditor();
-  };
-  const setTime = (i: number, raw: number) => {
-    if (readOnly) return;
-    if (!Number.isFinite(raw)) return;
-    // Between the neighbours, exactly as a drag is — the sampler's cursor walks a SORTED array, and a key
-    // typed past its neighbour would put the curve out of order rather than reorder it.
-    const base = lane.keyframes;
-    const lo = i > 0 ? base[i - 1].t + 0.001 : 0;
-    const hi = i < base.length - 1 ? base[i + 1].t - 0.001 : Number.MAX_SAFE_INTEGER;
-    commit(base.map((x, j) => (j === i ? { ...x, t: Math.max(0, clamp(raw, lo, hi)) } : x)));
+  const quant = (v: number) => {
+    const s = def.step ?? 0;
+    return s > 0 ? Math.round(v / s) * s : v;
   };
 
   // The value at MOUNT/RE-RENDER time — the readout's first paint, before the subscription's next tick
   // takes the element over. Everything live goes through `liveNow()`.
   const live = liveNow();
   const fmt = (v: number) => fmtIn(def, v);
-  // The axis as the keyframe editor's field speaks it — see setValue for why storage is not that unit.
-  const dispMin = toDisplay(def, min);
-  const dispMax = toDisplay(def, max);
-  const dispUnit = def.display?.unit ?? def.unit;
 
   // A GLOBAL lane seen from a scene is dimmed; a SHADOWED one (a scene lane owns the same targetPath, so
   // timeline.ts:519 has filtered this one out of the compile) is dimmed harder and struck through. That
@@ -447,131 +234,23 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
         <div ref={liveRef} className="text-micro leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
       </div>
 
-      {/* body */}
-      <div ref={bodyRef} className="relative" style={{ width, height: h, opacity: enabled ? 1 : 0.4 }}
-        onDoubleClick={addAt}
-        onPointerDown={(e) => { if (e.button === 0 && e.detail === 1) onSeek(e.clientX); }}>
-        <svg width={width} height={h} className="absolute inset-0 pointer-events-none">
-          <line x1={0} y1={valueToY(max)} x2={width} y2={valueToY(max)} className="stroke-line-1/40" strokeWidth={1} />
-          <line x1={0} y1={valueToY(min)} x2={width} y2={valueToY(min)} className="stroke-line-1/40" strokeWidth={1} />
-          <path d={path} fill="none" stroke={lane.color ?? 'currentColor'} className="text-accent" strokeWidth={1.5} />
-        </svg>
-        {/* keyframes */}
-        {kfs.map((k, i) => {
-          // Shown while this key is being DRAGGED or is selected (`sel` is set on pointerdown and persists),
-          // and on hover. The wrapper's box is 0×0, so it is not a hit target and cannot steal the body's
-          // click-to-seek or double-click-to-add; only the diamond and the (inert) label are.
-          const active = sel === i;
-          const flip = k.t * pxPerSec > width - 70;   // near the right edge — put the label on the other side
-          return (
-            <div key={i} className="absolute group" style={{ left: k.t * pxPerSec, top: valueToY(k.v) }}>
-              {/* ⚠ THE VALUE, WHERE THE OPERATOR IS LOOKING — AND THE `title` BELOW IS NOT A SUBSTITUTE.
-                  A native tooltip needs a still hover of about a second, and THE BROWSER SUPPRESSES IT
-                  OUTRIGHT ONCE A DRAG BEGINS — so the number was guaranteed to be missing at the one moment
-                  it matters: while you are setting it. You dragged a diamond up and down and simply could
-                  not see what level you were writing. This is a real element, so it survives the drag; it
-                  reads `k.v`, which is the DRAFT while dragging (`kfs = draft ?? lane.keyframes`), so it
-                  tracks the thumb. The time comes with it because a drag moves both axes at once. */}
-              <span
-                className={`absolute top-0 -translate-y-1/2 ${flip ? 'right-2' : 'left-2'} z-10 px-1 rounded border border-line-1 bg-surface-0/95 text-micro leading-tight text-fg-1 tabular-nums whitespace-nowrap pointer-events-none transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                {fmt(k.v)} <span className="text-fg-3">· {k.t.toFixed(2)}s</span>
-              </span>
-              <Tooltip id="timeline.automation-keyframe">
-                {/* The editor is placed from THIS element's measured rect (usePopoverAnchor), so the
-                    ref rides whichever diamond is open — one ref, never a list of them. */}
-                <div ref={editing === i ? kfAnchorRef : undefined}
-                  onPointerDown={dragKf(i)}
-                  onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
-                  onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
-                  onDoubleClick={(e) => { e.stopPropagation(); openEditor(i); }}
-                  {...help('timeline.automation-keyframe')}
-                  title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: edit value, time and curve · right-click: delete`}
-                  className={`absolute left-0 top-0 -ml-[4.5px] -mt-[4.5px] w-[9px] h-[9px] rotate-45 cursor-pointer ${active ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`} />
-              </Tooltip>
-
-              {/* ── THE KEYFRAME EDITOR ────────────────────────────────────────────────────────────────
-                  A keyframe could only be DRAGGED, and a drag is a poor way to say -180: the lane is a few
-                  dozen pixels tall over the target's WHOLE range, so a pixel is a coarse quantum on a wide
-                  axis and an exact value was simply unhittable. The label has always shown the number; this
-                  is the other half of it.
-
-                  ⚠ EVERY POINTER EVENT IS STOPPED AT THIS BOX. The lane body underneath it seeks on
-                  pointerdown and ADDS A KEYFRAME on double-click — so a click into the value field would
-                  otherwise scrub the show, and a double-click to select a number would drop a new key
-                  behind the panel that is editing one. */}
-              {editing === i && !readOnly && createPortal(
-                <>
-                  {/* Click-away COMMITS, explicitly — not merely closes. Relying on the inputs' own
-                      onBlur would be a coin toss: a pointerdown on a non-focusable backdrop does not
-                      reliably blur first, and unmounting the portal can drop the event entirely, so a
-                      number typed and then dismissed by clicking the timeline would vanish. Backdrop
-                      before the box: they share the tier and DOM order decides, so the box is second. */}
-                  <div className="fixed inset-0 z-popover" onPointerDown={() => commitEditor(i)} />
-                  <div ref={kfBoxRef}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                  // The portal leaves the timeline scroller's subtree, which kills its non-passive
-                  // native wheel-zoom listener; this stops React's synthetic wheel travelling the React
-                  // tree too, so spinning over the panel cannot zoom the timeline underneath it.
-                  onWheel={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    // Enter commits whichever field has focus and closes; Escape abandons BOTH drafts.
-                    if (e.key === 'Escape') { e.stopPropagation(); closeEditor(); }
-                    if (e.key === 'Enter') { e.stopPropagation(); commitEditor(i); }
-                  }}
-                  // Hidden until measured — a first paint at 0,0 flashes the panel in the window corner.
-                  style={{ left: kfPos?.left ?? 0, top: kfPos?.top ?? 0, visibility: kfPos ? 'visible' : 'hidden' }}
-                  className="fixed z-popover w-44 p-2 rounded border border-line-2 bg-surface-0 shadow-e3 space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-micro text-fg-3 w-9 shrink-0">value</span>
-                    {/* min/max/step/unit ALL IN THE DISPLAY UNIT — the same seam setValue documents. A
-                        `min={0} max={1}` under a field reading degrees would have the browser reject every
-                        legal bearing. `step` goes free whenever a display map is in play: the stored step
-                        (1/65535 for a 16-bit Pan) is not a step in the unit being typed. */}
-                    <input autoFocus type="number" value={editV}
-                      step={def.display ? 'any' : (def.step || 'any')}
-                      min={Math.min(dispMin, dispMax)} max={Math.max(dispMin, dispMax)}
-                      onChange={(e) => setEditV(e.target.value)}
-                      onBlur={() => setValue(i, parseFloat(editV))}
-                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro num text-fg-1 outline-none focus:border-accent" />
-                    {dispUnit && <span className="text-micro text-fg-3 shrink-0">{dispUnit}</span>}
-                  </div>
-                  {/* The range is the TARGET's, and it is printed rather than only enforced: a value typed
-                      outside it is clamped, and a clamp the operator did not expect reads as the field
-                      ignoring them. */}
-                  <div className="text-micro text-fg-3/70 leading-none">{fmt(min)} … {fmt(max)}</div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-micro text-fg-3 w-9 shrink-0">time</span>
-                    <input type="number" value={editT} step={0.01} min={0}
-                      onChange={(e) => setEditT(e.target.value)}
-                      onBlur={() => setTime(i, parseFloat(editT))}
-                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro num text-fg-1 outline-none focus:border-accent" />
-                    <span className="text-micro text-fg-3 shrink-0">s</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-micro text-fg-3 w-9 shrink-0">curve</span>
-                    <select value={k.curve ?? 'linear'}
-                      onChange={(e) => setCurve(i, e.target.value as Keyframe['curve'])}
-                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro text-fg-1 outline-none focus:border-accent">
-                      <option value="linear">linear</option>
-                      <option value="hold">hold</option>
-                      <option value="bezier">bezier</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-1.5 pt-0.5">
-                    <button onClick={() => removeKf(i)} disabled={lane.keyframes.length <= 1}
-                      title={lane.keyframes.length <= 1 ? 'A lane always holds at least one keyframe — remove the lane instead' : 'Delete this keyframe'}
-                      className="text-micro text-fg-3 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">delete</button>
-                    <button onClick={() => commitEditor(i)}
-                      className="ml-auto px-1.5 py-0.5 rounded bg-accent/15 text-accent text-micro hover:bg-accent/25">done</button>
-                  </div>
-                  </div>
-                </>,
-                document.body,
-              )}
-            </div>
-          );
-        })}
+      {/* body — the curve, shared with every other surface that draws one */}
+      <div style={{ opacity: enabled ? 1 : 0.4 }}>
+        <CurveEditor
+          keyframes={lane.keyframes}
+          draft={draft}
+          def={def}
+          width={width}
+          height={h}
+          pxPerSec={pxPerSec}
+          color={lane.color}
+          readOnly={readOnly}
+          docKey={docKey}
+          onDraft={setDraft}
+          onCommit={commit}
+          onSnap={onSnap}
+          onSeek={onSeek}
+        />
       </div>
     </div>
   );
