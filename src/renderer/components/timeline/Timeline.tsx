@@ -1642,7 +1642,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const isEmpty = layers.length === 0 && timeline.clips.length === 0 && (timeline.automation?.length ?? 0) === 0
     && tlTracks.length === 0 && bedTracks.length === 0;
   return (
-    <div ref={panelRef} tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
+    // `data-owns-delete`: this panel binds Del/Backspace to its OWN selection (clips, keys, lanes), so
+    // the global "delete the selected fixture" shortcut must step aside while the pointer or focus is
+    // in here. The attribute is the claim; App queries it with :hover rather than tracking a pointer.
+    <div ref={panelRef} data-owns-delete tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
       className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none"
       style={{ borderTop: authoring ? `2px solid ${author!.activeAccent}` : undefined }}>
       {author && (

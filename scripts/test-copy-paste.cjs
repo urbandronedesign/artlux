@@ -232,6 +232,35 @@ const press = async (page, key, mods = ['Control']) => {
         'copying inside a text field does NOT copy the selected object',
         `surfaces ${countBefore} → ${countAfter} (a change here means Ctrl+C was hijacked from the field)`);
     }
+    // ── 7. Del removes the selection ────────────────────────────────────────────────────────────
+    console.log('\n5. Del removes the selected fixtures');
+    await clickRail(page, '3D');
+    await sleep(1200);
+    if (!(await clickRow(page, 'Head 5'))) throw new Error('could not select Head 5');
+    await press(page, 'Delete', []);
+    let heads2 = (await rows(page)).filter((r) => /^Head \d+$/.test(r));
+    note(!heads2.includes('Head 5') && heads2.length === 4, 'Del deletes the selected fixture',
+      `heads now: ${heads2.join(', ')}`);
+
+    // ── 8. THE SCOPE GUARD ──────────────────────────────────────────────────────────────────────
+    console.log("\n6. Del while the pointer is over the timeline belongs to the timeline");
+    if (!(await clickRow(page, 'Head 4'))) throw new Error('could not select Head 4');
+    const overTimeline = await page.evaluate(() => {
+      const el = document.querySelector('[data-owns-delete]');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 ? { x: r.x + r.width / 2, y: r.y + Math.min(20, r.height / 2) } : null;
+    });
+    if (!overTimeline) { note(false, 'found the timeline to hover', 'no [data-owns-delete] on screen'); }
+    else {
+      await page.mouse.move(overTimeline.x, overTimeline.y);
+      await sleep(400);
+      await press(page, 'Delete', []);
+      heads2 = (await rows(page)).filter((r) => /^Head \d+$/.test(r));
+      note(heads2.includes('Head 4') && heads2.length === 4,
+        'the fixture SURVIVES — the timeline owns Del while hovered',
+        `heads: ${heads2.join(', ')} (losing Head 4 here means one press deleted a clip and a fixture)`);
+    }
   } catch (e) {
     failures++;
     console.error('\n   \x1b[31mERROR\x1b[0m', e.message);

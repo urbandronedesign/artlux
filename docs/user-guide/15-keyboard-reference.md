@@ -41,6 +41,7 @@ Live anywhere in the editor, and suppressed while you are typing in a field.
 | `Ctrl+C` | Copy fixture / surface — Copies the selection. Ignored while you are typing, so a text field keeps its own copy |
 | `Ctrl+V` | Paste — Pastes offset from the original and RE-PATCHED to free DMX channels — never on top of what it was copied from |
 | `Ctrl+D` | Duplicate — Copy and paste in one press, without touching the clipboard |
+| `Delete` or `Backspace` | Delete fixture / surface — Deletes the selected fixtures, or the selected surface. Yields to the timeline and the show machine while either is hovered or focused — they delete their own selection |
 
 **View**
 

@@ -407,10 +407,18 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   }, [sm.states.length]);
 
   // Delete the selection with Del/Backspace, frame the graph with F (unless typing in a field).
+  //
+  // ⚠ SCOPED TO HOVER OR FOCUS, like the timeline's own key hook. It used to fire whenever this
+  // editor was MOUNTED with something selected, wherever the pointer was — so a Del pressed to
+  // delete a fixture, with a state left selected in a graph on another part of the screen, deleted
+  // the state too. That was survivable while nothing else bound the key globally; it is not now.
+  const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = document.activeElement?.tagName;
       if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA') return;
+      const el = rootRef.current;
+      if (!el || !(el.matches(':hover') || el.contains(document.activeElement))) return;
       if (keymap.matches(e, 'stategraph.fitView')) { e.preventDefault(); fitView(); return; }
       if (!keymap.matches(e, 'stategraph.deleteSelected')) return;
       if (!sel) return; e.preventDefault();
@@ -484,7 +492,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   };
 
   return (
-    <div className="w-full h-full bg-surface-0 flex flex-col overflow-hidden">
+    // `data-owns-delete`: this editor binds Del/Backspace to its OWN selection, so the global
+    // "delete the selected fixture" shortcut steps aside while the pointer or focus is in here.
+    <div ref={rootRef} data-owns-delete className="w-full h-full bg-surface-0 flex flex-col overflow-hidden">
         <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
           <span className="text-xs text-fg-1 font-medium">Show machine — states &amp; scenes</span>
           <Tooltip id="timeline.sm-add-state">

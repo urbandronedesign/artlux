@@ -2675,7 +2675,7 @@ check(
 
 // ── Editing: copy/paste must not steal a text field's clipboard, or the source's DMX ─────────
 check(
-  'copy / paste yields to a text field, and never reuses the source address',
+  'copy / paste / delete yield to a text field, and to whoever owns the key',
   'Two ways this feature can do real damage quietly. (1) Ctrl+C is a TEXT FIELD\'s key first: an ' +
   'operator copying an IP address out of Routing, or a cue name, must not silently get a fixture ' +
   'instead - there is no error to see, and they find out at the paste. Every one of the three ' +
@@ -2690,7 +2690,7 @@ check(
     const problems = [];
 
     // Every binding gated on `typing` — the same predicate the undo branch uses.
-    for (const id of ['global.copy', 'global.paste', 'global.duplicate']) {
+    for (const id of ['global.copy', 'global.paste', 'global.duplicate', 'global.deleteSelected']) {
       const re = new RegExp(`!typing && keymap\\.matches\\(e, '${id}'\\)`);
       if (!re.test(src)) problems.push(`${APP} '${id}' is not gated on \`typing\` — it would hijack a text field's own clipboard`);
     }
@@ -2705,6 +2705,23 @@ check(
       if (!/recordHistory\(\)/.test(paste[0]))
         problems.push(`${APP} paste does not record history — it would not be undoable`);
     }
+
+    // DELETE YIELDS TO WHOEVER ELSE OWNS THE KEY. The timeline drawer and the show-machine graph
+    // bind Del/Backspace to their own selection and both listen on `window`, so one press would
+    // otherwise delete a clip AND a fixture — with only one of them on screen to notice.
+    if (!/\[data-owns-delete\]:hover/.test(src))
+      problems.push(`${APP} the global delete does not check who owns the key — one press would delete a clip and a fixture`);
+    for (const owner of ['src/renderer/components/timeline/Timeline.tsx',
+                         'src/renderer/components/timeline/StateGraphEditor.tsx']) {
+      if (!/data-owns-delete/.test(read(owner)))
+        problems.push(`${owner} binds Del to its own selection but no longer claims it — the global delete would fire over it too`);
+    }
+    const del = /const handleDeleteSelection[\s\S]*?\n  };/.exec(src);
+    if (!del) problems.push(`${APP} no longer defines handleDeleteSelection`);
+    else if (!/handleRemoveSurface\(/.test(del[0]))
+      // Deleting a surface removes its projector output — that display goes dark, and the binding is
+      // not undoable. The key must not become a back door around the question the button asks.
+      problems.push(`${APP} the delete key removes a surface without going through handleRemoveSurface — it would skip the projector-output confirm`);
     return problems.length ? problems.join('; ') : null;
   },
 );

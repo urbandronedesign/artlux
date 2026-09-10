@@ -41,6 +41,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'global.copy',        label: 'Copy fixture / surface', category: 'Editing',  scope: 'global', defaultBinding: ['Ctrl+C'], description: 'Copies the selection. Ignored while you are typing, so a text field keeps its own copy.' },
   { id: 'global.paste',       label: 'Paste',                category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+V'], description: 'Pastes offset from the original and RE-PATCHED to free DMX channels — never on top of what it was copied from.' },
   { id: 'global.duplicate',   label: 'Duplicate',            category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+D'], description: 'Copy and paste in one press, without touching the clipboard.' },
+  { id: 'global.deleteSelected', label: 'Delete fixture / surface', category: 'Editing', scope: 'global', defaultBinding: ['Delete', 'Backspace'], description: 'Deletes the selected fixtures, or the selected surface. Yields to the timeline and the show machine while either is hovered or focused — they delete their own selection.' },
   { id: 'global.perfDock',    label: 'Open Performance dock',category: 'View',       scope: 'global', defaultBinding: ['Ctrl+Alt+P'] },
   // The timeline is a tool you pull up inside whatever workbench you are in, not a place you go — this
   // is how you pull it up. Global on purpose: every context that names a bottom panel answers to it.

@@ -641,9 +641,11 @@ const App: React.FC = () => {
   // existed when it was attached — the same reason handleTimelineChangeRef exists. Seeded with
   // no-ops and filled in where the handlers are defined, further down: a ref initialised FROM those
   // handlers would be reading a const that does not exist yet at this point in the body.
-  const clipRef = useRef<{ copy: () => 'fixtures' | 'surface' | null; paste: () => 'fixtures' | 'surface' | null }>({
-    copy: () => null, paste: () => null,
-  });
+  const clipRef = useRef<{
+    copy: () => 'fixtures' | 'surface' | null;
+    paste: () => 'fixtures' | 'surface' | null;
+    del: () => 'fixtures' | 'surface' | null;
+  }>({ copy: () => null, paste: () => null, del: () => null });
 
   useEffect(() => {
     // No operator in broadcast/headless — the global undo/redo/select keybindings have no place there,
@@ -683,6 +685,18 @@ const App: React.FC = () => {
         }
         else if (!typing && keymap.matches(e, 'global.paste')) {
             if (clipRef.current.paste()) e.preventDefault();
+        }
+        // ── DELETE THE SELECTION ────────────────────────────────────────────────────────────────
+        // ⚠ YIELDS TO WHOEVER ELSE OWNS THE KEY. The timeline drawer and the show-machine graph both
+        // bind Del/Backspace to their OWN selection, and both listen on `window` — so without this a
+        // single press would delete a clip AND a fixture, or a state AND a fixture, with only one of
+        // them visible at the time. They mark themselves `data-owns-delete` and claim the key while
+        // hovered or focused; this steps aside for them. (`:hover` is queried rather than tracked: a
+        // keyboard event carries no pointer position, and the DOM already knows.)
+        else if (!typing && keymap.matches(e, 'global.deleteSelected')) {
+            const claimed = document.querySelector('[data-owns-delete]:hover')
+              || (document.activeElement as HTMLElement | null)?.closest?.('[data-owns-delete]');
+            if (!claimed && clipRef.current.del()) e.preventDefault();
         }
         // Duplicate is copy-then-paste, and deliberately does NOT disturb the clipboard: you can copy
         // one thing, duplicate another, and still paste the first.
@@ -1204,7 +1218,36 @@ const App: React.FC = () => {
     return 'fixtures';
   };
 
-  clipRef.current = { copy: handleCopySelection, paste: handlePasteClipboard };
+  /**
+   * Delete what is selected — the Del / Suppr key, and the companion to copy/paste.
+   *
+   * FIXTURES GO IN ONE BATCH, not one call to handleRemoveFixture each: that would push an undo entry
+   * per fixture (so deleting eight heads costs eight presses of Ctrl+Z to put back) and would read the
+   * same stale `fixtures` array every time, the exact trap commitFixtures documents.
+   *
+   * A SURFACE GOES THROUGH handleRemoveSurface, confirm and all. Deleting one also removes its
+   * projector output — that display goes dark, and the output binding is deliberately NOT undoable —
+   * so the key must not become a quiet back door around a question the button asks.
+   */
+  const handleDeleteSelection = (): 'fixtures' | 'surface' | null => {
+    const ids = selectedFixtureIds.length ? selectedFixtureIds : (selectedFixtureId ? [selectedFixtureId] : []);
+    if (ids.length) {
+      const doomed = new Set(ids);
+      recordHistory();
+      // An armed placement must not outlive its target: the hint would name a fixture that no longer
+      // exists and the next click would silently do nothing.
+      const armed = placement.get()?.fixtureId;
+      if (armed && doomed.has(armed)) placement.disarm();
+      setFixtures(autoPatch(fixtures.filter(f => !doomed.has(f.id)), controllers, patchPolicy, undefined, fixtureProfiles));
+      setSelectedFixtureIds([]);
+      setSelectedFixtureId(null);
+      return 'fixtures';
+    }
+    if (selectedSurfaceId) { void handleRemoveSurface(selectedSurfaceId); return 'surface'; }
+    return null;
+  };
+
+  clipRef.current = { copy: handleCopySelection, paste: handlePasteClipboard, del: handleDeleteSelection };
 
   const handleAddFixture = () => {
     recordHistory();

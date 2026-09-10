@@ -109,6 +109,17 @@ renamed to something without a number — `Front wash` — pastes as `Front wash
 > **Ctrl+C in a text field still copies text.** The shortcut steps aside whenever you are typing, so
 > copying an IP address out of Routing does what you expect.
 
+## Delete
+
+**Del** (or **Suppr**) removes what is selected — several fixtures at once, in one press and one undo.
+Deleting a surface asks first, because it also removes that surface's projector output and the
+display goes dark; **Ctrl+Z** brings the surface back but not the output assignment.
+
+The key **yields to whatever else owns it**. The timeline and the show machine both bind Del to their
+*own* selection, so while the pointer is over either of them — or the keyboard focus is inside one —
+Del cuts a clip or a state and leaves your fixture alone. Move the pointer off it and Del is the
+rig's again.
+
 ## Templates (reusable fixture types)
 
 Configure a fixture, select it, and in the **Library** dock tab click **Save selected**. It stores
