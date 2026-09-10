@@ -277,8 +277,25 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
     .filter((p) => !p.panel || appliesToSelection(p.panel, ctx.selection));
 
   if (node.render === 'stack') {
+    // ⚠ A STACK OF PANELS MUST SCROLL, AND UNDER DOCKING IT DID NOT.
+    //
+    // This was `overflow-hidden`, so a parameter column taller than its pane was CLIPPED with no way
+    // to reach the rest — not a scrollbar you could not see, but no scrolling at all. A pixel fixture
+    // stacks Patch, Mapping, Segments, 2D / Output, Routing, 3D Layout and Arrange and runs well past
+    // any ordinary pane height, and everything below the cut was simply unreachable.
+    //
+    // The hand-built column in WorkspaceShell has had `overflow-y-auto` all along, which is exactly
+    // the trap CLAUDE.md names: the dock tree is what actually renders, and a shell change has to be
+    // made in BOTH paths or it is only half true.
+    //
+    // A stack holding a VIEWPORT keeps clipping. A viewport fills its pane by design (`flex-1
+    // min-h-0`) and a scrolling parent would let it collapse to its content instead — and the
+    // persistent-layer positions the real canvas over that slot by direct style writes, so a moving
+    // scroll offset underneath it is the last thing it needs.
+    const scrolls = resolved.every(({ panel }) => !!panel);
     return (
-      <div data-dock-group={node.id} data-dock-render="stack" className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-surface-1">
+      <div data-dock-group={node.id} data-dock-render="stack"
+        className={`flex-1 min-w-0 min-h-0 flex flex-col bg-surface-1 ${scrolls ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         {resolved.map(({ id, panel }) => (
           panel ? <React.Fragment key={id}>{ctx.renderPanel(panel)}</React.Fragment>
             : <div key={id} className="relative flex-1 min-h-0"><ViewportSlot id={id} /></div>

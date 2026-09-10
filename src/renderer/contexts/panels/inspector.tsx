@@ -4,6 +4,8 @@ import {
   type FixtureMount, type OutputProtocol, type ProfileChannel,
 } from '../../types';
 import { AlertTriangle, RefreshCw, Circle, CircleDot } from 'lucide-react';
+import { NumInput } from '../../components/ui/NumberField';
+import { VectorField } from '../../components/ui/VectorField';
 import { ContentEditor } from '../../components/ContentEditor';
 import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
 import { Button, Field, Select, Slider } from '../../components/ui';
@@ -26,14 +28,20 @@ import { useEditor, useEditorActions } from '../../state/EditorStore';
 //
 // The markup is otherwise unchanged. Section chrome + padding come from the shell.
 
+// ⚠ THIS USED TO BE A SECOND, UNGUARDED NUMERIC INPUT — `onChange(parseFloat(e.target.value))`,
+// at 33 sites in this file. `parseFloat('')` is NaN and clearing a field to retype it is a normal
+// step, so emptying Position X wrote NaN into `position3D` and the controlled input then desynced
+// from a model value that was no longer a number. ui/NumberField documents that exact failure and
+// has guarded against it since it was written; this file simply had its own copy that did not.
+// It now delegates to the same guarded control, so the promise is true everywhere rather than only
+// where somebody remembered.
 const NumberInput: React.FC<{ label: string; value: number; onChange: (v: number) => void; step?: number }> =
 ({ label, value, onChange, step = 1 }) => (
   <div className="flex items-center justify-between text-xs gap-2">
-    <label className="text-fg-2 cursor-e-resize w-16 truncate">{label}</label>
-    <input
-      type="number" step={step} value={value}
-      onChange={(e) => onChange(parseFloat(e.target.value))}
-      className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none font-mono"
+    <label className="text-fg-2 w-16 truncate">{label}</label>
+    <NumInput
+      value={value} onChange={onChange} step={step}
+      className="num flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
     />
   </div>
 );
@@ -334,10 +342,14 @@ export const SurfaceTransformPanel: React.FC = () => {
   const set = (patch: Partial<Surface>) => a.updateSurface(s.id, patch);
   return (
     <>
-      <NumberInput label="X" value={+s.x.toFixed(3)} step={0.01} onChange={(v) => set({ x: v })} />
-      <NumberInput label="Y" value={+s.y.toFixed(3)} step={0.01} onChange={(v) => set({ y: v })} />
-      <NumberInput label="Width" value={+s.width.toFixed(3)} step={0.01} onChange={(v) => set({ width: Math.max(0.01, v) })} />
-      <NumberInput label="Height" value={+s.height.toFixed(3)} step={0.01} onChange={(v) => set({ height: Math.max(0.01, v) })} />
+      <VectorField label="Position" step={0.01} axes={[
+        { key: 'X', value: +s.x.toFixed(3), onChange: (v) => set({ x: v }) },
+        { key: 'Y', value: +s.y.toFixed(3), onChange: (v) => set({ y: v }) },
+      ]} />
+      <VectorField label="Size" step={0.01} min={0.01} axes={[
+        { key: 'W', value: +s.width.toFixed(3), title: 'Width', onChange: (v) => set({ width: Math.max(0.01, v) }) },
+        { key: 'H', value: +s.height.toFixed(3), title: 'Height', onChange: (v) => set({ height: Math.max(0.01, v) }) },
+      ]} />
       <NumberInput label="Rotation" value={s.rotation} step={1} onChange={(v) => set({ rotation: v })} />
     </>
   );
@@ -788,14 +800,16 @@ export const FixturePositionPanel: React.FC = () => {
           </Select>
         </div>
       </Tooltip>
-      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Position (m)</div>
-      <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
-      <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
-      <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />
-      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Rotation (°)</div>
-      <NumberInput label="Pitch" value={+rot.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
-      <NumberInput label="Yaw" value={+rot.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
-      <NumberInput label="Roll" value={+rot.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
+      <VectorField label="Position" unit="m" step={0.05} axes={[
+        { key: 'X', value: +p.x.toFixed(3), onChange: (v) => setPos('x', v) },
+        { key: 'Y', value: +p.y.toFixed(3), onChange: (v) => setPos('y', v) },
+        { key: 'Z', value: +p.z.toFixed(3), onChange: (v) => setPos('z', v) },
+      ]} />
+      <VectorField label="Rotation" unit="°" step={1} axes={[
+        { key: 'P', value: +rot.pitch.toFixed(1), title: 'Pitch', onChange: (v) => setRot('pitch', v) },
+        { key: 'Y', value: +rot.yaw.toFixed(1), title: 'Yaw', onChange: (v) => setRot('yaw', v) },
+        { key: 'R', value: +rot.roll.toFixed(1), title: 'Roll', onChange: (v) => setRot('roll', v) },
+      ]} />
       {/* A head has no LED run to lay out, but it does have a body, and this is what sizes it — so the
           same three numbers belong here too rather than only on the pixel card. */}
       <ScaleFields f={f} />
@@ -821,10 +835,11 @@ const ScaleFields: React.FC<{ f: Fixture }> = ({ f }) => {
   });
   return (
     <>
-      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Scale (×)</div>
-      <NumberInput label="X" value={+s.x.toFixed(3)} step={0.05} onChange={(v) => set('x', Math.max(0.01, v))} />
-      <NumberInput label="Y" value={+s.y.toFixed(3)} step={0.05} onChange={(v) => set('y', Math.max(0.01, v))} />
-      <NumberInput label="Z" value={+s.z.toFixed(3)} step={0.05} onChange={(v) => set('z', Math.max(0.01, v))} />
+      <VectorField label="Scale" unit="×" step={0.05} min={0.01} axes={[
+        { key: 'X', value: +s.x.toFixed(3), onChange: (v) => set('x', Math.max(0.01, v)) },
+        { key: 'Y', value: +s.y.toFixed(3), onChange: (v) => set('y', Math.max(0.01, v)) },
+        { key: 'Z', value: +s.z.toFixed(3), onChange: (v) => set('z', Math.max(0.01, v)) },
+      ]} />
     </>
   );
 };
@@ -842,14 +857,16 @@ export const FixtureLayout3DPanel: React.FC = () => {
   const setLayout = (patch: Partial<typeof L>) => a.updateFixture(f.id, { layout3D: { ...L, ...patch } });
   return (
     <>
-      <div className="text-micro text-fg-3 uppercase tracking-wider">Position (m)</div>
-      <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
-      <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
-      <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />
-      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Rotation (°)</div>
-      <NumberInput label="Pitch" value={+rot.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
-      <NumberInput label="Yaw" value={+rot.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
-      <NumberInput label="Roll" value={+rot.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
+      <VectorField label="Position" unit="m" step={0.05} axes={[
+        { key: 'X', value: +p.x.toFixed(3), onChange: (v) => setPos('x', v) },
+        { key: 'Y', value: +p.y.toFixed(3), onChange: (v) => setPos('y', v) },
+        { key: 'Z', value: +p.z.toFixed(3), onChange: (v) => setPos('z', v) },
+      ]} />
+      <VectorField label="Rotation" unit="°" step={1} axes={[
+        { key: 'P', value: +rot.pitch.toFixed(1), title: 'Pitch', onChange: (v) => setRot('pitch', v) },
+        { key: 'Y', value: +rot.yaw.toFixed(1), title: 'Yaw', onChange: (v) => setRot('yaw', v) },
+        { key: 'R', value: +rot.roll.toFixed(1), title: 'Roll', onChange: (v) => setRot('roll', v) },
+      ]} />
       <ScaleFields f={f} />
 
       <div className="flex items-center justify-between text-xs gap-2 pt-1">

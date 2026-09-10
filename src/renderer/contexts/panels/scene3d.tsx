@@ -7,6 +7,7 @@ import { useEditor, useEditorActions } from '../../state/EditorStore';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { Button, NumberField } from '../../components/ui';
+import { VectorField } from '../../components/ui/VectorField';
 import * as layout from '../../services/fixtureLayout';
 import { isLight } from '../../services/fixtureKind';
 import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera';
@@ -241,10 +242,11 @@ export const FixtureArrangePanel: React.FC = () => {
           cannot do however finely it snaps: "250 mm that way, from wherever this is now". The whole
           selection keeps its shape; the turn orbits it about its own centre and turns each fixture
           with it, exactly as the gizmo's rotate does. */}
-      <div className="text-mini text-fg-2 mt-1">Move by (m)</div>
-      <NumberField label="X" value={dx} step={0.05} onChange={setDx} />
-      <NumberField label="Y" value={dy} step={0.05} onChange={setDy} />
-      <NumberField label="Z" value={dz} step={0.05} onChange={setDz} />
+      <VectorField label="Move by" unit="m" step={0.05} axes={[
+        { key: 'X', value: dx, onChange: setDx },
+        { key: 'Y', value: dy, onChange: setDy },
+        { key: 'Z', value: dz, onChange: setDz },
+      ]} />
       <Row>
         <Button size="sm" variant="ghost" className="flex-1"
           onClick={() => apply(layout.offset(selection, { x: dx, y: dy, z: dz }))}>Apply offset</Button>

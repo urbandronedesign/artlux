@@ -2646,6 +2646,33 @@ check(
   },
 );
 
+// ── Shell: a column of panels has to be reachable ────────────────────────────────────────────
+check(
+  'a stack of panels scrolls, in BOTH shell paths',
+  'The dockable workspace is ON BY DEFAULT, so the dock tree is what actually renders - and its ' +
+  'panel stack was overflow-hidden. A parameter column taller than its pane was CLIPPED with no way ' +
+  'to reach the rest: not a scrollbar you could not see, but no scrolling at all. Measured on a ' +
+  'moving head at 1489px of content in a 302px pane, so 1187px was simply unreachable. The ' +
+  'hand-built column in WorkspaceShell had overflow-y-auto the whole time, which is exactly why it ' +
+  'went unnoticed - a shell change made in one path only is half true, and this half was the ' +
+  'default. A stack holding a VIEWPORT still clips on purpose: a viewport fills its pane, and the ' +
+  'persistent layer positions the real canvas over that slot by direct style writes.',
+  () => {
+    const problems = [];
+    const DOCK = 'src/renderer/components/shell/DockRenderer.tsx';
+    const src = read(DOCK);
+    const stack = /if \(node\.render === 'stack'\)[\s\S]*?\n  }/.exec(src);
+    if (!stack) problems.push(`${DOCK} no longer renders a 'stack' node`);
+    else if (!/overflow-y-auto/.test(stack[0]))
+      problems.push(`${DOCK} the panel stack does not scroll — a column taller than its pane is unreachable`);
+
+    const SHELL = 'src/renderer/components/shell/WorkspaceShell.tsx';
+    if (!/overflow-y-auto/.test(read(SHELL)))
+      problems.push(`${SHELL} the hand-built parameter column does not scroll — the fallback path has the same bug`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Auto-key: an armed fader move is ONE gesture ─────────────────────────────────────────────
 check(
   'an armed fader move is one undo entry, and cannot arm itself',
