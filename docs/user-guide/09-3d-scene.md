@@ -131,6 +131,24 @@ on a truss by typing twelve coordinates; this is the set of gestures that replac
 Everything except *Distribute* and *Align* works in **selection order** — the order you clicked them —
 so a spread runs the way you built it. Each action is one undo step.
 
+## Duplicate a screen
+
+A venue is built out of repeated geometry — a row of panels, two matching side screens, the same
+flown surface three times. Select a screen in the scene or the outliner and press **Ctrl+C**, then
+**Ctrl+V**; **Ctrl+D** does both in one press. **Del** (or **Suppr**) removes the selected screen.
+
+The copy is the same object, moved: it keeps its size, its rotation, what paints it (the timeline
+layer or the surface), and its projection mapping. It lands a metre along X so you can see it is a
+second object, and you place it from there. On a twenty-metre venue mesh a metre barely shows — that
+is expected, the copy is selected and ready to be moved.
+
+**The projection mapping comes across on purpose.** Projected UVs re-project live, so a duplicate at
+its own position gets its own correct mapping from the same projector rather than staying glued to
+where the original stood — two panels lit by one projector is the ordinary case in a mapped venue.
+
+> Fixtures and surfaces copy the same way — see
+> [Fixtures ▸ Copy and paste](03-fixtures.md#copy-and-paste).
+
 ## The outliner (top‑right of the pane)
 
 Lists everything in the scene under **OBJECTS** and **FIXTURES**:

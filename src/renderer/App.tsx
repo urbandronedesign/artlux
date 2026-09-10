@@ -642,9 +642,9 @@ const App: React.FC = () => {
   // no-ops and filled in where the handlers are defined, further down: a ref initialised FROM those
   // handlers would be reading a const that does not exist yet at this point in the body.
   const clipRef = useRef<{
-    copy: () => 'fixtures' | 'surface' | null;
-    paste: () => 'fixtures' | 'surface' | null;
-    del: () => 'fixtures' | 'surface' | null;
+    copy: () => 'fixtures' | 'surface' | 'model' | null;
+    paste: () => 'fixtures' | 'surface' | 'model' | null;
+    del: () => 'fixtures' | 'surface' | 'model' | null;
   }>({ copy: () => null, paste: () => null, del: () => null });
 
   useEffect(() => {
@@ -1136,7 +1136,7 @@ const App: React.FC = () => {
   //
   // Selection is mutually exclusive here (handleSelectFixture clears the surface and vice versa), so
   // there is no ambiguity about WHAT copy takes.
-  const handleCopySelection = (): 'fixtures' | 'surface' | null => {
+  const handleCopySelection = (): 'fixtures' | 'surface' | 'model' | null => {
     const ids = selectedFixtureIds.length ? selectedFixtureIds : (selectedFixtureId ? [selectedFixtureId] : []);
     if (ids.length) {
       // In SELECTION ORDER, not document order: for lights that order is the show (it is what a take
@@ -1149,13 +1149,15 @@ const App: React.FC = () => {
     }
     const surf = surfaces.find(s => s.id === selectedSurfaceId);
     if (surf) { clipboard.copy({ kind: 'surface', item: surf }); return 'surface'; }
+    const model = (scene3D.models ?? []).find(m => m.id === selectedModelId);
+    if (model) { clipboard.copy({ kind: 'model', item: model }); return 'model'; }
     return null;
   };
 
   /** "Head 4" → "Head"; "Front wash" → "Front wash". The stem nextNumberedName counts from. */
   const nameStem = (name: string): string => name.trim().replace(/\s+\d+$/, '') || 'Copy';
 
-  const handlePasteClipboard = (): 'fixtures' | 'surface' | null => {
+  const handlePasteClipboard = (): 'fixtures' | 'surface' | 'model' | null => {
     const payload = clipboard.read();
     if (!payload) return null;
     recordHistory();
@@ -1176,6 +1178,27 @@ const App: React.FC = () => {
       setSurfaces([...surfaces, copy]);
       handleSelectSurface(copy.id);
       return 'surface';
+    }
+
+    if (payload.kind === 'model') {
+      const src = payload.item;
+      const models = scene3D.models ?? [];
+      // EVERYTHING carries over, including the projected-UV fields. That is correct rather than lazy:
+      // ModelObject RE-PROJECTS LIVE, so a duplicate moved to its own position gets its own correct
+      // mapping from the same projector, instead of the bake staying glued to where the original was.
+      // Two panels lit by one projector is the ordinary case in a mapped venue.
+      const copy: SceneModel = {
+        ...structuredClone(src),
+        id: crypto.randomUUID(),
+        name: nextNumberedName(nameStem(src.name ?? 'Screen'), models),
+        // A metre along X — far enough to see it is a second object, near enough to read as a copy of
+        // the first. A venue mesh may be twenty metres wide and barely appear to move; that is fine,
+        // the operator is about to place it.
+        position: { x: src.position.x + 1, y: src.position.y, z: src.position.z },
+      };
+      // addSceneModel records history and selects the new model.
+      addSceneModel(copy);
+      return 'model';
     }
 
     const live = new Set(surfaces.map(s => s.id));
@@ -1229,7 +1252,7 @@ const App: React.FC = () => {
    * projector output — that display goes dark, and the output binding is deliberately NOT undoable —
    * so the key must not become a quiet back door around a question the button asks.
    */
-  const handleDeleteSelection = (): 'fixtures' | 'surface' | null => {
+  const handleDeleteSelection = (): 'fixtures' | 'surface' | 'model' | null => {
     const ids = selectedFixtureIds.length ? selectedFixtureIds : (selectedFixtureId ? [selectedFixtureId] : []);
     if (ids.length) {
       const doomed = new Set(ids);
@@ -1244,6 +1267,7 @@ const App: React.FC = () => {
       return 'fixtures';
     }
     if (selectedSurfaceId) { void handleRemoveSurface(selectedSurfaceId); return 'surface'; }
+    if (selectedModelId) { handleRemoveModel(selectedModelId); return 'model'; }
     return null;
   };
 

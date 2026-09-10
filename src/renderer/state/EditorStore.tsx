@@ -117,13 +117,13 @@ export interface EditorActions {
    * Copy the current selection (fixtures, in SELECTION order, or the selected surface) to the app's
    * own clipboard. Returns what it took, or null when nothing was selected, so a caller can say so.
    */
-  copySelection(): 'fixtures' | 'surface' | null;
+  copySelection(): 'fixtures' | 'surface' | 'model' | null;
   /**
    * Paste it: offset from the original so the copy is visible, and — for fixtures — RE-PATCHED
    * through autoPatch rather than carrying the source's start address, which would overlap it byte
    * for byte. Returns what it made, or null when the clipboard is empty.
    */
-  pasteClipboard(): 'fixtures' | 'surface' | null;
+  pasteClipboard(): 'fixtures' | 'surface' | 'model' | null;
   // groups
   createGroup(): void;
   addSelectedToGroup(groupId: string): void;

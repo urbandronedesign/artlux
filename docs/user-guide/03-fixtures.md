@@ -85,7 +85,8 @@ land at trim height.
 ## Copy and paste
 
 Building a rig is repetitive — eight identical heads on a truss, six strips down a wall — so select a
-fixture and press **Ctrl+C**, then **Ctrl+V**. **Ctrl+D** does both in one press without touching the
+fixture and press **Ctrl+C**, then **Ctrl+V**. Surfaces and 3D screens copy the same way (see
+[3D scene ▸ Duplicate a screen](09-3d-scene.md#duplicate-a-screen)). **Ctrl+D** does both in one press without touching the
 clipboard, so you can copy one thing, duplicate another, and still paste the first. Surfaces copy the
 same way.
 

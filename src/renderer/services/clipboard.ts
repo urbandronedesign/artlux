@@ -19,10 +19,15 @@
 // re-render when it changes — nothing on screen depends on the contents, only on whether a paste is
 // possible at all, which is checked at the moment it is invoked.
 import type { Fixture, Surface } from '../types';
+import type { SceneModel } from '../../../shared/protocol';
 
 export type ClipboardPayload =
   | { kind: 'fixtures'; items: Fixture[] }
-  | { kind: 'surface'; item: Surface };
+  | { kind: 'surface'; item: Surface }
+  // A "screen" in the 3D scene — a plane or an imported venue mesh. Same reasons as the other two:
+  // a venue is built out of repeated geometry, and rebuilding a panel by hand to match one that
+  // already exists is the work this removes.
+  | { kind: 'model'; item: SceneModel };
 
 let held: ClipboardPayload | null = null;
 

@@ -53,7 +53,13 @@ function buildProject() {
     }],
     controllers: [{ id: 'ctl', name: 'DMX', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, startUniverse: 0, drives: 'light' }],
     globalBrightness: 1, groups: [], scenes: [], cueBanks: [],
-    scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, augmentaViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50 },
+    scene3D: { models: [{
+      // A screen with a size and a yaw that are NOT the defaults, so "the copy kept them" is a real
+      // assertion rather than one that passes on whatever a fresh plane happens to be.
+      id: 'md_screen', name: 'Screen 1', kind: 'plane', path: '',
+      position: { x: 0, y: 1.2, z: 0 }, rotation: { x: 0, y: 35, z: 0 },
+      scale: 2, scaleXYZ: [3.5, 2, 1], visible: true,
+    }], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, augmentaViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50 },
     timeline: { layers: [], clips: [], duration: 30, fps: 30, markers: [], inPoint: null, outPoint: null, loop: false, trackingTakes: [], lightingTakes: [], lightingSequences: [], automation: [] },
     schedule: [], assets: [], projectorOutputs: [], projectorFpsCap: 0, projectorBrightness: 1,
   }, null, 2));
@@ -138,6 +144,24 @@ const patchOf = (page) => page.evaluate(() => {
     start: input ? Number(input.value) : null,
     channels: chRow ? (chRow.textContent || '').replace('Channels', '').trim() : null,
   };
+});
+
+/**
+ * The selected screen's Pos X and Rot Y, read off the Model section. Those rows are `Vec3Row` — a
+ * short label then three inputs carrying `title="X"/"Y"/"Z"` — so each value is found by its row
+ * label and then by that title. (Note the Model panel has its OWN vector row and its own numeric
+ * input, separate from the ui kit's; this reader matches what that panel actually renders.)
+ */
+const modelFields = (page) => page.evaluate(() => {
+  const axis = (rowLabel, letter) => {
+    const span = [...document.querySelectorAll('span')]
+      .find((e) => e.children.length === 0 && (e.textContent || '').trim() === rowLabel);
+    const row = span ? span.parentElement : null;
+    if (!row) return null;
+    const input = [...row.querySelectorAll('input')].find((i) => i.getAttribute('title') === letter);
+    return input ? Number(input.value) : null;
+  };
+  return { posX: axis('Pos', 'X'), rotY: axis('Rot°', 'Y') };
 });
 
 const press = async (page, key, mods = ['Control']) => {
@@ -261,6 +285,48 @@ const press = async (page, key, mods = ['Control']) => {
         'the fixture SURVIVES — the timeline owns Del while hovered',
         `heads: ${heads2.join(', ')} (losing Head 4 here means one press deleted a clip and a fixture)`);
     }
+    // ── 9. a 3D screen ──────────────────────────────────────────────────────────────────────────
+    // A venue is built out of repeated geometry, and a screen carries far more state than a fixture:
+    // its size, its rotation, which timeline layer or surface paints it, and its projection mapping.
+    // The assertion is therefore not "a second row appeared" but "the copy is the same OBJECT, moved".
+    console.log('\n7. duplicate a screen in the 3D scene');
+    await clickRail(page, '3D');
+    await sleep(1200);
+    if (!(await clickRow(page, 'Screen 1'))) {
+      const seen = await rows(page);
+      throw new Error(`could not select Screen 1 — rows were: ${seen.join(' | ')}`);
+    }
+    const before3d = await modelFields(page);
+    await press(page, 'KeyC');
+    await press(page, 'KeyV');
+    const names = (await rows(page)).filter((r) => /^Screen \d+$/.test(r));
+    note(names.includes('Screen 2') && names.length === 2, 'the screen duplicates, numbered on',
+      `screens: ${names.join(', ')}`);
+
+    const after3d = await modelFields(page);
+    note(after3d.rotY === before3d.rotY && after3d.rotY !== null,
+      'the copy keeps the original rotation (seeded to 35°, not a default)',
+      `yaw ${before3d.rotY} → ${after3d.rotY}`);
+    note(after3d.posX !== null && before3d.posX !== null && after3d.posX !== before3d.posX,
+      'and is OFFSET, not stacked invisibly on the original',
+      `X ${before3d.posX} → ${after3d.posX}`);
+
+    console.log('\n8. Del removes a screen');
+    // ⚠ MOVE THE POINTER OFF THE TIMELINE FIRST. The scope test above parked it there, and Del is the
+    // timeline's while it is hovered — which is the feature working exactly as designed, and which
+    // cost this test a red run until the diagnostic below said who owned the key.
+    await page.mouse.move(4, 4);
+    await sleep(300);
+    const claim = await page.evaluate(() => ({
+      hovered: !!document.querySelector('[data-owns-delete]:hover'),
+      focusIn: !!(document.activeElement && document.activeElement.closest
+        && document.activeElement.closest('[data-owns-delete]')),
+    }));
+    console.log(`        [who owns Del] hovered=${claim.hovered} focusIn=${claim.focusIn}`);
+    await press(page, 'Delete', []);
+    const left = (await rows(page)).filter((r) => /^Screen \d+$/.test(r));
+    note(left.length === 1 && left[0] === 'Screen 1', 'the duplicate is deleted, the original stands',
+      `screens: ${left.join(', ')}`);
   } catch (e) {
     failures++;
     console.error('\n   \x1b[31mERROR\x1b[0m', e.message);
