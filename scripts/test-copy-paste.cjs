@@ -147,21 +147,27 @@ const patchOf = (page) => page.evaluate(() => {
 });
 
 /**
- * The selected screen's Pos X and Rot Y, read off the Model section. Those rows are `Vec3Row` — a
- * short label then three inputs carrying `title="X"/"Y"/"Z"` — so each value is found by its row
- * label and then by that title. (Note the Model panel has its OWN vector row and its own numeric
- * input, separate from the ui kit's; this reader matches what that panel actually renders.)
+ * The selected screen's Position X and Rotation Y.
+ *
+ * This reader is the SAME shape that works for a fixture's rows, and that is the point: the Model
+ * panel used to render its own `Vec3Row` (a short label plus three inputs carrying title="X"), so a
+ * reader written for one panel could not read the other. Both are ui/VectorField now — one label,
+ * three cells, the axis letter in a span inside each — so one reader covers the whole column.
  */
 const modelFields = (page) => page.evaluate(() => {
   const axis = (rowLabel, letter) => {
-    const span = [...document.querySelectorAll('span')]
-      .find((e) => e.children.length === 0 && (e.textContent || '').trim() === rowLabel);
-    const row = span ? span.parentElement : null;
+    const lab = [...document.querySelectorAll('label')]
+      .find((l) => new RegExp('^' + rowLabel).test((l.textContent || '').trim()));
+    const row = lab ? lab.parentElement : null;
     if (!row) return null;
-    const input = [...row.querySelectorAll('input')].find((i) => i.getAttribute('title') === letter);
+    const cell = [...row.querySelectorAll('div')].find((d) => {
+      const sp = d.querySelector('span');
+      return sp && (sp.textContent || '').trim() === letter;
+    });
+    const input = cell ? cell.querySelector('input') : null;
     return input ? Number(input.value) : null;
   };
-  return { posX: axis('Pos', 'X'), rotY: axis('Rot°', 'Y') };
+  return { posX: axis('Position', 'X'), rotY: axis('Rotation', 'Y') };
 });
 
 const press = async (page, key, mods = ['Control']) => {

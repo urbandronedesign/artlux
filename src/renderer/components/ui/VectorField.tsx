@@ -39,7 +39,9 @@ export const VectorField: React.FC<{
   /** Shown after the label — "m", "°", "×" — so the row still says what the numbers mean. */
   unit?: string;
   labelWidth?: string;
-}> = ({ label, axes, step = 0.05, min, unit, labelWidth = 'w-16' }) => (
+  /** See NumInput: 'blur' holds the text until you leave the field. The 3D scene panel wants it. */
+  commit?: 'live' | 'blur';
+}> = ({ label, axes, step = 0.05, min, unit, labelWidth = 'w-16', commit }) => (
   <div className="flex items-center gap-1.5 text-xs">
     <label className={`text-fg-2 ${labelWidth} shrink-0 truncate`} title={unit ? `${label} (${unit})` : label}>
       {label}{unit && <span className="text-fg-3"> {unit}</span>}
@@ -56,6 +58,7 @@ export const VectorField: React.FC<{
             onChange={a.onChange}
             step={step}
             min={min}
+            commit={commit}
             // No focus:outline-none — the kit keeps the browser ring and adds the accent border on top,
             // and suppressing it here would make a keyboard user lose the field they are in. Guarded.
             className="num w-full bg-surface-0 border border-line-1 rounded-sm pl-4 pr-1 py-1 text-right text-fg-1 focus:border-accent"

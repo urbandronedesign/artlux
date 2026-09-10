@@ -4,7 +4,7 @@ import {
   type FixtureMount, type OutputProtocol, type ProfileChannel,
 } from '../../types';
 import { AlertTriangle, RefreshCw, Circle, CircleDot } from 'lucide-react';
-import { NumInput } from '../../components/ui/NumberField';
+import { NumberField } from '../../components/ui/NumberField';
 import { VectorField } from '../../components/ui/VectorField';
 import { ContentEditor } from '../../components/ContentEditor';
 import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
@@ -28,23 +28,6 @@ import { useEditor, useEditorActions } from '../../state/EditorStore';
 //
 // The markup is otherwise unchanged. Section chrome + padding come from the shell.
 
-// ⚠ THIS USED TO BE A SECOND, UNGUARDED NUMERIC INPUT — `onChange(parseFloat(e.target.value))`,
-// at 33 sites in this file. `parseFloat('')` is NaN and clearing a field to retype it is a normal
-// step, so emptying Position X wrote NaN into `position3D` and the controlled input then desynced
-// from a model value that was no longer a number. ui/NumberField documents that exact failure and
-// has guarded against it since it was written; this file simply had its own copy that did not.
-// It now delegates to the same guarded control, so the promise is true everywhere rather than only
-// where somebody remembered.
-const NumberInput: React.FC<{ label: string; value: number; onChange: (v: number) => void; step?: number }> =
-({ label, value, onChange, step = 1 }) => (
-  <div className="flex items-center justify-between text-xs gap-2">
-    <label className="text-fg-2 w-16 truncate">{label}</label>
-    <NumInput
-      value={value} onChange={onChange} step={step}
-      className="num flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
-    />
-  </div>
-);
 
 // Resolve the selected objects once. Sections render nothing when their object is gone — the shell's
 // `appliesTo` filter already prevents that, so this is belt-and-braces for a mid-render deselect.
@@ -350,7 +333,7 @@ export const SurfaceTransformPanel: React.FC = () => {
         { key: 'W', value: +s.width.toFixed(3), title: 'Width', onChange: (v) => set({ width: Math.max(0.01, v) }) },
         { key: 'H', value: +s.height.toFixed(3), title: 'Height', onChange: (v) => set({ height: Math.max(0.01, v) }) },
       ]} />
-      <NumberInput label="Rotation" value={s.rotation} step={1} onChange={(v) => set({ rotation: v })} />
+      <NumberField label="Rotation" value={s.rotation} step={1} onChange={(v) => set({ rotation: v })} />
     </>
   );
 };
@@ -370,8 +353,8 @@ export const FixturePatchPanel: React.FC = () => {
   const span = fixtureFootprint(f, fixtureProfiles);
   return (
     <>
-      <NumberInput label="Universe" value={f.universe} step={1} onChange={(v) => a.updateFixture(f.id, { universe: Math.max(0, v) })} />
-      <NumberInput label="Start Addr" value={f.startAddress} step={1} onChange={(v) => a.updateFixture(f.id, { startAddress: Math.max(1, v) })} />
+      <NumberField label="Universe" value={f.universe} step={1} onChange={(v) => a.updateFixture(f.id, { universe: Math.max(0, v) })} />
+      <NumberField label="Start Addr" value={f.startAddress} step={1} onChange={(v) => a.updateFixture(f.id, { startAddress: Math.max(1, v) })} />
       <div className="flex items-center justify-between text-mini text-fg-3 pt-1">
         <span>Channels</span>
         <span className="num text-fg-2">{span}</span>
@@ -414,7 +397,7 @@ export const FixtureMappingPanel: React.FC = () => {
           </select>
         </Tooltip>
       </div>
-      <NumberInput label="LED Count" value={f.ledCount} step={1} onChange={(v) => a.updateFixture(f.id, { ledCount: Math.max(1, v) })} />
+      <NumberField label="LED Count" value={f.ledCount} step={1} onChange={(v) => a.updateFixture(f.id, { ledCount: Math.max(1, v) })} />
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-line-1">
         <Tooltip id="general.fixture-reverse">
           <span className="text-xs text-fg-2" {...help('general.fixture-reverse')}>Reverse Direction</span>
@@ -525,8 +508,8 @@ export const FixtureSegmentsPanel: React.FC = () => {
             </div>
           ))}
           <div className="flex gap-2 pt-1">
-            <NumberInput label="Start" value={'start' in vals ? vals.start : 0} step={1} onChange={(v) => setVals({ start: Math.max(0, Math.round(v)) } as Partial<typeof vals>)} />
-            <NumberInput label="Stop" value={'stop' in vals ? vals.stop : 0} step={1} onChange={(v) => setVals({ stop: Math.round(v) } as Partial<typeof vals>)} />
+            <NumberField label="Start" value={'start' in vals ? vals.start : 0} step={1} onChange={(v) => setVals({ start: Math.max(0, Math.round(v)) } as Partial<typeof vals>)} />
+            <NumberField label="Stop" value={'stop' in vals ? vals.stop : 0} step={1} onChange={(v) => setVals({ stop: Math.round(v) } as Partial<typeof vals>)} />
           </div>
           <label className="flex items-center gap-1.5 text-micro text-fg-2 cursor-pointer pt-1 select-none">
             <input
@@ -564,8 +547,8 @@ export const FixtureOutputPanel: React.FC = () => {
 
       {shape === LedShape.MATRIX && (
         <div className="space-y-2 pt-1">
-          <NumberInput label="Cols" value={f.matrixWidth ?? 8} step={1} onChange={(v) => a.updateFixture(f.id, { matrixWidth: Math.max(1, v) })} />
-          <NumberInput label="Rows" value={f.matrixHeight ?? 8} step={1} onChange={(v) => a.updateFixture(f.id, { matrixHeight: Math.max(1, v) })} />
+          <NumberField label="Cols" value={f.matrixWidth ?? 8} step={1} onChange={(v) => a.updateFixture(f.id, { matrixWidth: Math.max(1, v) })} />
+          <NumberField label="Rows" value={f.matrixHeight ?? 8} step={1} onChange={(v) => a.updateFixture(f.id, { matrixHeight: Math.max(1, v) })} />
           <div className="flex items-center justify-between">
             <Tooltip id="general.serpentine">
               <span className="text-xs text-fg-2" {...help('general.serpentine')}>Serpentine</span>
@@ -689,7 +672,7 @@ export const FixtureRoutingPanel: React.FC = () => {
         </select>
       </div>
       {dest.protocol === 'sacn' && (
-        <NumberInput
+        <NumberField
           label="Priority" value={f.output?.priority ?? 100} step={1}
           onChange={(v) => setOut({ priority: Math.max(0, Math.min(200, Math.round(v))) })}
         />
@@ -882,12 +865,12 @@ export const FixtureLayout3DPanel: React.FC = () => {
         </select>
       </div>
       {L.type !== 'arc' && (
-        <NumberInput label="Spacing" value={+L.ledSpacing.toFixed(4)} step={0.001} onChange={(v) => setLayout({ ledSpacing: Math.max(0.001, v) })} />
+        <NumberField label="Spacing" value={+L.ledSpacing.toFixed(4)} step={0.001} onChange={(v) => setLayout({ ledSpacing: Math.max(0.001, v) })} />
       )}
       {L.type === 'matrix' && (
         <>
-          <NumberInput label="Cols" value={L.matrixCols} step={1} onChange={(v) => setLayout({ matrixCols: Math.max(1, Math.round(v)) })} />
-          <NumberInput label="Rows" value={L.matrixRows} step={1} onChange={(v) => setLayout({ matrixRows: Math.max(1, Math.round(v)) })} />
+          <NumberField label="Cols" value={L.matrixCols} step={1} onChange={(v) => setLayout({ matrixCols: Math.max(1, Math.round(v)) })} />
+          <NumberField label="Rows" value={L.matrixRows} step={1} onChange={(v) => setLayout({ matrixRows: Math.max(1, Math.round(v)) })} />
           <div className="flex items-center justify-between">
             <Tooltip id="general.serpentine">
               <span className="text-xs text-fg-2" {...help('general.serpentine')}>Serpentine</span>
@@ -902,8 +885,8 @@ export const FixtureLayout3DPanel: React.FC = () => {
       )}
       {L.type === 'arc' && (
         <>
-          <NumberInput label="Radius" value={+L.arcRadius.toFixed(3)} step={0.05} onChange={(v) => setLayout({ arcRadius: Math.max(0.01, v) })} />
-          <NumberInput label="Angle" value={L.arcAngle} step={5} onChange={(v) => setLayout({ arcAngle: v })} />
+          <NumberField label="Radius" value={+L.arcRadius.toFixed(3)} step={0.05} onChange={(v) => setLayout({ arcRadius: Math.max(0.01, v) })} />
+          <NumberField label="Angle" value={L.arcAngle} step={5} onChange={(v) => setLayout({ arcAngle: v })} />
         </>
       )}
     </>

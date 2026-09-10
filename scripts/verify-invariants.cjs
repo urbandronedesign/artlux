@@ -2673,6 +2673,41 @@ check(
   },
 );
 
+// ── UI kit: one numeric input, one vector row ────────────────────────────────────────────────
+check(
+  'a number is typed into exactly one control',
+  'There were THREE numeric inputs and TWO vector rows across the inspector, and they did not agree. ' +
+  'The inspector\'s own copy committed parseFloat() with no finite check at 33 sites, so clearing a ' +
+  'Position field to retype wrote NaN into project state. The 3D panel\'s copy guarded with ' +
+  '!Number.isNaN, which is TRUE of Infinity - so `1e400` typed into a screen position committed ' +
+  'Infinity, and this repo has already been bitten by that exact shape once (types.ts, a hand-edited ' +
+  'outPoint). And ModelTransformPanel mounts in the SAME inspector column as the fixture panels, so ' +
+  'selecting a fixture and selecting a screen gave two different vector-row styles in one column. ' +
+  'ui/NumberField.NumInput and ui/VectorField are the owners; the commit mode (live vs blur) is a ' +
+  'named prop, because that difference in feel was real and must not be flattened by accident.',
+  () => {
+    const problems = [];
+    const IN = 'src/renderer/components/ui/NumberField.tsx';
+    const VF = 'src/renderer/components/ui/VectorField.tsx';
+    if (!exists(IN) || !/export const NumInput/.test(read(IN))) return `${IN} no longer exports NumInput`;
+    if (!exists(VF) || !/export const VectorField/.test(read(VF))) return `${VF} no longer exports VectorField`;
+    if (!/Number\.isFinite/.test(read(IN)))
+      problems.push(`${IN} no longer tests Number.isFinite — !Number.isNaN admits Infinity, which 1e400 parses to`);
+
+    // Nothing else may build a raw numeric <input> or its own axis row. The kit's own files and the
+    // Preferences tiles are exempt: Preferences hosts a few one-off numeric controls that are not
+    // inspector fields, and rewriting them is not what this guard is for.
+    const OWN = new Set([IN, VF]);
+    for (const f of walk('src/renderer/contexts/panels')) {
+      const src = read(f);
+      if (OWN.has(f)) continue;
+      const m = /const \w*(NumInput|Vec3Row|NumberInput)\s*:\s*React\.FC/.exec(src);
+      if (m) problems.push(`${f} declares its own ${m[1]} — use ui/NumberField's NumInput or ui/VectorField`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Editing: copy/paste must not steal a text field's clipboard, or the source's DMX ─────────
 check(
   'copy / paste / delete yield to a text field, and to whoever owns the key',

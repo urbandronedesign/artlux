@@ -8,6 +8,7 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { Button, NumberField } from '../../components/ui';
 import { VectorField } from '../../components/ui/VectorField';
+import { NumInput } from '../../components/ui/NumberField';
 import * as layout from '../../services/fixtureLayout';
 import { isLight } from '../../services/fixtureKind';
 import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera';
@@ -31,19 +32,12 @@ const numCls = 'w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-
 // the one place it appears in a parameter column (see SceneTrackingPanel).
 const ZONE_EDITOR_ACTION = 'zone-editor';
 
-const NumInput: React.FC<{ value: number; step?: number; title?: string; min?: number; className?: string; onChange: (v: number) => void }> =
-({ value, step = 1, title, min, className, onChange }) => {
-  const [txt, setTxt] = useState<string | null>(null);
-  const commit = () => { if (txt === null) return; const n = parseFloat(txt); setTxt(null); if (!Number.isNaN(n)) onChange(min != null ? Math.max(min, n) : n); };
-  return (
-    <input
-      type="number" step={step} title={title} value={txt ?? String(+value.toFixed(4))}
-      onChange={(e) => setTxt(e.target.value)} onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); else if (e.key === 'Escape') setTxt(null); }}
-      className={className ?? numCls}
-    />
-  );
-};
+// The 3D panel had its OWN numeric input and its own three-in-a-row until this was unified. Both are
+// the ui kit's now — `commit="blur"` keeps this panel's feel exactly as it was (the text is held
+// until you leave the field; Enter commits, Escape abandons), while the guard, the clamp and the
+// Infinity case come from one place. The old local copy admitted `1e400` as a position, because
+// `!Number.isNaN` is true of Infinity.
+const BLUR = 'blur' as const;
 
 // `helpId` opts the row into the rich help system: the whole row is the hover target (its <div> is a
 // real host element, which is what Tooltip clones + refs), and help() spreads the hint props onto it.
@@ -51,25 +45,11 @@ const NumRow: React.FC<{ label: string; value: number; step?: number; helpId?: s
   const row = (
     <div className="flex items-center justify-between gap-2 text-mini" {...(helpId ? help(helpId) : {})}>
       <span className="text-fg-2">{label}</span>
-      <NumInput value={value} step={step} onChange={onChange} />
+      <NumInput value={value} step={step} onChange={onChange} commit={BLUR} className={numCls} />
     </div>
   );
   return helpId ? <Tooltip id={helpId}>{row}</Tooltip> : row;
 };
-
-const Vec3Row: React.FC<{ label: string; v: { x: number; y: number; z: number }; step?: number; min?: number; onChange: (v: { x: number; y: number; z: number }) => void }> =
-({ label, v, step = 0.1, min, onChange }) => (
-  <div className="flex items-center justify-between gap-1 text-mini">
-    <span className="text-fg-2 w-8">{label}</span>
-    {(['x', 'y', 'z'] as const).map((ax) => (
-      <NumInput
-        key={ax} value={v[ax]} step={step} title={ax.toUpperCase()} min={min}
-        onChange={(n) => onChange({ ...v, [ax]: n })}
-        className="w-12 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-micro focus:border-accent focus:outline-none"
-      />
-    ))}
-  </div>
-);
 
 // `helpId` (see NumRow) makes the whole <label> the hover target for the rich help tooltip.
 const Toggle: React.FC<{ label: string; checked: boolean; helpId?: string; onChange: (v: boolean) => void }> = ({ label, checked, helpId, onChange }) => {
@@ -495,10 +475,11 @@ export const ModelTransformPanel: React.FC = () => {
         </div>
         </>
       )}
-      <Vec3Row
-        label="Scl" v={{ x: sx, y: sy, z: sz }} step={0.1} min={0.0001}
-        onChange={(s) => a.updateModel(m.id, { scaleXYZ: [Math.max(0.0001, s.x), Math.max(0.0001, s.y), Math.max(0.0001, s.z)] })}
-      />
+      <VectorField label="Scale" unit="×" step={0.1} min={0.0001} commit={BLUR} axes={[
+        { key: 'X', value: sx, onChange: (v) => a.updateModel(m.id, { scaleXYZ: [Math.max(0.0001, v), sy, sz] }) },
+        { key: 'Y', value: sy, onChange: (v) => a.updateModel(m.id, { scaleXYZ: [sx, Math.max(0.0001, v), sz] }) },
+        { key: 'Z', value: sz, onChange: (v) => a.updateModel(m.id, { scaleXYZ: [sx, sy, Math.max(0.0001, v)] }) },
+      ]} />
       {m.kind !== 'plane' && (
         <>
           <div className="flex gap-1.5">
@@ -525,8 +506,16 @@ export const ModelTransformPanel: React.FC = () => {
           </div>
         </>
       )}
-      <Vec3Row label="Pos" v={m.position} onChange={(pos) => a.updateModel(m.id, { position: pos })} step={0.1} />
-      <Vec3Row label="Rot°" v={m.rotation} onChange={(r) => a.updateModel(m.id, { rotation: r })} step={5} />
+      <VectorField label="Position" unit="m" step={0.1} commit={BLUR} axes={[
+        { key: 'X', value: m.position.x, onChange: (v) => a.updateModel(m.id, { position: { ...m.position, x: v } }) },
+        { key: 'Y', value: m.position.y, onChange: (v) => a.updateModel(m.id, { position: { ...m.position, y: v } }) },
+        { key: 'Z', value: m.position.z, onChange: (v) => a.updateModel(m.id, { position: { ...m.position, z: v } }) },
+      ]} />
+      <VectorField label="Rotation" unit="°" step={5} commit={BLUR} axes={[
+        { key: 'X', value: m.rotation.x, onChange: (v) => a.updateModel(m.id, { rotation: { ...m.rotation, x: v } }) },
+        { key: 'Y', value: m.rotation.y, onChange: (v) => a.updateModel(m.id, { rotation: { ...m.rotation, y: v } }) },
+        { key: 'Z', value: m.rotation.z, onChange: (v) => a.updateModel(m.id, { rotation: { ...m.rotation, z: v } }) },
+      ]} />
     </>
   );
 };
