@@ -1057,6 +1057,38 @@ export type ChannelRole =
   // fixture whose footprint shrank because we didn't recognise channel 12 is mis-patched.
   | 'unknown';
 
+// ── WHICH ATTRIBUTE A ROLE BELONGS TO ────────────────────────────────────────────────────────
+//
+// The grouping a lighting operator reads a fixture in — Intensity, Position, Colour, Beam, Gobo —
+// and the one the timeline's fixture track uses to fold twelve channels into five collapsible
+// sections.
+//
+// ⚠ IT LIVES HERE, TOUCHING THE UNION, ON PURPOSE. The union above is already grouped, but by
+// COMMENT headings, and a table keyed off comments in another file drifts from them within a
+// release — which is exactly how `roleValue` and its captured-role list came to disagree and
+// silently drop `white`. Adjacent, a role added above with no entry here is visible in the same
+// glance. Anything unmapped falls to 'Other', which is correct rather than lossy: `unknown` must
+// never mean "dropped", and an unmapped channel is still addressable and still occupies a slot.
+export type ChannelAttribute = 'Intensity' | 'Position' | 'Colour' | 'Beam' | 'Gobo' | 'Other';
+
+/** Reading order, coarse to fine — what you set first is what you look for first. */
+export const ATTRIBUTE_ORDER: readonly ChannelAttribute[] =
+  ['Intensity', 'Position', 'Colour', 'Beam', 'Gobo', 'Other'];
+
+export const CHANNEL_ATTRIBUTE: Partial<Record<ChannelRole, ChannelAttribute>> = {
+  dimmer: 'Intensity',
+  red: 'Colour', green: 'Colour', blue: 'Colour', white: 'Colour', warmWhite: 'Colour',
+  coldWhite: 'Colour', amber: 'Colour', uv: 'Colour', lime: 'Colour', indigo: 'Colour',
+  cyan: 'Colour', magenta: 'Colour', yellow: 'Colour', colorTemp: 'Colour', colorWheel: 'Colour',
+  pan: 'Position', tilt: 'Position', panTiltSpeed: 'Position',
+  zoom: 'Beam', focus: 'Beam', iris: 'Beam', frost: 'Beam', shutter: 'Beam', strobe: 'Beam',
+  goboWheel: 'Gobo', goboRotation: 'Gobo', prism: 'Gobo', prismRotation: 'Gobo',
+  // speed / maintenance / macro / fog / unknown fall through to 'Other'.
+};
+
+/** The attribute a channel is filed under. Never throws, never drops: unmapped ⇒ 'Other'. */
+export const attributeOf = (role: ChannelRole): ChannelAttribute => CHANNEL_ATTRIBUTE[role] ?? 'Other';
+
 // One discrete band within a channel — a gobo, a colour-wheel slot, a strobe mode.
 export interface ProfileRange {
   from: number;        // inclusive DMX byte 0..255

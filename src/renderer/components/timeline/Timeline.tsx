@@ -20,10 +20,12 @@ import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
 import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
+import { FixtureTrack } from './FixtureTrack';
+import { resolveMode } from '../../services/addressing';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
-import { groupKind } from '../../services/fixtureKind';
-import type { AutomationLane as AutoLane, ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker } from '../../types';
+import { groupKind, isLight } from '../../services/fixtureKind';
+import type { AutomationLane as AutoLane, ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -91,6 +93,8 @@ interface Props {
   rigFixtures?: Fixture[];
   /** Resolved DMX profiles — the lighting clip inspector maps a role to the channel a lane names. */
   rigProfiles?: ReadonlyMap<string, FixtureProfile>;
+  /** Which lights are selected, so a fixture gets a super track before it has any curve at all. */
+  selectedFixtureIds?: string[];
   cues?: { id: string; name: string }[];   // for the FSM 'fireCue' action picker
   // Per-state authoring context: which scene's timeline is bound to the editor, the scene list for the
   // pill, and the trigger→build→save→continue handlers. Absent → plain global-timeline editing.
@@ -125,7 +129,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, author, audio: audioProp, baseAutomation = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   // The pill menu is portalled (usePopoverAnchor), so it is placed from the button's measured rect
@@ -387,6 +391,43 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     ...lanes.map(lane => ({ lane, origin: 'scene' as const, shadowed: false })),
     ...baseAutomation.map(lane => ({ lane, origin: 'global' as const, shadowed: ownPaths.has(lane.targetPath) })),
   ], [lanes, baseAutomation, ownPaths]);
+  // ── THE FIXTURE SUPER TRACKS ──────────────────────────────────────────────────────────────────
+  //
+  // A lane over `fixtures.<id>.dmx.<key>` belongs to a HEAD, not to a flat alphabet of paths, so it is
+  // lifted out of the list below and grouped under the fixture it drives. Everything else — surfaces,
+  // master brightness, the bed's gains — stays exactly where it was.
+  //
+  // A track appears when the fixture HAS curves, or when it is SELECTED. Both halves matter: keying it
+  // only to selection would make existing curves vanish the moment you clicked elsewhere, and keying it
+  // only to curves would leave you no way to start one.
+  const fixtureTracks = useMemo(() => {
+    const byFixture = new Map<string, PanelLane[]>();
+    const rest: PanelLane[] = [];
+    for (const pl of panelLanes) {
+      const m = /^fixtures\.([^.]+)\.dmx\./.exec(pl.lane.targetPath);
+      const f = m ? rigFixtures.find((x) => x.id === m[1]) : undefined;
+      // Only a fixture we can DESCRIBE gets a track: with no resolvable profile there is no mode, no
+      // row set and no axis, and the lane is better off in the flat list where it still renders.
+      // isLight, never a profileId truthiness test: fixtureKind.ts owns that question. A light whose
+      // profile does not RESOLVE has no mode, no row set and no axis, so its lane stays in the flat
+      // list where it still renders rather than vanishing into a track that cannot draw it.
+      if (!m || !f || !isLight(f) || !rigProfiles?.get(f.profileId!)) { rest.push(pl); continue; }
+      const list = byFixture.get(f.id) ?? [];
+      list.push(pl);
+      byFixture.set(f.id, list);
+    }
+    const ids = new Set([...byFixture.keys(), ...selectedFixtureIds]);
+    const tracks: Array<{ fixture: Fixture; profile: FixtureProfile; mode: ProfileMode; lanes: PanelLane[]; selected: boolean }> = [];
+    for (const id of ids) {
+      const f = rigFixtures.find((x) => x.id === id);
+      const profile = f && isLight(f) ? rigProfiles?.get(f.profileId!) : undefined;
+      const mode = profile ? resolveMode(profile, f!.profileMode) : undefined;
+      if (!f || !profile || !mode) { for (const pl of byFixture.get(id) ?? []) rest.push(pl); continue; }
+      tracks.push({ fixture: f, profile, mode, lanes: byFixture.get(id) ?? [], selected: selectedFixtureIds.includes(id) });
+    }
+    return { tracks, rest };
+  }, [panelLanes, rigFixtures, rigProfiles, selectedFixtureIds]);
+
   // Each lane's target definition (label / range / units / log axis), from whichever provider owns its
   // path head. A lane whose target has vanished resolves to undefined and renders as such — it is never
   // dropped, because that would silently discard the user's work.
@@ -422,6 +463,26 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       automation: next ? cur.map(l => (l.id === laneId ? next : l)) : cur.filter(l => l.id !== laneId),
     });
   }, []);
+  /**
+   * Start a lane on a KNOWN path (the fixture track's `+`), seeded with one key at the playhead
+   * holding the value passed in. Same rule as addLane below and for the same reason: a one-key lane
+   * is a constant, so creating it never changes what the rig is doing — it only takes ownership of
+   * the path, which the authoring slider then shows as read-only.
+   */
+  const addLaneAt = (path: string, seed: number) => {
+    const tl = timelineRef.current;                 // the BOUND document, never a captured array
+    if ((tl.automation ?? []).some((l) => l.targetPath === path)) return;  // one path, one lane
+    onChangeRef.current({
+      ...tl,
+      automation: [...(tl.automation ?? []), {
+        id: `au-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+        targetPath: path,
+        enabled: true,
+        keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: seed, curve: 'linear' }],
+      }],
+    });
+  };
+
   const addLane = (d: AutomationTargetDef) => {
     setPickerAt(null);
     // Seed with ONE keyframe at the playhead holding the target's CURRENT authored value, so creating a
@@ -1774,7 +1835,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
           {/* Automation lanes — keyframe curves over the same time axis. Like StateLane they are not
               VideoLayers (they hold keyframes, not clips), so they mount here rather than in layers.map. */}
-          {panelLanes.map(({ lane, origin, shadowed }) => (
+          {fixtureTracks.tracks.map((t) => (
+            <FixtureTrack
+              key={`fx-${t.fixture.id}`}
+              fixture={t.fixture}
+              profile={t.profile}
+              mode={t.mode}
+              lanes={t.lanes}
+              defs={laneDefs}
+              pxPerSec={pxPerSec}
+              width={Math.max(width, 100)}
+              docKey={docKey}
+              selected={t.selected}
+              onChangeLane={(id, next) => patchLane(id, next)}
+              onRemoveLane={(id) => patchLane(id, null)}
+              onAddLane={(path, seed) => addLaneAt(path, seed)}
+              onSnap={(t2) => snap(t2, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
+              onSeek={seekTo}
+            />
+          ))}
+
+          {fixtureTracks.rest.map(({ lane, origin, shadowed }) => (
             <AutomationLane
               key={`${origin}:${lane.id}`}
               lane={lane}

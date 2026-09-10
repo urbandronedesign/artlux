@@ -19,8 +19,11 @@ import { migrateSpatial, legacyAttenGain, type SpatialPos } from '../../shared/s
 // renderer — the same arrangement Scene3D and ProjectorOutput already use.
 export type {
   ChannelRole, ProfileRange, ProfileChannel, ProfileGeometry, ProfileGeoNode,
-  ProfileMode, FixtureProfile, FixtureProfileSummary,
+  ProfileMode, FixtureProfile, FixtureProfileSummary, ChannelAttribute,
 } from '../../shared/protocol';
+// VALUES, not types: the attribute table and its reading order. They live beside the ChannelRole
+// union (see its header there) and are re-exported here for the same reason the types are.
+export { CHANNEL_ATTRIBUTE, ATTRIBUTE_ORDER, attributeOf } from '../../shared/protocol';
 
 export interface Point {
   x: number;

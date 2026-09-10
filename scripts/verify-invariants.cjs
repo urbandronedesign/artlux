@@ -2551,9 +2551,15 @@ check(
     if (!exists(OWNER) || !/export function modeChannels/.test(read(OWNER)))
       return `${OWNER} no longer exports modeChannels (the single owner of the mode's channel list)`;
 
-    const STRIP = 'src/renderer/contexts/panels/inspector.tsx';
-    if (!exists(STRIP) || !/\bmodeChannels\b/.test(read(STRIP)))
-      return `${STRIP} no longer calls modeChannels() — the channel strip must not re-derive the list`;
+    // BOTH consumers, by name: the inspector's channel strip and the timeline's fixture track. They
+    // are the two surfaces that claim to list a fixture's parameters, and a runtime test asserts they
+    // show the same COUNT (scripts/test-fixture-track.cjs); this asserts they read the same function,
+    // which is what makes that count agree by construction rather than by luck.
+    for (const consumer of ['src/renderer/contexts/panels/inspector.tsx',
+                            'src/renderer/components/timeline/FixtureTrack.tsx']) {
+      if (!exists(consumer) || !/\bmodeChannels\b/.test(read(consumer)))
+        return `${consumer} no longer calls modeChannels() — it would be re-deriving the parameter list`;
+    }
 
     // The MEMBERSHIP TEST is the ban, because any de-duplication has to contain one. A plain
     // `set.add(s.channelKey)` is deliberately NOT banned: fixtureSignal builds an unordered

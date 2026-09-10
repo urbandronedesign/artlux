@@ -253,6 +253,64 @@ Two limits, both deliberate:
 The two representations also have completely different costs, which is why only one of them is capped —
 see [*The beam budget*](#the-beam-budget) below.
 
+## Driving one fixture — the super track
+
+A pose key stores *a look across a group at a moment*. Sometimes what you want is the other thing
+entirely: **this head's parameters, each on its own curve** — pan sweeping while the dimmer holds and
+the zoom ramps. That is the **fixture track**.
+
+Select a light and it gets a track of its own on the timeline, carrying **every parameter of the mode
+it is patched in** — not only the ones you have already touched. A parameter you cannot see is a
+parameter you do not know you have, so a Martin MAC 250 Beam in 16-bit arrives as eleven rows, grouped
+the way you read a fixture:
+
+```
+▾ Head 1   ⧉11          Martin MAC 250 Beam · 16-Bit · ch 1–13 · 1 keyed      @ timeline
+    ▾ INTENSITY   1
+        Dimmer                60 %        ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+    ▾ POSITION    3
+        Pan            312 °   ◆━━━━━━━◆              ◆━━━━━━━◆
+        Tilt                  45 °        ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+        Pan/Tilt Speed        Slow        ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+    ▸ COLOUR      3
+    ▸ BEAM        2
+    ▸ GOBO        1
+    ▸ OTHER       1
+```
+
+A row with a curve is an ordinary automation lane — same gutter, same live readout, same editor, so
+everything you already know about a keyframe applies. A row **without** one shows what the fixture is
+parked at right now (a wheel reads *Eclipse*, never `0.42`) and a **+** that starts a curve there,
+holding that same value — so creating it changes nothing about what the rig is doing until you move a
+key.
+
+**The filter (⧉) narrows the track to the parameters that actually carry keyframes**, and back again.
+A patched mode can run to forty-one channels; once a look is authored, four of them are the show and
+the rest are scenery. Go looking in *all*, work in *keyed*.
+
+### Recording a move with the fader
+
+You do not have to place keys by hand. In the **Channels** section, above the faders, is
+**Record fader moves as keyframes**. Arm it and it turns red; from then on, releasing any fader lands
+a keyframe at the playhead on that channel's row, creating the row's curve if it does not exist yet.
+It records **every selected light**, matched by role and carried in degrees, so one move keys the whole
+selection — and one fader move is one undo.
+
+It is deliberately a **mode**, not always on. Half of what a fader is for is *looking*: sweeping the pan
+to find the wall, running the dimmer up to see where the beam lands, putting it back. Recording that
+would fill a show with keys nobody meant, and you would not notice until it ran. Disarmed, a fader
+changes the fixture and records nothing.
+
+The arm never survives a restart or opening another project — an install that came up recording would
+quietly rewrite a show nobody opened to edit.
+
+### What a fixture track is not
+
+Its time axis is **the timeline**, not a clip — the header says `@ timeline` to make that plain. It does
+not slide when you move a clip, does not wrap, does not repeat and has no trim handles. Repeat, phase
+spread, wing and mirror are **group** verbs and belong to a [lighting clip](#the-pieces); a fixture
+track is one head, on the show's own clock.
+
 ## The authoring loop — Store Key
 
 > select a light → place it in 3D → aim it → change its parameters → **Store Key**
