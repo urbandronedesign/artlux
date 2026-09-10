@@ -63,11 +63,42 @@
   }
 }
 
-/* Scrollbars (moved out of index.html) */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--surface-1); }
-::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+/* Scrollbars (moved out of index.html)
+ *
+ * ⚠ THE THUMB WAS EFFECTIVELY INVISIBLE, AND THAT IS MEASURED RATHER THAN DISLIKED. --line-2
+ * (#383838) on the panel surface (#161616) is 1.54:1 — under any floor for a control you have to
+ * FIND — and it sat on a 6px target, which is under any floor for one you have to GRAB. The long
+ * inspector columns (a pixel fixture stacks Patch, Mapping, Segments, 2D/Output, Routing, 3D Layout
+ * and Arrange) scroll, and an operator could neither see that they scrolled nor drag them.
+ *
+ * tokens.css already sets this discipline for text — --text-3 was raised from #6a6a6a because
+ * 3.10:1 failed AA at the sizes it is used at, and it is invariant-guarded. A non-text control wants
+ * 3:1, so the resting thumb is now 3.35:1 and the hover 5.24:1 against surface-1.
+ *
+ * THE GUTTER IS 10px AND THE INK IS 6px: the transparent border plus background-clip gives a
+ * comfortable hit target without a fat bar over a dense console UI.
+ *
+ * The track is TRANSPARENT on purpose. A fixed track colour would be wrong on every scroller that is
+ * not surface-1 — a dock pane, the timeline, the docs browser — so the gutter simply takes whatever
+ * surface it sits on and one rule covers all of them.
+ *
+ * ⚠ DO NOT ADD `scrollbar-width` / `scrollbar-color` ALONGSIDE THESE. Chromium ignores the
+ * -webkit- pseudo-elements entirely for any element where a standard scrollbar property is set, so
+ * adding them "for standards" would silently discard the width, the radius and the inset below.
+ * This is Electron: the pseudo-elements are the whole story. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #6a6a6a;                 /* 3.35:1 on --surface-1 */
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8a8a8a;                 /* 5.24:1 — matches the --text-3 tier */
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
 
 /* Range slider theming */
 input[type=range] {
