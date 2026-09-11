@@ -14,6 +14,10 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 
 > **▶ Build order & git workflow:** [SEQUENCING.md](SEQUENCING.md) is the canonical execution plan — the dependency-ordered waves (one branch each, merged to `main` after testing) and the protocol for executing them.
 
+> **▶ Release-scoped notes** do not follow the template and say so in their own header. Current:
+> [v0.29-onsite-verification.md](v0.29-onsite-verification.md) — what shipped in v0.29.0 without a
+> visual pass, what each failure looks like on a wall, and the one-command backout.
+
 ### How these were produced (and how much to trust them)
 
 Each plan was **drafted by an agent reading the actual code**, then **adversarially hardened** by a second
