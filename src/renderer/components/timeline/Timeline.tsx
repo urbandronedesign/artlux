@@ -1967,9 +1967,17 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         document.body,
       )}
 
-      {/* Inspector for a selected generalized-content clip (reuses the surface content editor). */}
+      {/* Inspector for a selected generalized-content clip (reuses the surface content editor).
+          ⚠ BOUNDED AND SCROLLABLE, and it was neither. The panel had no max-height inside a drawer only
+          a few hundred pixels tall, so a content type with more than a handful of controls simply ran
+          off the bottom of the timeline: with a TEXT clip, everything from the colour down — stroke,
+          motion, detail — existed, was rendered, and could not be reached or even seen. An operator
+          reported it as the parameters not being exposed, which is exactly what it looked like.
+          Wider too: 240px is not enough for a labelled field plus its value, and the type picker now
+          folds away (collapsePicker) so the parameters start at the top instead of 250px down. */}
       {selectedClip && isContentClip(selectedClip) && (
-        <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
+        <div className="absolute top-2 right-2 z-30 flex max-h-[calc(100%-1rem)] w-72 flex-col overflow-y-auto overscroll-contain bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
+          onWheel={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <span className="text-micro font-bold uppercase tracking-wider text-fg-3 truncate">{selectedClip.name}</span>
@@ -1979,6 +1987,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             content={selectedClip.content!}
             layers={layers}
             showLayerOption={false}
+            collapsePicker
             onChange={(patch) => patchClipContent(selectedClip.id, patch)}
             onTypeChange={(type) => changeClipContentType(selectedClip.id, type)}
           />

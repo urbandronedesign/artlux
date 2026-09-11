@@ -27,6 +27,25 @@ interface ContentEditorProps {
   // hides the Slice option, which is how the clip inspector opts out without another flag.
   surfaces?: Surface[];
   selfId?: string;
+  /**
+   * Fold the 12-button source grid away once a type is chosen, leaving a one-line "Source: Text ·
+   * Change" header.
+   *
+   * For the surface inspector, false: that column is tall and the grid IS the content control. For a
+   * TIMELINE CLIP it is the opposite — the inspector is a floating panel inside a drawer only a few
+   * hundred pixels tall, and the grid ate ~250px of it before a single parameter appeared. With a
+   * text clip's dozen-odd controls below, everything past `Font` was simply off the bottom.
+   */
+  collapsePicker?: boolean;
+}
+
+/** What to call a content type in one word, for the collapsed header. */
+function typeLabelOf(t: SurfaceContent['type']): string {
+  if (t === 'EFFECT') return 'Effect';
+  if (t === 'SHADER') return 'Shader';
+  if (t === 'TEXT') return 'Text';
+  const s = String(t);
+  return s.charAt(0) + s.slice(1).toLowerCase();
 }
 
 const btnCls = (active: boolean) =>
@@ -84,7 +103,9 @@ const LayerPick: React.FC<{ content: SurfaceContent; layers: VideoLayer[]; onCha
   );
 };
 
-const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true, surfaces, selfId }) => {
+const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true, surfaces, selfId, collapsePicker = false }) => {
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const gridShown = !collapsePicker || pickerOpen || c.type === SourceType.NONE;
   // Sliceable = anything that isn't this surface and isn't itself a slice (slices don't nest —
   // any sub-region is expressible as one rect on the original, and refusing it removes every cycle).
   const sliceable = (surfaces ?? []).filter((s) => s.id !== selfId && s.content.type !== SourceType.SLICE);
@@ -107,7 +128,15 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-1">
+      {collapsePicker && c.type !== SourceType.NONE && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-micro text-fg-2">Source: <span className="text-fg-1">{typeLabelOf(c.type)}</span></span>
+          <button onClick={() => setPickerOpen((v) => !v)}
+            className="shrink-0 rounded border border-line-1 px-1.5 py-0.5 text-micro text-fg-2 hover:text-fg-1"
+            title="Pick a different content source">{pickerOpen ? 'Done' : 'Change'}</button>
+        </div>
+      )}
+      <div className={`grid grid-cols-3 gap-1 ${gridShown ? '' : 'hidden'}`}>
         <Tooltip id="content.none">
           <button onClick={() => pickType(SourceType.NONE)} className={btnCls(c.type === SourceType.NONE)} {...help('content.none')}>
             <Slash size={16} className="mb-1" /><span className="text-micro">None</span>
