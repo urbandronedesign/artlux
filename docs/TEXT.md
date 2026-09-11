@@ -26,7 +26,9 @@ a pixel count. Type that grows past the surface is cropped by it, the same way a
 | **Line height** | Spacing between lines, as a multiple of the size. |
 | **Tracking** | Letter-spacing. Negative tightens. |
 | **Align** | Left, centre, right — or **Justify**, which sets the block flush to both edges. |
-| **Wrap to the surface** | Break long lines to fit the surface instead of letting them run off it. Off by default; **Justify turns it on**. |
+| **Vertical** | Where the block sits in its box — top, middle or bottom. |
+| **Wrap to the box** | Break long lines to fit the measure instead of letting them run off it. Off by default; **Justify turns it on**. |
+| **Text box** | The rectangle the copy is laid out in. Defaults to the whole surface — see *The text box* below. |
 | **Color** / **Stroke** | Fill, and an optional outline that sits behind it. |
 | **Detail** | How many pixels the type is drawn at — see *Detail and projectors*. |
 
@@ -46,12 +48,27 @@ them across the surface.
 The **last line of every paragraph is left flush**, never stretched. A two-word closing line spread
 across a wall is the giveaway of justification done badly, and no typesetter does it.
 
-Two things worth knowing:
+**A word longer than the measure is not broken.** It takes a line of its own and overhangs, rather
+than being silently chopped — hyphenation needs a dictionary per language.
 
-- **The measure is the surface.** Justified text runs edge to edge of the surface rectangle, so make
-  the surface the shape you want the column to be.
-- **A word longer than the measure is not broken.** It takes a line of its own and overhangs, rather
-  than being silently chopped — hyphenation needs a dictionary per language.
+### The text box
+
+By default the copy is laid out across the **whole surface**, and for most text on a mapped surface
+that is right: the surface *is* the column.
+
+It stops being right as soon as one wall carries more than one thing — a title in a corner, a
+paragraph down one side. Press **Add a box** and the copy is laid out inside a rectangle instead:
+wrapping breaks to the box, justification sets flush to its edges, alignment centres on it, and
+rotation turns about its centre. The four sliders place it as a share of the surface, so a box means
+the same thing on a surface of any size.
+
+**Vertical** is worth setting when you use a box. *Middle* centres the block, which makes a paragraph
+creep upwards as you type; *Top* anchors the first line to the top of the box so it grows downwards,
+which is what a text box normally wants.
+
+**The box does not crop.** Type that overflows it is still drawn, and the *surface* is what cuts it
+off. A box that silently swallowed the end of a sentence would be worse than one you can see
+overflowing.
 
 ---
 

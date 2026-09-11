@@ -109,6 +109,45 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
   );
 };
 
+/**
+ * THE TEXT BOX — the rectangle the copy is laid out in, as a share of the surface.
+ *
+ * Absent means the whole surface, and that stays the default: most text on a mapped surface IS the
+ * surface. A box earns its keep the moment one wall carries a title in a corner and a paragraph down
+ * one side — then "wrap" has to wrap to something smaller than the wall, and centring has to centre on
+ * something other than its middle.
+ *
+ * Percentages rather than pixels, because a surface has no pixel size of its own: it is a normalized
+ * rectangle on the stage, and a box in pixels would mean a different thing on every surface it was
+ * copied to.
+ */
+const TextBoxFields: React.FC<{ content: SurfaceContent; onChange: (p: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => {
+  const b = c.textBox;
+  const set = (patch: Partial<{ x: number; y: number; w: number; h: number }>) =>
+    onChange({ textBox: { x: 0, y: 0, w: 1, h: 1, ...b, ...patch } });
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  return (
+    <div className="mt-1 border-t border-line-1 pt-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-micro uppercase tracking-wide text-fg-3">Text box</span>
+        <button
+          onClick={() => onChange({ textBox: b ? undefined : { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } })}
+          className="rounded border border-line-1 px-1.5 py-0.5 text-micro text-fg-2 hover:text-fg-1"
+          title={b ? 'Lay the text out across the whole surface again' : 'Lay the text out inside a rectangle instead of the whole surface'}
+        >{b ? 'Use whole surface' : 'Add a box'}</button>
+      </div>
+      {b && (
+        <>
+          <Slider label="Left" value={b.x} min={0} max={1} step={0.005} format={pct} onChange={(v) => set({ x: v })} />
+          <Slider label="Top" value={b.y} min={0} max={1} step={0.005} format={pct} onChange={(v) => set({ y: v })} />
+          <Slider label="Width" value={b.w} min={0.02} max={1} step={0.005} format={pct} onChange={(v) => set({ w: v })} />
+          <Slider label="Height" value={b.h} min={0.02} max={1} step={0.005} format={pct} onChange={(v) => set({ h: v })} />
+        </>
+      )}
+    </div>
+  );
+};
+
 export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (patch: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => {
   const bodyId = useId();
   return (
@@ -158,17 +197,28 @@ export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (p
           <option value="justify">Justify</option>
         </Select>
       </Row>
+      <Row label="Vertical">
+        <Select className="text-micro" value={c.textVAlign ?? 'middle'}
+          onChange={(e) => onChange({ textVAlign: e.target.value === 'middle' ? undefined : e.target.value as 'top' | 'bottom' })}>
+          <option value="top">Top</option>
+          <option value="middle">Middle</option>
+          <option value="bottom">Bottom</option>
+        </Select>
+      </Row>
+
       {/* Wrapping is what makes a BLOCK of text a block. Off by default — a title's breaks are the
           operator's own, chosen with Enter — and forced on by Justify, which is meaningless without
           it: it would stretch a line you chose the length of out to the full width. */}
       <Toggle
-        label="Wrap to the surface"
+        label={c.textBox ? 'Wrap to the box' : 'Wrap to the surface'}
         checked={c.textWrap === true || c.textAlign === 'justify'}
         title={c.textAlign === 'justify'
           ? 'On, because Justify needs it — without wrapping there is nothing to justify against.'
-          : 'Break long lines to fit the surface instead of letting them run off it.'}
+          : 'Break long lines to fit the measure instead of letting them run off it.'}
         onChange={(v) => onChange({ textWrap: v || undefined })}
       />
+
+      <TextBoxFields content={c} onChange={onChange} />
 
       <ColorField label="Color" value={c.textColor ?? DEFAULTS.color} onChange={(v) => onChange({ textColor: v })} />
       <Slider label="Stroke" value={c.textStrokeWidth ?? DEFAULTS.strokeWidth} min={0} max={0.2} step={0.005}

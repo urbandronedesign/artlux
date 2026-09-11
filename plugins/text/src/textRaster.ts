@@ -120,6 +120,7 @@ function signatureOf(c: SurfaceContent, w: number, h: number): string {
     c.textBody ?? DEFAULTS.body, c.textFont ?? '', c.textFontAsset ?? '',
     c.textWeight ?? '', c.textItalic ? 'i' : '',
     c.textSize ?? '', c.textLineHeight ?? '', c.textTracking ?? '', c.textAlign ?? '', c.textWrap ? 'w' : '',
+    c.textVAlign ?? '', c.textBox ? `${c.textBox.x},${c.textBox.y},${c.textBox.w},${c.textBox.h}` : '',
     c.textColor ?? '', c.textStrokeColor ?? '', c.textStrokeWidth ?? '', `${w}x${h}`,
     c.textX ?? '', c.textY ?? '', c.textScale ?? '', c.textRotate ?? '',
     // Not a property of the content — a property of what THIS WINDOW has finished loading. Without it,
@@ -182,6 +183,32 @@ export function layout(g: OffscreenCanvasRenderingContext2D, body: string, wrap:
   return out;
 }
 
+/** The laid-out rectangle in buffer pixels: its size and its centre. */
+export interface TextBox { bw: number; bh: number; bcx: number; bcy: number }
+
+/**
+ * The box the copy is laid out in, in buffer pixels.
+ *
+ * No box ⇒ the whole surface, and the numbers reduce EXACTLY to what a surface-wide layout always
+ * produced (centre w/2,h/2; size w,h) — which is why adding this field changes nothing for a project
+ * that does not set it.
+ */
+export function boxOf(c: SurfaceContent, w: number, h: number): TextBox {
+  const b = c.textBox;
+  return {
+    bw: Math.max(1, (b ? b.w : 1) * w),
+    bh: Math.max(1, (b ? b.h : 1) * h),
+    bcx: (b ? b.x + b.w / 2 : 0.5) * w,
+    bcy: (b ? b.y + b.h / 2 : 0.5) * h,
+  };
+}
+
+/** First baseline offset from the box centre, for a block `blockH` tall at font size `px`. */
+export function baselineTop(vAlign: 'top' | 'middle' | 'bottom', bh: number, blockH: number, px: number): number {
+  const top = vAlign === 'top' ? -bh / 2 : vAlign === 'bottom' ? bh / 2 - blockH : -blockH / 2;
+  return top + px * 0.72;   // ~cap height, close enough across families to skip a per-font table
+}
+
 function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: number, h: number): void {
   const body = c.textBody ?? DEFAULTS.body;
   // SCALE MULTIPLIES THE FONT SIZE rather than scaling a finished picture — that is what keeps the
@@ -201,11 +228,16 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
   g.lineJoin = 'round';   // a mitre on a tight corner spikes far past the glyph at heavy weights
   g.miterLimit = 2;
 
-  // THE MEASURE is the surface's own width. Justify FORCES wrapping: stretching a line the operator
-  // chose the length of, out to the full width, is not justification — it is a mistake that looks
-  // like one. Everything else keeps today's behaviour unless wrapping is asked for.
+  // THE MEASURE IS THE BOX, and the box defaults to the whole surface — which is exactly what every
+  // project written before `textBox` gets. Wrapping to the surface is only right when the surface IS
+  // the column; a wall carrying a title in one corner and a paragraph down one side needs a measure
+  // smaller than the wall.
+  //
+  // Justify FORCES wrapping: stretching a line the operator chose the length of, out to the full
+  // measure, is not justification — it is a mistake that looks like one.
   const justify = align === 'justify';
-  const measure = w;
+  const { bw, bh, bcx, bcy } = boxOf(c, w, h);
+  const measure = bw;
   const lines = layout(g, body, justify || c.textWrap === true, measure);
   const blockH = lines.length * lineH;
   const stroke = (c.textStrokeWidth ?? DEFAULTS.strokeWidth) * px;
@@ -217,14 +249,17 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
   // about its own centre. Centred is the useful default for type on a mapped surface — a title on a
   // wall is centred far more often than flush to a corner, and flush is one slider away.
   g.save();
-  g.translate(w / 2 + (c.textX ?? 0) * w, h / 2 + (c.textY ?? 0) * h);
+  g.translate(bcx + (c.textX ?? 0) * w, bcy + (c.textY ?? 0) * h);
   const rot = c.textRotate ?? 0;
   if (rot) g.rotate((rot * Math.PI) / 180);
 
-  // Draw around (0,0). 0.72 of the em approximates cap height well enough across families to avoid
-  // measuring every one, so a block reads as vertically centred without a per-font table.
-  const flushX = -w / 2;
-  let y = -blockH / 2 + px * 0.72;
+  // Draw around (0,0) — now the BOX's centre. 0.72 of the em approximates cap height well enough
+  // across families to avoid measuring every one, so a block reads as vertically centred without a
+  // per-font table.
+  const flushX = -bw / 2;
+  // `top` anchors the FIRST baseline to the top of the box, so a paragraph grows downwards as it is
+  // typed instead of creeping upwards out of the middle — which is what a real text box wants.
+  let y = baselineTop(c.textVAlign ?? 'middle', bh, blockH, px);
 
   for (const line of lines) {
     // A JUSTIFIED line is drawn word by word, with the slack shared between the gaps. The LAST line of
@@ -243,7 +278,7 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
     } else {
       const text = line.words.join(' ');
       g.textAlign = justify || align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
-      const x = g.textAlign === 'left' ? flushX : g.textAlign === 'right' ? w / 2 : 0;
+      const x = g.textAlign === 'left' ? flushX : g.textAlign === 'right' ? bw / 2 : 0;
       if (halo) g.strokeText(text, x, y);
       ink();
       g.fillText(text, x, y);

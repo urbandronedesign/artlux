@@ -421,6 +421,28 @@ export interface SurfaceContent {
    * would stretch whatever you happened to type to the full width of the surface, however short.
    */
   textWrap?: boolean;
+  /**
+   * THE TEXT BOX — the rectangle the copy is laid out in, normalized within the surface (0..1).
+   *
+   * Absent ⇒ the whole surface, which is what every project written before this does.
+   *
+   * It is what "wrap" wraps to. Wrapping to the surface is only right when the surface IS the column;
+   * the moment a wall carries a title in one corner and a paragraph down one side, the measure has to
+   * be something smaller than the wall. Alignment, justification and the vertical anchor are all
+   * relative to this box, and rotation turns about its centre.
+   *
+   * It does NOT clip: type that overflows the box is still drawn, and the SURFACE is what crops. A box
+   * that silently swallowed the end of a sentence would be worse than one you can see overflowing.
+   */
+  textBox?: { x: number; y: number; w: number; h: number };
+  /**
+   * Where the block sits vertically in its box. Absent ⇒ `middle`, which is what a surface-wide layout
+   * has always done.
+   *
+   * `top` is usually what a real box wants: a paragraph should grow downwards as it is typed, not
+   * creep upwards from the middle.
+   */
+  textVAlign?: 'top' | 'middle' | 'bottom';
   textColor?: string;       // fill, "#rrggbb"
   textStrokeColor?: string;
   textStrokeWidth?: number; // fraction of the font size; 0/absent ⇒ no stroke
