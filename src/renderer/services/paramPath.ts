@@ -28,7 +28,11 @@ export interface StateView {
 export type ParamCategory = 'surface' | 'fixture' | 'global';
 
 // Leaf keys (relative to a surface/fixture) that fade. Everything else snaps.
-const SURFACE_FADEABLE = ['x', 'y', 'width', 'height', 'rotation', 'content.opacity', 'content.speed', 'content.intensity'];
+// TEXT's motion leaves are here because type that slides, turns or grows must INTERPOLATE; left off
+// this list they would SNAP, which is the silent half of adding an automatable parameter — the lane
+// draws a smooth curve and the wall steps between keyframes.
+const SURFACE_FADEABLE = ['x', 'y', 'width', 'height', 'rotation', 'content.opacity', 'content.speed', 'content.intensity',
+  'content.textX', 'content.textY', 'content.textScale', 'content.textRotate', 'content.textSize', 'content.textTracking'];
 const FIXTURE_FADEABLE = ['x', 'y', 'width', 'height', 'rotation', 'speed', 'intensity'];
 // Geometry leaves change LED↔surface UV mapping, so the GPU mapper must rebuild while they animate.
 const GEOMETRY_LEAVES = new Set(['x', 'y', 'width', 'height', 'rotation']);
@@ -238,6 +242,19 @@ export function surfaceParams(s: Surface): ParamDef[] {
       { path: `surfaces.${id}.content.intensity`, label: 'FX Intensity' },
       { path: `surfaces.${id}.content.effectId`, label: 'Effect' },
       { path: `surfaces.${id}.content.paletteId`, label: 'Palette' },
+    );
+  }
+  // TEXT: the block as a whole. What is NOT here is the copy itself — a lane carries a number
+  // (Keyframe.v), so a string can never be keyframed; changing the words is a scene/cue swap, which
+  // buildSceneSnapshot already gives for free because it captures the whole surfaces array.
+  if (s.content.type === 'TEXT') {
+    defs.push(
+      { path: `surfaces.${id}.content.textX`, label: 'Text X' },
+      { path: `surfaces.${id}.content.textY`, label: 'Text Y' },
+      { path: `surfaces.${id}.content.textScale`, label: 'Text Scale' },
+      { path: `surfaces.${id}.content.textRotate`, label: 'Text Rotation' },
+      { path: `surfaces.${id}.content.textSize`, label: 'Text Size' },
+      { path: `surfaces.${id}.content.textTracking`, label: 'Text Tracking' },
     );
   }
   return defs;

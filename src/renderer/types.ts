@@ -378,11 +378,11 @@ export interface SurfaceContent {
   // file's shape, so the plugin can be reworked, renamed or disabled without a migration. `'TEXT'` is
   // an open type string and needs no SourceType entry.
   //
-  // THE FIELDS SPLIT IN TWO, AND THE SPLIT IS LOAD-BEARING. Everything under LAYOUT feeds the glyph
-  // raster — change one and the type has to be shaped and drawn again. Everything under MOTION feeds
-  // only the composite that places that raster in the frame. Keeping them apart is what lets a still
-  // text surface cost nothing per frame: the raster is cached on the layout fields alone, and the
-  // composite pass is skipped entirely while the motion fields sit at rest.
+  // EVERY FIELD HERE CHANGES THE PIXELS, motion included — the type is re-DRAWN when it moves, not
+  // transformed. Scaling or rotating a finished picture resamples the glyphs, and soft edges are the
+  // one failure type cannot survive on a big output; re-drawing keeps it vector-crisp, and costs
+  // nothing extra because `textScale` multiplies the font size rather than the buffer.
+  // The consequence to know: a STILL surface is cached and free, a MOVING one re-rasters per frame.
   textBody?: string;        // the copy itself; "\n" separates lines
   // LAYOUT — any change re-shapes and re-rasterises.
   textFont?: string;        // family name, as the machine reports it (see the font list IPC)
@@ -400,8 +400,8 @@ export interface SurfaceContent {
   textRes?: number;         // DETAIL: a pixel budget, spent in the surface's proportions — exactly
                             // like shaderRes above, and for the same reason (the LED path samples a
                             // density-scaled atlas rect, a projector wants its native raster).
-  // MOTION — the block as a whole. Automatable, and cheap: these never re-shape the type.
-  // (Fading needs nothing new — `opacity` above already rides the compositor.)
+  // MOTION — the block as a whole. Automatable from a timeline lane, OSC or the state machine.
+  // (Fading needs nothing new — `opacity` above already rides the compositor, and IS a pure blend.)
   textX?: number;           // normalized offset within the surface, 0 = centred
   textY?: number;
   textScale?: number;       // uniform, 1 = as laid out

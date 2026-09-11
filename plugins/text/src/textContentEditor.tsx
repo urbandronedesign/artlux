@@ -2,7 +2,7 @@ import React, { useEffect, useId, useState } from 'react';
 import { Slider, Toggle, Select } from '@/components/ui'; // host UI primitives (pure presentational)
 import type { SurfaceContent } from '@/types';
 import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textRaster';
-import { families, known } from './fontList';
+import { families, known, canRender } from './fontList';
 import { stateOf } from './fontAssets';
 import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell store, as the shader panels use
 
@@ -61,7 +61,10 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
   const fonts = (assets ?? []).filter((x) => x.type === 'font');
   const asset = c.textFontAsset ?? '';
   const named = c.textFont ?? DEFAULTS.font;
-  const missing = !asset && list.length > 0 && named.trim() !== '' && !list.includes(named.trim());
+  // Ask whether Chromium can DRAW it, not whether it is in the machine's list — a webfont loaded into
+  // the document (the app's own IBM Plex Sans, or a typeface this project carries) renders fine and is
+  // in no such list. See fontList.canRender.
+  const missing = !asset && named.trim() !== '' && !canRender(named);
   const st = asset ? stateOf(asset) : 'unknown';
 
   return (
@@ -160,6 +163,23 @@ export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (p
     {(c.textStrokeWidth ?? 0) > 0 && (
       <ColorRow label="Stroke color" value={c.textStrokeColor ?? DEFAULTS.strokeColor} onChange={(v) => onChange({ textStrokeColor: v })} />
     )}
+
+    {/* MOTION — the block as a whole, and every one of these is automatable: drop a lane on it in the
+        timeline, drive it from OSC, or capture it into a cue. The COPY is not here and cannot be: a
+        lane carries a number, so changing the words is a scene/cue swap, not a curve. */}
+    <div className="mt-1 border-t border-line-1 pt-2">
+      <div className="mb-1 text-micro uppercase tracking-wide text-fg-3">Motion</div>
+      <Slider label="Offset X" value={c.textX ?? 0} min={-1} max={1} step={0.005}
+        format={(v) => `${(v * 100).toFixed(0)}%`} onChange={(v) => onChange({ textX: v || undefined })} />
+      <Slider label="Offset Y" value={c.textY ?? 0} min={-1} max={1} step={0.005}
+        format={(v) => `${(v * 100).toFixed(0)}%`} onChange={(v) => onChange({ textY: v || undefined })} />
+      {/* Scale multiplies the FONT SIZE, so type stays crisp at any value instead of being a
+          resampled bitmap — see textRaster's header. */}
+      <Slider label="Scale" value={c.textScale ?? 1} min={0.05} max={4} step={0.01}
+        format={(v) => `${v.toFixed(2)}×`} onChange={(v) => onChange({ textScale: v === 1 ? undefined : v })} />
+      <Slider label="Rotation" value={c.textRotate ?? 0} min={-180} max={180} step={1}
+        format={(v) => `${v.toFixed(0)}°`} onChange={(v) => onChange({ textRotate: v || undefined })} />
+    </div>
 
     {/* DETAIL is a pixel budget spent in this surface's proportions — the same control, and the same
         reasoning, as the shader plugin's. A projector window ignores it and uses its own raster. */}

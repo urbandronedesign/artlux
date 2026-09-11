@@ -7,8 +7,18 @@
 // `fillText` is not a fallback here, it is the feature. It runs Chromium's own HarfBuzz, so kerning,
 // ligatures, combining accents, œ, CJK and right-to-left all come out correct for free. Shaping text
 // is months of work and the part of "text" that is actually hard; a GPU glyph path would hand us
-// back the easy half and make us own the difficult one. What the GPU is for here is MOVING the
-// result, which is stage 2 (textGL) — and which a still surface never pays for at all.
+// back the easy half and make us own the difficult one.
+//
+// ── AND WHY MOTION IS DRAWN, NOT TRANSFORMED ───────────────────────────────────────────────────────
+// This was planned as two stages: raster the glyphs once, then move the result about on the GPU. That
+// is the wrong shape for TYPE. Transforming a finished picture — on the GPU or off it — RESAMPLES the
+// glyphs, and soft edges are the one failure type cannot survive; a projector on a twelve-metre wall
+// is exactly where it shows. Re-drawing the text at its new size and angle keeps it vector-crisp, and
+// costs nothing extra to do: `textScale` multiplies the FONT SIZE, so the buffer never changes size
+// and there is nothing to resample.
+//
+// The price is that MOVING text re-rasters per frame (~1 ms for a few lines) where a blit would have
+// been cheaper. A STILL surface — which is most of them, most of the time — is cached and free.
 //
 // ── WHY THE CACHE IS NOT AN OPTIMISATION ───────────────────────────────────────────────────────────
 // `transferToImageBitmap` CLEARS the canvas. The frame engine asks for a surface's drawable and then
@@ -102,13 +112,14 @@ function fontOf(c: SurfaceContent, px: number): string {
   return `${style}${weight} ${px}px "${fam.replace(/"/g, '')}", sans-serif`;
 }
 
-/** Only the fields that change the PIXELS. Motion (x/y/scale/rotate) is stage 2 and deliberately absent. */
+/** Every field that changes the PIXELS — motion included, because here motion IS drawn (see header). */
 function signatureOf(c: SurfaceContent, w: number, h: number): string {
   return [
     c.textBody ?? DEFAULTS.body, c.textFont ?? '', c.textFontAsset ?? '',
     c.textWeight ?? '', c.textItalic ? 'i' : '',
     c.textSize ?? '', c.textLineHeight ?? '', c.textTracking ?? '', c.textAlign ?? '',
     c.textColor ?? '', c.textStrokeColor ?? '', c.textStrokeWidth ?? '', `${w}x${h}`,
+    c.textX ?? '', c.textY ?? '', c.textScale ?? '', c.textRotate ?? '',
     // Not a property of the content — a property of what THIS WINDOW has finished loading. Without it,
     // an imported face arriving after the first raster would never be drawn: nothing else about the
     // surface changed, so the cache would keep handing back the substitute indefinitely.
@@ -134,7 +145,10 @@ function canvasFor(w: number, h: number): OffscreenCanvasRenderingContext2D | nu
 /** Draw the copy into `g`, which is already sized w×h and cleared. */
 function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: number, h: number): void {
   const body = c.textBody ?? DEFAULTS.body;
-  const px = Math.max(1, (c.textSize ?? DEFAULTS.size) * h);
+  // SCALE MULTIPLIES THE FONT SIZE rather than scaling a finished picture — that is what keeps the
+  // glyphs crisp at any zoom, and it is free: the buffer stays the same size either way.
+  const scale = c.textScale ?? 1;
+  const px = Math.max(1, (c.textSize ?? DEFAULTS.size) * scale * h);
   const lineH = (c.textLineHeight ?? DEFAULTS.lineHeight) * px;
   const align = c.textAlign ?? DEFAULTS.align;
 
@@ -145,20 +159,26 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
   try { (g as unknown as { letterSpacing: string }).letterSpacing = `${track}px`; } catch { /* ignore */ }
   g.textBaseline = 'alphabetic';
   g.textAlign = align;
-
-  const lines = body.split('\n');
-  // The block is centred on the surface, then nudged by the normalized motion offsets. Centring is
-  // the useful default for type on a mapped surface — a title on a wall is centred far more often
-  // than it is flush to a corner, and flush is one slider away.
-  const x = (align === 'left' ? 0 : align === 'right' ? w : w / 2);
-  const blockH = lines.length * lineH;
-  // Baseline of the first line: centre the block, then drop to the first baseline. 0.72 of the em is
-  // a serviceable cap-height approximation across families without measuring every one.
-  let y = (h - blockH) / 2 + px * 0.72;
-
-  const stroke = (c.textStrokeWidth ?? DEFAULTS.strokeWidth) * px;
   g.lineJoin = 'round';   // a mitre on a tight corner spikes far past the glyph at heavy weights
   g.miterLimit = 2;
+
+  const lines = body.split('\n');
+  const blockH = lines.length * lineH;
+  const stroke = (c.textStrokeWidth ?? DEFAULTS.strokeWidth) * px;
+
+  // The block sits at the middle of the surface, offset by the normalized motion fields and turned
+  // about its own centre. Centred is the useful default for type on a mapped surface — a title on a
+  // wall is centred far more often than flush to a corner, and flush is one slider away.
+  g.save();
+  g.translate(w / 2 + (c.textX ?? 0) * w, h / 2 + (c.textY ?? 0) * h);
+  const rot = c.textRotate ?? 0;
+  if (rot) g.rotate((rot * Math.PI) / 180);
+
+  // Now draw around (0,0): x follows the alignment, y starts at the first baseline of a block centred
+  // on the origin. 0.72 of the em approximates cap height well enough across families to avoid
+  // measuring every one.
+  const x = align === 'left' ? -w / 2 : align === 'right' ? w / 2 : 0;
+  let y = -blockH / 2 + px * 0.72;
 
   for (const line of lines) {
     if (stroke > 0) {
@@ -170,6 +190,7 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
     g.fillText(line, x, y);
     y += lineH;
   }
+  g.restore();
 }
 
 /**
