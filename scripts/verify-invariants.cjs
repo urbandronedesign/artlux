@@ -3478,6 +3478,42 @@ check(
   },
 );
 
+// ── Assets: a content type's file paths are mapped in ONE place ───────────────────────────────
+check(
+  "every content type's file paths go through one visitor",
+  'A SurfaceContent lives in two places — on a surface and on a timeline clip — and projectFolder ' +
+  'spelled the "which fields hold a path" rule out SEPARATELY in mapSurfaces and in mapTimeline. A ' +
+  'content type added to one of them is simply missed by the other: mapped on a surface, unmapped on ' +
+  'a clip of the same content. The failure is the silent kind this file has already shipped twice ' +
+  '(the audio bed; the audio-only scene) — relativize, resolve AND collect skip the path together, so ' +
+  'the file is baked to the authoring machine, is never copied into the folder, and does NOT appear ' +
+  'in CollectResult.missing. The show just looks wrong at the venue, with nothing logged. ' +
+  'One table (CONTENT_PATHS) read by one visitor (mapContent) is what makes a new type a one-line ' +
+  'change that cannot be half-done.',
+  () => {
+    const F = 'src/main/projectFolder.ts';
+    if (!exists(F)) return `${F} is gone`;
+    const src = read(F);
+    const problems = [];
+    if (!/const CONTENT_PATHS\s*:/.test(src)) problems.push('CONTENT_PATHS is gone — the path rule has been inlined somewhere again');
+    if (!/function mapContent\s*\(/.test(src)) problems.push('mapContent is gone — the two call sites are deriving the rule separately again');
+    const surfaces = fnBody(src, 'mapSurfaces');
+    if (!surfaces) problems.push('could not find mapSurfaces');
+    else if (!/mapContent\(/.test(surfaces)) problems.push('mapSurfaces no longer routes through mapContent');
+    const timeline = fnBody(src, 'mapTimeline');
+    if (!timeline) problems.push('could not find mapTimeline');
+    else if (!/mapContent\(/.test(timeline)) problems.push('mapTimeline no longer routes clip content through mapContent — a clip of a new content type would go unmapped');
+    // A hand-written type test in either visitor is the shape that drifted; the table is the only
+    // place a content type may be named.
+    for (const [name, body] of [['mapSurfaces', surfaces], ['mapTimeline', timeline]]) {
+      if (body && /content\?\.type\s*===|c\.type\s*===/.test(body)) {
+        problems.push(`${name} tests a content type inline again instead of reading CONTENT_PATHS`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── 3D: the ImageBitmap flip is per-BACKEND ───────────────────────────────────────────────────
 check(
   'the ImageBitmap flip compensation asks which backend is live',

@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { Slider, Toggle, Select } from '@/components/ui'; // host UI primitives (pure presentational)
 import type { SurfaceContent } from '@/types';
 import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textRaster';
+import { families, known } from './fontList';
+import { stateOf } from './fontAssets';
+import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell store, as the shader panels use
 
 // The per-surface inspector fragment for TEXT content, rendered by the host ContentEditor through the
 // content-source provider's `editor` hook.
@@ -36,6 +39,83 @@ const ColorRow: React.FC<{ label: string; value: string; onChange: (v: string) =
   </Row>
 );
 
+/**
+ * The font field: a free-text input backed by a <datalist> of what this machine has.
+ *
+ * NOT a <select>, deliberately. A show is authored on one machine and run on another, so a project may
+ * legitimately name a family this machine does not have — a dropdown would make that unsayable, and
+ * would silently rewrite the operator's intent the moment they touched the control. Free text with a
+ * type-ahead list keeps both: pick from what is here, or type what will be there.
+ */
+const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => {
+  const listId = useId();
+  const [list, setList] = useState<string[]>(known);
+  const { assets } = useEditor();
+  const a = useEditorActions();
+  useEffect(() => {
+    let alive = true;
+    void families().then((f) => { if (alive) setList(f); });
+    return () => { alive = false; };
+  }, []);
+
+  const fonts = (assets ?? []).filter((x) => x.type === 'font');
+  const asset = c.textFontAsset ?? '';
+  const named = c.textFont ?? DEFAULTS.font;
+  const missing = !asset && list.length > 0 && named.trim() !== '' && !list.includes(named.trim());
+  const st = asset ? stateOf(asset) : 'unknown';
+
+  return (
+    <>
+      <Row label="Font" title="A family installed on this machine, or one the show CARRIES (import below)">
+        <div className="flex-1">
+          {asset ? (
+            <div className="flex items-center gap-2">
+              <span className="flex-1 truncate text-micro text-fg-1" title={asset}>
+                {fonts.find((f) => f.path === asset)?.name ?? asset.split(/[\/]/).pop()}
+              </span>
+              <button onClick={() => onChange({ textFontAsset: undefined })}
+                className="shrink-0 rounded border border-line-1 px-1.5 py-0.5 text-micro text-fg-2 hover:text-fg-1"
+                title="Stop using the imported file and go back to naming a family">Unlink</button>
+            </div>
+          ) : (
+            <>
+              <input type="text" list={listId} value={named} spellCheck={false}
+                onChange={(e) => onChange({ textFont: e.target.value })} className={`${selCls} w-full`} />
+              <datalist id={listId}>{list.map((f) => <option key={f} value={f} />)}</datalist>
+            </>
+          )}
+          {/* Say it, rather than letting a substituted face be the only clue. Not an error — the machine
+              that RUNS the show is the one that has to have the font, and it may well be another. */}
+          {missing && (
+            <div className="mt-0.5 text-micro text-warn" title="Chromium is substituting another face here">
+              not installed on this machine — drawn in a fallback face
+            </div>
+          )}
+          {asset && st === 'failed' && (
+            <div className="mt-0.5 text-micro text-warn">the font file could not be read — drawn in a fallback face</div>
+          )}
+        </div>
+      </Row>
+
+      {/* THE ONE THAT SURVIVES THE VAN. A named family is whatever the venue machine happens to have;
+          an imported file is copied into the project's assets/fonts/, travels with the folder, and is
+          picked up by Collect Assets and the missing badge like every other asset. */}
+      <Row label="Carry it" title="Copy a font file into the project so the show keeps its typeface anywhere">
+        <div className="flex flex-1 items-center gap-2">
+          <Select className="text-micro" value={asset}
+            onChange={(e) => onChange({ textFontAsset: e.target.value || undefined })}>
+            <option value="">Use the named family</option>
+            {fonts.map((f) => <option key={f.id} value={f.path}>{f.name}</option>)}
+          </Select>
+          <button onClick={() => a.importAssets('font')}
+            className="shrink-0 rounded border border-line-1 px-1.5 py-0.5 text-micro text-fg-2 hover:text-fg-1"
+            title="Import a .ttf / .otf / .woff2 into this project">Import…</button>
+        </div>
+      </Row>
+    </>
+  );
+};
+
 export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (patch: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => (
   <div className="space-y-2 pt-1">
     <textarea
@@ -48,10 +128,7 @@ export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (p
       className="w-full resize-y rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent focus:outline-none"
     />
 
-    <Row label="Font" title="A font family installed on this machine, or one imported into the project">
-      <input type="text" value={c.textFont ?? DEFAULTS.font} spellCheck={false}
-        onChange={(e) => onChange({ textFont: e.target.value })} className={selCls} />
-    </Row>
+    <FontRow content={c} onChange={onChange} />
     <Row label="Weight">
       <Select className="text-micro" value={c.textWeight ?? DEFAULTS.weight}
         onChange={(e) => onChange({ textWeight: parseInt(e.target.value, 10) })}>

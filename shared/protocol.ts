@@ -1026,7 +1026,7 @@ export const defaultScene3D = (): Scene3D => ({
 // A managed media library entry. Files are copied into the project's assets/<cat>/ on import
 // (path is relative on disk, resolved absolute on load like every other asset path). Recorded
 // LiDAR takes are entries of type 'take' (path = the .lblob sidecar). Unused entries persist.
-export type AssetType = 'video' | 'image' | 'model' | 'take' | 'audio';
+export type AssetType = 'video' | 'image' | 'model' | 'take' | 'audio' | 'font';
 export interface AssetEntry {
   id: string;
   name: string;

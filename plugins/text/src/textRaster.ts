@@ -18,6 +18,7 @@
 
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in shaderDrawable)
+import { familyFor, revision as fontRevision } from './fontAssets';
 
 interface Entry {
   bitmap: ImageBitmap | null;
@@ -88,7 +89,12 @@ export function aspectFor(key: string): number {
 
 /** The CSS font shorthand this content asks for. A quoted family survives spaces and punctuation. */
 function fontOf(c: SurfaceContent, px: number): string {
-  const fam = (c.textFont ?? DEFAULTS.font).trim() || DEFAULTS.font;
+  // An IMPORTED typeface wins over a named one: it is the face the show CARRIES, so it is the face the
+  // venue machine will actually have. familyFor registers and loads it on first ask and hands back a
+  // family of our own naming; until the bytes land Canvas draws the fallback, and fontRevision() in the
+  // signature is what redraws once they have.
+  const asset = c.textFontAsset ? familyFor(c.textFontAsset) : null;
+  const fam = asset ?? ((c.textFont ?? DEFAULTS.font).trim() || DEFAULTS.font);
   const style = c.textItalic ? 'italic ' : '';
   const weight = c.textWeight ?? DEFAULTS.weight;
   // The generic fallback matters: an unknown family silently falls back to something, and sans-serif
@@ -99,10 +105,15 @@ function fontOf(c: SurfaceContent, px: number): string {
 /** Only the fields that change the PIXELS. Motion (x/y/scale/rotate) is stage 2 and deliberately absent. */
 function signatureOf(c: SurfaceContent, w: number, h: number): string {
   return [
-    c.textBody ?? DEFAULTS.body, c.textFont ?? '', c.textWeight ?? '', c.textItalic ? 'i' : '',
+    c.textBody ?? DEFAULTS.body, c.textFont ?? '', c.textFontAsset ?? '',
+    c.textWeight ?? '', c.textItalic ? 'i' : '',
     c.textSize ?? '', c.textLineHeight ?? '', c.textTracking ?? '', c.textAlign ?? '',
     c.textColor ?? '', c.textStrokeColor ?? '', c.textStrokeWidth ?? '', `${w}x${h}`,
-  ].join('');
+    // Not a property of the content — a property of what THIS WINDOW has finished loading. Without it,
+    // an imported face arriving after the first raster would never be drawn: nothing else about the
+    // surface changed, so the cache would keep handing back the substitute indefinitely.
+    fontRevision(),
+  ].join('|');
 }
 
 // One scratch canvas per window, reused. Allocating a canvas per draw is what made the shader plugin's

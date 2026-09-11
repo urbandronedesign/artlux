@@ -8,5 +8,7 @@
 // (package.json) lets each window tree-shake what it does not use.
 
 export * as textRaster from './textRaster';
+export * as fontList from './fontList';
+export * as fontAssets from './fontAssets';
 export { TextContentEditor } from './textContentEditor';
 export { plugin } from './plugin.renderer';

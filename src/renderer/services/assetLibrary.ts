@@ -140,12 +140,16 @@ export function libraryItems(assets: AssetEntry[] | undefined, timeline: Timelin
   return [...imported, ...takes.filter(t => !seen.has(normPath(t.path)))];
 }
 
-export const ASSET_TYPES: AssetType[] = ['video', 'image', 'model', 'take', 'audio'];
+export const ASSET_TYPES: AssetType[] = ['video', 'image', 'model', 'take', 'audio', 'font'];
 
 export const typeLabel: Record<AssetType, string> = {
-  video: 'Video', image: 'Image', model: '3D Model', take: 'Take', audio: 'Audio',
+  video: 'Video', image: 'Image', model: '3D Model', take: 'Take', audio: 'Audio', font: 'Font',
 };
 
 // Map a library asset to the SurfaceContent type it can fill (video/image only).
+//
+// A FONT is deliberately absent: dropping a typeface on a surface has no meaning on its own — it is
+// not content, it is how some OTHER content is drawn. It is picked from inside a TEXT surface's own
+// editor instead, which is the only place the choice means anything.
 export const surfaceTypeFor = (type: AssetType): SourceType | null =>
   type === 'video' ? SourceType.VIDEO : type === 'image' ? SourceType.IMAGE : null;

@@ -85,6 +85,15 @@ export function mimeForPath(path: string): string {
     case 'ogg': return 'audio/ogg';
     case 'mp3': return 'audio/mpeg';
     case 'aac': case 'm4a': return 'audio/aac';
+    // Fonts, for a TEXT surface's imported typeface. Chromium's FontFace tolerates
+    // application/octet-stream, so this is honesty rather than necessity — but a wrong content-type is
+    // the kind of thing that stops being tolerated in a Chromium update, and the fix would then look
+    // like a font bug.
+    case 'ttf': return 'font/ttf';
+    case 'otf': return 'font/otf';
+    case 'ttc': return 'font/collection';
+    case 'woff': return 'font/woff';
+    case 'woff2': return 'font/woff2';
     default: return 'application/octet-stream';
   }
 }
