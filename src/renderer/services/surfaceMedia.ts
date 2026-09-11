@@ -175,8 +175,11 @@ export function getContentAspect(s: Surface): number | null {
 }
 
 // Changes only when this surface's drawable holds NEW pixels; undefined = unknown, assume changed.
-// Only VIDEO surfaces report one — LAYER/PROGRAM composite continuously and everything else is live.
-// Used by the projector frame pump to skip a full-surface createImageBitmap on a repeated frame.
+// VIDEO surfaces report one, and so does any PLUGIN source that chooses to (SDK
+// ContentSourceProvider.getDrawableGeneration) — a source that is ever still should, because the three
+// consumers that pay per frame all skip on a repeat. LAYER/PROGRAM composite continuously, so they
+// never report. Used by the projector frame pump to skip a full-surface createImageBitmap on a
+// repeated frame, by the 3D scene to skip a texture upload, and by each projector window to not repaint.
 export function getDrawableGeneration(s: Surface): number | undefined {
   // A slice holds exactly the pixels of its source, so it repeats exactly when the source does —
   // pass the source's generation through and the projector pump keeps skipping repeated frames.

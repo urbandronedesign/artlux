@@ -31,6 +31,21 @@ export interface ContentSourceProvider<C = unknown, D = Drawable> {
   acquire?(key: string, content: C): void;
   release?(key: string): void;
   getDrawable(key: string, content: C, timeSec: number): D | null;
+  /**
+   * A value that changes ONLY when this key's drawable holds new pixels — omit it (or return
+   * undefined) when that cannot be known, which means "assume it changed, every tick".
+   *
+   * IMPLEMENT IT IF YOUR SOURCE IS EVER STILL. Three consumers pay per frame and all three skip on
+   * an unchanged generation: the 3D scene's texture upload, the projector pump (a `createImageBitmap`
+   * PER WINDOW PER TICK), and the projector window's own repaint. Until this existed the host could
+   * only answer `undefined` for every plugin type, so a source showing a motionless picture — text,
+   * a paused shader, a tracking overlay with nobody in the room — was re-uploaded and re-encoded
+   * thirty times a second to produce an identical frame.
+   *
+   * It is a CHANGE COUNTER, not a timestamp: bump it when the content or the rendered result
+   * changes. Returning a value that always differs is the same as returning undefined, only slower.
+   */
+  getDrawableGeneration?(key: string, content: C): number | undefined;
   getAspect?(key: string, content: C): number | null;
   // UI fragment shown in the content editor when this type is selected.
   editor?: ComponentType<{ content: C; onChange: (patch: Partial<C>) => void }>;

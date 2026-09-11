@@ -29,6 +29,11 @@ interface Entry {
   sig: string;
   /** THE LAST SOURCE THAT COMPILED. What a broken edit falls back to — see resolveProgram. */
   lastGoodSource: string | null;
+  /**
+   * Bumped ONLY when a new bitmap is stored — so it is stable exactly when the pixels are. Read by
+   * the host through ContentSourceProvider.getDrawableGeneration; see `generationOf` below.
+   */
+  gen: number;
 }
 
 const entries = new Map<string, Entry>();
@@ -150,7 +155,7 @@ export function getFor(key: string, content: SurfaceContent, timeSec: number): I
   const sig = `${source.length}:${content.shaderId ?? ''}|${w}x${h}|${timeSec}|${paramSig}`;
   if (prev && prev.sig === sig && prev.bitmap) return prev.bitmap;
 
-  const entry: Entry = prev ?? { bitmap: null, sig: '', lastGoodSource: null };
+  const entry: Entry = prev ?? { bitmap: null, sig: '', lastGoodSource: null, gen: 0 };
   const { result } = resolveProgram(key, entry, source);
   if (!result.ok) { entry.sig = sig; entries.set(key, entry); return entry.bitmap; }
 
@@ -172,9 +177,25 @@ export function getFor(key: string, content: SurfaceContent, timeSec: number): I
 
   entry.bitmap?.close(); // the frame we handed out last time; skipping this leaks one bitmap per frame
   entry.bitmap = bmp;
+  entry.gen++;           // new pixels — every other bail-out above returns the previous bitmap unchanged
   entry.sig = sig;
   entries.set(key, entry);
   return bmp;
+}
+
+/**
+ * A value that changes only when this surface's shader produced NEW pixels.
+ *
+ * WORTH HAVING EVEN THOUGH A SHADER IS USUALLY MOVING, because `timeSec` is SHOW time, not wall time
+ * (contentSource's header spells this out). Pause the transport and it freezes: the signature stops
+ * changing, `getFor` hands back the cached bitmap, and the pixels are genuinely identical. Before the
+ * host could ask this, a paused show still paid a full `createImageBitmap` per projector window per
+ * tick plus a 3D texture upload, to re-send a frame nobody had changed.
+ *
+ * Undefined for a key we have never drawn — "assume it changed", which is the safe answer.
+ */
+export function generationOf(key: string): number | undefined {
+  return entries.get(key)?.gen;
 }
 
 /** Compile state for the inspector and the editor's gutter. */
