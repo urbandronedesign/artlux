@@ -3478,6 +3478,39 @@ check(
   },
 );
 
+// ── 3D: the ImageBitmap flip is per-BACKEND ───────────────────────────────────────────────────
+check(
+  'the ImageBitmap flip compensation asks which backend is live',
+  'three IGNORES Texture.flipY for an ImageBitmap on WebGL (the unpack flags are set inside an ' +
+  '`if (isImageBitmap === false)`) and HONOURS it on WebGPU, which uploads through ' +
+  'copyExternalImageToTexture. bitmapFlip.ts compensates for the WebGL behaviour, so on the backend ' +
+  'the 3D scene actually DEFAULTS to, that compensation was a second flip and every ImageBitmap-backed ' +
+  'texture came out upside down. It hid for two releases because of what reaches a 3D plane as a ' +
+  'bitmap: shader output, which is generative noise, where a vertical flip is undetectable. The first ' +
+  'TEXT surface on a mesh showed it in one frame. ' +
+  'And it must ask which renderer is LIVE (isWebGPUActive), never which one was REQUESTED ' +
+  '(wantsWebGPU): a machine that asked for WebGPU and fell back is running WebGL and still needs the ' +
+  'compensation — inferring it from the request re-creates the same upside-down picture on exactly ' +
+  'the machines that are already having a bad day.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/bitmapFlip.ts';
+    if (!exists(F)) return `${F} is gone — the flip rule must stay in one place`;
+    const src = read(F);
+    const problems = [];
+    if (!/isWebGPUActive\s*\(/.test(src)) problems.push('no longer branches on the live backend, so one of WebGL/WebGPU is inverted');
+    if (/wantsWebGPU\s*\(/.test(src)) problems.push('branches on wantsWebGPU() — that is the REQUEST; a fallen-back machine would be inverted');
+    const R = 'src/renderer/components/Simulator3D/renderer3d.ts';
+    if (!exists(R)) return problems.concat(`${R} is gone`).join('; ');
+    const r = read(R);
+    if (!/export function isWebGPUActive/.test(r)) problems.push('renderer3d no longer publishes isWebGPUActive()');
+    // Every fallback path must clear the flag, or it reports the request rather than the reality. The
+    // ONE legal call is inside the wrapper that clears it; a second is a path that bypassed it.
+    const direct = (r.match(/onFallback\(reason\)/g) || []).length;
+    if (direct !== 1) problems.push(`onFallback(reason) is called ${direct} times — exactly one, inside the wrapper that clears the live-backend flag, is correct; more means a fallback path leaves the flag still saying WebGPU`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Content: a new source type must also reach the projector windows ──────────────────────────
 check(
   'every plugin content type is named in SELF_RENDER or STREAMED',

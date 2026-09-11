@@ -85,8 +85,24 @@ const WEBGL_CONFIG = { powerPreference: 'high-performance' as WebGLPowerPreferen
  * machine that is not using it. It shares `three.core.js` with the plain `three` build, so `Mesh`,
  * `Texture` and friends are the same classes in both — there is no second THREE and no instanceof trap.
  */
+// WHICH BACKEND IS ACTUALLY LIVE — not which one was asked for.
+//
+// It matters because three does not behave identically on the two, and at least one place has to
+// branch on it: `Texture.flipY` is IGNORED for an ImageBitmap on WebGL and HONOURED on WebGPU, so the
+// compensation in bitmapFlip.ts is correct on one and an inverting bug on the other. Read it through
+// `isWebGPUActive()`; never infer it from `wantsWebGPU()`, which is the REQUEST and is wrong on any
+// machine that asked for WebGPU and fell back.
+let activeWebGPU = false;
+
+/** True when the live 3D renderer is three's WebGPU backend. False before any Canvas has been built. */
+export function isWebGPUActive(): boolean { return activeWebGPU; }
+
 export function glProp(onFallback: (reason: string) => void): GlProp {
-  if (!wantsWebGPU()) return WEBGL_CONFIG;
+  if (!wantsWebGPU()) { activeWebGPU = false; return WEBGL_CONFIG; }
+  activeWebGPU = true;
+  // Every fallback path must un-set it, or the flag reports the request rather than the reality —
+  // which is the exact mistake the note above warns against, made inside this function.
+  const fellBack = (reason: string) => { activeWebGPU = false; onFallback(reason); };
 
   // Sharing the mapper's device needs an await, so it forces the async path. It is a diagnostic mode
   // and known broken (see shareMode below), which is why the DEFAULT path is the synchronous one.
@@ -164,7 +180,7 @@ export function glProp(onFallback: (reason: string) => void): GlProp {
       } catch (e) {
         const reason = String((e as Error)?.message ?? e);
         console.warn('[scene3d] WebGPU renderer unavailable, falling back to WebGL —', reason);
-        onFallback(reason);
+        fellBack(reason);
         return null;
       }
     }) as unknown as GLProps;
@@ -214,7 +230,7 @@ export function glProp(onFallback: (reason: string) => void): GlProp {
       // than leaving a dead canvas. Same graceful-degradation contract as the native addons.
       const reason = String((e as Error)?.message ?? e);
       console.warn('[scene3d] WebGPU renderer unavailable, falling back to WebGL —', reason);
-      onFallback(reason);
+      fellBack(reason);
       return null;
     }
   };
