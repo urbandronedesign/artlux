@@ -162,6 +162,11 @@ Per output (in the expanded row):
 ## Other controls
 
 - **Send as NDI** — publish the warped output as an NDI source for downstream tools.
+- **Surface opacity reaches the projector.** Dimming a surface, or fading one out from a cue or a
+  timeline lane, takes the light off the wall as well as off the LEDs — including on a calibrated
+  output. On a projector there is nothing behind the picture to blend with, so less opacity simply
+  means less light. *(Before v0.29 it did not: a faded surface kept playing at full on the projector
+  while every other view showed it fading.)*
 - **FPS cap** (panel header — Off / 60 / 30 / 24) — throttle all outputs to save GPU on big rigs.
   Outputs otherwise render at native resolution with anti‑aliasing.
 

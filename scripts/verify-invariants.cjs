@@ -3478,6 +3478,35 @@ check(
   },
 );
 
+// ── Projector: a surface's opacity reaches the wall, on every path ────────────────────────────
+check(
+  "a surface's opacity reaches every projector output path",
+  'frameEngine has always applied Surface.content.opacity — for the LED sampler, the 2D preview and ' +
+  'the 3D scene — and NOTHING in the projector path ever read it. A surface dimmed to 40%, or faded ' +
+  'out by a cue, played at full on the projector: the one output an audience is actually looking at. ' +
+  'Nothing threw, and every other view agreed with the operator, which is what made it invisible. ' +
+  'There are THREE paths and a fix that covers two of them is the same bug with a smaller blast ' +
+  'radius: the ordinary warp/blend draw, the calibrated draw when an output carries a residual warp, ' +
+  'and the calibrated output with NO residual warp — where ProjectorGL draws nothing at all and the ' +
+  "panel's own canvas IS the output, so the only place left is the element itself.",
+  () => {
+    const F = 'src/renderer/projector/ProjectorApp.tsx';
+    if (!exists(F)) return `${F} is gone`;
+    const src = read(F);
+    const problems = [];
+    if (!/function surfaceOpacity\s*\(/.test(src)) problems.push('surfaceOpacity is gone — the surface opacity is being read somewhere ad hoc, or not at all');
+    // Every gl.draw options object that carries a brightness must carry the opacity with it.
+    const draws = src.match(/brightness:\s*[^,}]+/g) ?? [];
+    if (draws.length < 2) problems.push(`only ${draws.length} draw path passes a brightness — the calibrated path has stopped carrying it, so a fade would not happen on a calibrated projector`);
+    for (const d of draws) {
+      if (!/opacity/.test(d)) problems.push(`a draw path passes brightness without the surface opacity: ${d.trim()}`);
+    }
+    // …and the identity-warp case, which draws nothing and must dim the element instead.
+    if (!/style\.opacity/.test(src)) problems.push('nothing sets the panel element opacity — a calibrated output with no residual warp draws through no GL stage at all, so it would ignore the fade entirely');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Projector pump: a generation dedups, it does not raise the rate ───────────────────────────
 check(
   'the projector pump keys its fine tick on the source type, not on having a generation',
