@@ -8,7 +8,7 @@ import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { GUTTER, RULER_H, SM_LANE_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
+import { GUTTER, RULER_H, SM_LANE_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, ZOOM_MIN_PX_PER_SEC, FIT_MIN_PX_PER_SEC, MAX_PX_PER_SEC, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete, nearestFreeStart, freeSpanAt } from './operations';
 import { collectSnapPoints, snap, type SnapPoint } from './snapping';
 import { AudioLane, type AudioDragMode } from './AudioLane';
@@ -566,7 +566,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       e.preventDefault();
       const screenX = e.clientX - r.left - GUTTER;            // px from the t=0 column, in viewport
       const tUnder = (screenX + el.scrollLeft) / pxRef.current; // time under the cursor
-      const next = clamp(pxRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1), 5, 300);
+      const next = clamp(pxRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1), ZOOM_MIN_PX_PER_SEC, MAX_PX_PER_SEC);
       setPxPerSec(next);
       // Keep the time-under-cursor fixed on screen. Defer until the new (larger) width lays out so
       // scrollLeft isn't clamped to the old scrollWidth.
@@ -1197,8 +1197,29 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const sized = lit.filter((g) => g.fixtureIds.length === parts);
     return sized.length === 1 ? sized[0].id : soleLightGroup();
   };
-  const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
-  const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
+  const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, ZOOM_MIN_PX_PER_SEC, MAX_PX_PER_SEC));
+  /**
+   * FIT EVERYTHING ON SCREEN — all of it, however long the show is.
+   *
+   * ⚠ IT DOES NOT SHARE THE WHEEL'S ZOOM FLOOR, and sharing it was the bug. The general floor of
+   * 5 px/s is right for a wheel (it stops you zooming into a smear) and a silent refusal here: it caps
+   * what can fit at roughly `avail / 5` seconds, so with the drawer docked at ~800px wide anything
+   * past about two and a half minutes simply did not fit — the one thing this button promises. The
+   * operator sees content past the right edge and no reason for it.
+   *
+   * The fit's own floor exists only to keep the arithmetic sane on a pathological document; at 0.02
+   * px/s a single screen holds well over a day.
+   */
+  const onZoomFit = () => {
+    const el = scrollRef.current;
+    const avail = (el ? el.clientWidth : 800) - GUTTER - 24;
+    setPxPerSec(clamp(avail / Math.max(1, contentEnd), FIT_MIN_PX_PER_SEC, MAX_PX_PER_SEC));
+    // …AND PUT THE VIEW BACK AT THE START. Sizing alone is not fitting: the canvas keeps a paged
+    // extent wider than the content (see `viewEnd`), so the browser does not clamp the scroll back for
+    // us, and fitting while scrolled into the middle of a long show left everything correctly sized
+    // and still off screen. After the resize, so it lands against the new width.
+    requestAnimationFrame(() => { if (el) el.scrollLeft = 0; });
+  };
   const toggleLoop = () => onChange({ ...timeline, loop: !timeline.loop });
   const toggleSm = () => onStateMachineChange({ ...sm, enabled: !sm.enabled });
   const setStateMachine = (next: StateMachine) => onStateMachineChange(next);

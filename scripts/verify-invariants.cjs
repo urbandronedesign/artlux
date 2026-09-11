@@ -3478,6 +3478,37 @@ check(
   },
 );
 
+// ── Timeline: zoom-to-fit actually fits ───────────────────────────────────────────────────────
+check(
+  'zoom-to-fit does not share the wheel zoom floor',
+  'Fitting is a promise about the RESULT — every clip on screen at once — and it was computed with ' +
+  "the wheel's floor of 5 px/s. That turns the promise into a silent refusal for exactly the " +
+  'documents that need it most: the floor caps what can fit at roughly (lane width / 5) seconds, so a ' +
+  'drawer docked at ~800px could not fit more than about two and a half minutes of content. Press the ' +
+  'button on a real show and clips stay off the right edge, with nothing to say why. The wheel floor ' +
+  'is still right FOR THE WHEEL — below 5 px/s a clip is a smear and a drag cannot be aimed — which ' +
+  'is why these are two named constants and not one.',
+  () => {
+    const T = 'src/renderer/components/timeline/Timeline.tsx';
+    const G = 'src/renderer/components/timeline/geometry.ts';
+    if (!exists(T) || !exists(G)) return 'the timeline or its geometry is gone';
+    const geo = read(G), tl = read(T);
+    const problems = [];
+    if (!/FIT_MIN_PX_PER_SEC/.test(geo)) problems.push('FIT_MIN_PX_PER_SEC is gone — the fit is sharing a floor with something again');
+    if (!/ZOOM_MIN_PX_PER_SEC/.test(geo)) problems.push('ZOOM_MIN_PX_PER_SEC is gone');
+    const fit = fnBody(tl, 'onZoomFit') ?? '';
+    if (!fit) problems.push('could not find onZoomFit');
+    else {
+      if (!/FIT_MIN_PX_PER_SEC/.test(fit)) problems.push('onZoomFit no longer uses the fit floor — it is refusing to fit long documents again');
+      if (/ZOOM_MIN_PX_PER_SEC/.test(fit)) problems.push('onZoomFit uses the WHEEL floor, which caps what it can fit');
+      if (/clamp\([^)]*,\s*5\s*,/.test(fit)) problems.push('onZoomFit has a hardcoded 5 px/s floor again');
+      // Sizing alone is not fitting: the canvas keeps a paged extent, so the view must go back to the start.
+      if (!/scrollLeft\s*=\s*0/.test(fit)) problems.push('onZoomFit no longer returns the view to the start — content can be correctly sized and still off screen');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Projector: a surface's opacity reaches the wall, on every path ────────────────────────────
 check(
   "a surface's opacity reaches every projector output path",

@@ -14,6 +14,19 @@ export const PAGE_SECS = 120;      // infinite-timeline growth quantum (content 
 
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+// ── Zoom limits, and why there are TWO floors ──────────────────────────────────────────────────────
+// The wheel and the +/- buttons stop at 5 px/s: below that a clip is a smear and a drag cannot be
+// aimed, so refusing is a kindness.
+//
+// ZOOM-TO-FIT MUST NOT SHARE IT. Fitting is a promise about the RESULT — everything on screen — and a
+// floor turns that promise into a silent refusal for exactly the documents that need it most: at
+// 5 px/s a docked drawer ~800px wide caps the fit at about two and a half minutes of content, and a
+// show is routinely longer. Its own floor is only there to keep the arithmetic sane on a
+// pathological document; 0.02 px/s puts over a day on one screen.
+export const ZOOM_MIN_PX_PER_SEC = 5;
+export const FIT_MIN_PX_PER_SEC = 0.02;
+export const MAX_PX_PER_SEC = 300;
+
 export const laneHeight = (l: VideoLayer): number => clamp(l.height ?? LANE_H, MIN_LANE_H, MAX_LANE_H);
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
