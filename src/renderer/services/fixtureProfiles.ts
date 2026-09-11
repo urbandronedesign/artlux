@@ -52,6 +52,28 @@ export function setEmbedded(profiles: FixtureProfile[] | undefined): void {
 }
 
 /**
+ * ADD profiles to the embedded set without discarding the ones already there — cross-project import.
+ *
+ * Deliberately not setEmbedded: that one REPLACES, because a project's embedded profiles are
+ * per-document and accumulating them across opens would let a closed show keep shadowing the
+ * library. An import is the one case where growing the set is right — the fixtures arriving with it
+ * reference profiles this machine's library may not have, and a fixture whose profile does not
+ * resolve has NO KNOWN FOOTPRINT, which silently shifts the patch of everything after it on the same
+ * controller.
+ *
+ * An id already present wins: it belongs to the open show, and the import must not redefine it.
+ */
+export function addEmbedded(profiles: FixtureProfile[] | undefined): void {
+  let grew = false;
+  for (const p of profiles ?? []) {
+    if (!p || typeof p.id !== 'string' || embedded.has(p.id)) continue;
+    embedded.set(p.id, p);
+    grew = true;
+  }
+  if (grew) rebuild();
+}
+
+/**
  * Make sure every id is resolved, fetching whatever is missing (one request per manufacturer).
  * Safe to call on every fixture change: ids already resolved or already in flight cost nothing.
  */

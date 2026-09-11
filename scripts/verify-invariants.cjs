@@ -5314,6 +5314,41 @@ check(
   },
 );
 
+// ── Cross-project import knows every reference in the document ─────────────────────────────────
+check(
+  'every id-bearing field is accounted for by the project importer',
+  'services/projectImport.ts re-mints every carried id and rewrites every reference to it. A field it ' +
+  'does not know about is carried VERBATIM, so it keeps pointing at an object in the SOURCE project — ' +
+  'and every dangling reference in this app is silent BY DESIGN: stateMachine.enter() does ' +
+  '`if (s?.sceneId) ctx.recallScene(...)`, so a state whose scene is missing recalls nothing and the ' +
+  'show runs on reporting playing:true all night. Nothing downstream would ever raise it, so this ' +
+  'turns "someone added a reference and forgot the importer" into a build failure instead. It does ' +
+  'NOT ask that a field be remapped — several correctly are not (profileId resolves against a ' +
+  'library, shaderId names a built-in, a zone surface is SOL/MUR) — only that the file MENTION it, ' +
+  'so the decision was made once and written down. It found two real gaps the day it was written: ' +
+  'busId, which left an imported audio track routed to a bus in the source project mix, and shaderId.',
+  () => {
+    const types = read('src/renderer/types.ts');
+    // raw(), NOT read(): read() strips comments, and for a field that is deliberately NOT remapped
+    // the comment explaining why IS the recorded decision. types.ts stays on read() so a
+    // commented-out declaration cannot satisfy the scan.
+    const imp = raw('src/renderer/services/projectImport.ts');
+    if (!imp) return 'services/projectImport.ts is gone — cross-project import cannot be checked';
+    // Declarations shaped `<name>Id?: string` / `<name>Ids: string[]` / `<name>Ref?: string`,
+    // indented by 2+ so this reads interface FIELDS and not top-level consts or locals.
+    const found = new Set();
+    for (const m of types.matchAll(/^\s{2,}(\w+(?:Id|Ids|Ref|Refs))\??\s*:\s*(?:string|string\[\])/gm)) {
+      found.add(m[1]);
+    }
+    // A regex that has stopped matching passes forever, so refuse to be silently vacuous.
+    if (found.size < 15) return `only ${found.size} id fields matched — the scan has stopped seeing them`;
+    const missing = [...found].filter((n) => !imp.includes(n)).sort();
+    return missing.length
+      ? `services/projectImport.ts never mentions: ${missing.join(', ')} — carried verbatim, they would still point at the SOURCE project`
+      : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

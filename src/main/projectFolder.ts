@@ -3,7 +3,7 @@ import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, 
 import * as fsp from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
-import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType } from '../../shared/protocol';
+import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType, AssetImportResult } from '../../shared/protocol';
 
 // Portable-project support: a project is a *folder* containing `project.artlux` plus
 // an `assets/{video,models,images}/` tree. Asset paths are stored relative to the
@@ -385,6 +385,64 @@ export function importAssetFile(projectFile: string, srcPath: string, type: Asse
   scaffold(root);
   return copyIntoAssets(root, srcPath, type, name);
 }
+
+// ---- Bulk copy for cross-project import ---------------------------------------------------------
+//
+// Copy a LIST of source files into this project's assets/ tree and report where each one landed, so
+// the importer can rewrite the paths it carried (docs/PROJECT-IMPORT.md).
+//
+// Why a bulk call rather than N × IMPORT_ASSET_FILE: a show's closure routinely reaches dozens of
+// files, and each round trip is a separate IPC hop plus a separate scaffold() — but more importantly
+// the de-duplication has to be decided across the WHOLE set, not per call, or the same clip reached
+// from five scenes is compared and copied five times.
+//
+// It inherits uniqueDest's byte-exact identity test, which is not negotiable: the comment there
+// records a real "silent, self-certifying wrong-asset-on-stage" where a name+size heuristic remapped
+// one WAV onto another and reported success.
+
+export async function importAssetPaths(projectFile: string, paths: string[]): Promise<AssetImportResult> {
+  const root = dirname(projectFile);
+  scaffold(root);
+  const out: AssetImportResult = { remap: {}, entries: [], missing: [], external: [], copied: 0, bytes: 0 };
+  // Keyed on the SAME normalized identity the library de-dupes on, so one file reached from five
+  // scenes is copied once and every one of those five references is rewritten to the same place.
+  const seen = new Map<string, string>();
+
+  for (const src of paths) {
+    if (!src) continue;
+    const key = normKey(src);
+    const already = seen.get(key);
+    if (already) { out.remap[src] = already; continue; }
+
+    if (!existsSync(src)) { out.missing.push(src); continue; }
+
+    const cat = categoryFor(src);
+    if (!cat) {
+      // Unknown extension: leave it exactly where it is rather than dragging an unmanaged file into
+      // assets/. The reference still resolves — it just is not portable, and the caller says so.
+      out.external.push(src);
+      out.remap[src] = src;
+      seen.set(key, src);
+      continue;
+    }
+
+    // 'tracking' has no CATEGORY_TYPE on purpose (a take's library row IS its trackingTakes entry),
+    // but it still needs a TYPE to pick assets/tracking/ as the destination folder.
+    const type: AssetType = cat === 'tracking' ? 'take' : CATEGORY_TYPE[cat];
+    const entry = await copyIntoAssets(root, src, type);
+    if (!entry) { out.missing.push(src); continue; }
+
+    out.remap[src] = entry.path;
+    seen.set(key, entry.path);
+    if (entry.path !== src) { out.copied++; out.bytes += entry.size ?? 0; }
+    // Mint a library row only for the categories the library shows. A take would otherwise appear
+    // twice — once as its trackingTakes row, once as a dead assets[] entry with nothing to play.
+    if (cat !== 'tracking') out.entries.push(entry);
+  }
+
+  return out;
+}
+
 
 // ---- Scan: adopt files dropped into assets/ by hand -------------------------------------------
 // Import is the supported path, but an operator loading a show from a USB drive copies media into

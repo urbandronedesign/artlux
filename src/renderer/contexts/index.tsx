@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route,
+  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route, FolderInput,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -216,6 +216,11 @@ export function registerCoreWorkspace(): void {
       // of the project you are cutting, and the library is a dock tab away.
       { id: 'collect', label: 'Collect Assets', icon: <Save size={13} />, menuAction: 'collect-assets', group: 'assets' },
       { id: 'collect-copy', label: 'Collect a Copy', menuAction: 'collect-copy', group: 'assets' },
+      // The other direction: content coming IN, from a project that is not this one. `stayPut`
+      // because it acts on the whole document rather than on this workbench — reaching it from the
+      // command palette must not move an operator to Mapping to do it.
+      { id: 'import-project', label: 'Import from Project…', icon: <FolderInput size={13} />,
+        menuAction: 'import-project', group: 'assets', stayPut: true },
     ],
   });
 
@@ -435,6 +440,10 @@ export function registerCoreWorkspace(): void {
       // Opens the drawer BELOW the graph rather than switching away from it — the state you just wired
       // and the lanes it plays stay on screen together.
       { id: 'timeline', label: 'Timeline', icon: <Film size={13} />, run: () => revealBottom() },
+      // A second door on purpose, and the exception the rule allows: both land on the SAME dialog,
+      // and this is the workbench where "I want that show's graph" is actually thought.
+      { id: 'import-project', label: 'Import from Project…', icon: <FolderInput size={13} />,
+        menuAction: 'import-project', stayPut: true },
     ],
   });
 

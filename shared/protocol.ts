@@ -29,6 +29,13 @@ export const IPC = {
   PROJECT_OPEN: 'project:open',
   /** Renderer → main (invoke): read a project from a known path (recents/headless). */
   PROJECT_LOAD_PATH: 'project:load-path',
+  /** Renderer → main (invoke): read ANOTHER project READ-ONLY, for cross-project import.
+      Deliberately NOT PROJECT_LOAD_PATH: that one rebuilds the media allowlist, retargets the
+      thumbnail cache and pushes a recent — i.e. it makes the project it read "the" project.
+      See persistence.peekProject. */
+  PROJECT_PEEK: 'project:peek',
+  /** Renderer → main (invoke): Open dialog → a read-only peek of the picked project. */
+  PROJECT_PEEK_PICK: 'project:peek-pick',
   /** Renderer → main (invoke): export a rig (patch/wiring/routing only). */
   RIG_EXPORT: 'rig:export',
   /** Renderer → main (invoke): import a rig file. */
@@ -155,6 +162,9 @@ export const IPC = {
   IMPORT_ASSETS: 'asset:import',
   /** Renderer → main (invoke): copy one already-known file into assets/<cat>/ → AssetEntry (e.g. a recorded take). */
   IMPORT_ASSET_FILE: 'asset:import-file',
+  /** Renderer → main (invoke): copy a LIST of known files into assets/ and report where each landed.
+      Cross-project import — de-duplication has to be decided across the whole set, not per file. */
+  IMPORT_ASSET_PATHS: 'asset:import-paths',
   /** Renderer → main (invoke): walk the project's assets/ for media the library doesn't have → AssetEntry[]. */
   SCAN_ASSETS: 'asset:scan',
   SCAN_TAKES: 'asset:scan-takes',
@@ -1218,6 +1228,15 @@ export interface ProjectData {
   // Legacy files still carry the key; it is ignored on load. See App.tsx applyProjectData.
   globalBrightness: number;
   groups: unknown[];
+  // THE PROJECT-LEVEL POSE LIBRARY. NamedPose[] (renderer type), kept loose here like scenes and
+  // cueBanks so shared/ stays decoupled from renderer types.
+  //
+  // ⚠ This field was WRITTEN and READ for months without being declared here: buildProjectData has
+  // always put it in the file and applyProjectData has always read it back, so the authoritative
+  // on-disk field list was the function, not this interface. Anything written against the TYPE —
+  // a merge, a migration, a doc generator — would have silently dropped the operator's whole pose
+  // library. Declared 2026-09-11 while building cross-project import, which is exactly such a thing.
+  lightingPoses?: unknown[];
   scenes: unknown[];
   cueBanks?: unknown[]; // CueBank[] (renderer type) — granular cue grid; row 0 references scenes
   scene3D?: Scene3D;
@@ -1251,6 +1270,19 @@ export interface CollectResult {
   copied: number;        // files copied into assets/
   skipped: number;       // references already collected / not collectable
   missing: string[];     // source paths that no longer exist on disk
+}
+
+export interface AssetImportResult {
+  /** Source path (as given) → where it now lives. Identity for anything left in place. */
+  remap: Record<string, string>;
+  /** Library rows to add to ProjectData.assets. Excludes takes — see CATEGORY_TYPE. */
+  entries: AssetEntry[];
+  /** Sources that are not on disk. They are REPORTED, never silently skipped. */
+  missing: string[];
+  /** Sources whose extension this app does not manage; left pointing where they were. */
+  external: string[];
+  copied: number;
+  bytes: number;
 }
 
 // Result of creating a new project folder.
@@ -1574,6 +1606,11 @@ export interface ArtluxApi {
   saveProject(data: ProjectData, path?: string): Promise<string | null>;
   openProject(): Promise<OpenProjectResult | null>;
   loadProjectPath(path: string): Promise<ProjectData | null>;
+  /** Read another project WITHOUT opening it — cross-project import (docs/PROJECT-IMPORT.md).
+      Asset paths come back absolute, as on any load; nothing else about the session changes. */
+  peekProject(path: string): Promise<OpenProjectResult | null>;
+  /** Pick a project file and peek it. Null when cancelled or unreadable. */
+  peekProjectPick(): Promise<OpenProjectResult | null>;
   // Portable projects (folder + asset collection)
   newProjectFolder(): Promise<NewProjectFolder | null>;
   /** Prepare a folder the caller already picked (the launcher's --new-project= path). */
@@ -1708,6 +1745,9 @@ export interface ArtluxApi {
   importAssets(projectFile: string, type: AssetType): Promise<AssetEntry[]>;
   /** Copy a known file into the project's assets/ as an asset of `type` → AssetEntry (or null). */
   importAssetFile(projectFile: string, srcPath: string, type: AssetType, name?: string): Promise<AssetEntry | null>;
+  /** Copy many known files into assets/ at once → where each landed, plus the library rows to add.
+      Used by cross-project import; every copied file is admitted to the media scheme by the handler. */
+  importAssetPaths(projectFile: string, paths: string[]): Promise<AssetImportResult>;
   /**
    * Walk the project's assets/ tree and return entries for media files the library doesn't have yet
    * (files copied in by hand, outside Import). `knownPaths` is every path the library holds today.

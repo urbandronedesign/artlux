@@ -44,6 +44,23 @@ function score(needle: string, hay: string): number {
   return i === n.length ? 100 - Math.min(99, gaps) : -1;
 }
 
+// APP-LEVEL ACTIONS, which the palette could not otherwise see.
+//
+// Everything else here comes from the contexts, because a WorkspaceContext declaring its functions as
+// ContextActions is what makes "what can this app do" answerable without a second registry. A File-menu
+// item belongs to no context, so it appeared in no search — "Import from Project…" shipped, worked, was
+// documented, and typing "import" into this palette found nothing.
+//
+// They are fired through the SAME `menuAction` bridge the context actions use for their `menuAction`
+// field, so this adds a source, not a mechanism. Keep it to actions with no other door: anything that
+// already lives on a rail, a dock tab or an action bar is reachable above and must not be duplicated.
+const APP_COMMANDS: { action: string; label: string }[] = [
+  { action: 'import-rig', label: 'Import Rig…' },
+  { action: 'export-rig', label: 'Export Rig…' },
+  { action: 'collect-assets', label: 'Collect Assets…' },
+  { action: 'collect-copy', label: 'Collect a Copy to Folder…' },
+];
+
 export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ selection }) => {
   const [open, setOpen] = useState(false);
   const trapRef = useFocusTrap(open);
@@ -95,14 +112,45 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
     list.push({ key: 'ws:import', label: 'Import Workspaces…', group: 'Workspace', enabled: true, run: () => { void ws.importFile(); } });
     list.push({ key: 'ws:export', label: 'Export All Workspaces…', group: 'Workspace', enabled: ws.list.length > 0, run: () => { void ws.exportAll(); } });
     const contexts = contextRegistry.all();
+    // App-level actions, MINUS anything a context already declares.
+    //
+    // The filter is the point, not a nicety: `collect-assets` and `collect-copy` are declared by the
+    // Mapping context and were already in this list through the loop below, so naming them here too
+    // put two identical rows in the palette — same label, same effect, no way to tell them apart.
+    // Deriving the exclusion from the registry means a File action that LATER becomes a context
+    // action stops being duplicated on its own, rather than waiting for someone to notice.
+    const declared = new Set(contexts.flatMap((c) => (c.actions ?? []).map((a) => a.menuAction).filter(Boolean)));
+    for (const m of APP_COMMANDS) {
+      if (declared.has(m.action)) continue;
+      list.push({
+        key: `app:${m.action}`, label: m.label, group: 'File', enabled: true,
+        run: () => actions.menuAction(m.action),
+      });
+    }
     for (const c of contexts) {
       list.push({
         key: `ctx:${c.id}`, label: c.title, group: 'Go to', hint: 'workbench',
         run: () => goToContext(c.id), enabled: true,
       });
     }
+    // ONE ROW PER DISTINCT EFFECT.
+    //
+    // A document-level action can legitimately sit on more than one ribbon — "Import from Project…"
+    // is on Mapping and on Show Machine, because both are places the thought occurs — and each of
+    // those declarations would otherwise become its own palette row: same label, same effect, no way
+    // to tell them apart.
+    //
+    // `stayPut` is what makes the collapse safe. WITHOUT it a row also switches to its context
+    // first, so "Add Fixture" from Mapping and from Venue & Rig really are two different things and
+    // both must stay. With it, the action does the same thing wherever it was reached from.
+    const seenStayPut = new Set<string>();
     for (const c of contexts) {
       for (const a of c.actions ?? []) {
+        if (a.stayPut && a.menuAction) {
+          const key = `${a.menuAction}|${a.label}`;
+          if (seenStayPut.has(key)) continue;
+          seenStayPut.add(key);
+        }
         list.push({
           key: `act:${c.id}:${a.id}`,
           // A live action reports its own label and availability ("Stop Recording", and enabled even

@@ -97,3 +97,14 @@ export function nextNumberedName(word: string, existing: readonly { name?: strin
   }
   return `${word} ${highest + 1}`;
 }
+
+// The stem to feed nextNumberedName when DUPLICATING something — "Ember 3" → "Ember", so the copy
+// becomes "Ember 4" rather than "Ember 3 1".
+//
+// Hoisted here beside its partner because the two are never used apart: copy/paste (surfaces,
+// fixtures, 3D models) already pairs them at three sites and cross-project import is the fourth, and
+// a second copy of this regex is a second thing to keep in sync. A name that is nothing BUT a number
+// keeps the fallback rather than becoming empty.
+export function nameStem(name: string): string {
+  return name.trim().replace(/\s+\d+$/, '') || 'Copy';
+}

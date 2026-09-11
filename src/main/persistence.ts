@@ -227,6 +227,45 @@ export function loadProjectPath(path: string): ProjectData | null {
   return data;
 }
 
+// PEEK — read a SECOND project without opening it. The whole cross-project import feature rests on
+// this function being boring.
+//
+// ⚠ THE POINT IS WHAT IT DOES NOT DO. openProjectTimed is not reusable here, and not because it is
+// slow: it declares the project it read to be *the* project. It calls mediaAccess.setProject, which
+// CLEARS the media allowlist and rebuilds it from the document just read — so peeking through it
+// would revoke the OPEN show's media mid-session, and every surface would go black with nothing in
+// the log but "[media] refused (not in the open project)". It also retargets thumbCache at the other
+// folder and pushes a recent entry for a project the operator never opened.
+//
+// So: read, parse, resolve, hand back. No allowlist, no thumbnails, no recents, no logger project
+// folder, no menu rebuild. The source project is a VALUE, never a session.
+//
+// resolveAssets IS still applied — the caller compares and copies real files, so it needs absolute
+// paths, and relative ones would otherwise resolve later against the WRONG root (the open project's
+// folder). That is the one part of openProjectTimed worth keeping.
+export function peekProject(path: string): OpenProjectResult | null {
+  let text: string;
+  try { text = readFileSync(path, 'utf-8'); }
+  catch (e) { console.error('[peek] read failed', path, e); return null; }
+  let data: ProjectData;
+  try { data = JSON.parse(text) as ProjectData; }
+  catch (e) { console.error('[peek] parse failed', path, e); return null; }
+  return { path, data: resolveAssets(data, dirname(path)) };
+}
+
+// The picker half. Same filters as Open, because the thing being picked IS a project — a
+// folder-based one is reached by navigating into it and choosing its project.artlux.
+export async function peekProjectPick(win: BrowserWindow | null): Promise<OpenProjectResult | null> {
+  const opts = {
+    title: 'Import from Project',
+    properties: ['openFile' as const],
+    filters: [{ name: 'ARTLux Project', extensions: ['artlux', 'json'] }],
+  };
+  const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (res.canceled || !res.filePaths[0]) return null;
+  return peekProject(res.filePaths[0]);
+}
+
 // Write a recorded LiDAR-blob take to a sidecar `.lblob` file under userData. Stored externally
 // (absolute path) so recording never requires a saved project; "Collect Assets" later copies it
 // into the project's assets/tracking/ and relativizes the reference (see projectFolder.ts).

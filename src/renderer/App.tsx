@@ -19,6 +19,8 @@ import { mergeFixtureLook, fixtureLookEqual } from './services/sceneLook';
 import { spawnPosition3D } from './services/led3dDefaults';
 import * as placement from './services/fixturePlacement';
 import { About } from './components/About';
+import { ImportFromProject } from './components/ImportFromProject';
+import type { ImportPatch } from './services/projectImport';
 import { AudioEngineMissing } from './components/AudioEngineMissing';
 import { RoutingModal } from './components/RoutingModal';
 import { CueBankPanel } from './components/CueBankPanel';
@@ -78,7 +80,7 @@ import { openShortcuts } from './services/shortcutsNav';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
-import { nextNumberedName } from '@artlux/sdk/renderer';
+import { nextNumberedName, nameStem } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry, panelRegistry, automationTargetRegistry, contextRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
@@ -392,6 +394,7 @@ const App: React.FC = () => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   // null = not probed yet, or the probe failed. ONLY an explicit false raises the alarm: a false "you have
   // no sound" would be worse than the defect it reports.
   const [audioAvailable, setAudioAvailable] = useState<boolean | null>(null);
@@ -1155,7 +1158,6 @@ const App: React.FC = () => {
   };
 
   /** "Head 4" → "Head"; "Front wash" → "Front wash". The stem nextNumberedName counts from. */
-  const nameStem = (name: string): string => name.trim().replace(/\s+\d+$/, '') || 'Copy';
 
   const handlePasteClipboard = (): 'fixtures' | 'surface' | 'model' | null => {
     const payload = clipboard.read();
@@ -2941,6 +2943,45 @@ const App: React.FC = () => {
       }
   };
 
+  // Cross-project import lands here as ONE undoable gesture (docs/PROJECT-IMPORT.md).
+  //
+  // ⚠ recordHistory covers the TEN DocSnapshot slices only. `assets` and `lightingPoses` are document
+  // state deliberately outside history, so an undo rolls the scenes, states and cue banks back but
+  // leaves the copied media and the imported poses in place. The dialog says so rather than leaving
+  // the operator to discover it.
+  const handleImportProject = (patch: ImportPatch, entries: AssetEntry[]) => {
+      recordHistory();
+      // APPENDED, NEVER INSERTED. Fixture array order drives the auto-patch cursors AND the canonical
+      // pixel buffer's `offset += ledCount` walk, so everything already patched keeps its position and
+      // its addresses. The imported fixtures land after it, unassigned, for auto-patch to place.
+      if (patch.surfaces.length) setSurfaces((prev) => [...prev, ...patch.surfaces]);
+      if (patch.fixtures.length) setFixtures((prev) => [...prev, ...patch.fixtures]);
+      if (patch.groups.length) setGroups((prev) => [...prev, ...patch.groups]);
+      if (patch.scenes.length) setScenes((prev) => [...prev, ...patch.scenes]);
+      if (patch.cueBanks.length) setCueBanks((prev) => [...prev, ...patch.cueBanks]);
+      if (patch.lightingPoses.length) setLightingPoses((prev) => [...prev, ...patch.lightingPoses]);
+      if (patch.trackingZones.length) {
+          setScene3D((prev) => ({ ...prev, trackingZones: [...(prev.trackingZones ?? []), ...patch.trackingZones] }));
+      }
+      if (patch.states.length || patch.transitions.length || patch.regions.length) {
+          setStateMachine((prev) => ({
+              ...prev,
+              states: [...prev.states, ...patch.states],
+              transitions: [...prev.transitions, ...patch.transitions],
+              regions: [...(prev.regions ?? []), ...patch.regions],
+              // Only when this project has none: an imported graph must never re-point a show that
+              // already knows where it starts.
+              initialStateId: prev.initialStateId ?? patch.initialStateId,
+          }));
+      }
+      if (entries.length) setAssets((prev) => [...prev, ...entries]);
+      // ADD, never setEmbedded — that one replaces, and it would drop the open project's own profiles.
+      // A fixture whose profile does not resolve has NO KNOWN FOOTPRINT, which silently shifts the
+      // patch of every fixture after it on the same controller.
+      if (patch.fixtureProfiles.length) profiles.addEmbedded(patch.fixtureProfiles);
+  };
+
+
   // The fresh surfaces/fixtures/cue banks of a clean single-fixture project (no setState — see callers).
   //
   // The banks are MINTED HERE, not in resetToNewProject, for the same reason surfaces/fixtures are: the
@@ -3488,6 +3529,7 @@ const App: React.FC = () => {
           case 'calibration-profile': handleToggleCalibration(); break;
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
+          case 'import-project': setImportOpen(true); break;
           case 'preferences': goToContext('settings'); break;
           case 'routing': openDockPanel(ROUTING_PANEL); break;
           // The DMX Monitor dock tab, from either View menu. A toggle (close if it is the front
@@ -5181,6 +5223,15 @@ const App: React.FC = () => {
       />
 
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
+      {/* Cross-project import. `dest` is the open document, read for name collisions and for the
+          pre-commit reference check — the dialog never mutates it; App stays the only writer. */}
+      <ImportFromProject
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          projectPath={currentProjectPath}
+          dest={{ scenes, cueBanks, stateMachine, surfaces, fixtures, groups, lightingPoses, scene3D, assets }}
+          onCommit={(patch, entries) => handleImportProject(patch, entries as AssetEntry[])}
+      />
       {/* No sound, and nothing else would have said so. Dismissible per launch — never permanently: the
           Audio Bed panel keeps a `no audio engine` badge for as long as the state lasts. */}
       <AudioEngineMissing

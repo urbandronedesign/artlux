@@ -91,6 +91,70 @@ Assets*). See [ASSETS.md](../ASSETS.md).
 
 ---
 
+## Reusing a show from another project
+
+**File ▸ Import from Project…** copies part of another `.artlux` into this one — a state machine, some
+scenes, a cue bank, a pose library. The other project is only read; it is never opened and nothing about
+it changes.
+
+What you tick is small; what it brings is not. A state machine's states are bound to scenes, and a scene
+carries its own surfaces, fixtures, timeline, 3D snapshot and media. So the dialog's right-hand column,
+not the checkbox list, is the part to read:
+
+| The report says | What to do with it |
+|---|---|
+| **This will add** | The whole closure, not just your selection. Check the fixture and media counts before committing. |
+| **Things to know** | Every rename and every dropped reference, with its reason. Read them; none of them are noise. |
+| **References would not resolve** | Should never appear. If it does, cancel and report it — the show engine will not warn you about it later. |
+
+**You can take a single state.** States are listed individually as well as collectively, each labelled
+with the look it carries. Ticking one brings that node and its scene. Transitions only come across when
+**both** states they join do — so lifting one state out of a ring gives you the node and the look with no
+edges, and the report says how many were left behind. Ticking the whole show graph is the same as
+ticking every state in it.
+
+**Save the project first if the import brings media.** An unsaved project has no folder to copy files
+into, and the import will refuse rather than leave your show depending on someone else's disk.
+
+### The rig
+
+**Rig ▸ Append source rig** (the default) brings the other project's surfaces and fixtures with it. They
+are **appended**, never inserted: fixture order drives both auto-patch and the canonical pixel buffer, so
+nothing already patched changes address. Imported fixtures arrive with **no controller** — assign them,
+or let auto-patch place them.
+
+**Rig ▸ Map onto this rig** adds no rig at all. The imported looks bind to the fixtures and surfaces you
+already have, matched in two passes:
+
+1. **By name** — a head called `SL Wash 3` in both projects is the same head. Naming is the only signal
+   that carries intent, so it wins outright.
+2. **By order, within the same footprint** — whatever is left is paired positionally against fixtures of
+   the same profile and LED count. Six identical movers called `Head 1…6` there and `Mover 1…6` here pair
+   up in order. The footprint bucket is what stops a 60-LED strip being paired with a moving head just
+   because both happened to be third in their list.
+
+Each of your fixtures is claimed at most once. **Anything with no counterpart is listed by name before
+you commit** — under *Onto this rig* in the report — and its look is not imported. That list is the
+reason to choose this mode deliberately: six unmatched fixtures means six looks that will not arrive.
+
+Use **Append** when the other project describes a different rig; use **Map** when it describes the same
+one, or the same shape of one.
+
+**Expect renames.** If both projects have a scene called `Ember`, the imported one arrives as `Ember 1`.
+Scene recall falls back to matching on *name* when an id is not found, so two scenes with one name would
+answer each other's cues.
+
+**Ctrl+Z undoes the import** — the scenes, states, cue banks, surfaces and fixtures it added. It does not
+delete the media it copied in or the lighting poses it added; remove those by hand if you change your
+mind.
+
+The global timeline and the audio bed cannot be imported: there is one of each per project, so they could
+only replace what you already have. A scene's own timeline and its own audio come across with the scene.
+
+Full reference, including exactly what is carried and what is deliberately left behind:
+[PROJECT-IMPORT.md](../PROJECT-IMPORT.md).
+---
+
 ## Broadcast (show) mode
 
 **File ▸ Launch in Broadcast Mode** opens every enabled output fullscreen and streams Art‑Net/sACN with

@@ -36,6 +36,8 @@ const api: ArtluxApi = {
     saveProject: (data: ProjectData, path?: string) => ipcRenderer.invoke(IPC.PROJECT_SAVE, data, path),
     openProject: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),
     loadProjectPath: (path: string) => ipcRenderer.invoke(IPC.PROJECT_LOAD_PATH, path),
+    peekProject: (path: string) => ipcRenderer.invoke(IPC.PROJECT_PEEK, path),
+    peekProjectPick: () => ipcRenderer.invoke(IPC.PROJECT_PEEK_PICK),
     newProjectFolder: () => ipcRenderer.invoke(IPC.PROJECT_NEW_FOLDER),
     prepareProjectFolder: (root: string) => ipcRenderer.invoke(IPC.PROJECT_PREPARE_FOLDER, root),
     openProjectFolder: () => ipcRenderer.invoke(IPC.PROJECT_OPEN_FOLDER),
@@ -147,6 +149,7 @@ const api: ArtluxApi = {
     // Asset library
     importAssets: (projectFile: string, type) => ipcRenderer.invoke(IPC.IMPORT_ASSETS, projectFile, type),
     importAssetFile: (projectFile: string, srcPath: string, type, name?: string) => ipcRenderer.invoke(IPC.IMPORT_ASSET_FILE, projectFile, srcPath, type, name),
+    importAssetPaths: (projectFile: string, paths: string[]) => ipcRenderer.invoke(IPC.IMPORT_ASSET_PATHS, projectFile, paths),
     scanAssets: (projectFile: string, knownPaths: string[]) => ipcRenderer.invoke(IPC.SCAN_ASSETS, projectFile, knownPaths),
     scanTakes: (projectFile: string, knownPaths: string[]) => ipcRenderer.invoke(IPC.SCAN_TAKES, projectFile, knownPaths),
     showItemInFolder: (path: string) => ipcRenderer.send(IPC.SHOW_ITEM_IN_FOLDER, path),

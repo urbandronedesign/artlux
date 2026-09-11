@@ -17,6 +17,7 @@ export type { OscMessage, OscConfig, PluginManifest, PluginState, PluginStatus }
 // A value, not a type — re-exported here so a renderer plugin that already imports from
 // `@artlux/sdk/renderer` does not need a second import path for it.
 export { nextNumberedName } from './index.ts';
+export { nameStem } from './index.ts';
 
 // A drawable surface source — same as the host compositor's `CanvasImageSource`.
 export type Drawable = CanvasImageSource;

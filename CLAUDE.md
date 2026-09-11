@@ -57,6 +57,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | Augmenta optical tracking (OSC v2) | [docs/AUGMENTA.md](docs/AUGMENTA.md) |
 | **Tablet show-control remote + scheduler + project playlist** | [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md) |
 | Assets / portable projects | [docs/ASSETS.md](docs/ASSETS.md) |
+| **Copying a show BETWEEN projects (state machine, scenes, cues + everything they reach)** | [docs/PROJECT-IMPORT.md](docs/PROJECT-IMPORT.md) |
 | Metrics / monitoring | [docs/MONITORING.md](docs/MONITORING.md) |
 | **Troubleshooting index — symptom → the page that owns the fix** | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 | Feature overview / user guide | [docs/FEATURES.md](docs/FEATURES.md), [docs/USER_GUIDE.md](docs/USER_GUIDE.md), `docs/user-guide/` |

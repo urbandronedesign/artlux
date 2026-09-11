@@ -156,10 +156,13 @@ value to the scene's over `fadeSec`; discrete params (media, effectId, palette, 
 so it never re-renders React. Per-surface **opacity** (`content.opacity`, set in the Inspector) enables
 fade-in/out and crossfades.
 
-> **Note:** video URLs inside captured `surfaces` and model paths inside `scene3D` are stored as
-> absolute paths in the scene. Scenes are reliable within a project; they are not yet portable across
-> project folders. (Top-level project save *does* relativize asset paths — scenes don't, by design,
-> for the MVP.)
+> **Note:** a scene holds whole `Surface` / `scene3D` snapshots, so it carries asset paths of its own.
+> Those paths ARE relativized on save and resolved on load, exactly like the top-level ones —
+> `mapAssetPaths` walks every scene's `surfaces`, `scene3D` and `timeline` (`main/projectFolder.ts`).
+> Until it did, Collect Assets shipped a folder whose scenes still pointed at the author's own drive,
+> and a file referenced ONLY from a scene was neither copied nor named in `missing`, because that
+> list is populated from the very same visitor. Copying a scene into ANOTHER project is a separate
+> matter — see [PROJECT-IMPORT.md](PROJECT-IMPORT.md).
 
 Type: `Scene` in [src/renderer/types.ts](../src/renderer/types.ts). Persistence is free: `scenes`
 already rides in `buildProjectData`/`applyProjectData` and `ProjectData.scenes`.

@@ -75,6 +75,7 @@
     "SHADER-COOKBOOK.md": "usage",
     "SHADER-NODES.md": "usage",
     "ASSETS.md": "hybrid",
+    "PROJECT-IMPORT.md": "hybrid",
     "CODECS.md": "usage",
     "TIMELINE.md": "hybrid",
     "AUDIO.md": "hybrid",

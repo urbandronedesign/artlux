@@ -120,6 +120,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         projectFolder.collectAssetsToFolder(getWindow(), data));
     ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
+    // Cross-project import: read-only, and NO rebuildAppMenu() — peeking another project must not
+    // touch the recents the File menu is built from. See persistence.peekProject.
+    ipcMain.handle(IPC.PROJECT_PEEK, (_e, path: string) => persistence.peekProject(path));
+    ipcMain.handle(IPC.PROJECT_PEEK_PICK, () => persistence.peekProjectPick(getWindow()));
     ipcMain.handle(IPC.WORKSPACE_EXPORT, (_e, file: unknown) => persistence.exportWorkspaces(getWindow(), file));
     ipcMain.handle(IPC.WORKSPACE_IMPORT, () => persistence.importWorkspaces(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
@@ -220,6 +224,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const entry = await projectFolder.importAssetFile(projectFile, srcPath, type, name);
         mediaAccess.allowAssets(entry ? [entry] : []);
         return entry;
+    });
+    // Cross-project import's bulk copy. Every file that lands inside the project folder is already
+    // covered by the folder root, but the result is passed through allowAssets anyway: a source with
+    // an unmanaged extension is left OUTSIDE the project (see importAssetPaths), and without this it
+    // would 403 — which downstream is indistinguishable from a file that will not decode.
+    ipcMain.handle(IPC.IMPORT_ASSET_PATHS, async (_e, projectFile: string, paths: string[]) => {
+        const r = await projectFolder.importAssetPaths(projectFile, paths ?? []);
+        mediaAccess.allowAssets(r.entries);
+        return r;
     });
     ipcMain.handle(IPC.SCAN_ASSETS, async (_e, projectFile: string, knownPaths: string[]) => {
         const found = await projectFolder.scanAssets(projectFile, knownPaths ?? []);

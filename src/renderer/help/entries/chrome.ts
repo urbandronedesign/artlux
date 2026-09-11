@@ -4,6 +4,16 @@ import type { HelpEntry } from '../types';
 // Authored during the controls → help-system migration. Ids are stable "general.<fn>" — never rename.
 export const chromeHelp: HelpEntry[] = [
   // ── App-level functions (once the menu-ribbon icon group; now menu / rail / dock entries) ────
+  // A door that exists only in the File menu is a door nobody finds — the track-reorder feature
+  // shipped, worked, was documented, and the owner had never seen it. F1 is the other door.
+  {
+    id: 'general.import-project',
+    title: 'Import from Project',
+    short: 'Copy a state machine, states, scenes, cue banks or poses out of ANOTHER project.',
+    body: 'File ▸ Import from Project… reads a second .artlux (it is never opened, and nothing about it changes) and copies the parts you tick into this show, bringing everything they depend on — scenes, timelines, media, groups, poses and tracking zones. The dialog reports the full closure, every rename and every dropped reference BEFORE you commit, because the show engine will not warn you about a broken one afterwards. Media is copied into this project, so save it first. The whole import is one undo.',
+    group: 'General',
+    keywords: ['import', 'copy', 'another project', 'merge', 'reuse', 'state machine', 'scenes', 'show', 'between projects'],
+  },
   {
     id: 'general.outputs',
     title: 'Outputs',

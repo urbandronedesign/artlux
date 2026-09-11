@@ -52,6 +52,46 @@ export function pathLeaf(path: string): string {
   return p.slice(3).join('.');                           // audio.clip.c7.fx.e2.cutoff → 'fx.e2.cutoff'
 }
 
+// THE OTHER HALF OF THE GRAMMAR: which OBJECT does this path address?
+//
+// pathLeaf answers "what parameter"; this answers "on what". Cross-project import needs it because a
+// cue entry and an automation lane carry their owner's id INSIDE the string
+// ("surfaces.<id>.content.opacity"), where no object-graph walker will ever find it — a remap that
+// misses these produces cues and lanes that address nothing, silently.
+//
+// It lives HERE, beside pathLeaf, rather than in the importer, because it is the same grammar and the
+// same trap: the audio forms put the id one segment DEEPER, which is exactly the asymmetry that made
+// every bare slice(2) in the app wrong once already. Two copies of this rule would disagree.
+//
+// Null for the ownerless forms — "globalBrightness", "audio.master.gain" — which have nothing to
+// rewrite.
+export type ParamOwnerNs = 'surface' | 'fixture' | 'audioClip' | 'audioTrack';
+export interface ParamOwner { ns: ParamOwnerNs; id: string; index: number }
+export function pathOwner(path: string): ParamOwner | null {
+  const p = path.split('.');
+  if (p[0] === 'surfaces' && p.length > 1) return { ns: 'surface', id: p[1], index: 1 };
+  if (p[0] === 'fixtures' && p.length > 1) return { ns: 'fixture', id: p[1], index: 1 };
+  if (p[0] === 'audio' && p.length > 2) {
+    if (p[1] === 'clip') return { ns: 'audioClip', id: p[2], index: 2 };
+    if (p[1] === 'track') return { ns: 'audioTrack', id: p[2], index: 2 };
+  }
+  return null;
+}
+
+// Rewrite a path's owner id, leaving the leaf untouched.
+//
+// The leaf is left ALONE deliberately, and that includes the audio effect id in "fx.<id>.<param>":
+// an AudioEffect travels INSIDE its clip or track, so its id never collides across projects and
+// re-minting it would only invalidate the very lanes this function exists to keep pointing.
+export function withPathOwner(path: string, id: string): string {
+  const owner = pathOwner(path);
+  if (!owner) return path;
+  const p = path.split('.');
+  p[owner.index] = id;
+  return p.join('.');
+}
+
+
 export function isGeometryPath(path: string): boolean {
   const leaf = pathLeaf(path); // strips "surfaces.<id>." / "fixtures.<id>." / "audio.<kind>.<id>."
   return GEOMETRY_LEAVES.has(leaf) || GEOMETRY_LEAVES.has(path);

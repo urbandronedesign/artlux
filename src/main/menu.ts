@@ -80,6 +80,7 @@ function template(): MenuItemConstructorOptions[] {
         { type: 'separator' },
         { label: 'Export Rig…', click: () => send('export-rig') },
         { label: 'Import Rig…', click: () => send('import-rig') },
+        { label: 'Import from Project…', click: () => send('import-project') },
         { type: 'separator' },
         { label: 'Routing…', click: () => send('routing') },
         { label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => send('preferences') },

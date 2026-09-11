@@ -1,0 +1,29 @@
+{
+  // Cross-project import, compiled for `node` — no Electron, no bundler, no app.
+  //
+  // Separate from tsconfig.test.json for the same reason tsconfig.zone-take.json is: that config
+  // reaches packages/sdk/src/renderer.ts, which re-exports with an explicit `.ts` specifier and pulls
+  // React in — so it does not compile cleanly under plain `node` resolution.
+  //
+  // But unlike the zone test, this one needs REAL VALUES from the SDK (nameStem, nextNumberedName),
+  // not just types, so a stub will not do. `@artlux/sdk` is mapped straight at the platform-neutral
+  // entry, which has NO imports of its own and therefore compiles standalone. That is exactly why
+  // services/projectImport.ts imports from '@artlux/sdk' rather than '@artlux/sdk/renderer'.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": false,
+    "baseUrl": "..",
+    "paths": {
+      "@artlux/sdk": ["packages/sdk/src/index.ts"]
+    },
+    "rootDir": "..",
+    "outDir": "../.tmp-import",
+    "types": ["node"]
+  },
+  "include": ["test-project-import.ts"]
+}
