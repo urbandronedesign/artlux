@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
-import { Slider, Toggle, Select } from '@/components/ui'; // host UI primitives (pure presentational)
+import { Slider, Toggle, Select, ColorField } from '@/components/ui'; // host UI primitives (pure presentational)
 import type { SurfaceContent } from '@/types';
 import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textRaster';
 import { families, known, canRender } from './fontList';
@@ -25,18 +25,6 @@ const Row: React.FC<{ label: string; title?: string; children: React.ReactNode }
     <label className="text-fg-2 w-20 shrink-0 truncate" title={title}>{label}</label>
     {children}
   </div>
-);
-
-/** Fill / stroke colour. The app has no colour primitive yet — see the note in the plan. */
-const ColorRow: React.FC<{ label: string; value: string; onChange: (v: string) => void }> = ({ label, value, onChange }) => (
-  <Row label={label}>
-    <div className="flex flex-1 items-center gap-2">
-      <input type="color" value={value} onChange={(e) => onChange(e.target.value)}
-        className="h-5 w-10 shrink-0 cursor-pointer rounded border border-line-1 bg-surface-0" />
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
-        spellCheck={false} className={`${selCls} num`} />
-    </div>
-  </Row>
 );
 
 /**
@@ -157,11 +145,11 @@ export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (p
       </Select>
     </Row>
 
-    <ColorRow label="Color" value={c.textColor ?? DEFAULTS.color} onChange={(v) => onChange({ textColor: v })} />
+    <ColorField label="Color" value={c.textColor ?? DEFAULTS.color} onChange={(v) => onChange({ textColor: v })} />
     <Slider label="Stroke" value={c.textStrokeWidth ?? DEFAULTS.strokeWidth} min={0} max={0.2} step={0.005}
       format={(v) => (v > 0 ? `${(v * 100).toFixed(1)}%` : 'off')} onChange={(v) => onChange({ textStrokeWidth: v || undefined })} />
     {(c.textStrokeWidth ?? 0) > 0 && (
-      <ColorRow label="Stroke color" value={c.textStrokeColor ?? DEFAULTS.strokeColor} onChange={(v) => onChange({ textStrokeColor: v })} />
+      <ColorField label="Stroke color" value={c.textStrokeColor ?? DEFAULTS.strokeColor} onChange={(v) => onChange({ textStrokeColor: v })} />
     )}
 
     {/* MOTION — the block as a whole, and every one of these is automatable: drop a lane on it in the

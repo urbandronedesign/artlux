@@ -4,6 +4,7 @@ export { Field } from './Field';
 export { NumberField } from './NumberField';
 export { Slider } from './Slider';
 export { Select } from './Select';
+export { ColorField } from './ColorField';
 export { Toggle } from './Toggle';
 export { Segmented } from './Segmented';
 export { ListRow } from './ListRow';
