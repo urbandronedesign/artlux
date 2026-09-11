@@ -2,7 +2,7 @@ import React from 'react';
 import { SurfaceContent, SourceType, VideoLayer, Surface } from '../types';
 import { FULL_RECT, type SrcRect } from '../../../shared/protocol';
 import { clampRect } from '../services/outputSpan';
-import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop, Code2 } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop, Code2, Type } from 'lucide-react';
 import { Slider } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
@@ -116,6 +116,11 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
         <Tooltip id="content.shader">
           <button onClick={() => pickType('SHADER')} className={btnCls(c.type === 'SHADER')} title="Operator-authored GLSL generative content" {...help('content.shader')}>
             <Code2 size={16} className="mb-1" /><span className="text-micro">Shader</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.text">
+          <button onClick={() => pickType('TEXT')} className={btnCls(c.type === 'TEXT')} title="Typed copy — a title, a name, a credit" {...help('content.text')}>
+            <Type size={16} className="mb-1" /><span className="text-micro">Text</span>
           </button>
         </Tooltip>
         {showLayerOption && (

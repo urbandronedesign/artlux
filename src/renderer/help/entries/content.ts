@@ -132,6 +132,14 @@ export const contentHelp: HelpEntry[] = [
     keywords: ['glsl', 'shader', 'generative', 'code'],
   },
   {
+    id: 'content.text',
+    title: 'Text',
+    short: 'Type copy straight onto this surface.',
+    body: 'A title, a name, a credit — typed here and drawn onto the surface, so fixtures sample it and projector outputs show it like any other source. Pick a font installed on this machine, then set size, line height, tracking, alignment, colour and an optional outline. Size is a share of the surface height rather than a pixel count, so the type keeps its proportion when you resize the surface. Each projector draws the type at its OWN resolution instead of being sent a picture, which is what keeps glyph edges sharp on a big output. Change the copy from a cue by capturing it into a scene.',
+    group: 'Content',
+    keywords: ['text', 'type', 'font', 'title', 'caption', 'credit', 'lettering', 'typography', 'words'],
+  },
+  {
     id: 'content.slice',
     title: 'Slice',
     short: 'Show a cropped region of another surface.',

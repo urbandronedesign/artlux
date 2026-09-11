@@ -1,0 +1,12 @@
+{
+  "name": "@artlux/plugin-text",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: TEXT content source — typed copy on a surface, shaped by Canvas 2D (HarfBuzz) and cached per layout.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

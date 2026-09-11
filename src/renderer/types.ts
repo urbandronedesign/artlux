@@ -373,6 +373,39 @@ export interface SurfaceContent {
                        // surface's own proportions. Absent ⇒ 720. Per surface because the two consumers
                        // want opposite things: the LED path samples an atlas rect scaled to fixture
                        // density and discards anything finer, while a projector wants its native raster.
+  // ── TEXT params (@artlux/plugin-text) — typed copy on a surface ─────────────────────────────────
+  // Persisted here rather than in the plugin for the reason SHADER's fields are: core owns the project
+  // file's shape, so the plugin can be reworked, renamed or disabled without a migration. `'TEXT'` is
+  // an open type string and needs no SourceType entry.
+  //
+  // THE FIELDS SPLIT IN TWO, AND THE SPLIT IS LOAD-BEARING. Everything under LAYOUT feeds the glyph
+  // raster — change one and the type has to be shaped and drawn again. Everything under MOTION feeds
+  // only the composite that places that raster in the frame. Keeping them apart is what lets a still
+  // text surface cost nothing per frame: the raster is cached on the layout fields alone, and the
+  // composite pass is skipped entirely while the motion fields sit at rest.
+  textBody?: string;        // the copy itself; "\n" separates lines
+  // LAYOUT — any change re-shapes and re-rasterises.
+  textFont?: string;        // family name, as the machine reports it (see the font list IPC)
+  textFontAsset?: string;   // …or the id of a font in the project's asset library, which TRAVELS
+  textWeight?: number;      // 100..900
+  textItalic?: boolean;
+  textSize?: number;        // FRACTION OF SURFACE HEIGHT, not px — so type keeps its proportion when
+                            // the surface is resized, which px would not. Absent ⇒ 0.2.
+  textLineHeight?: number;  // multiple of the font size. Absent ⇒ 1.2.
+  textTracking?: number;    // letter-spacing, as a fraction of the font size (may be negative)
+  textAlign?: 'left' | 'center' | 'right';
+  textColor?: string;       // fill, "#rrggbb"
+  textStrokeColor?: string;
+  textStrokeWidth?: number; // fraction of the font size; 0/absent ⇒ no stroke
+  textRes?: number;         // DETAIL: a pixel budget, spent in the surface's proportions — exactly
+                            // like shaderRes above, and for the same reason (the LED path samples a
+                            // density-scaled atlas rect, a projector wants its native raster).
+  // MOTION — the block as a whole. Automatable, and cheap: these never re-shape the type.
+  // (Fading needs nothing new — `opacity` above already rides the compositor.)
+  textX?: number;           // normalized offset within the surface, 0 = centred
+  textY?: number;
+  textScale?: number;       // uniform, 1 = as laid out
+  textRotate?: number;      // degrees
   // TRACKING params (LiDAR blob viz, projection-mappable):
   trackingSource?: string;   // which tracking surface: 'SOL' | 'MUR' | 'SOL_MUR'
   bgLayerId?: string;        // optional timeline layer drawn UNDER the blobs (video + blobs on one surface)
