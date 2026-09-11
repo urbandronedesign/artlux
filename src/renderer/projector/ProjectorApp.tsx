@@ -31,7 +31,17 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 // output is black.
 // Content-type-string membership sets (SurfaceContent.type is an open string space; SourceType values
 // are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
-const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING, 'SHADER']);
+// 'TEXT' self-renders, and for type that is not a nicety: streaming it would ship a bitmap rasterised
+// at the MAIN window's density and stretch it onto the projector's raster, which is exactly the way to
+// make glyph edges mushy. Rasterising here means the type is drawn at this output's native resolution.
+// MEDIAPIPE and AUGMENTA were MISSING here until 2026-09-11, which is this comment's own warning coming
+// true for the third time: both plugins register a content source, both already push a snapshot to
+// projector windows over their own data channel — the entire pipeline was built — and a surface using
+// either one still drew NOTHING on a projector, because these two sets are the one place a type must
+// also be named. Found by the invariant that now guards this line, not by anyone looking.
+const SELF_RENDER = new Set<string>([
+  SourceType.IMAGE, 'EFFECT', SourceType.TRACKING, SourceType.MEDIAPIPE, SourceType.AUGMENTA, 'SHADER', 'TEXT',
+]);
 const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
 // Silence on the port for this long means the main window is no longer producing — see the liveness
 // check in the render loop for why a frozen picture is worse than a black one. Generous next to the

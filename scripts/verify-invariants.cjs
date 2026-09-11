@@ -3478,6 +3478,39 @@ check(
   },
 );
 
+// ── Content: a new source type must also reach the projector windows ──────────────────────────
+check(
+  'every plugin content type is named in SELF_RENDER or STREAMED',
+  'A projector window classifies a surface by its content type into SELF_RENDER (rasterise it here) ' +
+  'or STREAMED (the main window decodes it and pushes bitmaps). A type in NEITHER set renders ' +
+  'NOTHING — not an error, not a fallback: a black output, in the mode with no operator watching. ' +
+  "This has shipped twice. 'SLICE' did it first; 'SHADER' did it again the day it was added, with the " +
+  'plugin registered, the stage correct and the fixtures correct, because those two sets are the one ' +
+  'place a new type must ALSO be named and nothing pointed that out. ProjectorApp.tsx carries a ' +
+  'comment begging whoever adds the next one to remember; this is that comment made mechanical.',
+  () => {
+    const APP = 'src/renderer/projector/ProjectorApp.tsx';
+    if (!exists(APP)) return `${APP} is gone`;
+    const app = read(APP);
+    const sets = app.match(/const (?:SELF_RENDER|STREAMED) = new Set<string>\(\[([\s\S]*?)\]\)/g);
+    if (!sets || sets.length !== 2) return 'SELF_RENDER / STREAMED are no longer two Set<string> literals — the classification moved and this check is blind';
+    const named = sets.join('\n');
+    // A registered content type is a `type: 'X'` sitting in a file that also implements getDrawable.
+    const problems = [];
+    for (const rel of walk('plugins')) {
+      const src = read(rel);
+      if (!/getDrawable\s*[:(]/.test(src)) continue;
+      for (const m of src.matchAll(/\btype:\s*'([A-Z][A-Z0-9_]*)'/g)) {
+        const t = m[1];
+        // Either spelling counts: the sets mix SourceType.X constants and bare plugin strings.
+        if (named.includes(`'${t}'`) || named.includes(`SourceType.${t}`)) continue;
+        problems.push(`${rel} registers content type '${t}', which ProjectorApp names in neither set — that output will be BLACK`);
+      }
+    }
+    return problems.length ? [...new Set(problems)].join('; ') : null;
+  },
+);
+
 // ── 3D: the ruler tells the truth ─────────────────────────────────────────────────────────────
 check(
   'the floor grid, its numbers and the gnomon read one ladder',
