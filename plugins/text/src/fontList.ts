@@ -17,30 +17,47 @@
 
 let cache: string[] | null = null;
 let inFlight: Promise<string[]> | null = null;
+let error: string | null = null;
 
 interface LocalFontData { family: string }
 type QueryLocalFonts = () => Promise<LocalFontData[]>;
 
+/** Why the last attempt produced nothing, or null if it worked. Shown in the picker, never swallowed. */
+export function lastError(): string | null { return error; }
+
 /**
- * Installed font families, sorted, de-duplicated. Empty when the machine will not say — never throws.
+ * Installed font families, sorted and de-duplicated.
  *
- * Cached for the life of the window: enumerating is not free, and a font installed while the app is
- * running is rare enough to be worth a relaunch. `refresh()` exists for when it is not.
+ * ⚠ CALL THIS FROM A USER GESTURE. `queryLocalFonts()` needs the local-fonts permission (granted in
+ * main, so no prompt appears) AND transient user activation — asking on mount, with no click behind
+ * it, is rejected. That is precisely how this shipped broken: the effect ran at mount, the promise
+ * rejected, and the failure was swallowed into an empty list that looked like "this machine has no
+ * fonts". The picker now asks when it is opened, which is a gesture by construction.
+ *
+ * A FAILURE IS NOT CACHED. Caching `[]` on rejection made the first failure permanent — a later call,
+ * gesture and all, returned the empty array without ever retrying. Only a successful read is kept.
  */
 export async function families(): Promise<string[]> {
   if (cache) return cache;
   if (inFlight) return inFlight;
   const q = (globalThis as unknown as { queryLocalFonts?: QueryLocalFonts }).queryLocalFonts;
-  if (typeof q !== 'function') { cache = []; return cache; }
+  if (typeof q !== 'function') {
+    error = 'this build cannot read the machine’s fonts (queryLocalFonts is unavailable)';
+    return [];
+  }
   inFlight = q()
     .then((fonts) => {
-      // One entry per FACE comes back (Regular, Bold, Italic…); the picker wants families.
       const set = new Set<string>();
-      for (const f of fonts) if (f?.family) set.add(f.family);
+      for (const f of fonts) if (f?.family) set.add(f.family);   // one entry per FACE; we want families
       cache = [...set].sort((a, b) => a.localeCompare(b));
+      error = cache.length ? null : 'the machine reported no fonts';
       return cache;
     })
-    .catch(() => { cache = []; return cache; })
+    .catch((e: unknown) => {
+      // Left UNCACHED on purpose — see above. The next open tries again.
+      error = e instanceof Error ? e.message : String(e);
+      return [];
+    })
     .finally(() => { inFlight = null; });
   return inFlight;
 }

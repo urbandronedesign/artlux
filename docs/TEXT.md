@@ -76,8 +76,10 @@ overflowing.
 
 There are two ways to pick a typeface, and the difference only shows up at the venue.
 
-**Naming a family** — typing a name into **Font** — uses a font installed on *this* machine. The list
-that drops down is what this machine has. If the machine that actually runs the show does not have
+**Naming a family** — typing a name into **Font**, or clicking the **▾** beside it to pick from the
+fonts installed on *this* machine. The list is filterable and each entry is drawn in its own face, so
+you can see what you are choosing. You can always type a name that is *not* in the list: a show
+authored here may legitimately name a family only the venue machine has. If the machine that actually runs the show does not have
 that font, it silently draws something else, and the wall reads in the wrong face. ArtLux warns you
 when the family you have named is not available *here*, but it cannot know what the venue machine has.
 

@@ -1,8 +1,8 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Slider, Toggle, Select, ColorField } from '@/components/ui'; // host UI primitives (pure presentational)
 import type { SurfaceContent } from '@/types';
 import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textRaster';
-import { families, known, canRender } from './fontList';
+import { families, lastError, refresh, canRender } from './fontList';
 import { stateOf } from './fontAssets';
 import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell store, as the shader panels use
 
@@ -38,24 +38,34 @@ const Row: React.FC<{ label: string; title?: string; children: React.ReactNode }
  * type-ahead list keeps both: pick from what is here, or type what will be there.
  */
 const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => {
-  const listId = useId();
-  const [list, setList] = useState<string[]>(known);
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
   const { assets } = useEditor();
   const a = useEditorActions();
-  useEffect(() => {
-    let alive = true;
-    void families().then((f) => { if (alive) setList(f); });
-    return () => { alive = false; };
-  }, []);
+
+  // ⚠ ASKED ON THE CLICK THAT OPENS THE LIST, never on mount. queryLocalFonts needs transient user
+  // activation as well as the permission, so a mount-time call is rejected — which is exactly how this
+  // shipped as an empty dropdown that looked like a machine with no fonts.
+  const openList = async () => {
+    setOpen((v) => !v);
+    if (open) return;
+    setBusy(true);
+    const f = await families();
+    setList(f);
+    setErr(f.length ? null : (lastError() ?? 'no fonts came back'));
+    setBusy(false);
+  };
 
   const fonts = (assets ?? []).filter((x) => x.type === 'font');
   const asset = c.textFontAsset ?? '';
   const named = c.textFont ?? DEFAULTS.font;
-  // Ask whether Chromium can DRAW it, not whether it is in the machine's list — a webfont loaded into
-  // the document (the app's own IBM Plex Sans, or a typeface this project carries) renders fine and is
-  // in no such list. See fontList.canRender.
   const missing = !asset && named.trim() !== '' && !canRender(named);
-  const st = asset ? stateOf(asset) : 'unknown';
+  const shown = filter.trim()
+    ? list.filter((f) => f.toLowerCase().includes(filter.trim().toLowerCase()))
+    : list;
 
   return (
     <>
@@ -71,20 +81,48 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
                 title="Stop using the imported file and go back to naming a family">Unlink</button>
             </div>
           ) : (
-            <>
-              <input type="text" list={listId} value={named} spellCheck={false}
-                onChange={(e) => onChange({ textFont: e.target.value })} className={`${selCls} w-full`} />
-              <datalist id={listId}>{list.map((f) => <option key={f} value={f} />)}</datalist>
-            </>
+            <div className="flex items-center gap-1">
+              {/* Still TYPEABLE: a show authored here may name a family only the venue machine has, and
+                  a pure dropdown would make that unsayable. */}
+              <input type="text" value={named} spellCheck={false}
+                onChange={(e) => onChange({ textFont: e.target.value })} className={`${selCls} min-w-0`} />
+              <button onClick={openList} aria-expanded={open}
+                className="shrink-0 rounded border border-line-1 px-1.5 py-1 text-micro text-fg-2 hover:text-fg-1"
+                title="Pick from the fonts installed on this machine">{open ? '▴' : '▾'}</button>
+            </div>
           )}
+
+          {open && !asset && (
+            <div className="mt-1 rounded border border-line-1 bg-surface-0">
+              <input autoFocus type="text" value={filter} placeholder="Filter…" spellCheck={false}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full border-b border-line-1 bg-transparent px-1.5 py-1 text-micro text-fg-1 focus:border-accent" />
+              <div className="max-h-40 overflow-y-auto overscroll-contain">
+                {busy && <div className="px-1.5 py-1 text-micro text-fg-3">reading this machine’s fonts…</div>}
+                {!busy && err && (
+                  <div className="px-1.5 py-1 text-micro text-warn">
+                    {err}
+                    <button onClick={() => { refresh(); void openList(); }} className="ml-1 underline">retry</button>
+                  </div>
+                )}
+                {!busy && !err && shown.length === 0 && <div className="px-1.5 py-1 text-micro text-fg-3">nothing matches</div>}
+                {shown.map((f) => (
+                  <button key={f} onClick={() => { onChange({ textFont: f }); setOpen(false); setFilter(''); }}
+                    className="pressable block w-full truncate px-1.5 py-1 text-left text-micro text-fg-1"
+                    style={{ fontFamily: `"${f}", sans-serif` }}>{f}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Say it, rather than letting a substituted face be the only clue. Not an error — the machine
               that RUNS the show is the one that has to have the font, and it may well be another. */}
-          {missing && (
+          {missing && !open && (
             <div className="mt-0.5 text-micro text-warn" title="Chromium is substituting another face here">
               not installed on this machine — drawn in a fallback face
             </div>
           )}
-          {asset && st === 'failed' && (
+          {asset && stateOf(asset) === 'failed' && (
             <div className="mt-0.5 text-micro text-warn">the font file could not be read — drawn in a fallback face</div>
           )}
         </div>
