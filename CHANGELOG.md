@@ -1,5 +1,58 @@
 # Changelog
 
+## v0.28.0
+
+### A show can be copied out of another project
+
+There was no way to reuse work between projects. A state machine built in one show, the scenes it
+drives, the cue bank beside it — all of it could only be rebuilt by hand, or the whole file copied and
+edited down. **File ▸ Import from Project…** (also on the Mapping and Show Machine ribbons, Ctrl+K and
+F1) reads a second `.artlux` and copies the parts you tick into the open show.
+
+The unit you pick is small; what it carries is not. A state names a scene, and a scene is a full look
+snapshot owning its own surfaces, fixtures, 3D snapshot and timeline — which owns clips, markers, takes,
+pose sequences, automation and its own audio, and reaches out to the project's groups, lighting poses
+and tracking zones. So the dialog's report, not its checkbox list, is the part to read: it names the
+whole closure, every rename, and everything it is about to drop, **before** you commit.
+
+**The source project is read, never opened.** Nothing about it changes, and — the part that took the
+most care — nothing about the show you already have changes either. Opening a project rebuilds the list
+of media the app is allowed to read; doing that while peeking would have revoked the open show's own
+media mid-session, and a refused file is indistinguishable from one that will not decode. An image
+would simply have stopped appearing.
+
+**Names change on purpose.** Import a scene called `Ember` into a project that already has one and it
+arrives as `Ember 1`. Scene recall matches on id and then falls back on **name**, so two scenes sharing
+a name answer each other's cues.
+
+**Two ways to meet your rig.** *Append* brings the other project's surfaces and fixtures along, added
+after yours so nothing already patched changes address. *Map* adds no rig at all and binds the imported
+looks onto the fixtures you already have — by name first, then by position among fixtures of the same
+profile and LED count. Anything with no counterpart is **listed by name** before you commit, and its
+look is not imported.
+
+**Take one state or the whole graph.** A transition comes across only when both of the states it joins
+do, so lifting one state out of a ring gives you the node and its look with no edges, and the report
+says how many were left behind. An edge with one end missing would sit in the graph looking correctly
+wired and either never fire or fire into nothing.
+
+Media is copied into your project so the result stays portable — identical files are not duplicated,
+and a same-named but different file is kept separately, compared byte for byte rather than by name and
+size. The whole import is **one undo**, with the exception the dialog states: copied media and imported
+poses stay.
+
+### Fixed on the way past
+
+- **The project file's field list was the save function, not the type.** `ProjectData` never declared
+  `lightingPoses`, although it has always been written and read back. Anything written against the type
+  — a merge, a migration, a generator — would have silently dropped the pose library.
+- **An imported audio track kept a bus from the project it came from**, routing it to something that is
+  not here. It now falls back to the master, and says so.
+- **The command palette could not see File-menu actions at all.** *Import Rig*, *Export Rig* and both
+  *Collect* actions were unreachable from Ctrl+K; typing their names found nothing.
+- `SCENES.md` still said scenes "are not yet portable across project folders", which stopped being true
+  some time ago.
+
 ## v0.27.2
 
 A venue report — *"the lidar tracks 2 blobs for each person, so I had to put 4 instead of 2 to trigger

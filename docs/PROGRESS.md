@@ -1521,6 +1521,52 @@ New tooling: `test:people`, `test:zone:take`, `analyze:take`, `analyze:take:zone
 `verify` nor `package`, and its rule coverage is superseded by `test:zone:take` on real venue data. What
 it uniquely covers is the FSM wiring *above* the rules.
 
+## v0.28.0 — a show can be copied out of another project (2026-09-11)
+
+`0a9171e`
+
+There was no way to reuse work between projects, and the reason it had never been built is visible the
+moment you look at what one unit drags: `SmState.sceneId` names a Scene, and a Scene is a full look
+snapshot owning its own surfaces, fixtures, scene3D and a **required** timeline — which owns clips,
+markers, takes, sequences, automation and its own audio, and escapes to project scope for groups,
+lighting poses and tracking zones. "Copy the state machine" is closer to **merging two shows** than to
+copying an object, so the design question was never what to carry but what must **not** travel: the rig,
+the venue and the machine.
+
+**Peek, don't open.** `persistence.peekProject` reads, parses and resolves asset paths, and does
+nothing else. `openProjectTimed` was not reusable: it calls `mediaAccess.setProject`, which clears the
+media allowlist and rebuilds it from the document just read — peeking through it would have revoked the
+**open** show's media mid-session, and downstream a refusal is indistinguishable from a file that will
+not decode. Asserted live, both directions.
+
+**Ids are re-minted for a deterministic reason, not a probabilistic one.** Most are `randomUUID`; they
+collide anyway, because the shipped examples carry hand-authored ids (`st_attract`, `sc_ember`) and
+project B is very often a Save-As copy of project A. Names are de-duplicated too — recall resolves by id
+then **falls back to name**. Ids that live *inside* dot-path strings are rewritten through the app's own
+grammar (new `paramPath.pathOwner`/`withPathOwner`), never a regex, because the audio forms put the id
+one segment deeper. Timeline-local ids are remapped **per timeline**: Capture Scene deep-clones ids and
+all, so two scenes legitimately share clip ids and one global map would have fused them.
+
+**It validates the merged document before committing**, because nothing downstream ever will —
+`stateMachine.enter()` does `if (s?.sceneId) ctx.recallScene(...)`, so a graph whose scenes did not
+survive enters its states on schedule, recalls nothing, and reports `playing: true` all night.
+
+Three test suites, each proving something the others cannot: `npm run test:import` (67 pure assertions),
+`test:import:live` (real Electron — a peek leaves the open show's media serving and admits none of its
+own), and `test:import:runs` (the imported show boots and cycles its scenes, measured on Art-Net; a
+frozen level is the failure). The last one had to drive its looks with **authored DMX on a light**
+rather than pixels sampled off a surface — `test-engine-output.cjs` already records that a dark reading
+in this environment "is legitimate and not a failure".
+
+Four pre-existing defects went with it: `ProjectData` never declared `lightingPoses` (so the on-disk
+field list was `buildProjectData`, not the type); `AudioTrack.busId` was carried verbatim; `SCENES.md`
+still claimed scenes were not portable across folders; and the command palette could not see File-menu
+actions at all, which had left *Import Rig*, *Export Rig* and both *Collect* actions unreachable from
+Ctrl+K. Guarded by a new invariant: every `*Id`/`*Ids`/`*Ref` field in `renderer/types.ts` must be
+**mentioned** by `projectImport.ts` — it does not demand a remap, several fields correctly have none,
+only that the decision was made once and written down. It found `busId` and `shaderId` the day it was
+written.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
