@@ -1357,9 +1357,14 @@ function buildStack(e: StackEntry): void {
   let maxW = 0;
   for (const id of e.ids) maxW = Math.max(maxW, drawableWidth(layerDrawable(id)));
   const side = Math.min(STACK_MAX_W, Math.max(STACK_MIN_W, maxW));
+  // ⚠ `side` is a WIDTH; the thing to spend in the surface's aspect is an AREA. Spending the width as
+  // if it were sqrt(area) allocates 1920 -> 2560x1440 for a 16:9 surface: 3.7 Mpx where the program
+  // uses 2.1, i.e. 78% more pixels composited AND uploaded every frame, per stacked surface. The
+  // budget is the program's own area for that width, so a stack costs what the program costs.
+  const budget = side * (side * 9 / 16);
   const a = Number.isFinite(e.aspect) && e.aspect > 0 ? e.aspect : 16 / 9;
   const q = (v: number) => Math.min(STACK_MAX_W, Math.max(64, Math.round(v / 16) * 16));
-  const w = q(side * Math.sqrt(a)), h = q(side / Math.sqrt(a));
+  const w = q(Math.sqrt(budget * a)), h = q(Math.sqrt(budget / a));
   if (w > e.canvas.width || h > e.canvas.height) {
     e.canvas.width = Math.max(e.canvas.width, w);
     e.canvas.height = Math.max(e.canvas.height, h);

@@ -161,11 +161,13 @@ function run(g: CanvasRenderingContext2D, axis: 'x' | 'z', origin: number, other
   thin();
   if (keep.length < 2) return;   // a single number says nothing about scale — draw none
 
-  g.fillStyle = INK;
   if (axis === 'x') { g.textAlign = 'center'; g.textBaseline = 'top'; }
   else { g.textAlign = 'left'; g.textBaseline = 'middle'; }
   for (const c of keep) {
-    g.fillText(c.text, c.x + (axis === 'x' ? 0 : OFF), c.y + (axis === 'x' ? OFF : 0));
+    const x = c.x + (axis === 'x' ? 0 : OFF), y = c.y + (axis === 'x' ? OFF : 0);
+    g.strokeText(c.text, x, y);   // the halo — see the note on shadowBlur in draw()
+    g.fillStyle = INK;
+    g.fillText(c.text, x, y);
   }
 
   // The axis letter, on the POSITIVE end of the run, so the figures say what they measure and which
@@ -199,11 +201,16 @@ function draw(cam: THREE.Camera, w: number, h: number): void {
   _vp.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
 
   g.font = FONT;
-  g.shadowColor = 'rgba(0,0,0,0.9)';
-  g.shadowBlur = 3;
+  // A DARK OUTLINE, NOT shadowBlur. Canvas 2D shadows force a separate blur pass per draw call, and
+  // this draws ~40 strings every frame of a viewport that may be 4K — forty blurs a frame, to make
+  // small grey text legible over whatever is behind it. strokeText costs a fraction of that and reads
+  // the same. (Shadows here were measured as a real cost while chasing a video-playback stutter.)
+  g.lineWidth = 3;
+  g.lineJoin = 'round';
+  g.miterLimit = 2;
+  g.strokeStyle = 'rgba(0,0,0,0.85)';
   run(g, 'x', f.originX, f.originZ, f.section, w, h);
   run(g, 'z', f.originZ, f.originX, f.section, w, h);
-  g.shadowBlur = 0;
 }
 
 /**

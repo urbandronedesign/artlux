@@ -3478,6 +3478,33 @@ check(
   },
 );
 
+// ── Projector pump: a generation dedups, it does not raise the rate ───────────────────────────
+check(
+  'the projector pump keys its fine tick on the source type, not on having a generation',
+  'The pump runs at ~66 Hz with a ~30 Hz coarse gate, and the fine tick is only affordable for a ' +
+  'source whose generation ACTUALLY repeats. A decoded clip does: 25 fps of new frames against 66 ' +
+  'ticks means most ticks dedup, so riding fine costs nothing and lands each frame sooner. A ' +
+  'GENERATIVE source is the opposite — a shader or moving text mints a new picture every frame, so ' +
+  'its generation never repeats, and the fine tick simply doubles its createImageBitmap and transfer ' +
+  'cost for pictures nothing can receive any faster. ' +
+  'This has shipped once: plugin content sources gained getDrawableGeneration so a STILL one could be ' +
+  'skipped entirely — the real win, and one a coarse tick delivers just as well — and the old ' +
+  '`gen === undefined && !coarse` test silently promoted every one of them to 66 Hz. Video playback ' +
+  'went visibly rough and it was reported as a framerate regression. The dedup below still applies to ' +
+  'everything, which is where a motionless surface stops costing anything at all.',
+  () => {
+    const src = read('src/renderer/App.tsx');
+    const problems = [];
+    // The old shape, exactly: cadence decided by whether a generation exists.
+    if (/if\s*\(\s*gen === undefined\s*&&\s*!coarse\s*\)\s*continue/.test(src)) {
+      problems.push('the fine-tick gate is back to `gen === undefined && !coarse` — every generative plugin source is promoted to the fine tick again');
+    }
+    if (!/ridesFine/.test(src)) problems.push('no ridesFine gate — the pump no longer distinguishes a decode-rate generation from a frame-rate one');
+    else if (!/ridesFine[\s\S]{0,160}SourceType\.VIDEO/.test(src)) problems.push('ridesFine no longer keys on the content type, so what rides the fine tick is decided by something other than what the source IS');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Timeline: one compositor, for the program and for a surface's track stack ─────────────────
 check(
   'the program and a per-surface track stack share one compositor',
