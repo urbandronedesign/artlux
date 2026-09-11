@@ -1,4 +1,4 @@
-import { Timeline, VideoClip, SurfaceContent, SourceType, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
+import { Timeline, VideoClip, SurfaceContent, SourceType, LayerBlendMode, StateMachine, isContentClip, clipFadeAlpha, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
 import { resolveMediaUrl } from './mediaCache';
 import * as contentSource from './contentSource';
 import * as codecResidency from './codecResidency';
@@ -1187,7 +1187,61 @@ if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>)['__artluxNullLogReset'] = () => { nullLog.length = 0; nullOpen.clear(); };
 }
 
+/**
+ * A layer's CLIP ALPHA right now: the active clip's own opacity times its fade envelope.
+ *
+ * This is where `SurfaceContent.opacity` finally does something on a layer. A clip has always carried
+ * one — it holds a whole SurfaceContent — and nothing applied it: the layer composite used the LAYER's
+ * opacity, and a single-layer surface used the SURFACE's. Both fold in here instead.
+ */
+function layerAlpha(layerId: string): number {
+  const c = activeClip(layerId, playhead);
+  if (!c) return 1;
+  const base = c.content?.opacity ?? 1;
+  return Math.max(0, Math.min(1, base * clipFadeAlpha(c, playhead - c.start)));
+}
+
+// One scratch canvas per FADING layer. Allocated the first time a layer actually fades and grown to
+// fit — never per frame, and never at all for a layer that never fades.
+const fades = new Map<string, { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null }>();
+
+/**
+ * The layer's picture with its clip alpha baked IN.
+ *
+ * ⚠ BAKED, not applied by each consumer, and that is the whole design. Consumer-side alpha is how
+ * `Surface.content.opacity` works — and it does not reach a projector output at all: nothing in the
+ * projector path reads an opacity. A fade done that way would play on the LEDs and on the stage and
+ * simply not happen on the wall, which is worse than no fade. Baking it into the picture gives it to
+ * every consumer for free: the LED sampler, the 2D preview, the 3D scene, the program, a per-surface
+ * track stack, and the frames streamed to each projector window.
+ *
+ * AT REST IT COSTS NOTHING. Alpha 1 returns the raw drawable untouched — the path every project that
+ * uses no fades keeps taking. The composite happens only while a fade is actually running.
+ */
+function fadedDrawable(layerId: string, d: CanvasImageSource, alpha: number): CanvasImageSource {
+  const w = Math.max(1, Math.round(drawableWidth(d)));
+  const h = Math.max(1, Math.round(w / (drawableAspect(d) || (16 / 9))));
+  let e = fades.get(layerId);
+  if (!e) { const canvas = document.createElement('canvas'); e = { canvas, ctx: canvas.getContext('2d') }; fades.set(layerId, e); }
+  if (!e.ctx) return d;
+  if (e.canvas.width !== w || e.canvas.height !== h) { e.canvas.width = w; e.canvas.height = h; }
+  e.ctx.clearRect(0, 0, w, h);
+  e.ctx.globalAlpha = alpha;
+  try { e.ctx.drawImage(d, 0, 0, w, h); } catch { return d; }   // source not decodable this frame
+  e.ctx.globalAlpha = 1;
+  return e.canvas;
+}
+
 function layerDrawable(layerId: string): CanvasImageSource | null {
+  const raw = rawLayerDrawable(layerId);
+  if (!raw) return null;
+  const a = layerAlpha(layerId);
+  // 0.999 rather than 1: a fade's first and last frames land fractionally off unity, and re-compositing
+  // a picture at 0.9997 alpha is a canvas allocation to change nothing anyone can see.
+  return a >= 0.999 ? raw : fadedDrawable(layerId, raw, a);
+}
+
+function rawLayerDrawable(layerId: string): CanvasImageSource | null {
   const lv = layerVideos.get(layerId);
   if (!lv) return noteNull(layerId, 'no-layer-state');
   if (!lv.clipId) return noteNull(layerId, activeClip(layerId, playhead) ? 'clipId-unset-but-clip-active' : 'no-clip-under-playhead');

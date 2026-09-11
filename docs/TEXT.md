@@ -106,7 +106,12 @@ The **Motion** controls move the block as a whole:
 | **Rotation** | ±180° |
 
 Every one of them is **automatable**: drop a lane on it in the timeline, drive it from OSC, or capture
-it into a cue. Fading is the surface's ordinary **Opacity** — nothing special is needed.
+it into a cue.
+
+**To fade text in and out**, put it on a timeline track and drag the **fade handles** in the clip's top
+corners — the same gesture as a fade on an audio clip. That multiplies the clip's **Opacity**, so the
+two compose: a clip set to 60% that fades in rises to 60%, not to 100%. A text *surface* (not on a
+track) fades through its surface **Opacity**, which is automatable like any other parameter.
 
 Type stays sharp at any scale or angle, because it is re-drawn rather than stretched. The cost is that
 *moving* text is redrawn every frame while it moves; text sitting still costs nothing at all.

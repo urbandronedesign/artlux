@@ -14,6 +14,10 @@ Press **F** to maximize the timeline full‑screen; drag the dock's top edge to 
 - **Drop** a video (or a Media tile) onto a track to make a clip. Place several clips on one track to
   build a sequence — the playhead plays whichever clip it's over, and outputs **black** over gaps.
 - **Select tool (V)** — drag a clip to move it; drag its edges to trim.
+- **Fade in / out** — drag the small square in either **top corner** of a clip inwards. The clip's
+  picture fades up from black, or down to it, over that length. It is the same handle, the same
+  gesture and the same shading as a fade on an audio clip, because it is the same idea. Fades do not
+  snap: they are an envelope, not a time edit. Trimming a clip shorter clamps its fades with it.
 - **Blade tool (B)** — click to split a clip; **C** splits at the playhead.
 - **Snapping (S/N)** — aligns drags to clip edges, the playhead, markers and the in/out range.
 - **Markers (M)** — add at the playhead; click to seek, Alt/right‑click to delete, double‑click to

@@ -8,7 +8,7 @@ import { resolveMediaUrl } from '../../services/mediaCache';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 
-export type DragMode = 'move' | 'l' | 'r';
+export type DragMode = 'move' | 'l' | 'r' | 'fadeIn' | 'fadeOut';
 
 // Cover-fit thumbnail for an IMAGE content clip. Streams via artlux-media:// (file:// can't be loaded
 // directly), so this is a plain string — no state, no effect, and no whole-file read to fill a strip
@@ -42,6 +42,10 @@ interface Props {
 // every clip — only clips whose inputs actually change re-render (key for perf in this no-memo app).
 const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec, laneH, conflict, sequenceKeys, selectedKeyT, onSelectKey, onStartDrag, onBlade, onRemove }) => {
   const widthPx = Math.max(6, clip.duration * pxPerSec);
+  // Clamped to the clip, so a fade left longer than a trimmed-down clip draws inside it rather than
+  // spilling over the neighbour.
+  const fadeInPx = Math.max(0, Math.min(clip.fadeIn ?? 0, clip.duration)) * pxPerSec;
+  const fadeOutPx = Math.max(0, Math.min(clip.fadeOut ?? 0, clip.duration)) * pxPerSec;
   const blade = tool === 'blade' && !locked;
 
   const onDown = (e: React.PointerEvent) => {
@@ -101,9 +105,30 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
       <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" />
       <div className="relative px-1.5 pt-0.5 text-micro leading-tight truncate text-fg-1 pointer-events-none drop-shadow">{clip.name}</div>
       {conflict && <div title="Another clip/surface is using this live input — the last one under the playhead wins" className="absolute bottom-0.5 left-1 text-warn pointer-events-none"><AlertTriangle size={10} /></div>}
+      {/* THE FADE RAMPS — the visual truth of the clip's fadeIn/fadeOut, exactly as AudioLane draws
+          them, because a picture fade and a sound fade are the same gesture and should not look like
+          two features. Darkening rather than lightening: the clip is going to black. */}
+      {fadeInPx > 1 && (
+        <svg width={fadeInPx} height={laneH - 2} className="absolute left-0 top-0 pointer-events-none" preserveAspectRatio="none">
+          <path d={`M0,0 L${fadeInPx},0 L0,${laneH - 2} Z`} className="fill-black/60" />
+        </svg>
+      )}
+      {fadeOutPx > 1 && (
+        <svg width={fadeOutPx} height={laneH - 2} className="absolute right-0 top-0 pointer-events-none" preserveAspectRatio="none">
+          <path d={`M${fadeOutPx},0 L${fadeOutPx},${laneH - 2} L0,0 Z`} className="fill-black/60" />
+        </svg>
+      )}
       {!blade && !locked && <>
         <div onPointerDown={(e) => { e.stopPropagation(); onStartDrag(e, clip, 'l'); }} className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize bg-black/40 hover:bg-accent" />
         <div onPointerDown={(e) => { e.stopPropagation(); onStartDrag(e, clip, 'r'); }} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize bg-black/40 hover:bg-accent" />
+        {/* THE FADE CORNER HANDLES — the DAW idiom, and the same offsets AudioLane uses so the two
+            lanes feel identical: pushed past the 1.5px trim handles so the targets never fight. */}
+        <div onPointerDown={(e) => { e.stopPropagation(); onStartDrag(e, clip, 'fadeIn'); }}
+          title="Fade in — drag right" style={{ left: Math.max(6, fadeInPx) - 4 }}
+          className="absolute top-0 w-2 h-2 rounded-sm bg-accent/70 hover:bg-accent cursor-ew-resize" />
+        <div onPointerDown={(e) => { e.stopPropagation(); onStartDrag(e, clip, 'fadeOut'); }}
+          title="Fade out — drag left" style={{ right: Math.max(6, fadeOutPx) - 4 }}
+          className="absolute top-0 w-2 h-2 rounded-sm bg-accent/70 hover:bg-accent cursor-ew-resize" />
       </>}
       {selected && !locked && (
         <Tooltip id="timeline.clip-remove">

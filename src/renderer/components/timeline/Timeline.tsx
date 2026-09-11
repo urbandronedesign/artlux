@@ -618,6 +618,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // clip stays in the document, invisible and unpickable). Clamping happens AFTER snapping: a snap
     // that would land inside a neighbour is overruled by the occupancy, never the other way round.
     const others = d.others;
+    // A shorter clip cannot carry longer fades than it has room for — clamp them WITH it, exactly as
+    // the audio lane does, or a trim leaves a ramp longer than the clip it is on.
+    const fitVideoFades = (cl: VideoClip, dur: number) => ({
+      fadeIn: Math.min(cl.fadeIn ?? 0, dur) || undefined,
+      fadeOut: Math.min(cl.fadeOut ?? 0, dur) || undefined,
+    });
     if (d.mode === 'move') {
       const rawStart = Math.max(0, c.start + ds);
       let st = rawStart, guide: number | null = null;
@@ -634,14 +640,24 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       const room = freeSpanAt(others, c.start + c.duration / 2).to - c.start;
       let dur = clamp(c.duration + ds, 0.1, Math.min(srcCap, room)); let guide: number | null = null;
       if (en) { const e2 = snap(c.start + dur, pts, thr); if (e2.snapped) { dur = clamp(e2.t - c.start, 0.1, Math.min(srcCap, room)); guide = e2.guideTime; } }
-      setDraft({ ...c, duration: dur }); showGuide(guide);
+      setDraft({ ...c, duration: dur, ...fitVideoFades(c, dur) }); showGuide(guide);
+    } else if (d.mode === 'fadeIn') {
+      // Fades do NOT snap — the same call AudioLane's make, for the same reason: a fade is an envelope,
+      // not a time edit, and snapping it to clip edges and markers makes a short one impossible to
+      // author at any sane zoom.
+      const fi = clamp((c.fadeIn ?? 0) + ds, 0, c.duration);
+      setDraft({ ...c, fadeIn: fi > 0 ? fi : undefined }); showGuide(null);
+    } else if (d.mode === 'fadeOut') {
+      // Drag LEFT to lengthen, hence the negated delta.
+      const fo = clamp((c.fadeOut ?? 0) - ds, 0, c.duration);
+      setDraft({ ...c, fadeOut: fo > 0 ? fo : undefined }); showGuide(null);
     } else {
       // The left edge stops at the previous clip's end.
       const floor = freeSpanAt(others, c.start + c.duration / 2).from;
       const minDelta = Math.max(-c.inPoint, floor - c.start);
       let delta = clamp(ds, minDelta, c.duration - 0.1); let guide: number | null = null;
       if (en) { const s = snap(c.start + delta, pts, thr); if (s.snapped) { delta = clamp(s.t - c.start, minDelta, c.duration - 0.1); guide = s.guideTime; } }
-      setDraft({ ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: c.duration - delta }); showGuide(guide);
+      setDraft({ ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: c.duration - delta, ...fitVideoFades(c, c.duration - delta) }); showGuide(guide);
     }
   }, [showGuide]);
   // THE ONE COMMIT — and it lands on the document the gesture STARTED on, or on NOTHING.

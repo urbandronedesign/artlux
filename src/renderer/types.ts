@@ -553,6 +553,21 @@ export interface VideoClip {
   // Generalized content: any surface source type (Image/Camera/DMX-in/Spout/NDI/Effect/Tracking)
   // scheduled on the layer for this clip's span. Absent (or type VIDEO) ⇒ legacy path-based video.
   content?: SurfaceContent;
+  /**
+   * PICTURE fade, in seconds — the twin of the audio clip's, and drawn with the same corner handles.
+   *
+   * It multiplies the clip's alpha, which is also where `content.opacity` finally does something on a
+   * layer: a clip has always CARRIED an opacity (it holds a whole SurfaceContent) and nothing ever
+   * applied it, because a layer composite used the LAYER's opacity and a single-layer surface used
+   * the SURFACE's. Both now fold into one clip alpha.
+   *
+   * ⚠ It is applied to the LAYER'S PICTURE, not by each consumer. Consumer-side alpha is how
+   * `content.opacity` works for a surface, and it does not reach a projector output at all — so a fade
+   * done that way would play on the LEDs and the stage and simply not happen on the wall. Baking it in
+   * costs one composite per fading layer per frame, and nothing whatsoever at rest.
+   */
+  fadeIn?: number;       // s
+  fadeOut?: number;      // s
   start: number;         // timeline position where the clip begins
   duration: number;      // clip length on the timeline
   inPoint: number;       // offset into the source where playback starts (trim)
@@ -562,6 +577,26 @@ export interface VideoClip {
 }
 // A clip whose pixels come from a generalized content source (not the legacy video <video>/HAP path).
 // Video clips stay path-based even if they also carry content={type:VIDEO,...}.
+/**
+ * A clip's fade envelope at `tLocal` seconds in — 0..1.
+ *
+ * Deliberately the same arithmetic as the audio driver's `fadeGain`: overlapping fades on a clip
+ * shorter than fadeIn + fadeOut MULTIPLY, so the clip simply never reaches full, which is the
+ * conventional behaviour. Every guard is against a fade that got here anyway — a zero or negative
+ * length never divides, and the ratios clamp at 0 so a tLocal outside the clip cannot go negative.
+ */
+export function clipFadeAlpha(clip: { duration: number; fadeIn?: number; fadeOut?: number }, tLocal: number): number {
+  let g = 1;
+  const fi = clip.fadeIn ?? 0;
+  if (fi > 0 && tLocal < fi) g *= Math.max(0, tLocal / fi);
+  const fo = clip.fadeOut ?? 0;
+  if (fo > 0) {
+    const left = clip.duration - tLocal;
+    if (left < fo) g *= Math.max(0, left / fo);
+  }
+  return g;
+}
+
 export const isContentClip = (c: VideoClip): boolean => !!c.content && c.content.type !== SourceType.VIDEO;
 // Managed media library types live in shared/ (crosses the IPC boundary on import); re-exported
 // here so renderer code imports them from './types' alongside everything else.
