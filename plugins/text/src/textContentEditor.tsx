@@ -18,7 +18,9 @@ import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell stor
 // so is one Canvas2D re-raster of a small bitmap, which is what the signature cache is for. Contrast
 // the numeric fields, which commit on release like every other slider in the app.
 
-const selCls = 'flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none';
+// No `focus:outline-none`: it would kill the global :focus-visible ring on these inputs, and an accent
+// border is not a substitute (it shows on mouse focus too). Same rule the kit is guarded on.
+const selCls = 'flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent';
 
 const Row: React.FC<{ label: string; title?: string; children: React.ReactNode }> = ({ label, title, children }) => (
   <div className="flex items-center justify-between gap-2 text-xs">
@@ -116,7 +118,7 @@ export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (p
       spellCheck={false}
       placeholder="Type the copy — Enter starts a new line"
       title="The copy shown on this surface. Enter starts a new line."
-      className="w-full resize-y rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent focus:outline-none"
+      className="w-full resize-y rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent"
     />
 
     <FontRow content={c} onChange={onChange} />
