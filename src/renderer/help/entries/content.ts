@@ -173,10 +173,11 @@ export const contentHelp: HelpEntry[] = [
   },
   {
     id: 'content.layer-track',
-    title: 'Layer track',
-    short: 'Choose which timeline track this surface shows.',
+    title: 'Layer tracks',
+    short: 'Choose which timeline track — or tracks — this surface shows.',
+    body: 'Tick one track and the surface shows it. Tick several and the surface composites them, back to front in timeline order, using each track’s own opacity and blend mode — so a title track over a video track gives you the title burned over the video, on this surface only. That is the difference from Timeline content, which always composites the WHOLE timeline and therefore looks the same on every surface using it: with two outputs carrying different content, each one stacks its own tracks. Mute, solo and a track’s enabled flag apply exactly as they do to the program.',
     group: 'Content',
-    keywords: ['timeline', 'track'],
+    keywords: ['timeline', 'track', 'tracks', 'layer', 'layers', 'stack', 'composite', 'overlay', 'title', 'over'],
   },
   {
     id: 'content.tracking-source',

@@ -709,6 +709,18 @@ function remapSurface(s: Surface, maps: Maps, layers: Map<string, string> | null
       warn({ kind: 'cleared', message: `${where}: surface "${s.name}" referenced a timeline track that was not imported; its content was cleared.` });
     }
   }
+  // A STACK names several tracks (SurfaceContent.layerIds). Each is re-minted like `layerId`; any that
+  // did not come across is DROPPED rather than carried, because a carried id still resolves — against
+  // the SOURCE project — and would composite a track from another show, or silently nothing.
+  // Falling back below two leaves an ordinary single-track binding, which is the honest result.
+  if (content.layerIds?.length) {
+    const kept = content.layerIds.map((v) => layers?.get(v)).filter((v): v is string => !!v);
+    if (kept.length !== content.layerIds.length) {
+      warn({ kind: 'cleared', message: `${where}: surface "${s.name}" stacked ${content.layerIds.length} timeline tracks but ${content.layerIds.length - kept.length} were not imported; the rest were kept.` });
+    }
+    if (kept.length > 1) { content.layerIds = kept; content.layerId = kept[0]; }
+    else { delete content.layerIds; if (kept.length === 1) content.layerId = kept[0]; }
+  }
   // A SLICE names the surface it was cut from. Cleared rather than kept when that surface has no
   // counterpart here, for the same reason as everything else: a stale id is a reference into the
   // other project that nothing will ever report.

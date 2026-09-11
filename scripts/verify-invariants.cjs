@@ -3478,6 +3478,40 @@ check(
   },
 );
 
+// ── Timeline: one compositor, for the program and for a surface's track stack ─────────────────
+check(
+  'the program and a per-surface track stack share one compositor',
+  'A surface can show ONE track, or a SET of them stacked (SurfaceContent.layerIds), or the whole ' +
+  'timeline (PROGRAM). The last two are the same operation over a different list, and the loop that ' +
+  'performs it is where `muted`, `solo`, `opacity`, `blendMode`, the excludeFromProgram clip-kinds ' +
+  'and the back-to-front track order are DEFINED. Copying it gives those words two definitions, and ' +
+  'they drift the first time one copy is taught something the other is not — the failure being that ' +
+  'the same two tracks composite differently depending on whether a surface named them or the ' +
+  'program did, with nothing on screen to say why. So compositeLayers() takes the list, and both ' +
+  'callers pass one.',
+  () => {
+    const F = 'src/renderer/services/timeline.ts';
+    if (!exists(F)) return `${F} is gone`;
+    const src = read(F);
+    const problems = [];
+    if (!/function compositeLayers\s*\(/.test(src)) problems.push('compositeLayers is gone — the stacking loop has been inlined somewhere again');
+    const prog = fnBody(src, 'buildProgram');
+    if (!prog) problems.push('could not find buildProgram');
+    else if (!/compositeLayers\(/.test(prog)) problems.push('buildProgram no longer calls compositeLayers — the program has its own copy of the loop');
+    const stack = fnBody(src, 'buildStack');
+    if (!stack) problems.push('could not find buildStack');
+    else if (!/compositeLayers\(/.test(stack)) problems.push('buildStack no longer calls compositeLayers — a track stack has its own copy of the loop');
+    // The tell-tale of a second copy: a drawImage over data.layers outside the shared function.
+    const shared = fnBody(src, 'compositeLayers') ?? '';
+    for (const [name, body] of [['buildProgram', prog], ['buildStack', stack]]) {
+      if (body && body !== shared && /blendOp\(|\.blendMode/.test(body)) {
+        problems.push(`${name} reads blendMode itself — that belongs to compositeLayers`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Assets: a content type's file paths are mapped in ONE place ───────────────────────────────
 check(
   "every content type's file paths go through one visitor",

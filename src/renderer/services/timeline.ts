@@ -1140,6 +1140,9 @@ function frame(now: number): void {
     // only; mirror windows receive the result as a streamed surface drawable).
     if (!external && programActive) { try { buildProgram(); } catch (e) { console.error('[timeline] program error', e); } }
     else programReady = false;
+    // …and each per-surface track stack, on the same terms and for the same reason.
+    if (!external) { for (const e of stacks.values()) { try { buildStack(e); } catch (err) { console.error('[timeline] stack error', err); } } }
+    else for (const e of stacks.values()) e.ready = false;
     prevPlayhead = playhead;
     subs.forEach(cb => cb(playhead));
   } catch (e) {
@@ -1288,21 +1291,81 @@ function buildProgram(): void {
       programCanvas.width = programW; programCanvas.height = programH;
     }
   }
+  compositeLayers(ctx, programW, programH, null);
+  programReady = true;
+}
+
+/**
+ * STACK TRACKS INTO A FRAME — the one compositor, used by the program AND by a surface that names a
+ * SET of tracks (`SurfaceContent.layerIds`).
+ *
+ * `only` null ⇒ every contributing track, which is the program. A set ⇒ just those, still drawn
+ * back-to-front in TIMELINE order rather than in the order they were picked: the track stack is what
+ * an operator reads z-order off, and letting a picker reorder it would make the same two tracks
+ * composite differently on two surfaces.
+ *
+ * ⚠ ONE FUNCTION ON PURPOSE. A second copy of this loop would be a second definition of what
+ * `muted`, `solo`, `opacity` and `blendMode` MEAN — and the two would drift the first time one of
+ * them was taught something the other was not. Guarded by verify:invariants.
+ */
+function compositeLayers(ctx: CanvasRenderingContext2D, w: number, h: number, only: ReadonlySet<string> | null): void {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  ctx.clearRect(0, 0, programW, programH);
+  ctx.clearRect(0, 0, w, h);
+  // Solo is judged across the WHOLE timeline, not within the subset: soloing a track is a statement
+  // about the document ("show me only this"), and a surface that does not name the soloed track
+  // should go dark exactly as the program does, rather than quietly ignoring the solo.
   const anySolo = data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
   for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
     const l = data.layers[i];
+    if (only && !only.has(l.id)) continue;
     if (clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram || l.enabled === false || l.muted) continue;
     if (anySolo && !l.solo) continue;
     const d = layerDrawable(l.id);
     if (!d) continue;
     ctx.globalAlpha = Math.max(0, Math.min(1, l.opacity ?? 1));
     ctx.globalCompositeOperation = blendOp(l.blendMode);
-    try { ctx.drawImage(d, 0, 0, programW, programH); } catch { /* drawable not ready this frame */ }
+    try { ctx.drawImage(d, 0, 0, w, h); } catch { /* drawable not ready this frame */ }
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  programReady = true;
+}
+
+// ── Per-surface track stacks ───────────────────────────────────────────────────────────────────────
+// One canvas per CONSUMER (a surface id), because two surfaces naming different sets need different
+// pictures — which is the whole point, and the one thing the global program could never do.
+//
+// Composited in run(), ONCE per frame, exactly like the program. Not lazily on the first getDrawable:
+// the frame engine asks for a surface's drawable and then the 3D view asks again in its own loop, and
+// a lazy build would re-stack every track for the second asker.
+interface StackEntry {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D | null;
+  ids: readonly string[];
+  aspect: number;
+  ready: boolean;
+}
+const stacks = new Map<string, StackEntry>();
+
+const STACK_MIN_W = 640, STACK_MAX_W = 3840;
+
+function buildStack(e: StackEntry): void {
+  e.ready = false;
+  if (!e.ctx || !e.ids.length) return;
+  // SIZED TO THE BIGGEST CONTRIBUTING TRACK, spent in THIS SURFACE'S proportions — not 16:9 like the
+  // program. The compositor stretches each track to fill, and the surface stretches this to fill in
+  // turn, so a frame shaped like anything else is two stretches where one would do. Quantised and
+  // GROWN ONLY, so dragging a surface does not reallocate the canvas every frame.
+  let maxW = 0;
+  for (const id of e.ids) maxW = Math.max(maxW, drawableWidth(layerDrawable(id)));
+  const side = Math.min(STACK_MAX_W, Math.max(STACK_MIN_W, maxW));
+  const a = Number.isFinite(e.aspect) && e.aspect > 0 ? e.aspect : 16 / 9;
+  const q = (v: number) => Math.min(STACK_MAX_W, Math.max(64, Math.round(v / 16) * 16));
+  const w = q(side * Math.sqrt(a)), h = q(side / Math.sqrt(a));
+  if (w > e.canvas.width || h > e.canvas.height) {
+    e.canvas.width = Math.max(e.canvas.width, w);
+    e.canvas.height = Math.max(e.canvas.height, h);
+  }
+  compositeLayers(e.ctx, e.canvas.width, e.canvas.height, new Set(e.ids));
+  e.ready = true;
 }
 
 export const timeline = {
@@ -1779,6 +1842,31 @@ export const timeline = {
   // routed to SourceType.PROGRAM, or a 3D plane bound to PROGRAM_LAYER_ID). Build only when wanted.
   retainProgram(key: string): void { programConsumers.add(key); programActive = true; },
   releaseProgram(key: string): void { programConsumers.delete(key); if (programConsumers.size === 0) { programActive = false; programReady = false; } },
+
+  // ── Per-surface track stacks (SurfaceContent.layerIds) ─────────────────────────────────────────
+  /** Register/refresh a consumer's stack. Called every sync, so a re-pick or a resize just lands. */
+  acquireStack(key: string, ids: readonly string[], aspect: number): void {
+    let e = stacks.get(key);
+    if (!e) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16; canvas.height = 16;   // grown to fit on the first build
+      e = { canvas, ctx: canvas.getContext('2d'), ids, aspect, ready: false };
+      stacks.set(key, e);
+    }
+    e.ids = ids;
+    e.aspect = aspect;
+  },
+  releaseStack(key: string): void { stacks.delete(key); },
+  /**
+   * A consumer's composited stack, or null before its first build this frame.
+   *
+   * Null is NOT "draw nothing" for a mirror: like the program, a projector window cannot composite
+   * (it has no layer videos) and is streamed the result instead, so this answers only in main.
+   */
+  getStackDrawable(key: string): CanvasImageSource | null {
+    const e = stacks.get(key);
+    return e && e.ready ? e.canvas : null;
+  },
   // The composited program drawable. A MIRROR cannot build it — buildProgram reads `layerVideos`,
   // which a projector window does not have, and would composite black — so main decodes the composite
   // once and streams it under the PROGRAM_LAYER_ID sentinel. Resolving it here rather than in

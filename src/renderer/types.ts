@@ -318,6 +318,22 @@ export interface SurfaceContent {
   // `applyConstraints`, no reopen. Absent key ⇒ the camera's own default (usually auto).
   cameraControls?: Record<string, number | string>;
   layerId?: string;    // LAYER content: which timeline track to show
+  /**
+   * LAYER content: composite THESE tracks for this surface, back-to-front in timeline order.
+   *
+   * Absent ⇒ the single `layerId` above, which is exactly what every project written before this
+   * field does, so there is nothing to migrate.
+   *
+   * WHY IT EXISTS. A surface could show one track or the WHOLE timeline (`PROGRAM`) and nothing in
+   * between — so "a video with a title over it" was only expressible if every surface wanted the same
+   * pair. With two outputs carrying different content it was not expressible at all: the program is
+   * global, and one track cannot hold two pictures. The timeline was already a compositor (per-track
+   * opacity, blend mode, z-order); it simply could not be ADDRESSED per surface.
+   *
+   * ⚠ The composite is built by the SAME function as the program (timeline.compositeLayers), so
+   * blend/opacity/solo/mute mean one thing everywhere. Two compositors would drift.
+   */
+  layerIds?: string[];
   opacity?: number;    // surface opacity 0..1 (default 1) — composite alpha; fadeable for crossfades
   // SLICE content — a cropped region of another Surface's picture. This is how ONE source spans
   // SEVERAL projectors: the source decodes once, and each slice is an ordinary Surface, so it gets
