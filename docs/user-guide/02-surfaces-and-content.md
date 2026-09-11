@@ -57,9 +57,16 @@ Select a surface, then pick a type in the Inspector's **Content** grid:
 | **Timeline** | — (the whole Program) | The full composited timeline (all contributing layers, z‑ordered). |
 | **Effect** | An effect + palette | A built‑in generative effect (solid, rainbow, wave, fire…) with **Speed** and **Intensity**. No media file needed. |
 | **Tracking** | A tracking **Source** (`SOL` / `MUR` / `SOL_MUR`) | Live **LiDAR blob** positions as content — for interactive floors/walls. Needs OSC enabled (Preferences ▸ OSC/Tracking). |
+| **Text** | Words, and a font | Typed copy drawn onto the surface — a title, a name, a credit. Size is a share of the surface height, so it survives a resize. See [Text on a surface](../TEXT.md). |
 
 The top‑bar/timeline **Play/Pause** is the global transport for video, camera and the timeline (only
 enabled when something is playable). Live sources (camera, Spout, NDI, DMX‑in) are real‑time.
+
+> **Text, and the font that does not arrive.** Naming a font family uses one installed on *this*
+> machine; the venue machine may not have it, and will quietly draw something else. ArtLux says so when
+> the family you named is missing here, but it cannot know what the venue has. Before a show leaves the
+> building, use **Carry it ▸ Import…** to copy the font file into the project — it then travels with
+> the folder like any other asset. Full detail in [Text on a surface](../TEXT.md).
 
 > **Spout and two graphics cards.** Spout hands ArtLux the sender's texture **on the GPU** — nothing is
 > copied or resized, so you get the sender's full resolution with no setting to tune. The catch is that
