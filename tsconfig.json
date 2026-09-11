@@ -74,6 +74,12 @@
       "@artlux/plugin-augmenta/*": [
         "./plugins/augmenta/src/*"
       ],
+      "@artlux/plugin-text": [
+        "./plugins/text/src/index.ts"
+      ],
+      "@artlux/plugin-text/*": [
+        "./plugins/text/src/*"
+      ],
       "@artlux/plugin-shader/main": [
         "./plugins/shader/src/main.ts"
       ],

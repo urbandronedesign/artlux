@@ -22,11 +22,15 @@ const ASSET_CATEGORIES: Record<string, string[]> = {
   // still absent: nothing conforms a bare .m4a today, so importing one would draw a clip that cannot sound.
   audio: ['wav', 'aiff', 'aif', 'flac', 'ogg', 'mp3'],
   tracking: ['lblob'], // recorded LiDAR-blob takes
+  // Fonts a show CARRIES. A TEXT surface can name a family installed on the machine, which costs
+  // nothing and is lost the moment the show moves; importing the file instead makes the typeface part
+  // of the project folder, so the venue machine renders what was designed.
+  fonts: ['ttf', 'otf', 'ttc', 'woff', 'woff2'],
 };
 
 // Library asset type → assets/ sub-folder (category).
 const TYPE_CATEGORY: Record<AssetType, string> = {
-  video: 'video', image: 'images', model: 'models', take: 'tracking', audio: 'audio',
+  video: 'video', image: 'images', model: 'models', take: 'tracking', audio: 'audio', font: 'fonts',
 };
 
 // …and back: category → the library type an entry in ProjectData.assets gets. `tracking` is absent ON
@@ -34,7 +38,7 @@ const TYPE_CATEGORY: Record<AssetType, string> = {
 // aggregates them for display), so minting an assets[] entry for a `.lblob` would show the take twice
 // and give the second copy no take to play. Anything this map has no answer for is left alone.
 const CATEGORY_TYPE: Record<string, AssetType> = {
-  video: 'video', images: 'image', models: 'model', audio: 'audio',
+  video: 'video', images: 'image', models: 'model', audio: 'audio', fonts: 'font',
 };
 
 // Path identity for library de-duplication (Windows: separators + case). Mirrors the renderer's
@@ -69,15 +73,41 @@ const isFilePath = (s: unknown): s is string =>
 // the file's existing style.
 type PathMap = (path: string) => string;
 
-// Surfaces: VIDEO/IMAGE content.url (skip blob:/http:/data: live urls — isFilePath).
+// ⚠ WHICH SurfaceContent FIELDS HOLD A FILE PATH, BY CONTENT TYPE — the ONE list, read by the one
+// visitor below, which BOTH surfaces and timeline clips go through.
+//
+// It is one table because it was two rules, spelled out separately in mapSurfaces and in mapTimeline's
+// clip branch — and a type added to one of them would simply be missed by the other, mapped on a
+// surface and not on a clip of the same content. The failure is the silent kind this file has already
+// shipped twice (the audio bed, the audio-only scene): relativize, resolve AND collect all skip the
+// path together, so the file is baked to the authoring machine, is not copied into the folder, and is
+// NOT reported in CollectResult.missing. The show simply looks wrong at the venue.
+//
+// ADD A ROW HERE the day a content type gains a field naming a file on disk. verify:invariants checks
+// that every such field is listed.
+const CONTENT_PATHS: Record<string, readonly string[]> = {
+  VIDEO: ['url'],
+  IMAGE: ['url'],
+  TEXT: ['textFontAsset'],   // an imported typeface; a named system family carries no path
+};
+
+/** Map every path-bearing field of ONE content object. Returns the original when nothing changed. */
+function mapContent(content: unknown, map: PathMap): unknown {
+  const c = content as any;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return content;
+  const fields = CONTENT_PATHS[c.type as string];
+  if (!fields) return content;
+  let next = c;
+  for (const f of fields) if (isFilePath(next[f])) next = { ...next, [f]: map(next[f]) };
+  return next;
+}
+
+// Surfaces: whatever their content declares (skip blob:/http:/data: live urls — isFilePath).
 function mapSurfaces(surfaces: unknown, map: PathMap): unknown {
   if (!Array.isArray(surfaces)) return surfaces;
   return surfaces.map((s: any) => {
-    const c = s?.content;
-    if (c && (c.type === 'VIDEO' || c.type === 'IMAGE') && isFilePath(c.url)) {
-      return { ...s, content: { ...c, url: map(c.url) } };
-    }
-    return s;
+    const c = mapContent(s?.content, map);
+    return c === s?.content ? s : { ...s, content: c };
   });
 }
 
@@ -111,11 +141,11 @@ function mapTimeline(tl: unknown, map: PathMap): unknown {
   const next = { ...t };
   if (Array.isArray(t.clips)) next.clips = t.clips.map((c: any) => {
     let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
-    // Generalized content clips carry the collectable file on content.url (Image/Video sources).
-    const cu = c?.content?.url;
-    if ((c?.content?.type === 'VIDEO' || c?.content?.type === 'IMAGE') && isFilePath(cu)) {
-      n = { ...n, content: { ...n.content, url: map(cu) } };
-    }
+    // A generalized content clip carries the SAME SurfaceContent a surface does, so it goes through
+    // the same visitor — that shared call is what stops a new content type being mapped on a surface
+    // and silently missed on a clip of it.
+    const mc = mapContent(c?.content, map);
+    if (mc !== c?.content) n = { ...n, content: mc };
     return n;
   });
   if (Array.isArray(t.trackingTakes)) {

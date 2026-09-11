@@ -8,7 +8,7 @@ import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { GUTTER, RULER_H, SM_LANE_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
+import { GUTTER, RULER_H, SM_LANE_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, ZOOM_MIN_PX_PER_SEC, FIT_MIN_PX_PER_SEC, MAX_PX_PER_SEC, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete, nearestFreeStart, freeSpanAt } from './operations';
 import { collectSnapPoints, snap, type SnapPoint } from './snapping';
 import { AudioLane, type AudioDragMode } from './AudioLane';
@@ -566,7 +566,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       e.preventDefault();
       const screenX = e.clientX - r.left - GUTTER;            // px from the t=0 column, in viewport
       const tUnder = (screenX + el.scrollLeft) / pxRef.current; // time under the cursor
-      const next = clamp(pxRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1), 5, 300);
+      const next = clamp(pxRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1), ZOOM_MIN_PX_PER_SEC, MAX_PX_PER_SEC);
       setPxPerSec(next);
       // Keep the time-under-cursor fixed on screen. Defer until the new (larger) width lays out so
       // scrollLeft isn't clamped to the old scrollWidth.
@@ -618,6 +618,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // clip stays in the document, invisible and unpickable). Clamping happens AFTER snapping: a snap
     // that would land inside a neighbour is overruled by the occupancy, never the other way round.
     const others = d.others;
+    // A shorter clip cannot carry longer fades than it has room for — clamp them WITH it, exactly as
+    // the audio lane does, or a trim leaves a ramp longer than the clip it is on.
+    const fitVideoFades = (cl: VideoClip, dur: number) => ({
+      fadeIn: Math.min(cl.fadeIn ?? 0, dur) || undefined,
+      fadeOut: Math.min(cl.fadeOut ?? 0, dur) || undefined,
+    });
     if (d.mode === 'move') {
       const rawStart = Math.max(0, c.start + ds);
       let st = rawStart, guide: number | null = null;
@@ -634,14 +640,24 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       const room = freeSpanAt(others, c.start + c.duration / 2).to - c.start;
       let dur = clamp(c.duration + ds, 0.1, Math.min(srcCap, room)); let guide: number | null = null;
       if (en) { const e2 = snap(c.start + dur, pts, thr); if (e2.snapped) { dur = clamp(e2.t - c.start, 0.1, Math.min(srcCap, room)); guide = e2.guideTime; } }
-      setDraft({ ...c, duration: dur }); showGuide(guide);
+      setDraft({ ...c, duration: dur, ...fitVideoFades(c, dur) }); showGuide(guide);
+    } else if (d.mode === 'fadeIn') {
+      // Fades do NOT snap — the same call AudioLane's make, for the same reason: a fade is an envelope,
+      // not a time edit, and snapping it to clip edges and markers makes a short one impossible to
+      // author at any sane zoom.
+      const fi = clamp((c.fadeIn ?? 0) + ds, 0, c.duration);
+      setDraft({ ...c, fadeIn: fi > 0 ? fi : undefined }); showGuide(null);
+    } else if (d.mode === 'fadeOut') {
+      // Drag LEFT to lengthen, hence the negated delta.
+      const fo = clamp((c.fadeOut ?? 0) - ds, 0, c.duration);
+      setDraft({ ...c, fadeOut: fo > 0 ? fo : undefined }); showGuide(null);
     } else {
       // The left edge stops at the previous clip's end.
       const floor = freeSpanAt(others, c.start + c.duration / 2).from;
       const minDelta = Math.max(-c.inPoint, floor - c.start);
       let delta = clamp(ds, minDelta, c.duration - 0.1); let guide: number | null = null;
       if (en) { const s = snap(c.start + delta, pts, thr); if (s.snapped) { delta = clamp(s.t - c.start, minDelta, c.duration - 0.1); guide = s.guideTime; } }
-      setDraft({ ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: c.duration - delta }); showGuide(guide);
+      setDraft({ ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: c.duration - delta, ...fitVideoFades(c, c.duration - delta) }); showGuide(guide);
     }
   }, [showGuide]);
   // THE ONE COMMIT — and it lands on the document the gesture STARTED on, or on NOTHING.
@@ -1181,8 +1197,29 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const sized = lit.filter((g) => g.fixtureIds.length === parts);
     return sized.length === 1 ? sized[0].id : soleLightGroup();
   };
-  const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
-  const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
+  const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, ZOOM_MIN_PX_PER_SEC, MAX_PX_PER_SEC));
+  /**
+   * FIT EVERYTHING ON SCREEN — all of it, however long the show is.
+   *
+   * ⚠ IT DOES NOT SHARE THE WHEEL'S ZOOM FLOOR, and sharing it was the bug. The general floor of
+   * 5 px/s is right for a wheel (it stops you zooming into a smear) and a silent refusal here: it caps
+   * what can fit at roughly `avail / 5` seconds, so with the drawer docked at ~800px wide anything
+   * past about two and a half minutes simply did not fit — the one thing this button promises. The
+   * operator sees content past the right edge and no reason for it.
+   *
+   * The fit's own floor exists only to keep the arithmetic sane on a pathological document; at 0.02
+   * px/s a single screen holds well over a day.
+   */
+  const onZoomFit = () => {
+    const el = scrollRef.current;
+    const avail = (el ? el.clientWidth : 800) - GUTTER - 24;
+    setPxPerSec(clamp(avail / Math.max(1, contentEnd), FIT_MIN_PX_PER_SEC, MAX_PX_PER_SEC));
+    // …AND PUT THE VIEW BACK AT THE START. Sizing alone is not fitting: the canvas keeps a paged
+    // extent wider than the content (see `viewEnd`), so the browser does not clamp the scroll back for
+    // us, and fitting while scrolled into the middle of a long show left everything correctly sized
+    // and still off screen. After the resize, so it lands against the new width.
+    requestAnimationFrame(() => { if (el) el.scrollLeft = 0; });
+  };
   const toggleLoop = () => onChange({ ...timeline, loop: !timeline.loop });
   const toggleSm = () => onStateMachineChange({ ...sm, enabled: !sm.enabled });
   const setStateMachine = (next: StateMachine) => onStateMachineChange(next);
@@ -1967,9 +2004,17 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         document.body,
       )}
 
-      {/* Inspector for a selected generalized-content clip (reuses the surface content editor). */}
+      {/* Inspector for a selected generalized-content clip (reuses the surface content editor).
+          ⚠ BOUNDED AND SCROLLABLE, and it was neither. The panel had no max-height inside a drawer only
+          a few hundred pixels tall, so a content type with more than a handful of controls simply ran
+          off the bottom of the timeline: with a TEXT clip, everything from the colour down — stroke,
+          motion, detail — existed, was rendered, and could not be reached or even seen. An operator
+          reported it as the parameters not being exposed, which is exactly what it looked like.
+          Wider too: 240px is not enough for a labelled field plus its value, and the type picker now
+          folds away (collapsePicker) so the parameters start at the top instead of 250px down. */}
       {selectedClip && isContentClip(selectedClip) && (
-        <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
+        <div className="absolute top-2 right-2 z-30 flex max-h-[calc(100%-1rem)] w-72 flex-col overflow-y-auto overscroll-contain bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
+          onWheel={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <span className="text-micro font-bold uppercase tracking-wider text-fg-3 truncate">{selectedClip.name}</span>
@@ -1979,6 +2024,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             content={selectedClip.content!}
             layers={layers}
             showLayerOption={false}
+            collapsePicker
             onChange={(patch) => patchClipContent(selectedClip.id, patch)}
             onTypeChange={(type) => changeClipContentType(selectedClip.id, type)}
           />

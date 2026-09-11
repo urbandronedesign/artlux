@@ -597,7 +597,15 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
 // known (live receivers, effects, plugin sources) — undefined means "assume it changed". Lets a
 // consumer that pays per frame skip repeats; see VideoCodecContribution.surfaceGeneration.
 export function getDrawableGeneration(key: string, content: SurfaceContent): number | undefined {
-  if (content.type !== SourceType.VIDEO) return undefined;
+  // PLUGIN TYPES GET TO ANSWER. Without this branch the function had no default case at all, so every
+  // non-VIDEO source answered `undefined` — "assume it changed" — and the three consumers that pay per
+  // frame all took the expensive path forever: the 3D scene re-uploaded its texture, the projector
+  // pump ran a `createImageBitmap` per window per tick, and each projector window repainted every
+  // vsync. For a source that is often STILL (text, a paused shader, a tracking overlay with nobody in
+  // the room) that is the entire cost of the feature, paid to produce an identical frame.
+  if (content.type !== SourceType.VIDEO) {
+    return contentSourceRegistry.get(content.type)?.getDrawableGeneration?.(key, content);
+  }
   const e = media.get(key);
   if (!e) return undefined;
   if (e.type === 'CODEC') return videoCodecRegistry.get(e.codecId)?.surfaceGeneration?.(e.path);

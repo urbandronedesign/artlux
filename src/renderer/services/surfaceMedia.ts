@@ -26,7 +26,23 @@ const acquired = new Set<string>();
 // EFFECT/IMAGE could not resolve locally and would fall back to the streamed frame.
 const byId = new Map<string, Surface>();
 
-// Reconcile contentSource consumers with the current surfaces.
+// Surfaces currently holding a composited track stack, so one can be released when its surface goes.
+const stacked = new Set<string>();
+
+/**
+ * The tracks this surface composites, or null when it is not a stack.
+ *
+ * A stack is LAYER content naming two or more tracks. ONE track is deliberately not a stack — it is
+ * the existing single-layer binding, which costs no canvas and no composite, and which every project
+ * written before `layerIds` uses.
+ */
+export function stackIdsOf(s: Surface): readonly string[] | null {
+  if (s.content.type !== SourceType.LAYER) return null;
+  const ids = s.content.layerIds;
+  return ids && ids.length > 1 ? ids : null;
+}
+
+// Reconcile contentSource consumers + track stacks with the current surfaces.
 export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
   const next = new Set<string>();
   let wantProgram = false;
@@ -47,6 +63,16 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
   for (const id of [...crops.keys()]) if (!byId.has(id)) crops.delete(id); // slice removed/retyped
   contentSource.setPlaying(isPlaying);
   if (wantProgram) timeline.retainProgram('surfaces'); else timeline.releaseProgram('surfaces'); // composite only when consumed
+
+  // Per-surface TRACK STACKS. Registered every sync, so re-picking the set or resizing the surface
+  // simply lands; released the moment a surface stops naming one, because each stack owns a canvas.
+  for (const s of surfaces) {
+    const ids = stackIdsOf(s);
+    if (ids) timeline.acquireStack(s.id, ids, s.height > 0 ? s.width / s.height : 16 / 9);
+    else timeline.releaseStack(s.id);
+    if (ids) stacked.add(s.id); else stacked.delete(s.id);
+  }
+  for (const id of [...stacked]) if (!byId.has(id)) { timeline.releaseStack(id); stacked.delete(id); }
 }
 
 // --- SLICE: a cropped region of another surface's picture -----------------------------------------
@@ -175,8 +201,11 @@ export function getContentAspect(s: Surface): number | null {
 }
 
 // Changes only when this surface's drawable holds NEW pixels; undefined = unknown, assume changed.
-// Only VIDEO surfaces report one — LAYER/PROGRAM composite continuously and everything else is live.
-// Used by the projector frame pump to skip a full-surface createImageBitmap on a repeated frame.
+// VIDEO surfaces report one, and so does any PLUGIN source that chooses to (SDK
+// ContentSourceProvider.getDrawableGeneration) — a source that is ever still should, because the three
+// consumers that pay per frame all skip on a repeat. LAYER/PROGRAM composite continuously, so they
+// never report. Used by the projector frame pump to skip a full-surface createImageBitmap on a
+// repeated frame, by the 3D scene to skip a texture upload, and by each projector window to not repaint.
 export function getDrawableGeneration(s: Surface): number | undefined {
   // A slice holds exactly the pixels of its source, so it repeats exactly when the source does —
   // pass the source's generation through and the projector pump keeps skipping repeated frames.
@@ -191,7 +220,10 @@ export function getDrawableGeneration(s: Surface): number | undefined {
 // Drawable for a surface this frame, or null if not ready / no content.
 export function getDrawable(s: Surface): Drawable | null {
   if (s.content.type === SourceType.SLICE) return sliceDrawable(s);
-  if (s.content.type === SourceType.LAYER) return timeline.getLayerDrawable(s.content.layerId);
+  if (s.content.type === SourceType.LAYER) {
+    const ids = stackIdsOf(s);
+    return ids ? timeline.getStackDrawable(s.id) : timeline.getLayerDrawable(s.content.layerId);
+  }
   if (s.content.type === SourceType.PROGRAM) return timeline.getProgramDrawable();
   // ⚠ THE SHOW CLOCK — NOT `performance.now()`.
   //

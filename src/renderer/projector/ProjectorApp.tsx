@@ -31,8 +31,30 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 // output is black.
 // Content-type-string membership sets (SurfaceContent.type is an open string space; SourceType values
 // are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
-const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING, 'SHADER']);
+// 'TEXT' self-renders, and for type that is not a nicety: streaming it would ship a bitmap rasterised
+// at the MAIN window's density and stretch it onto the projector's raster, which is exactly the way to
+// make glyph edges mushy. Rasterising here means the type is drawn at this output's native resolution.
+// MEDIAPIPE and AUGMENTA were MISSING here until 2026-09-11, which is this comment's own warning coming
+// true for the third time: both plugins register a content source, both already push a snapshot to
+// projector windows over their own data channel — the entire pipeline was built — and a surface using
+// either one still drew NOTHING on a projector, because these two sets are the one place a type must
+// also be named. Found by the invariant that now guards this line, not by anyone looking.
+const SELF_RENDER = new Set<string>([
+  SourceType.IMAGE, 'EFFECT', SourceType.TRACKING, SourceType.MEDIAPIPE, SourceType.AUGMENTA, 'SHADER', 'TEXT',
+]);
 const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+/**
+ * A surface's own opacity, 0..1 — the value frameEngine has always applied for the LED sampler, the 2D
+ * preview and the 3D scene, and which no projector ever read.
+ *
+ * Clamped, and total over a malformed project: a NaN here would multiply the master brightness into
+ * NaN and put the output black with nothing to explain it.
+ */
+function surfaceOpacity(s: Surface | null): number {
+  const v = s?.content?.opacity;
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
+}
+
 // Silence on the port for this long means the main window is no longer producing — see the liveness
 // check in the render loop for why a frozen picture is worse than a black one. Generous next to the
 // ~30 Hz frame rate and the transport/config traffic that punctuates an idle output, because a false
@@ -533,7 +555,17 @@ export const ProjectorApp: React.FC = () => {
       // `overlay` is the warped alignment aid — a blended second pass through this same geometry,
       // drawn only once the texture is actually resident (aidWarpedRef), so the DOM copy and the GL
       // copy can never both be on the wall.
-      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES, overlay: aidWarpedRef.current };
+      // ⚠ THE SURFACE'S OWN OPACITY RIDES THE MASTER BRIGHTNESS, and until now it reached the wall
+      // nowhere at all: frameEngine applies `content.opacity` for the LED sampler, the 2D preview and
+      // the 3D scene, and NOTHING in the projector path ever read it. A surface dimmed to 40%, or
+      // faded out by a cue, played at full on the projector — the one output an audience is looking at.
+      //
+      // Brightness is the right carrier rather than an alpha: a projector has nothing behind it to
+      // blend with, so "less opaque" on a wall IS "less light". Multiplying into the existing uniform
+      // also means it lands on every stage that already honours brightness, with no new plumbing and
+      // no extra messages — the surface is already in this window's config.
+      const opacity = surfaceOpacity(s);
+      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current * opacity, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES, overlay: aidWarpedRef.current };
       // ── THE COLD-START HOLD ─────────────────────────────────────────────────────────────────────
       // The main window is still decoding a freshly-opened project, so THIS OUTPUT SHOWS NOTHING —
       // black under the "PRELOADING SHOW" sign below. Half a look is worse than none: the warm pool has
@@ -595,6 +627,15 @@ export const ProjectorApp: React.FC = () => {
           // now, not the picture.
           if (src) src.style.visibility = consume ? 'hidden' : '';
         }
+        // PATH C — a calibrated output with NO residual warp. ProjectorGL draws nothing here: the
+        // panel's own canvas IS the output, shown directly. So the only place left to apply the
+        // surface's opacity is the element, which blends it against the window's black — the same
+        // result the brightness uniform gives on the other two paths, for no GPU work at all.
+        if (src) {
+          const dim = brightnessRef.current * opacity;
+          const want = dim >= 0.999 ? '' : String(dim);
+          if (src.style.opacity !== want) src.style.opacity = want;
+        }
         if (!consume || !src) return;
         // ⚠ GEOMETRY ONLY — every photometric stage stays identity here, and NOT passing `opts`
         // wholesale is the point.
@@ -605,10 +646,18 @@ export const ProjectorApp: React.FC = () => {
         // that reads exactly like a mis-set blend gamma, which is the hardest thing to diagnose on a
         // wall at 2am. This is the same double-apply hazard `hwOwnsGeometry` guards on the NVAPI side.
         //
-        // Gamma and brightness are identity for a different reason: they do not apply on this path
-        // TODAY (the whole stage was skipped), so honouring them only for warped outputs would make
-        // the master brightness work on some calibrated projectors and not others. Whether they
-        // should apply to a calibrated render at all is a separate question from bending it.
+        // GAMMA stays identity, and for the reason this comment has always given: it does not apply on
+        // this path, and honouring it only for warped outputs would make a calibration trim work on
+        // some calibrated projectors and not others. Whether a gamma belongs on a calibrated render is
+        // a separate question from bending it.
+        //
+        // BRIGHTNESS NO LONGER DOES, because it now carries the SURFACE'S OPACITY — and that is a show
+        // value, not a trim. A cue that fades a surface out must take the light off the wall on every
+        // output, calibrated or not; leaving this identity meant a calibrated projector kept playing at
+        // full through a fade. It cannot double-apply: the panel's composer applies the soft edge, the
+        // rig blend, the colour gain and the black lift — and no brightness at all (verified: there is
+        // no brightness or opacity anywhere in ProjectorScene). The identity-warp case is handled
+        // above, on the element itself, because this stage does not run there.
         //
         // aa:1 — the panel's canvas is already antialiased (its 3D geometry edges are the ones that
         // matter); this stage's MSAA would only smooth the warp mesh's outer boundary, which the soft
@@ -616,7 +665,7 @@ export const ProjectorApp: React.FC = () => {
         //
         // No `srcGen`: a live canvas mutates in place, so it must re-upload every frame — the same
         // rule as a locally-decoded drawable below.
-        gl.draw(src, { cornerPin: pinRef.current, warp: mesh, softEdge: NO_FEATHER, aa: 1, overlay: aidWarpedRef.current });
+        gl.draw(src, { cornerPin: pinRef.current, warp: mesh, softEdge: NO_FEATHER, brightness: brightnessRef.current * opacity, aa: 1, overlay: aidWarpedRef.current });
         // An NDI send of a calibrated output used to be BLACK, because the capture below sat after the
         // early return. Warping restores it.
         captureNdi(now);

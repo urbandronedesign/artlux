@@ -318,6 +318,22 @@ export interface SurfaceContent {
   // `applyConstraints`, no reopen. Absent key ⇒ the camera's own default (usually auto).
   cameraControls?: Record<string, number | string>;
   layerId?: string;    // LAYER content: which timeline track to show
+  /**
+   * LAYER content: composite THESE tracks for this surface, back-to-front in timeline order.
+   *
+   * Absent ⇒ the single `layerId` above, which is exactly what every project written before this
+   * field does, so there is nothing to migrate.
+   *
+   * WHY IT EXISTS. A surface could show one track or the WHOLE timeline (`PROGRAM`) and nothing in
+   * between — so "a video with a title over it" was only expressible if every surface wanted the same
+   * pair. With two outputs carrying different content it was not expressible at all: the program is
+   * global, and one track cannot hold two pictures. The timeline was already a compositor (per-track
+   * opacity, blend mode, z-order); it simply could not be ADDRESSED per surface.
+   *
+   * ⚠ The composite is built by the SAME function as the program (timeline.compositeLayers), so
+   * blend/opacity/solo/mute mean one thing everywhere. Two compositors would drift.
+   */
+  layerIds?: string[];
   opacity?: number;    // surface opacity 0..1 (default 1) — composite alpha; fadeable for crossfades
   // SLICE content — a cropped region of another Surface's picture. This is how ONE source spans
   // SEVERAL projectors: the source decodes once, and each slice is an ordinary Surface, so it gets
@@ -373,6 +389,72 @@ export interface SurfaceContent {
                        // surface's own proportions. Absent ⇒ 720. Per surface because the two consumers
                        // want opposite things: the LED path samples an atlas rect scaled to fixture
                        // density and discards anything finer, while a projector wants its native raster.
+  // ── TEXT params (@artlux/plugin-text) — typed copy on a surface ─────────────────────────────────
+  // Persisted here rather than in the plugin for the reason SHADER's fields are: core owns the project
+  // file's shape, so the plugin can be reworked, renamed or disabled without a migration. `'TEXT'` is
+  // an open type string and needs no SourceType entry.
+  //
+  // EVERY FIELD HERE CHANGES THE PIXELS, motion included — the type is re-DRAWN when it moves, not
+  // transformed. Scaling or rotating a finished picture resamples the glyphs, and soft edges are the
+  // one failure type cannot survive on a big output; re-drawing keeps it vector-crisp, and costs
+  // nothing extra because `textScale` multiplies the font size rather than the buffer.
+  // The consequence to know: a STILL surface is cached and free, a MOVING one re-rasters per frame.
+  textBody?: string;        // the copy itself; "\n" separates lines
+  // LAYOUT — any change re-shapes and re-rasterises.
+  textFont?: string;        // family name, as the machine reports it (see the font list IPC)
+  textFontAsset?: string;   // …or the id of a font in the project's asset library, which TRAVELS
+  textWeight?: number;      // 100..900
+  textItalic?: boolean;
+  textSize?: number;        // FRACTION OF SURFACE HEIGHT, not px — so type keeps its proportion when
+                            // the surface is resized, which px would not. Absent ⇒ 0.2.
+  textLineHeight?: number;  // multiple of the font size. Absent ⇒ 1.2.
+  textTracking?: number;    // letter-spacing, as a fraction of the font size (may be negative)
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  /**
+   * Break long lines to fit the surface, instead of letting them run off it.
+   *
+   * Absent ⇒ OFF, which is exactly what every project written before this does: lines break only
+   * where the operator pressed Enter. That is the right default for a title — you choose the breaks —
+   * and the wrong one for a paragraph.
+   *
+   * `textAlign: 'justify'` FORCES it on, because justification without wrapping is meaningless: it
+   * would stretch whatever you happened to type to the full width of the surface, however short.
+   */
+  textWrap?: boolean;
+  /**
+   * THE TEXT BOX — the rectangle the copy is laid out in, normalized within the surface (0..1).
+   *
+   * Absent ⇒ the whole surface, which is what every project written before this does.
+   *
+   * It is what "wrap" wraps to. Wrapping to the surface is only right when the surface IS the column;
+   * the moment a wall carries a title in one corner and a paragraph down one side, the measure has to
+   * be something smaller than the wall. Alignment, justification and the vertical anchor are all
+   * relative to this box, and rotation turns about its centre.
+   *
+   * It does NOT clip: type that overflows the box is still drawn, and the SURFACE is what crops. A box
+   * that silently swallowed the end of a sentence would be worse than one you can see overflowing.
+   */
+  textBox?: { x: number; y: number; w: number; h: number };
+  /**
+   * Where the block sits vertically in its box. Absent ⇒ `middle`, which is what a surface-wide layout
+   * has always done.
+   *
+   * `top` is usually what a real box wants: a paragraph should grow downwards as it is typed, not
+   * creep upwards from the middle.
+   */
+  textVAlign?: 'top' | 'middle' | 'bottom';
+  textColor?: string;       // fill, "#rrggbb"
+  textStrokeColor?: string;
+  textStrokeWidth?: number; // fraction of the font size; 0/absent ⇒ no stroke
+  textRes?: number;         // DETAIL: a pixel budget, spent in the surface's proportions — exactly
+                            // like shaderRes above, and for the same reason (the LED path samples a
+                            // density-scaled atlas rect, a projector wants its native raster).
+  // MOTION — the block as a whole. Automatable from a timeline lane, OSC or the state machine.
+  // (Fading needs nothing new — `opacity` above already rides the compositor, and IS a pure blend.)
+  textX?: number;           // normalized offset within the surface, 0 = centred
+  textY?: number;
+  textScale?: number;       // uniform, 1 = as laid out
+  textRotate?: number;      // degrees
   // TRACKING params (LiDAR blob viz, projection-mappable):
   trackingSource?: string;   // which tracking surface: 'SOL' | 'MUR' | 'SOL_MUR'
   bgLayerId?: string;        // optional timeline layer drawn UNDER the blobs (video + blobs on one surface)
@@ -471,6 +553,21 @@ export interface VideoClip {
   // Generalized content: any surface source type (Image/Camera/DMX-in/Spout/NDI/Effect/Tracking)
   // scheduled on the layer for this clip's span. Absent (or type VIDEO) ⇒ legacy path-based video.
   content?: SurfaceContent;
+  /**
+   * PICTURE fade, in seconds — the twin of the audio clip's, and drawn with the same corner handles.
+   *
+   * It multiplies the clip's alpha, which is also where `content.opacity` finally does something on a
+   * layer: a clip has always CARRIED an opacity (it holds a whole SurfaceContent) and nothing ever
+   * applied it, because a layer composite used the LAYER's opacity and a single-layer surface used
+   * the SURFACE's. Both now fold into one clip alpha.
+   *
+   * ⚠ It is applied to the LAYER'S PICTURE, not by each consumer. Consumer-side alpha is how
+   * `content.opacity` works for a surface, and it does not reach a projector output at all — so a fade
+   * done that way would play on the LEDs and the stage and simply not happen on the wall. Baking it in
+   * costs one composite per fading layer per frame, and nothing whatsoever at rest.
+   */
+  fadeIn?: number;       // s
+  fadeOut?: number;      // s
   start: number;         // timeline position where the clip begins
   duration: number;      // clip length on the timeline
   inPoint: number;       // offset into the source where playback starts (trim)
@@ -480,6 +577,26 @@ export interface VideoClip {
 }
 // A clip whose pixels come from a generalized content source (not the legacy video <video>/HAP path).
 // Video clips stay path-based even if they also carry content={type:VIDEO,...}.
+/**
+ * A clip's fade envelope at `tLocal` seconds in — 0..1.
+ *
+ * Deliberately the same arithmetic as the audio driver's `fadeGain`: overlapping fades on a clip
+ * shorter than fadeIn + fadeOut MULTIPLY, so the clip simply never reaches full, which is the
+ * conventional behaviour. Every guard is against a fade that got here anyway — a zero or negative
+ * length never divides, and the ratios clamp at 0 so a tLocal outside the clip cannot go negative.
+ */
+export function clipFadeAlpha(clip: { duration: number; fadeIn?: number; fadeOut?: number }, tLocal: number): number {
+  let g = 1;
+  const fi = clip.fadeIn ?? 0;
+  if (fi > 0 && tLocal < fi) g *= Math.max(0, tLocal / fi);
+  const fo = clip.fadeOut ?? 0;
+  if (fo > 0) {
+    const left = clip.duration - tLocal;
+    if (left < fo) g *= Math.max(0, left / fo);
+  }
+  return g;
+}
+
 export const isContentClip = (c: VideoClip): boolean => !!c.content && c.content.type !== SourceType.VIDEO;
 // Managed media library types live in shared/ (crosses the IPC boundary on import); re-exported
 // here so renderer code imports them from './types' alongside everything else.

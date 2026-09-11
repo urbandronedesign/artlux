@@ -1,4 +1,4 @@
-import { Timeline, VideoClip, SurfaceContent, SourceType, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
+import { Timeline, VideoClip, SurfaceContent, SourceType, LayerBlendMode, StateMachine, isContentClip, clipFadeAlpha, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
 import { resolveMediaUrl } from './mediaCache';
 import * as contentSource from './contentSource';
 import * as codecResidency from './codecResidency';
@@ -1140,6 +1140,9 @@ function frame(now: number): void {
     // only; mirror windows receive the result as a streamed surface drawable).
     if (!external && programActive) { try { buildProgram(); } catch (e) { console.error('[timeline] program error', e); } }
     else programReady = false;
+    // …and each per-surface track stack, on the same terms and for the same reason.
+    if (!external) { for (const e of stacks.values()) { try { buildStack(e); } catch (err) { console.error('[timeline] stack error', err); } } }
+    else for (const e of stacks.values()) e.ready = false;
     prevPlayhead = playhead;
     subs.forEach(cb => cb(playhead));
   } catch (e) {
@@ -1184,7 +1187,61 @@ if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>)['__artluxNullLogReset'] = () => { nullLog.length = 0; nullOpen.clear(); };
 }
 
+/**
+ * A layer's CLIP ALPHA right now: the active clip's own opacity times its fade envelope.
+ *
+ * This is where `SurfaceContent.opacity` finally does something on a layer. A clip has always carried
+ * one — it holds a whole SurfaceContent — and nothing applied it: the layer composite used the LAYER's
+ * opacity, and a single-layer surface used the SURFACE's. Both fold in here instead.
+ */
+function layerAlpha(layerId: string): number {
+  const c = activeClip(layerId, playhead);
+  if (!c) return 1;
+  const base = c.content?.opacity ?? 1;
+  return Math.max(0, Math.min(1, base * clipFadeAlpha(c, playhead - c.start)));
+}
+
+// One scratch canvas per FADING layer. Allocated the first time a layer actually fades and grown to
+// fit — never per frame, and never at all for a layer that never fades.
+const fades = new Map<string, { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null }>();
+
+/**
+ * The layer's picture with its clip alpha baked IN.
+ *
+ * ⚠ BAKED, not applied by each consumer, and that is the whole design. Consumer-side alpha is how
+ * `Surface.content.opacity` works — and it does not reach a projector output at all: nothing in the
+ * projector path reads an opacity. A fade done that way would play on the LEDs and on the stage and
+ * simply not happen on the wall, which is worse than no fade. Baking it into the picture gives it to
+ * every consumer for free: the LED sampler, the 2D preview, the 3D scene, the program, a per-surface
+ * track stack, and the frames streamed to each projector window.
+ *
+ * AT REST IT COSTS NOTHING. Alpha 1 returns the raw drawable untouched — the path every project that
+ * uses no fades keeps taking. The composite happens only while a fade is actually running.
+ */
+function fadedDrawable(layerId: string, d: CanvasImageSource, alpha: number): CanvasImageSource {
+  const w = Math.max(1, Math.round(drawableWidth(d)));
+  const h = Math.max(1, Math.round(w / (drawableAspect(d) || (16 / 9))));
+  let e = fades.get(layerId);
+  if (!e) { const canvas = document.createElement('canvas'); e = { canvas, ctx: canvas.getContext('2d') }; fades.set(layerId, e); }
+  if (!e.ctx) return d;
+  if (e.canvas.width !== w || e.canvas.height !== h) { e.canvas.width = w; e.canvas.height = h; }
+  e.ctx.clearRect(0, 0, w, h);
+  e.ctx.globalAlpha = alpha;
+  try { e.ctx.drawImage(d, 0, 0, w, h); } catch { return d; }   // source not decodable this frame
+  e.ctx.globalAlpha = 1;
+  return e.canvas;
+}
+
 function layerDrawable(layerId: string): CanvasImageSource | null {
+  const raw = rawLayerDrawable(layerId);
+  if (!raw) return null;
+  const a = layerAlpha(layerId);
+  // 0.999 rather than 1: a fade's first and last frames land fractionally off unity, and re-compositing
+  // a picture at 0.9997 alpha is a canvas allocation to change nothing anyone can see.
+  return a >= 0.999 ? raw : fadedDrawable(layerId, raw, a);
+}
+
+function rawLayerDrawable(layerId: string): CanvasImageSource | null {
   const lv = layerVideos.get(layerId);
   if (!lv) return noteNull(layerId, 'no-layer-state');
   if (!lv.clipId) return noteNull(layerId, activeClip(layerId, playhead) ? 'clipId-unset-but-clip-active' : 'no-clip-under-playhead');
@@ -1288,21 +1345,86 @@ function buildProgram(): void {
       programCanvas.width = programW; programCanvas.height = programH;
     }
   }
+  compositeLayers(ctx, programW, programH, null);
+  programReady = true;
+}
+
+/**
+ * STACK TRACKS INTO A FRAME — the one compositor, used by the program AND by a surface that names a
+ * SET of tracks (`SurfaceContent.layerIds`).
+ *
+ * `only` null ⇒ every contributing track, which is the program. A set ⇒ just those, still drawn
+ * back-to-front in TIMELINE order rather than in the order they were picked: the track stack is what
+ * an operator reads z-order off, and letting a picker reorder it would make the same two tracks
+ * composite differently on two surfaces.
+ *
+ * ⚠ ONE FUNCTION ON PURPOSE. A second copy of this loop would be a second definition of what
+ * `muted`, `solo`, `opacity` and `blendMode` MEAN — and the two would drift the first time one of
+ * them was taught something the other was not. Guarded by verify:invariants.
+ */
+function compositeLayers(ctx: CanvasRenderingContext2D, w: number, h: number, only: ReadonlySet<string> | null): void {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  ctx.clearRect(0, 0, programW, programH);
+  ctx.clearRect(0, 0, w, h);
+  // Solo is judged across the WHOLE timeline, not within the subset: soloing a track is a statement
+  // about the document ("show me only this"), and a surface that does not name the soloed track
+  // should go dark exactly as the program does, rather than quietly ignoring the solo.
   const anySolo = data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
   for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
     const l = data.layers[i];
+    if (only && !only.has(l.id)) continue;
     if (clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram || l.enabled === false || l.muted) continue;
     if (anySolo && !l.solo) continue;
     const d = layerDrawable(l.id);
     if (!d) continue;
     ctx.globalAlpha = Math.max(0, Math.min(1, l.opacity ?? 1));
     ctx.globalCompositeOperation = blendOp(l.blendMode);
-    try { ctx.drawImage(d, 0, 0, programW, programH); } catch { /* drawable not ready this frame */ }
+    try { ctx.drawImage(d, 0, 0, w, h); } catch { /* drawable not ready this frame */ }
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-  programReady = true;
+}
+
+// ── Per-surface track stacks ───────────────────────────────────────────────────────────────────────
+// One canvas per CONSUMER (a surface id), because two surfaces naming different sets need different
+// pictures — which is the whole point, and the one thing the global program could never do.
+//
+// Composited in run(), ONCE per frame, exactly like the program. Not lazily on the first getDrawable:
+// the frame engine asks for a surface's drawable and then the 3D view asks again in its own loop, and
+// a lazy build would re-stack every track for the second asker.
+interface StackEntry {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D | null;
+  ids: readonly string[];
+  aspect: number;
+  ready: boolean;
+}
+const stacks = new Map<string, StackEntry>();
+
+const STACK_MIN_W = 640, STACK_MAX_W = 3840;
+
+function buildStack(e: StackEntry): void {
+  e.ready = false;
+  if (!e.ctx || !e.ids.length) return;
+  // SIZED TO THE BIGGEST CONTRIBUTING TRACK, spent in THIS SURFACE'S proportions — not 16:9 like the
+  // program. The compositor stretches each track to fill, and the surface stretches this to fill in
+  // turn, so a frame shaped like anything else is two stretches where one would do. Quantised and
+  // GROWN ONLY, so dragging a surface does not reallocate the canvas every frame.
+  let maxW = 0;
+  for (const id of e.ids) maxW = Math.max(maxW, drawableWidth(layerDrawable(id)));
+  const side = Math.min(STACK_MAX_W, Math.max(STACK_MIN_W, maxW));
+  // ⚠ `side` is a WIDTH; the thing to spend in the surface's aspect is an AREA. Spending the width as
+  // if it were sqrt(area) allocates 1920 -> 2560x1440 for a 16:9 surface: 3.7 Mpx where the program
+  // uses 2.1, i.e. 78% more pixels composited AND uploaded every frame, per stacked surface. The
+  // budget is the program's own area for that width, so a stack costs what the program costs.
+  const budget = side * (side * 9 / 16);
+  const a = Number.isFinite(e.aspect) && e.aspect > 0 ? e.aspect : 16 / 9;
+  const q = (v: number) => Math.min(STACK_MAX_W, Math.max(64, Math.round(v / 16) * 16));
+  const w = q(Math.sqrt(budget * a)), h = q(Math.sqrt(budget / a));
+  if (w > e.canvas.width || h > e.canvas.height) {
+    e.canvas.width = Math.max(e.canvas.width, w);
+    e.canvas.height = Math.max(e.canvas.height, h);
+  }
+  compositeLayers(e.ctx, e.canvas.width, e.canvas.height, new Set(e.ids));
+  e.ready = true;
 }
 
 export const timeline = {
@@ -1779,6 +1901,31 @@ export const timeline = {
   // routed to SourceType.PROGRAM, or a 3D plane bound to PROGRAM_LAYER_ID). Build only when wanted.
   retainProgram(key: string): void { programConsumers.add(key); programActive = true; },
   releaseProgram(key: string): void { programConsumers.delete(key); if (programConsumers.size === 0) { programActive = false; programReady = false; } },
+
+  // ── Per-surface track stacks (SurfaceContent.layerIds) ─────────────────────────────────────────
+  /** Register/refresh a consumer's stack. Called every sync, so a re-pick or a resize just lands. */
+  acquireStack(key: string, ids: readonly string[], aspect: number): void {
+    let e = stacks.get(key);
+    if (!e) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16; canvas.height = 16;   // grown to fit on the first build
+      e = { canvas, ctx: canvas.getContext('2d'), ids, aspect, ready: false };
+      stacks.set(key, e);
+    }
+    e.ids = ids;
+    e.aspect = aspect;
+  },
+  releaseStack(key: string): void { stacks.delete(key); },
+  /**
+   * A consumer's composited stack, or null before its first build this frame.
+   *
+   * Null is NOT "draw nothing" for a mirror: like the program, a projector window cannot composite
+   * (it has no layer videos) and is streamed the result instead, so this answers only in main.
+   */
+  getStackDrawable(key: string): CanvasImageSource | null {
+    const e = stacks.get(key);
+    return e && e.ready ? e.canvas : null;
+  },
   // The composited program drawable. A MIRROR cannot build it — buildProgram reads `layerVideos`,
   // which a projector window does not have, and would composite black — so main decodes the composite
   // once and streams it under the PROGRAM_LAYER_ID sentinel. Resolving it here rather than in

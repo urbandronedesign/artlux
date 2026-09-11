@@ -37,6 +37,15 @@ const RANGE: Record<string, { min: number; max: number; step: number; unit?: str
   'content.opacity': { min: 0, max: 1, step: 0.01 },
   'content.intensity': { min: 0, max: 1, step: 0.01 },
   'content.speed': { min: 0, max: 4, step: 0.01, unit: '×' },
+  // TEXT. A lane with no range here is kept in the file and silently NOT evaluated (see
+  // compileAutomation), so every automatable text leaf needs a row. X/Y are normalized offsets across
+  // the surface, hence ±1; rotation is drawn in degrees because that is the unit the inspector shows.
+  'content.textX': { min: -1, max: 1, step: 0.005 },
+  'content.textY': { min: -1, max: 1, step: 0.005 },
+  'content.textScale': { min: 0, max: 4, step: 0.01, unit: '×' },
+  'content.textRotate': { min: -180, max: 180, step: 1, unit: '°' },
+  'content.textSize': { min: 0.02, max: 1, step: 0.005 },
+  'content.textTracking': { min: -0.2, max: 0.6, step: 0.005 },
 };
 
 // A PROFILED FIXTURE'S CHANNEL RANGE CANNOT COME FROM THE TABLE ABOVE, because that table is keyed

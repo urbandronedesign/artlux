@@ -132,6 +132,14 @@ export const contentHelp: HelpEntry[] = [
     keywords: ['glsl', 'shader', 'generative', 'code'],
   },
   {
+    id: 'content.text',
+    title: 'Text',
+    short: 'Type copy straight onto this surface.',
+    body: 'A title, a name, a credit — typed here and drawn onto the surface, so fixtures sample it and projector outputs show it like any other source. Pick a font installed on this machine, then set size, line height, tracking, alignment, colour and an optional outline. Alignment includes **Justify**, which sets the block flush to both edges of the surface and turns wrapping on — the last line of each paragraph is left flush rather than stretched. Size is a share of the surface height rather than a pixel count, so the type keeps its proportion when you resize the surface. Each projector draws the type at its OWN resolution instead of being sent a picture, which is what keeps glyph edges sharp on a big output. Change the copy from a cue by capturing it into a scene.',
+    group: 'Content',
+    keywords: ['text', 'type', 'font', 'title', 'caption', 'credit', 'lettering', 'typography', 'words', 'justify', 'justified', 'wrap', 'paragraph', 'align'],
+  },
+  {
     id: 'content.slice',
     title: 'Slice',
     short: 'Show a cropped region of another surface.',
@@ -165,10 +173,11 @@ export const contentHelp: HelpEntry[] = [
   },
   {
     id: 'content.layer-track',
-    title: 'Layer track',
-    short: 'Choose which timeline track this surface shows.',
+    title: 'Layer tracks',
+    short: 'Choose which timeline track — or tracks — this surface shows.',
+    body: 'Tick one track and the surface shows it. Tick several and the surface composites them, back to front in timeline order, using each track’s own opacity and blend mode — so a title track over a video track gives you the title burned over the video, on this surface only. That is the difference from Timeline content, which always composites the WHOLE timeline and therefore looks the same on every surface using it: with two outputs carrying different content, each one stacks its own tracks. Mute, solo and a track’s enabled flag apply exactly as they do to the program.',
     group: 'Content',
-    keywords: ['timeline', 'track'],
+    keywords: ['timeline', 'track', 'tracks', 'layer', 'layers', 'stack', 'composite', 'overlay', 'title', 'over'],
   },
   {
     id: 'content.tracking-source',

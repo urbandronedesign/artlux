@@ -20,6 +20,31 @@ split‑view button in the Stage's top‑right toolbar; drag the divider to resi
 
 ---
 
+## Read the scale
+
+The floor grid is a ruler. It **re-scales as you zoom** — counted lines a metre apart when you are
+looking at the whole venue, ten centimetres apart when you are down on a single fixture — and it
+**follows what you are looking at**, so there is always a floor under the thing you are working on even
+when that is a long way from the centre of the world. Whatever it re-scales to, its lines land on round
+coordinates, and **Grid numbers** prints those coordinates along the bottom edge (X) and down the left
+edge (Z).
+
+The three coloured arms standing on the floor — red **X**, green **Y**, blue **Z** — mark the **world
+origin**, the point `(0, 0, 0)` that every position you type into an inspector is measured from. They
+are exactly **one grid cell long**, which makes them a ruler you can hold up against anything.
+
+That is what to reach for when an imported model looks wrong. A `.glb` arrives at whatever unit the
+program that exported it was using, and a model built in millimetres comes in a thousand times too
+small — or a thousand times too big — with nothing to say so. Drop it in, look at it against the floor,
+and if it does not match, select it and use **Fit** in the Model panel to give it a real size in metres.
+
+Both are under **3D Scene ▸ Lighting**: **Grid** hides the floor and the origin arms together, and
+**Grid numbers** hides just the figures — useful when you want the floor for reference but a clean
+frame for a client screenshot. Neither is part of a scene's look, so firing a cue will not put them
+back on screen.
+
+---
+
 ## Transform a fixture in 3D
 
 Select a fixture, then **W** move / **E** rotate / **R** scale / **Q** box‑select (or the gizmo buttons
@@ -247,9 +272,9 @@ never moves your viewpoint.
 
 ## Lighting & preview options
 
-The **LIGHTING** section controls the preview render: **Light gain**, **Ambient (env)**, **Reflective
-floor**, **Glow (bloom)**, **Grid**, plus **Tracking zones (LiDAR)** and **Merge people** for
-visualizing live tracking in 3D.
+The **LIGHTING** section controls the preview render: **Light gain**, **Haze**, **Beam cones**,
+**Ambient (env)**, **Reflective floor**, **Glow (bloom)**, **Grid**, **Grid numbers**, plus **Tracking
+zones (LiDAR)** and **Merge people** for visualizing live tracking in 3D.
 
 The viewport applies **no tone mapping**: colours are shown as they were authored, with no filmic
 roll-off on the highlights. That is deliberate — you are judging whether the preview matches the

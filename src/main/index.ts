@@ -305,8 +305,16 @@ function createWindow(): void {
 
 // Live-input surfaces (Camera / mic) call getUserMedia in the renderer. Electron denies
 // 'media' permission unless the main process grants it, so wire both handlers.
+//
+// 'local-fonts' rides the same grant, for TEXT content's font picker. Enumerating fonts in MAIN was
+// the obvious alternative and is the wrong one: a directory or registry scan yields FILE names, or
+// names parsed out of the font binary, and neither is guaranteed to be what Chromium's font matcher
+// will accept. The thing that actually renders the type is `ctx.font` inside the renderer, so the
+// list has to be Chromium's own view of the machine — which is exactly what queryLocalFonts() returns.
+// Granting it here (rather than leaving a prompt to appear) keeps an unattended venue machine from
+// stopping on a permission dialog nobody is there to answer.
 function grantMediaPermissions(): void {
-    const MEDIA = new Set(['media', 'camera', 'microphone', 'audioCapture', 'videoCapture']);
+    const MEDIA = new Set(['media', 'camera', 'microphone', 'audioCapture', 'videoCapture', 'local-fonts']);
     const ses = session.defaultSession;
     ses.setPermissionRequestHandler((_wc, permission, callback) => {
         callback(MEDIA.has(permission));

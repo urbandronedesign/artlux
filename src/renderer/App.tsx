@@ -138,6 +138,12 @@ const SCENE3D_NOT_A_LOOK = [
   'trackingSurfaceMerge',   // …and what a blob MEANS per surface (floor = legs, wall = hands)
   'trackingZoneEnterSec',   // the venue dwell — tuned once, on-site (docs/TRACKING_SYNC.md)
   'trackingZoneExitSec',
+  // THE RULER, not the look. The floor grid and its metre labels are what an operator MEASURES with —
+  // the same argument as 'viewFrom' above. Turning the numbers off for a client screenshot and having
+  // the next GO put them back is the failure this list exists to prevent.
+  // gridVisible joining it is a deliberate change to shipped behaviour: it used to ride the snapshot.
+  'gridVisible',
+  'gridLabels',
 ] as const;
 
 // Strip them on the way INTO a scene snapshot: a scene must not carry a copy at all.
@@ -4272,11 +4278,23 @@ const App: React.FC = () => {
               idle.delete(surfaceId);
               // Skip sources that haven't produced a new frame since we last shipped one to THIS port.
               const gen = getDrawableGeneration(surface);
-              // A source that cannot say whether its pixels changed (live receivers, effects, plugin
-              // sources) has no dedup to protect it, so it keeps the pump's original ~30 Hz cadence
-              // rather than riding the fine tick — otherwise the finer gate would double its
-              // createImageBitmap cost for no new pictures.
-              if (gen === undefined && !coarse) continue;
+              // ⚠ A GENERATION IS A DEDUP SIGNAL, NOT A REQUEST FOR A HIGHER RATE — and the fine tick
+              // is only safe for a source whose generation ACTUALLY dedups.
+              //
+              // It dedups when it advances at DECODE rate: a 25 fps clip on a ~66 Hz pump repeats its
+              // generation most ticks, so riding fine costs nothing and lands each new frame sooner.
+              // A GENERATIVE source is the opposite — a shader or moving text mints a new picture
+              // every frame, so its generation never repeats, and putting it on the fine tick simply
+              // doubles its createImageBitmap and transfer cost for pictures nothing can receive any
+              // faster. That is a regression this line has already shipped once: plugin sources gained
+              // generations (so a STILL one could be skipped entirely, which is the real win, and one
+              // that works just as well on a coarse tick) and were silently promoted to 66 Hz by the
+              // old `gen === undefined` test. Video playback went visibly rough.
+              //
+              // So the fine tick is keyed on what the source IS, and the dedup below still applies to
+              // everything — which is where a motionless surface stops costing anything at all.
+              const ridesFine = gen !== undefined && eff.content.type === SourceType.VIDEO;
+              if (!ridesFine && !coarse) continue;
               const prev = sentGen.get(surfaceId);
               if (gen !== undefined && prev && prev.port === port && prev.gen === gen) { pumpOf(surfaceId).sameGen++; continue; }
               { const st = pumpOf(surfaceId); st.ships++; if (st.last) { st.gaps.push(now - st.last); if (st.gaps.length > 4000) st.gaps.shift(); } st.last = now; }

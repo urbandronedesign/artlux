@@ -1,6 +1,6 @@
 # Asset library & media management (architecture & usage)
 
-A managed **media library** for all project assets — **video, image, 3D model and recorded
+A managed **media library** for all project assets — **video, image, 3D model, audio, font and recorded
 [tracking take](TRACKING_TAKES.md)** — with import, previews, search, usage tracking, missing-file
 detection, relink, reveal, consolidate, and drag-to-place onto the Stage and the
 [timeline](TIMELINE.md). Shipped in **v0.14.0**. It builds on the existing portable-project-folder
@@ -104,7 +104,15 @@ thing to look for.
 | `ASSET_EXISTS(paths[])` | invoke | `boolean[]` — drives the **missing** badge. |
 
 Copy uses the existing `uniqueDest` (de-dupes by name/size). `categoryFor`/`ASSET_CATEGORIES` map
-extensions → `assets/{video,images,models,tracking}/`.
+extensions → `assets/{video,images,models,audio,tracking,fonts}/`.
+
+**Fonts** (`assets/fonts/`, `.ttf .otf .ttc .woff .woff2`) are the category with the sharpest reason to
+exist. A [text surface](TEXT.md) can simply *name* a font family, which costs nothing and is lost the
+moment the show moves: the venue machine substitutes silently and the wall reads in the wrong face.
+Importing the file makes the typeface part of the project, so Collect Assets consolidates it and the
+missing badge reports it like any other asset. Unlike video and images, a font is **not** droppable
+onto a surface (`surfaceTypeFor` returns null for it) — a typeface is not content, it is how some
+*other* content is drawn, so it is chosen from inside a text surface's own editor.
 
 ### Scan (media added by hand)
 

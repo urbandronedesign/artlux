@@ -35,6 +35,8 @@ import { ProjectorDepthPass } from './projectorDepth';
 import { ProjectorBakePass } from './projectorBake';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
+import { OriginGnomon } from './OriginGnomon';
+import { GridLabels, setGridLabelCanvas } from './GridLabels';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
@@ -552,7 +554,20 @@ const Simulator3D: React.FC<Props> = ({
         <ViewerCameraBridge />
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
-        {scene3D.gridVisible !== false && <GroundGrid />}
+        {/* THE RULER — the floor, the origin mark and the numbers, in this order and for this reason.
+            GroundGrid is the single writer of the solved grid frame (gridScale.ts); the other two read
+            it, and r3f runs equal-priority useFrame subscribers in mount order, so they cannot see a
+            stale section. All three sit after AdaptiveClipping and ProjectorView above, which are the
+            only things in this scene that rewrite the camera's projection matrix.
+            The gnomon rides with the grid rather than taking a third toggle: it marks the origin the
+            grid no longer marks (the grid follows the view now), so they are one idea. */}
+        {scene3D.gridVisible !== false && (
+          <>
+            <GroundGrid />
+            <OriginGnomon />
+            {scene3D.gridLabels !== false && <GridLabels />}
+          </>
+        )}
         {/* Mounted ONLY while armed: an always-present pick plane would sit in front of the venue and
             swallow clicks meant for the models behind it. While armed, swallowing IS the job. */}
         {placing && <PlacementPlane onPlace={place} />}
@@ -714,6 +729,18 @@ const Simulator3D: React.FC<Props> = ({
           </EffectComposer>
         )}
       </Canvas>
+
+      {/* THE GRID NUMBERS. A SIBLING of the <Canvas>, never a child — see GridLabels.tsx for why text
+          inside this scene is the fifth thing the WebGPU backend would silently drop. It is mounted
+          BEFORE the marquee so the marquee still draws over it, and it never takes a pointer event.
+          Gated on both toggles so a hidden ruler is not holding a full-viewport backing store. */}
+      {scene3D.gridVisible !== false && scene3D.gridLabels !== false && (
+        <canvas
+          ref={setGridLabelCanvas}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          aria-hidden
+        />
+      )}
 
       {marquee && (
         <div

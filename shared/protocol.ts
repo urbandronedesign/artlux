@@ -909,6 +909,19 @@ export interface Scene3D {
   // the wall is about to look like. Old projects keep the key in their JSON; it is simply ignored,
   // and dropped on the next save. Do not reinstate it without reinstating a tone curve to drive.
   gridVisible: boolean;
+  // NUMBER THE GRID LINES — metre values along the bottom and left of the viewport (absent ⇒ ON).
+  //
+  // Absence means on, like `beamCones`, and for the same reason: it is the behaviour every project
+  // saved before this field existed should get, and a `gridLabelsOff` spelling would be the only way
+  // to say that if the default were the other way round. Deliberately NOT in defaultScene3D() — a
+  // default written there would make the absent case unreachable and the doctrine dead on arrival.
+  //
+  // Separate from `gridVisible` because they answer different questions. The grid is "where is the
+  // floor"; this is "how big is it" — and the numbers are the half you turn off for a client
+  // screenshot while still wanting the floor to read. Both are in SCENE3D_NOT_A_LOOK (App.tsx): what
+  // an operator is measuring with is not part of what a scene looks like, so a GO must not put the
+  // ruler back on screen mid-show.
+  gridLabels?: boolean;
   // ATMOSPHERE — how much haze the room has, 0..1 (absent ⇒ a modest default).
   //
   // A beam is only visible because of what is in the air; with no haze a real venue shows a pool of
@@ -1013,7 +1026,7 @@ export const defaultScene3D = (): Scene3D => ({
 // A managed media library entry. Files are copied into the project's assets/<cat>/ on import
 // (path is relative on disk, resolved absolute on load like every other asset path). Recorded
 // LiDAR takes are entries of type 'take' (path = the .lblob sidecar). Unused entries persist.
-export type AssetType = 'video' | 'image' | 'model' | 'take' | 'audio';
+export type AssetType = 'video' | 'image' | 'model' | 'take' | 'audio' | 'font';
 export interface AssetEntry {
   id: string;
   name: string;

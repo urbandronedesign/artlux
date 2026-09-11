@@ -53,13 +53,37 @@ Select a surface, then pick a type in the Inspector's **Content** grid:
 | **DMX In** | — | Shows incoming Art‑Net/sACN as content (input port set in Preferences). |
 | **Spout** | A Spout sender name (Windows) | Live GPU feed from Resolume/TouchDesigner etc. **Refresh** rescans; blank = active sender. *Requires a Spout sender running **on the same GPU as ArtLux** — see the note below.* |
 | **NDI** | An NDI source name | Network video. Requires the free **NDI Runtime/Tools**; if missing, the panel shows an install link. **Refresh** rescans; blank = first source. |
-| **Layer** | A timeline track | The surface shows whatever clip is under the playhead on that track. |
+| **Layer** | One or more timeline tracks | Tick one and the surface shows whatever clip is under the playhead on it. Tick several and the surface **composites them**, back to front in timeline order — a title track over a video track, on this surface only. See *Stacking tracks on one surface* below. |
 | **Timeline** | — (the whole Program) | The full composited timeline (all contributing layers, z‑ordered). |
 | **Effect** | An effect + palette | A built‑in generative effect (solid, rainbow, wave, fire…) with **Speed** and **Intensity**. No media file needed. |
 | **Tracking** | A tracking **Source** (`SOL` / `MUR` / `SOL_MUR`) | Live **LiDAR blob** positions as content — for interactive floors/walls. Needs OSC enabled (Preferences ▸ OSC/Tracking). |
+| **Text** | Words, and a font | Typed copy drawn onto the surface — a title, a name, a credit. Size is a share of the surface height, so it survives a resize. See [Text on a surface](../TEXT.md). |
 
 The top‑bar/timeline **Play/Pause** is the global transport for video, camera and the timeline (only
 enabled when something is playable). Live sources (camera, Spout, NDI, DMX‑in) are real‑time.
+
+### Stacking tracks on one surface
+
+**Layer** content takes a *set* of tracks, not just one. Tick two or more in the Inspector and the
+surface composites them back to front in timeline order, honouring each track's own **opacity** and
+**blend mode** — which is how you get a title, a lower-third or a logo burned over a video.
+
+This is the difference between **Layer** and **Timeline** content, and it matters as soon as you have
+more than one output:
+
+| | What it shows |
+|---|---|
+| **Timeline** | The *whole* timeline, every contributing track. Every surface set to Timeline shows the **same** frame. |
+| **Layer**, several ticked | Only the tracks you ticked — so Output One can stack *Bed A + Title A* while Output Two stacks *Bed B + Title B*. |
+
+Mute, solo and a track's enabled flag work exactly as they do for the program: soloing a track blanks
+a surface that did not tick it, the same way it blanks the program.
+
+> **Text, and the font that does not arrive.** Naming a font family uses one installed on *this*
+> machine; the venue machine may not have it, and will quietly draw something else. ArtLux says so when
+> the family you named is missing here, but it cannot know what the venue has. Before a show leaves the
+> building, use **Carry it ▸ Import…** to copy the font file into the project — it then travels with
+> the folder like any other asset. Full detail in [Text on a surface](../TEXT.md).
 
 > **Spout and two graphics cards.** Spout hands ArtLux the sender's texture **on the GPU** — nothing is
 > copied or resized, so you get the sender's full resolution with no setting to tune. The catch is that

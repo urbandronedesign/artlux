@@ -57,6 +57,9 @@ export const plugin: RendererPlugin = {
     ctx.contentSources.register({
       type: 'SHADER',
       getDrawable: (key, content, timeSec) => shaderDrawable.getFor(key, content as SurfaceContent, timeSec),
+      // Lets the 3D texture upload, the projector pump and each projector window skip a frame whose
+      // pixels did not change — which, because timeSec is SHOW time, is every frame of a paused show.
+      getDrawableGeneration: (key) => shaderDrawable.generationOf(key),
       release: (key) => shaderDrawable.release(key),
       editor: ShaderContentEditor,
       // Declared, and consumed by nothing — the host's content-type picker hand-writes a button per

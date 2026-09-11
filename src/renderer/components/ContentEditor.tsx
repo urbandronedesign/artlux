@@ -2,7 +2,7 @@ import React from 'react';
 import { SurfaceContent, SourceType, VideoLayer, Surface } from '../types';
 import { FULL_RECT, type SrcRect } from '../../../shared/protocol';
 import { clampRect } from '../services/outputSpan';
-import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop, Code2 } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop, Code2, Type } from 'lucide-react';
 import { Slider } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
@@ -27,12 +27,85 @@ interface ContentEditorProps {
   // hides the Slice option, which is how the clip inspector opts out without another flag.
   surfaces?: Surface[];
   selfId?: string;
+  /**
+   * Fold the 12-button source grid away once a type is chosen, leaving a one-line "Source: Text ·
+   * Change" header.
+   *
+   * For the surface inspector, false: that column is tall and the grid IS the content control. For a
+   * TIMELINE CLIP it is the opposite — the inspector is a floating panel inside a drawer only a few
+   * hundred pixels tall, and the grid ate ~250px of it before a single parameter appeared. With a
+   * text clip's dozen-odd controls below, everything past `Font` was simply off the bottom.
+   */
+  collapsePicker?: boolean;
+}
+
+/** What to call a content type in one word, for the collapsed header. */
+function typeLabelOf(t: SurfaceContent['type']): string {
+  if (t === 'EFFECT') return 'Effect';
+  if (t === 'SHADER') return 'Shader';
+  if (t === 'TEXT') return 'Text';
+  const s = String(t);
+  return s.charAt(0) + s.slice(1).toLowerCase();
 }
 
 const btnCls = (active: boolean) =>
   `flex flex-col items-center justify-center p-2 rounded border transition-all ${active ? 'bg-sel-surface/10 border-sel-surface text-sel-surface' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`;
 
-const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true, surfaces, selfId }) => {
+/**
+ * WHICH TRACKS THIS SURFACE SHOWS — one, or several stacked.
+ *
+ * A checklist rather than a dropdown, because the answer is genuinely a SET. A surface could show one
+ * track or the whole timeline and nothing in between, so "this video with that title over it" was only
+ * expressible if every surface wanted the same pair — and with two outputs carrying different content,
+ * not expressible at all. The timeline was already a compositor; it just could not be addressed per
+ * surface.
+ *
+ * Ticking ONE writes the plain `layerId` every project already uses — no stack, no canvas, no
+ * composite. Two or more writes `layerIds`, and the surface composites them.
+ *
+ * Z-ORDER IS THE TRACK STACK'S, not the order they were ticked. The timeline is where an operator
+ * reads which track is on top; letting a checklist reorder it would make the same two tracks composite
+ * differently on two surfaces for no visible reason.
+ */
+const LayerPick: React.FC<{ content: SurfaceContent; layers: VideoLayer[]; onChange: (p: Partial<SurfaceContent>) => void }> = ({ content: c, layers, onChange }) => {
+  const chosen = c.layerIds && c.layerIds.length ? c.layerIds : (c.layerId ? [c.layerId] : []);
+  const set = new Set(chosen);
+  const commit = (ids: string[]) => {
+    // Keep storage in TIMELINE order so the field reads the way the stack draws.
+    const ordered = layers.filter((l) => ids.includes(l.id)).map((l) => l.id);
+    if (ordered.length <= 1) onChange({ layerId: ordered[0] ?? '', layerIds: undefined });
+    else onChange({ layerId: ordered[0], layerIds: ordered });
+  };
+  return (
+    <div className="pt-1">
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-micro text-fg-2">Tracks</label>
+        {chosen.length > 1 && <span className="text-micro text-fg-3">{chosen.length} stacked, front to back</span>}
+      </div>
+      <Tooltip id="content.layer-track">
+        <div className="max-h-32 overflow-y-auto rounded border border-line-1 bg-surface-0" {...help('content.layer-track')}>
+          {layers.length === 0 && <div className="px-1.5 py-1 text-micro text-fg-3">No tracks on this timeline yet.</div>}
+          {layers.map((l) => (
+            <label key={l.id} className="pressable flex cursor-pointer items-center gap-1.5 px-1.5 py-1 text-micro text-fg-1">
+              <input
+                type="checkbox"
+                checked={set.has(l.id)}
+                onChange={(e) => commit(e.target.checked ? [...chosen, l.id] : chosen.filter((x) => x !== l.id))}
+                className="cursor-pointer rounded border-line-2 bg-surface-0 text-accent"
+              />
+              {l.color && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: l.color }} />}
+              <span className="truncate">{l.name}</span>
+            </label>
+          ))}
+        </div>
+      </Tooltip>
+    </div>
+  );
+};
+
+const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true, surfaces, selfId, collapsePicker = false }) => {
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const gridShown = !collapsePicker || pickerOpen || c.type === SourceType.NONE;
   // Sliceable = anything that isn't this surface and isn't itself a slice (slices don't nest —
   // any sub-region is expressible as one rect on the original, and refusing it removes every cycle).
   const sliceable = (surfaces ?? []).filter((s) => s.id !== selfId && s.content.type !== SourceType.SLICE);
@@ -55,7 +128,15 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-1">
+      {collapsePicker && c.type !== SourceType.NONE && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-micro text-fg-2">Source: <span className="text-fg-1">{typeLabelOf(c.type)}</span></span>
+          <button onClick={() => setPickerOpen((v) => !v)}
+            className="shrink-0 rounded border border-line-1 px-1.5 py-0.5 text-micro text-fg-2 hover:text-fg-1"
+            title="Pick a different content source">{pickerOpen ? 'Done' : 'Change'}</button>
+        </div>
+      )}
+      <div className={`grid grid-cols-3 gap-1 ${gridShown ? '' : 'hidden'}`}>
         <Tooltip id="content.none">
           <button onClick={() => pickType(SourceType.NONE)} className={btnCls(c.type === SourceType.NONE)} {...help('content.none')}>
             <Slash size={16} className="mb-1" /><span className="text-micro">None</span>
@@ -116,6 +197,11 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
         <Tooltip id="content.shader">
           <button onClick={() => pickType('SHADER')} className={btnCls(c.type === 'SHADER')} title="Operator-authored GLSL generative content" {...help('content.shader')}>
             <Code2 size={16} className="mb-1" /><span className="text-micro">Shader</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.text">
+          <button onClick={() => pickType('TEXT')} className={btnCls(c.type === 'TEXT')} title="Typed copy — a title, a name, a credit" {...help('content.text')}>
+            <Type size={16} className="mb-1" /><span className="text-micro">Text</span>
           </button>
         </Tooltip>
         {showLayerOption && (
@@ -188,16 +274,7 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
       {c.type === SourceType.CAMERA && <CameraSettings content={c} onChange={onChange} />}
 
       {showLayerOption && c.type === SourceType.LAYER && (
-        <div className="flex items-center gap-1 pt-1">
-          <label className="text-fg-2 w-12 text-micro">Track</label>
-          <Tooltip id="content.layer-track">
-            <select value={c.layerId ?? ''} onChange={(e) => onChange({ layerId: e.target.value })} {...help('content.layer-track')}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
-              <option value="">— select a track —</option>
-              {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </Tooltip>
-        </div>
+        <LayerPick content={c} layers={layers} onChange={onChange} />
       )}
 
       {/* Plugin-contributed content types (Spout, NDI, …) render their own inspector + discovery here. */}

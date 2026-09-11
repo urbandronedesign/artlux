@@ -1751,7 +1751,8 @@ check(
     const list = src.match(/const SCENE3D_NOT_A_LOOK = \[([\s\S]*?)\] as const;/);
     if (!list) return 'SCENE3D_NOT_A_LOOK is gone — the three sites have nothing to share';
     for (const k of ['trackingZones', 'viewFrom', 'trackingMergePeople', 'trackingMergeRadius',
-                     'trackingSurfaceMerge', 'trackingZoneEnterSec', 'trackingZoneExitSec']) {
+                     'trackingSurfaceMerge', 'trackingZoneEnterSec', 'trackingZoneExitSec',
+                     'gridVisible', 'gridLabels']) {
       if (!list[1].includes(`'${k}'`)) problems.push(`SCENE3D_NOT_A_LOOK no longer covers ${k}`);
     }
     // All three readers must USE the list. A literal `trackingZones: undefined` at any of them is how
@@ -3439,7 +3440,12 @@ check(
   'a 30x30 plane whose shader is what flattens it onto the floor and makes it infinite — rendered as ' +
   'a BLACK WALL standing at the origin, which is how an operator reported it. A LineBasicMaterial ' +
   'renders identically on both; a shader that genuinely needs to exist must ship a TSL twin, the way ' +
-  'Beams does, and be chosen by which RENDERER is live rather than by which modules happen to be loaded.',
+  'Beams does, and be chosen by which RENDERER is live rather than by which modules happen to be loaded. ' +
+  'The family has since grown two more members. gl.capabilities (drei GizmoViewport) is the worst of them: ' +
+  'it does not merely fail to draw, it THROWS inside the Canvas and blacks the whole viewport on the first ' +
+  'frame. And in-scene TEXT — troika, drei <Text>, a sprite — is built out of exactly these ingredients, ' +
+  'which is why the grid numbers are drawn on a 2D canvas OUTSIDE the Canvas (GridLabels.tsx). drei <Html> ' +
+  'stays legitimate: it is a DOM overlay, not a material.',
   () => {
     const DIR = 'src/renderer/components/Simulator3D';
     const problems = [];
@@ -3452,7 +3458,299 @@ check(
       // A ShaderMaterial is allowed only where a node twin is built beside it.
       if (/new THREE\.ShaderMaterial|<shaderMaterial\b/.test(src) && !/isWebGPURenderer|nodes\(\)/.test(src))
         problems.push(rel + ' builds a raw ShaderMaterial with no node twin — it will not draw on the WebGPU backend');
+      // The GizmoViewport crash, which is the worst of the family: it does not merely fail to draw,
+      // it THROWS inside the Canvas and takes the entire viewport black on the first frame.
+      if (/gl\.capabilities|getMaxAnisotropy/.test(src))
+        problems.push(rel + ' reaches for gl.capabilities — a WebGLRenderer-only API that throws inside the Canvas on the node renderer, blacking the whole viewport');
+      // Text in this scene. All three routes are built out of the things above.
+      if (/troika/.test(src))
+        problems.push(rel + ' pulls in troika-three-text, whose derived ShaderMaterial the node renderer will not run — draw text on a 2D overlay instead (see GridLabels.tsx)');
+      // Match the IMPORT BINDING, not just JSX usage: `import { Text } from '@react-three/drei'` is
+      // already unambiguous, and catching it there is what makes this fire on the commit that adds it
+      // rather than on the one that first renders it.
+      const drei = src.match(/import\s*\{([^}]*)\}\s*from\s*'@react-three\/drei'/);
+      if ((drei && /\b(Text|Text3D|Billboard)\b/.test(drei[1])) || /<Text3D\b|<Text\b/.test(src))
+        problems.push(rel + " uses drei's <Text>/<Text3D>/<Billboard>, which is troika — draw text on a 2D overlay instead (see GridLabels.tsx)");
+      if (/<sprite\b|SpriteMaterial/.test(src))
+        problems.push(rel + ' draws a sprite — the GizmoViewport failure mode; sprites here go through WebGL-only texture paths');
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Timeline: zoom-to-fit actually fits ───────────────────────────────────────────────────────
+check(
+  'zoom-to-fit does not share the wheel zoom floor',
+  'Fitting is a promise about the RESULT — every clip on screen at once — and it was computed with ' +
+  "the wheel's floor of 5 px/s. That turns the promise into a silent refusal for exactly the " +
+  'documents that need it most: the floor caps what can fit at roughly (lane width / 5) seconds, so a ' +
+  'drawer docked at ~800px could not fit more than about two and a half minutes of content. Press the ' +
+  'button on a real show and clips stay off the right edge, with nothing to say why. The wheel floor ' +
+  'is still right FOR THE WHEEL — below 5 px/s a clip is a smear and a drag cannot be aimed — which ' +
+  'is why these are two named constants and not one.',
+  () => {
+    const T = 'src/renderer/components/timeline/Timeline.tsx';
+    const G = 'src/renderer/components/timeline/geometry.ts';
+    if (!exists(T) || !exists(G)) return 'the timeline or its geometry is gone';
+    const geo = read(G), tl = read(T);
+    const problems = [];
+    if (!/FIT_MIN_PX_PER_SEC/.test(geo)) problems.push('FIT_MIN_PX_PER_SEC is gone — the fit is sharing a floor with something again');
+    if (!/ZOOM_MIN_PX_PER_SEC/.test(geo)) problems.push('ZOOM_MIN_PX_PER_SEC is gone');
+    const fit = fnBody(tl, 'onZoomFit') ?? '';
+    if (!fit) problems.push('could not find onZoomFit');
+    else {
+      if (!/FIT_MIN_PX_PER_SEC/.test(fit)) problems.push('onZoomFit no longer uses the fit floor — it is refusing to fit long documents again');
+      if (/ZOOM_MIN_PX_PER_SEC/.test(fit)) problems.push('onZoomFit uses the WHEEL floor, which caps what it can fit');
+      if (/clamp\([^)]*,\s*5\s*,/.test(fit)) problems.push('onZoomFit has a hardcoded 5 px/s floor again');
+      // Sizing alone is not fitting: the canvas keeps a paged extent, so the view must go back to the start.
+      if (!/scrollLeft\s*=\s*0/.test(fit)) problems.push('onZoomFit no longer returns the view to the start — content can be correctly sized and still off screen');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Projector: a surface's opacity reaches the wall, on every path ────────────────────────────
+check(
+  "a surface's opacity reaches every projector output path",
+  'frameEngine has always applied Surface.content.opacity — for the LED sampler, the 2D preview and ' +
+  'the 3D scene — and NOTHING in the projector path ever read it. A surface dimmed to 40%, or faded ' +
+  'out by a cue, played at full on the projector: the one output an audience is actually looking at. ' +
+  'Nothing threw, and every other view agreed with the operator, which is what made it invisible. ' +
+  'There are THREE paths and a fix that covers two of them is the same bug with a smaller blast ' +
+  'radius: the ordinary warp/blend draw, the calibrated draw when an output carries a residual warp, ' +
+  'and the calibrated output with NO residual warp — where ProjectorGL draws nothing at all and the ' +
+  "panel's own canvas IS the output, so the only place left is the element itself.",
+  () => {
+    const F = 'src/renderer/projector/ProjectorApp.tsx';
+    if (!exists(F)) return `${F} is gone`;
+    const src = read(F);
+    const problems = [];
+    if (!/function surfaceOpacity\s*\(/.test(src)) problems.push('surfaceOpacity is gone — the surface opacity is being read somewhere ad hoc, or not at all');
+    // Every gl.draw options object that carries a brightness must carry the opacity with it.
+    const draws = src.match(/brightness:\s*[^,}]+/g) ?? [];
+    if (draws.length < 2) problems.push(`only ${draws.length} draw path passes a brightness — the calibrated path has stopped carrying it, so a fade would not happen on a calibrated projector`);
+    for (const d of draws) {
+      if (!/opacity/.test(d)) problems.push(`a draw path passes brightness without the surface opacity: ${d.trim()}`);
+    }
+    // …and the identity-warp case, which draws nothing and must dim the element instead.
+    if (!/style\.opacity/.test(src)) problems.push('nothing sets the panel element opacity — a calibrated output with no residual warp draws through no GL stage at all, so it would ignore the fade entirely');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Projector pump: a generation dedups, it does not raise the rate ───────────────────────────
+check(
+  'the projector pump keys its fine tick on the source type, not on having a generation',
+  'The pump runs at ~66 Hz with a ~30 Hz coarse gate, and the fine tick is only affordable for a ' +
+  'source whose generation ACTUALLY repeats. A decoded clip does: 25 fps of new frames against 66 ' +
+  'ticks means most ticks dedup, so riding fine costs nothing and lands each frame sooner. A ' +
+  'GENERATIVE source is the opposite — a shader or moving text mints a new picture every frame, so ' +
+  'its generation never repeats, and the fine tick simply doubles its createImageBitmap and transfer ' +
+  'cost for pictures nothing can receive any faster. ' +
+  'This has shipped once: plugin content sources gained getDrawableGeneration so a STILL one could be ' +
+  'skipped entirely — the real win, and one a coarse tick delivers just as well — and the old ' +
+  '`gen === undefined && !coarse` test silently promoted every one of them to 66 Hz. Video playback ' +
+  'went visibly rough and it was reported as a framerate regression. The dedup below still applies to ' +
+  'everything, which is where a motionless surface stops costing anything at all.',
+  () => {
+    const src = read('src/renderer/App.tsx');
+    const problems = [];
+    // The old shape, exactly: cadence decided by whether a generation exists.
+    if (/if\s*\(\s*gen === undefined\s*&&\s*!coarse\s*\)\s*continue/.test(src)) {
+      problems.push('the fine-tick gate is back to `gen === undefined && !coarse` — every generative plugin source is promoted to the fine tick again');
+    }
+    if (!/ridesFine/.test(src)) problems.push('no ridesFine gate — the pump no longer distinguishes a decode-rate generation from a frame-rate one');
+    else if (!/ridesFine[\s\S]{0,160}SourceType\.VIDEO/.test(src)) problems.push('ridesFine no longer keys on the content type, so what rides the fine tick is decided by something other than what the source IS');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Timeline: one compositor, for the program and for a surface's track stack ─────────────────
+check(
+  'the program and a per-surface track stack share one compositor',
+  'A surface can show ONE track, or a SET of them stacked (SurfaceContent.layerIds), or the whole ' +
+  'timeline (PROGRAM). The last two are the same operation over a different list, and the loop that ' +
+  'performs it is where `muted`, `solo`, `opacity`, `blendMode`, the excludeFromProgram clip-kinds ' +
+  'and the back-to-front track order are DEFINED. Copying it gives those words two definitions, and ' +
+  'they drift the first time one copy is taught something the other is not — the failure being that ' +
+  'the same two tracks composite differently depending on whether a surface named them or the ' +
+  'program did, with nothing on screen to say why. So compositeLayers() takes the list, and both ' +
+  'callers pass one.',
+  () => {
+    const F = 'src/renderer/services/timeline.ts';
+    if (!exists(F)) return `${F} is gone`;
+    const src = read(F);
+    const problems = [];
+    if (!/function compositeLayers\s*\(/.test(src)) problems.push('compositeLayers is gone — the stacking loop has been inlined somewhere again');
+    const prog = fnBody(src, 'buildProgram');
+    if (!prog) problems.push('could not find buildProgram');
+    else if (!/compositeLayers\(/.test(prog)) problems.push('buildProgram no longer calls compositeLayers — the program has its own copy of the loop');
+    const stack = fnBody(src, 'buildStack');
+    if (!stack) problems.push('could not find buildStack');
+    else if (!/compositeLayers\(/.test(stack)) problems.push('buildStack no longer calls compositeLayers — a track stack has its own copy of the loop');
+    // The tell-tale of a second copy: a drawImage over data.layers outside the shared function.
+    const shared = fnBody(src, 'compositeLayers') ?? '';
+    for (const [name, body] of [['buildProgram', prog], ['buildStack', stack]]) {
+      if (body && body !== shared && /blendOp\(|\.blendMode/.test(body)) {
+        problems.push(`${name} reads blendMode itself — that belongs to compositeLayers`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Assets: a content type's file paths are mapped in ONE place ───────────────────────────────
+check(
+  "every content type's file paths go through one visitor",
+  'A SurfaceContent lives in two places — on a surface and on a timeline clip — and projectFolder ' +
+  'spelled the "which fields hold a path" rule out SEPARATELY in mapSurfaces and in mapTimeline. A ' +
+  'content type added to one of them is simply missed by the other: mapped on a surface, unmapped on ' +
+  'a clip of the same content. The failure is the silent kind this file has already shipped twice ' +
+  '(the audio bed; the audio-only scene) — relativize, resolve AND collect skip the path together, so ' +
+  'the file is baked to the authoring machine, is never copied into the folder, and does NOT appear ' +
+  'in CollectResult.missing. The show just looks wrong at the venue, with nothing logged. ' +
+  'One table (CONTENT_PATHS) read by one visitor (mapContent) is what makes a new type a one-line ' +
+  'change that cannot be half-done.',
+  () => {
+    const F = 'src/main/projectFolder.ts';
+    if (!exists(F)) return `${F} is gone`;
+    const src = read(F);
+    const problems = [];
+    if (!/const CONTENT_PATHS\s*:/.test(src)) problems.push('CONTENT_PATHS is gone — the path rule has been inlined somewhere again');
+    if (!/function mapContent\s*\(/.test(src)) problems.push('mapContent is gone — the two call sites are deriving the rule separately again');
+    const surfaces = fnBody(src, 'mapSurfaces');
+    if (!surfaces) problems.push('could not find mapSurfaces');
+    else if (!/mapContent\(/.test(surfaces)) problems.push('mapSurfaces no longer routes through mapContent');
+    const timeline = fnBody(src, 'mapTimeline');
+    if (!timeline) problems.push('could not find mapTimeline');
+    else if (!/mapContent\(/.test(timeline)) problems.push('mapTimeline no longer routes clip content through mapContent — a clip of a new content type would go unmapped');
+    // A hand-written type test in either visitor is the shape that drifted; the table is the only
+    // place a content type may be named.
+    for (const [name, body] of [['mapSurfaces', surfaces], ['mapTimeline', timeline]]) {
+      if (body && /content\?\.type\s*===|c\.type\s*===/.test(body)) {
+        problems.push(`${name} tests a content type inline again instead of reading CONTENT_PATHS`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── 3D: the ImageBitmap flip is per-BACKEND ───────────────────────────────────────────────────
+check(
+  'the ImageBitmap flip compensation asks which backend is live',
+  'three IGNORES Texture.flipY for an ImageBitmap on WebGL (the unpack flags are set inside an ' +
+  '`if (isImageBitmap === false)`) and HONOURS it on WebGPU, which uploads through ' +
+  'copyExternalImageToTexture. bitmapFlip.ts compensates for the WebGL behaviour, so on the backend ' +
+  'the 3D scene actually DEFAULTS to, that compensation was a second flip and every ImageBitmap-backed ' +
+  'texture came out upside down. It hid for two releases because of what reaches a 3D plane as a ' +
+  'bitmap: shader output, which is generative noise, where a vertical flip is undetectable. The first ' +
+  'TEXT surface on a mesh showed it in one frame. ' +
+  'And it must ask which renderer is LIVE (isWebGPUActive), never which one was REQUESTED ' +
+  '(wantsWebGPU): a machine that asked for WebGPU and fell back is running WebGL and still needs the ' +
+  'compensation — inferring it from the request re-creates the same upside-down picture on exactly ' +
+  'the machines that are already having a bad day.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/bitmapFlip.ts';
+    if (!exists(F)) return `${F} is gone — the flip rule must stay in one place`;
+    const src = read(F);
+    const problems = [];
+    if (!/isWebGPUActive\s*\(/.test(src)) problems.push('no longer branches on the live backend, so one of WebGL/WebGPU is inverted');
+    if (/wantsWebGPU\s*\(/.test(src)) problems.push('branches on wantsWebGPU() — that is the REQUEST; a fallen-back machine would be inverted');
+    const R = 'src/renderer/components/Simulator3D/renderer3d.ts';
+    if (!exists(R)) return problems.concat(`${R} is gone`).join('; ');
+    const r = read(R);
+    if (!/export function isWebGPUActive/.test(r)) problems.push('renderer3d no longer publishes isWebGPUActive()');
+    // Every fallback path must clear the flag, or it reports the request rather than the reality. The
+    // ONE legal call is inside the wrapper that clears it; a second is a path that bypassed it.
+    const direct = (r.match(/onFallback\(reason\)/g) || []).length;
+    if (direct !== 1) problems.push(`onFallback(reason) is called ${direct} times — exactly one, inside the wrapper that clears the live-backend flag, is correct; more means a fallback path leaves the flag still saying WebGPU`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Content: a new source type must also reach the projector windows ──────────────────────────
+check(
+  'every plugin content type is named in SELF_RENDER or STREAMED',
+  'A projector window classifies a surface by its content type into SELF_RENDER (rasterise it here) ' +
+  'or STREAMED (the main window decodes it and pushes bitmaps). A type in NEITHER set renders ' +
+  'NOTHING — not an error, not a fallback: a black output, in the mode with no operator watching. ' +
+  "This has shipped twice. 'SLICE' did it first; 'SHADER' did it again the day it was added, with the " +
+  'plugin registered, the stage correct and the fixtures correct, because those two sets are the one ' +
+  'place a new type must ALSO be named and nothing pointed that out. ProjectorApp.tsx carries a ' +
+  'comment begging whoever adds the next one to remember; this is that comment made mechanical.',
+  () => {
+    const APP = 'src/renderer/projector/ProjectorApp.tsx';
+    if (!exists(APP)) return `${APP} is gone`;
+    const app = read(APP);
+    const sets = app.match(/const (?:SELF_RENDER|STREAMED) = new Set<string>\(\[([\s\S]*?)\]\)/g);
+    if (!sets || sets.length !== 2) return 'SELF_RENDER / STREAMED are no longer two Set<string> literals — the classification moved and this check is blind';
+    const named = sets.join('\n');
+    // A registered content type is a `type: 'X'` sitting in a file that also implements getDrawable.
+    const problems = [];
+    for (const rel of walk('plugins')) {
+      const src = read(rel);
+      if (!/getDrawable\s*[:(]/.test(src)) continue;
+      for (const m of src.matchAll(/\btype:\s*'([A-Z][A-Z0-9_]*)'/g)) {
+        const t = m[1];
+        // Either spelling counts: the sets mix SourceType.X constants and bare plugin strings.
+        if (named.includes(`'${t}'`) || named.includes(`SourceType.${t}`)) continue;
+        problems.push(`${rel} registers content type '${t}', which ProjectorApp names in neither set — that output will be BLACK`);
+      }
+    }
+    return problems.length ? [...new Set(problems)].join('; ') : null;
+  },
+);
+
+// ── 3D: the ruler tells the truth ─────────────────────────────────────────────────────────────
+check(
+  'the floor grid, its numbers and the gnomon read one ladder',
+  'The floor re-steps as you zoom (a 1-2-5 metre ladder), and three separate things have to agree ' +
+  'about which rung is live: the lines that are drawn, the numbers printed beside them, and the ' +
+  'origin gnomon, whose arms are ONE SECTION long so it doubles as a ruler. If any of them derives ' +
+  'the rung independently they can disagree by a frame or by a whole decade, and the failure is ' +
+  'silent and actively harmful: a "2 m" printed over a line that is 1 m away is not a cosmetic bug, ' +
+  'it is a wrong measurement an operator will scale an imported model by. Nothing throws. So the ' +
+  'ladder lives in gridScale.ts, GroundGrid is the single writer of the solved frame, and the other ' +
+  'two read it.',
+  () => {
+    const S = 'src/renderer/components/Simulator3D/';
+    const files = ['GroundGrid.tsx', 'GridLabels.tsx', 'OriginGnomon.tsx'];
+    const problems = [];
+    for (const f of files) {
+      if (!exists(S + f)) { problems.push(`${S}${f} is gone`); continue; }
+      const src = read(S + f);
+      if (!/from '\.\/gridScale'/.test(src)) problems.push(`${f} no longer reads gridScale.ts`);
+      if (/\[\s*1\s*,\s*2\s*,\s*5\s*\]|Math\.log10/.test(src)) problems.push(`${f} derives its own 1-2-5 ladder instead of reading gridScale.ts`);
+    }
+    if (exists(S + 'GroundGrid.tsx') && !/setGridFrame\(/.test(read(S + 'GroundGrid.tsx')))
+      problems.push('GroundGrid no longer publishes the solved frame — the numbers and the gnomon would read a stale one forever');
+    for (const f of ['GridLabels.tsx', 'OriginGnomon.tsx'])
+      if (exists(S + f) && /setGridFrame\(/.test(read(S + f)))
+        problems.push(`${f} writes the grid frame — there must be exactly ONE writer, or which one wins depends on mount order`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the floor grid scales in X and Z only',
+  'Every vertex of the grid sits at y = 0.001 — a 1 mm lift, because the beams draw their ' +
+  'illumination boundary AT y = 0 and a coincident line pair z-fights into a dashed mess as the ' +
+  'camera moves. The grid is now SCALED to the zoom level rather than rebuilt, and a uniform scale ' +
+  'would shrink that lift along with everything else: at section 0.01 it becomes 1e-5, which at ' +
+  'close range is inside the depth buffer\'s own quantum, and the z-fight the lift exists to prevent ' +
+  'comes straight back — visible only at small scales, which is the hardest place to catch it in ' +
+  'review. The grid is FLAT, so scaling Y buys nothing; leaving it at literally 1 removes the whole ' +
+  'failure mode. (The gnomon is a different object and DOES scale uniformly — correctly, since its ' +
+  'Y arm must grow with the other two.)',
+  () => {
+    const f = 'src/renderer/components/Simulator3D/GroundGrid.tsx';
+    if (!exists(f)) return `${f} is gone`;
+    const src = read(f);
+    const problems = [];
+    if (/scale\.setScalar\(/.test(src)) problems.push('scales uniformly (setScalar) — that shrinks the 1 mm lift into a z-fight at close zoom');
+    const m = src.match(/scale\.set\(([^)]*)\)/);
+    if (!m) problems.push('never sets a scale — the grid has stopped being a ruler');
+    else if (!/^[^,]+,\s*1\s*,/.test(m[1])) problems.push(`scale.set(${m[1].trim()}) scales Y — the middle argument must be literally 1`);
     return problems.length ? problems.join('; ') : null;
   },
 );
