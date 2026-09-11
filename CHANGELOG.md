@@ -1,5 +1,77 @@
 # Changelog
 
+## v0.29.0
+
+### Text on a surface
+
+A show can say things now. There was no way to put words on a wall — every `fillText` in the app was
+chrome or a tracking overlay — so a title, a performer's name, a countdown or a credit had nothing.
+**Content ▸ Text** types copy straight onto a surface: fixtures sample it, projectors show it, a 3D
+venue mesh wears it, and a timeline clip can carry it.
+
+Set the font, weight, size, line height, tracking, alignment, colour and an outline. **Justify** sets a
+block flush to both edges and turns wrapping on with it, because justifying lines whose length you
+chose would only stretch them across the surface. The last line of each paragraph stays flush, never
+stretched. Lay the copy out in a **text box** rather than the whole surface when a wall carries more
+than one thing, and anchor it top, middle or bottom.
+
+Accents, ligatures and non-Latin scripts are simply correct — `Chœur`, `APRÈS`, `光の海` — because the
+type is shaped by the same engine that draws the rest of the app.
+
+> **If the show leaves this computer, carry the font.** Naming a family uses one installed on *this*
+> machine; the venue machine may not have it and will quietly draw something else. **Carry it ▸
+> Import…** copies the file into the project, where it travels with the folder and Collect Assets
+> consolidates it. It is one click, and it is the difference between the wall reading as designed and
+> the wall reading in Arial.
+
+Each projector draws the type at its **own** resolution rather than being sent a picture, which is
+where a letter's edge stops showing a resolution limit on a large output.
+
+### The 3D floor is a ruler
+
+Nothing in the 3D viewport said where `(0, 0, 0)` was or how big a metre was, so an imported model had
+no judgeable scale — a `.glb` arrives at whatever unit its exporter used, and there was nothing to
+compare it against. The floor grid now re-steps as you zoom and carries metre numbers lying along the
+axes in perspective; three coloured arms mark the world origin and are exactly **one grid cell long**,
+so they are a ruler you can hold against anything. Drop a model in, look at it against the floor, and
+use **Fit** if it came in wrong.
+
+Grid and Grid numbers are no longer part of a scene's look, so turning them off for a client
+screenshot survives a cue.
+
+### A surface can stack timeline tracks
+
+A surface could show one track, or the whole timeline, and nothing in between — so "this video with
+that title over it" was only expressible if every surface wanted the same pair, and with two outputs
+carrying different content it was not expressible at all. **Content ▸ Layer** is now a checklist: tick
+one and nothing changes, tick several and the surface composites them, honouring each track's own
+opacity and blend mode. Output One can stack *Bed A + Title A* while Output Two stacks *Bed B + Title B*.
+
+### Fades on picture clips
+
+Drag the square in either top corner of a video or text clip inwards — the same handle, gesture and
+shading as a fade on an audio clip, because it is the same idea. A clip's own **opacity** now applies
+too, and the two multiply.
+
+### Fixed
+
+- **A surface's opacity never reached the projector.** It has always applied to the LEDs, the 2D stage
+  and the 3D scene, and nothing in the projector path read it — so a surface dimmed, or faded out by a
+  cue, played at full on the one output an audience is looking at. Fixed on all three output paths,
+  including calibrated ones.
+- **MediaPipe and Augmenta surfaces rendered black on any projector.** Both plugins already streamed
+  their snapshots to projector windows; only the two sets that classify content never learned the names.
+- **Content on a 3D venue mesh could be upside down** on the WebGPU backend — a flip compensation
+  written for WebGL, which does not apply there.
+- **Zoom to fit did not fit.** It borrowed the wheel's zoom floor, which capped what could fit at about
+  2½ minutes in a docked drawer. It also left the view where it was, so content could be correctly
+  sized and still off screen.
+- **A clip's parameters were unreachable.** The timeline's clip inspector had no height limit inside a
+  drawer, so anything past the first few controls ran off the bottom — present, rendered, and
+  impossible to see.
+- A still content source is no longer re-uploaded and re-encoded every tick to produce an identical
+  frame.
+
 ## v0.28.0
 
 ### A show can be copied out of another project

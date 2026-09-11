@@ -1567,6 +1567,57 @@ Ctrl+K. Guarded by a new invariant: every `*Id`/`*Ids`/`*Ref` field in `renderer
 only that the decision was made once and written down. It found `busId` and `shaderId` the day it was
 written.
 
+## v0.29.0 — text on a surface, and a floor you can measure with (2026-09-11)
+
+`081fd17`
+
+Two features that were checked against each other for conflict and found independent — a file-overlap
+analysis in the shape `plans/SEQUENCING.md` uses — plus seven pre-existing bugs the work surfaced.
+
+**TEXT as a content source** (`plugins/text/`). `'TEXT'` is an open type string with its persisted
+fields in core `types.ts`, the `'SHADER'` split, so there is no project-file migration. Canvas 2D
+shapes the glyphs, and that is the design rather than a shortcut: it runs Chromium's HarfBuzz, so
+kerning, ligatures, accents, CJK and RTL are correct for free, and owning that ourselves is the part of
+"text" that is actually hard. **The planned second stage — compositing the raster on the GPU — was
+built, found to be worse, and dropped**: transforming a finished picture resamples the glyphs, and soft
+edges are the one failure type cannot survive on a twelve-metre wall. Motion is re-DRAWN instead
+(`textScale` multiplies the font size, so the buffer never changes and there is nothing to resample);
+a still surface is cached and free, a moving one re-rasters at about a millisecond. Fonts travel via a
+new `assets/fonts/` category — and the trap that made that more than four table entries was
+`projectFolder` spelling "which content fields hold a path" out **twice**, once per visitor, so a new
+type is mapped on a surface and silently missed on a clip. One table, one visitor, guarded.
+
+**The 3D floor is a ruler.** A 1-2-5 metre ladder — the timeline's own `chooseTickStep` against a
+different unit — re-stepping with zoom, numbers lying along the axes in perspective, and an origin
+gnomon one cell long. Two things are load-bearing and both are guarded: the grid scales `(s, 1, s)`,
+never `setScalar`, because a uniform scale shrinks the 1 mm lift into a z-fight with the beams'
+illumination boundary at `y=0`; and the numbers are a 2D canvas **outside** the R3F Canvas, because
+every in-scene text option is built out of the same ingredients as the four features this viewport has
+already lost to the WebGPU node renderer.
+
+**Seven pre-existing bugs**, none of them in the features: MediaPipe and Augmenta surfaces rendered
+black on any projector (third instance of the bug `ProjectorApp`'s own comment begs you to avoid — now
+a check); every `ImageBitmap` texture upside down on WebGPU (a WebGL compensation applied on a backend
+that does not need it, hidden for two releases because the only bitmap on a 3D plane was shader noise,
+where a vertical flip is undetectable); a surface's opacity never reaching the wall on **any** of three
+projector paths; a clip's own opacity applied nowhere; zoom-to-fit borrowing the wheel's zoom floor and
+therefore refusing to fit past ~2½ minutes in a docked drawer; a clip's parameters rendered but
+unreachable in a drawer with no height limit; and a font picker that could not have worked — no user
+gesture for `queryLocalFonts`, and a `catch` that cached the empty result so the first failure was
+permanent.
+
+**Three framerate regressions this branch introduced and undid**, the worst inside the commit that
+claimed to make things faster: giving plugin sources a generation so a STILL one could be skipped also
+promoted every GENERATIVE one from the projector pump's ~30 Hz coarse tick to its ~66 Hz fine tick,
+because a shader mints a new generation every frame and never dedups. A generation is a dedup signal,
+not a request for a higher rate; the fine tick now keys on what the source is. Guarded.
+
+⚠ **Much of this shipped without ever being run.** The editor holds a single-instance lock and the
+owner's session was open throughout, so justify, the text box, the font picker, track stacks, the clip
+fades, the projector opacity and the three perf fixes are verified by typecheck, 182 invariants and
+arithmetic — not by eye. To be proven on site. The riskiest is the projector opacity, which touches the
+calibrated draw where brightness had always been identity.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
