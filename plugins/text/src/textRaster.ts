@@ -46,7 +46,9 @@ export const DEFAULT_RES = 720;
 
 // Defaults live here, once, so the editor, the raster and the docs cannot drift apart.
 export const DEFAULTS = {
-  body: 'Text',
+  // Sample copy, not the word "Text" — a box whose contents read as a LABEL is how the first operator
+  // to meet this panel failed to realise it was the input. It has to look like something to replace.
+  body: 'Your text here',
   font: 'IBM Plex Sans',
   weight: 400,
   size: 0.2,          // fraction of surface height

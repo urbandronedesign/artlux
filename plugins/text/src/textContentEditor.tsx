@@ -109,75 +109,87 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
   );
 };
 
-export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (patch: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => (
-  <div className="space-y-2 pt-1">
-    <textarea
-      value={c.textBody ?? DEFAULTS.body}
-      onChange={(e) => onChange({ textBody: e.target.value })}
-      rows={3}
-      spellCheck={false}
-      placeholder="Type the copy — Enter starts a new line"
-      title="The copy shown on this surface. Enter starts a new line."
-      className="w-full resize-y rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent"
-    />
+export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (patch: Partial<SurfaceContent>) => void }> = ({ content: c, onChange }) => {
+  const bodyId = useId();
+  return (
+    <div className="space-y-2 pt-1">
+      {/* LABELLED, and stacked rather than in a Row. An unlabelled full-width box at the top of a panel
+          whose every other control IS a labelled row does not read as an input — it reads as a heading
+          or a preview of what is set. The first operator to meet this panel asked where to type,
+          having already found the Text source and looked straight at this box. A textarea beside a
+          20px label column would be unusably narrow, so the label sits above it instead. */}
+      <div>
+        <label htmlFor={bodyId} className="mb-0.5 block text-xs text-fg-2">Text</label>
+        <textarea
+          id={bodyId}
+          value={c.textBody ?? DEFAULTS.body}
+          onChange={(e) => onChange({ textBody: e.target.value })}
+          rows={3}
+          spellCheck={false}
+          placeholder="Type the copy — Enter starts a new line"
+          title="The copy shown on this surface. Enter starts a new line."
+          className="w-full resize-y rounded border border-line-1 bg-surface-0 px-1.5 py-1 text-micro text-fg-1 focus:border-accent"
+        />
+      </div>
 
-    <FontRow content={c} onChange={onChange} />
-    <Row label="Weight">
-      <Select className="text-micro" value={c.textWeight ?? DEFAULTS.weight}
-        onChange={(e) => onChange({ textWeight: parseInt(e.target.value, 10) })}>
-        {[100, 200, 300, 400, 500, 600, 700, 800, 900].map((w) => <option key={w} value={w}>{w}</option>)}
-      </Select>
-    </Row>
-    <Toggle label="Italic" checked={c.textItalic ?? false} onChange={(v) => onChange({ textItalic: v || undefined })} />
+      <FontRow content={c} onChange={onChange} />
+      <Row label="Weight">
+        <Select className="text-micro" value={c.textWeight ?? DEFAULTS.weight}
+          onChange={(e) => onChange({ textWeight: parseInt(e.target.value, 10) })}>
+          {[100, 200, 300, 400, 500, 600, 700, 800, 900].map((w) => <option key={w} value={w}>{w}</option>)}
+        </Select>
+      </Row>
+      <Toggle label="Italic" checked={c.textItalic ?? false} onChange={(v) => onChange({ textItalic: v || undefined })} />
 
-    {/* Size is a FRACTION OF SURFACE HEIGHT, so type keeps its proportion when the surface is
-        resized. Shown as a percentage because that is what the number means. */}
-    <Slider label="Size" value={c.textSize ?? DEFAULTS.size} min={0.02} max={1} step={0.005}
-      format={(v) => `${(v * 100).toFixed(1)}% of height`} onChange={(v) => onChange({ textSize: v })} />
-    <Slider label="Line height" value={c.textLineHeight ?? DEFAULTS.lineHeight} min={0.6} max={3} step={0.05}
-      format={(v) => `${v.toFixed(2)}×`} onChange={(v) => onChange({ textLineHeight: v })} />
-    <Slider label="Tracking" value={c.textTracking ?? DEFAULTS.tracking} min={-0.2} max={0.6} step={0.005}
-      format={(v) => `${(v * 100).toFixed(1)}%`} onChange={(v) => onChange({ textTracking: v })} />
-    <Row label="Align">
-      <Select className="text-micro" value={c.textAlign ?? DEFAULTS.align}
-        onChange={(e) => onChange({ textAlign: e.target.value as 'left' | 'center' | 'right' })}>
-        <option value="left">Left</option>
-        <option value="center">Center</option>
-        <option value="right">Right</option>
-      </Select>
-    </Row>
+      {/* Size is a FRACTION OF SURFACE HEIGHT, so type keeps its proportion when the surface is
+          resized. Shown as a percentage because that is what the number means. */}
+      <Slider label="Size" value={c.textSize ?? DEFAULTS.size} min={0.02} max={1} step={0.005}
+        format={(v) => `${(v * 100).toFixed(1)}% of height`} onChange={(v) => onChange({ textSize: v })} />
+      <Slider label="Line height" value={c.textLineHeight ?? DEFAULTS.lineHeight} min={0.6} max={3} step={0.05}
+        format={(v) => `${v.toFixed(2)}×`} onChange={(v) => onChange({ textLineHeight: v })} />
+      <Slider label="Tracking" value={c.textTracking ?? DEFAULTS.tracking} min={-0.2} max={0.6} step={0.005}
+        format={(v) => `${(v * 100).toFixed(1)}%`} onChange={(v) => onChange({ textTracking: v })} />
+      <Row label="Align">
+        <Select className="text-micro" value={c.textAlign ?? DEFAULTS.align}
+          onChange={(e) => onChange({ textAlign: e.target.value as 'left' | 'center' | 'right' })}>
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </Select>
+      </Row>
 
-    <ColorField label="Color" value={c.textColor ?? DEFAULTS.color} onChange={(v) => onChange({ textColor: v })} />
-    <Slider label="Stroke" value={c.textStrokeWidth ?? DEFAULTS.strokeWidth} min={0} max={0.2} step={0.005}
-      format={(v) => (v > 0 ? `${(v * 100).toFixed(1)}%` : 'off')} onChange={(v) => onChange({ textStrokeWidth: v || undefined })} />
-    {(c.textStrokeWidth ?? 0) > 0 && (
-      <ColorField label="Stroke color" value={c.textStrokeColor ?? DEFAULTS.strokeColor} onChange={(v) => onChange({ textStrokeColor: v })} />
-    )}
+      <ColorField label="Color" value={c.textColor ?? DEFAULTS.color} onChange={(v) => onChange({ textColor: v })} />
+      <Slider label="Stroke" value={c.textStrokeWidth ?? DEFAULTS.strokeWidth} min={0} max={0.2} step={0.005}
+        format={(v) => (v > 0 ? `${(v * 100).toFixed(1)}%` : 'off')} onChange={(v) => onChange({ textStrokeWidth: v || undefined })} />
+      {(c.textStrokeWidth ?? 0) > 0 && (
+        <ColorField label="Stroke color" value={c.textStrokeColor ?? DEFAULTS.strokeColor} onChange={(v) => onChange({ textStrokeColor: v })} />
+      )}
 
-    {/* MOTION — the block as a whole, and every one of these is automatable: drop a lane on it in the
-        timeline, drive it from OSC, or capture it into a cue. The COPY is not here and cannot be: a
-        lane carries a number, so changing the words is a scene/cue swap, not a curve. */}
-    <div className="mt-1 border-t border-line-1 pt-2">
-      <div className="mb-1 text-micro uppercase tracking-wide text-fg-3">Motion</div>
-      <Slider label="Offset X" value={c.textX ?? 0} min={-1} max={1} step={0.005}
-        format={(v) => `${(v * 100).toFixed(0)}%`} onChange={(v) => onChange({ textX: v || undefined })} />
-      <Slider label="Offset Y" value={c.textY ?? 0} min={-1} max={1} step={0.005}
-        format={(v) => `${(v * 100).toFixed(0)}%`} onChange={(v) => onChange({ textY: v || undefined })} />
-      {/* Scale multiplies the FONT SIZE, so type stays crisp at any value instead of being a
-          resampled bitmap — see textRaster's header. */}
-      <Slider label="Scale" value={c.textScale ?? 1} min={0.05} max={4} step={0.01}
-        format={(v) => `${v.toFixed(2)}×`} onChange={(v) => onChange({ textScale: v === 1 ? undefined : v })} />
-      <Slider label="Rotation" value={c.textRotate ?? 0} min={-180} max={180} step={1}
-        format={(v) => `${v.toFixed(0)}°`} onChange={(v) => onChange({ textRotate: v || undefined })} />
+      {/* MOTION — the block as a whole, and every one of these is automatable: drop a lane on it in the
+          timeline, drive it from OSC, or capture it into a cue. The COPY is not here and cannot be: a
+          lane carries a number, so changing the words is a scene/cue swap, not a curve. */}
+      <div className="mt-1 border-t border-line-1 pt-2">
+        <div className="mb-1 text-micro uppercase tracking-wide text-fg-3">Motion</div>
+        <Slider label="Offset X" value={c.textX ?? 0} min={-1} max={1} step={0.005}
+          format={(v) => `${(v * 100).toFixed(0)}%`} onChange={(v) => onChange({ textX: v || undefined })} />
+        <Slider label="Offset Y" value={c.textY ?? 0} min={-1} max={1} step={0.005}
+          format={(v) => `${(v * 100).toFixed(0)}%`} onChange={(v) => onChange({ textY: v || undefined })} />
+        {/* Scale multiplies the FONT SIZE, so type stays crisp at any value instead of being a
+            resampled bitmap — see textRaster's header. */}
+        <Slider label="Scale" value={c.textScale ?? 1} min={0.05} max={4} step={0.01}
+          format={(v) => `${v.toFixed(2)}×`} onChange={(v) => onChange({ textScale: v === 1 ? undefined : v })} />
+        <Slider label="Rotation" value={c.textRotate ?? 0} min={-180} max={180} step={1}
+          format={(v) => `${v.toFixed(0)}°`} onChange={(v) => onChange({ textRotate: v || undefined })} />
+      </div>
+
+      {/* DETAIL is a pixel budget spent in this surface's proportions — the same control, and the same
+          reasoning, as the shader plugin's. A projector window ignores it and uses its own raster. */}
+      <Row label="Detail" title="Pixel budget for the rasterised type. A projector renders at its own resolution regardless.">
+        <Select className="text-micro" value={c.textRes ?? DEFAULT_RES}
+          onChange={(e) => onChange({ textRes: parseInt(e.target.value, 10) })}>
+          {RENDER_HEIGHTS.map((r) => <option key={r} value={r}>{r}p</option>)}
+        </Select>
+      </Row>
     </div>
-
-    {/* DETAIL is a pixel budget spent in this surface's proportions — the same control, and the same
-        reasoning, as the shader plugin's. A projector window ignores it and uses its own raster. */}
-    <Row label="Detail" title="Pixel budget for the rasterised type. A projector renders at its own resolution regardless.">
-      <Select className="text-micro" value={c.textRes ?? DEFAULT_RES}
-        onChange={(e) => onChange({ textRes: parseInt(e.target.value, 10) })}>
-        {RENDER_HEIGHTS.map((r) => <option key={r} value={r}>{r}p</option>)}
-      </Select>
-    </Row>
-  </div>
-);
+  );
+};
