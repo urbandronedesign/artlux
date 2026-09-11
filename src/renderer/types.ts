@@ -409,7 +409,18 @@ export interface SurfaceContent {
                             // the surface is resized, which px would not. Absent ⇒ 0.2.
   textLineHeight?: number;  // multiple of the font size. Absent ⇒ 1.2.
   textTracking?: number;    // letter-spacing, as a fraction of the font size (may be negative)
-  textAlign?: 'left' | 'center' | 'right';
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  /**
+   * Break long lines to fit the surface, instead of letting them run off it.
+   *
+   * Absent ⇒ OFF, which is exactly what every project written before this does: lines break only
+   * where the operator pressed Enter. That is the right default for a title — you choose the breaks —
+   * and the wrong one for a paragraph.
+   *
+   * `textAlign: 'justify'` FORCES it on, because justification without wrapping is meaningless: it
+   * would stretch whatever you happened to type to the full width of the surface, however short.
+   */
+  textWrap?: boolean;
   textColor?: string;       // fill, "#rrggbb"
   textStrokeColor?: string;
   textStrokeWidth?: number; // fraction of the font size; 0/absent ⇒ no stroke

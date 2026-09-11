@@ -151,12 +151,24 @@ export const TextContentEditor: React.FC<{ content: SurfaceContent; onChange: (p
         format={(v) => `${(v * 100).toFixed(1)}%`} onChange={(v) => onChange({ textTracking: v })} />
       <Row label="Align">
         <Select className="text-micro" value={c.textAlign ?? DEFAULTS.align}
-          onChange={(e) => onChange({ textAlign: e.target.value as 'left' | 'center' | 'right' })}>
+          onChange={(e) => onChange({ textAlign: e.target.value as 'left' | 'center' | 'right' | 'justify' })}>
           <option value="left">Left</option>
           <option value="center">Center</option>
           <option value="right">Right</option>
+          <option value="justify">Justify</option>
         </Select>
       </Row>
+      {/* Wrapping is what makes a BLOCK of text a block. Off by default — a title's breaks are the
+          operator's own, chosen with Enter — and forced on by Justify, which is meaningless without
+          it: it would stretch a line you chose the length of out to the full width. */}
+      <Toggle
+        label="Wrap to the surface"
+        checked={c.textWrap === true || c.textAlign === 'justify'}
+        title={c.textAlign === 'justify'
+          ? 'On, because Justify needs it — without wrapping there is nothing to justify against.'
+          : 'Break long lines to fit the surface instead of letting them run off it.'}
+        onChange={(v) => onChange({ textWrap: v || undefined })}
+      />
 
       <ColorField label="Color" value={c.textColor ?? DEFAULTS.color} onChange={(v) => onChange({ textColor: v })} />
       <Slider label="Stroke" value={c.textStrokeWidth ?? DEFAULTS.strokeWidth} min={0} max={0.2} step={0.005}

@@ -25,12 +25,33 @@ a pixel count. Type that grows past the surface is cropped by it, the same way a
 | **Size** | Share of the surface height. |
 | **Line height** | Spacing between lines, as a multiple of the size. |
 | **Tracking** | Letter-spacing. Negative tightens. |
-| **Align** | Left, centre or right within the surface. |
+| **Align** | Left, centre, right — or **Justify**, which sets the block flush to both edges. |
+| **Wrap to the surface** | Break long lines to fit the surface instead of letting them run off it. Off by default; **Justify turns it on**. |
 | **Color** / **Stroke** | Fill, and an optional outline that sits behind it. |
 | **Detail** | How many pixels the type is drawn at — see *Detail and projectors*. |
 
 Accents, ligatures and non-Latin scripts are handled for you: `Chœur`, `APRÈS` and `光の海` all shape
 correctly, because the text is laid out by the same engine that draws the rest of the app.
+
+### Wrapping and justification
+
+By default, lines break **only where you press Enter**. That is what you want for a title: you choose
+the breaks, and nothing reflows when the surface is resized.
+
+Turn on **Wrap to the surface** and long lines break to fit instead — which is what you want for a
+paragraph. **Justify** sets each line flush to both edges by sharing the slack between the words, and
+it switches wrapping on for you, because justifying lines whose length *you* chose would just stretch
+them across the surface.
+
+The **last line of every paragraph is left flush**, never stretched. A two-word closing line spread
+across a wall is the giveaway of justification done badly, and no typesetter does it.
+
+Two things worth knowing:
+
+- **The measure is the surface.** Justified text runs edge to edge of the surface rectangle, so make
+  the surface the shape you want the column to be.
+- **A word longer than the measure is not broken.** It takes a line of its own and overhangs, rather
+  than being silently chopped — hyphenation needs a dictionary per language.
 
 ---
 

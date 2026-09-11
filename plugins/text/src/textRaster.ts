@@ -119,7 +119,7 @@ function signatureOf(c: SurfaceContent, w: number, h: number): string {
   return [
     c.textBody ?? DEFAULTS.body, c.textFont ?? '', c.textFontAsset ?? '',
     c.textWeight ?? '', c.textItalic ? 'i' : '',
-    c.textSize ?? '', c.textLineHeight ?? '', c.textTracking ?? '', c.textAlign ?? '',
+    c.textSize ?? '', c.textLineHeight ?? '', c.textTracking ?? '', c.textAlign ?? '', c.textWrap ? 'w' : '',
     c.textColor ?? '', c.textStrokeColor ?? '', c.textStrokeWidth ?? '', `${w}x${h}`,
     c.textX ?? '', c.textY ?? '', c.textScale ?? '', c.textRotate ?? '',
     // Not a property of the content — a property of what THIS WINDOW has finished loading. Without it,
@@ -145,6 +145,43 @@ function canvasFor(w: number, h: number): OffscreenCanvasRenderingContext2D | nu
 }
 
 /** Draw the copy into `g`, which is already sized w×h and cleared. */
+/** One laid-out line: its words, their widths, and whether it ends a paragraph. */
+export interface Line { words: string[]; widths: number[]; natural: number; last: boolean }
+
+/**
+ * Break a paragraph to fit `measure`, greedily — the algorithm every browser and word processor uses.
+ *
+ * A word longer than the measure gets its own line and overhangs, rather than being broken: hyphenation
+ * needs a dictionary per language, and a silently chopped word is worse than one that sticks out.
+ */
+export function wrapParagraph(g: OffscreenCanvasRenderingContext2D, para: string, measure: number): string[][] {
+  const words = para.split(/[ \t]+/).filter(Boolean);
+  if (!words.length) return [[]];
+  const out: string[][] = [];
+  let cur: string[] = [];
+  for (const word of words) {
+    if (cur.length && g.measureText(cur.join(' ') + ' ' + word).width > measure) { out.push(cur); cur = [word]; }
+    else cur.push(word);
+  }
+  out.push(cur);
+  return out;
+}
+
+/** Lay the copy out: paragraphs on "\n", wrapped to the measure when asked, words measured once. */
+export function layout(g: OffscreenCanvasRenderingContext2D, body: string, wrap: boolean, measure: number): Line[] {
+  const mk = (words: string[], last: boolean): Line => {
+    const widths = words.map((wd) => g.measureText(wd).width);
+    return { words, widths, natural: widths.reduce((a, b) => a + b, 0), last };
+  };
+  const out: Line[] = [];
+  for (const para of body.split('\n')) {
+    if (!wrap) { out.push(mk(para.length ? [para] : [], true)); continue; }
+    const ls = wrapParagraph(g, para, measure);
+    ls.forEach((ws, i) => out.push(mk(ws, i === ls.length - 1)));
+  }
+  return out;
+}
+
 function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: number, h: number): void {
   const body = c.textBody ?? DEFAULTS.body;
   // SCALE MULTIPLIES THE FONT SIZE rather than scaling a finished picture — that is what keeps the
@@ -156,17 +193,25 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
 
   g.font = fontOf(c, px);
   // Chromium supports canvas letterSpacing; older engines ignore the assignment rather than throwing,
-  // which degrades to "no tracking" instead of no text.
+  // which degrades to "no tracking" instead of no text. It also feeds measureText, so wrapping and
+  // justification account for tracking without being told about it.
   const track = (c.textTracking ?? DEFAULTS.tracking) * px;
   try { (g as unknown as { letterSpacing: string }).letterSpacing = `${track}px`; } catch { /* ignore */ }
   g.textBaseline = 'alphabetic';
-  g.textAlign = align;
   g.lineJoin = 'round';   // a mitre on a tight corner spikes far past the glyph at heavy weights
   g.miterLimit = 2;
 
-  const lines = body.split('\n');
+  // THE MEASURE is the surface's own width. Justify FORCES wrapping: stretching a line the operator
+  // chose the length of, out to the full width, is not justification — it is a mistake that looks
+  // like one. Everything else keeps today's behaviour unless wrapping is asked for.
+  const justify = align === 'justify';
+  const measure = w;
+  const lines = layout(g, body, justify || c.textWrap === true, measure);
   const blockH = lines.length * lineH;
   const stroke = (c.textStrokeWidth ?? DEFAULTS.strokeWidth) * px;
+  const ink = () => { g.fillStyle = c.textColor ?? DEFAULTS.color; };
+  const halo = stroke > 0;
+  if (halo) { g.lineWidth = stroke * 2; g.strokeStyle = c.textStrokeColor ?? DEFAULTS.strokeColor; }
 
   // The block sits at the middle of the surface, offset by the normalized motion fields and turned
   // about its own centre. Centred is the useful default for type on a mapped surface — a title on a
@@ -176,20 +221,33 @@ function paint(g: OffscreenCanvasRenderingContext2D, c: SurfaceContent, w: numbe
   const rot = c.textRotate ?? 0;
   if (rot) g.rotate((rot * Math.PI) / 180);
 
-  // Now draw around (0,0): x follows the alignment, y starts at the first baseline of a block centred
-  // on the origin. 0.72 of the em approximates cap height well enough across families to avoid
-  // measuring every one.
-  const x = align === 'left' ? -w / 2 : align === 'right' ? w / 2 : 0;
+  // Draw around (0,0). 0.72 of the em approximates cap height well enough across families to avoid
+  // measuring every one, so a block reads as vertically centred without a per-font table.
+  const flushX = -w / 2;
   let y = -blockH / 2 + px * 0.72;
 
   for (const line of lines) {
-    if (stroke > 0) {
-      g.lineWidth = stroke * 2;                      // half of it is hidden under the fill
-      g.strokeStyle = c.textStrokeColor ?? DEFAULTS.strokeColor;
-      g.strokeText(line, x, y);
+    // A JUSTIFIED line is drawn word by word, with the slack shared between the gaps. The LAST line of
+    // a paragraph is not stretched — a two-word closing line spread across a wall is the classic
+    // giveaway of justification done by machine, and every typesetter leaves it flush instead.
+    if (justify && !line.last && line.words.length > 1) {
+      const gap = (measure - line.natural) / (line.words.length - 1);
+      g.textAlign = 'left';
+      let cx = flushX;
+      for (let i = 0; i < line.words.length; i++) {
+        if (halo) g.strokeText(line.words[i], cx, y);
+        ink();
+        g.fillText(line.words[i], cx, y);
+        cx += line.widths[i] + gap;
+      }
+    } else {
+      const text = line.words.join(' ');
+      g.textAlign = justify || align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
+      const x = g.textAlign === 'left' ? flushX : g.textAlign === 'right' ? w / 2 : 0;
+      if (halo) g.strokeText(text, x, y);
+      ink();
+      g.fillText(text, x, y);
     }
-    g.fillStyle = c.textColor ?? DEFAULTS.color;
-    g.fillText(line, x, y);
     y += lineH;
   }
   g.restore();
