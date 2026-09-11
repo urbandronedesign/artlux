@@ -138,6 +138,12 @@ const SCENE3D_NOT_A_LOOK = [
   'trackingSurfaceMerge',   // …and what a blob MEANS per surface (floor = legs, wall = hands)
   'trackingZoneEnterSec',   // the venue dwell — tuned once, on-site (docs/TRACKING_SYNC.md)
   'trackingZoneExitSec',
+  // THE RULER, not the look. The floor grid and its metre labels are what an operator MEASURES with —
+  // the same argument as 'viewFrom' above. Turning the numbers off for a client screenshot and having
+  // the next GO put them back is the failure this list exists to prevent.
+  // gridVisible joining it is a deliberate change to shipped behaviour: it used to ride the snapshot.
+  'gridVisible',
+  'gridLabels',
 ] as const;
 
 // Strip them on the way INTO a scene snapshot: a scene must not carry a copy at all.

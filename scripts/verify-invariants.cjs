@@ -1751,7 +1751,8 @@ check(
     const list = src.match(/const SCENE3D_NOT_A_LOOK = \[([\s\S]*?)\] as const;/);
     if (!list) return 'SCENE3D_NOT_A_LOOK is gone — the three sites have nothing to share';
     for (const k of ['trackingZones', 'viewFrom', 'trackingMergePeople', 'trackingMergeRadius',
-                     'trackingSurfaceMerge', 'trackingZoneEnterSec', 'trackingZoneExitSec']) {
+                     'trackingSurfaceMerge', 'trackingZoneEnterSec', 'trackingZoneExitSec',
+                     'gridVisible', 'gridLabels']) {
       if (!list[1].includes(`'${k}'`)) problems.push(`SCENE3D_NOT_A_LOOK no longer covers ${k}`);
     }
     // All three readers must USE the list. A literal `trackingZones: undefined` at any of them is how
@@ -3439,7 +3440,12 @@ check(
   'a 30x30 plane whose shader is what flattens it onto the floor and makes it infinite — rendered as ' +
   'a BLACK WALL standing at the origin, which is how an operator reported it. A LineBasicMaterial ' +
   'renders identically on both; a shader that genuinely needs to exist must ship a TSL twin, the way ' +
-  'Beams does, and be chosen by which RENDERER is live rather than by which modules happen to be loaded.',
+  'Beams does, and be chosen by which RENDERER is live rather than by which modules happen to be loaded. ' +
+  'The family has since grown two more members. gl.capabilities (drei GizmoViewport) is the worst of them: ' +
+  'it does not merely fail to draw, it THROWS inside the Canvas and blacks the whole viewport on the first ' +
+  'frame. And in-scene TEXT — troika, drei <Text>, a sprite — is built out of exactly these ingredients, ' +
+  'which is why the grid numbers are drawn on a 2D canvas OUTSIDE the Canvas (GridLabels.tsx). drei <Html> ' +
+  'stays legitimate: it is a DOM overlay, not a material.',
   () => {
     const DIR = 'src/renderer/components/Simulator3D';
     const problems = [];
@@ -3452,7 +3458,76 @@ check(
       // A ShaderMaterial is allowed only where a node twin is built beside it.
       if (/new THREE\.ShaderMaterial|<shaderMaterial\b/.test(src) && !/isWebGPURenderer|nodes\(\)/.test(src))
         problems.push(rel + ' builds a raw ShaderMaterial with no node twin — it will not draw on the WebGPU backend');
+      // The GizmoViewport crash, which is the worst of the family: it does not merely fail to draw,
+      // it THROWS inside the Canvas and takes the entire viewport black on the first frame.
+      if (/gl\.capabilities|getMaxAnisotropy/.test(src))
+        problems.push(rel + ' reaches for gl.capabilities — a WebGLRenderer-only API that throws inside the Canvas on the node renderer, blacking the whole viewport');
+      // Text in this scene. All three routes are built out of the things above.
+      if (/troika/.test(src))
+        problems.push(rel + ' pulls in troika-three-text, whose derived ShaderMaterial the node renderer will not run — draw text on a 2D overlay instead (see GridLabels.tsx)');
+      // Match the IMPORT BINDING, not just JSX usage: `import { Text } from '@react-three/drei'` is
+      // already unambiguous, and catching it there is what makes this fire on the commit that adds it
+      // rather than on the one that first renders it.
+      const drei = src.match(/import\s*\{([^}]*)\}\s*from\s*'@react-three\/drei'/);
+      if ((drei && /\b(Text|Text3D|Billboard)\b/.test(drei[1])) || /<Text3D\b|<Text\b/.test(src))
+        problems.push(rel + " uses drei's <Text>/<Text3D>/<Billboard>, which is troika — draw text on a 2D overlay instead (see GridLabels.tsx)");
+      if (/<sprite\b|SpriteMaterial/.test(src))
+        problems.push(rel + ' draws a sprite — the GizmoViewport failure mode; sprites here go through WebGL-only texture paths');
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── 3D: the ruler tells the truth ─────────────────────────────────────────────────────────────
+check(
+  'the floor grid, its numbers and the gnomon read one ladder',
+  'The floor re-steps as you zoom (a 1-2-5 metre ladder), and three separate things have to agree ' +
+  'about which rung is live: the lines that are drawn, the numbers printed beside them, and the ' +
+  'origin gnomon, whose arms are ONE SECTION long so it doubles as a ruler. If any of them derives ' +
+  'the rung independently they can disagree by a frame or by a whole decade, and the failure is ' +
+  'silent and actively harmful: a "2 m" printed over a line that is 1 m away is not a cosmetic bug, ' +
+  'it is a wrong measurement an operator will scale an imported model by. Nothing throws. So the ' +
+  'ladder lives in gridScale.ts, GroundGrid is the single writer of the solved frame, and the other ' +
+  'two read it.',
+  () => {
+    const S = 'src/renderer/components/Simulator3D/';
+    const files = ['GroundGrid.tsx', 'GridLabels.tsx', 'OriginGnomon.tsx'];
+    const problems = [];
+    for (const f of files) {
+      if (!exists(S + f)) { problems.push(`${S}${f} is gone`); continue; }
+      const src = read(S + f);
+      if (!/from '\.\/gridScale'/.test(src)) problems.push(`${f} no longer reads gridScale.ts`);
+      if (/\[\s*1\s*,\s*2\s*,\s*5\s*\]|Math\.log10/.test(src)) problems.push(`${f} derives its own 1-2-5 ladder instead of reading gridScale.ts`);
+    }
+    if (exists(S + 'GroundGrid.tsx') && !/setGridFrame\(/.test(read(S + 'GroundGrid.tsx')))
+      problems.push('GroundGrid no longer publishes the solved frame — the numbers and the gnomon would read a stale one forever');
+    for (const f of ['GridLabels.tsx', 'OriginGnomon.tsx'])
+      if (exists(S + f) && /setGridFrame\(/.test(read(S + f)))
+        problems.push(`${f} writes the grid frame — there must be exactly ONE writer, or which one wins depends on mount order`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the floor grid scales in X and Z only',
+  'Every vertex of the grid sits at y = 0.001 — a 1 mm lift, because the beams draw their ' +
+  'illumination boundary AT y = 0 and a coincident line pair z-fights into a dashed mess as the ' +
+  'camera moves. The grid is now SCALED to the zoom level rather than rebuilt, and a uniform scale ' +
+  'would shrink that lift along with everything else: at section 0.01 it becomes 1e-5, which at ' +
+  'close range is inside the depth buffer\'s own quantum, and the z-fight the lift exists to prevent ' +
+  'comes straight back — visible only at small scales, which is the hardest place to catch it in ' +
+  'review. The grid is FLAT, so scaling Y buys nothing; leaving it at literally 1 removes the whole ' +
+  'failure mode. (The gnomon is a different object and DOES scale uniformly — correctly, since its ' +
+  'Y arm must grow with the other two.)',
+  () => {
+    const f = 'src/renderer/components/Simulator3D/GroundGrid.tsx';
+    if (!exists(f)) return `${f} is gone`;
+    const src = read(f);
+    const problems = [];
+    if (/scale\.setScalar\(/.test(src)) problems.push('scales uniformly (setScalar) — that shrinks the 1 mm lift into a z-fight at close zoom');
+    const m = src.match(/scale\.set\(([^)]*)\)/);
+    if (!m) problems.push('never sets a scale — the grid has stopped being a ruler');
+    else if (!/^[^,]+,\s*1\s*,/.test(m[1])) problems.push(`scale.set(${m[1].trim()}) scales Y — the middle argument must be literally 1`);
     return problems.length ? problems.join('; ') : null;
   },
 );

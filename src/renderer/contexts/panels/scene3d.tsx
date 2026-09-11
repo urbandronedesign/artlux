@@ -540,6 +540,11 @@ export const SceneLightingPanel: React.FC = () => {
       <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} helpId="scene3d.reflective-floor" onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
       <Toggle label="Glow (bloom)" checked={scene3D.glow === true} helpId="scene3d.glow" onChange={(v) => a.sceneConfig({ glow: v || undefined })} />
       <Toggle label="Grid" checked={scene3D.gridVisible} helpId="scene3d.grid" onChange={(v) => a.sceneConfig({ gridVisible: v })} />
+      {/* Directly under Grid, because they are one idea in two halves: where the floor is, and how big
+          it is. `!== false` is the absent-means-ON idiom (the Beam cones row above), NOT Glow's
+          `v || undefined`, which is the opposite polarity. */}
+      <Toggle label="Grid numbers" checked={scene3D.gridLabels !== false} helpId="scene3d.grid-labels"
+        onChange={(v) => a.sceneConfig({ gridLabels: v })} />
     </>
   );
 };

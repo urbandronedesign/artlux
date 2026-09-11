@@ -245,10 +245,18 @@ export const scene3dHelp: HelpEntry[] = [
   {
     id: 'scene3d.grid',
     title: 'Grid',
-    short: 'Toggle the ground reference grid.',
-    body: 'Shows a metric floor grid to gauge scale and placement in the venue. Hide it for a clean preview or screenshot.',
+    short: 'Toggle the floor grid and the coloured arms marking the world origin.',
+    body: 'A floor grid that re-scales as you zoom, so it reads as a ruler from a 20 cm prop to a 40 m arena. It follows what you are looking at, and its lines always land on round coordinates. The three coloured arms — red X, green Y, blue Z — stand at the world origin (0, 0, 0), which is where every position you type in an inspector is measured from, and they are exactly ONE GRID CELL long: check an imported model against them and you can see at a glance whether it arrived at the right scale. Hide the lot for a clean preview or screenshot; it stays hidden when you fire a cue.',
     group: '3D Scene',
-    keywords: ['grid', 'floor', 'reference'],
+    keywords: ['grid', 'floor', 'reference', 'origin', 'axis', 'axes', 'gnomon', 'scale', 'ruler', 'metres', 'meters'],
+  },
+  {
+    id: 'scene3d.grid-labels',
+    title: 'Grid numbers',
+    short: 'Print metre values along the bottom and left of the 3D viewport.',
+    body: 'Numbers the grid lines: X values along the bottom edge, Z values down the left. They follow the grid as it re-scales, so they read in metres, centimetres or millimetres depending on how far you are zoomed in — and they thin out rather than overlap when the camera is at a grazing angle. Turn them off when you want the floor for reference but not the figures, as in a screenshot for a client. Needs Grid to be on.',
+    group: '3D Scene',
+    keywords: ['grid', 'numbers', 'labels', 'ruler', 'scale', 'metres', 'meters', 'centimetres', 'measure', 'dimensions'],
   },
 
   // ── Tracking scene-viz overlays + tuning ────────────────────────────────────────────────────
