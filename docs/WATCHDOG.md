@@ -107,12 +107,45 @@ beats an infinite storm — and Tier-2 honors the same marker, so it stands down
 self-clears on a stable start (no relaunches in the last hour), or on **Remove OS task** in Preferences,
 or by deleting the flag file.
 
+## Stopping on purpose — the one thing a supervisor cannot infer
+
+Tier 2 only ever sees *"ArtLux.exe is not running"*, and starts it again. That is exactly right after
+a crash and exactly wrong after someone stops the show deliberately: the app closed, and about a
+minute later it was back. From an operator's chair that reads as the app refusing to close.
+
+A deliberate quit therefore leaves **`userData/artlux-stopped.flag`**, and Tier 2 stands down when it
+sees it — the same way it honours the tripped marker.
+
+- **Written on `will-quit`** (`shutdownSubsystems('quit')` → `watchdog.noteDeliberateShutdown()`), so
+  it covers **every** intentional exit: the broadcast tray's *Quit Broadcast*, `Ctrl/Cmd+Shift+Q`,
+  closing the window, and the tablet remote's **Shut down** ([SHOW-CONTROL.md](SHOW-CONTROL.md)).
+- **A crash never reaches `will-quit`**, so a crash never writes it and self-healing is untouched.
+  Neither do the relaunch paths, which go through `app.exit()` and skip both quit events — a relaunch
+  *wants* to come back.
+- **Cleared on the next start**, unconditionally, in `watchdog.start()`. It has to be lifted by a
+  start rather than by a timer: Tier 2 reads the marker *before* launching, so it can never be the
+  thing that clears it — which makes "cleared on start" mean precisely "cleared when a person starts
+  ArtLux again". Leaving it behind would suppress a genuine crash recovery weeks later.
+- It is written as a normal audit line too (`trigger: shutdown`, `action: stopped`), so a venue that
+  comes in to a dark install reads *"the operator stopped it at 19:04"* instead of a silence that
+  looks exactly like a machine that died.
+
+⚠ **So a deliberate shutdown survives a reboot.** The logon trigger runs the same check, sees the
+marker and stands down. That is the intended reading of "shut down" — nobody has said *start* since —
+but it does mean an unattended venue stays dark until someone launches ArtLux on the machine. The
+tablet says so before it asks for confirmation.
+
+`verify:invariants` holds the three halves together (main writes it, the `.ps1` honours it, `start()`
+clears it): it is a contract spanning a `.ts` and a `.ps1`, so neither the typechecker nor a dev run
+can see it — the Scheduled Task only exists on a venue machine.
+
 ## Tier 2 — Windows Scheduled Task
 
 Registered by [scripts/install-watchdog-task.ps1](../scripts/install-watchdog-task.ps1) (self-elevates via
 UAC). It runs **at logon** and **every minute**; the action
 [scripts/watchdog-check.ps1](../scripts/watchdog-check.ps1) relaunches ArtLux into broadcast on the
-configured project **only if** the process is gone and the tripped marker is absent. Remove it with
+configured project **only if** the process is gone, the tripped marker is absent, **and the
+deliberate-shutdown marker is absent** (see the section above). Remove it with
 [scripts/uninstall-watchdog-task.ps1](../scripts/uninstall-watchdog-task.ps1). Install/remove from
 **Preferences ▸ Unattended / Watchdog** (buttons shell out to these scripts; the scripts ship as packaged
 `extraResources`). Windows-only.
@@ -172,4 +205,8 @@ Drive the real app (no unit runner — see [DEVELOPMENT.md](DEVELOPMENT.md)). La
 - stop the output engine → `output-down` recovery;
 - force repeated crashes → breaker trips after `maxRelaunchesPerHour`, writes the marker, stops;
 - launch twice → the second instance focuses the first and exits;
+- **a deliberate quit stays quit** — with the task installed, quit from the tray (or the tablet's
+  *Shut down*), confirm `artlux-stopped.flag` appears, wait two minutes and confirm the app is still
+  down. Then delete the marker, confirm the supervisor brings it back within a minute (that second
+  half is the one that matters: a marker that is never lifted disarms Tier 2 for good);
 - install the task, kill `ArtLux.exe`, confirm relaunch within ~1 min, uninstall cleanly.

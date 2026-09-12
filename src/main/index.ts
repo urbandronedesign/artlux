@@ -480,6 +480,11 @@ function shutdownSubsystems(reason: 'quit' | 'relaunch', extra?: Record<string, 
     if (cleanedUp) return;
     cleanedUp = true;
     logger.shutdown(reason, extra);
+    // A QUIT IS NOT A CRASH, and the Tier-2 Scheduled Task cannot tell the difference by itself —
+    // it only sees "ArtLux.exe is not running" and starts it again within the minute. Mark the exit
+    // as deliberate BEFORE tearing the watchdog down. Only on 'quit': the relaunch paths call this
+    // directly on their way to app.exit() and are supposed to come back.
+    if (reason === 'quit') watchdog.noteDeliberateShutdown(`mode=${RUN_MODE}`);
     watchdog.stop();
     metrics.stop();
     globalShortcut.unregisterAll();

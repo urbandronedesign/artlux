@@ -80,6 +80,13 @@ const userData = () => app.getPath('userData');
 const logFile = () => join(userData(), 'artlux-watchdog.log');
 const stateFile = () => join(userData(), 'artlux-watchdog-state.json');
 const trippedFlag = () => join(userData(), 'artlux-watchdog-tripped.flag');
+// SOMEONE MEANT TO STOP THE SHOW. Tier-2 relaunches the app every minute whenever the process is
+// gone, and it has no way to tell "the venue crashed" from "the operator shut it down" — so before
+// this marker existed, quitting a broadcast install (from the tray, the hotkey, or now the tablet)
+// was silently undone about a minute later. The marker is the difference between the two, and it is
+// written on the way out of a DELIBERATE quit only: a crash never reaches `will-quit`, so a crash
+// still gets its automatic recovery. See noteDeliberateShutdown() below and scripts/watchdog-check.ps1.
+const stoppedFlag = () => join(userData(), 'artlux-stopped.flag');
 
 // ─── Public lifecycle ───────────────────────────────────────────────────────────────────────────
 
@@ -95,6 +102,16 @@ export function start(opts: { mode: string; project: string; cfg?: Partial<Unatt
     // gets a clean slate. A persistent fault that restarts within the hour stays tripped.
     if (pruneRelaunchTimes().length === 0 && existsSync(trippedFlag())) {
       try { unlinkSync(trippedFlag()); } catch { /* ignore */ }
+    }
+
+    // The shutdown marker dies here, UNCONDITIONALLY, because the only thing it says is "do not
+    // resurrect me" — and we are running, so nobody is being resurrected. It must be cleared by a
+    // start rather than by a timer: the supervisor checks the marker BEFORE launching, so it can
+    // never be the thing that clears it, which makes "cleared on start" mean exactly "cleared when
+    // a person starts the app again". Leaving it behind would suppress a genuine crash recovery
+    // weeks later, which is the one failure this whole file exists to prevent.
+    if (existsSync(stoppedFlag())) {
+      try { unlinkSync(stoppedFlag()); } catch { /* ignore */ }
     }
 
     if (!armed) return;
@@ -392,6 +409,22 @@ export function status(): WatchdogStatus {
     taskInstalled: isTaskInstalled(),
     recent: [...ring].reverse().slice(0, 50),
   };
+}
+
+// The app is being quit ON PURPOSE — stand Tier-2 down and write it into the audit log, so a venue
+// that comes in to a dark install reads "the operator stopped it at 19:04" instead of a silence that
+// looks exactly like a machine that died.
+//
+// Called from the ONE teardown path in main/index.ts (`will-quit` → shutdownSubsystems('quit')), so
+// every deliberate exit is covered — tray, hotkey, window close, and the show-control remote — while
+// the relaunch paths, which go through `app.exit()` and skip both quit events, are not. That split
+// is the whole design: a relaunch WANTS to come back.
+export function noteDeliberateShutdown(detail: string): void {
+  try { writeFileSync(stoppedFlag(), new Date().toISOString(), 'utf-8'); } catch { /* ignore */ }
+  // Logged even when the watchdog is disarmed: on any install this line is the durable record of why
+  // the app is not running, and it costs nothing.
+  try { logEvent('shutdown', detail, 'stopped', 'deliberate — the OS supervisor will stand down'); }
+  catch { /* ignore */ }
 }
 
 export function recentEvents(n = 20): WatchdogEvent[] {
