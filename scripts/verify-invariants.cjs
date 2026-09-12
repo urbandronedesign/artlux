@@ -5893,6 +5893,102 @@ check(
   },
 );
 
+check(
+  'the served tablet page actually parses',
+  'plugins/show-control/src/clientHtml.ts is the ENTIRE Show Control remote — markup, styles and ' +
+  'client script — held inside one template literal, so TypeScript checks none of it. Two ways to ' +
+  'kill the whole page while the build stays green, both of which happened: a backtick inside a ' +
+  'comment ends the literal (`playlist` in prose did it), and an escape that is right in the source ' +
+  'collapses wrong on the way out (\\/ inside a regex emitted //, which commented out the rest of the ' +
+  'line and took every function after it with it). The failure is total and silent: the tablet serves ' +
+  'a blank page, in a venue, with no console anyone is looking at. This evaluates the template and ' +
+  'parses the script it produces, which is the only thing that can see either bug.',
+  () => {
+    const src = raw('plugins/show-control/src/clientHtml.ts');
+    if (!src) return 'plugins/show-control/src/clientHtml.ts is gone — the tablet page cannot be checked';
+    let html;
+    try {
+      // Evaluate the module body with its imports stripped and the brand marks stubbed: we are
+      // checking the STRING it builds, not what it decorates the string with.
+      const body = src.replace(/^import[\s\S]*?from\s+'[^']+';\s*$/m, '').replace(/\bexport const\b/g, 'const');
+      // eslint-disable-next-line no-new-func
+      html = new Function('WORDMARK', 'ICON_MARK', body + '\nreturn CLIENT_HTML;')(
+        { width: 1, height: 1, path: 'M0 0' }, { png180: 'd' });
+    } catch (e) {
+      return `clientHtml.ts does not evaluate (a stray backtick in the template?): ${e.message}`;
+    }
+    const m = /<script>([\s\S]*?)<\/script>/.exec(html);
+    if (!m) return 'the served page has no <script> — the whole client is gone';
+    if (m[1].length < 5000) return `the served script is only ${m[1].length} chars — it has been truncated`;
+    try { new (require('node:vm').Script)(m[1]); }
+    catch (e) { return `the served client script does not parse: ${e.message}`; }
+    return null;
+  },
+);
+
+check(
+  'a deliberate quit tells the OS supervisor to stand down',
+  'The Tier-2 Scheduled Task relaunches ArtLux every minute whenever the process is gone, and it ' +
+  'cannot tell "the venue crashed" from "the operator stopped the show" by itself. The two are ' +
+  'separated by exactly one file — main writes artlux-stopped.flag on `will-quit` (a crash never ' +
+  'reaches that event) and watchdog-check.ps1 stands down when it sees it. Remove either half and ' +
+  'every deliberate quit — the tray item, Ctrl+Shift+Q, and the show-control remote\'s Shut down — ' +
+  'is silently undone about a minute later, which from an operator\'s chair is the app refusing to ' +
+  'close. It is a contract across a .ts and a .ps1, so nothing else can see it: not the typechecker, ' +
+  'and not a dev run, because the Scheduled Task is only ever installed on a venue machine.',
+  () => {
+    const wd = read('src/main/watchdog.ts');
+    const idx = read('src/main/index.ts');
+    const ps = raw('scripts/watchdog-check.ps1');
+    if (!wd || !idx || !ps) return 'watchdog.ts / index.ts / watchdog-check.ps1 — one of the three is gone';
+    const problems = [];
+    if (!wd.includes('artlux-stopped.flag')) problems.push('watchdog.ts no longer names artlux-stopped.flag');
+    if (!/export function noteDeliberateShutdown/.test(wd)) problems.push('watchdog.ts no longer exports noteDeliberateShutdown()');
+    if (!/noteDeliberateShutdown\(/.test(idx)) problems.push('main/index.ts never calls noteDeliberateShutdown() — a quit is no longer marked');
+    if (!ps.includes('artlux-stopped.flag')) problems.push('watchdog-check.ps1 no longer honours the marker — Tier-2 will resurrect a stopped show');
+    // The marker must also be LIFTED, or it suppresses a genuine crash recovery forever after the
+    // first deliberate quit. start() is the only correct place: the supervisor checks the marker
+    // before launching, so it can never be the thing that clears it.
+    if (!/unlinkSync\(stoppedFlag\(\)\)/.test(wd)) problems.push('watchdog.ts never clears the marker on start — one quit would disarm Tier-2 permanently');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the tablet remote does not repaint itself out from under a finger',
+  'The show-control client rebuilds <main> wholesale on every render, and the app pushes it a status ' +
+  'event twice a second forever. Left unchecked that is 120 DOM rebuilds a minute on a screen nobody ' +
+  'is re-rendering FOR — the status payload is mostly the playhead, which the Control tab does not ' +
+  'draw — and each rebuild resets the scroll to the top. On a phone that made everything below the ' +
+  'fold unreachable: you scrolled, and half a second later you were back at the top, which is exactly ' +
+  'how the power buttons shipped unusable. Two halves keep it fixed: every tab repaints through the ' +
+  'changed-compare (renderIfChanged) rather than calling render() on a stream event, and shell() ' +
+  'restores the scroll it just destroyed. Neither is visible to a typechecker, and neither shows up ' +
+  'on a desk monitor where the page happens to fit.',
+  () => {
+    const src = raw('plugins/show-control/src/clientHtml.ts');
+    if (!src) return 'plugins/show-control/src/clientHtml.ts is gone';
+    const problems = [];
+
+    // shell() must put the scroll back after replacing <main>.
+    const shell = /function shell\(inner\)\{[\s\S]*?\n  \}/.exec(src);
+    if (!shell) problems.push('shell(inner) not found — the repaint path has moved');
+    else if (!/scrollTop\s*=/.test(shell[0])) problems.push('shell() no longer restores scrollTop — every repaint sends the page back to the top');
+
+    // renderIfDynamic must route through the changed-compare, never straight to render().
+    const dyn = /function renderIfDynamic\(t\)\{[\s\S]*?\n  \}/.exec(src);
+    if (!dyn) problems.push('renderIfDynamic(t) not found — the stream-repaint path has moved');
+    else {
+      const body = dyn[0].replace(/\/\/[^\n]*/g, ''); // its own comments mention render()
+      if (/(^|[^a-zA-Z.])render\(\)/.test(body)) {
+        problems.push('renderIfDynamic calls render() directly — a stream event will repaint a tab whose data did not change');
+      }
+      if (!/renderIfChanged\(\)/.test(body)) problems.push('renderIfDynamic no longer uses renderIfChanged()');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

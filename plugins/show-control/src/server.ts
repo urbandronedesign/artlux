@@ -15,7 +15,7 @@ import * as scheduler from './scheduler';
 import { CLIENT_HTML } from './clientHtml';
 import type {
   ShowCommand, ShowSnapshot, ShowStatus, MetricsSnapshot, PlaylistStatus, DeviceInfo,
-  ServerEvent, Playlist, LanInfo,
+  ServerEvent, Playlist, LanInfo, ScanResult,
 } from './types';
 
 export interface ServerHandlers {
@@ -23,6 +23,8 @@ export interface ServerHandlers {
   onPlaylistChanged(): void;                // tablet edited the playlist (re-broadcast status)
   onSchedule(entries: unknown[]): void;     // tablet edited the in-project schedule (→ renderer host.show)
   onNeedSnapshot(): void;                   // a device connected — ask the renderer for a fresh show snapshot
+  onShutdown(): void;                       // stop the app entirely (the remote's only way to end a show)
+  onRestart(): void;                        // relaunch it in the same mode, on the same project
 }
 
 interface Client { res: ServerResponse; id: number; token: string }
@@ -39,6 +41,11 @@ let lastSnapshot: ShowSnapshot | null = null;
 let lastStatus: ShowStatus | null = null;
 let lastMetrics: MetricsSnapshot | null = null;
 let lastDevices: DeviceInfo[] = [];
+// The last folder scan, kept SERVER-side and streamed. It used to be a variable inside the tablet's
+// script: switching tab or reconnecting emptied the project list, and the only way back was retyping
+// an absolute path on a touch keyboard. The server remembers the folder already (Playlist.folder), so
+// remembering what is in it costs one field and removes the whole retype.
+let lastScan: ScanResult | null = null;
 
 function send(res: ServerResponse, code: number, body: unknown, type = 'application/json'): void {
   const text = type === 'application/json' ? JSON.stringify(body) : String(body);
@@ -92,6 +99,7 @@ function openStream(req: IncomingMessage, res: ServerResponse, token: string | u
   if (lastSnapshot) push({ t: 'snapshot', snapshot: lastSnapshot });
   if (lastStatus) push({ t: 'status', status: lastStatus });
   push({ t: 'playlist', playlist: getPlaylist(), status: scheduler.status() });
+  push({ t: 'projects', scan: ensureScan() });
   push({ t: 'devices', devices: currentDevices() });
 
   // …then ask the renderer for a CURRENT one. The replay above is only as good as the last push we
@@ -102,6 +110,18 @@ function openStream(req: IncomingMessage, res: ServerResponse, token: string | u
 
   const beat = setInterval(() => { try { res.write(': ping\n\n'); } catch { /* */ } }, 20000);
   req.on('close', () => { clearInterval(beat); clients.delete(client); });
+}
+
+// The project list for a client that just connected: the cached scan, or one taken NOW of the folder
+// the operator last used. Scanning on connect (rather than making the operator press a button) is the
+// difference between a page that shows you what this machine can play and a page that shows an empty
+// box with a path field. Bounded by the scanner's own depth/count caps, and taken at most once per
+// server lifetime unless someone rescans.
+function ensureScan(): ScanResult {
+  if (lastScan) return lastScan;
+  const folder = getPlaylist().folder;
+  lastScan = folder ? scanProjects(folder) : { root: '', projects: [], truncated: false };
+  return lastScan;
 }
 
 function currentDevices(): DeviceInfo[] {
@@ -160,8 +180,21 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     send(res, 200, { ok: true });
     return;
   }
+  if (req.method === 'GET' && path === '/projects') {
+    send(res, 200, ensureScan());
+    return;
+  }
   if (req.method === 'POST' && path === '/scan') {
-    send(res, 200, { projects: scanProjects(String(body?.folder ?? '')) });
+    const folder = String(body?.folder ?? '');
+    lastScan = scanProjects(folder);
+    // Remember the folder with the playlist, so the NEXT connection (and the next app start) has a
+    // list without anyone typing. Persisted even when the scan found nothing — a wrong path the
+    // operator can see and correct beats a field that silently forgot what they typed.
+    const pl = getPlaylist();
+    if (folder && pl.folder !== folder) setPlaylist({ ...pl, folder });
+    // Fan out: every connected tablet gets the same list, not just the one that pressed Scan.
+    emit({ t: 'projects', scan: lastScan });
+    send(res, 200, lastScan);
     return;
   }
   if (req.method === 'POST' && path === '/schedule') {
@@ -176,6 +209,24 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     send(res, 200, { ok: true });
     return;
   }
+  // ── Power ─────────────────────────────────────────────────────────────────────────────────
+  // A broadcast install has no window, no menu and no keyboard in reach — the tray item and
+  // Ctrl+Shift+Q both need someone AT the machine, which is the one thing a venue remote assumes
+  // you are not. Both routes answer BEFORE acting (see plugin.main) so the tablet can tell the
+  // operator what is happening instead of just losing its connection.
+  if (req.method === 'POST' && path === '/shutdown') {
+    if (locked) { send(res, 423, { error: 'locked' }); return; }
+    send(res, 200, { ok: true });
+    handlers?.onShutdown();
+    return;
+  }
+  if (req.method === 'POST' && path === '/restart') {
+    if (locked) { send(res, 423, { error: 'locked' }); return; }
+    send(res, 200, { ok: true });
+    handlers?.onRestart();
+    return;
+  }
+
   if (req.method === 'POST' && path === '/playlist/load') {
     if (locked) { send(res, 423, { error: 'locked' }); return; }
     const p = String(body?.path ?? '');
@@ -226,6 +277,16 @@ export function pushSnapshot(s: ShowSnapshot): void { lastSnapshot = s; emit({ t
 export function pushStatus(s: ShowStatus): void { lastStatus = s; emit({ t: 'status', status: s }); }
 export function pushMetrics(m: MetricsSnapshot): void { lastMetrics = m; emit({ t: 'metrics', metrics: m }); }
 export function pushPlaylistStatus(status: PlaylistStatus): void { emit({ t: 'playlist', playlist: getPlaylist(), status }); }
+// The playlist changed from the desktop panel — its folder may be a different one, so the cached
+// scan is no longer about the right tree.
+export function invalidateScan(folder?: string): void {
+  if (!folder || !lastScan || lastScan.root !== folder) lastScan = null;
+}
+
+// A scan taken elsewhere (the desktop Playlist panel) becomes THE list for every tablet too — one
+// model, two surfaces, same rule the playlist itself follows.
+export function pushProjects(scan: ScanResult): void { lastScan = scan; emit({ t: 'projects', scan }); }
+
 export function pushDevices(): void { lastDevices = currentDevices(); emit({ t: 'devices', devices: lastDevices }); }
 
 export function setLocked(v: boolean): void { locked = v; emit({ t: 'locked', locked: v }); }

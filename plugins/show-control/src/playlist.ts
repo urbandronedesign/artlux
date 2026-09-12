@@ -7,6 +7,7 @@ import { app } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Playlist, PlaylistEntry } from './types';
+import { occurrencesNear } from './recurrence';
 
 const file = () => join(app.getPath('userData'), 'showctl-playlist.json');
 
@@ -31,52 +32,29 @@ export function setPlaylist(p: Playlist): void {
   catch (e) { console.error('[show-control] playlist persist failed', e); }
 }
 
-const MIN_PER_WEEK = 7 * 24 * 60;
+export interface Resolved { entry: PlaylistEntry; at: number }
 
-// "HH:MM" → minutes since midnight, or null if malformed.
-function parseHM(t: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t || '');
-  if (!m) return null;
-  const h = +m[1], mi = +m[2];
-  if (h > 23 || mi > 59) return null;
-  return h * 60 + mi;
-}
-
-// Expand an entry into its minute-of-week occurrences (one per active weekday; empty days = all 7).
-function occurrences(e: PlaylistEntry): number[] {
-  const hm = parseHM(e.time);
-  if (hm == null) return [];
-  const days = e.days && e.days.length ? e.days : [0, 1, 2, 3, 4, 5, 6];
-  return days.filter((d) => d >= 0 && d <= 6).map((d) => d * 1440 + hm);
-}
-
-export interface Resolved { entry: PlaylistEntry; occ: number }
-
-// The entry currently in effect at `nowMinuteOfWeek` (the latest occurrence at-or-before now, wrapping
-// across the week boundary) and the next upcoming one. Only enabled entries with a valid path count.
-export function resolve(nowMinuteOfWeek: number, entries: PlaylistEntry[]): { due: Resolved | null; next: Resolved | null } {
-  let due: Resolved | null = null;      // maximize (occ - now) among occ <= now  (i.e. closest past)
-  let dueDelta = -Infinity;
-  let next: Resolved | null = null;     // minimize (occ - now) among occ > now
-  let nextDelta = Infinity;
+// The entry currently IN EFFECT at `now` (its most recent fire, at or before now) and the next one
+// due. Only enabled entries with a path count.
+//
+// ABSOLUTE TIME, not minute-of-week. The old resolver worked in minutes-since-Sunday-midnight, a
+// coordinate in which a calendar date cannot be expressed — so a one-off ("open the gala show on
+// 2026-09-20 at 20:00") was not a missing feature, it was unrepresentable. recurrence.ts enumerates
+// each entry's fires in a window around now; picking the closest on each side is all that is left,
+// and the daily/weekly answers are unchanged (its default ±8-day window reproduces the old
+// look-back of one full week that made "before the first entry of the week" wrap to the last entry
+// of the previous one).
+export function resolve(now: Date, entries: PlaylistEntry[]): { due: Resolved | null; next: Resolved | null } {
+  const n = now.getTime();
+  let due: Resolved | null = null;
+  let next: Resolved | null = null;
 
   for (const entry of entries) {
     if (!entry.enabled || !entry.projectPath) continue;
-    for (const base of occurrences(entry)) {
-      // Consider this week and the previous week so "before the first entry of the week" wraps to the
-      // last entry of the prior week.
-      for (const occ of [base - MIN_PER_WEEK, base]) {
-        const delta = occ - nowMinuteOfWeek; // <= 0 = past/now, > 0 = future
-        if (delta <= 0 && delta > dueDelta) { dueDelta = delta; due = { entry, occ: base }; }
-      }
-      const fwdDelta = base - nowMinuteOfWeek;
-      if (fwdDelta > 0 && fwdDelta < nextDelta) { nextDelta = fwdDelta; next = { entry, occ: base }; }
+    for (const t of occurrencesNear(entry, now)) {
+      if (t <= n) { if (!due || t > due.at) due = { entry, at: t }; }
+      else if (!next || t < next.at) next = { entry, at: t };
     }
   }
   return { due, next };
-}
-
-// Convenience: minute-of-week for a Date (local time).
-export function minuteOfWeek(d: Date): number {
-  return d.getDay() * 1440 + d.getHours() * 60 + d.getMinutes();
 }

@@ -16,6 +16,7 @@ import { ShowControlDeck } from './ShowControlDeck';
 import { SchedulePanel } from './SchedulePanel';
 import { PlaylistPanel } from './PlaylistPanel';
 import { ShowMetricsPanel } from './ShowMetricsPanel';
+import { firesAt, ymd } from './recurrence';
 import type { ShowCommand, ShowSnapshot, ShowStatus, ScheduleEntry } from './types';
 
 let timers: ReturnType<typeof setInterval>[] = [];
@@ -151,17 +152,20 @@ export const plugin: RendererPlugin = {
     if (offWd) unsubs.push(offWd);
 
     // In-project schedule tick. Evaluated every 15s; fires each entry once per matching minute.
+    // WHETHER an entry is due this minute is `firesAt` in recurrence.ts — the same function the
+    // playlist resolver in main derives its occurrences from, so "every Monday" and "once on the
+    // 20th" mean one thing across both scheduling layers rather than two lookalike implementations.
     const lastFired = new Map<string, string>();
     timers.push(setInterval(() => {
       const entries = (host.show.getSchedule() as ScheduleEntry[]) || [];
       if (!entries.length) return;
       const now = new Date();
-      const hm = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
-      const day = now.getDay();
-      const key = day + '-' + hm;
+      // Keyed by CALENDAR DAY + minute, not weekday + minute: a one-off is identified by its date,
+      // and a weekday key would let the same entry re-fire seven days later inside a process that
+      // had been up all week.
+      const key = ymd(now) + ' ' + pad2(now.getHours()) + ':' + pad2(now.getMinutes());
       for (const e of entries) {
-        if (!e || !e.enabled || e.time !== hm) continue;
-        if (e.days && e.days.length && e.days.indexOf(day) < 0) continue;
+        if (!e || !e.enabled || !firesAt(e, now)) continue;
         if (lastFired.get(e.id) === key) continue;
         lastFired.set(e.id, key);
         try { dispatch(host, e.action); } catch (err) { console.error('[show-control] schedule dispatch failed', err); }

@@ -78,6 +78,21 @@ export const CLIENT_HTML = `<!doctype html>
   .metric .u { font-size:12px; color:var(--fg2); }
   svg.spark { width:100%; height:34px; margin-top:6px; }
   .muted { color:var(--fg3); font-size:13px; }
+  /* A tappable list row. 'button' so it is keyboard- and screen-reader-reachable; the spans are
+     block so the two lines stack the way the div-based rows next to them do. */
+  .row-btn { background:none; border:none; color:inherit; text-align:left; padding:0; font:inherit; flex:1; min-width:0; }
+  .row-btn .name, .row-btn .meta { display:block; }
+  .list-item.spent { opacity:.5; }
+  /* The editor. A bottom sheet, because on a tablet held in two hands the bottom is where the thumbs
+     are — and because it covers the list, which is what stops a background repaint from being felt. */
+  .sheet { position:fixed; inset:0; z-index:50; background:rgba(4,6,10,.72); display:flex; align-items:flex-end; justify-content:center; }
+  .sheet .body { width:100%; max-width:560px; max-height:92dvh; overflow-y:auto; background:var(--panel); border:1px solid var(--line); border-radius:16px 16px 0 0; padding:16px; padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
+  .sheet h2 { margin:0 0 4px; font-size:17px; }
+  .seg { display:flex; gap:5px; }
+  .seg button { flex:1; padding:11px 0; border-radius:9px; background:var(--panel2); border:1px solid var(--line); color:var(--fg2); font-size:13px; font-weight:700; }
+  .seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .sheet .foot { display:flex; gap:8px; margin-top:18px; }
+  .sheet .foot .btn { flex:1; }
   .pair { max-width:340px; margin:12vh auto 0; text-align:center; }
   .pair h1 { font-size:20px; margin:0 0 6px; } .pair p { color:var(--fg2); font-size:13px; }
   .pair .brand svg { height:26px; width:auto; margin:0 auto 10px; color:var(--fg); }
@@ -94,6 +109,12 @@ export const CLIENT_HTML = `<!doctype html>
   var token=localStorage.getItem(LS)||'';
   var es=null, connected=false;
   var snapshot=null, status=null, playlist={enabled:false,entries:[]}, plStatus={}, devices=[], locked=false, mode='editor';
+  // The projects this machine can load. STREAMED from the app (the server scans and caches), not a
+  // local variable as before — which is why the list used to vanish on every reconnect and tab switch.
+  var scan={root:'',projects:[],truncated:false}, projFilter='';
+  // The one open editor, if any: { kind:'pl'|'sched', isNew, draft }. Also the repaint interlock —
+  // see renderIfDynamic.
+  var editor=null;
   var tab='control';
   var hist={cpuPct:[],fps:[],pps:[],heapMB:[],lagP99:[],rfps:[],fp99:[],wp99:[]}, lastMetrics=null;
   var app=document.getElementById('app');
@@ -135,7 +156,14 @@ export const CLIENT_HTML = `<!doctype html>
     if(!token) return;
     if(es) es.close();
     es=new EventSource('/events?token='+encodeURIComponent(token));
-    es.onopen=function(){ connected=true; paintHeader(); };
+    es.onopen=function(){
+      connected=true;
+      // IT CAME BACK. EventSource reconnects on its own, so a successful open after a restart is
+      // the most reliable "the new process is serving" signal there is — better than a timer, which
+      // would drop the operator back onto a dead remote if the relaunch happened to be slow.
+      if(stopping==='restart'){ stopping=null; render(); return; }
+      paintHeader();
+    };
     es.onerror=function(){ connected=false; paintHeader(); };
     es.onmessage=function(ev){
       var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
@@ -144,6 +172,7 @@ export const CLIENT_HTML = `<!doctype html>
       else if(m.t==='status'){ status=m.status; }
       else if(m.t==='metrics'){ lastMetrics=m.metrics; pushHist(m.metrics); }
       else if(m.t==='playlist'){ playlist=m.playlist||playlist; plStatus=m.status||{}; }
+      else if(m.t==='projects'){ scan=m.scan||scan; }
       else if(m.t==='devices'){ devices=m.devices||[]; }
       else if(m.t==='locked'){ locked=m.locked; }
       renderIfDynamic(m.t);
@@ -161,12 +190,50 @@ export const CLIENT_HTML = `<!doctype html>
     add(hist.fp99, mt.render?mt.render.frameP99:0);
     add(hist.wp99, mt.render?mt.render.workP99:0);
   }
-  // Metrics/status stream constantly; only re-render the tab they affect (avoid nuking form inputs).
+  // Metrics/status stream constantly; only re-render the tab they affect.
+  //
+  // THIS FUNCTION IS WHY THE PAGE WAS UNUSABLE. The scheduler pushes a 'playlist' event every 5
+  // seconds whether or not anything changed, and this answered it with a full render() — rebuilding
+  // the Projects tab, and with it the folder field, the time input and the day chips, every five
+  // seconds, under the operator's finger. The 'schedule' tab had the opposite bug: it deliberately
+  // skipped 'snapshot', so adding an entry visibly did nothing at all.
+  //
+  // Three rules now: an open editor is never repainted; a tab repaints only when its OWN data
+  // changed; and nothing repaints while a field has focus.
   function renderIfDynamic(t){
-    if(tab==='metrics' && t==='metrics'){ renderMetrics(); return; }
-    if((tab==='control'||tab==='states') && (t==='snapshot'||t==='status'||t==='locked')){ render(); return; }
-    if(tab==='projects' && t==='playlist'){ /* keep form; update via full render only if not editing */ render(); return; }
-    if(t==='snapshot' && tab==='schedule'){ /* scene list changed rarely; skip to preserve inputs */ }
+    if(editor||ask||stopping) return;
+    if(tab==='metrics'){ if(t==='metrics') renderMetrics(); return; }
+    if(t==='metrics') return;
+    // Control and States go through the same changed-compare as the rest. They used to repaint on
+    // EVERY status event — 2 Hz, forever — and the status payload that drives that is mostly the
+    // playhead, which neither tab draws. Two hundred wasted DOM rebuilds a minute, each one a
+    // chance to lose a scroll position, a tap or a focus.
+    if(tab==='control'||tab==='states'){ if(t==='snapshot'||t==='status'||t==='locked') renderIfChanged(); return; }
+    if(tab==='projects'){ if(t==='playlist'||t==='projects'||t==='locked') renderIfChanged(); return; }
+    if(tab==='schedule'){ if(t==='snapshot'||t==='locked') renderIfChanged(); return; }
+  }
+  var lastPaint='';
+  function renderIfChanged(){
+    // Never rebuild the DOM a finger is in. The change is not lost: the next push re-evaluates, and
+    // the signature still differs, so it lands as soon as the field is left.
+    var ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT'||ae.tagName==='TEXTAREA')) return;
+    // Per tab, and DELIBERATELY NARROW: the whole point is to exclude the fields that change every
+    // tick but are never drawn (status.playhead, status.ts). A field added to a tab's markup must be
+    // added here too, or the tab will stop repainting when it changes.
+    var sig;
+    if(tab==='control') sig=JSON.stringify([
+      (snapshot&&snapshot.scenes)||null,(snapshot&&snapshot.banks)||null,!!snapshot,
+      status?[status.activeSceneId,!!status.booting,status.bootPending||0,!!status.held]:null,
+      locked,mode]);
+    else if(tab==='states') sig=JSON.stringify([
+      (snapshot&&snapshot.fsm)||null,status?status.currentStateId:null,locked]);
+    else if(tab==='projects') sig=JSON.stringify([
+      playlist,plStatus.currentPath,plStatus.nextPath,plStatus.nextAt,scan.root,(scan.projects||[]).length,locked]);
+    else sig=JSON.stringify([(snapshot&&snapshot.schedule)||[],locked]);
+    if(sig===lastPaint) return;
+    lastPaint=sig;
+    render();
   }
 
   // ---- shell ----
@@ -175,14 +242,28 @@ export const CLIENT_HTML = `<!doctype html>
     var l=document.querySelector('header .lock'); if(l){ l.className='lock '+(locked?'show':''); }
   }
   var TABS=[['control','Control'],['states','States'],['schedule','Schedule'],['projects','Projects'],['metrics','Metrics']];
+  // KEEP THE SCROLL. This function replaces <main> outright, so every repaint used to send the page
+  // back to the top — and on the Control tab, which repainted on the 2 Hz status stream, that made
+  // anything below the fold literally unreachable: you scrolled, and half a second later you were
+  // back at the top. Restored only when the SAME tab is being redrawn; switching tabs starts at the
+  // top, which is what a tab switch should do.
+  var shellTab=null, shellScroll=0;
   function shell(inner){
+    var prev=document.getElementById('main');
+    if(prev&&shellTab===tab) shellScroll=prev.scrollTop; else shellScroll=0;
     var nav=''; for(var i=0;i<TABS.length;i++){ nav+='<button data-act="tab" data-tab="'+TABS[i][0]+'" class="'+(tab===TABS[i][0]?'active':'')+'">'+TABS[i][1]+'</button>'; }
     app.innerHTML=''+
       '<header><span class="dot '+(connected?'on':'off')+'"></span><span class="title">${WORDMARK_SVG}<span>Show Control</span></span>'+
       '<span class="lock '+(locked?'show':'')+'">&#128274; LOCKED</span><span class="sp"></span>'+
       '<span class="badge">'+mode+'</span></header>'+
       '<nav>'+nav+'</nav><main id="main"></main>';
-    document.getElementById('main').innerHTML=inner;
+    var main=document.getElementById('main');
+    main.innerHTML=inner;
+    if(shellScroll) main.scrollTop=shellScroll;
+    shellTab=tab;
+    // EVERY tab, one place. An overlay that each renderer has to remember to draw is an overlay that
+    // exists on the tabs it was written for and silently does not on the others.
+    paintSheets();
   }
 
   function esc(s){ s=(s==null?'':String(s)); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -218,28 +299,27 @@ export const CLIENT_HTML = `<!doctype html>
          '<div class="accentbar" style="background:'+esc(sc.accent||'#5b8cff')+'"></div>'+
          '<span>'+esc(sc.name||'Scene')+'</span></button>'; }
     h+='</div>';
-    // Every bank (was banks[0] only): per-cue fire tiles + the Column convenience row. Empty banks skipped.
+    // Every bank (was banks[0] only): the per-cue fire tiles. Banks with no cues are skipped.
+    //
+    // NO COLUMN TILES. There used to be a second grid of "Column 1 … Column n" buttons per bank —
+    // a convenience for firing a whole column at once — and they were removed at the owner's
+    // request (2026-09-12): unused here, and they doubled the length of a screen you have to scroll
+    // on a tablet. The fireColumn COMMAND is untouched: it is still in ShowCommand, still
+    // dispatched, and still reachable from OSC and from a scheduled entry — only the buttons are
+    // gone, so bringing them back is a UI change and nothing more.
     var banks=s.banks||[];
     for(var b=0;b<banks.length;b++){ var bank=banks[b];
       var cues=bank.cues||[];
-      var cols=[]; for(var c=0;c<bank.cols;c++){ if(bank.sceneCells.some(function(x){return x.col===c;})||cues.some(function(q){return q.col===c;})) cols.push(c); }
-      if(!cues.length&&!cols.length) continue;
+      if(!cues.length) continue;
       h+='<h3>'+esc(bank.name||'Bank')+'</h3>';
-      if(cues.length){
-        h+='<div class="grid">';
-        for(var k=0;k<cues.length;k++){ var cue=cues[k];
-          h+='<button class="tile" data-act="cue" data-ref="'+esc(cue.id)+'">'+
-             '<div class="accentbar" style="background:'+esc(cue.color||'#5b8cff')+'"></div>'+
-             '<span>'+esc(cue.name||'Cue')+'</span><span class="sub">fire</span></button>'; }
-        h+='</div>';
-      }
-      if(cols.length){
-        h+='<div class="grid">';
-        for(var ci=0;ci<cols.length;ci++){ var col=cols[ci];
-          h+='<button class="tile" data-act="col" data-bank="'+esc(bank.id)+'" data-col="'+col+'"><span>Column '+(col+1)+'</span><span class="sub">fire</span></button>'; }
-        h+='</div>';
-      }
+      h+='<div class="grid">';
+      for(var k=0;k<cues.length;k++){ var cue=cues[k];
+        h+='<button class="tile" data-act="cue" data-ref="'+esc(cue.id)+'">'+
+           '<div class="accentbar" style="background:'+esc(cue.color||'#5b8cff')+'"></div>'+
+           '<span>'+esc(cue.name||'Cue')+'</span><span class="sub">fire</span></button>'; }
+      h+='</div>';
     }
+    h+=powerCard();
     shell(h);
   }
 
@@ -265,88 +345,333 @@ export const CLIENT_HTML = `<!doctype html>
     shell(h);
   }
 
-  // ---- Schedule (in-project) ----
-  var schedDraft=null; // {time,days:Set,action}
+  // ---- Power: stopping and restarting the machine's show ---------------------------------------
+  // A BROADCAST INSTALL HAS NO UI AT ALL. There is a tray item and Ctrl+Shift+Q, and both of them
+  // assume somebody is standing at the machine — which is the one thing a venue remote assumes you
+  // are not. The tablet is therefore the only way to end a show from the room it is playing in.
+  //
+  // Restart sits next to Shut down on purpose: it is the recovery an operator actually wants nine
+  // times in ten (a wedged show comes back in a clean process), so the irreversible button is not
+  // the only one within reach.
+  var stopping=null; // 'shutdown' | 'restart' — the app is on its way out; see render()
+
+  function powerCard(){
+    return '<h3 style="margin-top:18px">This machine</h3>'+
+      '<div class="card"><div class="meta" style="color:var(--fg2)">'+
+      (mode==='broadcast'
+        ? 'Running as a show, with no window on the machine.'
+        : 'Running the editor on the machine.')+'</div>'+
+      '<div class="row" style="margin-top:10px">'+
+      '<button class="btn" data-act="pw-restart">&#8635; Restart the app</button>'+
+      '<button class="btn bad" data-act="pw-shutdown">&#9211; Shut down</button>'+
+      '</div></div>';
+  }
+  function askRestart(){
+    confirmThen('Restart the app?',
+      'The show stops and comes back in a fresh process, on the same project. Outputs go dark for a few seconds.',
+      'Restart', false, function(){ power('/restart','restart'); });
+  }
+  function askShutdown(){
+    confirmThen('Shut down ArtLux?',
+      'The show stops and the app closes. It will NOT start again by itself — including after a reboot — '
+      + 'until someone starts it on the machine. Fixtures hold their last frame.',
+      'Shut it down', true, function(){ power('/shutdown','shutdown'); });
+  }
+  // ONLY SAY IT IS STOPPING ONCE THE APP HAS ACCEPTED. The first version set the screen and then
+  // fired the request, so a LOCKED remote (423) showed "Shutting down" over a show that was still
+  // running perfectly — the one lie this screen must never tell. Same 423 handling as every other
+  // command on this page.
+  function power(path,state){
+    api(path,{}).then(function(r){
+      if(r.status===423){ flashLocked(); return; }
+      if(!r.ok) return;
+      stopping=state; render();
+    }).catch(function(){ /* no answer: the app is already gone, or the network is. Stay put. */ });
+  }
+
+  // A SHUT-DOWN TABLET MUST NOT JUST GO GREY. Losing the SSE stream is what a flat battery, a wifi
+  // drop and a dead machine all look like, so say which one this is — and say how it comes back,
+  // because after a deliberate shutdown nothing on this tablet can start it again.
+  function stoppingView(){
+    var down=stopping==='shutdown';
+    app.innerHTML='<div class="pair">'+
+      '<div class="brand">${WORDMARK_SVG}</div>'+
+      '<h1>'+(down?'Shutting down':'Restarting')+'</h1>'+
+      '<p>'+(down
+        ? 'The show has been stopped and the app is closing. Start ArtLux on the machine to bring it back &mdash; it will not return on its own.'
+        : 'The show is coming back in a fresh process. This page reconnects by itself when it does.')+'</p>'+
+      (down?'':'<div class="hint">Usually a few seconds.</div>')+
+      '<button class="btn" style="width:100%;margin-top:16px" data-act="pw-back">Back to the remote</button>'+
+      '</div>';
+  }
+
+  // ---- scheme helpers: FORMATTING ONLY ---------------------------------------------------------
+  // The client never decides WHEN anything fires. That is recurrence.ts, in the app, for both
+  // scheduling layers — a scheme is evaluated once, in the app, and the two layers cannot disagree.
+  // What is duplicated here is only how a scheme READS BACK on a row, so a drift here mislabels a
+  // line and cannot mis-fire a show.
+  function p2(n){ return n<10?('0'+n):(''+n); }
+  function todayYMD(){ var d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+  function nowHM(){ var d=new Date(); return p2(d.getHours())+':'+p2(d.getMinutes()); }
+  function repeatOf(e){ if(e.repeat==='daily'||e.repeat==='weekly'||e.repeat==='once') return e.repeat; return (e.days&&e.days.length)?'weekly':'daily'; }
+  function describeRepeat(e){
+    var m=repeatOf(e);
+    if(m==='once') return e.date?('Once on '+e.date):'Once (no date set)';
+    if(m==='weekly'&&e.days&&e.days.length) return e.days.slice().sort(function(a,b){return a-b;}).map(function(i){return DFULL[i];}).join(' ');
+    return 'Every day';
+  }
+  // A one-off whose moment has passed is inert. Saying so on the row is the difference between "why
+  // is this not firing" and "of course, it already ran".
+  function isSpent(e){ if(repeatOf(e)!=='once') return false; if(!e.date) return true; return (e.date+' '+(e.time||'00:00'))<=(todayYMD()+' '+nowHM()); }
+  // Spent one-offs sink; everything else reads down the clock.
+  function cmpEntries(a,b){ var sa=isSpent(a)?1:0, sb=isSpent(b)?1:0; if(sa!==sb) return sa-sb; return String(a.time||'').localeCompare(String(b.time||'')); }
+
+  // ---- THE editor: one sheet for a scheduled project AND a scheduled action --------------------
+  // Both layers are "a thing that happens at a time, on a scheme", so they get one form. Before
+  // this, neither could be edited at all: changing a time meant deleting the entry and rebuilding it
+  // from a default-time field parked at the bottom of the page.
+  function openEditor(kind,draft,isNew){ editor={kind:kind,isNew:!!isNew,draft:draft}; render(); }
+  function segBtn(v,label,cur){ return '<button type="button" data-act="ed-rep" data-rep="'+v+'" class="'+(cur===v?'on':'')+'">'+label+'</button>'; }
+
+  function editorHtml(){
+    var d=editor.draft, k=editor.kind, m=repeatOf(d);
+    var h='<div class="sheet"><div class="body">';
+    h+='<h2>'+(editor.isNew?'Schedule':'Edit')+' '+(k==='pl'?'a project':'an action')+'</h2>';
+    h+='<div class="muted" style="margin-bottom:6px">'+(k==='pl'
+        ? 'Loads this whole project on the show machine, unattended.'
+        : 'Runs inside whichever project is loaded.')+'</div>';
+    if(k==='pl') h+='<label>Project</label><select id="ed-proj">'+projectOptions(d.projectPath)+'</select>';
+    else         h+='<label>Action</label><select id="ed-act">'+actionOptions(d.action)+'</select>';
+    h+='<label>Repeat</label><div class="seg" id="ed-rep">'+segBtn('daily','Daily',m)+segBtn('weekly','Weekly',m)+segBtn('once','Once',m)+'</div>';
+    if(m==='weekly') h+='<label>Days</label><div class="days" id="ed-days">'+dayChips(d.days)+'</div>';
+    if(m==='once')   h+='<label>Date</label><input id="ed-date" type="date" value="'+esc(d.date||todayYMD())+'" />';
+    h+='<label>Time</label><input id="ed-time" type="time" value="'+esc(d.time||'09:00')+'" />';
+    h+='<label>Label (optional)</label><input id="ed-name" value="'+esc(d.name||'')+'" placeholder="'+esc(k==='pl'?baseName(d.projectPath||''):'')+'" />';
+    h+='<div class="list-item" style="margin-top:12px"><div class="grow"><div class="name">Enabled</div>'+
+       '<div class="meta">'+(d.enabled?'Will fire at the time above':'Saved, but inactive')+'</div></div>'+
+       '<button class="sw '+(d.enabled?'on':'')+'" data-act="ed-enable"><i></i></button></div>';
+    h+='<div class="foot"><button class="btn" data-act="ed-cancel">Cancel</button>'+
+       (editor.isNew?'':'<button class="btn bad" data-act="ed-del">Delete</button>')+
+       '<button class="btn pri" data-act="ed-save">Save</button></div>';
+    return h+'</div></div>';
+  }
+
+  // Pull every field currently ON SCREEN back into the draft. Called before ANY re-render of the
+  // sheet (switching Daily to Once re-renders it), or the time you just typed would be lost by the
+  // very act of choosing a scheme for it.
+  function readEditor(){
+    if(!editor) return;
+    var d=editor.draft, x;
+    function v(id){ var el=document.getElementById(id); return el?el.value:undefined; }
+    if((x=v('ed-time'))!==undefined) d.time=x;
+    if((x=v('ed-name'))!==undefined) d.name=x;
+    if((x=v('ed-date'))!==undefined) d.date=x;
+    if((x=v('ed-proj'))!==undefined) d.projectPath=x;
+    if((x=v('ed-act'))!==undefined) d.action=actionFromSelect(x);
+    if(document.getElementById('ed-days')) d.days=readDays('ed-days');
+  }
+
+  function saveEditor(){
+    readEditor();
+    var d=editor.draft, k=editor.kind, m=repeatOf(d);
+    if(m==='once'&&!d.date) d.date=todayYMD();
+    // Keep the record honest: 'days' IS the scheme to anything that predates 'repeat', so a daily or
+    // one-off entry must not carry leftover weekdays.
+    if(m!=='weekly') d.days=[];
+    if(m!=='once') delete d.date;
+    if(k==='pl'){
+      if(!d.projectPath) return;                      // nothing to load — refuse rather than save a dud
+      var entries=playlist.entries.slice(), i=indexById(entries,d.id);
+      if(i<0) entries.push(d); else entries[i]=d;
+      editor=null;
+      savePlaylist(Object.assign({},playlist,{entries:entries}));
+    } else {
+      var sc=((snapshot&&snapshot.schedule)||[]).slice(), j=indexById(sc,d.id);
+      if(j<0) sc.push(d); else sc[j]=d;
+      editor=null;
+      commitSchedule(sc);
+    }
+  }
+  function deleteEditor(){
+    var d=editor.draft, k=editor.kind;
+    editor=null;
+    if(k==='pl') savePlaylist(Object.assign({},playlist,{entries:playlist.entries.filter(function(x){return x.id!==d.id;})}));
+    else commitSchedule(((snapshot&&snapshot.schedule)||[]).filter(function(x){return x.id!==d.id;}));
+  }
+  function indexById(arr,id){ for(var i=0;i<arr.length;i++){ if(arr[i].id===id) return i; } return -1; }
+  function findById(arr,id){ var i=indexById(arr||[],id); return i<0?null:arr[i]; }
+  // An edit works on a COPY. Editing the live object would mutate the model behind the list, so
+  // Cancel would cancel nothing.
+  function cloneOf(e){ return JSON.parse(JSON.stringify(e)); }
+
+  // ---- Schedule (in-project) --------------------------------------------------------------------
+  // This round-trips through the app (host.show then ProjectData.schedule) and returns on the next
+  // snapshot about a second later. Paint it locally at once, or Save looks ignored.
+  function commitSchedule(sc){ if(snapshot) snapshot.schedule=sc; api('/schedule',{schedule:sc}); render(); }
+
   function renderSchedule(){
-    var sched=(snapshot&&snapshot.schedule)||[];
-    var scenes=(snapshot&&snapshot.scenes)||[];
-    var h='<h3>In-project schedule</h3>';
-    h+='<div class="muted" style="margin-bottom:8px">Fires within the loaded project at a wall-clock time. Runs in broadcast too.</div>';
-    if(!sched.length) h+='<div class="muted">No scheduled entries yet.</div>';
-    for(var i=0;i<sched.length;i++){ var e=sched[i];
-      h+='<div class="list-item"><div class="grow"><div class="name">'+esc(e.time||'--:--')+' &middot; '+esc(actionLabel(e.action,scenes))+'</div>'+
-         '<div class="meta">'+daysLabel(e.days)+'</div></div>'+
+    var sched=((snapshot&&snapshot.schedule)||[]).slice().sort(cmpEntries);
+    var h='<h3>Inside this project</h3>';
+    h+='<div class="muted" style="margin-bottom:10px">Wall-clock actions saved with the project. They run in broadcast too.</div>';
+    if(!sched.length) h+='<div class="muted">Nothing scheduled yet.</div>';
+    for(var i=0;i<sched.length;i++){
+      var e=sched[i], sp=isSpent(e);
+      h+='<div class="list-item'+(sp?' spent':'')+'">'+
+         '<button class="row-btn" data-act="sched-edit" data-id="'+esc(e.id)+'">'+
+           '<span class="name">'+esc(e.time||'--:--')+' &middot; '+esc(actionLabel(e.action))+'</span>'+
+           '<span class="meta">'+esc(describeRepeat(e))+(sp?' &middot; already ran':'')+'</span></button>'+
          '<button class="sw '+(e.enabled?'on':'')+'" data-act="sched-toggle" data-id="'+esc(e.id)+'"><i></i></button>'+
-         '<button class="btn bad" data-act="sched-del" data-id="'+esc(e.id)+'">Del</button></div>';
+         '<button class="btn" data-act="sched-edit" data-id="'+esc(e.id)+'">Edit</button></div>';
     }
-    h+='<div class="card" style="margin-top:12px"><h3>Add entry</h3>'+
-       '<label>Time</label><input id="sc-time" type="time" value="09:00" />'+
-       '<label>Days (none = every day)</label><div class="days" id="sc-days">'+dayChips()+'</div>'+
-       '<label>Action</label><select id="sc-act"><option value="stop">Transport: Stop</option><option value="play">Transport: Play</option>'+
-       sceneOptions(scenes)+'</select>'+
-       '<button class="btn pri" style="width:100%;margin-top:12px" data-act="sched-add">Add to schedule</button></div>';
+    h+='<button class="btn pri" style="width:100%;margin-top:14px" data-act="sched-new">Add an action</button>';
     shell(h);
   }
-  function actionLabel(a,scenes){ if(!a) return '?'; if(a.kind==='transport') return 'Transport '+a.action; if(a.kind==='recallScene'){ var n=a.ref; for(var i=0;i<scenes.length;i++){ if(scenes[i].id===a.ref) n=scenes[i].name; } return 'Recall '+n; } return a.kind; }
-  function sceneOptions(scenes){ var o=''; for(var i=0;i<scenes.length;i++){ o+='<option value="scene:'+esc(scenes[i].id)+'">Recall: '+esc(scenes[i].name)+'</option>'; } return o; }
-  function actionFromSelect(v){ if(v==='stop') return {kind:'transport',action:'stop'}; if(v==='play') return {kind:'transport',action:'play'}; if(v.indexOf('scene:')===0) return {kind:'recallScene',ref:v.slice(6)}; return {kind:'transport',action:'stop'}; }
+  function newSchedule(){ openEditor('sched',{id:'s'+Date.now(),enabled:true,time:'09:00',days:[],repeat:'daily',action:{kind:'transport',action:'stop'}},true); }
+  function editSchedule(id){ var e=findById((snapshot&&snapshot.schedule)||[],id); if(e) openEditor('sched',cloneOf(e),false); }
+  function toggleSchedule(id){ commitSchedule(((snapshot&&snapshot.schedule)||[]).map(function(e){ return e.id===id?Object.assign({},e,{enabled:!e.enabled}):e; })); }
 
-  function addSchedule(){
-    var sched=((snapshot&&snapshot.schedule)||[]).slice();
-    var time=(document.getElementById('sc-time')||{}).value||'09:00';
-    var days=readDays('sc-days');
-    var act=actionFromSelect((document.getElementById('sc-act')||{}).value||'stop');
-    sched.push({ id:'s'+Date.now(), enabled:true, time:time, days:days, action:act });
-    api('/schedule',{schedule:sched});
+  function actionLabel(a){
+    if(!a) return '?';
+    if(a.kind==='transport') return 'Transport '+a.action;
+    var scenes=(snapshot&&snapshot.scenes)||[], banks=(snapshot&&snapshot.banks)||[], i, b, cs, c;
+    if(a.kind==='recallScene'){ for(i=0;i<scenes.length;i++){ if(scenes[i].id===a.ref) return 'Recall '+scenes[i].name; } return 'Recall '+a.ref; }
+    if(a.kind==='fireCue'){ for(b=0;b<banks.length;b++){ cs=banks[b].cues||[]; for(c=0;c<cs.length;c++){ if(cs[c].id===a.ref) return 'Fire '+cs[c].name; } } return 'Fire '+a.ref; }
+    return a.kind;
   }
-  function toggleSchedule(id){ var sched=((snapshot&&snapshot.schedule)||[]).map(function(e){ return e.id===id?Object.assign({},e,{enabled:!e.enabled}):e; }); api('/schedule',{schedule:sched}); }
-  function delSchedule(id){ var sched=((snapshot&&snapshot.schedule)||[]).filter(function(e){ return e.id!==id; }); api('/schedule',{schedule:sched}); }
+  function actionValue(a){
+    if(!a) return 'stop';
+    if(a.kind==='transport') return a.action;
+    if(a.kind==='recallScene') return 'scene:'+a.ref;
+    if(a.kind==='fireCue') return 'cue:'+a.ref;
+    return 'stop';
+  }
+  function actionOptions(cur){
+    var v=actionValue(cur), scenes=(snapshot&&snapshot.scenes)||[], banks=(snapshot&&snapshot.banks)||[], i, b, cs, c;
+    function opt(val,lab){ return '<option value="'+esc(val)+'"'+(val===v?' selected':'')+'>'+esc(lab)+'</option>'; }
+    var o=opt('play','Transport: Play')+opt('pause','Transport: Pause')+opt('stop','Transport: Stop');
+    for(i=0;i<scenes.length;i++) o+=opt('scene:'+scenes[i].id,'Recall scene: '+scenes[i].name);
+    for(b=0;b<banks.length;b++){ cs=banks[b].cues||[]; for(c=0;c<cs.length;c++) o+=opt('cue:'+cs[c].id,'Fire cue: '+cs[c].name); }
+    return o;
+  }
+  function actionFromSelect(v){
+    if(v==='play'||v==='pause'||v==='stop') return {kind:'transport',action:v};
+    if(v.indexOf('scene:')===0) return {kind:'recallScene',ref:v.slice(6)};
+    if(v.indexOf('cue:')===0) return {kind:'fireCue',ref:v.slice(4)};
+    return {kind:'transport',action:'stop'};
+  }
 
-  // ---- Projects (playlist) ----
-  var scanned=[];
+  // ---- Projects (the unattended playlist) -------------------------------------------------------
   function renderProjects(){
-    var h='<h3>Project playlist &mdash; unattended broadcast</h3>';
-    h+='<div class="card"><div class="list-item" style="margin:0;border:none;padding:0;background:none">'+
-       '<div class="grow"><div class="name">Playlist</div><div class="meta">'+(playlist.enabled?'Active (switches projects at each time in broadcast)':'Off')+'</div></div>'+
-       '<button class="sw '+(playlist.enabled?'on':'')+'" data-act="pl-enable" data-on="'+(playlist.enabled?'0':'1')+'"><i></i></button></div>'+
-       '<div class="row" style="margin-top:10px"><button class="btn pri" data-act="pl-start">Start in broadcast now</button></div>'+
-       (plStatus.currentPath?('<div class="hint">Now: '+esc(baseName(plStatus.currentPath))+(plStatus.nextPath?('  &middot;  Next: '+esc(baseName(plStatus.nextPath))+' at '+esc(plStatus.nextAt||'')):'')+'</div>'):'')+
-       '</div>';
-    // scan
-    h+='<div class="card" style="margin-top:12px"><h3>Find projects</h3><label>Folder path on the show machine</label>'+
-       '<input id="pl-folder" placeholder="C:\\\\Shows" value="'+esc(playlist.folder||'')+'" />'+
-       '<button class="btn" style="width:100%;margin-top:8px" data-act="pl-scan">Scan folder</button>';
-    if(scanned.length){ h+='<div style="margin-top:10px">'; for(var i=0;i<scanned.length;i++){ var p=scanned[i];
-      h+='<div class="list-item"><div class="grow"><div class="name">'+esc(p.name)+'</div><div class="meta">'+(p.isFolder?'portable folder':'file')+'</div></div>'+
-         '<button class="btn" data-act="pl-add" data-path="'+esc(p.path)+'" data-name="'+esc(p.name)+'">Add</button>'+
-         '<button class="btn" data-act="pl-load" data-path="'+esc(p.path)+'">Load</button></div>'; } h+='</div>'; }
-    h+='</div>';
-    // playlist entries
-    h+='<h3>Playlist ('+playlist.entries.length+')</h3>';
-    if(!playlist.entries.length) h+='<div class="muted">Add projects above, each with a time of day.</div>';
     var nowP=plStatus.currentPath, nextP=plStatus.nextPath;
-    for(var j=0;j<playlist.entries.length;j++){ var e=playlist.entries[j];
-      var badge=''; if(nowP&&samePath(e.projectPath,nowP)) badge='<span class="badge now">NOW</span>'; else if(nextP&&samePath(e.projectPath,nextP)) badge='<span class="badge next">NEXT</span>';
-      h+='<div class="list-item"><div class="grow"><div class="name">'+esc(e.time||'--:--')+' &middot; '+esc(e.name||baseName(e.projectPath))+' '+badge+'</div>'+
-         '<div class="meta">'+daysLabel(e.days)+'</div></div>'+
+    var h='<div class="card"><div class="list-item" style="margin:0;border:none;padding:0;background:none">'+
+      '<div class="grow"><div class="name">Unattended switching</div>'+
+      '<div class="meta">'+(playlist.enabled?'On &mdash; the machine loads whichever project is due':'Off &mdash; nothing below will fire')+'</div></div>'+
+      '<button class="sw '+(playlist.enabled?'on':'')+'" data-act="pl-enable" data-on="'+(playlist.enabled?'0':'1')+'"><i></i></button></div>'+
+      '<div class="hint" style="margin-top:8px">Now: <b>'+esc(nowP?baseName(nowP):'\u2014')+'</b>'+
+      (nextP?('<br/>Next: <b>'+esc(baseName(nextP))+'</b> '+esc(plStatus.nextAt||'')):'')+'</div>'+
+      '<div class="row" style="margin-top:10px"><button class="btn" data-act="pl-start">Start in broadcast now</button></div></div>';
+
+    var entries=playlist.entries.slice().sort(cmpEntries);
+    h+='<h3 style="margin-top:16px">Scheduled ('+entries.length+')</h3>';
+    if(!entries.length) h+='<div class="muted">Nothing scheduled. Pick a project below and tap Schedule.</div>';
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i], sp=isSpent(e), badge='';
+      if(nowP&&samePath(e.projectPath,nowP)) badge=' <span class="badge now">NOW</span>';
+      else if(nextP&&samePath(e.projectPath,nextP)) badge=' <span class="badge next">NEXT</span>';
+      h+='<div class="list-item'+(sp?' spent':'')+'">'+
+         '<button class="row-btn" data-act="pl-edit" data-id="'+esc(e.id)+'">'+
+           '<span class="name">'+esc(e.time||'--:--')+' &middot; '+esc(e.name||baseName(e.projectPath))+badge+'</span>'+
+           '<span class="meta">'+esc(describeRepeat(e))+(sp?' &middot; already ran':'')+'</span></button>'+
          '<button class="sw '+(e.enabled?'on':'')+'" data-act="pl-toggle" data-id="'+esc(e.id)+'"><i></i></button>'+
-         '<button class="btn bad" data-act="pl-del" data-id="'+esc(e.id)+'">Del</button></div>';
+         '<button class="btn" data-act="pl-edit" data-id="'+esc(e.id)+'">Edit</button></div>';
     }
-    // add time for pending
-    h+='<div class="card" style="margin-top:12px"><h3>Default time for &ldquo;Add&rdquo;</h3>'+
-       '<label>Time</label><input id="pl-time" type="time" value="09:00" />'+
-       '<label>Days (none = every day)</label><div class="days" id="pl-days">'+dayChips()+'</div>'+
-       '<div class="hint">Set the time, then tap &ldquo;Add&rdquo; on a scanned project above.</div></div>';
+
+    h+='<h3 style="margin-top:16px">Projects on this machine</h3>';
+    h+='<div class="card"><label>Folder &mdash; scanned including every subfolder</label>'+
+       '<div class="row"><input id="pl-folder" style="flex:1;min-width:0" placeholder="D:\\\\Shows" value="'+esc(scan.root||playlist.folder||'')+'" />'+
+       '<button class="btn" data-act="pl-scan">Scan</button></div>';
+    if((scan.projects||[]).length>8) h+='<input id="pl-filter" placeholder="Filter by name&hellip;" value="'+esc(projFilter)+'" style="margin-top:8px" />';
+    h+='<div id="pl-projects" style="margin-top:8px">'+projectRows()+'</div></div>';
     shell(h);
   }
-  function scanFolder(){ var f=(document.getElementById('pl-folder')||{}).value||''; api('/scan',{folder:f}).then(function(r){return r.json();}).then(function(j){ scanned=j.projects||[]; savePlaylist(Object.assign({},playlist,{folder:f}),true); renderProjects(); }); }
-  function addPlaylist(path,name){ var time=(document.getElementById('pl-time')||{}).value||'09:00'; var days=readDays('pl-days');
-    var entries=playlist.entries.slice(); entries.push({ id:'p'+Date.now(), enabled:true, projectPath:path, name:name, time:time, days:days });
-    savePlaylist(Object.assign({},playlist,{entries:entries})); }
-  function togglePl(id){ var entries=playlist.entries.map(function(e){ return e.id===id?Object.assign({},e,{enabled:!e.enabled}):e; }); savePlaylist(Object.assign({},playlist,{entries:entries})); }
-  function delPl(id){ var entries=playlist.entries.filter(function(e){ return e.id!==id; }); savePlaylist(Object.assign({},playlist,{entries:entries})); }
+
+  // Its own function because it is repainted ALONE on every keystroke of the filter — the
+  // surrounding form, and the caret in the filter itself, have to survive typing.
+  function projectRows(){
+    var list=scan.projects||[], f=projFilter.toLowerCase(), h='', shown=0;
+    for(var i=0;i<list.length;i++){
+      var p=list[i];
+      if(f && (p.name+' '+(p.rel||'')).toLowerCase().indexOf(f)<0) continue;
+      shown++;
+      h+='<div class="list-item"><div class="grow"><div class="name">'+esc(p.name)+'</div>'+
+         '<div class="meta">'+(p.rel?esc(p.rel)+' &middot; ':'')+(p.isFolder?'portable folder':'file')+'</div></div>'+
+         '<button class="btn" data-act="pl-add" data-path="'+esc(p.path)+'" data-name="'+esc(p.name)+'">Schedule</button>'+
+         '<button class="btn" data-act="pl-load" data-path="'+esc(p.path)+'" data-name="'+esc(p.name)+'">Load</button></div>';
+    }
+    if(!list.length) return '<div class="muted">No projects yet. Type the folder your shows live in and tap Scan &mdash; subfolders are included.</div>';
+    if(!shown) return '<div class="muted">No project matches that filter.</div>';
+    // A silently-capped scan looks exactly like "that project is not there", which is the worst thing
+    // a project picker can say.
+    if(scan.truncated) h+='<div class="hint">Stopped after '+list.length+' projects &mdash; point at a narrower folder to see the rest.</div>';
+    return h;
+  }
+
+  function projectOptions(cur){
+    var list=scan.projects||[], o='', found=false, i, p, sel;
+    for(i=0;i<list.length;i++){
+      p=list[i]; sel=samePath(p.path,cur); if(sel) found=true;
+      o+='<option value="'+esc(p.path)+'"'+(sel?' selected':'')+'>'+esc(p.rel?(p.rel+' / '+p.name):p.name)+'</option>';
+    }
+    // An entry can point at a project the current scan does not cover (another folder, a drive that
+    // is offline). Keep it selectable, or editing the TIME of such an entry would silently repoint it
+    // at whatever happens to be first in the list.
+    if(cur&&!found) o='<option value="'+esc(cur)+'" selected>'+esc(baseName(cur))+' (not in the scanned folder)</option>'+o;
+    if(!o) o='<option value="">(scan a folder first)</option>';
+    return o;
+  }
+
+  function scanFolder(){
+    var f=(document.getElementById('pl-folder')||{}).value||'';
+    var box=document.getElementById('pl-projects');
+    if(box) box.innerHTML='<div class="muted">Scanning '+esc(f)+' and its subfolders&hellip;</div>';
+    api('/scan',{folder:f}).then(function(r){ return r.json(); }).then(function(j){
+      if(j&&j.projects) scan=j;
+      projFilter=''; render();
+    }).catch(function(){ var b=document.getElementById('pl-projects'); if(b) b.innerHTML='<div class="muted">Could not scan that folder.</div>'; });
+  }
+
+  function newPlaylistEntry(path,name){ openEditor('pl',{id:'p'+Date.now(),enabled:true,projectPath:path,name:name||'',time:'09:00',days:[],repeat:'daily'},true); }
+  function editPlaylistEntry(id){ var e=findById(playlist.entries,id); if(e) openEditor('pl',cloneOf(e),false); }
+  function togglePl(id){ savePlaylist(Object.assign({},playlist,{entries:playlist.entries.map(function(e){ return e.id===id?Object.assign({},e,{enabled:!e.enabled}):e; })})); }
   function enablePl(on){ savePlaylist(Object.assign({},playlist,{enabled:on})); }
-  function savePlaylist(p,silent){ playlist=p; api('/playlist',{playlist:p}); if(!silent) renderProjects(); }
+  function savePlaylist(p){ playlist=p; api('/playlist',{playlist:p}); render(); }
+  // Loading RELAUNCHES the machine into broadcast on that project — it stops whatever is running in
+  // front of an audience. Sitting next to a "Schedule" button on a touch screen, that is one mis-tap
+  // away, so it asks. In the page, never the browser's own dialog: a native confirm is unthemed,
+  // blocks the JS thread (the SSE stream with it) and, behind a fullscreen projector on the show
+  // machine, can hang an operator mid-show. Same rule the app itself is held to.
+  // { title, text, label, danger, run } — 'run' is a plain closure, so ONE sheet serves every
+  // irreversible action on this page instead of each one growing its own dialog.
+  var ask=null;
+  function confirmThen(title,text,label,danger,run){ ask={title:title,text:text,label:label,danger:!!danger,run:run}; render(); }
+  function loadNow(path,name){
+    confirmThen('Load a different project?',
+      'Load "'+(name||baseName(path))+'" now? The app restarts in broadcast mode and the show that is running stops.',
+      'Load it', true, function(){ api('/playlist/load',{path:path}); });
+  }
+  function askHtml(){
+    return '<div class="sheet"><div class="body">'+
+      '<h2>'+esc(ask.title)+'</h2>'+
+      '<div class="muted" style="margin:6px 0 4px">'+esc(ask.text)+'</div>'+
+      '<div class="foot"><button class="btn" data-act="ask-no">Cancel</button>'+
+      '<button class="btn '+(ask.danger?'bad':'pri')+'" data-act="ask-yes">'+esc(ask.label)+'</button></div></div></div>';
+  }
+
+  // An open sheet is appended AFTER shell() rewrites <main>, so every render keeps it on screen.
+  function paintSheets(){
+    if(editor) app.insertAdjacentHTML('beforeend', editorHtml());
+    if(ask) app.insertAdjacentHTML('beforeend', askHtml());
+  }
 
   // ---- Metrics ----
   function renderMetrics(){
@@ -397,15 +722,28 @@ export const CLIENT_HTML = `<!doctype html>
 
   // ---- shared helpers ----
   function baseName(p){ if(!p) return ''; p=String(p).replace(/[\\\\/]+$/,''); var i=Math.max(p.lastIndexOf('/'),p.lastIndexOf('\\\\')); return i>=0?p.slice(i+1):p; }
-  function samePath(a,b){ return baseName(a).toLowerCase()===baseName(b).toLowerCase() && String(a).toLowerCase()===String(b).toLowerCase(); }
+  // Windows hands us both separators and a stray trailing one, so a raw string compare silently
+  // failed and the NOW / NEXT badges never appeared. Same normalisation as scheduler.ts's 'norm'.
+  function normPath(p){ return String(p||'').replace(/\\\\/g,'/').toLowerCase().replace(/\\/+$/,''); }
+  function samePath(a,b){ return !!a && !!b && normPath(a)===normPath(b); }
   var DNAMES=['S','M','T','W','T','F','S'];
-  function dayChips(){ var o=''; for(var i=0;i<7;i++){ o+='<button type="button" data-day="'+i+'">'+DNAMES[i]+'</button>'; } return o; }
+  var DFULL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Pre-selected from the entry being edited. It used to take no argument, which is another way of
+  // saying the chips could only ever describe a NEW entry — you could not see, let alone change,
+  // the days an existing one already had.
+  function dayChips(sel){
+    sel=sel||[]; var o='';
+    for(var i=0;i<7;i++){ o+='<button type="button" data-day="'+i+'" class="'+(sel.indexOf(i)>=0?'on':'')+'">'+DNAMES[i]+'</button>'; }
+    return o;
+  }
   function readDays(id){ var el=document.getElementById(id); if(!el) return []; var out=[]; var b=el.querySelectorAll('button'); for(var i=0;i<b.length;i++){ if(b[i].classList.contains('on')) out.push(parseInt(b[i].getAttribute('data-day'),10)); } return out; }
-  function daysLabel(d){ if(!d||!d.length) return 'Every day'; var names=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; return d.map(function(x){return names[x];}).join(' '); }
 
   // ---- render dispatch ----
   function render(){
     if(!token){ pairView(); return; }
+    // Outranks every tab: the app is on its way out, and a transport screen wired to a server that
+    // is closing is not something to offer.
+    if(stopping){ stoppingView(); return; }
     if(tab==='control') renderControl();
     else if(tab==='states') renderStates();
     else if(tab==='schedule') renderSchedule();
@@ -417,27 +755,52 @@ export const CLIENT_HTML = `<!doctype html>
   // ---- one delegated click handler (no inline JS → no quoting hazards) ----
   document.addEventListener('click', function(ev){
     var t=ev.target.closest('[data-act],[data-day]'); if(!t) return;
-    if(t.hasAttribute('data-day')){ t.classList.toggle('on'); return; }
+    if(t.hasAttribute('data-day')){
+      t.classList.toggle('on');
+      if(editor) editor.draft.days=readDays('ed-days'); // the chips ARE the model while a sheet is open
+      return;
+    }
     var a=t.getAttribute('data-act');
     if(a==='pair') doPair();
     else if(a==='tab'){ tab=t.getAttribute('data-tab'); render(); }
     else if(a==='tp') cmd({kind:'transport',action:t.getAttribute('data-a')});
     else if(a==='scene') cmd({kind:'recallScene',ref:t.getAttribute('data-ref')});
-    else if(a==='col') cmd({kind:'fireColumn',bank:t.getAttribute('data-bank'),col:parseInt(t.getAttribute('data-col'),10)});
     else if(a==='cue') cmd({kind:'fireCue',ref:t.getAttribute('data-ref')});
     else if(a==='fsm') cmd({kind:'setFsmEnabled',on:t.getAttribute('data-on')==='1'});
     else if(a==='trans') cmd({kind:'triggerTransition',id:t.getAttribute('data-id')});
     else if(a==='enter') cmd({kind:'enterState',id:t.getAttribute('data-id')});
-    else if(a==='sched-add') addSchedule();
+    else if(a==='sched-new') newSchedule();
+    else if(a==='sched-edit') editSchedule(t.getAttribute('data-id'));
     else if(a==='sched-toggle') toggleSchedule(t.getAttribute('data-id'));
-    else if(a==='sched-del') delSchedule(t.getAttribute('data-id'));
     else if(a==='pl-enable') enablePl(t.getAttribute('data-on')==='1');
     else if(a==='pl-scan') scanFolder();
-    else if(a==='pl-add') addPlaylist(t.getAttribute('data-path'),t.getAttribute('data-name'));
-    else if(a==='pl-load') api('/playlist/load',{path:t.getAttribute('data-path')});
+    else if(a==='pl-add') newPlaylistEntry(t.getAttribute('data-path'),t.getAttribute('data-name'));
+    else if(a==='pl-edit') editPlaylistEntry(t.getAttribute('data-id'));
+    else if(a==='pl-load') loadNow(t.getAttribute('data-path'),t.getAttribute('data-name'));
     else if(a==='pl-start') api('/playlist/start',{});
     else if(a==='pl-toggle') togglePl(t.getAttribute('data-id'));
-    else if(a==='pl-del') delPl(t.getAttribute('data-id'));
+    // ── the editor sheet ──
+    // Every one of these re-reads the form FIRST: the sheet re-renders when the scheme changes, and
+    // an unread field is a field the operator has to type twice.
+    else if(a==='ed-rep'){ readEditor(); editor.draft.repeat=t.getAttribute('data-rep'); render(); }
+    else if(a==='ed-enable'){ readEditor(); editor.draft.enabled=!editor.draft.enabled; render(); }
+    else if(a==='ed-save') saveEditor();
+    else if(a==='ed-del') deleteEditor();
+    else if(a==='ed-cancel'){ editor=null; render(); }
+    else if(a==='pw-restart') askRestart();
+    else if(a==='pw-shutdown') askShutdown();
+    else if(a==='pw-back'){ stopping=null; render(); }
+    else if(a==='ask-no'){ ask=null; render(); }
+    else if(a==='ask-yes'){ var q=ask; ask=null; render(); try{ q.run(); }catch(e){ console.error(e); } }
+  });
+
+  // The project filter repaints ONLY the list it filters, so the caret stays where it is.
+  document.addEventListener('input', function(ev){
+    var t=ev.target;
+    if(!t||t.id!=='pl-filter') return;
+    projFilter=t.value||'';
+    var box=document.getElementById('pl-projects');
+    if(box) box.innerHTML=projectRows();
   });
 
   render();

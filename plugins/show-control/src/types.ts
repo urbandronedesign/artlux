@@ -2,6 +2,9 @@
 // main and renderer halves import them. The wire protocol between the served tablet PWA and the app
 // is JSON over HTTP+SSE (see server.ts); these are the payload shapes.
 
+import type { Recurring } from './recurrence';
+export type { Recurring, RepeatMode } from './recurrence';
+
 // ─── Commands the tablet / scheduler send into the show engine ────────────────────────────────
 // Each maps 1:1 onto an existing renderer service call in dispatch.ts (parity with oscController).
 export type ShowCommand =
@@ -67,13 +70,15 @@ export interface ShowStatus {
 }
 
 // ─── In-project schedule (persisted in ProjectData.schedule) ──────────────────────────────────
-// Fires a ShowCommand at a wall-clock time on selected weekdays, within the loaded project. Ticked
+// Fires a ShowCommand at a wall-clock time on a repeating scheme, within the loaded project. Ticked
 // renderer-side (this app disables renderer timer throttling), so it runs in broadcast too.
-export interface ScheduleEntry {
+// The scheme (`repeat` / `date`, plus the legacy `days`) lives in recurrence.ts and is SHARED with
+// the playlist below — one meaning of "every Monday", evaluated by one function, in both layers.
+export interface ScheduleEntry extends Recurring {
   id: string;
   enabled: boolean;
   time: string;       // "HH:MM" 24h local
-  days: number[];     // 0=Sun … 6=Sat; empty = every day
+  days: number[];     // 0=Sun … 6=Sat; empty = every day (weekly scheme)
   action: ShowCommand;
   name?: string;
 }
@@ -81,12 +86,12 @@ export interface ScheduleEntry {
 // ─── Machine-global project playlist (userData sidecar; survives relaunch) ────────────────────
 // Time-of-day switching of the WHOLE loaded project via relaunch-per-project (robust: clean process
 // each switch). Resolved + armed in main; see playlist.ts / scheduler.ts.
-export interface PlaylistEntry {
+export interface PlaylistEntry extends Recurring {
   id: string;
   enabled: boolean;
   projectPath: string; // absolute .artlux file (portable folders resolve to <folder>/project.artlux)
   time: string;        // "HH:MM"
-  days: number[];      // 0..6; empty = every day
+  days: number[];      // 0..6; empty = every day (weekly scheme)
   name?: string;
 }
 export interface Playlist {
@@ -97,11 +102,19 @@ export interface Playlist {
 export interface PlaylistStatus {
   currentPath: string | null;  // the project loaded now (from --project=)
   nextPath: string | null;     // the next scheduled project
-  nextAt: string | null;       // ISO-ish "HH:MM" of the next switch (informational)
+  // WHEN, said the way a human reads it ("today 18:00", "Mon 09:00", "2026-09-20 10:00"). It used to
+  // be a bare "HH:MM", which on a list mixing daily / weekly / one-off entries cannot be read at all.
+  nextAt: string | null;
+  nextAtMs: number | null;     // the same instant, for a client that wants to count down
 }
 
-// A project discovered by scanning a folder.
-export interface ProjectInfo { path: string; name: string; isFolder: boolean }
+// A project discovered by scanning a folder (recursively — `rel` is the sub-path it was found under,
+// '' at the scan root, and is what disambiguates the four projects all named "Main" in a venue tree).
+export interface ProjectInfo { path: string; name: string; isFolder: boolean; rel: string }
+
+// The outcome of one scan. `truncated` is not cosmetic: a silently-capped scan of a big drive looks
+// exactly like "that project isn't there", which is the worst thing a project picker can say.
+export interface ScanResult { root: string; projects: ProjectInfo[]; truncated: boolean }
 
 // ─── Metrics (the Grafana series, delivered natively) ─────────────────────────────────────────
 export interface EngineMetrics { fps: number; pps: number; universes: number; up: boolean }
@@ -141,6 +154,10 @@ export type ServerEvent =
   | { t: 'status'; status: ShowStatus }
   | { t: 'metrics'; metrics: MetricsSnapshot }
   | { t: 'playlist'; playlist: Playlist; status: PlaylistStatus }
+  // The projects this machine can load. Streamed (not fetched on demand) because the tablet's project
+  // list used to live only in a local variable: leaving the tab, or any reconnect, emptied it, and the
+  // operator had to retype a folder path on a touch keyboard to get it back.
+  | { t: 'projects'; scan: ScanResult }
   | { t: 'devices'; devices: DeviceInfo[] }
   | { t: 'locked'; locked: boolean };
 

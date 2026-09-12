@@ -7,6 +7,7 @@
 // The playlist scheduler runs regardless of the tablet server (unattended broadcast must work even
 // with the remote disabled). Everything graceful-degrades: a failed server bind logs and disables.
 
+import { app } from 'electron';
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
 import * as server from './server';
 import * as scheduler from './scheduler';
@@ -38,6 +39,15 @@ export const plugin: MainPlugin = {
       // asks the renderer for the live one, so a cache that is empty (server up before the project
       // loaded) or stale (a window reload we never saw) cannot survive the connection.
       onNeedSnapshot: () => ipc.send('showctl:request-snapshot'),
+      // DEFERRED BY A TICK, deliberately. Both of these end the process, and `send()` has only
+      // written to the socket — quitting synchronously would tear the server down before the
+      // response reached the tablet, so the remote would show a network error for an action that
+      // in fact succeeded. 250 ms is far more than a LAN response needs and is invisible to an
+      // operator. The quit itself goes through the app's normal path, so main's `will-quit`
+      // teardown runs and marks the exit deliberate — without that, the OS watchdog task would
+      // start the show again about a minute later (see src/main/watchdog.ts).
+      onShutdown: () => { setTimeout(() => { console.log('[show-control] shutdown requested by a remote'); app.quit(); }, 250); },
+      onRestart: () => { setTimeout(() => { console.log('[show-control] restart requested by a remote'); scheduler.relaunchSameMode(); }, 250); },
     };
 
     // Playlist scheduler: pushes current/next status to any connected tablet, and (in broadcast) does
@@ -70,18 +80,29 @@ export const plugin: MainPlugin = {
     ipc.handle('showctl:playlist-get', () => ({ playlist: playlistStore.getPlaylist(), status: scheduler.status() }));
     ipc.on('showctl:playlist-set', (p) => {
       playlistStore.setPlaylist(p as Playlist);
+      server.invalidateScan((p as Playlist)?.folder);
       // Same follow-up the tablet's own save does (server.ServerHandlers.onPlaylistChanged): the
       // scheduler re-reads the store on its next tick, so all that is owed is a status push to any
       // tablet currently watching, so both surfaces agree on "what's next".
       server.pushPlaylistStatus(scheduler.status());
     });
-    ipc.handle('showctl:scan', (folder) => projectScanner.scanProjects(String(folder ?? '')));
+    // Recursive by default (the scanner's own depth/count caps bound it). Returns a ScanResult, so
+    // the desktop panel can say "500 found, there are more" instead of silently showing a capped list.
+    ipc.handle('showctl:scan', (folder) => {
+      const r = projectScanner.scanProjects(String(folder ?? ''));
+      server.pushProjects(r);           // this becomes the cached list every connected tablet sees
+      return r;
+    });
     // Pulled ~1 Hz by the desktop Metrics panel while it is mounted (the tablet gets the same payload
     // pushed over SSE — one assembler, two consumers).
     ipc.handle('showctl:metrics-get', () => ({
       engine: lastEngine, render: lastRender, system: metricsSampler.sample(),
       watchdog: lastWatchdog, mode: metricsSampler.appMode(), version: metricsSampler.appVersion(), ts: Date.now(),
     }));
+
+    // Load a project NOW from the desktop panel (the tablet's POST /playlist/load equivalent). Same
+    // relaunch-into-broadcast the scheduler performs, so there is one way to switch project, not two.
+    ipc.on('showctl:playlist-load', (path) => { const p = String(path ?? ''); if (p) scheduler.relaunchBroadcast(p); });
 
     ipc.handle('showctl:lan-info', () => server.lanInfo());
     ipc.handle('showctl:regen-pin', () => { auth.regeneratePin(); return server.lanInfo(); });

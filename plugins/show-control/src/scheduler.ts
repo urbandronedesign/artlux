@@ -10,7 +10,8 @@
 
 import { app } from 'electron';
 import { relaunchArgs } from '../../../src/main/runProfile'; // host relaunch seam (main-side, in-process)
-import { getPlaylist, resolve, minuteOfWeek } from './playlist';
+import { getPlaylist, resolve } from './playlist';
+import { describeWhen } from './recurrence';
 import type { PlaylistStatus } from './types';
 
 const argv = process.argv.slice(1);
@@ -40,14 +41,38 @@ export function relaunchBroadcast(projectPath: string): void {
   app.exit(0);
 }
 
+// Restart THIS launch — same mode, same project. Used by the remote's "Restart the app", which is
+// the recovery an operator actually wants from the back of a room: a wedged show comes back in a
+// fresh process without anyone walking to the machine.
+//
+// NOT relaunchBroadcast(): that one forces `--broadcast`, which is right when the playlist switches
+// project and wrong here — restarting the EDITOR would silently turn the machine into a show. The
+// flags are re-emitted from this process's own argv, on top of the host's relaunchArgs() seam (the
+// same builder every other relaunch site is required to use).
+export function relaunchSameMode(): void {
+  if (relaunching) return;
+  relaunching = true;
+  const args = relaunchArgs();
+  if (IS_BROADCAST) args.push('--broadcast');
+  if (CURRENT_PROJECT) args.push(`--project=${CURRENT_PROJECT}`);
+  console.log('[show-control] relaunch → same mode', IS_BROADCAST ? 'broadcast' : 'editor', CURRENT_PROJECT);
+  try { app.releaseSingleInstanceLock(); } catch { /* ignore */ }
+  app.relaunch({ args });
+  app.exit(0);
+}
+
 // Compute current/next status (informational; drives the tablet header).
 export function status(): PlaylistStatus {
   const pl = getPlaylist();
-  const { due, next } = resolve(minuteOfWeek(new Date()), pl.entries);
+  const now = new Date();
+  const { next } = resolve(now, pl.entries);
   return {
     currentPath: CURRENT_PROJECT || null,
     nextPath: next?.entry.projectPath ?? null,
-    nextAt: next?.entry.time ?? null,
+    // "today 18:00" / "Mon 09:00" / "2026-09-20 20:00" — the DAY matters now that an entry can be
+    // weekly or a one-off, and a bare "18:00" on such a list cannot be read.
+    nextAt: next ? describeWhen(next.at, now) : null,
+    nextAtMs: next?.at ?? null,
   };
 }
 
@@ -55,7 +80,7 @@ export function status(): PlaylistStatus {
 // If nothing is due (empty/disabled playlist) this is a no-op.
 export function startBroadcast(): void {
   const pl = getPlaylist();
-  const { due } = resolve(minuteOfWeek(new Date()), pl.entries);
+  const { due } = resolve(new Date(), pl.entries);
   if (due) relaunchBroadcast(due.entry.projectPath);
 }
 
@@ -64,7 +89,7 @@ function tick(): void {
   // Push status every tick so a freshly-connected tablet always has current/next.
   onStatus?.(status());
   if (!IS_BROADCAST || !pl.enabled) return;
-  const { due } = resolve(minuteOfWeek(new Date()), pl.entries);
+  const { due } = resolve(new Date(), pl.entries);
   if (!due) return;
   if (norm(due.entry.projectPath) !== norm(CURRENT_PROJECT)) {
     relaunchBroadcast(due.entry.projectPath);
