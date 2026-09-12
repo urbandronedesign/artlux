@@ -3721,6 +3721,54 @@ check(
   },
 );
 
+// -- A silent soundtrack explains itself ---------------------------------------------------------
+check(
+  'a bake judges its own sound by its OUTPUT, and the track advisory stays in videoAudio',
+  'A ticked "render the sound" and a silent file look exactly like a broken encoder. The usual cause ' +
+  'is mundane — a muted track audio strip — and it cost a whole render to find. So the runner ' +
+  'measures the samples it actually encoded and says so. It must NOT instead model what would sound: ' +
+  'that would mean re-deriving the bed, the scene audio, every layer strip, each clip flag, the ' +
+  'container-scoped solo inversion and the venue kill switch, and would be wrong the first time any ' +
+  'of them changed. Reading the output cannot be wrong. ' +
+  'The BEFORE-the-render advisory is the other half, and it lives in services/videoAudio.ts because ' +
+  'the vl: id shape and the solo scoping belong to that module — a caller re-deriving either would ' +
+  'be a second copy of the rule that silences a track. It is also deliberately a claim about TRACKS, ' +
+  'never about the file: a render carries the bed too, so "these tracks are silent" is not "the file ' +
+  'will be silent", and the stronger claim would be wrong on any show with a bed.',
+  () => {
+    const problems = [];
+    const runner = stripComments(read('plugins/bake/src/bakeRunner.ts'));
+    // The peak must be WRITTEN, not merely mentioned. Testing for the identifier alone passed a
+    // mutation that deleted the measurement and left the verdict reading a variable nothing updates
+    // — so this asks for an assignment of something other than the initial zero. The class excludes
+    // WHITESPACE deliberately: a `(?!0)` lookahead is defeated by backtracking, because \s* can match
+    // zero spaces and leave the lookahead staring at the space instead of the 0. It passed the mutation.
+    if (!/audioPeak\s*=\s*[^\s0]/.test(runner)) {
+      problems.push('bakeRunner never updates audioPeak — the soundtrack is not being measured, so a silent render would read as a broken encoder');
+    }
+    if (!/audioPeak\s*<\s*SILENCE_FLOOR/.test(runner)) {
+      problems.push('nothing compares audioPeak against the silence floor — the measurement is taken and never used');
+    }
+    if (!/offlinePull/.test(runner)) {
+      problems.push('bakeRunner no longer pulls offline audio at all');
+    }
+    if (!/audioNote\s*=/.test(runner)) problems.push('bakeRunner never sets audioNote — a silent render would say nothing');
+
+    const va = read('src/renderer/services/videoAudio.ts');
+    if (!/export function videoAudioOutlook/.test(va)) {
+      problems.push('videoAudioOutlook is gone from services/videoAudio.ts — the panel would have to re-derive what silences a track');
+    }
+    const panel = stripComments(read('plugins/bake/src/BakePanel.tsx'));
+    if (/vl:/.test(panel)) {
+      problems.push('BakePanel spells the vl: track-id prefix itself — that shape belongs to videoAudio.ts, and a second copy drifts the first time the derivation changes');
+    }
+    if (/\.audio\?\.(mute|solo)/.test(panel)) {
+      problems.push('BakePanel reads layer audio mute/solo directly — it must ask videoAudioOutlook, or the solo inversion lives in two places');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // -- A render refuses to deliver a file the show moved underneath --------------------------------
 check(
   'a bake aborts if the state machine changes state mid-render',

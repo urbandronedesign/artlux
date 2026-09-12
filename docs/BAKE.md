@@ -106,6 +106,13 @@ HRTF or speaker decode the venue hears. There is no second mixer to drift from t
   no downmix; a multichannel speaker show is folded to stereo for the file.
 - Sound is never fatal to a render. With no audio engine, or no AAC encoder on the machine, you get the
   pictures and a line saying why there is no sound.
+- **A silent file says why.** The render measures what it actually encoded, so if the soundtrack came
+  out silent it tells you — rather than leaving a ticked box and a quiet file looking like a broken
+  encoder. The usual cause is mundane: a track audio strip muted or at zero gain, a clip with its own
+  sound switched off, or *Preferences ▸ Audio ▸ Video clip audio* off on this machine.
+- And it says so **beforehand** where it can: the panel names any track you are baking whose sound
+  would not reach the file. It speaks about the *tracks*, not the file — the bed and the scene's own
+  sound arrive by another route and are unaffected by a muted track.
 
 ## After the bake
 

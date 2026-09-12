@@ -430,6 +430,18 @@ export async function run(
   }
 
   let audioNote: string | null = null;
+  // ── WAS THERE ACTUALLY ANY SOUND? ────────────────────────────────────────────────────────────────
+  // Asked of the ENCODED SAMPLES, not of the document. A second model of "what sounds" would have to
+  // re-derive the bed, the scene's own audio, every layer's audio strip, each clip's own flag, the
+  // container-scoped solo inversion and the venue's kill switch — and would be wrong the first time
+  // any of those changed. Reading the output cannot be wrong, and costs one comparison per sample.
+  //
+  // Worth reporting because the failure is silent in both senses: a ticked "render the show's sound"
+  // and a silent file look exactly like a broken encoder, when the usual cause is a muted track audio
+  // strip. (-60 dBFS, so dither or a room-tone floor still counts as sound; true digital black does
+  // not have to be exactly zero to be silence.)
+  const SILENCE_FLOOR = 0.001;
+  let audioPeak = 0;
 
   // ---- SOUND ------------------------------------------------------------------------------------
   // AAC is STEREO-ONLY on this Chromium (measured — see the plan's Phase 0), so a multichannel or
@@ -559,6 +571,10 @@ export async function run(
           trace(i, 'audio');
           const pcm = await withTimeout(audioClient.offlinePull(want), STEP_TIMEOUT_MS, 'rendering audio');
           if (pcm.length > 0) {
+            for (let k = 0; k < pcm.length; k++) {
+              const v = pcm[k] < 0 ? -pcm[k] : pcm[k];
+              if (v > audioPeak) audioPeak = v;
+            }
             const frames = pcm.length / AUDIO_CH;
             audioSource.add(new AudioSample({
               data: pcm,
@@ -665,6 +681,12 @@ export async function run(
       createdAt: new Date().toISOString(),
     });
 
+    // Only when sound was asked for AND nothing already explained its absence (no engine, no encoder).
+    if (req.audio && !audioNote && audioPeak < SILENCE_FLOOR) {
+      audioNote = 'the soundtrack came out silent: the show made no sound over this range. The usual '
+        + 'cause is a track audio strip muted or at zero gain, a clip with its own sound switched off, '
+        + 'or Preferences > Audio > Video clip audio being off on this machine.';
+    }
     return { kind: 'ok', path: written, mattePath: matteWritten, frames: done, elapsedMs: Math.round(performance.now() - startedAt), audioNote };
   } catch (e) {
     await abandon();

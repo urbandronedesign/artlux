@@ -134,6 +134,19 @@ export const BakePanel: React.FC = () => {
   const stale = !!(existing && surface
     && existing.contentSig !== bakeStore.signatureOf(surface.content, timelinePoolKey()));
   const frames = Math.max(0, Math.round((endSec - startSec) * fps));
+  // Only for a timeline-fed surface: a shader or a single video has no track audio to be muted, so
+  // there is nothing truthful to say about one. `null` layerIds means PROGRAM -- every contributing
+  // layer, which is what videoAudioOutlook already resolves.
+  const silentTracks = (() => {
+    if (!withAudio || !surface || !timelineFed) return null;
+    const ids = surface.content.type === SourceType.PROGRAM
+      ? null
+      : (surface.content.layerIds && surface.content.layerIds.length
+        ? surface.content.layerIds
+        : (surface.content.layerId ? [surface.content.layerId] : []));
+    const out = timeline.videoAudioOutlook(ids, startSec, endSec);
+    return out.checked > 0 && out.silent > 0 ? out : null;
+  })();
   // Narrowed with a statement rather than inline in the JSX: easier to read, and the discriminant is
   // a string because this tsconfig has no strictNullChecks and boolean literals do not narrow without
   // it (see types.ts).
@@ -354,6 +367,18 @@ export const BakePanel: React.FC = () => {
         <div className="text-fg-3">
           The audio device is released while rendering, so nothing sounds until it finishes. Stereo
           only &mdash; AAC in MP4 cannot carry more.
+        </div>
+      )}
+      {/* SAID BEFORE THE RENDER IS PAID FOR, and deliberately said about the TRACKS rather than about
+          the file. A render also carries the bed and the scene's own sound, so "these tracks are all
+          silent" is not "the file will be silent" -- claiming the stronger thing would be wrong on any
+          show with a bed. The render measures its own output and reports that separately. */}
+      {withAudio && silentTracks && (
+        <div className="rounded border border-line-1 bg-surface-0 p-1.5 text-fg-2">
+          {silentTracks.silent === silentTracks.checked
+            ? `Every track you are baking is silent here — ${silentTracks.reasons.join('; ')}. `
+            : `${silentTracks.silent} of ${silentTracks.checked} tracks are silent here — ${silentTracks.reasons.join('; ')}. `}
+          The bed and the scene&apos;s own sound still reach the file.
         </div>
       )}
 

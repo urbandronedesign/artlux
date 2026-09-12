@@ -5,7 +5,7 @@ import * as codecResidency from './codecResidency';
 import { clipKindRegistry, videoCodecRegistry, smTriggerRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
-import { videoAudioOf } from './videoAudio';
+import { videoAudioOf, videoAudioOutlook } from './videoAudio';
 import type { AutomationLane, Keyframe, TimelineAudio } from '../types';
 import type { AutomationTargetProvider } from '@artlux/sdk/renderer';
 import type { VideoCodecContribution } from '@artlux/sdk/renderer';
@@ -1872,6 +1872,12 @@ export const timeline = {
   // THE BOUND DOCUMENT'S VIDEO-CLIP AUDIO — the same clock as getBoundAudio (the playhead), a different
   // owner. See videoAudioOf() for the whole argument; read from `data` for exactly the reason above.
   getBoundVideoAudio(): TimelineAudio { return videoAudioOf(data); },
+  // Would these layers' sound reach a render, asked of the BOUND document before one is paid for.
+  // Thin on purpose: the rule lives in videoAudio.ts, and this only lends it `data` — which is exactly
+  // why the caller cannot read the wrong document (see the note on getBoundVideoAudio above).
+  videoAudioOutlook(layerIds: readonly string[] | null | undefined, startSec: number, endSec: number) {
+    return videoAudioOutlook(data, layerIds, startSec, endSec);
+  },
   // The GLOBAL timeline document. `data` is always the BOUND doc, so this is the engine's only handle on
   // the global one — and the SHOW clock is bounded by it. Pushed by App on every global-timeline change.
   //

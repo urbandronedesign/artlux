@@ -99,3 +99,47 @@ export function videoAudioOf(t: Timeline): TimelineAudio {
   return vaMemoOut;
 }
 
+/**
+ * WOULD THESE LAYERS' SOUND REACH A RENDER — asked before one is paid for.
+ *
+ * It lives here rather than in the bake, for one reason: the `vl:` id shape and the container-scoped
+ * solo inversion are this module's, and a caller that re-derived either would be a second copy of the
+ * rule that silences a track. So the question is answered where the answer is defined.
+ *
+ * ⚠ IT IS AN ADVISORY ABOUT TRACKS, NOT A PREDICTION ABOUT THE FILE, and the difference matters. A
+ * render also carries the bed and the scene's own audio, neither of which is in this container, so
+ * "every one of these tracks is silent" does NOT mean "the file will be silent". Saying the stronger
+ * thing would be wrong on any show with a bed — and the render measures its own output anyway.
+ * It also says nothing about the venue's kill switch (Preferences > Audio > Video clip audio), which
+ * silences this whole container whatever the document says: that lives in the audio plugin's config,
+ * and a render measures its own output afterwards, so it is reported there rather than guessed here.
+ */
+export function videoAudioOutlook(
+  t: Timeline,
+  layerIds: readonly string[] | null | undefined,
+  startSec: number,
+  endSec: number,
+): { checked: number; silent: number; reasons: string[] } {
+  const va = videoAudioOf(t);
+  // A track list of `null` means the PROGRAM — every contributing layer, which is what the derived
+  // container already holds.
+  const ids = layerIds == null ? va.tracks.map((tr) => tr.id.slice(3)) : layerIds;
+  // Solo is INVERTED and scoped to this container: any solo here makes every non-soloed track silent.
+  const anySolo = va.tracks.some((tr) => tr.solo);
+  const reasons = new Set<string>();
+  let silent = 0;
+  for (const id of ids) {
+    const trackId = `vl:${id}`;
+    const tr = va.tracks.find((x) => x.id === trackId);
+    // No derived track at all: nothing on this layer carries sound — no clip with an audio-bearing
+    // file, or every clip has its own sound switched off.
+    if (!tr) { silent++; reasons.add('no clip on it carries sound'); continue; }
+    const inRange = va.clips.some((c) => c.trackId === trackId && c.start < endSec && c.start + c.duration > startSec);
+    if (!inRange) { silent++; reasons.add('nothing sounding inside this range'); continue; }
+    if (tr.mute) { silent++; reasons.add('the track audio is muted'); continue; }
+    if (tr.gain === 0) { silent++; reasons.add('the track audio is at zero gain'); continue; }
+    if (anySolo && !tr.solo) { silent++; reasons.add('another track is soloed'); continue; }
+  }
+  return { checked: ids.length, silent, reasons: [...reasons] };
+}
+
