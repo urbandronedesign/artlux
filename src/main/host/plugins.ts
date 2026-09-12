@@ -22,8 +22,9 @@ import { plugin as hap } from '@artlux/plugin-hap/main';
 import { plugin as showControl } from '@artlux/plugin-show-control/main';
 import { plugin as audio } from '@artlux/plugin-audio/main';
 import { plugin as shader } from '@artlux/plugin-shader/main';
+import { bakeMainPlugin } from '@artlux/plugin-bake/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl, audio, shader];
+const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl, audio, shader, bakeMainPlugin];
 
 let activated = false;
 let deactivated = false;

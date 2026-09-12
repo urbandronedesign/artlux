@@ -1,0 +1,15 @@
+{
+  "name": "@artlux/plugin-bake",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@artlux/sdk": "*",
+    "mediabunny": "^1.56.1"
+  }
+}
