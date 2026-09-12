@@ -75,6 +75,7 @@
     "SHADERS.md": "usage",
     "SHADER-COOKBOOK.md": "usage",
     "SHADER-NODES.md": "usage",
+    "BAKE.md": "hybrid",
     "ASSETS.md": "hybrid",
     "PROJECT-IMPORT.md": "hybrid",
     "CODECS.md": "usage",
