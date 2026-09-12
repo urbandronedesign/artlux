@@ -131,6 +131,7 @@ Refusals are sentences, not a greyed-out button:
 | A slice | It crops another surface. Bake the source surface instead, so the split across projectors stays adjustable. |
 | A soloed track anywhere | A solo elsewhere legitimately makes a ticked track composite black. Rendering it would record black and look like a fault in the renderer. |
 | A surface naming no tracks | Tick at least one. |
+| The show changing state mid-render | A state change recalls a scene, and a recall replaces the surface being rendered — so the rest of the file would be a different scene. Every frame would be perfect and the file still wrong. Worth knowing: **a project opens by entering its initial state**, so a render started in the first moments after opening can catch it. Wait for the show to settle, then bake. |
 | A format whose decoder cannot answer an exact frame | A renderer cannot tell a near-miss from a hit, and a wrong frame written into a file is not noticed until it is on a wall. |
 
 ## What a bake does NOT contain

@@ -3721,6 +3721,39 @@ check(
   },
 );
 
+// -- A render refuses to deliver a file the show moved underneath --------------------------------
+check(
+  'a bake aborts if the state machine changes state mid-render',
+  'fsm.tick() lives in the timeline frame body, and the offline stepFrame() runs that same body — so ' +
+  'the state machine advances on the STEPPED playhead, at render speed. If it changes state mid-render ' +
+  'it recalls a scene, and a recall restores `surfaces` WHOLESALE, so the surface being rendered swaps ' +
+  'content halfway through its own file. Every individual frame is perfect; the file is two scenes ' +
+  'spliced together, which is the kind of fault that is only ever found on a wall. ' +
+  'OBSERVED, not theorised: a render started just after a project opens catches the FSM entering its ' +
+  'INITIAL state — measured firing at frame 8 and frame 18 of 120 on two cold runs — and the file came ' +
+  'back with its opening frames from one scene and the rest from another. ' +
+  'It cannot be predicted (a transition may wait on a tracker, an OSC message or the clock), so the ' +
+  'runner samples the state every frame and refuses rather than hand over the file. Same doctrine as ' +
+  'frameExact: a renderer that cannot tell a near-miss from a hit must not deliver the near-miss.',
+  () => {
+    const F = 'plugins/bake/src/bakeRunner.ts';
+    if (!exists(F)) return `${F} is gone`;
+    const src = stripComments(read(F));
+    if (!/stateMachine/.test(src)) {
+      return 'bakeRunner no longer consults the state machine — a scene recall mid-render would splice two scenes into one file and nothing would say so';
+    }
+    if (!/getCurrentStateId\(\)/.test(src)) {
+      return 'bakeRunner imports the state machine but never reads getCurrentStateId() — the guard has gone blind';
+    }
+    // The comparison must live INSIDE the frame loop: sampling once before it would detect nothing.
+    const loop = src.slice(src.indexOf('for (let i = 0; i < frames'));
+    if (!/getCurrentStateId\(\)/.test(loop)) {
+      return 'the state check is outside the render loop — it would compare the start against itself and never fire';
+    }
+    return null;
+  },
+);
+
 // -- A LIVE content source can never be baked ---------------------------------------------------
 check(
   'no live content source claims to be renderable off the wall clock',

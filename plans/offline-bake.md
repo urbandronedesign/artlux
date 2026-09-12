@@ -757,6 +757,54 @@ untouched, so every scene, cue and state-machine snapshot in every existing proj
 | **Rebuilding `audio_engine.node` while the app runs** | `LNK1104` → a stale addon that reads as a code bug | Close the app first. |
 | **Docs gate** | `npm run verify` hard-fails on a `docs/*.md` with no manifest row | §9. |
 
+## 7b. Found by running it on real HAP material (2026-09-12)
+
+The HAP path had never been run against a real file — `test:frame-exact` covers mp4 only, because it
+can *make* an mp4 and cannot make a HAP file. Baking a 1080p60 Hap1 clip on the owner's project found
+three things, one of them a defect.
+
+**⚠ The state machine advances DURING a render, and it changed the file underneath itself.**
+`fsm.tick()` lives in the timeline's frame body, which the offline `stepFrame()` also runs — §4.1 says
+so and it is deliberate — but §5.5's mitigation ("refuse while the state machine is running") was never
+built. The consequence is not theoretical: a render started shortly after the project opens catches the
+FSM **entering its initial state**, which recalls a scene, which restores `surfaces` wholesale and swaps
+the surface out from under the render. The first file it produced had its opening frames from one scene
+and the rest from another, at full fidelity, with nothing wrong in any single frame.
+
+It cannot be predicted — a transition may be waiting on a tracker, an OSC message or the clock — so the
+runner **samples `getCurrentStateId()` every frame and refuses** rather than deliver a spliced file.
+Measured firing at frame 8 and frame 18 of 120 on two cold runs, and silent on every warm one. §5.5's
+"refuse while the state machine is running" was the wrong shape anyway: the FSM enters its initial state
+on load, so that rule would have refused on nearly every project that has a state machine at all.
+
+**The harness pointed at the wrong decoder, and it looked like it worked.** `decodeFrame` (RGBA, no
+format field) and `decodeFrameBlocks` (raw GPU blocks — the app path) are different entry points. Read
+through the first, frames decode and indices are honoured; only the GL upload complains, because an
+absent format makes `glFormat()` fall back to DXT5 and RGBA-sized bytes never match those dimensions. I
+nearly reported that warning as a hapGL defect. **The app path is the only path worth testing.**
+
+**Two Electron harnesses printed FAIL and exited 0.** `app.quit()` does not carry `process.exitCode`, so
+`test:matte-gl` and `test:frame-exact` would have passed every gate while testing nothing. `app.exit(code)`
+is the fix.
+
+What the run established, on a 1080p60 Hap1 clip and two Hap5 (alpha) clips:
+
+| | Result |
+|---|---|
+| `frameExact` through HAP, end to end | Each baked frame matches **its own** source frame to **0.7 levels** of 255, while the neighbouring sampled frames differ by 9–16 — so this is frame accuracy, not merely plausible content. |
+| Order-independence | Same bytes for an index reached forwards and backwards. This is the property the mp4 decoder lacked. |
+| Past the end | Refused, never clamped. |
+| `sourceInfo` | Reports **60 fps**, 1920×1080 for every HAP clip against a **30 fps** document — the rate resolution has the data it needs. |
+| Block sizing | DXT1 1 036 800 bytes and DXT5 2 073 600 bytes for 1920×1080, both exactly as the dimensions imply. |
+| HAP alpha | Hap5 declares alpha **and it reaches the drawable** (min 0), so a transparent HAP surface is bakeable. `alpha: true` leaves the colour video unchanged. |
+
+⚠ **HapQ Alpha (HapM) is the exception, and it is a decoder limit, not a bake limit.** The container
+declares alpha, but it lives in a second RGTC1 texture and the decoder keeps one texture per frame while
+YCoCg mode forces `a = 1.0` — so the alpha never arrives, and a bake of such a surface is opaque because
+the decoder dropped the alpha, not because the render did. `hasAlpha` is already probed and read by
+nothing; `npm run test:hap-exact` prints the container's claim against what reaches a drawable, which is
+the only way to tell these apart from the outside.
+
 ## 8. Verification
 
 - **Phase 0 gate, before anything else.** In *this* Electron build on the RTX machine, probe

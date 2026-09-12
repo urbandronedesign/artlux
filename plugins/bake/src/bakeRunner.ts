@@ -23,6 +23,7 @@ import { SourceType, type Surface } from '@/types';
 import type { BakeProgress, BakeRequest, BakeResult } from './types';
 import * as client from './bakeClient';
 import * as bakeStore from '@/services/bakeStore';
+import * as stateMachine from '@/services/stateMachine';
 import { videoCodecRegistry } from '@/host/registries';
 import { getBakeHost } from './bakeHost';
 
@@ -506,10 +507,34 @@ export async function run(
     const clockBaseMs = performance.now();
     renderClock.beginOffline(clockBaseMs);
 
+    // ── THE SHOW MUST NOT MOVE UNDER THE RENDER ──────────────────────────────────────────────────
+    // fsm.tick() lives in the timeline's frame body, and stepFrame() runs that body -- so the state
+    // machine advances on the STEPPED playhead, at render speed, exactly as it would in a show. If a
+    // transition fires mid-render it recalls a scene, and a recall restores `surfaces` wholesale: the
+    // surface being baked changes content halfway through its own file. The result is two scenes
+    // spliced together, at full fidelity, with nothing wrong in any single frame -- the kind of thing
+    // that is only ever noticed on a wall.
+    //
+    // Predicting it is not possible (a transition can be waiting on a tracker, an OSC message or the
+    // clock), so this DETECTS it and refuses to hand over the file instead. Same doctrine as
+    // frameExact: a renderer that cannot tell a near-miss from a hit must not deliver the near-miss.
+    const stateAtStart = stateMachine.getCurrentStateId();
+
     for (let i = 0; i < frames; i++) {
       if (cancelled) {
         await abandon();
         return { kind: 'refused', reason: 'cancelled' };
+      }
+      const stateNow = stateMachine.getCurrentStateId();
+      if (stateNow !== stateAtStart) {
+        await abandon();
+        return {
+          kind: 'refused',
+          reason: `the show moved on during the render — the state machine left ${stateAtStart ?? 'no state'} for ` +
+            `${stateNow ?? 'no state'} at frame ${i} of ${frames}. A state change recalls a scene, which replaces ` +
+            `the surface being rendered, so the rest of the file would have been a different scene. ` +
+            `Stop the show (or bake a range the state machine does not step through) and run it again.`,
+        };
       }
 
       // ABSOLUTE, never accumulated -- both of these. `renderClock.now() + delta` would have been a
