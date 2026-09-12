@@ -38,6 +38,11 @@ const CHECKS = [
   { plugin: 'ndi',            where: 'renderer', marker: 'ndi:configure',        note: 'ndiReceiver plugin-IPC channel' },
   { plugin: 'ndi',            where: 'main',     marker: 'NDI_RUNTIME_DIR_V6',   note: 'ndiManager native runtime dir' },
   { plugin: 'calibration',    where: 'main',     marker: 'calib:detect-board',   note: 'calibManager IPC handle' },
+  // The bake writer is the ONLY thing that may touch a disk during a render, and it holds the open file
+  // descriptors in module state. Two copies and the renderer would write chunks into one instance while
+  // the other held the descriptor -- a zero-byte MP4, with every write reporting success.
+  { plugin: 'bake',           where: 'main',     marker: 'bake:pick-output',     note: 'bake writer IPC handle' },
+  { plugin: 'bake',           where: 'renderer', marker: 'bake:chunk',           note: 'bake client plugin-IPC channel' },
   { plugin: 'spout',          where: 'renderer', marker: 'spout:configure',      note: 'spoutReceiver plugin-IPC channel' },
   { plugin: 'spout',          where: 'main',     marker: 'spout] native receiver loaded', note: 'spoutManager native-load log' },
   { plugin: 'hap',            where: 'renderer', marker: 'hap:decode',           note: 'hapDecode plugin-IPC channel' },
@@ -66,6 +71,7 @@ const CONTRIBUTIONS = [
   { plugin: 'augmenta',       marker: 'augmenta-monitor',   note: 'Augmenta Monitor — modal PanelContribution id (panelRegistry)' },
   { plugin: 'augmenta',       marker: 'Augmenta Tracking',  note: 'Augmenta Tracking — SettingsSection (settingsSectionRegistry)' },
   { plugin: 'show-control',   marker: 'Show Control',       note: 'Show Control — SettingsSection + operator panel (renderer)' },
+  { plugin: 'bake',           marker: 'bake',               note: 'Bake — dock PanelContribution id (panelRegistry)' },
 ];
 
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }
