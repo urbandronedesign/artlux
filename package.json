@@ -47,6 +47,7 @@
     "test:blend": "npm run test:logic && node .tmp-tests/scripts/test-blend.js",
     "test:frame-exact": "node scripts/test-frame-exact.cjs",
     "test:matte-gl": "node scripts/test-matte-gl.cjs",
+    "test:hap-exact": "node scripts/test-hap-exact.cjs",
     "test:audio-offline": "node scripts/test-audio-offline.cjs",
     "test:renderclock": "tsc scripts/test-renderclock.ts --outDir .tmp-renderclock --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-renderclock/scripts/test-renderclock.js",
     "test:recal": "npm run test:logic && node .tmp-tests/scripts/test-recal.js",
