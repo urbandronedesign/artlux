@@ -117,5 +117,8 @@
   // through aliases that exist only in scripts/test-frame-exact.cjs (a stub for the host media
   // cache, and a direct path to the mp4 plugin), so tsc cannot resolve them and would fail the
   // whole verify on a file that is not shipped. It is typechecked by the bundle step instead.
-  "exclude": ["node_modules", "launcher", "native", "scripts/frame-exact"]
+  // `scripts/matte-gl` is the same arrangement for the same reason (its `@matte` alias is minted by
+  // scripts/test-matte-gl.cjs), and the pair is the pattern to follow for any future harness: keep
+  // the alias in the runner, keep the directory out of here, and let esbuild do the typechecking.
+  "exclude": ["node_modules", "launcher", "native", "scripts/frame-exact", "scripts/matte-gl"]
 }

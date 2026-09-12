@@ -27,6 +27,7 @@ import type { BakeEntry } from '../../../shared/protocol';
 import { SourceType, type Surface, type SurfaceContent } from '../types';
 import { videoCodecRegistry } from '../host/registries';
 import * as codecResidency from './codecResidency';
+import * as matteGL from '../gpu/matteGL';
 
 /** Live entries by surface id. Rebuilt whenever the document's `bakes` array changes. */
 let bySurface = new Map<string, BakeEntry>();
@@ -73,11 +74,15 @@ export function setEntries(entries: readonly BakeEntry[] | undefined): void {
   for (const e of entries ?? []) if (e && e.surfaceId && e.path) next.set(e.surfaceId, e);
   // Hand back decoders for files that are no longer referenced, or the render's output would stay
   // resident for the life of the app after the operator deleted the bake.
-  const wanted = new Set([...next.values()].map((e) => e.path));
+  const wanted = new Set<string>();
+  for (const e of next.values()) { wanted.add(e.path); if (e.mattePath) wanted.add(e.mattePath); }
   for (const path of [...claimed]) {
     if (wanted.has(path)) continue;
     const codec = videoCodecRegistry.forPath(path);
-    for (const e of bySurface.values()) if (e.path === path) codecResidency.release(path, owner(e));
+    for (const e of bySurface.values()) if (e.path === path || e.mattePath === path) {
+      codecResidency.release(path, owner(e));
+      matteGL.release(`bake:${e.id}`);
+    }
     codec?.releaseLayer(`bake:${path}`);
     claimed.delete(path);
   }
@@ -127,5 +132,22 @@ export function drawableFor(s: Surface, timeSec: number, docKey: string): Canvas
     claimed.add(e.path);
     codecResidency.retain(e.path, owner(e), codec.id);
   }
-  return codec.layerFrame(`bake:${e.path}`, e.path, timeSec - e.startSec);
+  const t = timeSec - e.startSec;
+  const colour = codec.layerFrame(`bake:${e.path}`, e.path, t);
+  if (!e.mattePath) return colour;
+
+  // ── A TRANSPARENT BAKE IS TWO VIDEOS ─────────────────────────────────────────────────────────
+  // Both are addressed at the SAME clip time, from their own decoders, and recombined on the GPU.
+  // If either is missing this frame, fall through to the live content rather than show the colour
+  // video alone: that would be the surface with its transparency silently filled in with black, over
+  // whatever is beneath it — which reads as a rendering fault, not as a frame that was not ready.
+  const matteCodec = videoCodecRegistry.forPath(e.mattePath);
+  if (!matteCodec) return null;
+  if (!claimed.has(e.mattePath)) {
+    claimed.add(e.mattePath);
+    codecResidency.retain(e.mattePath, owner(e), matteCodec.id);
+  }
+  const matte = matteCodec.layerFrame(`bake:${e.mattePath}`, e.mattePath, t);
+  if (!colour || !matte) return null;
+  return matteGL.combine(`bake:${e.id}`, colour, matte, e.width, e.height);
 }

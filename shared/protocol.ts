@@ -1310,6 +1310,15 @@ export interface BakeEntry {
   height: number;
   /** Absolute on disk while loaded; relativized into the project folder on save, like every asset. */
   path: string;
+  /**
+   * The MATTE beside it, carrying this render's alpha as luma — present only for a transparent bake.
+   *
+   * Two files because one is not available: Chromium's VideoEncoder refuses `alpha: 'keep'` for every
+   * codec ("Alpha encoding is not currently supported"), measured on this build, while the same codecs
+   * encode fine without it. Alpha therefore travels as a second video's brightness, and the pair is
+   * recombined on the GPU at playback (gpu/matteGL).
+   */
+  mattePath?: string;
   /** The operator's bypass. False plays the live content again without discarding the render. */
   enabled: boolean;
   createdAt: string;

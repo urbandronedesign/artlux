@@ -87,6 +87,7 @@ plugins/graphify-out/
 .tmp-docktree/
 .tmp-renderclock/
 scripts/frame-exact/bundle.js
+scripts/matte-gl/bundle.js
 .tmp-tests/
 .tmp-workspace/
 .tmp-people/

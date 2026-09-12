@@ -3679,8 +3679,8 @@ check(
   'The rule this codebase already has is "project-scope data must not ride a look snapshot" — it is ' +
   'why assets, groups, trackingZones and projectorOutputs are not captured. Hence ProjectData.bakes, ' +
   'and hence this check: the store must exist, the compositor must consult it, the scene snapshot must ' +
-  'not carry it, and the asset visitor must map its file or Collect Assets reports a clean project ' +
-  'whose baked surfaces are all black.',
+  'not carry it, and the asset visitor must map BOTH its files (a transparent bake is a colour video ' +
+  'plus a matte) or Collect Assets reports a clean project whose baked surfaces are all black.',
   () => {
     const problems = [];
     const F = 'src/renderer/services/bakeStore.ts';
@@ -3701,6 +3701,13 @@ check(
     const mapBody = fnBody(pf, 'mapAssetPaths') ?? '';
     if (!/bakes/.test(mapBody)) {
       problems.push('mapAssetPaths never visits `bakes` — relativize, resolve AND collect would all skip the rendered file, and it would not even appear in CollectResult.missing');
+    } else if (/mattePath\?:/.test(read('shared/protocol.ts')) && !/mattePath/.test(mapBody)) {
+      // A TRANSPARENT bake is TWO files, and the second one fails differently from the first. Miss the
+      // colour video and the surface falls back to live content — visibly a missing asset. Miss the
+      // MATTE and the colour video is still there and still plays, so the show comes up with every
+      // transparent surface filled in solid black over whatever is beneath it. That reads as a broken
+      // renderer, not as a file left on the authoring machine, which is why it is worth its own line.
+      problems.push('mapAssetPaths visits `bakes` but not `mattePath` — a transparent bake would collect its colour video and leave its alpha behind, and the surface would come up opaque black rather than reported missing');
     }
 
     // …and the look snapshot must NOT. This is the whole reason for the design.

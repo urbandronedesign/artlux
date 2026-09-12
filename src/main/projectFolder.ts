@@ -209,7 +209,14 @@ function mapAssetPaths(data: ProjectData, map: PathMap): ProjectData {
   // NOT appear in CollectResult.missing. A clean bill of health on a project whose baked surfaces are
   // all black. `.mp4` is already a known category, so nothing else here needs to change.
   if (Array.isArray(out.bakes)) {
-    out.bakes = out.bakes.map((b: any) => (isFilePath(b?.path) ? { ...b, path: map(b.path) } : b));
+    out.bakes = out.bakes.map((b: any) => {
+      let n = isFilePath(b?.path) ? { ...b, path: map(b.path) } : b;
+      // A transparent bake is TWO files, and missing the second one loses the alpha while leaving a
+      // perfectly playable colour video behind — the failure would look like "the transparency broke"
+      // rather than like a missing asset.
+      if (isFilePath(n?.mattePath)) n = { ...n, mattePath: map(n.mattePath) };
+      return n;
+    });
   }
 
   return out;
