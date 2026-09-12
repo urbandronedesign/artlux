@@ -17,6 +17,7 @@ import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (r
 import * as nvwarp from './nvwarpManager';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
+import * as output from './transport/outputManager';
 import * as persistence from './persistence';
 import { profileQuery, CALIBRATION_ENABLED, rendererDevUrl, relaunchArgs, missingBuiltRenderer } from './runProfile';
 import { registerMediaScheme, registerMediaProtocol } from './mediaProtocol';
@@ -485,6 +486,16 @@ function shutdownSubsystems(reason: 'quit' | 'relaunch', extra?: Record<string, 
     // as deliberate BEFORE tearing the watchdog down. Only on 'quit': the relaunch paths call this
     // directly on their way to app.exit() and are supposed to come back.
     if (reason === 'quit') watchdog.noteDeliberateShutdown(`mode=${RUN_MODE}`);
+    // PUT THE RIG OUT, for the same reason and on the same path. Stopping the stream does not turn
+    // anything off — nodes hold their last level — so quitting left a venue lit at whatever was on
+    // screen, with no app running to fix it. NOT on 'relaunch': a playlist switch or a watchdog
+    // self-heal is back in a second or two, and holding the previous look across that gap is better
+    // than blinking the whole rig to black and up again.
+    if (reason === 'quit' && output.blackout()) {
+      // One pacer tick at 44 Hz is ~23 ms. The teardown below usually takes far longer, but "usually"
+      // is not a guarantee on the one path where getting it wrong leaves a room lit all night.
+      output.drain(250);
+    }
     watchdog.stop();
     metrics.stop();
     globalShortcut.unregisterAll();

@@ -374,7 +374,7 @@ export const CLIENT_HTML = `<!doctype html>
   function askShutdown(){
     confirmThen('Shut down ArtLux?',
       'The show stops and the app closes. It will NOT start again by itself — including after a reboot — '
-      + 'until someone starts it on the machine. Fixtures hold their last frame.',
+      + 'until someone starts it on the machine. The rig goes dark.',
       'Shut it down', true, function(){ power('/shutdown','shutdown'); });
   }
   // ONLY SAY IT IS STOPPING ONCE THE APP HAS ACCEPTED. The first version set the screen and then

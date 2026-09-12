@@ -129,6 +129,10 @@ sees it — the same way it honours the tripped marker.
 - It is written as a normal audit line too (`trigger: shutdown`, `action: stopped`), so a venue that
   comes in to a dark install reads *"the operator stopped it at 19:04"* instead of a silence that
   looks exactly like a machine that died.
+- The same path **blacks the rig out** — one all-zero frame over the whole live patch, then a short
+  drain so the send thread can transmit it before the process goes. Stopping the stream does not turn
+  anything off, and a relaunch deliberately does *not* do this (see
+  [SHOW-CONTROL.md](SHOW-CONTROL.md)).
 
 ⚠ **So a deliberate shutdown survives a reboot.** The logon trigger runs the same check, sees the
 marker and stands down. That is the intended reading of "shut down" — nobody has said *start* since —

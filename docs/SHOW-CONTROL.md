@@ -115,9 +115,12 @@ Both ask first, and both are covered by the operator **Lock** — a locked remot
 > automatic crash recovery is armed again from that moment. A crash never writes the marker, so
 > self-healing is untouched.
 
-> **The rig holds its last frame.** Closing the app stops the Art-Net/sACN stream; fixtures that do
-> not time out to black keep whatever they were last sent. Send a blackout scene or cue *before*
-> shutting down if the venue needs to go dark.
+> **The rig goes dark.** Stopping the stream does not by itself turn anything off — Art-Net and sACN
+> nodes hold the last level they were sent — so the app writes one **all-zero frame over the whole
+> patch** on its way out: every target, every universe, every channel the show was driving. This
+> happens on **any** deliberate quit (the tray item and `Ctrl/Cmd+Shift+Q` too), and **not** on a
+> relaunch: a playlist switch or a watchdog self-heal is back in a second or two, and holding the
+> previous look across that gap beats blinking the whole rig to black and up again.
 
 At the machine itself, broadcast mode also has a **tray icon ▸ Quit Broadcast** and
 **Ctrl/Cmd+Shift+Q** — both are deliberate quits and behave identically. What the remote adds is

@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { OutputConfig, OutputStats } from '../../../shared/protocol';
-import { decodeFrame } from '../../../shared/frameCodec';
+import { decodeFrame, encodeFrame } from '../../../shared/frameCodec';
 import * as artnet from './artnet';
 import * as sacn from './sacn';
 
@@ -83,7 +83,14 @@ export function isLoaded(): boolean { return !!native; }
 
 let warnedNoSerial = false;
 
+// THE LAST FRAME'S SHAPE, kept so the app can put the rig out on the way down (see blackout()).
+// A reference, not a copy: each frame arrives as its own buffer over IPC, so this is one pointer
+// assignment per frame and costs nothing at 44 Hz. It is the SHAPE we need — which targets, which
+// universes, how many channels each — because main does not otherwise know the patch.
+let lastFrame: ArrayBuffer | null = null;
+
 export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
+  lastFrame = toArrayBuffer(frame);
   if (native) {
     native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread
     return;
@@ -104,6 +111,60 @@ export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
   const sacnTargets = targets.filter(t => t.protocol === 'sacn');
   if (artnetTargets.length) artnet.sendFrame({ targets: artnetTargets });
   if (sacnTargets.length) sacn.sendFrame({ targets: sacnTargets });
+}
+
+/**
+ * Send one all-zero frame over the patch that is already live — every target, every universe, every
+ * channel the last real frame covered.
+ *
+ * WHY IT EXISTS. Closing the app stops the stream; it does not turn anything off. Art-Net and sACN
+ * nodes hold the last level they were sent (that is what the engine's own keep-alive relies on), so
+ * quitting used to leave a venue lit at whatever was on screen at the time — a white wash, a lighting
+ * state mid-cue — with no app running to fix it and nobody necessarily in the building. On a remote
+ * shutdown the operator is by definition not there to see it.
+ *
+ * `sparse` is forced OFF: a sparse target skips universes that have not changed since the last send,
+ * and the whole point here is that every universe must be written, including ones that happen to
+ * already be at zero in the engine's own cache.
+ *
+ * Returns false when there is nothing to black out — no frame has ever been sent, so nothing on the
+ * wire came from us and there is no patch to write to.
+ */
+export function blackout(): boolean {
+  if (!lastFrame) return false;
+  try {
+    const targets = decodeFrame(lastFrame);
+    if (!targets.length) return false;
+    for (const t of targets) {
+      t.sparse = false;
+      for (const k of Object.keys(t.universes)) {
+        t.universes[Number(k)] = new Array(t.universes[Number(k)].length).fill(0);
+      }
+    }
+    sendFrame(encodeFrame(targets));
+    return true;
+  } catch (e) {
+    console.error('[output] blackout failed', e);
+    return false;
+  }
+}
+
+/**
+ * Block this thread for `ms` so the send thread can actually transmit before the process exits.
+ *
+ * ONLY MEANINGFUL WITH THE NATIVE ENGINE, and that is why it is gated on it. The Rust pacer owns its
+ * own OS thread, so sleeping the main thread does not stop it sending — it is exactly the wait we
+ * want. The TypeScript fallback sends from THIS thread, where blocking would prevent the very write
+ * we are waiting for, so it gets no wait at all (its dgram sends are issued inline and the teardown
+ * that follows gives them the same grace anyway).
+ *
+ * A synchronous wait, not a timer: every caller is on a process-exit path, where there is no next
+ * tick to come back to.
+ */
+export function drain(ms: number): void {
+  if (!native || ms <= 0) return;
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+  catch { /* SharedArrayBuffer unavailable — the teardown that follows is the grace period */ }
 }
 
 /**

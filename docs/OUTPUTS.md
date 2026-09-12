@@ -150,6 +150,26 @@ native resolution. Live **camera / Spout / DMX-in** are streamed from the main w
 
 ---
 
+## Closing the app blacks the rig out
+
+Stopping the stream does not turn anything off. Art-Net and sACN nodes hold the last level they were
+sent — that is what the engine's own keep-alive relies on — so a venue used to be left lit at whatever
+was on screen when the app closed, with nothing running to fix it.
+
+Any **deliberate quit** therefore writes one **all-zero frame over the whole live patch** first —
+every target, every universe, every channel the show was driving — and waits briefly so the send
+thread transmits it before the process goes. That covers the broadcast tray's *Quit Broadcast*,
+`Ctrl/Cmd+Shift+Q`, closing the window, and the tablet remote's *Shut down*
+([SHOW-CONTROL.md](SHOW-CONTROL.md)).
+
+A **relaunch** deliberately does not: a playlist switch or a watchdog self-heal is back in a second or
+two, and holding the previous look across that gap beats blinking the whole rig to black and up again.
+Neither does a **crash**, which has no chance to write anything.
+
+> USB-DMX (ENTTEC) universes are part of the same frame and are blacked out with the rest.
+
+---
+
 ## Broadcast (show) mode
 
 Run only the outputs + Art-Net, with **no editor interface** — for an installed show / playback
