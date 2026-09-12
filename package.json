@@ -59,7 +59,9 @@
     "test:zone:take": "tsc -p scripts/tsconfig.zone-take.json && node .tmp-take/scripts/test-zone-take.js",
     "analyze:take": "tsc scripts/analyze-take.ts --outDir .tmp-take --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-take/scripts/analyze-take.js",
     "analyze:take:zones": "tsc scripts/analyze-take-zones.ts --outDir .tmp-take --target es2022 --module commonjs --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-take/scripts/analyze-take-zones.js",
-    "test:workspace:live": "node scripts/test-workspace-live.cjs"
+    "test:workspace:live": "node scripts/test-workspace-live.cjs",
+    "test:showctl": "node scripts/test-show-control.cjs",
+    "test:showctl:ui": "node scripts/test-show-control-ui.cjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

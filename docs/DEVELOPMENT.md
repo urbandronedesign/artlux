@@ -303,6 +303,26 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   ⚠ Two traps it encodes, both of which cost real time: the Art-Net ID is `'Art-Net\0'` (a trailing
   **space** silently matches nothing and reports a healthy app as dead), and it must not bind **6454** —
   the app's own Art-Net *input* socket owns that port, so a listener there sees nothing.
+- **The show-control remote:** `npm run test:showctl:ui` and `npm run test:showctl`.
+  The tablet PWA is a single template literal inside `clientHtml.ts`, so TypeScript checks none of it
+  and the bundler accepts anything. `verify:invariants` catches a page that cannot *parse*; these
+  catch a page that cannot be *used*.
+  - **`test:showctl:ui`** serves the real `CLIENT_HTML` from a stub that speaks the same HTTP+SSE
+    protocol and drives it in Chrome (set `ARTLUX_TEST_BROWSER` if it is not found; `--head` to
+    watch, `--shots=<dir>` for screenshots). **It launches no ArtLux**, so it never contends for the
+    editor's single-instance lock and can run while you work. It covers the scheduling editor, the
+    recursive project list, the power controls, and — on a phone-sized viewport — that a 2 Hz status
+    stream does not repaint the page out from under a finger.
+  - **`test:showctl`** drives the real app (`npm run build` first) for the half a browser cannot
+    answer: a recursive scan of a real tree, a one-off surviving the round trip through main,
+    `POST /shutdown` answering *before* the process exits, **the rig going dark** (asserted off real
+    ArtDmx packets — it writes its own guaranteed-lit project, because a real show's output depends
+    on its content and transport state), the deliberate-shutdown marker, and the Tier-2 tick both
+    standing down *and* still recovering when the marker is absent.
+    ⚠ It binds **6454**, so it cannot run while the app is up — and the supervisor half is driven
+    through a stub exe named after the app, because `watchdog-check.ps1` derives the process name
+    **and** the userData folder from its `-Exe` base name: point it at `electron.exe` and it looks
+    for the marker in `%APPDATA%\electron`, then passes by never seeing it.
 - **Packaged window visibility — test WITHOUT the CDP port (this cost a day, v0.19.2).** The editor
   `BrowserWindow` is created `show:false` and revealed on events; if reveal is only wired to
   **`ready-to-show`**, some packaged builds/GPU configs never fire it and the app launches with a
