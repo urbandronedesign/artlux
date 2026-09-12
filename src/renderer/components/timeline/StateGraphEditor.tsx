@@ -877,6 +877,31 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                     </span>
                   </label>
                 </Tooltip>
+                {/* READINESS, not timing. `requireEnd` above asks whether the OUTGOING state has
+                    finished; this asks whether the INCOMING one has a picture yet. A decode-ahead
+                    codec starts EMPTY at a new position, so a cut taken the instant the trigger
+                    fires paints the nearest decoded neighbour until the buffer fills — measured at
+                    167 misses in the first ten seconds of a 1080p60 HAP show. Off by default on
+                    purpose: in front of an operator a GO that silently refuses reads as a broken
+                    button, so failing fast is right for a manned show and waiting is right for an
+                    unattended one. The author says which cuts are worth the wait. */}
+                <Tooltip id="timeline.sm-wait-content">
+                  <label className="flex items-start gap-2 cursor-pointer" {...help('timeline.sm-wait-content')}>
+                    <input type="checkbox" checked={!!selTrans.waitForContent} className="mt-0.5"
+                      onChange={(e) => patchTransition(selTrans.id, { waitForContent: e.target.checked || undefined })} />
+                    <span>
+                      <span className="text-fg-2">Wait for the destination to have a picture</span>
+                      <span className="block text-fg-3 text-micro">
+                        Holds the cut until the incoming scene has decoded enough to show — a buffer,
+                        not just a first frame — so it starts on its picture instead of easing in from
+                        whatever was decoded. Capped at one second, after which it cuts anyway and says
+                        so in the log, because an uncapped wait on a missing file is a hang. Worth it
+                        for an unattended installation; leave it off for a manned show, where a GO
+                        that hesitates reads as a broken button.
+                      </span>
+                    </span>
+                  </label>
+                </Tooltip>
                 <NumField label="Transition time (s) — scene crossfade on arrival" helpId="timeline.sm-fade" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
               </div>
             )}

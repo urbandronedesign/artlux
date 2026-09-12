@@ -203,6 +203,22 @@ function mapAssetPaths(data: ProjectData, map: PathMap): ProjectData {
     out.assets = out.assets.map((a: any) => (isFilePath(a?.path) ? { ...a, path: map(a.path) } : a));
   }
 
+  // Pre-rendered surfaces (ProjectData.bakes) — the same shape as the library above, and the same
+  // consequence if it is skipped: relativize, resolve AND collect would all miss the file together,
+  // so the render would stay on the authoring machine, would not be copied into the folder, and would
+  // NOT appear in CollectResult.missing. A clean bill of health on a project whose baked surfaces are
+  // all black. `.mp4` is already a known category, so nothing else here needs to change.
+  if (Array.isArray(out.bakes)) {
+    out.bakes = out.bakes.map((b: any) => {
+      let n = isFilePath(b?.path) ? { ...b, path: map(b.path) } : b;
+      // A transparent bake is TWO files, and missing the second one loses the alpha while leaving a
+      // perfectly playable colour video behind — the failure would look like "the transparency broke"
+      // rather than like a missing asset.
+      if (isFilePath(n?.mattePath)) n = { ...n, mattePath: map(n.mattePath) };
+      return n;
+    });
+  }
+
   return out;
 }
 

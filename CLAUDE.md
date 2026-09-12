@@ -42,6 +42,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Per-scene timelines + per-state authoring loop** | [docs/SCENE-TIMELINES.md](docs/SCENE-TIMELINES.md) |
 | Effects & palettes (generative content) | [docs/EFFECTS.md](docs/EFFECTS.md) |
 | **Text on a surface — typed copy, fonts that travel, motion** | [docs/TEXT.md](docs/TEXT.md) |
+| **Baking — pre-rendering a surface to video (non-realtime, MP4 + AAC)** | [docs/BAKE.md](docs/BAKE.md) · plan: [plans/offline-bake.md](plans/offline-bake.md) |
 | **Shaders — GPU generative content on a surface** | [docs/SHADERS.md](docs/SHADERS.md) · plan: [plans/shader-plugin.md](plans/shader-plugin.md) |
 | **Writing shaders — grids, lines, SDF, Voronoi, noise** | [docs/SHADER-COOKBOOK.md](docs/SHADER-COOKBOOK.md) |
 | **Every shader node — ports, defaults and the GLSL it emits (generated)** | [docs/SHADER-NODES.md](docs/SHADER-NODES.md) |

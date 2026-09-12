@@ -85,6 +85,10 @@ graphify-plugins/*
 plugins/graphify-out/
 .graphify_*
 .tmp-docktree/
+.tmp-renderclock/
+scripts/frame-exact/bundle.js
+scripts/matte-gl/bundle.js
+scripts/hap-exact/bundle.js
 .tmp-tests/
 .tmp-workspace/
 .tmp-people/

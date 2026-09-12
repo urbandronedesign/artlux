@@ -33,6 +33,14 @@ const KEEP_BEHIND = 1;   // decoded past frames to retain (present frame + async
 const MAX_BUFFER = 12;   // safety cap on live VideoFrames (paced feeding keeps us well under this)
 const QUEUE_BUDGET = 8;  // in-flight chunk cap — ≥ TARGET_AHEAD so we can actually reach the target depth
 const EPS_US = 8_000;    // ~½ a 60fps frame — playhead-jitter tolerance for backward-jump detection
+// The tolerance on "which decoded frame is ON SCREEN at time t". Shared by frame() and
+// frameExact() ON PURPOSE: an offline render must pick the SAME frame live playback would at the
+// same instant, or the two disagree at clip boundaries and a bake cannot be diffed against the
+// live output to prove it correct. One constant, so they cannot drift apart.
+const PRESENT_EPS_US = 1_000;
+// Infinite-loop guard for the offline feed. Each round nets ~TARGET_AHEAD frames, so this covers a
+// GOP far longer than any encoder produces; it exists so a malformed file cannot hang a render.
+const EXACT_MAX_ROUNDS = 2_000;
 
 interface Info { width: number; height: number; durationSec: number; }
 interface Enc { ts: number; dur: number; key: boolean; data: Uint8Array } // decode order, µs timestamps
@@ -69,6 +77,7 @@ class FileDecoder {
   private wantUs = 0;      // latest requested ABSOLUTE presentation time (µs)
   private lastWantUs = -Infinity; // previous frame()'s wantUs — detects a backward jump (timeline loop / scrub)
   lastFrameTs: number | null = null; // ABSOLUTE ts of the frame frame() last handed out — the generation
+  private sortedCts: number[] | null = null; // presentation times, ascending — built on first frameExact()
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
@@ -198,7 +207,7 @@ class FileDecoder {
     // TARGET_AHEAD frames is ~83 ms at 60 fps / ~167 ms at 30 fps of decoded lead. Less than HAP's
     // 300 ms ring, but it is real: the point of the wait is that the decoder is RUNNING and ahead of
     // the playhead, not that it has banked a specific number of milliseconds.
-    const fps = this.samples.length > 1 && this.durUs > 0 ? this.samples.length / (this.durUs / 1e6) : 30;
+    const fps = this.fps() || 30;
     const want = Math.max(1, Math.min(TARGET_AHEAD, Math.ceil(aheadSec * fps)));
     let have = 0;
     for (const f of this.buffer) if (f.timestamp >= wantUs - EPS_US) have++;
@@ -219,6 +228,143 @@ class FileDecoder {
 
   getInfo(): Info | null { return this.info; }
   aspect(): number | null { return this.info && this.info.width > 0 ? this.info.width / this.info.height : null; }
+  /**
+   * Nominal frame rate, derived from the sample count over the track duration. ONE formula: preRoll
+   * sizes its lead with it and an export sizes its output rate with it, and two derivations of "how
+   * fast is this file" would disagree on exactly the variable-frame-rate files where it matters.
+   * Returns 0 when it cannot be known (a single-sample or duration-less track) — callers decide the
+   * fallback rather than inheriting a made-up 30 from here.
+   */
+  fps(): number {
+    return this.samples.length > 1 && this.durUs > 0 ? this.samples.length / (this.durUs / 1e6) : 0;
+  }
+
+  /**
+   * THE EXACT frame covering `timeSec`, awaited. For NON-REALTIME callers only.
+   *
+   * ⚠ WHY THIS EXISTS ALONGSIDE frame(). Every playback accessor in this file is deliberately
+   * non-blocking: `frame()` pumps, then takes the best decoded frame it has and — right after a seek,
+   * when it has none at the playhead — falls back to "the earliest buffered frame so we show
+   * something". That is correct for a show, where a frame either side beats a black projector. It is
+   * wrong for anything that WRITES what it is given: a renderer cannot tell a near-miss from a hit,
+   * and the result is a file with the wrong pictures in it that nobody notices until it is on a wall.
+   *
+   * So this one waits. It drives the SAME pump (one feeding implementation — the decode-order rule,
+   * the seek branches and the pacing all live there and must not be reimplemented here), draining with
+   * `flush()` between rounds until the feed has genuinely passed the target, and only then answers.
+   * `flush()` emits pending frames WITHOUT resetting, so the next round continues decoding deltas from
+   * where this one stopped rather than re-seeking to the keyframe.
+   *
+   * EXACT OR NOTHING: a time outside the track resolves null rather than clamping to the first or last
+   * frame. A render that clamped would silently repeat the end frame for the rest of its range, which
+   * reads as a freeze and gets blamed on the encoder.
+   *
+   * The returned frame is BORROWED — it lives in this decoder's buffer and is closed on eviction, so
+   * draw it before asking for the next one. Same contract as frame().
+   */
+  async frameExact(timeSec: number): Promise<VideoFrame | null> {
+    const N = this.samples.length;
+    if (!N) return null;
+    const timeUs = Math.round(timeSec * 1e6);
+    if (timeUs < 0) { console.warn('[mp4/exact] negative time', timeSec); return null; }
+    if (this.durUs > 0 && timeUs >= this.durUs) { console.warn('[mp4/exact] past end', timeUs, 'dur', this.durUs); return null; }
+    if (!this.ensureDecoder()) { console.warn('[mp4/exact] no decoder'); return null; }
+
+    // ⚠ THE TARGET COMES FROM THE CONTAINER, NOT FROM THE DECODER.
+    // The first version of this asked "what is the best decoded frame at or before the target, now
+    // that the feed has passed it" — which is a question about the BUFFER, and the buffer lies at the
+    // end of a track: nothing is left to feed, eviction has already retired the wanted frame, and the
+    // best remaining answer is a stale earlier one. It returned frame 43 for frames 44, 45 and 46,
+    // confidently. Deriving the wanted presentation time from the sample table instead makes the
+    // answer checkable — we either hold that exact frame or we do not — and a miss becomes a re-seek
+    // rather than a plausible wrong picture.
+    const targetTs = this.presentationTsAt(timeUs);
+    if (targetTs === null) { console.warn('[mp4/exact] no target ts; samples=', N, 'timeUs=', timeUs); return null; }
+
+    let flushed = false;
+    let reseeked = false;
+    for (let round = 0; round < EXACT_MAX_ROUNDS; round++) {
+      // Non-looping: a render addresses clip-local time, so the pump caps at the last sample and
+      // never wraps. Mirroring frame()'s bookkeeping keeps topUp() and the backward-jump detector
+      // coherent if anything else touches this decoder afterwards.
+      this.wantUs = timeUs;
+      this.pump(false, 0, timeUs);
+      this.lastPump = { loop: false, loopCount: 0, localUs: timeUs };
+      this.lastWantUs = timeUs;
+
+      const dec = this.decoder;
+      if (!dec) return null;
+
+      // ⚠ NOT `===`. `samples[].ts` is `(cts / timescale) * 1e6` and is routinely FRACTIONAL, while an
+      // EncodedVideoChunk timestamp is a `long long` — so the value that comes back out of the decoder
+      // has been coerced to an integer and can never equal the target exactly. Strict equality here
+      // matched nothing and spun the loop until it gave up. A 2 µs window absorbs the coercion and is
+      // still four orders of magnitude tighter than the gap between adjacent frames, so it cannot
+      // admit a neighbour — which is the only thing that would make this approximate.
+      for (const f of this.buffer) {
+        if (Math.abs(f.timestamp - targetTs) <= 2) { this.lastFrameTs = f.timestamp; return f; }
+      }
+
+      const drained = dec.decodeQueueSize === 0;
+      const fedAll = this.fedAbs >= N - 1;
+
+      // ⚠ DRAIN BY WAITING, NOT BY FLUSHING — this cost a round of the harness to find.
+      // `flush()` looks like the obvious way to force the queue out, and it does; but a flushed
+      // VideoDecoder treats what follows as a discontinuity, so every delta fed afterwards decoded to
+      // nothing and the buffer stopped advancing — the same stale picture for every later time, which
+      // is exactly the silent corruption this method exists to prevent, arriving through the fix for
+      // it. The decoder empties its queue on its own; yielding is enough. ONE flush is legitimate at
+      // the end of the track, where frames sit in the reorder queue with nothing left to push them out.
+      if (fedAll && !drained && !flushed) {
+        flushed = true;
+        try { await dec.flush(); } catch { return null; }
+        continue;
+      }
+      // Fed everything, decoded everything, and still not holding it: eviction retired it while the
+      // playhead moved on. Restart the segment from the keyframe covering the target and decode
+      // forward again — the one case where an offline render pays for a seek it could not avoid.
+      if (fedAll && drained) {
+        if (reseeked) { console.warn('[mp4/exact] gave up after reseek; target', targetTs, 'buffer', this.buffer.map((f) => f.timestamp).join(','), 'fedAbs', this.fedAbs, 'N', N); return null; }
+        reseeked = true;
+        this.segAbs = -1;            // pump() re-anchors on the covering keyframe next round
+        continue;
+      }
+
+      await new Promise<void>((r) => { setTimeout(r, 0); });
+    }
+    console.warn('[mp4/exact] rounds exhausted; target', targetTs, 'fedAbs', this.fedAbs);
+    return null;
+  }
+
+  /**
+   * The presentation time of the frame ON SCREEN at `timeUs`, straight from the demuxed sample table.
+   *
+   * Decoder-independent on purpose (see frameExact). `samples` is in DECODE order, so the times are
+   * not sorted and this keeps a sorted copy — built once per file, ~8 bytes a frame, which is nothing
+   * beside the encoded samples already held.
+   */
+  private presentationTsAt(timeUs: number): number | null {
+    if (!this.sortedCts) this.sortedCts = this.samples.map((s) => s.ts).sort((a, b) => a - b);
+    const a = this.sortedCts;
+    if (!a.length) return null;
+    let lo = 0, hi = a.length - 1, best: number | null = null;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (a[mid] <= timeUs + PRESENT_EPS_US) { best = a[mid]; lo = mid + 1; } else hi = mid - 1;
+    }
+    // ⚠ BEFORE THE FIRST PRESENTATION TIME, THE FIRST FRAME IS WHAT IS ON SCREEN.
+    //
+    // A track's earliest `cts` is routinely NOT zero: with B-frames the first frame's presentation is
+    // delayed by a frame or two, and the container carries an edit list to compensate. So clip-local
+    // time 0 has nothing at or before it, and answering null there refused every render whose first
+    // track was ordinary B-frame H.264 — measured on a real show: 145 samples, none at or before 0.
+    //
+    // This is NOT the approximation this method exists to refuse. `frame()` resolves the same case the
+    // same way ("if none is ready yet, fall back to the earliest"), and matching it is the point: an
+    // offline render must pick the frame live playback would at the same instant, or the two cannot be
+    // diffed against each other to prove the render correct.
+    return best ?? a[0];
+  }
 
   private ensureDecoder(): VideoDecoder | null {
     if (this.decoder && this.decoder.state !== 'closed') return this.decoder;
@@ -367,7 +513,7 @@ class FileDecoder {
     // ready yet (right after a seek), fall back to the earliest buffered frame so we show something.
     let best: VideoFrame | null = null;
     for (const f of this.buffer) {
-      if (f.timestamp <= this.wantUs + 1000) { if (!best || f.timestamp > best.timestamp) best = f; }
+      if (f.timestamp <= this.wantUs + PRESENT_EPS_US) { if (!best || f.timestamp > best.timestamp) best = f; }
     }
     if (!best) for (const f of this.buffer) { if (!best || f.timestamp < best.timestamp) best = f; }
     // Remember WHICH decoded frame this was, so consumers can tell a fresh frame from a repeat — a
@@ -554,6 +700,49 @@ export function releaseLayer(layerId: string): void {
   const cur = layerDecoders.get(layerId);
   if (cur) cur.dec.close();
   layerDecoders.delete(layerId);
+}
+
+/**
+ * The EXACT frame at a clip-local time, awaited — the non-realtime path (see FileDecoder.frameExact).
+ *
+ * Rides the LAYER pool rather than the surface or thumbnail pools, and that is the point: a layer
+ * decoder is already "a dedicated, non-looping, seekable decoder per key", so an offline render gets
+ * its own playhead and cannot re-seek a decoder a live surface or a scrubbing filmstrip is using.
+ * Release it through the ordinary releaseLayer().
+ *
+ * Unlike layerFrame(), this AWAITS the open instead of returning null while it happens: a renderer has
+ * nothing useful to do with "not yet", and a null here means "this frame does not exist", which a
+ * caller must be able to trust.
+ */
+export async function layerFrameExact(layerId: string, path: string, timeSec: number): Promise<VideoFrame | null> {
+  let cur = layerDecoders.get(layerId);
+  if (!cur || cur.path !== path) {
+    ensureLayerOpen(layerId, path);
+    const opening = layerOpening.get(layerId);
+    if (opening) await opening;
+    cur = layerDecoders.get(layerId);
+  }
+  if (!cur || cur.path !== path) { console.warn('[mp4/exact] layer decoder not open for', path); return null; }
+  return cur.dec.frameExact(timeSec);
+}
+
+/**
+ * Native metadata for `path`, from whichever decoder already has the track parsed.
+ *
+ * Answers from ANY open pool — surface, layer or thumbnail — because the question is about the FILE,
+ * not about a playhead, and opening a fourth decoder just to read a header would cost a full copy of
+ * the track's samples. Null until something has opened it (a `probe()` is enough); the host treats
+ * that as "ask again once it is open" rather than as "unknowable".
+ */
+export function sourceInfo(path: string): { width: number; height: number; fps: number; durationSec: number } | null {
+  let d: FileDecoder | undefined = decoders.get(path) ?? thumbDecoders.get(path);
+  if (!d) for (const v of layerDecoders.values()) if (v.path === path) { d = v.dec; break; }
+  const info = d?.getInfo();
+  if (!info) return null;
+  const fps = d!.fps();
+  // A rate we cannot derive is reported as absent rather than as a plausible 30: an export that
+  // silently rendered 60p material at 30 would halve its motion with nothing to point at.
+  return fps > 0 ? { width: info.width, height: info.height, fps, durationSec: info.durationSec } : null;
 }
 
 // Dedicated thumbnail decoder (isolated from the playback decoder above), seekable (non-looping).

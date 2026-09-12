@@ -36,6 +36,18 @@ export const plugin: MainPlugin = {
     // INFER unavailability from configure() returning an empty device name. Mirrors calib:available and
     // ndi:available. A missing engine is silent by construction; this is the only way to see it.
     ipc.handle('audio:available', () => engine.available);
+    // ---- NON-REALTIME RENDERING ----
+    // invoke, not send: a render cannot proceed until it knows the graph is prepared, and pulling is
+    // inherently request/response. ⚠ The DEVICE IS DETACHED for the duration, so nothing sounds while a
+    // render is in flight — correct (a render is not a performance), and worth knowing before wiring
+    // any UI that suggests otherwise.
+    ipc.handle('audio:offlineBegin', (cfg) => engine.offlineBegin({
+      sampleRate: Number((cfg as { sampleRate?: number })?.sampleRate) || 48000,
+      blockSize: Number((cfg as { blockSize?: number })?.blockSize) || 512,
+      channels: Number((cfg as { channels?: number })?.channels) || 2,
+    }));
+    ipc.handle('audio:offlinePull', (frames) => engine.offlinePull(Math.max(0, Number(frames) || 0)));
+    ipc.handle('audio:offlineEnd', () => { engine.offlineEnd(); return true; });
     // The pink-noise file the Speaker check PLACES through the decoder (as opposed to setTestTone,
     // which writes a channel directly and so cannot see the decode at all). Generated on first ask.
     ipc.handle('audio:testSource', () => testSourcePath());

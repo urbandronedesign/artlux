@@ -2,6 +2,7 @@ import type { CueTransition } from '../types';
 import { StateView, FadeTarget, setByPath, getByPath, isGeometryPath } from './paramPath';
 import * as automationOverlay from './automationOverlay';
 import { automationTargetRegistry } from '../host/registries';
+import * as renderClock from '../engine/renderClock';
 
 // Render-free fade/crossfade engine for Scenes & Cues. Modeled on livePreview/dmxSignal: an
 // imperative singleton the Stage frame pump samples each frame to lay interpolated values over the
@@ -155,7 +156,10 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
     if ((actives.length > 0) !== was) notify();
     return;
   }
-  actives.push({ legs, startMs: performance.now(), onComplete: opts.onComplete });
+  // renderClock, not performance.now(): a fade is sampled with the same clock in frameEngine, and the
+  // two must share an epoch. Under an offline bake the wall keeps moving while stepped time does not,
+  // so a wall-stamped fade sampled against stepped time completes instantly (or never) in the render.
+  actives.push({ legs, startMs: renderClock.now(), onComplete: opts.onComplete });
   if (!was) notify();
 }
 

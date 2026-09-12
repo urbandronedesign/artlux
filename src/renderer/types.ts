@@ -600,7 +600,7 @@ export function clipFadeAlpha(clip: { duration: number; fadeIn?: number; fadeOut
 export const isContentClip = (c: VideoClip): boolean => !!c.content && c.content.type !== SourceType.VIDEO;
 // Managed media library types live in shared/ (crosses the IPC boundary on import); re-exported
 // here so renderer code imports them from './types' alongside everything else.
-export type { AssetType, AssetEntry } from '../../shared/protocol';
+export type { AssetType, AssetEntry, BakeEntry } from '../../shared/protocol';
 
 // A recorded LiDAR-blob take in the project's take library. The frames live in a sidecar
 // `.lblob` file (path); this lightweight ref is what persists in the project + the bin UI.

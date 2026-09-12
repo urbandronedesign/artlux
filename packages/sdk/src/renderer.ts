@@ -47,6 +47,22 @@ export interface ContentSourceProvider<C = unknown, D = Drawable> {
    */
   getDrawableGeneration?(key: string, content: C): number | undefined;
   getAspect?(key: string, content: C): number | null;
+  /**
+   * OPTIONAL — declare that this source is a PURE FUNCTION of the `timeSec` it is handed, so a
+   * non-realtime render (an offline bake) can step it off the wall clock and get the same pictures.
+   *
+   * A generative source — a shader, type on a surface — qualifies: ask it for t and it draws t. A
+   * LIVE one does not, however smooth it looks: a camera, an NDI or Spout receiver, a DMX input or a
+   * tracker shows whatever arrived from outside, and stepping time does not move it. Baking one
+   * records the moment the render happened to run, not the moment it asks for.
+   *
+   * ⚠ ABSENT MEANS NO, AND THE HOST REFUSES BY NAME. That default is deliberate: a source wrongly
+   * treated as live is refused with a message its author can act on, while one wrongly treated as
+   * deterministic bakes a frozen or jittering picture that looks like a bug in the renderer. Opt in
+   * only if you are sure — including that your source holds no hidden per-call state (a frame
+   * counter, a feedback buffer seeded by draw order, `Math.random()`).
+   */
+  offlineSafe?: boolean;
   // UI fragment shown in the content editor when this type is selected.
   editor?: ComponentType<{ content: C; onChange: (patch: Partial<C>) => void }>;
   // Optional button shown in the content-type picker.
@@ -326,7 +342,51 @@ export interface VideoCodecContribution {
   residentBytes?(path: string): number;
   // One-shot frame at a source time (seconds) for the thumbnail cache (bypasses the playback
   // prefetch ring; uses its own shared GL context so it never disturbs a live layer's decode).
+  //
+  // ⚠ BEST-EFFORT, NOT FRAME-EXACT — and the name flatters it. It is `async` because OPENING is
+  // async; once open, an implementation may well answer from whatever its buffer holds. mp4's is
+  // literally `frame(timeSec, false)`, which on a miss returns "the earliest buffered frame so we
+  // show something". That is right for a filmstrip, where a frame either side is invisible, and
+  // WRONG for anything that records what it is given. If you need the exact frame, use
+  // `frameExact()` below — this method was read as exact once and it produced corrupt output.
   thumbnail(path: string, timeSec: number): Promise<CanvasImageSource | null>;
+
+  /**
+   * OPTIONAL — the frame EXACTLY at a source time, awaited. For NON-REALTIME rendering (an offline
+   * bake), where the caller controls the clock and can afford to wait.
+   *
+   * ⚠ THE CONTRACT IS "EXACT OR NOTHING". Every other frame accessor on this interface is allowed —
+   * required, even — to hand back a neighbour rather than stall a show: `surfaceFrame` reads a
+   * free-running clock, `layerFrame` answers from a prefetch ring, `thumbnail` falls back to the
+   * earliest buffered frame. That is correct for playback and fatal here. A caller writing frames
+   * into a file cannot tell a near-miss from a hit, and one wrong frame is a corrupt deliverable
+   * nobody will notice until it is on a wall. **Resolve null rather than approximate.**
+   *
+   * `layerKey` scopes a decoder of the caller's own, so an offline render never shares a playhead
+   * with the surface or timeline decoders it is rendering past.
+   *
+   * Omit it and the host REFUSES to bake this codec, by name, rather than silently approximating.
+   * That refusal is the feature: an operator told "this format cannot be rendered exactly" can pick
+   * another, while an operator handed quietly-wrong frames cannot.
+   */
+  frameExact?(layerKey: string, path: string, timeSec: number): Promise<CanvasImageSource | null>;
+
+  /**
+   * OPTIONAL — native metadata, for sizing an export and for a clip's length on drop.
+   *
+   * `aspect()` above answers the only question playback ever needed, so nothing here could report a
+   * PIXEL SIZE or a FRAME RATE. Both matter the moment something renders to a file: an export sized
+   * off the drawable under the playhead takes the resolution of whichever clip happened to be there,
+   * and one rendered at the document's nominal fps silently halves the motion of 60p material
+   * (`Timeline.fps` defaults to 30 and is documented as a *timecode* rate).
+   *
+   * It also closes a gap that predates any of this: with no duration here, `Timeline.tsx`'s
+   * OS-file drop probes length by building a `<video>` on the dropped File, so any format that
+   * cannot answer that way lands on a hardcoded 5 s clip.
+   *
+   * Synchronous and cheap: answer from what `probe()` already parsed, or null if not open yet.
+   */
+  sourceInfo?(path: string): { width: number; height: number; fps: number; durationSec: number } | null;
 }
 
 export interface VideoCodecRegistry {
@@ -1044,6 +1104,30 @@ export interface ProjectService {
   save(): Promise<boolean>;
 }
 
+/**
+ * PRE-RENDERED SURFACES — read, record, bypass, forget.
+ *
+ * A render produces a file and a binding, and the BINDING is persisted project state, so a plugin
+ * cannot own it: `ProjectData.bakes` belongs to the document, like `assets`. This is the write path
+ * back through the host, the same shape `scene3D.patch` and `projectorOutputs.patch` already have.
+ *
+ * ⚠ It is deliberately NOT on the Surface. A scene captures surfaces wholesale and the state machine
+ * recalls one on entering every state, so a bake stored there would be reverted within seconds of
+ * opening the project, with no dialog and no undo record. See services/bakeStore for the argument.
+ */
+export interface BakeService<E = unknown> {
+  list(): E[];
+  /** The entry bound to this surface, if any — enabled or not, stale or not. */
+  forSurface(surfaceId: string): E | undefined;
+  /** Record a finished render. Replaces any existing entry for the same surface. */
+  add(entry: E): void;
+  /** The operator's bypass: false plays the live content again without discarding the file. */
+  setEnabled(id: string, enabled: boolean): void;
+  /** Forget the binding. Does NOT delete the file — that is the operator's to do. */
+  remove(id: string): void;
+  subscribe(cb: () => void): () => void;
+}
+
 export interface RendererHostServices {
   project: ProjectService;
   projectorOutputs: ProjectorOutputsService;
@@ -1055,6 +1139,7 @@ export interface RendererHostServices {
   audio: AudioService;
   boot: BootService;
   preload: PreloadService;
+  bakes: BakeService;
 }
 
 /**

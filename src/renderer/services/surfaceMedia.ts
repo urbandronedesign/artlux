@@ -3,6 +3,7 @@ import { FULL_RECT, type SrcRect } from '../../../shared/protocol';
 import { clampRect } from './outputSpan';
 import { timeline } from './timeline';
 import * as contentSource from './contentSource';
+import * as bakeStore from './bakeStore';
 
 // Owns the media lifecycle for every Surface. The per-type drawable production (one <video>/<img>
 // per VIDEO/IMAGE surface, a single live camera/Spout/NDI/DMX-in, effects, tracking) lives in
@@ -219,6 +220,19 @@ export function getDrawableGeneration(s: Surface): number | undefined {
 
 // Drawable for a surface this frame, or null if not ready / no content.
 export function getDrawable(s: Surface): Drawable | null {
+  // ── A PRE-RENDERED SURFACE PLAYS ITS FILE ────────────────────────────────────────────────────
+  // One seam for the whole feature, and it is here because EVERY consumer already comes through this
+  // function: the 2D preview, the WebGPU LED sampler, the projector pump and the 3D texture. Nothing
+  // else has to learn what a bake is.
+  //
+  // It reads the surface's AUTHORED content untouched — the bake is a substitution laid over it, never
+  // a replacement of it — which is what lets a scene recall restore surfaces wholesale without
+  // disturbing anything (see services/bakeStore for why that matters).
+  const baked = bakeStore.drawableFor(s, s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM
+    ? timeline.getPlayhead()
+    : timeline.getShowTime(), timeline.activePoolKey());
+  if (baked) return baked;
+
   if (s.content.type === SourceType.SLICE) return sliceDrawable(s);
   if (s.content.type === SourceType.LAYER) {
     const ids = stackIdsOf(s);

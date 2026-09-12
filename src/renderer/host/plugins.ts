@@ -28,8 +28,9 @@ import { plugin as text } from '@artlux/plugin-text';
 import { plugin as shader } from '@artlux/plugin-shader/renderer';
 import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
 import { plugin as audio } from '@artlux/plugin-audio/renderer';
+import { bakeRendererPlugin } from '@artlux/plugin-bake/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, text, shader, showControl, audio];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, text, shader, showControl, audio, bakeRendererPlugin];
 
 // EVERY PLUGIN ACTIVATES. The launch profile no longer decides that, because calibration is two
 // halves and only one of them is expensive:
@@ -64,6 +65,9 @@ const NOOP_HOST: RendererHostServices = {
   project: { path: () => null, save: async () => false },
   projectorOutputs: { get: () => undefined, list: () => [], patch: () => {}, subscribe: () => () => {} },
   surfaces: { list: () => [], get: () => undefined, subscribe: () => () => {} },
+  // A projector window renders what the main window sends it; it never records a bake and has no
+  // document to record one into. Reads answer empty, writes go nowhere.
+  bakes: { list: () => [], forSurface: () => undefined, add: () => {}, setEnabled: () => {}, remove: () => {}, subscribe: () => () => {} },
   scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {}, addModel: async () => null },
   projectors: { send: () => {}, onMessage: () => () => {} },
   settings: { get: () => ({}), subscribe: () => () => {} },

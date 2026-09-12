@@ -219,6 +219,19 @@ export const timelineAudioHelp: HelpEntry[] = [
     keywords: ['requireEnd', 'gate', 'guard', 'hold at end', 'finished'],
   },
   {
+    id: 'timeline.sm-wait-content',
+    title: 'Wait for the destination to have a picture',
+    short: 'Hold the cut until the incoming scene has decoded enough to show.',
+    body: 'Waits for a BUFFER, not a first frame: a decode-ahead codec starts empty at a new position, '
+      + 'so a cut taken the moment the trigger fires paints the nearest decoded neighbour until it fills '
+      + '(measured: 167 misses in the first ten seconds of a 1080p60 HAP show). Capped at one second, '
+      + 'after which it cuts anyway and logs it — an uncapped wait on a missing file is a hang. Off by '
+      + 'default: for a manned show, failing fast is right, because a GO that silently hesitates reads as '
+      + 'a broken button. Turn it on for the unattended case, where a moment of waiting beats a black frame.',
+    group: 'Timeline',
+    keywords: ['waitForContent', 'readiness', 'preroll', 'pre-roll', 'buffer', 'black frame', 'stutter', 'missed frames'],
+  },
+  {
     id: 'timeline.sm-fade',
     title: 'Transition time',
     short: 'Scene crossfade (s) on arrival.',

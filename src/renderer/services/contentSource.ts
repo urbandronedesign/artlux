@@ -4,6 +4,7 @@ import { SurfaceEffect } from '../gpu/surfaceFx';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
 import { contentSourceRegistry, videoCodecRegistry } from '../host/registries';
 import * as codecResidency from './codecResidency';
+import * as renderClock from '../engine/renderClock';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
@@ -566,6 +567,14 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
     case SourceType.VIDEO: {
       const e = media.get(key);
       if (!e) return null;
+      // OFFLINE: hand back the frame prepareExact() settled on, NOT whatever the free-running surface
+      // clock is holding. surfaceFrame() reads a clock a bake does not drive, so using it here would
+      // make the awaited seek pointless. A <video> needs no stash -- the awaited seek left the element
+      // itself on the right frame.
+      if (renderClock.isOffline()) {
+        const exact = exactFrames.get(key);
+        if (exact) return exact;
+      }
       if (e.type === 'CODEC') return videoCodecRegistry.get(e.codecId)?.surfaceFrame(e.path) ?? null;
       return e.type === 'VIDEO' && e.el.readyState >= 2 ? e.el : null;
     }
@@ -590,6 +599,123 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
       const p = contentSourceRegistry.get(content.type); // plugin-contributed type, else NONE / LAYER
       return p ? p.getDrawable(key, content, timeSec) : null;
     }
+  }
+}
+
+// --- NON-REALTIME RENDERING -------------------------------------------------------------------
+// A bake owns the clock (see engine/renderClock) and steps it frame by frame, as slowly as the
+// decoders need. Everything above is built for the opposite: never stall a show, hand back a
+// neighbouring frame rather than nothing. So an offline render does not ask getDrawable to behave
+// differently -- it SETTLES each source at the wanted time first, awaiting, and only then composites.
+
+/** Exact frames settled by prepareExact(), read back by getDrawable while offline. */
+const exactFrames = new Map<string, CanvasImageSource>();
+
+// How long to wait for one <video> seek before calling it a failure.
+//
+// It was 10 s on the reasoning that a render is allowed to be slow. That is true of a RENDER and false
+// of one seek inside a per-frame loop: at 250 frames an element that never seeks turns a ten-second
+// clip into a forty-minute freeze, which nobody reads as "a seek failed". Three seconds is longer than
+// any seek that is going to succeed.
+const SEEK_TIMEOUT_MS = 3_000;
+
+/** The decoder key an offline render owns for a consumer -- its own playhead, never a live one's. */
+const exactLayerKey = (key: string): string => 'bake:' + key;
+
+/**
+ * Seek a plain <video> to `timeSec` and WAIT for it, resolving false if it cannot get there.
+ *
+ * A WEAKER GUARANTEE THAN THE CODEC PATH, AND IT IS WORTH STATING. frameExact() is answered from the
+ * container's own sample table, so "the frame at t" is checkable; a <video> gives us the platform's
+ * seek and nothing to verify it against. It is the best available for formats no codec plugin claims
+ * -- and since the WebCodecs mp4 path is on by default, that is the minority case.
+ *
+ * The element must be PAUSED, or playback moves currentTime out from under the seek and the awaited
+ * `seeked` describes a position we no longer care about. A render pauses everything through
+ * setPlaying(false) before it starts.
+ */
+function seekVideoExact(el: HTMLVideoElement, timeSec: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const dur = el.duration;
+    if (!Number.isFinite(dur) || dur <= 0) { resolve(false); return; }
+    if (timeSec < 0 || timeSec >= dur) { resolve(false); return; }   // exact or nothing
+    if (el.readyState >= 2 && Math.abs(el.currentTime - timeSec) < 1e-4) { resolve(true); return; }
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      el.removeEventListener('seeked', onSeeked);
+      el.removeEventListener('error', onError);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const onSeeked = () => done(el.readyState >= 2);
+    const onError = () => done(false);
+    el.addEventListener('seeked', onSeeked);
+    el.addEventListener('error', onError);
+    const timer = setTimeout(() => done(false), SEEK_TIMEOUT_MS);
+    try { el.currentTime = timeSec; } catch { done(false); }
+  });
+}
+
+/**
+ * OFFLINE ONLY -- settle this consumer's source on EXACTLY the frame at `timeSec`. Resolves false
+ * when the content cannot be rendered exactly, and the caller must then REFUSE TO BAKE IT rather than
+ * take whatever the source happens to be showing.
+ *
+ * The refusals are the substance of this function:
+ *   - a LIVE source (camera, DMX input, and any plugin type that has not declared `offlineSafe`)
+ *     shows what arrived from outside; stepping time does not move it;
+ *   - a codec with no frameExact() can only answer approximately, and "approximately" written into a
+ *     file is a wrong picture nobody sees until it is on a wall.
+ * Both are reported by name, because an operator told WHICH surface cannot be baked can do something
+ * about it, and one handed quietly-wrong frames cannot.
+ *
+ * LAYER / PROGRAM / SLICE are not here: those are composed by services/surfaceMedia out of the
+ * timeline and out of other surfaces, so they settle by stepping the transport, not through this.
+ */
+export async function prepareExact(key: string, content: SurfaceContent, timeSec: number): Promise<boolean> {
+  if (!renderClock.isOffline()) return false;
+  switch (content.type) {
+    case SourceType.VIDEO: {
+      const e = media.get(key);
+      if (!e) return false;
+      if (e.type === 'CODEC') {
+        const codec = videoCodecRegistry.get(e.codecId);
+        if (!codec?.frameExact) return false;           // refuse; never approximate
+        const f = await codec.frameExact(exactLayerKey(key), e.path, timeSec);
+        if (!f) return false;
+        exactFrames.set(key, f);
+        return true;
+      }
+      return e.type === 'VIDEO' ? await seekVideoExact(e.el, timeSec) : false;
+    }
+    // Time-invariant: ready or not, but never WRONG.
+    case SourceType.IMAGE: { const e = media.get(key); return !!(e && e.type === 'IMAGE' && e.bmp); }
+    case SourceType.NONE: return true;
+    case 'EFFECT': return true;                          // a pure function of the timeSec it is handed
+    case SourceType.CAMERA:
+    case SourceType.DMX_IN: return false;                // live by nature
+    default: {
+      // A plugin type must OPT IN (SDK: ContentSourceProvider.offlineSafe). Absent means no, so a
+      // source nobody has thought about is refused rather than silently frozen.
+      const p = contentSourceRegistry.get(content.type);
+      return !!p?.offlineSafe;
+    }
+  }
+}
+
+/**
+ * Hand back every decoder and frame an offline render claimed, finished or cancelled. A codec's layer
+ * decoder holds a whole copy of a track's encoded samples, so leaking one per baked surface would
+ * outlast the render by the life of the app.
+ */
+export function releaseExact(keys?: readonly string[]): void {
+  const all = keys ?? [...exactFrames.keys()];
+  for (const k of all) {
+    exactFrames.delete(k);
+    const e = media.get(k);
+    if (e && e.type === 'CODEC') videoCodecRegistry.get(e.codecId)?.releaseLayer(exactLayerKey(k));
   }
 }
 

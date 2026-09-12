@@ -1,0 +1,16 @@
+<!doctype html><html><body><script src="bundle.js"></script><script>
+const { ipcRenderer } = require('electron');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+(async () => {
+  try {
+    const out = path.join(os.tmpdir(), 'artlux-bake-roundtrip.mp4');
+    const writeFile = (buf) => { fs.writeFileSync(out, Buffer.from(buf)); return out; };
+    const r = await window.__run(out, writeFile);
+    ipcRenderer.send('result', r);
+  } catch (e) {
+    ipcRenderer.send('result', { text: 'FATAL ' + (e && e.stack || e), failed: 1 });
+  }
+})();
+</script></body></html>

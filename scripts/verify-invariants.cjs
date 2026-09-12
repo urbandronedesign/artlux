@@ -851,6 +851,58 @@ check(
   },
 );
 
+// ── One render clock, and both frame loops stand down for it ──────────────────────────────────
+check(
+  'there is ONE render clock, and both frame loops stand down for an offline render',
+  'The render path used to read performance.now() in four unrelated places: the two timeline anchors, ' +
+  'the scene/cue fade stamp and the lighting-cue tick. Four epochs that agreed only because they all ' +
+  'happened to read the wall. An offline bake steps time forward as fast (or as slowly) as the decoders ' +
+  'can serve it, and anything still reading the wall then runs at WALL speed while everything else runs ' +
+  'at bake speed: a two-second scene fade completes in two real seconds no matter how many baked frames ' +
+  'went past. Worse, a live loop left running is a SECOND driver on a single-playhead decoder, and ' +
+  'mp4Decoder reads that as a backward scrub and answers by dropping its buffer, so the bake silently ' +
+  'records neighbouring frames instead of the ones it asked for. Hence: engine/renderClock.ts is the ' +
+  'single answer to what time this frame is, both rAF loops return early while it is offline, and ' +
+  'stepFrame() refuses to run a frame when it is not.',
+  () => {
+    const F = 'src/renderer/engine/renderClock.ts';
+    if (!exists(F)) return F + ' is gone — the render path has gone back to reading the wall directly';
+    const clock = stripComments(read(F));
+    const eng = stripComments(read('src/renderer/engine/frameEngine.ts'));
+    const tl = stripComments(read('src/renderer/services/timeline.ts'));
+    const tr = stripComments(read('src/renderer/services/transitions.ts'));
+    const problems = [];
+
+    // The clock is a LEAF. It is read from the hottest loop in the app and lives under engine/, so it
+    // must not drag a dependency (or an import cycle) in behind it.
+    if (/(^|\n)\s*import\s/.test(clock)) problems.push('renderClock.ts has grown an import — it must stay a zero-import leaf');
+    for (const fn of ['now', 'isOffline', 'beginOffline', 'endOffline', 'stepTo', 'subscribe']) {
+      if (!clock.includes('export function ' + fn) && !clock.includes('export const ' + fn)) {
+        problems.push('renderClock no longer exports ' + fn + '()');
+      }
+    }
+
+    // Both loops gate, or the bake and the show fight over the same decoders.
+    if (!/renderClock\.isOffline\(\)/.test(eng)) problems.push('frameEngine no longer stands down for an offline render — it would drive the decoders underneath the bake');
+    if (!/renderClock\.isOffline\(\)/.test(tl)) problems.push('timeline no longer stands down for an offline render — the transport would advance at wall speed under the bake');
+
+    // stepFrame is the offline driver and must refuse in live mode: two drivers on one transport is
+    // exactly the failure the gates above exist to prevent.
+    // braceBody, not fnBody: stepFrame is an OBJECT-LITERAL METHOD on `timeline`, the shape fnBody
+    // cannot see (see its own note). A null here is a problem, never nothing to say.
+    const step = braceBody(tl, 'stepFrame(): void');
+    if (!step) problems.push('timeline.stepFrame() is gone — an offline render has no way to advance the transport');
+    else if (!/isOffline\(\)/.test(step)) problems.push('stepFrame() no longer refuses in live mode — it would run an extra frame indistinguishable from a dropped one');
+
+    // The anchors and the fade stamp must share the clock epoch, or a fade sampled offline against a
+    // wall-stamped start finishes instantly (or never).
+    if (/originMs = performance\.now\(\)/.test(tl)) problems.push('a timeline anchor reads performance.now() again — it must ride renderClock so the epoch cannot split');
+    if (/startMs: performance\.now\(\)/.test(tr)) problems.push('transitions stamps a fade with performance.now() again — frameEngine samples it with renderClock, and the two must share an epoch');
+
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── App holds no clock of its own ─────────────────────────────────────────────────────────────
 check(
   'per-second telemetry never lives in App state',
@@ -1372,7 +1424,7 @@ check(
   'might play twenty minutes later, and on a heavy show it was the largest single share of the open\'s ' +
   'I/O (metric D, scripts/bench-open.cjs). The fix is a window: each layer\'s START clip (the set ' +
   'poolReadiness judges, so the gate\'s contract is unchanged) plus the next WARM_AHEAD_SEC, advanced ' +
-  'by frame() while playing. It reverts silently — the app still runs, the show still plays, and only ' +
+  'by the frame body while playing (runFrame(), driven by the live rAF frame() and, offline, stepFrame()). It reverts silently — the app still runs, the show still plays, and only ' +
   'the open gets slow again — so it is asserted here. ' +
   'NOTE: this check once also required a WARM_INFLIGHT bound on concurrent BLOB READS. That clause was ' +
   'removed when media moved to artlux-media:// — there are no whole-file reads left on this path to ' +
@@ -1388,7 +1440,11 @@ check(
     if (/for \(const c of t\.clips\)/.test(body)) problems.push('warmMedia walks every clip in the document again — that is the flood this check exists to prevent');
     if (!src.includes('WARM_AHEAD_SEC')) problems.push('WARM_AHEAD_SEC is gone — there is no look-ahead window');
     // The window must ADVANCE, or a clip past the opening window never warms until it is already live.
-    if (!fnBody(src, 'frame')?.includes('warmWindow(')) problems.push('frame() no longer advances the warm window — clips past the opening window warm only once they are on screen');
+    // The frame BODY lives in runFrame(), which the live rAF frame() and the offline bake's stepFrame()
+    // both call — so assert the advance is in the body AND that the live driver still reaches it.
+    // Checking only one of the two would go blind to the other being cut.
+    if (!fnBody(src, 'runFrame')?.includes('warmWindow(')) problems.push('runFrame() no longer advances the warm window — clips past the opening window warm only once they are on screen');
+    if (!fnBody(src, 'frame')?.includes('runFrame(')) problems.push('frame() no longer calls runFrame() — the live rAF driver has been cut off from the frame body');
     // A seek/swap invalidates a window built around the old playhead.
     if (!fnBody(src, 'mainSeek')?.includes('warmHorizon')) problems.push('mainSeek does not reset warmHorizon — after a jump the window still describes the OLD playhead');
     return problems.length ? problems.join('; ') : null;
@@ -3574,8 +3630,9 @@ check(
   'and the back-to-front track order are DEFINED. Copying it gives those words two definitions, and ' +
   'they drift the first time one copy is taught something the other is not — the failure being that ' +
   'the same two tracks composite differently depending on whether a surface named them or the ' +
-  'program did, with nothing on screen to say why. So compositeLayers() takes the list, and both ' +
-  'callers pass one.',
+  'program did, with nothing on screen to say why. So compositeLayers() takes the list, and every ' +
+  'caller passes one — the program, each per-surface stack, and an offline render compositing the ' +
+  'ticked tracks into its own canvas at export size.',
   () => {
     const F = 'src/renderer/services/timeline.ts';
     if (!exists(F)) return `${F} is gone`;
@@ -3588,12 +3645,147 @@ check(
     const stack = fnBody(src, 'buildStack');
     if (!stack) problems.push('could not find buildStack');
     else if (!/compositeLayers\(/.test(stack)) problems.push('buildStack no longer calls compositeLayers — a track stack has its own copy of the loop');
+    // The THIRD caller: an offline render composites the ticked tracks into its own canvas at export
+    // size (the live stack canvas is an area budget, grow-only, and sized off whichever clip happens
+    // to be under the playhead — all wrong for a file). braceBody, not fnBody: it is an
+    // object-literal method on `timeline`, the shape fnBody cannot see.
+    const into = braceBody(src, 'compositeInto(ctx: CanvasRenderingContext2D');
+    if (!into) problems.push('timeline.compositeInto() is gone — an offline render has no way to composite a ticked track set');
+    else if (!/compositeLayers\(/.test(into)) problems.push('compositeInto no longer calls compositeLayers — a render has its own copy of the loop');
+    // Solo is judged across the WHOLE timeline, and a render must ask the same question the
+    // compositor answers, or it will bake black without being able to say why.
+    if (!/function anySoloActive\s*\(/.test(src)) problems.push('anySoloActive is gone — the solo rule has been inlined again');
     // The tell-tale of a second copy: a drawImage over data.layers outside the shared function.
     const shared = fnBody(src, 'compositeLayers') ?? '';
-    for (const [name, body] of [['buildProgram', prog], ['buildStack', stack]]) {
+    for (const [name, body] of [['buildProgram', prog], ['buildStack', stack], ['compositeInto', into]]) {
       if (body && body !== shared && /blendOp\(|\.blendMode/.test(body)) {
         problems.push(`${name} reads blendMode itself — that belongs to compositeLayers`);
       }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// -- A pre-rendered surface is PROJECT data, never look data ------------------------------------
+check(
+  'a bake lives in the project, never on a Surface, and its file is collected',
+  'The obvious place to put a pre-rendered surface is `Surface.content` — swap in the file, remember ' +
+  'the original. It cannot work, and it fails without a sound. A Scene captures `surfaces` (placement ' +
+  'AND content); unlike fixtures, which get a look/rig allow-list, surfaces are restored WHOLESALE by ' +
+  'handleRecallScene; and the state machine recalls a scene on entering EVERY state, including its ' +
+  'initial one, at load. So a swapped surface reverts to its shader seconds after the project opens, ' +
+  'with no dialog (a show-origin recall must never raise one) and no undo record (it passes no origin, ' +
+  'so nothing is written to history). The bake would simply never play. ' +
+  'The rule this codebase already has is "project-scope data must not ride a look snapshot" — it is ' +
+  'why assets, groups, trackingZones and projectorOutputs are not captured. Hence ProjectData.bakes, ' +
+  'and hence this check: the store must exist, the compositor must consult it, the scene snapshot must ' +
+  'not carry it, and the asset visitor must map BOTH its files (a transparent bake is a colour video ' +
+  'plus a matte) or Collect Assets reports a clean project whose baked surfaces are all black.',
+  () => {
+    const problems = [];
+    const F = 'src/renderer/services/bakeStore.ts';
+    if (!exists(F)) return `${F} is gone — a bake has nowhere to live but a Surface`;
+
+    // The ONE seam: every consumer (2D preview, LED sampler, projector pump, 3D texture) already
+    // comes through surfaceMedia.getDrawable, so the substitution belongs there and only there.
+    const sm = stripComments(read('src/renderer/services/surfaceMedia.ts'));
+    if (!/bakeStore\.drawableFor\(/.test(sm)) {
+      problems.push('surfaceMedia.getDrawable no longer consults bakeStore — a recorded bake would never play');
+    }
+
+    // The document carries it, and the asset machinery must see the file.
+    if (!/bakes\?:\s*BakeEntry\[\]/.test(read('shared/protocol.ts'))) {
+      problems.push('ProjectData.bakes is gone — a bake would have to live on a Surface, which a scene recall reverts');
+    }
+    const pf = stripComments(read('src/main/projectFolder.ts'));
+    const mapBody = fnBody(pf, 'mapAssetPaths') ?? '';
+    if (!/bakes/.test(mapBody)) {
+      problems.push('mapAssetPaths never visits `bakes` — relativize, resolve AND collect would all skip the rendered file, and it would not even appear in CollectResult.missing');
+    } else if (/mattePath\?:/.test(read('shared/protocol.ts')) && !/mattePath/.test(mapBody)) {
+      // A TRANSPARENT bake is TWO files, and the second one fails differently from the first. Miss the
+      // colour video and the surface falls back to live content — visibly a missing asset. Miss the
+      // MATTE and the colour video is still there and still plays, so the show comes up with every
+      // transparent surface filled in solid black over whatever is beneath it. That reads as a broken
+      // renderer, not as a file left on the authoring machine, which is why it is worth its own line.
+      problems.push('mapAssetPaths visits `bakes` but not `mattePath` — a transparent bake would collect its colour video and leave its alpha behind, and the surface would come up opaque black rather than reported missing');
+    }
+
+    // …and the look snapshot must NOT. This is the whole reason for the design.
+    const app = stripComments(read('src/renderer/App.tsx'));
+    const snap = fnBody(app, 'buildSceneSnapshot');
+    if (!snap) problems.push('could not find buildSceneSnapshot — this guard has gone blind');
+    else if (/\bbakes\b/.test(snap)) {
+      problems.push('buildSceneSnapshot captures `bakes` — a recall would then restore a stale binding, which is exactly what keeping bakes off the look snapshot prevents');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// -- A render refuses to deliver a file the show moved underneath --------------------------------
+check(
+  'a bake aborts if the state machine changes state mid-render',
+  'fsm.tick() lives in the timeline frame body, and the offline stepFrame() runs that same body — so ' +
+  'the state machine advances on the STEPPED playhead, at render speed. If it changes state mid-render ' +
+  'it recalls a scene, and a recall restores `surfaces` WHOLESALE, so the surface being rendered swaps ' +
+  'content halfway through its own file. Every individual frame is perfect; the file is two scenes ' +
+  'spliced together, which is the kind of fault that is only ever found on a wall. ' +
+  'OBSERVED, not theorised: a render started just after a project opens catches the FSM entering its ' +
+  'INITIAL state — measured firing at frame 8 and frame 18 of 120 on two cold runs — and the file came ' +
+  'back with its opening frames from one scene and the rest from another. ' +
+  'It cannot be predicted (a transition may wait on a tracker, an OSC message or the clock), so the ' +
+  'runner samples the state every frame and refuses rather than hand over the file. Same doctrine as ' +
+  'frameExact: a renderer that cannot tell a near-miss from a hit must not deliver the near-miss.',
+  () => {
+    const F = 'plugins/bake/src/bakeRunner.ts';
+    if (!exists(F)) return `${F} is gone`;
+    const src = stripComments(read(F));
+    if (!/stateMachine/.test(src)) {
+      return 'bakeRunner no longer consults the state machine — a scene recall mid-render would splice two scenes into one file and nothing would say so';
+    }
+    if (!/getCurrentStateId\(\)/.test(src)) {
+      return 'bakeRunner imports the state machine but never reads getCurrentStateId() — the guard has gone blind';
+    }
+    // The comparison must live INSIDE the frame loop: sampling once before it would detect nothing.
+    const loop = src.slice(src.indexOf('for (let i = 0; i < frames'));
+    if (!/getCurrentStateId\(\)/.test(loop)) {
+      return 'the state check is outside the render loop — it would compare the start against itself and never fire';
+    }
+    return null;
+  },
+);
+
+// -- A LIVE content source can never be baked ---------------------------------------------------
+check(
+  'no live content source claims to be renderable off the wall clock',
+  'ContentSourceProvider.offlineSafe says "ask me for time t and I will draw t", which is what lets a ' +
+  'non-realtime render step a source faster or slower than real time and still get the right pictures. ' +
+  'A generative source qualifies. A LIVE one never can: a camera, an NDI or Spout receiver, a DMX input ' +
+  'or a tracker shows whatever arrived from outside the machine, and stepping a clock does not move it. ' +
+  'The flag is one word and sits among a dozen other provider fields, so the way it gets onto a live ' +
+  'source is a copy-paste, not a decision — and the result is not a crash but a baked file holding one ' +
+  'frozen frame, or a jittering one, which reads as a bug in the renderer rather than in the source. ' +
+  'The host default is already refuse-unless-declared; this asserts the declarations that exist are ' +
+  'not the wrong ones.',
+  () => {
+    // Plugins whose content is, by definition, whatever the outside world just sent.
+    const LIVE = ['ndi', 'spout', 'lidar-tracking', 'mediapipe', 'augmenta'];
+    const problems = [];
+    for (const name of LIVE) {
+      const dir = `plugins/${name}/src`;
+      if (!exists(dir)) continue; // a plugin that has been removed is not a failure of this rule
+      for (const f of walk(dir)) {
+        if (/offlineSafe\s*:\s*true/.test(stripComments(read(f)))) {
+          problems.push(`${f} declares offlineSafe on a LIVE source — it cannot be rendered off the wall clock`);
+        }
+      }
+    }
+    // …and the host must keep refusing by default, or the declarations stop meaning anything.
+    const cs = stripComments(read('src/renderer/services/contentSource.ts'));
+    if (!/offlineSafe/.test(cs)) {
+      problems.push('contentSource no longer consults offlineSafe — every plugin source would be baked blind');
+    }
+    for (const live of ['SourceType.CAMERA', 'SourceType.DMX_IN']) {
+      if (!cs.includes(live)) problems.push(`prepareExact no longer names ${live} as live`);
     }
     return problems.length ? problems.join('; ') : null;
   },
@@ -5624,9 +5816,15 @@ check(
   'NOT ask that a field be remapped — several correctly are not (profileId resolves against a ' +
   'library, shaderId names a built-in, a zone surface is SOL/MUR) — only that the file MENTION it, ' +
   'so the decision was made once and written down. It found two real gaps the day it was written: ' +
-  'busId, which left an imported audio track routed to a bus in the source project mix, and shaderId.',
+  'busId, which left an imported audio track routed to a bus in the source project mix, and shaderId. ' +
+  'It scans shared/protocol.ts as well as renderer/types.ts: persisted shapes live in both, and a field ' +
+  'declared in the wrong one of the two would otherwise be unguarded.',
   () => {
-    const types = read('src/renderer/types.ts');
+    // BOTH files that declare persisted shapes. renderer/types.ts holds the domain model, but
+    // shared/protocol.ts holds everything that also crosses IPC — AssetEntry, ProjectorOutput,
+    // OutputSpan, BakeEntry — and a new id field declared THERE was invisible to this scan, which is
+    // precisely the "someone added a reference and forgot the importer" case it exists to catch.
+    const types = read('src/renderer/types.ts') + '\n' + read('shared/protocol.ts');
     // raw(), NOT read(): read() strips comments, and for a field that is deliberately NOT remapped
     // the comment explaining why IS the recorded decision. types.ts stays on read() so a
     // commented-out declaration cannot satisfy the scan.

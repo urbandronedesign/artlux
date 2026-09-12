@@ -15,6 +15,7 @@
 // the current transport playhead and calls playClip/stopClip/gain/spatial/effects. Disk reads happen on
 // a shared read-ahead thread, never on the audio callback.
 #include <napi.h>
+#include <cstring>
 #include <juce_core/juce_core.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -116,6 +117,8 @@ struct Clip {
   // flipping `spatial` invalidates the chain and forces a rebuild.
   std::vector<EffectSpec> specs;
   std::unique_ptr<EffectChain> chain;
+  /** Stopped DURING A RENDER — see SpatialBus::stopClip for why this is a flag and not a stop(). */
+  bool silencedOffline = false;
 };
 
 // Pulls every clip, encodes the spatial ones into one shared B-format, binaurally decodes that, and
@@ -125,6 +128,17 @@ struct Clip {
 class SpatialBus : public juce::AudioSource {
 public:
   juce::CriticalSection lock;
+  /**
+   * True while a non-realtime render owns the graph and the device is detached.
+   *
+   * ⚠ IT CHANGES WHAT `stop()` COSTS, and that is not a micro-optimisation.
+   * AudioTransportSource::stop() sets playing=false and then SPINS — up to 500 x 2 ms — waiting for
+   * the audio callback to stop using the source. Offline there IS no audio callback, so nothing ever
+   * signals it and every stop pays the full second. Measured on a real show: two stopClip calls per
+   * rendered frame, 2.5 s per frame, ~99% of the entire render. Rendering twenty frames took 52 s, of
+   * which 52 s was this.
+   */
+  std::atomic<bool> renderingOffline { false };
   std::unordered_map<std::string, std::unique_ptr<Clip>> clips;
 
   // Called from Engine::configure's stack (the JS thread), with our audio callback NOT yet registered —
@@ -279,6 +293,8 @@ public:
 
     for (auto& kv : clips) {
       Clip& c = *kv.second;
+      // Stopped during a render: contributes nothing and is not pulled at all (see stopClip).
+      if (c.silencedOffline) continue;
       scratch.clear();
       juce::AudioSourceChannelInfo si(&scratch, 0, n);
       // The transport applies the clip's gain, so the chain below is POST-FADER: riding a clip's gain
@@ -450,13 +466,48 @@ public:
       dead = std::move(it->second);
       clips.erase(it); // the audio thread can no longer reach it, so the rest needs no lock
     }
-    dead->transport->stop();
+    // Same reason as stopClip: offline, stop() would spin for a second waiting on a callback that is
+    // not running.
+    // Not while rendering: stop() would spin for a second on a callback that is not running (see
+    // stopClip). The clip is already out of `clips`, so the mix loop can no longer reach it anyway.
+    if (!renderingOffline.load()) dead->transport->stop();
     dead->transport->setSource(nullptr);
   }
+  /** Undo every render-time silence, and really stop those transports now a callback exists again. */
+  void clearOfflineSilence() {
+    std::vector<juce::AudioTransportSource*> toStop;
+    {
+      const juce::ScopedLock sl(lock);
+      for (auto& kv : clips) {
+        if (!kv.second->silencedOffline) continue;
+        kv.second->silencedOffline = false;
+        toStop.push_back(kv.second->transport.get());
+      }
+    }
+    for (auto* t : toStop) t->stop();   // OUTSIDE the lock: stop() blocks, and the audio thread needs it
+  }
+
   void stopClip(const std::string& id) {
     Clip* c = nullptr;
     { const juce::ScopedLock sl(lock); c = find(id); }
-    if (c != nullptr) c->transport->stop();
+    if (c == nullptr) return;
+    if (renderingOffline.load()) {
+      // ⚠ DO NOT CALL stop() HERE — and taking the lock first does not help, which was the first
+      // attempt and changed nothing. AudioTransportSource::stop() sets playing=false and then SPINS up
+      // to 500 x 2 ms waiting for `stopped`, which is only ever set inside getNextAudioBlock. Offline,
+      // the thing that calls getNextAudioBlock is the render loop — THIS THREAD, currently stuck inside
+      // stop(). Nobody can acknowledge it, so every stop pays the full second. Measured on a real show:
+      // two stops per rendered frame, 2.5 s per frame, 52 s of a 52 s render.
+      //
+      // So during a render a stop is a FLAG the mix loop honours by skipping the clip outright. That is
+      // instant, and cheaper than a stopped transport — which is still pulled every block so effect
+      // tails can ring out, behaviour a render does not need from a clip that has ended. The real stop
+      // happens at offlineEnd, when there is a callback again to acknowledge it.
+      const juce::ScopedLock sl(lock);
+      c->silencedOffline = true;
+      return;
+    }
+    c->transport->stop();
   }
   Clip* find(const std::string& id) { // caller must hold the lock
     auto it = clips.find(id);
@@ -519,6 +570,32 @@ public:
 
   // ── Effect chains ─────────────────────────────────────────────────────────────────────────────
   int chanFor(const Clip& c) const noexcept { return c.spatial ? 1 : 2; } // spatial ⇒ mono-first
+
+  // RE-POINT EVERY LOADED CLIP AT A BUFFERED OR UNBUFFERED READER.
+  //
+  // ⚠ THIS IS THE OTHER HALF OF THE OFFLINE SWITCH, AND WITHOUT IT THE ENGINE DEADLOCKS.
+  // loadClip decides buffering when a clip is created, but entering a render changes the answer for
+  // clips that already exist. The first build stopped the read thread and then called prepareToPlay,
+  // and every clip still holding a BufferingAudioSource sat waiting on a thread that was never coming
+  // back: prepareToPlay never returned, the main process blocked forever, and the whole application
+  // read as hung. Measured on a real show, 180 s with no progress.
+  //
+  // Called off the audio thread with no callback attached (offlineBegin/offlineEnd), so allocating and
+  // taking the lock here is safe.
+  void rebuildClipSources(bool buffered, juce::TimeSliceThread* thread) {
+    const juce::ScopedLock sl(lock);
+    for (auto& kv : clips) {
+      auto& c = *kv.second;
+      if (!c.transport || !c.reader) continue;
+      const double pos = c.transport->getCurrentPosition();
+      const bool wasPlaying = c.transport->isPlaying();
+      c.transport->stop();
+      c.transport->setSource(nullptr);   // release the old (possibly buffering) source first
+      c.transport->setSource(c.reader.get(), buffered ? 32768 : 0, buffered ? thread : nullptr, c.sampleRate);
+      c.transport->setPosition(pos);
+      if (wasPlaying) c.transport->start();
+    }
+  }
 
   void setOutputChannels(int ch) {
     const juce::ScopedLock sl(lock);
@@ -1096,7 +1173,20 @@ public:
     clip->lengthSec = rawReader->sampleRate > 0 ? (double) rawReader->lengthInSamples / rawReader->sampleRate : 0.0;
     clip->reader = std::make_unique<juce::AudioFormatReaderSource>(rawReader, true);
     clip->transport = std::make_unique<juce::AudioTransportSource>();
-    clip->transport->setSource(clip->reader.get(), 32768, &readThread, rawReader->sampleRate);
+    // READ-AHEAD, EXCEPT WHEN RENDERING OFF THE CLOCK.
+    //
+    // Live, a BufferingAudioSource on a background thread is what keeps the audio callback off the
+    // disk: prefill 0.25 s, stream the rest, and on an underrun return SILENCE rather than block —
+    // correct for a show, where a dropout is better than a stall.
+    //
+    // A non-realtime render pulls faster than any disk, so that underrun is not an edge case, it is
+    // the normal case: the render would be peppered with silence that differs run to run, which is the
+    // one thing a render must never be. With readAheadSize 0 and no thread, getNextAudioBlock reads
+    // synchronously on the calling thread and simply takes as long as it takes.
+    if (offline)
+      clip->transport->setSource(clip->reader.get(), 0, nullptr, rawReader->sampleRate);
+    else
+      clip->transport->setSource(clip->reader.get(), 32768, &readThread, rawReader->sampleRate);
     out = clip.get();
     bus.removeClip(id); // replace any existing source under this id
     bus.addClip(id, std::move(clip));
@@ -1117,6 +1207,8 @@ public:
   void playClip(const std::string& id, double seekSec, float gain) {
     const juce::ScopedLock sl(bus.lock);
     if (Clip* c = bus.find(id)) {
+      // Playing a clip clears any render-time silence (see SpatialBus::stopClip).
+      c->silencedOffline = false;
       c->transport->setGain(boundedGain(gain));
       c->transport->setPosition(juce::jmax(0.0, seekSec));
       c->transport->start();
@@ -1165,6 +1257,79 @@ public:
     if (readThread.isThreadRunning()) readThread.stopThread(2000);
   }
 
+  // ---- NON-REALTIME RENDERING ------------------------------------------------------------------
+  //
+  // The DSP graph was already device-independent and nothing here changes it: SpatialBus is a plain
+  // juce::AudioSource, and prepareToPlay(block, sr) rebuilds every buffer, the BFormat, the
+  // binauralizer, the speaker decode, the master gain + chain and every clip's transport/encoder/chain
+  // for an arbitrary rate without touching AudioDeviceManager. All that was missing was a way in.
+  //
+  // Three calls rather than one render(): the caller has to be able to evaluate automation, fades and
+  // scene recalls BETWEEN blocks, exactly as the live driver does per frame. A one-shot bounce would
+  // have to own the show's timeline, which belongs in the renderer.
+  bool offlineBegin(double sr, int block, int channels, juce::String& err) {
+    if (offline) { err = "already rendering"; return false; }
+    if (!(sr >= 8000.0) || block < 16 || channels < 1) { err = "bad offline config"; return false; }
+    // Detach the device first. Two pullers on one graph would interleave blocks and the render would
+    // get every other one.
+    if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
+    if (readThread.isThreadRunning()) readThread.stopThread(2000);
+
+    offline = true;
+    bus.renderingOffline.store(true);
+    // Every ALREADY-LOADED clip still has a buffering source pointed at the thread just stopped. Give
+    // them synchronous readers before anything asks them to prepare, or prepareToPlay blocks forever
+    // waiting on a prefill that cannot happen. See SpatialBus::rebuildClipSources.
+    bus.rebuildClipSources(false, nullptr);
+    // BEFORE prepareToPlay, not after: the master chain is BUILT at this width, and a chain whose
+    // width does not match the block it is handed passes DRY (effects.h) — every master insert would
+    // silently do nothing, which is a bug you hear only by comparing against the live show.
+    bus.setOutputChannels(channels);
+    bus.prepareToPlay(block, sr);
+    offlineBlock = block;
+    offlineChannels = channels;
+    offlineBuf.setSize(channels, block);
+    return true;
+  }
+
+  // Pull exactly `frames` sample frames, interleaved, into `dst` (frames * channels floats).
+  // Returns the number of frames written, which is `frames` unless we are not rendering.
+  int offlinePull(float* dst, int frames) {
+    if (!offline || dst == nullptr || frames <= 0) return 0;
+    int done = 0;
+    while (done < frames) {
+      const int n = juce::jmin(offlineBlock, frames - done);
+      if (offlineBuf.getNumSamples() < n) offlineBuf.setSize(offlineChannels, n, false, false, true);
+      offlineBuf.clear();
+      juce::AudioSourceChannelInfo info(&offlineBuf, 0, n);
+      bus.getNextAudioBlock(info);
+      // Interleave: WebCodecs' AudioData and every WAV writer want frames, not planes.
+      for (int i = 0; i < n; ++i)
+        for (int c = 0; c < offlineChannels; ++c)
+          dst[(done + i) * offlineChannels + c] = offlineBuf.getReadPointer(c)[i];
+      done += n;
+    }
+    return done;
+  }
+
+  void offlineEnd() {
+    if (!offline) return;
+    offline = false;
+    bus.renderingOffline.store(false);
+    bus.clearOfflineSilence();   // or every clip stopped during the render stays mute for the show
+    bus.releaseResources();
+    offlineBuf.setSize(0, 0);
+    // Hand the clips back their read-ahead. Leaving them synchronous would move every disk read onto
+    // the audio thread for the rest of the session — which is the one thing that must never happen
+    // there, and it would be heard as clicks rather than seen as anything.
+    if (!readThread.isThreadRunning()) readThread.startThread();
+    bus.rebuildClipSources(true, &readThread);
+    offlineBuf.setSize(0, 0);
+  }
+
+  bool isOffline() const { return offline; }
+  int offlineChannelCount() const { return offlineChannels; }
+
 private:
   juce::AudioDeviceManager deviceManager;
   juce::AudioSourcePlayer player;
@@ -1180,6 +1345,11 @@ private:
   MeteringAudioSource metering;                 // declared after bus + meters + analyser
   juce::TimeSliceThread readThread { "artlux-audio-read" };
   bool opened = false;
+  // Non-realtime render state. `offline` also changes how loadClip builds a transport (see there).
+  bool offline = false;
+  int offlineBlock = 512;
+  int offlineChannels = 2;
+  juce::AudioBuffer<float> offlineBuf;
   int openedChannels = 0;
   bool initialised = false;
   juce::String openedType, openedName;
@@ -1487,6 +1657,52 @@ static Napi::Value Close(const Napi::CallbackInfo& info) {
 }
 
 // Diagnostic: libspatialaudio links and its chain runs (encode → B-format → binaural, MIT HRTF).
+// ---- NON-REALTIME RENDERING ---------------------------------------------------------------------
+// offlineBegin({sampleRate, blockSize, channels}) -> { ok, error? }
+static Napi::Value OfflineBegin(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  double sr = 48000.0;
+  int block = 512, channels = 2;
+  if (info.Length() > 0 && info[0].IsObject()) {
+    auto o = info[0].As<Napi::Object>();
+    if (o.Has("sampleRate") && o.Get("sampleRate").IsNumber()) sr = o.Get("sampleRate").As<Napi::Number>().DoubleValue();
+    if (o.Has("blockSize") && o.Get("blockSize").IsNumber()) block = o.Get("blockSize").As<Napi::Number>().Int32Value();
+    if (o.Has("channels") && o.Get("channels").IsNumber()) channels = o.Get("channels").As<Napi::Number>().Int32Value();
+  }
+  juce::String err;
+  const bool ok = ensureEngine().offlineBegin(sr, block, channels, err);
+  auto out = Napi::Object::New(env);
+  out.Set("ok", Napi::Boolean::New(env, ok));
+  if (!ok) out.Set("error", Napi::String::New(env, err.toStdString()));
+  return out;
+}
+
+// offlinePull(frames) -> Float32Array, INTERLEAVED (frames * channels). Empty when not rendering.
+//
+// Allocated per call rather than into a reused buffer handed in from JS: the caller passes each block
+// straight to an AudioEncoder, which takes ownership of the timing, and a shared buffer would be
+// rewritten under an encode that had not finished with it.
+static Napi::Value OfflinePull(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  const int frames = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : 0;
+  auto& eng = ensureEngine();
+  if (frames <= 0 || !eng.isOffline()) return Napi::Float32Array::New(env, 0);
+  const int ch = eng.offlineChannelCount();
+  auto arr = Napi::Float32Array::New(env, (size_t) frames * (size_t) ch);
+  const int got = eng.offlinePull(arr.Data(), frames);
+  if (got == frames) return arr;
+  // Short read: hand back only what is real rather than a tail of zeros an encoder would treat as
+  // silence that was actually rendered.
+  auto trimmed = Napi::Float32Array::New(env, (size_t) got * (size_t) ch);
+  std::memcpy(trimmed.Data(), arr.Data(), (size_t) got * (size_t) ch * sizeof(float));
+  return trimmed;
+}
+
+static Napi::Value OfflineEnd(const Napi::CallbackInfo& info) {
+  ensureEngine().offlineEnd();
+  return info.Env().Undefined();
+}
+
 static Napi::Value SpatialProbe(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   const unsigned sampleRate = 48000, block = 512;
@@ -1544,6 +1760,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getMeters", Napi::Function::New(env, GetMeters));
   exports.Set("close", Napi::Function::New(env, Close));
   exports.Set("spatialProbe", Napi::Function::New(env, SpatialProbe));
+  exports.Set("offlineBegin", Napi::Function::New(env, OfflineBegin));
+  exports.Set("offlinePull", Napi::Function::New(env, OfflinePull));
+  exports.Set("offlineEnd", Napi::Function::New(env, OfflineEnd));
   return exports;
 }
 

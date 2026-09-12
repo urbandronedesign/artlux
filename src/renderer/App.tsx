@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type Keyframe } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type BakeEntry, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type Keyframe } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
@@ -92,6 +92,7 @@ import * as takeRecorder from './services/takeRecorder';
 import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 import { useToast, useConfirm } from './components/ui';
+import * as bakeStore from './services/bakeStore';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -480,6 +481,18 @@ const App: React.FC = () => {
   // projectors). Authoring metadata only — the truth lives on the member surfaces and their outputs;
   // see shared/protocol OutputSpan.
   const [outputSpans, setOutputSpans] = useState<OutputSpan[]>([]);
+  // PRE-RENDERED SURFACES. Project scope, never on a Surface — a scene captures surfaces wholesale and
+  // the FSM recalls one on entering every state, so anything stored there is reverted silently within
+  // seconds of opening the project. See services/bakeStore for the full argument.
+  const [bakes, setBakes] = useState<BakeEntry[]>([]);
+  // The document is the source of truth; bakeStore is only the frame path's view of it. Pushed here
+  // rather than read there because services/ must not reach back into React.
+  useEffect(() => { bakeStore.setEntries(bakes); }, [bakes]);
+  // Mirrored into a ref so host.bakes reads the live list without the service object changing
+  // identity, and fanned out so a plugin panel re-renders when the document's bakes change.
+  const bakesRef = useRef<BakeEntry[]>(bakes);
+  const bakeSubs = useRef(new Set<() => void>());
+  useEffect(() => { bakesRef.current = bakes; bakeSubs.current.forEach((cb) => cb()); }, [bakes]);
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   // Surfaces whose corners/mesh are being aligned. A SET, not one id: aligning a span means putting
   // the grid up on every projector of the wall AT ONCE, which is the only way to judge where the
@@ -2537,6 +2550,7 @@ const App: React.FC = () => {
       schedule, // in-project wall-clock schedule (show-control plugin owns the shape)
       audio: audioMix, // global audio bed (plugins/audio); AudioMix — normalizeAudioMix() on load
       assets,
+      bakes,
       projectorOutputs,
       outputSpans,
       projectorFpsCap,
@@ -2734,6 +2748,7 @@ const App: React.FC = () => {
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
       setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
       setOutputSpans(Array.isArray(data?.outputSpans) ? data.outputSpans as OutputSpan[] : []);
+      setBakes(Array.isArray(data?.bakes) ? data.bakes as BakeEntry[] : []);
       setProjectorFpsCap(typeof data?.projectorFpsCap === 'number' ? data.projectorFpsCap : 0);
       setProjectorBrightness(typeof data?.projectorBrightness === 'number' ? data.projectorBrightness : 1);
       setScene3D(() => {
@@ -3177,7 +3192,7 @@ const App: React.FC = () => {
       // payload. This list has already drifted from buildProjectData three times; don't make it four.
       return {
           surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [],
-          cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], outputSpans: [], assets: [],
+          cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], outputSpans: [], assets: [], bakes: [],
           timeline: emptyTl, audio: emptyMix, schedule: [], scene3D: defaultScene3D(),
           globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1, reserveLockedRanges: false,
       };
@@ -3791,6 +3806,20 @@ const App: React.FC = () => {
       list: () => surfacesRef.current,
       get: (id) => surfacesRef.current.find(s => s.id === id),
       subscribe: (cb) => { surfaceSubs.current.add(cb); return () => { surfaceSubs.current.delete(cb); }; },
+    },
+    bakes: {
+      list: () => bakesRef.current,
+      forSurface: (surfaceId: string) => bakesRef.current.find((b) => b.surfaceId === surfaceId),
+      // One bake per surface: a second entry for the same surface could never be told apart at
+      // playback, since bakeStore keys by surfaceId. Replacing is what a re-render means anyway.
+      add: (entry: unknown) => {
+        const e = entry as BakeEntry;
+        setBakes((prev) => [...prev.filter((b) => b.surfaceId !== e.surfaceId), e]);
+      },
+      setEnabled: (id: string, enabled: boolean) =>
+        setBakes((prev) => prev.map((b) => (b.id === id ? { ...b, enabled } : b))),
+      remove: (id: string) => setBakes((prev) => prev.filter((b) => b.id !== id)),
+      subscribe: (cb: () => void) => { bakeSubs.current.add(cb); return () => { bakeSubs.current.delete(cb); }; },
     },
     scene3D: {
       get: () => scene3DRef.current,

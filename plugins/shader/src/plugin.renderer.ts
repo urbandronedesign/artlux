@@ -55,6 +55,12 @@ export const plugin: RendererPlugin = {
     // (contentSource.getDrawable's default branch). So a new content type costs zero core enum edits
     // and zero project-file migration.
     ctx.contentSources.register({
+      // Deterministic enough to render off the wall clock, once the three things that were not are
+      // handled: iWallTime and iFrame now come from the render clock (shaderContext), and every
+      // feedback buffer is dropped on each mode flip so a render starts cold. What remains -- a
+      // feedback shader's dependence on the rate it is stepped at -- is inherent to feedback, and a
+      // fixed-rate render is MORE reproducible than live playback, not less.
+      offlineSafe: true,
       type: 'SHADER',
       getDrawable: (key, content, timeSec) => shaderDrawable.getFor(key, content as SurfaceContent, timeSec),
       // Lets the 3D texture upload, the projector pump and each projector window skip a frame whose
