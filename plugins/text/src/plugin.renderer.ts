@@ -36,6 +36,10 @@ export const plugin: RendererPlugin = {
       // native shape and wrong for type, which has none — the box is the design decision, and the
       // type is laid out to fit it.
       getAspect: () => null,
+      // Deterministic: getDrawable ignores timeSec entirely -- type is a pure function of its content,
+      // and what MOVES it is automation writing content.textX/textScale/... before compositing. So a
+      // non-realtime render steps it exactly, and the same range renders identically every time.
+      offlineSafe: true,
       editor: TextContentEditor,
       pickerButton: { label: 'Text', title: 'Typed copy on this surface' },
     } as ContentSourceProvider);

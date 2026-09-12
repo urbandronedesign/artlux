@@ -19,6 +19,7 @@ import { buildProgramSource } from './wrapper';
 import { parseHeader, type ShaderInput } from './header';
 import { buildPaletteLut } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
 import { spectrum as audioSpectrum, broadband, beatPulses, beatPulsesWith, beatCounts } from './audioTap';
+import * as renderClock from '@/engine/renderClock';
 
 export interface CompileResult {
   program: WebGLProgram | null;
@@ -57,6 +58,10 @@ let vao: WebGLVertexArrayObject | null = null;
 let unavailable = false; // sticky: we said why once, don't spam the log per frame
 const programs = new Map<string, CompiledProgram>(); // keyed by author source text
 let frameCounter = 0;
+// Nominal rate for deriving iFrame when a non-realtime render owns the clock. Shadertoy's iFrame is
+// "frames since start", which only means anything against SOME rate; live it is however often we drew,
+// and offline it has to be a function of time or two renders of the same range disagree.
+const OFFLINE_IFRAME_FPS = 60;
 
 /** Lazily stand up the context. Returns null when this machine cannot give us WebGL2 at all. */
 function ensure(): WebGL2RenderingContext | null {
@@ -309,9 +314,19 @@ export function renderToBitmap(
   // vec3, matching Shadertoy's own iResolution, so pasted code that reads .z gets the 1.0 it expects.
   if (u.iResolution) g.uniform3f(u.iResolution, w, h, 1);
   if (u.iTime) g.uniform1f(u.iTime, timeSec);
-  if (u.iWallTime) g.uniform1f(u.iWallTime, performance.now() / 1000);
+  // renderClock, not performance.now(): under an offline render the wall keeps moving while stepped
+  // time does not, so a shader reading iWallTime would animate at wall speed inside a render that is
+  // stepping at its own pace -- and two renders of the same range would differ.
+  if (u.iWallTime) g.uniform1f(u.iWallTime, renderClock.now() / 1000);
   if (u.iAspect) g.uniform1f(u.iAspect, h > 0 ? w / h : 1);
-  if (u.iFrame) g.uniform1i(u.iFrame, frameCounter++);
+  // iFrame is a COUNTER live (however many times we have drawn) and a FUNCTION OF TIME offline. The
+  // counter is module-level and never reset, so leaving it running would make a baked shader depend on
+  // how much else had been drawn in the session before the render started -- a picture that could not
+  // be reproduced, not even by baking the same range twice in a row.
+  if (u.iFrame) {
+    g.uniform1i(u.iFrame, renderClock.isOffline() ? Math.round(timeSec * OFFLINE_IFRAME_FPS) : frameCounter);
+    frameCounter++;
+  }
   // The sound, already enveloped. Uploaded whether or not the shader reads it: an unused uniform is
   // optimised out and its location comes back null, so this costs one branch.
   if (u.iAudio) g.uniform1fv(u.iAudio, audioSpectrum());
@@ -447,6 +462,21 @@ export function dropHistory(key: string): void {
   if (h && gl) gl.deleteTexture(h.tex);
   history.delete(key);
 }
+
+// EVERY FEEDBACK BUFFER, DROPPED ON EVERY RENDER-MODE FLIP.
+//
+// A feedback shader is PATH-DEPENDENT: its picture at t depends on every frame drawn before it. Within
+// one non-realtime render that is not a problem and is arguably better than live -- a fixed-rate walk
+// is reproducible in a way a display-rate one never is. Across the BOUNDARY it is a problem: a render
+// beginning with whatever the live show had accumulated would bake a different opening every time,
+// including between two renders of the same range one after the other. Clearing on both flips makes a
+// render always start cold, and stops the show inheriting the render's state on the way back out.
+//
+// Costs one texture allocation per feedback surface on the next frame, twice per render. Nothing.
+renderClock.subscribe(() => {
+  for (const [k] of history) dropHistory(k);
+  history.clear();
+});
 
 /** For the bench and the boot report: is there a usable context at all? */
 export function isAvailable(): boolean {
