@@ -1258,6 +1258,12 @@ export interface ProjectData {
   schedule?: unknown[]; // ScheduleEntry[] (@artlux/plugin-show-control) — in-project wall-clock triggers
   audio?: unknown; // AudioMix (renderer type) — global audio bed (Wave 3); normalizeAudioMix() on read
   assets?: AssetEntry[]; // managed media library (video/image/model/take/audio)
+  // PRE-RENDERED SURFACES. Project scope, exactly like `assets` above and for the same reason: a
+  // scene captures `surfaces` wholesale and the FSM recalls one on entering every state, so anything
+  // stored ON a surface is reverted within seconds of opening the project, silently. See
+  // src/renderer/services/bakeStore.ts for the full argument. Absent on every project that has never
+  // rendered, so there is nothing to migrate.
+  bakes?: BakeEntry[];
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   outputSpans?: OutputSpan[]; // authoring metadata: how a source surface was cut into SLICE surfaces
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
@@ -1275,6 +1281,38 @@ export interface ProjectData {
   // Only the profiles actually referenced by a fixture are written, so this stays small.
   // Resolution order on load: THIS → userData/fixture-profiles → bundled library.
   fixtureProfiles?: FixtureProfile[];
+}
+
+/**
+ * One pre-rendered surface: a file, the range it covers, and a description of what was rendered.
+ *
+ * `contentSig` is the whole trick. It is a stable description of the surface's AUTHORED content (see
+ * bakeStore.signatureOf), so this one project-scope list behaves per-scene without being stored per
+ * scene: a surface that is a shader in one scene and a video in another matches only where the
+ * signature does. It is also the staleness test — edit the shader and the bake steps aside rather
+ * than showing yesterday's picture.
+ */
+export interface BakeEntry {
+  id: string;
+  surfaceId: string;
+  /** See bakeStore.signatureOf. Never compare this by hand; ask that function. */
+  contentSig: string;
+  /**
+   * WHICH clock the range is measured on. A generative surface rides the SHOW clock; a timeline-fed
+   * one rides the bound document's PLAYHEAD. Same two-value choice automation already makes per lane
+   * (services/timeline: `rt.clock === 'show' ? showTimeSec : playheadSec`).
+   */
+  clock: 'show' | 'playhead';
+  startSec: number;
+  endSec: number;
+  fps: number;
+  width: number;
+  height: number;
+  /** Absolute on disk while loaded; relativized into the project folder on save, like every asset. */
+  path: string;
+  /** The operator's bypass. False plays the live content again without discarding the render. */
+  enabled: boolean;
+  createdAt: string;
 }
 
 // Result of a "Collect Assets" run.

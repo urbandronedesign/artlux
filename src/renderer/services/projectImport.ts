@@ -692,6 +692,37 @@ function remapTimeline(
 }
 
 /** Remap a surface. `layers` is the layer map of the timeline this surface is bound to. */
+// ── ID-BEARING FIELDS THIS IMPORTER DELIBERATELY DOES NOT REMAP ─────────────────────────────────
+//
+// The invariant that guards this file asks only that every `*Id` / `*Ids` field declared in a
+// persisted shape be MENTIONED here, so the decision is made once and written down rather than
+// rediscovered as a silent dangling reference. These five are named for that reason. They surfaced
+// together when the guard was widened to scan `shared/protocol.ts` as well as `renderer/types.ts` —
+// persisted shapes live in both, and everything declared in protocol.ts had been invisible to it.
+//
+//   · docId          — a documentation search-index key ("<docId>#<heading>"). Not project data.
+//   · pluginId       — on a renderer-fault record, naming the plugin whose render threw. Not project
+//                      data; it is telemetry about this session.
+//   · rigIds         — inside ProjectorBlend → ProjectorCalibration → ProjectorOutput. Projector
+//                      outputs are THE BUILDING, NOT THE SHOW: this importer does not carry them at
+//                      all (a scene's copy is deleted outright, below), so there is nothing to
+//                      re-point. A blend is only meaningful for the rig it was solved on anyway.
+//   · sourceSurfaceId, sliceIds — inside OutputSpan (ProjectData.outputSpans): authoring metadata
+//                      recording how one surface was cut into SLICE surfaces for several projectors.
+//                      Also not carried, for the same reason — the cut describes this room's screens.
+//   · bakes[].surfaceId — pre-rendered surfaces (ProjectData.bakes). NOT CARRIED, and this one is a
+//                      deliberate scope decision rather than a category judgement: carrying them means
+//                      growing ImportPatch and its three consumers, and the degradation without it is
+//                      safe — an imported surface simply plays its live content, which is correct, just
+//                      slower, and re-rendering is one action. Carrying a bake WITHOUT remapping would
+//                      not be safe (a stale surfaceId still resolves, against the source project), so
+//                      the choice is carry-and-remap or neither. When it is worth doing: mint
+//                      `bakes` on ImportPatch, fill it in the 'append' branch beside surfaces, and
+//                      re-point `surfaceId` through `maps.surface`, dropping any whose surface did not
+//                      come across.
+//
+// If any of these ever DOES start travelling, it needs a real remap here and this note must go.
+
 function remapSurface(s: Surface, maps: Maps, layers: Map<string, string> | null,
   warn: (w: ImportWarning) => void, where: string): Surface {
   const content = { ...s.content };
