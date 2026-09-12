@@ -12,6 +12,7 @@ import type { VideoCodecContribution } from '@artlux/sdk/renderer';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
 import * as cueBus from './cueBus';
+import * as renderClock from '../engine/renderClock';
 
 // Per-window video-layer timeline engine. The single source of playback time so React
 // never re-renders per frame (mirrors dmxSignal/livePreview). One <video> per layer
@@ -263,6 +264,82 @@ function forgetLayerContent(layerId: string): void {
     lv.content = undefined; lv.contentClipId = null;
     if (lv.mode === 'content') lv.mode = null;
   }
+}
+
+// How long to wait for one layer <video> seek during a non-realtime render.
+//
+// Not "generous because a render may be slow" — that reasoning applies to the render, not to one seek
+// inside a per-frame loop, where a wait that never succeeds multiplies by the frame count and reads as
+// a hung application rather than as a failed seek.
+const EXACT_SEEK_TIMEOUT_MS = 3_000;
+
+/**
+ * Seek a layer's <video> to `target` and WAIT for it. Resolves false when it cannot get there.
+ *
+ * The live path (syncVideoLayer, just above) deliberately does NOT wait: a show would rather draw a
+ * frame one late than stall, and it holds the outgoing picture through the seek. A render cannot make
+ * that trade — an unawaited seek means the element is still showing the PREVIOUS frame when the
+ * compositor reads it, so the file gets a frame that was never at that time.
+ */
+function seekLayerVideoExact(el: HTMLVideoElement, target: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (el.readyState >= 2 && Math.abs(el.currentTime - target) < 1e-4) { resolve(true); return; }
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      el.removeEventListener('seeked', onSeeked);
+      el.removeEventListener('error', onError);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const onSeeked = () => done(el.readyState >= 2);
+    const onError = () => done(false);
+    el.addEventListener('seeked', onSeeked);
+    el.addEventListener('error', onError);
+    const timer = setTimeout(() => done(false), EXACT_SEEK_TIMEOUT_MS);
+    try { el.currentTime = Math.max(0, target); } catch { done(false); }
+  });
+}
+
+/**
+ * Settle ONE layer on exactly the frame at `t`, awaited. Returns a refusal sentence, or null on success.
+ *
+ * ⚠ IT REUSES syncLayer FOR THE DISPATCH, and that is the point. Which clip is under the playhead,
+ * whether it is a content clip, whether a codec claims the file, when to open a decoder and when to
+ * release one are all decided in exactly one place; a second copy here would be a second definition of
+ * what a layer IS, and the two would disagree the first time one learned something. This only UPGRADES
+ * the two cases that can answer approximately — a codec frame and a <video> seek — after the fact.
+ */
+async function settleLayerExact(layerId: string, t: number): Promise<string | null> {
+  syncLayer(layerId, t);                       // the one dispatch: opens/releases, sets mode + clipId
+  const clip = activeClip(layerId, t);
+  if (!clip) return null;                      // nothing under the playhead is legitimately black
+  const lv = layerVideos.get(layerId);
+  if (!lv) return null;
+  const clipTime = t - clip.start + clip.inPoint;
+
+  if (lv.mode === 'codec' && lv.codec) {
+    const codec = videoCodecRegistry.get(lv.codec.codecId);
+    if (!codec?.frameExact) return `the ${lv.codec.codecId} codec cannot answer an exact frame`;
+    // NOT named `frame`: fnBody() in verify-invariants anchors on `const frame = ` to locate the rAF
+    // frame() function, so a local by that name silently redirects a guard to this body instead.
+    const exact = await codec.frameExact(layerId, lv.codec.path, clipTime);
+    if (!exact) return `no frame at ${clipTime.toFixed(3)}s of ${clip.path.split(/[\\/]/).pop()}`;
+    lv.codec.canvas = exact;
+    return null;
+  }
+  if (lv.mode === 'video') {
+    return (await seekLayerVideoExact(lv.el, clipTime))
+      ? null
+      : `could not seek ${clip.path.split(/[\\/]/).pop()} to ${clipTime.toFixed(3)}s`;
+  }
+  if (lv.mode === 'content' && clip.content) {
+    return (await contentSource.prepareExact(layerKey(layerId), clip.content, clipTime))
+      ? null
+      : `a ${String(clip.content.type)} clip cannot be rendered off the wall clock`;
+  }
+  return null;
 }
 
 function syncLayer(layerId: string, t: number): void {
@@ -677,7 +754,7 @@ function frameSec(t: Timeline): number {
 function mainSeek(sec: number): void {
   const clamped = Math.max(0, sec);
   playhead = clamped;
-  originMs = performance.now() - clamped * 1000;
+  originMs = renderClock.now() - clamped * 1000;
   prevPlayhead = clamped;
   endLatched = false; // a deliberate jump re-arms the end
   warmHorizon = -Infinity; // the warm window was built around the OLD playhead — re-base next frame
@@ -694,7 +771,7 @@ function mainSeek(sec: number): void {
 function showSeekInternal(sec: number): void {
   const clamped = Math.max(0, sec);
   showTime = clamped;
-  showOriginMs = performance.now() - clamped * 1000;
+  showOriginMs = renderClock.now() - clamped * 1000;
 }
 
 // Is the SHOW clock parked at the global end (global loop off)? The twin of atEndBound(), asked of the
@@ -906,8 +983,32 @@ function sampleAutomation(playheadSec: number, showTimeSec: number): void {
   if (wrote) for (let i = 0; i < frameEndProviders.length; i++) frameEndProviders[i].frameEnd!();
 }
 
-function frame(now: number): void {
+function frame(rafNow: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
+  // ── THE OFFLINE GATE ──────────────────────────────────────────────────────────────────────────
+  // An offline render (a bake) owns the clock and calls stepFrame() itself, once per rendered frame,
+  // awaiting every source in between. If this loop also ran, the transport would advance at WALL speed
+  // underneath it: layers would be synced to a playhead the bake never asked for, and `syncVideoLayer`
+  // would seek the same decoders the bake is reading — which mp4Decoder sees as a backward scrub and
+  // answers by dropping its buffer. The render would then bake neighbouring frames, silently.
+  //
+  // The rAF keeps rescheduling above, so the transport resumes the instant the bake ends with nothing
+  // needing to restart it. The anchors are re-derived on the mode flip (see the subscription below).
+  if (renderClock.isOffline()) return;
+  // The rAF timestamp, NOT renderClock.now(): in live mode they are the same clock, but the rAF
+  // argument is the frame's own start time, and deriving cadence from it is what keeps the playhead
+  // uniform against the display refresh (see the anchor note at the top of this file).
+  runFrame(rafNow);
+}
+
+/**
+ * ONE frame of the transport at `now` (ms, renderClock domain). Two drivers and only two: the rAF
+ * above in live mode, and an offline bake through stepFrame(). Kept as one body on purpose — a second
+ * copy would be a second definition of what a frame does to the playhead, the show clock, automation
+ * and the state machine, and those four would drift apart the first time one of them was taught
+ * something the other was not.
+ */
+function runFrame(now: number): void {
   try {
     hitEnd = false; // one frame only: set below when the playhead lands on the end, read by the FSM tick
     // Cleared here and re-established below on every frame the hold branch actually parks — so ANY
@@ -1362,13 +1463,23 @@ function buildProgram(): void {
  * `muted`, `solo`, `opacity` and `blendMode` MEAN — and the two would drift the first time one of
  * them was taught something the other was not. Guarded by verify:invariants.
  */
+/**
+ * Is ANY track soloed? Extracted from compositeLayers so the compositor and anything that needs to
+ * ASK the same question (an offline render refuses to bake while a solo is live, because a soloed
+ * track elsewhere legitimately makes a ticked track composite black) read one definition rather than
+ * two that drift. `excludeFromProgram` kinds are not soloable — they never contribute a picture.
+ */
+function anySoloActive(): boolean {
+  return data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
+}
+
 function compositeLayers(ctx: CanvasRenderingContext2D, w: number, h: number, only: ReadonlySet<string> | null): void {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, w, h);
   // Solo is judged across the WHOLE timeline, not within the subset: soloing a track is a statement
   // about the document ("show me only this"), and a surface that does not name the soloed track
   // should go dark exactly as the program does, rather than quietly ignoring the solo.
-  const anySolo = data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
+  const anySolo = anySoloActive();
   for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
     const l = data.layers[i];
     if (only && !only.has(l.id)) continue;
@@ -1641,8 +1752,8 @@ export const timeline = {
       // (the Length-moved case above) and the next end-stop would park silently, never emitting `pause` and
       // never pulsing hitEnd — the show would run past its new end with the FSM's onTimelineEnd dead.
       endLatched = false;
-      originMs = performance.now() - playhead * 1000;     // re-anchor the monotonic clock on resume
-      showOriginMs = performance.now() - showTime * 1000; // …and the show clock's, identically
+      originMs = renderClock.now() - playhead * 1000;     // re-anchor the monotonic clock on resume
+      showOriginMs = renderClock.now() - showTime * 1000; // …and the show clock's, identically
     }
   },
   setExternal(e: boolean): void { external = e; },
@@ -1677,7 +1788,7 @@ export const timeline = {
       // Phase-lock to it with a gentle slew (continuous, invisible) instead of a hard resync snap —
       // that snap was the periodic hitch. Big jumps (manual seek, loop wrap) still snap instantly.
       const err = clamped - playhead;
-      if (Math.abs(err) > 0.5) { playhead = clamped; originMs = performance.now() - clamped * 1000; }
+      if (Math.abs(err) > 0.5) { playhead = clamped; originMs = renderClock.now() - clamped * 1000; }
       else originMs -= err * 1000 * SLEW;
       return;
     }
@@ -1704,6 +1815,42 @@ export const timeline = {
   // The document's "Length" — guarded, so junk (NaN / "10" / null) can't leak out to a plugin status
   // readout. NOT the playable end: an out-point overrides Length — that's getEnd().
   getDuration(): number { return timelineDuration(data); },
+  /**
+   * The bound document's nominal frame rate.
+   *
+   * ⚠ It is declared as a TIMECODE rate (`Timeline.fps`, "frame rate for HH:MM:SS:FF", default 30), so
+   * it describes what the ruler counts in rather than what the media is. Good enough to DEFAULT an
+   * export rate to — it is what the operator sees — and not good enough to trust silently: 60p material
+   * in a document left at 30 renders at half the motion, so anything using this should show the number
+   * rather than apply it quietly.
+   */
+  getFps(): number { return 1 / frameSec(data); },
+  /**
+   * The distinct source FILES a set of tracks shows anywhere in [startSec, endSec).
+   *
+   * For sizing and rating an export. A render's honest output resolution and frame rate are properties
+   * of the material it will contain, not of the ruler — and not of whichever clip happens to sit under
+   * the playhead when the operator opens a panel, which is what `buildStack` uses and why a render must
+   * not reuse it (see compositeInto).
+   *
+   * `ids` null = every contributing track (what a PROGRAM surface shows). Content clips carry a
+   * SurfaceContent rather than a file and are skipped: they are generative, so they have no native rate
+   * to match and any rate renders them truthfully.
+   */
+  contributingSources(ids: readonly string[] | null, startSec: number, endSec: number): Array<{ path: string; layerId: string }> {
+    const want = ids ? new Set(ids) : null;
+    const seen = new Set<string>();
+    const out: Array<{ path: string; layerId: string }> = [];
+    for (const c of data.clips) {
+      if (want && !want.has(c.layerId)) continue;
+      if (isContentClip(c) || !c.path) continue;
+      if (c.start >= endSec || c.start + c.duration <= startSec) continue; // no overlap with the range
+      if (seen.has(c.path)) continue;
+      seen.add(c.path);
+      out.push({ path: c.path, layerId: c.layerId });
+    }
+    return out;
+  },
   getEnd(): number { return timelineEnd(data); },
   getStart(): number { return timelineStart(data); },
   // THE BOUND DOCUMENT'S OWN AUDIO — the container that rides the PLAYHEAD (unlike the bed, which rides
@@ -1780,7 +1927,7 @@ export const timeline = {
     if (!external) return;                        // the main window DERIVES this clock; it is not told it
     const s = Number.isFinite(sec) ? Math.max(0, sec) : 0;
     showTime = s;
-    showOriginMs = performance.now() - s * 1000;  // re-anchor, so the interpolation continues from here
+    showOriginMs = renderClock.now() - s * 1000;  // re-anchor, so the interpolation continues from here
   },
   getGlobalStart(): number { return timelineStart(globalDoc); },
   getGlobalEnd(): number { return timelineEnd(globalDoc); },
@@ -1947,11 +2094,102 @@ export const timeline = {
   subscribe(cb: (playhead: number) => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; },
   start(): void {
     if (!raf) {
-      originMs = performance.now() - playhead * 1000;
-      showOriginMs = performance.now() - showTime * 1000;
+      originMs = renderClock.now() - playhead * 1000;
+      showOriginMs = renderClock.now() - showTime * 1000;
       raf = requestAnimationFrame(frame);
     }
   },
+  /**
+   * ADVANCE THE TRANSPORT BY ONE FRAME, OFF THE WALL — the offline render's driver.
+   *
+   * Same body as the live loop (runFrame), so layers, per-surface stacks, the program composite,
+   * automation lanes and the state machine all step exactly as they do in a show. The caller sets the
+   * time first with renderClock.stepTo(); this only pumps.
+   *
+   * Refuses in live mode rather than running an extra frame: two drivers on one transport is the
+   * failure this whole gate exists to prevent, and a silent extra frame would be indistinguishable
+   * from a dropped one.
+   */
+  stepFrame(): void {
+    if (!renderClock.isOffline()) return;
+    runFrame(renderClock.now());
+  },
+  /**
+   * SETTLE TIMELINE TRACKS ON EXACTLY THE FRAME AT THE CURRENT PLAYHEAD, awaited, then recomposite.
+   * Returns a refusal sentence naming what could not be answered, or null when every track is exact.
+   *
+   * stepFrame() above has already run the ordinary sync, which opens the decoders and decides what is
+   * under the playhead but does NOT wait for any of it — correctly, for a show. This is the second
+   * pass a render needs: wait for each track, then rebuild the composites so the pictures the
+   * compositor hands out are the ones that were waited for.
+   *
+   * `ids` null = every track (what a PROGRAM surface shows); otherwise just the ticked set.
+   */
+  async settleLayersExact(ids: readonly string[] | null): Promise<string | null> {
+    if (!renderClock.isOffline()) return 'not rendering';
+    const want = ids ? data.layers.filter((l) => ids.includes(l.id)) : data.layers;
+    for (const l of want) {
+      if (clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram) continue; // contributes no picture
+      const why = await settleLayerExact(l.id, playhead);
+      if (why) return `track "${l.name || l.id}": ${why}`;
+    }
+    // Recomposite from the settled frames. The build in stepFrame() ran against whatever the decoders
+    // happened to hold; this one is the picture the render actually writes.
+    try { if (programActive) buildProgram(); } catch (e) { console.error('[timeline] program error', e); }
+    for (const e of stacks.values()) { try { buildStack(e); } catch (e2) { console.error('[timeline] stack error', e2); } }
+    return null;
+  },
+  /**
+   * COMPOSITE A CHOSEN SET OF TRACKS INTO SOMEONE ELSE'S CANVAS, AT THEIR SIZE.
+   *
+   * The third caller of the one `compositeLayers` — beside the program and the per-surface stacks —
+   * and it exists so an offline render does NOT grow a fourth copy of the stacking loop. Everything
+   * that makes a stack look the way it does (`enabled`, `muted`, `solo`, `opacity`, `blendMode`, and
+   * back-to-front TIMELINE order rather than the order the operator ticked) therefore has exactly one
+   * definition, which is what verify:invariants guards.
+   *
+   * ⚠ WHY A RENDER MUST NOT REUSE THE LIVE STACK CANVAS instead of calling this. `buildStack` sizes
+   * for playback and all three of its rules are wrong for an export: it spends an AREA BUDGET rather
+   * than the source size (a 1:1 surface fed by a 1920-wide track gets 1440×1440, deliberately); it is
+   * GROW-ONLY, so forcing it bigger would raise the live compositing cost for the rest of the session
+   * — a bake that makes the show slower afterwards; and it takes its size from whatever clip is under
+   * the playhead at that instant, so a render starting on a 720p clip would upscale the 4K one later
+   * in the same range.
+   *
+   * `ids` null = every contributing track (the program). `ids` empty = nothing, cleared — spelled
+   * apart from null on purpose, so a bug that produces an empty selection paints black instead of
+   * silently baking the entire program.
+   */
+  compositeInto(ctx: CanvasRenderingContext2D, w: number, h: number, ids: readonly string[] | null): void {
+    if (ids && ids.length === 0) {
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, w, h);
+      return;
+    }
+    compositeLayers(ctx, w, h, ids ? new Set(ids) : null);
+  },
+  /**
+   * Is any track soloed right now? An offline render asks before it starts: a solo elsewhere makes a
+   * ticked-but-unsoloed track composite BLACK — correctly, matching the program — so a bake run with
+   * a stray solo would record black and look like a bug in the renderer.
+   */
+  hasSolo(): boolean { return anySoloActive(); },
 };
+
+// ── RE-ANCHOR ON EVERY MODE FLIP ────────────────────────────────────────────────────────────────
+// Both clocks are `(now - anchor) / 1000`, and `now` changes EPOCH when the render clock is taken or
+// given back: stepped time is seeded from the wall but then stops advancing, while the wall keeps
+// going — by the whole length of the bake, which may be minutes. Leave the anchors alone and the
+// playhead leaps forward by exactly that much on the first frame after a render ends.
+//
+// Re-deriving both from their CURRENT positions makes the flip invisible in either direction: the
+// transport is at the same second before and after, and only the epoch underneath it changed. This is
+// the counterpart of renderClock.subscribe()'s own note — that module cannot do this itself, because
+// it deliberately does not know what a playhead is.
+renderClock.subscribe(() => {
+  const n = renderClock.now();
+  originMs = n - playhead * 1000;
+  showOriginMs = n - showTime * 1000;
+});
 
 timeline.start();

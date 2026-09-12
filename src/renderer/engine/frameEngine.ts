@@ -17,6 +17,7 @@ import * as fixtureSignal from '../services/fixtureSignal';
 import * as lightingOverlay from '../services/lightingOverlay';
 import * as lightingCue from '../services/lightingCue';
 import { perfMonitor } from '../services/perfMonitor';
+import * as renderClock from './renderClock';
 
 
 // THE RENDER/OUTPUT ENGINE — composite, sample, pack, publish.
@@ -211,6 +212,18 @@ class FrameEngine {
     let lastTick = -1e9;
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
+      // ── THE OFFLINE GATE ────────────────────────────────────────────────────────────────────────
+      // A non-realtime render (services/bake) owns the clock and drives the sources itself, frame by
+      // frame, awaiting each one. If this loop kept running it would ask the same decoders for frames
+      // at the WALL playhead in between — which is a second driver on a single-playhead decoder, and
+      // mp4Decoder reads that as a backward scrub and drops its buffer. The bake would then never get
+      // an exact frame and would silently bake neighbours.
+      //
+      // Note what this is NOT: not a view condition, not a canvas check, not a domReady gate — the
+      // three shapes verify:invariants forbids here, all of which made OUTPUT depend on the UI. This
+      // is the engine standing down for another renderer, and the rAF keeps rescheduling above, so
+      // output resumes the instant the bake ends without anything restarting the loop.
+      if (renderClock.isOffline()) return;
       const cap = this.inputs.engineFps;
       if (cap > 0 && now - lastTick < 1000 / cap - 0.5) return;
       lastTick = now;
@@ -419,7 +432,7 @@ class FrameEngine {
       const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
       effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
     }
-    const fade = transitions.sample(performance.now());
+    const fade = transitions.sample(renderClock.now());
     if (fade) {
       const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
       effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
@@ -476,7 +489,7 @@ class FrameEngine {
     // view condition that could return out of the frame loop is the bug class the engine
     // extraction exists to prevent (guarded by verify:invariants).
     if (showPreview && this.surfacePreviews.size > 0) {
-      const nowMs = performance.now();
+      const nowMs = renderClock.now();
       if (nowMs - this.lastPreviewPaint >= PREVIEW_MS) {
         this.lastPreviewPaint = nowMs;
         this.paintSurfacePreviews(effSurfaces);
@@ -618,7 +631,7 @@ class FrameEngine {
     // The cue sits BELOW the lane, not at the top, on purpose — see services/lightingCue. Putting it
     // above would break "a lane always wins", and the top layer is livePreview: a fader drag right
     // now, which a cue fired by the scheduler at 3 a.m. is not.
-    lightingCue.tick(performance.now());
+    lightingCue.tick(renderClock.now());
     const cueLive = lightingCue.isActive();
 
     // Is THIS fixture's mode subtractive? Asked per channel per fixture by the bridge below, so it
