@@ -49,3 +49,23 @@ export const audioClient = {
   setTestTone: (deviceChannel: number, gain = 0.5): void => { ipc?.send('audio:setTestTone', deviceChannel, gain); },
   stopAll: (): void => { ipc?.send('audio:stopAll'); },
 };
+
+// ---- NON-REALTIME RENDERING ---------------------------------------------------------------------
+// Standalone rather than methods on `audioClient`: this is not part of playing a show, and keeping it
+// off that object means nothing on the playhead tick can reach it by accident.
+//
+// ⚠ THE DEVICE IS DETACHED for the duration of a render, so NOTHING SOUNDS until offlineEnd(). That is
+// correct — a render is not a performance — but any UI that starts one has to say so.
+
+export async function offlineBegin(cfg: { sampleRate: number; blockSize: number; channels: number }): Promise<{ ok: boolean; error?: string }> {
+  const r = await ipc?.invoke('audio:offlineBegin', cfg);
+  return (r as { ok: boolean; error?: string } | undefined) ?? { ok: false, error: 'the audio plugin is not loaded' };
+}
+
+/** INTERLEAVED frames (frames * channels). Short or empty when the graph is not rendering. */
+export async function offlinePull(frames: number): Promise<Float32Array> {
+  const r = await ipc?.invoke('audio:offlinePull', frames);
+  return r instanceof Float32Array ? r : new Float32Array(0);
+}
+
+export async function offlineEnd(): Promise<void> { await ipc?.invoke('audio:offlineEnd'); }

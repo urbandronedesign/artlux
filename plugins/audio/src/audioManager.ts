@@ -67,6 +67,16 @@ export interface OpenedCfg {
 export interface DeviceEntry { type: string; name: string; isDefault: boolean }
 
 interface NativeAudio {
+  /**
+   * NON-REALTIME RENDERING. Detaches the device, prepares the graph at an arbitrary rate, and lets the
+   * caller pull blocks as fast as the disk allows. Three calls rather than one render() because the
+   * driver has to evaluate automation, fades and recalls BETWEEN blocks, exactly as it does per frame
+   * live. `offlinePull` returns INTERLEAVED frames (frames * channels).
+   */
+  offlineBegin?(cfg: { sampleRate: number; blockSize: number; channels: number }): { ok: boolean; error?: string };
+  offlinePull?(frames: number): Float32Array;
+  offlineEnd?(): void;
+
   juceVersion(): string;
   configure(cfg: DeviceCfg): OpenedCfg; // throws on failure
   getDevices(): DeviceEntry[];
@@ -130,6 +140,24 @@ console.log(
 const NO_DEVICE: OpenedCfg = { deviceName: '', deviceType: '', sampleRate: 0, bufferSize: 0, channels: 0 };
 export function configure(cfg: DeviceCfg): OpenedCfg { return native ? native.configure(cfg) : NO_DEVICE; }
 export function getDevices(): DeviceEntry[] { return native ? native.getDevices() : []; }
+
+// ---- NON-REALTIME RENDERING ----------------------------------------------------------------------
+// Detaches the device, prepares the graph at an arbitrary rate, and lets the caller pull blocks as fast
+// as the disk allows. Three calls rather than one render(): the driver evaluates automation, fades and
+// recalls BETWEEN blocks, exactly as it does per frame live. A one-shot bounce would have to own the
+// show's timeline, which belongs in the renderer.
+//
+// `offlinePull` hands back INTERLEAVED frames (frames * channels) — what an AudioEncoder and every WAV
+// writer want. An engine built before this existed simply has no such export, which is why each is
+// optional on the binding and answers a harmless nothing when absent.
+export function offlineBegin(cfg: { sampleRate: number; blockSize: number; channels: number }): { ok: boolean; error?: string } {
+  if (!native?.offlineBegin) return { ok: false, error: 'this audio engine build has no offline render' };
+  return native.offlineBegin(cfg);
+}
+export function offlinePull(frames: number): Float32Array {
+  return native?.offlinePull ? native.offlinePull(frames) : new Float32Array(0);
+}
+export function offlineEnd(): void { native?.offlineEnd?.(); }
 export function loadClip(id: string, path: string): ClipMeta | null { return native ? native.loadClip(id, path) : null; }
 export function unloadClip(id: string): void { native?.unloadClip(id); }
 export function playClip(id: string, seekSec: number, gain: number): void { native?.playClip(id, seekSec, gain); }
