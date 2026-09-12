@@ -1628,3 +1628,83 @@ calibrated draw where brightness had always been identity.
 - Native engine: `npm run build:native` (Rust → `output-engine.node`). Required once after clone.
 - Run: `env -u ELECTRON_RUN_AS_NODE npm run dev`.
 - Art-Net bytes: a UDP listener on `127.0.0.1:6454` + the transport produces a valid `Art-Net` OpOutput packet (header, `0x5000`, universe, length, payload, non-zero seq) — validated during Phase A.
+
+## v0.30.0 — offline bake: a surface rendered off the clock, with sound (2026-09-12)
+
+`7b98343`
+
+A net-new feature, its plugin, two SDK methods, the first non-realtime path in the audio engine — and
+two defects that only turned up by running it.
+
+**The three seams, each a correction the app wanted anyway.** `engine/renderClock.ts` is one answer to
+"what time is this frame": the wall live, a stepped number offline. Four unrelated `performance.now()`
+reads (the timeline's two anchors, the scene/cue fade stamp, the lighting-cue tick) now share it. Both
+rAF loops stand down while it is offline — without that, the live loops drive the same single-playhead
+decoders the render is reading, which `mp4Decoder` sees as a backward scrub and answers by dropping its
+buffer. And `VideoCodecContribution.frameExact()` is exact or nothing: every other frame accessor is
+designed to hand back a neighbour rather than stall a show, and `thumbnail()` reads like a frame-exact
+one-shot and is not — measured wrong 48/48 times on a backward pass. A codec without it is refused by
+name.
+
+**A bake is PROJECT data, never look data, and that decision is the whole storage design.** The obvious
+move — swap `Surface.content` and remember the original — cannot work, and fails without a sound: a
+scene captures `surfaces` wholesale, `handleRecallScene` restores them wholesale, and the state machine
+recalls a scene on entering **every** state including its initial one at load. A swapped surface reverts
+seconds after the project opens, with no dialog (a show-origin recall must never raise one) and no undo
+record (it passes no origin). The rule this codebase already had is "project-scope data must not ride a
+look snapshot" — it is why assets, groups, trackingZones and projectorOutputs are not captured. Hence
+`ProjectData.bakes`, applied as a rendering substitution at the one seam every consumer already goes
+through, and hence no scene needs re-capturing after a bake.
+
+**Alpha travels as a second video.** Chromium refuses `alpha: 'keep'` for H.264, VP9, VP8 and AV1 alike
+while the same codecs encode happily without it — measured on this build — so the single-file route is
+closed on evidence rather than taste. The matte carries alpha as luma and survives H.264 to about 2
+levels of 255; `gpu/matteGL` recombines it exactly (alpha 4/130/251 against 4/130/251). It is in core,
+not the plugin, because *playing* a bake is how a surface draws; only *rendering* one is plugin
+behaviour.
+
+**Sound is the real JUCE graph with no device attached** (`offlineBegin`/`offlinePull`/`offlineEnd`).
+The determinism trap was the read-ahead: `BufferingAudioSource` returns silence on underrun rather than
+blocking, so a faster-than-realtime pull would drop out differently every run. Offline constructs with
+synchronous reads instead. `stopClip` then cost 1.28 s each — 52.6 s of a 52.7 s render — because
+`AudioTransportSource::stop()` spins on a callback that offline does not have; a `silencedOffline` flag
+took it to 525 ms.
+
+**Verified on real material, not by reading.** A 1080p60 Hap1 clip bakes **frame-accurate to 0.7 levels
+of 255**, while the neighbouring sampled frames differ by 9–16 — so that is frame accuracy, not merely
+plausible content. `sourceInfo` reports 60 fps against a 30 fps document, which is the rate resolution's
+whole input. HAP is order-independent forwards and backwards, refuses an index past the end rather than
+clamping, and DXT1/DXT5 block sizes match what the dimensions imply exactly.
+
+**Two defects found only by running it.**
+
+*A render the show moved underneath.* `fsm.tick()` lives in the timeline's frame body and `stepFrame()`
+runs that body, so the state machine advances on the stepped playhead at render speed. A state change
+recalls a scene, a recall replaces `surfaces`, and the surface being rendered swaps content halfway
+through its own file — every frame perfect, the file two scenes spliced together. The trigger is
+ordinary: a project opens by entering its initial state, so a render started in the first moments
+catches it (fires at frame 8 and frame 18 of 120 on two cold runs, silent on every warm one). It cannot
+be predicted, so the runner samples `getCurrentStateId()` every frame and refuses rather than deliver
+the file. The plan's original mitigation — refuse while the state machine is running — was the wrong
+shape: the FSM enters its initial state on load, so it would have refused on nearly every project.
+
+*Two harnesses printed FAIL and exited 0.* `app.quit()` does not carry `process.exitCode`, so
+`test:matte-gl` and `test:frame-exact` would have passed every gate while testing nothing. Found by
+deliberately breaking one and watching it "pass".
+
+**`waitForContent` got a door.** It has been in the type, honoured by the engine and carried through the
+normalizer since the per-scene-timelines commit, and no component ever set it — reachable only by
+hand-editing the `.artlux`.
+
+⚠ **What this release does NOT carry evidence for.** The no-geometry guarantee (§4.7) is true by
+construction — warp, blend, gamma, calibration and NVAPI are all applied by `ProjectorGL` to an
+already-rasterised image, downstream of the drawable a bake reads — but it has **never been tested
+against a real projector**, which is the only place a double-warp would show. Nor has a baked file been
+watched substituting for live content on a wall. Both need the venue.
+
+**Two known gaps, deliberately left.** `holdMs` is dead: every scene recall passes `fadeSec * 1000` into
+`timelineEngine.swap()` and nothing reads it, so a crossfade currently gives the incoming scene no time
+to decode. And `waitForContent` fails open — `contentReadyFor` returns "ready by omission" for a scene
+with no warmed pool, which is exactly when it would matter; reachable when a state has more
+reachable-next scenes than `MAX_WARM`. Both were measured, both were left for an on-site decision,
+because wiring `holdMs` up would change what every existing faded transition looks like.

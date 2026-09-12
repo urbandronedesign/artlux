@@ -1,5 +1,75 @@
 # Changelog
 
+## v0.30.0
+
+### Baking — pre-render an expensive surface to video
+
+Some content costs more GPU per frame than a machine can hold at a steady rate: a shader graph, several
+4K tracks stacked, type over video. **Surfaces ▸ Bake** renders that surface once, off the clock, to
+an MP4 the show then plays back as an ordinary cheap video decode.
+
+The render is *non-realtime*, and that is the whole point. It takes as long per frame as the decoders
+and the GPU need, so the result is identical whether a frame took four milliseconds or four seconds.
+
+**It bakes the scene that is live right now**, at the range your in/out points already describe, on the
+clock that surface actually rides — the bound document's playhead for a surface fed by tracks, the
+show clock for a shader or type. The panel says which, because reading the wrong one gives a
+plausible-looking range that renders the wrong part of the show.
+
+Frame rate and size follow the **material**, not the ruler. A 25 fps document showing 50p clips really
+does put 50 distinct pictures a second on a wall, so the panel surveys every source the range touches
+and matches the highest rate when the rates are multiples — lossless for all of them, where a lower
+rate would throw away frames permanently. Mixed rates that are not multiples are reported rather than
+papered over. Size follows the largest native frame in the range, not whichever clip happens to sit
+under the playhead.
+
+**Keep with the project** writes straight into the project's `assets/video` with no dialog, so the
+render travels with the show and *Collect Assets* finds it. The filename carries its own provenance,
+because a render outlives the thing it was made from:
+
+```
+tide__Finale__Wall__0-40s_25fps_playhead.mp4
+```
+
+### Transparency
+
+A surface is often not opaque — type over video, a shader with alpha — and without transparency the
+see-through parts render black over whatever is beneath. **Keep transparency** handles it, and the panel
+detects whether you need it rather than making you guess, so it stays off when it would only cost a
+second decoder for nothing.
+
+### Sound
+
+Rendered through the **real audio graph** — the same insert chains, the same ambisonic encode, the same
+HRTF or speaker decode the venue hears. There is no second mixer to drift from the first. The audio
+device is released while a render runs, so the room goes quiet until it finishes; that is correct, but
+worth knowing before you wonder why.
+
+### What a bake never contains
+
+**Nothing the projector does to put the picture on a wall.** Corner-pin, Bézier warp, soft-edge blend,
+gamma, calibration and NVAPI scanout all stay live and apply to the baked file exactly as they applied
+to the original.
+
+That is deliberate twice over: baking the warp in would apply it **twice** at show time, and it would
+mean every re-calibration silently invalidated every render. As it is, you can re-align, re-blend and
+re-solve a projector after baking and the render stays correct.
+
+### It steps aside by itself
+
+Edit the shader (or the tracks, or the text) and the bake marks itself stale and the live content comes
+back — the original was never touched. **Use live** stops playing the file without discarding it;
+**Forget** drops the binding and leaves the file on disk. Refusals are sentences, not a greyed-out
+button: a live source, a slice, a soloed track elsewhere, a surface naming no tracks, a format whose
+decoder cannot answer an exact frame.
+
+### Wait for the destination to have a picture
+
+A state-machine transition can now hold its cut until the incoming scene has decoded enough to show —
+a buffer, not just a first frame. It was implemented in the engine and had no control anywhere, so in
+practice it was off in every project that has ever run. Off by default: in front of an operator a GO
+that silently hesitates reads as a broken button, so it is the unattended installation this is for.
+
 ## v0.29.0
 
 ### Text on a surface
