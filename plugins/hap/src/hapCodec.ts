@@ -65,4 +65,34 @@ export const hapCodec: VideoCodecContribution = {
     const frame = await hapDecode.decodeFrameRaw(path, idx);
     return frame ? hapGL.uploadFrame('hap-thumb', frame) : null;
   },
+
+  // ── NON-REALTIME: the exact frame, or nothing ──────────────────────────────────────────────────
+  // HAP is random-access per frame (every frame is a keyframe of compressed GPU blocks), so "exact"
+  // costs a native read and no seek-and-decode-forward. This is the one codec where the exact path is
+  // as cheap as the approximate one.
+  //
+  // ⚠ IT DOES NOT CLAMP, and that is the whole difference from thumbnail() three lines up. That one
+  // pins the index into range because a filmstrip wants *a* picture; a render asking past the end of
+  // a clip must be told so, not handed the last frame over and over — which would look exactly like
+  // a freeze the operator would blame on the encoder.
+  //
+  // `decodeFrameRaw` bypasses the playback ring, so an offline render never re-centres the decode
+  // window of a surface or layer that is still live. The GL canvas is keyed by `layerKey`, so the
+  // caller releases it through the ordinary releaseLayer().
+  frameExact: async (layerKey, path, timeSec) => {
+    const info = hapDecode.getInfo(path) ?? (await hapDecode.ensureOpen(path));
+    if (!info || !(info.fps > 0)) return null;
+    const idx = Math.round(timeSec * info.fps);
+    if (idx < 0 || idx >= info.frameCount) return null; // exact or nothing
+    const frame = await hapDecode.decodeFrameRaw(path, idx);
+    return frame ? hapGL.uploadFrame(layerKey, frame) : null;
+  },
+
+  // Straight off the probed header — HapInfo already carries every field, so this is a re-shape, not
+  // a measurement. Null until probed, which the host treats as "ask again once it is open".
+  sourceInfo: (path) => {
+    const info = hapDecode.getInfo(path);
+    if (!info || !(info.fps > 0)) return null;
+    return { width: info.width, height: info.height, fps: info.fps, durationSec: info.frameCount / info.fps };
+  },
 };

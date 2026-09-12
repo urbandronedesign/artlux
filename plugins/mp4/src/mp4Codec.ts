@@ -71,4 +71,13 @@ export const mp4Codec: VideoCodecContribution = {
   // Thumbnails use a DEDICATED decoder (dec.thumbnail) so a filmstrip scrub never reseeks the playing
   // surface's decoder out from under it — that contention was the old cause of stutter.
   thumbnail: (path, timeSec) => dec.thumbnail(path, timeSec),
+
+  // ── NON-REALTIME: the exact frame, or nothing ──────────────────────────────────────────────────
+  // Everything else here may hand back a neighbour rather than stall a show; this one waits. See
+  // FileDecoder.frameExact for why mp4 needed a second accessor at all where HAP did not: HAP is
+  // random-access per frame, H.264 is a GOP that has to be decoded forward from a keyframe.
+  frameExact: (layerKey, path, timeSec) => dec.layerFrameExact(layerKey, path, timeSec),
+  // Width/height/fps/duration off the parsed track — what an export needs to size itself, and what
+  // a clip needs for its length on drop.
+  sourceInfo: (path) => dec.sourceInfo(path),
 };

@@ -32,6 +32,12 @@
       "@artlux/sdk/renderer": [
         "./packages/sdk/src/renderer.ts"
       ],
+      "@artlux/plugin-bake/main": [
+        "./plugins/bake/src/main.ts"
+      ],
+      "@artlux/plugin-bake/renderer": [
+        "./plugins/bake/src/renderer.ts"
+      ],
       "@artlux/plugin-lidar-tracking": [
         "./plugins/lidar-tracking/src/index.ts"
       ],
@@ -107,5 +113,9 @@
   // TypeScript's), and with no "include" this config sweeps the whole tree: the moment a contributor
   // ran `npm run build:audio` locally, `npm run verify` drowned in TS1127 parse errors from files
   // that are not code. CI never saw it — it builds the addon but does not typecheck afterwards.
-  "exclude": ["node_modules", "launcher", "native"]
+  // `scripts/frame-exact` is a BUNDLER-BUILT harness, not app code: esbuild resolves its imports
+  // through aliases that exist only in scripts/test-frame-exact.cjs (a stub for the host media
+  // cache, and a direct path to the mp4 plugin), so tsc cannot resolve them and would fail the
+  // whole verify on a file that is not shipped. It is typechecked by the bundle step instead.
+  "exclude": ["node_modules", "launcher", "native", "scripts/frame-exact"]
 }
