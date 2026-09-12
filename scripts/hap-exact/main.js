@@ -47,9 +47,14 @@ app.whenReady().then(async () => {
     return (h >>> 0).toString(16);
   };
 
+  // ⚠ decodeFrameBlocks, NOT decodeFrame. They are different paths: decodeFrame returns RGBA and
+  // carries NO format field (it is the standalone/fallback path), while the app — and therefore the
+  // bake — reads raw GPU blocks through decodeFrameBlocks. Testing the wrong one looks like it works:
+  // the frames decode, the indices are honoured, and only the GL upload objects, because an absent
+  // format makes glFormat() fall back to DXT5 and RGBA-sized bytes never match those dimensions.
   const decode = async (idx) => {
     let f = null;
-    try { f = await hap.decodeFrame(FILE, idx); } catch { return null; }
+    try { f = await hap.decodeFrameBlocks(FILE, idx); } catch { return null; }
     if (!f || !f.data) return null;
     return { idx, format: f.format, width: f.width, height: f.height, bytes: f.data.length, hash: hashOf(f.data), data: f.data };
   };
@@ -82,11 +87,36 @@ app.whenReady().then(async () => {
   //    number a human reads, not a pass/fail the harness can decide alone.
   const distinct = new Set(forward.map((f) => f.hash)).size;
 
+  // 2b. BLOCK-SIZE SANITY. hapGL uploads f.data as a compressed texture at f.width x f.height, and
+  //     GL rejects the pair outright if the byte count is not exactly what those dimensions imply.
+  //     That makes the expected size computable rather than a matter of trust: 4x4 blocks, 8 bytes
+  //     per block for DXT1/RGTC1 and 16 for DXT5/YCoCg/BPTC. A decoder handing back a short or padded
+  //     buffer fails here with a number, instead of as a GL warning nobody reads.
+  const BYTES_PER_BLOCK = { dxt1: 8, rgtc1: 8, dxt5: 16, ycocg: 16, bptc: 16 };
+  let sizeNote = null;
+  if (forward.length) {
+    const f0 = forward[0];
+    const per = BYTES_PER_BLOCK[f0.format];
+    if (!per) {
+      problems.push('decoded frames carry no usable format (got ' + JSON.stringify(f0.format) +
+        ') — hapGL.glFormat() would fall back to DXT5 and the upload would be rejected');
+    } else {
+      const expect = Math.ceil(f0.width / 4) * Math.ceil(f0.height / 4) * per;
+      sizeNote = { format: f0.format, dims: f0.width + 'x' + f0.height, bytes: f0.bytes, expected: expect };
+      if (f0.bytes !== expect) {
+        problems.push('frame bytes ' + f0.bytes + ' do not match ' + f0.width + 'x' + f0.height + ' ' + f0.format +
+          ' (expected ' + expect + ') — a compressed upload of this pair is rejected by GL');
+      }
+    }
+  }
+  console.log('  size  ' + JSON.stringify(sizeNote));
+  console.log('  hashes ' + JSON.stringify(forward.map((f) => f.idx + ':' + f.hash)));
+
   // 3. PAST THE END IS REFUSED, NEVER CLAMPED. thumbnail() pins the index into range because a
   //    filmstrip wants *a* picture; a render must be told instead, or it bakes the last frame over
   //    and over — which on a wall looks like a freeze and gets blamed on the encoder.
   let past = null;
-  try { past = await hap.decodeFrame(FILE, n + 5); } catch { past = null; }
+  try { past = await hap.decodeFrameBlocks(FILE, n + 5); } catch { past = null; }
   if (past && past.data) problems.push('an index past the end returned a frame instead of null — a render would bake a freeze');
 
   const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
