@@ -23,6 +23,14 @@ export interface BakeRequest {
   /** Render the show's sound into the file. Off gives a silent MP4 and skips the audio graph entirely. */
   audio: boolean;
   /**
+   * Keep transparency, by writing a second video beside the first carrying the alpha as brightness.
+   *
+   * Needed when the surface is not opaque AND something is beneath it — text over video on a separate
+   * surface, say. Costs a second decoder at playback, so it is off unless the content actually has
+   * transparency in it.
+   */
+  alpha: boolean;
+  /**
    * Where to write. Absent opens a save dialog.
    *
    * ⚠ A DIALOG IS A MODAL ON THE MAIN WINDOW, and an operator who does not notice it reads the whole
@@ -63,6 +71,8 @@ export interface BakeRefusal {
 export interface BakeSuccess {
   kind: 'ok';
   path: string;
+  /** The matte written beside it, when transparency was kept. */
+  mattePath?: string | null;
   frames: number;
   elapsedMs: number;
   /**

@@ -109,6 +109,10 @@ export const BakePanel: React.FC = () => {
   const [mbps, setMbps] = useState(20);
   const [clock, setClock] = useState<'show' | 'playhead'>('show');
   const [withAudio, setWithAudio] = useState(true);
+  // Transparency is OFF unless the content has some: a matte costs a second decoder for the life of
+  // the show, and a missing matte on opaque content changes nothing. Detected rather than asked.
+  const [withAlpha, setWithAlpha] = useState(false);
+  const [alphaDetected, setAlphaDetected] = useState(false);
   const [intoProject, setIntoProject] = useState(true);
   // Follow the timeline's in/out until the operator types a range of their own. A panel that kept
   // re-imposing the timeline would fight anyone entering a number; one that never followed it would
@@ -163,6 +167,22 @@ export const BakePanel: React.FC = () => {
     return () => { alive = false; window.clearInterval(t); window.clearTimeout(stop); };
   }, [surface, startSec, endSec]);
 
+  // Look for transparency as the surface changes, and follow what is found until told otherwise.
+  useEffect(() => {
+    if (!surface) { setAlphaDetected(false); return; }
+    let alive = true;
+    const read = () => {
+      if (!alive) return;
+      const has = runner.hasTransparency(surface);
+      setAlphaDetected(has);
+      setWithAlpha(has);
+    };
+    read();
+    const t = window.setInterval(read, 1500);
+    const stop = window.setTimeout(() => window.clearInterval(t), 6000);
+    return () => { alive = false; window.clearInterval(t); window.clearTimeout(stop); };
+  }, [surface]);
+
   // Follow the material until the operator types a rate of their own.
   useEffect(() => {
     if (!followRate || !survey) return;
@@ -182,7 +202,7 @@ export const BakePanel: React.FC = () => {
     setBusy(true); setResult(null); setProgress(null);
     try {
       const r = await runner.run(
-        { surfaceId, startSec, endSec, fps, width, height, clock, bitrate: Math.round(mbps * 1e6), audio: withAudio, intoProject },
+        { surfaceId, startSec, endSec, fps, width, height, clock, bitrate: Math.round(mbps * 1e6), audio: withAudio, alpha: withAlpha, intoProject },
         surfaces,
         setProgress,
       );
@@ -190,7 +210,7 @@ export const BakePanel: React.FC = () => {
     } finally {
       setBusy(false); setProgress(null);
     }
-  }, [surfaceId, startSec, endSec, fps, width, height, clock, mbps, withAudio, intoProject, surfaces]);
+  }, [surfaceId, startSec, endSec, fps, width, height, clock, mbps, withAudio, withAlpha, intoProject, surfaces]);
 
   // h-full + overflow-y-auto is the dock convention (ShowControlDeck, PlaylistPanel, ZonePanel).
   // Without it a tall panel in a short dock strip simply CLIPS: the surface picker and the scene banner
@@ -312,6 +332,19 @@ export const BakePanel: React.FC = () => {
       )}
 
       <label className="flex cursor-pointer items-center gap-1.5 text-fg-1">
+        <input type="checkbox" checked={withAlpha} disabled={busy}
+          onChange={(e) => setWithAlpha(e.target.checked)}
+          className="cursor-pointer rounded border-line-2 bg-surface-0 text-accent" />
+        Keep transparency
+      </label>
+      <div className="text-fg-3">
+        {alphaDetected
+          ? 'This surface is not fully opaque. Without this, the transparent parts render BLACK and cover whatever is beneath.'
+          : 'No transparency found in this surface — leaving it off saves a second decoder at show time.'}
+        {withAlpha && ' Writes a second .matte.mp4 beside the video; both travel together.'}
+      </div>
+
+      <label className="flex cursor-pointer items-center gap-1.5 text-fg-1">
         <input type="checkbox" checked={withAudio} disabled={busy}
           onChange={(e) => setWithAudio(e.target.checked)}
           className="cursor-pointer rounded border-line-2 bg-surface-0 text-accent" />
@@ -404,6 +437,7 @@ export const BakePanel: React.FC = () => {
         <div className="rounded border border-line-1 p-1.5 text-fg-1">
           Wrote {done.frames} frames to {done.path} in {(done.elapsedMs / 1000).toFixed(1)}s
           {done.audioNote && <div className="text-fg-2">Sound: {done.audioNote}</div>}
+          {done.mattePath && <div className="text-fg-2">Transparency kept — a matte was written beside it.</div>}
         </div>
       )}
       {refused && (

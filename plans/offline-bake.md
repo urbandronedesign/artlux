@@ -7,8 +7,7 @@
 >
 > §0 records what the review passes and the on-rig runs changed — including one design that would have
 > failed silently on the first GO, one that would have produced corrupt video, and three hangs found
-> only by running it. **Remaining:** the cross-project import decision (§0.8), a boot probe, and alpha
-> (Phase 5, named and not built).
+> only by running it. **Remaining:** the cross-project import decision (§0.8) and a boot probe.
 
 ## Context
 
@@ -811,7 +810,7 @@ ask on the *first* blocked run rather than shipping unverified.
 | ~~**2**~~ | ✅ **DONE** — `ProjectData.bakes`, `bakeStore`, the one substitution, `host.bakes`, fingerprint/staleness, bypass, `mapAssetPaths`. ⏳ boot probe; ⛔ cross-project import (§0.8) | — |
 | ~~**3**~~ | ✅ **DONE** — native trio + read-ahead fix + `npm run test:audio-offline` (determinism proven) + AAC track + streamed write | — |
 | **4** | UI (inspector action, modal progress, cancel), multi-surface jobs, re-bake, docs | 2 d |
-| **5** | *(named, not built)* alpha via a paired matte video | — |
+| ~~**5**~~ | ✅ **DONE** — alpha via a paired matte. Measured first: Chromium refuses `alpha:'keep'` for H.264/VP9/VP8/AV1 alike, so the single-file route is closed and the pair is right on evidence. Matte-as-luma survives H.264 to ≤2/255; `gpu/matteGL` recombines exactly (alpha 4/130/251 against 4/130/251). Transparency is auto-detected, so the second decoder is only paid when there is something to pay it for. | — |
 
 Phases 1+2 are shippable together and give the whole payoff for silent content. **Phases 1 and 3 each
 close a debt the ROADMAP already tracks**: `frameExact` plus the exact-video branch is the *"surface video

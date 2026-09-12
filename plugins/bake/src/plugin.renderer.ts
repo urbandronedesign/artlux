@@ -49,7 +49,7 @@ export const bakeRendererPlugin: RendererPlugin = {
       if (!s) return { kind: 'refused', reason: 'no surfaces' };
       return runner.run({
         surfaceId: s.id, startSec: 0, endSec: 1, fps: 5, width: 320, height: 240,
-        clock: 'show', bitrate: 4_000_000, audio: false, ...req,
+        clock: 'show', bitrate: 4_000_000, audio: false, alpha: false, ...req,
       }, surfaces, (p) => console.info(`[bake] progress ${p.frame}/${p.frames} ${p.rate.toFixed(1)}fps`));
     };
     // What range the panel would offer, and where a render would land — the two things an operator

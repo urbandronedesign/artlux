@@ -71,6 +71,30 @@ project  scene  surface  range  rate  clock
 
 The clock is named only when it is the playhead — the case you can be surprised by.
 
+## Transparency
+
+A surface is often not opaque — type over video, a shader with alpha. Without transparency the
+see-through parts render **black** and cover whatever is beneath.
+
+**Keep transparency** handles it, and the panel detects whether you need it: it samples the surface and
+tells you what it found, so it is off when it would only cost you a decoder for nothing.
+
+It writes a **second file** beside the video — `name.matte.mp4` — carrying the alpha as brightness, and
+the two are recombined on the GPU at playback. Two files because one is not available: this Chromium
+refuses alpha encoding outright, for H.264, VP9, VP8 and AV1 alike, while the same codecs encode
+happily without it. The matte costs very little — it is high-contrast and mostly flat, so it compresses
+to a fraction of the colour beside it — and alpha survives the trip to within about 2 levels out of 255.
+
+**Both files travel together.** *Collect Assets* takes the pair, and the project folder keeps them side
+by side. If the matte goes missing the surface falls back to its live content rather than showing the
+colour video alone — which would be the surface with its transparency filled in black, over the top of
+whatever is underneath, and would read as a rendering fault rather than a missing file.
+
+> **If the transparent thing is a timeline track, consider baking the STACK instead.** A surface fed by
+> several tracks is already composited — text over video, blended by the timeline — before the surface
+> ever sees it, so the result is opaque by construction and needs no matte at all. That is cheaper at
+> show time and simpler on disk.
+
 ## Sound
 
 **Rendered through the real audio graph** — the same insert chains, the same ambisonic encode, the same
@@ -139,6 +163,13 @@ Three seams make a non-realtime render possible, and all three are corrections t
   to hand back a neighbour rather than stall a show; `thumbnail()` reads like a frame-exact one-shot and
   is not (measured: wrong frame 48/48 times on a backward pass). A codec without it is refused by name.
 
+Transparency is recombined by [`gpu/matteGL.ts`](../src/renderer/gpu/matteGL.ts) — one shared WebGL2
+context for every consumer, the same shape `plugins/hap/src/hapGL.ts` already uses. It is in core rather
+than in the plugin because *playing* a bake is how a surface draws; only *rendering* one is plugin
+behaviour. `npm run test:matte-gl` feeds it a known colour split and an alpha ramp and reads the result
+back through an ordinary 2D canvas — a ramp rather than a hard edge, because that is what catches a
+matte that is inverted, quantised or silently binary.
+
 A bake is stored in **`ProjectData.bakes`**, never on the `Surface`. See
 [`services/bakeStore.ts`](../src/renderer/services/bakeStore.ts) for the full argument: a scene captures
 `surfaces` wholesale and the state machine recalls one on entering every state, so a swapped surface
@@ -156,6 +187,7 @@ Design record and the traps found while building it: [`plans/offline-bake.md`](.
 npm run test:frame-exact    # encode a counter video, decode it back frame-exact (forward/backward/random)
 npm run test:audio-offline  # the offline audio graph, no device, determinism
 npm run test:renderclock    # the clock's refusals
+npm run test:matte-gl       # colour + matte back into the alpha it started with
 ```
 
 `window.__artluxBake({ ... })` in the renderer console runs a render without the panel — the same idiom

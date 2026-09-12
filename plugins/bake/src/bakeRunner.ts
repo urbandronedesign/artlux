@@ -270,6 +270,31 @@ export function surveySources(surface: Surface, startSec: number, endSec: number
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p;
 
+/**
+ * Does this surface draw anything NOT fully opaque right now?
+ *
+ * Sampled off a small copy of the live drawable — a render only needs to know whether a matte is worth
+ * the second decoder, not where the transparency is, so 64x64 is plenty and costs nothing. Answers
+ * false when it cannot tell (nothing drawn yet, a tainted source), because the cheaper file is the
+ * safer default: a missing matte on opaque content changes nothing, while a matte nobody needed costs
+ * a decoder for the life of the show.
+ */
+export function hasTransparency(surface: Surface): boolean {
+  const d = surfaceMedia.getDrawable(surface);
+  if (!d) return false;
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const g = c.getContext('2d', { alpha: true, willReadFrequently: true });
+  if (!g) return false;
+  g.clearRect(0, 0, 64, 64);
+  try { g.drawImage(d, 0, 0, 64, 64); } catch { return false; }
+  try {
+    const px = g.getImageData(0, 0, 64, 64).data;
+    for (let i = 3; i < px.length; i += 4) if (px[i] < 250) return true;
+  } catch { return false; }   // tainted: cannot tell, so do not claim it is transparent
+  return false;
+}
+
 let running = false;
 let cancelled = false;
 
@@ -337,11 +362,28 @@ export async function run(
   // Rounding down by a pixel is invisible; the failure is not, and it arrives as a dead render rather
   // than as a message about width.
   const even = (v: number) => Math.max(2, Math.round(v) - (Math.round(v) % 2));
+  const W = even(req.width), H = even(req.height);
+
+  // THREE CANVASES WHEN TRANSPARENCY IS KEPT, and each does one job.
+  //   frame  — RGBA, what the surface actually drew, alpha intact
+  //   canvas — the COLOUR video: `frame` over black, i.e. premultiplied, which is what matteGL expects
+  //   matte  — the ALPHA video: the same alpha carried as brightness
+  // Extracting alpha as luma needs no shader: fill white, keep it only where `frame` has alpha
+  // (`destination-in`), then lay that premultiplied white over black — which leaves rgb == alpha
+  // exactly. Measured through H.264 at 2/255 worst case across hard edges, ramps and 2px strokes.
+  const frame = document.createElement('canvas');
+  frame.width = W; frame.height = H;
+  const fctx = frame.getContext('2d', { alpha: true });
   const canvas = document.createElement('canvas');
-  canvas.width = even(req.width);
-  canvas.height = even(req.height);
+  canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) { client.cancelWrite(id); return { kind: 'refused', reason: 'no 2D context for the export canvas' }; }
+  const matte = document.createElement('canvas');
+  matte.width = W; matte.height = H;
+  const mctx = req.alpha ? matte.getContext('2d', { alpha: false }) : null;
+  if (!ctx || !fctx || (req.alpha && !mctx)) {
+    client.cancelWrite(id);
+    return { kind: 'refused', reason: 'no 2D context for the export canvas' };
+  }
 
   // Positional writes: an MP4's moov is patched after the media, so the offsets are not monotonic.
   const target = new StreamTarget(
@@ -356,6 +398,35 @@ export async function run(
     keyFrameInterval: 1,          // ~1 s: a sparse GOP makes looping and scrubbing the result expensive
   });
   output.addVideoTrack(source, { frameRate: req.fps });
+
+  // The matte is its own file with its own muxer and its own descriptor in main. Side by side in ONE
+  // frame would have halved the bookkeeping and doubled the frame height — 3840x4320 for a 4K surface,
+  // past what the encoder will accept — so two files it is.
+  let matteId: string | null = null;
+  let matteOut: Output | null = null;
+  let matteSource: CanvasSource | null = null;
+  let mattePath: string | null = null;
+  if (req.alpha) {
+    mattePath = outPath.replace(/\.mp4$/i, '') + '.matte.mp4';
+    matteId = `${id}-matte`;
+    if (!(await client.open(matteId, mattePath))) {
+      try { await output.cancel(); } catch { /* never started */ }
+      client.cancelWrite(id);
+      return { kind: 'refused', reason: 'could not open the matte file for writing' };
+    }
+    const mTarget = new StreamTarget(new WritableStream({
+      write(chunk) { client.chunk(matteId as string, chunk.data, chunk.position); },
+    }));
+    matteOut = new Output({ format: new Mp4OutputFormat(), target: mTarget });
+    matteSource = new CanvasSource(matte, {
+      codec: 'avc',
+      // A matte is high-contrast and mostly flat, so it compresses far below the colour it accompanies;
+      // a quarter of the budget is generous and keeps the pair from doubling the disk.
+      bitrate: Math.max(1_000_000, Math.round(req.bitrate / 4)),
+      keyFrameInterval: 1,
+    });
+    matteOut.addVideoTrack(matteSource, { frameRate: req.fps });
+  }
 
   let audioNote: string | null = null;
 
@@ -417,11 +488,14 @@ export async function run(
   const abandon = async (): Promise<void> => {
     try { await output.cancel(); } catch { /* never started, or already gone */ }
     client.cancelWrite(id);
+    if (matteOut) { try { await matteOut.cancel(); } catch { /* as above */ } }
+    if (matteId) client.cancelWrite(matteId);
   };
 
   try {
-    console.info(`[bake] starting: ${frames} frames, ${canvas.width}x${canvas.height} @${req.fps}fps -> ${outPath}`);
+    console.info(`[bake] starting: ${frames} frames, ${W}x${H} @${req.fps}fps${req.alpha ? ' + matte' : ''} -> ${outPath}`);
     await withTimeout(output.start(), STEP_TIMEOUT_MS, 'opening the encoder');
+    if (matteOut) await withTimeout(matteOut.start(), STEP_TIMEOUT_MS, 'opening the matte encoder');
 
     // Pause everything that decodes on its own clock. A <video> whose currentTime keeps moving makes
     // an awaited seek describe a position we no longer care about.
@@ -493,12 +567,30 @@ export async function run(
 
       trace(i, 'drawing');
       const drawable = surfaceMedia.getDrawable(surface);
+      // What the surface actually drew, alpha and all.
+      fctx.clearRect(0, 0, W, H);
+      if (drawable) fctx.drawImage(drawable, 0, 0, W, H);
+      // The colour video: that, over black.
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      if (drawable) ctx.drawImage(drawable, 0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(frame, 0, 0);
+      if (mctx) {
+        // The alpha video: white kept only where `frame` has alpha, laid over black — rgb == alpha.
+        mctx.globalCompositeOperation = 'source-over';
+        mctx.fillStyle = '#000';
+        mctx.fillRect(0, 0, W, H);
+        mctx.save();
+        mctx.globalCompositeOperation = 'source-over';
+        mctx.fillStyle = '#fff';
+        mctx.fillRect(0, 0, W, H);
+        mctx.globalCompositeOperation = 'destination-in';
+        mctx.drawImage(frame, 0, 0);
+        mctx.restore();
+      }
 
       trace(i, 'encoding');
       await withTimeout(source.add(i / req.fps, 1 / req.fps), STEP_TIMEOUT_MS, 'encoding a frame');
+      if (matteSource) await withTimeout(matteSource.add(i / req.fps, 1 / req.fps), STEP_TIMEOUT_MS, 'encoding a matte frame');
 
       done = i + 1;
       // Report on TIME as well as on frame count. Every fifth frame alone looks smooth on a fast
@@ -522,8 +614,11 @@ export async function run(
     trace(done, 'finalising');
     console.info(`[bake] cost: ${costSummary()}`);
     await withTimeout(output.finalize(), STEP_TIMEOUT_MS, 'finalising the file');
+    if (matteOut) await withTimeout(matteOut.finalize(), STEP_TIMEOUT_MS, 'finalising the matte');
     const written = await client.close(id);
     if (!written) return { kind: 'refused', reason: 'the file could not be closed' };
+    const matteWritten = matteId ? await client.close(matteId) : null;
+    if (matteId && !matteWritten) return { kind: 'refused', reason: 'the matte could not be closed' };
 
     // RECORD THE BINDING, not a content swap. The signature is taken from the surface's AUTHORED
     // content — which the render never touched — so it keeps matching across scene recalls and stops
@@ -537,14 +632,15 @@ export async function run(
       startSec: req.startSec,
       endSec: req.startSec + done / req.fps,   // what was ACTUALLY rendered, not what was asked for
       fps: req.fps,
-      width: canvas.width,
-      height: canvas.height,
+      width: W,
+      height: H,
       path: written,
+      ...(matteWritten ? { mattePath: matteWritten } : {}),
       enabled: true,
       createdAt: new Date().toISOString(),
     });
 
-    return { kind: 'ok', path: written, frames: done, elapsedMs: Math.round(performance.now() - startedAt), audioNote };
+    return { kind: 'ok', path: written, mattePath: matteWritten, frames: done, elapsedMs: Math.round(performance.now() - startedAt), audioNote };
   } catch (e) {
     await abandon();
     const msg = `${(e as Error).message} (frame ${done}, while ${phase})`;
