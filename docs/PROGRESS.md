@@ -1708,3 +1708,58 @@ to decode. And `waitForContent` fails open — `contentReadyFor` returns "ready 
 with no warmed pool, which is exactly when it would matter; reachable when a state has more
 reachable-next scenes than `MAX_WARM`. Both were measured, both were left for an on-site decision,
 because wiring `holdMs` up would change what every existing faded transition looks like.
+
+## v0.31.0 — show-control scheduling, a remote stop, and a rig that goes dark on quit (2026-09-13)
+
+`ec07634`…`a23cd54`
+
+Five commits, one theme: an unattended install has to be **stoppable, schedulable and dark when it is
+stopped**, from a tablet, by someone who is not at the machine.
+
+**The tablet page fought its operator.** `renderIfDynamic` answered every SSE event with a full
+`render()`; the scheduler pushes a playlist event every 5 s regardless, so the Projects form was rebuilt
+under a finger, and the Control tab repainted on the 2 Hz status stream (mostly playhead, which it does
+not draw) — every repaint replaces `<main>`, so scroll reset twice a second and the new power buttons
+shipped unreachable. Three rules now, guarded: an open sheet is never repainted, a tab repaints only on
+its own narrow data signature, nothing repaints while an input has focus.
+
+**A date was unrepresentable, not missing.** The playlist resolver worked in minute-of-week, a coordinate
+with no calendar in it. It now resolves in absolute time over a ±8-day window (reproduces the old
+week-wrap exactly), and `recurrence.ts` is the one scheme shared by the in-project tick, main's resolver
+and both desktop panels. A one-off's window is **asymmetric on purpose**: unbounded forward (windowing it
+made next month's show read "next: none"), fading backward (`due` drives the relaunch, so a permanent
+one-off would pin the machine to last year's gala). Zero migration — `repeatOf()` derives the scheme from
+the old `days`. A bare `YYYY-MM-DD` through `new Date()` parses as UTC, the previous local day west of
+Greenwich, hence `parseYMD`.
+
+**The project scan is recursive** (depth 6, 500 projects, no symlinks, never into a portable project), and
+both caps report truncation — a silently capped scan reads as "that project is not there".
+
+**Quit contract, split across main and the supervisor.** A deliberate quit writes
+`userData/artlux-stopped.flag` on `will-quit`, which a crash never reaches and a relaunch (`app.exit()`)
+skips; `watchdog.start()` clears it unconditionally, because Tier 2 reads it *before* launching and so can
+never be what lifts it. Consequence, documented: a shutdown survives a reboot.
+`POST /restart` uses `relaunchSameMode()`, not `relaunchBroadcast()` — restarting an editor into broadcast
+would silently turn a workstation into a show machine.
+
+**Blackout on quit** decodes the last frame `outputManager` kept (the only place main learns the patch's
+shape), zeroes every universe and re-sends with `sparse` forced off — a sparse target would skip universes
+its cache already believes dark. `drain()` waits only on the native engine: the Rust pacer owns its own
+thread, while the TS fallback sends from the calling thread and a wait would block the very write.
+Proven off real ArtDmx: universe 0 max 255 / 60 non-zero channels → 0; reverted, the last packet stays 255.
+
+**Bake audio outlook.** After: the runner measures the samples it encoded. Before:
+`videoAudioOutlook` (in `services/videoAudio.ts`, which owns the `vl:` id shape and solo scoping) names
+silent *tracks* and never claims the *file* is silent, because the bed rides along. Its invariant needed
+two passes — a `(?!0)` lookahead is defeated by `\s*` backtracking.
+
+**Harnesses kept.** `npm run test:showctl:ui` drives the real served `CLIENT_HTML` in Chrome against a
+protocol stub — no ArtLux, so no single-instance lock, runnable with the app open. `npm run test:showctl`
+drives the real app (binds 6454, so not while the app is up). Two traps each produced a test that passed
+for the wrong reason: a real show that already sat at zero ("the rig is dark" before the fix existed), and
+`watchdog-check.ps1` deriving process name *and* userData folder from `-Exe`, so pointing it at
+`electron.exe` looked for the marker in `%APPDATA%\electron` and passed by never seeing it.
+
+⚠ **Not proven on site:** the blackout has been seen on the wire from one machine to a local listener,
+not on a real node holding a real rig; the Scheduled-Task stand-down was exercised through a stub exe,
+not an installed venue task across an actual reboot.

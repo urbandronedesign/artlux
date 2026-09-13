@@ -1,5 +1,66 @@
 # Changelog
 
+## v0.31.0
+
+### Scheduling you can actually use from a tablet
+
+The tablet remote's scheduling was, in the owner's words, *"very confusing and not simple to use"* — and
+part of that was the page itself fighting back: it rebuilt the form under your finger every five
+seconds, and on the Control tab it snapped the scroll back to the top twice a second, so anything below
+the fold could not be reached. Both are gone. A page now repaints only when something it actually shows
+has changed, never while a field has focus and never while a confirm sheet is open.
+
+- **Daily · Weekly · Once on a date.** A show can be booked for one evening — *the gala on the 20th* —
+  which was not possible before at all. A one-off that has run is dimmed and marked *already ran*, and
+  never fires again.
+- **Every entry is editable**, on the tablet and in the app. Moving 18:00 to 18:30 is one edit, not a
+  delete and a rebuild. Delete lives inside the editor, so a stray tap cannot remove a scheduled show.
+- **The header says what is on now and what is next**, with the day spelled out (*today 18:00*,
+  *Mon 09:00*, *2026-09-19 20:00*).
+- Existing schedules carry over unchanged — no project migration.
+
+### Every project on the machine, found
+
+Point the remote at the top of your shows folder and it finds every project **in its subfolders too**,
+loose `.artlux` files and portable project folders alike, with the subfolder shown so four shows all
+called *Main* stay tellable apart. The list arrives with the page — no path to retype on a touch
+keyboard. The walk stops at six levels or 500 projects, and says so when it does.
+
+### Stop or restart the show from the room
+
+A broadcast install has no window, and the tray and `Ctrl/Cmd+Shift+Q` both need somebody at the
+machine. The tablet's **Control tab ▸ This machine** now has **Restart the app** (fresh process, same
+mode, same project — the remote recovery for a wedged show) and **Shut down**. Both ask first, and both
+respect the operator **Lock**.
+
+The per-column fire tiles are gone from the Control tab. Firing a column still works over OSC and from
+a scheduled entry.
+
+### Closing the app puts the rig out
+
+⚠ **Behaviour change.** Art-Net and sACN nodes hold the last level they were sent, so quitting used to
+leave a venue lit at whatever was on screen — with no app running to fix it. Any **deliberate quit**
+(tray, `Ctrl/Cmd+Shift+Q`, closing the window, the remote's *Shut down*) now sends one all-zero frame
+over the whole patch first, USB-DMX included. A relaunch — a playlist switch, a watchdog self-heal —
+does not: holding the look for the second or two it takes beats blinking the rig to black and back.
+
+### A deliberate quit stays quit
+
+⚠ **Behaviour change for unattended installs.** With the watchdog's Scheduled Task installed, quitting
+ArtLux on purpose was silently undone about a minute later — from the operator's chair, the app
+refused to close. A deliberate quit now tells the supervisor to stand down. Crash recovery is
+untouched.
+
+**This survives a reboot:** a machine that was shut down stays dark until someone starts ArtLux on it,
+and starting it is what re-arms the automatic recovery. The watchdog log records the stop and
+when, so a dark install reads as *stopped at 19:04*, not as a machine that died.
+
+### Baking: a silent soundtrack says why
+
+A ticked *render the show's sound* and a silent MP4 looked exactly like a broken encoder. The Bake
+panel now names the tracks whose sound will not reach the file — usually a muted track audio strip —
+before you render, and reports a silent soundtrack after, measured from what was actually encoded.
+
 ## v0.30.0
 
 ### Baking — pre-render an expensive surface to video
