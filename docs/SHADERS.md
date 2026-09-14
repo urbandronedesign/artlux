@@ -492,7 +492,8 @@ column is where they live.
   thumbnail — under the surface’s name.
 - **Click a card** to apply that effect to whichever surface is selected.
 - **Folder** opens the library on disk. Each effect is one folder holding `shader.frag`,
-  `values.json` and `thumbnail.png`, so sharing one with somebody is copying a folder.
+  `values.json`, `graph.json` (when it was built in the node editor) and `thumbnail.png`, so sharing
+  one with somebody is copying a folder — see below.
 
 The library lives with your ArtLux install, not inside any project — that is what lets it follow you
 from show to show.
@@ -506,6 +507,44 @@ deliberate:
   still renders exactly what you built. There is no missing-file state to discover on the night.
 - **Editing a library effect does not change shows that already used it.** A show that worked last
   night works tonight. To update an older project, apply the effect again there.
+
+### Where the library lives, and sharing it
+
+Your saved effects and saved subpatches are kept in ArtLux's folder for your user account, next to
+your preferences — not in any project.
+
+| What | Where (Windows) | What is inside |
+|---|---|---|
+| **Effects** — *Save current* in the Effects panel | `%APPDATA%\ArtLux\shaders\` | one folder per effect: `shader.frag` (the code), `values.json` (its parameter values), `graph.json` (the node graph, when it has one), `thumbnail.png` |
+| **Subpatches** — *Save* in the node inspector | `%APPDATA%\ArtLux\subpatches\` | one `.json` file per subpatch |
+
+Type `%APPDATA%\ArtLux` into the Explorer address bar to get there (on this machine that is
+`C:\Users\<you>\AppData\Roaming\ArtLux`). The **Folder** button in the Effects panel opens `shaders`
+directly; subpatches have no button, so use the path. On macOS the same two folders are in
+`~/Library/Application Support/ArtLux/`, and on Linux in `~/.config/ArtLux/`.
+
+**To share a show, share the project — nothing else.** Everything a project's surfaces and clips run
+is saved inside the `.artlux` file: the code, the node graph (so it opens editable), the parameter
+values, and every subpatch it uses (adding a subpatch copies its definition into the graph). It
+renders the same on a machine whose library is empty. Two things do **not** travel with it:
+
+- **Library items the project does not use.** An effect you saved but never applied stays on your
+  machine.
+- **A built-in shader you picked but never edited** (Plasma, Rings, Spectrum…). The project stores
+  only *which* built-in, and the other install supplies the code. That is identical on the same
+  ArtLux version; if a later version changes that built-in, the look changes with it. Edit it once —
+  anything — and its code is saved into the project.
+
+**To share a library item on its own**, copy it:
+
+- **An effect:** copy its folder from `shaders`, zip it if you are sending it, and on the other
+  machine put the folder into that machine's `shaders` folder. It appears once the Effects panel is
+  reopened or ArtLux restarts; clicking its card applies it, graph included.
+- **A subpatch:** copy its `.json` file into the other machine's `subpatches` folder. It appears under
+  **Library** in the node menu once the Shader Nodes tab is reopened.
+
+A folder or file with the same name as one already there **replaces** it when you let Windows
+overwrite, so rename one of them first if you want to keep both.
 
 ## Make it react to sound
 
