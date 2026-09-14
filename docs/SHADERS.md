@@ -633,11 +633,14 @@ in the room where they were born. Its three numbers to play with are the emitter
 (−0.012 m per frame) and the fade (0.955 per frame — closer to 1 is a longer trail). The full port reference is in
 [SHADER-NODES.md](SHADER-NODES.md#tracking).
 
-**Set Aspect to the shape of the area.** Every Tracking node has an **Aspect** setting — the width ÷
-height of the area the people are drawn on, **1.778 (16:9) by default**. It is what keeps a circle
-round: a shader's coordinates run 0..1 across *and* down, so without it every circle would be stretched
-as wide as the area. Height is taken from the sensor in metres and width from the aspect, so sizes
-stay roughly in metres. Set it to **0** to measure in the sensor's own zone size instead.
+**Give the surface the shape of the area.** Select the surface and set **Transform ▸ Aspect** to the
+ratio of the screen or projection it goes to — 16:9, 16:10, 4:3, 21:9 or 1:1, landscape or portrait
+(see [Surfaces and content](user-guide/02-surfaces-and-content.md#give-a-surface-its-shape--aspect-ratio)).
+The Tracking nodes measure in that shape, which is what keeps a circle round: a shader's coordinates
+run 0..1 across *and* down, so a plain distance would stretch every circle as wide as the surface.
+Height is taken from the sensor in metres and width from the shape, so sizes stay roughly in metres.
+Each Tracking node also has an **Aspect** setting: leave it at **0** to follow the surface, or type a
+ratio (1.778 is 16:9) for a surface whose rectangle does not match the area it is projected onto.
 
 **Before it works:**
 

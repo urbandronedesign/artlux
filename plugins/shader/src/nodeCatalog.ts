@@ -107,14 +107,16 @@ const ident = (v: unknown, d: string): string => s(v, d).replace(/[^A-Za-z0-9_]/
  * ASPECT IS WHAT KEEPS A CIRCLE ROUND. The shader's uv is 0..1 in both directions, so a distance taken
  * in uv draws an ellipse on any area that is not square. Measuring in the sensor's metres fixes that
  * only when the sensor's zone has the same shape as the picture — and the zone comes from Scalex/Scaley
- * (or a default when the sensor never sent them), which is not the projected area. `iAspect` cannot be
- * used either: a surface's rect is stored normalised, so a full-stage 16:9 surface reports 1. So the
- * area's aspect is stated here, once, defaulting to the 16:9 the venue areas are.
+ * (or a default when the sensor never sent them), which is not the projected area. So distances are
+ * measured in the SURFACE's shape: iAspect, which is the surface's real width / height because the stage
+ * is a square unit space — the shape its Transform ▸ Aspect sets. (The first version defaulted to a
+ * typed 16:9 on the belief that a surface rect could not tell you its shape; it can.) A number > 0 here
+ * overrides it, for a surface whose rect does not match the area it is projected onto.
  */
 const TRACK_SURFACES = ['floor', 'wall', 'floor+wall'];
 const TRACK_SETTINGS: Setting[] = [
   { name: 'surface', label: 'Surface', kind: 'choice', options: TRACK_SURFACES, def: 'floor', hint: 'Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).' },
-  { name: 'aspect', label: 'Aspect', kind: 'number', def: 1.7778, min: 0, max: 8, step: 0.01, hint: 'Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.' },
+  { name: 'aspect', label: 'Aspect', kind: 'number', def: 0, min: 0, max: 8, step: 0.01, hint: '0 follows the surface shape (set it in Transform ▸ Aspect). A number overrides it — 1.778 is 16:9. Keeps circles round.' },
   { name: 'rotate', label: 'Rotate', kind: 'number', def: 0, min: 0, max: 270, step: 90, hint: 'Degrees, quarter turns only. Same value as the Tracking surface.' },
   { name: 'flipH', label: 'Flip H', kind: 'number', def: 0, min: 0, max: 1, step: 1, hint: '1 mirrors left and right.' },
   { name: 'flipV', label: 'Flip V', kind: 'number', def: 0, min: 0, max: 1, step: 1, hint: '1 mirrors top and bottom.' },
@@ -124,7 +126,7 @@ const trackXf = (p: Record<string, unknown>): { slot: number; rot: number; mir: 
   const rot = (((Math.round(n(p.rotate, 0) / 90)) % 4) + 4) % 4;
   const mir = (n(p.flipH, 0) >= 0.5 ? 1 : 0) | (n(p.flipV, 0) >= 0.5 ? 2 : 0);
   // A GLSL float literal, always with a point — `2` would be an int and fail to compile as a float arg.
-  const a = Math.max(0, n(p.aspect, 16 / 9));
+  const a = Math.max(0, n(p.aspect, 0));
   const asp = Number.isInteger(a) ? `${a}.0` : String(a);
   return { slot, rot, mir, asp };
 };
@@ -805,7 +807,7 @@ const DEFS: NodeDef[] = [
     id: 'tracking.person', label: 'Person', category: 'Tracking',
     hint: 'One tracked person on the floor or wall: where they are and which way they walk.',
     aliases: ['lidar', 'blob', 'visitor', 'people', 'position', 'heading', 'orientation'],
-    doc: 'One person, picked by `index` (0–15), on the surface you choose — floor, wall, or the combined floor+wall zone. A person keeps the same index for as long as they are tracked, so index 0 does not jump to somebody else when another visitor leaves; `active` is 1 while somebody holds that index and 0 when it is free, so multiply it into whatever you draw. `pos` is in the surface\'s own 0..1 coordinates, ready to compare with UV. `dir` is a unit vector along the way they WALK and `heading` the same angle in turns (0..1, 0 = pointing right); both are held when the person stops, and `valid` stays 0 until they have walked far enough to have a direction at all. `speed` is metres per second and `velocity` its vector, `age` is seconds since they were first seen. Heading needs Merge people (2 blobs → 1) switched on in the 3D scene\'s tracking parameters: without it the sensor\'s raw blobs come through, and they do not live long enough to walk anywhere. If the picture is turned or mirrored against the room, set rotate / flip H / flip V to the same values the Tracking surface uses, and set Aspect to the width ÷ height of the area (16:9 by default) so directions are not skewed.',
+    doc: 'One person, picked by `index` (0–15), on the surface you choose — floor, wall, or the combined floor+wall zone. A person keeps the same index for as long as they are tracked, so index 0 does not jump to somebody else when another visitor leaves; `active` is 1 while somebody holds that index and 0 when it is free, so multiply it into whatever you draw. `pos` is in the surface\'s own 0..1 coordinates, ready to compare with UV. `dir` is a unit vector along the way they WALK and `heading` the same angle in turns (0..1, 0 = pointing right); both are held when the person stops, and `valid` stays 0 until they have walked far enough to have a direction at all. `speed` is metres per second and `velocity` its vector, `age` is seconds since they were first seen. Heading needs Merge people (2 blobs → 1) switched on in the 3D scene\'s tracking parameters: without it the sensor\'s raw blobs come through, and they do not live long enough to walk anywhere. If the picture is turned or mirrored against the room, set rotate / flip H / flip V to the same values the Tracking surface uses, and give the surface the shape of the area (Transform ▸ Aspect) so directions are not skewed.',
     inputs: [{ name: 'index', type: 'int', def: 0 }],
     outputs: [
       { name: 'pos', type: 'vec2' }, { name: 'active', type: 'float' },
@@ -851,7 +853,7 @@ const DEFS: NodeDef[] = [
     id: 'tracking.nearest', label: 'Nearest person', category: 'Tracking',
     hint: 'Per pixel: the closest person — distance, which one, their own space — and a glow around everyone.',
     aliases: ['lidar', 'distance', 'proximity', 'glow', 'metaball', 'field', 'everyone', 'all people'],
-    doc: 'The node for drawing EVERY person at once, without wiring sixteen Person nodes. For every pixel `uv`: `dist` is the distance (about metres) to the closest person, `index` is which person that is, and `found` is 1 when anybody is tracked at all and 0 on an empty floor — multiply your shapes by it. `local` is that pixel seen from the closest person, x forward along the way they walk and y to their left, so a Circle wired to `local` draws a circle on everybody and a second Circle shifted along x marks which way each of them is heading (help patch 7). `pos` is where that person stands, and `away` points from them out to the pixel as a uv offset per metre — scale it by a distance and wire it into Translate before Last frame, and the picture streams outward from everybody at the same speed in every direction (help patch 8, where people are particle emitters). `falloff` is 1 on top of them fading to 0 at `radius`, and `field` adds every person\'s soft disc together, so the glow grows where people bunch up. Distances keep circles round on the area: set Aspect to its width ÷ height (16:9 by default). Wire UV into `uv`.',
+    doc: 'The node for drawing EVERY person at once, without wiring sixteen Person nodes. For every pixel `uv`: `dist` is the distance (about metres) to the closest person, `index` is which person that is, and `found` is 1 when anybody is tracked at all and 0 on an empty floor — multiply your shapes by it. `local` is that pixel seen from the closest person, x forward along the way they walk and y to their left, so a Circle wired to `local` draws a circle on everybody and a second Circle shifted along x marks which way each of them is heading (help patch 7). `pos` is where that person stands, and `away` points from them out to the pixel as a uv offset per metre — scale it by a distance and wire it into Translate before Last frame, and the picture streams outward from everybody at the same speed in every direction (help patch 8, where people are particle emitters). `falloff` is 1 on top of them fading to 0 at `radius`, and `field` adds every person\'s soft disc together, so the glow grows where people bunch up. Distances keep circles round on the surface\'s own shape — give the surface the shape of the area in Transform ▸ Aspect, or override it with this node\'s Aspect. Wire UV into `uv`.',
     inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'radius', type: 'float', def: 1, label: 'm' }],
     outputs: [
       { name: 'dist', type: 'float' }, { name: 'index', type: 'float' }, { name: 'found', type: 'float' },

@@ -213,13 +213,14 @@ vec2 artluxTrackZone(int slot, int rot) {
 }
 
 // THE SPACE DISTANCES ARE MEASURED IN — what keeps a circle round ON THE PICTURE.
-// aspect is the width / height of the area the people are drawn on (16:9 = 1.778). Height stays the
-// sensor's metres and width follows the aspect, so units are still about a metre and a 1 m circle is
-// round on that area even when the sensor's own zone (Scalex / Scaley, or the default when no specs
-// arrived) has a slightly different shape. aspect <= 0 measures in the sensor's zone as sent.
+// Height stays the sensor's metres and width follows the PICTURE's shape, so units are still about a
+// metre and a 1 m circle is round on the surface even when the sensor's own zone (Scalex / Scaley, or
+// the default when no specs arrived) has a different shape. The shape is the surface's own — iAspect,
+// its render width / height, which is exactly its Transform aspect — unless aspect > 0 overrides it.
 vec2 artluxTrackSpace(int slot, int rot, float aspect) {
   vec2 z = artluxTrackZone(slot, rot);
-  return aspect > 0.0 ? vec2(z.y * aspect, z.y) : z;
+  float a = aspect > 0.0 ? aspect : max(iAspect, 1e-3);
+  return vec2(z.y * a, z.y);
 }
 
 int artluxPersonK(int slot, int i) { return clamp(slot, 0, 2) * 16 + clamp(i, 0, 15); }

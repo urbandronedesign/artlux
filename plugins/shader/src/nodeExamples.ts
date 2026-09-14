@@ -200,9 +200,10 @@ export const EXAMPLES: Example[] = [
     graph: g(
       [
         { id: 'uv_1', type: 'input.uv', x: 0, y: 140, params: {} },
-        // Aspect 16:9 is the area the people are drawn on. It is what keeps these circles ROUND: uv is
-        // 0..1 both ways, so without it every circle is stretched as wide as the area.
-        { id: 'near', type: 'tracking.nearest', x: 200, y: 140, params: { surface: 'floor', aspect: 1.7778, radius: 1 } },
+        // Distances follow the SURFACE's shape (Aspect 0), which is what keeps these circles ROUND: uv
+        // is 0..1 both ways, so a plain uv distance would stretch every circle as wide as the surface.
+        // Give the surface the area's shape in Transform ▸ Aspect.
+        { id: 'near', type: 'tracking.nearest', x: 200, y: 140, params: { surface: 'floor', aspect: 0, radius: 1 } },
         // THE BODY: a ring 0.35 m across the person, drawn in their own space.
         { id: 'body', type: 'shape.circle', x: 440, y: 40, params: { radius: 0.35 } },
         { id: 'ring', type: 'shape.outline', x: 620, y: 40, params: { width: 0.05 } },
@@ -242,7 +243,7 @@ export const EXAMPLES: Example[] = [
       [
         { id: 'uv_1', type: 'input.uv', x: 0, y: 220, params: {} },
         // radius is the EMITTER: sparks are born within 0.5 m of each person.
-        { id: 'near', type: 'tracking.nearest', x: 200, y: 220, params: { surface: 'floor', aspect: 1.7778, radius: 0.5 } },
+        { id: 'near', type: 'tracking.nearest', x: 200, y: 220, params: { surface: 'floor', aspect: 0, radius: 0.5 } },
 
         // ── EMIT: a fresh scatter of sparks around everyone, EVERY frame ──────────────────────────────
         // Noise read in each person's own space, evolving fast in z, cut to its brightest specks. Wall

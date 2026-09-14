@@ -1532,7 +1532,7 @@ also found by `kick`, `onset`, `transient`, `bpm`
 
 One tracked person on the floor or wall: where they are and which way they walk.
 
-One person, picked by `index` (0–15), on the surface you choose — floor, wall, or the combined floor+wall zone. A person keeps the same index for as long as they are tracked, so index 0 does not jump to somebody else when another visitor leaves; `active` is 1 while somebody holds that index and 0 when it is free, so multiply it into whatever you draw. `pos` is in the surface's own 0..1 coordinates, ready to compare with UV. `dir` is a unit vector along the way they WALK and `heading` the same angle in turns (0..1, 0 = pointing right); both are held when the person stops, and `valid` stays 0 until they have walked far enough to have a direction at all. `speed` is metres per second and `velocity` its vector, `age` is seconds since they were first seen. Heading needs Merge people (2 blobs → 1) switched on in the 3D scene's tracking parameters: without it the sensor's raw blobs come through, and they do not live long enough to walk anywhere. If the picture is turned or mirrored against the room, set rotate / flip H / flip V to the same values the Tracking surface uses, and set Aspect to the width ÷ height of the area (16:9 by default) so directions are not skewed.
+One person, picked by `index` (0–15), on the surface you choose — floor, wall, or the combined floor+wall zone. A person keeps the same index for as long as they are tracked, so index 0 does not jump to somebody else when another visitor leaves; `active` is 1 while somebody holds that index and 0 when it is free, so multiply it into whatever you draw. `pos` is in the surface's own 0..1 coordinates, ready to compare with UV. `dir` is a unit vector along the way they WALK and `heading` the same angle in turns (0..1, 0 = pointing right); both are held when the person stops, and `valid` stays 0 until they have walked far enough to have a direction at all. `speed` is metres per second and `velocity` its vector, `age` is seconds since they were first seen. Heading needs Merge people (2 blobs → 1) switched on in the 3D scene's tracking parameters: without it the sensor's raw blobs come through, and they do not live long enough to walk anywhere. If the picture is turned or mirrored against the room, set rotate / flip H / flip V to the same values the Tracking surface uses, and give the surface the shape of the area (Transform ▸ Aspect) so directions are not skewed.
 
 | In | Type | Default |
 |---|---|---|
@@ -1552,7 +1552,7 @@ One person, picked by `index` (0–15), on the surface you choose — floor, wal
 
 **Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
 
-**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+**Aspect** (setting), default `0` · 0 follows the surface shape (set it in Transform ▸ Aspect). A number overrides it — 1.778 is 16:9. Keeps circles round.
 
 **Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
 
@@ -1563,8 +1563,8 @@ One person, picked by `index` (0–15), on the surface you choose — floor, wal
 ```glsl
 pos = artluxPersonUv(0, index, 0, 0)
 active = step(0.5, iPeopleMotion[artluxPersonK(0, index)].z)
-dir = artluxPersonDir(0, index, 0, 0, 1.7778)
-heading = fract(atan(artluxPersonDir(0, index, 0, 0, 1.7778).y, artluxPersonDir(0, index, 0, 0, 1.7778).x) / 6.2831853)
+dir = artluxPersonDir(0, index, 0, 0, 0.0)
+heading = fract(atan(artluxPersonDir(0, index, 0, 0, 0.0).y, artluxPersonDir(0, index, 0, 0, 0.0).x) / 6.2831853)
 valid = iPeople[artluxPersonK(0, index)].w
 speed = length(iPeopleMotion[artluxPersonK(0, index)].xy)
 velocity = artluxTrackDir(iPeopleMotion[artluxPersonK(0, index)].xy, 0, 0)
@@ -1587,7 +1587,7 @@ How many people are tracked on the chosen surface right now, and `zone`, the siz
 
 **Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
 
-**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+**Aspect** (setting), default `0` · 0 follows the surface shape (set it in Transform ▸ Aspect). A number overrides it — 1.778 is 16:9. Keeps circles round.
 
 **Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
 
@@ -1597,7 +1597,7 @@ How many people are tracked on the chosen surface right now, and `zone`, the siz
 
 ```glsl
 count = float(iPeopleCount[0])
-zone = artluxTrackSpace(0, 0, 1.7778)
+zone = artluxTrackSpace(0, 0, 0.0)
 ```
 
 helper: `tracking` · also found by `lidar`, `visitors`, `occupancy`, `crowd`
@@ -1606,7 +1606,7 @@ helper: `tracking` · also found by `lidar`, `visitors`, `occupancy`, `crowd`
 
 Per pixel: the closest person — distance, which one, their own space — and a glow around everyone.
 
-The node for drawing EVERY person at once, without wiring sixteen Person nodes. For every pixel `uv`: `dist` is the distance (about metres) to the closest person, `index` is which person that is, and `found` is 1 when anybody is tracked at all and 0 on an empty floor — multiply your shapes by it. `local` is that pixel seen from the closest person, x forward along the way they walk and y to their left, so a Circle wired to `local` draws a circle on everybody and a second Circle shifted along x marks which way each of them is heading (help patch 7). `pos` is where that person stands, and `away` points from them out to the pixel as a uv offset per metre — scale it by a distance and wire it into Translate before Last frame, and the picture streams outward from everybody at the same speed in every direction (help patch 8, where people are particle emitters). `falloff` is 1 on top of them fading to 0 at `radius`, and `field` adds every person's soft disc together, so the glow grows where people bunch up. Distances keep circles round on the area: set Aspect to its width ÷ height (16:9 by default). Wire UV into `uv`.
+The node for drawing EVERY person at once, without wiring sixteen Person nodes. For every pixel `uv`: `dist` is the distance (about metres) to the closest person, `index` is which person that is, and `found` is 1 when anybody is tracked at all and 0 on an empty floor — multiply your shapes by it. `local` is that pixel seen from the closest person, x forward along the way they walk and y to their left, so a Circle wired to `local` draws a circle on everybody and a second Circle shifted along x marks which way each of them is heading (help patch 7). `pos` is where that person stands, and `away` points from them out to the pixel as a uv offset per metre — scale it by a distance and wire it into Translate before Last frame, and the picture streams outward from everybody at the same speed in every direction (help patch 8, where people are particle emitters). `falloff` is 1 on top of them fading to 0 at `radius`, and `field` adds every person's soft disc together, so the glow grows where people bunch up. Distances keep circles round on the surface's own shape — give the surface the shape of the area in Transform ▸ Aspect, or override it with this node's Aspect. Wire UV into `uv`.
 
 | In | Type | Default |
 |---|---|---|
@@ -1626,7 +1626,7 @@ The node for drawing EVERY person at once, without wiring sixteen Person nodes. 
 
 **Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
 
-**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+**Aspect** (setting), default `0` · 0 follows the surface shape (set it in Transform ▸ Aspect). A number overrides it — 1.778 is 16:9. Keeps circles round.
 
 **Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
 
@@ -1635,14 +1635,14 @@ The node for drawing EVERY person at once, without wiring sixteen Person nodes. 
 **Flip V** (setting), default `0` · 1 mirrors top and bottom.
 
 ```glsl
-dist = artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).x
-index = artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y
-found = step(-0.5, artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y)
-pos = artluxPersonUv(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y), 0, 0)
-local = artluxPersonLocal(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y), uv, 0, 0, 1.7778)
-away = artluxPersonAway(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y), uv, 0, 0, 1.7778)
-falloff = (1.0 - smoothstep(0.0, max(radius, 1e-4), artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).x))
-field = artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).z
+dist = artluxNearestPerson(0, uv, radius, 0, 0, 0.0).x
+index = artluxNearestPerson(0, uv, radius, 0, 0, 0.0).y
+found = step(-0.5, artluxNearestPerson(0, uv, radius, 0, 0, 0.0).y)
+pos = artluxPersonUv(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 0.0).y), 0, 0)
+local = artluxPersonLocal(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 0.0).y), uv, 0, 0, 0.0)
+away = artluxPersonAway(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 0.0).y), uv, 0, 0, 0.0)
+falloff = (1.0 - smoothstep(0.0, max(radius, 1e-4), artluxNearestPerson(0, uv, radius, 0, 0, 0.0).x))
+field = artluxNearestPerson(0, uv, radius, 0, 0, 0.0).z
 ```
 
 helper: `tracking` · also found by `lidar`, `distance`, `proximity`, `glow`, `metaball`, `field`, `everyone`, `all people`
@@ -1665,7 +1665,7 @@ Re-expresses `uv` from one person's point of view: `local` is in metres with the
 
 **Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
 
-**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+**Aspect** (setting), default `0` · 0 follows the surface shape (set it in Transform ▸ Aspect). A number overrides it — 1.778 is 16:9. Keeps circles round.
 
 **Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
 
@@ -1674,7 +1674,7 @@ Re-expresses `uv` from one person's point of view: `local` is in metres with the
 **Flip V** (setting), default `0` · 1 mirrors top and bottom.
 
 ```glsl
-local = artluxPersonLocal(0, index, uv, 0, 0, 1.7778)
+local = artluxPersonLocal(0, index, uv, 0, 0, 0.0)
 active = step(0.5, iPeopleMotion[artluxPersonK(0, index)].z)
 ```
 
