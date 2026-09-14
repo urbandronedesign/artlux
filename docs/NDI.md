@@ -102,6 +102,17 @@ machines still compile the crate.)
   `ProjectorGL.captureRGBA()` reads back the warped result (≤720p, or ≤1080p in Broadcast; Y-flipped) → `sendNdiFrame` IPC →
   `ndiManager`. App reconciles senders (named `ArtLux — <surface>`); `before-quit` tears them down.
 
+### Known weakness — a failed receive is silent (not fixed, by decision 2026-09-14)
+`recvConnect` (`native/ndi/src/lib.rs`) does not reuse the finder that filled the picker. It opens a
+**new** `Finder` and waits 2 s (`find_sources`) for the name to reappear, and a late mDNS answer
+throws `ndi source not found`. `ndiManager.startRecv` only logs `[ndi] connect failed` in main: it
+does not retry and sends nothing back to the renderer. A connect that succeeds but gets no frames
+(VPN, firewall) looks exactly the same, because `recvFrame` just keeps returning `null`. From the
+operator's side, both show up as "No signal". Measured with a standalone probe against a phone sender:
+the first connect failed while the source was listed, the second connected, and 0 frames arrived with
+the VPN on. If this is ever hardened: keep one long-lived finder, retry the connect, and report
+*not found* vs *connected, no frames* to the source picker.
+
 ### Packaging
 `win.extraResources` ships `native/ndi/ndi.node` (Windows only — NDI is Windows-first). `build/installer.nsh`
 is a template to silently install the NDI Runtime during install/update once you bundle the redist.
@@ -134,6 +145,26 @@ tools, not in ArtLux.
 
 Confirm the network half independently before suspecting ArtLux: if **NDI Studio Monitor** on the same
 machine cannot see the source either, nothing in this app will change that.
+
+### The source is in the list, but the surface says "No signal"
+
+Finding a source and receiving its video are two separate steps, and they can fail separately. Seeing
+the name in the list only proves discovery worked.
+
+- **A VPN is on.** This is the first thing to check. Discovery can still find the sender, so the source
+  is listed, but the video connection goes out through the VPN adapter and never reaches the sender. The
+  surface stays black and nothing tells you why. Turn the VPN off (or exclude the local network from it)
+  and pick the source again. Seen on 2026-09-14 with a phone camera sender: listed, connected, and zero
+  frames until the VPN went off.
+- **Connecting missed the source.** Picking a source starts a fresh search for that name, and the search
+  gives up after about two seconds. A sender on Wi-Fi, such as a phone, can answer too late. **ArtLux
+  does not retry and does not show an error**, so the surface just stays on "No signal". Pick
+  **First source**, then pick the named source again to make it retry.
+- **The firewall allows discovery but not video.** Discovery and video use different ports, so allowing
+  one does not allow the other. The checks under the previous heading apply here too.
+
+If **NDI Studio Monitor** on the same machine shows the picture while ArtLux stays black with the VPN
+off, then the problem is in ArtLux.
 
 ### Runtime and build
 

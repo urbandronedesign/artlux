@@ -34,6 +34,7 @@ Read down the left column until a line matches what is actually in front of you.
 | What you see | Where the answer is |
 |---|---|
 | An NDI source is missing from the list | [NDI ▸ the sources list is empty](NDI.md#troubleshooting) — mDNS does not cross a VLAN; check the network before the app |
+| An NDI source is listed, but the surface says "No signal" | [NDI ▸ Troubleshooting](NDI.md#troubleshooting) — turn off any VPN first, then pick the source again; a failed connect is not retried |
 | A Spout sender is not appearing | [SPOUT.md](SPOUT.md) — Windows only, and the sender must be running first |
 | A video stutters or will not play | [Video codecs](CODECS.md) — HAP vs MP4, and what each costs |
 | A shader holds still | [Shaders](SHADERS.md) — it advances with the transport; press play |
