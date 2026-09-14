@@ -1763,3 +1763,38 @@ for the wrong reason: a real show that already sat at zero ("the rig is dark" be
 ⚠ **Not proven on site:** the blackout has been seen on the wire from one machine to a local listener,
 not on a real node holding a real rig; the Scheduled-Task stand-down was exercised through a stub exe,
 not an installed venue task across an actual reboot.
+
+## v0.31.1 — people in the shader graph, and a surface you can give a shape (2026-09-14)
+
+`89f0437`…`cab1eaa`
+
+**Tracking nodes.** `plugins/shader/src/trackingTap.ts` fills `iPeople` / `iPeopleMotion` / `iPeopleCount` /
+`iTrackZone` once per frame from `people.snapshot()` (the LiDAR barrel now exports `people`), with
+STABLE per-person indices (16 per surface) so a graph's "person 0" does not jump when someone leaves.
+Projector windows get the buffers over a `shader-tracking` projector channel, gated to shaders that
+read them, ticked by `onPlayhead` rather than the store subscription (the store never notifies the
+frame a blob goes stale). A shader that reads people joins a people generation to its drawable
+signature, so it redraws while the transport is paused; an empty room costs nothing; a bake sees an
+empty room. Four nodes + help patches 7 and 8.
+
+**Walking heading** is new on the tracker (`blobClustering.trackSurface`): measured on a 0.35 s
+low-pass of the position once it has travelled 0.4 m at ≥ 0.25 m/s average, then held. Gating on the
+tracker's own velocity was tried first and spun across the compass under centroid jitter (it sits at
+MAX_SPEED). Checked on a synthetic walk/stop/turn with leg dropout and 0.6 m white jitter only.
+
+**Surface aspect.** `services/surfaceAspect.ts`; `Surface.aspect? / portrait?`, no migration. The
+stage is a square unit space, so width / height IS the displayed shape — which also means `iAspect`
+is trustworthy, and the Tracking nodes' first default (a typed 16:9, on the belief it was not) was
+replaced by following the surface. The frame engine's content auto-fit skips a locked surface
+(invariant-guarded, proven to fail when the skip is removed).
+
+**Verified:** every tracking-node variant and both patches compiled on the real driver; circle
+roundness measured on a 16:9 render with a 2:1 sensor zone; a live OSC → people → uniforms → GPU →
+Art-Net run in the editor (position follows, heading held at 180° after walking −x, clears on leave);
+the Aspect control driven over CDP (9/9). Two harness traps worth keeping: a probe LED strip with the
+default `rgbwMode` SUBTRACT strips min(R,G,B) on a 3-channel fixture and reads as wrong shader values;
+a triple-click does not select the text of an `<input type=number>`.
+
+⚠ **Not proven on site:** heading thresholds against the venue feed, the wall with real hands, trail
+length at the venue frame rate. The 3D PlaneObject is still a fixed 16:9 and does not follow a
+surface's aspect.

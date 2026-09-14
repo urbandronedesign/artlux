@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.31.1
+
+### Shaders that react to people
+
+The shader node editor has a new **Tracking** category. A shader can now read the **people** the LiDAR
+is tracking — the same visitors the trigger zones count, with two leg blobs already merged into one
+person — on the **floor**, the **wall** or the combined zone, chosen on each node.
+
+- **Person** — one visitor by index: where they are, which way they are walking, how fast, how long
+  they have been there. A person keeps their index while they are tracked, so nobody jumps when
+  someone else leaves.
+- **Nearest person** — for every pixel, the closest visitor: distance, their own space, the way out
+  from them, and a glow that adds everyone up. One node draws something on **everybody**.
+- **Person space** — the picture seen by one visitor, pointing where they walk.
+- **People count** — how many are on that surface.
+- Two new help patches under **Examples**: **7 · A circle for every person** (a ring on each visitor,
+  with a dot showing which way they walk) and **8 · People are particle emitters** (sparks thrown out
+  by each visitor, drifting away and fading, leaving a trail as they move).
+- **Walking direction** is measured once someone has walked about 40 cm and is **held** when they stop.
+  It needs *Merge people (2 blobs → 1)* switched on.
+- A shader that reads people **keeps reacting while the show is paused**, and works on projector
+  outputs as well as in the editor.
+
+⚠ Tested against simulated visitors, not yet at the venue: the walking-direction thresholds are to be
+tuned on site.
+
+### Give a surface its shape
+
+**Transform ▸ Aspect** locks a surface to **16:9, 16:10, 4:3, 21:9 or 1:1**, in **landscape or
+portrait**. Choose the ratio of the screen or projector the surface goes to, and a shader, text or
+generative look is drawn at the real shape instead of being stretched.
+
+- The surface reshapes about its centre, keeping its longer side. Portrait stands it on its end.
+- Typing a **Width** moves the **Height** with it; the corner handle keeps the shape too.
+- Dropping an image or video on a locked surface **no longer refits it** to the media — the media fills
+  the shape you chose.
+- **Free** removes the lock. Existing projects open unchanged.
+- The Tracking nodes follow the surface's shape, so circles and particles stay round.
+
+### Sharing shaders
+
+The Shaders guide now says where your **effect library** and **saved subpatches** live on disk, and what
+travels with a project: sharing a project carries every shader it uses, graph included — the library is
+only needed for effects you want to reuse elsewhere.
+
 ## v0.31.0
 
 ### Scheduling you can actually use from a tablet
