@@ -20,6 +20,7 @@ import { parseHeader, type ShaderInput } from './header';
 import { buildPaletteLut } from '@/gpu/palettes'; // host palettes (transitional runtime seam)
 import { spectrum as audioSpectrum, broadband, beatPulses, beatPulsesWith, beatCounts } from './audioTap';
 import * as renderClock from '@/engine/renderClock';
+import { peoplePos, peopleMotion, peopleCount, trackZone } from './trackingTap';
 
 export interface CompileResult {
   program: WebGLProgram | null;
@@ -40,6 +41,10 @@ interface Uniforms {
   iAudioLevel: WebGLUniformLocation | null;
   iBeat: WebGLUniformLocation | null;
   iBeatCount: WebGLUniformLocation | null;
+  iPeople: WebGLUniformLocation | null;
+  iPeopleMotion: WebGLUniformLocation | null;
+  iPeopleCount: WebGLUniformLocation | null;
+  iTrackZone: WebGLUniformLocation | null;
 }
 
 /** A compiled program plus its uniform locations — what renderToBitmap needs to draw. */
@@ -258,6 +263,10 @@ export function getProgram(source: string): CompiledProgram {
           iAudioLevel: g.getUniformLocation(p, 'iAudioLevel'),
           iBeat: g.getUniformLocation(p, 'iBeat[0]'),
           iBeatCount: g.getUniformLocation(p, 'iBeatCount[0]'),
+          iPeople: g.getUniformLocation(p, 'iPeople[0]'),
+          iPeopleMotion: g.getUniformLocation(p, 'iPeopleMotion[0]'),
+          iPeopleCount: g.getUniformLocation(p, 'iPeopleCount[0]'),
+          iTrackZone: g.getUniformLocation(p, 'iTrackZone[0]'),
           artluxPaletteLut: g.getUniformLocation(p, 'artluxPaletteLut'),
           artluxPaletteRows: g.getUniformLocation(p, 'artluxPaletteRows'),
         },
@@ -281,7 +290,7 @@ export function failedProgram(log: string): CompiledProgram {
 }
 
 function emptyUniforms(): Uniforms {
-  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null, iAudio: null, iAudioLevel: null, iBeat: null, iBeatCount: null };
+  return { iResolution: null, iTime: null, iWallTime: null, iAspect: null, iFrame: null, artluxPaletteLut: null, artluxPaletteRows: null, iAudio: null, iAudioLevel: null, iBeat: null, iBeatCount: null, iPeople: null, iPeopleMotion: null, iPeopleCount: null, iTrackZone: null };
 }
 
 /**
@@ -340,6 +349,15 @@ export function renderToBitmap(
     g.uniform1fv(u.iBeat, Number.isFinite(sec) ? beatPulsesWith(sec) : beatPulses());
   }
   if (u.iBeatCount) g.uniform1fv(u.iBeatCount, beatCounts());
+  // The people in the room (trackingTap). Same one-branch cost as the sound when a shader never reads
+  // them. Offline the room is EMPTY, not live — see trackingTap.peoplePos.
+  if (u.iPeople || u.iPeopleMotion || u.iPeopleCount) {
+    const offline = renderClock.isOffline();
+    if (u.iPeople) g.uniform4fv(u.iPeople, peoplePos(offline));
+    if (u.iPeopleMotion) g.uniform4fv(u.iPeopleMotion, peopleMotion(offline));
+    if (u.iPeopleCount) g.uniform1iv(u.iPeopleCount, peopleCount(offline));
+  }
+  if (u.iTrackZone) g.uniform2fv(u.iTrackZone, trackZone());
 
   // ArtLux's own gradients, on texture unit 0, so `palette(id, t)` works in any shader — declared
   // input or a literal id. Uploaded once, lazily: a project with no palette-using shader never pays.

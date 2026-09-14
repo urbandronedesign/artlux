@@ -192,7 +192,7 @@ export function generateGlsl(input: ShaderGraph): GenerateResult {
   if (!visit(outputs[0])) return { source: '', errors };
 
   // ── Emit
-  const taken = new Set<string>(['uv', 'iTime', 'iWallTime', 'iAspect', 'iResolution', 'iFrame', 'iAudio', 'iAudioLevel', 'iBeat', 'iBeatCount', 'lastFrame']);
+  const taken = new Set<string>(['uv', 'iTime', 'iWallTime', 'iAspect', 'iResolution', 'iFrame', 'iAudio', 'iAudioLevel', 'iBeat', 'iBeatCount', 'iPeople', 'iPeopleMotion', 'iPeopleCount', 'iTrackZone', 'lastFrame']);
   const names = new Map<string, Record<string, string>>(); // nodeId → port → variable
   const helpers = new Set<string>();
   const headerInputs: string[] = [];

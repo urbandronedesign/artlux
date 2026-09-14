@@ -180,6 +180,98 @@ export const LIB: Record<string, string> = {
   return clamp(c * m, 0.0, 1.0);
 }`,
 
+  // ── Tracking — the people in the room ─────────────────────────────────────────────────────────────
+  // Reads the iPeople uniforms, which only the ArtLux wrapper declares (trackingTap.ts has the layout).
+  // `slot` is the tracking surface: 0 floor, 1 wall, 2 floor+wall. `rot` (0..3 quarter turns) and `mir`
+  // (bit 1 = horizontal, bit 2 = vertical) are the SAME correction a Tracking surface applies — rotate
+  // first, then mirror — so a mapping already checked on one carries straight over to a shader.
+  tracking: `vec2 artluxTrackPos(vec2 p, int rot, int mir) {
+  vec2 q = p;
+  if (rot == 1) q = vec2(p.y, 1.0 - p.x);
+  else if (rot == 2) q = 1.0 - p;
+  else if (rot == 3) q = vec2(1.0 - p.y, p.x);
+  if ((mir & 1) != 0) q.x = 1.0 - q.x;
+  if ((mir & 2) != 0) q.y = 1.0 - q.y;
+  return q;
+}
+
+// The same correction for a DIRECTION: turned and flipped, never offset.
+vec2 artluxTrackDir(vec2 d, int rot, int mir) {
+  vec2 q = d;
+  if (rot == 1) q = vec2(d.y, -d.x);
+  else if (rot == 2) q = -d;
+  else if (rot == 3) q = vec2(-d.y, d.x);
+  if ((mir & 1) != 0) q.x = -q.x;
+  if ((mir & 2) != 0) q.y = -q.y;
+  return q;
+}
+
+// The zone in metres, as the corrected picture sees it: a quarter turn swaps width and height.
+vec2 artluxTrackZone(int slot, int rot) {
+  vec2 z = max(iTrackZone[clamp(slot, 0, 2)], vec2(0.01));
+  return (rot == 1 || rot == 3) ? z.yx : z;
+}
+
+// THE SPACE DISTANCES ARE MEASURED IN — what keeps a circle round ON THE PICTURE.
+// aspect is the width / height of the area the people are drawn on (16:9 = 1.778). Height stays the
+// sensor's metres and width follows the aspect, so units are still about a metre and a 1 m circle is
+// round on that area even when the sensor's own zone (Scalex / Scaley, or the default when no specs
+// arrived) has a slightly different shape. aspect <= 0 measures in the sensor's zone as sent.
+vec2 artluxTrackSpace(int slot, int rot, float aspect) {
+  vec2 z = artluxTrackZone(slot, rot);
+  return aspect > 0.0 ? vec2(z.y * aspect, z.y) : z;
+}
+
+int artluxPersonK(int slot, int i) { return clamp(slot, 0, 2) * 16 + clamp(i, 0, 15); }
+
+vec2 artluxPersonUv(int slot, int i, int rot, int mir) {
+  return artluxTrackPos(iPeople[artluxPersonK(slot, i)].xy, rot, mir);
+}
+
+// The walking direction as a unit vector ON THE PICTURE. (1, 0) before the person has walked anywhere.
+// The tracker measures it in the sensor's metres; stretching into the picture's space bends the angle
+// a little when the two shapes differ, so it is re-expressed there rather than reused raw.
+vec2 artluxPersonDir(int slot, int i, int rot, int mir, float aspect) {
+  float h = iPeople[artluxPersonK(slot, i)].z;
+  vec2 d = artluxTrackDir(vec2(cos(h), sin(h)), rot, mir);
+  vec2 p = d / artluxTrackZone(slot, rot) * artluxTrackSpace(slot, rot, aspect);
+  return length(p) > 1e-6 ? normalize(p) : vec2(1.0, 0.0);
+}
+
+// uv seen from the person: about metres, x forward along where they walk, y to their left.
+vec2 artluxPersonLocal(int slot, int i, vec2 uv, int rot, int mir, float aspect) {
+  vec2 d = (uv - artluxPersonUv(slot, i, rot, mir)) * artluxTrackSpace(slot, rot, aspect);
+  vec2 f = artluxPersonDir(slot, i, rot, mir, aspect);
+  return vec2(dot(d, f), dot(d, vec2(-f.y, f.x)));
+}
+
+// The way OUT from a person to uv, as a uv offset per metre: move a pixel's lookup by this times a
+// distance and the picture streams away from them at the same speed in every direction on the area —
+// which is what a uv direction alone would not do on anything wider than it is tall. Zero on the person.
+vec2 artluxPersonAway(int slot, int i, vec2 uv, int rot, int mir, float aspect) {
+  vec2 space = artluxTrackSpace(slot, rot, aspect);
+  vec2 d = (uv - artluxPersonUv(slot, i, rot, mir)) * space;
+  float l = length(d);
+  return l > 1e-5 ? (d / l) / space : vec2(0.0);
+}
+
+// x: distance to the nearest person (1e6 when nobody). y: their index (-1 when nobody).
+// z: every person's soft disc of radius r added up, so crowds glow brighter where they bunch.
+vec3 artluxNearestPerson(int slot, vec2 uv, float r, int rot, int mir, float aspect) {
+  vec2 space = artluxTrackSpace(slot, rot, aspect);
+  float best = 1e6, bi = -1.0, field = 0.0;
+  float rr = max(r, 1e-4);
+  for (int i = 0; i < 16; i++) {
+    int k = artluxPersonK(slot, i);
+    if (iPeopleMotion[k].z < 0.5) continue;
+    float m = length((uv - artluxTrackPos(iPeople[k].xy, rot, mir)) * space);
+    if (m < best) { best = m; bi = float(i); }
+    float f = clamp(1.0 - m / rr, 0.0, 1.0);
+    field += f * f * (3.0 - 2.0 * f);
+  }
+  return vec3(best, bi, field);
+}`,
+
   rotate2: `vec2 rotate2(vec2 p, float a) {
   float s = sin(a), c = cos(a);
   return vec2(c * p.x - s * p.y, s * p.x + c * p.y);

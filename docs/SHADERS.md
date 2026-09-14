@@ -69,6 +69,10 @@ Available to it:
 | `iAudioLevel` | float | the whole spectrum averaged: overall energy, 0..1. |
 | `iBeat` | float[4] | kick, snare, mid, high. 1 on the beat, falling back to 0. |
 | `iBeatCount` | float[4] | beats counted per channel. Step something on every kick. |
+| `iPeople` | vec4[48] | tracked people: u, v, heading (radians), heading valid. Index surface * 16 + person; surface 0 floor, 1 wall, 2 floor+wall. |
+| `iPeopleMotion` | vec4[48] | the same people: velocity x, y in metres per second, id (0 = nobody), age in seconds. |
+| `iPeopleCount` | int[3] | people live on floor, wall, floor+wall. Indices can have gaps, so test id, not the count. |
+| `iTrackZone` | vec2[3] | each tracking zone size in metres, for distances that stay round. |
 
 <!-- /generated:shader-uniforms -->
 
@@ -130,7 +134,7 @@ The loop is short:
 
 1. **Select a shader surface.** The editor edits whatever is selected; with nothing selected it says so.
 2. **Double-click empty canvas to add a node** — or press `Tab`. The menu opens at the cursor showing
-   the **eleven categories** and how many nodes are in each; pick one and it lists that category's
+   the **twelve categories** and how many nodes are in each; pick one and it lists that category's
    nodes, with `←` (or the breadcrumb) to go back. **Typing searches every category at once**, however
    deep you are, because the node you cannot find is usually filed somewhere you did not expect. `↑`/`↓`
    move, `Enter` opens a category or takes a node. The node lands where you opened the menu, so you
@@ -234,7 +238,7 @@ with it.
 
 ### Learn it by taking a patch apart
 
-**Examples** in the toolbar opens six **help patches**. Each one is an ordinary graph, so it arrives
+**Examples** in the toolbar opens eight **help patches**. Each one is an ordinary graph, so it arrives
 on the surface fully editable: read the wires, change a number, pull one out and see what breaks.
 Opening one replaces what is on the surface, and it asks first if there is anything to lose.
 
@@ -246,6 +250,8 @@ Opening one replaces what is on the surface, and it asks first if there is anyth
 | **4 · Follow the music** | `Audio band` gives one number per frequency band. Here it is the height of a bar. |
 | **5 · Noise, and how to read it** | Noise is a number per point. Scaling the coordinates sets its size; moving them makes it drift. |
 | **6 · Warp space with noise** | Noise fed back into the coordinates of more noise — one wire, and the field starts to flow. |
+| **7 · A circle for every person** | `Nearest person` gives each pixel the closest tracked visitor in their own space: one ring drawn there is on everybody, and a dot ahead of it shows which way each one walks. |
+| **8 · People are particle emitters** | Every person throws out sparks each frame, and `Last frame` carries the older ones away from them while they fade and change colour — so a person walking leaves a trail. |
 
 **Reading the feedback patch** (the one worth studying):
 
@@ -412,6 +418,15 @@ only the wording changed. It is also why two parameters can never collide by bei
 | **Audio band** | One of 16 frequency bands, low to high, already smoothed. | — |
 | **Audio level** | Overall energy — the whole spectrum averaged. | — |
 | **Beat** | 0 kick · 1 snare · 2 mid · 3 high. 1 on the hit, falling back to 0. | — |
+
+**Tracking**
+
+| Node | What it does | Also found by |
+|---|---|---|
+| **Person** | One tracked person on the floor or wall: where they are and which way they walk. | `lidar`, `blob`, `visitor`, `people`, `position`, `heading`, `orientation` |
+| **People count** | How many people are on the floor or wall, and the zone size in metres. | `lidar`, `visitors`, `occupancy`, `crowd` |
+| **Nearest person** | Per pixel: the closest person — distance, which one, their own space — and a glow around everyone. | `lidar`, `distance`, `proximity`, `glow`, `metaball`, `field`, `everyone`, `all people` |
+| **Person space** | UV as seen by one person: metres, x forward along where they walk. | `lidar`, `orientation`, `facing`, `heading`, `direction`, `local` |
 
 **Parameter**
 
@@ -592,6 +607,70 @@ ordinary parameter it travels with the project and can ride a timeline lane.
 
 A shader that declares none uses **Preferences ▸ Shaders ▸ Beat fall**, the machine default. The
 built-in **Beat quads** declares one, so it is the quickest place to feel the difference.
+## Make it react to people
+
+A shader can read the **visitors the LiDAR is tracking** — where each one is, how fast they move and
+which way they are walking. These are the same *people* the trigger zones count: blobs already merged
+(a floor sensor sees two legs) and followed with a stable id, not the sensor's raw blobs. Nothing to
+declare.
+
+In the node editor the **Tracking** category has four nodes. Each has a **Surface** choice on its body
+— **floor**, **wall**, or **floor+wall** (the combined zone) — which picks the sensor it listens to.
+
+| Node | What it gives you |
+|---|---|
+| **Person** | One person by `index` (0–15): `pos` on the surface, `active`, walking `dir` / `heading`, `valid`, `speed`, `velocity`, `id`, `age`. |
+| **People count** | How many are on that surface, and the zone size in metres. |
+| **Nearest person** | For every pixel, the closest person: distance, `index`, `found`, and `local` — the pixel seen from them, x pointing where they walk. Draw one shape in `local` and it appears on **everybody**. Also a `falloff` and a `field` that adds everyone up. |
+| **Person space** | The same `local` for one chosen person. Draw in it and a shape follows them and turns with them. |
+
+**Help patch 7 — *A circle for every person*** is the starting point: one ring per tracked person, each
+in its own colour, with a dot 0.5 m ahead of the ring showing which way that person is walking. It is
+nine nodes, and every other idea here is a variation on it. **Help patch 8 — *People are particle
+emitters*** builds on it: sparks are born around each person every frame, and Last frame pushes the
+older ones outward (`Nearest person` ▸ `away`) through a swirl while they fade, so the particles stay
+in the room where they were born. Its three numbers to play with are the emitter `radius`, the push
+(−0.012 m per frame) and the fade (0.955 per frame — closer to 1 is a longer trail). The full port reference is in
+[SHADER-NODES.md](SHADER-NODES.md#tracking).
+
+**Set Aspect to the shape of the area.** Every Tracking node has an **Aspect** setting — the width ÷
+height of the area the people are drawn on, **1.778 (16:9) by default**. It is what keeps a circle
+round: a shader's coordinates run 0..1 across *and* down, so without it every circle would be stretched
+as wide as the area. Height is taken from the sensor in metres and width from the aspect, so sizes
+stay roughly in metres. Set it to **0** to measure in the sensor's own zone size instead.
+
+**Before it works:**
+
+- **Switch on *Merge people (2 blobs → 1)*** in the 3D scene's tracking controls, and set what a blob
+  means on each surface (see [TRACKING_SYNC.md](TRACKING_SYNC.md#step-2--enable--tune-on-site-already-implemented)).
+  Positions arrive either way, but **walking direction needs it**: without merging the sensor's raw
+  blobs come straight through, and they do not live long enough to walk anywhere.
+- **Heading is where they walk, not where they face.** It is measured once a person has moved about
+  40 cm, and it is **held** when they stop — so someone standing still keeps the direction they arrived
+  from. `valid` is 0 until they have walked at all; before that, `dir` points right.
+- **If the picture is turned or mirrored against the room**, set **Rotate / Flip H / Flip V** in the
+  node's inspector to the same values a Tracking surface on that output uses.
+
+**What to expect:**
+
+- **A person keeps their index** for as long as they are tracked. When somebody leaves, nobody else is
+  renumbered, so live people can sit at indices 0, 3 and 7 — test `active`, don't loop to the count.
+- **At most 16 people per surface** reach a shader; any more are not drawn.
+- **Two people closer than their circles** share the space between them: each pixel belongs to the
+  nearer person, so where two rings would overlap they meet in a straight edge instead.
+- **It keeps reacting while the show is paused.** A state holding its last frame for a visitor is
+  exactly when an interactive shader matters, so a shader that reads people redraws when they move even
+  with the transport stopped.
+- **On a projector** the people are sent from the editor window, so they reach the projector a frame
+  later than the editor preview.
+- **A bake sees an empty room.** A render must come out the same twice, and a room does not.
+- **No sensor needed to author one:** replay a recorded LiDAR take on the timeline, or run
+  `node scripts/lidar-emitter.cjs 127.0.0.1 10000 2 --pairs` — both drive the nodes exactly as a live
+  room does.
+
+In code, the same data is in `iPeople`, `iPeopleMotion`, `iPeopleCount` and `iTrackZone` (see the
+uniform table above), indexed `surface * 16 + person` with surface 0 floor, 1 wall, 2 floor+wall.
+
 ## Trails, decay, and anything that remembers
 
 Add `"REQUIRES_LAST_FRAME": true` to the header and your shader is handed its own previous frame as

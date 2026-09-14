@@ -65,6 +65,10 @@ export function clusterSnapshot(snap: TrackingSnapshot, radiusM: number): Tracki
 interface Track {
   id: number; tx: number; ty: number; vx: number; vy: number; px: number; py: number;
   lastSeen: number; hits: number; misses: number; confirmed: boolean;
+  // Walking heading: a held UNIT vector (blending vectors, not angles, so ±π never wraps); a slow
+  // low-pass of the position (sx, sy) it is measured on; the anchor that measurement is taken from and
+  // when it was set; and whether a heading has ever been measured. See HEADING_STEP_M.
+  hx: number; hy: number; sx: number; sy: number; ax: number; ay: number; at: number; hasHeading: boolean; bornAt: number;
 }
 interface SurfState { tracks: Track[]; lastNow: number; }
 const state = new Map<string, SurfState>();
@@ -78,6 +82,22 @@ const MAX_TENTATIVE_MS = 250;  // drop an unconfirmed track if it goes quiet thi
 const POS_GAIN = 0.6;          // how much an observation corrects the predicted position
 const VEL_GAIN = 0.25;         // velocity smoothing
 const MAX_SPEED = 4;           // m/s — clamp so a centroid jump can't fling a track across the floor
+
+// Walking HEADING. Not atan2 of the velocity: a person standing still has a centroid that jumps ~1 m
+// (see above), so the tracker's velocity is never zero — under heavy jitter it sits at MAX_SPEED — and
+// its direction spins. The first version gated on that velocity and wandered across the compass while a
+// simulated person stood still. So the heading is measured on a SLOW LOW-PASS of the position, where
+// zero-mean jitter averages away and walking does not: a new direction is sampled only once that
+// smoothed position has travelled HEADING_STEP_M from the last anchor, at an AVERAGE speed of at least
+// HEADING_MIN_SPEED over the trip. Between samples the heading is HELD, which is what a shader drawing
+// "where this person is facing" wants when they stop.
+// ⚠ Checked against a synthetic walk / stop / turn with 0.6 m jitter, NOT yet against the venue
+// recording — a recorded take is the way to tune these.
+const HEADING_SMOOTH_SEC = 0.35; // low-pass time constant on the position the heading is measured on
+const HEADING_STEP_M = 0.4;      // metres of smoothed travel per direction sample
+const HEADING_WINDOW_SEC = 1.5;  // a trip slower than STEP_M in this long is shuffling; restart it
+const HEADING_MIN_SPEED = 0.25;  // m/s averaged over the trip — below this, drift, not walking
+const HEADING_GAIN = 0.5;        // how far each new sample turns the held heading
 
 // Clear all tracks (e.g. when merging is turned off) so a later re-enable starts fresh.
 export function resetPeopleTracking(): void { state.clear(); nextPersonId = 1; }
@@ -115,6 +135,7 @@ function trackSurface(s: TrackingSnapshot['surfaces'][number], radiusM: number, 
     t.ty = t.py + POS_GAIN * (o.ty - t.py);
     t.hits++; t.misses = 0; t.lastSeen = now;
     if (t.hits >= CONFIRM_HITS) t.confirmed = true;
+    updateHeading(t, dt, now);
   }
   // Unmatched tracks coast on their predicted position.
   for (let ti = 0; ti < st.tracks.length; ti++) {
@@ -125,7 +146,10 @@ function trackSurface(s: TrackingSnapshot['surfaces'][number], radiusM: number, 
   for (let oi = 0; oi < obs.length; oi++) {
     if (oUsed.has(oi)) continue;
     const o = obs[oi];
-    st.tracks.push({ id: nextPersonId++, tx: o.tx, ty: o.ty, vx: 0, vy: 0, px: o.tx, py: o.ty, lastSeen: now, hits: 1, misses: 0, confirmed: false });
+    st.tracks.push({
+      id: nextPersonId++, tx: o.tx, ty: o.ty, vx: 0, vy: 0, px: o.tx, py: o.ty, lastSeen: now, hits: 1, misses: 0, confirmed: false,
+      hx: 1, hy: 0, sx: o.tx, sy: o.ty, ax: o.tx, ay: o.ty, at: now, hasHeading: false, bornAt: now,
+    });
   }
   st.tracks = st.tracks.filter((t) => now - t.lastSeen <= (t.confirmed ? MAX_COAST_MS : MAX_TENTATIVE_MS));
   state.set(s.surface, st);
@@ -134,7 +158,33 @@ function trackSurface(s: TrackingSnapshot['surfaces'][number], radiusM: number, 
   const sx = s.scaleX || 5.864, sy = s.scaleY || 3.125;
   return st.tracks.filter((t) => t.confirmed).map((t) => ({
     slot: t.id, id: t.id, tx: t.tx, ty: t.ty, u: t.tx / sx + 0.5, v: t.ty / sy + 0.5, updatedAt: now,
+    vx: t.vx, vy: t.vy, heading: Math.atan2(t.hy, t.hx), headingValid: t.hasHeading ? 1 : 0, bornAt: t.bornAt,
   }));
+}
+
+// Advance a MATCHED track's held heading (coasting tracks keep theirs — a prediction is not evidence of
+// direction). See HEADING_STEP_M for why this measures a smoothed displacement and not the velocity.
+function updateHeading(t: Track, dt: number, now: number): void {
+  const k = 1 - Math.exp(-dt / HEADING_SMOOTH_SEC);
+  t.sx += k * (t.tx - t.sx);
+  t.sy += k * (t.ty - t.sy);
+  const dx = t.sx - t.ax, dy = t.sy - t.ay;
+  const d = Math.hypot(dx, dy);
+  const trip = (now - t.at) / 1000;
+  if (d < HEADING_STEP_M) {
+    // Too slow to be a step: start the trip again from here, so a long slow drift never adds up to a
+    // "direction" that fires the moment somebody shuffles.
+    if (trip > HEADING_WINDOW_SEC) { t.ax = t.sx; t.ay = t.sy; t.at = now; }
+    return;
+  }
+  t.ax = t.sx; t.ay = t.sy; t.at = now;
+  if (!(trip > 0) || d / trip < HEADING_MIN_SPEED) return;
+  const nx = dx / d, ny = dy / d;
+  if (!t.hasHeading) { t.hx = nx; t.hy = ny; t.hasHeading = true; return; }
+  const bx = t.hx + HEADING_GAIN * (nx - t.hx), by = t.hy + HEADING_GAIN * (ny - t.hy);
+  const bl = Math.hypot(bx, by);
+  // An exact reversal blends to ~zero length; take the new direction rather than divide by it.
+  if (bl < 1e-3) { t.hx = nx; t.hy = ny; } else { t.hx = bx / bl; t.hy = by / bl; }
 }
 
 // Cluster + track into stable people. Returns a snapshot whose blobs ARE the tracked people.

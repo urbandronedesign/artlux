@@ -18,6 +18,14 @@ export interface Blob {
   u: number;      // normalized x [0..1], origin bottom-left
   v: number;      // normalized y [0..1], origin bottom-left (Y up)
   updatedAt: number; // performance.now() of the last field update
+  // ── Only on a TRACKED PERSON (blobClustering.trackSurface), never on a raw OSC blob ──────────────
+  // Optional so a raw blob, a recorded take (which stores raw blobs) and every older consumer are
+  // untouched. Zone space, metres, Y up — the same frame as tx/ty.
+  vx?: number;           // smoothed velocity, m/s
+  vy?: number;
+  heading?: number;      // walking direction, radians, atan2(y, x); 0 = +x. HELD while standing still
+  headingValid?: number; // 1 once the person has walked far enough to have a direction, else 0
+  bornAt?: number;       // performance.now() when the track was first seen
 }
 
 export interface SurfaceTrack {

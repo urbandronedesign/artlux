@@ -9,8 +9,10 @@
 // window will render the same source at its native raster (Phase 6) rather than being sent pixels —
 // which is why the source text, not the picture, is the thing that travels.
 
-import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
+import type { RendererPlugin, RendererPluginContext, ProjectorChannel } from '@artlux/sdk/renderer';
 import type { Surface, SurfaceContent } from '@/types';
+import * as trackingTap from './trackingTap';
+import { sourceOf } from './shaderSource';
 import * as shaderDrawable from './shaderDrawable';
 import { isAvailable } from './shaderContext';
 import { ShaderContentEditor } from './ShaderContentEditor';
@@ -26,6 +28,7 @@ import { DEFAULT_BEAT_FALL_SEC } from './beatDetect';
 
 let unsubSurfaces: (() => void) | null = null;
 let unsubSettings: (() => void) | null = null;
+let unsubTracking: (() => void) | null = null;
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'shader', name: 'Shaders', version: '0.0.0' },
@@ -74,6 +77,30 @@ export const plugin: RendererPlugin = {
       pickerButton: { label: 'Shader', title: 'Operator-authored GLSL generative content' },
     });
 
+    // People, for shaders that react to them (the Tracking nodes). The MAIN window reads the LiDAR
+    // plugin's tracked people once per frame; a projector window has no OSC and no tracker, so the main
+    // window sends it the finished buffers over this channel — only to projectors showing a shader that
+    // actually reads them. Registered in both windows: main produces, projectors apply.
+    //
+    // THE TICK IS onPlayhead, NOT the tracking store's subscription. The store only notifies when OSC
+    // arrives, so the frame somebody's last blob went stale would never be sent and a projector would
+    // keep drawing a person who has left. onPlayhead fires every frame, paused included — and it fires
+    // AFTER the LiDAR plugin's own per-frame people.refresh(), because that plugin activates first.
+    if (ctx.window === 'main') {
+      unsubTracking = ctx.onPlayhead(() => trackingTap.update(performance.now()));
+    }
+    ctx.projectorChannels.register({
+      channel: 'shader-tracking',
+      throttleMs: 16,
+      appliesTo: (surface) => {
+        const c = (surface as Surface).content as SurfaceContent | undefined;
+        return c?.type === 'SHADER' && trackingTap.readsPeople(sourceOf(c));
+      },
+      subscribe: (cb) => ctx.onPlayhead(() => cb()),
+      build: () => trackingTap.toPayload(),
+      apply: (payload) => trackingTap.applyPayload(payload as trackingTap.TrackingPayload),
+    } as ProjectorChannel);
+
     // Everything below belongs to the window that has an editor and a document. A projector window
     // activates this plugin too — it must render shaders — but it has no selection to edit, no
     // surfaces list to enumerate, and no business standing up a CodeMirror it can never show.
@@ -111,7 +138,11 @@ export const plugin: RendererPlugin = {
     unsubSurfaces = ctx.host.surfaces.subscribe(() => setSurfaces(ctx.host.surfaces.list() as Surface[]));
   },
 
-  deactivate(): void { unsubSurfaces?.(); unsubSurfaces = null; unsubSettings?.(); unsubSettings = null; },
+  deactivate(): void {
+    unsubSurfaces?.(); unsubSurfaces = null;
+    unsubSettings?.(); unsubSettings = null;
+    unsubTracking?.(); unsubTracking = null;
+  },
 
   // On the startup splash. The honest thing to report is whether this machine gave us a context at
   // all: without WebGL2 every shader surface is black, and that must not be discovered on stage.

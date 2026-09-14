@@ -22,6 +22,10 @@ export { clusterAndTrack, resetPeopleTracking } from './blobClustering';
 // deep-imported) for the singleton reason at the top of this file: `zones` holds the latched
 // occupancy the FSM triggers read, and a second copy of it would watch a store nobody writes.
 export * as zones from './zones';
+// The tracked PEOPLE (merged + tracked once per frame). Exported for the shader plugin's tracking
+// nodes, which read the same answer the zones and projectors do — through here, never a deep import,
+// because a second copy of this module would hold a tracker that nobody refreshes.
+export * as people from './people';
 export { ZonePanel } from './ZonePanel';
 
 export type { TrackingSnapshot, Blob, SurfaceTrack } from './trackingStore';

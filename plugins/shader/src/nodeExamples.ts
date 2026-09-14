@@ -193,4 +193,105 @@ export const EXAMPLES: Example[] = [
       ],
     ),
   },
+  {
+    id: 'people-circles',
+    name: '7 · A circle for every person',
+    teach: 'Nearest person hands every pixel the closest visitor, in their own space. One circle drawn there appears on everybody, and a dot ahead of it shows which way each one walks.',
+    graph: g(
+      [
+        { id: 'uv_1', type: 'input.uv', x: 0, y: 140, params: {} },
+        // Aspect 16:9 is the area the people are drawn on. It is what keeps these circles ROUND: uv is
+        // 0..1 both ways, so without it every circle is stretched as wide as the area.
+        { id: 'near', type: 'tracking.nearest', x: 200, y: 140, params: { surface: 'floor', aspect: 1.7778, radius: 1 } },
+        // THE BODY: a ring 0.35 m across the person, drawn in their own space.
+        { id: 'body', type: 'shape.circle', x: 440, y: 40, params: { radius: 0.35 } },
+        { id: 'ring', type: 'shape.outline', x: 620, y: 40, params: { width: 0.05 } },
+        // THE HEADING: a dot 0.5 m ahead. Translate ADDS its offset, so −0.5 puts the centre at +0.5 m
+        // forward — and forward is the way this person walks, so the dot swings round as they turn.
+        { id: 'ahead', type: 'uv.translate', x: 440, y: 220, params: { offset: [-0.5, 0] } },
+        { id: 'dot', type: 'shape.circle', x: 620, y: 220, params: { radius: 0.1 } },
+        { id: 'dotFill', type: 'shape.fill', x: 800, y: 220, params: { softness: 0.02 } },
+        { id: 'both', type: 'math.max', x: 980, y: 120, params: {} },
+        // × found: with nobody tracked there is no nearest person, and the shapes would sit at a corner.
+        { id: 'lit', type: 'math.multiply', x: 1160, y: 120, params: {} },
+        // A colour PER PERSON: their index, stepped round the palette. An index is kept for as long as
+        // the person is tracked, so each keeps their colour while others come and go.
+        { id: 'step', type: 'math.multiply', x: 440, y: 380, params: { b: 0.27 } },
+        { id: 'wrap', type: 'math.fract', x: 620, y: 380, params: {} },
+        { id: 'col', type: 'color.palette', x: 800, y: 380, params: { index: 2, t: 0 } },
+        { id: 'shade', type: 'color.brightness', x: 1160, y: 300, params: { amount: 1 } },
+        { id: 'out', type: 'output.color', x: 1360, y: 200, params: { alpha: 1 } },
+      ],
+      [
+        e('uv_1', 'uv', 'near', 'uv'),
+        e('near', 'local', 'body', 'uv'), e('body', 'sd', 'ring', 'sd'),
+        e('near', 'local', 'ahead', 'uv'), e('ahead', 'uv', 'dot', 'uv'), e('dot', 'sd', 'dotFill', 'sd'),
+        e('ring', 'mask', 'both', 'a'), e('dotFill', 'mask', 'both', 'b'),
+        e('both', 'out', 'lit', 'a'), e('near', 'found', 'lit', 'b'),
+        e('near', 'index', 'step', 'a'), e('step', 'out', 'wrap', 'x'), e('wrap', 'out', 'col', 't'),
+        e('col', 'color', 'shade', 'color'), e('lit', 'out', 'shade', 'amount'),
+        e('shade', 'color', 'out', 'color'),
+      ],
+    ),
+  },
+  {
+    id: 'people-particles',
+    name: '8 · People are particle emitters',
+    teach: 'Every person throws out sparks, and Last frame carries each earlier spark away from them while it fades and changes colour. Particles stay in the room where they were born, so a person walking leaves a trail.',
+    graph: g(
+      [
+        { id: 'uv_1', type: 'input.uv', x: 0, y: 220, params: {} },
+        // radius is the EMITTER: sparks are born within 0.5 m of each person.
+        { id: 'near', type: 'tracking.nearest', x: 200, y: 220, params: { surface: 'floor', aspect: 1.7778, radius: 0.5 } },
+
+        // ── EMIT: a fresh scatter of sparks around everyone, EVERY frame ──────────────────────────────
+        // Noise read in each person's own space, evolving fast in z, cut to its brightest specks. Wall
+        // time, not show time: when the show holds for a visitor, the sparks must keep coming.
+        { id: 'clock', type: 'input.wallTime', x: 200, y: 0, params: { scale: 9 } },
+        { id: 'grain', type: 'uv.scale', x: 440, y: 60, params: { scale: [14, 14] } },
+        { id: 'specks', type: 'noise.value3', x: 620, y: 40, params: {} },
+        { id: 'cut', type: 'math.smoothstep', x: 800, y: 40, params: { edge0: 0.74, edge1: 0.8 } },
+        // × falloff: sparks only inside the emitter, densest on the person, and none on an empty floor.
+        { id: 'emit', type: 'math.multiply', x: 980, y: 60, params: {} },
+        { id: 'hue', type: 'math.multiply', x: 440, y: 480, params: { b: 0.27 } },
+        { id: 'wrap', type: 'math.fract', x: 620, y: 480, params: {} },
+        { id: 'spark', type: 'color.palette', x: 800, y: 480, params: { index: 2, t: 0 } },
+
+        // ── CARRY: read last frame from a little NEARER the person, so everything moves AWAY ─────────
+        // away is a uv offset per metre; −0.012 m per frame is ~0.7 m/s at 60 fps. × found stops the
+        // drift aiming at a corner once nobody is left.
+        { id: 'push', type: 'uv.scale', x: 440, y: 260, params: { scale: [-0.012, -0.012] } },
+        { id: 'pushIf', type: 'uv.scale', x: 620, y: 260, params: { scale: [1, 1] } },
+        { id: 'swirlAt', type: 'uv.scale', x: 440, y: 380, params: { scale: [3, 3] } },
+        { id: 'swirl', type: 'noise.curl', x: 620, y: 380, params: {} },
+        // The swirl breaks the straight spokes up into drifting smoke. Bigger = more turbulent.
+        { id: 'swirlAmt', type: 'uv.scale', x: 800, y: 380, params: { scale: [0.0015, 0.0015] } },
+        { id: 'moved', type: 'uv.translate', x: 800, y: 260, params: { offset: [0, 0] } },
+        { id: 'moved2', type: 'uv.translate', x: 980, y: 300, params: { offset: [0, 0] } },
+        // Last frame is sampled in RAW 0..1 uv — see help patch 3.
+        { id: 'past', type: 'input.lastFrame', x: 1160, y: 300, params: {} },
+        // The LIFETIME: 0.955 per frame fades a spark out in about a second. The hue shift ages its
+        // colour on the way, so young sparks and old smoke are different colours.
+        { id: 'fade', type: 'color.brightness', x: 1340, y: 300, params: { amount: 0.955 } },
+        { id: 'age', type: 'color.hueShift', x: 1520, y: 300, params: { turns: 0.004 } },
+
+        // ── NEW SPARKS OVER THE OLD ONES ───────────────────────────────────────────────────────────────
+        { id: 'over', type: 'color.mix', x: 1700, y: 220, params: { t: 0 } },
+        { id: 'out', type: 'output.color', x: 1880, y: 220, params: { alpha: 1 } },
+      ],
+      [
+        e('uv_1', 'uv', 'near', 'uv'),
+        e('near', 'local', 'grain', 'uv'), e('grain', 'uv', 'specks', 'uv'), e('clock', 'time', 'specks', 'z'),
+        e('specks', 'out', 'cut', 'x'), e('cut', 'out', 'emit', 'a'), e('near', 'falloff', 'emit', 'b'),
+        e('near', 'index', 'hue', 'a'), e('hue', 'out', 'wrap', 'x'), e('wrap', 'out', 'spark', 't'),
+        e('near', 'away', 'push', 'uv'), e('push', 'uv', 'pushIf', 'uv'), e('near', 'found', 'pushIf', 'scale'),
+        e('uv_1', 'uv', 'swirlAt', 'uv'), e('swirlAt', 'uv', 'swirl', 'uv'), e('swirl', 'flow', 'swirlAmt', 'uv'),
+        e('uv_1', 'uv', 'moved', 'uv'), e('pushIf', 'uv', 'moved', 'offset'),
+        e('moved', 'uv', 'moved2', 'uv'), e('swirlAmt', 'uv', 'moved2', 'offset'),
+        e('moved2', 'uv', 'past', 'uv'), e('past', 'color', 'fade', 'color'), e('fade', 'color', 'age', 'color'),
+        e('age', 'color', 'over', 'a'), e('spark', 'color', 'over', 'b'), e('emit', 'out', 'over', 't'),
+        e('over', 'color', 'out', 'color'),
+      ],
+    ),
+  },
 ];

@@ -35,7 +35,7 @@ is why a mask can drive a colour input directly and comes out grey.
 
 <!-- generated:shader-node-reference — DO NOT EDIT BY HAND. Regenerate with: npm run docs:gen -->
 
-**Jump to:** [Input](#input) · [UV](#uv) · [Math](#math) · [LFO](#lfo) · [Pattern](#pattern) · [Noise](#noise) · [Shape](#shape) · [Audio](#audio) · [Parameter](#parameter) · [Colour](#colour) · [Output](#output)
+**Jump to:** [Input](#input) · [UV](#uv) · [Math](#math) · [LFO](#lfo) · [Pattern](#pattern) · [Noise](#noise) · [Shape](#shape) · [Audio](#audio) · [Tracking](#tracking) · [Parameter](#parameter) · [Colour](#colour) · [Output](#output)
 
 ## Input
 
@@ -1525,6 +1525,160 @@ count = iBeatCount[clamp(channel, 0, 3)]
 ```
 
 also found by `kick`, `onset`, `transient`, `bpm`
+
+## Tracking
+
+### Person
+
+One tracked person on the floor or wall: where they are and which way they walk.
+
+One person, picked by `index` (0–15), on the surface you choose — floor, wall, or the combined floor+wall zone. A person keeps the same index for as long as they are tracked, so index 0 does not jump to somebody else when another visitor leaves; `active` is 1 while somebody holds that index and 0 when it is free, so multiply it into whatever you draw. `pos` is in the surface's own 0..1 coordinates, ready to compare with UV. `dir` is a unit vector along the way they WALK and `heading` the same angle in turns (0..1, 0 = pointing right); both are held when the person stops, and `valid` stays 0 until they have walked far enough to have a direction at all. `speed` is metres per second and `velocity` its vector, `age` is seconds since they were first seen. Heading needs Merge people (2 blobs → 1) switched on in the 3D scene's tracking parameters: without it the sensor's raw blobs come through, and they do not live long enough to walk anywhere. If the picture is turned or mirrored against the room, set rotate / flip H / flip V to the same values the Tracking surface uses, and set Aspect to the width ÷ height of the area (16:9 by default) so directions are not skewed.
+
+| In | Type | Default |
+|---|---|---|
+| `index` | int — a whole number | `0` |
+
+| Out | Type |
+|---|---|
+| `pos` | vec2 — two numbers (x, y) |
+| `active` | float — a number |
+| `dir` | vec2 — two numbers (x, y) |
+| `heading` | float — a number |
+| `valid` | float — a number |
+| `speed` | float — a number |
+| `velocity` | vec2 — two numbers (x, y) |
+| `id` | float — a number |
+| `age` | float — a number |
+
+**Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
+
+**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+
+**Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
+
+**Flip H** (setting), default `0` · 1 mirrors left and right.
+
+**Flip V** (setting), default `0` · 1 mirrors top and bottom.
+
+```glsl
+pos = artluxPersonUv(0, index, 0, 0)
+active = step(0.5, iPeopleMotion[artluxPersonK(0, index)].z)
+dir = artluxPersonDir(0, index, 0, 0, 1.7778)
+heading = fract(atan(artluxPersonDir(0, index, 0, 0, 1.7778).y, artluxPersonDir(0, index, 0, 0, 1.7778).x) / 6.2831853)
+valid = iPeople[artluxPersonK(0, index)].w
+speed = length(iPeopleMotion[artluxPersonK(0, index)].xy)
+velocity = artluxTrackDir(iPeopleMotion[artluxPersonK(0, index)].xy, 0, 0)
+id = iPeopleMotion[artluxPersonK(0, index)].z
+age = iPeopleMotion[artluxPersonK(0, index)].w
+```
+
+helper: `tracking` · also found by `lidar`, `blob`, `visitor`, `people`, `position`, `heading`, `orientation`
+
+### People count
+
+How many people are on the floor or wall, and the zone size in metres.
+
+How many people are tracked on the chosen surface right now, and `zone`, the size of the area distances are measured in (width, height — about metres: the sensor's height, with the width set by Aspect; swapped when rotate is a quarter turn). The count is not a safe loop bound over Person indices: a person keeps their index when others leave, so live people can sit at 0, 3 and 7. Test Person `active` instead. At most 16 people per surface are passed to shaders.
+
+| Out | Type |
+|---|---|
+| `count` | float — a number |
+| `zone` | vec2 — two numbers (x, y) |
+
+**Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
+
+**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+
+**Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
+
+**Flip H** (setting), default `0` · 1 mirrors left and right.
+
+**Flip V** (setting), default `0` · 1 mirrors top and bottom.
+
+```glsl
+count = float(iPeopleCount[0])
+zone = artluxTrackSpace(0, 0, 1.7778)
+```
+
+helper: `tracking` · also found by `lidar`, `visitors`, `occupancy`, `crowd`
+
+### Nearest person
+
+Per pixel: the closest person — distance, which one, their own space — and a glow around everyone.
+
+The node for drawing EVERY person at once, without wiring sixteen Person nodes. For every pixel `uv`: `dist` is the distance (about metres) to the closest person, `index` is which person that is, and `found` is 1 when anybody is tracked at all and 0 on an empty floor — multiply your shapes by it. `local` is that pixel seen from the closest person, x forward along the way they walk and y to their left, so a Circle wired to `local` draws a circle on everybody and a second Circle shifted along x marks which way each of them is heading (help patch 7). `pos` is where that person stands, and `away` points from them out to the pixel as a uv offset per metre — scale it by a distance and wire it into Translate before Last frame, and the picture streams outward from everybody at the same speed in every direction (help patch 8, where people are particle emitters). `falloff` is 1 on top of them fading to 0 at `radius`, and `field` adds every person's soft disc together, so the glow grows where people bunch up. Distances keep circles round on the area: set Aspect to its width ÷ height (16:9 by default). Wire UV into `uv`.
+
+| In | Type | Default |
+|---|---|---|
+| `uv` | vec2 — two numbers (x, y) | `0, 0` |
+| `m` | float — a number | `1` |
+
+| Out | Type |
+|---|---|
+| `dist` | float — a number |
+| `index` | float — a number |
+| `found` | float — a number |
+| `pos` | vec2 — two numbers (x, y) |
+| `local` | vec2 — two numbers (x, y) |
+| `away` | vec2 — two numbers (x, y) |
+| `falloff` | float — a number |
+| `field` | float — a number |
+
+**Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
+
+**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+
+**Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
+
+**Flip H** (setting), default `0` · 1 mirrors left and right.
+
+**Flip V** (setting), default `0` · 1 mirrors top and bottom.
+
+```glsl
+dist = artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).x
+index = artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y
+found = step(-0.5, artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y)
+pos = artluxPersonUv(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y), 0, 0)
+local = artluxPersonLocal(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y), uv, 0, 0, 1.7778)
+away = artluxPersonAway(0, int(artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).y), uv, 0, 0, 1.7778)
+falloff = (1.0 - smoothstep(0.0, max(radius, 1e-4), artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).x))
+field = artluxNearestPerson(0, uv, radius, 0, 0, 1.7778).z
+```
+
+helper: `tracking` · also found by `lidar`, `distance`, `proximity`, `glow`, `metaball`, `field`, `everyone`, `all people`
+
+### Person space
+
+UV as seen by one person: metres, x forward along where they walk.
+
+Re-expresses `uv` from one person's point of view: `local` is in metres with the person at the origin, x pointing FORWARD along the way they walk and y to their left. This is the node that makes orientation usable: a shape drawn in this space follows the person and turns with them — a cone of light ahead, a wake behind (negative x), an arrow. Before the person has walked (Person `valid` = 0) forward points right. `active` is 0 when nobody holds that index. Heading needs Merge people (2 blobs → 1) switched on.
+
+| In | Type | Default |
+|---|---|---|
+| `uv` | vec2 — two numbers (x, y) | `0, 0` |
+| `index` | int — a whole number | `0` |
+
+| Out | Type |
+|---|---|
+| `local` | vec2 — two numbers (x, y) |
+| `active` | float — a number |
+
+**Surface** (setting — `floor`, `wall`, `floor+wall`), default `floor` · Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).
+
+**Aspect** (setting), default `1.7778` · Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.
+
+**Rotate** (setting), default `0` · Degrees, quarter turns only. Same value as the Tracking surface.
+
+**Flip H** (setting), default `0` · 1 mirrors left and right.
+
+**Flip V** (setting), default `0` · 1 mirrors top and bottom.
+
+```glsl
+local = artluxPersonLocal(0, index, uv, 0, 0, 1.7778)
+active = step(0.5, iPeopleMotion[artluxPersonK(0, index)].z)
+```
+
+helper: `tracking` · also found by `lidar`, `orientation`, `facing`, `heading`, `direction`, `local`
 
 ## Parameter
 

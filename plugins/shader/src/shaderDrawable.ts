@@ -12,6 +12,7 @@ import { getProgram, renderToBitmap, failedProgram, dropHistory, maxRenderHeight
 import { sourceOf } from './shaderSource';
 import { lintLoops, noteDraw, isDisabled, rearm, BUDGET } from './shaderGuard';
 import { resolve as resolveParams } from './shaderParams';
+import { generation as trackingGeneration, readsPeople } from './trackingTap';
 
 /**
  * Detail rungs — a PIXEL BUDGET each, not a literal size (see sizeFor).
@@ -152,7 +153,13 @@ export function getFor(key: string, content: SurfaceContent, timeSec: number): I
   // the only thing besides time that can change the picture without the source changing.
   const values = resolveParams(key, content);
   const paramSig = values ? JSON.stringify([...values.entries()]) : '';
-  const sig = `${source.length}:${content.shaderId ?? ''}|${w}x${h}|${timeSec}|${paramSig}`;
+  // PEOPLE join it too, for a shader that reads them. timeSec is SHOW time and freezes when the transport
+  // stops — and a state waiting for a visitor is usually HOLDING its last frame. Without this, the one
+  // moment an interactive shader exists for (somebody walks in while the show holds) would be the one
+  // moment its cached frame is served instead. An empty room keeps the generation still, so a paused
+  // show with nobody in it still costs nothing.
+  const peopleSig = readsPeople(source) ? trackingGeneration() : '';
+  const sig = `${source.length}:${content.shaderId ?? ''}|${w}x${h}|${timeSec}|${paramSig}|${peopleSig}`;
   if (prev && prev.sig === sig && prev.bitmap) return prev.bitmap;
 
   const entry: Entry = prev ?? { bitmap: null, sig: '', lastGoodSource: null, gen: 0 };

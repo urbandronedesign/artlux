@@ -110,6 +110,11 @@ so ids and motion stay stable. Validated on the recording (was → now):
    floor silently merged the wall too.
 4. Tune **Predict (ms)** / **Smoothing** for motion (≈66–100 ms predict at 30 Hz).
 
+> **Merging also gives each person a walking direction.** Once somebody has walked about 40 cm, the
+> tracker records which way, and holds it when they stop. Shaders read it through the **Tracking**
+> nodes (*Person*, *Person space*) — see [SHADERS.md](SHADERS.md#make-it-react-to-people). With merging
+> off there is no direction: raw blobs do not live long enough to walk anywhere.
+
 > **These settings are the SENSOR, and they survive a GO.** Merge, merge radius, per-surface meaning
 > and the venue dwell are project-scope like the zone geometry — a scene never carries a copy, so
 > tuning them on-site is not undone by the next scene recall.

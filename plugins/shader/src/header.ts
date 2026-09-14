@@ -66,7 +66,7 @@ const IDENT = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
 
 // Names the wrapper already declares. A shader that redeclares one gets a compile error whose cause is
 // nowhere near the line it points at, so it is refused here where the reason can be stated plainly.
-const RESERVED = new Set(['iTime', 'iWallTime', 'iResolution', 'iAspect', 'iFrame', 'uv', 'shaderColor', 'mainImage', 'palette', 'artluxFragColor', 'vUv', 'lastFrame']);
+const RESERVED = new Set(['iTime', 'iWallTime', 'iResolution', 'iAspect', 'iFrame', 'uv', 'shaderColor', 'mainImage', 'palette', 'artluxFragColor', 'vUv', 'lastFrame', 'iAudio', 'iAudioLevel', 'iBeat', 'iBeatCount', 'iPeople', 'iPeopleMotion', 'iPeopleCount', 'iTrackZone']);
 
 function num(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;

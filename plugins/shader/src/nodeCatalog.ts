@@ -46,7 +46,7 @@ export interface Setting {
 export interface NodeDef {
   id: string;
   label: string;
-  category: 'Input' | 'UV' | 'Math' | 'LFO' | 'Pattern' | 'Noise' | 'Shape' | 'Colour' | 'Audio' | 'Parameter' | 'Output' | 'Subpatch' | 'Library';
+  category: 'Input' | 'UV' | 'Math' | 'LFO' | 'Pattern' | 'Noise' | 'Shape' | 'Colour' | 'Audio' | 'Tracking' | 'Parameter' | 'Output' | 'Subpatch' | 'Library';
   /** One line, shown in the palette and as the node's tooltip. */
   hint: string;
   /**
@@ -95,6 +95,39 @@ const n = (v: unknown, d: number): number => (typeof v === 'number' && Number.is
 const s = (v: unknown, d: string): string => (typeof v === 'string' && v ? v : d);
 /** A GLSL identifier for a parameter node's uniform. Must match what the header declares. */
 const ident = (v: unknown, d: string): string => s(v, d).replace(/[^A-Za-z0-9_]/g, '_').replace(/^[^A-Za-z]+/, '') || d;
+
+/**
+ * What every Tracking node asks: WHICH surface, and how the picture is turned against the room.
+ *
+ * Only the surface is a choice — it is what the node IS, so it shows on the node body. Rotate and the
+ * flips are numbers, inspector-only: they are set once per venue, and are deliberately the same three
+ * values a Tracking surface's content carries (rotate, flipH, flipV), so a mapping already checked
+ * there is copied across rather than re-derived.
+ *
+ * ASPECT IS WHAT KEEPS A CIRCLE ROUND. The shader's uv is 0..1 in both directions, so a distance taken
+ * in uv draws an ellipse on any area that is not square. Measuring in the sensor's metres fixes that
+ * only when the sensor's zone has the same shape as the picture — and the zone comes from Scalex/Scaley
+ * (or a default when the sensor never sent them), which is not the projected area. `iAspect` cannot be
+ * used either: a surface's rect is stored normalised, so a full-stage 16:9 surface reports 1. So the
+ * area's aspect is stated here, once, defaulting to the 16:9 the venue areas are.
+ */
+const TRACK_SURFACES = ['floor', 'wall', 'floor+wall'];
+const TRACK_SETTINGS: Setting[] = [
+  { name: 'surface', label: 'Surface', kind: 'choice', options: TRACK_SURFACES, def: 'floor', hint: 'Which sensor: floor (SOL), wall (MUR) or the combined zone (SOL_MUR).' },
+  { name: 'aspect', label: 'Aspect', kind: 'number', def: 1.7778, min: 0, max: 8, step: 0.01, hint: 'Width ÷ height of the area people are drawn on — 1.778 is 16:9. Keeps circles round. 0 uses the sensor zone size.' },
+  { name: 'rotate', label: 'Rotate', kind: 'number', def: 0, min: 0, max: 270, step: 90, hint: 'Degrees, quarter turns only. Same value as the Tracking surface.' },
+  { name: 'flipH', label: 'Flip H', kind: 'number', def: 0, min: 0, max: 1, step: 1, hint: '1 mirrors left and right.' },
+  { name: 'flipV', label: 'Flip V', kind: 'number', def: 0, min: 0, max: 1, step: 1, hint: '1 mirrors top and bottom.' },
+];
+const trackXf = (p: Record<string, unknown>): { slot: number; rot: number; mir: number; asp: string } => {
+  const slot = Math.max(0, TRACK_SURFACES.indexOf(s(p.surface, 'floor')));
+  const rot = (((Math.round(n(p.rotate, 0) / 90)) % 4) + 4) % 4;
+  const mir = (n(p.flipH, 0) >= 0.5 ? 1 : 0) | (n(p.flipV, 0) >= 0.5 ? 2 : 0);
+  // A GLSL float literal, always with a point — `2` would be an int and fail to compile as a float arg.
+  const a = Math.max(0, n(p.aspect, 16 / 9));
+  const asp = Number.isInteger(a) ? `${a}.0` : String(a);
+  return { slot, rot, mir, asp };
+};
 
 const DEFS: NodeDef[] = [
   // ── Input ───────────────────────────────────────────────────────────────────────────────────────
@@ -762,6 +795,106 @@ const DEFS: NodeDef[] = [
       pulse: `iBeat[clamp(${i.channel}, 0, 3)]`,
       count: `iBeatCount[clamp(${i.channel}, 0, 3)]`,
     }),
+  },
+
+  // ── Tracking ────────────────────────────────────────────────────────────────────────────────────
+  // The LiDAR plugin's PEOPLE — merged and tracked, the same visitors the trigger zones count — not
+  // raw blobs. The surface is a SETTING, not a port: it picks which uniform block a node reads, and
+  // that cannot vary per pixel. See trackingTap.ts for the layout and glslLib.ts `tracking` for the maths.
+  {
+    id: 'tracking.person', label: 'Person', category: 'Tracking',
+    hint: 'One tracked person on the floor or wall: where they are and which way they walk.',
+    aliases: ['lidar', 'blob', 'visitor', 'people', 'position', 'heading', 'orientation'],
+    doc: 'One person, picked by `index` (0–15), on the surface you choose — floor, wall, or the combined floor+wall zone. A person keeps the same index for as long as they are tracked, so index 0 does not jump to somebody else when another visitor leaves; `active` is 1 while somebody holds that index and 0 when it is free, so multiply it into whatever you draw. `pos` is in the surface\'s own 0..1 coordinates, ready to compare with UV. `dir` is a unit vector along the way they WALK and `heading` the same angle in turns (0..1, 0 = pointing right); both are held when the person stops, and `valid` stays 0 until they have walked far enough to have a direction at all. `speed` is metres per second and `velocity` its vector, `age` is seconds since they were first seen. Heading needs Merge people (2 blobs → 1) switched on in the 3D scene\'s tracking parameters: without it the sensor\'s raw blobs come through, and they do not live long enough to walk anywhere. If the picture is turned or mirrored against the room, set rotate / flip H / flip V to the same values the Tracking surface uses, and set Aspect to the width ÷ height of the area (16:9 by default) so directions are not skewed.',
+    inputs: [{ name: 'index', type: 'int', def: 0 }],
+    outputs: [
+      { name: 'pos', type: 'vec2' }, { name: 'active', type: 'float' },
+      { name: 'dir', type: 'vec2' }, { name: 'heading', type: 'float' }, { name: 'valid', type: 'float' },
+      { name: 'speed', type: 'float' }, { name: 'velocity', type: 'vec2' },
+      { name: 'id', type: 'float' }, { name: 'age', type: 'float' },
+    ],
+    settings: TRACK_SETTINGS,
+    requires: ['tracking'],
+    emit: (i, p) => {
+      const { slot, rot, mir, asp } = trackXf(p);
+      const k = `artluxPersonK(${slot}, ${i.index})`;
+      const dir = `artluxPersonDir(${slot}, ${i.index}, ${rot}, ${mir}, ${asp})`;
+      return {
+        pos: `artluxPersonUv(${slot}, ${i.index}, ${rot}, ${mir})`,
+        active: `step(0.5, iPeopleMotion[${k}].z)`,
+        dir,
+        // fract, so the angle reads 0..1 like every other angle in the catalogue instead of −0.5..0.5.
+        heading: `fract(atan(${dir}.y, ${dir}.x) / 6.2831853)`,
+        valid: `iPeople[${k}].w`,
+        speed: `length(iPeopleMotion[${k}].xy)`,
+        velocity: `artluxTrackDir(iPeopleMotion[${k}].xy, ${rot}, ${mir})`,
+        id: `iPeopleMotion[${k}].z`,
+        age: `iPeopleMotion[${k}].w`,
+      };
+    },
+  },
+  {
+    id: 'tracking.count', label: 'People count', category: 'Tracking',
+    hint: 'How many people are on the floor or wall, and the zone size in metres.',
+    aliases: ['lidar', 'visitors', 'occupancy', 'crowd'],
+    doc: 'How many people are tracked on the chosen surface right now, and `zone`, the size of the area distances are measured in (width, height — about metres: the sensor\'s height, with the width set by Aspect; swapped when rotate is a quarter turn). The count is not a safe loop bound over Person indices: a person keeps their index when others leave, so live people can sit at 0, 3 and 7. Test Person `active` instead. At most 16 people per surface are passed to shaders.',
+    inputs: [],
+    outputs: [{ name: 'count', type: 'float' }, { name: 'zone', type: 'vec2' }],
+    settings: TRACK_SETTINGS,
+    requires: ['tracking'],
+    emit: (_i, p) => {
+      const { slot, rot, asp } = trackXf(p);
+      return { count: `float(iPeopleCount[${slot}])`, zone: `artluxTrackSpace(${slot}, ${rot}, ${asp})` };
+    },
+  },
+  {
+    id: 'tracking.nearest', label: 'Nearest person', category: 'Tracking',
+    hint: 'Per pixel: the closest person — distance, which one, their own space — and a glow around everyone.',
+    aliases: ['lidar', 'distance', 'proximity', 'glow', 'metaball', 'field', 'everyone', 'all people'],
+    doc: 'The node for drawing EVERY person at once, without wiring sixteen Person nodes. For every pixel `uv`: `dist` is the distance (about metres) to the closest person, `index` is which person that is, and `found` is 1 when anybody is tracked at all and 0 on an empty floor — multiply your shapes by it. `local` is that pixel seen from the closest person, x forward along the way they walk and y to their left, so a Circle wired to `local` draws a circle on everybody and a second Circle shifted along x marks which way each of them is heading (help patch 7). `pos` is where that person stands, and `away` points from them out to the pixel as a uv offset per metre — scale it by a distance and wire it into Translate before Last frame, and the picture streams outward from everybody at the same speed in every direction (help patch 8, where people are particle emitters). `falloff` is 1 on top of them fading to 0 at `radius`, and `field` adds every person\'s soft disc together, so the glow grows where people bunch up. Distances keep circles round on the area: set Aspect to its width ÷ height (16:9 by default). Wire UV into `uv`.',
+    inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'radius', type: 'float', def: 1, label: 'm' }],
+    outputs: [
+      { name: 'dist', type: 'float' }, { name: 'index', type: 'float' }, { name: 'found', type: 'float' },
+      { name: 'pos', type: 'vec2' }, { name: 'local', type: 'vec2' }, { name: 'away', type: 'vec2' },
+      { name: 'falloff', type: 'float' }, { name: 'field', type: 'float' },
+    ],
+    settings: TRACK_SETTINGS,
+    requires: ['tracking'],
+    emit: (i, p) => {
+      const { slot, rot, mir, asp } = trackXf(p);
+      const call = `artluxNearestPerson(${slot}, ${i.uv}, ${i.radius}, ${rot}, ${mir}, ${asp})`;
+      return {
+        dist: `${call}.x`,
+        index: `${call}.y`,
+        found: `step(-0.5, ${call}.y)`,
+        // The nearest person's own space. int() of −1 (nobody) clamps to index 0 inside the helper —
+        // harmless, because `found` is 0 there and that is what a patch multiplies by.
+        local: `artluxPersonLocal(${slot}, int(${call}.y), ${i.uv}, ${rot}, ${mir}, ${asp})`,
+        pos: `artluxPersonUv(${slot}, int(${call}.y), ${rot}, ${mir})`,
+        away: `artluxPersonAway(${slot}, int(${call}.y), ${i.uv}, ${rot}, ${mir}, ${asp})`,
+        // 1 - smoothstep(0, r, d) rather than smoothstep(r, 0, d): GLSL leaves a reversed edge pair
+        // undefined, and "undefined" means a different picture on the venue's driver than on this one.
+        falloff: `(1.0 - smoothstep(0.0, max(${i.radius}, 1e-4), ${call}.x))`,
+        field: `${call}.z`,
+      };
+    },
+  },
+  {
+    id: 'tracking.local', label: 'Person space', category: 'Tracking',
+    hint: 'UV as seen by one person: metres, x forward along where they walk.',
+    aliases: ['lidar', 'orientation', 'facing', 'heading', 'direction', 'local'],
+    doc: 'Re-expresses `uv` from one person\'s point of view: `local` is in metres with the person at the origin, x pointing FORWARD along the way they walk and y to their left. This is the node that makes orientation usable: a shape drawn in this space follows the person and turns with them — a cone of light ahead, a wake behind (negative x), an arrow. Before the person has walked (Person `valid` = 0) forward points right. `active` is 0 when nobody holds that index. Heading needs Merge people (2 blobs → 1) switched on.',
+    inputs: [{ name: 'uv', type: 'vec2', def: [0, 0] }, { name: 'index', type: 'int', def: 0 }],
+    outputs: [{ name: 'local', type: 'vec2' }, { name: 'active', type: 'float' }],
+    settings: TRACK_SETTINGS,
+    requires: ['tracking'],
+    emit: (i, p) => {
+      const { slot, rot, mir, asp } = trackXf(p);
+      return {
+        local: `artluxPersonLocal(${slot}, ${i.index}, ${i.uv}, ${rot}, ${mir}, ${asp})`,
+        active: `step(0.5, iPeopleMotion[artluxPersonK(${slot}, ${i.index})].z)`,
+      };
+    },
   },
 
   // ── Parameter ───────────────────────────────────────────────────────────────────────────────────

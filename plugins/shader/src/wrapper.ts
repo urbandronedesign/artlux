@@ -37,6 +37,10 @@ export const UNIFORMS: { name: string; detail: string }[] = [
   { name: 'iAudioLevel', detail: 'float — the whole spectrum averaged: overall energy, 0..1.' },
   { name: 'iBeat', detail: 'float[4] — kick, snare, mid, high. 1 on the beat, falling back to 0.' },
   { name: 'iBeatCount', detail: 'float[4] — beats counted per channel. Step something on every kick.' },
+  { name: 'iPeople', detail: 'vec4[48] — tracked people: u, v, heading (radians), heading valid. Index surface * 16 + person; surface 0 floor, 1 wall, 2 floor+wall.' },
+  { name: 'iPeopleMotion', detail: 'vec4[48] — the same people: velocity x, y in metres per second, id (0 = nobody), age in seconds.' },
+  { name: 'iPeopleCount', detail: 'int[3] — people live on floor, wall, floor+wall. Indices can have gaps, so test id, not the count.' },
+  { name: 'iTrackZone', detail: 'vec2[3] — each tracking zone size in metres, for distances that stay round.' },
 ];
 
 // `palette()` is always available, whether or not the shader declares a `palette` input, so a shader
@@ -55,6 +59,10 @@ uniform float iAudio[16];
 uniform float iAudioLevel;
 uniform float iBeat[4];
 uniform float iBeatCount[4];
+uniform vec4 iPeople[48];
+uniform vec4 iPeopleMotion[48];
+uniform int iPeopleCount[3];
+uniform vec2 iTrackZone[3];
 in vec2 vUv;
 out vec4 artluxFragColor;
 
