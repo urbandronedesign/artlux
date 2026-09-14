@@ -8,6 +8,7 @@ import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
 import { isLight } from '../services/fixtureKind';
 import * as surfaceMedia from '../services/surfaceMedia';
+import { isLocked } from '../services/surfaceAspect';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
 import * as automationOverlay from '../services/automationOverlay';
@@ -390,6 +391,10 @@ class FrameEngine {
     {
       let fitUpdate: Surface[] | null = null;
       for (const s of this.inputs.surfaces) {
+        // A surface whose SHAPE the operator chose (Transform ▸ Aspect) is never refitted: this runs
+        // the moment media loads, so it would quietly put a 16:9 wall back to the shape of whatever
+        // was dropped on it. The content fills the chosen shape instead. See services/surfaceAspect.
+        if (isLocked(s)) continue;
         const aspect = surfaceMedia.getContentAspect(s);
         if (!aspect) continue;
         // The aspect is PART OF THE KEY, not just the url. A LAYER surface's identity string never

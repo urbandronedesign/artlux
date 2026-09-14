@@ -1631,7 +1631,16 @@ export interface Surface {
   rotation: number;  // degrees
   zIndex: number;    // composite order (higher = on top)
   content: SurfaceContent;
+  // The SHAPE the operator chose for this surface (services/surfaceAspect.ts). Absent = free. The stage
+  // is a square unit space, so width / height IS the displayed shape and this pins that ratio: the
+  // Transform fields keep it, and fitting to content leaves it alone. Optional, so no migration.
+  aspect?: SurfaceAspect;
+  // Only meaningful with an aspect other than 1:1 — the same ratio stood on its end (9:16 for 16:9).
+  portrait?: boolean;
 }
+
+/** The fixed shapes a surface can be locked to. The ratio is always stated landscape; see Surface.portrait. */
+export type SurfaceAspect = '16:9' | '16:10' | '4:3' | '21:9' | '1:1';
 
 // ── THE MACHINE, NOT THE SHOW ───────────────────────────────────────────────────────────────────────
 // AppSettings describes THIS COMPUTER and THIS BUILDING: the sound card, the Art-Net target, the OSC

@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Fixture,
-  type FixtureMount, type OutputProtocol, type ProfileChannel,
+  type FixtureMount, type OutputProtocol, type ProfileChannel, type SurfaceAspect,
 } from '../../types';
-import { AlertTriangle, RefreshCw, Circle, CircleDot } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Circle, CircleDot, RectangleHorizontal, RectangleVertical } from 'lucide-react';
+import { ASPECT_PRESETS, hasOrientation, isLocked, reshape, sizeKeeping } from '../../services/surfaceAspect';
 import { NumberField } from '../../components/ui/NumberField';
 import { VectorField } from '../../components/ui/VectorField';
 import { ContentEditor } from '../../components/ContentEditor';
 import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
-import { Button, Field, Select, Slider } from '../../components/ui';
+import { Button, Field, Segmented, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveDest, resolveMode } from '../../services/addressing';
@@ -323,15 +324,48 @@ export const SurfaceTransformPanel: React.FC = () => {
   const s = useSelectedSurface();
   if (!s) return null;
   const set = (patch: Partial<Surface>) => a.updateSurface(s.id, patch);
+  const locked = isLocked(s);
   return (
     <>
+      {/* ASPECT FIRST, because it constrains the Size row under it. One patch per choice, so a reshape
+          is ONE undo step — reshape() returns the new aspect AND the new rect together. */}
+      <div className="flex items-center gap-1.5 text-xs">
+        <Tooltip id="general.surface-aspect">
+          <label className="text-fg-2 w-16 shrink-0 truncate" {...help('general.surface-aspect')}>Aspect</label>
+        </Tooltip>
+        <Select
+          className="flex-1 min-w-0"
+          aria-label="Aspect ratio"
+          value={locked ? s.aspect : 'free'}
+          onChange={(e) => {
+            const v = e.target.value;
+            set(reshape(s, v === 'free' ? undefined : (v as SurfaceAspect), !!s.portrait));
+          }}
+        >
+          <option value="free">Free</option>
+          {ASPECT_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label} — {p.hint}</option>)}
+        </Select>
+        {/* Orientation only means something for a ratio that is not square. Hidden rather than
+            disabled for Free / 1:1: a greyed control asks "why can't I?", and there is no answer. */}
+        {hasOrientation(s) && (
+          <Segmented<'landscape' | 'portrait'>
+            value={s.portrait ? 'portrait' : 'landscape'}
+            onChange={(o) => set(reshape(s, s.aspect, o === 'portrait'))}
+            options={[
+              { value: 'landscape', icon: <RectangleHorizontal size={13} />, title: 'Landscape — wider than tall' },
+              { value: 'portrait', icon: <RectangleVertical size={13} />, title: 'Portrait — taller than wide' },
+            ]}
+          />
+        )}
+      </div>
       <VectorField label="Position" step={0.01} axes={[
         { key: 'X', value: +s.x.toFixed(3), onChange: (v) => set({ x: v }) },
         { key: 'Y', value: +s.y.toFixed(3), onChange: (v) => set({ y: v }) },
       ]} />
+      {/* With an aspect chosen, W and H move together (sizeKeeping) — typing one keeps the shape. */}
       <VectorField label="Size" step={0.01} min={0.01} axes={[
-        { key: 'W', value: +s.width.toFixed(3), title: 'Width', onChange: (v) => set({ width: Math.max(0.01, v) }) },
-        { key: 'H', value: +s.height.toFixed(3), title: 'Height', onChange: (v) => set({ height: Math.max(0.01, v) }) },
+        { key: 'W', value: +s.width.toFixed(3), title: locked ? 'Width — height follows the aspect' : 'Width', onChange: (v) => set(sizeKeeping(s, 'width', v)) },
+        { key: 'H', value: +s.height.toFixed(3), title: locked ? 'Height — width follows the aspect' : 'Height', onChange: (v) => set(sizeKeeping(s, 'height', v)) },
       ]} />
       <NumberField label="Rotation" value={s.rotation} step={1} onChange={(v) => set({ rotation: v })} />
     </>

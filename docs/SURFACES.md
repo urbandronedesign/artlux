@@ -7,7 +7,9 @@ universe/address allocation and a multi-controller routing spreadsheet.
 
 ## Concepts
 - **Surface** — a rectangle on the stage carrying one content source. On-canvas it's **cyan**.
-  `Surface { id, name, x, y, width, height, rotation, zIndex, content }` (rect normalized 0..1,
+  `Surface { id, name, x, y, width, height, rotation, zIndex, content, aspect?, portrait? }`
+  (`aspect` locks the shape — `services/surfaceAspect.ts`; the stage is a square unit space, so
+  width / height IS the displayed shape) (rect normalized 0..1,
   and **unbounded** — the unit square is a reference frame, not a fence: a surface placed outside
   it keeps its content, its preview and its outputs. Only reduced/WebGL rendering mode samples the
   0..1 document, and the Stage shows a document frame + a warning chip there).

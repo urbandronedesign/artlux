@@ -5989,6 +5989,34 @@ check(
   },
 );
 
+// ── A SURFACE WHOSE SHAPE WAS CHOSEN IS NEVER REFITTED TO ITS CONTENT ─────────────────────────────
+check(
+  'the content auto-fit skips a surface with a chosen aspect, and Size edits keep it',
+  'Transform ▸ Aspect pins a surface to 16:9 / 16:10 / 4:3 / 21:9 / 1:1 so a shader, text or tracking ' +
+  'look is drawn at the shape of the screen it goes to. The frame engine refits a surface to its ' +
+  "media's aspect the moment the media loads — so without the skip, dropping a square image on a 16:9 " +
+  'wall silently turns it square again, the chosen aspect still shows in the inspector, and every ' +
+  'circle on it comes out an ellipse. Nothing throws. Likewise a Size field that writes width alone ' +
+  'breaks the shape the dropdown still claims. See src/renderer/services/surfaceAspect.ts.',
+  () => {
+    const bad = [];
+    const eng = 'src/renderer/engine/frameEngine.ts';
+    if (!exists(eng)) return `${eng} is missing`;
+    const src = read(eng);
+    const fit = /for \(const s of this\.inputs\.surfaces\) \{([\s\S]*?)getContentAspect\(s\)/.exec(src);
+    if (!fit) bad.push(`${eng}: the content auto-fit loop (getContentAspect over this.inputs.surfaces) was not found — re-point this check`);
+    else if (!/if \(isLocked\(s\)\) continue;/.test(fit[1])) bad.push(`${eng}: the auto-fit no longer skips a locked surface before measuring its content`);
+    const insp = 'src/renderer/contexts/panels/inspector.tsx';
+    const panel = /export const SurfaceTransformPanel[\s\S]*?\n\};/.exec(read(insp));
+    if (!panel) bad.push(`${insp}: SurfaceTransformPanel not found`);
+    else {
+      if (!/sizeKeeping\(s, 'width'/.test(panel[0]) || !/sizeKeeping\(s, 'height'/.test(panel[0])) bad.push(`${insp}: the W/H fields no longer go through sizeKeeping()`);
+      if (!/reshape\(/.test(panel[0])) bad.push(`${insp}: the Aspect control no longer goes through reshape()`);
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

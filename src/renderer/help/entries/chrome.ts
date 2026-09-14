@@ -166,6 +166,14 @@ export const chromeHelp: HelpEntry[] = [
     keywords: ['z-order', 'stacking', 'backward', 'lower', 'layer'],
   },
   {
+    id: 'general.surface-aspect',
+    title: 'Surface aspect ratio',
+    short: 'Lock this surface to a shape — 16:9, 16:10, 4:3, 21:9 or 1:1 — in landscape or portrait.',
+    body: 'Choosing a ratio reshapes the surface about its centre, keeping its longer side, and from then on Width and Height move together so the shape holds. Landscape / Portrait stands the same ratio on its end (16:9 becomes 9:16). Pick the ratio of the screen or projector the surface is going to, so a shader, text or generative look is drawn at the real shape instead of being stretched. A locked surface is no longer refitted to the media you drop on it: the media fills the chosen shape. Free removes the lock and leaves the size as it is.',
+    group: 'General',
+    keywords: ['aspect', 'ratio', '16:9', '16:10', '4:3', '21:9', 'square', 'portrait', 'landscape', 'orientation', 'shape', 'stretch', 'deformation'],
+  },
+  {
     id: 'general.select-all-fixtures',
     title: 'Select all fixtures',
     short: 'Select every fixture (the master layer).',

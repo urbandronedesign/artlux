@@ -30,7 +30,30 @@ On the Stage:
 | **Resize** | Drag the bottom‑right corner handle (keeps aspect) |
 | **Rotate** | Drag the rotation handle above the surface |
 | **Snap** | Turn on the **magnet** (stage top‑right) to snap to the grid and to other items' edges/centers |
-| **Precise values** | Use the Inspector's **Transform** card — X, Y, Width, Height, Rotation |
+| **Precise values** | Use the Inspector's **Transform** card — Aspect, X, Y, Width, Height, Rotation |
+
+### Give a surface its shape — aspect ratio
+
+A surface draws its content at its own shape, so a shader, a text or a generative look on a surface
+the wrong shape comes out **stretched** once it reaches a screen or projector of another shape. Give
+the surface the shape of where it is going:
+
+1. Select the surface.
+2. In the Inspector's **Transform** card, open **Aspect** and choose the ratio: **16:9** (HD / 4K
+   projectors and screens), **16:10** (WUXGA projectors, laptops), **4:3**, **21:9** (ultrawide) or
+   **1:1** (square).
+3. Choose **Landscape** or **Portrait** beside it. Portrait stands the same ratio on its end — 16:9
+   becomes 9:16, for a screen hung vertically. (Square has no orientation.)
+
+The surface reshapes about its centre and keeps its longer side. From then on the shape **holds**:
+
+- typing a **Width** moves the Height with it, and the other way round;
+- the stage's corner handle resizes without changing the shape;
+- dropping an image or video on it no longer refits the surface to the media — the media fills the
+  shape you chose.
+
+Choose **Free** to remove the lock; the size stays where it is. Scene fades and automation lanes that
+move a surface's width or height still move them freely — they play back exactly what you authored.
 
 **Stacking order:** surfaces have a z‑order. In the *Surfaces* list the top row is front‑most; use the
 **▲ / ▼** row buttons to bring a surface forward or send it back (e.g. put a Tracking surface over a
