@@ -20,6 +20,14 @@
 // IDEMPOTENCE IS A REQUIREMENT, not a nicety: same source commit in ⇒ byte-identical output. Object
 // keys are emitted in sorted order and nothing embeds a wall-clock time except the pinned commit's
 // own date. `git diff` after a re-run must be empty.
+//
+// LOCAL PROFILES. OFL is not the only source we ship. `resources/fixture-library-local/*.json` holds
+// profiles curated in this repo — a fixture OFL does not carry, or one we import from a .gdtf and
+// want every install to have without a manual import. Each file is one profile or an array, in the
+// same shape userData/fixture-profiles uses, and the .gdtf (or whatever it was derived from) sits
+// next to it so the derivation can be redone. They are layered over the OFL set BY ID, local wins —
+// the same precedence a user profile has at runtime — so a local file can also correct a shipped
+// OFL profile. Hand-edit THAT folder, never the output: this script wipes the output on every run.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -27,6 +35,7 @@ import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const OUT = path.join(ROOT, 'resources', 'fixture-library');
+const LOCAL = path.join(ROOT, 'resources', 'fixture-library-local');
 const CACHE = path.join(os.tmpdir(), 'artlux-ofl-cache');
 const REPO = 'https://github.com/OpenLightingProject/open-fixture-library.git';
 
@@ -502,6 +511,36 @@ function main() {
   if (profiles.length === 0) throw new Error('converted 0 fixtures — refusing to write an empty library');
   if (skipRate > 0.35) throw new Error(`skipped ${(skipRate * 100).toFixed(1)}% of fixtures — upstream format likely changed`);
 
+  // Pass 3 — LOCAL profiles, layered over OFL by id. Validated as hard as a conversion, but a bad
+  // local file THROWS rather than lands in the skip report: it was written by hand in this repo, so
+  // the person running the build is the one who can fix it, and a silently missing curated profile
+  // is exactly the failure a committed folder is supposed to rule out.
+  const local = [];
+  if (fs.existsSync(LOCAL)) {
+    for (const file of fs.readdirSync(LOCAL).sort()) {
+      if (!file.endsWith('.json')) continue;
+      const parsed = JSON.parse(fs.readFileSync(path.join(LOCAL, file), 'utf8'));
+      for (const p of Array.isArray(parsed) ? parsed : [parsed]) {
+        if (typeof p?.id !== 'string' || !/^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/.test(p.id)) {
+          throw new Error(`${file}: a local profile needs an id of the form <manufacturer>/<model>`);
+        }
+        const bad = validate(p);
+        if (bad) throw new Error(`${file}: local profile ${p.id} is invalid: ${bad}`);
+        local.push(p);
+      }
+    }
+  }
+  const localIds = new Set(local.map((p) => p.id));
+  for (let i = profiles.length - 1; i >= 0; i--) if (localIds.has(profiles[i].id)) profiles.splice(i, 1);
+  profiles.push(...local);
+  // Re-establish the order the OFL walk produced (manufacturer dir, then FILE NAME — plain string
+  // sorts, and the `.json` suffix matters: `ls-600d.json` sorts after `ls-600d-pro.json` while the
+  // bare stem would sort before it) so a local profile lands inside its manufacturer's chunk and
+  // nothing else moves. Idempotence is checked by `git diff`, so a reorder here is a real regression.
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const fileOf = (p) => `${p.id.split('/')[1]}.json`;
+  profiles.sort((a, b) => cmp(a.id.split('/')[0], b.id.split('/')[0]) || cmp(fileOf(a), fileOf(b)));
+
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT, 'gobos'), { recursive: true });
 
@@ -523,6 +562,8 @@ function main() {
     aliases: p.aliases,
     ...(p.categories ? { categories: p.categories } : {}),
     modes: p.modes.map((m) => ({ key: m.key, name: m.name, footprint: m.footprint })),
+    // Only a non-OFL origin is worth a byte in the eager catalogue: the picker badges it as imported.
+    ...(p.source?.origin && p.source.origin !== 'ofl' ? { origin: p.source.origin } : {}),
   })));
 
   // Gobo images, referenced by ProfileRange.goboKey. Same MIT licence as the rest of the repo.
@@ -540,7 +581,8 @@ function main() {
   fs.copyFileSync(path.join(CACHE, 'LICENSE'), path.join(OUT, 'LICENSE-OFL.txt'));
   fs.writeFileSync(path.join(OUT, 'NOTICE.txt'),
     'This directory is GENERATED — do not edit by hand.\n'
-    + 'Run `npm run build:fixtures` to regenerate it.\n\n'
+    + 'Run `npm run build:fixtures` to regenerate it. Profiles curated in this repo live in\n'
+    + 'resources/fixture-library-local/ and are layered over the Open Fixture Library set.\n\n'
     + 'The fixture definitions and gobo images here are derived from the Open Fixture Library\n'
     + `(https://open-fixture-library.org/), MIT licensed, at commit ${src.sha}.\n`
     + 'The full licence text is in LICENSE-OFL.txt and must ship with this data.\n', 'utf8');
@@ -550,6 +592,7 @@ function main() {
     source: { repo: REPO, sha: src.sha, date: src.date, license: 'MIT' },
     counts: {
       profiles: profiles.length,
+      local: local.length,
       manufacturers: byManufacturer.size,
       modes: profiles.reduce((n, p) => n + p.modes.length, 0),
       gobos,
@@ -562,9 +605,11 @@ function main() {
     skipped: skipped.sort((a, b) => a.id.localeCompare(b.id)),
     // Old names folded into a live profile's aliases, and the ones whose target we did not build.
     danglingRedirects: danglingRedirects.sort((a, b) => a.id.localeCompare(b.id)),
+    // The curated set, so a reviewer can see what is ours and not upstream's.
+    local: local.map((p) => p.id).sort(),
   });
 
-  console.log(`[fixtures] wrote ${profiles.length} profiles across ${byManufacturer.size} manufacturers, ${gobos} gobos`);
+  console.log(`[fixtures] wrote ${profiles.length} profiles across ${byManufacturer.size} manufacturers, ${gobos} gobos (${local.length} local)`);
   console.log(`[fixtures] ${redirects.length} renamed fixtures folded in as aliases`
     + (danglingRedirects.length ? ` (${danglingRedirects.length} point at unbuilt targets)` : ''));
   console.log(`[fixtures] skipped ${skipped.length} (${(skipRate * 100).toFixed(1)}%) — see MANIFEST.json`);

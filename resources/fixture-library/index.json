@@ -9830,6 +9830,29 @@
   ]
  },
  {
+  "id": "generic/dimmer-1ch",
+  "manufacturer": "Generic",
+  "model": "Dimmer 1ch",
+  "aliases": [
+   "Dimmer 1ch",
+   "Generic Dimmer 1ch",
+   "Dim1",
+   "dimmer1ch",
+   "genericdimmer1ch"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1ch",
+    "footprint": 1
+   }
+  ],
+  "origin": "gdtf"
+ },
+ {
   "id": "generic/drgb-fader",
   "manufacturer": "Generic",
   "model": "DRGB Fader",

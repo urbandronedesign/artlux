@@ -181,6 +181,27 @@ converts it, validates hard, and writes `resources/fixture-library/`. The output
 
 **Idempotence is a requirement**: same source commit in ⇒ byte-identical output. Run it twice and
 `git diff` must be empty. (`.gitattributes` pins the directory to LF so this holds on Windows too.)
+Regenerate with the `--ref` pinned to the sha in `MANIFEST.json` unless you *mean* to move upstream —
+the default is upstream `HEAD`, which rewrites hundreds of channel tables in the same commit as
+whatever you were actually changing.
+
+### Shipping a profile OFL does not have
+
+[resources/fixture-library-local/](../resources/fixture-library-local/) is the seam: every `*.json`
+there (one profile or an array, the same shape as `userData/fixture-profiles`) is **layered over the
+OFL set by id, local wins** — the precedence a user profile already has at runtime — so it can add a
+fixture *or* correct a shipped one. Keep whatever it was derived from next to it (the `.gdtf`, the
+PDF) so the derivation can be redone, and note the id in `MANIFEST.json ▸ local`, which the build
+writes. A malformed local file **fails the build** rather than landing in the skip report: it was
+written by hand in this repo, so the person running the build is the one who can fix it.
+
+First occupant: **Generic ▸ Dimmer 1ch** (`generic/dimmer-1ch`), a one-channel, one-parameter
+dimmer, derived from the minimal `Generic@Dimmer_1ch.gdtf` beside it by running the app's own
+`importGdtf` and pruning the import timestamp so the output stays byte-stable. (OFL's own
+`Generic ▸ Desk Channel` is the same thing with 8/16/24-bit modes; this one exists as the smallest
+possible GDTF-sourced profile, which is what an import bug shows up against first.)
+
+Never edit `resources/fixture-library/` itself — the build wipes it.
 
 ### What it produces
 
@@ -192,7 +213,8 @@ converts it, validates hard, and writes `resources/fixture-library/`. The output
 | `MANIFEST.json` | source commit, counts, and **the skip report** |
 | `LICENSE-OFL.txt`, `NOTICE.txt` | attribution — see below |
 
-Current output: **506 profiles**, 117 manufacturers, 1659 modes, 46 gobos.
+Current output: **507 profiles** (506 from OFL + 1 local), 117 manufacturers, 1660 modes, 46 gobos —
+but read `MANIFEST.json ▸ counts`, not this line, which is typed by hand.
 
 ### Read the skip report, not the profile count
 

@@ -7,9 +7,10 @@
   "license": "MIT"
  },
  "counts": {
-  "profiles": 506,
+  "profiles": 507,
+  "local": 1,
   "manufacturers": 117,
-  "modes": 1659,
+  "modes": 1660,
   "gobos": 46,
   "skipped": 114,
   "redirects": 7,
@@ -473,5 +474,8 @@
    "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
   }
  ],
- "danglingRedirects": []
+ "danglingRedirects": [],
+ "local": [
+  "generic/dimmer-1ch"
+ ]
 }

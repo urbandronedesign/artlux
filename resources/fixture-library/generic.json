@@ -470,6 +470,62 @@
   "verified": true
  },
  {
+  "id": "generic/dimmer-1ch",
+  "manufacturer": "Generic",
+  "model": "Dimmer 1ch",
+  "aliases": [
+   "Dimmer 1ch",
+   "Generic Dimmer 1ch",
+   "Dim1",
+   "dimmer1ch",
+   "genericdimmer1ch"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer-dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1ch",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer-dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "lensDegMin": 25,
+   "lensDegMax": 25,
+   "powerW": 50,
+   "weightKg": 1,
+   "dimsMm": [
+    200,
+    200,
+    200
+   ]
+  },
+  "source": {
+   "origin": "gdtf",
+   "ref": "resources/fixture-library-local/Generic@Dimmer_1ch.gdtf",
+   "rev": "4C7DF907-2E92-4AA5-A5DA-B93B9DD8E03F"
+  },
+  "verified": true
+ },
+ {
   "id": "generic/drgb-fader",
   "manufacturer": "Generic",
   "model": "DRGB Fader",
