@@ -9751,6 +9751,30 @@
   ]
  },
  {
+  "id": "generic/cw-ww-2ch",
+  "manufacturer": "Generic",
+  "model": "CW-WW 2ch",
+  "aliases": [
+   "CW-WW 2ch",
+   "Generic CW-WW 2ch",
+   "CWWW2",
+   "cwww2ch",
+   "genericcwww2ch",
+   "Tuneable White 2ch"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2
+   }
+  ],
+  "origin": "gdtf"
+ },
+ {
   "id": "generic/cw-ww-fader",
   "manufacturer": "Generic",
   "model": "CW/WW Fader",

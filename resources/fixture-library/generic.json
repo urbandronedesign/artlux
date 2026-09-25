@@ -216,6 +216,76 @@
   "verified": true
  },
  {
+  "id": "generic/cw-ww-2ch",
+  "manufacturer": "Generic",
+  "model": "CW-WW 2ch",
+  "aliases": [
+   "CW-WW 2ch",
+   "Generic CW-WW 2ch",
+   "CWWW2",
+   "cwww2ch",
+   "genericcwww2ch",
+   "Tuneable White 2ch"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "cold-white-coldwhite",
+    "label": "Cold White",
+    "role": "coldWhite",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   },
+   {
+    "key": "warm-white-warmwhite",
+    "label": "Warm White",
+    "role": "warmWhite",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "cold-white-coldwhite",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white-warmwhite",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "lensDegMin": 30,
+   "lensDegMax": 30,
+   "powerW": 80,
+   "weightKg": 1.2,
+   "dimsMm": [
+    220,
+    220,
+    220
+   ]
+  },
+  "source": {
+   "origin": "gdtf",
+   "ref": "resources/fixture-library-local/Generic@CW_WW_2ch.gdtf",
+   "rev": "D0DCBF2D-BB12-42D4-B962-CBF2F625EE16"
+  },
+  "verified": true
+ },
+ {
   "id": "generic/cw-ww-fader",
   "manufacturer": "Generic",
   "model": "CW/WW Fader",

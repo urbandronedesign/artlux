@@ -7,10 +7,10 @@
   "license": "MIT"
  },
  "counts": {
-  "profiles": 508,
-  "local": 2,
+  "profiles": 509,
+  "local": 3,
   "manufacturers": 117,
-  "modes": 1661,
+  "modes": 1662,
   "gobos": 46,
   "skipped": 114,
   "redirects": 7,
@@ -476,6 +476,7 @@
  ],
  "danglingRedirects": [],
  "local": [
+  "generic/cw-ww-2ch",
   "generic/dimmer-1ch",
   "generic/rgbw-4ch"
  ]
