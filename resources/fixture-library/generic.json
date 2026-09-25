@@ -1903,6 +1903,101 @@
   "verified": true
  },
  {
+  "id": "generic/rgbw-4ch",
+  "manufacturer": "Generic",
+  "model": "RGBW 4ch",
+  "aliases": [
+   "RGBW 4ch",
+   "Generic RGBW 4ch",
+   "RGBW4",
+   "rgbw4ch",
+   "genericrgbw4ch"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red-red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   },
+   {
+    "key": "green-green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   },
+   {
+    "key": "blue-blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   },
+   {
+    "key": "white-white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "geometry": "Beam"
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "lensDegMin": 30,
+   "lensDegMax": 30,
+   "powerW": 120,
+   "weightKg": 1.5,
+   "dimsMm": [
+    220,
+    220,
+    220
+   ]
+  },
+  "source": {
+   "origin": "gdtf",
+   "ref": "resources/fixture-library-local/Generic@RGBW_4ch.gdtf",
+   "rev": "8E5E311D-F752-42AC-8118-AF2728EB4B45"
+  },
+  "verified": true
+ },
+ {
   "id": "generic/rgbw-fader",
   "manufacturer": "Generic",
   "model": "RGBW Fader",

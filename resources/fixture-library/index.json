@@ -10124,6 +10124,29 @@
   ]
  },
  {
+  "id": "generic/rgbw-4ch",
+  "manufacturer": "Generic",
+  "model": "RGBW 4ch",
+  "aliases": [
+   "RGBW 4ch",
+   "Generic RGBW 4ch",
+   "RGBW4",
+   "rgbw4ch",
+   "genericrgbw4ch"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4
+   }
+  ],
+  "origin": "gdtf"
+ },
+ {
   "id": "generic/rgbw-fader",
   "manufacturer": "Generic",
   "model": "RGBW Fader",

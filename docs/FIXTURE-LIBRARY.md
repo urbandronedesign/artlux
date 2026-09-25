@@ -195,11 +195,24 @@ PDF) so the derivation can be redone, and note the id in `MANIFEST.json ▸ loca
 writes. A malformed local file **fails the build** rather than landing in the skip report: it was
 written by hand in this repo, so the person running the build is the one who can fix it.
 
-First occupant: **Generic ▸ Dimmer 1ch** (`generic/dimmer-1ch`), a one-channel, one-parameter
-dimmer, derived from the minimal `Generic@Dimmer_1ch.gdtf` beside it by running the app's own
-`importGdtf` and pruning the import timestamp so the output stays byte-stable. (OFL's own
-`Generic ▸ Desk Channel` is the same thing with 8/16/24-bit modes; this one exists as the smallest
-possible GDTF-sourced profile, which is what an import bug shows up against first.)
+Two occupants so far, both **hand-written GDTFs** kept beside their profile, and both derived the same
+way: run the app's own `importGdtf` on the `.gdtf`, then prune the import timestamp so the generated
+output stays byte-stable.
+
+| Profile | Mode | The GDTF beside it |
+|---|---|---|
+| **Generic ▸ Dimmer 1ch** (`generic/dimmer-1ch`) | `1ch` — one `Dimmer` | `Generic@Dimmer_1ch.gdtf` |
+| **Generic ▸ RGBW 4ch** (`generic/rgbw-4ch`) | `4ch` — `ColorAdd_R/G/B/W` at offsets 1–4 | `Generic@RGBW_4ch.gdtf` |
+
+OFL already ships near-equivalents of both (`Generic ▸ Desk Channel`, `Generic ▸ RGBW Fader`, each
+with 8/16/24-bit modes). These exist anyway because they are the **smallest GDTF-sourced profiles we
+control**: a GDTF import regression shows up against them first, and the `.gdtf` files themselves are
+what you hand to a console or a GDTF editor when reproducing one.
+
+⚠ **`white` is an emitter, not a captured role.** `fixtureSignal.ts` folds W into the rendered r/g/b
+(so the 3D beam goes warm) but `ROLES_CAPTURED` deliberately omits it, so a recorded busk or a stored
+pose does **not** carry the W channel — set it by hand in the inspector, or it stays at its default.
+That is a real limitation of RGBW-on-a-light, not a property of this file.
 
 Never edit `resources/fixture-library/` itself — the build wipes it.
 
@@ -213,7 +226,7 @@ Never edit `resources/fixture-library/` itself — the build wipes it.
 | `MANIFEST.json` | source commit, counts, and **the skip report** |
 | `LICENSE-OFL.txt`, `NOTICE.txt` | attribution — see below |
 
-Current output: **507 profiles** (506 from OFL + 1 local), 117 manufacturers, 1660 modes, 46 gobos —
+Current output: **508 profiles** (506 from OFL + 2 local), 117 manufacturers, 1661 modes, 46 gobos —
 but read `MANIFEST.json ▸ counts`, not this line, which is typed by hand.
 
 ### Read the skip report, not the profile count
