@@ -25,7 +25,7 @@ import { resolveMode } from '../../services/addressing';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
 import { groupKind, isLight } from '../../services/fixtureKind';
-import type { AutomationLane as AutoLane, ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
+import type { AutomationLane as AutoLane, ChannelRole, ColorLane as ColorLaneT, ColorValue as ColorValueT, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -416,7 +416,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       list.push(pl);
       byFixture.set(f.id, list);
     }
-    const ids = new Set([...byFixture.keys(), ...selectedFixtureIds]);
+    // A FIXTURE WITH ONLY A COLOUR LANE STILL GETS A TRACK. Colour lanes are not automation lanes,
+    // so they are not in `panelLanes` above — without this, authoring a colour and then deselecting
+    // the fixture made the row vanish while the colour kept playing on the wire: live, and with
+    // nowhere to see or edit it.
+    const colored = (timeline.colorLanes ?? []).map((l) => l.fixtureId);
+    const ids = new Set([...byFixture.keys(), ...selectedFixtureIds, ...colored]);
     const tracks: Array<{ fixture: Fixture; profile: FixtureProfile; mode: ProfileMode; lanes: PanelLane[]; selected: boolean }> = [];
     for (const id of ids) {
       const f = rigFixtures.find((x) => x.id === id);
@@ -426,7 +431,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       tracks.push({ fixture: f, profile, mode, lanes: byFixture.get(id) ?? [], selected: selectedFixtureIds.includes(id) });
     }
     return { tracks, rest };
-  }, [panelLanes, rigFixtures, rigProfiles, selectedFixtureIds]);
+  }, [panelLanes, rigFixtures, rigProfiles, selectedFixtureIds, timeline.colorLanes]);
 
   // Each lane's target definition (label / range / units / log axis), from whichever provider owns its
   // path head. A lane whose target has vanished resolves to undefined and renders as such — it is never
@@ -480,6 +485,37 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         enabled: true,
         keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: seed, curve: 'linear' }],
       }],
+    });
+  };
+
+  /**
+   * The three colour-lane verbs, written exactly like patchLane/addLaneAt above — against the BOUND
+   * document from the ref, never a captured array, so an edit made while the playhead is running
+   * cannot land in a document that has since been swapped.
+   */
+  const patchColorLane = useCallback((fixtureId: string, next: ColorLaneT | null) => {
+    const tl = timelineRef.current;
+    const cur = tl.colorLanes ?? [];
+    onChangeRef.current({
+      ...tl,
+      colorLanes: next
+        ? (cur.some((l) => l.fixtureId === fixtureId)
+          ? cur.map((l) => (l.fixtureId === fixtureId ? next : l))
+          : [...cur, next])
+        : cur.filter((l) => l.fixtureId !== fixtureId),
+    });
+  }, []);
+
+  const addColorLane = (fixtureId: string, seed: ColorValueT) => {
+    const tl = timelineRef.current;
+    if ((tl.colorLanes ?? []).some((l) => l.fixtureId === fixtureId)) return;   // one fixture, one lane
+    // ONE KEY AT THE PLAYHEAD HOLDING WHAT IT IS ALREADY DOING — a one-key lane is a constant, so
+    // creating it takes ownership of the fixture's colour without changing the look.
+    patchColorLane(fixtureId, {
+      id: `cl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+      fixtureId,
+      enabled: true,
+      keys: [{ t: Math.max(0, engine.getPlayhead()), value: seed, curve: 'linear' }],
     });
   };
 
@@ -1674,10 +1710,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   });
 
   const authoring = !!author?.activeSceneId;
-  // "Empty" means nothing on the canvas at all — no tracks, no clips, no automation lanes AND no audio
-  // lanes. Counting clips alone left the hint card sitting over a timeline full of audio curves.
+  // "Empty" means nothing on the canvas at all — no tracks, no clips, no automation lanes, no audio
+  // lanes AND no colour lanes. Counting clips alone left the hint card sitting over a timeline full
+  // of audio curves; forgetting colour lanes did it again, this time over the colour gradient
+  // itself, which made a working row look like a broken one in a screenshot.
   const isEmpty = layers.length === 0 && timeline.clips.length === 0 && (timeline.automation?.length ?? 0) === 0
-    && tlTracks.length === 0 && bedTracks.length === 0;
+    && (timeline.colorLanes?.length ?? 0) === 0 && tlTracks.length === 0 && bedTracks.length === 0;
   return (
     // `data-owns-delete`: this panel binds Del/Backspace to its OWN selection (clips, keys, lanes), so
     // the global "delete the selected fixture" shortcut must step aside while the pointer or focus is
@@ -1892,6 +1930,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               onAddLane={(path, seed) => addLaneAt(path, seed)}
               onSnap={(t2) => snap(t2, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
               onSeek={seekTo}
+              colorLane={(timeline.colorLanes ?? []).find((l) => l.fixtureId === t.fixture.id)}
+              onChangeColorLane={(next) => patchColorLane(t.fixture.id, next)}
+              onRemoveColorLane={() => patchColorLane(t.fixture.id, null)}
+              onAddColorLane={(seed) => addColorLane(t.fixture.id, seed)}
             />
           ))}
 

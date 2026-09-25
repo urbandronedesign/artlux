@@ -1,6 +1,6 @@
 # One colour per fixture on the timeline — the colour track
 
-> **Status: P0 + P1 BUILT (no UI yet — that is P2). Shape decided with the owner 2026-09-25.**
+> **Status: P0 + P1 + P2 BUILT and visible. Shape decided with the owner 2026-09-25.**
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -237,10 +237,21 @@ recompiled when they landed. In the editor it self-heals invisibly (the next edi
 light was dead for the whole show.** One effect on `[fixtureProfiles]` fixes it, and the precedence
 assertion then passed unchanged — the colour code had been right all along.
 
-**P2 — The row.** One colour row in the COLOUR group: live swatch, the adaptive control from §1, and
-the **gradient strip** along the lane (SVG `<linearGradient>` with stops sampled off the curve —
-`ClipBlock` already draws SVG overlays this way). Per-emitter rows stay available underneath, for
-the operator who wants to trim one channel by hand.
+**P2 — The row. ✅ DONE.** `components/timeline/ColorRow.tsx`: the live swatch (a DOM write from a
+`fixtureSignal` subscription — never state), the adaptive control, the gradient strip sampled through
+the engine's own sampler, a diamond per key, and a portalled per-key editor carrying Ease and Path.
+Emitter rows stay underneath and read **▲ Colour** while the row speaks for them.
+
+Three things only a screenshot found, all of them "correct DOM, wrong pixels":
+- a fixture whose ONLY authored thing was a colour got **no track at all** — `fixtureTracks` was
+  built from automation lanes ∪ selection, so the colour played on the wire with nowhere to edit it;
+- the empty-timeline hint card sat **over** the gradient, because `isEmpty` counted clips, automation
+  and audio but not colour lanes — the same miss its own comment already describes for audio;
+- the emitter rows read `Red 0%` while the fixture was visibly magenta (true — that is the *authored*
+  value — and unreadable as anything but a bug).
+
+And one honesty fix: the Path selector is hidden on a temperature, where two keys interpolate along
+the warm-cold line and the colour space is ignored.
 
 **P3 — Interpolation.** The `space` field, the picker on a key, and the strip redrawn through the
 chosen path so the fade you see is the fade you get.

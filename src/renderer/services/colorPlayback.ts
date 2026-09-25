@@ -33,7 +33,7 @@ export function setData(t: Timeline | null): void { data = t; }
  * other way would draw a fade the rig does not play, and "the picture disagrees with the wire" is
  * the bug class this app has already paid for twice.
  */
-export function sampleColorLane(lane: ColorLane, t: number): ColorValue | undefined {
+export function sampleColorLane(lane: ColorLane, t: number, cursor?: { i: number }): ColorValue | undefined {
   const keys = lane.keys;
   if (!keys.length || lane.enabled === false) return undefined;
 
@@ -42,10 +42,14 @@ export function sampleColorLane(lane: ColorLane, t: number): ColorValue | undefi
   if (t <= keys[0].t) return keys[0].value;
   if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].value;
 
-  let i = cursors.get(lane.id) ?? 0;
-  if (i >= keys.length - 1 || keys[i].t > t) i = 0;
+  // THE CALLER BRINGS ITS OWN CURSOR. The engine keeps one per lane and walks it forward a frame at
+  // a time; the UI sweeps the whole visible width every repaint to paint the gradient. Sharing one
+  // would have the strip's sweep drag the engine's cursor backwards on every draw — still correct
+  // (the search below re-seeks) but silently O(n) again, which is the regression nothing reports.
+  let i = cursor ? cursor.i : (cursors.get(lane.id) ?? 0);
+  if (i < 0 || i >= keys.length - 1 || keys[i].t > t) i = 0;
   while (i < keys.length - 2 && keys[i + 1].t <= t) i++;
-  cursors.set(lane.id, i);
+  if (cursor) cursor.i = i; else cursors.set(lane.id, i);
 
   const a = keys[i], b = keys[i + 1];
   const span = b.t - a.t;

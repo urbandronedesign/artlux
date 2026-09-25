@@ -2694,10 +2694,27 @@ check(
     // waveform from peak BUCKETS and is a different thing entirely. Not merely "calls sampleLane"
     // either: the lane still samples it for the single live value in its gutter.
     const POLYLINE = /for \(let x = 0; x <= width/;
+
+    // ⚠ ONE EXEMPTION, AND IT IS NARROW. The colour row sweeps the width too, but what it draws is a
+    // GRADIENT, not a curve: a colour has no value axis to plot against, so there is no polyline, no
+    // Y mapping, and no numeric field to disagree about a unit. Forcing it through CurveEditor would
+    // mean giving CurveEditor a second rendering mode for a thing that is not a curve — which is how
+    // a shared component becomes two components in a trench coat.
+    //
+    // The exemption is CONDITIONAL, so it cannot become a hiding place: if the colour row ever grows
+    // a polyline or a value-to-Y mapping, it has stopped being a gradient and this fires again.
+    const COLOR_ROW = 'src/renderer/components/timeline/ColorRow.tsx';
     const problems = [];
     for (const f of walk('src/renderer/components')) {
       if (f === OWNER) continue;
-      if (POLYLINE.test(read(f))) problems.push(`${f} builds a keyframe polyline itself — render <CurveEditor>`);
+      if (!POLYLINE.test(read(f))) continue;
+      if (f === COLOR_ROW) {
+        const src = read(f);
+        const forked = /<polyline|valueToY|points=\{/.test(src);
+        if (forked) problems.push(`${COLOR_ROW} now draws a value curve, not just a gradient — render <CurveEditor>`);
+        continue;
+      }
+      problems.push(`${f} builds a keyframe polyline itself — render <CurveEditor>`);
     }
     return problems.length ? problems.join('; ') : null;
   },

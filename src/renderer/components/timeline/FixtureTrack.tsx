@@ -19,11 +19,15 @@
 // readout, same editor. This component adds a header and an empty-row affordance around them and
 // takes no part in drawing a curve.
 import React, { useMemo, useState } from 'react';
-import type { AutomationLane as Lane, Fixture, FixtureProfile, ProfileMode, ProfileChannel } from '../../types';
+import type {
+  AutomationLane as Lane, ColorLane, ColorValue, Fixture, FixtureProfile, ProfileMode, ProfileChannel,
+} from '../../types';
 import { attributeOf, ATTRIBUTE_ORDER, type ChannelAttribute } from '../../types';
 import { type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { modeChannels, channelValue, physicalValue, selectedRange } from '../../services/profilePack';
 import { AutomationLane } from './AutomationLane';
+import { ColorRow } from './ColorRow';
+import { colorCapability } from '../../services/colorEngine';
 import { GUTTER } from './geometry';
 import { ChevronDown, ChevronRight, Plus, Lightbulb, Filter } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
@@ -53,6 +57,11 @@ interface Props {
   onRemoveLane: (laneId: string) => void;
   /** Create a lane for this path, seeded with one key at the playhead holding the current value. */
   onAddLane: (path: string, seed: number) => void;
+  /** This fixture's COLOUR lane, and the three verbs that maintain it. See ColorRow. */
+  colorLane?: ColorLane;
+  onChangeColorLane: (next: ColorLane) => void;
+  onRemoveColorLane: () => void;
+  onAddColorLane: (seed: ColorValue) => void;
   onSnap: (t: number) => number;
   onSeek: (clientX: number) => void;
 }
@@ -69,6 +78,7 @@ function parkedAt(f: Fixture, channel: ProfileChannel): string {
 export const FixtureTrack: React.FC<Props> = ({
   fixture, profile, mode, lanes, defs, pxPerSec, width, docKey, selected,
   onChangeLane, onRemoveLane, onAddLane, onSnap, onSeek,
+  colorLane, onChangeColorLane, onRemoveColorLane, onAddColorLane,
 }) => {
   const [open, setOpen] = useState(true);
   // ONLY THE ROWS THAT CARRY KEYS. A patched mode can run to forty-one channels; once a look is
@@ -77,6 +87,22 @@ export const FixtureTrack: React.FC<Props> = ({
   // have — you go looking in `all`, and you work in `keyed`.
   const [keyedOnly, setKeyedOnly] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<ChannelAttribute>>(() => new Set());
+
+  // WHICH ROWS THE COLOUR ROW IS SPEAKING FOR. Without this the emitter rows read "Red 0%" while the
+  // fixture is visibly magenta — the number is the AUTHORED value and therefore true, but an
+  // operator reading a row called Red that says 0% on a red light concludes the feature is broken.
+  // Static per mode (it is the capability, not the colour), so no per-frame value enters React.
+  const colorRoles = useMemo(() => {
+    if (!colorLane) return null;
+    const cap = colorCapability(profile, mode);
+    const set = new Set<string>(cap.emitters.map((e) => e.channel.key));
+    if (cap.cct) set.add(cap.cct.key);
+    if (cap.wheel) set.add(cap.wheel.key);
+    if (cap.subtractive) for (const c of profile.channels) {
+      if (c.role === 'cyan' || c.role === 'magenta' || c.role === 'yellow') set.add(c.key);
+    }
+    return set;
+  }, [colorLane, profile, mode]);
 
   const laneByPath = useMemo(() => {
     const m = new Map<string, FixtureTrackLane>();
@@ -166,6 +192,26 @@ export const FixtureTrack: React.FC<Props> = ({
               </button>
               <div style={{ width, height: 18 }} />
             </div>
+            {/* ── THE COLOUR ROW LEADS ITS OWN SECTION ──────────────────────────────────────
+                Above the per-emitter rows, never instead of them: a channel you cannot see is a
+                channel you cannot fix, and an operator trimming one emitter by hand is a real
+                thing to want. It renders itself away on a mode with no colour at all. */}
+            {!shut && attribute === 'Colour' && (
+              <ColorRow
+                fixture={fixture}
+                profile={profile}
+                mode={mode}
+                lane={colorLane}
+                pxPerSec={pxPerSec}
+                width={width}
+                docKey={docKey}
+                onChange={onChangeColorLane}
+                onRemove={onRemoveColorLane}
+                onAdd={onAddColorLane}
+                onSnap={onSnap}
+                onSeek={onSeek}
+              />
+            )}
             {!shut && list.map((r) => (r.hit ? (
               <AutomationLane
                 key={r.path}
@@ -196,7 +242,14 @@ export const FixtureTrack: React.FC<Props> = ({
                   <span className="text-micro text-fg-3 truncate" title={`${r.channel.label} — DMX ${fixture.startAddress + r.offset}`}>
                     {r.channel.label}
                   </span>
-                  <span className="ml-auto shrink-0 text-micro text-fg-3/70 tabular-nums">{parkedAt(fixture, r.channel)}</span>
+                  {colorRoles?.has(r.channel.key) ? (
+                    <span className="ml-auto shrink-0 text-micro text-accent/80"
+                      title="The Colour row above is driving this channel. Its own value still applies underneath, and starting a curve here takes the channel back — a lane is the more specific instruction.">
+                      ▲ Colour
+                    </span>
+                  ) : (
+                    <span className="ml-auto shrink-0 text-micro text-fg-3/70 tabular-nums">{parkedAt(fixture, r.channel)}</span>
+                  )}
                   <button
                     onClick={() => onAddLane(r.path, channelValue(fixture, r.channel))}
                     title={`Start a curve on ${r.channel.label} at the playhead, holding its current value`}

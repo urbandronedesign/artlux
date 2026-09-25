@@ -304,6 +304,36 @@ export function mixColor(a: RGB, b: RGB, u: number, space: ColorSpace): RGB {
   return oklabToRgb([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t]);
 }
 
+// ── sRGB ⇄ linear, for anything an operator looks at ─────────────────────────────────────────
+//
+// EVERYTHING ABOVE IS LINEAR — `EMITTERS` is linear light, because that is what adding two lamps
+// together does. Everything a human touches is sRGB-encoded: `<input type="color">`, a hex an
+// operator pastes from another tool, a CSS background. Skipping the transfer function does not
+// throw and does not look obviously broken; it just makes every mid-tone about 25% too dark on
+// screen and slightly the wrong hue, so the swatch quietly disagrees with the rig it is showing.
+
+const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const toSrgb = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
+
+/** `#rrggbb` (sRGB, what a picker gives) → the linear triple everything here works in. */
+export function hexToLinear(hex: string): RGB | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [toLinear(((n >> 16) & 255) / 255), toLinear(((n >> 8) & 255) / 255), toLinear((n & 255) / 255)];
+}
+
+/** A linear triple → `#rrggbb` for a swatch or a picker. Peak-normalised: see the header. */
+export function linearToHex(c: RGB): string {
+  const pk = Math.max(c[0], c[1], c[2]);
+  const n = pk > 1 ? [c[0] / pk, c[1] / pk, c[2] / pk] as const : c;
+  const byte = (v: number) => Math.round(Math.min(1, Math.max(0, toSrgb(v))) * 255).toString(16).padStart(2, '0');
+  return `#${byte(n[0])}${byte(n[1])}${byte(n[2])}`;
+}
+
+/** The colour a stored value reads as, whichever kind it is — for a swatch, a strip, a gradient. */
+export const colorOf = (v: ColorValue): RGB => (v.kind === 'rgb' ? v.rgb : temperatureColor(v.t));
+
 // ── Temperature ──────────────────────────────────────────────────────────────────────────────
 
 /**

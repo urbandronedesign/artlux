@@ -304,6 +304,40 @@ changes the fixture and records nothing.
 The arm never survives a restart or opening another project — an install that came up recording would
 quietly rewrite a show nobody opened to edit.
 
+### Colouring a fixture — the Colour row
+
+The COLOUR section of a fixture track leads with a **Colour** row, above the individual emitter rows
+it speaks for. A colour is one decision; three or four unrelated `0..1` rows are not.
+
+| | |
+|---|---|
+| **The swatch** | what this fixture is making **right now** — it follows the rig, including colour coming from a clip or a cue |
+| **`+`** | starts a colour on this fixture at the playhead, holding the colour it is already making. Creating it changes nothing |
+| **The strip** | the authored colour along the timeline, drawn through the same sampler that plays it. What you see is what the rig does |
+| **A diamond** | a colour key. Click it to edit and to seek there; double-click the strip to add one holding whatever was already there |
+| **`✕`** | removes the lane. The fixture keeps the colour authored on its own channels |
+
+**The control is the fixture's, not a choice.** A head with red, green and blue gets a picker; a
+tuneable-white head gets **Warm ↔ Cold** and no hue at all, because it cannot make one; a colour-wheel
+head gets its slots; a fixture with no colour channel has no row. The label beside the swatch says
+which — `RGBW`, `CW/WW`, `CMY`, `Wheel`.
+
+Under the picker, the row prints **what each emitter will actually be driven at**, and if the colour
+is outside what the fixture can reach it shows the nearest colour it *can* make, next to the one you
+asked for. An unreachable colour must never look authored.
+
+**Ease and Path are different questions.** *Ease* is how fast the fade moves — `linear`, `hold`,
+`bezier`, the same vocabulary every curve in the app uses. *Path* is which colours it moves
+**through**: `oklab` changes at the most even perceived rate and is the default, `hsv` travels round
+the wheel (the chase look), and `rgb` goes in a straight line, which washes complementary pairs — red
+to cyan — out through white. A temperature has no Path: warm↔cold is a line, and there is nothing to
+route around.
+
+⚠ **A curve on a single colour channel still wins.** Start one on the Red row and red leaves the
+Colour row's control for good — a lane aimed at one channel is the more specific instruction. The
+emitter rows read **▲ Colour** while the Colour row is speaking for them, so a row that is not moving
+tells you why.
+
 ### What a fixture track is not
 
 Its time axis is **the timeline**, not a clip — the header says `@ timeline` to make that plain. It does
