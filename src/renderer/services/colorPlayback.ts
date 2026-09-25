@@ -1,7 +1,9 @@
-import type { ColorKey, ColorLane, ColorValue, Fixture, FixtureGroup, Timeline } from '../types';
+import type {
+  ColorKey, ColorLane, ColorValue, Fixture, FixtureGroup, NamedColor, Timeline,
+} from '../types';
 import { timeline as engine } from './timeline';
 import { bezierEase, BEZ_DEFAULT } from './automation';
-import { mixColor, temperatureColor } from './colorEngine';
+import { mixColor, resolveColorValue, temperatureColor } from './colorEngine';
 import { phaseOffset } from './lightingTake';
 import * as overlay from './colorOverlay';
 
@@ -19,6 +21,9 @@ import * as overlay from './colorOverlay';
 let data: Timeline | null = null;
 let fixtures: Fixture[] = [];
 let groups: FixtureGroup[] = [];
+// The project's named colours. Resolved HERE, so everything downstream — the overlay, the packer,
+// the solver's memo — only ever sees an actual colour and knows nothing about the palette.
+let palette: readonly NamedColor[] = [];
 let started = false;
 let hadOutput = false;
 
@@ -41,6 +46,9 @@ export function setData(t: Timeline | null): void { data = t; }
  * group and the group's membership — and its ORDER, which is the spread axis — is edited live.
  */
 export function setRig(f: Fixture[], g: FixtureGroup[]): void { fixtures = f; groups = g; }
+
+/** The project's named colours, kept fresh so retuning one moves every key that references it. */
+export function setPalette(p: readonly NamedColor[]): void { palette = p; }
 
 /**
  * The fixtures a lane drives, in the group's OWN order.
@@ -67,14 +75,16 @@ function targetsOf(lane: ColorLane): Fixture[] {
  * other way would draw a fade the rig does not play, and "the picture disagrees with the wire" is
  * the bug class this app has already paid for twice.
  */
-export function sampleColorLane(lane: ColorLane, t: number, cursor?: { i: number }): ColorValue | undefined {
+export function sampleColorLane(
+  lane: ColorLane, t: number, cursor?: { i: number }, pal: readonly NamedColor[] = palette,
+): ColorValue | undefined {
   const keys = lane.keys;
   if (!keys.length || lane.enabled === false) return undefined;
 
   // HOLD BEFORE THE FIRST KEY AND AFTER THE LAST — the same rule sampleLane follows for automation.
   // It is what lets one key at t=0 mean "this fixture is this colour, for the whole show".
-  if (t <= keys[0].t) return keys[0].value;
-  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].value;
+  if (t <= keys[0].t) return resolveColorValue(keys[0].value, pal);
+  if (t >= keys[keys.length - 1].t) return resolveColorValue(keys[keys.length - 1].value, pal);
 
   // THE CALLER BRINGS ITS OWN CURSOR. The engine keeps one per lane and walks it forward a frame at
   // a time; the UI sweeps the whole visible width every repaint to paint the gradient. Sharing one
@@ -86,9 +96,14 @@ export function sampleColorLane(lane: ColorLane, t: number, cursor?: { i: number
   if (cursor) cursor.i = i;
 
   const a = keys[i], b = keys[i + 1];
+  // Resolved BEFORE anything is blended. An unresolved reference drives nothing — so a segment with
+  // a missing colour at either end goes quiet rather than fading to or from an invented one.
+  const av = resolveColorValue(a.value, pal);
+  const bv = resolveColorValue(b.value, pal);
+  if (!av || !bv) return undefined;
   const span = b.t - a.t;
-  if (span <= 0) return b.value;                 // coincident keys are a step, not a divide by zero
-  if (a.curve === 'hold') return a.value;
+  if (span <= 0) return bv;                      // coincident keys are a step, not a divide by zero
+  if (a.curve === 'hold') return av;
 
   const u = (t - a.t) / span;
   // TIME EASING FIRST, COLOUR PATH SECOND. They are different axes: the curve decides how fast the
@@ -98,7 +113,7 @@ export function sampleColorLane(lane: ColorLane, t: number, cursor?: { i: number
     ? bezierEase(u, a.cx1 ?? BEZ_DEFAULT.cx1, a.cy1 ?? BEZ_DEFAULT.cy1, a.cx2 ?? BEZ_DEFAULT.cx2, a.cy2 ?? BEZ_DEFAULT.cy2)
     : u;
 
-  return blend(a, b, e);
+  return blend(av, bv, a.space ?? 'oklab', e);
 }
 
 /**
@@ -109,13 +124,13 @@ export function sampleColorLane(lane: ColorLane, t: number, cursor?: { i: number
  * near — but not on — the value that was authored at the far end. Only a mixed pair goes through
  * RGB, because that is the only case where there is no line to stay on.
  */
-function blend(a: ColorKey, b: ColorKey, e: number): ColorValue {
-  if (a.value.kind === 'cct' && b.value.kind === 'cct') {
-    return { kind: 'cct', t: a.value.t + (b.value.t - a.value.t) * e };
+function blend(av: ColorValue, bv: ColorValue, space: NonNullable<ColorKey['space']>, e: number): ColorValue {
+  if (av.kind === 'cct' && bv.kind === 'cct') {
+    return { kind: 'cct', t: av.t + (bv.t - av.t) * e };
   }
-  const from = a.value.kind === 'rgb' ? a.value.rgb : temperatureColor(a.value.t);
-  const to = b.value.kind === 'rgb' ? b.value.rgb : temperatureColor(b.value.t);
-  const mixed = mixColor(from, to, e, a.space ?? 'oklab');
+  const from = av.kind === 'rgb' ? av.rgb : temperatureColor(av.t);
+  const to = bv.kind === 'rgb' ? bv.rgb : temperatureColor(bv.t);
+  const mixed = mixColor(from, to, e, space);
   return { kind: 'rgb', rgb: [mixed[0], mixed[1], mixed[2]] };
 }
 

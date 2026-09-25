@@ -1,5 +1,6 @@
 import type {
-  ChannelRole, ColorSpace, ColorValue, FixtureProfile, ProfileChannel, ProfileMode,
+  ChannelRole, ColorKeyValue, ColorSpace, ColorValue, FixtureProfile, NamedColor, ProfileChannel,
+  ProfileMode,
 } from '../types';
 import { EMITTERS, colorModel } from './fixtureSignal';
 
@@ -257,7 +258,7 @@ export const flagsForColor = (target: RGB): Record<'cyan' | 'magenta' | 'yellow'
 
 // `ColorSpace` and `ColorValue` live in types.ts, with the persisted shapes that carry them —
 // re-exported here because this is where what they MEAN is written down.
-export type { ColorSpace, ColorValue };
+export type { ColorSpace, ColorValue, ColorKeyValue, NamedColor };
 
 export function rgbToHsv(c: RGB): [number, number, number] {
   const [r, g, b] = c;
@@ -373,6 +374,22 @@ export function seedColorFrom(rgb: RGB | undefined): ColorValue {
 
 /** The colour a stored value reads as, whichever kind it is — for a swatch, a strip, a gradient. */
 export const colorOf = (v: ColorValue): RGB => (v.kind === 'rgb' ? v.rgb : temperatureColor(v.t));
+
+/**
+ * A key's stored value → an actual colour, following a palette reference if that is what it is.
+ *
+ * ⚠ AN UNRESOLVED REF RESOLVES TO NOTHING — never to a plausible substitute. It is the rule
+ * `poseRef` already follows, and the reason is the same: a project opened without its palette, or
+ * one whose named colour was deleted, must go quiet rather than quietly perform a different show.
+ * Every caller therefore handles `undefined`, and the row draws such a key as missing.
+ */
+export function resolveColorValue(
+  v: ColorKeyValue,
+  palette: readonly NamedColor[] = [],
+): ColorValue | undefined {
+  if (v.kind !== 'ref') return v;
+  return palette.find((c) => c.id === v.id)?.value;
+}
 
 // ── Temperature ──────────────────────────────────────────────────────────────────────────────
 

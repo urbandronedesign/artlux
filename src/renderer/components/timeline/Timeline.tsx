@@ -28,7 +28,7 @@ import { automationTargetRegistry } from '../../host/registries';
 import { groupKind, isLight } from '../../services/fixtureKind';
 import { groupCapability, seedColorFrom } from '../../services/colorEngine';
 import * as fixtureSignal from '../../services/fixtureSignal';
-import type { AutomationLane as AutoLane, ChannelRole, ColorLane as ColorLaneT, CurveKind, ColorValue as ColorValueT, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
+import type { AutomationLane as AutoLane, ChannelRole, ColorLane as ColorLaneT, CurveKind, ColorValue as ColorValueT, NamedColor, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -94,6 +94,9 @@ interface Props {
   fixtureGroups?: FixtureGroup[];
   /** The rig — the lighting clip inspector derives a group's KIND from it. */
   rigFixtures?: Fixture[];
+  /** The project's named colours, and the verb that adds one. See NamedColor. */
+  colorPalette?: readonly NamedColor[];
+  onSaveColor?: (value: ColorValueT, name: string) => string;
   /** Resolved DMX profiles — the lighting clip inspector maps a role to the channel a lane names. */
   rigProfiles?: ReadonlyMap<string, FixtureProfile>;
   /** Which lights are selected, so a fixture gets a super track before it has any curve at all. */
@@ -132,7 +135,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   // The pill menu is portalled (usePopoverAnchor), so it is placed from the button's measured rect
@@ -2001,6 +2004,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               onAddLane={(path, seed) => addLaneAt(path, seed)}
               onSnap={(t2) => snap(t2, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
               onSeek={seekTo}
+              colorPalette={colorPalette}
+              onSaveColor={onSaveColor}
               colorLane={(timeline.colorLanes ?? []).find((l) => l.fixtureId === t.fixture.id)}
               onChangeColorLane={(next) => patchColorLane(t.fixture.id, next)}
               onRemoveColorLane={() => patchColorLane(t.fixture.id, null)}
@@ -2050,6 +2055,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               onAdd={() => { /* a group row only exists once the lane does */ }}
               onSnap={(t2) => snap(t2, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
               onSeek={seekTo}
+              palette={colorPalette}
+              onSaveColor={onSaveColor}
               group={{
                 name: r.name,
                 count: r.count,

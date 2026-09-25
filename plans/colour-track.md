@@ -1,7 +1,7 @@
 # One colour per fixture on the timeline — the colour track
 
 > **Status: P0–P5 BUILT — the plan is complete.** Shape decided with the owner 2026-09-25.
-> What remains is listed under *Still open*: named colours.
+> Named colours landed 2026-09-25 as well. What remains is listed under *Still open*.
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -346,6 +346,23 @@ Usage docs ship in the same commits — [LIGHTING-SHOW.md](../docs/LIGHTING-SHOW
 
 1. **Group colour (P5).** One colour across an ordered group is a different feature from one colour on
    one fixture, and is where the phase-spread machinery lives. Not scoped here.
-2. **Named colours.** There is no colour-palette concept for lights today (the `palettes.ts` gradients
-   are pixel-effect LUTs, and `paletteId`-as-an-index is already flagged as fragile by the import
-   code). A library of named looks exists only as `NamedPose`. Worth deciding before P2 draws a picker.
+2. ~~**Named colours.**~~ **Done 2026-09-25.** `ProjectData.colorPalette: NamedColor[]`, beside the
+   pose library and for the same reasons. A key REFERENCES one (`{kind:'ref', id}`) rather than
+   copying it — retuning "our red" moves every key that follows it, which is the only thing that
+   makes a palette worth a format change. Four decisions worth keeping:
+   - **`ColorKeyValue` is a separate type from `ColorValue`.** Only the key and the sampler know
+     about refs; `colorPlayback` resolves one and publishes something concrete, so the overlay, the
+     packer and the solver's memo never learn what a palette is.
+   - **An unresolved ref drives NOTHING** — the `poseRef` rule. The diamond draws hollow and says
+     so, rather than standing in a plausible colour and performing a different show.
+   - **Detach is an explicit verb**, because editing a followed colour otherwise has to choose
+     silently between changing every other key and promoting this one off the palette.
+   - **`window.prompt` does not exist in Electron.** The first version used it, so the Save button
+     would have done nothing at all. `usePrompt()` (feedback.tsx) is the app's own, and its header
+     says exactly this.
+
+   **Known gap, NOT closed:** `services/projectImport` does not walk `colorLanes` at all — neither
+   the lanes themselves nor the palette entries they reference. Importing a scene that carries colour
+   therefore loses it, or (once lanes travel) lands refs pointing at ids the destination has never
+   heard of. That subsystem has its own closure/id-minting doctrine and this is a job inside it, not
+   a line here. It predates named colours — colour lanes were never imported.

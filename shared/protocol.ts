@@ -1250,6 +1250,10 @@ export interface ProjectData {
   // a merge, a migration, a doc generator — would have silently dropped the operator's whole pose
   // library. Declared 2026-09-11 while building cross-project import, which is exactly such a thing.
   lightingPoses?: unknown[];
+  // The project's NAMED COLOURS. NamedColor[] (renderer type), kept loose here for the same reason
+  // as the pose library above — and DECLARED from the start, which is the lesson that field learned
+  // the hard way: anything written against this interface would otherwise drop the whole palette.
+  colorPalette?: unknown[];
   scenes: unknown[];
   cueBanks?: unknown[]; // CueBank[] (renderer type) — granular cue grid; row 0 references scenes
   scene3D?: Scene3D;

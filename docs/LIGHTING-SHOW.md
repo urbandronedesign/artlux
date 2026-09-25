@@ -347,6 +347,24 @@ failure this whole area keeps producing:
 Taking back *deletes* the curve rather than folding it in, and that is deliberate: there is no way to
 turn an arbitrary per-channel curve into a colour without inventing values nobody authored.
 
+### Named colours — the house red
+
+The key editor carries the project's **palette**: a row of swatches, and a **+** that saves the
+colour you are looking at under a name. Click a swatch and the key **follows** that colour — retune
+the named colour and every key using it retunes with it, which is the only reason a palette is worth
+having over copying a hex around. A named colour lives on the project, beside the pose library, so a
+colour used in five scenes is stored once.
+
+**Detach** copies the colour onto that key alone, so editing it stops affecting the others. It is an
+explicit verb because the alternative is a trap: editing a key that follows a palette colour would
+otherwise have to choose silently between changing every other key that uses it and quietly promoting
+this one off the palette. (`poseRef` documents the same choice.)
+
+⚠ **A key whose named colour is missing drives nothing** — it does not fall back to a plausible
+substitute. Its diamond is drawn hollow and says so, and the fixture keeps whatever it was doing.
+That is the same rule an unresolved `poseRef` follows, for the same reason: a project opened without
+its palette must go quiet rather than quietly perform a different show.
+
 ### Colouring a whole GROUP
 
 **+ Colour** at the bottom of the timeline offers the light groups; picking one gives the group its

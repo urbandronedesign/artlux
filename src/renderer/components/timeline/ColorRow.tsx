@@ -16,16 +16,19 @@
 // The same applies here, doubly — this repaints on every frame the rig changes colour.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ColorKey, ColorLane, ColorValue, Fixture, FixtureProfile, ProfileMode } from '../../types';
+import type {
+  ColorKey, ColorKeyValue, ColorLane, ColorValue, Fixture, FixtureProfile, NamedColor, ProfileMode,
+} from '../../types';
 import {
-  colorCapability, colorOf, hexToLinear, linearToHex, seedColorFrom, solveEmitters, temperatureColor,
-  nearestSlot,
+  colorCapability, colorOf, hexToLinear, linearToHex, resolveColorValue, seedColorFrom, solveEmitters,
+  temperatureColor, nearestSlot,
 } from '../../services/colorEngine';
 import { sampleColorLane } from '../../services/colorPlayback';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER } from './geometry';
 import { usePopoverAnchor } from './usePopoverAnchor';
+import { usePrompt } from '../ui';
 import { Plus, X, Palette } from 'lucide-react';
 
 export const COLOR_ROW_H = 34;
@@ -57,6 +60,10 @@ interface Props {
     phase: number;
     onPhase: (seconds: number) => void;
   };
+  /** The project's named colours, offered in the picker. */
+  palette?: readonly NamedColor[];
+  /** Save the colour a key is currently showing as a new named colour, and point the key at it. */
+  onSaveColor?: (value: ColorValue, name: string) => string;
   /** Per-channel lanes that are BEATING this row — see the badge. Empty when nothing is. */
   shadowedByLane?: Array<{ laneId: string; label: string; origin: 'scene' | 'global' }>;
   /** Delete one of those lanes, handing the channel back to the colour row. */
@@ -71,8 +78,9 @@ function liveColorOf(fixtureId: string): string {
 
 export const ColorRow: React.FC<Props> = ({
   fixture, profile, mode, lane, pxPerSec, width, docKey, onChange, onRemove, onAdd, onSnap, onSeek,
-  shadowedByLane = [], onReleaseLane, group,
+  shadowedByLane = [], onReleaseLane, group, palette = [], onSaveColor,
 }) => {
+  const prompt = usePrompt();
   const own = useMemo(() => colorCapability(profile, mode), [profile, mode]);
   const cap = group ? group.cap : own;
   const [selected, setSelected] = useState<number | null>(null);
@@ -139,7 +147,7 @@ export const ColorRow: React.FC<Props> = ({
     setDraft(null);
   };
 
-  const patchSelected = (value: ColorValue) => {
+  const patchSelected = (value: ColorKeyValue) => {
     if (selected === null) return;
     commit(keys.map((k, i) => (i === selected ? { ...k, value } : k)));
   };
@@ -315,13 +323,21 @@ export const ColorRow: React.FC<Props> = ({
                 key={`${k.t}-${i}`}
                 ref={selected === i ? keyAnchorRef : undefined}
                 onPointerDown={dragKey(i)}
-                title={`Colour key @ ${k.t.toFixed(2)}s — drag to move it, click to edit (shift: ignore snapping)`}
+                title={resolveColorValue(k.value, palette)
+                  ? `Colour key @ ${k.t.toFixed(2)}s — drag to move it, click to edit (shift: ignore snapping)`
+                  : `Colour key @ ${k.t.toFixed(2)}s — its named colour is MISSING, so this key drives nothing`}
                 className="absolute w-2.5 h-2.5 rotate-45 border cursor-pointer pointer-events-auto"
                 style={{
                   left: k.t * pxPerSec - 5,
                   top: COLOR_ROW_H / 2 - 5,
-                  background: linearToHex(colorOf(k.value)),
-                  borderColor: selected === i ? '#fff' : 'rgba(0,0,0,0.5)',
+                  // A key whose reference is gone is drawn hollow rather than given a stand-in
+                  // colour: it drives nothing, and a swatch would be a claim that it does.
+                  background: resolveColorValue(k.value, palette)
+                    ? linearToHex(colorOf(resolveColorValue(k.value, palette)!))
+                    : 'transparent',
+                  borderColor: resolveColorValue(k.value, palette)
+                    ? (selected === i ? '#fff' : 'rgba(0,0,0,0.5)')
+                    : 'var(--warn, #f5a623)',
                 }}
               />
             ))}
@@ -393,7 +409,68 @@ export const ColorRow: React.FC<Props> = ({
             <button onClick={() => setSelected(null)} className="text-fg-3 hover:text-fg-1"><X size={11} /></button>
           </div>
 
-          <ColorControl cap={cap} value={selectedKey.value} onChange={patchSelected} />
+          {selectedKey.value.kind === 'ref' && (
+            <div className="mb-1.5 flex items-center gap-1.5 text-micro">
+              {(() => {
+                const named = palette.find((c) => c.id === (selectedKey.value as { id: string }).id);
+                return named ? (
+                  <>
+                    <span className="w-3 h-3 rounded-sm border border-line-1 shrink-0" style={{ background: linearToHex(colorOf(named.value)) }} />
+                    <span className="flex-1 truncate text-fg-2" title="Retune this named colour and every key using it follows">{named.name}</span>
+                    {/* DETACHING IS A REAL VERB, not a tidy-up: editing a key that plays a named
+                        colour would otherwise have to choose between changing every other key that
+                        uses it and silently promoting this one off the palette. The same trap
+                        `poseRef` documents. Here you say which you meant. */}
+                    <button onClick={() => patchSelected(named.value)} className="text-fg-3 hover:text-fg-1"
+                      title="Copy the colour onto this key alone, so editing it stops affecting the others">
+                      Detach
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-warn flex-1">Its named colour is missing — this key drives nothing.</span>
+                );
+              })()}
+            </div>
+          )}
+
+          {selectedKey.value.kind !== 'ref' && (
+            <ColorControl cap={cap} value={selectedKey.value} onChange={patchSelected} />
+          )}
+
+          {/* ── THE PALETTE ─────────────────────────────────────────────────────────────────── */}
+          <div className="mt-2 flex items-center gap-1 flex-wrap">
+            {palette.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => patchSelected({ kind: 'ref', id: c.id })}
+                title={`${c.name} — this key follows it, so retuning the colour retunes the key`}
+                className="w-4 h-4 rounded-sm border border-line-1 hover:border-accent"
+                style={{ background: linearToHex(colorOf(c.value)) }}
+              />
+            ))}
+            {onSaveColor && selectedKey.value.kind !== 'ref' && (
+              <button
+                onClick={async () => {
+                  const value = selectedKey.value as ColorValue;
+                  // The app's own prompt, NOT window.prompt — Electron does not implement that one
+                  // at all, so the button would simply have done nothing (and thrown in the console
+                  // where nobody was looking). feedback.tsx says as much in its own header.
+                  const name = await prompt({
+                    title: 'Name this colour',
+                    message: 'Keys that use it follow it — retune the colour and every one of them retunes.',
+                    initial: 'House red',
+                    placeholder: 'House red, Cold wash, Act 2 amber…',
+                    confirmLabel: 'Save',
+                  });
+                  if (!name) return;
+                  patchSelected({ kind: 'ref', id: onSaveColor(value, name) });
+                }}
+                title="Save this colour to the project, and point this key at it"
+                className="w-4 h-4 rounded-sm border border-dashed border-line-2 text-fg-3 hover:text-accent hover:border-accent leading-none text-micro">
+                +
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-1 mt-2">
             <label className="text-fg-3 w-10">Ease</label>

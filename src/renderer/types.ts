@@ -936,9 +936,13 @@ const normalizeAutomation = (a: unknown): AutomationLane[] => {
 // with one addition that matters more here: a colour is a STRUCTURE, not a number, so a half-written
 // or hand-edited value has more ways to be wrong. Anything that is not a colour this app can realise
 // is dropped rather than repaired, because a repaired colour is a colour nobody authored.
-const normalizeColorValue = (v: unknown): ColorValue | null => {
+const normalizeColorValue = (v: unknown): ColorKeyValue | null => {
   if (!v || typeof v !== 'object') return null;
-  const c = v as Partial<ColorValue> & { rgb?: unknown; t?: unknown };
+  const c = v as Partial<ColorKeyValue> & { rgb?: unknown; t?: unknown; id?: unknown };
+  // A REF keeps its id even if the palette entry is missing right now — a project opened before its
+  // palette loads, or one whose colour was deleted, must not have its keys silently rewritten to
+  // some plausible colour. An unresolved ref drives NOTHING, the rule `poseRef` already follows.
+  if (c.kind === 'ref') return typeof c.id === 'string' && c.id ? { kind: 'ref', id: c.id } : null;
   if (c.kind === 'cct') return Number.isFinite(c.t) ? { kind: 'cct', t: Math.min(1, Math.max(0, c.t as number)) } : null;
   if (c.kind === 'rgb') {
     const a = c.rgb;
@@ -1066,6 +1070,19 @@ const normalizePose = (p: unknown): LightingPose => {
     if (typeof v === 'number' && Number.isFinite(v)) out[role as ChannelRole] = v;
   }
   return out;
+};
+
+/** The project's named colours. Same doctrine: coerce, and drop only what cannot be interpreted. */
+export const normalizeNamedColors = (nc: unknown): NamedColor[] => {
+  if (!Array.isArray(nc)) return [];
+  return (nc as Partial<NamedColor>[]).flatMap((c) => {
+    if (!c || typeof c !== 'object' || typeof c.id !== 'string') return [];
+    const value = normalizeColorValue(c.value);
+    // A palette entry that is itself a ref would be a chain to resolve (and a cycle to guard), for
+    // no use anyone has asked for. A named colour is a COLOUR.
+    if (!value || value.kind === 'ref') return [];
+    return [{ id: c.id, name: typeof c.name === 'string' ? c.name : 'Colour', value }];
+  });
 };
 
 /** The project-level pose library. Same doctrine: coerce, and drop only what cannot be interpreted. */
@@ -1881,9 +1898,35 @@ export type ColorValue =
  */
 export type ColorSpace = 'rgb' | 'hsv' | 'oklab';
 
+/**
+ * THE PROJECT'S NAMED COLOURS — the house red, the gel everything matches.
+ *
+ * Lives on `ProjectData` beside `lightingPoses`, and for the same reason: a colour used in five
+ * scenes is stored once, and nothing about it belongs to any one timeline.
+ *
+ * A key REFERENCES one rather than copying it, which is the whole point — retune "our red" and every
+ * key using it retunes with it. That is what a console's colour palette does, and a bookmarks bar
+ * that only ever copied would not be worth a format change.
+ */
+export interface NamedColor {
+  id: string;
+  name: string;
+  value: ColorValue;
+}
+
+/**
+ * What a key stores: a colour, or a REFERENCE to a named one.
+ *
+ * Deliberately a separate type from `ColorValue`, so the engine below the sampler never sees a ref:
+ * `colorPlayback` resolves it and publishes something concrete, and `colorEngine`, `colorOverlay`
+ * and the packer keep dealing in actual colours. Widening `ColorValue` itself would have pushed the
+ * palette into the frame loop, the overlay and the solver's memo key for no gain.
+ */
+export type ColorKeyValue = ColorValue | { kind: 'ref'; id: string };
+
 export interface ColorKey {
   t: number;                        // TIMELINE seconds, like an automation keyframe
-  value: ColorValue;
+  value: ColorKeyValue;
   /** Time easing for the segment STARTING here — the same vocabulary every other curve uses. */
   curve?: CurveKind;
   cx1?: number; cy1?: number; cx2?: number; cy2?: number;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type BakeEntry, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type Keyframe } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type BakeEntry, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type NamedColor, normalizeNamedColors, type ColorValue, type Keyframe } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
@@ -353,6 +353,8 @@ const App: React.FC = () => {
   // state's entry action belongs to no timeline at all. It also means a look used in five scenes is
   // stored once. Shared by pose CUES and by keyframes that carry a `poseRef`.
   const [lightingPoses, setLightingPoses] = useState<NamedPose[]>([]);
+  // The project's named colours. Beside the pose library, and persisted the same way — see NamedColor.
+  const [colorPalette, setColorPalette] = useState<NamedColor[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [cueBanks, setCueBanks] = useState<CueBank[]>([]);
   // In-project wall-clock schedule (show-control plugin owns the entry shape; opaque here). Persisted
@@ -2554,6 +2556,7 @@ const App: React.FC = () => {
       globalBrightness,
       groups,
       lightingPoses,
+      colorPalette,
       scenes,
       cueBanks,
       scene3D,
@@ -2629,6 +2632,7 @@ const App: React.FC = () => {
       // the undo stack is reset: a held cue belongs to the outgoing document, and leaving it latched
       // would drive the incoming rig from a look it never had.
       setLightingPoses(normalizeNamedPoses(data?.lightingPoses));
+      setColorPalette(normalizeNamedColors((data as { colorPalette?: unknown })?.colorPalette));
       lightingCue.clear();
       // …and the LIVE layer above it, for the same reason. It normally retires itself the moment the
       // released value is committed, but a project opened mid-drag leaves an entry keyed to a fixture
@@ -3690,6 +3694,19 @@ const App: React.FC = () => {
   // A colour lane over a GROUP resolves the same way, and for the same reason: the membership and
   // the ORDER (which is the spread axis) are edited while the show runs.
   useEffect(() => { colorPlayback.setRig(fixtures, groups); }, [fixtures, groups]);
+  // Retuning a named colour has to move the rig, so the palette is pushed rather than captured.
+  useEffect(() => { colorPlayback.setPalette(colorPalette); }, [colorPalette]);
+
+  /**
+   * Add a named colour and hand back its id, so the caller can point a key at it in the same edit.
+   * Names are made unique the way every other library here does it (`nextNumberedName`), because two
+   * swatches called "House red" is a palette you cannot use.
+   */
+  const handleSaveColor = useCallback((value: ColorValue, name: string): string => {
+    const id = generateId();
+    setColorPalette((prev) => [...prev, { id, name: nextNumberedName(name.trim() || 'Colour', prev), value }]);
+    return id;
+  }, []);
   // ⚠ DECLARATION ORDER IS LOAD-BEARING: THIS EFFECT MUST STAY *AFTER* THE `setData` EFFECT ABOVE.
   // Effects flush in declaration order. The engine's setData guard needs the engine's `playing` to be
   // still true when the new document lands, so setData has to run first in the flush. Hoisting this one
@@ -5188,7 +5205,7 @@ const App: React.FC = () => {
                     {timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
+                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
                     )}
                   </UiProfiler>
           ),
@@ -5328,7 +5345,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
+          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
         </div>
       )}
 

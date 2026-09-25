@@ -20,7 +20,8 @@
 // takes no part in drawing a curve.
 import React, { useMemo, useState } from 'react';
 import type {
-  AutomationLane as Lane, ColorLane, ColorValue, Fixture, FixtureProfile, ProfileMode, ProfileChannel,
+  AutomationLane as Lane, ColorLane, ColorValue, Fixture, FixtureProfile, NamedColor, ProfileMode,
+  ProfileChannel,
 } from '../../types';
 import { attributeOf, ATTRIBUTE_ORDER, type ChannelAttribute } from '../../types';
 import { type AutomationTargetDef } from '@artlux/sdk/renderer';
@@ -59,6 +60,8 @@ interface Props {
   onAddLane: (path: string, seed: number) => void;
   /** This fixture's COLOUR lane, and the three verbs that maintain it. See ColorRow. */
   colorLane?: ColorLane;
+  colorPalette?: readonly NamedColor[];
+  onSaveColor?: (value: ColorValue, name: string) => string;
   onChangeColorLane: (next: ColorLane) => void;
   onRemoveColorLane: () => void;
   onAddColorLane: (seed: ColorValue) => void;
@@ -78,7 +81,7 @@ function parkedAt(f: Fixture, channel: ProfileChannel): string {
 export const FixtureTrack: React.FC<Props> = ({
   fixture, profile, mode, lanes, defs, pxPerSec, width, docKey, selected,
   onChangeLane, onRemoveLane, onAddLane, onSnap, onSeek,
-  colorLane, onChangeColorLane, onRemoveColorLane, onAddColorLane,
+  colorLane, onChangeColorLane, onRemoveColorLane, onAddColorLane, colorPalette, onSaveColor,
 }) => {
   const [open, setOpen] = useState(true);
   // ONLY THE ROWS THAT CARRY KEYS. A patched mode can run to forty-one channels; once a look is
@@ -234,6 +237,8 @@ export const FixtureTrack: React.FC<Props> = ({
                 onSeek={onSeek}
                 shadowedByLane={shadowedByLane}
                 onReleaseLane={onRemoveLane}
+                palette={colorPalette}
+                onSaveColor={onSaveColor}
               />
             )}
             {!shut && list.map((r) => (r.hit ? (
