@@ -1,6 +1,14 @@
 # One colour per fixture on the timeline — the colour track
 
-> **Status: PLAN — nothing built. Shape DECIDED with the owner 2026-09-25.**
+> **Status: P0 BUILT. Shape decided with the owner 2026-09-25.**
+>
+> `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
+> spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
+> emitter table has one owner and the inverse reads *that* copy) and by
+> `scripts/test-color-engine.cjs`, now part of `npm run verify`: it drives **all 791 additive mixing
+> modes in the shipped library** through the solver AND back through `resolveFixture`, and every one
+> reproduces all 13 reference colours within 2% (worst 1.3%).
+>
 > Goal, in the owner's words: *"every params of a fixture is exposed on the timeline so 3 or 4
 > channels for colors, it is not easy to work like this. Instead I would like to have a track for the
 > color and a visual feedback of the chosen color. I need also a way to interpolate with various
@@ -198,10 +206,20 @@ Almost none of this is new machinery; the feature is mostly *assembly* plus the 
 
 ## Phases
 
-**P0 — `services/colorEngine.ts`, pure, no UI.** The per-mode emitter set (beside `colorModel`), the
-NNLS solver, the colour-space conversions, the gamut test. Verified by the probe pattern already used
-for the emitter-capture change: drive real library profiles, resolve, measure error per family.
-*Lands alone, ships nothing visible.*
+**P0 — `services/colorEngine.ts`, pure, no UI. ✅ DONE.** The per-mode `colorCapability` (which
+control this fixture may be offered), the bounded least-squares fit, `hsv`/`oklab`, the wheel match
+and the per-mode memo. Two findings worth carrying forward:
+
+- **The iteration cap was a correctness knob, not a performance one.** At 600 iterations 262 of 791
+  modes were >2% out and it read as a gamut limit; at 6000 every mode is within 2% **at the same
+  cost** (8.2 µs), because the early-out fires immediately for easy cases and only a seven-emitter
+  hex fixture crawls. "The fixture cannot make that colour" is a very comfortable wrong answer.
+- **The folklore reason for colour spaces is wrong here, and the real one is narrower.** Straight-line
+  RGB does *not* go dark in the middle — these are linear emitter values and the dimmer owns
+  brightness. What it does is wash **complementary** pairs out to white (red→cyan midpoint: chroma
+  0.000). `oklab` is the default because it changes at the most even perceived rate (worst step-ratio
+  1.81 vs rgb 4.78, hsv 3.45); `hsv` is the deliberate choice when you want the fade to travel round
+  the wheel.
 
 **P1 — The seam.** `fixtures.<id>.color` storage + the `roleOverride` fan-out + precedence against
 per-channel lanes. Proven on the wire: author a colour, read the DMX bytes for RGB, RGBW, hex, CW/WW

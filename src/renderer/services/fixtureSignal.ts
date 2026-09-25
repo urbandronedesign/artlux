@@ -135,7 +135,13 @@ let latest: ReadonlyMap<string, FixtureState> = new Map();
 
 // Emitter roles that add light, and the linear RGB each contributes. Amber/UV/lime are real emitters
 // on modern fixtures and leaving them out makes a warm wash render stone cold.
-const EMITTERS: Partial<Record<ChannelRole, [number, number, number]>> = {
+//
+// EXPORTED, AND THE ONLY COPY. `services/colorEngine` inverts this table — "what must each emitter
+// do to make THIS colour" — and an inverse that disagrees with the forward direction is worse than
+// no inverse at all: the solver would author values that resolve back to a different colour than the
+// one asked for, and the 3D scene (which reads the fold) would disagree with the wire. So the
+// engine imports it rather than keeping its own. Guarded: one owner, like `roleValue`.
+export const EMITTERS: Partial<Record<ChannelRole, [number, number, number]>> = {
   red: [1, 0, 0], green: [0, 1, 0], blue: [0, 0, 1],
   white: [1, 1, 1], warmWhite: [1, 0.82, 0.62], coldWhite: [0.82, 0.9, 1],
   amber: [1, 0.65, 0.1], uv: [0.28, 0.05, 0.9], lime: [0.72, 1, 0.2], indigo: [0.3, 0.1, 1],

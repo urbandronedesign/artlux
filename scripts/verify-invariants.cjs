@@ -4128,6 +4128,38 @@ check(
   },
 );
 
+// ── Colour: the emitter table has ONE owner, and the inverse reads it ─────────────────────────
+check(
+  'the emitter table is declared once, and colorEngine inverts that copy',
+  'EMITTERS says what each emitter role contributes to the rendered colour. fixtureSignal reads ' +
+  'the rig through it (channels in, one RGB triple out, which is what the 3D beam is drawn with) ' +
+  'and colorEngine writes the rig through its INVERSE (a colour in, per-emitter values out). Those ' +
+  'two must be the same numbers or the app contradicts itself in the worst possible way: the solver ' +
+  'authors values that resolve back to a different colour than the one asked for, the 3D scene ' +
+  'shows one thing and the wire carries another, and every round trip through a take drifts a ' +
+  'little further. A copied table would be found the day someone tunes one amber and not the other.',
+  () => {
+    const OWNER = 'src/renderer/services/fixtureSignal.ts';
+    const ENGINE = 'src/renderer/services/colorEngine.ts';
+    const owner = read(OWNER);
+    if (!/export const EMITTERS/.test(owner)) return `${OWNER} no longer exports EMITTERS — the inverse has nothing to read`;
+    const engine = read(ENGINE);
+    if (!/import \{[^}]*EMITTERS[^}]*\} from '\.\/fixtureSignal'/.test(engine))
+      return `${ENGINE} no longer imports EMITTERS from fixtureSignal — it must invert the shipped table, not its own`;
+    // Anyone else declaring a role→RGB table is the drift this check exists for. Matched on the
+    // shape rather than the name, because a copy is rarely called EMITTERS.
+    const problems = [];
+    for (const f of walk('src/renderer')) {
+      if (f === OWNER) continue;
+      const src = read(f);
+      if (/(warmWhite|coldWhite)\s*:\s*\[\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*\]/.test(src)) {
+        problems.push(`${f} declares its own emitter→RGB table — import EMITTERS from fixtureSignal instead`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Automation: the display unit is DRAWN, never STORED ───────────────────────────────────────
 check(
   'a target\'s display map never reaches the clamp or the write path',
