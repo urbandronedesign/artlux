@@ -1,5 +1,152 @@
 # Changelog
 
+## v0.32.0
+
+### Colour is one thing again
+
+A light's colour used to be three or four separate rows on the timeline — Red, Green, Blue, White —
+each an identical grey curve, with nothing on screen telling you what they added up to. The fixture
+track now leads its COLOUR section with a single **Colour** row.
+
+- A **live swatch** shows what the fixture is making right now, following the rig as it changes.
+- The **strip** along the lane is the colour over time, drawn with the same maths that plays it.
+- A **diamond** is a colour key: drag it to move it, click it to edit and jump there, double-click the
+  strip to add one. The emitter rows stay underneath for trimming a channel by hand.
+
+**The control is the fixture's own.** A head with red, green and blue gets a picker; a **tuneable
+white** head gets Warm ↔ Cold and no hue at all, because it cannot make one; a **colour wheel** head
+gets its slots; a fixture with no colour channel has no row. Under the picker you can see what each
+emitter will actually be driven at, and if a colour is beyond what the fixture can reach it shows you
+the nearest one it *can* make, beside the one you asked for.
+
+### Fades that go where you meant
+
+Every colour key carries two separate choices. **Ease** is how fast the fade moves — linear, hold or
+bezier. **Path** is which colours it moves *through*: **oklab** changes at the most even rate and is
+the default, **hsv** travels round the wheel for a chase, and **rgb** goes in a straight line, which
+washes opposite colours out through white on the way.
+
+**Bezier is now a curve you can shape.** Select a key on any automation lane — colour, pan, dimmer,
+audio, anything — and drag its two handles. Until now `bezier` was a single fixed S-shape with no way
+to alter it. A double-click resets a handle.
+
+**A pose key can be eased too.** The clip inspector carries an Ease on the selected key. That setting
+has existed and worked for a long time and nothing could ever set it, so every authored look eased
+linearly whether you wanted it or not.
+
+### One colour across a group
+
+**+ Colour** at the bottom of the timeline colours a whole group with one lane. The row carries a
+**phase**: `0` is unison, `0.2` walks the colour along the group a fifth of a second per head, and a
+negative phase runs the chase backwards. It is the same spread a lighting clip uses.
+
+A **mixed group is fine** — three RGBW washes and a tuneable-white key light together get the richest
+control any of them can use, and each head then makes the colour its own way.
+
+### Named colours
+
+Save a colour to the project under a name — the house red, the gel everything matches — and keys
+**follow** it. Retune the colour once and every key using it retunes with it. **Detach** copies it
+onto one key so editing that key stops affecting the others. A key whose named colour has been deleted
+is drawn hollow and drives nothing, rather than quietly playing something else.
+
+### A light remembers its whole colour now
+
+Recording a busk or storing a pose used to keep only red, green and blue. On a **tuneable-white** rig
+that meant a recorded look came back with no colour in it at all, and on an **RGBW** head it was worse
+than missing: `red` was stored as the *blended* value, so playing it back lit the wrong emitters at
+the wrong levels. Takes and poses now carry **white, cold white, warm white, amber, UV, lime, indigo
+and colour temperature**.
+
+Takes recorded before this update replay exactly as they did — re-record one if you want it to carry
+the extra channels.
+
+### Fixes
+
+- **Automation on a moving light was dead in show mode.** Curves aimed at a fixture's channels never
+  ran in `--broadcast` or headless — the whole show, silently. They self-healed in the editor the
+  moment you touched anything, which is why nobody saw it. **If you run unattended shows with
+  automation on moving lights, this is the reason to take this update.**
+- The Colour row says **▲ N shadowed** when a curve on a single channel is overriding it, names the
+  channel, and offers to take it back. The emitter rows read **▲ Colour** while the Colour row is
+  driving them, so a row that never moves tells you why.
+- Two **Generic** fixtures added to the library, built from hand-written GDTF files: **Dimmer 1ch**
+  and **RGBW 4ch**, plus **CW-WW 2ch** for tuneable white.
+
+## v0.32.0
+
+### Colour is one thing again
+
+A light's colour used to be three or four separate rows on the timeline — Red, Green, Blue, White —
+each an identical grey curve, with nothing on screen telling you what they added up to. The fixture
+track now leads its COLOUR section with a single **Colour** row.
+
+- A **live swatch** shows what the fixture is making right now, following the rig as it changes.
+- The **strip** along the lane is the colour over time, drawn with the same maths that plays it.
+- A **diamond** is a colour key: drag it to move it, click it to edit and jump there, double-click the
+  strip to add one. The emitter rows stay underneath for trimming a channel by hand.
+
+**The control is the fixture's own.** A head with red, green and blue gets a picker; a **tuneable
+white** head gets Warm ↔ Cold and no hue at all, because it cannot make one; a **colour wheel** head
+gets its slots; a fixture with no colour channel has no row. Under the picker you can see what each
+emitter will actually be driven at, and if a colour is beyond what the fixture can reach it shows you
+the nearest one it *can* make, beside the one you asked for.
+
+### Fades that go where you meant
+
+Every colour key carries two separate choices. **Ease** is how fast the fade moves — linear, hold or
+bezier. **Path** is which colours it moves *through*: **oklab** changes at the most even rate and is
+the default, **hsv** travels round the wheel for a chase, and **rgb** goes in a straight line, which
+washes opposite colours out through white on the way.
+
+**Bezier is now a curve you can shape.** Select a key on any automation lane — colour, pan, dimmer,
+audio, anything — and drag its two handles. Until now `bezier` was a single fixed S-shape with no way
+to alter it. A double-click resets a handle.
+
+**A pose key can be eased too.** The clip inspector carries an Ease on the selected key. That setting
+has existed and worked for a long time and nothing could ever set it, so every authored look eased
+linearly whether you wanted it or not.
+
+### One colour across a group
+
+**+ Colour** at the bottom of the timeline colours a whole group with one lane. The row carries a
+**phase**: `0` is unison, `0.2` walks the colour along the group a fifth of a second per head, and a
+negative phase runs the chase backwards. It is the same spread a lighting clip uses.
+
+A **mixed group is fine** — three RGBW washes and a tuneable-white key light together get the richest
+control any of them can use, and each head then makes the colour its own way.
+
+### Named colours
+
+Save a colour to the project under a name — the house red, the gel everything matches — and keys
+**follow** it. Retune the colour once and every key using it retunes with it. **Detach** copies it
+onto one key so editing that key stops affecting the others. A key whose named colour has been deleted
+is drawn hollow and drives nothing, rather than quietly playing something else.
+
+### A light remembers its whole colour now
+
+Recording a busk or storing a pose used to keep only red, green and blue. On a **tuneable-white** rig
+that meant a recorded look came back with no colour in it at all, and on an **RGBW** head it was worse
+than missing: `red` was stored as the *blended* value, so playing it back lit the wrong emitters at
+the wrong levels. Takes and poses now carry **white, cold white, warm white, amber, UV, lime, indigo
+and colour temperature**.
+
+Takes recorded before this update replay exactly as they did — re-record one if you want it to carry
+the extra channels.
+
+### Fixes
+
+- **Automation on a moving light was dead in show mode.** Curves aimed at a fixture's channels never
+  ran in `--broadcast` or headless — the whole show, silently. They self-healed in the editor the
+  moment you touched anything, which is why nobody saw it. **If you run unattended shows with
+  automation on moving lights, this is the reason to take this update.**
+- The Colour row says **▲ N shadowed** when a curve on a single channel is overriding it, names the
+  channel, and offers to take it back. The emitter rows read **▲ Colour** while the Colour row is
+  driving them, so a row that never moves tells you why.
+- Two **Generic** fixtures added to the library, built from hand-written GDTF files: **Dimmer 1ch**
+  and **RGBW 4ch**, plus **CW-WW 2ch** for tuneable white.
+
+
 ## v0.31.1
 
 ### Shaders that react to people

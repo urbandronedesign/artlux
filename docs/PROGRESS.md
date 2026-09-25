@@ -1798,3 +1798,67 @@ a triple-click does not select the text of an `<input type=number>`.
 ⚠ **Not proven on site:** heading thresholds against the venue feed, the wall with real hands, trail
 length at the venue frame rate. The 3D PlaneObject is still a fixed 16:9 and does not follow a
 surface's aspect.
+
+## v0.32.0 — a colour is one thing, and a curve you can shape (2026-09-25)
+
+`0481a66`…`2db5482` · plan: [plans/colour-track.md](../plans/colour-track.md)
+
+**`services/colorEngine`** is the write direction nothing had: one authored colour → whatever emitters
+a fixture actually has. `fixtureSignal` already read the rig (channels in, one RGB triple out, which
+is what the 3D beam is drawn with); the only write-side colour code was frameEngine's CMY bridge and
+a pixel-only "subtract the minimum" white extraction that knows nothing about a profile. It is a FIT,
+not a conversion — the library holds RGB, RGBW, RGBA, RGBWA+UV, RGB+lime+indigo, CW/WW, CCT-only, CMY
+and wheel fixtures, so a per-family branch would be a dozen branches that each drift. `EMITTERS` is
+exported and inverted (guarded: one owner, and colorEngine reads *that* copy).
+
+**The iteration cap was a correctness knob, not a performance one.** At 600 passes, 262 of 791
+mixing modes were >2% out and it read as a gamut limit; at 6000 every mode is within 2% **at the same
+8.2 µs**, because the early-out fires at once for easy cases and only a seven-emitter hex fixture
+crawls. "The fixture cannot make that colour" is a very comfortable wrong answer. An efficacy
+tie-break was tried at three weights including zero, produced byte-identical output, and was deleted.
+
+**`colorCapability` decides what an operator may AUTHOR**, not just which channels to drive. Measured:
+a CW/WW head is up to 100% out on a hue because it cannot make one, so it is offered a temperature —
+and 247 shipped modes have a CCT fader as their only colour control. CCT is normalised, never kelvin:
+**0 of 145** `colorTemp` channels declare a range.
+
+**Storage** is `Timeline.colorLanes` (a colour, not channel values — four scalar lanes interpolate per
+channel by construction, so a path through hue or a perceptual space is unreachable once it is four
+lanes) with `ColorKeyValue` carrying an optional palette `{kind:'ref'}` that only the sampler sees.
+`colorPlayback` resolves refs and publishes something concrete to `colorOverlay`; the packer's role
+override realises it per fixture, memoised per fixture per frame because it is asked once per CHANNEL.
+Precedence: clip < cue < **colour lane** < automation lane < live. A group lane reuses `phaseOffset`
+(widened structurally to `PhaseSpread`, so `LightingClip` still satisfies it), with cursors per (lane,
+SLOT) because a phase makes each slot sample a different time.
+
+**Captured roles grew.** `roleValue` read red/green/blue off the *rendered* fold, which cannot be taken
+apart: a CW/WW busk stored a tint matching no channel on the fixture (silent replay), and an RGBW head
+at red 0.5 + white 1.0 stored `red` as 1.0 — worse than missing. `FixtureState.emit` keeps the raw
+per-emitter values beside the fold, and `roleValue` picks ONE model per fixture (`st.emit ? … : st.r`,
+a ternary and not `??` — guarded, because `??` records the tint *alongside* the named emitters).
+
+⚠ **A show bug found by a control assertion.** Fixture profiles load asynchronously,
+`compileAutomation` ran before they arrived and dropped every lane aimed at `fixtures.<id>.dmx.<key>`,
+and nothing recompiled when they landed. The editor self-healed on the next edit of any kind; **in
+`--broadcast`/headless nothing ever edits, so automation on a moving light was dead for the entire
+show**. One effect on `[fixtureProfiles]`.
+
+**UI.** `ColorRow` (live swatch as a DOM write, never state; gradient sampled through the engine's own
+sampler; portalled per-key editor) + draggable bezier handles in `CurveEditor`, which every lane in the
+app inherits — `bezier` had been one fixed shape since it was written. `LightingKey.curve` got its
+first writer ever.
+
+**What only a screenshot found:** a fixture whose only authored thing was a colour got no track at all;
+the empty-timeline hint card sat over the gradient (`isEmpty` counted clips, automation and audio but
+not colour); emitter rows read `Red 0%` on a visibly magenta fixture; and `window.prompt`, used by the
+first version of Save colour, does not exist in Electron at all.
+
+**Verified:** `npm run verify` (193 invariants + 11 doc checks + `scripts/test-color-engine.cjs`, which
+drives all 791 mixing modes through the solver AND back through `resolveFixture`);
+`scripts/test-color-lane.cjs` headless on Art-Net across RGB/RGBW/hex/CW-WW/dimmer-only, precedence
+with a control lane, and a 3-head group stagger; app-driven runs for the row, the handles, the shadow
+badge, the group menu, key dragging, named colours, and a save→reopen round trip.
+
+⚠ **Not closed:** `services/projectImport` does not walk `colorLanes` or the palette entries they
+reference, so a SCENE imported between projects loses its colour (moving a whole project is fine and
+is proven). `roleCurves` is still data-only.
