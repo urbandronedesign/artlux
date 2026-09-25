@@ -1,7 +1,7 @@
 # One colour per fixture on the timeline — the colour track
 
 > **Status: P0–P5 BUILT — the plan is complete.** Shape decided with the owner 2026-09-25.
-> What remains is listed under *Still open*: named colours, and dragging a colour key in time.
+> What remains is listed under *Still open*: named colours.
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -337,6 +337,12 @@ Usage docs ship in the same commits — [LIGHTING-SHOW.md](../docs/LIGHTING-SHOW
 | Colour row vs emitter rows | The colour row **sits above them, collapsed by default** — a channel you cannot see is a channel you cannot fix |
 
 **Still open:**
+
+0. ~~Dragging a colour key in time~~ — **done 2026-09-25**, after the owner hit it in real use. It was
+   the gap flagged at the end of P2 and left unbuilt: add, edit and delete existed and MOVE did not,
+   which is the one of the four you reach for first. Same discipline as CurveEditor's keyframe drag
+   (draft while down, one commit on release, clamped between neighbours, abandoned on a rebind or a
+   `pointercancel`), plus a 3px threshold so selecting a key to edit it cannot nudge it on the way.
 
 1. **Group colour (P5).** One colour across an ordered group is a different feature from one colour on
    one fixture, and is where the phase-spread machinery lives. Not scoped here.

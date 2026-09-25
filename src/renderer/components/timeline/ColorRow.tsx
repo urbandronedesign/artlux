@@ -78,6 +78,12 @@ export const ColorRow: React.FC<Props> = ({
   const [selected, setSelected] = useState<number | null>(null);
   const [draft, setDraft] = useState<ColorKey[] | null>(null);
   const swatchRef = useRef<HTMLSpanElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  // What was last handed to the draft, so the release path can commit it without reading back a
+  // state value that may not have re-rendered yet — CurveEditor keeps the same mirror.
+  const draftRef = useRef<ColorKey[] | null>(null);
+  const docKeyRef = useRef(docKey); docKeyRef.current = docKey;
   const [shadowOpen, setShadowOpen] = useState(false);
   const shadowAnchorRef = useRef<HTMLButtonElement | null>(null);
   const shadowBoxRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +113,7 @@ export const ColorRow: React.FC<Props> = ({
   }, [fixture.id]);
 
   const keys = draft ?? lane?.keys ?? [];
+  draftRef.current = draft;
 
   // ── the strip ────────────────────────────────────────────────────────────────────────────────
   // Sampled through the SAME function the engine plays, so the fade you look at is the fade the rig
@@ -144,6 +151,69 @@ export const ColorRow: React.FC<Props> = ({
     // A NEW KEY HOLDS WHAT WAS ALREADY THERE — adding one must not change the look, only give you
     // somewhere to change it from. Same contract as the `+` on an empty automation row.
     commit([...keys, { t: at, value: held, curve: 'linear' }]);
+  };
+
+  /**
+   * DRAG A KEY ALONG THE TIME AXIS. Same discipline as CurveEditor's keyframe drag, because it is
+   * the same gesture and the reasons are unchanged:
+   *
+   *   · a DRAFT while the pointer is down and ONE commit on release — a commit per pointermove is a
+   *     whole-document write at pointer rate;
+   *   · clamped between its neighbours, so the array stays sorted, which the sampler's cursor and
+   *     the gradient both assume;
+   *   · abandoned outright if the document rebinds mid-gesture, rather than merged into whatever
+   *     replaced it;
+   *   · `pointercancel` tears down too. Without it (a touchscreen pan takeover, where `pointerup`
+   *     never arrives) the key follows an unpressed cursor and the next click anywhere commits it.
+   *
+   * There is only one axis here: a colour has no value to plot against, so the vertical is not a
+   * quantity and dragging up and down means nothing.
+   */
+  const dragKey = (i: number) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;             // middle-drag pans the timeline
+    e.stopPropagation();
+    e.preventDefault();
+    setSelected(i);
+    const el = bodyRef.current;
+    if (!el || !lane) return;
+    const rect = el.getBoundingClientRect();
+    const base = keys;
+    const doc = docKey;
+    const startX = e.clientX;
+    let moved = false;
+
+    const move = (ev: PointerEvent) => {
+      if (doc !== docKeyRef.current) return;
+      // A CLICK IS NOT A DRAG. Below the threshold nothing is written at all, so selecting a key to
+      // edit it cannot nudge it by a pixel's worth of time on the way.
+      if (!moved && Math.abs(ev.clientX - startX) < 3) return;
+      moved = true;
+      setDragging(true);
+      const lo = i > 0 ? base[i - 1].t + 0.001 : 0;
+      const hi = i < base.length - 1 ? base[i + 1].t - 0.001 : Number.MAX_SAFE_INTEGER;
+      const raw = (ev.clientX - rect.left) / pxPerSec;
+      const t = ev.shiftKey ? raw : onSnap(raw);          // shift = off the snap grid
+      const next = base.slice();
+      next[i] = { ...base[i], t: Math.min(hi, Math.max(lo, Math.max(0, t))) };
+      setDraft(next);
+    };
+    const done = (allowCommit: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      setDragging(false);
+      if (!moved) { engine.seek(base[i].t); return; }     // a click: show the look this key makes
+      const d = draftRef.current;
+      setDraft(null);
+      if (!allowCommit || !d) return;
+      if (doc !== docKeyRef.current) return;              // rebound mid-drag → ABANDON, never merge
+      onChange({ ...lane, keys: [...d].sort((a, b) => a.t - b.t) });
+    };
+    const up = () => done(true);
+    const cancel = () => done(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   };
 
   // ── no colour at all ─────────────────────────────────────────────────────────────────────────
@@ -219,6 +289,7 @@ export const ColorRow: React.FC<Props> = ({
 
       {/* ── body: the gradient, and a diamond per key ──────────────────────────────────────── */}
       <div
+        ref={bodyRef}
         className="relative"
         style={{ width, height: COLOR_ROW_H }}
         onDoubleClick={(e) => {
@@ -243,12 +314,8 @@ export const ColorRow: React.FC<Props> = ({
               <div
                 key={`${k.t}-${i}`}
                 ref={selected === i ? keyAnchorRef : undefined}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  setSelected(i);
-                  engine.seek(k.t);      // show the look this key makes, the way a pose key does
-                }}
-                title={`Colour key @ ${k.t.toFixed(2)}s — click to edit`}
+                onPointerDown={dragKey(i)}
+                title={`Colour key @ ${k.t.toFixed(2)}s — drag to move it, click to edit (shift: ignore snapping)`}
                 className="absolute w-2.5 h-2.5 rotate-45 border cursor-pointer pointer-events-auto"
                 style={{
                   left: k.t * pxPerSec - 5,
@@ -307,7 +374,7 @@ export const ColorRow: React.FC<Props> = ({
           `sticky left-0 z-20`, which creates a stacking context — a panel rendered in place would
           be sealed inside it and clipped by the scroller, with correct geometry and correct text
           and only the pixels wrong. See usePopoverAnchor's header for the three times that bit. */}
-      {selectedKey && createPortal(
+      {selectedKey && !dragging && createPortal(
         <>
           <div className="fixed inset-0 z-popover" onPointerDown={() => setSelected(null)} />
           <div

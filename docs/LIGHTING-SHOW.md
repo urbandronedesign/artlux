@@ -314,7 +314,7 @@ it speaks for. A colour is one decision; three or four unrelated `0..1` rows are
 | **The swatch** | what this fixture is making **right now** — it follows the rig, including colour coming from a clip or a cue |
 | **`+`** | starts a colour on this fixture at the playhead, holding the colour it is already making. Creating it changes nothing |
 | **The strip** | the authored colour along the timeline, drawn through the same sampler that plays it. What you see is what the rig does |
-| **A diamond** | a colour key. Click it to edit and to seek there; double-click the strip to add one holding whatever was already there |
+| **A diamond** | a colour key. **Drag it to move it in time** (hold shift to ignore snapping), click it to edit and to seek there; double-click the strip to add one holding whatever was already there. A key cannot pass its neighbours |
 | **`✕`** | removes the lane. The fixture keeps the colour authored on its own channels |
 
 **The control is the fixture's, not a choice.** A head with red, green and blue gets a picker; a
