@@ -88,6 +88,7 @@ import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import { trackingPlayback, trackingDrawable } from '@artlux/plugin-lidar-tracking';
 import * as lightingPlayback from './services/lightingPlayback';
+import * as colorPlayback from './services/colorPlayback';
 import * as takeRecorder from './services/takeRecorder';
 import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
@@ -597,6 +598,17 @@ const App: React.FC = () => {
   // lane whose target just vanished would keep sampling a dead path, and one whose target just appeared
   // would never wake up.
   useEffect(() => { timelineEngine.recompileAutomation(); }, [audioMix]);
+  // …AND WHEN THE FIXTURE PROFILES LAND, for exactly the same reason — a lane on
+  // `fixtures.<id>.dmx.<key>` can only be enumerated once the profile that names that channel has
+  // resolved, and profiles arrive ASYNCHRONOUSLY from main.
+  //
+  // Without this, `compileAutomation` runs on project load, finds no such target, and drops the lane
+  // — "kept in the file, not evaluated". In the editor it self-heals invisibly: the next edit of any
+  // kind calls setData, which recompiles, so nobody ever saw it. IN HEADLESS / --broadcast NOTHING
+  // EVER EDITS, so every automation curve aimed at a moving light stayed dead for the entire show.
+  // Found by a control assertion in scripts/test-color-lane.cjs — the fixture it drives has no colour
+  // lane at all, which is what told the two failures apart.
+  useEffect(() => { timelineEngine.recompileAutomation(); }, [fixtureProfiles]);
 
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   // renderFps and outputStats are NOT App state — they are 1 Hz telemetry for one corner of the status
@@ -3646,6 +3658,7 @@ const App: React.FC = () => {
       timelineEngine.setData(activeTimeline);
       trackingPlayback.setData(activeTimeline); // replay recorded blob takes when the playhead crosses them
       lightingPlayback.setData(activeTimeline);  // …and lighting clips, which drive fixtures by role
+      colorPlayback.setData(activeTimeline);     // …and colour lanes, which drive one fixture's colour
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: activeTimeline });
   }, [activeTimeline, activeSceneId]);
   // FSM look-ahead preloading: when the machine enters a state, warm the timelines it can reach
@@ -3668,6 +3681,9 @@ const App: React.FC = () => {
   // Start the tracking-take replay loop once (main window only).
   useEffect(() => { trackingPlayback.start(); }, []);
   useEffect(() => { lightingPlayback.start(); }, []);
+  // The colour-lane replay loop. Needs no rig: a lane names its fixture, and the packer is what
+  // turns the colour into channels using that fixture's own profile.
+  useEffect(() => { colorPlayback.start(); }, []);
   // The rig a lighting clip resolves its group against. Kept fresh rather than captured, because a
   // clip names a GROUP and the group's membership (and order) is edited while the show is running.
   useEffect(() => { lightingPlayback.setRig(fixtures, groups, lightingPoses); }, [fixtures, groups, lightingPoses]);

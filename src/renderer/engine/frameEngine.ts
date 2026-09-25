@@ -17,6 +17,8 @@ import * as profilePack from '../services/profilePack';
 import * as fixtureSignal from '../services/fixtureSignal';
 import * as lightingOverlay from '../services/lightingOverlay';
 import * as lightingCue from '../services/lightingCue';
+import * as colorOverlay from '../services/colorOverlay';
+import * as colorEngine from '../services/colorEngine';
 import { perfMonitor } from '../services/perfMonitor';
 import * as renderClock from './renderClock';
 
@@ -177,6 +179,8 @@ class FrameEngine {
   // below. A field rather than a local so the packer still allocates nothing per frame; cleared each
   // pass because a re-patch can change a fixture's mode between frames.
   private cmySubtractive = new Map<string, boolean>();
+  /** Per-frame memo for the colour lane: fixture id → its realised roles, or null for "cannot". */
+  private colorRoles = new Map<string, Partial<Record<ChannelRole, number>> | null>();
   /** Per-surface key of the content already aspect-fitted, so we fit once per source. */
   private fittedAspect = new Map<string, string>();
 
@@ -657,9 +661,36 @@ class FrameEngine {
       return v;
     };
 
-    const roleOverride: profilePack.RoleOverride | undefined = (lightingOverlay.isActive() || cueLive)
+    // ONE AUTHORED COLOUR, REALISED PER FIXTURE — memoised for the frame, because this override is
+    // asked once per CHANNEL and all four of an RGBW head's colour channels are the same question.
+    // Without the memo a rig of forty heads would run the fit 160 times a frame for one colour.
+    const colorLive = colorOverlay.isActive();
+    const colorRoles = this.colorRoles;
+    colorRoles.clear();
+    const realisedFor = (fixtureId: string): Partial<Record<ChannelRole, number>> | undefined => {
+      const hit = colorRoles.get(fixtureId);
+      if (hit !== undefined) return hit ?? undefined;
+      const value = colorOverlay.get(fixtureId);
+      const fx = value ? currentFixtures.find((x) => x.id === fixtureId) : undefined;
+      const p = fx && isLight(fx) ? this.inputs.fixtureProfiles.get(fx.profileId!) : undefined;
+      const m = p && fx ? profilePack.modeOf(p, fx.profileMode) : undefined;
+      const out = value && p && m ? colorEngine.realiseColor(p, m, value) : null;
+      colorRoles.set(fixtureId, out);
+      return out ?? undefined;
+    };
+
+    const roleOverride: profilePack.RoleOverride | undefined = (lightingOverlay.isActive() || cueLive || colorLive)
       ? (fixtureId, channel) => {
           if (automationOverlay.owns(`fixtures.${fixtureId}.dmx.${channel.key}`)) return undefined;
+          // THE COLOUR LANE SITS HERE — above the clip and the cue, below a per-channel automation
+          // lane (the `owns` check above). A lane beats a clip, and a lane aimed at THIS CHANNEL
+          // beats one aimed at the fixture's colour, because it is the more specific instruction.
+          // Sparse: a fixture that cannot express the colour contributes nothing and keeps doing
+          // whatever it was doing, rather than snapping to black.
+          if (colorLive) {
+            const fromColor = realisedFor(fixtureId)?.[channel.role];
+            if (fromColor !== undefined) return fromColor;
+          }
           const cued = cueLive ? lightingCue.get(fixtureId, channel.role) : undefined;
           const direct = cued ?? lightingOverlay.get(fixtureId, channel.role);
           if (direct !== undefined) return direct;

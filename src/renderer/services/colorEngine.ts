@@ -1,4 +1,6 @@
-import type { ChannelRole, FixtureProfile, ProfileChannel, ProfileMode } from '../types';
+import type {
+  ChannelRole, ColorSpace, ColorValue, FixtureProfile, ProfileChannel, ProfileMode,
+} from '../types';
 import { EMITTERS, colorModel } from './fixtureSignal';
 
 // TURNING ONE AUTHORED COLOUR INTO WHATEVER EMITTERS A FIXTURE ACTUALLY HAS.
@@ -228,7 +230,9 @@ export const flagsForColor = (target: RGB): Record<'cyan' | 'magenta' | 'yellow'
 // round the wheel (a chase through hues rather than a mix between two lamps); `rgb` is kept because
 // it is what two real lamps crossfading actually do, and sometimes that is the honest answer.
 
-export type ColorSpace = 'rgb' | 'hsv' | 'oklab';
+// `ColorSpace` and `ColorValue` live in types.ts, with the persisted shapes that carry them —
+// re-exported here because this is where what they MEAN is written down.
+export type { ColorSpace, ColorValue };
 
 export function rgbToHsv(c: RGB): [number, number, number] {
   const [r, g, b] = c;
@@ -367,6 +371,70 @@ export function nearestSlot(channel: ProfileChannel, target: RGB): { from: numbe
  */
 const solveCache = new WeakMap<ProfileMode, Map<string, SolveResult>>();
 const q = (v: number) => Math.round(v * 255);
+
+/**
+ * ONE AUTHORED COLOUR → EVERY CHANNEL THIS FIXTURE NEEDS, in role space.
+ *
+ * The single entry point for the write direction, and the only place that knows a colour can be
+ * realised four different ways. Returning role values (rather than channel values) is what lets the
+ * packer convert with the target fixture's own profile — the same thing that lets a take recorded on
+ * one head replay on another.
+ *
+ * An empty result means "this fixture cannot express that colour" and is NOT an error: a dimmer-only
+ * fixture in a group that got a colour must simply carry on doing what it was doing, never snap to
+ * black. Sparse in, sparse out — the same rule a pose key follows.
+ */
+export function realiseColor(
+  profile: FixtureProfile,
+  mode: ProfileMode,
+  value: ColorValue,
+): Partial<Record<ChannelRole, number>> {
+  const cap = colorCapability(profile, mode);
+
+  // A TEMPERATURE STAYS A TEMPERATURE wherever the fixture can express one. Going through RGB would
+  // put a warm white through a mixing solve and back, and land somewhere near — near is not the same
+  // as the value the operator typed, and it would drift a little more on every round trip.
+  if (cap.control === 'temperature') {
+    return solveTemperature(cap, value.kind === 'cct' ? value.t : temperatureOf(value.rgb));
+  }
+
+  const rgb: RGB = value.kind === 'rgb' ? value.rgb : temperatureColor(value.t);
+
+  if (cap.control === 'mix') {
+    // A discharge head has no emitters to solve — its colour comes from flags over a white lamp.
+    if (cap.subtractive) return flagsForColor(rgb);
+    return solveCached(profile, mode, rgb).values;
+  }
+
+  if (cap.control === 'wheel' && cap.wheel) {
+    const slot = nearestSlot(cap.wheel, rgb);
+    // Mid-band, the same value the inspector's slot picker writes — a wheel lands ON a slot or not
+    // at all, and a value between two slots is a colour the fixture physically cannot show.
+    if (slot) return { colorWheel: ((slot.from + slot.to) / 2) / 255 };
+  }
+
+  return {};
+}
+
+/**
+ * Where a colour sits on the warm↔cold line, for a fixture that can only express that.
+ *
+ * A projection, and deliberately a crude one: everything off the line (a saturated blue, say) lands
+ * at whichever end is nearer rather than being refused, because a fixture that went dark mid-show
+ * because it was handed a colour it could not make would be worse than one that went cold. The UI
+ * is where an unreachable colour is reported — see `SolveResult.error`.
+ */
+function temperatureOf(rgb: RGB): number {
+  const warm = EMITTERS.warmWhite!, cold = EMITTERS.coldWhite!;
+  let num = 0, den = 0;
+  for (let i = 0; i < 3; i++) {
+    const d = cold[i] - warm[i];
+    num += (rgb[i] - warm[i]) * d;
+    den += d * d;
+  }
+  const t = den > 1e-9 ? num / den : 0.5;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
 
 export function solveCached(profile: FixtureProfile, mode: ProfileMode, target: RGB): SolveResult {
   let byColor = solveCache.get(mode);

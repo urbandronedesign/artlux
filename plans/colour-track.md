@@ -1,6 +1,6 @@
 # One colour per fixture on the timeline — the colour track
 
-> **Status: P0 BUILT. Shape decided with the owner 2026-09-25.**
+> **Status: P0 + P1 BUILT (no UI yet — that is P2). Shape decided with the owner 2026-09-25.**
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -221,9 +221,21 @@ and the per-mode memo. Two findings worth carrying forward:
   1.81 vs rgb 4.78, hsv 3.45); `hsv` is the deliberate choice when you want the fade to travel round
   the wheel.
 
-**P1 — The seam.** `fixtures.<id>.color` storage + the `roleOverride` fan-out + precedence against
-per-channel lanes. Proven on the wire: author a colour, read the DMX bytes for RGB, RGBW, hex, CW/WW
-and a CMY head.
+**P1 — The seam. ✅ DONE.** `Timeline.colorLanes` + `normalizeColorLanes`, `services/colorOverlay`
+(one colour per fixture, LTP — two sources asking for different colours do not compose),
+`services/colorPlayback` (samples every frame even while paused, so scrubbing moves the rig), and the
+fan-out in `frameEngine`'s role override, memoised per fixture per frame because the packer asks once
+per CHANNEL. Proven on the wire by `scripts/test-color-lane.cjs` — headless, no CDP, so the broken
+drag-and-drop step in the take harness is not in the way.
+
+**It found a pre-existing show bug on the way.** The precedence check failed, and a CONTROL assertion
+— a lane on a fixture with no colour lane at all — failed too, which is what told "precedence is
+wrong" apart from "automation never ran". Fixture profiles load asynchronously, `compileAutomation`
+runs before they arrive and drops every lane aimed at `fixtures.<id>.dmx.<key>`, and nothing
+recompiled when they landed. In the editor it self-heals invisibly (the next edit of any kind calls
+`setData`); **in headless / `--broadcast` nothing ever edits, so every automation curve on a moving
+light was dead for the whole show.** One effect on `[fixtureProfiles]` fixes it, and the precedence
+assertion then passed unchanged — the colour code had been right all along.
 
 **P2 — The row.** One colour row in the COLOUR group: live swatch, the adaptive control from §1, and
 the **gradient strip** along the lane (SVG `<linearGradient>` with stops sampled off the curve —

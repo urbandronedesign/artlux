@@ -813,6 +813,8 @@ export interface Timeline {
   /** Authored pose sequences (see LightingSequence). Inlined for the same reasons takes are. */
   lightingSequences?: LightingSequence[];
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
+  /** One authored COLOUR per fixture over the playhead — see ColorLane. */
+  colorLanes?: ColorLane[];
   // A timeline's OWN audio — audio that plays with THIS timeline's picture and restarts when it does.
   //
   // NOT a second bed. The two audio containers differ by CLOCK, and the clock follows the CONTAINER,
@@ -927,6 +929,37 @@ const normalizeAutomation = (a: unknown): AutomationLane[] => {
       .map(k => ({ ...k, curve: k.curve ?? 'linear' as CurveKind }))
       .sort((x, y) => x.t - y.t);
     return [{ ...l, enabled: l.enabled ?? true, keyframes } as AutomationLane];
+  });
+};
+
+// Coerce persisted COLOUR lanes. Same doctrine as normalizeAutomation — drop junk, default, sort —
+// with one addition that matters more here: a colour is a STRUCTURE, not a number, so a half-written
+// or hand-edited value has more ways to be wrong. Anything that is not a colour this app can realise
+// is dropped rather than repaired, because a repaired colour is a colour nobody authored.
+const normalizeColorValue = (v: unknown): ColorValue | null => {
+  if (!v || typeof v !== 'object') return null;
+  const c = v as Partial<ColorValue> & { rgb?: unknown; t?: unknown };
+  if (c.kind === 'cct') return Number.isFinite(c.t) ? { kind: 'cct', t: Math.min(1, Math.max(0, c.t as number)) } : null;
+  if (c.kind === 'rgb') {
+    const a = c.rgb;
+    if (!Array.isArray(a) || a.length < 3 || !a.slice(0, 3).every((n) => Number.isFinite(n))) return null;
+    return { kind: 'rgb', rgb: [0, 1, 2].map((i) => Math.min(1, Math.max(0, a[i] as number))) as [number, number, number] };
+  }
+  return null;
+};
+
+const normalizeColorLanes = (a: unknown): ColorLane[] => {
+  if (!Array.isArray(a)) return [];
+  return (a as Partial<ColorLane>[]).flatMap(l => {
+    if (!l || typeof l.id !== 'string' || typeof l.fixtureId !== 'string') return [];
+    const keys = (Array.isArray(l.keys) ? l.keys : [])
+      .flatMap((k: Partial<ColorKey>) => {
+        if (!k || !Number.isFinite(k.t)) return [];
+        const value = normalizeColorValue(k.value);
+        return value ? [{ ...k, t: k.t as number, value, curve: k.curve ?? 'linear' as CurveKind } as ColorKey] : [];
+      })
+      .sort((x, y) => x.t - y.t);
+    return [{ ...l, enabled: l.enabled ?? true, keys } as ColorLane];
   });
 };
 
@@ -1352,6 +1385,7 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     // itself as playing while it does. An authored true/false round-trips byte-for-byte.
     holdAtEnd: boolOrAbsent(t.holdAtEnd) ?? false,
     automation: normalizeAutomation(t.automation),
+    colorLanes: normalizeColorLanes(t.colorLanes),
     // BACK-COMPAT (Wave A) — see Timeline.boundedDuration for the whole story. `duration` used to be a
     // hint that never bounded playback, so old projects legitimately hold clips past it. Now that it IS
     // the end, obeying it blindly would silently truncate those shows. Raise it to cover the content —
@@ -1813,6 +1847,53 @@ export interface LightingTake {
   duration: number;           // seconds
   fps?: number;               // nominal capture rate, informational
   parts: LightingTakePart[];  // ordered
+}
+
+// ── COLOUR LANES — a colour is ONE decision, and the fixture works out how to make it ─────────
+//
+// The super track exposes every channel of a mode, which for colour means three or four independent
+// 0..1 rows with nothing on screen saying what they add up to. This is the other shape: one lane per
+// fixture holding COLOURS, realised onto whatever emitters that fixture actually has by
+// services/colorEngine (RGB, RGBW, hex, CW/WW, a CCT fader, CMY flags, or a wheel slot).
+//
+// WHY THE COLOUR IS STORED AND NOT THE CHANNEL VALUES. Four scalar lanes interpolate per channel by
+// construction, so a fade between two colours can only ever be a straight line in RGB — there is no
+// way to ask for a path through hue or a perceptual space, because by the time the values are on
+// four separate lanes the colour no longer exists as a thing to interpolate. Storing the colour also
+// means it survives being pointed at a different fixture: channel keys are fixture-specific, a
+// colour is not.
+//
+// INTENT IS PRESERVED, not flattened to RGB. A temperature authored on a tuneable-white head stays a
+// temperature — so it round-trips exactly, and a warm↔cold fade stays ON the warm-cold line instead
+// of wandering off it through an RGB midpoint the fixture cannot make.
+export type ColorValue =
+  /** A mixed colour, LINEAR 0..1 per channel — the same space fixtureSignal folds emitters into. */
+  | { kind: 'rgb'; rgb: [number, number, number] }
+  /** Warm (0) ↔ cold (1). Normalised, NOT kelvin: no shipped profile declares a kelvin range. */
+  | { kind: 'cct'; t: number };
+
+/**
+ * WHICH COLOURS A FADE PASSES THROUGH — a separate axis from `curve`, which decides how fast it
+ * gets there. See services/colorEngine for what each one does and why `oklab` is the default.
+ */
+export type ColorSpace = 'rgb' | 'hsv' | 'oklab';
+
+export interface ColorKey {
+  t: number;                        // TIMELINE seconds, like an automation keyframe
+  value: ColorValue;
+  /** Time easing for the segment STARTING here — the same vocabulary every other curve uses. */
+  curve?: CurveKind;
+  cx1?: number; cy1?: number; cx2?: number; cy2?: number;
+  /** The colour PATH for the segment starting here; default 'oklab'. */
+  space?: ColorSpace;
+}
+
+export interface ColorLane {
+  id: string;
+  /** The fixture this lane colours. One lane per fixture — a colour is not a group verb (yet). */
+  fixtureId: string;
+  enabled?: boolean;                // default true; false ⇒ authored but inert
+  keys: ColorKey[];                 // INVARIANT: sorted ascending by t
 }
 
 // ── POSE KEYFRAMES — authoring a look, rather than recording or generating one ────────────────
