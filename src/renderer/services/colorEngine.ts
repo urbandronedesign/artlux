@@ -97,6 +97,31 @@ export function colorCapability(profile: FixtureProfile, mode: ProfileMode): Col
   return cap;
 }
 
+/**
+ * WHAT CONTROL A WHOLE GROUP GETS — the richest any member can use.
+ *
+ * A group is routinely mixed: an RGBW wash and a tuneable-white key light in the same chase. Offering
+ * the *poorest* common control would take a hue away from heads that have one, for no better reason
+ * than that a fixture beside them cannot follow — and there is no need, because `realiseColor` already
+ * lands a colour on a temperature fixture (projected onto its warm-cold line) and a temperature on a
+ * mixing one. So the control is the richest, and each member still does what it can with it.
+ *
+ * The returned `emitters`/`cct`/`wheel` belong to the REPRESENTATIVE member and exist only so the
+ * picker can show a readout. Nothing solves against this: the packer solves per fixture, with that
+ * fixture's own profile, which is the entire point of publishing a colour rather than channel values.
+ */
+export function groupCapability(
+  members: Array<{ profile: FixtureProfile; mode: ProfileMode }>,
+): ColorCapability {
+  const rank: Record<ColorControl, number> = { mix: 3, temperature: 2, wheel: 1, none: 0 };
+  let best: ColorCapability = { control: 'none', emitters: [], subtractive: false };
+  for (const m of members) {
+    const cap = colorCapability(m.profile, m.mode);
+    if (rank[cap.control] > rank[best.control]) best = cap;
+  }
+  return best;
+}
+
 // ── The fit ──────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -329,6 +354,21 @@ export function linearToHex(c: RGB): string {
   const n = pk > 1 ? [c[0] / pk, c[1] / pk, c[2] / pk] as const : c;
   const byte = (v: number) => Math.round(Math.min(1, Math.max(0, toSrgb(v))) * 255).toString(16).padStart(2, '0');
   return `#${byte(n[0])}${byte(n[1])}${byte(n[2])}`;
+}
+
+/**
+ * WHAT A NEW COLOUR LANE STARTS AT, from whatever the rig is doing.
+ *
+ * The rule everywhere else in this timeline is that creating a lane changes nothing — an automation
+ * lane seeds one key holding the current value. A colour lane keeps that rule with ONE exception:
+ * a rig sitting at zero resolves to BLACK, and a black colour lane is indistinguishable from a
+ * broken one. It draws a black strip, it appears to do nothing, and the first thing the operator
+ * learns about the feature is that it does not work. So an unlit fixture seeds WHITE, which is
+ * visible, obviously an initial value, and one click from whatever was wanted.
+ */
+export function seedColorFrom(rgb: RGB | undefined): ColorValue {
+  const lit = rgb && Math.max(rgb[0], rgb[1], rgb[2]) > 0.02;
+  return { kind: 'rgb', rgb: lit ? [rgb![0], rgb![1], rgb![2]] : [1, 1, 1] };
 }
 
 /** The colour a stored value reads as, whichever kind it is — for a swatch, a strip, a gradient. */

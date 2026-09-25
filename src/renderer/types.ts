@@ -951,7 +951,10 @@ const normalizeColorValue = (v: unknown): ColorValue | null => {
 const normalizeColorLanes = (a: unknown): ColorLane[] => {
   if (!Array.isArray(a)) return [];
   return (a as Partial<ColorLane>[]).flatMap(l => {
-    if (!l || typeof l.id !== 'string' || typeof l.fixtureId !== 'string') return [];
+    // A lane must name exactly one target. Neither would drive nothing while still occupying a row;
+    // both would be ambiguous, and picking one for the operator is inventing intent.
+    const targets = (typeof l?.fixtureId === 'string' ? 1 : 0) + (typeof l?.groupId === 'string' ? 1 : 0);
+    if (!l || typeof l.id !== 'string' || targets !== 1) return [];
     const keys = (Array.isArray(l.keys) ? l.keys : [])
       .flatMap((k: Partial<ColorKey>) => {
         if (!k || !Number.isFinite(k.t)) return [];
@@ -1890,8 +1893,21 @@ export interface ColorKey {
 
 export interface ColorLane {
   id: string;
-  /** The fixture this lane colours. One lane per fixture — a colour is not a group verb (yet). */
-  fixtureId: string;
+  /**
+   * WHAT THIS LANE COLOURS — exactly one of the two, and they are different verbs.
+   *
+   * `fixtureId` is one head. `groupId` is an ORDERED group, and order is the spread axis exactly as
+   * it is for a lighting clip: the colour arrives at slot 0 first and walks along the group. Each
+   * member still realises the colour with its OWN emitters, so one authored colour drives an RGBW
+   * wash and a tuneable-white head side by side, each doing what it can.
+   */
+  fixtureId?: string;
+  groupId?: string;
+  /** Group only: seconds of delay per slot. 0 (or absent) is unison. */
+  phase?: number;
+  phaseMode?: LightingPhaseMode;
+  wings?: number;                   // 'wing' mode
+  blocks?: number;                  // 'block' mode
   enabled?: boolean;                // default true; false ⇒ authored but inert
   keys: ColorKey[];                 // INVARIANT: sorted ascending by t
 }

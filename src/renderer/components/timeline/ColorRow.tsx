@@ -18,7 +18,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ColorKey, ColorLane, ColorValue, Fixture, FixtureProfile, ProfileMode } from '../../types';
 import {
-  colorCapability, colorOf, hexToLinear, linearToHex, solveEmitters, temperatureColor, nearestSlot,
+  colorCapability, colorOf, hexToLinear, linearToHex, seedColorFrom, solveEmitters, temperatureColor,
+  nearestSlot,
 } from '../../services/colorEngine';
 import { sampleColorLane } from '../../services/colorPlayback';
 import * as fixtureSignal from '../../services/fixtureSignal';
@@ -44,6 +45,18 @@ interface Props {
   onAdd: (seed: ColorValue) => void;
   onSnap: (t: number) => number;
   onSeek: (clientX: number) => void;
+  /**
+   * Present when this row colours a GROUP rather than one head. `fixture`/`profile`/`mode` are then
+   * the representative member — the live swatch and the seed come from it — while the control comes
+   * from `cap` (the richest any member can use) and every member realises the colour for itself.
+   */
+  group?: {
+    name: string;
+    count: number;
+    cap: ReturnType<typeof colorCapability>;
+    phase: number;
+    onPhase: (seconds: number) => void;
+  };
   /** Per-channel lanes that are BEATING this row — see the badge. Empty when nothing is. */
   shadowedByLane?: Array<{ laneId: string; label: string; origin: 'scene' | 'global' }>;
   /** Delete one of those lanes, handing the channel back to the colour row. */
@@ -58,9 +71,10 @@ function liveColorOf(fixtureId: string): string {
 
 export const ColorRow: React.FC<Props> = ({
   fixture, profile, mode, lane, pxPerSec, width, docKey, onChange, onRemove, onAdd, onSnap, onSeek,
-  shadowedByLane = [], onReleaseLane,
+  shadowedByLane = [], onReleaseLane, group,
 }) => {
-  const cap = useMemo(() => colorCapability(profile, mode), [profile, mode]);
+  const own = useMemo(() => colorCapability(profile, mode), [profile, mode]);
+  const cap = group ? group.cap : own;
   const [selected, setSelected] = useState<number | null>(null);
   const [draft, setDraft] = useState<ColorKey[] | null>(null);
   const swatchRef = useRef<HTMLSpanElement | null>(null);
@@ -148,13 +162,30 @@ export const ColorRow: React.FC<Props> = ({
       <div className="sticky left-0 z-20 shrink-0 bg-surface-1/40 border-r border-line-1 flex items-center gap-1.5 px-2"
         style={{ width: GUTTER, height: COLOR_ROW_H }}>
         <Palette size={11} className="shrink-0 text-fg-3" />
-        <span className="text-micro text-fg-2">Colour</span>
+        <span
+          className={`text-micro text-fg-2 truncate ${group ? 'flex-1 min-w-0' : ''}`}
+          title={group
+            ? `${group.name} — ${group.count} heads, in the group's own order · mixes with ${controlLabel}`
+            : undefined}>
+          {group ? group.name : 'Colour'}
+        </span>
         <span
           ref={swatchRef}
-          title="What this fixture is making right now"
+          title={group ? `What ${group.name}'s first head is making right now` : 'What this fixture is making right now'}
           className="w-3.5 h-3.5 rounded-sm border border-line-1 shrink-0"
         />
-        {shadowedByLane.length > 0 ? (
+        {group && (
+          // THE SPREAD, on the row that owns it. Seconds of delay per slot — the same stagger a
+          // lighting clip applies, through the same phaseOffset, so a colour chase and a movement
+          // chase cannot disagree about what "0.2s per head" means.
+          <input
+            type="number" step={0.05} value={group.phase}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) group.onPhase(v); }}
+            title="Delay per slot, in seconds. 0 is unison; negative runs the chase backwards along the group."
+            className="w-12 shrink-0 bg-surface-0 border border-line-1 rounded-sm px-1 text-micro text-fg-2 tabular-nums"
+          />
+        )}
+        {group ? null : shadowedByLane.length > 0 ? (
           <button
             ref={shadowAnchorRef}
             onClick={() => setShadowOpen((v) => !v)}
@@ -177,7 +208,7 @@ export const ColorRow: React.FC<Props> = ({
               const st = fixtureSignal.snapshot().get(fixture.id);
               onAdd(cap.control === 'temperature'
                 ? { kind: 'cct', t: 0.5 }
-                : { kind: 'rgb', rgb: st ? [st.r, st.g, st.b] : [1, 1, 1] });
+                : seedColorFrom(st ? [st.r, st.g, st.b] : undefined));
             }}
             title="Start a colour on this fixture at the playhead, holding the colour it is making now"
             className="ml-auto shrink-0 text-fg-3 opacity-0 group-hover/color:opacity-100 hover:text-accent">

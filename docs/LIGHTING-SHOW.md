@@ -347,6 +347,26 @@ failure this whole area keeps producing:
 Taking back *deletes* the curve rather than folding it in, and that is deliberate: there is no way to
 turn an arbitrary per-channel curve into a colour without inventing values nobody authored.
 
+### Colouring a whole GROUP
+
+**+ Colour** at the bottom of the timeline offers the light groups; picking one gives the group its
+own colour row, named after it, sitting outside the fixture tracks because it belongs to no single
+head. One group, one lane.
+
+**Order is the spread axis**, exactly as it is for a lighting clip. The row carries a **phase** in
+seconds: `0` is unison, `0.2` walks the colour along the group a fifth of a second at a time, and a
+**negative** phase runs the chase backwards. It is the same `phaseOffset` a clip uses — wing, block
+and random included — so a colour chase and a movement chase cannot disagree about what "0.2 s per
+head" means.
+
+**A mixed group is the normal case.** Three RGBW washes and a tuneable-white key light in one group
+get the **richest** control any member can use — a picker, here — and each head then realises the
+colour with its own emitters: the washes mix it, and the key light lands on the nearest point of its
+warm-cold line. Offering the poorest common control instead would take a hue away from heads that
+have one, for no better reason than that something beside them cannot follow.
+
+The swatch shows what the group's **first** head is making.
+
 ### What a fixture track is not
 
 Its time axis is **the timeline**, not a clip — the header says `@ timeline` to make that plain. It does

@@ -69,7 +69,20 @@ function hash01(n: number): number {
  * This IS the effect engine. A console spreads a form across an ordered selection and calls the
  * result a chase, a wave or a fan depending on the spread; the form itself never changes.
  */
-export function phaseOffset(clip: LightingClip, index: number, total: number): number {
+/**
+ * JUST THE SPREAD FIELDS — a structural subset, so `LightingClip` still satisfies it and every
+ * existing caller is unchanged. A COLOUR LANE over a group needs the identical stagger ("the spread
+ * is the effect engine"), and the alternative was a second copy of wing/block/random that would
+ * disagree with this one the first time either was tuned.
+ */
+export interface PhaseSpread {
+  phase?: number;
+  phaseMode?: LightingClip['phaseMode'];
+  wings?: number;
+  blocks?: number;
+}
+
+export function phaseOffset(clip: PhaseSpread, index: number, total: number): number {
   const step = clip.phase ?? 0;
   if (!step || total <= 1) return 0;
 

@@ -1,7 +1,8 @@
-import type { ColorKey, ColorLane, ColorValue, Timeline } from '../types';
+import type { ColorKey, ColorLane, ColorValue, Fixture, FixtureGroup, Timeline } from '../types';
 import { timeline as engine } from './timeline';
 import { bezierEase, BEZ_DEFAULT } from './automation';
 import { mixColor, temperatureColor } from './colorEngine';
+import { phaseOffset } from './lightingTake';
 import * as overlay from './colorOverlay';
 
 // Replays COLOUR LANES during timeline playback: evaluate each fixture's colour at the playhead and
@@ -16,15 +17,48 @@ import * as overlay from './colorOverlay';
 // mean either threading profiles into playback or guessing — see colorOverlay's header.
 
 let data: Timeline | null = null;
+let fixtures: Fixture[] = [];
+let groups: FixtureGroup[] = [];
 let started = false;
 let hadOutput = false;
 
 // The sampler's cursor, per lane, exactly as lightingPlayback keeps one per (clip, fixture, role):
 // steady playback then costs ~0 steps instead of a binary search per lane per frame.
-const cursors = new Map<string, number>();
+const cursors = new Map<string, { i: number }>();
 let laneKeys = '';
 
+function cursorFor(laneId: string, slot: number): { i: number } {
+  const key = `${laneId}|${slot}`;
+  let c = cursors.get(key);
+  if (!c) { c = { i: 0 }; cursors.set(key, c); }
+  return c;
+}
+
 export function setData(t: Timeline | null): void { data = t; }
+
+/**
+ * The rig a GROUP lane resolves against. Kept fresh rather than captured, because a lane names a
+ * group and the group's membership — and its ORDER, which is the spread axis — is edited live.
+ */
+export function setRig(f: Fixture[], g: FixtureGroup[]): void { fixtures = f; groups = g; }
+
+/**
+ * The fixtures a lane drives, in the group's OWN order.
+ *
+ * Mapped through the group's id list rather than filtering `fixtures`, for the reason
+ * lightingPlayback documents: filtering would silently re-sort the spread into fixture-list order,
+ * and order is the show.
+ */
+function targetsOf(lane: ColorLane): Fixture[] {
+  if (lane.fixtureId) {
+    const f = fixtures.find((x) => x.id === lane.fixtureId);
+    return f ? [f] : [];
+  }
+  const g = groups.find((x) => x.id === lane.groupId);
+  if (!g) return [];
+  const byId = new Map(fixtures.map((f) => [f.id, f]));
+  return g.fixtureIds.map((id) => byId.get(id)).filter((f): f is Fixture => !!f);
+}
 
 /**
  * Interpolate one lane at `t`.
@@ -46,10 +80,10 @@ export function sampleColorLane(lane: ColorLane, t: number, cursor?: { i: number
   // a time; the UI sweeps the whole visible width every repaint to paint the gradient. Sharing one
   // would have the strip's sweep drag the engine's cursor backwards on every draw — still correct
   // (the search below re-seeks) but silently O(n) again, which is the regression nothing reports.
-  let i = cursor ? cursor.i : (cursors.get(lane.id) ?? 0);
+  let i = cursor ? cursor.i : 0;
   if (i < 0 || i >= keys.length - 1 || keys[i].t > t) i = 0;
   while (i < keys.length - 2 && keys[i + 1].t <= t) i++;
-  if (cursor) cursor.i = i; else cursors.set(lane.id, i);
+  if (cursor) cursor.i = i;
 
   const a = keys[i], b = keys[i + 1];
   const span = b.t - a.t;
@@ -103,8 +137,18 @@ function tick(playhead: number): void {
 
   overlay.begin();
   for (const lane of lanes) {
-    const value = sampleColorLane(lane, playhead);
-    if (value) overlay.set(lane.fixtureId, value);
+    // A single-fixture lane goes through this same path — one target, no phase, no stagger. One code
+    // path for both means a group lane cannot drift from the thing it generalises.
+    const targets = targetsOf(lane);
+    for (let i = 0; i < targets.length; i++) {
+      // ⚠ A CURSOR PER (LANE, SLOT). With a phase, slot i is sampled at a DIFFERENT time from slot
+      // i+1, so a cursor shared across the group would ping-pong between positions every frame —
+      // still correct (the sampler re-seeks) but silently O(n), the regression nothing reports.
+      // lightingPlayback's cursor pool is keyed per (clip, fixture, role) for exactly this reason.
+      const at = playhead - phaseOffset(lane, i, targets.length);
+      const value = sampleColorLane(lane, at, cursorFor(lane.id, i));
+      if (value) overlay.set(targets[i].id, value);
+    }
   }
   overlay.commit();
   hadOutput = true;

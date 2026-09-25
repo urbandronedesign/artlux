@@ -8,10 +8,11 @@
 // the half that cannot be unit-tested, because it only exists once the frame loop, the overlay, the
 // role override and the profile packer are all running together.
 //
-// HEADLESS, NOT CDP. The colour lane has no UI yet (that is P2), so there is nothing to click: the
-// app is booted with --headless --project=<file>, which runs the same index.html with ?headless=1
-// and the same frame engine, and the assertions are made on the Art-Net packets. That also sidesteps
-// scripts/test-lighting-take.cjs's broken drag-and-drop step entirely.
+// HEADLESS, NOT CDP. What is asserted here is what reaches the WIRE, which needs no UI at all: the
+// app is booted with --headless --project=<file>, running the same index.html with ?headless=1 and
+// the same frame engine, and the assertions are made on the Art-Net packets. That also sidesteps
+// scripts/test-lighting-take.cjs's broken drag-and-drop step entirely. (The row, the picker and the
+// group menu are UI, and are verified by driving the real app — see plans/colour-track.md.)
 //
 // The rig is one fixture of each colour family, so the four realisation paths in colorEngine are all
 // exercised on the wire in one run:
@@ -42,6 +43,10 @@ const RIG = [
   // A second RGB head, for the precedence check only — kept separate so the plain colour assertions
   // above stay pure.
   { id: 'prec', profileId: 'generic/rgb-fader', mode: '8bit', label: 'RGB + a Blue lane' },
+  // …and three for the GROUP lane, so a phase spread has something to walk along.
+  { id: 'g1', profileId: 'generic/rgb-fader', mode: '8bit', label: 'Group 1' },
+  { id: 'g2', profileId: 'generic/rgb-fader', mode: '8bit', label: 'Group 2' },
+  { id: 'g3', profileId: 'generic/rgb-fader', mode: '8bit', label: 'Group 3' },
 ];
 
 function buildProject() {
@@ -84,6 +89,21 @@ function buildProject() {
   // apart from "the lane never evaluated" — which is exactly how the first run of this check read.
   colorLanes.push({ id: 'cl_prec', fixtureId: 'fx_prec', keys: [key({ kind: 'rgb', rgb: [1, 0, 1] })] });
 
+  // ONE COLOUR OVER AN ORDERED GROUP, staggered — red at t=0 fading to green at t=6.
+  //
+  // ⚠ THE PHASE IS NEGATIVE ON PURPOSE (a reverse chase, which is a real look). Headless parks the
+  // playhead at 0 and there is no UI to scrub it, so a POSITIVE phase would have slots 1 and 2
+  // sampling negative time, where hold-before-the-first-key makes all three read the same red — an
+  // assertion that passes whether or not the stagger works at all. Negative offsets put the three
+  // slots at t = 0 / 3 / 6 of the same fade, which is a three-way difference nothing else produces.
+  colorLanes.push({
+    id: 'cl_group', groupId: 'grp', phase: -20, phaseMode: 'spread',
+    keys: [
+      { t: 0, value: { kind: 'rgb', rgb: [1, 0, 0] }, curve: 'linear', space: 'rgb' },
+      { t: 60, value: { kind: 'rgb', rgb: [0, 1, 0] }, curve: 'linear', space: 'rgb' },
+    ],
+  });
+
   // PRECEDENCE, ON THE WIRE. The RGB head also gets a per-channel automation lane on its BLUE
   // channel. A lane aimed at one channel is a NARROWER instruction than "make this fixture red", so
   // it has to win — and this is trap A from plans/colour-track.md: get it backwards and an operator
@@ -103,7 +123,9 @@ function buildProject() {
     version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
     surfaces: [], fixtures,
     controllers: [{ id: 'ctl', name: 'Lighting', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, startUniverse: 0, drives: 'light' }],
-    globalBrightness: 1, groups: [], scenes: [], cueBanks: [],
+    globalBrightness: 1,
+    groups: [{ id: 'grp', name: 'Chase', fixtureIds: ['fx_g1', 'fx_g2', 'fx_g3'] }],
+    scenes: [], cueBanks: [],
     scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, augmentaViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50 },
     timeline: {
       layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null, loop: false,
@@ -232,6 +254,25 @@ const note = (pass, what, detail) => {
       `blue=${chan('prec', 'blue')} — 255 would mean the colour won, 0 that the lane never ran`);
     note(chan('prec', 'red') === 255, 'and the colour still drives the channels the lane does not own',
       `red=${chan('prec', 'red')}`);
+    console.log('\n9. one colour over an ORDERED GROUP, staggered by a phase');
+    const at3 = (id) => [chan(id, 'red'), chan(id, 'green'), chan(id, 'blue')].join(',');
+    console.log(`   slot 0 = ${at3('g1')}   slot 1 = ${at3('g2')}   slot 2 = ${at3('g3')}`);
+    // ⚠ ASSERT THE RELATIONSHIP, NOT THE BYTES. The transport is RUNNING in headless, so the
+    // playhead is some small unknown number by the time these packets are read — the first version
+    // of this check expected exact values for a parked playhead and failed on a feature that was
+    // working. What a spread actually promises is that the colour WALKS: each slot is further along
+    // the same fade than the one before it, whatever the clock happens to say.
+    const g = (id) => chan(id, 'green');
+    const r = (id) => chan(id, 'red');
+    note(g('g1') < g('g2') && g('g2') < g('g3'), 'green rises along the group — the colour walks it',
+      `${g('g1')} → ${g('g2')} → ${g('g3')}`);
+    // NON-INCREASING, not falling — and the difference is the model, not a tolerance. A colour is a
+    // DIRECTION here (the brightest emitter goes to full, the dimmer owns brightness), so red holds
+    // at 255 for the whole first half of a red→green fade and only comes down once green is the
+    // brighter of the two. Expecting it to fall in step with green failed on correct output.
+    note(r('g1') >= r('g2') && r('g2') >= r('g3'), 'and red never rises along it',
+      `${r('g1')} → ${r('g2')} → ${r('g3')}`);
+    note(g('g3') - g('g1') > 120, 'the stagger is a real spread, not drift', `${g('g3') - g('g1')} apart`);
   } catch (e) {
     failed++;
     console.log(`\nharness error: ${e.message}`);

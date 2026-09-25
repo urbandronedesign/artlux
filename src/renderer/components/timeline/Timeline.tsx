@@ -21,10 +21,13 @@ import { Lane } from './Lane';
 import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { FixtureTrack } from './FixtureTrack';
+import { ColorRow } from './ColorRow';
 import { resolveMode } from '../../services/addressing';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
 import { groupKind, isLight } from '../../services/fixtureKind';
+import { groupCapability, seedColorFrom } from '../../services/colorEngine';
+import * as fixtureSignal from '../../services/fixtureSignal';
 import type { AutomationLane as AutoLane, ChannelRole, ColorLane as ColorLaneT, CurveKind, ColorValue as ColorValueT, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
@@ -144,6 +147,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // see deleteSelected, which is a live bug without it.
   const [selectedSource, setSelectedSource] = useState<'video' | 'bed' | 'timeline'>('video');
   const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null); // automation picker anchor
+  const [colorMenu, setColorMenu] = useState<{ x: number; y: number } | null>(null); // group-colour menu anchor
   // The automatable targets, polled — see refreshDefs. The SIGNATURE rides with the map so a poll that
   // finds nothing new can return the previous object and React can bail out of the render entirely.
   const [defs, setDefs] = useState(() => { const map = enumerateAutomationDefs(); return { map, sig: defsSignature(map) }; });
@@ -505,6 +509,38 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         : cur.filter((l) => l.fixtureId !== fixtureId),
     });
   }, []);
+
+  /** The same verb as patchColorLane, addressed by LANE id — a group lane has no fixtureId. */
+  const patchColorLaneById = useCallback((laneId: string, next: ColorLaneT | null) => {
+    const tl = timelineRef.current;
+    const cur = tl.colorLanes ?? [];
+    onChangeRef.current({
+      ...tl,
+      colorLanes: next ? cur.map((l) => (l.id === laneId ? next : l)) : cur.filter((l) => l.id !== laneId),
+    });
+  }, []);
+
+  /** Start a colour over a whole group, unison, holding what its first member is already doing. */
+  const addGroupColorLane = (groupId: string) => {
+    const tl = timelineRef.current;
+    if ((tl.colorLanes ?? []).some((l) => l.groupId === groupId)) return;   // one group, one lane
+    const g = fixtureGroups.find((x) => x.id === groupId);
+    const first = g ? rigFixtures.find((f) => f.id === g.fixtureIds[0]) : undefined;
+    const st = first ? fixtureSignal.snapshot().get(first.id) : undefined;
+    onChangeRef.current({
+      ...tl,
+      colorLanes: [...(tl.colorLanes ?? []), {
+        id: `cl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+        groupId, enabled: true, phase: 0,
+        keys: [{
+          t: Math.max(0, engine.getPlayhead()),
+          value: seedColorFrom(st ? [st.r, st.g, st.b] : undefined),
+          curve: 'linear',
+        }],
+      }],
+    });
+    setColorMenu(null);
+  };
 
   const addColorLane = (fixtureId: string, seed: ColorValueT) => {
     const tl = timelineRef.current;
@@ -1719,6 +1755,31 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     onToggleMax: () => onToggleMax?.(),
   });
 
+  // GROUP COLOUR LANES — resolved to a representative member (for the live swatch and the seed) plus
+  // the group's own capability. A lane whose group or whose members have vanished renders nothing
+  // rather than an empty row promising a control that can drive nobody.
+  const groupColorRows = useMemo(() => {
+    const out: Array<{ lane: ColorLaneT; name: string; count: number; rep: { fixture: Fixture; profile: FixtureProfile; mode: ProfileMode }; cap: ReturnType<typeof groupCapability> }> = [];
+    for (const lane of timeline.colorLanes ?? []) {
+      if (!lane.groupId) continue;
+      const g = fixtureGroups.find((x) => x.id === lane.groupId);
+      if (!g) continue;
+      const byId = new Map(rigFixtures.map((f) => [f.id, f]));
+      const members = g.fixtureIds
+        .map((id) => byId.get(id))
+        .filter((f): f is Fixture => !!f && isLight(f))
+        .map((f) => {
+          const profile = rigProfiles?.get(f.profileId!);
+          const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
+          return profile && mode ? { fixture: f, profile, mode } : null;
+        })
+        .filter((m): m is { fixture: Fixture; profile: FixtureProfile; mode: ProfileMode } => !!m);
+      if (!members.length) continue;
+      out.push({ lane, name: g.name, count: members.length, rep: members[0], cap: groupCapability(members) });
+    }
+    return out;
+  }, [timeline.colorLanes, fixtureGroups, rigFixtures, rigProfiles]);
+
   const authoring = !!author?.activeSceneId;
   // "Empty" means nothing on the canvas at all — no tracks, no clips, no automation lanes, no audio
   // lanes AND no colour lanes. Counting clips alone left the hint card sitting over a timeline full
@@ -1971,6 +2032,34 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             />
           ))}
 
+          {/* ── GROUP COLOUR ─────────────────────────────────────────────────────────────────
+              One colour over an ORDERED group, staggered by a phase. It sits outside the fixture
+              tracks because it belongs to no single head — the group is the subject. */}
+          {groupColorRows.map((r) => (
+            <ColorRow
+              key={r.lane.id}
+              fixture={r.rep.fixture}
+              profile={r.rep.profile}
+              mode={r.rep.mode}
+              lane={r.lane}
+              pxPerSec={pxPerSec}
+              width={Math.max(width, 100)}
+              docKey={docKey}
+              onChange={(next) => patchColorLaneById(r.lane.id, next)}
+              onRemove={() => patchColorLaneById(r.lane.id, null)}
+              onAdd={() => { /* a group row only exists once the lane does */ }}
+              onSnap={(t2) => snap(t2, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
+              onSeek={seekTo}
+              group={{
+                name: r.name,
+                count: r.count,
+                cap: r.cap,
+                phase: r.lane.phase ?? 0,
+                onPhase: (v) => patchColorLaneById(r.lane.id, { ...r.lane, phase: v }),
+              }}
+            />
+          ))}
+
           {/* add an automation lane / an audio lane */}
           <div className="flex border-b border-line-1">
             <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center gap-2 px-2 relative" style={{ width: GUTTER, height: 26 }}>
@@ -1989,6 +2078,40 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                   <button onClick={() => addAudioTrack('bed')} {...help('timeline.add-bed-track')} title="Add a BED track (rides the show clock; it does NOT restart on a scene recall)"
                     className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Bed</button>
                 </Tooltip>
+              )}
+              {/* + COLOUR — a colour over a whole GROUP. There is no picker dialog: the only choice
+                  is which group, and groups that already carry one are not offered again (one group,
+                  one lane), so the menu is the list itself. */}
+              {fixtureGroups.some((g) => groupKind(g, rigFixtures) === 'light') && (
+                <button
+                  onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setColorMenu({ x: r.left, y: r.bottom }); }}
+                  title="Colour a whole group with one lane, staggered by a phase"
+                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
+                  <Plus size={11} /> Colour
+                </button>
+              )}
+              {colorMenu && createPortal(
+                <>
+                  <div className="fixed inset-0 z-popover" onPointerDown={() => setColorMenu(null)} />
+                  <div className="fixed z-popover bg-surface-0 border border-line-2 rounded shadow-e3 py-1 text-mini w-52"
+                    style={{ left: colorMenu.x, top: colorMenu.y }}>
+                    {(() => {
+                      const taken = new Set((timeline.colorLanes ?? []).map((l) => l.groupId).filter(Boolean));
+                      const offer = fixtureGroups.filter((g) => groupKind(g, rigFixtures) === 'light' && !taken.has(g.id));
+                      if (!offer.length) {
+                        return <div className="px-2 py-1 text-fg-3">Every light group already has a colour lane.</div>;
+                      }
+                      return offer.map((g) => (
+                        <button key={g.id} onClick={() => addGroupColorLane(g.id)}
+                          className="w-full text-left px-2 py-1 hover:bg-surface-2 text-fg-1 flex items-center gap-2">
+                          <span className="flex-1 truncate">{g.name}</span>
+                          <span className="text-micro text-fg-3">{g.fixtureIds.length}</span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                </>,
+                document.body,
               )}
               {pickerAt && (
                 <AutomationTargetPicker

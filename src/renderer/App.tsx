@@ -3687,6 +3687,9 @@ const App: React.FC = () => {
   // The rig a lighting clip resolves its group against. Kept fresh rather than captured, because a
   // clip names a GROUP and the group's membership (and order) is edited while the show is running.
   useEffect(() => { lightingPlayback.setRig(fixtures, groups, lightingPoses); }, [fixtures, groups, lightingPoses]);
+  // A colour lane over a GROUP resolves the same way, and for the same reason: the membership and
+  // the ORDER (which is the spread axis) are edited while the show runs.
+  useEffect(() => { colorPlayback.setRig(fixtures, groups); }, [fixtures, groups]);
   // ⚠ DECLARATION ORDER IS LOAD-BEARING: THIS EFFECT MUST STAY *AFTER* THE `setData` EFFECT ABOVE.
   // Effects flush in declaration order. The engine's setData guard needs the engine's `playing` to be
   // still true when the new document lands, so setData has to run first in the flush. Hoisting this one

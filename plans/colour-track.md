@@ -1,7 +1,7 @@
 # One colour per fixture on the timeline — the colour track
 
-> **Status: P0–P4 BUILT. Shape decided with the owner 2026-09-25.** Only P5 (group colour) remains,
-> and it is a separate decision.
+> **Status: P0–P5 BUILT — the plan is complete.** Shape decided with the owner 2026-09-25.
+> What remains is listed under *Still open*: named colours, and dragging a colour key in time.
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -286,8 +286,30 @@ authored, so the honest verb is the destructive one, said plainly, with undo beh
 Verified in the app: the badge appears, the panel names `Blue`, and clicking Take back removes the
 curve, drops the badge and flips the Blue row to ▲ Colour.
 
-**P5 — (separate decision) group colour.** The same authored colour on a lighting clip over an
-ordered group, so one colour drives a mixed rig. Only after P1–P4 prove the shape.
+**P5 — Group colour. ✅ DONE**, and NOT as a lighting clip. A `ColorLane` now targets either a
+`fixtureId` or a `groupId`; the group form carries a phase and resolves through the **same
+`phaseOffset`** a clip uses, which was widened structurally (`PhaseSpread`) so `LightingClip` still
+satisfies it and no caller changed. A second copy of wing/block/random would have disagreed with the
+first the moment either was tuned.
+
+Three things worth keeping:
+- **A mixed group is the normal case**, so the group takes the RICHEST control any member can use
+  and each head realises the colour itself — `realiseColor` already lands a colour on a temperature
+  fixture and a temperature on a mixing one, so nothing had to be invented for it.
+- **Cursors are per (lane, SLOT).** With a phase, slot *i* samples a different time from slot *i+1*;
+  one shared cursor would ping-pong every frame — correct but silently O(n), which is exactly why
+  `lightingPlayback` keys its pool per (clip, fixture, role).
+- **A new lane seeds WHITE when the rig is dark.** Everywhere else in this timeline, creating a lane
+  changes nothing; here that rule produces a black lane on an unlit rig, which draws a black strip,
+  appears to do nothing, and teaches the operator the feature is broken. `seedColorFrom` owns the
+  exception.
+
+Proven on the wire (a 3-head group, red→green, staggered: green rises 5 → 138 → 255 across the
+slots) and in the app (**+ Colour** → the group by name → a row named after it, with its phase). The
+first version of the wire assertion expected exact bytes for a parked playhead — the transport runs
+in headless, so it failed on working output; it now asserts the relationship, which is what a spread
+actually promises. A second wrong assertion expected red to FALL as green rose: it does not, because
+a colour is a direction and the brightest emitter is always at full.
 
 ---
 
