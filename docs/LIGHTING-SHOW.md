@@ -446,6 +446,42 @@ Two things happen at stop, and both matter more than they look:
   to be — and a movement-only clip would then silently fight a colour clip layered under it. A
   pan-only busk must yield a pan-only take, so clips compose the way a console's effects do.
 
+### What a take captures
+
+Movement, intensity and **the colour the fixture can actually make** — per emitter, not as an RGB
+approximation of their sum:
+
+| | |
+|---|---|
+| **Movement** | `pan` · `tilt` · `zoom`, in degrees, so a move recorded on a 540° head replays as the same *angle* on a 630° one |
+| **Intensity** | `dimmer`, already folded with the shutter |
+| **Colour** | every emitter the mode addresses — `red` `green` `blue` `white` `coldWhite` `warmWhite` `amber` `uv` `lime` `indigo` — plus `colorTemp` for a CCT fader |
+
+Deliberately **not** captured: gobo, prism, focus, iris, frost, speed, macro and maintenance. A take is
+movement and look, not the whole desk.
+
+**A head is recorded in the colour model it actually has.** A fixture that *names* its emitters is
+captured emitter by emitter; one that cannot is captured as the rendered RGB it resolves to:
+
+- an **RGBW** head records `red 0.5` when its red channel is at half — not the 1.0 it *renders*, which
+  includes the white channel's contribution;
+- a **CW/WW** head records cold and warm, and **no** red/green/blue. There is nothing to record them
+  from, and recording the tint as well would author the same colour twice: a replay brighter than the
+  busk;
+- a **CMY discharge head** has no red channel at all, so it records the RGB it reads back *through* its
+  dichroic flags — and [the bridge](#precedence) writes it back through the same assignment. That round
+  trip is why cyan/magenta/yellow are not captured directly.
+
+Only emitters the **mode** addresses are recorded: a channel the fixture has but this personality does
+not reach is not a colour the rig can make.
+
+⚠ **Before 2026-09-25 only red/green/blue were captured**, so a busk on a tuneable-white rig stored a
+move with no colour in it — the CW/WW values were folded into a tint that matched no channel on the
+fixture, and the replay was silent. On an RGBW head it was worse than missing: `red` was recorded as
+the *folded* value, so a replay lit the wrong emitters at the wrong levels. **Takes recorded before
+that date still replay exactly as they did** — they simply carry fewer roles, and an absent role is
+"not driven". Re-record a take if you want it to carry W/CW/WW.
+
 Recording refuses to start while a lighting clip is already driving the rig, so a take can never be a
 recording of its own replay. That refusal — and the "nothing was selected" one, and "nothing moved, so
 there is no take" — arrive as **toasts**: a recorder you can arm from a keyboard shortcut in a

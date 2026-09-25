@@ -30,6 +30,19 @@ export interface FixtureState {
   goboKey?: string;
   /** True while a strobe/shutter channel is closed — the beam should not be drawn at all. */
   blackout: boolean;
+  /**
+   * EVERY COLOUR CHANNEL THIS MODE ADDRESSES, unfolded — raw 0..1, keyed by role, exactly as the
+   * fixture stores it. `r/g/b` above is the *rendered* colour: emitters summed, dichroic flags
+   * applied, then normalised by the peak. That is the right answer for drawing a beam and the wrong
+   * one for recording a busk, because it cannot be taken apart again — a warm white at full and a
+   * red+green at full both arrive as one RGB triple, and playing that back through an RGBW fixture
+   * lights the wrong emitters at the wrong levels.
+   *
+   * So the resolver keeps both: the fold for the 3D scene, and the originals for capture. Only the
+   * roles the MODE emits appear here — an unreachable channel must not be recordable, or a take
+   * would promise a colour the rig cannot make.
+   */
+  emit?: Partial<Record<ChannelRole, number>>;
 }
 
 // ── READING A ROLE OUT OF A RESOLVED FIXTURE — one owner, beside the state it reads ──────────
@@ -40,35 +53,81 @@ export interface FixtureState {
 // on silently ignoring it.
 //
 // ⚠ `ROLES_CAPTURED` MUST STAY THE ROLES THIS FUNCTION CAN RESOLVE, which is why they are adjacent.
-// They had already drifted: both former copies of the list included `'white'`, and no copy of the
-// switch had a `case 'white'` — because a white EMITTER is folded into r/g/b by the table above and
-// never reaches `FixtureState` as its own field. So the list promised a role that could not be
-// captured, and every consumer silently dropped it. Removing it changes no behaviour; it removes a
-// false promise.
+// They had already drifted once: both former copies of the list included `'white'` while no copy of
+// the switch had a `case 'white'`, so the list promised a role that could not be captured and every
+// consumer silently dropped it.
+//
+// THE FIX FOR THAT WAS TO SHRINK THE LIST, AND SHRINKING IT WAS ONLY HALF AN ANSWER. It made the
+// promise honest; it left a tuneable-white rig unrecordable, which is the whole show on a CW/WW or
+// RGBW install. The emitters are now resolvable for real, off `st.emit` — see the field's comment.
+//
+// RED/GREEN/BLUE ARE ANSWERED BY ONE MODEL OR THE OTHER, NEVER BOTH — and that `st.emit ? … : …`
+// is load-bearing, not a tidy `??`. A fixture that can NAME its emitters is captured emitter by
+// emitter; one that cannot is captured as the rendered triple:
+//   · named (`emit` present) — an RGBW head reports its own red channel, and reports NO red at all
+//     if it has none. A CW/WW head is the case that matters: with `??` it would fall through to the
+//     rendered tint and record red/green/blue *as well as* cold/warm white, so replaying it on a
+//     head that has both would drive the same colour twice, and the take would be brighter than the
+//     busk. Absent means absent;
+//   · unnamed (`emit` undefined) — a CMY head, a colour-wheel head, or a fixture with no colour at
+//     all. The fold is the only description of colour it can give: the flags have already been
+//     applied, and frameEngine's CMY_FROM_RGB bridge writes those values back through the same
+//     dichroic assignment. Losing this branch would re-break the CMY round trip that `SUBTRACTIVE`
+//     below exists to keep closed, which is a bug this code has already shipped once.
 export function roleValue(st: FixtureState | undefined, role: ChannelRole): number | undefined {
   if (!st) return undefined;
   switch (role) {
     case 'pan': return st.pan;
     case 'tilt': return st.tilt;
     case 'dimmer': return st.intensity;
-    case 'red': return st.r;
-    case 'green': return st.g;
-    case 'blue': return st.b;
+    case 'red': return st.emit ? st.emit.red : st.r;
+    case 'green': return st.emit ? st.emit.green : st.g;
+    case 'blue': return st.emit ? st.emit.blue : st.b;
     case 'zoom': return st.zoomDeg;
+    // One `case` per emitter, spelled out, rather than the `default: st.emit?.[role]` this obviously
+    // wants to be. `verify:invariants` reads the case LABELS out of this function and diffs them
+    // against ROLES_CAPTURED — that is the guard that caught the original `white` drift — and a
+    // catch-all resolves every role while naming none, so the check would report the whole list as
+    // unresolved. Keeping them literal keeps the two lists checkable against each other.
+    case 'white': return st.emit?.white;
+    case 'coldWhite': return st.emit?.coldWhite;
+    case 'warmWhite': return st.emit?.warmWhite;
+    case 'amber': return st.emit?.amber;
+    case 'uv': return st.emit?.uv;
+    case 'lime': return st.emit?.lime;
+    case 'indigo': return st.emit?.indigo;
+    case 'colorTemp': return st.emit?.colorTemp;
     default: return undefined;
   }
 }
 
 /**
- * The roles a busk RECORDS and a pose key STORES — deliberately narrow: a take is movement and
- * look, not maintenance. Exactly the set `roleValue` above can resolve, and it must stay that way.
+ * The roles a busk RECORDS and a pose key STORES — movement, intensity and the colour the rig can
+ * actually make. Exactly the set `roleValue` above can resolve, and it must stay that way.
+ *
+ * THE EMITTERS ARE HERE BECAUSE A LOOK IS NOT ONLY RGB. `white`, `coldWhite`/`warmWhite`, amber,
+ * UV, lime and indigo are separate emitters on a real fixture, and on a tuneable-white rig CW/WW
+ * *is* the look — recording a busk that dropped them stored a move with no colour in it. They are
+ * captured raw, per channel, so the playback drives the same emitters at the same levels rather
+ * than an RGB approximation of their sum.
+ *
+ * `colorTemp` rides along for the same reason in one channel instead of two: a CCT fader is how the
+ * other half of the tuneable-white rigs are built, and a take that could not carry it would replay
+ * a warm scene cold.
+ *
+ * Still deliberately narrow — a take is movement and look, not maintenance: no gobo, prism, focus,
+ * iris, frost, speed or macro. Cyan/magenta/yellow stay out on purpose; they are read back as RGB
+ * and written back through the CMY bridge, so adding them would author the same colour twice.
  *
  * Not to be confused with the roles a generated EFFECT can drive (`ROLES_GENERATABLE` in
  * services/lightingTake.ts) — that is a different question with a different answer, and the overlap
  * between them is what made two lists look like one list drifting.
  */
-export const ROLES_CAPTURED: readonly ChannelRole[] =
-  ['pan', 'tilt', 'dimmer', 'red', 'green', 'blue', 'zoom'];
+export const ROLES_CAPTURED: readonly ChannelRole[] = [
+  'pan', 'tilt', 'dimmer', 'zoom',
+  'red', 'green', 'blue',
+  'white', 'coldWhite', 'warmWhite', 'amber', 'uv', 'lime', 'indigo', 'colorTemp',
+];
 
 type Listener = (states: ReadonlyMap<string, FixtureState>) => void;
 const listeners = new Set<Listener>();
@@ -188,11 +247,20 @@ export function resolveFixture(
     if (emitter) {
       out.r += emitter[0] * v; out.g += emitter[1] * v; out.b += emitter[2] * v;
       hasEmitter = true;
+      // …and keep the original beside the fold, so a busk can record THIS emitter rather than the
+      // summed triple it disappears into. Written for every emitter the mode reaches, including
+      // cyan/magenta/yellow on an additive wash, where they genuinely are emitters.
+      (out.emit ??= {})[c.role] = v;
       continue;
     }
 
     switch (c.role) {
       case 'dimmer': dimmer = v; break;
+      // A CCT fader is colour, not maintenance: it is the other way a tuneable-white fixture is
+      // built. Nothing renders it yet (it is not an emitter — it retunes the ones there are), but it
+      // is captured, so a take replays a warm scene warm. Raw, because a physical range in kelvin
+      // would not survive being retargeted onto a fixture with a different CCT span.
+      case 'colorTemp': (out.emit ??= {}).colorTemp = v; break;
       case 'pan': out.pan = physicalValue(c, v) ?? v * 540; break;
       case 'tilt': out.tilt = physicalValue(c, v) ?? v * 270; break;
       case 'zoom': { const z = physicalValue(c, v); if (z !== null) out.zoomDeg = z; break; }

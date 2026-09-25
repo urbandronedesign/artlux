@@ -25,6 +25,18 @@
 // It writes its own project (six moving heads in two ordered groups, zero surfaces) and points
 // Art-Net at loopback on an unused port, so it never collides with the app's own input socket on
 // 6454 and never touches whatever the operator last had open. Prefs are backed up and restored.
+//
+// ⚠ KNOWN RED AT STEP 4 (2026-09-25), and it is the HARNESS, not the app. Checks 1–3 pass. The
+// synthetic drop reaches a drop target and no clip appears; the app's own drag-and-drop is not
+// known to be broken, and this was already failing before the capture change that day — it was
+// verified against HEAD on purpose, because a test that starts failing beside your edit looks like
+// your edit. Two causes have been found and fixed so far: the drop point was the constant x = 620,
+// which is only inside the track area at one window width, and the Lighting lane sits BELOW THE
+// FOLD at 1440x900, where hit-testing returns null for every x. What remains is that the drop lands
+// on a target that does not create the clip — most likely the lane HEADER row and the lane TRACK
+// row are two different `div.relative`s, so matching the header's y in the track column is only
+// right while both columns scroll together. Fix it by addressing the Lane element directly rather
+// than by hit-testing a point. Until then steps 4–5 assert nothing.
 
 const { spawn, execSync } = require('node:child_process');
 const dgram = require('node:dgram');
@@ -325,11 +337,28 @@ const saveProject = (page) => page.evaluate(() => {
       if (!id) return { err: 'the chip sets no application/artlux-take payload' };
       const laneInput = [...document.querySelectorAll('input')].find((i) => i.type !== 'range' && i.value === 'Lighting');
       if (!laneInput) return { err: 'no Lighting lane header — is the timeline drawer open?' };
-      const r = laneInput.closest('div.relative').getBoundingClientRect();
-      const y = r.y + r.height / 2, x = 620;
+      // SCROLL IT INTO VIEW FIRST. The lane list is taller than the window on a 1440x900 screen, so
+      // the Lighting lane sits below the fold — `elementFromPoint` then returns null for every x,
+      // whatever the drop point is, and the drag can never be aimed. Hit-testing only ever sees the
+      // viewport, so a lane you have not scrolled to is a lane you cannot drop on.
+      const laneRow = laneInput.closest('div.relative');
+      laneRow.scrollIntoView({ block: 'center' });
+      const r = laneRow.getBoundingClientRect();
+      const y = r.y + r.height / 2;
+      // The drop point is DERIVED from the lane, never a constant. It used to be x = 620, which is
+      // only inside the track area at one window width: at anything narrower `elementFromPoint`
+      // returns null and the harness died on `null.dispatchEvent` — a UI-moved failure that reads
+      // like a broken test. Walk right from the end of the lane header until something is actually
+      // under the cursor, and say so if nothing ever is.
+      let x = 0, target = null;
+      for (let probeX = Math.ceil(r.right) + 8; probeX < window.innerWidth - 8; probeX += 40) {
+        const el = document.elementFromPoint(probeX, y);
+        if (el) { x = probeX; target = el; break; }
+      }
+      if (!target) return { err: `nothing is under the lighting lane at y=${Math.round(y)} (viewport ${window.innerWidth}x${window.innerHeight}) — it is still outside the viewport after scrolling` };
       const dt = new DataTransfer();
       dt.setData('application/artlux-take', id);
-      document.elementFromPoint(x, y).dispatchEvent(
+      target.dispatchEvent(
         new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: y }));
       return { id };
     });

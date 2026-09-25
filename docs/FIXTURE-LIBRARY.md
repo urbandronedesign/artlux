@@ -216,12 +216,9 @@ themselves are what you hand to a console or a GDTF editor when reproducing one.
 **collapse into a single channel** unless their labels differ. Spaces are fine, in the name and in
 the `InitialFunction` node reference; write the label you want to read.
 
-⚠ **Only red / green / blue are CAPTURED roles.** `fixtureSignal.ts` folds every other emitter —
-`white`, `coldWhite`, `warmWhite`, amber, UV, lime — into the rendered r/g/b, so the 3D beam takes
-the right tint, but `ROLES_CAPTURED` is `pan · tilt · dimmer · red · green · blue · zoom`. A recorded
-busk or a stored pose therefore does **not** carry a W, CW or WW channel: set those by hand in the
-inspector, or they stay at their default. That is a property of how lights capture colour, not of
-these files — and it is the one thing to know before building a show on a tuneable-white rig.
+**Every emitter the fixture has is recorded** — see *What a take captures* below. Until 2026-09-25
+only red/green/blue were, which made a tuneable-white rig unrecordable; the CW-WW fixture above is
+what surfaced it.
 
 Never edit `resources/fixture-library/` itself — the build wipes it.
 
@@ -289,6 +286,16 @@ white channel and a pose key never stored one. The resolver and `ROLES_CAPTURED`
 [fixtureSignal.ts](../src/renderer/services/fixtureSignal.ts) so they cannot disagree, and the
 effect-driveable list is `ROLES_GENERATABLE`, named for its own question rather than being a second
 alias for the same array. Invariant-guarded.
+
+**That fix made the promise honest and left the hole open**, which is worth knowing as a shape: the
+list was shrunk to what the resolver could answer, and what the resolver could answer was decided by
+a rendering concern — the emitter fold exists to give the 3D scene one tint. So *"the code is
+consistent"* and *"a tuneable-white rig can be recorded"* were two different questions, and closing
+the first one read as closing both. `FixtureState` now carries the fold **and** the unfolded `emit`
+map, and a fixture is captured in the colour model it actually has —
+[LIGHTING-SHOW.md ▸ What a take captures](LIGHTING-SHOW.md#what-a-take-captures). Also invariant-guarded,
+because the way to reintroduce the bug is a one-character edit: `??` in place of the ternary silently
+records the tint *alongside* the named emitters.
 
 `unknown` is an honest label, not a failure: ~8.5% of channels land there. Such a channel is still
 addressed, still occupies its slot and is still controllable by hand — it just gets no role-aware

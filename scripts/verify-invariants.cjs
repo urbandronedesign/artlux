@@ -4095,6 +4095,39 @@ check(
   },
 );
 
+// ── Lighting: a named emitter is captured as ITSELF, never as the rendered fold ───────────────
+check(
+  'red/green/blue are captured from the emitters or from the fold, never from both',
+  'FixtureState carries colour twice on purpose: r/g/b is the RENDERED tint (emitters summed, ' +
+  'dichroic flags applied, peak-normalised) for the 3D scene, and `emit` is the raw per-channel ' +
+  'value for CAPTURE. The fold cannot be taken apart again — an RGBW head at red 0.5 + white 1.0 ' +
+  'renders r=1.0, so a busk recorded `red` as 1.0 and replaying it lit the wrong emitters at the ' +
+  'wrong levels. So roleValue picks ONE model per fixture: `emit` when the mode names its ' +
+  'emitters (absent means the fixture genuinely has no red channel), the fold when it cannot (a ' +
+  'CMY head reads back through its flags, and frameEngine CMY_FROM_RGB writes it back the same ' +
+  'way). Written with `??` instead of the ternary, a CW/WW fixture falls through to the tint and ' +
+  'records red/green/blue AS WELL AS cold/warm white — the same colour authored twice, and a ' +
+  'replay brighter than the busk. Both halves are load-bearing: drop the fold branch and the CMY ' +
+  'round trip breaks (a bug this file has already shipped once); drop the emit branch and a ' +
+  'tuneable-white rig records a move with no colour in it.',
+  () => {
+    const OWNER = 'src/renderer/services/fixtureSignal.ts';
+    const owner = read(OWNER);
+    if (!/emit\?: Partial<Record<ChannelRole, number>>/.test(owner))
+      return `${OWNER}: FixtureState no longer carries the unfolded \`emit\` map — capture would fall back to the rendered tint`;
+    if (!/\(out\.emit \?\?= \{\}\)\[c\.role\] = v;/.test(owner))
+      return `${OWNER}: resolveFixture no longer records the raw emitter value beside the fold`;
+    for (const [role, folded] of [['red', 'r'], ['green', 'g'], ['blue', 'b']]) {
+      const wanted = new RegExp(`case '${role}': return st\\.emit \\? st\\.emit\\.${role} : st\\.${folded};`);
+      if (!wanted.test(owner)) {
+        return `${OWNER}: roleValue must read ${role} as \`st.emit ? st.emit.${role} : st.${folded}\` — `
+          + 'a ?? fallback records the rendered tint alongside the named emitters, authoring the same colour twice';
+      }
+    }
+    return null;
+  },
+);
+
 // ── Automation: the display unit is DRAWN, never STORED ───────────────────────────────────────
 check(
   'a target\'s display map never reaches the clamp or the write path',
