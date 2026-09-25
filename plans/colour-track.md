@@ -1,6 +1,7 @@
 # One colour per fixture on the timeline — the colour track
 
-> **Status: P0 + P1 + P2 BUILT and visible. Shape decided with the owner 2026-09-25.**
+> **Status: P0–P3 BUILT. Shape decided with the owner 2026-09-25.** P4 (shadow reporting) and
+> P5 (group colour) remain.
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -253,8 +254,23 @@ Three things only a screenshot found, all of them "correct DOM, wrong pixels":
 And one honesty fix: the Path selector is hidden on a temperature, where two keys interpolate along
 the warm-cold line and the colour space is ignored.
 
-**P3 — Interpolation.** The `space` field, the picker on a key, and the strip redrawn through the
-chosen path so the fade you see is the fade you get.
+**P3 — Interpolation. ✅ DONE**, all three gaps:
+- the **colour path** (`space`) and its picker landed with P2, and the strip is drawn through the
+  engine's own sampler, so the fade on screen is the fade the rig plays;
+- **bezier handles are draggable**, in `CurveEditor` — which means every lane in the app, not just
+  colour. `bezier` had been one fixed shape (`BEZ_DEFAULT`) with no way to alter it. Handles are
+  normalised into the segment's own unit box (the reason moving a neighbouring key never tears a
+  curve), shown only for the selected key, and absent on a flat segment where `cy` would divide by
+  zero and an ease would be invisible anyway;
+- **a pose key's `curve` has a UI at last** — the first writer since the field was added. It was
+  honoured by the compiler the whole time and settable by nothing, so every authored look eased
+  linearly. `roleCurves` beneath it is still data-only: one control at a time.
+
+Verified by driving the real app: selecting a bezier key reveals two handles, dragging one moves it
+~90px and it **stays** there after release (which is what proves the commit, since the draft is
+dropped on pointerup), and the drawn path changes. The first version of that check compared the
+wrong SVG path in the document and reported "unchanged" while the screenshots plainly showed the
+curve reshaping — the assertion was wrong, not the feature.
 
 **P4 — Conflict reporting.** Trap A badges + "absorb this lane into the colour row".
 

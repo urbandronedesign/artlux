@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type {
-  ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingKey, LightingPhaseMode, LightingTake, VideoClip,
+  ChannelRole, CurveKind, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingKey, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
 import { groupKind, profileOf } from '../../services/fixtureKind';
 import { ROLES_GENERATABLE } from '../../services/lightingTake';
@@ -44,6 +44,8 @@ interface Props {
   /** The pose key the operator clicked on the clip, if any — edited slot by slot below. */
   selectedKey?: LightingKey | null;
   onPatchKeySlot?: (slot: number, role: ChannelRole, value: number | undefined) => void;
+  /** Shape the segment STARTING at the selected key — see the Ease row below. */
+  onPatchKeyCurve?: (curve: CurveKind) => void;
   takes: LightingTake[];
   onChange: (patch: Partial<LightingClip>) => void;
   onClose: () => void;
@@ -59,7 +61,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 const sel = 'flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none';
 const num = 'w-16 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-right text-fg-1 num focus:border-accent focus:outline-none';
 
-export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, selectedKey, onPatchKeySlot, takes, onChange, onClose }) => {
+export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, selectedKey, onPatchKeySlot, onPatchKeyCurve, takes, onChange, onClose }) => {
   const l = clip.lighting ?? {};
   const usingTake = !!l.takeId;
   const role = l.effect?.role ?? 'pan';
@@ -165,6 +167,23 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures,
             <span>Key @ {selectedKey.t.toFixed(2)}s</span>
             <span>{selectedKey.slots.length === 1 ? 'whole group' : `${selectedKey.slots.length} slots`}</span>
           </div>
+          {/* EASE — the first UI ever to write `LightingKey.curve`.
+              The field has existed since pose keys did, `lightingSequence.compile` has always
+              honoured it, and nothing could set it: every authored look eased linearly whatever the
+              operator wanted. A type that works and cannot be reached is indistinguishable from a
+              type that does not work. (`roleCurves`, the per-role override underneath it, is still
+              data-only — one control at a time.) */}
+          <Row label="Ease">
+            <select
+              value={selectedKey.curve ?? 'linear'}
+              onChange={(e) => onPatchKeyCurve?.(e.target.value as CurveKind)}
+              className={sel}
+              title="How the look moves INTO the next key. Shapes the segment starting here.">
+              <option value="linear">linear</option>
+              <option value="hold">hold — snap at the next key</option>
+              <option value="bezier">bezier — ease in and out</option>
+            </select>
+          </Row>
           {/* A key may instead REFERENCE a library pose, and inline slots win when both exist — so
               editing here would silently promote the key off the library look it was sharing. Say
               that rather than offering an edit whose effect is not what it appears to be. */}

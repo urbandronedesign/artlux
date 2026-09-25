@@ -474,6 +474,11 @@ the toolbar.
   drag the grip to reorder, drag the header's bottom edge to resize height. **Order is depth:** the top
   track is front-most in the Program composite and the bottom one sits behind everything, so **+ Track**
   adds on top — what you just added is what you see. A reorder drags live and commits once on release.
+- **Automation keys:** drag a diamond to move it (shift = value only, alt = time only), double-click
+  to edit its value, time and **ease**, right-click to delete. An ease of **bezier** gives the key two
+  **handles**: select the key and drag them to shape that segment. They are bounded to the segment, so
+  moving either end keeps the shape you drew, and a double-click resets a handle. A segment whose ends
+  hold the same value has no handles — there is nothing for an ease to move.
 - **Markers:** **M** adds at the playhead; click a marker to seek, Alt/right-click to delete,
   double-click to edit its note.
 - **Range:** **I/O** (or the toolbar **Set In**/**Set Out** buttons) set the timeline in/out points,

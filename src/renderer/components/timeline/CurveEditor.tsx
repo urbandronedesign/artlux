@@ -210,6 +210,70 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
     window.addEventListener('pointercancel', cancel);
   };
 
+  // ── BEZIER HANDLES ───────────────────────────────────────────────────────────────────────────
+  //
+  // `bezier` was one fixed shape until now — BEZ_DEFAULT, applied on selection, with no way to alter
+  // it. The curve kind was a NAME for an ease rather than an ease you could author, so "linear, hold
+  // or that one S" was the whole vocabulary, in every lane in the app.
+  //
+  // ⚠ THE HANDLES ARE NORMALISED INTO THE SEGMENT'S OWN UNIT BOX, never absolute time/value —
+  // automation.ts:44-49 chose that so DRAGGING A KEYFRAME NEVER INVALIDATES ITS NEIGHBOURS' CURVES.
+  // Converting to pixels and back per segment is what keeps that true: move either end and the shape
+  // rides along instead of tearing.
+  const segmentOf = (i: number) => {
+    const a = kfs[i]; const b = kfs[i + 1];
+    if (!a || !b || a.curve !== 'bezier') return null;
+    const dt = b.t - a.t;
+    if (dt <= 0) return null;
+    const dy = valueToY(b.v) - valueToY(a.v);
+    // A FLAT SEGMENT HAS NO HANDLES, on purpose: `cy` is a fraction of the value CHANGE, so with no
+    // change there is nothing for the vertical axis to mean and the mapping divides by zero. Easing
+    // a segment whose endpoints are equal is also invisible by construction — the value never moves.
+    if (Math.abs(dy) < 4) return null;
+    return { a, b, dt, dv: b.v - a.v };
+  };
+
+  const dragHandle = (i: number, which: 1 | 2) => (e: React.PointerEvent) => {
+    if (readOnly) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const seg = segmentOf(i);
+    const el = bodyRef.current;
+    if (!seg || !el) return;
+    const rect = el.getBoundingClientRect();
+    const base = keyframes;
+    const doc = docKeyRef.current;
+    const move = (ev: PointerEvent) => {
+      if (doc !== docKeyRef.current) return;
+      const cx = clamp(((ev.clientX - rect.left) / pxPerSec - seg.a.t) / seg.dt, 0, 1);
+      // `cy` is deliberately NOT clamped to [0,1] — overshoot is a real ease (a fade that goes past
+      // its target and settles back), and automation.ts's sampler supports it. It is bounded only
+      // loosely, so a handle cannot be flung somewhere it can never be grabbed again.
+      const cy = clamp((yToValue(ev.clientY - rect.top) - seg.a.v) / seg.dv, -1.5, 2.5);
+      const next = base.slice();
+      next[i] = which === 1 ? { ...base[i], cx1: cx, cy1: cy } : { ...base[i], cx2: cx, cy2: cy };
+      draftRef.current = next;
+      onDraft(next);
+    };
+    const done = (allowCommit: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      const d = draftRef.current;
+      draftRef.current = null;
+      onDraft(null);
+      if (!allowCommit || !d) return;
+      if (doc !== docKeyRef.current) return;
+      commit(d);
+    };
+    const up = () => done(true);
+    const cancel = () => done(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+  };
+
   const addAt = (e: React.MouseEvent) => {
     if (readOnly) return;   // see commit(): no strictNullChecks, so every write path guards itself
     const el = bodyRef.current;
@@ -303,7 +367,49 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
         <line x1={0} y1={valueToY(max)} x2={width} y2={valueToY(max)} className="stroke-line-1/40" strokeWidth={1} />
         <line x1={0} y1={valueToY(min)} x2={width} y2={valueToY(min)} className="stroke-line-1/40" strokeWidth={1} />
         <path d={path} fill="none" stroke={color ?? 'currentColor'} className="text-accent" strokeWidth={1.5} />
+        {/* The tethers, drawn UNDER the diamonds so a handle never hides the key it belongs to. */}
+        {!readOnly && sel !== null && (() => {
+          const seg = segmentOf(sel);
+          if (!seg) return null;
+          const k = kfs[sel];
+          const hx = (cx: number) => (seg.a.t + cx * seg.dt) * pxPerSec;
+          const hy = (cy: number) => valueToY(seg.a.v + cy * seg.dv);
+          const d = BEZ_DEFAULT;
+          return (
+            <g className="stroke-fg-3/60">
+              <line x1={seg.a.t * pxPerSec} y1={valueToY(seg.a.v)} x2={hx(k.cx1 ?? d.cx1)} y2={hy(k.cy1 ?? d.cy1)} strokeWidth={1} />
+              <line x1={seg.b.t * pxPerSec} y1={valueToY(seg.b.v)} x2={hx(k.cx2 ?? d.cx2)} y2={hy(k.cy2 ?? d.cy2)} strokeWidth={1} />
+            </g>
+          );
+        })()}
       </svg>
+
+      {/* ── THE TWO HANDLES ────────────────────────────────────────────────────────────────────
+          Only for the SELECTED key's segment: a lane of twenty bezier keys would otherwise carry
+          forty grab targets over the curve it is trying to show. */}
+      {!readOnly && sel !== null && (() => {
+        const seg = segmentOf(sel);
+        if (!seg) return null;
+        const k = kfs[sel];
+        const d = BEZ_DEFAULT;
+        const pts: Array<{ which: 1 | 2; cx: number; cy: number }> = [
+          { which: 1, cx: k.cx1 ?? d.cx1, cy: k.cy1 ?? d.cy1 },
+          { which: 2, cx: k.cx2 ?? d.cx2, cy: k.cy2 ?? d.cy2 },
+        ];
+        return pts.map((p) => (
+          <div
+            key={p.which}
+            onPointerDown={dragHandle(sel, p.which)}
+            onDoubleClick={(e) => { e.stopPropagation(); commit(keyframes.map((x, j) => (j === sel ? { ...x, ...BEZ_DEFAULT } : x))); }}
+            title={`Bezier handle ${p.which} — drag to shape this segment · double-click to reset`}
+            className="absolute w-[9px] h-[9px] rounded-full bg-surface-0 border border-fg-2 cursor-grab hover:border-accent"
+            style={{
+              left: (seg.a.t + p.cx * seg.dt) * pxPerSec - 4.5,
+              top: valueToY(seg.a.v + p.cy * seg.dv) - 4.5,
+            }}
+          />
+        ));
+      })()}
       {/* keyframes */}
       {kfs.map((k, i) => {
         // Shown while this key is being DRAGGED or is selected (`sel` is set on pointerdown and

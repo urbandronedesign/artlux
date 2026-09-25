@@ -25,7 +25,7 @@ import { resolveMode } from '../../services/addressing';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
 import { groupKind, isLight } from '../../services/fixtureKind';
-import type { AutomationLane as AutoLane, ChannelRole, ColorLane as ColorLaneT, ColorValue as ColorValueT, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
+import type { AutomationLane as AutoLane, ChannelRole, ColorLane as ColorLaneT, CurveKind, ColorValue as ColorValueT, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker, ProfileMode } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -1547,6 +1547,16 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     }),
   });
 
+  /** Shape the segment starting at one pose key. Keyed on TIME, like patchKeySlot — Store Key
+   *  re-sorts the array, so an index would point at a different key the moment one is added. */
+  const patchKeyCurve = (sequenceId: string, keyT: number, curve: CurveKind) => onChangeRef.current({
+    ...timelineRef.current,
+    lightingSequences: (timelineRef.current.lightingSequences ?? []).map((s) => s.id !== sequenceId ? s : {
+      ...s,
+      keys: s.keys.map((k) => (Math.abs(k.t - keyT) > 1e-6 ? k : { ...k, curve })),
+    }),
+  });
+
   const patchClipContent = (id: string, patch: Partial<SurfaceContent>) => onChangeRef.current({
     ...timelineRef.current,
     clips: timelineRef.current.clips.map(c => c.id === id
@@ -2081,6 +2091,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           fixtureProfiles={rigProfiles}
           lanePaths={enabledLanePaths}
           selectedKey={selectedKeyObj}
+          onPatchKeyCurve={(curve) => {
+            const seqId = selectedClip.lighting?.sequenceId;
+            if (seqId && selectedKey) patchKeyCurve(seqId, selectedKey.t, curve);
+          }}
           onPatchKeySlot={(slot, role, value) => {
             const seqId = selectedClip.lighting?.sequenceId;
             if (seqId && selectedKey) patchKeySlot(seqId, selectedKey.t, slot, role, value);

@@ -378,6 +378,18 @@ slot *i* at curve time `t − phase×i` — N keys at N times, not one key — s
 either. What ships instead is a warning. In practice you are busking when you store, and phase is
 normally added after the looks exist.
 
+### The ease between two keys
+
+A selected key carries an **Ease** in the clip inspector: `linear`, `hold` (snap at the next key) or
+`bezier` (ease in and out). It shapes the segment **starting** at that key, so the last key's ease is
+inert — there is nothing after it to move towards.
+
+⚠ Until 2026-09-25 this was **data only**: `LightingKey.curve` had existed since pose keys did, the
+compiler had always honoured it, and nothing could set it — so every authored look eased linearly
+whatever anyone wanted. A field that works and cannot be reached is indistinguishable from one that
+does not work. (`roleCurves`, the per-role override beneath it — a dimmer that snaps while the pan
+eases through the same key — is still data-only.)
+
 ## Editing a stored key
 
 A diamond drawn on a lighting clip is a **button**. Clicking one selects the key, seeks the playhead
