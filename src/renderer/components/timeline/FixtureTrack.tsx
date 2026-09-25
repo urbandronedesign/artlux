@@ -104,6 +104,28 @@ export const FixtureTrack: React.FC<Props> = ({
     return set;
   }, [colorLane, profile, mode]);
 
+  // ── WHAT IS WINNING OVER THE COLOUR ROW ──────────────────────────────────────────────────────
+  // A per-channel automation lane beats the colour lane (it is the more specific instruction), and
+  // that is correct — but silently correct is the whole problem: an operator who once drew a Blue
+  // curve gets a colour row that looks live and a head that ignores it, with nothing on screen
+  // saying why. This is trap A in plans/colour-track.md, and reporting it IS the feature.
+  const shadowedByLane = useMemo(() => {
+    if (!colorRoles) return [];
+    const out: Array<{ laneId: string; label: string; origin: 'scene' | 'global' }> = [];
+    for (const l of lanes) {
+      if (l.lane.enabled === false) continue;      // authored but inert — it wins nothing
+      const m = /^fixtures\.[^.]+\.dmx\.(.+)$/.exec(l.lane.targetPath);
+      const key = m?.[1];
+      if (!key || !colorRoles.has(key)) continue;
+      out.push({
+        laneId: l.lane.id,
+        label: profile.channels.find((c) => c.key === key)?.label ?? key,
+        origin: l.origin,
+      });
+    }
+    return out;
+  }, [lanes, colorRoles, profile]);
+
   const laneByPath = useMemo(() => {
     const m = new Map<string, FixtureTrackLane>();
     // A SCENE lane wins the row when both exist: the global one is shadowed and would draw over it.
@@ -210,6 +232,8 @@ export const FixtureTrack: React.FC<Props> = ({
                 onAdd={onAddColorLane}
                 onSnap={onSnap}
                 onSeek={onSeek}
+                shadowedByLane={shadowedByLane}
+                onReleaseLane={onRemoveLane}
               />
             )}
             {!shut && list.map((r) => (r.hit ? (

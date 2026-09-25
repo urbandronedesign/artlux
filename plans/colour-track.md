@@ -1,7 +1,7 @@
 # One colour per fixture on the timeline — the colour track
 
-> **Status: P0–P3 BUILT. Shape decided with the owner 2026-09-25.** P4 (shadow reporting) and
-> P5 (group colour) remain.
+> **Status: P0–P4 BUILT. Shape decided with the owner 2026-09-25.** Only P5 (group colour) remains,
+> and it is a separate decision.
 >
 > `src/renderer/services/colorEngine.ts` ships the solver, the per-mode capability, the colour
 > spaces and the memo — pure, no UI, nothing wired to playback yet. Guarded by a new invariant (the
@@ -272,7 +272,19 @@ dropped on pointerup), and the drawn path changes. The first version of that che
 wrong SVG path in the document and reported "unchanged" while the screenshots plainly showed the
 curve reshaping — the assertion was wrong, not the feature.
 
-**P4 — Conflict reporting.** Trap A badges + "absorb this lane into the colour row".
+**P4 — Conflict reporting. ✅ DONE.** Both directions of trap A, because a rig that ignores you with
+no explanation is the failure this area keeps producing:
+- an emitter row the colour is driving reads **▲ Colour** (shipped with P2);
+- the colour row reads **▲ N shadowed** when a per-channel curve is beating it, and names the channel
+  with a **Take back** that deletes that curve. A `global`-origin lane is named but not removable
+  from inside a scene — the same read-only rule its own lane follows.
+
+**Take back DELETES rather than absorbs**, which is a change from this plan's original wording. There
+is no way to fold an arbitrary per-channel curve into a colour without inventing values nobody
+authored, so the honest verb is the destructive one, said plainly, with undo behind it.
+
+Verified in the app: the badge appears, the panel names `Blue`, and clicking Take back removes the
+curve, drops the badge and flips the Blue row to ▲ Colour.
 
 **P5 — (separate decision) group colour.** The same authored colour on a lighting clip over an
 ordered group, so one colour drives a mixed rig. Only after P1–P4 prove the shape.

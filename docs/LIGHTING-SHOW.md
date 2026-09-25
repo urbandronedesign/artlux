@@ -333,10 +333,19 @@ the wheel (the chase look), and `rgb` goes in a straight line, which washes comp
 to cyan — out through white. A temperature has no Path: warm↔cold is a line, and there is nothing to
 route around.
 
-⚠ **A curve on a single colour channel still wins.** Start one on the Red row and red leaves the
-Colour row's control for good — a lane aimed at one channel is the more specific instruction. The
-emitter rows read **▲ Colour** while the Colour row is speaking for them, so a row that is not moving
-tells you why.
+⚠ **A curve on a single colour channel still wins**, and the row says so. Start one on the Red row
+and red leaves the Colour row's control — a lane aimed at one channel is the more specific
+instruction. Both directions are reported, because a rig that ignores you with no explanation is the
+failure this whole area keeps producing:
+
+- an emitter row the Colour row is driving reads **▲ Colour**, so a row that never moves says why;
+- the Colour row itself shows **▲ N shadowed** when a curve is beating it. Click it and it names the
+  channel and offers **Take back**, which deletes that curve so the colour drives it again — undo
+  restores it. A curve living on the **Global** document is named but not removable from inside a
+  scene, the same rule its own lane follows.
+
+Taking back *deletes* the curve rather than folding it in, and that is deliberate: there is no way to
+turn an arbitrary per-channel curve into a colour without inventing values nobody authored.
 
 ### What a fixture track is not
 

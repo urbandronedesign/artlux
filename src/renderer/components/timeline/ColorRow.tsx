@@ -44,6 +44,10 @@ interface Props {
   onAdd: (seed: ColorValue) => void;
   onSnap: (t: number) => number;
   onSeek: (clientX: number) => void;
+  /** Per-channel lanes that are BEATING this row — see the badge. Empty when nothing is. */
+  shadowedByLane?: Array<{ laneId: string; label: string; origin: 'scene' | 'global' }>;
+  /** Delete one of those lanes, handing the channel back to the colour row. */
+  onReleaseLane?: (laneId: string) => void;
 }
 
 /** The colour a fixture is making RIGHT NOW, read off the resolved signal rather than re-derived. */
@@ -54,11 +58,18 @@ function liveColorOf(fixtureId: string): string {
 
 export const ColorRow: React.FC<Props> = ({
   fixture, profile, mode, lane, pxPerSec, width, docKey, onChange, onRemove, onAdd, onSnap, onSeek,
+  shadowedByLane = [], onReleaseLane,
 }) => {
   const cap = useMemo(() => colorCapability(profile, mode), [profile, mode]);
   const [selected, setSelected] = useState<number | null>(null);
   const [draft, setDraft] = useState<ColorKey[] | null>(null);
   const swatchRef = useRef<HTMLSpanElement | null>(null);
+  const [shadowOpen, setShadowOpen] = useState(false);
+  const shadowAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const shadowBoxRef = useRef<HTMLDivElement | null>(null);
+  const shadowPos = usePopoverAnchor(shadowOpen, shadowAnchorRef, {
+    width: 224, estHeight: 160, boxRef: shadowBoxRef, onDismiss: () => setShadowOpen(false),
+  });
   // Portalled and placed from a measured rect: an `absolute` popover inside a lane is sealed in the
   // gutter's stacking context and clipped by the scroller — the trap usePopoverAnchor documents.
   const keyAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -143,7 +154,17 @@ export const ColorRow: React.FC<Props> = ({
           title="What this fixture is making right now"
           className="w-3.5 h-3.5 rounded-sm border border-line-1 shrink-0"
         />
-        <span className="text-micro text-fg-3/70 truncate" title={`This mode mixes with ${controlLabel}`}>{controlLabel}</span>
+        {shadowedByLane.length > 0 ? (
+          <button
+            ref={shadowAnchorRef}
+            onClick={() => setShadowOpen((v) => !v)}
+            title={`${shadowedByLane.map((x) => x.label).join(', ')} — a curve on that channel wins over this row`}
+            className="text-micro text-warn hover:text-warn/80 truncate">
+            ▲ {shadowedByLane.length} shadowed
+          </button>
+        ) : (
+          <span className="text-micro text-fg-3/70 truncate" title={`This mode mixes with ${controlLabel}`}>{controlLabel}</span>
+        )}
         {lane ? (
           <button onClick={onRemove} title="Remove the colour lane (the fixture keeps its authored colour)"
             className="ml-auto shrink-0 text-fg-3 opacity-0 group-hover/color:opacity-100 hover:text-warn">
@@ -209,6 +230,46 @@ export const ColorRow: React.FC<Props> = ({
           </>
         )}
       </div>
+
+      {/* ── WHAT IS WINNING, AND HOW TO TAKE IT BACK ──────────────────────────────────────────
+          Naming the conflict is most of the fix; the button is the rest. Deleting the curve is the
+          honest verb — there is no way to fold an arbitrary per-channel curve into a colour without
+          inventing values nobody authored — so it says so, and undo covers it. */}
+      {shadowOpen && createPortal(
+        <>
+          <div className="fixed inset-0 z-popover" onPointerDown={() => setShadowOpen(false)} />
+          <div
+            ref={shadowBoxRef}
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className="fixed z-popover bg-surface-0 border border-line-2 rounded shadow-e3 p-2 text-mini w-56"
+            style={{ left: shadowPos?.left ?? 0, top: shadowPos?.top ?? 0, visibility: shadowPos ? 'visible' : 'hidden' }}>
+            <div className="text-fg-2 mb-1">A curve wins over this row</div>
+            <div className="text-micro text-fg-3 mb-1.5">
+              A lane aimed at one channel is more specific than a colour, so it takes that channel.
+              The colour still drives the rest.
+            </div>
+            {shadowedByLane.map((sx) => (
+              <div key={sx.laneId} className="flex items-center gap-1.5 py-0.5">
+                <span className="flex-1 truncate text-fg-1">{sx.label}</span>
+                {sx.origin === 'global' ? (
+                  // A global lane is read-only from inside a scene — the same rule the row itself
+                  // follows by passing no handler. Saying where it lives beats a dead button.
+                  <span className="text-micro text-fg-3" title="This curve lives on the Global document">Global</span>
+                ) : (
+                  <button
+                    onClick={() => { onReleaseLane?.(sx.laneId); setShadowOpen(false); }}
+                    title={`Delete the ${sx.label} curve so the Colour row drives it again. Undo restores it.`}
+                    className="text-micro text-warn hover:text-warn/80">
+                    Take back
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>,
+        document.body,
+      )}
 
       {/* ── the per-key editor ─────────────────────────────────────────────────────────────── */}
       {/* PORTALLED, like every other popover in this directory. The gutter beside it is
