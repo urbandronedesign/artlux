@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.33.0
+
+### OSC tracks: the timeline can drive other devices
+
+A new kind of timeline lane sends its value out over the network as **OSC** instead of changing
+anything inside ArtLux. Use it to switch an LED or a relay on an **Arduino with an Ethernet shield**,
+or to send cues to another computer or a console, on the same timeline as the show.
+
+Click **+ OSC** under the timeline's lanes. Each track has its own settings:
+
+- **Address**: what the receiver listens for, e.g. `/led`.
+- **Type**: `bool` (on/off), `int` (a whole number, e.g. 0–255 for a dimmer) or `float`.
+- **Destinations**: one or more `IP:port`. **Every destination gets every message**, so one track can
+  drive one board or ten. An address ending in `.255` reaches every device on that network at once.
+
+You draw the curve like any automation lane, with hold keys for on/off cues and linear or bezier keys
+for fades. It sends whenever the value changes: during playback, while you scrub, and from a scene's
+timeline or the global one. A fast fade is limited to **30 messages a second** (adjustable) and always
+lands on its final value. **Re-send every** repeats the current value so a board that rebooted catches
+up. Switching a track off stops it sending, and the device keeps its last value.
+
+**When a board does nothing, the track helps you find out why.**
+
+- The lane shows how many messages it has **sent**.
+- **Send now** sends the current value again.
+- **Test** buttons send a value immediately, even with the track off.
+- Under each destination, the settings show what the computer saw when it tried to send there.
+  `EHOSTUNREACH` means no network card on this PC is on that board's address range, the usual
+  first-day problem on a direct cable. A warning says so before you even send.
+
+A new track points at ArtLux itself, so with OSC receive on you can watch it in **View ▸ OSC Monitor**
+before any hardware is plugged in.
+
+### A tutorial: OSC → Arduino
+
+**Help ▸ Docs & Tutorials** has a new four-chapter tutorial with two example projects and two Arduino
+sketches, printed in full on the page:
+
+1. See the messages with no hardware.
+2. One board on a cable: wiring, giving the PC a fixed IP address, `ping`.
+3. Several boards: one sketch, a number per board, which also gives each board its own MAC address.
+   Two boards with the same MAC knock each other off the network.
+4. A step-by-step checklist for when nothing happens.
+
+### Fixed
+
+- A link in the Docs browser to a file that is not a page, such as an Arduino sketch, did nothing.
+  It now shows the file in its folder.
+
 ## v0.32.0
 
 ### Colour is one thing again

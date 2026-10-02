@@ -1862,3 +1862,47 @@ badge, the group menu, key dragging, named colours, and a save→reopen round tr
 ⚠ **Not closed:** `services/projectImport` does not walk `colorLanes` or the palette entries they
 reference, so a SCENE imported between projects loses its colour (moving a whole project is fine and
 is proven). `roleCurves` is still data-only.
+
+## v0.33.0 — OSC tracks: the timeline drives other devices (2026-10-02)
+
+`dbd87da`…`7b567a2` · reference: [OSC.md → Sending OSC from the timeline](OSC.md#sending-osc-from-the-timeline-osc-tracks) · tutorial: [examples/osc-arduino/tuto/](../examples/osc-arduino/tuto/README.md)
+
+**An OSC track is an `AutomationLane` with an `osc` block, not a new track type.** Everything it needs
+already existed in a lane: a keyframe curve over the playhead, hold/linear/bezier, the curve editor, the
+global (show clock) vs scene (playhead) split, release-on-drop and scrub-while-paused. A parallel track
+type would have been a second copy of all of that. What is new is the far end. `targetPath` is
+`osc.<lane id>`, unique by construction, so two tracks never shadow each other. The target def is
+**derived from the lane** (`oscLaneDef`) rather than enumerated, because a device on the far end of a
+cable has no other record in the project. `compileAutomation` makes that one branch, and the `osc`
+provider's `enumerate()` is deliberately empty so the target picker never offers one.
+
+**`services/oscOut.ts`** follows the frame-loop contract: `write()` only records the number. `frameEnd()`
+plus a 25 ms pump (running only while a track is bound, because `frameEnd` fires only on frames where
+something wrote) quantise per type, change-detect on the *quantised* value (a 0→1 ramp on a bool track
+is one message), rate-limit with a guaranteed trailing send, keep-alive, and send the whole frame in
+**one** IPC hop. Re-binding an unchanged config is a no-op, so the recompile that follows every timeline
+edit does not re-blast every board. A changed config forgets what was sent, so a new destination gets
+the current value at once. The pump is skipped during an offline bake. Projector windows never compile
+automation, so they never send.
+
+**Main encodes with explicit type tags** (`OscTypedArg`). The old send scaffold guessed `i` from
+`Number.isInteger`, so a float track resting on 1.0 went out as an int. A receiver that asks
+`isFloat(0)` (the CNMAT Arduino library does) then saw no float at all. Booleans are `T`/`F` with no
+payload. One send socket is bound explicitly so `setBroadcast` can be set, because a `.255` destination
+is refused with EACCES otherwise. Per-destination counters and the last OS error come back through
+`OSC_SEND_STATUS`. "Accepted" is all UDP can honestly report, and the UI says so. Verified byte-exact
+over a real socket: `/led ,i 1` = `2f6c6564 00000000 2c690000 00000001`.
+
+**Load and import.** `sanitizeOscTrackConfig` repairs a broken block (leading slash, bool pinned 0..1,
+bad destinations dropped) and never drops the lane. The path is re-derived from the id, so a hand-edited
+path cannot point one track's curve at another's config. Project import re-mints the id **and** the
+path, because `remapEntryPath` would otherwise keep `osc.<old id>` under a new id.
+
+**The tutorial's sketches are generated blocks** (`gen-docs-data.cjs` → `renderSketch`): the `.ino` is
+the source, the page prints it inline, and `verify:docs` fails on a difference (proved by editing
+`LED_PIN`). The Docs browser now **reveals** a linked non-markdown file rather than ignoring the click.
+
+⚠ **Not proven on hardware:** no real Arduino has been driven by this build. The codec, quantise, rate
+limit, keep-alive and release paths were exercised in Node against the real modules, and the examples
+were loaded through `normalizeTimeline`. The settings popover and gutter have not been clicked through
+in `npm run dev`.
