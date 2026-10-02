@@ -1,0 +1,99 @@
+{
+  "version": "1.2",
+  "timestamp": "2026-10-02T00:00:00.000Z",
+  "surfaces": [],
+  "fixtures": [],
+  "controllers": [],
+  "globalBrightness": 1,
+  "groups": [],
+  "scenes": [],
+  "cueBanks": [],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50,
+    "trackingMergePeople": false,
+    "trackingMergeRadius": 0.8
+  },
+  "timeline": {
+    "layers": [],
+    "clips": [],
+    "duration": 4,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": true,
+    "holdAtEnd": false,
+    "trackingTakes": [],
+    "automation": [
+      {
+        "id": "osc_led",
+        "targetPath": "osc.osc_led",
+        "enabled": true,
+        "keyframes": [
+          {
+            "t": 0,
+            "v": 0,
+            "curve": "hold"
+          },
+          {
+            "t": 1,
+            "v": 1,
+            "curve": "hold"
+          },
+          {
+            "t": 2,
+            "v": 0,
+            "curve": "hold"
+          },
+          {
+            "t": 3,
+            "v": 1,
+            "curve": "hold"
+          }
+        ],
+        "color": "#f5a524",
+        "osc": {
+          "name": "LED (loopback)",
+          "address": "/led",
+          "argType": "bool",
+          "min": 0,
+          "max": 1,
+          "destinations": [
+            {
+              "host": "127.0.0.1",
+              "port": 10000
+            }
+          ],
+          "maxRate": 30,
+          "resendSec": 0
+        }
+      }
+    ],
+    "audio": {
+      "tracks": [],
+      "clips": []
+    },
+    "boundedDuration": true
+  },
+  "stateMachine": {
+    "enabled": false,
+    "initialStateId": null,
+    "regions": [],
+    "states": [],
+    "transitions": []
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}

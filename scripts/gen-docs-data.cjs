@@ -236,6 +236,17 @@ function renderNodes(nodes) {
   return parts.join('\n').trimEnd();
 }
 
+// ── Embedding an example sketch ───────────────────────────────────────────────────────────────────────
+// The OSC → Arduino tutorial shows its sketches INLINE (a reader copying code into the Arduino IDE should
+// not have to leave the page), and the .ino files ship beside it for the people who would rather open
+// them. Two copies of one program is exactly the drift rule 1 exists to stop, so the inline copy is
+// OUTPUT: the .ino is the source, this block is regenerated from it, and verify:docs fails if they differ.
+function renderSketch(rel) {
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n').trimEnd();
+  if (src.includes('```')) throw new Error(`gen-docs-data: ${rel} contains a code fence and cannot be embedded`);
+  return '```cpp\n' + src + '\n```';
+}
+
 function main() {
   const results = [
     applyBlock('docs/user-guide/15-keyboard-reference.md', 'keymap', renderKeymap(parseShortcuts())),
@@ -246,6 +257,10 @@ function main() {
     // The per-node reference. Built by CALLING each node's generator rather than by reading the
     // source, so the GLSL in the page is the GLSL the compiler emits — see gen-shader-node-docs.cjs.
     applyBlock('docs/SHADER-NODES.md', 'shader-node-reference', require('./gen-shader-node-docs.cjs').build()),
+    applyBlock('examples/osc-arduino/tuto/02-one-arduino.md', 'sketch-osc-led',
+      renderSketch('examples/osc-arduino/arduino/artlux_osc_led/artlux_osc_led.ino')),
+    applyBlock('examples/osc-arduino/tuto/03-several-boards.md', 'sketch-osc-board',
+      renderSketch('examples/osc-arduino/arduino/artlux_osc_board/artlux_osc_board.ino')),
   ];
 
   const stale = results.filter((r) => r.changed);

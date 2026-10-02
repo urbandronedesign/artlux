@@ -63,6 +63,10 @@ export const IPC = {
   OSC_MESSAGE: 'osc:message',
   /** Renderer → main: send one OSC message to a target host:port (send scaffold). */
   OSC_SEND: 'osc:send',
+  /** Renderer → main: one frame's OSC-track output — typed messages, each to 1+ host:port (OscOutPacket[]). */
+  OSC_SEND_BATCH: 'osc:send-batch',
+  /** Renderer → main (invoke): per-destination send health for the OSC tracks (OscSendStatus[]). */
+  OSC_SEND_STATUS: 'osc:send-status',
   /** Renderer → main (invoke): list this machine's local IPv4 addresses (for NIC binding). */
   OSC_LOCAL_ADDRS: 'osc:local-addrs',
   // HAP video + CALIB_* channels moved to their plugins (carried over the generic 'plugin:hap:*' /
@@ -408,6 +412,34 @@ export interface CameraMode {
 // keep working unchanged.
 import type { OscConfig, OscMessage } from '@artlux/sdk';
 export type { OscConfig, OscMessage };
+
+// ---- OSC SEND (timeline OSC tracks) -------------------------------------------------------------
+// An argument with its OSC TYPE TAG made explicit. The receive-side `(number | string)[]` cannot say
+// this, and the send scaffold's encoder guessed from the JS number (`Number.isInteger` ⇒ 'i'), which
+// is wrong for a float track sitting on a whole number: 1.0 would go out as the int 1 and a receiver
+// that asks `msg.isFloat(0)` (the CNMAT Arduino library does) sees no float at all. So the track says.
+//   'i' int32 · 'f' float32 · 'T'/'F' boolean (no payload — the tag IS the value) · 's' string
+export type OscTypedArg =
+  | { t: 'i'; v: number }
+  | { t: 'f'; v: number }
+  | { t: 'T' }
+  | { t: 'F' }
+  | { t: 's'; v: string };
+/** One OSC message fanned out to every destination listed — one track's value, one frame. */
+export interface OscOutPacket {
+  targets: { host: string; port: number }[];
+  address: string;
+  args: OscTypedArg[];
+}
+/** Main's view of one destination: is the OS accepting what we hand it? (UDP has no delivery receipt.) */
+export interface OscSendStatus {
+  host: string;
+  port: number;
+  sent: number;          // datagrams handed to the OS since launch
+  errors: number;        // sends the OS refused (EHOSTUNREACH, ENETUNREACH, a bad hostname…)
+  lastError?: string;    // the most recent refusal's code, e.g. 'EHOSTUNREACH'
+  lastSentMs?: number;   // Date.now() of the most recent accepted send
+}
 
 // One Art-Net node found via ArtPoll/ArtPollReply discovery.
 export interface ArtNetDevice {
@@ -1703,6 +1735,10 @@ export interface ArtluxApi {
   configureOsc(cfg: OscConfig): void;
   onOscMessage(cb: (msgs: OscMessage[]) => void): () => void;
   sendOsc(host: string, port: number, address: string, args: (number | string)[]): void;
+  /** Timeline OSC tracks: send one frame's typed messages (fire-and-forget, batched to one IPC hop). */
+  sendOscBatch(packets: OscOutPacket[]): void;
+  /** Timeline OSC tracks: per-destination counters + the last OS-level send error. */
+  oscSendStatus(): Promise<OscSendStatus[]>;
   listLocalAddrs(): Promise<string[]>;
   // HAP video + projector calibration moved to their plugins (generic pluginInvoke/Send bridge).
   /** Is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? Else use the GLSL fallback. */

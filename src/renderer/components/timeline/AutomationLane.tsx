@@ -22,7 +22,9 @@ import { type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane } from '../../services/automation';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER } from './geometry';
-import { Trash2, Zap, ZapOff, Diamond, AlertTriangle } from 'lucide-react';
+import { Trash2, Zap, ZapOff, Diamond, AlertTriangle, Settings2, Send } from 'lucide-react';
+import { OscTrackSettings } from './OscTrackSettings';
+import { resend, trackStats } from '../../services/oscOut';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { CurveEditor, fmtIn } from './CurveEditor';
@@ -58,11 +60,24 @@ interface Props {
   onRemove?: () => void;
   onSnap: (t: number) => number;   // reuse the timeline's snapping
   onSeek: (clientX: number) => void;
+  // An OSC track just created by "+ OSC": open its settings once, on mount, because a track still aimed
+  // at loopback is the thing you always change next. Consumed via onOscSettingsOpened.
+  openOscSettings?: boolean;
+  onOscSettingsOpened?: () => void;
 }
 
-export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, clock, origin, shadowed, docKey, onChange, onRemove, onSnap, onSeek }) => {
+export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, clock, origin, shadowed, docKey, onChange, onRemove, onSnap, onSeek, openOscSettings, onOscSettingsOpened }) => {
   const readOnly = !onChange;
   const [draft, setDraft] = useState<Keyframe[] | null>(null);
+  // OSC TRACK settings popover anchor (null = closed). Only an OSC lane ever opens it.
+  const [oscAt, setOscAt] = useState<{ x: number; y: number } | null>(null);
+  const oscBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!openOscSettings) return;
+    const r = oscBtnRef.current?.getBoundingClientRect();
+    setOscAt(r ? { x: r.right + 4, y: r.top } : { x: 200, y: 200 });
+    onOscSettingsOpened?.();
+  }, [openOscSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ⚠ THE DOCUMENT CAN REBIND UNDER A LIVE POINTER — AND THIS LANE SURVIVES IT.
   //
@@ -125,13 +140,18 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
     return fmtIn(d, v);
   };
   const liveNowRef = useRef(liveNow); liveNowRef.current = liveNow;
+  const laneRef = useRef(lane); laneRef.current = lane;
   const fmtNowRef = useRef(fmtNow); fmtNowRef.current = fmtNow;
   // Subscribed once. The engine ticks every frame even when paused, so this needs no timer of its own and
   // there is nothing to start or stop with the transport; the DOM is touched only when the text changes.
   useEffect(() => engine.subscribe(() => {
     const el = liveRef.current;
     if (!el) return;
-    const txt = fmtNowRef.current(liveNowRef.current());
+    // An OSC track also says how many messages it has put on the wire — the first thing to look at when a
+    // board does not react: a count that is not climbing means ArtLux is not sending; one that is climbing
+    // means the problem is on the network or the board. Read render-free from oscOut, like the value.
+    const st = laneRef.current.osc ? trackStats(laneRef.current.targetPath) : null;
+    const txt = fmtNowRef.current(liveNowRef.current()) + (st ? `  ·  ${st.count} sent` : '');
     if (el.textContent !== txt) el.textContent = txt;
   }), []);
 
@@ -209,6 +229,25 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
               GLOBAL
             </span>
           )}
+          {lane.osc && (
+            <>
+              <Tooltip id="timeline.osc-settings">
+                <button ref={oscBtnRef} onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setOscAt({ x: r.right + 4, y: r.top }); }}
+                  disabled={readOnly}
+                  title={readOnly ? 'This OSC track belongs to the GLOBAL timeline — edit it on the Global pill.' : 'OSC track settings — address, destinations (IP:port), type, test'}
+                  {...help('timeline.osc-settings')} className={`${readOnly ? 'ml-auto text-fg-3/50 cursor-default' : 'ml-auto text-fg-3 hover:text-fg-1'}`}>
+                  <Settings2 size={11} />
+                </button>
+              </Tooltip>
+              <Tooltip id="timeline.osc-send-now">
+                <button onClick={() => resend(lane.targetPath)} disabled={!enabled}
+                  title={enabled ? 'Send the current value again, now, to every destination' : 'Track is OFF — it sends nothing (the Test buttons in settings still work)'}
+                  {...help('timeline.osc-send-now')} className={enabled ? 'text-fg-3 hover:text-fg-1' : 'text-fg-3/50 cursor-default'}>
+                  <Send size={11} />
+                </button>
+              </Tooltip>
+            </>
+          )}
           {!readOnly && (
             <>
               <Tooltip id="timeline.automation-add-key">
@@ -216,7 +255,7 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
                     to come from a prop sampled on a 100 ms interval, so the key landed up to 100 ms — three
                     frames — behind where the operator clicked, holding the value from back there too. */}
                 <button onClick={() => { const t = clock === 'show' ? engine.getShowTime() : engine.getPlayhead(); commit([...lane.keyframes.filter(k => Math.abs(k.t - t) > 0.001), { t: Math.max(0, t), v: quant(liveNow()), curve: 'linear' }]); }}
-                  title="Add a keyframe at the playhead, holding the current value" {...help('timeline.automation-add-key')} className="ml-auto text-fg-3 hover:text-fg-1">
+                  title="Add a keyframe at the playhead, holding the current value" {...help('timeline.automation-add-key')} className={`${lane.osc ? '' : 'ml-auto '}text-fg-3 hover:text-fg-1`}>
                   <Diamond size={11} />
                 </button>
               </Tooltip>
@@ -232,6 +271,14 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
             number computed against the wrong axis. React writes it once, per render; after that the
             subscription above owns this element's text and updates it without a render. */}
         <div ref={liveRef} className="text-micro leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
+        {oscAt && lane.osc && onChange && (
+          <OscTrackSettings
+            config={lane.osc}
+            anchor={oscAt}
+            onCommit={(osc) => onChange({ ...lane, osc })}
+            onClose={() => setOscAt(null)}
+          />
+        )}
       </div>
 
       {/* body — the curve, shared with every other surface that draws one */}

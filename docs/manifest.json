@@ -51,6 +51,7 @@
     "audio",
     "lidar-tracking",
     "lighting",
+    "osc-arduino",
     "shader",
     "state-machine"
   ],

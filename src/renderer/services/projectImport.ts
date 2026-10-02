@@ -674,6 +674,14 @@ function remapTimeline(
 
   const automation: AutomationLane[] = [];
   for (const lane of tl.automation ?? []) {
+    // An OSC TRACK addresses ITSELF (`osc.<its own id>`), not an imported object — so it is never
+    // dropped, and its path must follow the freshly minted id or the engine would bind the curve under
+    // a path no lane owns.
+    if (lane.osc) {
+      const id = mint();
+      automation.push({ ...lane, id, targetPath: `osc.${id}` });
+      continue;
+    }
     const path = remapEntryPath(lane.targetPath, maps, L);
     if (path === null) {
       warn({ kind: 'dropped', message: `${where}: automation lane "${lane.targetPath}" was dropped — the object it drives was not imported.` });

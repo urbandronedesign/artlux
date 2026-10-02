@@ -1,4 +1,4 @@
-# ArtLux — OSC (external control + LiDAR tracking)
+# ArtLux — OSC (external control, LiDAR tracking, and OSC tracks)
 
 ArtLux can **receive OSC** over UDP for two purposes:
 
@@ -7,7 +7,10 @@ ArtLux can **receive OSC** over UDP for two purposes:
 2. **LiDAR blob tracking** — ingest live tracked-object ("blob") positions from the venue's
    tracking system and visualize them in the 3D Scene, mapped onto the floor/wall zones.
 
-Receive-first: an OSC **send** path exists as a scaffold (not yet wired to UI feedback).
+And it can **send OSC** from the timeline: an **OSC track** is a lane whose curve is sent as OSC
+messages to one or more `IP:port` destinations, e.g. Arduino boards with Ethernet shields. See
+[Sending OSC from the timeline](#sending-osc-from-the-timeline-osc-tracks) below.
+
 No external library — a small, self-contained OSC 1.0 codec lives in the main process.
 
 ---
@@ -146,6 +149,53 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 
 ---
 
+## Sending OSC from the timeline (OSC tracks)
+
+An **OSC track** is a timeline lane whose value is **sent**, not applied inside ArtLux. Add one with
+**+ OSC** under the timeline's lanes. Each track carries its own settings (the sliders button in its
+gutter):
+
+| Setting | What it does |
+|---|---|
+| **Address** | The OSC address sent, e.g. `/led`. Must start with `/`. Case-sensitive on every receiver. |
+| **Type** | `int` → type tag `i` (the curve is rounded) · `float` → `f` · `bool` → `T`/`F` with no payload (on at **≥ 0.5**). The track decides the tag: a `float` track at exactly `1.0` still sends a float. |
+| **Range** | The lane's axis. Keys are clamped to it. `bool` is fixed at 0–1. |
+| **Destinations** | One or more `host:port`. **Every enabled destination gets every message** (fan-out). Untick one to pause it without deleting it. A `x.x.x.255` address is a broadcast to that network. |
+| **Max rate** | At most this many messages per second per track (default **30**). A deferred change is always delivered, so a fast fade still ends exactly on its last value. |
+| **Re-send every** | Re-send the current value every N seconds even if unchanged (default **off**). UDP has no delivery receipt, so this is how a board that rebooted catches up. |
+
+**When it sends.** A track sends when its value **changes**, once the value has been rounded to its
+type. A `bool` ramp from 0 to 1 sends one message, and a hold curve sends one per step. It follows the
+same clock as every automation lane: during playback, **while scrubbing**, and on a seek. A lane on the
+**Global** timeline rides the show clock and keeps sending under every scene. A lane on a scene's
+timeline rides that scene's playhead (see [SCENE-TIMELINES.md](SCENE-TIMELINES.md)). Each message
+carries exactly **one argument**. Only the main editor window sends, never a projector window. Nothing
+is sent during an offline **bake**.
+
+**When it stops.** Switching a track off (**⚡**), deleting it, or recalling a scene that does not
+contain it stops sending. **Nothing is sent on stop**: the device keeps the last value it received,
+just as a DMX fixture holds its last frame. For a defined end state, put a key at the end of the curve.
+
+**Debugging aids built into the track:**
+
+- **sent N** next to the lane's live value: the messages this track has put on the wire. If it is not
+  going up, ArtLux is not sending (track off, value not changing, no destination).
+- **Send now** (paper-plane button): re-sends the current value immediately.
+- **Test** buttons in the settings: send the low or high value right now, even with the track off.
+- **Per-destination status** in the settings: how many datagrams the OS accepted, or the error it
+  refused one with. `EHOSTUNREACH` / `ENETUNREACH` means no network card on this machine is on that
+  address range, which is the usual cause with a direct cable. A yellow **No network card here is on
+  a.b.c.x** warning flags the same thing before sending. It assumes a `/24` network, so treat it as a
+  hint.
+- **Loopback**: a new track points at `127.0.0.1:10000`. With OSC receive on, **View ▸ OSC Monitor**
+  shows exactly what it sends. Keep that loopback as a second destination while you debug a board.
+
+"Accepted" is not "received": UDP gives no receipt, so a board that is unplugged still counts as sent.
+The hands-on setup (PC fixed IP, one board, several boards, a layer-by-layer checklist) is the
+[OSC → Arduino tutorial](../examples/osc-arduino/tuto/README.md), which ships two Arduino sketches.
+
+---
+
 <!-- audience:contributor -->
 
 ## Architecture
@@ -162,6 +212,18 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
   would risk the build.
 - **IPC** `src/main/ipc.ts` — `OSC_CONFIGURE` (bind/unbind), `OSC_LOCAL_ADDRS` (NIC list), `OSC_SEND`
   (scaffold); each received packet's messages are forwarded to the renderer as `OSC_MESSAGE`.
+  `OSC_SEND_BATCH` carries one frame of OSC-track output (`OscOutPacket[]`, typed args) and
+  `OSC_SEND_STATUS` returns per-destination counters + the last OS send error.
+- **OSC tracks (send)** — an OSC track is an `AutomationLane` with an `osc: OscTrackConfig` block and
+  `targetPath = osc.<lane id>` (`types.ts`; `sanitizeOscTrackConfig` repairs it on load and
+  re-derives the path from the id). The `osc` namespace provider is `src/renderer/services/oscOut.ts`,
+  registered in `host/plugins.ts`. `compileAutomation` (`services/timeline.ts`) derives an OSC lane's
+  def from the lane itself (`oscLaneDef`) instead of `enumerate()`, and calls `oscOut.bind()`. `write()`
+  only records the value. `frameEnd()` + a 25 ms pump (running only while a track is bound) quantise,
+  change-detect, rate-limit, keep-alive, and send everything in **one** IPC hop. Main
+  (`oscManager.sendBatch`) encodes with explicit type tags on one broadcast-enabled send socket. The
+  UI is `components/timeline/AutomationLane.tsx` (gutter buttons) + `OscTrackSettings.tsx`, and
+  `+ OSC` is in `Timeline.tsx`. Project import re-mints the id **and** the path (`projectImport.ts`).
 - **Preload** `src/preload/index.ts` — `configureOsc`, `onOscMessage`, `listLocalAddrs`, `sendOsc`.
 - **Renderer routing** `src/renderer/services/oscController.ts` — handles **control** messages only:
   control prefix → `timeline.dispatchTransportIntent` + `triggerSmTransition`. It no longer touches

@@ -13,6 +13,7 @@ import {
 } from './registries';
 import { timeline } from '../services/timeline';
 import { coreAutomationProvider } from '../services/automationTargets.core';
+import { oscAutomationProvider } from '../services/oscOut';
 import { perfMonitor } from '../services/perfMonitor';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices, PluginStatus } from '@artlux/sdk/renderer';
 import type { BootEntry } from '../../../shared/protocol';
@@ -141,6 +142,9 @@ export function activateRendererPlugins(win: 'main' | 'projector', host: Rendere
   // Core's own automation namespaces (surfaces / fixtures / globalBrightness) register alongside the
   // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
   automationTargetRegistry.register(coreAutomationProvider);
+  // OSC tracks (timeline lanes that SEND their curve as OSC — services/oscOut.ts) are core too: the OSC
+  // transport lives in core main, and a project's OSC tracks must not vanish with a disabled plugin.
+  automationTargetRegistry.register(oscAutomationProvider);
   const ctx = makeContext(win, host);
   const report: BootEntry[] = [];
   for (const p of FIRST_PARTY.filter(enabled)) {

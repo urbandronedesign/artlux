@@ -5,6 +5,8 @@ import * as codecResidency from './codecResidency';
 import { clipKindRegistry, videoCodecRegistry, smTriggerRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
+import * as oscOut from './oscOut';
+import { oscLaneDef } from './oscOut';
 import { videoAudioOf, videoAudioOutlook } from './videoAudio';
 import type { AutomationLane, Keyframe, TimelineAudio } from '../types';
 import type { AutomationTargetProvider } from '@artlux/sdk/renderer';
@@ -931,8 +933,11 @@ function compileAutomation(): void {
     const head = lane.targetPath.split('.')[0];
     const provider = automationTargetRegistry.get(head);
     if (!provider) continue; // unknown namespace (a plugin is disabled) — the lane persists, but is inert
-    const def = provider.enumerate().find(d => d.path === lane.targetPath);
+    // An OSC TRACK describes its own target (the device on the far end of a cable has no other record
+    // in the project), so its def is derived from the lane, not looked up — see services/oscOut.ts.
+    const def = lane.osc ? oscLaneDef(lane) : provider.enumerate().find(d => d.path === lane.targetPath);
     if (!def) continue;      // dangling target (the clip was deleted) — kept in the file, not evaluated
+    if (lane.osc) oscOut.bind(lane.targetPath, lane.osc);
     // Trust nothing: the cursor needs sorted keys, and the value must sit inside the target's range.
     // A hand-edited project could carry cutoff: 0 on a LOG target — Math.log(0) is -Infinity, which would
     // propagate a NaN into the lane's SVG path and into setClipEffects. Clamp it here, where the range is

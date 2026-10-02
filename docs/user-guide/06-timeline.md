@@ -64,6 +64,37 @@ See [TRACKING_TAKES.md](../TRACKING_TAKES.md).
 
 ---
 
+## OSC tracks (send a curve to other devices)
+
+An **OSC track** is a lane whose value leaves ArtLux as an **OSC message**. Use it to drive an Arduino
+with an Ethernet shield, another computer or a console from the same timeline as the show. Click
+**+ OSC** under the lanes, then set three things in the track's settings (the sliders button in its
+gutter):
+
+- **Address**: what the receiver listens for, e.g. `/led`.
+- **Type**: `bool` (on/off, on at 0.5 and above), `int` (a whole number, e.g. 0–255) or `float`.
+- **Destinations**: one or more `IP:port`. **Every destination gets every message**: list several
+  boards to drive them together, or give each board its own track. An address ending in `.255` reaches
+  every device on that network.
+
+The curve is drawn and edited like any automation lane. It starts with **hold** keys, which is what an
+on/off cue is. The track sends **when its value changes**, during playback and while you scrub, with at
+most **Max rate** messages per second (default 30). **Re-send every** repeats the current value so a
+board that rebooted catches up. The lane shows how many messages it has **sent**, and the paper-plane
+button sends the current value again.
+
+The settings also have **Test** buttons, which send a value right now even if the track is off. Under
+each destination they show what happened when ArtLux tried to send there: a count, or an error such as
+`EHOSTUNREACH`, which means no network card on this PC is on that board's address range.
+
+A new track points at `127.0.0.1:10000`, which is ArtLux itself, so with OSC receive on you can watch it
+in **View ▸ OSC Monitor** before any hardware exists. Switching a track off stops it sending, and the
+device keeps the last value it got. Setup, wiring and a debugging checklist are in the
+[OSC → Arduino tutorial](../../examples/osc-arduino/tuto/README.md). The reference is
+[OSC.md](../OSC.md#sending-osc-from-the-timeline-osc-tracks).
+
+---
+
 ## State machine (automatic control layer)
 
 The lane above the tracks is an always‑present logic layer (the **Edit logic** button opens its

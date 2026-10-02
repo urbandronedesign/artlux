@@ -777,7 +777,82 @@ export interface AutomationLane {
   keyframes: Keyframe[];  // INVARIANT: sorted ascending by t (normalizeTimeline enforces it)
   height?: number;        // lane height in px
   color?: string;
+  /**
+   * PRESENT ⇒ THIS LANE IS AN **OSC TRACK**: its curve is not applied to a parameter inside ArtLux, it is
+   * SENT — as one OSC message, to every destination listed — whenever its value changes. See
+   * services/oscOut.ts and docs/OSC.md → "Sending OSC from the timeline".
+   *
+   * WHY A LANE AND NOT A NEW TRACK TYPE. Everything an OSC track needs an automation lane already is: a
+   * keyframe curve over the playhead, hold/linear/bezier segments, the editor that draws it, the global
+   * (show-clock) vs scene (playhead) split, release-on-drop, and scrub-while-paused preview. A parallel
+   * track type would have been a second copy of all of that, drifting.
+   *
+   * WHY THE CONFIG LIVES ON THE LANE. Every other lane names a parameter that exists somewhere else (a
+   * surface, a bed clip) and the provider looks it up. An OSC track's "parameter" is the device on the
+   * far end of a cable, which ArtLux has no other record of — so the lane carries its own description,
+   * its `targetPath` is `osc.<lane id>` (unique by construction, so two tracks never shadow each other),
+   * and the target def is DERIVED from this block (oscLaneDef) rather than enumerated.
+   */
+  osc?: OscTrackConfig;
 }
+
+/** One place an OSC track sends to. `host` is an IPv4 address (a hostname works, but resolves per send). */
+export interface OscDestination {
+  host: string;
+  port: number;
+  enabled?: boolean;      // default true. false ⇒ kept in the list (so you can bring a board back) but skipped
+}
+export type OscArgType = 'int' | 'float' | 'bool';
+export interface OscTrackConfig {
+  name?: string;          // what the gutter calls it; absent ⇒ the address
+  address: string;        // the OSC address pattern sent, e.g. '/led' — must start with '/'
+  argType: OscArgType;    // the type tag on the wire: 'i' int32, 'f' float32, 'T'/'F' boolean
+  min: number;            // the lane's axis. A bool track is pinned 0..1 and sends value ≥ 0.5 as True
+  max: number;
+  destinations: OscDestination[]; // 1+ boards. Fan-out: every enabled destination gets every message
+  // AT MOST this many messages per second per track (a trailing send always delivers the final value).
+  // A linear ramp changes every frame — 60 msg/s to an Arduino Uno over a W5100 is survivable, but there
+  // is no reason to make a microcontroller parse frames it will never show. Default 30.
+  maxRate?: number;
+  // RE-SEND the current value every N seconds even when it has not changed; 0 / absent = off. UDP is
+  // fire-and-forget, so a board that rebooted (or a packet that was lost) otherwise sits in the wrong
+  // state until the curve next moves — which on a hold curve can be never.
+  resendSec?: number;
+}
+
+const OSC_ARG_TYPES: readonly OscArgType[] = ['int', 'float', 'bool'];
+/** A fresh OSC track's config — aimed at LOOPBACK so it is visible in View ▸ OSC Monitor before any board exists. */
+export const defaultOscTrackConfig = (): OscTrackConfig => ({
+  address: '/led', argType: 'int', min: 0, max: 1,
+  destinations: [{ host: '127.0.0.1', port: 10000 }], maxRate: 30, resendSec: 0,
+});
+// Coerce a persisted (or hand-edited) OSC block. Never throws, never drops the lane: a broken block is
+// repaired to something inert-but-editable, because losing the operator's curve over a typo'd port would
+// be worse than sending nothing. A destination with no host or an out-of-range port is dropped — main
+// would skip it anyway, and keeping it would let the gutter claim a fan-out that is not happening.
+export const sanitizeOscTrackConfig = (c: unknown): OscTrackConfig | undefined => {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return undefined;
+  const o = c as Partial<OscTrackConfig>;
+  const argType: OscArgType = OSC_ARG_TYPES.includes(o.argType as OscArgType) ? (o.argType as OscArgType) : 'float';
+  let address = typeof o.address === 'string' ? o.address.trim().replace(/\s+/g, '') : '';
+  if (!address.startsWith('/')) address = '/' + address;
+  let min = Number.isFinite(o.min) ? (o.min as number) : 0;
+  let max = Number.isFinite(o.max) ? (o.max as number) : 1;
+  if (argType === 'bool') { min = 0; max = 1; }
+  if (max === min) max = min + 1;
+  if (max < min) [min, max] = [max, min];
+  const destinations = (Array.isArray(o.destinations) ? o.destinations : [])
+    .filter((d): d is OscDestination => !!d && typeof d === 'object')
+    .map((d) => ({ host: typeof d.host === 'string' ? d.host.trim() : '', port: Math.trunc(Number(d.port)), enabled: d.enabled === false ? false : undefined }))
+    .filter((d) => d.host && d.port > 0 && d.port < 65536)
+    .map((d) => (d.enabled === false ? d : { host: d.host, port: d.port }));
+  const maxRate = Number.isFinite(o.maxRate) && (o.maxRate as number) > 0 ? Math.min(240, o.maxRate as number) : 30;
+  const resendSec = Number.isFinite(o.resendSec) && (o.resendSec as number) > 0 ? Math.min(3600, o.resendSec as number) : 0;
+  return {
+    ...(typeof o.name === 'string' && o.name.trim() ? { name: o.name.trim() } : {}),
+    address, argType, min, max, destinations, maxRate, resendSec,
+  };
+};
 
 export interface Timeline {
   layers: VideoLayer[];
@@ -928,6 +1003,15 @@ const normalizeAutomation = (a: unknown): AutomationLane[] => {
       .filter((k): k is Keyframe => !!k && Number.isFinite(k.t) && Number.isFinite(k.v))
       .map(k => ({ ...k, curve: k.curve ?? 'linear' as CurveKind }))
       .sort((x, y) => x.t - y.t);
+    // An OSC track's block is repaired in place (sanitizeOscTrackConfig) — and its targetPath is
+    // re-derived from its id, so a hand-edited path can never point one track's curve at another's
+    // config or at a real parameter.
+    if (l.osc !== undefined) {
+      const osc = sanitizeOscTrackConfig(l.osc);
+      if (osc) return [{ ...l, targetPath: `osc.${l.id}`, enabled: l.enabled ?? true, keyframes, osc } as AutomationLane];
+      const { osc: _drop, ...rest } = l;
+      return [{ ...rest, enabled: l.enabled ?? true, keyframes } as AutomationLane];
+    }
     return [{ ...l, enabled: l.enabled ?? true, keyframes } as AutomationLane];
   });
 };

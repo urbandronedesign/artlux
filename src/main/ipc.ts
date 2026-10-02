@@ -1,7 +1,7 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand, type RendererFault, type LogRecord } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
@@ -331,6 +331,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.OSC_SEND, (_e, host: string, port: number, address: string, args: (number | string)[]) => {
         osc.send(host, port, address, args);
     });
+    // Timeline OSC tracks: one IPC hop per frame carries every track that moved (see services/oscOut.ts).
+    ipcMain.on(IPC.OSC_SEND_BATCH, (_e, packets: OscOutPacket[]) => osc.sendBatch(packets));
+    ipcMain.handle(IPC.OSC_SEND_STATUS, () => osc.sendStatus());
     ipcMain.handle(IPC.OSC_LOCAL_ADDRS, () => osc.localAddresses());
     // HAP video decode moved to @artlux/plugin-hap (hap:open / hap:decode / hap:close over the generic
     // plugin bridge; activated via activateMainPlugins).

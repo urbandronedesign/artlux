@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
+import { defaultOscTrackConfig, Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { goToContext } from '../../contexts/nav';
 import * as selection from '../../services/selection';
@@ -24,6 +24,7 @@ import { FixtureTrack } from './FixtureTrack';
 import { ColorRow } from './ColorRow';
 import { resolveMode } from '../../services/addressing';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
+import { oscLaneDef, oscTargetPath } from '../../services/oscOut';
 import { automationTargetRegistry } from '../../host/registries';
 import { groupKind, isLight } from '../../services/fixtureKind';
 import { groupCapability, seedColorFrom } from '../../services/colorEngine';
@@ -574,6 +575,32 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: cur, curve: 'linear' }],
       }],
     });
+  };
+
+  /**
+   * + OSC — a new OSC TRACK: an automation lane whose curve is SENT as OSC rather than applied to a
+   * parameter (types.ts → AutomationLane.osc, services/oscOut.ts). It starts aimed at LOOPBACK
+   * (127.0.0.1:10000, the default OSC listen port) so that, with OSC receive on, every message is visible
+   * in View ▸ OSC Monitor before any hardware exists — the first step of the Arduino tutorial. The seed is
+   * ONE key at the playhead holding 0 on a HOLD curve: an LED track is on/off, and a hold segment is what
+   * an on/off cue is. The settings popover opens straight away, because a track with no real destination
+   * is the one thing you always change next.
+   */
+  const [openOscFor, setOpenOscFor] = useState<string | null>(null);
+  const addOscTrack = () => {
+    const tl = timelineRef.current;                 // the BOUND document, never a captured array
+    const id = `osc-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+    onChangeRef.current({
+      ...tl,
+      automation: [...(tl.automation ?? []), {
+        id,
+        targetPath: oscTargetPath(id),
+        enabled: true,
+        keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: 0, curve: 'hold' }],
+        osc: defaultOscTrackConfig(),
+      }],
+    });
+    setOpenOscFor(id);
   };
 
   // ⚠ THERE WAS A SECOND TIMER HERE, AT 100 ms, AND IT WAS THE MOST EXPENSIVE THING IN THE UI.
@@ -2017,7 +2044,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <AutomationLane
               key={`${origin}:${lane.id}`}
               lane={lane}
-              def={laneDefs.get(lane.targetPath)}
+              def={lane.osc ? oscLaneDef(lane) : laneDefs.get(lane.targetPath)}
               pxPerSec={pxPerSec}
               width={Math.max(width, 100)}
               origin={origin}
@@ -2034,6 +2061,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               // Passing no handlers is what makes it inert, structurally rather than by a disabled flag.
               onChange={origin === 'global' ? undefined : (next) => patchLane(lane.id, next)}
               onRemove={origin === 'global' ? undefined : () => patchLane(lane.id, null)}
+              openOscSettings={origin === 'scene' && openOscFor === lane.id}
+              onOscSettingsOpened={() => setOpenOscFor(null)}
             />
           ))}
 
@@ -2075,6 +2104,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                   title="Add an automation lane" className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
                   <Plus size={11} /> Automation
                 </button>
+              </Tooltip>
+              <Tooltip id="timeline.add-osc-track">
+                <button onClick={addOscTrack} {...help('timeline.add-osc-track')} title="Add an OSC track — a curve sent as OSC to one or more devices (IP:port + address, e.g. an Arduino)"
+                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> OSC</button>
               </Tooltip>
               <Tooltip id="timeline.add-audio-track">
                 <button onClick={() => addAudioTrack('timeline')} {...help('timeline.add-audio-track')} title="Add an audio track to THIS timeline (rides the playhead; restarts when the timeline does)"

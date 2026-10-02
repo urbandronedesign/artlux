@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type UpdateEvent,
-    type DisplayInfo, type OscConfig, type OscMessage,
+    type DisplayInfo, type OscConfig, type OscMessage, type OscOutPacket,
     type WindowCommand, type RenderStats, type WatchdogEvent, type RendererFault,
     type BootEntry, type BootReport, type LogRecord,
 } from '../../shared/protocol';
@@ -63,6 +63,8 @@ const api: ArtluxApi = {
     },
     sendOsc: (host: string, port: number, address: string, args: (number | string)[]) =>
         ipcRenderer.send(IPC.OSC_SEND, host, port, address, args),
+    sendOscBatch: (packets: OscOutPacket[]) => ipcRenderer.send(IPC.OSC_SEND_BATCH, packets),
+    oscSendStatus: () => ipcRenderer.invoke(IPC.OSC_SEND_STATUS),
     listLocalAddrs: () => ipcRenderer.invoke(IPC.OSC_LOCAL_ADDRS),
     // HAP video + projector calibration moved to their plugins (generic pluginInvoke/Send bridge).
     // NVAPI scanout warp/blend
