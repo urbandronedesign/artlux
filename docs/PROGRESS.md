@@ -1902,7 +1902,7 @@ path, because `remapEntryPath` would otherwise keep `osc.<old id>` under a new i
 the source, the page prints it inline, and `verify:docs` fails on a difference (proved by editing
 `LED_PIN`). The Docs browser now **reveals** a linked non-markdown file rather than ignoring the click.
 
-⚠ **Not proven on hardware:** no real Arduino has been driven by this build. The codec, quantise, rate
-limit, keep-alive and release paths were exercised in Node against the real modules, and the examples
-were loaded through `normalizeTimeline`. The settings popover and gutter have not been clicked through
-in `npm run dev`.
+**Proven on hardware (2026-10-02):** after release, the owner tested the shipped v0.33.0 build
+against real Arduino boards with Ethernet shields, and it works. Before release, the codec, quantise,
+rate limit, keep-alive and release paths were exercised in Node against the real modules, and the
+examples were loaded through `normalizeTimeline`.
