@@ -165,7 +165,13 @@ export const DocsBrowser: React.FC<Props> = ({ onClose, width = 480, onResize, o
       const posix = abs.replace(/\\/g, '/');
       const match = tree.flatMap((s) => s.entries).find((e) => posix.endsWith('/' + e.id) || posix.endsWith(e.id));
       if (match) load(match);
+      return;
     }
+    // ANY OTHER SHIPPED FILE — an Arduino sketch, a helper script — is REVEALED in the OS file manager,
+    // not opened. The browser cannot render it, and opening it would hand an arbitrary file to whatever
+    // the OS associates with it; showing it in its folder lets the reader open it in the tool they
+    // meant (the Arduino IDE for a .ino). Before this, a link to a non-markdown file did nothing at all.
+    window.artlux.showItemInFolder(abs);
   };
 
   return (
