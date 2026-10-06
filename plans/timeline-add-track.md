@@ -176,3 +176,46 @@ depth: the top track is front-most… so + Track adds on top — what you just a
 Adding from a menu at the top keeps that true for video. Audio, automation, OSC and colour rows are
 not in the depth order at all, so "where it appears" is only a question for the video kind — but it
 is worth saying out loud in the menu if the answer is ever anything but "on top".
+
+
+---
+
+## ⚠ STILL OPEN — reported 2026-10-06, NOT yet diagnosed
+
+> *"when i clic right in on a track i should be able to see the osc track the color etc — for the
+> moment some are missing."*
+
+**Nothing has been verified about this yet.** What is known from source, and what the next session
+should do, so no time is spent re-deriving it:
+
+**There are TWO right-click surfaces on a track, and they are different verbs.**
+
+| Where | Handler | What appears today |
+|---|---|---|
+| The **header column** (the 188 px gutter, any row, and the empty space below the last one) | the scroller's `onContextMenu` added in P3 | the full **add-a-track** menu: Video / Automation… / OSC / Colour ▸ / Audio / Bed |
+| A **lane BODY** (the wide area to the right) | `Lane.tsx:36` → `onAddContent` → `Timeline.tsx:1589` | the **content** menu — *"Add clip"*, a source picker. A **lighting** lane skips it and creates a clip directly (`:1594`); a **tracking** lane does nothing at all (`:1595`) |
+
+**The likely reading of the report** is the lane body: it offers content sources and says nothing
+about OSC or Colour, which is exactly "some are missing" if what you expect from a right-click is
+"everything I could add here". It could equally be that the gutter handler is not firing on a real
+`TrackHeader` (it is only scoped by x, and the header has no handler of its own, so it *should*
+bubble) — **that is a guess and must be checked before anything is changed.**
+
+**Reproduce first, in this order** (and screenshot each, do not trust the DOM alone — see
+[[artlux-cdp-harness-traps]], and remember `Ctrl+T` toggles):
+
+1. right-click a **video track header** → which menu, which entries?
+2. right-click a **video lane body** → same questions;
+3. right-click a **fixture track's gutter** (the colour row, a channel row);
+4. right-click the **empty space below the last track**;
+5. right-click an **audio** and an **OSC** track, header and body.
+
+**Then the design question for the owner, which the fix depends on:** should a lane body's
+right-click ALSO offer the track kinds? Today it means *"add content HERE, at this time, on this
+lane"* — a different verb from *"add a new track"*, and merging them risks the trap the content
+menu's own comment describes (a right-click that used to drop a clip now needs a second choice). A
+middle answer is a separator: the content sources, then **Add a track ▸** beneath them.
+
+**Do not assume the gutter handler is at fault without seeing it fail** — the P3 assertion
+("right-click in the header column opens it at the pointer") passed, but it clicked at a computed
+point near the `Tracks` label, not on a real `TrackHeader` row.
