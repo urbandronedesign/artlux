@@ -1906,3 +1906,33 @@ the source, the page prints it inline, and `verify:docs` fails on a difference (
 against real Arduino boards with Ethernet shields, and it works. Before release, the codec, quantise,
 rate limit, keep-alive and release paths were exercised in Node against the real modules, and the
 examples were loaded through `normalizeTimeline`.
+
+---
+
+## Adding a track: one door, and a right-click that answers everywhere (2026-10-06)
+
+The five adders (**+ Automation / + OSC / + Audio / + Bed / + Colour**) lived in a row that was the
+**last child of the scroller**, so every track an operator added pushed it further below the fold, and
+they competed with the toolbar's own **+ Track** for the same verb while neither mentioned the other.
+They are now one menu on **+ Track ▾**: the button body still adds a video track in one click, the
+caret opens every kind. An entry that does not apply is **disabled with its reason**, never absent —
+the failure mode where a feature is invisible at exactly the moment someone is hunting for it.
+
+**Then the owner reported that a right-click on a track showed "some" of the kinds.** It was not the
+new handler failing: it was scoped **by x** to the 188px header column, which is a sliver of the
+timeline's area. Right-clicking an automation curve, an OSC curve, an audio lane, a colour row or a
+fixture's channel rows did **nothing at all**, and the one body that did answer — a video lane —
+offered clip sources and named no track kind. The scope is now *"nothing nearer has claimed it"*,
+asked with `defaultPrevented` instead of coordinates, which is also the only way to express "a clip,
+but not the lane under it". A video lane keeps its picker, with **Add a track ▸** under a separator.
+
+**The screenshot found a second bug the DOM could not.** The clip picker reserved `innerHeight - 200`
+for a panel that is ~390px, and it is opened by right-clicking a lane — which sits at the BOTTOM of
+the window, inside a drawer. Its lower half was off-screen: rendered, in the DOM, found by
+`querySelector`, impossible to see or click. Clamped against its real height and scrollable now, the
+same fix as the clip inspector two blocks below it.
+
+`scripts/test-timeline-rightclick.cjs` drives all of it in the real app — 25 assertions, maximised
+*and* in the drawer, screenshots at every step. Four harness traps are written into its header,
+including that **`Ctrl+T` toggles** against a drawer whose toolbar stays in the DOM while collapsed,
+and that creating an OSC track **opens its settings popover**, which then eats the next click.

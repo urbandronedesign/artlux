@@ -1592,7 +1592,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // movement is generated rather than loaded. Right-click (the established "add something here"
     // gesture on an empty lane) therefore creates the clip directly.
     if (layer.kind === 'lighting') { e.preventDefault(); addLightingClip(layerId, Math.max(0, clientXToTime(e.clientX))); return; }
-    if (layer.kind === 'tracking') return; // tracking lanes take recorded takes only
+    // A TRACKING lane takes recorded takes only, so there is nothing to pick. Note what the bare
+    // `return` means now: no preventDefault, so the scroller's catch-all answers instead and the
+    // gesture is still worth making. It used to be a dead click.
+    if (layer.kind === 'tracking') return;
     e.preventDefault();
     setContentMenu({ layerId, start: Math.max(0, clientXToTime(e.clientX)), x: e.clientX, y: e.clientY });
   };
@@ -1984,17 +1987,24 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       <div
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-auto relative"
-        // RIGHT-CLICK THE HEADER COLUMN = the add menu, at the pointer. One handler on the scroller
-        // rather than one per header: it covers the empty space below the last track too, which is
-        // exactly where someone reaches when they want another one.
+        // RIGHT-CLICK ANYWHERE UNCLAIMED = the add menu, at the pointer. One handler on the scroller
+        // rather than one per row, so it covers the header column, the empty space below the last
+        // track, AND the body of every row that has no right-click of its own.
         //
-        // Scoped to the GUTTER by x, and only when nothing nearer has claimed the event — a lane
-        // BODY's right-click already means "add content here" (Lane.tsx) and a clip has its own.
-        // Both call preventDefault, so `defaultPrevented` is the honest test for "already handled".
+        // ⚠ IT WAS SCOPED TO THE 188px GUTTER BY X, and that is what was reported as "I right-click
+        // on a track and some are missing". Only a VIDEO lane's body claims this gesture; an
+        // automation curve, an audio lane, a colour row, an OSC curve and a fixture's channel rows
+        // claim nothing — so over most of the timeline's AREA a right-click did nothing at all, and
+        // the one surface that did answer offered clip sources and never named a track kind. An
+        // operator reaching for "another track" has no reason to know that the 188px of gutter is the
+        // live strip and the other 1500 are not.
+        //
+        // The scope is now "nothing nearer has claimed it", asked with `defaultPrevented` instead of
+        // with coordinates: Lane.tsx (add content here) and CurveEditor (delete this keyframe) both
+        // preventDefault when they handle it, which makes the flag the honest question. Coordinates
+        // were never able to express "a clip, but not the lane under it".
         onContextMenu={(e) => {
           if (e.defaultPrevented) return;
-          const r = e.currentTarget.getBoundingClientRect();
-          if (e.clientX - r.left > GUTTER) return;
           e.preventDefault();
           setAddMenuView('root');
           setAddMenu({ x: e.clientX, y: e.clientY });
@@ -2204,9 +2214,19 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       {contentMenu && createPortal(
         <>
           <div className="fixed inset-0 z-popover" onClick={() => setContentMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContentMenu(null); }} />
-          <div className="fixed z-popover w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e3"
+          {/* ⚠ CLAMPED AGAINST ITS REAL HEIGHT, AND SCROLLABLE — it was neither, the same disease the
+              clip inspector below documents. The old clamp reserved 200px for a panel that is twice
+              that (a dozen source tiles in a 3-wide grid), and this menu is opened by right-clicking a
+              LANE — which is at the BOTTOM of the window, inside a drawer. So its lower half was
+              routinely off-screen: rendered, hit-testable in the DOM, and impossible to reach or even
+              see. A screenshot is what showed it; the DOM said the rows were all there. */}
+          <div className="fixed z-popover w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e3 overflow-y-auto overscroll-contain"
             onWheel={(e) => e.stopPropagation()}
-            style={{ left: Math.max(8, Math.min(contentMenu.x, window.innerWidth - 236)), top: Math.max(8, Math.min(contentMenu.y, window.innerHeight - 200)) }}>
+            style={{
+              left: Math.max(8, Math.min(contentMenu.x, window.innerWidth - 236)),
+              top: Math.max(8, Math.min(contentMenu.y, window.innerHeight - 440)),
+              maxHeight: 'calc(100vh - 16px)',
+            }}>
             <div className="text-micro font-bold uppercase tracking-wider text-fg-3 mb-1.5 px-0.5">Add clip</div>
             <ContentEditor
               content={{ type: SourceType.NONE }}
@@ -2215,6 +2235,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               onTypeChange={(type) => { if (type !== SourceType.NONE) createContentClip(contentMenu.layerId, contentMenu.start, { type }); }}
               onChange={(patch) => { if (patch.type && patch.url !== undefined) createContentClip(contentMenu.layerId, contentMenu.start, { type: patch.type, url: patch.url }); }}
             />
+            {/* … AND THE OTHER VERB, one step away. This menu means "add content HERE, at this time,
+                on this lane" — but what an operator right-clicking a track is often hunting for is a
+                TRACK KIND, and the list above names none of them. Below a separator, so the primary
+                verb is untouched: the sources are still the first thing under the cursor, and the
+                click that used to drop a clip still drops one. */}
+            <div className="h-px bg-line-1 my-1.5" />
+            <button
+              onClick={() => { const { x, y } = contentMenu; setContentMenu(null); setAddMenuView('root'); setAddMenu({ x, y }); }}
+              className="w-full flex items-baseline gap-2 px-2 py-1 rounded text-mini text-left text-fg-1 hover:bg-surface-2">
+              <span>Add a track ▸</span>
+              <span className="ml-auto text-micro text-fg-3">any kind</span>
+            </button>
           </div>
         </>,
         document.body,

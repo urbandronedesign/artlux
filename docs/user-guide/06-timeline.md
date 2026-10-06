@@ -25,6 +25,10 @@ Press **F** to maximize the timeline full‑screen; drag the dock's top edge to 
 - **Tracks** — mute / solo / lock / show‑hide, recolor, reorder (drag the grip at the left of the track
   name), and resize height from the track header. The **top** track is front‑most in the composite;
   **+ Track** adds a new one on top.
+- **Adding any kind of track** — the caret beside **+ Track** opens a menu holding every kind:
+  automation, OSC, colour, audio, bed. **Right‑clicking anywhere on the timeline** opens the same
+  menu at the pointer; on a video lane you get the clip sources first, with **Add a track ▸**
+  underneath them.
 
 **Length & looping:** the **Length** field (toolbar) is the end of the timeline — playback stops and
 holds on the last frame when it gets there. Looping is off by default; toggle **Loop** (**Shift+L**) to

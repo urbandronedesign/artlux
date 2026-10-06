@@ -477,9 +477,14 @@ the toolbar.
 - **Adding a track: `+ Track ▾`** on the toolbar, which never scrolls away. The button adds a **video**
   track in one click; the caret opens every kind — **Automation…** (then pick the parameter), **OSC**,
   **Colour** (over a light group), **Audio** (plays with this timeline) and **Bed** (rides the show
-  clock). **Right-click anywhere in the track-header column** for the same menu at the pointer. An
-  entry that cannot be used right now is **shown greyed with the reason** rather than hidden, so the
-  thing you are looking for is never simply missing.
+  clock). **Right-click anywhere on the timeline** for the same menu at the pointer — a track header,
+  a curve, a colour row, an audio lane, the empty space below the last track. An entry that cannot be
+  used right now is **shown greyed with the reason** rather than hidden, so the thing you are looking
+  for is never simply missing.
+
+  The one surface that answers differently is a **video lane's empty body**, where right-click means
+  *add a clip here, at this time* and offers the content sources instead; **Add a track ▸** at the
+  bottom of that picker leads to the same menu.
 - **Automation keys:** drag a diamond to move it (shift = value only, alt = time only), double-click
   to edit its value, time and **ease**, right-click to delete. An ease of **bezier** gives the key two
   **handles**: select the key and drag them to shape that segment. They are bounded to the segment, so

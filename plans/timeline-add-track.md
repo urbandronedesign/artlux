@@ -180,42 +180,37 @@ is worth saying out loud in the menu if the answer is ever anything but "on top"
 
 ---
 
-## ⚠ STILL OPEN — reported 2026-10-06, NOT yet diagnosed
+## P5 — the right-click report, CLOSED 2026-10-06
 
 > *"when i clic right in on a track i should be able to see the osc track the color etc — for the
 > moment some are missing."*
 
-**Nothing has been verified about this yet.** What is known from source, and what the next session
-should do, so no time is spent re-deriving it:
+**It was not the gutter handler.** P3 added the menu to the scroller but scoped it **by x** to the
+188px header column, and that is a tiny strip of the timeline's area:
 
-**There are TWO right-click surfaces on a track, and they are different verbs.**
-
-| Where | Handler | What appears today |
+| Where you right-click | Before | Now |
 |---|---|---|
-| The **header column** (the 188 px gutter, any row, and the empty space below the last one) | the scroller's `onContextMenu` added in P3 | the full **add-a-track** menu: Video / Automation… / OSC / Colour ▸ / Audio / Bed |
-| A **lane BODY** (the wide area to the right) | `Lane.tsx:36` → `onAddContent` → `Timeline.tsx:1589` | the **content** menu — *"Add clip"*, a source picker. A **lighting** lane skips it and creates a clip directly (`:1594`); a **tracking** lane does nothing at all (`:1595`) |
+| the header column, the empty space below the last track | the add menu | unchanged |
+| an **automation** curve, an **OSC** curve, an **audio** lane, a **colour** row, a fixture's **channel** rows, the state lane | **nothing at all** | the add menu |
+| a **video** lane's empty body | the clip-source picker, naming no track kind | the picker, plus **Add a track ▸** under a separator |
+| a **lighting** lane's body | creates a clip directly | unchanged (it preventDefaults, so the catch-all stands aside) |
+| a **tracking** lane's body | **nothing at all** — a dead gesture | the add menu |
+| a clip, a keyframe | nothing / delete the key | unchanged where claimed |
 
-**The likely reading of the report** is the lane body: it offers content sources and says nothing
-about OSC or Colour, which is exactly "some are missing" if what you expect from a right-click is
-"everything I could add here". It could equally be that the gutter handler is not firing on a real
-`TrackHeader` (it is only scoped by x, and the header has no handler of its own, so it *should*
-bubble) — **that is a guess and must be checked before anything is changed.**
+The scope is now *"nothing nearer has claimed it"*, asked with `defaultPrevented` rather than with
+coordinates — which is also the only way to express "a clip, but not the lane under it". The design
+question this plan left open (*should a lane body offer track kinds?*) is answered by the report
+itself: yes, but **underneath** the content sources, because "add content here, at this time" is a
+different verb and the click that used to drop a clip still drops one.
 
-**Reproduce first, in this order** (and screenshot each, do not trust the DOM alone — see
-[[artlux-cdp-harness-traps]], and remember `Ctrl+T` toggles):
+**A second bug fell out of the screenshots, and it is the more interesting one.** The content picker
+was clamped with `window.innerHeight - 200` against a panel that is **~390px** — a dozen source tiles
+in a 3-wide grid. It is opened by right-clicking a LANE, which lives at the BOTTOM of the window
+inside a drawer, so its lower half was routinely off-screen: rendered, present in the DOM, reachable
+by `querySelector`, and impossible for a person to see or click. The row this change adds is what
+fell off the bottom. It is now clamped against its real height and scrollable — the same fix, and the
+same disease, as the clip inspector two blocks below it in the source.
 
-1. right-click a **video track header** → which menu, which entries?
-2. right-click a **video lane body** → same questions;
-3. right-click a **fixture track's gutter** (the colour row, a channel row);
-4. right-click the **empty space below the last track**;
-5. right-click an **audio** and an **OSC** track, header and body.
-
-**Then the design question for the owner, which the fix depends on:** should a lane body's
-right-click ALSO offer the track kinds? Today it means *"add content HERE, at this time, on this
-lane"* — a different verb from *"add a new track"*, and merging them risks the trap the content
-menu's own comment describes (a right-click that used to drop a clip now needs a second choice). A
-middle answer is a separator: the content sources, then **Add a track ▸** beneath them.
-
-**Do not assume the gutter handler is at fault without seeing it fail** — the P3 assertion
-("right-click in the header column opens it at the pointer") passed, but it clicked at a computed
-point near the `Tracks` label, not on a real `TrackHeader` row.
+**Verified in the app:** `node scripts/test-timeline-rightclick.cjs` — 25 assertions, screenshots,
+run **maximised** (the `fixed inset-0 z-50` stacking context) *and* restored to the drawer, which is
+where the clamp failed. Its header lists the four harness traps that cost a run each.

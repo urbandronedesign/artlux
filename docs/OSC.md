@@ -151,9 +151,9 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 
 ## Sending OSC from the timeline (OSC tracks)
 
-An **OSC track** is a timeline lane whose value is **sent**, not applied inside ArtLux. Add one with
-**+ OSC** under the timeline's lanes. Each track carries its own settings (the sliders button in its
-gutter):
+An **OSC track** is a timeline lane whose value is **sent**, not applied inside ArtLux. Add one from
+**+ Track ▾** on the timeline toolbar, or by **right-clicking anywhere on the timeline** — the menu
+is the same. Each track carries its own settings (the sliders button in its gutter):
 
 | Setting | What it does |
 |---|---|

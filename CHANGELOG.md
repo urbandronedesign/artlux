@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### One door for adding a track, and a right-click that answers everywhere
+
+Every kind of track now comes from **one menu**: the caret beside **+ Track** on the timeline toolbar,
+which never scrolls away. It replaces the **+ Automation / + OSC / + Audio / + Bed / + Colour** row
+that used to sit at the bottom of the lanes, where every track you added pushed it further out of
+sight and five labels had to share a 188px column.
+
+**Right-click anywhere on the timeline** opens the same menu at the pointer — a track header, an
+automation or OSC curve, a colour row, an audio lane, the empty space below the last track. Before,
+only the narrow header column answered, so on most of the timeline a right-click did nothing at all.
+A **video lane's empty body** still offers the clip sources first, because there the gesture means
+*add a clip here, at this time*; **Add a track ▸** sits underneath them.
+
+An entry that cannot be used right now is **greyed with the reason** instead of disappearing —
+*"Colour — no light group yet (make one in Venue & Rig)"* — so what you are looking for is never
+simply absent.
+
+Fixed: the clip-source picker was taller than the space it reserved for itself, so when opened from a
+lane near the bottom of the screen its lower half was cut off. It now fits, and scrolls if it cannot.
+
 ## v0.33.0
 
 ### OSC tracks: the timeline can drive other devices
