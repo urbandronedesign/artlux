@@ -136,6 +136,34 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
+
+/**
+ * One row of the add-a-track menu.
+ *
+ * A DISABLED ROW STILL SAYS WHAT IT IS AND WHY IT CANNOT BE USED. That is the whole reason this is a
+ * component and not an inline button: the previous controls simply disappeared when they did not
+ * apply, which teaches nobody anything and hides the feature from the person looking for it.
+ */
+const AddRow: React.FC<{
+  label: string;
+  hint?: string;
+  helpId?: string;
+  disabledReason?: string;
+  onClick: () => void;
+}> = ({ label, hint, helpId, disabledReason, onClick }) => (
+  <button
+    onClick={disabledReason ? undefined : onClick}
+    disabled={!!disabledReason}
+    {...(helpId ? help(helpId) : {})}
+    title={disabledReason ?? hint}
+    className={`w-full flex items-baseline gap-2 px-2 py-1.5 rounded text-mini text-left ${
+      disabledReason ? 'opacity-50 cursor-not-allowed' : 'text-fg-1 hover:bg-surface-2'}`}
+  >
+    <span className={disabledReason ? 'text-fg-2' : ''}>{label}</span>
+    <span className="ml-auto text-micro text-fg-3 truncate">{disabledReason ?? hint}</span>
+  </button>
+);
+
 export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
@@ -152,6 +180,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [selectedSource, setSelectedSource] = useState<'video' | 'bed' | 'timeline'>('video');
   const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null); // automation picker anchor
   const [colorMenu, setColorMenu] = useState<{ x: number; y: number } | null>(null); // group-colour menu anchor
+  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null);      // "add a track" menu anchor
+  const [addMenuView, setAddMenuView] = useState<'root' | 'colour'>('root');
   // The automatable targets, polled — see refreshDefs. The SIGNATURE rides with the map so a poll that
   // finds nothing new can return the previous object and React can bail out of the render entirely.
   const [defs, setDefs] = useState(() => { const map = enumerateAutomationDefs(); return { map, sig: defsSignature(map) }; });
@@ -1771,6 +1801,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     () => (overrunAt != null ? { at: overrunAt, length: lengthEnd, onFix: fixLengthStable } : undefined),
     [overrunAt, lengthEnd, fixLengthStable],
   );
+  const closeAddMenu = () => { setAddMenu(null); setAddMenuView('root'); };
+  // The light groups, and the ones that do not already carry a colour lane — one group, one lane.
+  const lightGroups = useMemo(
+    () => fixtureGroups.filter((g) => groupKind(g, rigFixtures) === 'light'),
+    [fixtureGroups, rigFixtures],
+  );
+  const takenColourGroups = useMemo(
+    () => new Set((timeline.colorLanes ?? []).map((l) => l.groupId).filter(Boolean)).size,
+    [timeline.colorLanes],
+  );
+  const colourGroups = useMemo(() => {
+    const taken = new Set((timeline.colorLanes ?? []).map((l) => l.groupId).filter(Boolean));
+    return lightGroups.filter((g) => !taken.has(g.id));
+  }, [lightGroups, timeline.colorLanes]);
+
   const toolbarHandlers = useStableHandlers({
     onTogglePlay, onStop: stop,
     onChangeDuration: (d: number) => onChangeRef.current({ ...timelineRef.current, duration: d }),
@@ -1779,6 +1824,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     onToggleSnap: () => setSnapEnabled(v => !v),
     onAddMarker: addMarker, onSetIn: setIn, onSetOut: setOut,
     onZoom, onZoomFit, onAddTrack: addLayer,
+    onOpenAddMenu: (anchor: { x: number; y: number }) => setAddMenu(anchor),
     onToggleLoop: toggleLoop, onToggleHold: toggleHold, onEndStateHere: endStateHere,
     onToggleSm: toggleSm,
     onEditLogic: () => goToContext('machine'),
@@ -1935,7 +1981,25 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           lives in the Lighting Takes / Tracking Takes dock panels (which are also the drag sources for
           the chips). The timeline keeps what is actually its job: the lanes those takes are placed on. */}
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto relative">
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-auto relative"
+        // RIGHT-CLICK THE HEADER COLUMN = the add menu, at the pointer. One handler on the scroller
+        // rather than one per header: it covers the empty space below the last track too, which is
+        // exactly where someone reaches when they want another one.
+        //
+        // Scoped to the GUTTER by x, and only when nothing nearer has claimed the event — a lane
+        // BODY's right-click already means "add content here" (Lane.tsx) and a clip has its own.
+        // Both call preventDefault, so `defaultPrevented` is the honest test for "already handled".
+        onContextMenu={(e) => {
+          if (e.defaultPrevented) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          if (e.clientX - r.left > GUTTER) return;
+          e.preventDefault();
+          setAddMenuView('root');
+          setAddMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
         <div className="relative" style={{ width: GUTTER + Math.max(width, 100) }}>
           {/* header row: timecode ruler (sticky top), corner cell (sticky left) */}
           <div className="flex sticky top-0 z-30">
@@ -2096,74 +2160,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             />
           ))}
 
+          {/* THE ADD ROW IS GONE, deliberately. It used to sit here — the last child of the scroller,
+              so every track an operator added pushed it further below the fold, and it competed with
+              the toolbar's own "+ Track" for the same verb. Both now live on the toolbar's
+              "+ Track ▾". See plans/timeline-add-track.md. */}
           {/* add an automation lane / an audio lane */}
-          <div className="flex border-b border-line-1">
-            <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center gap-2 px-2 relative" style={{ width: GUTTER, height: 26 }}>
-              <Tooltip id="timeline.add-automation">
-                <button onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setPickerAt({ x: r.left, y: r.bottom }); }} {...help('timeline.add-automation')}
-                  title="Add an automation lane" className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
-                  <Plus size={11} /> Automation
-                </button>
-              </Tooltip>
-              <Tooltip id="timeline.add-osc-track">
-                <button onClick={addOscTrack} {...help('timeline.add-osc-track')} title="Add an OSC track — a curve sent as OSC to one or more devices (IP:port + address, e.g. an Arduino)"
-                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> OSC</button>
-              </Tooltip>
-              <Tooltip id="timeline.add-audio-track">
-                <button onClick={() => addAudioTrack('timeline')} {...help('timeline.add-audio-track')} title="Add an audio track to THIS timeline (rides the playhead; restarts when the timeline does)"
-                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Audio</button>
-              </Tooltip>
-              {audioProp && (
-                <Tooltip id="timeline.add-bed-track">
-                  <button onClick={() => addAudioTrack('bed')} {...help('timeline.add-bed-track')} title="Add a BED track (rides the show clock; it does NOT restart on a scene recall)"
-                    className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Bed</button>
-                </Tooltip>
-              )}
-              {/* + COLOUR — a colour over a whole GROUP. There is no picker dialog: the only choice
-                  is which group, and groups that already carry one are not offered again (one group,
-                  one lane), so the menu is the list itself. */}
-              {fixtureGroups.some((g) => groupKind(g, rigFixtures) === 'light') && (
-                <button
-                  onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setColorMenu({ x: r.left, y: r.bottom }); }}
-                  title="Colour a whole group with one lane, staggered by a phase"
-                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
-                  <Plus size={11} /> Colour
-                </button>
-              )}
-              {colorMenu && createPortal(
-                <>
-                  <div className="fixed inset-0 z-popover" onPointerDown={() => setColorMenu(null)} />
-                  <div className="fixed z-popover bg-surface-0 border border-line-2 rounded shadow-e3 py-1 text-mini w-52"
-                    style={{ left: colorMenu.x, top: colorMenu.y }}>
-                    {(() => {
-                      const taken = new Set((timeline.colorLanes ?? []).map((l) => l.groupId).filter(Boolean));
-                      const offer = fixtureGroups.filter((g) => groupKind(g, rigFixtures) === 'light' && !taken.has(g.id));
-                      if (!offer.length) {
-                        return <div className="px-2 py-1 text-fg-3">Every light group already has a colour lane.</div>;
-                      }
-                      return offer.map((g) => (
-                        <button key={g.id} onClick={() => addGroupColorLane(g.id)}
-                          className="w-full text-left px-2 py-1 hover:bg-surface-2 text-fg-1 flex items-center gap-2">
-                          <span className="flex-1 truncate">{g.name}</span>
-                          <span className="text-micro text-fg-3">{g.fixtureIds.length}</span>
-                        </button>
-                      ));
-                    })()}
-                  </div>
-                </>,
-                document.body,
-              )}
-              {pickerAt && (
-                <AutomationTargetPicker
-                  taken={new Set(lanes.map(l => l.targetPath))}
-                  anchor={pickerAt}
-                  onPick={addLane}
-                  onClose={() => setPickerAt(null)}
-                />
-              )}
-            </div>
-            <div style={{ width: Math.max(width, 100), height: 26 }} />
-          </div>
 
           {/* snap guide + playhead overlay (content coords; scroll with the tracks) */}
           <div ref={snapGuideRef} className="absolute w-px bg-accent z-10 pointer-events-none" style={{ left: GUTTER, top: RULER_H, bottom: 0, display: 'none' }} />
@@ -2185,7 +2186,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               <Film size={20} className="mx-auto text-fg-3 mb-1.5" />
               <div className="text-fg-2 text-mini">
                 {layers.length === 0
-                  ? <>Add a track, then drag media onto its lane{authoring ? <> to build “{author!.activeName}”</> : null}.</>
+                  ? <>Add a track with <span className="text-fg-1">+ Track ▾</span> above, then drag media onto its lane{authoring ? <> to build “{author!.activeName}”</> : null}.</>
                   : <>Drag video, images or effects onto a lane{authoring ? <> to build “{author!.activeName}”</> : null}.</>}
               </div>
             </div>
@@ -2281,6 +2282,84 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           <ClipAudioInspector clip={selectedClip} onPatch={(patch) => patchClipAudio(selectedClip.id, patch)} />
         </div>
       )}
+
+      {/* ── "+ TRACK ▾" — THE ONE DOOR FOR ADDING A TRACK ──────────────────────────────────────
+          Every kind, from a control that never scrolls. It replaces a row that lived at the BOTTOM
+          of the scroller, which each new track pushed further out of sight, and which competed with
+          the toolbar's own "+ Track" for the same verb while neither mentioned the other.
+
+          PORTALLED, like every popover in this directory: the toolbar sits above a sticky ruler
+          (z-30) and, maximised, inside a `fixed inset-0 z-50` — both stacking contexts, in which a
+          menu rendered in place has correct geometry, correct text and only the pixels wrong.
+
+          ⚠ AN ENTRY THAT DOES NOT APPLY IS DISABLED WITH ITS REASON, NEVER ABSENT. "+ Bed" and
+          "+ Colour" used to vanish when there was no bed and no light group — so the feature was
+          invisible at exactly the moment someone was hunting for it. */}
+      {addMenu && createPortal(
+        <>
+          <div className="fixed inset-0 z-popover" onPointerDown={() => { setAddMenu(null); setAddMenuView('root'); }} />
+          <div
+            className="fixed z-popover w-60 bg-surface-0 border border-line-2 rounded-md p-1 shadow-e3"
+            style={{ left: Math.min(addMenu.x, window.innerWidth - 248), top: Math.min(addMenu.y + 4, window.innerHeight - 260) }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setAddMenu(null); setAddMenuView('root'); } }}>
+            {addMenuView === 'root' ? (
+              <>
+                <AddRow label="Video" hint="a picture, on its own lane" onClick={() => { addLayer(); closeAddMenu(); }} />
+                <AddRow
+                  label="Automation…" hint="a curve over any parameter" helpId="timeline.add-automation"
+                  onClick={() => { setPickerAt({ x: addMenu.x, y: addMenu.y }); closeAddMenu(); }}
+                />
+                <AddRow label="OSC" hint="a curve sent to a device" helpId="timeline.add-osc-track"
+                  onClick={() => { addOscTrack(); closeAddMenu(); }} />
+                <AddRow
+                  label="Colour ▸" hint={colourGroups.length ? 'one colour over a light group' : undefined}
+                  disabledReason={colourGroups.length ? undefined
+                    : takenColourGroups >= lightGroups.length && lightGroups.length
+                      ? 'every light group already has one'
+                      : 'no light group yet — make one in Venue & Rig'}
+                  onClick={() => setAddMenuView('colour')}
+                />
+                <div className="h-px bg-line-1 my-1" />
+                <AddRow label="Audio" hint="plays with THIS timeline" helpId="timeline.add-audio-track"
+                  onClick={() => { addAudioTrack('timeline'); closeAddMenu(); }} />
+                <AddRow
+                  label="Bed" hint={audioProp ? 'rides the show clock' : undefined} helpId="timeline.add-bed-track"
+                  disabledReason={audioProp ? undefined : 'this project has no audio bed'}
+                  onClick={() => { addAudioTrack('bed'); closeAddMenu(); }}
+                />
+              </>
+            ) : (
+              <>
+                <button onClick={() => setAddMenuView('root')}
+                  className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-micro text-left text-fg-3 hover:bg-surface-2 hover:text-fg-1">
+                  ← Colour a group
+                </button>
+                <div className="h-px bg-line-1 my-1" />
+                {colourGroups.map((g) => (
+                  <AddRow key={g.id} label={g.name} hint={`${g.fixtureIds.length} heads · order is the chase`}
+                    onClick={() => { addGroupColorLane(g.id); closeAddMenu(); }} />
+                ))}
+              </>
+            )}
+          </div>
+        </>,
+        document.body,
+      )}
+
+      {/* The automation target picker, opened from the menu above. It outlived the row it used to
+          live in — it is a second popover opened BY a popover, so it anchors to the toolbar's caret
+          rather than to a menu row that has already unmounted. */}
+      {pickerAt && (
+        <AutomationTargetPicker
+          taken={new Set(lanes.map(l => l.targetPath))}
+          anchor={pickerAt}
+          onPick={addLane}
+          onClose={() => setPickerAt(null)}
+        />
+      )}
+
     </div>
   );
 };

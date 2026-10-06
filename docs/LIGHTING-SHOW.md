@@ -367,7 +367,7 @@ its palette must go quiet rather than quietly perform a different show.
 
 ### Colouring a whole GROUP
 
-**+ Colour** at the bottom of the timeline offers the light groups; picking one gives the group its
+**+ Track ▾ ▸ Colour** on the timeline toolbar offers the light groups; picking one gives the group its
 own colour row, named after it, sitting outside the fixture tracks because it belongs to no single
 head. One group, one lane.
 

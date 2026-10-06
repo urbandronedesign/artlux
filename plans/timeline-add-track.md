@@ -1,6 +1,13 @@
 # One door for adding a track
 
-> **Status: PLAN — nothing built. Shape decided with the owner 2026-10-06.**
+> **Status: BUILT 2026-10-06.** P1–P4 done; verified in the app (11 assertions, screenshots).
+>
+> One trap found while verifying, worth more than the feature: **`Ctrl+T` TOGGLES, and the timeline
+> is a PERSISTENT element** — collapsed, its toolbar is still in the DOM. A harness that blindly
+> presses `Ctrl+T` can CLOSE a drawer the context already had open, after which "the button exists"
+> still passes and every click lands on whatever is really at those coordinates. Drive the drawer to
+> open by checking what is hit-testable (`elementFromPoint` lands inside the button), never by
+> pressing a toggle and hoping. Added to [[artlux-cdp-harness-traps]].
 > Goal, in the owner's words: *"the automation bed osc etc should be present on top of our timeline
 > and be visible if we create more tracks — in the current state we bury all the information."*
 

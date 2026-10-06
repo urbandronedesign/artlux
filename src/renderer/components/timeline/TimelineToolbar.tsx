@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle, Snowflake } from 'lucide-react';
+import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle, Snowflake, ChevronDown } from 'lucide-react';
 import { fmtClock } from './geometry';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -38,6 +38,15 @@ interface Props {
   onZoom: (factor: number) => void;
   onZoomFit: () => void;
   onAddTrack: () => void;
+  /**
+   * Open the "add a track of any kind" menu, anchored to the measured rect of the caret.
+   *
+   * The MENU ITSELF LIVES IN Timeline, not here: it needs the verbs (automation picker, OSC, audio,
+   * bed, colour-by-group) and the state that gates them, and threading six handlers plus their
+   * reasons through a memoised toolbar would put the decision in the wrong file. The toolbar owns
+   * the button; the panel owns what the button opens.
+   */
+  onOpenAddMenu: (anchor: { x: number; y: number }) => void;
   loop: boolean;
   onToggleLoop: () => void;
   // HOLD AT END (Timeline.holdAtEnd): the state's picture freezes on its last frame instead of the
@@ -152,7 +161,7 @@ const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-
 // Memoized for the same reason as the ruler: none of what it draws changes while a clip is being dragged,
 // yet it was re-rendering on every pointer move at ~61 ms/s of the gesture. Its callbacks come from
 // Timeline.tsx as one stable bag (useStableHandlers), because thirty inline arrows would defeat this.
-const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, onOpenAddMenu, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" helpId="timeline.play" onClick={onTogglePlay}>
@@ -222,9 +231,26 @@ const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, t
         <Tooltip id="timeline.zoom-fit"><button onClick={onZoomFit} {...help('timeline.zoom-fit')} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom to fit"><Scan size={12} /></button></Tooltip>
         <Tooltip id="timeline.zoom-in"><button onClick={() => onZoom(1.5)} {...help('timeline.zoom-in')} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom in (+ / wheel)"><ZoomIn size={13} /></button></Tooltip>
       </div>
-      <Tooltip id="timeline.add-track">
-        <button onClick={onAddTrack} {...help('timeline.add-track')} title="Add a video track" className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
-      </Tooltip>
+      {/* ONE CONTROL, TWO DEPTHS. The body still adds a video track in one click — the common case
+          does not get slower and nobody relearns it — and the caret opens every other kind. Before
+          this, "+ Track" meant video only and the other five kinds lived in a row at the BOTTOM of
+          the scroller, where each new track pushed them further out of sight. */}
+      <div className="flex items-stretch rounded-sm bg-surface-2 border border-line-1 overflow-hidden">
+        <Tooltip id="timeline.add-track">
+          <button onClick={onAddTrack} {...help('timeline.add-track')} title="Add a video track"
+            className="flex items-center gap-1 px-2 py-1 text-fg-1 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
+        </Tooltip>
+        <button
+          onClick={(e) => {
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onOpenAddMenu({ x: r.left, y: r.bottom });
+          }}
+          title="Add a track of any kind — automation, OSC, colour, audio…"
+          aria-label="Add a track of any kind"
+          className="px-1 border-l border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1">
+          <ChevronDown size={12} />
+        </button>
+      </div>
       <TBtn title={maximized ? 'Restore (F)' : 'Maximize (F)'} helpId="timeline.maximize" onClick={onToggleMax}>{maximized ? <Minimize size={13} /> : <Maximize size={13} />}</TBtn>
     </div>
   </div>
