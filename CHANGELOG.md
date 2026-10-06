@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.33.1
 
 ### One door for adding a track, and a right-click that answers everywhere
 
