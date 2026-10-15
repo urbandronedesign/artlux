@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.33.2
 
 ### Still images on projector outputs no longer wear the editor down
 
