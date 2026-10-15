@@ -1375,6 +1375,11 @@ function rawLayerDrawable(layerId: string): CanvasImageSource | null {
 function layerGeneration(layerId: string): number | undefined {
   const lv = layerVideos.get(layerId);
   if (!lv || !lv.clipId) return undefined;
+  // A FADING layer is a new picture every frame even when its source is still — layerDrawable bakes
+  // the clip alpha into a scratch canvas — so the source's generation would freeze the fade on every
+  // consumer that dedups (the projector pump, the 3D upload). Same threshold as layerDrawable, so the
+  // two agree on exactly which frames are composited.
+  if (layerAlpha(layerId) < 0.999) return undefined;
   if (lv.mode === 'content') return lv.content ? contentSource.getDrawableGeneration(layerKey(layerId), lv.content) : undefined;
   // The codec keys layer state by layerId — the same key it was handed in syncCodecLayer.
   if (lv.mode === 'codec') return lv.codec ? videoCodecRegistry.get(lv.codec.codecId)?.layerGeneration?.(layerId) : undefined;

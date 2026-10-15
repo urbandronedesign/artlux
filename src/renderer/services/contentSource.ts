@@ -23,7 +23,9 @@ type Entry =
   // touching layout, transferable to a worker, and a CanvasImageSource everywhere an <img> was. `bmp`
   // is null until the decode lands. It MUST be closed when the entry is dropped — an ImageBitmap holds
   // GPU-side memory that garbage collection will not hurry to reclaim.
-  | { type: 'IMAGE'; bmp: ImageBitmap | null; url: string }
+  // `gen` is minted when the decode lands and never changes after — a still image's whole generation
+  // history is one number. See getDrawableGeneration for why that number is worth having.
+  | { type: 'IMAGE'; bmp: ImageBitmap | null; url: string; gen: number }
   | { type: 'CODEC'; codecId: string; path: string }; // a plugin VideoCodec (e.g. HAP) decodes this file
 
 const media = new Map<string, Entry>();          // VIDEO / IMAGE / CODEC, keyed by consumer key
@@ -81,8 +83,9 @@ function makeVideo(url: string): HTMLVideoElement {
  * in flight, and writing a stale bitmap into a live entry would show the previous picture. In that case
  * the bitmap is closed on the spot rather than leaked.
  */
+let imageGenSeq = 0;
 function makeImage(key: string, url: string): Entry {
-  const entry: Entry = { type: 'IMAGE', bmp: null, url };
+  const entry: Entry = { type: 'IMAGE', bmp: null, url, gen: 0 };
   void (async () => {
     try {
       const src = resolveMediaUrl(url);
@@ -92,7 +95,10 @@ function makeImage(key: string, url: string): Entry {
       const blob = await (await fetch(src)).blob();
       const bmp = await createImageBitmap(blob);
       const cur = media.get(key);
-      if (cur === entry) entry.bmp = bmp;
+      // A GLOBAL counter, not a per-entry one: a consumer keyed on the surface sees a different image
+      // replace this one under the same key, and two entries that both answered "1" would read as the
+      // same picture — the new image would never be shipped.
+      if (cur === entry) { entry.bmp = bmp; entry.gen = ++imageGenSeq; }
       else bmp.close(); // superseded while decoding
     } catch (e) {
       console.warn('[contentSource] image decode failed', url, (e as Error)?.message);
@@ -729,6 +735,17 @@ export function getDrawableGeneration(key: string, content: SurfaceContent): num
   // pump ran a `createImageBitmap` per window per tick, and each projector window repainted every
   // vsync. For a source that is often STILL (text, a paused shader, a tracking overlay with nobody in
   // the room) that is the entire cost of the feature, paid to produce an identical frame.
+  //
+  // ⚠ IMAGE IS THE SOURCE THAT IS *ALWAYS* STILL, and it was the one left answering undefined. A 4K
+  // still on a timeline track was re-copied (createImageBitmap, ~33 MB) and transferred to its
+  // projector window every pump tick, then re-uploaded there with mipmaps — ~1 GB/s per output for a
+  // picture that never changes. Two of them on two outputs are the prime suspect for a venue editor
+  // whose renderer died (black UI, both outputs on "Waiting for the main window…", 2026-10-15).
+  // One number per decode makes all of that a single send.
+  if (content.type === SourceType.IMAGE) {
+    const e = media.get(key);
+    return e && e.type === 'IMAGE' && e.bmp ? e.gen : undefined;
+  }
   if (content.type !== SourceType.VIDEO) {
     return contentSourceRegistry.get(content.type)?.getDrawableGeneration?.(key, content);
   }

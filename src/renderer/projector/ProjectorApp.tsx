@@ -406,6 +406,12 @@ export const ProjectorApp: React.FC = () => {
         // The single choke point for everything the main window says to this output — so it is also
         // the only honest liveness signal we have about the producer. See PRODUCER_TIMEOUT_MS.
         lastMsgRef.current = performance.now();
+        // RECEIPT, acknowledged first and unconditionally: main holds this stream's next bitmap until
+        // it hears this, so a branch below that throws or returns early must not withhold it — that
+        // would throttle the output to main's ack timeout (~1 fps). See bridge.ts `frameAck`.
+        if ((m.t === 'frame' || m.t === 'layerFrame' || m.t === 'surfaceFrame') && m.ack) {
+          (port.postMessage as (x: ProjectorToMain) => void)({ t: 'frameAck', key: m.ack });
+        }
         if (m.t === 'config') {
           surfaceRef.current = m.surface;
           playingRef.current = m.playing;

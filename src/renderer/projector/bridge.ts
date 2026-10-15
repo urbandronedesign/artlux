@@ -73,19 +73,22 @@ export type MainToProjector =
   // reason. Drawn unwarped in the raw raster — see projector/AlignAids.tsx for why that is the whole
   // principle rather than a shortcut, and plans/projector-alignment-aids.md for the design.
   | { t: 'aid'; aid: AlignAidSpec | null }
-  | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
+  // `ack` on the three bitmap-bearing messages: the window echoes it back as `frameAck` the moment it
+  // receives the message, and main keeps that stream's slot busy until it does — see the frame pump in
+  // App.tsx (BACK-PRESSURE ENDS AT THE RECEIVER). Optional so an older sender is still understood.
+  | { t: 'frame'; bitmap: ImageBitmap; ack?: string }         // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   // The streamed source has NOTHING to show (a timeline clip ended, a live source dropped). Without
   // this the pump simply stops sending and the window keeps drawing the last bitmap it received —
   // so a finished clip stayed frozen on the projector for the rest of the show. Sent once on the
   // transition, not per frame.
   | { t: 'frameIdle' }
-  | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame, decoded once in main (TRACKING content background + layers bound to venue meshes in render-from-projector)
+  | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap; ack?: string } // a timeline layer frame, decoded once in main (TRACKING content background + layers bound to venue meshes in render-from-projector)
   // ANOTHER surface's picture, for a venue mesh bound to it in render-from-projector mode. Distinct
   // from `frame` (this window's OWN surface, which is also the base canvas's picture and whose bitmap
   // ProjectorApp owns): these are transferred to the calibration panel's channel, which owns closing
   // them. Sent only for surfaces a render-active output's VISIBLE geometry actually references — a
   // calibrated window is otherwise streamed nothing, because its base canvas is not what it displays.
-  | { t: 'surfaceFrame'; surfaceId: string; bitmap: ImageBitmap }
+  | { t: 'surfaceFrame'; surfaceId: string; bitmap: ImageBitmap; ack?: string }
   // That surface has nothing to show. Same reason `frameIdle` exists: the pump simply stops sending,
   // and a mesh that trusted the last frame would hold a finished clip for the rest of the show.
   | { t: 'surfaceFrameIdle'; surfaceId: string }
@@ -144,4 +147,6 @@ export type ProjectorToMain =
   // A placed pose pick grabbed and dragged directly ON the projection (raster px, streamed while
   // dragging — main solves provisionally and commits the document once, on the release below).
   | { t: 'calibPointDrag'; index: number; pixel: [number, number] }
-  | { t: 'calibPointDragEnd' };
+  | { t: 'calibPointDragEnd' }
+  // Receipt of a `frame` / `layerFrame` / `surfaceFrame` carrying `ack` — releases that stream in main.
+  | { t: 'frameAck'; key: string };

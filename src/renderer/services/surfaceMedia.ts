@@ -202,19 +202,32 @@ export function getContentAspect(s: Surface): number | null {
 }
 
 // Changes only when this surface's drawable holds NEW pixels; undefined = unknown, assume changed.
-// VIDEO surfaces report one, and so does any PLUGIN source that chooses to (SDK
+// VIDEO and IMAGE surfaces report one, and so does any PLUGIN source that chooses to (SDK
 // ContentSourceProvider.getDrawableGeneration) — a source that is ever still should, because the three
-// consumers that pay per frame all skip on a repeat. LAYER/PROGRAM composite continuously, so they
-// never report. Used by the projector frame pump to skip a full-surface createImageBitmap on a
-// repeated frame, by the 3D scene to skip a texture upload, and by each projector window to not repaint.
+// consumers that pay per frame all skip on a repeat. Used by the projector frame pump to skip a
+// full-surface createImageBitmap on a repeated frame, by the 3D scene to skip a texture upload, and by
+// each projector window to not repaint.
 export function getDrawableGeneration(s: Surface): number | undefined {
+  // A LIVE BAKE REPLACES THE PICTURE (see getDrawable), so the authored source's generation describes
+  // pixels nobody is showing — a still image under a baked video would freeze the video on every
+  // consumer that dedups. Say "unknown"; the bake is a moving file, so nothing is lost by it.
+  const bakeTime = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM
+    ? timeline.getPlayhead() : timeline.getShowTime();
+  if (bakeStore.statusFor(s, bakeTime, timeline.activePoolKey()).state === 'live') return undefined;
   // A slice holds exactly the pixels of its source, so it repeats exactly when the source does —
   // pass the source's generation through and the projector pump keeps skipping repeated frames.
   if (s.content.type === SourceType.SLICE) {
     const src = s.content.sliceOf ? byId.get(s.content.sliceOf) : undefined;
     return src && src.content.type !== SourceType.SLICE ? getDrawableGeneration(src) : undefined;
   }
-  if (s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) return undefined;
+  // ONE TRACK HAS A GENERATION; A STACK OR THE PROGRAM DOES NOT. A single-track surface draws exactly
+  // timeline.getLayerDrawable, so it repeats exactly when that layer does — and a still image on a
+  // track is the case that most needs it (see contentSource.getDrawableGeneration). A track STACK and
+  // the PROGRAM are re-composited from N layers every frame, with no single clock to ask.
+  if (s.content.type === SourceType.LAYER) {
+    return stackIdsOf(s) ? undefined : timeline.getLayerGeneration(s.content.layerId);
+  }
+  if (s.content.type === SourceType.PROGRAM) return undefined;
   return contentSource.getDrawableGeneration(s.id, s.content);
 }
 

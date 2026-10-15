@@ -6099,6 +6099,36 @@ check(
   },
 );
 
+// ── A STILL IMAGE IS SENT TO A PROJECTOR ONCE, AND A STREAM IS HELD UNTIL THE WINDOW HAS IT ─────────
+check(
+  'a still image reports a generation, and the projector pump holds each stream until its frameAck',
+  'Two 4K stills on two tracks, one per projector output, took a venue editor down (2026-10-15): black ' +
+  'UI, both outputs on "Waiting for the main window…". IMAGE answered no generation and a LAYER surface ' +
+  'answered none either, so the pump re-made a ~33 MB createImageBitmap per output every tick for a ' +
+  'picture that never changed, and released its in-flight slot at postMessage — which only proves the ' +
+  'bitmap entered the port queue, so a stalled projector let them pile up. Reproduced on the dev PC: ' +
+  'editor 30 -> 6 fps, main thread blocked ~1 s of every second, GPU context lost after ~4 min with a ' +
+  'video beside it. Nothing threw. See the frame pump in App.tsx (BACK-PRESSURE ENDS AT THE RECEIVER).',
+  () => {
+    const bad = [];
+    const cs = read('src/renderer/services/contentSource.ts');
+    if (!/content\.type === SourceType\.IMAGE\)[\s\S]{0,160}e\.type === 'IMAGE' && e\.bmp \? e\.gen : undefined/.test(cs))
+      bad.push('contentSource.getDrawableGeneration no longer answers a generation for a decoded IMAGE');
+    const sm = read('src/renderer/services/surfaceMedia.ts');
+    if (!/SourceType\.LAYER\) \{\s*return stackIdsOf\(s\) \? undefined : timeline\.getLayerGeneration\(/.test(sm))
+      bad.push('surfaceMedia.getDrawableGeneration no longer passes a single track\'s generation through for LAYER');
+    const app = read('src/renderer/App.tsx');
+    if (/\.finally\(\(\) => inFlight\.delete\(/.test(app))
+      bad.push('App.tsx frame pump releases an in-flight stream in .finally() again — that is at postMessage, not at receipt');
+    if (!/projFrameAckRef\.current = /.test(app) || !/m\.t === 'frameAck'/.test(app))
+      bad.push('App.tsx no longer releases a stream on the projector\'s frameAck');
+    const proj = read('src/renderer/projector/ProjectorApp.tsx');
+    if (!/t: 'frameAck', key: m\.ack/.test(proj))
+      bad.push('ProjectorApp no longer acknowledges a received frame (frameAck) — every stream would crawl at the 1 s ack timeout');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

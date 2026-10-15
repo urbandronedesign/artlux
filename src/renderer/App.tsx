@@ -519,6 +519,8 @@ const App: React.FC = () => {
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
+  // Installed by the projector frame pump: a window's `frameAck` releases that stream's in-flight slot.
+  const projFrameAckRef = useRef<(surfaceId: string, key: string) => void>(() => {});
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
   const ndiSendersRef = useRef<Set<string>>(new Set());                  // surfaceIds with a live NDI sender
   const [nvAvailable, setNvAvailable] = useState(false);                 // NVAPI scanout warp/blend present (Quadro/RTX-pro)
@@ -4137,7 +4139,30 @@ const App: React.FC = () => {
   // media in every window otherwise exhausts the GPU's concurrent hardware-decode sessions.
   useEffect(() => {
       const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
-      const inFlight = new Set<string>(); // surfaceIds with a createImageBitmap still pending
+      // ── BACK-PRESSURE ENDS AT THE RECEIVER, NOT AT postMessage ─────────────────────────────────
+      // A stream key (a surfaceId, or `<out>:scene:<layer>` / `<out>:bg` / `<out>:surf:<ref>`) stays
+      // busy from its createImageBitmap until the projector window says it RECEIVED the bitmap
+      // (`frameAck`, echoing the `ack` key). It used to be released the moment postMessage returned —
+      // which only proves the bitmap entered the port's queue. A projector whose main thread stalled
+      // (a long GPU upload, a GC) then let full-surface bitmaps pile up in that queue without bound,
+      // ~33 MB each at 4K, all charged to this renderer. Holding the key to the ack caps every stream
+      // at ONE bitmap in flight, end to end.
+      //
+      // Keyed on the PORT so a reopened window (fresh port, same surfaceId) is never blocked by an ack
+      // its predecessor will never send, and bounded by ACK_TIMEOUT_MS so a lost ack costs one stall,
+      // not a frozen output. A window that never acks at all degrades to ~1 fps — visible, not fatal.
+      const ACK_TIMEOUT_MS = 1000;
+      const inFlight = new Map<string, { port: MessagePort; at: number }>();
+      const busy = (key: string, port: MessagePort, now: number) => {
+          const f = inFlight.get(key);
+          return !!f && f.port === port && now - f.at < ACK_TIMEOUT_MS;
+      };
+      projFrameAckRef.current = (surfaceId, key) => {
+          // Only the window that owns the key may release it — a stale ack from a closed window's
+          // port must not free a stream that now belongs to its replacement.
+          const f = inFlight.get(key);
+          if (f && f.port === projectorPortsRef.current.get(surfaceId)) inFlight.delete(key);
+      };
       // Last drawable generation actually shipped per surface. A 25/30 fps clip sampled by this
       // 30 fps pump repeats frames; each repeat would otherwise cost a full-surface
       // createImageBitmap (~8 MB at 1080p) and a transfer, per output window. undefined generation
@@ -4274,17 +4299,16 @@ const App: React.FC = () => {
                           const layerId = mdl.layerId;
                           live.add(layerId);
                           const key = `${surfaceId}:scene:${layerId}`;
-                          if (inFlight.has(key)) continue;
+                          if (busy(key, port, now)) continue;
                           // The sentinel resolves to the whole composite; every other id is one track.
                           const d = layerId === PROGRAM_LAYER_ID
                               ? timelineEngine.getProgramDrawable()
                               : timelineEngine.getLayerDrawable(layerId);
                           if (!d) continue;
-                          inFlight.add(key);
+                          inFlight.set(key, { port, at: now });
                           createImageBitmap(d as CanvasImageSource)
-                              .then(bitmap => { try { port.postMessage({ t: 'layerFrame', layerId, bitmap }, [bitmap]); } catch { bitmap.close(); } })
-                              .catch(() => {})
-                              .finally(() => inFlight.delete(key));
+                              .then(bitmap => { try { port.postMessage({ t: 'layerFrame', layerId, bitmap, ack: key }, [bitmap]); } catch { bitmap.close(); inFlight.delete(key); } })
+                              .catch(() => { inFlight.delete(key); });
                       }
                   }
                   // Say ONCE when a layer stops being streamed to this window, so the mirror drops the
@@ -4309,14 +4333,13 @@ const App: React.FC = () => {
                   if (!layerId) continue;
                   if (!coarse) continue; // no generation to dedup on — keep the original cadence
                   const key = `${surfaceId}:bg`;
-                  if (inFlight.has(key)) continue;
+                  if (busy(key, port, now)) continue;
                   const bg = timelineEngine.getLayerDrawable(layerId);
                   if (!bg) continue;
-                  inFlight.add(key);
+                  inFlight.set(key, { port, at: now });
                   createImageBitmap(bg as CanvasImageSource)
-                      .then(bitmap => { try { port.postMessage({ t: 'layerFrame', layerId, bitmap }, [bitmap]); } catch { bitmap.close(); } })
-                      .catch(() => {})
-                      .finally(() => inFlight.delete(key));
+                      .then(bitmap => { try { port.postMessage({ t: 'layerFrame', layerId, bitmap, ack: key }, [bitmap]); } catch { bitmap.close(); inFlight.delete(key); } })
+                      .catch(() => { inFlight.delete(key); });
                   continue;
               }
               // A render-active output DISPLAYS THE 3D SCENE, not its own surface, so stream that
@@ -4326,7 +4349,7 @@ const App: React.FC = () => {
               // is what makes leaving render mode re-send immediately even on a PAUSED source, whose
               // generation never advances and would otherwise be skipped forever.
               if (renderActive && !ownReferenced) { sentGen.delete(surfaceId); continue; }
-              if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
+              if (busy(surfaceId, port, now)) continue; // back-pressure: one bitmap in flight, to the ack
               if (!STREAMED.has(eff.content.type)) continue;
               const drawable = getDrawable(surface);
               if (!drawable) {
@@ -4363,12 +4386,16 @@ const App: React.FC = () => {
               const prev = sentGen.get(surfaceId);
               if (gen !== undefined && prev && prev.port === port && prev.gen === gen) { pumpOf(surfaceId).sameGen++; continue; }
               { const st = pumpOf(surfaceId); st.ships++; if (st.last) { st.gaps.push(now - st.last); if (st.gaps.length > 4000) st.gaps.shift(); } st.last = now; }
-              inFlight.add(surfaceId);
+              inFlight.set(surfaceId, { port, at: now });
+              // An UNKNOWN generation shipped means the window no longer holds the last known one — a
+              // fading still (see timeline's layerGeneration) comes back to the very generation it had
+              // before the fade, and without this delete that first full-alpha frame would be skipped,
+              // leaving the wall on the last faded one.
               if (gen !== undefined) sentGen.set(surfaceId, { port, gen });
+              else sentGen.delete(surfaceId);
               createImageBitmap(drawable as CanvasImageSource)
-                  .then(bitmap => { try { port.postMessage({ t: 'frame', bitmap }, [bitmap]); } catch { bitmap.close(); } })
-                  .catch(() => { sentGen.delete(surfaceId); }) // failed → don't treat this gen as shipped
-                  .finally(() => inFlight.delete(surfaceId));
+                  .then(bitmap => { try { port.postMessage({ t: 'frame', bitmap, ack: surfaceId }, [bitmap]); } catch { bitmap.close(); inFlight.delete(surfaceId); } })
+                  .catch(() => { sentGen.delete(surfaceId); inFlight.delete(surfaceId); }); // failed → don't treat this gen as shipped
           }
           // --- Referenced surfaces for render-active outputs, under the global per-tick budget ---
           // Same three mechanisms as the own-surface path above, keyed per (output, surface) pair:
@@ -4382,7 +4409,7 @@ const App: React.FC = () => {
           for (let n = 0, i = 0; coarse && n < wantSurface.length && i < EXTRA_PER_TICK; n++) {
               const w = wantSurface[(extraCursor + n) % wantSurface.length];
               const key = `${w.outId}:surf:${w.refId}`;
-              if (inFlight.has(key)) continue;
+              if (busy(key, w.port, now)) continue;
               const refSurface = surfacesRef.current.find(s => s.id === w.refId);
               if (!refSurface) {
                   if (!diagWarned.has(key)) {
@@ -4412,15 +4439,15 @@ const App: React.FC = () => {
               // Only a pair that actually SPENDS budget advances the cursor's count — skipping a
               // deduped or in-flight pair must not consume someone else's turn.
               i++;
-              inFlight.add(key);
+              inFlight.set(key, { port: w.port, at: now });
               if (refGen !== undefined) sentGen.set(key, { port: w.port, gen: refGen });
+              else sentGen.delete(key); // same reason as the own-surface path
               createImageBitmap(refDrawable as CanvasImageSource)
                   .then(bitmap => {
-                      try { w.port.postMessage({ t: 'surfaceFrame', surfaceId: w.refId, bitmap }, [bitmap]); }
-                      catch { bitmap.close(); }
+                      try { w.port.postMessage({ t: 'surfaceFrame', surfaceId: w.refId, bitmap, ack: key }, [bitmap]); }
+                      catch { bitmap.close(); inFlight.delete(key); }
                   })
-                  .catch(() => { sentGen.delete(key); })
-                  .finally(() => inFlight.delete(key));
+                  .catch(() => { sentGen.delete(key); inFlight.delete(key); });
           }
           // Advanced only when the budget was actually spent — a fine tick serves none of these, and
           // rotating the cursor anyway would skip whole (output, surface) pairs instead of starving
@@ -4568,6 +4595,8 @@ const App: React.FC = () => {
   // Receive the bridge MessagePort for each projector window (tagged by surfaceId).
   const onProjectorMsgRef = useRef<(surfaceId: string, m: ProjectorToMain) => void>(() => {});
   onProjectorMsgRef.current = (surfaceId, m) => {
+      // ~30/s per stream, and pure pump bookkeeping — answered here and never fanned out to plugins.
+      if (m.t === 'frameAck') { projFrameAckRef.current(surfaceId, m.key); return; }
       if (m.t === 'ready') pushProjectorStateRef.current(surfaceId);
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });

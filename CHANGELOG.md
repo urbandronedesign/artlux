@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Still images on projector outputs no longer wear the editor down
+
+A show with a **still image on a track sent to a projector output** — two 4K photos on two outputs,
+say — could take the editor down: the interface went **black** and every output showed **"Waiting
+for the main window…"**. It happened on a venue machine, and it reproduces: with two photos on two
+outputs the editor fell from 30 to **6 frames per second** at once, and with a video playing beside a
+photo the GPU reset after about four minutes and the outputs lost their picture.
+
+The cause was that a picture that never changes was treated like video. Each output was sent a fresh
+full-size copy of its image about thirty times a second, and each output window uploaded it to the
+GPU again every time — roughly 1 GB a second per output, for nothing.
+
+Now a still image is **sent to its output once**. On the same two-photo show the editor holds **30
+frames per second** with nothing blocked, memory stays flat, and both outputs keep their picture.
+Fades still play: while a clip fades the output is updated every frame, and once it is fully on it
+goes back to costing nothing. Video, cameras, effects and blended track stacks are sent as before.
+
+Also, an output now tells the editor when it has received each picture, and the editor waits for that
+before sending the next one, so a window that falls behind can no longer cause pictures to pile up in
+memory.
+
 ## v0.33.1
 
 ### One door for adding a track, and a right-click that answers everywhere
