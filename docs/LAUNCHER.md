@@ -468,6 +468,14 @@ build). It deliberately carries **no `launcher-latest.yml`**: that file names th
 installer in its `path`, which does not exist under this tag — self-update reads it from the
 `launcher-v*` tag, where it is true.
 
+> **⚠ That link 404s until the next launcher release (checked 2026-10-19).** The rolling step and
+> the README/INSTALL links landed on 2026-09-06 (`c2e9614`, `02fe230`), one day *after*
+> `launcher-v0.1.3` — the last launcher tag — so the step has never run and `launcher-latest` does
+> not exist. Until then the installer is only on the `launcher-v0.1.3` pre-release, as
+> `ArtLuxLauncher_0.1.3_x64-setup.exe`. Owner's decision: no hand-made bootstrap release; the next
+> `launcher-v*` tag creates it. `verify:docs` did not catch this because it accepts the URL without
+> fetching it. **After that release, check the link resolves, then delete this note.**
+
 > **This list was wrong until 0.1.3, and it shipped a mislabelled release.** It said *four* files
 > and credited `package.json` with the bundle filename — but Tauri prefers the `version` in
 > `tauri.conf.json` and only falls back when that field is absent. It was not absent, it was stale,
