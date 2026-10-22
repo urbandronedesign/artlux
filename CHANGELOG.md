@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.33.4
+
+### A live Spout input no longer wears the app down
+
+A **Spout input left running for a long time** — about an hour — could end with the **3D view frozen
+and white** and **HAP videos on the timeline stopped**, while the rest of the app still answered
+clicks. It happened in a show whose timeline had reached its end while the Spout input kept running.
+
+Every Spout frame left a small piece of graphics memory behind, and nothing ever gave it back. After
+enough frames the graphics side of the app gave out, and the 3D view and video decoding went with it.
+Measured on a test bench, the leftovers grew by one per frame, about sixty a second; with the fix
+they stay level however long the input runs.
+
+**Update any machine that runs Spout for long shows.** On an older version, quitting and restarting
+the app clears it. **NDI inputs were checked for the same problem and do not have it.**
+
+See [Spout ▸ After a long run](docs/SPOUT.md#after-a-long-run-the-3d-view-went-white-and-videos-stopped),
+which also says how to confirm the fix on a machine with Task Manager.
+
 ## v0.33.3
 
 ### The tablet remote can no longer go silently dead
