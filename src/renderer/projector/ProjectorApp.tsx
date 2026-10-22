@@ -90,7 +90,9 @@ const NDI_BCAST_W = 1920, NDI_BCAST_H = 1080; // broadcast mode: send NDI at up 
 // unfocused window reads as "stuck" no matter how well playback is going, and two runs of the same
 // build disagree by 10x. That mistake cost real time. These four counters live on the consumer side
 // of every gate, so they measure the picture this projector is drawing regardless of who is on top.
-//   received — `frame` bitmaps arrived from main (0 when this window decodes locally)
+//   received — `frame` bitmaps arrived from main. NOT 0 when this window decodes locally: main
+//              streams every LAYER surface regardless (the fallback for content/<video> clips and a
+//              codec still opening), and a local decode simply wins over the bitmap at draw time.
 //   draws    — rAF passes that reached the GL draw
 //   uploads  — passes that carried a NEW picture; this is the number that must match the source fps
 // Read with window.__artluxProjStats().

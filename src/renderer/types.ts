@@ -1824,12 +1824,16 @@ export interface AppSettings {
   // slower engine repeats the last frame on the wire rather than starving a node. This is how often
   // NEW pixel data is produced.
   //
-  // ⚠ IT IS ALSO THE DECODE ASK RATE, which is why it exists. Every engine tick asks each layer's
-  // codec for the exact frame at the playhead, and asking faster than the decoder can serve does not
-  // produce more pictures — it produces MISSES. The ring hands back the nearest frame instead, and a
-  // burst of those is exactly the stutter an operator reports. Measured on a 1080p60 HAP show looping
-  // every 14 s: uncapped (~60 Hz of asks) missed 19% of exact frames, clustered ~78 into the half
-  // second after each wrap; at 25 Hz the same content missed 0.27% and every scene cut was clean.
+  // Why it exists: capping it smoothed heavy video. Measured on a 1080p60 HAP show looping every 14 s:
+  // uncapped missed 19% of exact frames, clustered ~78 into the half second after each wrap; capped at
+  // "25" the same content missed 0.27% and every scene cut was clean.
+  //
+  // ⚠ IT IS NOT THE DECODE ASK RATE FOR HAP, though this comment said so until 2026-10-22. HAP layers
+  // are asked from services/timeline's own rAF and HAP surfaces from hapPlayer's, both at display rate,
+  // and were before the cap shipped. Only mp4 SURFACE asks ride the engine tick. So the gain above is
+  // real but its cause is unproven — likelier the lighter main-window load than fewer asks. See
+  // frameEngine's constructor, which also explains why the tick snaps to a whole division of the
+  // display refresh (on 60 Hz, a setting of 25 runs at 20).
   //
   // MACHINE-scoped like the rest of AppSettings — the right value is a property of this computer's
   // disk and GPU, not of the show. Raise it on a fast rig; lower it if the preview stutters.

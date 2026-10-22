@@ -661,7 +661,7 @@ const App: React.FC = () => {
       protocol: settings.protocol,
       outputEnabled: settings.outputEnabled,
       artNetPort: settings.artNetPort,
-      // Engine tick rate — and therefore the decode ask rate. See AppSettings.engineFps.
+      // Engine tick rate — engine work and mp4 surface asks, not HAP asks. See AppSettings.engineFps.
       engineFps: settings.engineFps ?? 30,
       engineRunning: true,
       videoPlaying: isVideoPlaying,

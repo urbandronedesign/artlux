@@ -39,8 +39,18 @@ multi-layer, high-resolution playback in VJ/mapping tools.
 | `Hap1` | HAP | RGB DXT1 (BC1) | ✅ |
 | `Hap5` | HAP Alpha | RGBA DXT5 (BC3) | ✅ — **this is the transparency-capable variant to export** |
 | `HapY` | HAP Q | scaled YCoCg DXT5 | ✅ |
-| `HapA` | HAP Alpha-Only | A_RGTC1 (BC4) | ✅ |
+| `HapA` | HAP Alpha-Only | A_RGTC1 (BC4) | ❌ **broken — shows black** (see below) |
+| `Hap7` | HAP R | BPTC (BC7) | ❌ **broken — shows coloured noise** (see below) |
 | `HapM` | **HAP Q Alpha** | scaled YCoCg **+ a second** A_RGTC1 texture | ❌ **not decoded** |
+
+⚠ **`HapA` and `Hap7` open, decode and then display wrongly — with no error.** The native decoder reads
+both correctly, but the renderer's upload (`plugins/hap/src/hapGL.ts`, `glFormat`) knows only DXT1 and
+DXT5 and labels every other block format as DXT5. A Hap R (BC7) frame is the same size as DXT5, so it
+uploads and is read in the wrong format — noise, on the LEDs as well as the projectors. A HapA (BC4) frame
+is half the size, so the upload is rejected silently and the surface stays black. This table marked
+HapA ✅ until 2026-10-22; it had never been played. **Only `Hap1` has been tested on a real file** — `Hap5`
+and `HapY` share its upload path but have not been. Until the upload is fixed, **export Hap, Hap Alpha or
+Hap Q**.
 
 `HapM` is a **multi-image** format: one frame carries two textures, and the decoder reads one. It is
 **refused at open** (`native/hap`: `hap::probe_frame` validates sample 0's section header, so the
@@ -86,10 +96,12 @@ Two details worth knowing if you write a codec:
   independently), and that one opened lazily on its first frame request — returning null while it did.
   The gate could therefore pass while a layer was still demuxing, and the layer stayed black with the
   show already running. HAP omits `preWarmLayer` because its ring genuinely is path-keyed.
-- **MP4 pre-rolls ~11 frames, not the 18 that 0.3 s implies.** `MAX_BUFFER` is 12 because holding many
-  live 4K `VideoFrame`s stalls NVDEC. Starving the hardware decoder to satisfy a constant would trade a
-  real stall for a nominal one, so the target is capped — ~180 ms at 60 fps, within a rounding error of
-  HAP's 300 ms ring. A clip shorter than the lead (a two-second sting) is satisfied by reaching its own
+- **MP4 pre-rolls 5 frames, not the 18 that 0.3 s implies.** The target is capped at `TARGET_AHEAD` (5),
+  because the decoder never feeds further ahead than that — a larger target can never be met, and an
+  earlier version that asked for more held every show with an `.mp4` in its opening scene to the full
+  timeout. 5 frames is ~83 ms at 60 fps, ~167 ms at 30 — less than HAP's 300 ms ring; the point of the
+  wait is that the decoder is *running* ahead of the playhead. (This said "~11 frames, ~180 ms" until
+  2026-10-22; the code had moved on.) A clip shorter than the lead (a two-second sting) is satisfied by reaching its own
   end, or the gate would hold the whole show to its timeout over a clip that is entirely ready.
 
 ### Who closes a decoder — `residentBytes` and the residency budget

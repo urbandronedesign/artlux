@@ -592,9 +592,10 @@ operator-overridable. The same applies to a `PROGRAM` surface, whose canvas is a
 and re-probed only every 30 builds (`PROGRAM_PROBE_EVERY`, timeline.ts:1319).
 A **single** ticked track needs none of this: `getLayerDrawable(id)` already returns the native drawable.
 
-**Frame rate — never `engineFps`.** That is the *decode ask rate* (default 30) and
-[frameEngine.ts:197-210](../src/renderer/engine/frameEngine.ts#L197) documents at length that it is not an
-output rate. The document's own `Timeline.fps` is the honest default — it is what the ruler counts in and
+**Frame rate — never `engineFps`.** That is the *engine's tick rate* (default 30) and
+[frameEngine.ts](../src/renderer/engine/frameEngine.ts) (the constructor) documents at length that it is not
+an output rate. (This said *"decode ask rate"* until 2026-10-22 — wrong for HAP, whose asks never rode the
+engine tick; see the correction in [preload-optimization.md](preload-optimization.md).) The document's own `Timeline.fps` is the honest default — it is what the ruler counts in and
 what `frameSec()` already drives parking and seeking by — but note it is declared as *"frame rate for
 HH:MM:SS:FF timecode (default 30)"* ([types.ts:786](../src/renderer/types.ts#L786)) and `defaultTimeline()`
 mints `fps: 30`. **So a project left at the default with 60p content would bake at 30 and halve the

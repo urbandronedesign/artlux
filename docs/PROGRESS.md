@@ -840,6 +840,16 @@ What pointed there, after the guesses: the **projector** window — decoding the
 the one surface it draws — missed **0.007%** throughout. The window doing *more* work barely suffered,
 which is an argument against the decoder and for how often it was being asked.
 
+> **⚠ Correction (2026-10-22) — the numbers stand, the mechanism above is wrong for HAP.** At `5908794`
+> `frameEngine` called no codec for HAP: timeline layers were asked by `services/timeline`'s own uncapped
+> rAF (`syncLayer` → `codec.layerFrame`) and HAP surfaces by `hapPlayer`'s own rAF; the engine tick only
+> read the already-drawn canvas. Only mp4 **surface** asks rode the tick. So capping the engine did not
+> reduce the HAP asks being counted — the likelier cause of the 19.0% → 0.27% is lighter main-window load
+> leaving decode replies room to land. **Not re-measured**: a run that caps the asks themselves is what
+> would settle it. Separately, the gate (`now - lastTick < 1000/cap - 0.5`, `lastTick = now`) snaps to a
+> whole division of the display refresh, so on a 60 Hz display "25 Hz" ran at **20 Hz** (the refresh was
+> not recorded). Code comments, CODECS and the user guide were corrected the same day.
+
 Ships as **Preferences ▸ Engine ▸ Engine rate (fps)**, `AppSettings.engineFps`, default **30**,
 machine-scoped because the right value depends on the computer's disk and GPU rather than on the show.
 ⚠ **This changes every show, not only heavy ones** — the engine no longer runs at display rate. It is

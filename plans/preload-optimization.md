@@ -150,6 +150,13 @@ at display rate, so on heavy media it was asking for frames nobody could supply.
 | uncapped (~60 Hz) | **19.0%** | 78 | visible hitch |
 | 25 Hz | **0.27%** | 9 | 4 of 4 clean |
 
+> **⚠ Correction (2026-10-22): the table stands, "the cause was the ask rate" does not — for HAP.** At
+> `5908794` the engine tick asked no HAP codec: layers were asked from `services/timeline`'s own uncapped
+> rAF and surfaces from `hapPlayer`'s, at display rate, and the cap left them untouched. Only mp4 surface
+> asks rode the tick. The likelier mechanism is the lighter main-window load; **unproven** until a run
+> caps the asks themselves. And the "25 Hz" row probably ran at **20 Hz**: the gate restarts from the rAF
+> frame that passed, so on 60 Hz a cap of 20–29 ticks at 20 (the display's refresh was not recorded).
+
 **What pointed there**, after the guesses: the **projector** window — decoding the same media, but only
 for the one surface it draws — missed **0.007%** throughout. The window doing *more* work barely
 suffered, which is an argument against the decoder and for how often it was being asked.

@@ -2113,6 +2113,14 @@ Every scene cut was clean at the lower rate. The clue that found it: the **proje
 the same media but only for the one surface it draws, missed **0.007%** throughout — the window doing
 *more* work had almost no problem, which pointed away from the decoder and at how often it was asked.
 
+> **Correction (2026-10-22).** The measurement above stands; its explanation does not hold for HAP. The
+> engine tick never asked HAP video for its frames — HAP layers and surfaces are asked at the display's
+> rate by their own loops, before and after this release — so the setting did not reduce those asks. What
+> it does reduce is the engine's own work (and MP4 surfaces' asks), which is the likelier reason video
+> got smoother; that has not been re-measured. Also, the engine can only tick when the display
+> refreshes: on a 60 Hz display a setting of **25 actually runs at 20**. See
+> [Preferences ▸ Engine](docs/user-guide/12-preferences-monitoring.md).
+
 **Preferences → Engine → Engine rate (fps)**, default **30**. It is *not* the Art-Net rate — the wire
 keeps running at **FPS** with keep-alive, so a slower engine never starves a node; only new pixel data
 arrives less often. Machine-scoped, because the right value depends on the computer's disk and GPU

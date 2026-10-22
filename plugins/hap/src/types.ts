@@ -6,7 +6,7 @@ export interface HapInfo {
   height: number;
   frameCount: number;
   fps: number;
-  codec: string;     // fourcc: Hap1 (DXT1) / Hap5 (DXT5) / HapY (scaled YCoCg) / HapA / HapM
+  codec: string;     // fourcc: Hap1 (DXT1) / Hap5 (DXT5) / HapY (scaled YCoCg) / HapA (BC4) / Hap7 (BC7) / HapM — HapA + Hap7 display wrongly today, HapM is refused; see docs/CODECS.md
   hasAlpha: boolean;
 }
 

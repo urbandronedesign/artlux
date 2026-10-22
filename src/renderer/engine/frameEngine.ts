@@ -75,7 +75,7 @@ export interface FrameInputs {
   /** Whether packed frames are actually sent to the transport. The operator's output switch. */
   outputEnabled: boolean;
   artNetPort: number;
-  /** Engine tick rate (AppSettings.engineFps). Also the DECODE ASK RATE — see the setting for why. */
+  /** Engine tick rate (AppSettings.engineFps). Caps engine work and mp4 SURFACE asks — not HAP asks (see the constructor). */
   engineFps: number;
   /**
    * Whether the 512² composite is actually on screen. Broadcast/headless run with no visible preview,
@@ -200,16 +200,26 @@ class FrameEngine {
   constructor() {
     if (typeof requestAnimationFrame === 'undefined') return; // no rAF (a test harness) — stay idle
     void this.initMapper();
-    // ── THE TICK RATE IS ALSO THE DECODE ASK RATE ───────────────────────────────────────────────
-    // Every tick asks each layer's codec for the exact frame at the playhead. Asking faster than the
-    // decoder can serve does not produce more pictures — it produces MISSES: the ring hands back the
-    // nearest frame it has, and a burst of those is what an operator reports as the picture stopping
-    // and starting.
+    // ── WHAT THE TICK RATE CAPS — AND WHAT IT DOES NOT ──────────────────────────────────────────
+    // It caps the ENGINE's work: composite, GPU sample, pack, publish (the projector pump has its own
+    // 15/33 ms timer in App.tsx), and the one codec ask that rides on this tick — an mp4 SURFACE (contentSource →
+    // surfaceFrame → mp4 `dec.frame`). It does NOT cap HAP. A timeline layer is asked by
+    // services/timeline's own rAF (syncLayer → codec.layerFrame) and a HAP surface by hapPlayer's own
+    // rAF, both at display rate; for HAP this tick only reads a canvas already drawn. That was already
+    // true when this cap shipped (5908794), so this heading used to read "the tick rate is also the
+    // decode ask rate" and was WRONG for HAP. Corrected 2026-10-22.
     //
-    // Measured on a 1080p60 HAP show looping every 14 s. Uncapped (rAF, ~60 Hz of asks): 19% of exact
-    // frames missed, clustered ~78 into the half second after each loop wrap. At 25 Hz on the same
-    // content: 0.27%, worst half-second 9, and every scene cut clean. The projector window — which
-    // decodes only the one surface it draws — missed 0.007% throughout, which is what pointed here.
+    // The measurement stands; its explanation does not. 1080p60 HAP show looping every 14 s: uncapped,
+    // 19% of exact frames missed, ~78 in the half second after each loop wrap; capped at "25", 0.27%,
+    // worst half-second 9, every scene cut clean. The projector window — which decodes only the one
+    // surface it draws — missed 0.007% throughout. HAP asks were not reduced, so the likelier cause is
+    // the lighter main-window load leaving decode replies room to land in time. NOT re-measured: do
+    // not build on either explanation until a run caps the asks themselves and compares.
+    //
+    // ⚠ THE GATE BELOW DOES NOT HOLD AN ARBITRARY RATE. `lastTick = now` restarts from the rAF frame
+    // that passed, so ticks land on a whole division of the display refresh: on 60 Hz, 20–29 run at
+    // 20 and 30–58 at 30; on 144 Hz, 60 runs at 48. The "25" run above was therefore probably 20 Hz
+    // (the display's refresh was not recorded). The default 30 holds 30 on 60 Hz with 0.5 ms of slack.
     //
     // NOT the Art-Net wire rate. The native pacer sends at AppSettings.fps (44 by default) with
     // keep-alive, so a slower engine repeats the last frame on the wire rather than starving a node;

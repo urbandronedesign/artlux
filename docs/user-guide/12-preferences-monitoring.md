@@ -22,12 +22,18 @@ scrolling panel with collapsible sections.
 - **Engine rate (fps)** — how often a new frame is *made*: composited, sampled for your fixtures and
   published. Default **30**.
 
-  **Higher is not always smoother.** Each engine tick asks every video layer for the exact frame at the
-  playhead, and asking faster than the decoder can supply does not produce more pictures — you get the
-  nearest frame it happens to hold instead, and a run of those is what looks like the picture stopping
-  and starting. On a 1080p60 HAP show looping every 14 seconds, running uncapped missed **19%** of
-  frames — bunched into the moment after each loop — while 25 fps missed **0.27%** and every scene cut
-  was clean.
+  **Higher is not always smoother.** Lowering it measurably smoothed heavy video: on a 1080p60 HAP show
+  looping every 14 seconds, running uncapped missed **19%** of frames — bunched into the moment after
+  each loop — while a setting of 25 missed **0.27%** and every scene cut was clean. *Why* is not fully
+  established: the engine simply does less work each second, which seems to leave video room to arrive
+  in time. (Earlier versions of this page said each engine tick asks the video for its frame. For HAP
+  video that is not the case — it is asked at the display's rate whatever this is set to.)
+
+  **The rate snaps to your display.** A frame can only be made when the display refreshes, so you get
+  the display's refresh divided by a whole number, not exactly the number you type. On a **60 Hz**
+  display: 59 and above gives **60**, 30–58 gives **30**, 20–29 gives **20**, 15–19 gives **15**. So on a
+  60 Hz display, **25 actually runs at 20** — choose 30 or 60 there. On a 120 Hz display you get 120,
+  60, 40, 30, 24 and so on.
 
   It is **not** the Art‑Net rate: the wire keeps running at **FPS** above, re-sending the last frame, so
   a slower engine never starves a node — only new pixel data arrives less often. Lower it if heavy video

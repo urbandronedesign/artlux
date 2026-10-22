@@ -676,8 +676,10 @@ export function ensureLayerOpen(layerId: string, path: string): void {
  * ⚠ A DELIBERATE DEVIATION ON DEPTH, and it is not the constant being ignored. The gate asks for
  * PREROLL_SEC (0.3 s) which at 60 fps is 18 frames — but MAX_BUFFER is 12, because holding many live
  * 4K VideoFrames stalls NVDEC (see the constants above). Starving the hardware decoder to satisfy a
- * number would trade a real stall for a nominal one, so the target is capped at MAX_BUFFER-1: an
- * 11-frame lead is ~180 ms at 60 fps, within a rounding error of HAP's own 300 ms ring.
+ * number would trade a real stall for a nominal one, so the target is capped — at TARGET_AHEAD (5),
+ * not MAX_BUFFER-1: an 11-frame target was unsatisfiable, because pump() never feeds past
+ * TARGET_AHEAD (see the ⚠ in the body). 5 frames is ~83 ms at 60 fps / ~167 ms at 30 — less than
+ * HAP's 300 ms ring. (This comment said "11 frames, ~180 ms" until 2026-10-22.)
  */
 export function preRoll(path: string, atSec: number, aheadSec: number, layerId?: string): boolean {
   const dec = layerId ? layerDecoders.get(layerId)?.dec : decoders.get(path);
