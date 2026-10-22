@@ -43,6 +43,9 @@ export const CLIENT_HTML = `<!doctype html>
   .dot { width:9px; height:9px; border-radius:50%; background:var(--fg3); }
   .dot.on { background:var(--ok); } .dot.off { background:var(--bad); }
   .lock { font-size:12px; color:var(--warn); display:none; } .lock.show { display:inline; }
+  .conn { font-size:12px; color:var(--bad); display:none; } .conn.show { display:inline; }
+  #notice { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom)); z-index:60; max-width:92vw; background:var(--bad); color:#fff; padding:10px 14px; border-radius:10px; font-size:14px; font-weight:600; box-shadow:0 6px 24px rgba(0,0,0,.4); display:none; }
+  #notice.show { display:block; }
   nav { display:flex; gap:2px; background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; }
   nav button { flex:1; min-width:78px; background:none; border:none; color:var(--fg2); padding:12px 8px; font-size:13px; font-weight:600; border-bottom:2px solid transparent; }
   nav button.active { color:var(--fg); border-bottom-color:var(--accent); }
@@ -119,13 +122,71 @@ export const CLIENT_HTML = `<!doctype html>
   var hist={cpuPct:[],fps:[],pps:[],heapMB:[],lagP99:[],rfps:[],fp99:[],wp99:[]}, lastMetrics=null;
   var app=document.getElementById('app');
 
+  // THE PIN THIS PAGE WAS OPENED WITH, good for ONE recovery. Scanning the QR is a deliberate act, so a
+  // ?pin= in the address may re-pair this device once if the saved token turns out to be refused. It
+  // is spent the moment a stream opens: a device the operator KICKS later must not quietly pair itself
+  // back from an address it was opened with an hour ago (see unpaired()).
+  var bootPin=queryPin();
+  var pairNote='';           // why the PIN screen is showing, when it is not a first visit
+  var lastEventAt=0;         // last stream event; a stream that has gone quiet is dead (visibilitychange)
+
+  // EVERY REQUEST GOES THROUGH HERE, so every one of them gets the same two answers it used to drop on
+  // the floor. 401: this device's token is unknown to the app (kicked, a reset store, or a pairing made
+  // against another machine at this address) — recover instead of failing forever. A failure: SAY so,
+  // because a button that does nothing is indistinguishable from a button that worked.
   function api(path, body){
     var opts={ method: body?'POST':'GET', headers:{} };
     if(body){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
     if(token) opts.headers['Authorization']='Bearer '+token;
-    return fetch(path, opts);
+    var pairing=(path==='/pair');
+    return fetch(path, opts).then(function(r){
+      if(!pairing){
+        if(r.status===401) unpaired();
+        else if(!r.ok && r.status!==423) say('The app refused that (error '+r.status+').');
+      }
+      return r;
+    }, function(e){
+      if(!pairing) say('Not delivered &mdash; no connection to the app.');
+      throw e;
+    });
   }
-  function cmd(command){ api('/command',{command:command}).then(function(r){ if(r.status===423) flashLocked(); }); }
+  function cmd(command){ api('/command',{command:command}).then(function(r){ if(r.status===423) flashLocked(); }).catch(function(){ /* said, in api() */ }); }
+
+  // THE APP NO LONGER KNOWS THIS DEVICE. Found live on the owner's phone (2026-10-22): its saved token
+  // had been issued by a pairing the app later removed, so /events answered 401. EventSource never
+  // retries an HTTP error, every command got the same 401, the ?pin= in the QR link was ignored
+  // because a token existed, and a reload reloaded the same token. The only sign of any of it was a
+  // red dot. So: forget the token, and either re-pair from the PIN this page was opened with (once),
+  // or show the PIN screen saying WHY it is back.
+  function unpaired(){
+    if(!token) return;
+    token=''; try{ localStorage.removeItem(LS); }catch(e){ /* private mode: nothing was stored */ }
+    if(es){ es.close(); es=null; }
+    connected=false; snapshot=null; status=null; editor=null; ask=null;
+    // Said even when the PIN below re-pairs at once: if that PIN is stale too (regenerated), the PIN
+    // screen it lands on still explains why it is there.
+    pairNote='This device is no longer paired with the app. Enter the PIN shown in the Show Control panel on the machine.';
+    if(bootPin){ var p=bootPin; bootPin=''; render(); doPair(p); return; }
+    render();
+  }
+  // Once paired or connected, the PIN has done its job: take it out of the address bar so a reload or
+  // a bookmark cannot re-pair a device the operator has since kicked.
+  function stripPin(){
+    bootPin='';
+    if(!queryPin()) return;
+    try{ history.replaceState(null,'',location.pathname); }catch(e){ /* cosmetic */ }
+  }
+
+  // One line of feedback at the bottom of the screen. Lives OUTSIDE #app, because every render
+  // rewrites #app and a message must outlive the repaint that follows the tap it is about.
+  var noticeTimer=null;
+  function say(html){
+    var n=document.getElementById('notice');
+    if(!n){ n=document.createElement('div'); n.id='notice'; document.body.appendChild(n); }
+    n.innerHTML=html; n.className='show';
+    clearTimeout(noticeTimer);
+    noticeTimer=setTimeout(function(){ n.className=''; }, 4000);
+  }
   function flashLocked(){ locked=true; render(); }
 
   function queryPin(){ var m=/[?&]pin=([0-9]{4})/.exec(location.search||''); return m?m[1]:''; }
@@ -135,6 +196,7 @@ export const CLIENT_HTML = `<!doctype html>
       '<div class="pair">'+
       '<div class="brand">${WORDMARK_SVG}</div>'+
       '<h1>Show Control</h1>'+
+      (pairNote?'<div class="err" style="margin:10px 0">'+esc(pairNote)+'</div>':'')+
       '<p>Enter the PIN shown in the app (Preferences &rsaquo; Show Control, or the Show Control panel).</p>'+
       '<input id="pin" inputmode="numeric" maxlength="4" placeholder="0000" value="'+esc(queryPin())+'" />'+
       '<div class="err" id="perr"></div>'+
@@ -146,7 +208,7 @@ export const CLIENT_HTML = `<!doctype html>
   function doPair(pinOverride){
     var pin=pinOverride||(document.getElementById('pin')||{}).value||'';
     api('/pair',{pin:pin, name:(navigator.platform||'Tablet')}).then(function(r){ return r.json().then(function(j){return {ok:r.ok,j:j};}); })
-      .then(function(x){ if(x.ok&&x.j.token){ token=x.j.token; localStorage.setItem(LS,token); connect(); render(); }
+      .then(function(x){ if(x.ok&&x.j.token){ token=x.j.token; localStorage.setItem(LS,token); pairNote=''; stripPin(); connect(); render(); }
         else { var e=document.getElementById('perr'); if(e) e.textContent='Wrong PIN. Check the app and try again.'; } })
       .catch(function(){ var e=document.getElementById('perr'); if(e) e.textContent='Cannot reach the app.'; });
   }
@@ -157,15 +219,28 @@ export const CLIENT_HTML = `<!doctype html>
     if(es) es.close();
     es=new EventSource('/events?token='+encodeURIComponent(token));
     es.onopen=function(){
-      connected=true;
+      connected=true; lastEventAt=Date.now();
+      // The app accepted this token, so the PIN in the address has nothing left to recover from.
+      stripPin();
       // IT CAME BACK. EventSource reconnects on its own, so a successful open after a restart is
       // the most reliable "the new process is serving" signal there is — better than a timer, which
       // would drop the operator back onto a dead remote if the relaunch happened to be slow.
       if(stopping==='restart'){ stopping=null; render(); return; }
       paintHeader();
     };
-    es.onerror=function(){ connected=false; paintHeader(); };
+    // TWO KINDS OF ERROR, AND EVENTSOURCE ONLY RECOVERS FROM ONE. A dropped connection (wifi blip, a
+    // phone locking, the app restarting) leaves it CONNECTING and it retries by itself — measured on
+    // an Android phone: back 11 s after unlock. An HTTP error answer (401 for an unknown token, 404,
+    // 500) CLOSES it for good, and it cannot say which status it got. So when it has given up, ask
+    // with a plain fetch: 401 → the device was unpaired; anything else → try again in a moment.
+    var me=es;
+    es.onerror=function(){
+      if(es!==me) return; // a stream this page has already replaced
+      connected=false; paintHeader();
+      if(me.readyState===2) probeStream();
+    };
     es.onmessage=function(ev){
+      lastEventAt=Date.now();
       var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
       if(m.t==='hello'){ locked=m.locked; mode=m.mode; }
       else if(m.t==='snapshot'){ snapshot=m.snapshot; }
@@ -179,6 +254,23 @@ export const CLIENT_HTML = `<!doctype html>
       paintHeader();
     };
   }
+  // A plain fetch, not api(): this is a question, and a 500 here is not something to tell the operator
+  // they did. Any authed GET will do; /playlist is cheap and always present. 't' pins the token the
+  // question was asked about, so a late answer cannot act on a device that has since re-paired.
+  function probeStream(){
+    var t=token;
+    var retry=function(){ setTimeout(function(){ if(t&&t===token) connect(); }, 3000); };
+    fetch('/playlist',{headers:{'Authorization':'Bearer '+t}})
+      .then(function(r){ if(t!==token) return; if(r.status===401) unpaired(); else retry(); })
+      .catch(retry);
+  }
+  // BACK IN FRONT OF SOMEONE. A phone that slept may hold a stream the OS closed, or one that looks
+  // open and carries nothing; the app streams status twice a second, so ten quiet seconds means dead.
+  // Reconnecting costs one request, and the server replays the current show on connect.
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState!=='visible'||!token) return;
+    if(!es||es.readyState===2||Date.now()-lastEventAt>10000) connect();
+  });
   function pushHist(mt){
     function add(a,v){ a.push(v||0); if(a.length>60) a.shift(); }
     add(hist.cpuPct, mt.system?mt.system.cpuPct:0);
@@ -239,6 +331,7 @@ export const CLIENT_HTML = `<!doctype html>
   // ---- shell ----
   function paintHeader(){
     var d=document.querySelector('header .dot'); if(d){ d.className='dot '+(connected?'on':'off'); }
+    var c=document.querySelector('header .conn'); if(c){ c.className='conn '+(connected?'':'show'); }
     var l=document.querySelector('header .lock'); if(l){ l.className='lock '+(locked?'show':''); }
   }
   var TABS=[['control','Control'],['states','States'],['schedule','Schedule'],['projects','Projects'],['metrics','Metrics']];
@@ -253,7 +346,10 @@ export const CLIENT_HTML = `<!doctype html>
     if(prev&&shellTab===tab) shellScroll=prev.scrollTop; else shellScroll=0;
     var nav=''; for(var i=0;i<TABS.length;i++){ nav+='<button data-act="tab" data-tab="'+TABS[i][0]+'" class="'+(tab===TABS[i][0]?'active':'')+'">'+TABS[i][1]+'</button>'; }
     app.innerHTML=''+
+      // The dot alone was the ONLY sign a tablet had stopped receiving anything, and a red dot is easy
+      // to read as decoration. Words, while it is off.
       '<header><span class="dot '+(connected?'on':'off')+'"></span><span class="title">${WORDMARK_SVG}<span>Show Control</span></span>'+
+      '<span class="conn '+(connected?'':'show')+'">Not connected &mdash; retrying&hellip;</span>'+
       '<span class="lock '+(locked?'show':'')+'">&#128274; LOCKED</span><span class="sp"></span>'+
       '<span class="badge">'+mode+'</span></header>'+
       '<nav>'+nav+'</nav><main id="main"></main>';
@@ -804,8 +900,8 @@ export const CLIENT_HTML = `<!doctype html>
   });
 
   render();
-  if(token) connect();
-  else { var qp=queryPin(); if(qp) doPair(qp); } // one-scan onboarding: auto-pair from the QR's ?pin=
+  if(token) connect();                // a refused token re-pairs from bootPin — see unpaired()
+  else if(bootPin) doPair(bootPin);   // one-scan onboarding: auto-pair from the QR's ?pin=
 })();
 </script>
 </body>

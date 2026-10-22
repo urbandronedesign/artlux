@@ -225,10 +225,11 @@ surfaces always agree.
 
 Any phone/tablet browser becomes an operator surface — and in **broadcast mode** it's the only UI.
 
-1. **Enable:** **Preferences ▸ Show Control** → *Enable the tablet remote*. Note the LAN URL(s) and the
-   4‑digit **PIN**. (Also from **View ▸ Show Control…**, which shows a **QR code** — scan it and the
-   tablet pairs automatically.)
-2. **On the tablet:** open the URL, enter the PIN once (the device is remembered).
+1. **Enable:** **Preferences ▸ Show Control** → *Enable the tablet remote*. Note the address for the
+   network the tablet is on, and the 4‑digit **PIN**. (Also from **View ▸ Show Control…**, which shows
+   a **QR code for each network** the machine is on — scan the one for the tablet's network and it
+   pairs automatically.)
+2. **On the tablet:** open the address, enter the PIN once (the device is remembered).
 3. **Control tab** — recall scenes, fire cue columns, transport play/pause/stop; live status streams
    back.
 4. **States tab** — enable/disable the state machine, fire manual transitions from the current state, or
@@ -241,7 +242,9 @@ Any phone/tablet browser becomes an operator surface — and in **broadcast mode
    Grafana required.
 
 The remote uses HTTP + Server‑Sent Events, so a tablet **auto‑reconnects** across a broadcast relaunch.
-An operator **Lock** can freeze or kick remotes mid‑show. See [`docs/SHOW-CONTROL.md`](../SHOW-CONTROL.md).
+An operator **Lock** can freeze or kick remotes mid‑show. If the tablet stops updating, read the top
+of its screen — it says whether it lost the connection or is no longer paired; see
+[When the tablet stops updating](../SHOW-CONTROL.md#when-the-tablet-stops-updating).
 
 ---
 

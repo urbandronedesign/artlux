@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { PanelProps } from '@artlux/sdk/renderer';
 import { getIpc } from './showControlHost';
 import { toSvg } from './qr';
-import type { LanInfo } from './types';
+import type { LanAdapter, LanInfo } from './types';
 
 // Show Control operator panel (modal, toggled from View ▸ Show Control). The app-side companion to the
 // tablet: shows the connect URL + PIN, an operator LOCK that freezes/kicks remotes mid-show, and the
@@ -27,9 +27,27 @@ export const ShowControlPanel: React.FC<PanelProps> = () => {
   const kick = (token?: string) => { getIpc()?.send('showctl:revoke', token); setTimeout(refresh, 150); };
   const regen = () => { getIpc()?.invoke('showctl:regen-pin').then((r) => setLan(r as LanInfo)).catch(() => {}); };
 
-  // One-scan onboarding: encode the URL with ?pin= so the tablet PWA auto-pairs after scanning.
-  const pairUrl = lan && lan.urls.length && lan.pin ? `${lan.urls[0]}/?pin=${encodeURIComponent(lan.pin)}` : null;
-  const qrSvg = pairUrl ? toSvg(pairUrl, { size: 176 }) : null;
+  // One-scan onboarding: each QR encodes its URL with ?pin= so the tablet PWA auto-pairs after scanning.
+  //
+  // A CODE PER ADAPTER, not one. There used to be a single QR built from urls[0], and which adapter
+  // came first was the OS's enumeration order — on the owner's machine a VPN, which no tablet in the
+  // room could reach. The operator cannot know which network the tablet is on; the tablet's owner can,
+  // so put every reachable network on screen, named, and let them scan theirs. Real adapters are
+  // shown; VPN / VM adapters fold away below, still scannable for the rare rig that needs them.
+  const adapters = lan?.adapters ?? [];
+  const physical = adapters.filter((a) => a.kind === 'physical');
+  const virtual = adapters.filter((a) => a.kind === 'virtual');
+  const qrFor = (a: LanAdapter) => (lan?.pin ? toSvg(`${a.url}/?pin=${encodeURIComponent(lan.pin)}`, { size: 150 }) : null);
+  const qrCard = (a: LanAdapter) => {
+    const svg = qrFor(a);
+    return (
+      <div key={a.url} className="flex flex-col items-center gap-1">
+        {svg && <div className="rounded bg-white p-1.5 leading-[0]" dangerouslySetInnerHTML={{ __html: svg }} />}
+        <div className="text-fg-1 font-medium">{a.name}</div>
+        <div className="num text-fg-3">{a.url}</div>
+      </div>
+    );
+  };
 
   return (
     <div className="w-full h-full overflow-y-auto bg-panel text-fg" aria-label="Show Control">
@@ -41,19 +59,26 @@ export const ShowControlPanel: React.FC<PanelProps> = () => {
 
         <div className="p-4 space-y-3 text-xs text-fg-2">
           <div className="rounded border border-line p-2 space-y-2">
-            {qrSvg && (
-              <div className="flex items-center gap-3">
-                <div className="rounded bg-white p-1.5 leading-[0]" dangerouslySetInnerHTML={{ __html: qrSvg }} />
-                <div className="space-y-1">
-                  <div className="text-fg-1 font-medium">Scan to connect</div>
-                  <div className="text-fg-3 leading-snug">Point the tablet camera here — it opens the remote and pairs automatically.</div>
+            {adapters.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-fg-1 font-medium">Scan to connect</div>
+                <div className="text-fg-3 leading-snug">
+                  {physical.length > 1
+                    ? 'This machine is on more than one network. Scan the code for the network the tablet is on — it opens the remote and pairs automatically.'
+                    : 'Point the tablet camera here — it opens the remote and pairs automatically.'}
                 </div>
               </div>
             )}
-            <div className="text-fg-3">Or open on the tablet browser:</div>
-            {(lan?.urls ?? []).length
-              ? lan!.urls.map((u) => <div key={u} className="num text-fg-1 text-sm">{u}</div>)
-              : <div className="text-fg-3">No LAN address (enable the remote in Preferences ▸ Show Control).</div>}
+            {physical.length > 0 && <div className="flex flex-wrap gap-4">{physical.map(qrCard)}</div>}
+            {virtual.length > 0 && (
+              <details open={physical.length === 0}>
+                <summary className="cursor-pointer text-fg-3">
+                  {virtual.length === 1 ? '1 virtual adapter' : `${virtual.length} virtual adapters`} (VPN, virtual machine) — tablets are rarely on these
+                </summary>
+                <div className="flex flex-wrap gap-4 pt-2">{virtual.map(qrCard)}</div>
+              </details>
+            )}
+            {adapters.length === 0 && <div className="text-fg-3">No LAN address (enable the remote in Preferences ▸ Show Control).</div>}
             <div className="flex items-center gap-2 pt-1">
               <span>PIN</span>
               <span className="num text-fg-1 text-lg tracking-[0.3em]">{lan?.pin ?? '····'}</span>

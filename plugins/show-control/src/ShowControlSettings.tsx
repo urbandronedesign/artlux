@@ -41,9 +41,15 @@ export const ShowControlSettings: React.FC<{ settings: unknown; onChange: (patch
             <span className={`w-2 h-2 rounded-full ${lan?.enabled ? 'bg-emerald-400' : 'bg-amber-400'}`} />
             <span>{lan?.enabled ? 'Server running.' : 'Starting…'}</span>
           </div>
-          <div>On the tablet's browser, open one of:</div>
-          {(lan?.urls ?? []).length
-            ? (lan!.urls.map((u) => <div key={u} className="num text-fg-1">{u}</div>))
+          <div>On the tablet's browser, open the address for the network the tablet is on:</div>
+          {/* Named, real adapters first — the same order and the same QR codes as the Show Control panel. */}
+          {(lan?.adapters ?? []).length
+            ? (lan!.adapters.map((a) => (
+              <div key={a.url} className="flex items-baseline gap-2">
+                <span className={a.kind === 'virtual' ? 'text-fg-3' : 'text-fg-2'}>{a.name}{a.kind === 'virtual' ? ' (virtual)' : ''}</span>
+                <span className="num text-fg-1">{a.url}</span>
+              </div>
+            )))
             : <div className="text-fg-3">No LAN address found (check the network).</div>}
           <div className="flex items-center gap-2 pt-1">
             <span>PIN</span>

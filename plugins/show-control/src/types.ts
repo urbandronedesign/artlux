@@ -145,7 +145,26 @@ export interface DeviceInfo { id: string; name: string; pairedAt: number; connec
 export interface ShowControlSettings { enabled?: boolean; port?: number }
 
 // LAN info the settings/panel show so an operator can point a tablet at the app.
-export interface LanInfo { urls: string[]; port: number; pin: string; enabled: boolean }
+//
+// ONE ENTRY PER ADAPTER, NAMED. This was a bare `urls: string[]` and the panel built its QR from
+// urls[0], so on a machine with Wi-Fi + Ethernet (or a VPN, or a Hyper-V switch) the one code on
+// screen pointed at whichever adapter Windows happened to enumerate first. On the owner's machine
+// that was "VPN Ecole", which no tablet in the room could reach, and nothing on screen said so.
+// `kind` lets the panel put real adapters first; link-local (169.254/16) is dropped server-side
+// because no tablet can ever reach it.
+export interface LanAdapter {
+  name: string;                     // the OS interface name ("Wi-Fi", "Ethernet 2", "VPN Ecole")
+  address: string;                  // IPv4
+  url: string;                      // http://address:port, no PIN
+  kind: 'physical' | 'virtual';     // virtual = VPN / VM switch / tunnel, by interface name
+}
+export interface LanInfo {
+  adapters: LanAdapter[];           // physical first, then virtual; stable order (by name) inside each
+  urls: string[];                   // = adapters.map(a => a.url), kept for any reader of the old shape
+  port: number;
+  pin: string;
+  enabled: boolean;
+}
 
 // ─── SSE server → client events ───────────────────────────────────────────────────────────────
 export type ServerEvent =

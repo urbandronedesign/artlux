@@ -33,9 +33,12 @@ client is watching" rule — the sampler stays free when nobody is looking.
 
 ## For the operator (how to use it)
 
-1. **Enable it:** Preferences ▸ **Show Control** → tick *Enable the tablet remote*. Note the LAN URL(s)
-   and the 4-digit **PIN**. (Also reachable from **View ▸ Show Control…** — the operator panel.)
-2. **On the tablet:** open the URL in a browser, enter the PIN once (the device is remembered).
+1. **Enable it:** Preferences ▸ **Show Control** → tick *Enable the tablet remote*. Note the address
+   for the network the tablet is on, and the 4-digit **PIN**. Each address is listed with its network's
+   name ("Wi-Fi", "Ethernet"); VPN and virtual-machine adapters are marked *virtual* and listed last.
+   (Also reachable from **View ▸ Show Control…** — the operator panel, which has a QR code per network.)
+2. **On the tablet:** scan the QR code for its network, or open the address in a browser and enter the
+   PIN once (the device is remembered).
 3. **Control tab:** recall scenes, fire cues, transport play/pause/stop — live status streams back.
    (There is no per-column fire row: it was removed at the owner's request, 2026-09-12. The
    `fireColumn` **command** still exists and is still reachable over OSC and from a scheduled entry —
@@ -92,9 +95,23 @@ unreadable on a list that mixes daily, weekly and one-off entries.
    > **Long frames**, which counts frames well past the median. Both are relative to the rate you chose,
    > so they mean the same thing at 25, 30 or 60. **Output FPS is separate** — it is the Art-Net wire
    > rate (*Preferences ▸ Engine ▸ FPS*) and keeps running at full rate however slow the engine is.
-8. **Operator panel (View ▸ Show Control):** a **QR code** to connect (scan → the tablet opens the
-   remote and pairs automatically via a `?pin=` URL), the connect URL + PIN, a **Lock** that
+8. **Operator panel (View ▸ Show Control):** a **QR code for each network** this machine is on (scan
+   → the tablet opens the remote and pairs automatically via a `?pin=` URL), the PIN, a **Lock** that
    freezes/kicks remotes mid-show, and the paired-device list with per-device kick.
+
+### When the tablet stops updating
+
+The remote says what is wrong in words — read the top of the tablet's screen first.
+
+| What the tablet shows | What it means | What to do |
+|---|---|---|
+| **Not connected — retrying…** beside a red dot | The tablet lost the app: wifi dropped, the phone slept, or the app is restarting. | Nothing — it reconnects by itself and catches up with whatever changed meanwhile. If it never clears, check the tablet is still on the same network as the machine. |
+| **Not delivered — no connection to the app** after a tap | That tap did not reach the app. | Wait for the connection to come back, then tap again. |
+| The **PIN screen**, saying *this device is no longer paired* | The app no longer knows this tablet — it was kicked, the pairings were reset, or it was paired with another machine at the same address. | Enter the PIN shown in the Show Control panel. Scanning the QR code again does the same in one step. |
+| Only some networks' QR codes work | The machine is on several networks and the tablet is on one of them. | Scan the code labelled with the tablet's network. A **VPN** adapter is never the tablet's network — turn the VPN off if the tablet cannot reach any code. |
+
+**Kicking a device is final until someone enters the PIN.** A kicked tablet does not pair itself back
+from the address it was opened with; to lock a tablet out for good, kick it *and* **Regenerate** the PIN.
 
 ### Stopping the show from the room it is playing in
 
@@ -214,7 +231,8 @@ upgrade: add a media-cache/pool/undo teardown, then swap live.)
 ## Security
 
 PIN pairing → per-device bearer token; unpaired sockets/POSTs are rejected (401). The operator **Lock**
-freezes all remotes (423) and can kick devices. The server binds `0.0.0.0` (LAN); it is only reachable
+freezes all remotes (423) and can kick devices. A kicked tablet lands on the PIN screen and stays there
+until someone enters the PIN; **Regenerate** the PIN as well to keep it out. The server binds `0.0.0.0` (LAN); it is only reachable
 while enabled.
 
 <!-- audience:contributor -->
@@ -261,9 +279,38 @@ Three series stream as structured JSON over SSE (~1 Hz; only while a tablet is c
 
 ## QR onboarding
 
-The operator panel renders a QR (dependency-free encoder, `qr.ts` — byte mode, RS core verified against
-the published QR-spec vector) of a `http://<ip>:<port>/?pin=<pin>` URL. Scanning opens the PWA, which
-reads `?pin=` and **pairs automatically** — one scan, no typing.
+The operator panel renders one QR (dependency-free encoder, `qr.ts` — byte mode, RS core verified
+against the published QR-spec vector) **per network adapter**, each a `http://<ip>:<port>/?pin=<pin>`
+URL labelled with the adapter's name. Scanning opens the PWA, which reads `?pin=` and **pairs
+automatically** — one scan, no typing. The PIN is then removed from the tablet's address bar, so a
+reload or a bookmark never carries it.
+
+A scanned link also **repairs a stale pairing**: if the tablet already held a token the app no longer
+recognises, opening the QR link replaces it in one step instead of showing a dead remote.
+
+<!-- audience:contributor -->
+
+**Why one code per adapter.** The panel used to draw a single QR from the first address
+`os.networkInterfaces()` returned. Which adapter comes first is the OS's enumeration order, and on the
+owner's machine (2026-10-22) that was a VPN — a QR no tablet in the room could reach, with nothing on
+screen saying so. `server.lanInfo()` now returns named `adapters` (`LanAdapter`), drops link-local
+`169.254/16`, and classes VPN / VM / tunnel adapters as `virtual` **by interface name** (Node exposes
+nothing else that tells a VPN tap from a Wi-Fi card); real adapters sort first, stable by name, because
+the panel re-polls every 3 s and a reshuffling list would move the code under a phone. `urls` is kept,
+derived, for any reader of the old shape.
+
+**Why a stale token is recovered in the page, and only once.** Found live on the owner's phone: its
+saved token was unknown to the app, so `/events` answered 401. `EventSource` never retries an HTTP
+error, `cmd()` ignored the 401, the `?pin=` in the QR link was skipped because a token existed, and a
+reload reloaded the token — the remote was dead behind a red dot. The page now routes every request
+through `api()`, which answers 401 with `unpaired()` and any other failure with a visible notice; when
+the stream gives up (`readyState === CLOSED`), `probeStream()` asks an authed GET whether it was a 401.
+`unpaired()` may re-pair from the `?pin=` the page was **opened** with, **once** — that PIN (`bootPin`)
+is spent as soon as a stream opens or a pairing succeeds, and stripped from the URL, so an operator's
+**kick** cannot be undone by a tablet silently re-pairing from an hour-old address.
+`scripts/test-show-control-ui.cjs` covers all of it against a stub that issues and revokes tokens.
+
+<!-- audience:operator -->
 
 <!-- audience:contributor -->
 

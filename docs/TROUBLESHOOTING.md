@@ -53,6 +53,8 @@ Read down the left column until a line matches what is actually in front of you.
 | A zone rule never fires | [Tracking ▸ Tips & troubleshooting](user-guide/13-tracking.md#tips--troubleshooting) — the scene may be listening-off to that zone |
 | A moving head points the wrong way | [Moving lights ▸ Troubleshooting](user-guide/16-moving-lights.md#troubleshooting) |
 | A cue is overridden by something you cannot see | [Encoding a light show](LIGHTING-SHOW.md) — precedence between takes, clips and live values |
+| The tablet remote stops updating, or its buttons do nothing | [Show Control ▸ When the tablet stops updating](SHOW-CONTROL.md#when-the-tablet-stops-updating) — read the top of the tablet's screen: lost connection, or no longer paired |
+| The Show Control QR code opens nothing on the tablet | [Show Control ▸ When the tablet stops updating](SHOW-CONTROL.md#when-the-tablet-stops-updating) — scan the code for the tablet's own network; a VPN is never it |
 
 ## Nothing is arriving from outside
 

@@ -82,8 +82,17 @@ const app = {
   plStatus: { currentPath: 'D:/Shows/Museum.artlux', nextPath: null, nextAt: null, nextAtMs: null },
   log: [],
 };
+// Tokens the stub app knows. Pairing issues a fresh one; clearing this set is "Kick all", or a reset
+// store, or a phone that paired with another machine at this address — all of which the real server
+// answers with 401, and all of which the page used to answer with a red dot forever.
+const valid = new Set();
+let issued = 0;
+const authed = (req, url) => {
+  const h = req.headers.authorization || '';
+  return valid.has(h.startsWith('Bearer ') ? h.slice(7) : url.searchParams.get('token'));
+};
 const clients = new Set();
-const emit = (e) => { for (const r of clients) { try { r.write('data: ' + JSON.stringify(e) + '\n\n'); } catch { /* */ } } };
+const emit =(e) => { for (const r of clients) { try { r.write('data: ' + JSON.stringify(e) + '\n\n'); } catch { /* */ } } };
 const snapshot = () => ({ scenes: SCENES, banks: BANKS, schedule: app.schedule, projectName: 'Stub',
   fsm: { enabled: true, initialStateId: 'st0', states: [{ id: 'st0', name: 'Idle' }], transitions: [] } });
 let playhead = 0;
@@ -96,6 +105,8 @@ const srv = http.createServer((req, res) => {
   const json = (c, o) => { res.writeHead(c, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
   if (url.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(HTML); return; }
   if (url.pathname === '/events') {
+    if (app.down) { req.socket.destroy(); return; }   // the app is restarting: no answer at all
+    if (!authed(req, url)) { json(401, { error: 'unpaired' }); return; }
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     clients.add(res);
     const push = (e) => res.write('data: ' + JSON.stringify(e) + '\n\n');
@@ -112,7 +123,12 @@ const srv = http.createServer((req, res) => {
   req.on('end', () => {
     const b = body ? JSON.parse(body) : {};
     app.log.push([url.pathname, b]);
-    if (url.pathname === '/pair') return json(200, { token: 'T', name: 'Test' });
+    if (url.pathname === '/pair') {
+      if (b.pin !== '1234') return json(401, { error: 'bad-pin' });
+      const tok = 'T' + (++issued); valid.add(tok);
+      return json(200, { token: tok, name: 'Test' });
+    }
+    if (!authed(req, url)) return json(401, { error: 'unpaired' });
     // Everything below is a mutating action, and the operator Lock must cover all of it.
     if (app.locked) return json(423, { error: 'locked' });
     if (url.pathname === '/playlist') {
@@ -360,6 +376,73 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     `was ${before}, now ${await scrollTop()}`);
   await click('nav button:nth-child(4)');
   ok('switching tab starts at the top', (await scrollTop()) === 0);
+
+  // ── A token the app no longer knows (found live on the owner's phone, 2026-10-22) ─────────────
+  // The phone held a token from a pairing the app had since dropped: /events said 401, EventSource
+  // gave up for good, every button got the same 401 in silence, the ?pin= in the QR link was ignored,
+  // and a reload reloaded the token. The only sign was a red dot.
+  await page.setViewport({ width: 820, height: 1100 });
+  const pairs = () => app.log.filter(([p]) => p === '/pair').length;
+  const waitFor = async (fn, ms = 8000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await wait(150); } return false; };
+
+  console.log('\n[the QR\'s PIN leaves the address bar once it has done its job]');
+  ok('no ?pin left in the URL', !(await page.evaluate(() => location.search)).includes('pin='), await page.evaluate(() => location.search));
+
+  console.log('\n[a kicked device is TOLD, and does not quietly pair itself back]');
+  let p0 = pairs();
+  valid.clear();
+  for (const c of clients) { try { c.end(); } catch { /* */ } }
+  clients.clear();
+  ok('lands on the PIN screen', await waitFor(async () => (await text()).includes('Pair this device')), (await text()).slice(0, 200));
+  ok('saying why it is there', /no longer paired/i.test(await text()));
+  ok('without re-pairing on its own', pairs() === p0, `${pairs() - p0} extra /pair`);
+  ok('and the dead token is gone', (await page.evaluate(() => localStorage.getItem('artlux.showctl.token'))) === null);
+  await shot('unpaired');
+
+  console.log('\n[the PIN brings it straight back]');
+  await page.type('#pin', '1234');
+  await click('[data-act="pair"]');
+  ok('the remote is back', await waitFor(async () => /this machine/i.test(await text())));
+  ok('connected — no "Not connected" banner', await waitFor(async () =>
+    page.$eval('header .conn', (e) => getComputedStyle(e).display === 'none').catch(() => false)));
+
+  console.log('\n[a STALE saved token + the QR link re-pairs at once (the owner\'s phone)]');
+  await page.evaluate(() => localStorage.setItem('artlux.showctl.token', 'STALE-FROM-ANOTHER-MACHINE'));
+  p0 = pairs();
+  await page.goto(`http://127.0.0.1:${PORT}/?pin=1234`, { waitUntil: 'networkidle2' });
+  ok('re-paired from the ?pin', await waitFor(async () => pairs() === p0 + 1), `${pairs() - p0} /pair`);
+  ok('and the remote shows', await waitFor(async () => /this machine/i.test(await text())), (await text()).slice(0, 200));
+  ok('with a fresh token saved', /^T\d+$/.test(await page.evaluate(() => localStorage.getItem('artlux.showctl.token')) || ''));
+  ok('and the PIN gone from the address', !(await page.evaluate(() => location.search)).includes('pin='));
+
+  console.log('\n[a command that cannot be delivered SAYS so]');
+  await page.setOfflineMode(true);
+  await page.evaluate(() => document.querySelector('[data-act="cue"]').click());
+  ok('a visible "Not delivered" notice', await waitFor(async () => page.$eval('#notice', (e) =>
+    e.classList.contains('show') && /Not delivered/.test(e.textContent)).catch(() => false)));
+  await page.setOfflineMode(false);
+
+  // Offline emulation blocks NEW requests but does not cut a stream already open to localhost, so the
+  // dropped connection is made the honest way: the app goes away, and refuses the stream until it is back.
+  console.log('\n[a dropped stream is said in WORDS, and heals by itself]');
+  app.down = true;
+  for (const c of clients) { try { c.destroy(); } catch { /* */ } }
+  clients.clear();
+  ok('the header says it is not connected', await waitFor(async () =>
+    page.$eval('header .conn', (e) => getComputedStyle(e).display !== 'none').catch(() => false)));
+  await shot('offline', false);
+  app.down = false;
+  ok('and recovers by itself when the app returns', await waitFor(async () =>
+    page.$eval('header .conn', (e) => getComputedStyle(e).display === 'none').catch(() => false), 12000));
+  ok('still paired — a dropped connection is not an unknown device', !(await text()).includes('Pair this device'));
+
+  console.log('\n[a command refused as unknown (401) goes to the PIN screen, not into the void]');
+  p0 = pairs();
+  valid.clear();                 // the stream stays open — only the next REQUEST finds out
+  await page.evaluate(() => document.querySelector('[data-act="cue"]').click());
+  ok('PIN screen', await waitFor(async () => (await text()).includes('Pair this device')), (await text()).slice(0, 200));
+  ok('with the reason', /no longer paired/i.test(await text()));
+  ok('no silent re-pair (the QR PIN was already spent)', pairs() === p0);
 
   ok('still no page errors', errors.length === 0, errors.join(' | '));
 

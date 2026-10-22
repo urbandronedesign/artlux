@@ -15,7 +15,7 @@ import * as scheduler from './scheduler';
 import { CLIENT_HTML } from './clientHtml';
 import type {
   ShowCommand, ShowSnapshot, ShowStatus, MetricsSnapshot, PlaylistStatus, DeviceInfo,
-  ServerEvent, Playlist, LanInfo, ScanResult,
+  ServerEvent, Playlist, LanInfo, LanAdapter, ScanResult,
 } from './types';
 
 export interface ServerHandlers {
@@ -292,15 +292,26 @@ export function pushDevices(): void { lastDevices = currentDevices(); emit({ t: 
 export function setLocked(v: boolean): void { locked = v; emit({ t: 'locked', locked: v }); }
 export function isLocked(): boolean { return locked; }
 
+// Adapters a tablet in the room is not on. Judged by NAME because Node reports nothing else that tells
+// a VPN tap from a Wi-Fi card — both are plain non-internal IPv4. A miss is cheap (the adapter is merely
+// listed among the real ones); the point is only that a VPN never wins the first slot again.
+const VIRTUAL_IFACE = /vpn|vethernet|hyper-v|virtualbox|vbox|vmware|vmnet|docker|wsl|tap|tun\b|wireguard|wg\d|zerotier|tailscale|openvpn|nordlynx|hamachi|radmin|npcap|loopback|bluetooth/i;
+
 export function lanInfo(): LanInfo {
-  const urls: string[] = [];
-  const ifaces = networkInterfaces();
-  for (const list of Object.values(ifaces)) {
+  const adapters: LanAdapter[] = [];
+  for (const [name, list] of Object.entries(networkInterfaces())) {
     for (const ni of list ?? []) {
-      if (ni.family === 'IPv4' && !ni.internal) urls.push(`http://${ni.address}:${port}`);
+      if (ni.family !== 'IPv4' || ni.internal) continue;
+      // Link-local: Windows self-assigns 169.254/16 to an adapter that found no DHCP server. Nothing
+      // can reach it, so offering it as a QR is offering a dead end.
+      if (ni.address.startsWith('169.254.')) continue;
+      adapters.push({ name, address: ni.address, url: `http://${ni.address}:${port}`, kind: VIRTUAL_IFACE.test(name) ? 'virtual' : 'physical' });
     }
   }
-  return { urls, port, pin: auth.getPin(), enabled: !!server };
+  // Real adapters first, then by name — STABLE, because the panel re-polls every few seconds and a list
+  // that reshuffles moves the QR the operator is holding a phone up to.
+  adapters.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'physical' ? -1 : 1));
+  return { adapters, urls: adapters.map((a) => a.url), port, pin: auth.getPin(), enabled: !!server };
 }
 
 export function lastMetricsSnapshot(): MetricsSnapshot | null { return lastMetrics; }
