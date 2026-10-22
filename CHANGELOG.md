@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.33.3
+
+### The tablet remote can no longer go silently dead
+
+A phone or tablet could stop receiving updates from the show for good — states added or deleted in the
+app never appeared, and its buttons did nothing — while the only sign was a small **red dot**. It
+happened when the app no longer recognised the device: it had been kicked, the pairings had been
+reset, or it had been paired with another machine at the same address. Reloading the page did not
+help, and scanning the QR code again did not either, because the page kept its old login.
+
+Now the remote **says what is wrong, in words, and recovers**:
+
+- **No longer paired:** opening the QR link pairs it again in one step; otherwise the PIN screen
+  appears and says *"This device is no longer paired with the app"*.
+- **Connection lost:** the top of the screen reads **"Not connected — retrying…"** and the remote
+  catches up by itself when it comes back, including after the phone has been locked.
+- **A tap that did not arrive** shows **"Not delivered — no connection to the app"** instead of doing
+  nothing.
+
+A **kicked** tablet stays out: it lands on the PIN screen and does not pair itself back.
+
+### One QR code per network
+
+On a machine with more than one network — Wi-Fi and Ethernet, or a **VPN** — the Show Control panel
+showed a single QR code for whichever network Windows listed first, which could be one no tablet in
+the room could reach. It now shows **a QR code for each network, labelled with its name**. VPN and
+virtual-machine adapters are listed last, folded away; Preferences ▸ Show Control lists the same
+addresses by name.
+
+See [Show Control ▸ When the tablet stops updating](docs/SHOW-CONTROL.md#when-the-tablet-stops-updating).
+
 ## v0.33.2
 
 ### Still images on projector outputs no longer wear the editor down
