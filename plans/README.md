@@ -17,6 +17,8 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > **▶ Release-scoped notes** do not follow the template and say so in their own header. Current:
 > [v0.29-onsite-verification.md](v0.29-onsite-verification.md) — what shipped in v0.29.0 without a
 > visual pass, what each failure looks like on a wall, and the one-command backout.
+> [2026-10-22-session-record.md](2026-10-22-session-record.md) — v0.33.4 / v0.33.5, the Spout leak, the
+> playback assessment checked against the records (what not to redo), and four open bugs.
 
 ### How these were produced (and how much to trust them)
 
