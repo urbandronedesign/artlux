@@ -17,7 +17,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 
 | Topic | Doc |
 |---|---|
-| **How the system fits together (canonical)** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **How the system fits together (canonical)** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · zoomable map: [docs/architecture-map.html](docs/architecture-map.html) |
 | **Setup / build / test / release + env gotchas** | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | **Installing on a real machine (build PC + venue PC) + the preflight** | [docs/INSTALL.md](docs/INSTALL.md) |
 | **The Launcher (separate installer app) + the contracts it depends on** | [docs/LAUNCHER.md](docs/LAUNCHER.md) |

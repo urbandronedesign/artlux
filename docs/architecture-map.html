@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArtLux Architecture</title>
+<style>
+:root {
+  --bg: #0a0a0a; --s1: #141414; --s2: #1c1c1c; --line: #383838;
+  --t1: #e8e8e8; --t2: #9a9a9a; --t3: #8a8a8a; --accent: #27b6c4;
+  --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--t1); font-family: var(--sans); overflow: hidden; }
+svg#map { position: fixed; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; user-select: none; }
+svg#map.dragging { cursor: grabbing; }
+#bar { position: fixed; left: 16px; right: 16px; top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; pointer-events: none; }
+#bar > * { pointer-events: auto; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; margin-right: 6px; }
+.brand span { color: var(--accent); }
+.chip { background: rgba(20,20,20,.92); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--t2); backdrop-filter: blur(6px); }
+.chip b { color: var(--t1); font-weight: 600; }
+button { font: inherit; font-size: 13px; color: var(--t1); background: rgba(28,28,28,.95); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: rgba(39,182,196,.18); border-color: var(--accent); color: #bff3f8; }
+input#q { font: inherit; font-size: 13px; color: var(--t1); background: rgba(20,20,20,.95); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; width: 210px; }
+input#q:focus { outline: none; border-color: var(--accent); }
+#levels { display: flex; gap: 4px; }
+#help { position: fixed; left: 16px; bottom: 14px; font-size: 12px; color: var(--t3); background: rgba(10,10,10,.8); padding: 6px 10px; border-radius: 8px; }
+#legend { position: fixed; right: 16px; bottom: 14px; font-size: 12px; color: var(--t2); background: rgba(20,20,20,.92); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 5px; max-width: 260px; }
+#legend i { display: inline-block; width: 22px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+@media (max-width: 700px) { #legend { display: none; } input#q { width: 140px; } #help { display: none; } }
+/* SVG text */
+text { font-family: var(--sans); fill: var(--t1); }
+.mono { font-family: var(--mono); }
+.lvl { transition: opacity .18s linear; }
+.hit rect.mod { stroke: #fff !important; stroke-width: 2.5 !important; }
+</style>
+</head>
+<body>
+<svg id="map" aria-label="ArtLux architecture map"><g id="world"></g></svg>
+<div id="bar">
+  <div class="brand">Art<span>Lux</span> architecture</div>
+  <div class="chip" id="levelChip">Level <b>1</b> of 4 · processes</div>
+  <div id="levels">
+    <button data-l="1">1 Processes</button><button data-l="2">2 Subsystems</button>
+    <button data-l="3">3 Modules</button><button data-l="4">4 Roles + rules</button>
+  </div>
+  <button id="fit">Fit</button>
+  <input id="q" placeholder="Find a module… (Enter)" autocomplete="off">
+</div>
+<div id="help">Scroll or pinch to zoom · drag to pan · keys 1–4 jump to a level · 0 fits</div>
+<div id="legend">
+  <div><i style="border-color:#27b6c4"></i>Frame / output path</div>
+  <div><i style="border-color:#e3b341"></i>Video into the app</div>
+  <div><i style="border-color:#8b8bf0"></i>IPC / MessagePort</div>
+  <div><i style="border-color:#9a9a9a;border-top-style:dashed"></i>Control &amp; files</div>
+</div>
+<script>
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// THE MAP DATA. Every box sizes itself from its content; only region x/width and order are fixed.
+// lv: 1 = always, 2 = subsystem boxes, 3 = module names, 4 = one-line roles + architecture rules.
+//
+// ⚠ HAND-MAINTAINED (written 2026-10-22). Nothing generates this list from the source, so it drifts the
+// day a module is renamed or moved — the failure CLAUDE.md's documentation rule 1 warns about. When you
+// move, rename or add a module named here, edit the matching line below. docs/ARCHITECTURE.md is the
+// canonical reference; this map is a picture of it, not a second source of truth.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+const REGIONS = [
+  { id: 'main', title: 'Main process', sub: 'Node + Electron · OS access: UDP, files, native addons', x: 40, w: 1260, cols: 2, color: '#4a8cff',
+    rules: ['Native addons degrade gracefully: a missing .node disables one feature and logs "[module] unavailable" — it never crashes the app.',
+            'A window that must appear is only verifiable in a PACKAGED build: reveal on ready-to-show + did-finish-load + a backstop timer.'],
+    groups: [
+      { t: 'Lifecycle & windows', m: [
+        ['index.ts', 'App lifecycle and argv: --broadcast, --headless, --calibrate; creates the editor window'],
+        ['splashWindow.ts', 'Startup splash with the boot report'],
+        ['projector.ts', 'One frameless fullscreen window per enabled projector output'],
+        ['docsWindow.ts', 'The Docs & Tutorials window'],
+        ['menu.ts', 'Application menu'],
+        ['closeGuard.ts · quitState.ts', 'One consistent quit route, editor and broadcast'],
+        ['runProfile.ts', 'Launch profiles — the calibration workbench only under --calibrate'],
+        ['uiScale.ts', 'High-DPI UI scaling'],
+      ] },
+      { t: 'Persistence & media', m: [
+        ['persistence.ts', '.artlux projects (JSON) and prefs in userData/artlux-prefs.json'],
+        ['projectFolder.ts', 'Portable project folders, Collect Assets — ALL asset-path translation lives here'],
+        ['mediaProtocol.ts', 'artlux-media:// scheme with HTTP Range streaming'],
+        ['mediaAccess.ts', 'Allow-list of the paths a window may read'],
+        ['fixtureLibrary.ts · gdtf.ts', '506 bundled fixture profiles, user profiles, GDTF import'],
+        ['mpcdi.ts', 'Projector calibration files (.mpcdi, zip)'],
+        ['thumbCache.ts', 'Thumbnail cache'],
+        ['docs.ts', 'Docs index + search for the in-app browser'],
+      ] },
+      { t: 'Transport', m: [
+        ['enginePort.ts', 'MessagePort from the renderer frame engine — frames bypass the IPC queue'],
+        ['outputManager.ts', 'Drives the native output engine: Art-Net, sACN, ENTTEC USB-DMX'],
+        ['artnet.ts · sacn.ts', 'Packet builders'],
+        ['discovery.ts', 'ArtPoll node discovery'],
+        ['input.ts', 'DMX input'],
+        ['oscManager.ts', 'OSC in/out: LiDAR blobs on :10000, OSC control, OSC tracks'],
+      ] },
+      { t: 'Reliability & ops', m: [
+        ['watchdog.ts', 'Self-heal: crash, hang or GPU loss → relaunch into --broadcast; OS scheduled task'],
+        ['logger.ts', 'Machine log: one JSONL file per run'],
+        ['bootReport.ts', 'What loaded at boot (the splash rows)'],
+        ['machineInfo.ts', 'Machine fingerprint, diffed against the previous boot'],
+        ['metrics.ts', 'Prometheus /metrics on 127.0.0.1:9464'],
+        ['updater.ts', 'Auto-update (electron-updater)'],
+        ['threadpool.ts', 'libuv pool size for native decode'],
+      ] },
+      { t: 'Plugin host & IPC', m: [
+        ['host/plugins.ts', 'Activates main-side plugin halves; gives them ctx.ipc.handle / on / send'],
+        ['ipc.ts', 'ipcMain handlers behind the window.artlux API'],
+        ['nvwarpManager.ts', 'NVIDIA NVAPI warp/blend at scanout (pro cards)'],
+      ] },
+    ] },
+  { id: 'preload', title: 'Preload', sub: 'contextBridge · the only door', x: 1400, w: 460, cols: 1, color: '#8a8a8a',
+    rules: ['contextIsolation is ON: plugins cannot add preload methods, so everything goes through one generic bridge.'],
+    groups: [
+      { t: 'window.artlux', m: [
+        ['typed API', 'Built from shared/protocol.ts — invoke/handle = request-response, send/on = fire-and-forget'],
+        ['plugin bridge', 'pluginInvoke / pluginSend / pluginOn → channels named plugin:<ch>'],
+      ] },
+      { t: 'Relays', m: [
+        ['shared-texture relay', 'Electron sharedTexture → VideoFrame → window.postMessage (Spout). Releases its reference at once'],
+        ['port relays', 'Hands the engine port and the projector ports into the page'],
+      ] },
+    ] },
+  { id: 'shared', title: 'shared/ + SDK', sub: 'imported by all three processes', x: 1400, w: 460, cols: 1, color: '#6b6b6b', below: 'preload',
+    rules: ['Core stays core: persisted project types live in shared/protocol.ts, so moving behaviour into a plugin needs no file migration.'],
+    groups: [
+      { t: 'Contracts', m: [
+        ['protocol.ts', 'IPC channel names, the ArtluxApi interface, project + shared types'],
+        ['frameCodec.ts', 'DMX frame encoding'],
+        ['mediaUrl.ts', 'artlux-media:// URLs'],
+        ['packages/sdk', '@artlux/sdk — /main and /renderer contribution types (internal, unstable)'],
+      ] },
+    ] },
+  { id: 'renderer', title: 'Renderer — editor window', sub: 'React 19 + the GPU frame loop', x: 1960, w: 1760, cols: 3, color: '#27b6c4',
+    rules: ['The frame loop is NOT in the UI: output keeps running with no component mounted (headless renders null and still outputs).',
+            'WebGPU is required on a show machine; the WebGL fallback is for authoring only.',
+            'Stage and the single TimelinePanel are persistent elements — hidden and positioned, never remounted.',
+            'App owns all state and every mutation; panels read it through useEditor(), not props.'],
+    groups: [
+      { t: 'App state & shell', m: [
+        ['App.tsx', 'Owns ALL project state and every mutation'],
+        ['state/EditorStore.tsx', 'useEditor() / useEditorActions(): what panels read instead of props'],
+        ['shell/WorkspaceShell.tsx', 'The context-driven workbench; imports zero panels'],
+        ['shell/ContextRail.tsx', 'Left rail: nine workbenches (Ctrl+1…9)'],
+        ['shell/DockRenderer.tsx · dockTree.ts', 'Dockable split/tab tree compiled from each context manifest'],
+        ['shell/PersistentLayer.tsx', 'Draws the one Stage / timeline over the winning slot — never moves it'],
+        ['contexts/index.tsx · nav.ts', 'Context manifests; switch ONLY via goToContext()'],
+        ['shell/CommandPalette.tsx', 'Ctrl+K over every context and action'],
+        ['workspaceStore.ts', 'Named workspaces (.artws)'],
+      ] },
+      { t: 'Frame engine — the output path', m: [
+        ['engine/frameEngine.ts', 'Singleton rAF loop: composite → GPU sample → pack universes → publish. No DOM, no React'],
+        ['engine/renderClock.ts', 'Wall clock vs offline (bake) clock'],
+        ['engine/framePort.ts', 'Sends packed frames to main over the engine port'],
+        ['gpu/WebGPUMapper.ts', 'WGSL compute: ONE atlas upload + one pass samples every LED'],
+        ['services/GPUMapper.ts', 'WebGL fallback mapper — authoring only'],
+        ['gpu/surfaceFx · effects · palettes', 'Built-in generative effects and palettes'],
+        ['services/addressing.ts', 'Universe/channel packing, footprints, auto-patch'],
+        ['services/perfMonitor.ts', 'Frame timing → metrics'],
+      ] },
+      { t: 'Content & media', m: [
+        ['contentSource.ts', 'Per-surface sources: image, video, camera, live feeds; codec dispatch'],
+        ['surfaceMedia.ts', 'One getDrawable() for stage, LEDs, 3D and projectors; slices'],
+        ['videoCodecRegistry', 'HAP and MP4 codecs, contributed by plugins'],
+        ['timelinePreloader.ts', 'Warms scene pools ahead of the show machine'],
+        ['bootGate.ts', 'Holds the show until the opening look is decoded'],
+        ['codecResidency.ts', 'Decoder memory budget'],
+        ['mediaCache.ts', 'Media URLs — never blob URLs'],
+        ['videoAudio.ts', 'Soundtracks inside video clips'],
+      ] },
+      { t: 'Show logic', m: [
+        ['timeline.ts', 'NLE engine: layers, clips, playhead, per-scene timelines, warm pools'],
+        ['stateMachine.ts', 'The show graph over scenes: states, triggers, entry actions'],
+        ['cueBus.ts', 'Cue and scene recall requests'],
+        ['transitions.ts', 'Crossfades between states'],
+        ['sceneLook.ts', 'Applies a scene’s look without replacing the rig'],
+        ['automation.ts · automationOverlay.ts', 'Keyframe lanes → parameter overrides'],
+        ['lightingPlayback · Take · Recorder', 'Moving-light takes and clips'],
+        ['colorPlayback.ts', 'Colour lanes'],
+        ['oscOut.ts', 'OSC tracks: timeline curves sent as OSC'],
+      ] },
+      { t: 'Fixtures', m: [
+        ['fixtureKind.ts', 'The ONLY place that decides LED fixture vs light fixture'],
+        ['fixtureProfiles.ts', 'Profile lookup (Open Fixture Library, GDTF)'],
+        ['fixtureGeometry · led3dLayout', 'LED positions in 2D and 3D'],
+        ['fixtureLayout.ts', 'Arrange: line, arc, distribute, fan'],
+        ['dmxSignal · fixtureSignal', 'Live DMX values for monitors and the 3D view'],
+        ['colorEngine.ts', 'Colour mixing per head (RGB, RGBW, CMY…)'],
+      ] },
+      { t: '3D viewport', m: [
+        ['Simulator3D/', 'react-three-fiber scene on three’s WebGPURenderer (WebGL opt-out)'],
+        ['renderer3d.ts', 'Renderer creation; logs WebGPU device loss'],
+        ['GroundGrid · GridLabels · gridScale', 'Ruler floor; whole-metre numbers painted on it'],
+        ['surfaceTextureCache.ts', 'One texture per surface, skipped when the frame is unchanged'],
+        ['FixtureBodies · InstancedLeds', 'Pick a fixture by its body; all LEDs in one draw call'],
+        ['projectorDepth · projectorBake', 'Projector depth and bake passes on their own layers'],
+      ] },
+      { t: 'Plugin host (renderer)', m: [
+        ['host/plugins.ts', 'activateRendererPlugins("main", host): plugins get the REAL host services'],
+        ['host/registries.ts', 'Registries: content sources, clip kinds, codecs, panels, contexts, settings, scene viz, triggers, automation'],
+      ] },
+      { t: 'Help & input', m: [
+        ['help/', 'Tooltip → searchable Help modal (F1), one entry per function'],
+        ['shortcuts/', 'Rebindable keymap registry + editor'],
+        ['docSearch.ts', 'One search index for the Docs browser and Help'],
+      ] },
+    ] },
+  { id: 'projector', title: 'Projector windows', sub: 'one renderer process per output', x: 3780, w: 760, cols: 1, color: '#a97cf0',
+    rules: ['Talks to the editor over a MessagePort — never over IPC.',
+            'Activates the same plugins with an INERT host: no project, no show machine, no pools.'],
+    groups: [
+      { t: 'Per output window', m: [
+        ['ProjectorApp.tsx', 'The output window; activateRendererPlugins("projector") with NOOP_HOST'],
+        ['bridge.ts', 'MessagePort protocol: frames as transferred ImageBitmaps, acks, transport'],
+        ['ProjectorGL.ts', 'WebGL2 draw: upload, mipmaps, 4× MSAA, warp, soft edges'],
+        ['warp.ts · homography.ts', 'Corner pin and bezier warp'],
+        ['blendGlsl.ts', 'Soft-edge blending'],
+        ['nvwarpApply.ts', 'Hands warp/blend to NVAPI on pro cards'],
+        ['AlignAids.tsx', 'Grid, focus and blend test patterns'],
+        ['local decode', 'HAP layers decode inside the window; other content streams from the editor'],
+      ] },
+    ] },
+  { id: 'plugins', title: 'First-party plugins', sub: 'in-process, contribution-based (VS Code style)', x: 3780, w: 760, cols: 2, color: '#e879f9', below: 'projector',
+    rules: ['Barrel-only imports: mixing the package alias with relative imports duplicated singletons once — writers hit one copy, readers the other.'],
+    groups: [
+      { t: 'Media in', m: [
+        ['hap', 'HAP codec · main + renderer'], ['mp4', 'WebCodecs MP4 · renderer'],
+        ['spout', 'Spout receive · main + renderer'], ['ndi', 'NDI receive/send · main + renderer'],
+        ['text', 'Text content · renderer'], ['shader', 'GLSL + node editor · main + renderer'],
+      ] },
+      { t: 'Tracking', m: [
+        ['lidar-tracking', 'LiDAR blobs, zones · renderer'], ['augmenta', 'Augmenta OSC v2 · renderer'],
+        ['mediapipe', 'Camera pose (WASM) · renderer'],
+      ] },
+      { t: 'Show & output', m: [
+        ['audio', 'JUCE audio engine · main + renderer'], ['calibration', 'OpenCV projector calibration · main + renderer'],
+        ['show-control', 'Tablet server, scheduler, playlist · main + renderer'], ['bake', 'Offline render to MP4 · main + renderer'],
+      ] },
+    ] },
+  { id: 'native', title: 'Native addons', sub: 'Rust / C++ napi · loaded in main · gitignored .node', x: 40, w: 1820, cols: 4, color: '#f08a4b', row: 'native',
+    rules: ['Rebuilding a .node while the app runs fails EBUSY — stop the app first.'],
+    groups: [
+      { t: 'Output', m: [['output-engine', 'Rust send thread: pacer, keep-alive, ArtSync, ENTTEC writer per port']] },
+      { t: 'Video', m: [['hap', 'Rust: .mov demux + Snappy → compressed GPU blocks'], ['spout-receiver', 'Rust/C++: Spout → D3D11 NT-shared texture'],
+                        ['ndi', 'NDI receive + send (prebuilt)'], ['syphon-receiver', 'macOS Syphon receive']] },
+      { t: 'Projection', m: [['calib', 'OpenCV projector calibration'], ['nvwarp', 'NVAPI scanout warp/blend']] },
+      { t: 'Audio', m: [['audio-engine', 'C++ JUCE: playback, ambisonics, effects']] },
+    ] },
+];
+
+const EXTERNAL = [
+  { id: 'leds', t: 'LED controllers', s: 'Art-Net / sACN over Ethernet' },
+  { id: 'usb', t: 'USB-DMX widget', s: 'ENTTEC DMX USB Pro' },
+  { id: 'screens', t: 'Projectors & displays', s: 'one fullscreen window each' },
+  { id: 'disk', t: 'Disk', s: 'project folders + media' },
+  { id: 'senders', t: 'Spout / NDI senders', s: 'other apps · same GPU / network' },
+  { id: 'osc', t: 'LiDAR · OSC', s: 'blob tracking on :10000' },
+  { id: 'tablet', t: 'Tablet remote', s: 'HTTP + SSE on :8788' },
+  { id: 'grafana', t: 'Monitoring', s: 'Prometheus :9464 → Grafana' },
+];
+
+// Edges between boxes. kind: out (frame/output), video, ipc, ctl. lv = the level at which it appears.
+const EDGES = [
+  { a: 'renderer', b: 'preload', kind: 'ipc', label: 'window.artlux IPC', lv: 1 },
+  { a: 'preload', b: 'main', kind: 'ipc', label: 'ipcRenderer ⇄ ipcMain', lv: 1 },
+  { a: 'renderer', b: 'main', kind: 'out', label: 'engine port: packed DMX frames', lv: 1, route: 'under' },
+  { a: 'main', b: 'native', kind: 'out', label: 'outputManager → output-engine', lv: 1 },
+  { a: 'native', b: 'leds', kind: 'out', label: 'Art-Net / sACN', lv: 1 },
+  { a: 'native', b: 'usb', kind: 'out', label: 'serial DMX', lv: 1 },
+  { a: 'renderer', b: 'projector', kind: 'ipc', label: 'MessagePort bridge (via main): ImageBitmaps + transport', lv: 1 },
+  { a: 'projector', b: 'screens', kind: 'out', label: 'fullscreen output', lv: 1 },
+  { a: 'senders', b: 'native', kind: 'video', label: 'Spout / NDI', lv: 1 },
+  { a: 'main', b: 'preload', kind: 'video', label: 'sharedTexture (Spout) → VideoFrame', lv: 2, bend: 120 },
+  { a: 'disk', b: 'main', kind: 'ctl', label: 'projects · media', lv: 1 },
+  { a: 'osc', b: 'main', kind: 'ctl', label: 'OSC', lv: 1 },
+  { a: 'tablet', b: 'main', kind: 'ctl', label: 'show-control', lv: 1 },
+  { a: 'main', b: 'grafana', kind: 'ctl', label: '/metrics', lv: 1 },
+  { a: 'main', b: 'projector', kind: 'ctl', label: 'creates one window per output', lv: 2, bend: -420 },
+  { a: 'plugins', b: 'renderer', kind: 'ctl', label: 'activate: real host', lv: 2 },
+  { a: 'plugins', b: 'projector', kind: 'ctl', label: 'activate: inert host', lv: 2 },
+];
+const KIND = { out: '#27b6c4', video: '#e3b341', ipc: '#8b8bf0', ctl: '#9a9a9a' };
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// LAYOUT — sizes from content. Font sizes are what make the levels: a module name at 15 units is
+// unreadable until you zoom in, and opacity fades each level in at its threshold.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+const NS = 'http://www.w3.org/2000/svg';
+const world = document.getElementById('world');
+const svg = document.getElementById('map');
+const F = { region: 80, regionSub: 40, summary: 40, group: 30, mod: 16, role: 11.5, rule: 13, edge: 38 };
+const PAD = 26, HEAD = 160, GHEAD = 50, GAP = 22, MOD_GAP = 8;
+// Level-1 one-sentence summaries, shown inside each process box until the subsystems fade in.
+const SUMMARY = {
+  main: 'Owns the operating system: files, network and native addons. Sends LED data out, opens every window, and keeps an unattended show alive.',
+  preload: 'The only door between the page and Node: one typed API plus relays.',
+  shared: 'The types and contracts all three processes agree on.',
+  renderer: 'The editor: the React UI, all project state, and the frame engine that turns content into LED colours every frame.',
+  projector: 'One fullscreen window per projector output. Draws, warps and blends its surface.',
+  plugins: 'Thirteen features shipped as plugins: codecs, live inputs, tracking, audio, calibration, show control.',
+  native: 'Rust and C++ for what JavaScript cannot do fast enough or at all: the DMX send thread, video decode, GPU texture sharing, OpenCV, audio.',
+};
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  (parent || world).appendChild(e);
+  return e;
+}
+/** Greedy word wrap by an approximate glyph width. */
+function wrap(text, width, size) {
+  const max = Math.max(8, Math.floor(width / (size * 0.53)));
+  const words = text.split(' '), lines = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > max) { if (cur) lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim();
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+const layer = { 1: el('g', { class: 'lvl', 'data-lv': 1 }), 2: el('g', { class: 'lvl', 'data-lv': 2 }), 3: el('g', { class: 'lvl', 'data-lv': 3 }), 4: el('g', { class: 'lvl', 'data-lv': 4 }) };
+const edgeLayer = el('g', {});
+world.insertBefore(edgeLayer, world.firstChild);
+const rects = {};      // id -> {x,y,w,h}
+const modIndex = [];   // for search: {name, x, y, w, h, g}
+
+function layoutRegion(r, y0) {
+  const innerW = r.w - PAD * 2, colW = (innerW - GAP * (r.cols - 1)) / r.cols;
+  const colH = new Array(r.cols).fill(0);
+  const placed = [];
+  for (const g of r.groups) {
+    // module rows: name line + wrapped role lines
+    const rows = g.m.map(([name, role]) => {
+      const lines = wrap(role, colW - 34, F.role);
+      return { name, lines, h: 30 + lines.length * (F.role * 1.3) + 8 };
+    });
+    const h = GHEAD + rows.reduce((s, x) => s + x.h + MOD_GAP, 0) + 10;
+    const c = colH.indexOf(Math.min(...colH));
+    placed.push({ g, rows, x: r.x + PAD + c * (colW + GAP), y: y0 + HEAD + colH[c], w: colW, h });
+    colH[c] += h + GAP;
+  }
+  const rulesLines = (r.rules || []).map((t) => wrap('• ' + t, innerW - 20, F.rule));
+  const rulesH = rulesLines.reduce((s, l) => s + l.length * F.rule * 1.35 + 6, 0);
+  const h = HEAD + Math.max(...colH) + (rulesH ? rulesH + 24 : 0) + PAD;
+  return { placed, h, rulesLines, rulesY: y0 + HEAD + Math.max(...colH) + 6 };
+}
+
+function drawRegion(r, y0) {
+  const L = layoutRegion(r, y0);
+  rects[r.id] = { x: r.x, y: y0, w: r.w, h: L.h };
+  // level 1: the process box itself
+  el('rect', { x: r.x, y: y0, width: r.w, height: L.h, rx: 28, fill: r.color + '14', stroke: r.color, 'stroke-width': 3 });
+  // Titles shrink to fit a narrow box rather than spilling out of it.
+  const titleSize = Math.min(F.region, (r.w - PAD * 2) / (r.title.length * 0.58));
+  const subSize = Math.min(F.regionSub, (r.w - PAD * 2) / (r.sub.length * 0.5));
+  el('text', { x: r.x + PAD, y: y0 + 84, 'font-size': titleSize, 'font-weight': 700, fill: r.color }).textContent = r.title;
+  el('text', { x: r.x + PAD, y: y0 + 136, 'font-size': subSize, fill: '#b5b5b5' }).textContent = r.sub;
+  // level 1 only: one sentence saying what this process is FOR
+  wrap(SUMMARY[r.id] || '', r.w - PAD * 2, F.summary).forEach((ln, i) => {
+    el('text', { x: r.x + PAD, y: y0 + HEAD + 60 + i * F.summary * 1.3, 'font-size': F.summary, fill: '#d6d6d6' }, layer[1]).textContent = ln;
+  });
+  for (const p of L.placed) {
+    // level 2: subsystem boxes
+    el('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 14, fill: '#161616', stroke: r.color + '88', 'stroke-width': 1.6 }, layer[2]);
+    el('text', { x: p.x + 16, y: p.y + 34, 'font-size': F.group, 'font-weight': 650, fill: '#e8e8e8' }, layer[2]).textContent = p.g.t;
+    let my = p.y + GHEAD;
+    for (const row of p.rows) {
+      // level 3: module chips + names
+      const chip = el('g', {}, layer[3]);
+      el('rect', { class: 'mod', x: p.x + 12, y: my, width: p.w - 24, height: row.h, rx: 8, fill: '#1e1e1e', stroke: '#2f2f2f', 'stroke-width': 1 }, chip);
+      el('text', { x: p.x + 24, y: my + 21, 'font-size': F.mod, 'font-weight': 600, class: 'mono', fill: r.color }, chip).textContent = row.name;
+      modIndex.push({ name: row.name.toLowerCase(), x: p.x + 12, y: my, w: p.w - 24, h: row.h, g: chip });
+      // level 4: the role, wrapped
+      row.lines.forEach((ln, i) => {
+        el('text', { x: p.x + 24, y: my + 38 + i * F.role * 1.3, 'font-size': F.role, fill: '#a8a8a8' }, layer[4]).textContent = ln;
+      });
+      my += row.h + MOD_GAP;
+    }
+  }
+  // level 4: the architecture rules that hold in this region
+  let ry = L.rulesY + 20;
+  for (const lines of L.rulesLines) {
+    lines.forEach((ln, i) => {
+      el('text', { x: r.x + PAD + 6, y: ry + i * F.rule * 1.35, 'font-size': F.rule, fill: '#e3b341', 'font-style': 'italic' }, layer[4]).textContent = ln;
+    });
+    ry += lines.length * F.rule * 1.35 + 6;
+  }
+  return L.h;
+}
+
+// Place regions: top row (main, preload, renderer, projector), with "below" stacks, then native, then external.
+const TOP = 160;
+const heights = {};
+for (const r of REGIONS) {
+  if (r.row === 'native' || r.below) continue;
+  heights[r.id] = drawRegion(r, TOP);
+}
+for (const r of REGIONS) {
+  if (!r.below) continue;
+  const above = rects[r.below];
+  heights[r.id] = drawRegion(r, above.y + above.h + 50);
+}
+const topBottom = Math.max(...Object.values(rects).map((q) => q.y + q.h));
+// Native sits under main + preload; the external world sits under everything.
+const nat = REGIONS.find((r) => r.row === 'native');
+const leftBottom = Math.max(rects.main.y + rects.main.h, rects.shared.y + rects.shared.h);
+drawRegion(nat, leftBottom + 140);
+// THE OUTSIDE WORLD — each box sits next to the process it talks to, so no edge crosses the map:
+// files and control beside main, wire outputs and live senders under native, screens beside projectors.
+const EXT_W = 560, EXT_H = 180;
+const extPos = {};
+['disk', 'osc', 'tablet', 'grafana'].forEach((id, i) => { extPos[id] = { x: -EXT_W - 180, y: rects.main.y + i * (EXT_H + 60) }; });
+const underNative = rects.native.y + rects.native.h + 170;
+['leds', 'usb', 'senders'].forEach((id, i) => { extPos[id] = { x: rects.native.x + 40 + i * (EXT_W + 60), y: underNative }; });
+extPos.screens = { x: rects.projector.x + rects.projector.w + 180, y: rects.projector.y + 60 };
+for (const e of EXTERNAL) {
+  const { x, y } = extPos[e.id];
+  rects[e.id] = { x, y, w: EXT_W, h: EXT_H };
+  el('rect', { x, y, width: EXT_W, height: EXT_H, rx: 20, fill: '#121212', stroke: '#6a6a6a', 'stroke-width': 2.5, 'stroke-dasharray': '12 8' });
+  el('text', { x: x + 24, y: y + 36, 'font-size': 20, fill: '#8a8a8a', 'letter-spacing': 3 }).textContent = 'OUTSIDE';
+  el('text', { x: x + 24, y: y + 92, 'font-size': 44, 'font-weight': 650 }).textContent = e.t;
+  el('text', { x: x + 24, y: y + 142, 'font-size': 30, fill: '#a8a8a8' }).textContent = e.s;
+}
+const extY = Math.max(...Object.values(rects).map((q) => q.y + q.h));   // bottom of everything, for the bounds
+
+// ── Edges ──────────────────────────────────────────────────────────────────────────────────────
+function anchor(r, toward) {
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const dx = toward.x - cx, dy = toward.y - cy;
+  // exit through the side facing the other box
+  if (Math.abs(dx) / r.w > Math.abs(dy) / r.h) return { x: dx > 0 ? r.x + r.w : r.x, y: Math.max(r.y + 60, Math.min(r.y + r.h - 60, toward.y)) };
+  return { x: Math.max(r.x + 60, Math.min(r.x + r.w - 60, toward.x)), y: dy > 0 ? r.y + r.h : r.y };
+}
+const edgeGroups = { 1: el('g', {}, edgeLayer), 2: el('g', { class: 'lvl', 'data-lv': 2 }, edgeLayer) };
+const defs = el('defs', {}, svg);
+for (const k in KIND) {
+  const m = el('marker', { id: 'ah-' + k, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+  el('path', { d: 'M0,0 L10,5 L0,10 z', fill: KIND[k] }, m);
+}
+for (const e of EDGES) {
+  const A = rects[e.a], B = rects[e.b];
+  if (!A || !B) continue;
+  const ca = { x: A.x + A.w / 2, y: A.y + A.h / 2 }, cb = { x: B.x + B.w / 2, y: B.y + B.h / 2 };
+  let p = anchor(A, cb), q = anchor(B, ca);
+  let mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2 + (e.bend || 0);
+  if (e.route === 'under') {
+    // Renderer → main without crossing the preload/shared column: leave the renderer low, pass UNDER
+    // shared/, and enter main near its bottom-right corner.
+    const gapY = rects.shared.y + rects.shared.h + 70;
+    p = { x: A.x, y: Math.min(A.y + A.h - 60, gapY) };
+    q = { x: B.x + B.w, y: B.y + B.h - 90 };
+    mx = rects.preload.x + rects.preload.w / 2; my = gapY + 80;
+  }
+  const g = edgeGroups[e.lv] || edgeGroups[1];
+  const path = el('path', { d: `M${p.x},${p.y} Q${mx},${my} ${q.x},${q.y}`, fill: 'none', stroke: KIND[e.kind], 'stroke-width': e.kind === 'out' ? 6 : 4,
+    'stroke-dasharray': e.kind === 'ctl' ? '14 10' : 'none', 'marker-end': `url(#ah-${e.kind})`, opacity: .9 }, g);
+  const lx = (p.x + 2 * mx + q.x) / 4, ly = (p.y + 2 * my + q.y) / 4;
+  const t = el('text', { x: lx, y: ly, 'font-size': F.edge, 'text-anchor': 'middle', fill: KIND[e.kind], 'font-weight': 600, 'paint-order': 'stroke', stroke: '#0a0a0a', 'stroke-width': 10 }, g);
+  t.textContent = e.label;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// CAMERA — pan/zoom; the zoom factor (relative to "fit") decides which levels are visible.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+const allRects = Object.values(rects);
+const bx0 = Math.min(...allRects.map((q) => q.x)) - 60, by0 = Math.min(...allRects.map((q) => q.y)) - 60;
+const bounds = { x: bx0, y: by0, w: Math.max(...allRects.map((q) => q.x + q.w)) + 60 - bx0, h: extY + 60 - by0 };
+let cam = { x: 0, y: 0, k: 1 }, fitK = 1;
+const THRESH = { 2: 1.45, 3: 2.6, 4: 4.6 };   // zoom (× fit) at which each level is fully shown
+function fit() {
+  const W = innerWidth, H = innerHeight - 60;
+  fitK = Math.min(W / bounds.w, H / bounds.h) * 0.96;
+  cam = { k: fitK, x: (W - bounds.w * fitK) / 2 - bounds.x * fitK, y: 60 + (H - bounds.h * fitK) / 2 - bounds.y * fitK };
+  apply();
+}
+function level() {
+  const z = cam.k / fitK;
+  return z >= THRESH[4] ? 4 : z >= THRESH[3] ? 3 : z >= THRESH[2] ? 2 : 1;
+}
+const NAMES = { 1: 'processes', 2: 'subsystems', 3: 'modules', 4: 'roles + rules' };
+function apply() {
+  world.setAttribute('transform', `translate(${cam.x},${cam.y}) scale(${cam.k})`);
+  const z = cam.k / fitK;
+  const fade = (lv) => { const t = THRESH[lv]; return Math.max(0, Math.min(1, (z - t * 0.72) / (t * 0.28))); };
+  const show = (lv, o) => {
+    for (const n of document.querySelectorAll(`.lvl[data-lv="${lv}"]`)) {
+      n.setAttribute('opacity', o.toFixed(3));
+      n.style.display = o <= 0.01 ? 'none' : '';
+    }
+  };
+  show(1, 1 - fade(2));   // the summaries make way for the subsystem boxes
+  for (const lv of [2, 3, 4]) show(lv, fade(lv));
+  const L = level();
+  document.getElementById('levelChip').innerHTML = `Level <b>${L}</b> of 4 · ${NAMES[L]}`;
+  document.querySelectorAll('#levels button').forEach((b) => b.classList.toggle('on', +b.dataset.l === L));
+}
+function zoomAt(px, py, factor) {
+  const k = Math.max(fitK * 0.6, Math.min(fitK * 14, cam.k * factor));
+  const f = k / cam.k;
+  cam.x = px - (px - cam.x) * f; cam.y = py - (py - cam.y) * f; cam.k = k;
+  apply();
+}
+/** Animate the camera to show world rect r at zoom (× fit) z. */
+function flyTo(cx, cy, z) {
+  const from = { ...cam }, k = fitK * z;
+  const to = { k, x: innerWidth / 2 - cx * k, y: (innerHeight + 60) / 2 - cy * k };
+  const t0 = performance.now(), D = 420;
+  (function step(now) {
+    const t = Math.min(1, (now - t0) / D), e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    cam = { k: from.k + (to.k - from.k) * e, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
+    apply();
+    if (t < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+svg.addEventListener('wheel', (ev) => { ev.preventDefault(); zoomAt(ev.clientX, ev.clientY, Math.exp(-ev.deltaY * 0.0016)); }, { passive: false });
+const pts = new Map(); let last = null, pinch = null;
+svg.addEventListener('pointerdown', (ev) => { svg.setPointerCapture(ev.pointerId); pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY }); svg.classList.add('dragging'); last = { x: ev.clientX, y: ev.clientY }; });
+svg.addEventListener('pointermove', (ev) => {
+  if (!pts.has(ev.pointerId)) return;
+  pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pts.size === 2) {
+    const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y), c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (pinch) zoomAt(c.x, c.y, d / pinch);
+    pinch = d; return;
+  }
+  if (last) { cam.x += ev.clientX - last.x; cam.y += ev.clientY - last.y; last = { x: ev.clientX, y: ev.clientY }; apply(); }
+});
+function up(ev) { pts.delete(ev.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) { last = null; svg.classList.remove('dragging'); } }
+svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+svg.addEventListener('dblclick', (ev) => zoomAt(ev.clientX, ev.clientY, 1.8));
+
+const LEVEL_Z = { 1: 1, 2: 1.9, 3: 3.2, 4: 5.2 };
+function jumpLevel(L) {
+  const cx = (innerWidth / 2 - cam.x) / cam.k, cy = ((innerHeight + 60) / 2 - cam.y) / cam.k;
+  if (L === 1) { fit(); return; }
+  flyTo(cx, cy, LEVEL_Z[L]);
+}
+document.querySelectorAll('#levels button').forEach((b) => b.addEventListener('click', () => jumpLevel(+b.dataset.l)));
+document.getElementById('fit').addEventListener('click', fit);
+addEventListener('keydown', (ev) => {
+  if (ev.target.tagName === 'INPUT') return;
+  if (ev.key >= '1' && ev.key <= '4') jumpLevel(+ev.key);
+  if (ev.key === '0') fit();
+  if (ev.key === '+' || ev.key === '=') zoomAt(innerWidth / 2, innerHeight / 2, 1.25);
+  if (ev.key === '-') zoomAt(innerWidth / 2, innerHeight / 2, 0.8);
+});
+
+// Search: zoom to the first module whose name contains the query; Enter again cycles matches.
+let hits = [], hitI = 0, lastQ = '';
+document.getElementById('q').addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter') return;
+  const q = ev.target.value.trim().toLowerCase();
+  if (!q) return;
+  if (q !== lastQ) { hits = modIndex.filter((m) => m.name.includes(q)); hitI = 0; lastQ = q; } else hitI = (hitI + 1) % Math.max(1, hits.length);
+  document.querySelectorAll('.hit').forEach((n) => n.classList.remove('hit'));
+  const m = hits[hitI];
+  if (!m) { ev.target.style.borderColor = '#e5484d'; return; }
+  ev.target.style.borderColor = '';
+  m.g.classList.add('hit');
+  flyTo(m.x + m.w / 2, m.y + m.h / 2, LEVEL_Z[4]);
+});
+
+addEventListener('resize', fit);
+fit();
+</script>
+</body>
+</html>

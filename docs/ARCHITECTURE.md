@@ -5,6 +5,11 @@ see [archive/ARCHITECTURE_PLAN.md](archive/ARCHITECTURE_PLAN.md); for the plugin
 [PLUGINS.md](PLUGINS.md); for the surfaces design see [SURFACES.md](SURFACES.md); for usage see
 [FEATURES.md](FEATURES.md); for the build log see [PROGRESS.md](PROGRESS.md).
 
+**Zoomable map:** [architecture-map.html](architecture-map.html) — open it in a browser. Zoomed out it
+shows the processes and how they talk; zoom in for subsystems, then modules, then each module's role
+and the rules that hold the architecture together. It is hand-maintained: when you move or rename a
+module it names, update it in the same commit.
+
 ## Overview
 ArtLux is an Electron desktop app that maps content (video / image / camera / **Spout** / **NDI** /
 DMX-in / generative effects / **LiDAR tracking**) onto addressable-LED fixtures **and projectors**, and
