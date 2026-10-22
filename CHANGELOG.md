@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.33.5
+
+### The 3D view no longer goes black when the floor is reflective
+
+Ticking **Reflective floor** in **Venue & Rig ▸ Lighting** made the **whole 3D view go black**: no grid,
+no models, no LEDs, and no error on screen. The reflective floor was built for the older graphics path
+and crashed on every frame on the newer one, which the 3D view uses by default. The option is
+**removed**. A project saved with it switched on opens normally; the setting is simply ignored.
+
+### Glow (bloom) is removed
+
+**Glow (bloom)** is gone from the Lighting section. It only ever worked on the older graphics path, so
+on a show machine the switch did nothing. Projects that had it on open unchanged.
+
+### Grid numbers lie on the floor, along their lines
+
+The numbers on the 3D floor used to float over the picture as flat screen text: they stood across the
+lines they measured, and they showed **through screens and models** standing in front of them. They are
+now **painted on the floor**, running along the X and Z lines in the floor's perspective, turning round
+when you move the camera to the other side so they always read the right way, and **hidden by anything
+in front of them**, just like the grid.
+
+They now show **whole metres only**, as plain numbers: `1`, `2`, `-3`, with no unit. A line between two
+whole metres carries no number. They read best from above; very close to the floor, flat text gets thin.
+
+See [The 3D scene](docs/user-guide/09-3d-scene.md).
+
 ## v0.33.4
 
 ### A live Spout input no longer wears the app down
