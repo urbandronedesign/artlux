@@ -253,7 +253,7 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
       {/* Trigger zones — dashed while empty, solid + thick while occupied. */}
       <ZoneOutlines dims={dims} />
 
-      {/* Live blob markers — unlit + bright (per-surface instanceColor) so the scene's bloom glows. */}
+      {/* Live blob markers — unlit + bright (per-surface instanceColor) so they read at any lighting. */}
       <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_BLOBS]} frustumCulled={false}>
         <sphereGeometry args={[R, 16, 16]} />
         <meshBasicMaterial color={'#ffffff'} toneMapped={false} />

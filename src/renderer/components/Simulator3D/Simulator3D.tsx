@@ -1,7 +1,6 @@
 import React, { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import type * as THREE from 'three';
 import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
@@ -36,8 +35,7 @@ import { ProjectorBakePass } from './projectorBake';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { OriginGnomon } from './OriginGnomon';
-import { GridLabels, setGridLabelCanvas } from './GridLabels';
-import { ReflectiveFloor } from './ReflectiveFloor';
+import { GridLabels } from './GridLabels';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
 import {
@@ -528,11 +526,9 @@ const Simulator3D: React.FC<Props> = ({
         // that defaults to 1; see services/scene3dQuality for why it is a pref and not a Scene3D field.
         dpr={renderScale}
         // `flat` = NO TONE MAPPING, and it is r3f's own switch for it: without it r3f installs
-        // ACESFilmic. That matters more than it looks, because @react-three/postprocessing's
-        // EffectComposer forces NoToneMapping while mounted and RESTORES whatever it found on
-        // unmount — so with the default, toggling Glow off would have swung the whole viewport
-        // through a tone curve as a side effect of a library's lifecycle, three files away. With
-        // `flat` both states are NoToneMapping and the composer's save/restore is a no-op.
+        // ACESFilmic. (It also once kept the Glow toggle from swinging the viewport through a tone
+        // curve — postprocessing's EffectComposer forces NoToneMapping while mounted and restores what
+        // it found on unmount. Glow is gone since 2026-10-22; the reason below is the one that stands.)
         //
         // Nothing here needs a tone curve: LEDs, beams and content-bearing meshes are all unlit
         // MeshBasicMaterial rendered at the colour they were authored in, and what an operator is
@@ -553,7 +549,10 @@ const Simulator3D: React.FC<Props> = ({
         {viewFrom && <ProjectorView calibration={viewFrom.calibration} />}
         <ViewerCameraBridge />
         <Lighting env={scene3D.environment} />
-        {scene3D.reflectiveFloor && <ReflectiveFloor />}
+        {/* No reflective floor (removed 2026-10-22). It was drei's MeshReflectorMaterial, whose useFrame
+            calls gl.state.buffers — WebGL-only. On the WebGPU renderer the scene defaults to, gl.state is
+            undefined, so it threw on every frame and the whole viewport went black. Guarded by
+            verify:invariants; Scene3D.reflectiveFloor is still read from old projects and ignored. */}
         {/* THE RULER — the floor, the origin mark and the numbers, in this order and for this reason.
             GroundGrid is the single writer of the solved grid frame (gridScale.ts); the other two read
             it, and r3f runs equal-priority useFrame subscribers in mount order, so they cannot see a
@@ -711,36 +710,12 @@ const Simulator3D: React.FC<Props> = ({
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
           {webgpuSpike ? <AxisTriad /> : <GizmoViewport labelColor="white" axisHeadScale={1} />}
         </GizmoHelper>
-        {/* GLOW — opt-in, and the composer is skipped ENTIRELY rather than left mounted with the
-            Bloom disabled. Mounting an EffectComposer at all costs a full-screen render-to-texture
-            plus a copy back every frame even when it does nothing, which is the same reasoning that
-            put `needsBlendPass` in front of the projector window's composer. Bloom itself adds the
-            mipmap blur chain on top, at viewport resolution.
-            It flatters a rig of LEDs and beams; it does nothing for a venue mesh carrying content,
-            which is what the projection-mapping workflow spends its time looking at. */}
-        {/* @react-three/postprocessing v3 is a WebGL library — its EffectComposer reaches for
-            WebGLRenderTarget and the renderer's GL state directly, so under the WebGPU spike it is
-            skipped rather than mounted and left to throw inside the canvas. Porting Glow means three's
-            own PostProcessing + a TSL bloom node; it is opt-in and off by default, so it is not what
-            blocks the swap. */}
-        {scene3D.glow === true && !webgpuSpike && (
-          <EffectComposer>
-            <Bloom luminanceThreshold={0.1} intensity={0.6} mipmapBlur />
-          </EffectComposer>
-        )}
+        {/* No Glow (bloom) — removed 2026-10-22. It was @react-three/postprocessing's EffectComposer,
+            a WebGL library, so it was already skipped on the WebGPU renderer this scene defaults to:
+            the toggle did nothing on any venue machine, and on the WebGL fallback it cost a full-screen
+            pass plus a blur chain every frame. A bloom for this viewport would be three's own
+            PostProcessing + a TSL bloom node. Scene3D.glow is still read from old projects and ignored. */}
       </Canvas>
-
-      {/* THE GRID NUMBERS. A SIBLING of the <Canvas>, never a child — see GridLabels.tsx for why text
-          inside this scene is the fifth thing the WebGPU backend would silently drop. It is mounted
-          BEFORE the marquee so the marquee still draws over it, and it never takes a pointer event.
-          Gated on both toggles so a hidden ruler is not holding a full-viewport backing store. */}
-      {scene3D.gridVisible !== false && scene3D.gridLabels !== false && (
-        <canvas
-          ref={setGridLabelCanvas}
-          className="pointer-events-none absolute inset-0 h-full w-full"
-          aria-hidden
-        />
-      )}
 
       {marquee && (
         <div

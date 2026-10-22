@@ -107,7 +107,7 @@ function buildDemoProject() {
         scene3D: {
             models: [ { id: 'mdl-screen', name: 'Screen 1', kind: 'plane', path: '', position: { x: 0, y: 1.2, z: -1.0 },
                         rotation: { x: 0, y: 0, z: 0 }, scale: 2, visible: true, layerId: '__program__', scaleXYZ: [2, 2, 2] } ],
-            lightIntensity: 0.7, environment: false, exposure: 0.8, gridVisible: true, reflectiveFloor: true,
+            lightIntensity: 0.7, environment: false, exposure: 0.8, gridVisible: true,
             trackingViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50, trackingLabels: true,
             trackingMergePeople: false, trackingMergeRadius: 0.8,
         },

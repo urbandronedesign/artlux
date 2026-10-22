@@ -10,7 +10,7 @@ import { dmxSignal } from '../../services/dmxSignal';
 // fixture's live LED colors (folding the RGBW white channel) and scaled by luminance.
 // WebGL forward-renders every light per fragment, so this is capped LOW — too many real
 // lights blows the frame budget and the driver resets the GL context (model flickers out).
-// LEDs themselves stay self-lit (+ bloom) so the rig still reads with many fixtures.
+// LEDs themselves stay self-lit so the rig still reads with many fixtures.
 const MAX_LIGHTS = 12;
 
 export const FixtureLights: React.FC<{ fixtures: Fixture[]; scene3D: Scene3D }> = ({ fixtures, scene3D }) => {

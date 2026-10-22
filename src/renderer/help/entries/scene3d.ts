@@ -222,27 +222,6 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['ambient', 'environment', 'ibl', 'lighting'],
   },
   {
-    id: 'scene3d.reflective-floor',
-    title: 'Reflective floor',
-    short: 'Toggle a mirror-like reflective ground plane.',
-    body: 'Renders reflections of the scene on the floor for a showroom look. Costs extra GPU, so disable it on weaker hardware.',
-    group: '3D Scene',
-    keywords: ['floor', 'reflection', 'mirror', 'ground'],
-  },
-  {
-    id: 'scene3d.glow',
-    title: 'Glow (bloom)',
-    short: 'Bleed light out of bright pixels — LEDs and beams glow.',
-    body: 'Adds a soft halo around anything bright, which is what makes a rig of LEDs and beams read '
-      + 'as light rather than as coloured dots. It is off by default because it costs a full-screen '
-      + 'pass plus a blur every frame, at whatever resolution the viewport is — one of the more '
-      + 'expensive things in this view, and it does nothing for a venue mesh carrying video, which is '
-      + 'what projection mapping spends its time looking at. Turn it on for a rig you want to show '
-      + 'off; leave it off while mapping or on weaker hardware.',
-    group: '3D Scene',
-    keywords: ['glow', 'bloom', 'halo', 'performance', 'fps', 'postprocessing'],
-  },
-  {
     id: 'scene3d.grid',
     title: 'Grid',
     short: 'Toggle the floor grid and the coloured arms marking the world origin.',
@@ -253,8 +232,8 @@ export const scene3dHelp: HelpEntry[] = [
   {
     id: 'scene3d.grid-labels',
     title: 'Grid numbers',
-    short: 'Print metre values along the bottom and left of the 3D viewport.',
-    body: 'Numbers the grid lines: X values along the bottom edge, Z values down the left. They follow the grid as it re-scales, so they read in metres, centimetres or millimetres depending on how far you are zoomed in — and they thin out rather than overlap when the camera is at a grazing angle. Turn them off when you want the floor for reference but not the figures, as in a screenshot for a client. Needs Grid to be on.',
+    short: 'Print whole metres on the floor, along the X and Z lines.',
+    body: 'Numbers the grid lines in whole metres — 1, 2, 3 — painted on the floor along the axis each one measures. There is no unit: the floor is always read in metres, and a line between two whole metres carries no number. They turn round when the camera moves to the other side of a line so they always read the right way. Anything standing in front of them — a screen, a model — hides them, exactly as it hides the grid. Turn them off when you want the floor for reference but not the figures, as in a screenshot for a client. Needs Grid to be on.',
     group: '3D Scene',
     keywords: ['grid', 'numbers', 'labels', 'ruler', 'scale', 'metres', 'meters', 'centimetres', 'measure', 'dimensions'],
   },

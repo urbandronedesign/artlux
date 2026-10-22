@@ -289,7 +289,7 @@ in-memory reference), so they persist across reloads and are collected like ever
 
 ## 3D simulator
 Switch to the **3D** module to place fixtures in space. Each fixture has a 3D position/rotation and a
-layout (line / matrix / arc). Use the Move/Rotate gizmo; the LEDs render live with bloom.
+layout (line / matrix / arc). Use the Move/Rotate gizmo; the LEDs render live, in their real colours.
 
 ## Projector outputs (projection mapping)
 Send any **Surface** to a real projector as its own **fullscreen output** — with **corner-pin** or

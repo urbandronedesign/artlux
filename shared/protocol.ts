@@ -969,11 +969,11 @@ export interface Scene3D {
   // the volumetric cone is therefore invisible by design. Lines, so it costs nothing to leave on: the
   // shell is fill-rate bound and capped, the outline is neither.
   beamCones?: boolean;
-  reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
-  // BLOOM. Off unless asked for, and the polarity is the point: the glow is a full-screen
-  // render-to-texture plus a mipmap blur chain every frame, on a viewport that may be 4K, and it was
-  // previously unconditional. It flatters a rig of LEDs and beams; it does nothing for a venue mesh
-  // carrying content, which is what the mapping workflow actually looks at.
+  // IGNORED since 2026-10-22 — the reflective floor was removed (it blacked out the WebGPU viewport; see
+  // Simulator3D). Kept so every saved project and example still type-checks and loads unchanged.
+  reflectiveFloor?: boolean;
+  // IGNORED since 2026-10-22 — Glow (bloom) was removed. It was a WebGL-only post-process, skipped on
+  // the WebGPU viewport anyway. Kept so saved projects still type-check and load unchanged.
   glow?: boolean;
   // LOOK THROUGH A CALIBRATED PROJECTOR. The surfaceId of a projector output whose pose has solved,
   // or absent/'' for the free editor camera. The 3D viewport then renders from that projector's
@@ -1040,8 +1040,6 @@ export const defaultScene3D = (): Scene3D => ({
   lightIntensity: 1,
   environment: true,
   gridVisible: true,
-  reflectiveFloor: false,
-  glow: false,
   trackingViz: false,
   augmentaViz: false,
   trackingSmoothing: 0.6,

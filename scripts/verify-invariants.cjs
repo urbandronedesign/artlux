@@ -3474,6 +3474,23 @@ check(
   },
 );
 
+// ── 3D: no WebGL-only drei material in the scene ──────────────────────────────────────────────
+check(
+  'the 3D scene mounts no MeshReflectorMaterial',
+  "The Reflective floor toggle blacked out the WHOLE 3D viewport on the renderer the scene defaults to. " +
+  "drei's MeshReflectorMaterial renders a mirror pass in useFrame and calls gl.state.buffers.depth — " +
+  'WebGLRenderer API. On a WebGPURenderer gl.state is undefined, so it threw on every frame, the frame ' +
+  'aborted, and grid, models and LEDs all vanished — no error on screen, just black. It survived months ' +
+  'because the toggle defaulted off and a black viewport reads as "the 3D view is broken today". Found ' +
+  'capturing screenshots (2026-10-22); the feature was removed. A planar reflection on WebGPU needs a ' +
+  "node-material reflector (three's reflector() TSL), not this component.",
+  () => {
+    const files = [...walk('src/renderer'), ...walk('plugins')];
+    const hits = files.filter((f) => /\bMeshReflectorMaterial\b/.test(read(f)));
+    return hits.length ? 'MeshReflectorMaterial is used again in: ' + hits.join(', ') : null;
+  },
+);
+
 // ── 3D: the cone DIAGRAM is lines, and is not on the volumetric budget ────────────────────────
 check(
   'the beam cone diagram is uncapped lines',
@@ -3517,8 +3534,9 @@ check(
   'The family has since grown two more members. gl.capabilities (drei GizmoViewport) is the worst of them: ' +
   'it does not merely fail to draw, it THROWS inside the Canvas and blacks the whole viewport on the first ' +
   'frame. And in-scene TEXT — troika, drei <Text>, a sprite — is built out of exactly these ingredients, ' +
-  'which is why the grid numbers are drawn on a 2D canvas OUTSIDE the Canvas (GridLabels.tsx). drei <Html> ' +
-  'stays legitimate: it is a DOM overlay, not a material.',
+  'which is why the grid numbers are glyph quads from a CanvasTexture atlas on a plain MeshBasicMaterial ' +
+  '(GridLabels.tsx) — in the scene, so they are depth-tested, and built only from parts both renderers ' +
+  'draw. drei <Html> stays legitimate: it is a DOM overlay, not a material.',
   () => {
     const DIR = 'src/renderer/components/Simulator3D';
     const problems = [];
@@ -3537,13 +3555,13 @@ check(
         problems.push(rel + ' reaches for gl.capabilities — a WebGLRenderer-only API that throws inside the Canvas on the node renderer, blacking the whole viewport');
       // Text in this scene. All three routes are built out of the things above.
       if (/troika/.test(src))
-        problems.push(rel + ' pulls in troika-three-text, whose derived ShaderMaterial the node renderer will not run — draw text on a 2D overlay instead (see GridLabels.tsx)');
+        problems.push(rel + ' pulls in troika-three-text, whose derived ShaderMaterial the node renderer will not run — draw text as atlas glyph quads on a MeshBasicMaterial instead (see GridLabels.tsx)');
       // Match the IMPORT BINDING, not just JSX usage: `import { Text } from '@react-three/drei'` is
       // already unambiguous, and catching it there is what makes this fire on the commit that adds it
       // rather than on the one that first renders it.
       const drei = src.match(/import\s*\{([^}]*)\}\s*from\s*'@react-three\/drei'/);
       if ((drei && /\b(Text|Text3D|Billboard)\b/.test(drei[1])) || /<Text3D\b|<Text\b/.test(src))
-        problems.push(rel + " uses drei's <Text>/<Text3D>/<Billboard>, which is troika — draw text on a 2D overlay instead (see GridLabels.tsx)");
+        problems.push(rel + " uses drei's <Text>/<Text3D>/<Billboard>, which is troika — draw text as atlas glyph quads on a MeshBasicMaterial instead (see GridLabels.tsx)");
       if (/<sprite\b|SpriteMaterial/.test(src))
         problems.push(rel + ' draws a sprite — the GizmoViewport failure mode; sprites here go through WebGL-only texture paths');
     }

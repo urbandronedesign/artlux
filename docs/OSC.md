@@ -234,7 +234,7 @@ The hands-on setup (PC fixed IP, one board, several boards, a layer-by-layer che
   `dmxSignal`): accumulates per-surface specs + blob slots, coalesces notifications to one per
   animation frame, exposes active blobs + a `snapshot`/`applySnapshot` for bridging.
 - **3D viz** `plugins/lidar-tracking/src/TrackingViz.tsx` — reconstructs the SOL/MUR zones
-  and renders instanced, bloom-lit blob markers; updates matrices in `useFrame` (no React
+  and renders instanced, self-lit blob markers; updates matrices in `useFrame` (no React
   re-renders).
 - **Bridge** — `Simulator3D` lives only in the **3D Scene window**, which never sees OSC directly
   (OSC reaches the main window only). So `App` streams a `{ t: 'tracking' }` snapshot over the

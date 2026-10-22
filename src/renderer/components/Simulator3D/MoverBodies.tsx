@@ -212,7 +212,7 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
       </instancedMesh>
       <instancedMesh key={`head-${count}`} ref={headRef} args={args(count) as never} geometry={UNIT_BARREL}>
         {/* No `color` here: the per-instance colour IS the emission, and a material tint would
-            multiply it down. Emissive-ish look comes from toneMapped={false} + the bloom pass. */}
+            multiply it down. Emissive-ish look comes from toneMapped={false}. */}
         <meshStandardMaterial roughness={0.5} metalness={0.25} toneMapped={false} />
       </instancedMesh>
     </>

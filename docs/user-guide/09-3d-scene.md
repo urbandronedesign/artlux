@@ -26,8 +26,11 @@ The floor grid is a ruler. It **re-scales as you zoom** — counted lines a metr
 looking at the whole venue, ten centimetres apart when you are down on a single fixture — and it
 **follows what you are looking at**, so there is always a floor under the thing you are working on even
 when that is a long way from the centre of the world. Whatever it re-scales to, its lines land on round
-coordinates, and **Grid numbers** prints those coordinates along the bottom edge (X) and down the left
-edge (Z).
+coordinates, and **Grid numbers** prints the **whole metres** — `1`, `2`, `3`, no unit, because the floor
+is always read in metres — **on the floor**, along the X and Z lines they measure. A line between two
+whole metres carries no number. They lie in the floor's perspective like the lines do, turn round when you walk the camera
+to the other side so they always read the right way, and are **hidden by anything standing in front of
+them** — a screen or a model covers the figures behind it, just as it covers the grid.
 
 The three coloured arms standing on the floor — red **X**, green **Y**, blue **Z** — mark the **world
 origin**, the point `(0, 0, 0)` that every position you type into an inspector is measured from. They
@@ -273,7 +276,7 @@ never moves your viewpoint.
 ## Lighting & preview options
 
 The **LIGHTING** section controls the preview render: **Light gain**, **Haze**, **Beam cones**,
-**Ambient (env)**, **Reflective floor**, **Glow (bloom)**, **Grid**, **Grid numbers**, plus **Tracking
+**Ambient (env)**, **Grid**, **Grid numbers**, plus **Tracking
 zones (LiDAR)** and **Merge people** for visualizing live tracking in 3D.
 
 The viewport applies **no tone mapping**: colours are shown as they were authored, with no filmic
@@ -314,14 +317,10 @@ for, in order of how much they give back:
   shows a warning badge whenever it is *not* on WebGPU, either because you turned it off or because this
   machine has no usable WebGPU adapter and it fell back on its own. Changes only the 3D preview — the
   pixel-mapping engine has always used WebGPU and is unaffected either way.
-- **Glow (bloom)** — off by default. It is a full-screen pass plus a blur every frame at viewport
-  resolution. It makes a rig of LEDs and beams look like light; it does nothing for a venue mesh
-  carrying video, so leave it off while you are mapping.
 - **Light gain → 0** — this does more than dim the preview. Simulated fixture lights are **removed
   from the scene** at zero gain rather than merely turned down, which takes real per-pixel lighting
   work out of every surface in the venue. If your look comes from content on geometry rather than
   from simulated fixtures, this is close to free performance.
-- **Reflective floor** — off by default. It renders the scene a second time and blurs the result.
 
 What remains at that point is close to a self-lit scene: LEDs, beams and any mesh carrying content
 are drawn unlit already, and only the venue's own materials still need the ambient fill. Turning

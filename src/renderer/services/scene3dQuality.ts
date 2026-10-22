@@ -1,6 +1,6 @@
 // 3D viewport quality — the per-MACHINE knobs that trade fidelity in the Scene view for GPU headroom.
 //
-// Why a service and not `Scene3D` in the project: `Scene3D.glow` / `gridVisible` / `reflectiveFloor`
+// Why a service and not `Scene3D` in the project: `Scene3D.gridVisible` / `gridLabels` / `beamCones`
 // describe what the scene SHOWS, so they belong to the document and travel with it. Render scale
 // describes what this computer can afford. A show authored on the workstation must not arrive at the
 // venue carrying the laptop's half-resolution setting, and the laptop must not have to re-set it for
