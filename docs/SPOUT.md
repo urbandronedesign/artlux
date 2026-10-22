@@ -69,6 +69,28 @@ Control Panel ▸ *Manage 3D settings* ▸ *Program Settings* does the same job.
 If you cannot get both onto one GPU, [NDI](NDI.md) does not have this constraint — it costs a network
 hop and a compression pass, but it works across GPUs and across machines.
 
+## After a long run, the 3D view went white and videos stopped
+
+**Fixed in v0.33.4.** Before that version, a Spout input left live for a long time — about an hour —
+could end like this: the **3D view freezes and turns white**, **HAP videos on the timeline stop**, and
+the rest of the app still answers clicks. Each Spout frame left a small piece of graphics memory
+behind, and after enough frames the graphics side of the app gave out, taking the 3D view and the
+video decoding with it. Nothing on screen warned you beforehand.
+
+- **On v0.33.4 or later** this no longer builds up, however long the input runs. Update the machine.
+- **If you see it on an older version:** save, then quit and restart the app — that clears it. Every
+  live Spout input in the show is affected, whichever surface or clip uses it.
+- **If you see it on v0.33.4 or later**, it has a different cause. Note how long the show had been
+  running and what was playing, and check Windows *Event Viewer ▸ Windows Logs ▸ System* for a
+  graphics-driver error (`nvlddmkm` on NVIDIA) at that time.
+
+To check a machine during a long test: in Task Manager ▸ **Details**, add the **Handles** and **Command
+line** columns (right-click a column header ▸ *Select columns*) and watch the `ArtLux.exe` process whose command line contains `--type=gpu-process`. With a Spout input
+running, the number should stay level. On an affected version it climbs steadily — about sixty per
+second.
+
+[NDI](NDI.md) inputs were checked for the same problem and do not have it.
+
 <!-- audience:contributor -->
 
 ## Architecture (brief)
@@ -84,6 +106,11 @@ hop and a compression pass, but it works across GPUs and across machines.
   the plugin IPC bridge — a shared texture cannot be structured-cloned, and `sharedTexture` lives in
   the preload's isolated world. The relay is deliberately generic (the sender names a channel) so NDI
   and future GPU sources can use it.
+- **Every reference is released — main's included.** The send gives the renderer its *own*
+  `SharedTextureImported`; main's stays alive until main calls `release()`, and the GPU process keeps
+  the texture until the last one goes. Main releases when the send settles (resolved *or* timed out).
+  Skipping it leaked one GPU-process handle per frame, and after about an hour of a live input the GPU
+  process died: the 3D view went white and HAP stopped while the DOM stayed responsive.
 - **Re-sharing is mandatory** (`native/spout-receiver/src/share.rs`). Electron requires an **NT
   handle** and duplicates it; Spout's NT mode is an opt-in its senders rarely set, and the default is a
   legacy DX9-style token that is not a kernel object, so importing it fails with *"Unable to duplicate

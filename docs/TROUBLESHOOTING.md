@@ -93,6 +93,7 @@ Read down the left column until a line matches what is actually in front of you.
 | What you see | Where the answer is |
 |---|---|
 | A white or blank screen, with the app still up | [WATCHDOG.md ▸ the white screen](WATCHDOG.md#the-white-screen--why-it-needed-its-own-detector) |
+| After a long run with a Spout input, the 3D view went white and videos stopped | [SPOUT.md ▸ After a long run](SPOUT.md#after-a-long-run-the-3d-view-went-white-and-videos-stopped) — fixed in v0.33.4 |
 | It restarted by itself, repeatedly | [WATCHDOG.md ▸ crash-loop circuit breaker](WATCHDOG.md#crash-loop-circuit-breaker) |
 | It will not quit, or quits twice | [OUTPUTS.md ▸ Quitting](OUTPUTS.md#quitting-both-modes) — the route differs per platform *and* between editor and broadcast |
 | You need to know what this machine did | [LOGGING.md](LOGGING.md) — one JSONL file per run, with a diff against the last boot |

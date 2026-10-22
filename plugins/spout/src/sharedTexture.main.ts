@@ -63,9 +63,21 @@ export function deliver(win: BrowserWindow | null, s: SpoutShare): boolean {
       },
     });
     const meta: SpoutTextureMeta = { width: s.width, height: s.height };
-    // Ownership moves to the renderer here: the preload releases this import once it has taken its
-    // VideoFrame, so there is nothing left for us to release afterwards.
-    sharedTexture.sendSharedTexture({ frame, importedSharedTexture: imported }, CHANNEL, meta);
+    // ⚠ OWNERSHIP DOES NOT MOVE — THE SEND COPIES THE REFERENCE, AND OURS MUST BE RELEASED TOO.
+    // The renderer receives its OWN SharedTextureImported (the preload releases that one); this one
+    // stays alive in main until we release it, and the GPU process keeps the texture until every
+    // reference is gone. This line used to say "nothing left for us to release", and that leaked
+    // one GPU-process handle + shared image per frame: measured on Electron 42.4.1, re-importing one
+    // texture at 60 Hz, the GPU process went 845 → 3106 handles in 45 s with 0 of 2566 imports ever
+    // freed (544 flat, 2580/2580 freed, with this release). At Spout's 60–120 Hz poll that is
+    // ~200–400k per hour — the venue report was the 3D view going white and HAP stopping after about
+    // an hour of a live Spout input, i.e. the GPU process dying and taking every context with it.
+    // Release on SETTLE, not on resolve: the send has a 1000 ms timeout, and a rejected one would
+    // otherwise strand its reference the same way.
+    const sent = imported;
+    sharedTexture.sendSharedTexture({ frame, importedSharedTexture: sent }, CHANNEL, meta)
+      .catch(() => { /* a dropped frame — the poll is free-running */ })
+      .finally(() => { try { sent.release(); } catch { /* already gone */ } });
     if (!announced) {
       // Worth one line: the two paths look identical on screen when they work, so without this there
       // is no way to tell which one a machine is actually running.
