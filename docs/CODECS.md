@@ -147,6 +147,32 @@ default `<video>` element.
   surfaces revert to a `<video>` (`contentSource`), timeline layers to `syncVideoLayer`, thumbnails to
   the video queue. **This check is what made defaulting the codec on safe**, and `verify:invariants`
   asserts both that it is called and that its result decides the answer.
+- **A decoder that fails mid-show comes back on its own.** A graphics-driver reset, a GPU-process crash or
+  a damaged frame kills the decoder playing that clip. The picture **holds its last frame**, and the
+  clip resumes from the nearest keyframe — measured on an RTX 5090 at **50–80 ms** after an injected
+  failure, and the show kept running through a real GPU-process crash. If the clip keeps failing,
+  ArtLux retries with a growing pause (up to every 5 s) instead of hammering the GPU, so a file that
+  never decodes stays on its last frame rather than taking the machine with it.
+  **The machine log says so:** one `[mp4] decode error` line per failure (then about one a minute if it
+  keeps failing) and an `[mp4] decoder recovered` line when it comes back — see
+  [LOGGING.md](LOGGING.md).
+  **On v0.33.5 and earlier this was not true.** A failure on a looping MP4 surface froze the editor and
+  then closed it within about five seconds, and a failure on a timeline clip froze that clip until the
+  next loop or scrub. If you saw either on one of those builds, update.
+- **An MP4 is read as it plays, not loaded whole.** Opening a clip reads only its index, so a show starts
+  in a fraction of a second whatever the file size (measured: a 1.36 GB 5.7K clip arms in 0.3 s, down
+  from about 4 s). The pictures are then read from disk a second or two ahead of the playhead, and each
+  clip keeps at most a few hundred MB in memory however long it is — so long clips no longer eat the
+  machine's RAM. Several surfaces, timeline layers and filmstrips showing the same file share that one
+  read. **What this asks of the machine:** the media drive must keep up with the clip's bitrate, which
+  any SSD does many times over; a slow network share or USB stick may not, and shows up as video that
+  holds its frame. Copy show media to a local SSD. (A *fragmented* MP4 — common from screen recorders —
+  is still read whole when it opens.)
+- **An MP4 clip's filmstrip fills in when you stop the transport.** Each picture on a clip in the
+  timeline is now the exact frame at that point of the clip. Making one takes the same video hardware
+  the show is playing from, so while the timeline plays they wait, and they appear a few seconds after
+  you stop. Once made, they are kept with the project, so the next time it opens they are already
+  there. (On v0.33.5 and earlier a picture could come from a neighbouring moment of the clip.)
 - **Renderer-only** (no native addon) and a **single module identity** so its decoder/clock singletons
   aren't duplicated.
 

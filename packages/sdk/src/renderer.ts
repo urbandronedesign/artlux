@@ -343,13 +343,25 @@ export interface VideoCodecContribution {
   // One-shot frame at a source time (seconds) for the thumbnail cache (bypasses the playback
   // prefetch ring; uses its own shared GL context so it never disturbs a live layer's decode).
   //
-  // ⚠ BEST-EFFORT, NOT FRAME-EXACT — and the name flatters it. It is `async` because OPENING is
-  // async; once open, an implementation may well answer from whatever its buffer holds. mp4's is
-  // literally `frame(timeSec, false)`, which on a miss returns "the earliest buffered frame so we
-  // show something". That is right for a filmstrip, where a frame either side is invisible, and
-  // WRONG for anything that records what it is given. If you need the exact frame, use
-  // `frameExact()` below — this method was read as exact once and it produced corrupt output.
+  // ⚠ BEST-EFFORT AS A CONTRACT — an implementation may answer from whatever its buffer holds, and
+  // anything that records what it is given must use `frameExact()` below (this method was read as
+  // exact once and it produced corrupt output). mp4's USED to be literally `frame(timeSec, false)`,
+  // which on a miss returned a frame from an EARLIER request or nothing — and the thumbnail cache
+  // stores what it gets, on disk, for good. Since 2026-10-23 mp4 awaits the exact frame here; HAP is
+  // random-access per frame and always was. Do not rely on either for new codecs.
   thumbnail(path: string, timeSec: number): Promise<CanvasImageSource | null>;
+  /**
+   * OPTIONAL — false = do not run this codec's thumbnails while the timeline transport PLAYS; the
+   * thumbnail cache holds them in its queue and runs them when it stops. Absent ⇒ true (the old
+   * behaviour: paced to one job a second).
+   *
+   * For a codec whose thumbnail competes with playback for the same hardware. mp4's exact thumbnail
+   * decodes up to a GOP on the GPU's video decoder, which the show is using: measured on the RTX box
+   * with two 5.7K streams playing, ten thumbnails cost ~9 extra dropped frames with an idle main thread,
+   * and ~2 with the transport stopped. Held requests are not lost — they stay queued — so a filmstrip
+   * fills the moment the transport stops, with no re-ask.
+   */
+  thumbnailWhilePlaying?: boolean;
 
   /**
    * OPTIONAL — the frame EXACTLY at a source time, awaited. For NON-REALTIME rendering (an offline

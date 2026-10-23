@@ -29,11 +29,19 @@ export function setProject(projectFile: string | null): void {
   try { mkdirSync(root, { recursive: true }); } catch { root = null; } // read-only volume: degrade to no cache
 }
 
+// ⚠ MP4 SIDECARS WRITTEN BEFORE 2026-10-23 MAY SHOW THE WRONG FRAME. The mp4 codec's thumbnail() handed
+// back whatever its decoder held at the moment it was asked — often a frame from an EARLIER request —
+// and that picture was stored here under the slot's time, for good: nothing in the key changes when
+// the decoder does. Salting the key orphans those entries, so each MP4 slot is decoded once more, exactly.
+// HAP is random-access per frame and was always exact, so its sidecars keep their names.
+const MP4_SALT = /\.(mp4|m4v)$/i;
+
 // path + mtime + size → a short stable name. Identical shape to the audio conform cache's key.
 function keyFor(src: string, qt: number): string | null {
   try {
     const st = statSync(src);
-    return createHash('sha1').update(`${src} ${st.mtimeMs} ${st.size} ${qt}`).digest('hex').slice(0, 24);
+    const salt = MP4_SALT.test(src) ? ' mp4-exact' : '';
+    return createHash('sha1').update(`${src} ${st.mtimeMs} ${st.size} ${qt}${salt}`).digest('hex').slice(0, 24);
   } catch {
     return null; // the source is gone — nothing to key, and nothing worth caching
   }

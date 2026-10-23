@@ -505,6 +505,10 @@ export async function run(
     if (matteId) client.cancelWrite(matteId);
   };
 
+  // What the surface clocks were doing before the render paused them — restored in `finally`. Null until
+  // the pause happens, so a render refused before it gets that far changes nothing.
+  let resumePlaying: boolean | null = null;
+
   try {
     console.info(`[bake] starting: ${frames} frames, ${W}x${H} @${req.fps}fps${req.alpha ? ' + matte' : ''} -> ${outPath}`);
     await withTimeout(output.start(), STEP_TIMEOUT_MS, 'opening the encoder');
@@ -512,6 +516,7 @@ export async function run(
 
     // Pause everything that decodes on its own clock. A <video> whose currentTime keeps moving makes
     // an awaited seek describe a position we no longer care about.
+    resumePlaying = contentSource.isPlaying();
     contentSource.setPlaying(false);
     // Let the caller's "busy" state paint BEFORE the loop takes the thread, or the first thing an
     // operator sees is the old idle panel, frozen.
@@ -701,6 +706,12 @@ export async function run(
     if (audioReady) { try { await audioClient.offlineEnd(); } catch { /* the plugin may be gone */ } }
     contentSource.releaseExact([surface.id]);
     renderClock.endOffline();
+    // ⚠ AND GIVE THE SURFACES THEIR CLOCK BACK. This pause was never undone: every MP4/HAP/<video>
+    // SURFACE stayed frozen after a bake until something re-ran surfaceMedia's sync (a play/pause, an
+    // edit to a surface) — the timeline kept playing, so it read as "that one surface died". Seen live
+    // 2026-10-23 on a looping MP4 surface (plans/mp4-memory-residency.md, step 3). After endOffline, so
+    // the live clock is the one that resumes them.
+    if (resumePlaying !== null) contentSource.setPlaying(resumePlaying);
     running = false;
   }
 }

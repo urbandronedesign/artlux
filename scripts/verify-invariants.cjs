@@ -6147,6 +6147,187 @@ check(
   },
 );
 
+// ── MP4: a decoder that dies cannot spin the feed loop ──────────────────────────────────────────
+check(
+  'an mp4 decoder that dies is re-seeked, never fed',
+  'A VideoDecoder that errored was replaced by an UNCONFIGURED one that a forward-playing surface never ' +
+  're-seeked; pump() fed it, every decode() threw into a swallowed catch, and with maxAbs = Infinity ' +
+  'nothing ended the loop. Measured on the RTX box (2026-10-23): one core at 100%, renderer memory ' +
+  '+6 GB/s, dead of OOM at ~14.8 GB in 4.7 s — from an injected fault and from a real GPU-process crash ' +
+  'alike. A timeline layer instead fed the rest of the file in one 235 ms stall and froze. Nothing threw ' +
+  'and nothing was logged. The rules: only seekSegment builds a decoder (it configures it first); pump() ' +
+  'feeds nothing that is not configured; its loop has a per-call bound that does not depend on decoder ' +
+  'progress; and every death (error callback, decode() throw, configure throw) goes through markDead. ' +
+  'See plans/mp4-decoder-freeze.md; reproduce with window.__artluxMp4Fault.',
+  () => {
+    const F = 'plugins/mp4/src/mp4Decoder.ts';
+    const src = read(F);
+    const bad = [];
+    const pump = braceBody(src, 'private pump(');
+    const seek = braceBody(src, 'private seekSegment(');
+    if (!pump) return F + ': pump() not found — this guard cannot see what it protects';
+    if (!seek) return F + ': seekSegment() not found — this guard cannot see what it protects';
+    const calls = (src.match(/this\.ensureDecoder\(\)/g) || []).length;
+    if (calls !== 1 || !/this\.ensureDecoder\(\)/.test(seek))
+      bad.push(`ensureDecoder() must be called from seekSegment only (found ${calls} call site(s)) — anywhere else hands pump() an unconfigured codec`);
+    const feed = pump.indexOf('while (this.fedAbs');
+    if (feed < 0) bad.push('pump() feed loop not found');
+    else {
+      const gate = pump.indexOf("state !== 'configured'");
+      if (gate < 0 || gate > feed) bad.push("pump() no longer refuses to feed a decoder whose state is not 'configured' before its feed loop");
+      const loop = braceBody(pump.slice(feed), 'while (');
+      if (!loop || !/budget--\s*<=\s*0/.test(loop))
+        bad.push('the pump() feed loop lost its per-call bound — every other exit condition depends on decoder progress, which a dead codec never makes');
+      if (loop && /catch\s*\{/.test(loop)) bad.push('the pump() feed loop swallows a decode() throw again — it must markDead and break');
+      if (loop && !/markDead\(/.test(loop)) bad.push('a decode() throw in the pump() feed loop no longer reaches markDead');
+    }
+    if (!/error:\s*\(e\)\s*=>\s*\{[^}]*markDead\(/.test(src)) bad.push('the VideoDecoder error callback no longer reaches markDead');
+    if (!/catch\s*\(e\)\s*\{[\s\S]*?markDead\('configure'/.test(seek)) bad.push('a configure() that throws in seekSegment no longer reaches markDead');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+// ── Projector outputs: an editor reload re-bridges every open output ────────────────────────────
+check(
+  'every editor load re-bridges the open projector outputs',
+  "bridge() ran only on a PROJECTOR's did-finish-load, so each output got one port pair for its life — " +
+  "and the editor's end dies with the editor's page. After any editor reload every open output sat on " +
+  '"Waiting for the main window…" for good, and the editor came back with an empty pump. Measured ' +
+  '2026-10-23 on a production build: both outputs dead within 10 s, still dead at 60 s. Reachable from ' +
+  'View ▸ Reload / Ctrl+R and from the renderer-fault ladder (faultReporter.reloadWindow) — in broadcast, ' +
+  'a recovered fault would have left a dark wall. With the re-bridge the longest gap between frames ' +
+  'across a reload was 383 ms, no caption. The engine port already followed this rule (openEnginePort).',
+  () => {
+    const bad = [];
+    const P = 'src/main/projector.ts';
+    const reb = braceBody(read(P), 'export function rebridgeAllProjectors(');
+    if (!reb) return P + ': rebridgeAllProjectors() not found — this guard cannot see what it protects';
+    if (!/bridge\(/.test(reb)) bad.push(P + ': rebridgeAllProjectors() no longer calls bridge()');
+    const idx = read('src/main/index.ts');
+    if (!/on\('did-finish-load',[\s\S]{0,200}?rebridgeAllProjectors\(/.test(idx))
+      bad.push("src/main/index.ts: the main window's did-finish-load no longer re-bridges the open outputs — a reload leaves them all waiting forever");
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+// ── Thumbnails: exact, and never at the show's expense ──────────────────────────────────────────
+check(
+  'an mp4 thumbnail is the exact frame, and neither it nor its save runs while the show plays',
+  "mp4's thumbnail() returned the non-blocking frame(): on a GOP it had only just fed, that is null or " +
+  'a frame from an EARLIER request — and the thumbnail cache stores what it gets, on disk beside the ' +
+  'project, for good. Measured 2026-10-23: a job that ended in 190 ms with nothing stored. Making it exact ' +
+  'made every slot pay two costs during playback, both profiled on the RTX box: the exact decode (up to a ' +
+  'GOP on the GPU video decoder the show plays from — ~9 extra dropped frames per ten thumbnails with an ' +
+  'idle main thread) and the sidecar WebP encode (~43 ms of main thread each). So: thumbnail() awaits ' +
+  'frameExact; mp4 declares thumbnailWhilePlaying:false and the pump holds such jobs while the transport ' +
+  'runs; and persistence queues while it runs.',
+  () => {
+    const bad = [];
+    const D = 'plugins/mp4/src/mp4Decoder.ts';
+    const thumb = braceBody(read(D), 'export async function thumbnail(');
+    if (!thumb) bad.push(D + ': thumbnail() not found — this guard cannot see what it protects');
+    else if (!/\.frameExact\(/.test(thumb) || /\.frame\(\s*[^)]*,\s*false\s*\)/.test(thumb))
+      bad.push(D + ': thumbnail() no longer awaits frameExact — it would store whatever the buffer happens to hold');
+    if (!/thumbnailWhilePlaying:\s*false/.test(read('plugins/mp4/src/mp4Codec.ts')))
+      bad.push('plugins/mp4/src/mp4Codec.ts: mp4 no longer declares thumbnailWhilePlaying: false — its exact decode would compete with playback');
+    const T = 'src/renderer/services/thumbnailCache.ts';
+    const tc = read(T);
+    const pump = braceBody(tc, 'async function pumpCodec(');
+    if (!pump || !/heldWhilePlaying/.test(pump)) bad.push(T + ': pumpCodec no longer holds a codec that opted out of playing time');
+    const flush = braceBody(tc, 'async function flushPersist(');
+    const persist = braceBody(tc, 'function persist(');
+    if (!flush || !/isPlaying\(\)/.test(flush)) bad.push(T + ': the sidecar flush no longer waits for the transport to stop');
+    if (persist && /encodeThumb\(/.test(persist)) bad.push(T + ': persist() encodes immediately again — the encode must queue while the show plays');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+// ── Bake: a render gives the surfaces their clock back ───────────────────────────────────────────
+check(
+  'a bake restores the surface play state it paused',
+  'bakeRunner paused every surface clock (contentSource.setPlaying(false)) and its finally never undid ' +
+  "it. Surfaces are only re-set by surfaceMedia's sync, which runs on a surface or play-state change — so " +
+  'after any bake every MP4/HAP/<video> SURFACE stayed frozen while the timeline kept playing, until the ' +
+  'operator happened to press play/pause. It read as "that surface died". Shipped with the bake ' +
+  '(4af847f, 2026-09-12), found 2026-10-23 watching a looping MP4 surface stop after a bake.',
+  () => {
+    const F = 'plugins/bake/src/bakeRunner.ts';
+    const src = read(F);
+    const pause = src.indexOf('contentSource.setPlaying(false)');
+    if (pause < 0) return null; // nothing paused any more — nothing to restore
+    const before = src.slice(Math.max(0, pause - 200), pause);
+    if (!/=\s*contentSource\.isPlaying\(\)/.test(before)) return F + ': the render pauses surfaces without first recording whether they were playing';
+    const fin = src.lastIndexOf('} finally {');
+    if (fin < 0 || !/contentSource\.setPlaying\(resumePlaying\)/.test(braceBody(src.slice(fin), 'finally') ?? ''))
+      return F + ": the render's finally no longer restores the surface play state it paused";
+    return null;
+  },
+);
+
+// ── MP4: a probe reads the index, opens nothing, and a bad file is a verdict ────────────────────
+check(
+  'an mp4 probe opens no decoder, and a refused file fails instead of hanging',
+  'probe() was ensureOpen(): a full surface decoder — every encoded sample of the track — that no ' +
+  'residency owner held, so nothing ever closed it. The thumbnail pump probes every job and the timeline ' +
+  'probes every codec clip it syncs, so each probed file stayed resident for the session: measured on a ' +
+  '1.36 GB library clip, +2.3 GB of ArrayBuffer storage from ONE thumbnail. Separately, FileDecoder.open() ' +
+  'never checked res.ok: a 404/403 is a resolved fetch with an empty body, mp4box ignores an empty buffer ' +
+  'without calling onReady or onError, and the promise never settled — one missing .mp4 held the ' +
+  "thumbnail pump's codecBusy forever and every later MP4 thumbnail queued behind it. Both compiled, booted " +
+  'and threw nothing. Measured 2026-10-23; the index probe answers in ~7 ms where the full open took ~4 s.',
+  () => {
+    const C = 'plugins/mp4/src/mp4Codec.ts';
+    const D = 'plugins/mp4/src/mp4Decoder.ts';
+    const codec = read(C);
+    const dec = read(D);
+    const bad = [];
+    const probeLine = /probe:\s*\(path\)\s*=>\s*([^,\n]+)/.exec(codec);
+    if (!probeLine) bad.push(C + ': the codec no longer declares probe — this guard cannot see it');
+    else if (/ensureOpen|openSurface|thumbnail\(|layerFrame/.test(probeLine[1]))
+      bad.push(C + ': probe opens a decoder again (' + probeLine[1].trim() + ') — nothing owns what it opens');
+    const probeIndex = braceBody(dec, 'async function probeIndex(');
+    const probeFn = braceBody(dec, 'export function probe(');
+    const readIndex = braceBody(dec, 'async function readIndex(');
+    if (!probeIndex || !probeFn || !readIndex) bad.push(D + ': probeIndex()/probe()/readIndex() not found — this guard cannot see what it protects');
+    else {
+      if (/new FileDecoder\(|ensureOpen\(|\.open\(|acquireStore\(/.test(probeIndex + probeFn)) bad.push(D + ': the index probe constructs or opens a decoder/store');
+      if (!/readIndex\(/.test(probeIndex)) bad.push(D + ': the index probe no longer goes through the ranged readIndex()');
+      if (!/Range:/.test(readIndex)) bad.push(D + ': readIndex() no longer reads by byte range — it would read the whole file');
+      if (!/!res\.ok/.test(readIndex)) bad.push(D + ': readIndex() no longer fails on a refused/missing file');
+    }
+    // Since step 2 the read lives behind acquireStore; since step 3 a normal file is read by GOP and only
+    // a file the index cannot describe falls back to loadWholeStore(). FileDecoder.open() must go through
+    // acquireStore — a decoder that fetched for itself would bring back one private copy per pool (3×).
+    const load = braceBody(dec, 'async function loadStore(');
+    const whole = braceBody(dec, 'async function loadWholeStore(');
+    const open = braceBody(dec, 'async open(path: string)');
+    if (!load || !whole) bad.push(D + ': loadStore()/loadWholeStore() not found — this guard cannot see what it protects');
+    else {
+      if (!/readIndex\(/.test(load)) bad.push(D + ': loadStore() no longer tries the ranged index first — every open would read the whole file');
+      // The older "asks the decoder before claiming a file" check is satisfied by the whole-file path
+      // alone, so it cannot see the ranged path drop its gate — which is the path nearly every file takes.
+      if (!/isConfigSupported\([\s\S]*?if \(!\w+\.supported\)\s*\{[^}]*return null/.test(load)) bad.push(D + ': the ranged loadStore() path no longer declines a file WebCodecs cannot configure');
+      if (!/!res\.ok/.test(whole)) bad.push(D + ': loadWholeStore() no longer checks res.ok — a 404 hangs every opener forever');
+      if (!/if \(!readied\) done\(null\)/.test(whole)) bad.push(D + ': loadWholeStore() no longer settles when the file has no moov');
+    }
+    // Step 3: a sample whose GOP is not resident must STOP the feed, never be skipped — advancing past it
+    // would decode every later delta against a missing reference.
+    const pump = braceBody(dec, 'private pump(');
+    if (pump) {
+      // Not just "the check comes first": the block must STOP the feed. A version that only counted the
+      // miss and carried on passed an order-only test (mutation-tested 2026-10-23) and would have fed a
+      // chunk with no bytes.
+      const m = /if \(!data\)\s*\{[^}]*\bbreak;\s*\}/.exec(pump);
+      const adv = pump.indexOf('this.fedAbs = next');
+      if (!m || adv < 0 || m.index > adv) bad.push(D + ': pump() must stop the feed (if (!data) { … break; }) when a sample\'s bytes are not resident, BEFORE advancing fedAbs');
+    }
+    if (!open) bad.push(D + ': FileDecoder.open() not found');
+    else if (!/acquireStore\(/.test(open) || /fetch\(|createFile\(/.test(open))
+      bad.push(D + ': FileDecoder.open() reads/demuxes the file itself again instead of taking the shared store — one private copy per pool');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

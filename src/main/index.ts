@@ -7,7 +7,7 @@ import * as machineInfo from './machineInfo';
 import { openEnginePort, closeEnginePort } from './enginePort';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
-import { registerProjectorWindows, closeAllProjectors } from './projector';
+import { registerProjectorWindows, closeAllProjectors, rebridgeAllProjectors } from './projector';
 import { APP_ICON } from './appIcon';
 import { guardClose } from './closeGuard';
 import { registerDocsWindow } from './docsWindow';
@@ -228,6 +228,14 @@ function createWindow(): void {
     // broadcast are precisely the runs where output matters most. The renderer relays it into the
     // frame-engine worker — see main/enginePort.ts.
     mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) openEnginePort(mainWindow); });
+    // The projector outputs' ports die with the page too — re-bridge every open output on every load,
+    // or a reload leaves them all on "Waiting for the main window…" for good (see projector.ts).
+    // On the first load there are no outputs yet; each one bridges itself when it opens.
+    mainWindow.webContents.on('did-finish-load', () => {
+      if (HEADLESS) return;
+      const n = rebridgeAllProjectors(() => mainWindow);
+      if (n) console.info(`[projector] editor reloaded — re-bridged ${n} output(s)`);
+    });
 
     // Start the watchdog's clock on the renderer's FIRST heartbeat. UNGATED by mode, unlike the
     // reveal/scale handler above — broadcast is precisely the mode this exists for. Until this call,

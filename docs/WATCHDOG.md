@@ -65,6 +65,13 @@ until the client called. **The install was dead, silent, and invisible to every 
   **black and re-shows its "Waiting for the main window…" caption** instead of holding a frozen frame or
   animating over a dead show. ⚠ **A venue that has unknowingly been running on a frozen frame will now
   visibly go dark.** That is the fault becoming legible, not a new fault.
+- **The outputs survive the editor reloading.** When the editor reloads — the reload the UI does to
+  recover from its own crash, or **View ▸ Reload** / **Ctrl+R** — every open output reconnects to it on
+  its own: the picture holds its
+  last frame for a fraction of a second (measured: at most ~0.4 s between frames) and carries on, with
+  no caption. **On v0.33.5 and earlier it did not:** every output went to "Waiting for the main
+  window…" after a reload and stayed there until it was switched off and on again. If you see that on
+  one of those builds, toggle the output in *Outputs*, or restart the app.
 
 Crash-on-load is the case this was built for, so it ends where every persistent fault ends: the
 relaunches hit `maxRelaunchesPerHour`, the **breaker trips**, and the install stays down — but now as a

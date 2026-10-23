@@ -128,6 +128,11 @@ so it stays under the show rather than drifting away from it.
 changing the shader (or the tracks, or the text) marks it stale and the live content comes back. Re-bake
 to use it again.
 
+**While a bake renders, video on other surfaces pauses, and it carries on when the bake ends**, in the
+state it was in: playing if it was playing, paused if it was paused. On v0.33.5 and earlier it stayed
+paused after every bake — a looping video surface sat on one frame while the timeline kept playing,
+until play/pause was pressed. If you see that on one of those builds, press play/pause once, or update.
+
 ## What it will refuse, and why
 
 Refusals are sentences, not a greyed-out button:

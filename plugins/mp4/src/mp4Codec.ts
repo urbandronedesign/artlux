@@ -29,7 +29,9 @@ function ensureRaf(): void { if (!raf) { clockOriginMs = performance.now() - clo
 export const mp4Codec: VideoCodecContribution = {
   id: 'mp4-webcodecs',
   canDecode: (path) => enabled && /\.(mp4|m4v)$/i.test(path),
-  probe: (path) => dec.ensureOpen(path).then((i) => i !== null),
+  // Index only — it must not open a decoder. It used to (ensureOpen), and nothing owned what it opened,
+  // so every probed file stayed resident for the session. See mp4Decoder's index-probe section.
+  probe: (path) => dec.probe(path),
   probed: (path) => dec.probed(path),
   aspect: (path) => dec.aspect(path),
 
@@ -55,10 +57,11 @@ export const mp4Codec: VideoCodecContribution = {
   layerGeneration: (layerKey) => dec.layerGeneration(layerKey),
 
   setPlaying: (p) => { if (p === playing) return; playing = p; if (p) clockOriginMs = performance.now() - clock * 1000; },
-  preWarm: (path) => { void dec.ensureOpen(path); },
-  // Open the LAYER decoder ahead of the swap. preWarm above opens the path-keyed SURFACE decoder,
-  // which a timeline layer does not use — see ensureLayerOpen for why that gap made the gate's
-  // guarantee vacuous for H.264.
+  // Holds the file's shared PARSE, not a decoder: it used to open a SURFACE decoder (a full copy of the
+  // track) that no timeline layer reads. See mp4Decoder.prewarm.
+  preWarm: (path) => dec.prewarm(path),
+  // Open the LAYER decoder ahead of the swap — the one a timeline layer actually reads. See
+  // ensureLayerOpen for why, without it, the gate's guarantee was vacuous for H.264.
   preWarmLayer: (layerKey, path) => dec.ensureLayerOpen(layerKey, path),
   // Cold start: the gate waits for a decoded BUFFER, not a first frame. HAP has answered this since
   // the 167-ring-miss measurement; mp4 — the default codec — did not, so the anti-stutter guarantee
@@ -71,6 +74,9 @@ export const mp4Codec: VideoCodecContribution = {
   // Thumbnails use a DEDICATED decoder (dec.thumbnail) so a filmstrip scrub never reseeks the playing
   // surface's decoder out from under it — that contention was the old cause of stutter.
   thumbnail: (path, timeSec) => dec.thumbnail(path, timeSec),
+  // An exact thumbnail decodes up to a GOP on the same GPU video decoder the show is playing from — so
+  // it waits for the transport to stop (see VideoCodecContribution.thumbnailWhilePlaying).
+  thumbnailWhilePlaying: false,
 
   // ── NON-REALTIME: the exact frame, or nothing ──────────────────────────────────────────────────
   // Everything else here may hand back a neighbour rather than stall a show; this one waits. See
