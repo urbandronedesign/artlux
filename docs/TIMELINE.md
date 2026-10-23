@@ -469,7 +469,14 @@ the toolbar.
 
 ## Interactions
 
-- **Drop** a video file onto a lane to create a clip at that time.
+- **Drop** a video or image file onto a lane — or **right-click an empty part of a lane ▸ Add clip ▸
+  Video / Image** and pick one — to create a clip at that time. **Either way the file is imported:**
+  copied into the project's `assets/` and listed in the **Media** library, so it travels with the
+  project folder. A video lands at its real length, an image at 5 s. Picking a file that is already in
+  the project adds the clip without copying it again. On v0.33.6 and earlier, *picking* linked the file
+  where it lay instead — no Media entry, and a show copied to another machine arrived with that clip
+  missing; add that file to the lane again (drop it, or pick it) to bring it into the project, then
+  delete the old clip.
 - **Audio lanes** (`Timeline.audio`) behave like clip lanes: drop an audio file to place a clip, drag to
   move, drag an edge to trim, blade to split, snap to the same guides — plus **fadeIn / fadeOut corner
   handles** (drag the top corners of a clip) and a waveform. A clip past the **Length** raises the ruler's

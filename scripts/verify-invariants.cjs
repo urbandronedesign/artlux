@@ -6187,6 +6187,34 @@ check(
   },
 );
 
+// ── Timeline: a file put on a lane is imported, however it got there ────────────────────────────
+check(
+  "a file added to a lane by the right-click picker is imported like a drop",
+  "A file DROPPED on a lane was copied into the project's assets/ and registered in the Media library; " +
+  'the same file PICKED in the lane\'s right-click "Add clip" menu was stored by its original path — no ' +
+  'library entry, no copy — so the project silently depended on (say) a Desktop folder and a copied show ' +
+  'folder reached the venue with the clip missing. Found 2026-10-23 when a picked video was absent from ' +
+  'the Media tab. Both now go through ONE importAndPlace(); ContentEditor stays "pick, don\'t import" for ' +
+  'the surface inspector, which is right there.',
+  () => {
+    const F = 'src/renderer/components/timeline/Timeline.tsx';
+    const src = read(F);
+    const bad = [];
+    // Anchored on the BODY's opening: the first '{' after the name is the opts parameter's type.
+    const at = src.indexOf('const importAndPlace = async (');
+    const iap = at < 0 ? null : braceBody(src.slice(at), '): Promise<void> => {');
+    if (!iap) return F + ': importAndPlace() not found — this guard cannot see what it protects';
+    if (!/importAssetFile/.test(iap) || !/onRegisterAsset/.test(iap)) bad.push(F + ': importAndPlace() no longer imports into assets/ and registers the library entry');
+    const drop = braceBody(src, 'const onDropFile = (');
+    if (!drop || !/importAndPlace\(/.test(drop)) bad.push(F + ': a file dropped on a lane no longer goes through importAndPlace()');
+    if (drop && /importAssetFile/.test(drop)) bad.push(F + ': onDropFile imports by itself again — a second copy of the import path will drift from the picker\'s');
+    const menu = src.indexOf('<ContentEditor', src.indexOf('Add clip'));
+    const menuSrc = menu >= 0 ? src.slice(menu, menu + 1500) : '';
+    if (!/importAndPlace\(/.test(menuSrc)) bad.push(F + ': the right-click "Add clip" picker no longer imports a picked file (importAndPlace)');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── Projector outputs: an editor reload re-bridges every open output ────────────────────────────
 check(
   'every editor load re-bridges the open projector outputs',

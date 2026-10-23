@@ -1465,6 +1465,58 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     nearestFreeStart(timelineRef.current.clips.filter(c => c.layerId === layerId), Math.max(0, desired), duration);
 
   // --- drop a video (or a recorded take) onto a lane → create a clip ---
+  // ── ONE WAY TO PUT A FILE FROM DISK ON A LANE: IMPORT, THEN PLACE ─────────────────────────────────
+  // Shared by a file DROPPED on a lane and a file PICKED in the lane's right-click "Add clip" menu.
+  // They used to differ, silently: a drop copied the file into the project's assets/ and registered it
+  // in the Media library, while the picker stored the file's original path as-is — no library entry and
+  // no copy, so the project depended on (say) a Desktop folder and a copied show folder arrived at the
+  // venue with that clip missing. Found 2026-10-23 when a video added through the picker was absent from
+  // the Media tab. One function, so the two cannot drift apart again.
+  //
+  // Import is idempotent on the main side (a file already inside assets/ is referenced in place, a
+  // byte-identical one is reused, never copied twice) and the library de-dupes on path, so picking a
+  // file that is already an asset costs nothing. Without a project folder there is nowhere to collect
+  // into: the file is referenced in place and admitted to the media scheme, exactly as a drop does.
+  //
+  // `file` is the dropped File when there is one: a video's length is then read from it in memory. The
+  // picker only has a path, so it reads the length through the media scheme from where the file now is.
+  const importAndPlace = async (
+    layerId: string, start: number, srcPath: string, isImage: boolean,
+    opts: { file?: File; select?: boolean } = {},
+  ): Promise<void> => {
+    const name = (srcPath.split(/[\\/]/).pop() ?? 'clip').replace(/\.[^.]+$/, '');
+    let path = srcPath;
+    if (projectPath) {
+      const entry = await window.artlux?.importAssetFile?.(projectPath, srcPath, isImage ? 'image' : 'video', name);
+      if (entry) { path = entry.path; onRegisterAsset?.(entry); }
+    } else {
+      // No folder to collect into ⇒ referenced in place ⇒ main has never heard of this path, and the
+      // media scheme serves only what it has been told about. Same admission the audio lane makes.
+      window.artlux?.admitDroppedMedia?.(srcPath);
+    }
+    const id = crypto.randomUUID();
+    const add = (clip: VideoClip) => {
+      onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, clip] });
+      if (opts.select) { setSelected(clip.id); setSelectedSource('video'); }
+    };
+    // Images have no intrinsic duration → place a default-length IMAGE content clip.
+    if (isImage) {
+      add({ id, layerId, name, content: { type: SourceType.IMAGE, url: path }, path, start: freeStartOn(layerId, start, DEFAULT_CONTENT_DURATION), duration: DEFAULT_CONTENT_DURATION, inPoint: 0 });
+      return;
+    }
+    // Video: placed at its real length.
+    const url = opts.file ? URL.createObjectURL(opts.file) : resolveMediaUrl(path);
+    const v = document.createElement('video');
+    v.preload = 'metadata'; // header only — never the whole file
+    const place = (d: number) => {
+      if (opts.file) URL.revokeObjectURL(url);
+      add({ id, layerId, name, path, start: freeStartOn(layerId, start, d), duration: d, inPoint: 0, sourceDuration: d });
+    };
+    v.onloadedmetadata = () => place(v.duration && isFinite(v.duration) ? v.duration : 5);
+    v.onerror = () => place(5);
+    v.src = url;
+  };
+
   const onDropFile = (e: React.DragEvent, layerId: string) => {
     e.preventDefault();
     const tl = timelineRef.current;
@@ -1544,36 +1596,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     if (!file) return;
     const srcPath = window.artlux?.getPathForFile?.(file);
     if (!srcPath) return;
-    const start = clientXToTime(e.clientX);
-    const name = file.name.replace(/\.[^.]+$/, '');
     const isImage = file.type.startsWith('image') || /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(file.name);
-    void (async () => {
-      // Drop = import + place: copy the file into the project's assets/ and register a library entry,
-      // so it shows in the Media tab (same as an explicit import). Without a project folder, reference
-      // the file in place — there's nowhere to collect it and no library to add it to.
-      let path = srcPath;
-      if (projectPath) {
-        const entry = await window.artlux?.importAssetFile?.(projectPath, srcPath, isImage ? 'image' : 'video', name);
-        if (entry) { path = entry.path; onRegisterAsset?.(entry); }
-      } else {
-        // No folder to collect into ⇒ referenced in place ⇒ main has never heard of this path, and the
-        // media scheme serves only what it has been told about. Same admission the audio lane makes.
-        window.artlux?.admitDroppedMedia?.(srcPath);
-      }
-      // Images have no intrinsic duration → place a default-length IMAGE content clip.
-      if (isImage) {
-        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: path }, path, start: freeStartOn(layerId, start, DEFAULT_CONTENT_DURATION), duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
-        return;
-      }
-      // Video: probe duration from the dropped File in memory (independent of where we stored it).
-      const url = URL.createObjectURL(file);
-      const v = document.createElement('video');
-      v.preload = 'metadata';
-      const place = (d: number) => { URL.revokeObjectURL(url); onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path, start: freeStartOn(layerId, start, d), duration: d, inPoint: 0, sourceDuration: d }] }); };
-      v.onloadedmetadata = () => place(v.duration && isFinite(v.duration) ? v.duration : 5);
-      v.onerror = () => place(5);
-      v.src = url;
-    })();
+    // Drop = import + place (copy into assets/, register in the Media library) — see importAndPlace.
+    void importAndPlace(layerId, clientXToTime(e.clientX), srcPath, isImage, { file });
   };
 
   // --- generalized content clips (any surface source type scheduled on a layer) ---
@@ -2233,7 +2258,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               layers={layers}
               showLayerOption={false}
               onTypeChange={(type) => { if (type !== SourceType.NONE) createContentClip(contentMenu.layerId, contentMenu.start, { type }); }}
-              onChange={(patch) => { if (patch.type && patch.url !== undefined) createContentClip(contentMenu.layerId, contentMenu.start, { type: patch.type, url: patch.url }); }}
+              onChange={(patch) => {
+                if (!patch.type || patch.url === undefined) return;
+                // A VIDEO or IMAGE file picked here is IMPORTED and placed exactly like a drop (see
+                // importAndPlace). ContentEditor itself stays "pick, don't import" — that is right for
+                // the SURFACE inspector it also serves, and wrong for a clip on a lane. A blob: url (no
+                // filesystem path for the file) cannot be imported and keeps the old path.
+                const isFile = (patch.type === SourceType.VIDEO || patch.type === SourceType.IMAGE) && !!patch.url && !patch.url.startsWith('blob:');
+                if (isFile) {
+                  const { layerId, start } = contentMenu;
+                  setContentMenu(null);
+                  void importAndPlace(layerId, start, patch.url!, patch.type === SourceType.IMAGE, { select: true });
+                  return;
+                }
+                createContentClip(contentMenu.layerId, contentMenu.start, { type: patch.type, url: patch.url });
+              }}
             />
             {/* … AND THE OTHER VERB, one step away. This menu means "add content HERE, at this time,
                 on this lane" — but what an operator right-clicking a track is often hunting for is a
