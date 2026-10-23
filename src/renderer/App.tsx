@@ -4611,6 +4611,10 @@ const App: React.FC = () => {
           if (!d || d.kind !== 'artlux:projector-port' || !e.ports[0]) return;
           const surfaceId: string = d.surfaceId;
           const port = e.ports[0];
+          // A replacement for an output this page already holds (a race between the output's own
+          // bridge and the re-bridge main does on every editor load): close the one it supersedes.
+          const prevPort = projectorPortsRef.current.get(surfaceId);
+          if (prevPort && prevPort !== port) { try { prevPort.close(); } catch { /* already gone */ } }
           projectorPortsRef.current.set(surfaceId, port);
           port.onmessage = (ev: MessageEvent) => onProjectorMsgRef.current(surfaceId, ev.data as ProjectorToMain);
           port.start();

@@ -258,6 +258,31 @@ export function closeAllProjectors(): void {
   for (const id of [...windows.keys()]) closeProjector(id);
 }
 
+// ⚠ A RELOAD OF THE EDITOR KILLS EVERY OUTPUT'S PORT — SO EVERY EDITOR LOAD RE-BRIDGES THEM.
+//
+// bridge() ran only on the PROJECTOR's did-finish-load: one port pair per output, for the output's
+// life. The editor's end of that pair dies with the editor's page, so after an editor reload every
+// open output kept a port to nothing and sat on "Waiting for the main window…" for good — the editor
+// came back with an empty pump and no idea the windows existed. Measured 2026-10-23 on a production
+// build, two outputs: both dead within 10 s of a reload, still dead at 60 s. Reachable in a show:
+// View ▸ Reload / Ctrl+R, and the renderer-fault ladder's second rung (faultReporter.reloadWindow),
+// which in broadcast would have turned a recovered fault into a dark wall. The engine port was already
+// re-handed on every load for exactly this reason (index.ts → openEnginePort).
+//
+// Both renderer ends already accept a replacement: the projector swaps `portRef` and answers 'ready',
+// the editor stores the new port and pushes that output's whole state. A window still LOADING is
+// skipped — its own did-finish-load bridges it, and two pairs in flight would only make each end
+// replace a port it had just been given.
+export function rebridgeAllProjectors(getMain: () => BrowserWindow | null): number {
+  let n = 0;
+  for (const [surfaceId, { win }] of windows) {
+    if (win.isDestroyed() || win.webContents.isLoading()) continue;
+    bridge(getMain, win, surfaceId);
+    n++;
+  }
+  return n;
+}
+
 // Wire IPC + display hot-plug watchers. Call once after app is ready.
 export function registerProjectorWindows(getMainWindow: () => BrowserWindow | null, onLastOutputClosedByUser?: () => void): void {
   onAllClosedByUser = onLastOutputClosedByUser;

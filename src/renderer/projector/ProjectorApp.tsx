@@ -388,6 +388,10 @@ export const ProjectorApp: React.FC = () => {
       const d = e.data;
       if (!d || d.kind !== 'artlux:projector-port' || !e.ports[0]) return;
       const port = e.ports[0];
+      // A SECOND port is normal now: the editor reloaded and main re-bridged this output
+      // (projector.ts → rebridgeAllProjectors). The old one's peer died with the old page — close it
+      // rather than leave a handler on a dead port.
+      if (portRef.current && portRef.current !== port) { try { portRef.current.close(); } catch { /* already gone */ } }
       portRef.current = port;
       port.onmessage = (ev: MessageEvent) => {
         // A DENY-LIST, NOT AN ALLOW-LIST — the polarity is the safety property. Anything not named

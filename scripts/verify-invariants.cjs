@@ -6187,6 +6187,29 @@ check(
   },
 );
 
+// ── Projector outputs: an editor reload re-bridges every open output ────────────────────────────
+check(
+  'every editor load re-bridges the open projector outputs',
+  "bridge() ran only on a PROJECTOR's did-finish-load, so each output got one port pair for its life — " +
+  "and the editor's end dies with the editor's page. After any editor reload every open output sat on " +
+  '"Waiting for the main window…" for good, and the editor came back with an empty pump. Measured ' +
+  '2026-10-23 on a production build: both outputs dead within 10 s, still dead at 60 s. Reachable from ' +
+  'View ▸ Reload / Ctrl+R and from the renderer-fault ladder (faultReporter.reloadWindow) — in broadcast, ' +
+  'a recovered fault would have left a dark wall. With the re-bridge the longest gap between frames ' +
+  'across a reload was 383 ms, no caption. The engine port already followed this rule (openEnginePort).',
+  () => {
+    const bad = [];
+    const P = 'src/main/projector.ts';
+    const reb = braceBody(read(P), 'export function rebridgeAllProjectors(');
+    if (!reb) return P + ': rebridgeAllProjectors() not found — this guard cannot see what it protects';
+    if (!/bridge\(/.test(reb)) bad.push(P + ': rebridgeAllProjectors() no longer calls bridge()');
+    const idx = read('src/main/index.ts');
+    if (!/on\('did-finish-load',[\s\S]{0,200}?rebridgeAllProjectors\(/.test(idx))
+      bad.push("src/main/index.ts: the main window's did-finish-load no longer re-bridges the open outputs — a reload leaves them all waiting forever");
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── Thumbnails: exact, and never at the show's expense ──────────────────────────────────────────
 check(
   'an mp4 thumbnail is the exact frame, and neither it nor its save runs while the show plays',
