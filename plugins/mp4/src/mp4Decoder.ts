@@ -80,11 +80,16 @@ class FileDecoder {
   private lastWantUs = -Infinity; // previous frame()'s wantUs — detects a backward jump (timeline loop / scrub)
   lastFrameTs: number | null = null; // ABSOLUTE ts of the frame frame() last handed out — the generation
   private sortedCts: number[] | null = null; // presentation times, ascending — built on first frameExact()
-  // Failure bookkeeping, read by __artluxMp4Stats. Records only: nothing here changes how the decoder
-  // behaves after a failure (see plans/mp4-decoder-freeze.md — measure first, then fix).
+  // Failure bookkeeping, read by __artluxMp4Stats — and, since the freeze fix, the recovery state.
+  // See markDead() and plans/mp4-decoder-freeze.md.
   errors = 0;
   lastError: string | null = null;
+  recoveries = 0;
+  feedCapHits = 0;                   // times the per-call feed bound stopped pump() — 0 in healthy play
   private failNextConfigure = false; // armed by __artluxMp4Fault('configure')
+  private awaitingRecovery = false;  // the codec died; frame() holds the last picture until a re-seek lands
+  private failStreak = 0;            // consecutive deaths without a frame out between them — sizes the backoff
+  private retryAt = 0;               // performance.now() before which a dead decoder is NOT rebuilt
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
@@ -275,7 +280,9 @@ class FileDecoder {
     const timeUs = Math.round(timeSec * 1e6);
     if (timeUs < 0) { console.warn('[mp4/exact] negative time', timeSec); return null; }
     if (this.durUs > 0 && timeUs >= this.durUs) { console.warn('[mp4/exact] past end', timeUs, 'dur', this.durUs); return null; }
-    if (!this.ensureDecoder()) { console.warn('[mp4/exact] no decoder'); return null; }
+    // Not ensureDecoder(): pump() below reaches seekSegment (idle ⇒ segAbs === -1), which is the one door
+    // to a configured decoder. Building one here is what used to hand pump() an unconfigured codec.
+    if (!this.cfg) { console.warn('[mp4/exact] no decoder'); return null; }
 
     // ⚠ THE TARGET COMES FROM THE CONTAINER, NOT FROM THE DECODER.
     // The first version of this asked "what is the best decoded frame at or before the target, now
@@ -300,7 +307,14 @@ class FileDecoder {
       this.lastWantUs = timeUs;
 
       const dec = this.decoder;
-      if (!dec) return null;
+      // Dead and recovering: yield and go round. Waiting is safe here in a way it is not for playback —
+      // the answer is matched against the container's own target timestamp below, so a recovered decoder
+      // can only ever return the exact frame, and EXACT_MAX_ROUNDS still ends a render that never gets one.
+      if (!dec || dec.state !== 'configured') {
+        if (!this.awaitingRecovery) return null;
+        await new Promise<void>((r) => { setTimeout(r, 0); });
+        continue;
+      }
 
       // ⚠ NOT `===`. `samples[].ts` is `(cts / timescale) * 1e6` and is routinely FRACTIONAL, while an
       // EncodedVideoChunk timestamp is a `long long` — so the value that comes back out of the decoder
@@ -373,10 +387,18 @@ class FileDecoder {
     return best ?? a[0];
   }
 
+  // ⚠ CALLED ONLY FROM seekSegment(), which configures what this returns before anything feeds it. It
+  // used to be called from pump() and frameExact() as well, and that was the freeze: after a codec died
+  // this built a fresh UNCONFIGURED decoder, a forward-playing surface never reached seekSegment, and
+  // pump() fed it chunk after chunk — every decode() threw, the catch swallowed it, and with
+  // `maxAbs = Infinity` nothing ended the loop. Measured on the RTX box: one core at 100%, renderer
+  // memory +6 GB/s (each pass copies a sample into a new EncodedVideoChunk), dead of OOM at ~14.8 GB in
+  // 4.7 s — from an injected fault and from a real GPU-process crash alike. A decoder that reaches the
+  // feed is now one seekSegment configured, and nothing else.
   private ensureDecoder(): VideoDecoder | null {
     if (this.decoder && this.decoder.state !== 'closed') return this.decoder;
     if (!this.cfg) return null;
-    this.decoder = new VideoDecoder({
+    const dec: VideoDecoder = new VideoDecoder({
       output: (frame) => {
         // Insert keeping the buffer ordered by (absolute) presentation timestamp.
         if (this.buffer.length && frame.timestamp < this.buffer[this.buffer.length - 1].timestamp) {
@@ -386,19 +408,57 @@ class FileDecoder {
         } else {
           this.buffer.push(frame);
         }
+        // A frame out of a rebuilt decoder is the only honest proof that recovery worked — a configure()
+        // that returns says the codec accepted a config, not that it can decode this file on this GPU.
+        if (this.awaitingRecovery) {
+          this.awaitingRecovery = false;
+          this.recoveries++;
+          console.info(`[mp4] decoder recovered after ${this.failStreak} failure(s)`);
+          this.failStreak = 0;
+        }
         this.evict();
       },
-      error: (e) => { this.noteError('decode', e); },
+      // Only the CURRENT decoder's death matters. A callback from one we already replaced is history:
+      // recording it is honest, acting on it would kill the healthy successor.
+      error: (e) => { if (this.decoder === dec) this.markDead('decode', e); else this.noteError('decode', e, true); },
     });
-    return this.decoder; // configured lazily in seekSegment (single reset+configure path)
+    this.decoder = dec;
+    return dec;
   }
 
   // One place a failure is recorded, so the stats and the log line cannot disagree. The log text is
   // what both call sites printed before this existed.
-  private noteError(what: 'decode' | 'configure', e: { name?: string; message: string }): void {
+  private noteError(what: 'decode' | 'configure', e: { name?: string; message: string }, quiet = false): void {
     this.errors++;
     this.lastError = `${what}: ${e.name ?? 'Error'}: ${e.message}`;
-    console.warn(what === 'decode' ? '[mp4] decode error' : '[mp4] configure failed', e.message);
+    if (!quiet) console.warn(what === 'decode' ? '[mp4] decode error' : '[mp4] configure failed', e.message);
+  }
+
+  /**
+   * The codec is dead (a decode error, a GPU reset, a reclaim, a configure that threw, or a decode()
+   * that threw). Drop it and arrange for the next pump() to rebuild it AT THE PLAYHEAD.
+   *
+   * `segAbs = -1` is the whole mechanism: it is the "idle" state, so pump()'s first branch re-seeks to
+   * the keyframe covering wherever the playhead is by then — the same door a cold open takes. `buffer`
+   * is KEPT: VideoFrames already output stay valid after their codec closes, so frame() keeps showing
+   * the last good picture while the rebuild decodes forward (≤ one GOP).
+   *
+   * BACKOFF, because a file that will never decode — or a GPU that is still gone — must not rebuild a
+   * hardware decoder sixty times a second. The first retry is immediate (a reset or a reclaim recovers
+   * on the first try), then 250 ms doubling to a 5 s ceiling, cleared by the first frame out. There is no
+   * terminal "give up": a retry every 5 s costs nothing, and it is what brings a decoder back on its own
+   * once the driver does. The log follows the same shape — the first three, then about once a minute.
+   */
+  private markDead(what: 'decode' | 'configure', e: { name?: string; message: string }): void {
+    this.failStreak++;
+    const loud = this.failStreak <= 3 || this.failStreak % 12 === 0;
+    this.noteError(what, e, !loud);
+    const dec = this.decoder;
+    this.decoder = null;
+    if (dec && dec.state !== 'closed') { try { dec.close(); } catch { /* */ } }
+    this.segAbs = -1;
+    this.awaitingRecovery = true;
+    this.retryAt = performance.now() + (this.failStreak <= 1 ? 0 : Math.min(5000, 125 * 2 ** (this.failStreak - 1)));
   }
 
   /**
@@ -415,18 +475,24 @@ class FileDecoder {
     const dec = this.decoder;
     if (!dec || dec.state === 'closed') return false;
     try { dec.close(); } catch { /* */ }
-    if (kind === 'error') this.noteError('decode', { name: 'InjectedError', message: 'injected by __artluxMp4Fault' });
+    if (kind === 'error') this.markDead('decode', { name: 'InjectedError', message: 'injected by __artluxMp4Fault' });
     return true;
   }
 
   // `samples`/`keyframes` because a recovery re-seeks to the covering keyframe, so how far it can jump
   // back (and how long it takes to decode forward again) is set by the file's GOP length, not by us.
-  stats(): { state: string; samples: number; keyframes: number; segAbs: number; fedAbs: number; buffered: number; queue: number; errors: number; lastError: string | null } {
+  stats(): {
+    state: string; samples: number; keyframes: number; segAbs: number; fedAbs: number; buffered: number; queue: number;
+    errors: number; lastError: string | null; recovering: boolean; recoveries: number; failStreak: number; retryInMs: number; feedCapHits: number;
+  } {
     return {
       state: this.decoder?.state ?? 'none', samples: this.samples.length, keyframes: this.keyframes.length,
       segAbs: this.segAbs, fedAbs: this.fedAbs, buffered: this.buffer.length,
       queue: this.decoder && this.decoder.state !== 'closed' ? this.decoder.decodeQueueSize : 0,
       errors: this.errors, lastError: this.lastError,
+      recovering: this.awaitingRecovery, recoveries: this.recoveries, failStreak: this.failStreak,
+      retryInMs: this.awaitingRecovery ? Math.max(0, Math.round(this.retryAt - performance.now())) : 0,
+      feedCapHits: this.feedCapHits,
     };
   }
 
@@ -464,7 +530,12 @@ class FileDecoder {
     try {
       if (this.failNextConfigure) { this.failNextConfigure = false; throw new Error('injected by __artluxMp4Fault'); }
       dec.configure(this.cfg!);
-    } catch (e) { this.noteError('configure', e as Error); return; }
+    } catch (e) {
+      // The second way into the freeze: this used to log and return with the decoder UNCONFIGURED and
+      // pump() went on to feed it. A codec that refuses its config is as dead as one that errored.
+      this.markDead('configure', e as Error);
+      return;
+    }
     if (this.buffer.length > 1) {
       const hold = this.buffer[this.buffer.length - 1]; // highest ts (sorted asc) = most recent
       for (let i = 0; i < this.buffer.length - 1; i++) this.buffer[i].close();
@@ -495,6 +566,13 @@ class FileDecoder {
   private pump(loop: boolean, loopCount: number, localUs: number): void {
     const N = this.samples.length;
     if (!N) return;
+    // A codec can be closed without its error callback ever running (Chromium tears codecs down on its
+    // own terms; __artluxMp4Fault('close') does it on purpose). Closed is dead, whoever closed it.
+    if (this.decoder && this.decoder.state === 'closed' && !this.awaitingRecovery) {
+      this.markDead('decode', { name: 'InvalidStateError', message: 'decoder closed without reporting an error' });
+    }
+    // Dead and still backing off: hold the last picture (evict keeps KEEP_BEHIND frames) and feed nothing.
+    if (this.awaitingRecovery && performance.now() < this.retryAt) { this.evict(); return; }
     const localKf = this.localKeyframeForTime(localUs);
     const kfAbs = loopCount * N + localKf;
     const fedTs = this.fedAbs >= 0 ? this.tsOfAbs(this.fedAbs) : -Infinity;
@@ -520,17 +598,36 @@ class FileDecoder {
     // monotonic (never backward) and fedTs is already ≥ wantUs, so NO branch fires — the feed simply
     // continues into sample 0 of the next loop (a keyframe), giving a reset-free, seamless loop.
 
-    const dec = this.ensureDecoder();
-    if (!dec) return;
+    // ⚠ FEED ONLY A CONFIGURED DECODER — never build one here (see ensureDecoder). If the seek above did
+    // not leave one (its configure threw → markDead, or we are still backing off), there is nothing to
+    // feed this call; an unconfigured codec that is not dead is put back on the re-seek path.
+    const dec = this.decoder;
+    if (!dec || dec.state !== 'configured') {
+      if (!this.awaitingRecovery) this.segAbs = -1;
+      this.evict();
+      return;
+    }
     const maxAbs = loop ? Infinity : N - 1; // don't loop-feed a timeline layer / thumbnail
     let framesAhead = 0;
     for (const f of this.buffer) if (f.timestamp > this.wantUs) framesAhead++;
+    // ⚠ THE PER-CALL BOUND. Every other exit condition below measures decoder PROGRESS, and a codec that
+    // throws on every call makes none — which is how this loop ran forever. A healthy feed never reaches
+    // the bound: decode() raises decodeQueueSize synchronously, so the TARGET_AHEAD term ends the loop
+    // after at most TARGET_AHEAD chunks. `feedCapHits` counts the times the bound did the stopping.
+    let budget = QUEUE_BUDGET;
     while (this.fedAbs < maxAbs && dec.decodeQueueSize < QUEUE_BUDGET && framesAhead + dec.decodeQueueSize < TARGET_AHEAD) {
+      if (budget-- <= 0) { this.feedCapHits++; break; }
       this.fedAbs++;
       const s = this.sampleOfAbs(this.fedAbs);
       const ts = this.tsOfAbs(this.fedAbs);
       try { dec.decode(new EncodedVideoChunk({ type: s.key ? 'key' : 'delta', timestamp: ts, duration: s.dur, data: s.data })); }
-      catch { /* skip a bad chunk */ }
+      catch (e) {
+        // RE-SEEK, DON'T SKIP. Skipping one chunk used to mean every frame after it decoded against a
+        // missing reference until the next keyframe; and a throw here usually means the codec itself is
+        // unusable, which a skip turns into the spin. Rebuild at the playhead instead.
+        this.markDead('decode', e as Error);
+        break;
+      }
     }
     this.evict();
   }
@@ -576,6 +673,7 @@ class FileDecoder {
     this.buffer = [];
     try { if (this.decoder && this.decoder.state !== 'closed') this.decoder.close(); } catch { /* */ }
     this.decoder = null; this.segAbs = -1; this.fedAbs = -1; this.lastWantUs = -Infinity; this.lastFrameTs = null;
+    this.awaitingRecovery = false; this.failStreak = 0; this.retryAt = 0; // a closed decoder is not "recovering"
   }
 }
 
@@ -836,7 +934,9 @@ if (typeof window !== 'undefined') {
   w['__artluxMp4Stats'] = () => allDecoders().map(({ pool, key, path, dec }) => ({
     pool, key: pool === 'layer' ? key : undefined, file: path.split(/[\\/]/).pop(), ...dec.stats(),
   }));
-  w['__artluxMp4StatsReset'] = () => { for (const { dec } of allDecoders()) { dec.errors = 0; dec.lastError = null; } };
+  w['__artluxMp4StatsReset'] = () => {
+    for (const { dec } of allDecoders()) { dec.errors = 0; dec.lastError = null; dec.recoveries = 0; dec.feedCapHits = 0; }
+  };
   // `pathPart` narrows to decoders whose path contains it; `pool` to one pool. Omitted = every open
   // decoder. The pool filter is not a convenience: faulting two pools at once makes them interact (one
   // pool's stall moves the other's wall-clock playhead far enough to trip its re-seek branch), so the
