@@ -605,6 +605,12 @@ releases visible and drafts the rest (`build.yml` / `launcher.yml`, after the pu
 
 `v0.25.0`–`v0.25.6` were retired by hand on **2026-09-06**, taking the page from 18 rows to 11.
 
+⚠ **Until 2026-10-23 the app's retention step never ran.** The `release` job has no checkout, so `gh`
+could not infer the repository; every `gh release` call failed with "not a git repository", the empty
+result printed `nothing to retire`, and the step passed. 24 app releases were public when it was found.
+Both retention steps now set `GH_REPO: ${{ github.repository }}`, and a failed listing is a `::warning::`
+instead of "nothing to retire".
+
 > ⚠ **A download URL fetched while its release is drafted can keep 404-ing after you undraft it** —
 > GitHub's CDN caches the negative answer. Do not conclude the asset is gone: ask the API
 > (`gh api repos/<owner>/<repo>/releases/assets/<id>`), which serves the bytes directly. Observed on

@@ -208,12 +208,19 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          # Named explicitly, not inferred from the checkout: build.yml's identical step had no
+          # checkout, failed every `gh release` call and reported "nothing to retire" for its whole
+          # life (found 2026-10-23). This job does check out today; it must not depend on that.
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -uo pipefail
           KEEP=2
-          tags=$(gh release list --limit 200 --exclude-drafts --json tagName \
-                   --jq '.[].tagName' | grep -E '^launcher-v[0-9]' || true)
+          # A failed listing says so instead of passing as "nothing to retire" (see build.yml).
+          if ! listed=$(gh release list --limit 200 --exclude-drafts --json tagName --jq '.[].tagName' 2>&1); then
+            echo "::warning::retention could not list releases: $listed"; exit 0
+          fi
+          tags=$(echo "$listed" | grep -E '^launcher-v[0-9]' || true)
           if [ -z "$tags" ]; then echo "nothing to retire"; exit 0; fi
           echo "$tags" | head -n "$KEEP" | sed 's/^/  keep    /'
           for t in $(echo "$tags" | tail -n +$((KEEP + 1))); do

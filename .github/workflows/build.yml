@@ -236,6 +236,11 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          # ⚠ THIS JOB HAS NO CHECKOUT (it only downloads artifacts), so `gh` cannot infer the repo
+          # from a git remote. Without this every `gh release` call failed with "not a git repository",
+          # the empty result read as "nothing to retire", and the step passed -- from the day it was
+          # added. Found 2026-10-23 cutting v0.33.6: 24 app releases public against a rule of 3.
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -uo pipefail
@@ -244,8 +249,12 @@ jobs:
           # each other -- and `launcher-latest` matches no product pattern, so the rolling tag is
           # never a candidate. --exclude-drafts makes the step idempotent: already-retired releases
           # are not candidates, and they cannot crowd out the list of live ones either.
-          tags=$(gh release list --limit 200 --exclude-drafts --json tagName \
-                   --jq '.[].tagName' | grep -E '^v[0-9]' || true)
+          # A FAILED listing must say so. Folding it into "nothing to retire" is what hid the bug
+          # above; the step still cannot fail the release (continue-on-error), it just stops lying.
+          if ! listed=$(gh release list --limit 200 --exclude-drafts --json tagName --jq '.[].tagName' 2>&1); then
+            echo "::warning::retention could not list releases: $listed"; exit 0
+          fi
+          tags=$(echo "$listed" | grep -E '^v[0-9]' || true)
           if [ -z "$tags" ]; then echo "nothing to retire"; exit 0; fi
           echo "$tags" | head -n "$KEEP" | sed 's/^/  keep    /'
           for t in $(echo "$tags" | tail -n +$((KEEP + 1))); do
