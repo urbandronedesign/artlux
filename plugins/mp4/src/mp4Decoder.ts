@@ -43,7 +43,9 @@ const PRESENT_EPS_US = 1_000;
 const EXACT_MAX_ROUNDS = 2_000;
 
 interface Info { width: number; height: number; durationSec: number; }
-interface Enc { ts: number; dur: number; key: boolean; data: Uint8Array } // decode order, µs timestamps
+// One encoded sample, decode order, µs timestamps. `off`/`size` locate it in the FILE; `data` is set only
+// for a store parsed whole (a fragmented file — see loadStore). A ranged store keeps bytes per GOP instead.
+interface Enc { ts: number; dur: number; key: boolean; off: number; size: number; data?: Uint8Array }
 // What __artluxMp4Fault can do to a live decoder — see the measurement section at the end of the file.
 type Mp4FaultKind = 'close' | 'error' | 'configure';
 
@@ -88,15 +90,158 @@ function trackConfig(file: MP4File, track: MP4VideoTrack): VideoDecoderConfig {
 //
 // Holders are FileDecoders (one hold each, for their life) and the timeline's pre-warm (`prewarm()`,
 // one hold per path, released by close(path) when the residency owners let go).
-interface SampleStore {
-  readonly path: string;
-  readonly info: Info;
-  readonly cfg: VideoDecoderConfig;
-  readonly samples: readonly Enc[];  // ALL encoded samples in DECODE order
-  readonly keyframes: readonly number[];
-  readonly bytes: number;            // Σ sample bytes — counted ONCE in residentBytes, whoever holds it
-  holders: number;
+//
+// ── AND THE STORE DOES NOT HOLD THE FILE (plans/mp4-memory-residency.md step 3) ──────────────────────
+// Holding the parse once still held the WHOLE track: 1,291 MB for a 142 s 5.7K clip, growing with file
+// length, plus a ~4 s read + demux on the renderer main thread before the first frame. A decoder only
+// ever needs the samples just ahead of its own playhead, and H.264/H.265 can only start at a keyframe —
+// so the unit of residency is the GOP. A RANGED store keeps the sample TABLE (offset/size/time/keyframe
+// for every frame, read from the moov by byte range, ~tens of bytes a frame) and reads each GOP's bytes
+// by one Range request when a decoder is about to feed it, into a cache with a byte budget.
+//
+//   · want()   — every pump() names the GOP it is feeding and GOP_AHEAD after it (wrapping for a looping
+//                surface). Missing ones are read; present ones are marked used. That is the read-ahead.
+//   · dataOf() — the bytes of one sample if its GOP is resident, else null: pump() stops feeding there
+//                (the picture holds) and resumes when the read lands — usually long before it is needed.
+//   · GOP 0 is pinned: it is where a cold open, a looping surface's wrap and a timeline loop all land.
+//   · evict()  — over budget, drop the least-recently-used GOPs that no decoder has touched for
+//                GOP_PROTECT_MS. Several playheads on one file share one cache, which is the point.
+//
+// A fragmented file keeps its sample table in moof boxes spread through the file, so the moov alone
+// cannot index it: it is parsed WHOLE as before (`ranged === false`, `data` on every sample).
+const GOP_CACHE_BUDGET = 256 * 1024 * 1024; // per store; raised to 4 GOPs for a file whose GOPs are huge
+const GOP_AHEAD = 2;                         // GOPs read ahead of the one being fed
+const GOP_PROTECT_MS = 1000;                 // a GOP used this recently is in someone's window
+const GOP_RETRY_MS = 1000;                   // a failed read is retried after this long, not every frame
+
+interface Gop { buf: Uint8Array | null; base: number; lastUsed: number; loading: Promise<void> | null; failedAt: number }
+
+class SampleStore {
+  holders = 0;
+  private readonly gops = new Map<number, Gop>();
+  private cacheBytes = 0;
+  private maxGopBytes = 0;
+  private readFailures = 0;
+  reads = 0;      // GOP reads issued — diagnostics
+  readMs = 0;     // total time they took
+
+  constructor(
+    readonly path: string,
+    private readonly url: string,
+    readonly info: Info,
+    readonly cfg: VideoDecoderConfig,
+    readonly samples: readonly Enc[],      // ALL samples in DECODE order (bytes only if !ranged)
+    readonly keyframes: readonly number[], // decode-order indices that are keyframes (ascending)
+    readonly ranged: boolean,
+    private readonly wholeBytes: number,   // !ranged: Σ sample bytes, all resident
+  ) {
+    if (ranged) for (let g = 0; g < this.gopCount; g++) { const [a, b] = this.byteRange(g); this.maxGopBytes = Math.max(this.maxGopBytes, b - a); }
+  }
+
+  /** Bytes this store holds right now — counted ONCE in residentBytes, whoever holds it. */
+  get bytes(): number { return this.ranged ? this.cacheBytes : this.wholeBytes; }
+  get gopCount(): number { return Math.max(1, this.keyframes.length); }
+  get residentGops(): number { let n = 0; for (const e of this.gops.values()) if (e.buf) n++; return n; }
+
+  /** The GOP holding decode-order sample `i` (samples before the first keyframe belong to GOP 0). */
+  gopOf(i: number): number {
+    const k = this.keyframes;
+    let lo = 0, hi = k.length - 1, g = 0;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (k[m] <= i) { g = m; lo = m + 1; } else hi = m - 1; }
+    return g;
+  }
+
+  // [first, last+1) file bytes of a GOP's samples. Usually contiguous; with an interleaved audio track
+  // the span also covers the audio between them, which is cheaper to over-read than to split.
+  private byteRange(g: number): [number, number] {
+    const start = g === 0 ? 0 : this.keyframes[g];
+    const end = g + 1 < this.keyframes.length ? this.keyframes[g + 1] : this.samples.length;
+    let a = Infinity, b = 0;
+    for (let i = start; i < end; i++) { const s = this.samples[i]; if (s.off < a) a = s.off; if (s.off + s.size > b) b = s.off + s.size; }
+    return a === Infinity ? [0, 0] : [a, b];
+  }
+
+  /** Sample `i`'s bytes, or null if its GOP is not resident yet. */
+  dataOf(i: number): Uint8Array | null {
+    const s = this.samples[i];
+    if (s.data) return s.data;
+    const e = this.gops.get(this.gopOf(i));
+    if (!e?.buf) return null;
+    e.lastUsed = performance.now();
+    return e.buf.subarray(s.off - e.base, s.off - e.base + s.size);
+  }
+
+  /** Make GOP `g` resident. null = already resident; otherwise a promise that settles when it is (or failed). */
+  request(g: number): Promise<void> | null {
+    if (!this.ranged) return null;
+    const now = performance.now();
+    let e = this.gops.get(g);
+    if (e?.buf) { e.lastUsed = now; return null; }
+    if (e?.loading) return e.loading;
+    if (e && now - e.failedAt < GOP_RETRY_MS) {
+      const wait = GOP_RETRY_MS - (now - e.failedAt);
+      return new Promise<void>((r) => { setTimeout(r, wait); });
+    }
+    const [a, b] = this.byteRange(g);
+    if (b <= a) return null;
+    if (!e) { e = { buf: null, base: a, lastUsed: now, loading: null, failedAt: 0 }; this.gops.set(g, e); }
+    const entry = e;
+    this.reads++;
+    entry.loading = (async () => {
+      const t0 = performance.now();
+      try {
+        const res = await fetch(this.url, { headers: { Range: `bytes=${a}-${b - 1}` } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = new Uint8Array(await res.arrayBuffer());
+        if (buf.byteLength !== b - a) throw new Error(`short read ${buf.byteLength}/${b - a}`);
+        if (this.gops.get(g) !== entry) return; // the store was dropped while this was in flight
+        entry.buf = buf;
+        entry.lastUsed = performance.now();
+        this.cacheBytes += buf.byteLength;
+        this.evict();
+      } catch (err) {
+        entry.failedAt = performance.now();
+        // A file that vanished mid-show fails every read; say so a few times, not every second forever.
+        if (++this.readFailures <= 3) console.warn('[mp4] GOP read failed', this.path, `gop ${g}`, (err as Error).message);
+      } finally {
+        this.readMs += performance.now() - t0;
+        entry.loading = null;
+      }
+    })();
+    return entry.loading;
+  }
+
+  /** The window a decoder is about to feed: the GOP holding sample `i` and GOP_AHEAD after it. */
+  want(i: number, loop: boolean): void {
+    if (!this.ranged) return;
+    const g0 = this.gopOf(i);
+    const now = performance.now();
+    for (let k = 0; k <= GOP_AHEAD; k++) {
+      let g = g0 + k;
+      if (g >= this.gopCount) { if (!loop) break; g -= this.gopCount; }
+      const e = this.gops.get(g);
+      if (e?.buf) e.lastUsed = now; else void this.request(g);
+    }
+  }
+
+  private evict(): void {
+    const budget = Math.max(GOP_CACHE_BUDGET, 4 * this.maxGopBytes);
+    if (this.cacheBytes <= budget) return;
+    const now = performance.now();
+    const victims = [...this.gops.entries()]
+      .filter(([g, e]) => e.buf && g !== 0 && now - e.lastUsed > GOP_PROTECT_MS) // GOP 0 is pinned
+      .sort((x, y) => x[1].lastUsed - y[1].lastUsed);
+    for (const [g, e] of victims) {
+      if (this.cacheBytes <= budget) break;
+      this.cacheBytes -= e.buf!.byteLength;
+      this.gops.delete(g);
+    }
+  }
+
+  /** The last holder let go. In-flight reads see their entry gone and discard what they fetched. */
+  drop(): void { this.gops.clear(); this.cacheBytes = 0; }
 }
+
 const stores = new Map<string, SampleStore>();
 const storeLoading = new Map<string, Promise<SampleStore | null>>();
 
@@ -123,16 +268,47 @@ function releaseStore(st: SampleStore): void {
   if (--st.holders > 0) return;
   // Only drop the map entry if it is THIS store — a later acquire may already have re-inserted a
   // successor for the same path (see acquireStore), and deleting that would orphan its holders' bytes.
-  if (stores.get(st.path) === st) stores.delete(st.path);
+  if (stores.get(st.path) === st) { stores.delete(st.path); st.drop(); }
 }
 
+// RANGED first: read the moov by byte range and build the sample table from it — no sample bytes are
+// read here at all (they come per GOP, on demand). Falls back to the whole-file parse only for a file the
+// index cannot describe: a fragmented one (its samples are in moofs), or one whose moov the ranged read
+// could not find.
 async function loadStore(path: string): Promise<SampleStore | null> {
   if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
   const url = resolveMediaUrl(path);
   if (!url) return null;
-  // ONE copy of the file, not two. This used to fetch out of a Blob that main had already read
-  // whole over IPC — so opening a 300 MB clip cost 600 MB of renderer memory before a frame was
-  // decoded. Streaming the demux itself is step 3 of plans/mp4-memory-residency.md.
+  const ix = await readIndex(url);
+  if (ix === 'missing') return null; // refused / missing — the whole-file read would fail the same way
+  if (ix && !ix.mp4.isFragmented) {
+    const table = ix.file.getTrackSamplesInfo(ix.track.id) ?? [];
+    const samples: Enc[] = [];
+    const keyframes: number[] = [];
+    for (const s of table) {
+      if (s.is_sync) keyframes.push(samples.length);
+      samples.push({ ts: (s.cts / s.timescale) * 1e6, dur: (s.duration / s.timescale) * 1e6, key: s.is_sync, off: s.offset, size: s.size });
+    }
+    if (samples.length) {
+      const cfg = trackConfig(ix.file, ix.track);
+      // The same question the whole-file path asks before claiming a file (see there), on the same config.
+      try {
+        const sup = await VideoDecoder.isConfigSupported(cfg);
+        if (!sup.supported) { console.info('[mp4] declining', path, '— WebCodecs cannot configure', cfg.codec); return null; }
+      } catch { return null; }
+      const durationSec = ix.mp4.duration && ix.mp4.timescale ? ix.mp4.duration / ix.mp4.timescale : 0;
+      return new SampleStore(path, url, { width: ix.track.video.width, height: ix.track.video.height, durationSec },
+        cfg, samples, keyframes, true, 0);
+    }
+  }
+  return loadWholeStore(path, url);
+}
+
+// The whole-file parse — what every open did before step 3, kept for files the index cannot describe.
+async function loadWholeStore(path: string, url: string): Promise<SampleStore | null> {
+  // The FALLBACK only, since step 3: loadStore reads a normal file by GOP. This reads the whole file into
+  // one buffer and keeps every sample — once, never twice (it used to fetch out of a Blob main had
+  // already read over IPC, so a 300 MB clip cost 600 MB before a frame was decoded).
   // ⚠ A REFUSED OR MISSING FILE MUST FAIL HERE, NOT HANG. This did not check `ok`: a 404/403 is a
   // resolved fetch with an EMPTY body, and mp4box ignores an empty buffer without calling onReady or
   // onError — so the promise below never settled. Measured 2026-10-23: one thumbnail request for a
@@ -169,7 +345,7 @@ async function loadStore(path: string): Promise<SampleStore | null> {
       file.onSamples = (_id: number, _u: unknown, got: MP4Sample[]) => {
         for (const s of got) {
           const idx = samples.length;
-          samples.push({ ts: (s.cts / s.timescale) * 1e6, dur: (s.duration / s.timescale) * 1e6, key: s.is_sync, data: s.data });
+          samples.push({ ts: (s.cts / s.timescale) * 1e6, dur: (s.duration / s.timescale) * 1e6, key: s.is_sync, off: 0, size: s.data?.byteLength ?? 0, data: s.data });
           bytes += s.data?.byteLength ?? 0;
           if (s.is_sync) keyframes.push(idx);
         }
@@ -178,7 +354,7 @@ async function loadStore(path: string): Promise<SampleStore | null> {
       file.start();
       file.flush(); // drain remaining samples synchronously
       if (!samples.length) return done(null);
-      const store: SampleStore = { path, info, cfg, samples, keyframes, bytes, holders: 0 };
+      const store = new SampleStore(path, url, info, cfg, samples, keyframes, false, bytes);
 
       // ASK THE DECODER BEFORE CLAIMING THE FILE.
       //
@@ -236,6 +412,10 @@ class FileDecoder {
   private awaitingRecovery = false;  // the codec died; frame() holds the last picture until a re-seek lands
   private failStreak = 0;            // consecutive deaths without a frame out between them — sizes the backoff
   private retryAt = 0;               // performance.now() before which a dead decoder is NOT rebuilt
+  // Ranged store (step 3): set when pump() stopped because the next sample's GOP is not resident — the
+  // read to await. `starvedReads` counts those stops; in healthy play the read-ahead keeps it near 0.
+  private starved: Promise<void> | null = null;
+  starvedReads = 0;
 
   // Take a hold on the file's shared parse (see SampleStore). The first holder pays the read and demux;
   // every later one — another pool, another layer on the same clip — attaches to it at once.
@@ -315,6 +495,15 @@ class FileDecoder {
     // End of track: everything that exists is decoded, so this is as ready as it can be.
     const endUs = this.durUs > 0 ? this.durUs : Infinity;
     return wantUs + aheadSec * 1e6 >= endUs && this.buffer.length > 0;
+  }
+
+  /** Make the GOP covering clip-local `timeSec` resident (a ranged store); resolves at once if it is. */
+  async dataReadyAt(timeSec: number): Promise<void> {
+    const st = this.store;
+    if (!st || !this.samples.length) return;
+    const localUs = this.durUs > 0 ? Math.min(Math.max(0, timeSec * 1e6), this.durUs) : Math.max(0, timeSec * 1e6);
+    const p = st.request(st.gopOf(this.localKeyframeForTime(localUs)));
+    if (p) await p;
   }
 
   // Resident bytes THIS decoder adds: a nominal 4:2:0 estimate for its decoded frames in flight. The
@@ -412,6 +601,10 @@ class FileDecoder {
       for (const f of this.buffer) {
         if (Math.abs(f.timestamp - targetTs) <= 2) { this.lastFrameTs = f.timestamp; return f; }
       }
+
+      // The feed stopped at a GOP whose bytes are still being read: wait for THAT read rather than
+      // spending rounds on zero-delay yields (a 9 MB GOP read takes milliseconds, a round is ~4 ms).
+      if (this.starved) { const w = this.starved; this.starved = null; await w; continue; }
 
       const drained = dec.decodeQueueSize === 0;
       const fedAll = this.fedAbs >= N - 1;
@@ -570,7 +763,7 @@ class FileDecoder {
   // back (and how long it takes to decode forward again) is set by the file's GOP length, not by us.
   stats(): {
     state: string; samples: number; keyframes: number; segAbs: number; fedAbs: number; buffered: number; queue: number;
-    errors: number; lastError: string | null; recovering: boolean; recoveries: number; failStreak: number; retryInMs: number; feedCapHits: number;
+    errors: number; lastError: string | null; recovering: boolean; recoveries: number; failStreak: number; retryInMs: number; feedCapHits: number; starvedReads: number;
   } {
     return {
       state: this.decoder?.state ?? 'none', samples: this.samples.length, keyframes: this.keyframes.length,
@@ -579,7 +772,7 @@ class FileDecoder {
       errors: this.errors, lastError: this.lastError,
       recovering: this.awaitingRecovery, recoveries: this.recoveries, failStreak: this.failStreak,
       retryInMs: this.awaitingRecovery ? Math.max(0, Math.round(this.retryAt - performance.now())) : 0,
-      feedCapHits: this.feedCapHits,
+      feedCapHits: this.feedCapHits, starvedReads: this.starvedReads,
     };
   }
 
@@ -701,13 +894,27 @@ class FileDecoder {
     // throws on every call makes none — which is how this loop ran forever. A healthy feed never reaches
     // the bound: decode() raises decodeQueueSize synchronously, so the TARGET_AHEAD term ends the loop
     // after at most TARGET_AHEAD chunks. `feedCapHits` counts the times the bound did the stopping.
+    // READ-AHEAD: name the window this decoder is about to feed — its GOP and GOP_AHEAD after it,
+    // wrapping for a looping surface — so the store reads what is missing while the GOP in hand decodes.
+    // Cheap when resident (a few map lookups); a no-op for a store parsed whole.
+    const st = this.store;
+    if (st) st.want(((this.fedAbs + 1) % N + N) % N, maxAbs === Infinity);
     let budget = QUEUE_BUDGET;
     while (this.fedAbs < maxAbs && dec.decodeQueueSize < QUEUE_BUDGET && framesAhead + dec.decodeQueueSize < TARGET_AHEAD) {
       if (budget-- <= 0) { this.feedCapHits++; break; }
-      this.fedAbs++;
-      const s = this.sampleOfAbs(this.fedAbs);
-      const ts = this.tsOfAbs(this.fedAbs);
-      try { dec.decode(new EncodedVideoChunk({ type: s.key ? 'key' : 'delta', timestamp: ts, duration: s.dur, data: s.data })); }
+      const next = this.fedAbs + 1;
+      const local = ((next % N) + N) % N;
+      // ⚠ BYTES NOT RESIDENT YET → STOP, DON'T SKIP. Advancing fedAbs past a sample whose bytes we do not
+      // have would feed every later delta against a missing reference. Hold here (the buffer keeps the
+      // picture) and pick up from this exact sample when the GOP read lands — `starved` lets an awaiting
+      // caller (frameExact, thumbnail) wait for that instead of polling.
+      const data = st ? st.dataOf(local) : null;
+      if (!data) { this.starvedReads++; this.starved = st ? st.request(st.gopOf(local)) : null; break; }
+      this.starved = null;
+      this.fedAbs = next;
+      const s = this.samples[local];
+      const ts = this.tsOfAbs(next);
+      try { dec.decode(new EncodedVideoChunk({ type: s.key ? 'key' : 'delta', timestamp: ts, duration: s.dur, data })); }
       catch (e) {
         // RE-SEEK, DON'T SKIP. Skipping one chunk used to mean every frame after it decoded against a
         // missing reference until the next keyframe; and a throw here usually means the codec itself is
@@ -765,7 +972,7 @@ class FileDecoder {
     // pool), so the references go too — otherwise a decoder object still reachable somewhere would pin
     // the whole track after its store had been released.
     if (this.store) { releaseStore(this.store); this.store = null; }
-    this.samples = []; this.keyframes = []; this.sortedCts = null;
+    this.samples = []; this.keyframes = []; this.sortedCts = null; this.starved = null;
   }
 }
 
@@ -861,23 +1068,18 @@ const INDEX_FIRST_CHUNK = 256 * 1024;
 const INDEX_MAX_CHUNK = 8 * 1024 * 1024;
 const INDEX_MAX_FETCHES = 64; // a moov is found in 2–3 fetches; this only stops a malformed file looping
 
-async function probeIndex(path: string): Promise<IndexInfo | null> {
-  if (typeof VideoDecoder === 'undefined') return null;
-  const url = resolveMediaUrl(path);
-  if (!url) return null;
+// Parse a file's moov by byte range. 'missing' = refused/absent (a verdict); null = no moov found this way.
+// Shared by the probe (metadata only) and loadStore (the sample table) — one ranged reader, not two.
+type IndexRead = { file: MP4File; track: MP4VideoTrack; mp4: MP4Info };
+async function readIndex(url: string): Promise<IndexRead | 'missing' | null> {
   const file: MP4File = MP4Box.createFile();
-  let ready: { info: Info; fps: number; cfg: VideoDecoderConfig } | null = null;
+  let ready: IndexRead | null = null;
   let failed = false;
   file.onError = () => { failed = true; };
   file.onReady = (mp4: MP4Info) => {
     const track: MP4VideoTrack | undefined = mp4.videoTracks?.[0];
     if (!track) { failed = true; return; }
-    const durationSec = mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0;
-    // The SAME derivation as FileDecoder.fps() (sample count over duration). A fragmented file's moov
-    // carries no sample table, so its count is unknown here — reported as 0, which sourceInfo turns
-    // into "absent" rather than a plausible 30 (see the note there).
-    const fps = !mp4.isFragmented && track.nb_samples > 1 && durationSec > 0 ? track.nb_samples / durationSec : 0;
-    ready = { info: { width: track.video.width, height: track.video.height, durationSec }, fps, cfg: trackConfig(file, track) };
+    ready = { file, track, mp4 };
   };
   let pos = 0;
   let chunk = INDEX_FIRST_CHUNK;
@@ -887,12 +1089,12 @@ async function probeIndex(path: string): Promise<IndexInfo | null> {
     try {
       const end = Math.min(pos + chunk, size) - 1;
       const res = await fetch(url, { headers: { Range: `bytes=${pos}-${end}` } });
-      if (!res.ok) return null; // refused / missing: a verdict, not a hang (see FileDecoder.open)
+      if (!res.ok) return 'missing'; // refused / missing: a verdict, not a hang (see loadWholeStore)
       const total = /\/(\d+)$/.exec(res.headers.get('content-range') ?? '');
       if (total) size = Number(total[1]);
       buf = await res.arrayBuffer();
     } catch { return null; }
-    if (!buf.byteLength) return null;
+    if (!buf.byteLength) return 'missing';
     (buf as ArrayBuffer & { fileStart?: number }).fileStart = pos;
     const next = file.appendBuffer(buf as ArrayBuffer & { fileStart: number });
     if (ready || failed) break;
@@ -900,15 +1102,29 @@ async function probeIndex(path: string): Promise<IndexInfo | null> {
     if (next > after) { pos = next; chunk = INDEX_FIRST_CHUNK; } // skipped a box (an mdat before the moov)
     else { pos = after; chunk = Math.min(INDEX_MAX_CHUNK, chunk * 2); } // inside a box it needs whole: read on
   }
-  if (!ready) return null;
-  const r: { info: Info; fps: number; cfg: VideoDecoderConfig } = ready;
-  // Same question FileDecoder.open() asks before claiming a file, on the same config — a track that
-  // demuxes but cannot be configured must decline HERE, or the host drops its <video> fallback for it.
+  return ready;
+}
+
+async function probeIndex(path: string): Promise<IndexInfo | null> {
+  if (typeof VideoDecoder === 'undefined') return null;
+  const url = resolveMediaUrl(path);
+  if (!url) return null;
+  const ix = await readIndex(url);
+  if (!ix || ix === 'missing') return null;
+  const { file, track, mp4 } = ix;
+  const durationSec = mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0;
+  // The SAME derivation as FileDecoder.fps() (sample count over duration). A fragmented file's moov
+  // carries no sample table, so its count is unknown here — reported as 0, which sourceInfo turns
+  // into "absent" rather than a plausible 30 (see the note there).
+  const fps = !mp4.isFragmented && track.nb_samples > 1 && durationSec > 0 ? track.nb_samples / durationSec : 0;
+  const cfg = trackConfig(file, track);
+  // Same question loadStore asks before claiming a file, on the same config — a track that demuxes but
+  // cannot be configured must decline HERE, or the host drops its <video> fallback for it.
   try {
-    const s = await VideoDecoder.isConfigSupported(r.cfg);
-    if (!s.supported) { console.info('[mp4] declining', path, '— WebCodecs cannot configure', r.cfg.codec); return null; }
+    const s = await VideoDecoder.isConfigSupported(cfg);
+    if (!s.supported) { console.info('[mp4] declining', path, '— WebCodecs cannot configure', cfg.codec); return null; }
   } catch { return null; }
-  return { info: r.info, fps: r.fps };
+  return { info: { width: track.video.width, height: track.video.height, durationSec }, fps };
 }
 
 /**
@@ -1153,6 +1369,9 @@ export async function thumbnail(path: string, timeSec: number): Promise<VideoFra
     // being scrubbed right now is the last one trimThumbDecoders would evict.
     thumbDecoders.delete(path); thumbDecoders.set(path, d);
   }
+  // A filmstrip jumps to scattered times, so the GOP it needs is rarely resident: read it first, or the
+  // first frame() would always find nothing to feed.
+  await d.dataReadyAt(timeSec);
   return d.frame(timeSec, false);
 }
 
@@ -1178,12 +1397,15 @@ if (typeof window !== 'undefined') {
     pool, key: pool === 'layer' ? key : undefined, file: path.split(/[\\/]/).pop(), ...dec.stats(),
   }));
   // The shared parses: one per file however many decoders read it. `holders` = decoders + a pre-warm.
+  // `mb` is what the store holds NOW: the GOP cache for a ranged store, the whole track for a whole one.
   w['__artluxMp4Stores'] = () => [...stores.values()].map((s) => ({
-    file: s.path.split(/[\\/]/).pop(), mb: Math.round(s.bytes / 1048576), samples: s.samples.length,
+    file: s.path.split(/[\\/]/).pop(), mode: s.ranged ? 'ranged' : 'whole', mb: Math.round(s.bytes / 1048576),
+    samples: s.samples.length, gops: `${s.ranged ? s.residentGops : s.gopCount}/${s.gopCount}`,
+    reads: s.reads, avgReadMs: s.reads ? Math.round(s.readMs / s.reads) : 0,
     holders: s.holders, prewarmed: warmHolds.get(s.path) === s,
   }));
   w['__artluxMp4StatsReset'] = () => {
-    for (const { dec } of allDecoders()) { dec.errors = 0; dec.lastError = null; dec.recoveries = 0; dec.feedCapHits = 0; }
+    for (const { dec } of allDecoders()) { dec.errors = 0; dec.lastError = null; dec.recoveries = 0; dec.feedCapHits = 0; dec.starvedReads = 0; }
   };
   // `pathPart` narrows to decoders whose path contains it; `pool` to one pool. Omitted = every open
   // decoder. The pool filter is not a convenience: faulting two pools at once makes them interact (one

@@ -6210,21 +6210,39 @@ check(
       bad.push(C + ': probe opens a decoder again (' + probeLine[1].trim() + ') — nothing owns what it opens');
     const probeIndex = braceBody(dec, 'async function probeIndex(');
     const probeFn = braceBody(dec, 'export function probe(');
-    if (!probeIndex || !probeFn) bad.push(D + ': probeIndex()/probe() not found — this guard cannot see what it protects');
+    const readIndex = braceBody(dec, 'async function readIndex(');
+    if (!probeIndex || !probeFn || !readIndex) bad.push(D + ': probeIndex()/probe()/readIndex() not found — this guard cannot see what it protects');
     else {
-      if (/new FileDecoder\(|ensureOpen\(|\.open\(/.test(probeIndex + probeFn)) bad.push(D + ': the index probe constructs or opens a FileDecoder');
-      if (!/Range:/.test(probeIndex)) bad.push(D + ': the index probe no longer reads by byte range — it would read the whole file');
-      if (!/!res\.ok/.test(probeIndex)) bad.push(D + ': the index probe no longer fails on a refused/missing file');
+      if (/new FileDecoder\(|ensureOpen\(|\.open\(|acquireStore\(/.test(probeIndex + probeFn)) bad.push(D + ': the index probe constructs or opens a decoder/store');
+      if (!/readIndex\(/.test(probeIndex)) bad.push(D + ': the index probe no longer goes through the ranged readIndex()');
+      if (!/Range:/.test(readIndex)) bad.push(D + ': readIndex() no longer reads by byte range — it would read the whole file');
+      if (!/!res\.ok/.test(readIndex)) bad.push(D + ': readIndex() no longer fails on a refused/missing file');
     }
-    // The whole-file read lives in loadStore() since the shared SampleStore (plans/mp4-memory-residency.md
-    // step 2). FileDecoder.open() must go through acquireStore — a decoder that fetched for itself would
-    // bring back one private copy of the track per pool (measured: 3× the file).
+    // Since step 2 the read lives behind acquireStore; since step 3 a normal file is read by GOP and only
+    // a file the index cannot describe falls back to loadWholeStore(). FileDecoder.open() must go through
+    // acquireStore — a decoder that fetched for itself would bring back one private copy per pool (3×).
     const load = braceBody(dec, 'async function loadStore(');
+    const whole = braceBody(dec, 'async function loadWholeStore(');
     const open = braceBody(dec, 'async open(path: string)');
-    if (!load) bad.push(D + ': loadStore() not found — this guard cannot see what it protects');
+    if (!load || !whole) bad.push(D + ': loadStore()/loadWholeStore() not found — this guard cannot see what it protects');
     else {
-      if (!/!res\.ok/.test(load)) bad.push(D + ': loadStore() no longer checks res.ok — a 404 hangs every opener forever');
-      if (!/if \(!readied\) done\(null\)/.test(load)) bad.push(D + ': loadStore() no longer settles when the file has no moov');
+      if (!/readIndex\(/.test(load)) bad.push(D + ': loadStore() no longer tries the ranged index first — every open would read the whole file');
+      // The older "asks the decoder before claiming a file" check is satisfied by the whole-file path
+      // alone, so it cannot see the ranged path drop its gate — which is the path nearly every file takes.
+      if (!/isConfigSupported\([\s\S]*?if \(!\w+\.supported\)\s*\{[^}]*return null/.test(load)) bad.push(D + ': the ranged loadStore() path no longer declines a file WebCodecs cannot configure');
+      if (!/!res\.ok/.test(whole)) bad.push(D + ': loadWholeStore() no longer checks res.ok — a 404 hangs every opener forever');
+      if (!/if \(!readied\) done\(null\)/.test(whole)) bad.push(D + ': loadWholeStore() no longer settles when the file has no moov');
+    }
+    // Step 3: a sample whose GOP is not resident must STOP the feed, never be skipped — advancing past it
+    // would decode every later delta against a missing reference.
+    const pump = braceBody(dec, 'private pump(');
+    if (pump) {
+      // Not just "the check comes first": the block must STOP the feed. A version that only counted the
+      // miss and carried on passed an order-only test (mutation-tested 2026-10-23) and would have fed a
+      // chunk with no bytes.
+      const m = /if \(!data\)\s*\{[^}]*\bbreak;\s*\}/.exec(pump);
+      const adv = pump.indexOf('this.fedAbs = next');
+      if (!m || adv < 0 || m.index > adv) bad.push(D + ': pump() must stop the feed (if (!data) { … break; }) when a sample\'s bytes are not resident, BEFORE advancing fedAbs');
     }
     if (!open) bad.push(D + ': FileDecoder.open() not found');
     else if (!/acquireStore\(/.test(open) || /fetch\(|createFile\(/.test(open))

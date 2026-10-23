@@ -22,6 +22,15 @@ declare module 'mp4box' {
     timescale: number;
     data: Uint8Array;
   }
+  // One row of the moov's sample table (getTrackSamplesInfo) — where the sample IS, without its bytes.
+  export interface MP4SampleInfo {
+    offset: number;           // absolute byte position in the file
+    size: number;
+    cts: number;              // composition time (track timescale)
+    duration: number;
+    timescale: number;
+    is_sync: boolean;
+  }
   export interface MP4Track { id: number; }
   export interface MP4File {
     onReady?: (info: MP4Info) => void;
@@ -32,6 +41,7 @@ declare module 'mp4box' {
     stop(): void;
     flush(): void;
     getTrackById(id: number): unknown;
+    getTrackSamplesInfo(id: number): MP4SampleInfo[] | undefined;
     setExtractionOptions(id: number, user: unknown, opts: { nbSamples?: number }): void;
   }
   export function createFile(): MP4File;
