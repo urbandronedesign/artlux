@@ -1,5 +1,62 @@
 # Changelog
 
+## v0.33.6
+
+### A graphics-driver reset no longer closes the editor
+
+If the graphics driver reset, or the graphics side of the app crashed, while an **MP4 played on a
+surface**, the editor froze and then **closed itself within about five seconds**, taking every output
+with it. An MP4 clip on the timeline froze instead, until the next loop or scrub. The video now **holds
+its last frame and carries on** from the nearest keyframe — measured at well under a tenth of a second
+after a failure — and the show keeps running through a real graphics crash. A clip that keeps failing
+is retried every few seconds instead of hammering the graphics card, and the machine log says so.
+
+See [Video codecs](docs/CODECS.md).
+
+### MP4 clips open in a fraction of a second and use far less memory
+
+An MP4 used to be **loaded whole into memory, up to three times over** — a 1.36 GB clip on a surface and
+a timeline track held about 4 GB, and the show waited about 4 s before it could start. MP4 clips are now
+**read from disk as they play**: the show starts in **0.3 s** on that same clip, and each clip keeps at
+most a few hundred MB in memory however long it is.
+
+**What this asks of the machine:** the media must sit on a drive that keeps up with the clip's bitrate.
+Any SSD does, many times over; a slow network share or USB stick may not, and shows up as video that
+holds its frame. **Copy show media to a local SSD.**
+
+See [Video codecs](docs/CODECS.md).
+
+### Projector outputs survive the editor reloading
+
+After the editor reloaded — **View ▸ Reload**, **Ctrl+R**, or the reload the app does to recover from
+its own crash — **every projector output went to "Waiting for the main window…" and stayed there** until
+it was switched off and on again. In a broadcast show, recovering from a fault could leave a dark wall.
+Outputs now **reconnect by themselves**: the picture holds its last frame for a fraction of a second and
+carries on, with no caption.
+
+See [Unattended operation](docs/WATCHDOG.md).
+
+### Video surfaces keep playing after a bake
+
+After **baking** a surface, every **video surface** (MP4, HAP or other video) **stayed paused** — sitting on
+one frame while the timeline kept playing — until play/pause was pressed. Surfaces now carry on in the
+state they were in before the bake: playing if they were playing, paused if they were paused.
+
+See [Baking](docs/BAKE.md).
+
+### MP4 filmstrips show the right picture
+
+The pictures along an MP4 clip on the timeline could come from a **neighbouring moment** of the clip, or
+not appear at all. Each one is now **the exact frame at that point**. Making one uses the same video
+hardware the show plays from, so while the timeline plays they wait, and they **fill in a few seconds
+after you stop**. They are kept with the project, so the next time it opens they are already there.
+Pictures saved by older versions are made again once.
+
+A **missing or unreadable MP4** in the project no longer stops the filmstrips and library pictures of
+**every other MP4** for the rest of the session.
+
+See [Video codecs](docs/CODECS.md).
+
 ## v0.33.5
 
 ### The 3D view no longer goes black when the floor is reflective
