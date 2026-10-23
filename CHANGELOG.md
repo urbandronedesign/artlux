@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.33.8
+
+### MP4 video no longer flickers in a show that switches between states
+
+In a project with several **states**, an MP4 clip could flicker while a state played: every quarter of a
+second the picture dropped for a frame or two and the **previous state's last picture** flashed in its
+place. It happened when states share a track — a state captured from another one keeps its tracks —
+and each plays a different file on it, because getting the next states ready took over the decoder the
+playing state was reading. Preparing the next states now leaves a playing track alone.
+
+**A state change between such states can land a few frames late** (about 50–150 ms, longer for very
+large video): the outgoing picture is held while the new file starts. HAP video was never affected.
+
+See [Per-scene timelines](docs/SCENE-TIMELINES.md).
+
 ## v0.33.7
 
 ### A video or image added with right-click ▸ Add clip is now part of the project
