@@ -78,11 +78,143 @@ function trackConfig(file: MP4File, track: MP4VideoTrack): VideoDecoderConfig {
   };
 }
 
+// ── ONE COPY OF A FILE, HOWEVER MANY DECODERS READ IT ───────────────────────────────────────────────
+// A file's demuxed track — its config and every encoded sample — is immutable once parsed, and the
+// three pools (surface, layer, thumbnail) each kept their OWN copy of it: measured 2026-10-23, 4,062 MB
+// resident for a 1,355 MB clip on a surface and a timeline layer, exactly 3×. What genuinely differs
+// per decoder is the PLAYHEAD (the VideoDecoder, its buffer, segAbs/fedAbs), so that stays in
+// FileDecoder and the samples move here, refcounted: the store is parsed once, shared by every holder,
+// and dropped with the last one. A second open of a file already held is instant — no read, no demux.
+//
+// Holders are FileDecoders (one hold each, for their life) and the timeline's pre-warm (`prewarm()`,
+// one hold per path, released by close(path) when the residency owners let go).
+interface SampleStore {
+  readonly path: string;
+  readonly info: Info;
+  readonly cfg: VideoDecoderConfig;
+  readonly samples: readonly Enc[];  // ALL encoded samples in DECODE order
+  readonly keyframes: readonly number[];
+  readonly bytes: number;            // Σ sample bytes — counted ONCE in residentBytes, whoever holds it
+  holders: number;
+}
+const stores = new Map<string, SampleStore>();
+const storeLoading = new Map<string, Promise<SampleStore | null>>();
+
+async function acquireStore(path: string): Promise<SampleStore | null> {
+  let st = stores.get(path);
+  if (!st) {
+    let p = storeLoading.get(path);
+    if (!p) {
+      p = loadStore(path).finally(() => { storeLoading.delete(path); });
+      storeLoading.set(path, p);
+    }
+    const loaded = await p;
+    if (!loaded) return null;
+    // Between the load resolving and this continuation, an earlier holder may have taken it and let it
+    // go (holders → 0 → dropped from the map). It is still a valid parse; put it back rather than parse again.
+    st = stores.get(path) ?? loaded;
+    if (!stores.has(path)) stores.set(path, st);
+  }
+  st.holders++;
+  return st;
+}
+
+function releaseStore(st: SampleStore): void {
+  if (--st.holders > 0) return;
+  // Only drop the map entry if it is THIS store — a later acquire may already have re-inserted a
+  // successor for the same path (see acquireStore), and deleting that would orphan its holders' bytes.
+  if (stores.get(st.path) === st) stores.delete(st.path);
+}
+
+async function loadStore(path: string): Promise<SampleStore | null> {
+  if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
+  const url = resolveMediaUrl(path);
+  if (!url) return null;
+  // ONE copy of the file, not two. This used to fetch out of a Blob that main had already read
+  // whole over IPC — so opening a 300 MB clip cost 600 MB of renderer memory before a frame was
+  // decoded. Streaming the demux itself is step 3 of plans/mp4-memory-residency.md.
+  // ⚠ A REFUSED OR MISSING FILE MUST FAIL HERE, NOT HANG. This did not check `ok`: a 404/403 is a
+  // resolved fetch with an EMPTY body, and mp4box ignores an empty buffer without calling onReady or
+  // onError — so the promise below never settled. Measured 2026-10-23: one thumbnail request for a
+  // missing .mp4 held the thumbnail pump's `codecBusy` forever, and every later MP4 thumbnail in the
+  // session queued behind it (a valid clip whose decoder was already open waited > 60 s and never ran).
+  let buf: ArrayBuffer;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    buf = await res.arrayBuffer();
+  } catch { return null; }
+  if (!buf.byteLength) return null;
+
+  return await new Promise<SampleStore | null>((resolve) => {
+    const file: MP4File = MP4Box.createFile();
+    let settled = false;
+    let readied = false;
+    const done = (v: SampleStore | null) => { if (!settled) { settled = true; resolve(v); } };
+    file.onError = () => done(null);
+
+    file.onReady = (mp4: MP4Info) => {
+      readied = true;
+      const track: MP4VideoTrack | undefined = mp4.videoTracks?.[0];
+      if (!track) return done(null);
+      const info: Info = {
+        width: track.video.width, height: track.video.height,
+        durationSec: mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0,
+      };
+      const cfg = trackConfig(file, track);
+      const samples: Enc[] = [];
+      const keyframes: number[] = [];
+      let bytes = 0;
+      // Collect every encoded sample (compressed), then decode on demand.
+      file.onSamples = (_id: number, _u: unknown, got: MP4Sample[]) => {
+        for (const s of got) {
+          const idx = samples.length;
+          samples.push({ ts: (s.cts / s.timescale) * 1e6, dur: (s.duration / s.timescale) * 1e6, key: s.is_sync, data: s.data });
+          bytes += s.data?.byteLength ?? 0;
+          if (s.is_sync) keyframes.push(idx);
+        }
+      };
+      file.setExtractionOptions(track.id, null, { nbSamples: track.nb_samples });
+      file.start();
+      file.flush(); // drain remaining samples synchronously
+      if (!samples.length) return done(null);
+      const store: SampleStore = { path, info, cfg, samples, keyframes, bytes, holders: 0 };
+
+      // ASK THE DECODER BEFORE CLAIMING THE FILE.
+      //
+      // Everything above only proves mp4box can DEMUX the container. Whether WebCodecs can actually
+      // decode this track is a different question — an HEVC profile, a 10-bit pixel format or an
+      // exotic level can demux perfectly and then fail at configure(). That failure surfaces far away
+      // (seekSegment logs a warning and returns), by which point the host has already handed this
+      // file to the codec and torn down the <video> that would have played it: the surface just goes
+      // black, silently, and the app claims to be playing something it is not.
+      //
+      // Declining here instead makes the existing fallbacks do their job — a false probe sends
+      // surfaces back to a <video> element (contentSource), timeline layers to syncVideoLayer, and
+      // thumbnails to the video queue. This became load-bearing when WebCodecs stopped being opt-in.
+      void VideoDecoder.isConfigSupported(cfg)
+        .then((s) => {
+          if (!s.supported) console.info('[mp4] declining', path, '— WebCodecs cannot configure', cfg.codec);
+          done(s.supported ? store : null);
+        })
+        .catch(() => done(null)); // a malformed config throws rather than resolving unsupported
+    };
+
+    (buf as ArrayBuffer & { fileStart?: number }).fileStart = 0;
+    file.appendBuffer(buf as ArrayBuffer & { fileStart: number });
+    file.flush();
+    // The whole file has been parsed synchronously. No `moov` in it (a truncated download, a file that
+    // is not MP4 at all) means onReady never fires and onError need not either — the same hang as above.
+    if (!readied) done(null);
+  });
+}
+
 class FileDecoder {
   private decoder: VideoDecoder | null = null;
   private cfg: VideoDecoderConfig | null = null;
-  private samples: Enc[] = [];      // ALL encoded samples in DECODE order — cheap; decoded on demand
-  private keyframes: number[] = []; // decode-order indices in samples[] that are keyframes (ascending)
+  private store: SampleStore | null = null; // the shared parse this decoder holds (one hold, for its life)
+  private samples: readonly Enc[] = [];      // = store.samples — ALL encoded samples in DECODE order
+  private keyframes: readonly number[] = []; // = store.keyframes — decode-order keyframe indices (ascending)
   private buffer: VideoFrame[] = []; // decoded frames (GPU), sorted by ABSOLUTE presentation timestamp
   private info: Info | null = null;
   private durUs = 0;       // clip duration in µs (loop period)
@@ -105,85 +237,19 @@ class FileDecoder {
   private failStreak = 0;            // consecutive deaths without a frame out between them — sizes the backoff
   private retryAt = 0;               // performance.now() before which a dead decoder is NOT rebuilt
 
+  // Take a hold on the file's shared parse (see SampleStore). The first holder pays the read and demux;
+  // every later one — another pool, another layer on the same clip — attaches to it at once.
   async open(path: string): Promise<Info | null> {
-    if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
-    const url = resolveMediaUrl(path);
-    if (!url) return null;
-    // ONE copy of the file, not two. This used to fetch out of a Blob that main had already read
-    // whole over IPC — so opening a 300 MB clip cost 600 MB of renderer memory before a frame was
-    // decoded. Streaming the demux itself (progressive appendBuffer, with a tail Range fetch for a
-    // non-faststart `moov`) is the next step; this removes the duplication first because it is one
-    // line and cannot change behaviour.
-    // ⚠ A REFUSED OR MISSING FILE MUST FAIL HERE, NOT HANG. This did not check `ok`: a 404/403 is a
-    // resolved fetch with an EMPTY body, and mp4box ignores an empty buffer without calling onReady or
-    // onError — so the promise below never settled. Measured 2026-10-23: one thumbnail request for a
-    // missing .mp4 held the thumbnail pump's `codecBusy` forever, and every later MP4 thumbnail in the
-    // session queued behind it (a valid clip whose decoder was already open waited > 60 s and never ran).
-    let buf: ArrayBuffer;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      buf = await res.arrayBuffer();
-    } catch { return null; }
-    if (!buf.byteLength) return null;
-
-    return await new Promise<Info | null>((resolve) => {
-      const file: MP4File = MP4Box.createFile();
-      let settled = false;
-      let readied = false;
-      const done = (v: Info | null) => { if (!settled) { settled = true; resolve(v); } };
-      file.onError = () => done(null);
-
-      file.onReady = (mp4: MP4Info) => {
-        readied = true;
-        const track: MP4VideoTrack | undefined = mp4.videoTracks?.[0];
-        if (!track) return done(null);
-        this.info = {
-          width: track.video.width, height: track.video.height,
-          durationSec: mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0,
-        };
-        this.durUs = this.info.durationSec * 1e6;
-        this.cfg = trackConfig(file, track);
-        // Collect every encoded sample (compressed → small), then we decode on demand.
-        file.onSamples = (_id: number, _u: unknown, samples: MP4Sample[]) => {
-          for (const s of samples) {
-            const idx = this.samples.length;
-            this.samples.push({ ts: (s.cts / s.timescale) * 1e6, dur: (s.duration / s.timescale) * 1e6, key: s.is_sync, data: s.data });
-            if (s.is_sync) this.keyframes.push(idx);
-          }
-        };
-        file.setExtractionOptions(track.id, null, { nbSamples: track.nb_samples });
-        file.start();
-        file.flush(); // drain remaining samples synchronously
-        if (!this.samples.length) return done(null);
-
-        // ASK THE DECODER BEFORE CLAIMING THE FILE.
-        //
-        // Everything above only proves mp4box can DEMUX the container. Whether WebCodecs can actually
-        // decode this track is a different question — an HEVC profile, a 10-bit pixel format or an
-        // exotic level can demux perfectly and then fail at configure(). That failure surfaces far away
-        // (seekSegment logs a warning and returns), by which point the host has already handed this
-        // file to the codec and torn down the <video> that would have played it: the surface just goes
-        // black, silently, and the app claims to be playing something it is not.
-        //
-        // Declining here instead makes the existing fallbacks do their job — a false probe sends
-        // surfaces back to a <video> element (contentSource), timeline layers to syncVideoLayer, and
-        // thumbnails to the video queue. This became load-bearing when WebCodecs stopped being opt-in.
-        void VideoDecoder.isConfigSupported(this.cfg!)
-          .then((s) => {
-            if (!s.supported) console.info('[mp4] declining', path, '— WebCodecs cannot configure', this.cfg!.codec);
-            done(s.supported ? this.info : null);
-          })
-          .catch(() => done(null)); // a malformed config throws rather than resolving unsupported
-      };
-
-      (buf as ArrayBuffer & { fileStart?: number }).fileStart = 0;
-      file.appendBuffer(buf as ArrayBuffer & { fileStart: number });
-      file.flush();
-      // The whole file has been parsed synchronously. No `moov` in it (a truncated download, a file that
-      // is not MP4 at all) means onReady never fires and onError need not either — the same hang as above.
-      if (!readied) done(null);
-    });
+    const st = await acquireStore(path);
+    if (!st) return null;
+    if (this.store) releaseStore(this.store); // re-opened without a close: never leak the old hold
+    this.store = st;
+    this.samples = st.samples;
+    this.keyframes = st.keyframes;
+    this.info = st.info;
+    this.durUs = st.info.durationSec * 1e6;
+    this.cfg = st.cfg;
+    return st.info;
   }
 
   /**
@@ -251,13 +317,12 @@ class FileDecoder {
     return wantUs + aheadSec * 1e6 >= endUs && this.buffer.length > 0;
   }
 
-  // Resident bytes: the encoded samples this decoder is holding (the dominant, exactly-known term)
-  // plus a nominal 4:2:0 estimate for the decoded frames in flight. See the module-level residentBytes.
+  // Resident bytes THIS decoder adds: a nominal 4:2:0 estimate for its decoded frames in flight. The
+  // encoded samples are NOT counted here — they belong to the shared SampleStore and are counted once at
+  // module level (residentBytes), or N decoders on one file would report N copies that do not exist.
   residentBytes(): number {
-    let n = 0;
-    for (const s of this.samples) n += s.data?.byteLength ?? 0;
     const px = this.info ? this.info.width * this.info.height : 0;
-    return n + this.buffer.length * px * 1.5;
+    return this.buffer.length * px * 1.5;
   }
 
   getInfo(): Info | null { return this.info; }
@@ -696,6 +761,11 @@ class FileDecoder {
     try { if (this.decoder && this.decoder.state !== 'closed') this.decoder.close(); } catch { /* */ }
     this.decoder = null; this.segAbs = -1; this.fedAbs = -1; this.lastWantUs = -Infinity; this.lastFrameTs = null;
     this.awaitingRecovery = false; this.failStreak = 0; this.retryAt = 0; // a closed decoder is not "recovering"
+    // Let go of the shared parse. A closed FileDecoder is never reused (every caller drops it from its
+    // pool), so the references go too — otherwise a decoder object still reachable somewhere would pin
+    // the whole track after its store had been released.
+    if (this.store) { releaseStore(this.store); this.store = null; }
+    this.samples = []; this.keyframes = []; this.sortedCts = null;
   }
 }
 
@@ -849,8 +919,7 @@ async function probeIndex(path: string): Promise<IndexInfo | null> {
  * same `results` map, so either door leaves the host the same answer.
  */
 export function probe(path: string): Promise<boolean> {
-  const open = decoders.get(path) ?? thumbDecoders.get(path) ?? [...layerDecoders.values()].find((v) => v.path === path)?.dec;
-  if (open?.getInfo()) { results.set(path, true); return Promise.resolve(true); }
+  if (stores.has(path)) { results.set(path, true); return Promise.resolve(true); } // already parsed and judged
   if (indexCache.has(path)) return Promise.resolve(indexCache.get(path) !== null);
   let p = indexProbing.get(path);
   if (!p) {
@@ -872,7 +941,8 @@ export function probe(path: string): Promise<boolean> {
 // what a pool-counting budget could not see: one warm pool can be tens of megabytes or hundreds.
 // Decoded VideoFrames are counted at their nominal 4:2:0 size; the real GPU allocation is opaque.
 export function residentBytes(path: string): number {
-  let n = 0;
+  // The shared parse ONCE, plus each decoder's own decoded frames.
+  let n = stores.get(path)?.bytes ?? 0;
   const add = (d: FileDecoder | undefined) => { if (d) n += d.residentBytes(); };
   add(decoders.get(path));
   add(thumbDecoders.get(path));
@@ -883,7 +953,8 @@ export function frame(path: string, timeSec: number): VideoFrame | null { return
 export function aspect(path: string): number | null {
   const open = decoders.get(path)?.aspect();
   if (open) return open;
-  const ix = indexCache.get(path)?.info; // a probed file knows its shape without a decoder
+  // A parsed or probed file knows its shape without a decoder.
+  const ix = stores.get(path)?.info ?? indexCache.get(path)?.info;
   return ix && ix.width > 0 && ix.height > 0 ? ix.width / ix.height : null;
 }
 // "Has this surface got NEW pixels?" — the absolute timestamp of the frame the last frame() call
@@ -898,7 +969,41 @@ export function generation(path: string): number | undefined {
   const ts = decoders.get(path)?.lastFrameTs;
   return ts === null || ts === undefined ? undefined : ts;
 }
-export function close(path: string): void { decoders.get(path)?.close(); decoders.delete(path); results.delete(path); }
+// The host's closeSurface — reached when the LAST residency owner of `path` lets go (codecResidency.
+// release). That is also when a pre-warm hold must go: the pool that asked for it is the owner that just
+// left, so the hold is released here rather than tracked a second time.
+export function close(path: string): void {
+  decoders.get(path)?.close(); decoders.delete(path); results.delete(path);
+  const warm = warmHolds.get(path);
+  if (warm) { warmHolds.delete(path); releaseStore(warm); }
+  warmLoading.delete(path); // a pre-warm still loading must not keep its hold when it lands (see prewarm)
+}
+
+// ── PRE-WARM HOLDS THE PARSE, NOT A DECODER ─────────────────────────────────────────────────────
+// The timeline pre-warms the clips a pool is about to need (timeline.ts warmWindow / warmMedia / the
+// cold-start gate). For mp4 that used to be ensureOpen(): a SURFACE decoder — a full copy of the
+// track — which a timeline layer never reads (layers read layerDecoders). Its one real effect was
+// indirect: the file was read once, so the layer's own open later found it in the OS cache.
+//
+// Now the hold is on the shared SampleStore itself, which is strictly better than both: no copy nobody
+// reads, and when the layer opens at the cut it attaches to the parse already in memory — no read and
+// no demux at all. One hold per path, idempotent; released by close(path) above.
+const warmHolds = new Map<string, SampleStore>();
+const warmLoading = new Set<string>();
+export function prewarm(path: string): void {
+  if (warmHolds.has(path) || warmLoading.has(path)) return;
+  warmLoading.add(path);
+  void acquireStore(path).then((st) => {
+    // close(path) removes the path from warmLoading. If it is gone, close ran while this was loading
+    // (the pool was demoted before the parse landed): nobody owns the path any more, so a hold kept now
+    // would be one nobody ever releases.
+    const stillWanted = warmLoading.delete(path);
+    if (!st) { results.set(path, false); return; }
+    results.set(path, true);
+    if (!stillWanted || warmHolds.has(path)) { releaseStore(st); return; }
+    warmHolds.set(path, st);
+  });
+}
 
 // Timeline layer: a dedicated, non-looping (seekable) decoder per layerId. Lazily opened; returns null
 // until ready. `clipTimeSec` is clip-local (already includes in-point) — a scrub seeks frame-exactly.
@@ -1007,6 +1112,13 @@ export async function layerFrameExact(layerId: string, path: string, timeSec: nu
  * that as "ask again once it is open" rather than as "unknowable".
  */
 export function sourceInfo(path: string): { width: number; height: number; fps: number; durationSec: number } | null {
+  // The shared parse first — it exists whenever ANY decoder or a pre-warm holds the file, and it is the
+  // full sample table, so its fps is exact even for a fragmented file the index probe cannot count.
+  const st = stores.get(path);
+  if (st) {
+    const sFps = st.samples.length > 1 && st.info.durationSec > 0 ? st.samples.length / st.info.durationSec : 0;
+    return sFps > 0 ? { width: st.info.width, height: st.info.height, fps: sFps, durationSec: st.info.durationSec } : null;
+  }
   let d: FileDecoder | undefined = decoders.get(path) ?? thumbDecoders.get(path);
   if (!d) for (const v of layerDecoders.values()) if (v.path === path) { d = v.dec; break; }
   const info = d?.getInfo();
@@ -1064,6 +1176,11 @@ if (typeof window !== 'undefined') {
   const w = window as unknown as Record<string, unknown>;
   w['__artluxMp4Stats'] = () => allDecoders().map(({ pool, key, path, dec }) => ({
     pool, key: pool === 'layer' ? key : undefined, file: path.split(/[\\/]/).pop(), ...dec.stats(),
+  }));
+  // The shared parses: one per file however many decoders read it. `holders` = decoders + a pre-warm.
+  w['__artluxMp4Stores'] = () => [...stores.values()].map((s) => ({
+    file: s.path.split(/[\\/]/).pop(), mb: Math.round(s.bytes / 1048576), samples: s.samples.length,
+    holders: s.holders, prewarmed: warmHolds.get(s.path) === s,
   }));
   w['__artluxMp4StatsReset'] = () => {
     for (const { dec } of allDecoders()) { dec.errors = 0; dec.lastError = null; dec.recoveries = 0; dec.feedCapHits = 0; }

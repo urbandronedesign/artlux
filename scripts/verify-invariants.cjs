@@ -6216,12 +6216,19 @@ check(
       if (!/Range:/.test(probeIndex)) bad.push(D + ': the index probe no longer reads by byte range — it would read the whole file');
       if (!/!res\.ok/.test(probeIndex)) bad.push(D + ': the index probe no longer fails on a refused/missing file');
     }
+    // The whole-file read lives in loadStore() since the shared SampleStore (plans/mp4-memory-residency.md
+    // step 2). FileDecoder.open() must go through acquireStore — a decoder that fetched for itself would
+    // bring back one private copy of the track per pool (measured: 3× the file).
+    const load = braceBody(dec, 'async function loadStore(');
     const open = braceBody(dec, 'async open(path: string)');
-    if (!open) bad.push(D + ': FileDecoder.open() not found');
+    if (!load) bad.push(D + ': loadStore() not found — this guard cannot see what it protects');
     else {
-      if (!/!res\.ok/.test(open)) bad.push(D + ': FileDecoder.open() no longer checks res.ok — a 404 hangs it forever');
-      if (!/if \(!readied\) done\(null\)/.test(open)) bad.push(D + ': FileDecoder.open() no longer settles when the file has no moov');
+      if (!/!res\.ok/.test(load)) bad.push(D + ': loadStore() no longer checks res.ok — a 404 hangs every opener forever');
+      if (!/if \(!readied\) done\(null\)/.test(load)) bad.push(D + ': loadStore() no longer settles when the file has no moov');
     }
+    if (!open) bad.push(D + ': FileDecoder.open() not found');
+    else if (!/acquireStore\(/.test(open) || /fetch\(|createFile\(/.test(open))
+      bad.push(D + ': FileDecoder.open() reads/demuxes the file itself again instead of taking the shared store — one private copy per pool');
     return bad.length ? bad.join('; ') : null;
   },
 );
