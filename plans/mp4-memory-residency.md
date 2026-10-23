@@ -1,0 +1,140 @@
+# MP4 memory residency: hold a file once, then stop holding it at all
+
+> **Deliverable:** this document, saved as `plans/mp4-memory-residency.md` and indexed in `plans/README.md`.
+> **Status:** 🟡 **IN PROGRESS** — step 1 ✅ built 2026-10-23 (§11); steps 2–5 not started. Branch
+> `fix/mp4-memory-residency`, after the [decoder freeze fix](mp4-decoder-freeze.md) it carries first.
+> · **Lifts:** the open item in [preload-optimization.md](preload-optimization.md) §9 (*"mp4 still
+> buffers the whole file to demux"*), §0.4 of [offline-bake.md](offline-bake.md), and the last entry of
+> the [2026-10-22 session record](2026-10-22-session-record.md)'s list · **Placement:** **Plugin**
+> (`plugins/mp4`) + small core seams (`codecResidency`, `timelinePreloader`, `timeline` pre-warm) ·
+> **Risk:** 🟡 Medium overall — step 1 is low; step 3 rewrites how samples reach the decoder and carries
+> the risk (loop wrap, backward scrub, offline render).
+
+## 1. Context — what is held, and why
+
+Measured 2026-10-23 on the RTX box with a 1.36 GB, 142 s, **5760×2880 29.97 fps** H.264 clip (4,261
+frames, 143 keyframes), on a looping surface and a timeline layer.
+
+Every `FileDecoder.open()` (`plugins/mp4/src/mp4Decoder.ts`) fetches the **whole file** into one
+ArrayBuffer, demuxes it synchronously on the renderer main thread, and keeps **every encoded sample** in
+`samples[]` for the decoder's life. There are three pools, and each open is its own copy:
+
+| Pool | Opened by | Read by a timeline clip? |
+|---|---|---|
+| surface (`decoders`, per path) | timeline pre-warm (`timeline.ts` `warmWindow`/`warmMedia`/the cold-start gate), and — until step 1 — every `probe()` | **No.** A layer reads only `layerDecoders`. |
+| layer (`layerDecoders`, per layer) | the layer's playback and pre-warm | yes |
+| thumbnail (`thumbDecoders`, LRU 4) | the filmstrip | for thumbnails only |
+
+Measured: the codec reported **4,062 MB resident for the 1,355 MB file — 3.00×**. The JS heap itself
+was 30 MB; the bytes are ArrayBuffer backing store (`Runtime.getHeapUsage().backingStorageSize`), so
+the ceiling is RAM and the renderer's allocator, not the ~4 GB V8 heap limit. Opening took **7.1 s**
+before the show could arm (two full demuxes).
+
+## 2. Requirements
+
+- **R1** One file is held at most once, whatever pools use it.
+- **R2** Nothing that only wants a verdict or metadata (probe, aspect, sourceInfo) holds samples.
+- **R3** Steady-state memory does not grow with file length (step 3).
+- **R4** Open does not block the renderer main thread in proportion to file size (steps 3–4).
+- **R5** Playback is unchanged: seamless surface loop, frame-exact timeline scrub, exact offline render.
+- **R6** Every defect fixed becomes a `verify:invariants` check.
+
+## 3. Architecture at a glance
+
+```
+today      surface ─ samples(1×)   layer ─ samples(1×)   thumb ─ samples(1×)        = 3× the file
+step 1     probe/aspect/sourceInfo answered from the INDEX (no decoder, no samples)
+step 2     surface ─┐
+           layer   ─┼─► SampleStore(path)  refcounted, freed with its last holder    = 1× the file
+           thumb   ─┘   pre-warm holds the STORE, not a decoder
+step 3     SampleStore = index (≈10 MB/h) + byte-range GOP cache (fixed budget)     = O(budget)
+step 4     index parse in a Worker
+```
+
+## 4. Design — the steps
+
+1. **Index-only probe.** `probe()` reads the `moov` by byte range (mp4box skips an `mdat` before the
+   `moov` and returns the offset it wants next), asks `isConfigSupported()` on the same config the
+   decoder will use, and caches the verdict and the metadata. `aspect()`/`sourceInfo()` answer from that
+   cache when no decoder is open. Also: `open()` must fail, not hang, on a refused/missing file.
+2. **Shared sample store.** One refcounted store per path; every `FileDecoder` reads from it and keeps
+   its own playhead. The timeline pre-warm retains the store instead of opening a surface decoder, so a
+   layer opening at a clip switch attaches to already-parsed samples instead of reading the file again.
+   *(Moved here from step 1: dropping the pre-warm before this exists would make a clip switch read the
+   file from cold disk.)*
+3. **Range-read GOPs.** Keep only the index; read the GOP covering the playhead plus a lead by byte range
+   into a fixed-budget cache; pre-read the loop's first GOP ahead of the wrap so the seamless loop
+   (`mp4Decoder.ts` absolute-index design) still lands on samples in memory. Fragmented MP4 stays on the
+   whole-file path until its moofs are indexed.
+4. **Parse in a Worker.**
+5. **Honest accounting.** Count a shared store once; warn when `MAX_RESIDENT_BYTES` is breached with
+   nothing evictable (today it is silently exceeded: 4 GB against a 1.5 GB budget, because the bytes are
+   in the protected global pool).
+
+## 5. ⚠️ Breaking changes
+
+None planned. No persisted data, no SDK change.
+
+## 6. Risk evaluation
+
+Step 1 🟢 (additive; the probe is a new path, the full open is unchanged). Step 2 🟡 (ownership/refcount
+across three pools and the warm-pool budget). Step 3 🟠 (the feed path — loop wrap, backward scrub,
+`frameExact`; regression-test with `__artluxLayerGaps` at every wrap and a bake).
+
+## 7. Migration & back-compat
+
+None.
+
+## 8. Verification
+
+The CDP probes used throughout: `__artluxMp4Stats` (per-pool decoders), `__artluxCodecResidency`
+(owners + bytes), `Runtime.getHeapUsage` after `HeapProfiler.collectGarbage` (real backing store),
+`__artluxLayerGaps` (gaps at open/switch/wrap), `__artluxThumbs` (drive a thumbnail with no filmstrip),
+the render metrics. Measure on the RTX box, with a clip that is in the project folder but on no surface
+or timeline for the probe cases. ⚠ Do not `import()` `mp4Decoder.ts` from the console to call it
+directly: Vite serves a **second module instance**, which also re-registers the `window.__artluxMp4*`
+hooks onto its own empty maps — reload the page afterwards.
+
+## 9. Effort & phasing
+
+Step 1 ~½ d (done) · step 2 ~1 d · step 3 ~2–3 d · step 4 ~1 d · step 5 ~½ d. One commit (or a short
+series) per step, each measured before the next.
+
+## 10. Open questions
+
+1. Cache budget per file for step 3 (proposed 256 MB) — tune on the RTX box with 4K/5.7K material.
+2. Do thumbnails need their own store reference at all after step 3, or one keyframe GOP per request?
+
+## 11. What shipped
+
+### Step 1 — 2026-10-23
+
+**Reproduced first.** A thumbnail request for a clip that sat in the library and nowhere else
+(`__artluxThumbs([path])`) left **two** decoders for it: the expected thumbnail decoder, and a surface
+decoder that **no residency owner held** — `probe()` was `ensureOpen()`, and only an owner's release ever
+closes a surface decoder. **+2.3 GB** of backing store from one thumbnail, half of it permanent.
+
+**Found on the way — the thumbnail wedge.** `FileDecoder.open()` never checked `res.ok`. A 404/403 is a
+resolved fetch with an empty body; mp4box ignores an empty buffer without calling `onReady` or `onError`
+(`checkBuffer`: *"Ignoring empty buffer"*), so the promise never settled. One request for a missing
+`.mp4` held the thumbnail pump's `codecBusy` for the rest of the session: a valid clip whose decoder was
+already open waited > 60 s behind it and never ran.
+
+**After:**
+
+| | Before | After |
+|---|---|---|
+| Probe of the 1.36 GB clip | full open, **3,954 ms**, samples resident with no owner | index only, **7 ms**, nothing retained |
+| Probe of a missing file | never settles; wedges the thumbnail queue | `false` in **1 ms** |
+| Library-clip thumbnail | thumb decoder + unowned surface decoder | thumb decoder only |
+| Missing file, then a valid thumbnail | the valid one never runs | both done in **1 s** |
+| `sourceInfo()` from the index vs a full parse | — | **identical** (5760×2880, 29.970 fps, 142.175 s) |
+| 60 s healthy play | — | 1,800 frames per decoder (30.0 fps), 0 errors/recoveries/gaps/long tasks |
+
+Guarded by `verify:invariants` *"an mp4 probe opens no decoder, and a refused file fails instead of
+hanging"*, mutation-tested four ways (probe back to `ensureOpen`, `res.ok` dropped, ranges dropped, the
+no-`moov` settle dropped) — red on each.
+
+**Seen, not investigated:** right after a page reload the first codec thumbnail can take ~60 s to start
+(twice observed; ~1 s otherwise). Pre-existing — the probe was not on that path (the decoder was already
+open). Worth a look in the thumbnail pump's post-boot pacing.

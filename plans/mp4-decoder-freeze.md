@@ -260,7 +260,7 @@ reproducing this deliberately hangs the renderer.
 ## 11. What actually shipped (2026-10-23)
 
 Measured on the RTX box (RTX 5090, 125 GB RAM, Electron 42.4.1, `npm run dev`), with a 1.36 GB / 142 s
-1080p30 H.264 clip — 4,261 frames, 143 keyframes (one per 30 frames) — on a looping MP4 surface and on a
+H.264 clip at 5760×2880, 29.97 fps (first written here as 1080p30, which was wrong) — 4,261 frames, 143 keyframes (one per 30 frames) — on a looping MP4 surface and on a
 timeline layer at once.
 
 **Phase 0 — reproduced on the unfixed code** (`355d1ef`, W1 only):
