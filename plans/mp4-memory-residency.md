@@ -1,7 +1,7 @@
 # MP4 memory residency: hold a file once, then stop holding it at all
 
 > **Deliverable:** this document, saved as `plans/mp4-memory-residency.md` and indexed in `plans/README.md`.
-> **Status:** 🟡 **IN PROGRESS** — step 1 ✅ built 2026-10-23 (§11); steps 2–5 not started. Branch
+> **Status:** 🟡 **IN PROGRESS** — steps 1–2 ✅ built 2026-10-23 (§11); steps 3–5 not started. Branch
 > `fix/mp4-memory-residency`, after the [decoder freeze fix](mp4-decoder-freeze.md) it carries first.
 > · **Lifts:** the open item in [preload-optimization.md](preload-optimization.md) §9 (*"mp4 still
 > buffers the whole file to demux"*), §0.4 of [offline-bake.md](offline-bake.md), and the last entry of
@@ -138,3 +138,37 @@ no-`moov` settle dropped) — red on each.
 **Seen, not investigated:** right after a page reload the first codec thumbnail can take ~60 s to start
 (twice observed; ~1 s otherwise). Pre-existing — the probe was not on that path (the decoder was already
 open). Worth a look in the thumbnail pump's post-boot pacing.
+
+### Step 2 — 2026-10-23
+
+**Built.** `SampleStore`: one refcounted parse per path (config + every encoded sample), loaded once by
+`loadStore()` — the old `FileDecoder.open()` body, moved — and shared by every holder.
+`FileDecoder.open()` is now `acquireStore()`; `close()` releases. The timeline pre-warm (`preWarm` →
+`prewarm()`) holds the **store**, not a surface decoder, released by `close(path)` when the last
+residency owner lets go. `residentBytes()` counts a store once plus each decoder's decoded frames.
+`sourceInfo()` / `aspect()` / `probe()` answer from a loaded store first. New diagnostic:
+`window.__artluxMp4Stores()` (file, MB, samples, holders, prewarmed).
+
+| Same project, same clip (surface + timeline layer) | Before | After |
+|---|---|---|
+| Copies of the track | 3 (surface, layer, unused surface pre-warm) | **1** — 1,291 MB of samples, 3 holders |
+| ArrayBuffer storage after a forced GC | ~3.9 GB | **1,321 MB** |
+| Codec-reported residency | 4,062 MB | **1,694 MB** (1,291 + decoded 5.7K frames in flight) |
+| A second opener of a held file | a full read + demux (~4 s) | **0 ms** (attach) |
+| Show armed after a reload | 4.6–5.1 s (7.1 s first cold open) | **4.4 s** |
+
+**Open time barely moved, and that is expected:** one full read + demux of 1.36 GB is ~4.2 s by itself
+(measured: the first parse of a store). Step 2 removes the *second* parse; only step 3 removes the
+first.
+
+**Refcount verified in isolation** (pre-warm → surface → layer → thumb → release each): holders
+1 → 2 → 3 → 4 → 3 → 1, `close(path)` releasing the surface and the pre-warm together; a pre-warm
+cancelled by `close(path)` while still loading leaves no store behind once its parse lands.
+
+**Regression:** 60 s of play (1,800 frames per decoder, 0 errors/gaps/long tasks), decoder recovery over
+the shared samples in 47 ms, thumbnails unchanged. **Loop wrap:** 150 s across both loop points — the
+surface fed frames 5,310 → 9,810 through its seamless wrap at 8,522, the timeline layer ran to the end
+of the clip and back round to 1,373 — 0 gaps, 0 errors, 0 long tasks, 0 long frames, p99 17.9 ms.
+
+**Guard:** the step-1 check now also fails if `FileDecoder.open()` fetches or demuxes for itself instead
+of taking the shared store.
