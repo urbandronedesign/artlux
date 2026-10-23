@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.33.7
+
+### A video or image added with right-click ▸ Add clip is now part of the project
+
+**Right-clicking an empty part of a track ▸ Add clip ▸ Video / Image** and choosing a file only *linked*
+to that file where it lay: it never appeared in the **Media** library, the project depended on its
+original folder (say, the Desktop), and a show folder copied to another machine arrived with that clip
+missing. It also landed as a 5-second clip named "Video" whatever its real length. It now does exactly
+what **dragging the file onto the track** does: the file is copied into the project, appears in the
+Media library, and the clip is named after it and placed at its real length. Choosing a file that is
+already in the project adds the clip without copying it again.
+
+**A clip added that way on an earlier version is still only linked.** Add the file to the track again
+(drop it, or choose it from Add clip), then delete the old clip, to bring it into the project.
+
+See [The timeline](docs/TIMELINE.md).
+
 ## v0.33.6
 
 ### A graphics-driver reset no longer closes the editor
