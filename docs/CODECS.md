@@ -168,6 +168,11 @@ default `<video>` element.
   any SSD does many times over; a slow network share or USB stick may not, and shows up as video that
   holds its frame. Copy show media to a local SSD. (A *fragmented* MP4 — common from screen recorders —
   is still read whole when it opens.)
+- **An MP4 clip's filmstrip fills in when you stop the transport.** Each picture on a clip in the
+  timeline is now the exact frame at that point of the clip. Making one takes the same video hardware
+  the show is playing from, so while the timeline plays they wait, and they appear a few seconds after
+  you stop. Once made, they are kept with the project, so the next time it opens they are already
+  there. (On v0.33.5 and earlier a picture could come from a neighbouring moment of the clip.)
 - **Renderer-only** (no native addon) and a **single module identity** so its decoder/clock singletons
   aren't duplicated.
 

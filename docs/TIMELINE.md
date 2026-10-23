@@ -236,6 +236,15 @@ what it should do; the hold covers a decoder opening mid-cut and nothing else.
      `ensureBlobUrl` a clip's own source to draw its soundtrack — for a 1 GB HAP `.mov` that meant a 2.3 s
      whole-file read, main's RSS from 125 MB to 3.7 GB, and its event loop stalled 1.7 s. A video's sound
      belongs to the audio plugin's conform (main-side demux → cached WAV), not to a waveform.
+  4. **A codec can opt out of playing time altogether** (`VideoCodecContribution.thumbnailWhilePlaying:
+     false`). mp4 does: since 2026-10-23 its thumbnail awaits the EXACT frame (`frameExact`), which
+     decodes up to a GOP on the same GPU video decoder the show plays from — measured with two 5.7K
+     streams playing, ten thumbnails cost ~9 extra dropped frames with an idle main thread (~2 stopped).
+     Its jobs are HELD in the queue, not dropped, so the strip fills the moment the transport stops.
+  5. **Saving a thumbnail to disk waits for the transport to stop, too.** The sidecar encode
+     (`convertToBlob`, a 160×90 WebP) profiled as the single largest main-thread item during playback —
+     ~43 ms each, mostly a readback waiting on a busy GPU. Encodes queue while the show runs and drain
+     when it stops.
   **And the show's own warming follows the same logic** (`warmMedia`, services/timeline.ts). Preparing a
   timeline used to read **every clip in it** — whole files, over IPC, at project open, on every GO and
   once per look-ahead state. A 40-clip scene meant 40 whole-file reads for material that might play
