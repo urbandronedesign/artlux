@@ -19,6 +19,9 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > visual pass, what each failure looks like on a wall, and the one-command backout.
 > [2026-10-22-session-record.md](2026-10-22-session-record.md) — v0.33.4 / v0.33.5, the Spout leak, the
 > playback assessment checked against the records (what not to redo), and four open bugs.
+> [2026-10-23-session-record.md](2026-10-23-session-record.md) — v0.33.6 / v0.33.7: the MP4 decoder
+> freeze and memory residency, exact thumbnails, outputs surviving an editor reload, the picker import,
+> CI retention; what was retracted; and how to test on the RTX box without the session's traps.
 
 ### How these were produced (and how much to trust them)
 
