@@ -74,6 +74,9 @@ export const mp4Codec: VideoCodecContribution = {
   // Thumbnails use a DEDICATED decoder (dec.thumbnail) so a filmstrip scrub never reseeks the playing
   // surface's decoder out from under it — that contention was the old cause of stutter.
   thumbnail: (path, timeSec) => dec.thumbnail(path, timeSec),
+  // An exact thumbnail decodes up to a GOP on the same GPU video decoder the show is playing from — so
+  // it waits for the transport to stop (see VideoCodecContribution.thumbnailWhilePlaying).
+  thumbnailWhilePlaying: false,
 
   // ── NON-REALTIME: the exact frame, or nothing ──────────────────────────────────────────────────
   // Everything else here may hand back a neighbour rather than stall a show; this one waits. See

@@ -144,7 +144,7 @@ function pumpVideo(): void {
     lastJob = performance.now();
     videoBusy++;
     getLoader(job.path).grab(job.qt)
-      .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); void persist(job.path, job.qt, bmp); } })
+      .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); persist(job.path, job.qt, bmp); } })
       .catch(() => {})
       .finally(() => { videoBusy--; inFlight.delete(job.key); pumpVideo(); });
   }
@@ -171,17 +171,66 @@ const nextJobDelay = (): number =>
 // WHERE the codec pump is, for __artluxThumbs. The pump is serial, so one job stuck at one await holds
 // every MP4/HAP thumbnail behind it — and before this the diagnostic could only say "1 in flight".
 let codecStage: { file: string; qt: number; stage: 'probe' | 'thumbnail' | 'bitmap'; since: number } | null = null;
+// The last few jobs' per-stage times (ms), so "what does a thumbnail COST" has an answer.
+const jobTimes: { file: string; qt: number; probe: number; thumbnail: number; bitmap: number }[] = [];
+let curTimes: { file: string; qt: number; probe: number; thumbnail: number; bitmap: number } | null = null;
 const stage = (job: { path: string; qt: number }, s: 'probe' | 'thumbnail' | 'bitmap'): void => {
-  codecStage = { file: job.path.split(/[\\/]/).pop() ?? job.path, qt: job.qt, stage: s, since: performance.now() };
+  const now = performance.now();
+  if (codecStage && curTimes) curTimes[codecStage.stage] = Math.round(now - codecStage.since);
+  if (s === 'probe') curTimes = { file: job.path.split(/[\\/]/).pop() ?? job.path, qt: job.qt, probe: 0, thumbnail: 0, bitmap: 0 };
+  codecStage = { file: job.path.split(/[\\/]/).pop() ?? job.path, qt: job.qt, stage: s, since: now };
 };
+const endStage = (): void => {
+  if (codecStage && curTimes) {
+    curTimes[codecStage.stage] = Math.round(performance.now() - codecStage.since);
+    jobTimes.push(curTimes);
+    if (jobTimes.length > 20) jobTimes.shift();
+  }
+  curTimes = null;
+};
+
+// ⚠ SCALE ON THE GPU, THEN COPY — NOT THE OTHER WAY ROUND. A codec hands back a FULL-resolution frame
+// (a 5.7K VideoFrame is 16.6 Mpx of YUV). createImageBitmap(frame, { resizeWidth }) converts the whole
+// frame before it shrinks it, on the renderer main thread: measured 33–138 ms per thumbnail on the RTX
+// box, i.e. a dropped frame of the live show for every filmstrip slot. Drawing it into a 160×90 canvas
+// lets the GPU do the scale, and only the tiny result is copied out. The old call is the fallback for a
+// source drawImage refuses.
+let scaleCtx: CanvasRenderingContext2D | null = null;
+async function toThumbBitmap(src: CanvasImageSource): Promise<ImageBitmap> {
+  try {
+    if (!scaleCtx) {
+      const c = document.createElement('canvas');
+      c.width = THUMB_W; c.height = THUMB_H;
+      scaleCtx = c.getContext('2d');
+    }
+    if (scaleCtx) {
+      scaleCtx.drawImage(src, 0, 0, THUMB_W, THUMB_H);
+      return await createImageBitmap(scaleCtx.canvas);
+    }
+  } catch { /* fall through */ }
+  return createImageBitmap(src as ImageBitmapSource, { resizeWidth: THUMB_W, resizeHeight: THUMB_H, resizeQuality: 'low' });
+}
+
+// A codec that declares `thumbnailWhilePlaying: false` (mp4: its exact thumbnail decodes up to a GOP on
+// the GPU video decoder the show is playing from) is HELD while the transport runs. Held, not dropped:
+// the job stays queued, so the strip fills the moment the transport stops, with no re-ask. Other codecs'
+// jobs are not blocked behind a held one. One timer re-checks, however many jobs are waiting.
+let holdTimer = 0;
+const heldWhilePlaying = (job: { path: string }): boolean =>
+  videoCodecRegistry.forPath(job.path)?.thumbnailWhilePlaying === false;
 
 async function pumpCodec(): Promise<void> {
   if (codecBusy || !codecQueue.length) return;
+  const at = engine.isPlaying() ? codecQueue.findIndex((j) => !heldWhilePlaying(j)) : 0;
+  if (at < 0) {
+    if (!holdTimer) holdTimer = window.setTimeout(() => { holdTimer = 0; void pumpCodec(); }, PLAYING_GAP_MS);
+    return;
+  }
   const wait = nextJobDelay();
   if (wait > 0) { setTimeout(() => { void pumpCodec(); }, wait); return; }
   lastJob = performance.now();
   codecBusy = true;
-  const job = codecQueue.shift()!;
+  const job = codecQueue.splice(at, 1)[0];
   try {
     const codec = videoCodecRegistry.forPath(job.path);
     stage(job, 'probe');
@@ -192,13 +241,14 @@ async function pumpCodec(): Promise<void> {
       const canvas = await codec.thumbnail(job.path, job.qt);
       if (canvas) {
         stage(job, 'bitmap');
-        const bmp = await createImageBitmap(canvas, { resizeWidth: THUMB_W, resizeHeight: THUMB_H, resizeQuality: 'low' });
+        const bmp = await toThumbBitmap(canvas);
         store(job.key, { bmp, path: job.path, qt: job.qt });
-        void persist(job.path, job.qt, bmp);
+        persist(job.path, job.qt, bmp);
         emit(job.path);
       }
     }
   } catch { /* ignore */ } finally {
+    endStage();
     codecStage = null;
     inFlight.delete(job.key);
     codecBusy = false;
@@ -227,9 +277,31 @@ const encodeThumb = async (bmp: ImageBitmap): Promise<Uint8Array | null> => {
 
 // Store a freshly decoded thumbnail beside the project. Fire-and-forget and best-effort: a failure
 // costs a re-decode next session, never correctness, so nothing here is awaited or reported.
-async function persist(path: string, qt: number, bmp: ImageBitmap): Promise<void> {
-  const bytes = await encodeThumb(bmp);
-  if (bytes) window.artlux?.thumbPut?.(path, qt, bytes);
+//
+// ⚠ NOT WHILE THE SHOW RUNS. The encode looks free (a 160×90 WebP) and is not: profiled on the RTX box
+// during playback, `convertToBlob` was the single largest item on the renderer main thread — ~43 ms per
+// thumbnail, most of it the readback waiting for a GPU that is busy decoding the show — i.e. a dropped
+// frame of the live output per filmstrip slot. It went unnoticed while MP4 thumbnails were rarely
+// stored; making them exact (2026-10-23) made every slot pay it. So, like the pump above, persistence
+// yields to playback: the encodes queue while the transport runs and drain when it stops. A show that
+// runs until the app quits loses only those few, which the next session decodes again.
+const persistQueue: { path: string; qt: number; bmp: ImageBitmap }[] = [];
+let persistTimer = 0;
+const PERSIST_POLL_MS = 1000;
+function persist(path: string, qt: number, bmp: ImageBitmap): void {
+  persistQueue.push({ path, qt, bmp });
+  if (persistQueue.length > MAX) persistQueue.shift(); // never more pending than the cache can hold
+  if (!persistTimer) persistTimer = window.setTimeout(flushPersist, PERSIST_POLL_MS);
+}
+async function flushPersist(): Promise<void> {
+  persistTimer = 0;
+  while (persistQueue.length && !engine.isPlaying()) {
+    const j = persistQueue.shift()!;
+    // The LRU may have closed this bitmap since — drawImage then throws and encodeThumb returns null.
+    const bytes = await encodeThumb(j.bmp);
+    if (bytes) window.artlux?.thumbPut?.(j.path, j.qt, bytes);
+  }
+  if (persistQueue.length && !persistTimer) persistTimer = window.setTimeout(flushPersist, PERSIST_POLL_MS);
 }
 
 // Sidecar hit → decode the stored bytes instead of the source. Returns false when there is nothing
@@ -292,7 +364,7 @@ if (typeof window !== 'undefined') {
       cached: cache.size, inFlight: inFlight.size, deferred: deferred.size, loaders: loaders.size,
       sidecarPending, codecQueue: codecQueue.length, codecBusy, videoQueue: videoQueue.length, videoBusy,
       codecStage: codecStage ? { ...codecStage, forMs: Math.round(performance.now() - codecStage.since) } : null,
-      playing: engine.isPlaying(), nextJobInMs: Math.round(nextJobDelay()),
+      playing: engine.isPlaying(), nextJobInMs: Math.round(nextJobDelay()), jobTimes: jobTimes.slice(), persistPending: persistQueue.length, heldWhilePlaying: engine.isPlaying() ? codecQueue.filter(heldWhilePlaying).length : 0,
     };
   };
 }

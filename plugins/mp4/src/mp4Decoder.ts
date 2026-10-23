@@ -497,15 +497,6 @@ class FileDecoder {
     return wantUs + aheadSec * 1e6 >= endUs && this.buffer.length > 0;
   }
 
-  /** Make the GOP covering clip-local `timeSec` resident (a ranged store); resolves at once if it is. */
-  async dataReadyAt(timeSec: number): Promise<void> {
-    const st = this.store;
-    if (!st || !this.samples.length) return;
-    const localUs = this.durUs > 0 ? Math.min(Math.max(0, timeSec * 1e6), this.durUs) : Math.max(0, timeSec * 1e6);
-    const p = st.request(st.gopOf(this.localKeyframeForTime(localUs)));
-    if (p) await p;
-  }
-
   // Resident bytes THIS decoder adds: a nominal 4:2:0 estimate for its decoded frames in flight. The
   // encoded samples are NOT counted here — they belong to the shared SampleStore and are counted once at
   // module level (residentBytes), or N decoders on one file would report N copies that do not exist.
@@ -763,7 +754,7 @@ class FileDecoder {
   // back (and how long it takes to decode forward again) is set by the file's GOP length, not by us.
   stats(): {
     state: string; samples: number; keyframes: number; segAbs: number; fedAbs: number; buffered: number; queue: number;
-    errors: number; lastError: string | null; recovering: boolean; recoveries: number; failStreak: number; retryInMs: number; feedCapHits: number; starvedReads: number;
+    errors: number; lastError: string | null; recovering: boolean; recoveries: number; failStreak: number; retryInMs: number; feedCapHits: number; starvedReads: number; lastFrameMs: number | null;
   } {
     return {
       state: this.decoder?.state ?? 'none', samples: this.samples.length, keyframes: this.keyframes.length,
@@ -773,6 +764,7 @@ class FileDecoder {
       recovering: this.awaitingRecovery, recoveries: this.recoveries, failStreak: this.failStreak,
       retryInMs: this.awaitingRecovery ? Math.max(0, Math.round(this.retryAt - performance.now())) : 0,
       feedCapHits: this.feedCapHits, starvedReads: this.starvedReads,
+      lastFrameMs: this.lastFrameTs === null ? null : Math.round(this.lastFrameTs / 1000), // the picture last handed out
     };
   }
 
@@ -1369,10 +1361,21 @@ export async function thumbnail(path: string, timeSec: number): Promise<VideoFra
     // being scrubbed right now is the last one trimThumbDecoders would evict.
     thumbDecoders.delete(path); thumbDecoders.set(path, d);
   }
-  // A filmstrip jumps to scattered times, so the GOP it needs is rarely resident: read it first, or the
-  // first frame() would always find nothing to feed.
-  await d.dataReadyAt(timeSec);
-  return d.frame(timeSec, false);
+  // ⚠ THE EXACT FRAME, AWAITED — not frame(). frame() never blocks: on a GOP it has only just fed, it
+  // returns null, or the nearest frame it still holds from an EARLIER request. For playback that is the
+  // right trade; for a thumbnail it is not, because the caller stores whatever it gets — and stores it
+  // on disk beside the project, keyed only by file and time, for good. Measured 2026-10-23: a thumbnail
+  // job that ended in 190 ms with nothing stored, so the filmstrip slot kept showing its neighbour.
+  // frameExact() drives this decoder's own pump until the frame at `timeSec` is out (it waits for the
+  // GOP read, too). This decoder is the thumbnail pool's own, and the pump calling it is serial, so
+  // nothing else moves its playhead or evicts it while this waits.
+  //
+  // Clamped to the last frame: frameExact refuses a time at or past the end ("exact or nothing"), and
+  // the last filmstrip slot routinely lands there after time quantization.
+  const info = d.getInfo();
+  const fps = d.fps() || 30;
+  const last = info && info.durationSec > 0 ? Math.max(0, info.durationSec - 1 / fps) : timeSec;
+  return d.frameExact(Math.max(0, Math.min(timeSec, last)));
 }
 
 // ── MEASUREMENT + FAULT INJECTION (plans/mp4-decoder-freeze.md) ──────────────────────────────────

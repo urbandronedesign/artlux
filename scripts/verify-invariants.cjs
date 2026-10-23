@@ -6187,6 +6187,38 @@ check(
   },
 );
 
+// ── Thumbnails: exact, and never at the show's expense ──────────────────────────────────────────
+check(
+  'an mp4 thumbnail is the exact frame, and neither it nor its save runs while the show plays',
+  "mp4's thumbnail() returned the non-blocking frame(): on a GOP it had only just fed, that is null or " +
+  'a frame from an EARLIER request — and the thumbnail cache stores what it gets, on disk beside the ' +
+  'project, for good. Measured 2026-10-23: a job that ended in 190 ms with nothing stored. Making it exact ' +
+  'made every slot pay two costs during playback, both profiled on the RTX box: the exact decode (up to a ' +
+  'GOP on the GPU video decoder the show plays from — ~9 extra dropped frames per ten thumbnails with an ' +
+  'idle main thread) and the sidecar WebP encode (~43 ms of main thread each). So: thumbnail() awaits ' +
+  'frameExact; mp4 declares thumbnailWhilePlaying:false and the pump holds such jobs while the transport ' +
+  'runs; and persistence queues while it runs.',
+  () => {
+    const bad = [];
+    const D = 'plugins/mp4/src/mp4Decoder.ts';
+    const thumb = braceBody(read(D), 'export async function thumbnail(');
+    if (!thumb) bad.push(D + ': thumbnail() not found — this guard cannot see what it protects');
+    else if (!/\.frameExact\(/.test(thumb) || /\.frame\(\s*[^)]*,\s*false\s*\)/.test(thumb))
+      bad.push(D + ': thumbnail() no longer awaits frameExact — it would store whatever the buffer happens to hold');
+    if (!/thumbnailWhilePlaying:\s*false/.test(read('plugins/mp4/src/mp4Codec.ts')))
+      bad.push('plugins/mp4/src/mp4Codec.ts: mp4 no longer declares thumbnailWhilePlaying: false — its exact decode would compete with playback');
+    const T = 'src/renderer/services/thumbnailCache.ts';
+    const tc = read(T);
+    const pump = braceBody(tc, 'async function pumpCodec(');
+    if (!pump || !/heldWhilePlaying/.test(pump)) bad.push(T + ': pumpCodec no longer holds a codec that opted out of playing time');
+    const flush = braceBody(tc, 'async function flushPersist(');
+    const persist = braceBody(tc, 'function persist(');
+    if (!flush || !/isPlaying\(\)/.test(flush)) bad.push(T + ': the sidecar flush no longer waits for the transport to stop');
+    if (persist && /encodeThumb\(/.test(persist)) bad.push(T + ': persist() encodes immediately again — the encode must queue while the show plays');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── Bake: a render gives the surfaces their clock back ───────────────────────────────────────────
 check(
   'a bake restores the surface play state it paused',
