@@ -538,6 +538,10 @@ export function release(key: string): void {
   reconcileCamera(); reconcileDmx();
 }
 
+// What setPlaying last set — so something that pauses the world for a while (a bake) can put it back as
+// it found it, instead of guessing.
+export const isPlaying = (): boolean => playing;
+
 // Global transport toggle — applies to <video> elements + the camera (live receivers ignore it).
 export function setPlaying(p: boolean): void {
   playing = p;

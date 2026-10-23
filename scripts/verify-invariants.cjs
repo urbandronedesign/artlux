@@ -6187,6 +6187,28 @@ check(
   },
 );
 
+// ── Bake: a render gives the surfaces their clock back ───────────────────────────────────────────
+check(
+  'a bake restores the surface play state it paused',
+  'bakeRunner paused every surface clock (contentSource.setPlaying(false)) and its finally never undid ' +
+  "it. Surfaces are only re-set by surfaceMedia's sync, which runs on a surface or play-state change — so " +
+  'after any bake every MP4/HAP/<video> SURFACE stayed frozen while the timeline kept playing, until the ' +
+  'operator happened to press play/pause. It read as "that surface died". Shipped with the bake ' +
+  '(4af847f, 2026-09-12), found 2026-10-23 watching a looping MP4 surface stop after a bake.',
+  () => {
+    const F = 'plugins/bake/src/bakeRunner.ts';
+    const src = read(F);
+    const pause = src.indexOf('contentSource.setPlaying(false)');
+    if (pause < 0) return null; // nothing paused any more — nothing to restore
+    const before = src.slice(Math.max(0, pause - 200), pause);
+    if (!/=\s*contentSource\.isPlaying\(\)/.test(before)) return F + ': the render pauses surfaces without first recording whether they were playing';
+    const fin = src.lastIndexOf('} finally {');
+    if (fin < 0 || !/contentSource\.setPlaying\(resumePlaying\)/.test(braceBody(src.slice(fin), 'finally') ?? ''))
+      return F + ": the render's finally no longer restores the surface play state it paused";
+    return null;
+  },
+);
+
 // ── MP4: a probe reads the index, opens nothing, and a bad file is a verdict ────────────────────
 check(
   'an mp4 probe opens no decoder, and a refused file fails instead of hanging',

@@ -212,7 +212,7 @@ bytes are resident. Mutation-tested three ways (index skipped, config gate dropp
    and its `finally` never restores it; surfaces are only re-set by `surfaceMedia`'s sync, which runs on a
    surface or play-state change. Seen live: after a bake the looping MP4 surface stopped (`fedAbs` flat)
    while the timeline layer kept playing, until play/pause was toggled. Pre-existing since `4af847f`
-   (2026-09-12). Small fix: restore the prior state in the `finally`.
+   (2026-09-12). **Fixed 2026-10-23** (separate commit): the render records `contentSource.isPlaying()` before pausing and restores it in its `finally`; verified both ways live (playing → playing, paused → paused) and guarded by "a bake restores the surface play state it paused", mutation-tested.
 2. **A thumbnail sometimes takes 60–75 s to start**, in bursts — after reloads (seen in step 1, before
    ranged reads existed) and right after a bake added a file to the project; otherwise 0.7–1 s with the
    GOP read included. The GOP reads are not it (45 ms each). Likely the thumbnail pump's one-job-per-second
