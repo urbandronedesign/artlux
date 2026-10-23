@@ -6187,6 +6187,45 @@ check(
   },
 );
 
+// ── MP4: a probe reads the index, opens nothing, and a bad file is a verdict ────────────────────
+check(
+  'an mp4 probe opens no decoder, and a refused file fails instead of hanging',
+  'probe() was ensureOpen(): a full surface decoder — every encoded sample of the track — that no ' +
+  'residency owner held, so nothing ever closed it. The thumbnail pump probes every job and the timeline ' +
+  'probes every codec clip it syncs, so each probed file stayed resident for the session: measured on a ' +
+  '1.36 GB library clip, +2.3 GB of ArrayBuffer storage from ONE thumbnail. Separately, FileDecoder.open() ' +
+  'never checked res.ok: a 404/403 is a resolved fetch with an empty body, mp4box ignores an empty buffer ' +
+  'without calling onReady or onError, and the promise never settled — one missing .mp4 held the ' +
+  "thumbnail pump's codecBusy forever and every later MP4 thumbnail queued behind it. Both compiled, booted " +
+  'and threw nothing. Measured 2026-10-23; the index probe answers in ~7 ms where the full open took ~4 s.',
+  () => {
+    const C = 'plugins/mp4/src/mp4Codec.ts';
+    const D = 'plugins/mp4/src/mp4Decoder.ts';
+    const codec = read(C);
+    const dec = read(D);
+    const bad = [];
+    const probeLine = /probe:\s*\(path\)\s*=>\s*([^,\n]+)/.exec(codec);
+    if (!probeLine) bad.push(C + ': the codec no longer declares probe — this guard cannot see it');
+    else if (/ensureOpen|openSurface|thumbnail\(|layerFrame/.test(probeLine[1]))
+      bad.push(C + ': probe opens a decoder again (' + probeLine[1].trim() + ') — nothing owns what it opens');
+    const probeIndex = braceBody(dec, 'async function probeIndex(');
+    const probeFn = braceBody(dec, 'export function probe(');
+    if (!probeIndex || !probeFn) bad.push(D + ': probeIndex()/probe() not found — this guard cannot see what it protects');
+    else {
+      if (/new FileDecoder\(|ensureOpen\(|\.open\(/.test(probeIndex + probeFn)) bad.push(D + ': the index probe constructs or opens a FileDecoder');
+      if (!/Range:/.test(probeIndex)) bad.push(D + ': the index probe no longer reads by byte range — it would read the whole file');
+      if (!/!res\.ok/.test(probeIndex)) bad.push(D + ': the index probe no longer fails on a refused/missing file');
+    }
+    const open = braceBody(dec, 'async open(path: string)');
+    if (!open) bad.push(D + ': FileDecoder.open() not found');
+    else {
+      if (!/!res\.ok/.test(open)) bad.push(D + ': FileDecoder.open() no longer checks res.ok — a 404 hangs it forever');
+      if (!/if \(!readied\) done\(null\)/.test(open)) bad.push(D + ': FileDecoder.open() no longer settles when the file has no moov');
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

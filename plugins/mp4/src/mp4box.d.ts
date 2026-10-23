@@ -13,6 +13,7 @@ declare module 'mp4box' {
     videoTracks: MP4VideoTrack[];
     duration: number;         // in movie timescale units
     timescale: number;
+    isFragmented: boolean;    // samples live in moof boxes through the file, not in the moov's sample table
   }
   export interface MP4Sample {
     is_sync: boolean;

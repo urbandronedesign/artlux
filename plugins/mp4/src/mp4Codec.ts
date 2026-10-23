@@ -29,7 +29,9 @@ function ensureRaf(): void { if (!raf) { clockOriginMs = performance.now() - clo
 export const mp4Codec: VideoCodecContribution = {
   id: 'mp4-webcodecs',
   canDecode: (path) => enabled && /\.(mp4|m4v)$/i.test(path),
-  probe: (path) => dec.ensureOpen(path).then((i) => i !== null),
+  // Index only — it must not open a decoder. It used to (ensureOpen), and nothing owned what it opened,
+  // so every probed file stayed resident for the session. See mp4Decoder's index-probe section.
+  probe: (path) => dec.probe(path),
   probed: (path) => dec.probed(path),
   aspect: (path) => dec.aspect(path),
 

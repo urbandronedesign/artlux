@@ -64,6 +64,20 @@ function codecDescription(file: MP4File, trackId: number): Uint8Array | undefine
   /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
+// The decoder config for a parsed track. ONE builder, shared by FileDecoder.open() and the index-only
+// probe, because the probe's isConfigSupported() verdict is only worth something if it judged the very
+// config the decoder will later configure() with.
+function trackConfig(file: MP4File, track: MP4VideoTrack): VideoDecoderConfig {
+  return {
+    codec: track.codec,
+    description: codecDescription(file, track.id),
+    codedWidth: track.video.width,
+    codedHeight: track.video.height,
+    hardwareAcceleration: 'prefer-hardware', // GPU decode block
+    optimizeForLatency: false, // favour throughput + full reorder pipeline (smooth play > low latency)
+  };
+}
+
 class FileDecoder {
   private decoder: VideoDecoder | null = null;
   private cfg: VideoDecoderConfig | null = null;
@@ -100,16 +114,28 @@ class FileDecoder {
     // decoded. Streaming the demux itself (progressive appendBuffer, with a tail Range fetch for a
     // non-faststart `moov`) is the next step; this removes the duplication first because it is one
     // line and cannot change behaviour.
+    // ⚠ A REFUSED OR MISSING FILE MUST FAIL HERE, NOT HANG. This did not check `ok`: a 404/403 is a
+    // resolved fetch with an EMPTY body, and mp4box ignores an empty buffer without calling onReady or
+    // onError — so the promise below never settled. Measured 2026-10-23: one thumbnail request for a
+    // missing .mp4 held the thumbnail pump's `codecBusy` forever, and every later MP4 thumbnail in the
+    // session queued behind it (a valid clip whose decoder was already open waited > 60 s and never ran).
     let buf: ArrayBuffer;
-    try { buf = await (await fetch(url)).arrayBuffer(); } catch { return null; }
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      buf = await res.arrayBuffer();
+    } catch { return null; }
+    if (!buf.byteLength) return null;
 
     return await new Promise<Info | null>((resolve) => {
       const file: MP4File = MP4Box.createFile();
       let settled = false;
+      let readied = false;
       const done = (v: Info | null) => { if (!settled) { settled = true; resolve(v); } };
       file.onError = () => done(null);
 
       file.onReady = (mp4: MP4Info) => {
+        readied = true;
         const track: MP4VideoTrack | undefined = mp4.videoTracks?.[0];
         if (!track) return done(null);
         this.info = {
@@ -117,14 +143,7 @@ class FileDecoder {
           durationSec: mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0,
         };
         this.durUs = this.info.durationSec * 1e6;
-        this.cfg = {
-          codec: track.codec,
-          description: codecDescription(file, track.id),
-          codedWidth: track.video.width,
-          codedHeight: track.video.height,
-          hardwareAcceleration: 'prefer-hardware', // GPU decode block
-          optimizeForLatency: false, // favour throughput + full reorder pipeline (smooth play > low latency)
-        };
+        this.cfg = trackConfig(file, track);
         // Collect every encoded sample (compressed → small), then we decode on demand.
         file.onSamples = (_id: number, _u: unknown, samples: MP4Sample[]) => {
           for (const s of samples) {
@@ -161,6 +180,9 @@ class FileDecoder {
       (buf as ArrayBuffer & { fileStart?: number }).fileStart = 0;
       file.appendBuffer(buf as ArrayBuffer & { fileStart: number });
       file.flush();
+      // The whole file has been parsed synchronously. No `moov` in it (a truncated download, a file that
+      // is not MP4 at all) means onReady never fires and onError need not either — the same hang as above.
+      if (!readied) done(null);
     });
   }
 
@@ -746,6 +768,104 @@ export function ensureOpen(path: string): Promise<Info | null> {
 
 export function probed(path: string): boolean | undefined { return results.get(path); }
 
+// ── THE INDEX-ONLY PROBE ─────────────────────────────────────────────────────────────────────────
+// "Can WebCodecs play this file, and what is it?" — answered from the container's INDEX alone.
+//
+// ⚠ probe() USED TO BE ensureOpen(): a full surface decoder — every encoded sample of the track read
+// into the renderer — that NO residency owner held, so nothing ever closed it. Every caller that only
+// wanted the verdict paid for it: the thumbnail pump probes each job, and the timeline probes every
+// codec clip it syncs. Measured 2026-10-23 on a 1.36 GB clip that sat in the library and nowhere else:
+// one thumbnail request left an unowned surface decoder (plus the thumbnail decoder), +2.3 GB of
+// ArrayBuffer storage, half of it for the rest of the session.
+//
+// The index is a few hundred KB at either end of the file, and mp4box can find it without the frames:
+// before it has seen a `moov` it skips an `mdat` box and asks for the byte just past it (its
+// `nextParsePosition`, which appendBuffer returns). So: fetch a small range, append it, go where the
+// parser asks, grow the range while the parser is inside a box it needs whole — and stop at onReady.
+// The media protocol answers Range requests (measured 1–3 ms per 206). Nothing here is retained but
+// the verdict and the few numbers below.
+interface IndexInfo { info: Info; fps: number }
+const indexCache = new Map<string, IndexInfo | null>();
+const indexProbing = new Map<string, Promise<IndexInfo | null>>();
+const INDEX_FIRST_CHUNK = 256 * 1024;
+const INDEX_MAX_CHUNK = 8 * 1024 * 1024;
+const INDEX_MAX_FETCHES = 64; // a moov is found in 2–3 fetches; this only stops a malformed file looping
+
+async function probeIndex(path: string): Promise<IndexInfo | null> {
+  if (typeof VideoDecoder === 'undefined') return null;
+  const url = resolveMediaUrl(path);
+  if (!url) return null;
+  const file: MP4File = MP4Box.createFile();
+  let ready: { info: Info; fps: number; cfg: VideoDecoderConfig } | null = null;
+  let failed = false;
+  file.onError = () => { failed = true; };
+  file.onReady = (mp4: MP4Info) => {
+    const track: MP4VideoTrack | undefined = mp4.videoTracks?.[0];
+    if (!track) { failed = true; return; }
+    const durationSec = mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0;
+    // The SAME derivation as FileDecoder.fps() (sample count over duration). A fragmented file's moov
+    // carries no sample table, so its count is unknown here — reported as 0, which sourceInfo turns
+    // into "absent" rather than a plausible 30 (see the note there).
+    const fps = !mp4.isFragmented && track.nb_samples > 1 && durationSec > 0 ? track.nb_samples / durationSec : 0;
+    ready = { info: { width: track.video.width, height: track.video.height, durationSec }, fps, cfg: trackConfig(file, track) };
+  };
+  let pos = 0;
+  let chunk = INDEX_FIRST_CHUNK;
+  let size = Infinity;
+  for (let n = 0; n < INDEX_MAX_FETCHES && !ready && !failed && pos < size; n++) {
+    let buf: ArrayBuffer;
+    try {
+      const end = Math.min(pos + chunk, size) - 1;
+      const res = await fetch(url, { headers: { Range: `bytes=${pos}-${end}` } });
+      if (!res.ok) return null; // refused / missing: a verdict, not a hang (see FileDecoder.open)
+      const total = /\/(\d+)$/.exec(res.headers.get('content-range') ?? '');
+      if (total) size = Number(total[1]);
+      buf = await res.arrayBuffer();
+    } catch { return null; }
+    if (!buf.byteLength) return null;
+    (buf as ArrayBuffer & { fileStart?: number }).fileStart = pos;
+    const next = file.appendBuffer(buf as ArrayBuffer & { fileStart: number });
+    if (ready || failed) break;
+    const after = pos + buf.byteLength;
+    if (next > after) { pos = next; chunk = INDEX_FIRST_CHUNK; } // skipped a box (an mdat before the moov)
+    else { pos = after; chunk = Math.min(INDEX_MAX_CHUNK, chunk * 2); } // inside a box it needs whole: read on
+  }
+  if (!ready) return null;
+  const r: { info: Info; fps: number; cfg: VideoDecoderConfig } = ready;
+  // Same question FileDecoder.open() asks before claiming a file, on the same config — a track that
+  // demuxes but cannot be configured must decline HERE, or the host drops its <video> fallback for it.
+  try {
+    const s = await VideoDecoder.isConfigSupported(r.cfg);
+    if (!s.supported) { console.info('[mp4] declining', path, '— WebCodecs cannot configure', r.cfg.codec); return null; }
+  } catch { return null; }
+  return { info: r.info, fps: r.fps };
+}
+
+/**
+ * "Is this a file WebCodecs can play?" — WITHOUT opening a decoder (see the section above).
+ *
+ * A file some pool already has open is answered from it. Otherwise the index probe runs once per path
+ * and its verdict is kept, so `probed()` answers synchronously from then on. `ensureOpen()` writes the
+ * same `results` map, so either door leaves the host the same answer.
+ */
+export function probe(path: string): Promise<boolean> {
+  const open = decoders.get(path) ?? thumbDecoders.get(path) ?? [...layerDecoders.values()].find((v) => v.path === path)?.dec;
+  if (open?.getInfo()) { results.set(path, true); return Promise.resolve(true); }
+  if (indexCache.has(path)) return Promise.resolve(indexCache.get(path) !== null);
+  let p = indexProbing.get(path);
+  if (!p) {
+    p = probeIndex(path).then((r) => {
+      indexCache.set(path, r);
+      // Do not overwrite a verdict a full open already reached — that one judged the whole file.
+      if (!results.has(path)) results.set(path, r !== null);
+      indexProbing.delete(path);
+      return r;
+    });
+    indexProbing.set(path, p);
+  }
+  return p.then((r) => r !== null);
+}
+
 // Roughly what is held for `path` across the three pools, for the host's residency budget
 // (services/codecResidency). The dominant term is `samples` — open() keeps EVERY encoded sample of
 // the track resident so seeks are instant, which for a long clip is most of the file. That is exactly
@@ -760,7 +880,12 @@ export function residentBytes(path: string): number {
   return n;
 }
 export function frame(path: string, timeSec: number): VideoFrame | null { return decoders.get(path)?.frame(timeSec, true) ?? null; }
-export function aspect(path: string): number | null { return decoders.get(path)?.aspect() ?? null; }
+export function aspect(path: string): number | null {
+  const open = decoders.get(path)?.aspect();
+  if (open) return open;
+  const ix = indexCache.get(path)?.info; // a probed file knows its shape without a decoder
+  return ix && ix.width > 0 && ix.height > 0 ? ix.width / ix.height : null;
+}
 // "Has this surface got NEW pixels?" — the absolute timestamp of the frame the last frame() call
 // returned, or undefined before the first one. Only the SURFACE pool (`decoders`) is asked; layer and
 // thumbnail decoders have their own playheads and no consumer of this.
@@ -885,7 +1010,13 @@ export function sourceInfo(path: string): { width: number; height: number; fps: 
   let d: FileDecoder | undefined = decoders.get(path) ?? thumbDecoders.get(path);
   if (!d) for (const v of layerDecoders.values()) if (v.path === path) { d = v.dec; break; }
   const info = d?.getInfo();
-  if (!info) return null;
+  if (!info) {
+    // No decoder open: the index probe has the same numbers (its fps is the same sample-count-over-
+    // duration formula, read from the moov's sample table). A fragmented file reports fps 0 there and
+    // falls through to null — "ask again once it is open", which is what it always meant.
+    const ix = indexCache.get(path);
+    return ix && ix.fps > 0 ? { width: ix.info.width, height: ix.info.height, fps: ix.fps, durationSec: ix.info.durationSec } : null;
+  }
   const fps = d!.fps();
   // A rate we cannot derive is reported as absent rather than as a plausible 30: an export that
   // silently rendered 60p material at 30 would halve its motion with nothing to point at.
