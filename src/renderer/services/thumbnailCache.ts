@@ -20,6 +20,7 @@ const MAX_LOADERS = 6;  // distinct video elements kept around
 interface Entry { bmp: ImageBitmap; path: string; qt: number; }
 const cache = new Map<string, Entry>(); // key -> entry (insertion order = LRU)
 const inFlight = new Set<string>();
+let sidecarPending = 0; // sidecar reads in flight (IPC to main) — diagnostics only
 const subs = new Set<(path: string) => void>();
 // Paths whose thumbnails were refused while the cold-start gate held. A Filmstrip asks from its
 // RENDER, so a refusal is permanent unless something repaints it — and a stopped timeline never
@@ -167,6 +168,13 @@ let lastJob = 0;
 const nextJobDelay = (): number =>
   (engine.isPlaying() ? Math.max(0, PLAYING_GAP_MS - (performance.now() - lastJob)) : 0);
 
+// WHERE the codec pump is, for __artluxThumbs. The pump is serial, so one job stuck at one await holds
+// every MP4/HAP thumbnail behind it — and before this the diagnostic could only say "1 in flight".
+let codecStage: { file: string; qt: number; stage: 'probe' | 'thumbnail' | 'bitmap'; since: number } | null = null;
+const stage = (job: { path: string; qt: number }, s: 'probe' | 'thumbnail' | 'bitmap'): void => {
+  codecStage = { file: job.path.split(/[\\/]/).pop() ?? job.path, qt: job.qt, stage: s, since: performance.now() };
+};
+
 async function pumpCodec(): Promise<void> {
   if (codecBusy || !codecQueue.length) return;
   const wait = nextJobDelay();
@@ -176,11 +184,14 @@ async function pumpCodec(): Promise<void> {
   const job = codecQueue.shift()!;
   try {
     const codec = videoCodecRegistry.forPath(job.path);
+    stage(job, 'probe');
     if (!codec || !(await codec.probe(job.path))) { // codec declined (e.g. a non-HAP .mov) → video pool
       videoQueue.push(job); pumpVideo();
     } else {
+      stage(job, 'thumbnail');
       const canvas = await codec.thumbnail(job.path, job.qt);
       if (canvas) {
+        stage(job, 'bitmap');
         const bmp = await createImageBitmap(canvas, { resizeWidth: THUMB_W, resizeHeight: THUMB_H, resizeQuality: 'low' });
         store(job.key, { bmp, path: job.path, qt: job.qt });
         void persist(job.path, job.qt, bmp);
@@ -188,6 +199,7 @@ async function pumpCodec(): Promise<void> {
       }
     }
   } catch { /* ignore */ } finally {
+    codecStage = null;
     inFlight.delete(job.key);
     codecBusy = false;
     if (codecQueue.length) void pumpCodec();
@@ -246,7 +258,9 @@ function schedule(path: string, qt: number, key: string): void {
   // A STORED THUMBNAIL SHORT-CIRCUITS EVERYTHING BELOW — no decoder, no seek, no queue. Checked here
   // rather than in getThumb so it still honours the boot-gate deferral above: reading sidecars during
   // a cold start is cheap but not free, and nothing cosmetic competes with a show starting.
+  sidecarPending++;
   void fromSidecar(path, qt, key).then((hit) => {
+    sidecarPending--;
     if (hit) { inFlight.delete(key); return; }
     if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
     else { videoQueue.push({ path, qt, key }); pumpVideo(); }
@@ -272,6 +286,13 @@ export const THUMB_ASPECT = THUMB_W / THUMB_H;
 if (typeof window !== 'undefined') {
   (window as unknown as Record<string, unknown>)['__artluxThumbs'] = (paths?: string[], t = 0.5) => {
     if (Array.isArray(paths)) for (const p of paths) getThumb(p, t);
-    return { cached: cache.size, inFlight: inFlight.size, deferred: deferred.size, loaders: loaders.size };
+    // Where an in-flight job IS: waiting on its sidecar read, queued behind another job, or inside the
+    // codec job (which stage, for how long). "inFlight: 1" alone cannot tell those apart.
+    return {
+      cached: cache.size, inFlight: inFlight.size, deferred: deferred.size, loaders: loaders.size,
+      sidecarPending, codecQueue: codecQueue.length, codecBusy, videoQueue: videoQueue.length, videoBusy,
+      codecStage: codecStage ? { ...codecStage, forMs: Math.round(performance.now() - codecStage.since) } : null,
+      playing: engine.isPlaying(), nextJobInMs: Math.round(nextJobDelay()),
+    };
   };
 }

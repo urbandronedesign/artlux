@@ -135,9 +135,8 @@ Guarded by `verify:invariants` *"an mp4 probe opens no decoder, and a refused fi
 hanging"*, mutation-tested four ways (probe back to `ensureOpen`, `res.ok` dropped, ranges dropped, the
 no-`moov` settle dropped) — red on each.
 
-**Seen, not investigated:** right after a page reload the first codec thumbnail can take ~60 s to start
-(twice observed; ~1 s otherwise). Pre-existing — the probe was not on that path (the decoder was already
-open). Worth a look in the thumbnail pump's post-boot pacing.
+**~~Seen, not investigated: the first codec thumbnail after a reload can take ~60 s~~ — RETRACTED
+2026-10-23, it never happened.** See step 3's "found on the way" item 2: a measurement-harness bug.
 
 ### Step 2 — 2026-10-23
 
@@ -213,9 +212,26 @@ bytes are resident. Mutation-tested three ways (index skipped, config gate dropp
    surface or play-state change. Seen live: after a bake the looping MP4 surface stopped (`fedAbs` flat)
    while the timeline layer kept playing, until play/pause was toggled. Pre-existing since `4af847f`
    (2026-09-12). **Fixed 2026-10-23** (separate commit): the render records `contentSource.isPlaying()` before pausing and restores it in its `finally`; verified both ways live (playing → playing, paused → paused) and guarded by "a bake restores the surface play state it paused", mutation-tested.
-2. **A thumbnail sometimes takes 60–75 s to start**, in bursts — after reloads (seen in step 1, before
-   ranged reads existed) and right after a bake added a file to the project; otherwise 0.7–1 s with the
-   GOP read included. The GOP reads are not it (45 ms each). Likely the thumbnail pump's one-job-per-second
-   pacing while the transport plays, with a backlog from another requester (the asset grid). Unproven.
+2. **~~A thumbnail sometimes takes 60–75 s to start~~ — RETRACTED: the app was never slow; the
+   measurement was.** Investigated after a full app restart with new diagnostics in `__artluxThumbs()`
+   (sidecar reads pending, both queues, busy flags, and which stage the codec job is in and for how long).
+   Nothing reproduced it: a fresh start, a bake into the project, a bake cancelled at its save dialog, a
+   decoder fault, a forced GC, a whole-file read (3.6 s at 354 MB/s) — every thumbnail job finished in
+   0.03–0.9 s, and a continuous queue tracer never saw a backlog. The cause was the polling loops that
+   produced the numbers: they exited on `grep '"inFlight":0'`, but the CDP helper prints through
+   `JSON.stringify`, so the text is `\"inFlight\":0` and the pattern can never match. Each loop ran to its
+   last iteration, and the "delays" are exactly the loops' own lengths — 30 × `sleep 2` = **60 s**,
+   60 × (`sleep 1` + ~0.13 s) ≈ **67.8 s**, 120 × (`sleep 0.5` + ~0.12 s) ≈ **74 s** (measured 74.6 /
+   74.5 / 74.1). Proven directly: the same job timed inside the page took **25 ms**, and the old exit test
+   did not match its own output. **Lesson for this harness:** time inside the page
+   (`performance.now()` around the awaited thing), or strip the escaping before grepping (`tr -d '"'`, as
+   `thumbtrace.sh` does) — and be suspicious of any delay that comes out constant.
+
+   **What the investigation did turn up (real, open):** a codec thumbnail job often **stores nothing**.
+   `thumbnail()` returns `frame()`, which never blocks — on a GOP it has only just fed it returns null (or
+   the nearest frame it still holds from an earlier request), so the job ends without a bitmap and the
+   filmstrip slot keeps showing its nearest neighbour until something re-asks. Measured: a 190 ms job,
+   `cached` unchanged. Pre-existing — [offline-bake.md](offline-bake.md) already notes mp4's `thumbnail()`
+   is not frame-exact. A fix would await the exact frame the way `frameExact` does.
 3. **The cache sat AT its 256 MB budget** with two playheads a few frames apart — they share GOPs, so the
    budget, not the windows, set the size. Open question 1 (§10) stands: a smaller budget is likely fine.
