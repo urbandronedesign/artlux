@@ -6356,6 +6356,42 @@ check(
   },
 );
 
+// ── MP4: pre-rolling a standby scene never takes the live layer decoder ────────────────────────
+check(
+  "an mp4 pre-roll never takes over a layer decoder that is on screen",
+  'Layer decoders are keyed by layerId alone, and two scenes share layer ids whenever one was captured ' +
+  'from another (Capture Scene clones the timeline, ids included). The preloader pre-rolls every standby ' +
+  'scene every 250 ms; preRoll(…, layerId) went to ensureLayerOpen, which closed the decoder the LIVE ' +
+  'scene was playing because "the file changed", and the live scene reopened its own a frame later. ' +
+  'Found 2026-10-24 cycling four states on the RTX box: a dropped picture every 250 ms, painted with the ' +
+  "previous state's last frame — the operator saw it as flicker. BOTH warm doors (preWarmLayer and " +
+  'preRoll) must leave a recently-read decoder on another file alone, and both readers must stamp readAt.',
+  () => {
+    const bad = [];
+    const D = 'plugins/mp4/src/mp4Decoder.ts';
+    const src = read(D);
+    // BOTH warm doors — the first fix guarded preRoll only, and preWarmLayer (called just before it on
+    // the same 250 ms top-up) kept closing the live decoder: the flicker measured unchanged.
+    for (const fn of ['export function preRoll(', 'export function preWarmLayer(']) {
+      const body = braceBody(src, fn);
+      if (!body) { bad.push(D + `: ${fn.slice(16)}) not found — this guard cannot see what it protects`); continue; }
+      const guard = body.search(/layerInUseElsewhere\(/);
+      const open = body.indexOf('ensureLayerOpen(');
+      if (guard < 0) bad.push(D + `: ${fn.slice(16)}) no longer asks layerInUseElsewhere before opening — it would close the live layer decoder`);
+      else if (open >= 0 && open < guard) bad.push(D + `: ${fn.slice(16)}) can reach ensureLayerOpen before its live-decoder guard`);
+    }
+    const helper = braceBody(src, 'function layerInUseElsewhere(');
+    if (!helper || !/cur\.path\s*!==\s*path/.test(helper) || !/readAt/.test(helper)) bad.push(D + ': layerInUseElsewhere() no longer tests "another file, recently read"');
+    if (!/preWarmLayer:\s*\([^)]*\)\s*=>\s*dec\.preWarmLayer\(/.test(read('plugins/mp4/src/mp4Codec.ts')))
+      bad.push('plugins/mp4/src/mp4Codec.ts: preWarmLayer must go through dec.preWarmLayer (the guarded door), not ensureLayerOpen');
+    for (const fn of ['export function layerFrame(', 'export async function layerFrameExact(']) {
+      const b = braceBody(src, fn);
+      if (!b || !/\.readAt\s*=\s*performance\.now\(\)/.test(b)) bad.push(D + `: ${fn.replace(/^export (async )?function /, '')}) no longer stamps readAt — preRoll would take over the decoder it reads`);
+    }
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

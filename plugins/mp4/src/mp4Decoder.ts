@@ -994,7 +994,9 @@ function selfPump(): void {
 function ensurePump(): void { if (!pumpRaf && (decoders.size || layerDecoders.size)) pumpRaf = requestAnimationFrame(selfPump); }
 const results = new Map<string, boolean>(); // probed: true = decodable MP4, false = not (fall back to <video>)
 
-const layerDecoders = new Map<string, { dec: FileDecoder; path: string }>(); // key = layerId
+// key = layerId. `readAt` = the last time a consumer took a frame from it (layerFrame / layerFrameExact):
+// what tells preRoll a decoder is SERVING a picture and must not be taken over — see preRoll.
+const layerDecoders = new Map<string, { dec: FileDecoder; path: string; readAt: number }>();
 const layerOpening = new Map<string, Promise<Info | null>>();
 
 const thumbDecoders = new Map<string, FileDecoder>();
@@ -1217,7 +1219,7 @@ export function prewarm(path: string): void {
 // until ready. `clipTimeSec` is clip-local (already includes in-point) — a scrub seeks frame-exactly.
 export function layerFrame(layerId: string, path: string, clipTimeSec: number): VideoFrame | null {
   const cur = layerDecoders.get(layerId);
-  if (cur && cur.path === path) return cur.dec.frame(clipTimeSec, false);
+  if (cur && cur.path === path) { cur.readAt = performance.now(); return cur.dec.frame(clipTimeSec, false); }
   ensureLayerOpen(layerId, path);
   return null; // opening
 }
@@ -1241,8 +1243,30 @@ export function ensureLayerOpen(layerId: string, path: string): void {
   if (cur) { cur.dec.close(); layerDecoders.delete(layerId); } // clip on this layer changed file
   if (layerOpening.has(layerId)) return;
   const nd = new FileDecoder();
-  const p = nd.open(path).then((info) => { if (info) { layerDecoders.set(layerId, { dec: nd, path }); ensurePump(); } else nd.close(); layerOpening.delete(layerId); return info; });
+  const p = nd.open(path).then((info) => { if (info) { layerDecoders.set(layerId, { dec: nd, path, readAt: 0 }); ensurePump(); } else nd.close(); layerOpening.delete(layerId); return info; });
   layerOpening.set(layerId, p);
+}
+
+// ⚠ A STANDBY SCENE MUST NOT TAKE OVER A LAYER DECODER THAT IS ON SCREEN. Layer decoders are keyed by
+// layerId alone, and two scenes routinely carry the SAME layer id — Capture Scene clones the bound
+// timeline, ids included — with a different file on it. The preloader's top-up (every 250 ms) warms
+// each standby scene with ITS file under that id, through TWO doors (warmPoolVideos → preWarmLayer, then
+// poolReadiness → preRoll); ensureLayerOpen read either as "the clip on this layer changed", closed the
+// decoder the live scene was playing, and the live scene reopened its own on the next frame. Measured
+// on the RTX box, four states cycling: the picture dropped for two frames every 250 ms, and the hold
+// (captureCodecHold) painted the PREVIOUS state's last frame into each hole — a flicker. A decoder read
+// in the last LIVE_READ_MS is serving a picture: warming leaves it alone. The CUT itself still goes
+// straight through ensureLayerOpen (layerFrame), which is the one caller entitled to replace it.
+const LIVE_READ_MS = 1000;
+function layerInUseElsewhere(layerId: string, path: string): boolean {
+  const cur = layerDecoders.get(layerId);
+  return !!cur && cur.path !== path && performance.now() - cur.readAt < LIVE_READ_MS;
+}
+
+// The warm door (VideoCodecContribution.preWarmLayer): ensureLayerOpen, unless a live picture holds the id.
+export function preWarmLayer(layerId: string, path: string): void {
+  if (layerInUseElsewhere(layerId, path)) return;
+  ensureLayerOpen(layerId, path);
 }
 
 /**
@@ -1265,6 +1289,10 @@ export function ensureLayerOpen(layerId: string, path: string): void {
  * HAP's 300 ms ring. (This comment said "11 frames, ~180 ms" until 2026-10-22.)
  */
 export function preRoll(path: string, atSec: number, aheadSec: number, layerId?: string): boolean {
+  // Another scene's picture is on this layer id — see layerInUseElsewhere. Its bytes are already held
+  // by this scene's pre-warm (warmMedia → prewarm), so the cut opens on resident data; there is
+  // nothing more to wait for, hence `true` (and the top-up can stop).
+  if (layerId && layerInUseElsewhere(layerId, path)) return true;
   const dec = layerId ? layerDecoders.get(layerId)?.dec : decoders.get(path);
   if (!dec) {
     // Not open yet — kick it and report "not ready". The gate's next poll asks again.
@@ -1308,6 +1336,7 @@ export async function layerFrameExact(layerId: string, path: string, timeSec: nu
     cur = layerDecoders.get(layerId);
   }
   if (!cur || cur.path !== path) { console.warn('[mp4/exact] layer decoder not open for', path); return null; }
+  cur.readAt = performance.now();
   return cur.dec.frameExact(timeSec);
 }
 

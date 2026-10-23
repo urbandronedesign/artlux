@@ -62,7 +62,7 @@ export const mp4Codec: VideoCodecContribution = {
   preWarm: (path) => dec.prewarm(path),
   // Open the LAYER decoder ahead of the swap — the one a timeline layer actually reads. See
   // ensureLayerOpen for why, without it, the gate's guarantee was vacuous for H.264.
-  preWarmLayer: (layerKey, path) => dec.ensureLayerOpen(layerKey, path),
+  preWarmLayer: (layerKey, path) => dec.preWarmLayer(layerKey, path),
   // Cold start: the gate waits for a decoded BUFFER, not a first frame. HAP has answered this since
   // the 167-ring-miss measurement; mp4 — the default codec — did not, so the anti-stutter guarantee
   // silently excluded every .mp4 in every show.
