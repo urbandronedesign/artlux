@@ -1,8 +1,9 @@
 # MP4 decoder freeze: a dead decoder must not be able to hang the renderer
 
 > **Deliverable:** this document, saved as `plans/mp4-decoder-freeze.md` and indexed in `plans/README.md`.
-> **Status:** 📝 **Draft 2026-10-23** — nothing built. Branch `fix/mp4-memory-residency` (this lands
-> FIRST on it, in its own commits, before any residency work touches the same feed loop). · **Lifts:** the
+> **Status:** ✅ **BUILT 2026-10-23** — reproduced, fixed and guarded; see §11 for the measurements and
+> what changed against this draft. Branch `fix/mp4-memory-residency` (this lands FIRST on it, in its own
+> commits, before any residency work touches the same feed loop). · **Lifts:** the
 > open bug *"MP4 decoder can freeze the editor"* in [2026-10-22-session-record.md](2026-10-22-session-record.md)
 > · **Placement:** **Plugin** (`plugins/mp4/src/mp4Decoder.ts`) + one invariant check · **Risk:** 🟢 Low —
 > the change is confined to the error path of one class; the happy-path feed is unchanged by construction
@@ -255,3 +256,63 @@ reproducing this deliberately hangs the renderer.
    app already ships several CDP hooks of this kind (`__artluxBake`, `__artluxProbeSources`).
 4. **Is codec reclamation real here?** Answered by §8 step 5, not by debate. If it is, it also bears on
    the residency work: a reclaimed warm decoder holds its whole sample table for nothing.
+
+## 11. What actually shipped (2026-10-23)
+
+Measured on the RTX box (RTX 5090, 125 GB RAM, Electron 42.4.1, `npm run dev`), with a 1.36 GB / 142 s
+1080p30 H.264 clip — 4,261 frames, 143 keyframes (one per 30 frames) — on a looping MP4 surface and on a
+timeline layer at once.
+
+**Phase 0 — reproduced on the unfixed code** (`355d1ef`, W1 only):
+
+| Fault | What happened |
+|---|---|
+| `__artluxMp4Fault('close', …, 'surface')` | One core at ~100%, renderer private memory **+6 GB/s** (3.2 → 14.5 GB in 2 s, then flat), **process gone 4.6 s after the fault**. |
+| CDP `Browser.crashGpuProcess` (a real GPU-process crash) | The GPU process restarted at once; the renderer then did exactly the above — 14.8 GB, **dead 4.7 s after the crash**. |
+| `close` on the layer only | **One 235 ms long task** (frames 502 → 4,260 fed in a single pass), then the layer frozen: unconfigured, `fedAbs = N − 1`, one buffered frame. The stall also pushed the healthy surface behind its playhead, so it re-seeked — one dead decoder visibly hitches the others. |
+| `close` on both pools at once | Non-deterministic: one run died as above, another survived because the layer's stall moved the surface's wall clock far enough to trip its "fell behind" re-seek. This is why the fault hook gained a `pool` filter. |
+
+§1 was right about the mechanism and wrong about the outcome: the spin does not hang forever, it **kills
+the renderer by OOM** within seconds, because every pass copies a sample into a new `EncodedVideoChunk`.
+
+**Phase 1 — after the fix, same calls** (`[mp4]` ledger in `__artluxMp4Stats`):
+
+| Fault | Recovered in | Notes |
+|---|---|---|
+| `error` on the layer | 50 ms | no long task |
+| `error` on the surface + the recovery's own `configure()` failing | 289 ms | = the 250 ms second-try backoff, then success |
+| `error` on both pools | 55 ms | |
+| `close` (silent death) on both pools | 77 ms | detected by the `state === 'closed'` check, no callback needed |
+| **Real GPU-process crash** | recovered, kept playing | renderer alive, peak 79% of a core, no memory climb; both decoders got real `EncodingError`s. **`feedCapHits = 1` on each** — during the crash the codec accepted chunks without making progress, the exact state the old loop had no exit for. Two 149 ms long tasks during the GPU restart, not attributable to this code (WebGPU/canvas contexts are rebuilt in the same instant). |
+
+**Regression (R5):** 165 s of healthy play across both loop points — the surface fed frames 3,173 → 8,123
+(a seamless wrap past frame 4,261) and the timeline layer wrapped back to 0. **0 errors, 0 recoveries,
+0 `feedCapHits`, 0 layer gaps, 0 long tasks, 0 long frames**, p99 frame interval 17.8 ms, 60 fps. The new
+code never fired on the happy path. The guard (W3) was mutation-tested five ways — bound removed, throw
+swallowed, a decoder built in `pump()`, configure failure only logged, error callback only logged — and
+went red on each.
+
+**Against the draft:**
+- **The poisoned-GOP skip (§4 W2 step 5) was not built.** The playhead keeps moving, so the keyframe
+  covering it moves past a bad GOP on its own, and the backoff already bounds the retries. It would have
+  been code for a case the clock solves.
+- **`frameExact` waits through a recovery** instead of returning null on a dead decoder. It is safe for
+  the reason §4 W2 step 6 gives: the answer is matched against the container's target timestamp, so a
+  recovered decoder can only return the exact frame, and `EXACT_MAX_ROUNDS` still ends a render that
+  never gets one.
+- **Logging:** one line per failure for the first three, then one per 12 (≈ one a minute at the 5 s
+  ceiling), plus one `[mp4] decoder recovered` line; the console tap carries both into the machine log.
+
+**Found on the way, not fixed here — each is its own item:**
+1. **An editor renderer death is not logged at all.** `watchdog.attach()` (`src/main/watchdog.ts:138`)
+   returns early unless the watchdog is armed, so in the editor nothing listens for
+   `render-process-gone`; the only trace in the machine log is a once-a-second *"Render frame was
+   disposed"* error from main's stats timer.
+2. **`artlux_render_fps` keeps reporting 60 after the renderer has died** — main re-publishes the last
+   value it received. A dead renderer looks healthy on that metric.
+3. **The reclaim hypothesis (§1 trigger 2) is half-answered.** Idle decoders in a *foreground* window
+   for 3.5 minutes: nothing reclaimed. The *minimised / hidden* half was not completed. The fix covers a
+   reclaim either way (it is a codec closed with or without an error callback); what remains open is
+   only how common the trigger is.
+4. **Opening the 1.36 GB clip took 7.1 s** before the show could arm (`open.armed`), two full demuxes —
+   evidence for the residency work that follows on this branch.

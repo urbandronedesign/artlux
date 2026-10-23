@@ -147,6 +147,18 @@ default `<video>` element.
   surfaces revert to a `<video>` (`contentSource`), timeline layers to `syncVideoLayer`, thumbnails to
   the video queue. **This check is what made defaulting the codec on safe**, and `verify:invariants`
   asserts both that it is called and that its result decides the answer.
+- **A decoder that fails mid-show comes back on its own.** A graphics-driver reset, a GPU-process crash or
+  a damaged frame kills the decoder playing that clip. The picture **holds its last frame**, and the
+  clip resumes from the nearest keyframe — measured on an RTX 5090 at **50–80 ms** after an injected
+  failure, and the show kept running through a real GPU-process crash. If the clip keeps failing,
+  ArtLux retries with a growing pause (up to every 5 s) instead of hammering the GPU, so a file that
+  never decodes stays on its last frame rather than taking the machine with it.
+  **The machine log says so:** one `[mp4] decode error` line per failure (then about one a minute if it
+  keeps failing) and an `[mp4] decoder recovered` line when it comes back — see
+  [LOGGING.md](LOGGING.md).
+  **On v0.33.5 and earlier this was not true.** A failure on a looping MP4 surface froze the editor and
+  then closed it within about five seconds, and a failure on a timeline clip froze that clip until the
+  next loop or scrub. If you saw either on one of those builds, update.
 - **Renderer-only** (no native addon) and a **single module identity** so its decoder/clock singletons
   aren't duplicated.
 

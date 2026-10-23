@@ -6147,6 +6147,46 @@ check(
   },
 );
 
+// ── MP4: a decoder that dies cannot spin the feed loop ──────────────────────────────────────────
+check(
+  'an mp4 decoder that dies is re-seeked, never fed',
+  'A VideoDecoder that errored was replaced by an UNCONFIGURED one that a forward-playing surface never ' +
+  're-seeked; pump() fed it, every decode() threw into a swallowed catch, and with maxAbs = Infinity ' +
+  'nothing ended the loop. Measured on the RTX box (2026-10-23): one core at 100%, renderer memory ' +
+  '+6 GB/s, dead of OOM at ~14.8 GB in 4.7 s — from an injected fault and from a real GPU-process crash ' +
+  'alike. A timeline layer instead fed the rest of the file in one 235 ms stall and froze. Nothing threw ' +
+  'and nothing was logged. The rules: only seekSegment builds a decoder (it configures it first); pump() ' +
+  'feeds nothing that is not configured; its loop has a per-call bound that does not depend on decoder ' +
+  'progress; and every death (error callback, decode() throw, configure throw) goes through markDead. ' +
+  'See plans/mp4-decoder-freeze.md; reproduce with window.__artluxMp4Fault.',
+  () => {
+    const F = 'plugins/mp4/src/mp4Decoder.ts';
+    const src = read(F);
+    const bad = [];
+    const pump = braceBody(src, 'private pump(');
+    const seek = braceBody(src, 'private seekSegment(');
+    if (!pump) return F + ': pump() not found — this guard cannot see what it protects';
+    if (!seek) return F + ': seekSegment() not found — this guard cannot see what it protects';
+    const calls = (src.match(/this\.ensureDecoder\(\)/g) || []).length;
+    if (calls !== 1 || !/this\.ensureDecoder\(\)/.test(seek))
+      bad.push(`ensureDecoder() must be called from seekSegment only (found ${calls} call site(s)) — anywhere else hands pump() an unconfigured codec`);
+    const feed = pump.indexOf('while (this.fedAbs');
+    if (feed < 0) bad.push('pump() feed loop not found');
+    else {
+      const gate = pump.indexOf("state !== 'configured'");
+      if (gate < 0 || gate > feed) bad.push("pump() no longer refuses to feed a decoder whose state is not 'configured' before its feed loop");
+      const loop = braceBody(pump.slice(feed), 'while (');
+      if (!loop || !/budget--\s*<=\s*0/.test(loop))
+        bad.push('the pump() feed loop lost its per-call bound — every other exit condition depends on decoder progress, which a dead codec never makes');
+      if (loop && /catch\s*\{/.test(loop)) bad.push('the pump() feed loop swallows a decode() throw again — it must markDead and break');
+      if (loop && !/markDead\(/.test(loop)) bad.push('a decode() throw in the pump() feed loop no longer reaches markDead');
+    }
+    if (!/error:\s*\(e\)\s*=>\s*\{[^}]*markDead\(/.test(src)) bad.push('the VideoDecoder error callback no longer reaches markDead');
+    if (!/catch\s*\(e\)\s*\{[\s\S]*?markDead\('configure'/.test(seek)) bad.push('a configure() that throws in seekSegment no longer reaches markDead');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
