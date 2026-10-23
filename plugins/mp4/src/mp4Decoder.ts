@@ -44,6 +44,8 @@ const EXACT_MAX_ROUNDS = 2_000;
 
 interface Info { width: number; height: number; durationSec: number; }
 interface Enc { ts: number; dur: number; key: boolean; data: Uint8Array } // decode order, µs timestamps
+// What __artluxMp4Fault can do to a live decoder — see the measurement section at the end of the file.
+type Mp4FaultKind = 'close' | 'error' | 'configure';
 
 // Extract the codec-private description (avcC / hvcC / …) box bytes for VideoDecoder.configure.
 function codecDescription(file: MP4File, trackId: number): Uint8Array | undefined {
@@ -78,6 +80,11 @@ class FileDecoder {
   private lastWantUs = -Infinity; // previous frame()'s wantUs — detects a backward jump (timeline loop / scrub)
   lastFrameTs: number | null = null; // ABSOLUTE ts of the frame frame() last handed out — the generation
   private sortedCts: number[] | null = null; // presentation times, ascending — built on first frameExact()
+  // Failure bookkeeping, read by __artluxMp4Stats. Records only: nothing here changes how the decoder
+  // behaves after a failure (see plans/mp4-decoder-freeze.md — measure first, then fix).
+  errors = 0;
+  lastError: string | null = null;
+  private failNextConfigure = false; // armed by __artluxMp4Fault('configure')
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
@@ -381,9 +388,46 @@ class FileDecoder {
         }
         this.evict();
       },
-      error: (e) => { console.warn('[mp4] decode error', e.message); },
+      error: (e) => { this.noteError('decode', e); },
     });
     return this.decoder; // configured lazily in seekSegment (single reset+configure path)
+  }
+
+  // One place a failure is recorded, so the stats and the log line cannot disagree. The log text is
+  // what both call sites printed before this existed.
+  private noteError(what: 'decode' | 'configure', e: { name?: string; message: string }): void {
+    this.errors++;
+    this.lastError = `${what}: ${e.name ?? 'Error'}: ${e.message}`;
+    console.warn(what === 'decode' ? '[mp4] decode error' : '[mp4] configure failed', e.message);
+  }
+
+  /**
+   * TEST-ONLY fault injection, reached through `__artluxMp4Fault`. Inert unless called.
+   *
+   * `close` puts the codec in exactly the state a WebCodecs error leaves it in (`state === 'closed'`)
+   * without running the error callback — a decoder that died without telling us. `error` does the
+   * same and then runs the real handler, which is the full path a GPU reset or a reclaim takes.
+   * `configure` makes the next configure() throw, the second way into the same spin (seekSegment).
+   * Returns false when there is no live codec to hurt.
+   */
+  injectFault(kind: Mp4FaultKind): boolean {
+    if (kind === 'configure') { this.failNextConfigure = true; return true; }
+    const dec = this.decoder;
+    if (!dec || dec.state === 'closed') return false;
+    try { dec.close(); } catch { /* */ }
+    if (kind === 'error') this.noteError('decode', { name: 'InjectedError', message: 'injected by __artluxMp4Fault' });
+    return true;
+  }
+
+  // `samples`/`keyframes` because a recovery re-seeks to the covering keyframe, so how far it can jump
+  // back (and how long it takes to decode forward again) is set by the file's GOP length, not by us.
+  stats(): { state: string; samples: number; keyframes: number; segAbs: number; fedAbs: number; buffered: number; queue: number; errors: number; lastError: string | null } {
+    return {
+      state: this.decoder?.state ?? 'none', samples: this.samples.length, keyframes: this.keyframes.length,
+      segAbs: this.segAbs, fedAbs: this.fedAbs, buffered: this.buffer.length,
+      queue: this.decoder && this.decoder.state !== 'closed' ? this.decoder.decodeQueueSize : 0,
+      errors: this.errors, lastError: this.lastError,
+    };
   }
 
   // --- absolute-index helpers (N = sample count; loop L, local i ↔ abs = L*N + i) -----------------
@@ -417,7 +461,10 @@ class FileDecoder {
     const dec = this.ensureDecoder();
     if (!dec) return;
     try { dec.reset(); } catch { /* */ }
-    try { dec.configure(this.cfg!); } catch (e) { console.warn('[mp4] configure failed', (e as Error).message); return; }
+    try {
+      if (this.failNextConfigure) { this.failNextConfigure = false; throw new Error('injected by __artluxMp4Fault'); }
+      dec.configure(this.cfg!);
+    } catch (e) { this.noteError('configure', e as Error); return; }
     if (this.buffer.length > 1) {
       const hold = this.buffer[this.buffer.length - 1]; // highest ts (sorted asc) = most recent
       for (let i = 0; i < this.buffer.length - 1; i++) this.buffer[i].close();
@@ -766,4 +813,41 @@ export async function thumbnail(path: string, timeSec: number): Promise<VideoFra
     thumbDecoders.delete(path); thumbDecoders.set(path, d);
   }
   return d.frame(timeSec, false);
+}
+
+// ── MEASUREMENT + FAULT INJECTION (plans/mp4-decoder-freeze.md) ──────────────────────────────────
+// A decoder that dies has to be watched across ALL three pools at once: a GPU reset kills every one of
+// them in the same instant, and each pool fails differently (a looping surface spins, a layer stalls
+// then freezes, a thumbnail freezes). So the stats and the fault hook walk every pool, and the fault
+// hook exists so the failure can be produced on demand on any machine — a corrupt frame only trips a
+// hardware decoder, and a driver reset cannot be scheduled.
+//
+// window.__artluxMp4Stats() / __artluxMp4StatsReset() / __artluxMp4Fault(kind, pathPart?) → count hit.
+// Same window-guarded pattern as hapDecode's __artluxHapStats.
+function allDecoders(): { pool: 'surface' | 'layer' | 'thumb'; key: string; path: string; dec: FileDecoder }[] {
+  const out: { pool: 'surface' | 'layer' | 'thumb'; key: string; path: string; dec: FileDecoder }[] = [];
+  for (const [path, dec] of decoders) out.push({ pool: 'surface', key: path, path, dec });
+  for (const [key, { dec, path }] of layerDecoders) out.push({ pool: 'layer', key, path, dec });
+  for (const [path, dec] of thumbDecoders) out.push({ pool: 'thumb', key: path, path, dec });
+  return out;
+}
+if (typeof window !== 'undefined') {
+  const w = window as unknown as Record<string, unknown>;
+  w['__artluxMp4Stats'] = () => allDecoders().map(({ pool, key, path, dec }) => ({
+    pool, key: pool === 'layer' ? key : undefined, file: path.split(/[\\/]/).pop(), ...dec.stats(),
+  }));
+  w['__artluxMp4StatsReset'] = () => { for (const { dec } of allDecoders()) { dec.errors = 0; dec.lastError = null; } };
+  // `pathPart` narrows to decoders whose path contains it; `pool` to one pool. Omitted = every open
+  // decoder. The pool filter is not a convenience: faulting two pools at once makes them interact (one
+  // pool's stall moves the other's wall-clock playhead far enough to trip its re-seek branch), so the
+  // per-pool behaviour can only be observed one pool at a time.
+  w['__artluxMp4Fault'] = (kind: Mp4FaultKind, pathPart?: string, pool?: 'surface' | 'layer' | 'thumb'): number => {
+    let hit = 0;
+    for (const { pool: p, path, dec } of allDecoders()) {
+      if (pathPart && !path.includes(pathPart)) continue;
+      if (pool && p !== pool) continue;
+      if (dec.injectFault(kind)) hit++;
+    }
+    return hit;
+  };
 }
