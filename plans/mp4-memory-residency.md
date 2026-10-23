@@ -1,7 +1,7 @@
 # MP4 memory residency: hold a file once, then stop holding it at all
 
 > **Deliverable:** this document, saved as `plans/mp4-memory-residency.md` and indexed in `plans/README.md`.
-> **Status:** 🟡 **IN PROGRESS** — steps 1–2 ✅ built 2026-10-23 (§11); steps 3–5 not started. Branch
+> **Status:** 🟡 **IN PROGRESS** — steps 1–3 ✅ built 2026-10-23 (§11); steps 4–5 not started. Branch
 > `fix/mp4-memory-residency`, after the [decoder freeze fix](mp4-decoder-freeze.md) it carries first.
 > · **Lifts:** the open item in [preload-optimization.md](preload-optimization.md) §9 (*"mp4 still
 > buffers the whole file to demux"*), §0.4 of [offline-bake.md](offline-bake.md), and the last entry of
@@ -172,3 +172,50 @@ of the clip and back round to 1,373 — 0 gaps, 0 errors, 0 long tasks, 0 long f
 
 **Guard:** the step-1 check now also fails if `FileDecoder.open()` fetches or demuxes for itself instead
 of taking the shared store.
+
+### Step 3 — 2026-10-23
+
+**Built.** `SampleStore` is now RANGED for every non-fragmented file: `loadStore()` reads the moov by byte
+range (`readIndex()`, shared with the probe) and builds the sample table from mp4box's
+`getTrackSamplesInfo()` — offset, size, time, keyframe for every frame, no sample bytes. Bytes come per
+**GOP**, one Range request each, into a cache with a 256 MB budget (raised to 4 GOPs for huge-GOP files),
+GOP 0 pinned. `pump()` names its window each call (`want()`: the GOP it is feeding + 2 ahead, wrapping
+for a looping surface), feeds only samples whose bytes are resident, and **stops — never skips — at
+one that is not** (`starved`), resuming at that exact sample when the read lands. `frameExact` awaits
+that read; `thumbnail()` reads the GOP it needs before asking for a frame. A fragmented file keeps the
+whole-file parse (`loadWholeStore()`). `__artluxMp4Stores()` gained `mode`, `gops` resident/total,
+`reads`, `avgReadMs`; decoder stats gained `starvedReads`.
+
+| Same dev project (looping surface + timeline layer on the 5.7K clip) | Step 2 | Step 3 |
+|---|---|---|
+| Held for the clip | 1,291 MB (whole track) | **≤ 256 MB** GOP cache (27–28 of 143 GOPs), independent of file length |
+| ArrayBuffer storage after a forced GC | 1,321 MB | **159 MB** at open, **286 MB** in steady play |
+| Editor renderer private memory | — (4.7 GB before any fix) | **813 MB** |
+| Show armed after a reload | 4.4 s | **0.3 s** |
+| GOP reads | — | ~1 per second, **23–26 ms** for ~9.5 MB |
+| Feed stalls on missing bytes in steady play | — | **0** over 150 s (≈10 per decoder during the cold start, before the read-ahead has anything) |
+| Main process CPU | ~6% of a core | ~13% — it now serves ~10 MB/s of ranges |
+
+**Regression:** 150 s across both loop points — the surface's seamless wrap past frame 4,261 and the
+timeline layer's wrap 4,135 → 222 — with **0 gaps, 0 errors, 0 long tasks**, p99 18 ms, cache steady at
+budget (eviction working). A 2 s bake (60 frames, `clock: 'playhead'`) completed in 3.3 s with no
+`[mp4/exact]` warning, the layer decoder awaiting a GOP read 6 times. Decoder recovery still works.
+
+**Guard:** the probe/open check now follows the code into `readIndex()` / `loadStore()` /
+`loadWholeStore()`, and fails if `loadStore()` stops trying the ranged index first, if the ranged path
+drops its `isConfigSupported` gate (the older "asks the decoder" check is satisfied by the whole-file
+path alone, so it could not see this), or if `pump()` advances `fedAbs` before checking the sample's
+bytes are resident. Mutation-tested three ways (index skipped, config gate dropped, a non-resident sample counted and fed anyway); the third first PASSED an order-only version of the check, which now also requires the `break`.
+
+**Found on the way, not fixed here:**
+1. **A bake leaves every surface clock paused.** `bakeRunner.ts:515` calls `contentSource.setPlaying(false)`
+   and its `finally` never restores it; surfaces are only re-set by `surfaceMedia`'s sync, which runs on a
+   surface or play-state change. Seen live: after a bake the looping MP4 surface stopped (`fedAbs` flat)
+   while the timeline layer kept playing, until play/pause was toggled. Pre-existing since `4af847f`
+   (2026-09-12). Small fix: restore the prior state in the `finally`.
+2. **A thumbnail sometimes takes 60–75 s to start**, in bursts — after reloads (seen in step 1, before
+   ranged reads existed) and right after a bake added a file to the project; otherwise 0.7–1 s with the
+   GOP read included. The GOP reads are not it (45 ms each). Likely the thumbnail pump's one-job-per-second
+   pacing while the transport plays, with a backlog from another requester (the asset grid). Unproven.
+3. **The cache sat AT its 256 MB budget** with two playheads a few frames apart — they share GOPs, so the
+   budget, not the windows, set the size. Open question 1 (§10) stands: a smaller budget is likely fine.
