@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Layers, AlertTriangle, Check } from 'lucide-react';
-import type { ProjectorOutput, ProjectorBlend } from '../../../shared/protocol';
+import type { ProjectorOutput } from '../../../shared/protocol';
 import * as blendController from './blendController';
 import { getHost } from './calibHost';
 
@@ -46,29 +46,32 @@ export const BlendInspector: React.FC<Props> = ({ outputs }) => {
     .filter((o) => o.blend);
   const rig = blendController.rigOutputs();
 
-  // Σα over the WORLD. The maps are per projector and do not share a grid, so they cannot simply be
-  // added cell-by-cell — that would sum two different places. Instead each projector's covered cells
-  // are binned by the world point the solve associated them with, exactly as computeBlendMaps did.
+  // Σα THROUGH THE VENUE (blendController.blendCoverage → blendCompute.coverageSums). The maps are
+  // indexed by each projector's own pixels, so adding them cell by cell — which this view used to do —
+  // adds two different places on the wall: a side-by-side rig whose light measured 1.00 everywhere
+  // showed its whole overlap as "too bright". Each cell's own alpha is added to what every other
+  // projector puts on the SAME point, found from the calibrations and the venue model.
+  // `recheck` re-runs it on demand: the venue may only be registered after the panel first rendered.
+  const [recheck, setRecheck] = useState(0);
   const summary = useMemo(() => {
-    const blends = outs.map((o) => o.blend!).filter(Boolean) as ProjectorBlend[];
-    if (!blends.length) return null;
-    // Every map in a rig shares w/h (same default sizing), so a like-for-like cell sum is valid
-    // WITHIN a rig solved together — which rigIds already guarantees.
-    const w = blends[0].w, h = blends[0].h;
-    const uniform = blends.every((b) => b.w === w && b.h === h);
-    if (!uniform) return { w, h, uniform: false, sums: null, lit: 0, offUnity: 0, worst: 0 };
-    const sums = new Float32Array(w * h);
-    for (const b of blends) for (let i = 0; i < w * h; i++) sums[i] += b.alpha[i] ?? 0;
+    if (!outs.length) return null;
+    const cov = blendController.blendCoverage();
+    if (!cov) return { cov: null, lit: 0, offUnity: 0, worst: 0 };
     let lit = 0, offUnity = 0, worst = 0;
-    for (let i = 0; i < sums.length; i++) {
-      if (sums[i] <= 0.02) continue;
+    for (const c of cov) for (let i = 0; i < c.sums.length; i++) {
+      const v = c.sums[i];
+      if (!(v > 0.02)) continue;            // NaN (lights nothing) or unlit
       lit++;
-      const d = Math.abs(sums[i] - 1);
+      const d = Math.abs(v - 1);
       if (d > worst) worst = d;
       if (d > 0.06) offUnity++;
     }
-    return { w, h, uniform: true, sums, lit, offUnity, worst };
-  }, [outs.map((o) => o.blend?.solvedAt).join('|'), outs.length]);
+    return { cov, lit, offUnity, worst };
+  }, [outs.map((o) => o.blend?.solvedAt).join('|'), outs.length, recheck]);
+  const nameOf = (id: string): string => {
+    const o = outs.find((x) => x.surfaceId === id);
+    return o?.name || id;
+  };
 
   if (!outs.length) {
     // Empty states name the next action (DESIGN-SYSTEM §6).
@@ -76,7 +79,7 @@ export const BlendInspector: React.FC<Props> = ({ outputs }) => {
       <div className="p-3 text-xs text-fg-2 space-y-1">
         <div className="flex items-center gap-1.5 text-fg-1 font-medium"><Layers size={13} className="text-accent" /> Blend inspector</div>
         <p className="leading-relaxed">
-          No solved blend yet. Calibrate at least two projectors with <b>Auto-Align</b>, then press{' '}
+          No solved blend yet. Calibrate at least two projectors against the same venue, then press{' '}
           <b>Solve blend</b> in Projection Outputs.
         </p>
         {rig.length === 1 && <p className="text-fg-2">One projector is calibrated — a blend needs at least two.</p>}
@@ -103,14 +106,25 @@ export const BlendInspector: React.FC<Props> = ({ outputs }) => {
 
       {mode === 'sum' && summary && (
         <div className="space-y-2">
-          {!summary.uniform ? (
+          {!summary.cov ? (
             <div className="flex items-start gap-1.5 text-warn text-mini">
               <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-              <span>These maps were not solved together (different grid sizes) — re-solve the rig before trusting a sum.</span>
+              <span>
+                The sum is taken through the venue model, which is not loaded yet. Open the 3D view once,
+                then <button className="underline" onClick={() => setRecheck((n) => n + 1)}>check again</button>.
+              </span>
             </div>
           ) : (
             <>
-              <GridCanvas w={summary.w} h={summary.h} pixel={(i) => deviationColor(summary.sums![i])} />
+              {summary.cov.map((c) => (
+                <div key={c.surfaceId} className="space-y-1">
+                  <div className="flex items-center gap-2 text-mini">
+                    <span className="text-fg-1 truncate">{nameOf(c.surfaceId)}</span>
+                    <span className="text-fg-2 font-mono text-micro">{c.w}×{c.h}</span>
+                  </div>
+                  <GridCanvas w={c.w} h={c.h} pixel={(i) => deviationColor(Number.isNaN(c.sums[i]) ? 0 : c.sums[i])} />
+                </div>
+              ))}
               <div className="flex items-center gap-3 text-micro text-fg-2">
                 <span className="flex items-center gap-1"><Swatch rgb={[150, 150, 150]} /> Σα = 1 (correct)</span>
                 <span className="flex items-center gap-1"><Swatch rgb={[255, 30, 0]} /> too bright</span>
@@ -124,8 +138,8 @@ export const BlendInspector: React.FC<Props> = ({ outputs }) => {
               </div>
               {/* Honest about what a residual here means, so a few percent is not read as a defect. */}
               <p className="text-micro text-fg-2 leading-snug">
-                A few percent is discretization, not a fault: two projectors do not share a cell grid, so the
-                residual is about <span className="font-mono">0.5/N</span> for an overlap N cells wide. A
+                Each projector's picture shows, at every point it lights, the light all projectors put on
+                that point. A few percent at the very edge of the venue is sampling, not a fault. A
                 structured pattern — a band, a gradient across the whole overlap — is a real problem.
               </p>
             </>
@@ -141,7 +155,7 @@ export const BlendInspector: React.FC<Props> = ({ outputs }) => {
             return (
               <div key={o.surfaceId} className="space-y-1">
                 <div className="flex items-center gap-2 text-mini">
-                  <span className="text-fg-1 truncate">{o.surfaceId.slice(0, 8)}</span>
+                  <span className="text-fg-1 truncate">{nameOf(o.surfaceId)}</span>
                   <span className="text-fg-2 font-mono text-micro">{b.w}×{b.h}</span>
                   {blendController.isStale(o, rig) && <span className="text-warn text-micro flex items-center gap-1"><AlertTriangle size={11} /> stale</span>}
                 </div>

@@ -402,3 +402,48 @@ export function adaptiveBlendWidth(overlapFrac: number, raster: [number, number]
   // Never finer than the projector itself, never coarser than the old fixed grid (unless the raster is).
   return Math.min(W, Math.max(BLEND_MIN_W, Math.min(want, byBudget)));
 }
+
+// ── Σα THROUGH THE VENUE — what the blend inspector shows ─────────────────────────────────────────
+//
+// Each projector's map is indexed by its OWN pixels, so adding two maps cell by cell adds two
+// different places on the wall: on a side-by-side rig it added the left projector's overlap to the
+// right projector's solo region and painted a band of "too bright" over a blend that measured 1.00
+// on the wall. The honest sum goes through the venue: for every cell, its own alpha, plus — for each
+// other projector that really lights that cell's point (the solve's own visibility test) — that
+// projector's alpha where the point lands on it, sampled bilinearly, as its window samples it.
+
+/** Bilinear sample of a w×h map at normalised (u, v), texel-centre convention (the shader's). */
+function sampleMap(m: { w: number; h: number; data: ArrayLike<number> }, u: number, v: number): number {
+  const fx = Math.max(0, Math.min(m.w - 1, u * m.w - 0.5)), fy = Math.max(0, Math.min(m.h - 1, v * m.h - 0.5));
+  const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(m.w - 1, x0 + 1), y1 = Math.min(m.h - 1, y0 + 1);
+  const tx = fx - x0, ty = fy - y0, d = m.data;
+  return d[y0 * m.w + x0] * (1 - tx) * (1 - ty) + d[y0 * m.w + x1] * tx * (1 - ty)
+    + d[y1 * m.w + x0] * (1 - tx) * ty + d[y1 * m.w + x1] * tx * ty;
+}
+
+/**
+ * Per projector, per cell of its grid: the total light (Σα) arriving at the point that cell lights.
+ * NaN where the cell lights nothing. `maps[i]` must be on `projectors[i].grid`'s w×h.
+ */
+export function coverageSums(
+  projectors: ProjectedBlendInput[],
+  maps: Array<{ w: number; h: number; data: ArrayLike<number> }>,
+): Float32Array[] {
+  const { at, weightOf } = projectedWeights(projectors);
+  return projectors.map((P, i) => {
+    const { w, h } = P.grid;
+    const sums = new Float32Array(w * h).fill(Number.NaN);
+    for (let c = 0; c < w * h; c++) {
+      const p = at(P.grid, c);
+      if (!p) continue;
+      let s = maps[i].data[c];
+      for (let j = 0; j < projectors.length; j++) {
+        if (j === i || weightOf(j, p) <= 0) continue;
+        const px = projectors[j].project(p)!;   // weightOf > 0 means it projects inside the raster
+        s += sampleMap(maps[j], px[0] / projectors[j].raster[0], px[1] / projectors[j].raster[1]);
+      }
+      sums[c] = s;
+    }
+    return sums;
+  });
+}

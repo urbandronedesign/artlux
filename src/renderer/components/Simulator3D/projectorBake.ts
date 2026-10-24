@@ -1,7 +1,5 @@
 import * as THREE from 'three';
-import { nodes, isWebGPURenderer } from './renderer3d';
-import { useFrame, useThree } from '@react-three/fiber';
-import { registeredCasters, type DepthRenderer } from './projectorDepth';
+import { registeredCasters } from './projectorDepth';
 
 // BAKING A PROJECTOR'S VIEW OF THE VENUE — one GPU pass that answers "which texel of the content
 // belongs at each of my pixels", at the projector's own resolution.
@@ -46,17 +44,30 @@ import { registeredCasters, type DepthRenderer } from './projectorDepth';
 //
 // The cost, accepted deliberately: the mapping is FROZEN at bake time. Re-unwrapping the mesh or
 // changing the projection means re-baking. A world map would have survived those — for the one uv
-// mode where it works.
-
-const BAKE_LAYER = 6;             // 7 is the depth pass; nothing else uses a layer
-const PROXY_FLAG = 'artluxBakeProxy';
-
-// ── The material ────────────────────────────────────────────────────────────────────────────────
+// mode where it works. (The rig blend DOES want world positions — bakeWorld, at the end — because it
+// asks which point of the venue a pixel lights, not which texel of the content.)
 //
-// Dual-path for the same reason projectedMapping and projectorDepth are: the projector windows build
-// their own WebGL renderer while the editor viewport may be on WebGPU, and a NodeMaterial cannot
-// render on a WebGLRenderer. The choice comes from the RENDERER, never from module state — the bug
-// that blacked out a projector output once already (verify:invariants check 100).
+// ── WHY IT HAS A RENDERER OF ITS OWN ─────────────────────────────────────────────────────────────
+//
+// It used to borrow the 3D viewport's: leave a request, let a component inside the Canvas service it
+// on its next frame, await WebGPU's compileAsync and readRenderTargetPixelsAsync. That failed two
+// ways, both silent:
+//   - the viewport stops its frame loop while hidden (Simulator3D `paused`), so a bake asked for from
+//     anywhere but the 3D view itself waited for a frame that never came, and timed out;
+//   - on the WebGPU renderer the pass STALLED intermittently with nothing logged — compileAsync never
+//     settled and, raced past, the readback never resolved. Measured on the rig-blend solve, which
+//     sat on "Solving…" for good.
+// A short-lived WebGL2 renderer has neither problem: the program compiles inside render(), the
+// readback is synchronous and tightly packed (no WebGPU 256-byte row padding to strip — that once
+// sheared a 932-wide export), and nothing waits on the viewport. It never touches the live scene
+// either: each caster mesh is mirrored as a standalone mesh on its world matrix, sharing geometry.
+//
+// The context lives for one call and is released with forceContextLoss — Chromium caps live WebGL
+// contexts (~16) and evicts the OLDEST past that, which could be one the app is drawing with.
+//
+// What it still needs is the venue REGISTERED (registeredCasters — the depth pass's set, so a file
+// and the live preview agree about what occludes what), which happens once the 3D view has been
+// opened in the session.
 
 /** Per-model, because uv mode is a property of the model and a rig can mix them. */
 export interface UvSource {
@@ -66,7 +77,9 @@ export interface UvSource {
   matrix?: number[];
 }
 
-function makeShaderMaterial(src: UvSource): THREE.ShaderMaterial {
+// ── The materials ───────────────────────────────────────────────────────────────────────────────
+
+function uvMaterial(src: UvSource): THREE.ShaderMaterial {
   const projected = src.mode === 'projected' && src.matrix?.length === 16;
   return new THREE.ShaderMaterial({
     uniforms: { uProjViewProj: { value: new THREE.Matrix4().fromArray(src.matrix ?? new Array(16).fill(0)) } },
@@ -108,66 +121,24 @@ function makeShaderMaterial(src: UvSource): THREE.ShaderMaterial {
   });
 }
 
-function makeNodeMaterial(src: UvSource): THREE.Material | null {
-  const mods = nodes();
-  if (!mods) return null;
-  const { MeshBasicNodeMaterial } = mods.webgpu;
-  const { uv, vec4, positionWorld, uniform } = mods.tsl;
-  const m = new MeshBasicNodeMaterial();
-
-  // TSL is chained, and its argument types are wide by design; `as never` appears only where the
-  // typings cannot express "this node is a vec2/vec4", never to paper over an unknown symbol.
-  if (src.mode === 'projected' && src.matrix?.length === 16) {
-    const M = uniform(new THREE.Matrix4().fromArray(src.matrix));
-    const clip = M.mul(vec4(positionWorld, 1)) as unknown as { xy: { div(w: unknown): { mul(n: number): { add(n: number): unknown } } }; w: unknown };
-    const projUv = clip.xy.div(clip.w).mul(0.5).add(0.5);
-    m.colorNode = vec4(projUv as never, 0, 1);
-  } else {
-    m.colorNode = vec4(uv(), 0, 1);   // the mesh's own unwrap — an attribute, not a projection
-  }
-  m.side = THREE.DoubleSide;
-  m.toneMapped = false;
-  return m as unknown as THREE.Material;
-}
-
-/**
- * A material per UV SOURCE, not one shared by the scene: uv mode is a property of the model, and a
- * rig may mix an authored GLB with a projected plane. Cached by a key so a bake of twenty meshes that
- * share a mode compiles one program, not twenty.
- */
-const matCache = new Map<string, THREE.Material | null>();
-function bakeMaterial(webgpu: boolean, src: UvSource): THREE.Material | null {
-  const key = `${webgpu ? 'gpu' : 'gl'}|${src.mode}|${src.mode === 'projected' ? (src.matrix ?? []).join(',') : ''}`;
-  if (matCache.has(key)) return matCache.get(key) ?? null;
-  const m = webgpu ? makeNodeMaterial(src) : makeShaderMaterial(src);
-  matCache.set(key, m);
-  return m;
-}
-
-// ── Proxies ─────────────────────────────────────────────────────────────────────────────────────
-//
-// Same doctrine as the depth pass, and for the same measured reason: swapping an existing mesh's
-// material black-screened the WebGPU path, while a proxy that never touches it did not. Parented to
-// the caster so the world matrix tracks for free. Skips anything already flagged as a proxy — the
-// depth pass's proxies live in the same trees and must not be baked as if they were geometry.
-
-function attachProxies(root: THREE.Object3D, material: THREE.Material): THREE.Mesh[] {
-  const made: THREE.Mesh[] = [];
-  const add: Array<[THREE.Mesh, THREE.Mesh]> = [];
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!(mesh as { isMesh?: boolean }).isMesh) return;
-    if (mesh.userData[PROXY_FLAG] || mesh.userData['artluxDepthProxy']) return;
-    if (!mesh.visible) return;                    // a hidden model is not lit, so it is not baked
-    const proxy = new THREE.Mesh(mesh.geometry, material);
-    proxy.userData[PROXY_FLAG] = true;
-    proxy.layers.set(BAKE_LAYER);
-    proxy.raycast = () => { /* never pickable */ };
-    proxy.frustumCulled = false;
-    add.push([mesh, proxy]);
+function worldMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: /* glsl */`
+      varying vec3 vBakeWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vBakeWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      varying vec3 vBakeWorld;
+      void main() { gl_FragColor = vec4(vBakeWorld, 1.0); }
+    `,
+    side: THREE.DoubleSide,
+    toneMapped: false,
   });
-  for (const [mesh, proxy] of add) { mesh.add(proxy); made.push(proxy); }
-  return made;
 }
 
 // ── The camera ──────────────────────────────────────────────────────────────────────────────────
@@ -182,315 +153,51 @@ class BakeCamera extends THREE.Camera {
   updateProjectionMatrix(): void { /* the projection is supplied, not derived */ }
 }
 
-let camera: BakeCamera | null = null;
-function getCamera(): BakeCamera {
-  if (!camera) { camera = new BakeCamera(); camera.layers.set(BAKE_LAYER); }
-  return camera;
-}
-
-// ── Getting at a renderer ───────────────────────────────────────────────────────────────────────
-//
-// The bake needs a live renderer and the scene graph, which only exist INSIDE the Canvas — while the
-// thing that wants a bake (the export button, in a wizard) is ordinary React outside it. Same shape
-// as the depth pass's request registry: leave a request, let a component inside the Canvas service it
-// on its next frame, resolve a promise. One at a time, because a bake is an operator action and two
-// concurrent ones would fight over the render target and the clear colour.
-
-interface Pending {
-  viewProj: number[]; w: number; h: number;
-  /** Per-model uv source — the bake needs it because uv mode is a property of the model. */
-  uvFor: (modelId: string) => UvSource;
-  resolve(m: BakedMap | null): void;
-}
-let pending: Pending | null = null;
+// ── The pass both bakes share ───────────────────────────────────────────────────────────────────
 
 /**
- * Ask the mounted 3D viewport to bake `viewProj` at w×h. Resolves null when nothing can service it —
- * no Canvas mounted, no venue registered — which the caller must treat as "fall back", not as "the
- * projector sees nothing".
+ * Render the registered venue from `viewProj` into an rw×rh FLOAT target, each model with the
+ * material `materialFor` gives it, and read it back in GL's bottom-up order (rw*rh*4). Null when
+ * there is nothing to render or no float render targets.
  */
-export function requestBake(viewProj: number[], w: number, h: number, uvFor: (modelId: string) => UvSource): Promise<BakedMap | null> {
-  if (pending) return Promise.resolve(null);   // one at a time; the caller retries or falls back
-  return new Promise<BakedMap | null>((resolve) => {
-    pending = { viewProj, w, h, uvFor, resolve };
-    // Nothing mounted to service it? Do not hang the export dialog waiting for a frame that will
-    // never come. A second is far longer than a frame and far shorter than an operator's patience.
-    setTimeout(() => { if (pending?.resolve === resolve) { pending = null; resolve(null); } }, 1000);
-  });
-}
-
-/** True while a bake is waiting for a frame — lets a caller show "baking…" honestly. */
-export function bakePending(): boolean { return pending !== null; }
-
-/**
- * Service a queued bake. Called from inside the Canvas, once per frame, by ProjectorBakePass.
- * Deliberately NOT awaited by the caller: a render loop must not block on a GPU readback.
- */
-export function serviceBake(gl: DepthRenderer, scene: THREE.Scene): void {
-  const req = pending;
-  if (!req) return;
-  pending = null;                                  // claim it before awaiting, so one frame = one bake
-  void bakeContentUv(gl, scene, req.viewProj, req.w, req.h, req.uvFor)
-    .then(req.resolve, (e) => { console.warn('[bake] failed', e && (e as Error).stack ? (e as Error).stack : e); req.resolve(null); });
-}
-
-export interface BakedMap {
-  w: number;
-  h: number;
-  /**
-   * w*h*3, row-major, top-left origin: (u, v, 0) — the CONTENT texture coordinate this projector
-   * pixel should sample. NaN where the projector sees no geometry, or where the fragment fell
-   * outside the content footprint. Three components rather than two because a PFM (MPCDI's geometry
-   * carrier) is 1- or 3-channel; the third is spare.
-   */
-  uv: Float32Array;
-  /** How many pixels landed on geometry — the number that says whether the bake is usable. */
-  hits: number;
-}
-
-/**
- * Render the venue from `viewProj` and read back one CONTENT UV per projector pixel.
- *
- * Async because the WebGPU path's readback is: `readRenderTargetPixelsAsync` is the only way to get
- * bytes off a WebGPU target, and pretending otherwise would return a buffer of zeros that looks like
- * a venue nobody hit.
- */
-export async function bakeContentUv(
-  gl: DepthRenderer, scene: THREE.Scene, viewProj: number[], w: number, h: number,
-  uvFor: (modelId: string) => UvSource,
-): Promise<BakedMap | null> {
+function offscreenPass(
+  viewProj: number[], rw: number, rh: number,
+  materialFor: (modelId: string) => THREE.Material,
+): Float32Array | null {
   const casters = registeredCasters();
   if (!casters.length) return null;
-  const webgpu = isWebGPURenderer(gl);
-
-  // ── SUPERSAMPLE, SO THE SILHOUETTE CARRIES COVERAGE ─────────────────────────────────────────
-  // Rendered at SS× and resolved below to a coverage fraction per output texel. Without it the hit
-  // flag is binary and the projector has no way to antialias its own outline: a downstream blur can
-  // soften the step but cannot know where inside the pixel the edge actually fell — and a distance
-  // field derived from a same-resolution binary mask gives back exactly the binary answer.
-  //
-  // 2 rather than 4: quarter-pixel coverage steps are past what a projector resolves on a wall, and
-  // this is 4x the render and 4x the readback (~11M float4 at native raster) already.
-  const SS = 2;
-  const rw = w * SS, rh = h * SS;
+  const materials: THREE.Material[] = [];
   const rt = new THREE.WebGLRenderTarget(rw, rh, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     format: THREE.RGBAFormat,
     // FLOAT, not bytes. A uv quantised to 8 bits is 256 addressable texels across a 1920-wide
-    // source — every seam in the venue would land on a visibly wrong column.
+    // source — every seam in the venue would land on a visibly wrong column. And a world point is in
+    // metres.
     type: THREE.FloatType,
     depthBuffer: true,          // the depth test IS the occlusion
     stencilBuffer: false,
     generateMipmaps: false,
   });
   rt.texture.colorSpace = THREE.NoColorSpace;   // coordinates are data, not colour
-
-  const proxies: THREE.Mesh[] = [];
-  const savedTarget = gl.getRenderTarget();
-  const savedClear = new THREE.Color();
-  gl.getClearColor(savedClear);
-  const savedAlpha = gl.getClearAlpha();
-  const savedBg = scene.background;
-
-  try {
-    // ONE MATERIAL PER MODEL, because uv mode is per model: an authored GLB and a projected plane in
-    // the same rig bake differently, and a shared material would silently give one of them the
-    // other's coordinates.
-    for (const c of casters) {
-      const material = bakeMaterial(webgpu, uvFor(c.id));
-      if (!material) continue;
-      proxies.push(...attachProxies(c.object, material));
-    }
-    if (!proxies.length) return null;
-
-    const cam = getCamera();
-    cam.projectionMatrix.fromArray(viewProj);
-    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
-
-    // Alpha 0 everywhere the venue is not — the hit flag. A background would be drawn over it.
-    scene.background = null;
-    gl.setRenderTarget(rt);
-    gl.setClearColor(0x000000, 0);
-    gl.clear(true, true, false);
-
-    // WEBGPU COMPILES PIPELINES ASYNCHRONOUSLY, so a brand-new material's first render can return
-    // before the work is queued — the same failure that blacked the depth pass until it warmed up.
-    // Here the pass is one-shot, so waiting is both possible and correct.
-    const compiler = gl as unknown as { compileAsync?: (s: THREE.Scene, c: THREE.Camera) => Promise<unknown> };
-    if (webgpu && compiler.compileAsync) await compiler.compileAsync(scene, cam);
-
-    gl.render(scene, cam);
-
-    // ⚠ THE TWO READBACKS HAVE DIFFERENT SIGNATURES, AND GETTING IT WRONG FAILS DEEP INSIDE THREE.
-    //
-    //   WebGL   readRenderTargetPixels     (rt, x, y, w, h, BUFFER)   → fills the buffer you pass
-    //   WebGPU  readRenderTargetPixelsAsync(rt, x, y, w, h, texIndex) → RETURNS a new typed array
-    //
-    // Passing a Float32Array where WebGPU wants a texture index put it through `backend.get(texture)`
-    // with the array as the key, and it surfaced as `TypeError: Invalid value used as weak map key`
-    // from WebGPUTextureUtils.copyTextureToBuffer — a message that names nothing in this file. Read
-    // the signature, do not pattern-match the WebGL one.
-    let buf: Float32Array;
-    const webgpuRead = gl as unknown as { readRenderTargetPixelsAsync?: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number) => Promise<ArrayBufferView> };
-    if (webgpuRead.readRenderTargetPixelsAsync) {
-      buf = await webgpuRead.readRenderTargetPixelsAsync(rt, 0, 0, rw, rh) as Float32Array;
-      // ⚠ WEBGPU PADS EVERY ROW of a texture readback to a multiple of 256 BYTES (copyTextureToBuffer's
-      // bytesPerRow rule), and three hands that buffer back as is. A float RGBA texel is 16 bytes, so
-      // any width that is not a multiple of 16 texels comes back with extra floats at the end of each
-      // row — read as rw-wide rows, every row starts a little further along and the map is sheared
-      // into diagonal stripes. Measured: a 932-wide projector window (14,912 B/row → 15,104) exported
-      // a garbled rig, while 1264 (exactly 79 x 256 B) was fine — which is how it hid. Strip the pad.
-      // three sizes the buffer as (rh - 1) padded rows + ONE UNPADDED last row
-      // (WebGPUTextureUtils.copyTextureToBuffer), so the stride is not buf.length / rh — derive it
-      // from the rows that ARE padded. A first version divided by rh, got a fraction, and silently
-      // skipped the repack.
-      const rowFloats = rw * 4, stride = rh > 1 ? (buf.length - rowFloats) / (rh - 1) : rowFloats;
-      if (buf.length !== rw * rh * 4 && stride > rowFloats && Number.isInteger(stride)) {
-        const tight = new Float32Array(rw * rh * 4);
-        for (let y = 0; y < rh; y++) tight.set(buf.subarray(y * stride, y * stride + rowFloats), y * rowFloats);
-        buf = tight;
-      }
-    } else {
-      buf = new Float32Array(rw * rh * 4);
-      (gl as unknown as { readRenderTargetPixels: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number, out: Float32Array) => void }).readRenderTargetPixels(rt, 0, 0, rw, rh, buf);
-    }
-    if (!buf || buf.length < rw * rh * 4) { console.warn('[bake] short readback', buf?.length, 'expected', rw * rh * 4); return null; }
-
-    // Flip to a top-left origin and drop the misses. GL reads bottom-up; MPCDI's PFM and every
-    // consumer of this map index from the top, and a vertically mirrored calibration is the kind of
-    // wrong that looks almost right.
-    // RESOLVE SS x SS -> one texel: (mean uv of the subsamples that hit, coverage fraction).
-    //
-    // The uv is averaged over HITS ONLY. Including a miss would drag the coordinate toward whatever
-    // the cleared buffer holds, which is not a point on the venue at all — the same reason the map is
-    // sampled NEAREST downstream. A partially covered texel therefore carries a real coordinate from
-    // the covered part of itself, which is exactly what a fringe pixel needs in order to be dimmed
-    // rather than invented.
-    //
-    // Coverage rides in the third channel — declared spare by this format and ignored by any reader
-    // that does not know about it, so a file with it stays readable by one that does not.
-    const out = new Float32Array(w * h * 3);
-    let hits = 0;
-    const inv = 1 / (SS * SS);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let su = 0, sv = 0, n = 0;
-        for (let sy = 0; sy < SS; sy++) {
-          // GL reads bottom-up; MPCDI's PFM and every consumer of this map index from the top, and a
-          // vertically mirrored calibration is the kind of wrong that looks almost right.
-          const ry = rh - 1 - (y * SS + sy);
-          for (let sx = 0; sx < SS; sx++) {
-            const s = (ry * rw + (x * SS + sx)) * 4;
-            if (buf[s + 3] > 0.5) { su += buf[s]; sv += buf[s + 1]; n++; }
-          }
-        }
-        const d = (y * w + x) * 3;
-        if (n) {
-          out[d] = su / n; out[d + 1] = sv / n; out[d + 2] = n * inv;   // coverage 0<c<=1
-          hits++;
-        } else {
-          out[d] = NaN; out[d + 1] = NaN; out[d + 2] = NaN;
-        }
-      }
-    }
-    return { w, h, uv: out, hits };
-  } finally {
-    for (const p of proxies) p.removeFromParent();
-    gl.setRenderTarget(savedTarget);
-    gl.setClearColor(savedClear, savedAlpha);
-    scene.background = savedBg;
-    rt.dispose();
-    // WEBGPU: re-assert the canvas size after a render-target detour, or the canvas pass comes back
-    // with a stale depth attachment and the whole viewport goes black with a clean console. Measured;
-    // see the same line in projectorDepth's endPass.
-    if (webgpu) { const s = gl.getSize(new THREE.Vector2()); gl.setSize(s.x, s.y, false); }
-  }
-}
-
-/**
- * Mount ONE inside any Canvas that holds the venue, beside <ProjectorDepthPass />. Without it the
- * request registry fills up and every bake times out into the raycast fallback — silently, at a
- * fortieth of the resolution, which is exactly the failure this module exists to remove.
- */
-export function ProjectorBakePass(): null {
-  const gl = useThree((s) => s.gl) as unknown as DepthRenderer;
-  const scene = useThree((s) => s.scene);
-  // Priority -1, like the depth pass: a negative priority leaves r3f's automatic render intact and
-  // merely guarantees this runs before it, so a bake never lands mid-frame.
-  useFrame(() => { serviceBake(gl, scene); }, -1);
-  return null;
-}
-
-// ── THE WORLD BAKE — the rig blend's input, on a renderer of its OWN ────────────────────────────
-//
-// The rig blend asks a different question from the calibration file: not "which content texel" but
-// "which POINT of the venue does this pixel light" — a position, with no uv in it (the header explains
-// why the FILE must not store this). It replaces a CPU raycast (three's Raycaster, no BVH, O(rays x
-// triangles)) that held the blend to a fixed 160-wide grid.
-//
-// ⚠ IT DOES NOT BORROW THE VIEWPORT'S RENDERER, deliberately. Run through the request registry above
-// on the viewport's WebGPU renderer, it stalled INTERMITTENTLY with nothing logged: compileAsync never
-// settled, and when raced past, readRenderTargetPixelsAsync never resolved either — a solve stuck on
-// "Solving…" for good. A short-lived WebGL2 renderer has neither async step: the program compiles
-// inside render() and readRenderTargetPixels is synchronous. It also never touches the live scene:
-// the casters are mirrored as standalone meshes on their world matrices, sharing geometry.
-//
-// One extra WebGL context for the length of a solve, released with forceContextLoss — Chromium caps
-// live contexts (~16) and evicts the OLDEST past that, so it must not outlive the call.
-
-export interface WorldMap {
-  w: number;
-  h: number;
-  /** w*h*3, row-major, top-left origin: the world XYZ this pixel's ray first hits. NaN = a miss. */
-  world: Float32Array;
-  hits: number;
-}
-
-/**
- * Render the registered venue from `viewProj` at w×h and read back the world point under each
- * pixel. Null when nothing can be baked (no venue registered — the 3D view has not been opened — or no
- * float render targets), which the caller treats as "fall back", never as "this projector sees nothing".
- */
-export function bakeWorld(viewProj: number[], w: number, h: number): WorldMap | null {
-  const casters = registeredCasters();
-  if (!casters.length) return null;
-  const material = new THREE.ShaderMaterial({
-    vertexShader: /* glsl */`
-      varying vec3 vBakeWorld;
-      void main() {
-        vec4 w = modelMatrix * vec4(position, 1.0);
-        vBakeWorld = w.xyz;
-        gl_Position = projectionMatrix * viewMatrix * w;
-      }
-    `,
-    fragmentShader: /* glsl */`
-      precision highp float;
-      varying vec3 vBakeWorld;
-      void main() { gl_FragColor = vec4(vBakeWorld, 1.0); }
-    `,
-    side: THREE.DoubleSide,   // a venue GLB with inverted winding must still bake
-    toneMapped: false,
-  });
-  const rt = new THREE.WebGLRenderTarget(w, h, {
-    minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
-    format: THREE.RGBAFormat, type: THREE.FloatType,   // metres, not bytes
-    depthBuffer: true,                                 // the depth test IS the occlusion
-    stencilBuffer: false, generateMipmaps: false,
-  });
-  rt.texture.colorSpace = THREE.NoColorSpace;
   let renderer: THREE.WebGLRenderer | null = null;
   try {
     renderer = new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: false, alpha: true });
     if (!renderer.extensions.has('EXT_color_buffer_float')) return null;
     const scene = new THREE.Scene();
     for (const c of casters) {
+      // ONE MATERIAL PER MODEL, because uv mode is per model: an authored GLB and a projected plane
+      // in the same rig bake differently, and a shared material would silently give one of them the
+      // other's coordinates.
+      const material = materialFor(c.id);
+      materials.push(material);
       c.object.updateWorldMatrix(true, true);
       c.object.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!(mesh as { isMesh?: boolean }).isMesh) return;
-        if (mesh.userData[PROXY_FLAG] || mesh.userData['artluxDepthProxy']) return;
-        if (!mesh.visible) return;                     // a hidden model is not lit, so it is not baked
+        // The depth pass's proxies live in the same trees and must not be baked as if geometry.
+        if (mesh.userData['artluxDepthProxy']) return;
+        if (!mesh.visible) return;                    // a hidden model is not lit, so it is not baked
         const m = new THREE.Mesh(mesh.geometry, material);
         m.matrixAutoUpdate = false;
         m.matrix.copy(mesh.matrixWorld);
@@ -506,22 +213,121 @@ export function bakeWorld(viewProj: number[], w: number, h: number): WorldMap | 
     renderer.setClearColor(0x000000, 0);              // alpha 0 = the hit flag says "no geometry"
     renderer.clear(true, true, false);
     renderer.render(scene, cam);
-    const buf = new Float32Array(w * h * 4);
-    renderer.readRenderTargetPixels(rt, 0, 0, w, h, buf);
-    const world = new Float32Array(w * h * 3);
-    let hits = 0;
-    for (let y = 0; y < h; y++) {
-      const ry = h - 1 - y;                            // GL reads bottom-up → top-left origin
-      for (let x = 0; x < w; x++) {
-        const s = (ry * w + x) * 4, d = (y * w + x) * 3;
-        if (buf[s + 3] > 0.5) { world[d] = buf[s]; world[d + 1] = buf[s + 1]; world[d + 2] = buf[s + 2]; hits++; }
-        else { world[d] = NaN; world[d + 1] = NaN; world[d + 2] = NaN; }
-      }
-    }
-    return { w, h, world, hits };
+    const buf = new Float32Array(rw * rh * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, rw, rh, buf);
+    return buf;
   } finally {
-    material.dispose();
+    for (const m of materials) m.dispose();
     rt.dispose();
     if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
   }
+}
+
+// ── The calibration-file bake: content uv ───────────────────────────────────────────────────────
+
+export interface BakedMap {
+  w: number;
+  h: number;
+  /**
+   * w*h*3, row-major, BOTTOM row first (GL raster order — see the resolve loop): (u, v, coverage) —
+   * the CONTENT texture coordinate this
+   * projector pixel should sample. NaN where the projector sees no geometry, or where the fragment
+   * fell outside the content footprint. Three components rather than two because a PFM (MPCDI's
+   * geometry carrier) is 1- or 3-channel.
+   */
+  uv: Float32Array;
+  /** How many pixels landed on geometry — the number that says whether the bake is usable. */
+  hits: number;
+}
+
+/**
+ * Render the venue from `viewProj` and read back one CONTENT UV per projector pixel. Null when
+ * nothing can be baked (no venue registered, no float targets) — the caller must treat that as
+ * "skip, and say why", never as "the projector sees nothing".
+ */
+export function bakeContentUv(
+  viewProj: number[], w: number, h: number, uvFor: (modelId: string) => UvSource,
+): BakedMap | null {
+  // ── SUPERSAMPLE, SO THE SILHOUETTE CARRIES COVERAGE ─────────────────────────────────────────
+  // Rendered at SS× and resolved below to a coverage fraction per output texel. Without it the hit
+  // flag is binary and the projector has no way to antialias its own outline: a downstream blur can
+  // soften the step but cannot know where inside the pixel the edge actually fell — and a distance
+  // field derived from a same-resolution binary mask gives back exactly the binary answer.
+  //
+  // 2 rather than 4: quarter-pixel coverage steps are past what a projector resolves on a wall, and
+  // this is 4x the render and 4x the readback (~11M float4 at native raster) already.
+  const SS = 2;
+  const rw = w * SS, rh = h * SS;
+  const buf = offscreenPass(viewProj, rw, rh, (id) => uvMaterial(uvFor(id)));
+  if (!buf) return null;
+
+  // RESOLVE SS x SS -> one texel: (mean uv of the subsamples that hit, coverage fraction).
+  //
+  // The uv is averaged over HITS ONLY. Including a miss would drag the coordinate toward whatever
+  // the cleared buffer holds, which is not a point on the venue at all — the same reason the map is
+  // sampled NEAREST downstream. A partially covered texel therefore carries a real coordinate from
+  // the covered part of itself, which is exactly what a fringe pixel needs in order to be dimmed
+  // rather than invented.
+  //
+  // Coverage rides in the third channel — declared spare by this format and ignored by any reader
+  // that does not know about it, so a file with it stays readable by one that does not.
+  const out = new Float32Array(w * h * 3);
+  let hits = 0;
+  const inv = 1 / (SS * SS);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let su = 0, sv = 0, n = 0;
+      for (let sy = 0; sy < SS; sy++) {
+        // NO ROW FLIP: the map is kept in GL raster order, bottom row first — what ProjectorGL samples
+        // it with (texture2D(uMap, vRaster), GL origin) and what every calibration file exported so
+        // far holds. WebGL reads back bottom-up, so the order is already right. The WebGPU version of
+        // this pass flipped rows here, and only got the same order because WebGPU reads top-down —
+        // a WebGL bake flipped the same way played upside down (measured, the test-card rig).
+        const ry = y * SS + sy;
+        for (let sx = 0; sx < SS; sx++) {
+          const s = (ry * rw + (x * SS + sx)) * 4;
+          if (buf[s + 3] > 0.5) { su += buf[s]; sv += buf[s + 1]; n++; }
+        }
+      }
+      const d = (y * w + x) * 3;
+      if (n) {
+        out[d] = su / n; out[d + 1] = sv / n; out[d + 2] = n * inv;   // coverage 0<c<=1
+        hits++;
+      } else {
+        out[d] = NaN; out[d + 1] = NaN; out[d + 2] = NaN;
+      }
+    }
+  }
+  return { w, h, uv: out, hits };
+}
+
+// ── The rig-blend bake: world position ──────────────────────────────────────────────────────────
+//
+// Replaces a CPU raycast (three's Raycaster, no BVH) that held the blend to a fixed 160-wide grid.
+// One sample per pixel, no supersample: the blend weighs a point, it does not antialias an outline,
+// and a position averaged across a silhouette would be a point floating in mid-air between the
+// object and the wall behind it.
+
+export interface WorldMap {
+  w: number;
+  h: number;
+  /** w*h*3, row-major, top-left origin: the world XYZ this pixel's ray first hits. NaN = a miss. */
+  world: Float32Array;
+  hits: number;
+}
+
+export function bakeWorld(viewProj: number[], w: number, h: number): WorldMap | null {
+  const buf = offscreenPass(viewProj, w, h, () => worldMaterial());
+  if (!buf) return null;
+  const world = new Float32Array(w * h * 3);
+  let hits = 0;
+  for (let y = 0; y < h; y++) {
+    const ry = h - 1 - y;                              // GL reads bottom-up → top-left origin
+    for (let x = 0; x < w; x++) {
+      const s = (ry * w + x) * 4, d = (y * w + x) * 3;
+      if (buf[s + 3] > 0.5) { world[d] = buf[s]; world[d + 1] = buf[s + 1]; world[d + 2] = buf[s + 2]; hits++; }
+      else { world[d] = NaN; world[d + 1] = NaN; world[d + 2] = NaN; }
+    }
+  }
+  return { w, h, world, hits };
 }

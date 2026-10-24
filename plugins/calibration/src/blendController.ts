@@ -8,7 +8,7 @@
 
 import type { ProjectorBlend, ProjectorOutput } from '../../../shared/protocol';
 import {
-  computeBlendMaps, computeBlendMapsProjected, narrowestOverlap, adaptiveBlendWidth,
+  computeBlendMaps, computeBlendMapsProjected, narrowestOverlap, adaptiveBlendWidth, coverageSums,
   type BlendMap, type ProjectorBlendInput, type ProjectedBlendInput,
 } from './blendCompute';
 import * as blendStore from './blendStore';
@@ -150,9 +150,9 @@ const WORLD_BAKE_W = 1024;
  * the physical panel pixel (ProjectorScene's blend runs on gl_FragCoord, after the distortion pass) —
  * so with a distorted lens each cell first finds the ideal pixel its physical ray goes through.
  */
-function gridFromWorldMap(o: ProjectorOutput, map: WorldMap, gw: number): ProjectedBlendInput {
+function gridFromWorldMap(o: ProjectorOutput, map: WorldMap, gw: number, ghIn?: number): ProjectedBlendInput {
   const cal = o.calibration!, [pw, ph] = cal.imageSize;
-  const gh = Math.max(2, Math.round((gw * ph) / pw));
+  const gh = ghIn ?? Math.max(2, Math.round((gw * ph) / pw));
   const dist = cal.distortion ?? [0, 0, 0, 0, 0], t = cal.translation as [number, number, number];
   const distorted = dist.some((v) => v !== 0), ideal = [0, 0, 0, 0, 0];
   const world = new Float64Array(gw * gh * 3).fill(Number.NaN);
@@ -182,25 +182,59 @@ function gridFromWorldMap(o: ProjectorOutput, map: WorldMap, gw: number): Projec
  * still gives a correct, coarser blend. A bake that hits too little of the venue is NOT a fallback
  * case: it is reported, as the trace would.
  */
+/** One projector's world map — null when nothing can be baked, 'miss' when it hits ~nothing. */
+function bakeOutput(o: ProjectorOutput): WorldMap | null | 'miss' {
+  const cal = o.calibration!, [pw, ph] = cal.imageSize;
+  const vp = pw && ph ? projectorViewProj(cal) : null;
+  if (!vp) return 'miss';
+  // At most WORLD_BAKE_W wide: the map is only ever sampled at blend-cell centres, and the blend's
+  // own budget keeps it under ~500 cells across — a 4K render would buy nothing but memory.
+  const bw = Math.min(pw, WORLD_BAKE_W), bh = Math.max(2, Math.round((bw * ph) / pw));
+  const map = bakeWorld(vp, bw, bh);
+  if (!map) return null;                         // nothing to bake against — not this projector's fault
+  return map.hits < 60 ? 'miss' : map;
+}
+
 function solveOnGpu(rig: ProjectorOutput[]): { maps: BlendMap[]; missing: string[] } | null {
   const baked: Array<{ o: ProjectorOutput; map: WorldMap }> = [];
   const missing: string[] = [];
   for (const o of rig) {
-    const cal = o.calibration!, [pw, ph] = cal.imageSize;
-    const vp = pw && ph ? projectorViewProj(cal) : null;
-    if (!vp) { missing.push(o.surfaceId); continue; }
-    // At most WORLD_BAKE_W wide: the map is only ever sampled at blend-cell centres, and the blend's
-    // own budget keeps it under ~500 cells across — a 4K render would buy nothing but memory.
-    const bw = Math.min(pw, WORLD_BAKE_W), bh = Math.max(2, Math.round((bw * ph) / pw));
-    const map = bakeWorld(vp, bw, bh);
-    if (!map) return null;                       // nothing to bake against — not this projector's fault
-    if (map.hits < 60) { missing.push(o.surfaceId); continue; }
+    const map = bakeOutput(o);
+    if (map === null) return null;
+    if (map === 'miss') { missing.push(o.surfaceId); continue; }
     baked.push({ o, map });
   }
   if (missing.length) return { maps: [], missing };
   const frac = narrowestOverlap(baked.map(({ o, map }) => gridFromWorldMap(o, map, Math.min(ANALYSIS_W, map.w))));
   const inputs = baked.map(({ o, map }) => gridFromWorldMap(o, map, adaptiveBlendWidth(frac, o.calibration!.imageSize)));
   return { maps: computeBlendMapsProjected(inputs), missing: [] };
+}
+
+export interface BlendCoverage {
+  surfaceId: string;
+  w: number;
+  h: number;
+  /** Σα arriving at the point each cell of this projector's blend lights; NaN where it lights nothing. */
+  sums: Float32Array;
+}
+
+/**
+ * The blend inspector's sum, taken THROUGH THE VENUE (blendCompute.coverageSums) for every calibrated
+ * output carrying a blend. Null when the venue is not registered (the 3D view has not been opened),
+ * because without the geometry there is no honest way to say which cells light the same spot.
+ */
+export function blendCoverage(): BlendCoverage[] | null {
+  const outs = rigOutputs().filter((o) => o.blend);
+  if (!outs.length) return [];
+  const inputs: ProjectedBlendInput[] = [];
+  for (const o of outs) {
+    const map = bakeOutput(o);
+    if (map === null) return null;
+    if (map === 'miss') return null;
+    inputs.push(gridFromWorldMap(o, map, o.blend!.w, o.blend!.h));
+  }
+  const sums = coverageSums(inputs, outs.map((o) => ({ w: o.blend!.w, h: o.blend!.h, data: o.blend!.alpha })));
+  return outs.map((o, i) => ({ surfaceId: o.surfaceId, w: o.blend!.w, h: o.blend!.h, sums: sums[i] }));
 }
 
 /** The outputs a rig blend is about: enabled, and carrying a full calibration (pose actually solved). */

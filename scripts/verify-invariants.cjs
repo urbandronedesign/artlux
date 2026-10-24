@@ -3546,8 +3546,11 @@ check(
         problems.push(rel + " uses drei's <Grid>, whose ShaderMaterial does not run on the node renderer");
       if (/LineMaterial|<Line\b/.test(src) && /@react-three\/drei/.test(src))
         problems.push(rel + " uses drei's fat <Line>, which the node renderer rejects — use lineSegments + lineBasicMaterial");
-      // A ShaderMaterial is allowed only where a node twin is built beside it.
-      if (/new THREE\.ShaderMaterial|<shaderMaterial\b/.test(src) && !/isWebGPURenderer|nodes\(\)/.test(src))
+      // A ShaderMaterial is allowed only where a node twin is built beside it — or in a file that
+      // draws it on a WebGLRenderer it creates itself (projectorBake's offscreen pass), which the
+      // viewport's node renderer never sees.
+      if (/new THREE\.ShaderMaterial|<shaderMaterial\b/.test(src) && !/isWebGPURenderer|nodes\(\)/.test(src)
+        && !/new THREE\.WebGLRenderer\(/.test(src))
         problems.push(rel + ' builds a raw ShaderMaterial with no node twin — it will not draw on the WebGPU backend');
       // The GizmoViewport crash, which is the worst of the family: it does not merely fail to draw,
       // it THROWS inside the Canvas and takes the entire viewport black on the first frame.
@@ -4960,33 +4963,28 @@ check(
 
 // ── A calibration bakes on the GPU, and something is mounted to service it ────────────────────
 check(
-  'the projector bake is serviced inside a Canvas, and reads back with the right signature',
+  'the projector bake runs on its own renderer, and the export uses it',
   'The bake renders the venue from a projector pose to answer "which point does each of my pixels ' +
-  'land on" — the geometry a calibration FILE is made of. It can only run inside a Canvas, so if ' +
-  'ProjectorBakePass is not mounted every request times out into the CPU raycast fallback: a usable ' +
-  'file at a fortieth of the resolution (2,176 samples against 860,784), silently, showing up only as ' +
-  'soft silhouettes on a wall. The readback is the other trap: WebGL fills a buffer you pass, WebGPU ' +
-  'RETURNS one and takes a texture index in that argument slot. Passing the WebGL shape threw ' +
-  '"Invalid value used as weak map key" from deep inside three, naming nothing in our code.',
+  'land on" — the geometry a calibration FILE is made of. It used to be serviced by a component inside ' +
+  'the 3D Canvas on its next frame, on the viewport WebGPU renderer: a hidden viewport stops its frame ' +
+  'loop, so a bake asked for from elsewhere timed out; and on WebGPU the pass stalled intermittently with ' +
+  'nothing logged (compileAsync never settled, the async readback never resolved). It now owns a ' +
+  'short-lived WebGL2 renderer: compiled inside render(), read back synchronously, context released.',
   () => {
     const F = 'src/renderer/components/Simulator3D/projectorBake.ts';
-    if (!exists(F)) return `${F} is gone — exports fall back to the coarse raycast grid`;
+    if (!exists(F)) return `${F} is gone — exports have nothing to bake with`;
     const src = stripComments(read(F));
     const problems = [];
-    // The SHAPE of the call, not the identifiers — the target is supersampled now, so the size args
-    // are named rw/rh. What must never come back is a buffer in that last slot.
-    if (!/readRenderTargetPixelsAsync\(rt, 0, 0, \w+, \w+\)/.test(src))
-      problems.push('the WebGPU readback is not called with (rt,x,y,w,h) — passing a buffer where it wants a texture index throws inside three, from a stack that names nothing here');
+    if (/readRenderTargetPixelsAsync|compileAsync|useFrame/.test(src))
+      problems.push(`${F} is back on the viewport renderer / frame loop — the path that timed out when hidden and stalled on WebGPU`);
+    if (!/new THREE\.WebGLRenderer\(/.test(src) || !/forceContextLoss\(\)/.test(src))
+      problems.push(`${F} must own a WebGLRenderer and release its context (Chromium evicts the OLDEST context past its cap)`);
     if (!/registeredCasters\(\)/.test(src))
       problems.push(`${F} no longer bakes the depth pass's caster set — two registries would drift, and the file would disagree with the preview about what occludes what`);
-    // Mounted, or nothing ever services a request.
-    const sim = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
-    if (!/<ProjectorBakePass \/>/.test(sim))
-      problems.push('Simulator3D does not mount <ProjectorBakePass /> — every bake silently times out into the coarse fallback');
     // And the export must use it — and ONLY it.
     const md = stripComments(read('plugins/calibration/src/mpcdiData.ts'));
-    if (!/requestBake\(/.test(md))
-      problems.push('mpcdiData no longer requests a GPU bake — nothing would produce geometry for an export');
+    if (!/bakeContentUv\(/.test(md))
+      problems.push('mpcdiData no longer bakes on the GPU — nothing would produce geometry for an export');
     // ⚠ NO CPU FALLBACK. The raycast read a DIFFERENT registry (registerVenueMesh, visible-only) from
     // the bake (registerDepthCaster, unconditional, resolved GLB), so it was not a coarser version of
     // the same answer — it was another answer. Measured on one project minutes apart: raycast claimed
@@ -6819,16 +6817,6 @@ check(
 );
 
 check(
-  'the projector bake strips WebGPU readback row padding',
-  'WebGPU pads every readback row to 256 bytes (the last row excepted), so a projector width that is ' +
-  'not a multiple of 16 texels exported a sheared, striped map — 932 px did, 1264 px did not.',
-  () => {
-    const src = stripComments(read('src/renderer/components/Simulator3D/projectorBake.ts'));
-    return /\(buf\.length - rowFloats\) \/ \(rh - 1\)/.test(src) ? null : 'projectorBake no longer de-pads the WebGPU readback';
-  },
-);
-
-check(
   'an imported rig file plays its blend',
   'MPCDI import parsed each region\'s alphaMap and then sent the projector only the geometry, so an ' +
   'imported multi-projector rig warped correctly and doubled the light in every overlap.',
@@ -6897,9 +6885,8 @@ check(
     const src = stripComments(read('src/renderer/components/Simulator3D/projectorBake.ts'));
     const at = src.indexOf('export function bakeWorld(');
     if (at < 0) return 'projectorBake.ts has no synchronous bakeWorld()';
-    const body = src.slice(at, src.indexOf('\n}\n', at));
-    if (/readRenderTargetPixelsAsync|compileAsync/.test(body)) return 'bakeWorld is back on an async (viewport) path';
-    if (!/new THREE\.WebGLRenderer\(/.test(body) || !/forceContextLoss\(\)/.test(body)) return 'bakeWorld must own a WebGLRenderer and release its context';
+    if (!/offscreenPass\(/.test(src.slice(at))) return 'bakeWorld no longer goes through the own-renderer offscreenPass';
+    if (/readRenderTargetPixelsAsync|compileAsync/.test(src)) return 'the bake is back on an async (viewport) path';
     return null;
   },
 );
@@ -6912,6 +6899,35 @@ check(
   () => /cameraPixelRayWorld\(/.test(stripComments(read('plugins/calibration/src/blendController.ts')).slice(
     stripComments(read('plugins/calibration/src/blendController.ts')).indexOf('function gridFromWorldMap')))
     ? null : 'gridFromWorldMap no longer undistorts the physical pixel before sampling the bake',
+);
+
+check(
+  'the blend inspector sums light through the venue, not cell by cell',
+  'Each projector blend map is indexed by its OWN pixels, so adding maps cell by cell adds two different ' +
+  'places on the wall. The inspector did, and painted the whole overlap of a correct side-by-side rig ' +
+  '(1.00 measured on the projectors) as "too bright". Its sum comes from blendCoverage → coverageSums.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/BlendInspector.tsx'));
+    if (!/blendController\.blendCoverage\(\)/.test(src)) return 'BlendInspector no longer takes its sum from blendCoverage';
+    if (/sums\[i\] \+= b\.alpha\[i\]/.test(src)) return 'BlendInspector adds alpha maps cell by cell again';
+    return null;
+  },
+);
+
+check(
+  'the calibration-file bake keeps GL row order; the world bake reads from the top',
+  'ProjectorGL samples the baked uv map at vRaster (GL origin, bottom row first), and every exported file ' +
+  'holds that order. WebGL reads back bottom-up, so the uv bake must NOT flip rows: a flipped WebGL bake ' +
+  'played the test-card rig upside down. The world bake is the opposite case: blendController indexes it ' +
+  'by OpenCV pixel (row 0 = image top), so it MUST flip — measured, its upper rows sit at the screen top.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Simulator3D/projectorBake.ts'));
+    const uv = src.slice(src.indexOf('export function bakeContentUv('), src.indexOf('export function bakeWorld('));
+    const world = src.slice(src.indexOf('export function bakeWorld('));
+    if (!/const ry = y \* SS \+ sy;/.test(uv)) return 'bakeContentUv no longer keeps GL row order — exported files would play upside down';
+    if (!/const ry = h - 1 - y;/.test(world)) return 'bakeWorld no longer flips to a top-row-first map — the blend would weigh mirrored points';
+    return null;
+  },
 );
 
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);

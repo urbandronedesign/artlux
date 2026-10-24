@@ -23,7 +23,7 @@
 import type { MpcdiRegion, ProjectorCalibration } from '../../../shared/protocol';
 import * as THREE from 'three';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
-import { requestBake, type UvSource } from '@/components/Simulator3D/projectorBake'; // host module — the GPU bake
+import { bakeContentUv, type UvSource } from '@/components/Simulator3D/projectorBake'; // host module — the GPU bake
 import { getScene } from './calibHost';
 import type { BlendMap } from './blendCompute';
 
@@ -59,7 +59,7 @@ export async function regionsForRig(
     const [pw, ph] = o.calibration.imageSize;
     if (pw > 0 && ph > 0) {
       const viewProj = projectorViewProj(o.calibration);
-      const map = viewProj ? await requestBake(viewProj, pw, ph, uvSourceFor) : null;
+      const map = viewProj ? bakeContentUv(viewProj, pw, ph, uvSourceFor) : null;
       if (map && map.hits > 0) {
         const region: MpcdiRegion = {
           id: o.surfaceId, projW: pw, projH: ph,
@@ -70,7 +70,7 @@ export async function regionsForRig(
         continue;
       }
     }
-    skipped.push({ surfaceId: o.surfaceId, why: 'GPU bake unavailable — is the 3D viewport open?' });
+    skipped.push({ surfaceId: o.surfaceId, why: 'GPU bake unavailable — open the 3D view once so the venue model is loaded' });
   }
   return { regions, skipped };
 }

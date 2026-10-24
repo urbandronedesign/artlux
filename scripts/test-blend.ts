@@ -9,7 +9,7 @@
 // "node-validated"; no such script was ever committed, so the claim could not be checked. Now it can.
 
 import {
-  computeBlendMaps, computeBlendMapsProjected, narrowestOverlap, adaptiveBlendWidth, BLEND_MAX_CELLS, BLEND_MIN_W,
+  computeBlendMaps, computeBlendMapsProjected, narrowestOverlap, adaptiveBlendWidth, coverageSums, BLEND_MAX_CELLS, BLEND_MIN_W,
   type ProjectorBlendInput, type ProjectedBlendInput, type BlendMap,
 } from '../plugins/calibration/src/blendCompute';
 
@@ -263,6 +263,35 @@ console.log('\n[a narrow overlap — the adaptive grid]');
   ok(adaptiveBlendWidth(0.4, [W, H]) === BLEND_MIN_W, 'a wide overlap keeps the old 160 — it gains nothing from fewer cells');
   ok(adaptiveBlendWidth(0.01, [320, 180]) === 320, 'never finer than the projector itself');
   ok(narrowestOverlap([rig('A', 0, 128), rig('B', 5, 128)]) === 0, 'two projectors that do not overlap measure 0');
+}
+
+console.log('\n[the inspector sum — through the venue, not cell by cell]');
+// The blend inspector added the two maps cell by cell, i.e. two different places on the wall, and
+// painted a correct side-by-side blend "too bright" across its whole overlap. coverageSums adds, at
+// each cell's point, what every projector that lights that point puts there.
+{
+  const [W, H] = [1920, 1080], gw = 160, gh = 90;
+  const rig = (surfaceId: string, x0: number): ProjectedBlendInput => {
+    const world = new Float64Array(gw * gh * 3);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      const c = (y * gw + x) * 3;
+      world[c] = x0 + ((x + 0.5) / gw) * 4; world[c + 1] = ((y + 0.5) / gh) * 2.25; world[c + 2] = 0;
+    }
+    return { surfaceId, raster: [W, H], grid: { w: gw, h: gh, world }, project: (p) => [((p[0] - x0) / 4) * W, (p[1] / 2.25) * H] };
+  };
+  const inputs = [rig('A', 0), rig('B', 3)];
+  const maps = computeBlendMapsProjected(inputs);
+  const sums = coverageSums(inputs, maps);
+  let worst = 0, naive = 0;
+  for (let c = 0; c < gw * gh; c++) {
+    // Away from the venue's own outer edge, where the bilinear tap reads into the empty border.
+    const x = c % gw;
+    if (x < 2 || x > gw - 3) continue;
+    worst = Math.max(worst, Math.abs(sums[0][c] - 1), Math.abs(sums[1][c] - 1));
+    naive = Math.max(naive, Math.abs(maps[0].data[c] + maps[1].data[c] - 1));
+  }
+  ok(worst < 0.02, `every cell of both projectors sums to 1 through the venue (worst ${(worst * 100).toFixed(2)}%)`);
+  ok(naive > 0.5, `while the old cell-by-cell sum is off by up to ${(naive * 100).toFixed(0)}% on the same correct blend`);
 }
 
 console.log('\n[black-lift weights]');
