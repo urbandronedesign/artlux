@@ -13,6 +13,11 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "allowImportingTsExtensions": false,
+    // The SDK barrels import `./index.ts` (96761276) — legal for the bundler, rejected by an emitting
+    // tsc unless it rewrites them; and AlignAids default-imports React (e9dc9d87). Both broke this
+    // compile in 2026-07/08, so test:blend/test:recal had failed at `&&` ever since (found 2026-10-24).
+    "rewriteRelativeImportExtensions": true,
+    "esModuleInterop": true,
     "noEmit": false,
     "rootDir": "..",
     "outDir": "../.tmp-tests",
