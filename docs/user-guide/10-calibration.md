@@ -221,6 +221,11 @@ message after the solve gives the size it used, for example *432×243 map*. A ve
 few percent of the picture) hits a size cap, because the blend is saved in the project. If it still
 shows steps, widen the overlap.
 
+To check a blend without standing in front of the wall, press **Inspect** on the Rig blend strip. The
+**Coverage Σα** view shows, for each projector, the total light every point it lights receives from the
+whole rig: grey is correct, warm is too bright, cold is too dark. A few percent at the very edge of the
+venue is sampling; a band or a gradient across the overlap is a real problem.
+
 To start from a ready-made rig, open the
 [multi-projector example](../../examples/multi-projector/README.md): two projectors placed in
 Blender on one wide curved screen, with the steps to calibrate both and blend them.
@@ -256,17 +261,47 @@ a bug, and it is what stops the correction being applied twice.
 **NDI:** an output sending NDI while rendering from a calibrated projector used to publish black.
 It now carries the picture.
 
-ArtLux also imports/exports **MPCDI** for interchange with other warping tools — a rig's file carries
-every projector's warp **and its blend**, so importing it on the show machine reproduces the
-cross-fades too, with no calibration or 3D model needed there — and can camera‑measure
-projector **gamma**.
+## Calibration files — make one when you need one
 
-A loaded calibration file **takes over** from the live calibration on every output it covers, and it
-stays loaded across restarts. To recalibrate on a machine that has a file loaded, press **Unload**
-under **Projection Outputs ▸ Calibration File** first. After Unload, an output with a calibration
-goes back to rendering from it when the venue model is loaded. Without the venue model it goes back
-to its own corner-pin warp, so it never goes black. Full details, the optimization passes (ArUco one‑click recal, masking, exposure,
-colour/black match), and troubleshooting are in [CALIBRATION.md](../CALIBRATION.md) and
-[CALIB-OPTIMIZATIONS.md](../CALIB-OPTIMIZATIONS.md).
+An output can put its picture on the wall in three ways, and a show can use any of them:
+
+| The output is… | What it draws | Needs on the show machine |
+|---|---|---|
+| **a plain screen** — a monitor, an LED wall, a projector you align by hand | its surface, through its own corner-pin or Bézier warp | nothing |
+| **live‑calibrated** | the venue, rendered from the projector's solved position | the venue's 3D model (and the calibration in the project) |
+| **playing a calibration file** | its surface, through a map the file carries | the file — no 3D model, no Blender, no calibration workbench |
+
+**Live calibration** is what you align with: it updates the moment you move a point, and it is what a
+calibration wizard shows. It is also heavier — every projector window renders the venue again, and the
+content on each screen is copied to every window. With a very large video that shows: a 5760×2880 clip
+on two live‑calibrated projectors ran the editor at **4 fps**. The same clip through a calibration file
+ran at **60 fps**, editor and projectors alike.
+
+**A calibration file** freezes a finished calibration into a map. You do not need one for every show;
+make one when the show machine is not the one you calibrated on, or when the content is heavy.
+
+1. **Produce it.** In any calibration wizard, go to the **Verify** step and press **Export calibration
+   (.mpcdi)**. One file holds **every** calibrated projector of the rig — warp **and** blend — because a
+   blend only means anything for the set of projectors it was solved with.
+2. **Give each projector surface the show's content.** A file plays each output's **own** surface
+   through its map, not the screen surfaces of the 3D model. Bind the projector surfaces to the same
+   layer or clip the screens show.
+3. **Load it.** **Projection Outputs ▸ Calibration File ▸ Import calibration (.mpcdi)**. The panel lists
+   each projector and how much of its picture lands on the venue — a region at 0 % means a wrong pose or
+   a venue that moved after the export.
+
+A loaded file **takes over** from the live calibration on every output it covers, in the editor and in
+**Broadcast**, and the machine **remembers it**: it is loaded again at every start until you press
+**Unload**. So on a machine where you loaded a file for one show, unload it afterwards.
+
+To **recalibrate** on a machine that has a file loaded, press **Unload** first — a loaded file also
+takes over from the wizard's live render. After Unload, an output with a calibration goes back to
+rendering from it when the venue model is loaded; without the venue model it goes back to its own
+corner‑pin warp, so it never goes black. Re‑export the file when you are done.
+
+The format is **MPCDI**, a standard interchange format for warp and blend, and ArtLux can also
+camera‑measure projector **gamma**. Full details, the optimization passes (ArUco one‑click recal,
+masking, exposure, colour/black match), and troubleshooting are in [CALIBRATION.md](../CALIBRATION.md)
+and [CALIB-OPTIMIZATIONS.md](../CALIB-OPTIMIZATIONS.md).
 
 ➡ Next: [Projects, media & broadcast](11-projects-media-broadcast.md)

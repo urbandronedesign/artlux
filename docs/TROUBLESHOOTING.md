@@ -41,6 +41,11 @@ Read down the left column until a line matches what is actually in front of you.
 | A strip shows a vague wash where the shader looks good on screen | [`examples/shader/`](../examples/shader/README.md) — a strip samples one line across the picture |
 | Projected blobs are mirrored or rotated | [Tracking ▸ Tips & troubleshooting](user-guide/13-tracking.md#tips--troubleshooting) — Flip H / Flip V / Rotate on the content |
 | A projected edge does not match the physical one | [Calibration](user-guide/10-calibration.md), or corner-pin in [Projector outputs](user-guide/08-projector-outputs.md) |
+| A video plays at a few frames per second on calibrated projectors | [Calibration ▸ Calibration files](user-guide/10-calibration.md#calibration-files--make-one-when-you-need-one) — live calibration copies the picture to every projector; a file plays it at display rate |
+| A fresh calibration does not show; the projectors keep the old aim | [Calibration ▸ Calibration files](user-guide/10-calibration.md#calibration-files--make-one-when-you-need-one) — a loaded file takes over and is remembered across restarts; **Unload** it |
+| Projectors playing a calibration file are black | [Calibration ▸ Calibration files](user-guide/10-calibration.md#calibration-files--make-one-when-you-need-one) — a file plays each projector's **own** surface; give it the show's content |
+| A Blender projector moved, but the output did not | [3D scene ▸ Projectors named in Blender](user-guide/09-3d-scene.md#projectors-named-in-blender) — moving it does not recalibrate; Start from it, then Clear points |
+| Saving in Blender changes nothing in ArtLux | [3D scene ▸ Import a Blender file](user-guide/09-3d-scene.md#import-a-blender-file) — the model must have been added from the `.blend`, and Blender must be found (Preferences ▸ Blender) |
 
 ## The show does not behave
 

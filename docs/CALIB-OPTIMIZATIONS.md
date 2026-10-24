@@ -87,8 +87,9 @@ floor to match an overlap's doubled black). Sliders in the output settings of
 - **NVAPI** (`buildIntensity`): `a * gain + lift * blackWeight` per channel (intensity is a per-channel
   multiply — colour gain is exact; black lift is applied where content is attenuated).
 - **Spatial black-lift weight** — `BlendMap.black` in
-  [blendCompute.ts](../plugins/calibration/src/blendCompute.ts) reuses the existing voxel-overlap structure:
-  1 where a projector sees the least overlap (lift its black most), 0 at the deepest overlap. Only
+  [blendCompute.ts](../plugins/calibration/src/blendCompute.ts): 1 where a projector sees the least
+  overlap (lift its black most), 0 at the deepest overlap. The voxel path counts overlap per voxel; the
+  exact path (a rig of calibrated projectors) counts the projectors that really light each point. Only
   emitted with ≥2 projectors.
 
 ---

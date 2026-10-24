@@ -44,7 +44,7 @@ is a clean future extension into the LiDAR tracking.)
 |---|---|---|
 | **0** | Per-projector markerless geometry (scan → self-cal → picks → raycast venue → resection) + **Auto-Align wizard** | code-complete; **needs hardware validation** |
 | **1** | `native/nvwarp` NVAPI scanout warp/blend addon + ArtLux plumbing | **real build + on-hardware validated** (RTX 6000 Ada, 2026-06-29): `available()`/warp/intensity/clear all OK; renderer per-output apply (`hwWarp`, `nvwarpApply.ts`) + double-warp guard + panic-clear **wired**. Pending: warped geometry + multi-display mapping with a projector attached |
-| **2** | World-space multi-projector **blend computation** + **apply** | **wired end-to-end 2026-07-28.** Scans are kept (`blendStore` + a sidecar under `<project>/calib/`), `solveRig` feeds `computeBlendMaps`, the result persists as `ProjectorOutput.blend` and is applied by the GPU **or** the scanout — never both. `npm run test:blend` |
+| **2** | World-space multi-projector **blend computation** + **apply** | **wired end-to-end 2026-07-28.** Scans are kept (`blendStore` + a sidecar under `<project>/calib/`), `solveRig` feeds `computeBlendMaps`, the result persists as `ProjectorOutput.blend` and is applied by the GPU **or** the scanout — never both. **2026-10-24:** a rig of *calibrated* projectors (no camera scan) takes the **exact** path instead — each point is projected into every other projector rather than associated by voxel (`computeBlendMapsProjected`), traced on the GPU (`projectorBake.bakeWorld`) at a grid sized from the narrowest overlap (`adaptiveBlendWidth`). Measured Σα = 1.00 ± 0.01 on the two-projector template. `npm run test:blend` |
 | **3** | **One-click recalibration** via physical markers + unattended self-recalibration | **built 2026-07-28** (was "not started"): per-corner marker registration, a persisted camera profile, a ~5 s dot-based drift check, a conservative validate-better gate, rollback, scheduler/tablet triggers, Prometheus + JSONL audit. **`autoApply` ships OFF.** `npm run test:recal` |
 | **4** | **MPCDI** export/import codec + **baked playback** | **closed 2026-08-05.** Export bakes the projector's view on the GPU at native raster and supersamples the silhouette for coverage; import hands the map to the projector window, which warps content through it and **supersedes render-from-projector** — no venue model, no 3D scene, no depth pass at showtime. The path is remembered per machine so a `--broadcast` install boots calibrated. See [Playing a calibration](#playing-a-calibration-the-baked-map) |
 
@@ -161,6 +161,16 @@ The export is slower than it looks like it should be — the silhouette is rende
 down, so that partly-covered edge pixels carry a real coverage fraction instead of an on/off flag.
 That is what stops the projected outline stair-casing on a big wall.
 
+The bake runs on a **short-lived WebGL2 renderer of its own** (`projectorBake.offscreenPass`), not the
+3D viewport's. Borrowing the viewport's WebGPU renderer failed two ways, both silent: a hidden viewport
+stops its frame loop, so an export asked for from anywhere but the 3D view timed out; and on WebGPU the
+pass stalled intermittently with nothing logged. It still needs the venue **registered** — the 3D view
+opened once in the session — because it bakes the same caster set the live preview draws.
+
+**Each output plays its own surface through its map**, not the screen surfaces of the 3D model: the
+map says which content coordinate belongs at each projector pixel, and the content is whatever that
+output's surface shows. Give the projector surfaces the show's content.
+
 ### Loading one
 
 **Projection Outputs ▸ Calibration File ▸ Import calibration (.mpcdi)**. The summary tells you what
@@ -203,13 +213,22 @@ render-from-projector. So verifying a fresh solve on an output that already has 
 you **the map**, not the new solve. Press **Unload** first — it is next to Import, and it also
 forgets the remembered path so the next start does not quietly reload what you just withdrew.
 
-**Unload also switches every output back to its own warp** (`useCalibration` off), which is what its
-tooltip has always promised and what it did not used to do. Withdrawing the map alone was only half:
-with no map left to supersede it, an output whose `useCalibration` was still on dropped straight into
-render-from-projector — and there the base canvas stands down, the frame pump stops sending that
-window its own surface, and the overlay that should paint needs the venue scene. **The projector went
-black, and stayed black through a close and reopen**, because the flag lives on the output in the
-project, not in the window. The solved pose is left alone: this is a reversible switch, not a delete.
+**Unload switches an output back to its own warp only where it cannot draw the venue** — no solved
+pose, or no visible venue model (`useCalibration` off there). An output that can draw the venue goes
+back to its live calibration. History, because both halves were wrong once:
+
+- Withdrawing the map alone was only half: with no map left to supersede it, an output whose
+  `useCalibration` was still on dropped straight into render-from-projector — and there the base
+  canvas stands down, the frame pump stops sending that window its own surface, and the overlay that
+  should paint needs the venue scene. **The projector went black, and stayed black through a close and
+  reopen**, because the flag lives on the output in the project, not in the window.
+- The fix then switched **every** output off, which threw away the live calibration on the machine
+  that *has* the venue — the authoring machine, where an operator re-calibrates after an import. Now
+  the rule is the same predicate as `rendersVenue` below. The solved pose is never touched.
+
+Returning to render mode also needs the venue's pictures again: the calibration panel drops them when
+it leaves render mode, and the pump only ships a picture when it changes, so a still image came back
+blank grey. The window's `renderMode` report (below) makes the pump re-send them.
 
 Two guards behind that now: outputs are decided to be render-active in **one** place (App's
 `rendersVenue`, used by both the config push and the frame pump — if those two ever disagree the
@@ -218,10 +237,20 @@ venue geometry**, not merely a solved pose. An output that opts in with an empty
 to the flat warp and logs why. Wrong geometry is visible and fixable; black is indistinguishable from
 a dead projector.
 
+**The window reports what it really draws** (`ProjectorToMain` `renderMode`), and the pump streams by
+that, not by `rendersVenue` alone. Main asks for render mode; the window decides, because a loaded map
+supersedes it there (`applyCalibMode`). Before this, a machine with the venue model loaded **and** a
+file imported had black projectors: the pump withheld each window's own surface (it believed the window
+drew the venue) while the window, superseded, drew exactly that surface — and the pump went on sending
+the venue's pictures to nobody (a 5760×2880 clip, twice, every frame, measured). A show machine without
+the venue model never hit it, which is how it survived.
+
 ### You no longer need the calibration build to play one
 
-Importing and playing work in a **plain launch**. Only *authoring* — the wizards, the camera, OpenCV,
-and the live venue render you align against — lives behind `--calibrate`, which is why a plain editor
+Importing and playing work in a **plain launch** — and so does **live** calibration: a calibrated
+output renders the venue from its pose in every launch (the projector panel is registered above the
+authoring gate; with it gated, a plain launch of a calibrated project gave black projectors). Only
+*authoring* — the wizards, the camera, OpenCV — lives behind `--calibrate`, which is why a plain editor
 has no Calibration entry on the rail but still has the Calibration File panel under Projection
 Outputs.
 

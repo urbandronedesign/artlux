@@ -342,7 +342,8 @@ throw ratio (a throw ratio of 1.0 is a 36 mm lens on a 36 mm sensor). Load the `
 camera comes with it. (Exporting a `.glb` yourself? It must include **cameras** — Blender's
 *Include ▸ Cameras* option.)
 
-**In ArtLux:** each projector shows in the 3D view as a small cyan frustum, moving with the model.
+**In ArtLux:** each projector shows in the 3D view as a cyan frustum that reaches the venue, moving with
+the model — the green frustums are the *calibrated* projectors, which only move when you calibrate.
 When you calibrate an output with the **Manual** flow, the Lens step offers it under **Projector
 placed in the venue file**; **Start from it** takes its throw ratio and its position. The projection
 then shows the venue's wireframe from where Blender put the projector before you place a single
@@ -353,6 +354,14 @@ centimetres onto the real feature. See
 The Blender position is only a **starting point**. The output is not calibrated, and does not render
 the venue from it, until your points have solved. Lens shift is not carried by glTF, so a projector
 with shift starts without it — enter it in the Lens step, or let the points find it.
+
+**Moving a projector in Blender does not move its calibration.** Save, and within a few seconds the
+cyan frustum turns or moves to match (the venue is reloaded, see
+[Import a Blender file](#import-a-blender-file)); the output keeps playing its old calibration until you
+calibrate again. To re‑aim an output that is already calibrated: **Calibrate ▸ Manual**, **Start from
+it** on the moved projector, then **Clear points** — the old points describe the old aim, and while
+they are there they keep solving it. Place new points, **Apply & finish**, then **Solve blend** again
+if the output is part of a rig, and re‑export the calibration file if you use one.
 
 The example room in `examples/blender-screens/` has one, `projector_main`, 6 m back and aimed at the
 screen with a throw ratio of 1.0.

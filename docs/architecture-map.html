@@ -199,7 +199,7 @@ const REGIONS = [
         ['GroundGrid · GridLabels · gridScale', 'Ruler floor; whole-metre numbers painted on it'],
         ['surfaceTextureCache.ts', 'One texture per surface, skipped when the frame is unchanged'],
         ['FixtureBodies · InstancedLeds', 'Pick a fixture by its body; all LEDs in one draw call'],
-        ['projectorDepth · projectorBake', 'Projector depth and bake passes on their own layers'],
+        ['projectorDepth · projectorBake', 'Projector depth pass on its own layer; calibration and rig-blend bakes on a short-lived offscreen renderer'],
       ] },
       { t: 'Plugin host (renderer)', m: [
         ['host/plugins.ts', 'activateRendererPlugins("main", host): plugins get the REAL host services'],

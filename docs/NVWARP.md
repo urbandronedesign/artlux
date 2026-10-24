@@ -110,5 +110,7 @@ Wired in `src/renderer/App.tsx` + `src/renderer/projector/nvwarpApply.ts`:
   on `Ctrl/Cmd+Shift+W`, on disabling `hwWarp`, on window unload, and `nvwarp.clearAll()` on app quit
   (`src/main/index.ts` `before-quit`) so no scanout warp is ever left stuck.
 
-The world-space multi-projector blend (`blendCompute.computeBlendMaps`) is plumbed through `buildIntensity`
-but fed only once a multi-projector capture exists; single-projector soft-edge blend works today.
+The world-space multi-projector blend (`ProjectorOutput.blend`, from `blendCompute`) is plumbed through
+`buildIntensity`. It no longer needs a multi-projector camera capture: a rig of calibrated projectors
+solves its blend from the calibrations (see [CALIBRATION.md](CALIBRATION.md#the-manual-flow-no-board-no-camera)),
+and the scanout applies it exactly as the GLSL path does — one or the other, never both.

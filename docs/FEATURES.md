@@ -291,12 +291,26 @@ in-memory reference), so they persist across reloads and are collected like ever
 Switch to the **3D** module to place fixtures in space. Each fixture has a 3D position/rotation and a
 layout (line / matrix / arc). Use the Move/Rotate gizmo; the LEDs render live, in their real colours.
 
+**Venue models** load from `.glb` or straight from a Blender **`.blend`** file — Blender converts it in
+the background, and saving in Blender updates the venue in ArtLux a few seconds later. An object named
+`screen…` in the file becomes a **screen** with its own content; a camera named `projector…` is a
+**projector placed in the venue**, the starting point for calibrating it. See
+[3D scene](user-guide/09-3d-scene.md).
+
 ## Projector outputs (projection mapping)
 Send any **Surface** to a real projector as its own **fullscreen output** — with **corner-pin** or
 **Bézier warp**, **soft-edge blend**, **per-screen gamma**, **MSAA**, and a **performance FPS cap**.
 Open **Outputs** (top bar), enable a surface, and pick a display. Each output can also be published as
 an **NDI source** (gear → **Send as NDI**). Full guide + architecture in [OUTPUTS.md](OUTPUTS.md);
 NDI in [NDI.md](NDI.md).
+
+**Projector calibration** recovers each projector's lens and position against the venue model —
+with a printed board and a camera, markerless, or **Manual** (no camera: place points on the model).
+A calibrated output draws the venue from where its projector stands; a rig of calibrated projectors
+gets a **rig blend** so overlaps give the light of one projector. Freeze a finished rig into a
+**calibration file** (MPCDI) to play it on a machine without the venue model — and at display rate
+with heavy content. Templates for one, curved and two-projector rigs are in
+[`examples/`](../examples/README.md). See [Calibration](user-guide/10-calibration.md).
 
 ## Headless mode
 Run the compute + output engine with no UI (lower CPU/GPU, good for installs/servers):

@@ -88,6 +88,17 @@ behaves like a broken app much later. If you decline by accident, run the instal
 
 ---
 
+## Blender, on the machine you build shows on
+
+To load a venue straight from a **`.blend`** file — and have ArtLux follow every save — install
+[Blender](https://www.blender.org) on the machine you build shows on. ArtLux uses the newest version
+installed in the standard place, or the one you set in **Preferences ▸ Blender**.
+
+A **venue PC does not need it.** A project keeps the converted model beside the `.blend`, and that is
+what plays. See [Import a Blender file](09-3d-scene.md#import-a-blender-file).
+
+---
+
 ## Before you install on a venue PC: preflight
 
 A show PC is the machine you will not be standing next to. Check it *before* you install, not after

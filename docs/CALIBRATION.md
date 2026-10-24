@@ -201,10 +201,17 @@ hidden. The choice is persisted with the scene but **stripped from scene snapsho
 reason `trackingZones` is: it is where the operator is looking, not part of the look. **Multi-projector:** calibrate each output manually against the same venue model — the
 model is the shared metric reference, so all solves share one world frame by construction — then
 solve the **Rig blend** from the Outputs panel. A manually-calibrated output needs no Auto-Align
-scan for that: its dense projector-pixel→3D map is **traced** from the calibration by raycasting the
-venue mesh (the same regeneration MPCDI export uses), so the only requirement is that the venue
-model is loaded when solving. Traced maps are session-only and re-trace automatically after a
-recalibration; camera-scanned maps, which measure geometry independently, are reused as before.
+scan for that: the world point under each of its pixels is **rendered** from the calibration on the GPU
+(`projectorBake.bakeWorld`, the same caster set MPCDI export bakes), so the only requirement is that
+the venue model is registered — the 3D view opened once in the session. When every member of the rig
+is calibrated this way, the blend is computed **exactly** (`blendCompute.computeBlendMapsProjected`):
+each point is projected into every other projector, which must really light it, and weighed by its
+distance to each projector's image frame — no voxel association. Its grid is sized from the narrowest
+overlap (`narrowestOverlap` → `adaptiveBlendWidth`: ≥ 32 cells across, min 160 wide, ≤ 131,072 cells
+per output because the blend is saved in the project). The world maps are never persisted — they
+derive from the calibration — and a recalibration re-renders them. Camera-scanned maps, which measure
+geometry independently, keep the voxel path (`computeBlendMaps`). With no venue registered, a CPU
+raycast at a fixed 160-wide grid is the fallback.
 
 ---
 
@@ -335,6 +342,10 @@ Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`**
 | Gray-code | `plugins/calibration/src/graycode.ts` |
 | CV↔Three.js math | `plugins/calibration/src/cvCamera.ts` |
 | Render-from-projector | `plugins/calibration/src/ProjectorScene.tsx` |
+| Rig blend (solve, exact path, adaptive grid) | `plugins/calibration/src/blendController.ts`, `blendCompute.ts` — `npm run test:blend` |
+| GPU bakes (MPCDI uv map, rig-blend world map) | `src/renderer/components/Simulator3D/projectorBake.ts` |
+| Calibration file playback | `plugins/calibration/src/bakedStore.ts`, `ImportPanel.tsx`; `src/renderer/projector/ProjectorApp.tsx` (`applyCalibMode`) |
+| Projectors placed in Blender | `src/renderer/components/Simulator3D/modelScreens.ts` (`findProjectors`, `cvPoseOf`) |
 | Native addon | `native/calib/` (`src/lib.rs`), `plugins/calibration/src/calibManager.ts` |
 | Frustum overlay | `src/renderer/components/Simulator3D/ProjectorFrustum.tsx` |
 | Data model | `ProjectorCalibration` / `useCalibration` in `shared/protocol.ts` |
