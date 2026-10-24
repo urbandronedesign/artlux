@@ -14,9 +14,9 @@ ArtLux ships three tracking sources, all interchangeable:
 | **MediaPipe** | any webcam | Google BlazePose, in‑app (no sensor) | lightest — a camera + one asset download |
 | **Augmenta** | an [Augmenta](https://augmenta.tech) box | Augmenta **OSC v2** into the app's OSC listener | a pre‑calibrated optical box |
 
-![Venue & Rig — the 3D floor grid with live blobs, and the Trigger Zones dock tab](images/13-tracking.png)
-<!-- Ideal future shot: add live per-person blob markers (run scripts/lidar-emitter.cjs during capture) and a 2nd wall zone. -->
-*Live tracking in the 3D Scene: the floor (SOL) and wall (MUR) zones at real scale, one glowing marker per person, with the Lighting panel's tracking toggles at the bottom‑right.*
+![Venue & Rig — the tracked floor and wall at real scale, three trigger zones, one visitor in the Entrance, and a wall screen showing the look they triggered](images/13-tracking.png)
+<!-- shot spec: examples/interactive-show, 3D context, visitor.cjs walk at ~8 s (Welcome, visitor in the Entrance), timeline drawer open on the Welcome timeline. -->
+*Live tracking in the 3D Scene: the floor (SOL) and wall (MUR) at real scale, three trigger zones (solid while occupied, with a headcount), one marker per person, and a screen on the wall showing the look the visitor just triggered. From the [interactive-show example](../../examples/interactive-show/README.md), whose [course](../../examples/interactive-show/tuto/README.md) builds a whole room-driven show.*
 
 ---
 
@@ -166,7 +166,9 @@ feed and the [state machine](14-show-state-machine.md).
 scene and state. You draw the entrance / stage / doorway **once**; changing the show's look never
 recreates or loses them.
 
-<!-- TODO screenshot (hand-shot — see the note in README.md): the 3D (Venue & Rig) workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields -->
+![The Trigger Zones panel: three zones on the floor map, one person ringed and counted on the Left pad, and the zone list with its eye toggles](images/13b-trigger-zones.png)
+<!-- shot spec: examples/interactive-show, 3D context, Trigger Zones dock tab, timeline drawer hidden, one still person at u 0.19 v 0.65 (on the Left pad). -->
+
 *The Trigger Zones panel: draw zones on the tracking map, set People needed per zone, and toggle the per‑scene eye. Live blobs are drawn **raw** so the two‑blobs‑per‑person is visible, with a ring around each person actually counted and the tally — `4 blobs → 2 people` — above them.*
 
 **Author them** in the **3D** (Venue & Rig) workbench, on the **Trigger Zones** dock tab. Three ways

@@ -10,8 +10,9 @@ sequence, an unattended attract loop, or a live‑triggered installation.
 You drive it from the desktop **Show** context (or the timeline's state lane), and unattended venues
 can be run entirely from the **tablet remote**.
 
-![The Show Machine context — the state graph over scenes: scene-bound nodes, the active node ringed, labelled transition edges, and a "Playhead-driven" region group-box](images/14-show-state-machine.png)
-*The State Graph editor: nodes are Scenes, edges are transitions. The initial state is the cyan node, the current state gets an orange ring, and a firing edge flashes red.*
+![The Show Machine context — four scene-bound states, the initial state in cyan with its ring, LiDAR-zone rules on the edges, a branch out of Welcome, two region boxes, and a global rule in the side panel](images/14-show-state-machine.png)
+<!-- shot spec: examples/interactive-show, Show Machine context, nothing selected. -->
+*The State Graph editor: nodes are Scenes, edges are transitions. The initial state is the cyan node, the current state gets an orange ring, and a firing edge flashes red. This graph is the [interactive-show example](../../examples/interactive-show/README.md): a room-driven show with a branch and one global rule back to its attract loop, taken apart step by step in its [course](../../examples/interactive-show/tuto/README.md).*
 
 ---
 

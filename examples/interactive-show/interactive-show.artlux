@@ -1,0 +1,1518 @@
+{
+  "version": "1.2",
+  "timestamp": "2026-10-24T16:35:24.640Z",
+  "surfaces": [
+    {
+      "id": "srf_wall",
+      "name": "Wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 0.5625,
+      "rotation": 0,
+      "zIndex": 1,
+      "aspect": "16:9",
+      "portrait": false,
+      "content": {
+        "type": "LAYER",
+        "layerId": "lay_welcome_text",
+        "layerIds": [
+          "lay_welcome_text",
+          "lay_welcome_video"
+        ],
+        "opacity": 1
+      }
+    },
+    {
+      "id": "srf_floor",
+      "name": "Floor",
+      "x": 0.2,
+      "y": 0.6,
+      "width": 0.6,
+      "height": 0.36,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "TRACKING",
+        "trackingSource": "SOL",
+        "blobSize": 0.06,
+        "showIds": true,
+        "trail": true,
+        "trailSeconds": 0.8,
+        "flipH": false,
+        "flipV": false,
+        "rotate": 0,
+        "calibration": false,
+        "opacity": 1,
+        "bgLayerId": "lay_welcome_floor"
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fix_wall_strip",
+      "name": "Wall strip",
+      "x": 0.05,
+      "y": 0.5,
+      "width": 0.9,
+      "height": 0.03,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 120,
+      "reverse": false,
+      "rotation": 0,
+      "colorData": [],
+      "surfaceId": "srf_wall"
+    }
+  ],
+  "controllers": [
+    {
+      "id": "ctl_local",
+      "name": "Loopback",
+      "protocol": "artnet",
+      "ip": "127.0.0.1",
+      "broadcast": false,
+      "startUniverse": 0
+    }
+  ],
+  "fixtureProfiles": [],
+  "reserveLockedRanges": false,
+  "globalBrightness": 1,
+  "groups": [],
+  "lightingPoses": [],
+  "colorPalette": [],
+  "scenes": [
+    {
+      "id": "sc_attract",
+      "name": "Attract",
+      "accent": "#22d3ee",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5625,
+          "rotation": 0,
+          "zIndex": 1,
+          "aspect": "16:9",
+          "portrait": false,
+          "content": {
+            "type": "LAYER",
+            "layerId": "lay_attract_text",
+            "layerIds": [
+              "lay_attract_text",
+              "lay_attract_video"
+            ],
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0.2,
+          "y": 0.6,
+          "width": 0.6,
+          "height": 0.36,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": false,
+            "opacity": 1,
+            "bgLayerId": "lay_attract_floor"
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fix_wall_strip",
+          "name": "Wall strip",
+          "x": 0.05,
+          "y": 0.5,
+          "width": 0.9,
+          "height": 0.03,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 120,
+          "reverse": false,
+          "rotation": 0,
+          "colorData": [],
+          "surfaceId": "srf_wall"
+        }
+      ],
+      "scene3D": {
+        "models": [
+          {
+            "id": "mdl_wall_screen",
+            "name": "Wall screen",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_wall",
+            "position": {
+              "x": 0,
+              "y": 1.6,
+              "z": 0.02
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 2.6,
+            "visible": true
+          },
+          {
+            "id": "mdl_floor_screen",
+            "name": "Floor projection",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_floor",
+            "position": {
+              "x": 0,
+              "y": 0.002,
+              "z": 1.5625
+            },
+            "rotation": {
+              "x": -90,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 1,
+            "scaleXYZ": [
+              3.2765625000000003,
+              3.125,
+              1
+            ],
+            "visible": true
+          }
+        ],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "augmentaViz": false,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_entrance",
+          "zn_left",
+          "zn_right"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "enabled": true,
+            "id": "lay_attract_text",
+            "name": "Text",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_attract_video",
+            "name": "Video",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_attract_floor",
+            "name": "Floor pads",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_attract_video",
+            "layerId": "lay_attract_video",
+            "name": "attract",
+            "path": "assets/video/attract.mp4",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "sourceDuration": 20
+          },
+          {
+            "id": "clip_attract_text",
+            "layerId": "lay_attract_text",
+            "name": "Attract title",
+            "path": "",
+            "start": 0.5,
+            "duration": 19,
+            "inPoint": 0,
+            "fadeIn": 1,
+            "fadeOut": 1,
+            "content": {
+              "type": "TEXT",
+              "textBody": "ARTLUX\nWalk in to begin",
+              "textWeight": 700,
+              "textSize": 0.12,
+              "textLineHeight": 1.25,
+              "textAlign": "center",
+              "textVAlign": "middle",
+              "textColor": "#ffffff",
+              "textStrokeColor": "#000000",
+              "textStrokeWidth": 0.03,
+              "opacity": 1
+            }
+          },
+          {
+            "id": "clip_attract_floor",
+            "layerId": "lay_attract_floor",
+            "name": "Floor pads",
+            "path": "",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"show_zn_entrance\", \"LABEL\": \"Entrance\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_left\", \"LABEL\": \"Left pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_right\", \"LABEL\": \"Right pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"border\",   \"LABEL\": \"Border\",     \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.016 },\n    { \"NAME\": \"pulse\",    \"LABEL\": \"Pulse rate\", \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.8 },\n    { \"NAME\": \"interior\", \"LABEL\": \"Interior\",   \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.12 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON — the floor surface's background, with the live visitor markers drawn\n// over it by the TRACKING content. GENERATED by make-project.cjs from the trigger zones: do not\n// hand-edit, move a zone there and re-run it.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (show_zn_entrance) { float t = padCover(uv, vec4(0.3600, 0.0400, 0.6400, 0.3000), breath); col += vec3(0.9608, 0.6196, 0.0431) * t; a = max(a, t); }\n  if (show_zn_left) { float t = padCover(uv, vec4(0.0600, 0.4500, 0.3200, 0.8500), breath); col += vec3(0.0627, 0.7255, 0.5059) * t; a = max(a, t); }\n  if (show_zn_right) { float t = padCover(uv, vec4(0.6800, 0.4500, 0.9400, 0.8500), breath); col += vec3(0.8510, 0.2745, 0.9373) * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied — the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 1080,
+              "opacity": 1,
+              "shaderParams": {
+                "show_zn_entrance": true,
+                "show_zn_left": false,
+                "show_zn_right": false
+              }
+            }
+          }
+        ],
+        "duration": 20,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true,
+        "lightingTakes": [],
+        "lightingSequences": [],
+        "colorLanes": []
+      }
+    },
+    {
+      "id": "sc_welcome",
+      "name": "Welcome",
+      "accent": "#f59e0b",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5625,
+          "rotation": 0,
+          "zIndex": 1,
+          "aspect": "16:9",
+          "portrait": false,
+          "content": {
+            "type": "LAYER",
+            "layerId": "lay_welcome_text",
+            "layerIds": [
+              "lay_welcome_text",
+              "lay_welcome_video"
+            ],
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0.2,
+          "y": 0.6,
+          "width": 0.6,
+          "height": 0.36,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": false,
+            "opacity": 1,
+            "bgLayerId": "lay_welcome_floor"
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fix_wall_strip",
+          "name": "Wall strip",
+          "x": 0.05,
+          "y": 0.5,
+          "width": 0.9,
+          "height": 0.03,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 120,
+          "reverse": false,
+          "rotation": 0,
+          "colorData": [],
+          "surfaceId": "srf_wall"
+        }
+      ],
+      "scene3D": {
+        "models": [
+          {
+            "id": "mdl_wall_screen",
+            "name": "Wall screen",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_wall",
+            "position": {
+              "x": 0,
+              "y": 1.6,
+              "z": 0.02
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 2.6,
+            "visible": true
+          },
+          {
+            "id": "mdl_floor_screen",
+            "name": "Floor projection",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_floor",
+            "position": {
+              "x": 0,
+              "y": 0.002,
+              "z": 1.5625
+            },
+            "rotation": {
+              "x": -90,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 1,
+            "scaleXYZ": [
+              3.2765625000000003,
+              3.125,
+              1
+            ],
+            "visible": true
+          }
+        ],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "augmentaViz": false,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_entrance",
+          "zn_left",
+          "zn_right"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "enabled": true,
+            "id": "lay_welcome_text",
+            "name": "Text",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_welcome_video",
+            "name": "Video",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_welcome_floor",
+            "name": "Floor pads",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_welcome_video",
+            "layerId": "lay_welcome_video",
+            "name": "welcome",
+            "path": "assets/video/welcome.mp4",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "sourceDuration": 20
+          },
+          {
+            "id": "clip_welcome_text",
+            "layerId": "lay_welcome_text",
+            "name": "Welcome title",
+            "path": "",
+            "start": 0.5,
+            "duration": 19,
+            "inPoint": 0,
+            "fadeIn": 1,
+            "fadeOut": 1,
+            "content": {
+              "type": "TEXT",
+              "textBody": "WELCOME\nStep onto a pad: left or right",
+              "textWeight": 700,
+              "textSize": 0.12,
+              "textLineHeight": 1.25,
+              "textAlign": "center",
+              "textVAlign": "middle",
+              "textColor": "#ffffff",
+              "textStrokeColor": "#000000",
+              "textStrokeWidth": 0.03,
+              "opacity": 1
+            }
+          },
+          {
+            "id": "clip_welcome_floor",
+            "layerId": "lay_welcome_floor",
+            "name": "Floor pads",
+            "path": "",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"show_zn_entrance\", \"LABEL\": \"Entrance\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_left\", \"LABEL\": \"Left pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_right\", \"LABEL\": \"Right pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"border\",   \"LABEL\": \"Border\",     \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.016 },\n    { \"NAME\": \"pulse\",    \"LABEL\": \"Pulse rate\", \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.8 },\n    { \"NAME\": \"interior\", \"LABEL\": \"Interior\",   \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.12 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON — the floor surface's background, with the live visitor markers drawn\n// over it by the TRACKING content. GENERATED by make-project.cjs from the trigger zones: do not\n// hand-edit, move a zone there and re-run it.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (show_zn_entrance) { float t = padCover(uv, vec4(0.3600, 0.0400, 0.6400, 0.3000), breath); col += vec3(0.9608, 0.6196, 0.0431) * t; a = max(a, t); }\n  if (show_zn_left) { float t = padCover(uv, vec4(0.0600, 0.4500, 0.3200, 0.8500), breath); col += vec3(0.0627, 0.7255, 0.5059) * t; a = max(a, t); }\n  if (show_zn_right) { float t = padCover(uv, vec4(0.6800, 0.4500, 0.9400, 0.8500), breath); col += vec3(0.8510, 0.2745, 0.9373) * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied — the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 1080,
+              "opacity": 1,
+              "shaderParams": {
+                "show_zn_entrance": false,
+                "show_zn_left": true,
+                "show_zn_right": true
+              }
+            }
+          }
+        ],
+        "duration": 20,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true,
+        "lightingTakes": [],
+        "lightingSequences": [],
+        "colorLanes": []
+      }
+    },
+    {
+      "id": "sc_story_a",
+      "name": "Story A",
+      "accent": "#10b981",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5625,
+          "rotation": 0,
+          "zIndex": 1,
+          "aspect": "16:9",
+          "portrait": false,
+          "content": {
+            "type": "LAYER",
+            "layerId": "lay_story_a_text",
+            "layerIds": [
+              "lay_story_a_text",
+              "lay_story_a_video"
+            ],
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0.2,
+          "y": 0.6,
+          "width": 0.6,
+          "height": 0.36,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": false,
+            "opacity": 1,
+            "bgLayerId": "lay_story_a_floor"
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fix_wall_strip",
+          "name": "Wall strip",
+          "x": 0.05,
+          "y": 0.5,
+          "width": 0.9,
+          "height": 0.03,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 120,
+          "reverse": false,
+          "rotation": 0,
+          "colorData": [],
+          "surfaceId": "srf_wall"
+        }
+      ],
+      "scene3D": {
+        "models": [
+          {
+            "id": "mdl_wall_screen",
+            "name": "Wall screen",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_wall",
+            "position": {
+              "x": 0,
+              "y": 1.6,
+              "z": 0.02
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 2.6,
+            "visible": true
+          },
+          {
+            "id": "mdl_floor_screen",
+            "name": "Floor projection",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_floor",
+            "position": {
+              "x": 0,
+              "y": 0.002,
+              "z": 1.5625
+            },
+            "rotation": {
+              "x": -90,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 1,
+            "scaleXYZ": [
+              3.2765625000000003,
+              3.125,
+              1
+            ],
+            "visible": true
+          }
+        ],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "augmentaViz": false,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_entrance",
+          "zn_left",
+          "zn_right"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "enabled": true,
+            "id": "lay_story_a_text",
+            "name": "Text",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_story_a_video",
+            "name": "Video",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_story_a_floor",
+            "name": "Floor pads",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_story_a_video",
+            "layerId": "lay_story_a_video",
+            "name": "story-a",
+            "path": "assets/video/story-a.mp4",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "sourceDuration": 20
+          },
+          {
+            "id": "clip_story_a_text",
+            "layerId": "lay_story_a_text",
+            "name": "Story A title",
+            "path": "",
+            "start": 0.5,
+            "duration": 19,
+            "inPoint": 0,
+            "fadeIn": 1,
+            "fadeOut": 1,
+            "content": {
+              "type": "TEXT",
+              "textBody": "STORY A\nThe left path",
+              "textWeight": 700,
+              "textSize": 0.12,
+              "textLineHeight": 1.25,
+              "textAlign": "center",
+              "textVAlign": "middle",
+              "textColor": "#ffffff",
+              "textStrokeColor": "#000000",
+              "textStrokeWidth": 0.03,
+              "opacity": 1
+            }
+          },
+          {
+            "id": "clip_story_a_floor",
+            "layerId": "lay_story_a_floor",
+            "name": "Floor pads",
+            "path": "",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"show_zn_entrance\", \"LABEL\": \"Entrance\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_left\", \"LABEL\": \"Left pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_right\", \"LABEL\": \"Right pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"border\",   \"LABEL\": \"Border\",     \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.016 },\n    { \"NAME\": \"pulse\",    \"LABEL\": \"Pulse rate\", \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.8 },\n    { \"NAME\": \"interior\", \"LABEL\": \"Interior\",   \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.12 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON — the floor surface's background, with the live visitor markers drawn\n// over it by the TRACKING content. GENERATED by make-project.cjs from the trigger zones: do not\n// hand-edit, move a zone there and re-run it.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (show_zn_entrance) { float t = padCover(uv, vec4(0.3600, 0.0400, 0.6400, 0.3000), breath); col += vec3(0.9608, 0.6196, 0.0431) * t; a = max(a, t); }\n  if (show_zn_left) { float t = padCover(uv, vec4(0.0600, 0.4500, 0.3200, 0.8500), breath); col += vec3(0.0627, 0.7255, 0.5059) * t; a = max(a, t); }\n  if (show_zn_right) { float t = padCover(uv, vec4(0.6800, 0.4500, 0.9400, 0.8500), breath); col += vec3(0.8510, 0.2745, 0.9373) * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied — the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 1080,
+              "opacity": 1,
+              "shaderParams": {
+                "show_zn_entrance": true,
+                "show_zn_left": false,
+                "show_zn_right": false
+              }
+            }
+          }
+        ],
+        "duration": 20,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true,
+        "lightingTakes": [],
+        "lightingSequences": [],
+        "colorLanes": []
+      }
+    },
+    {
+      "id": "sc_story_b",
+      "name": "Story B",
+      "accent": "#d946ef",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5625,
+          "rotation": 0,
+          "zIndex": 1,
+          "aspect": "16:9",
+          "portrait": false,
+          "content": {
+            "type": "LAYER",
+            "layerId": "lay_story_b_text",
+            "layerIds": [
+              "lay_story_b_text",
+              "lay_story_b_video"
+            ],
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0.2,
+          "y": 0.6,
+          "width": 0.6,
+          "height": 0.36,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "TRACKING",
+            "trackingSource": "SOL",
+            "blobSize": 0.06,
+            "showIds": true,
+            "trail": true,
+            "trailSeconds": 0.8,
+            "flipH": false,
+            "flipV": false,
+            "rotate": 0,
+            "calibration": false,
+            "opacity": 1,
+            "bgLayerId": "lay_story_b_floor"
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fix_wall_strip",
+          "name": "Wall strip",
+          "x": 0.05,
+          "y": 0.5,
+          "width": 0.9,
+          "height": 0.03,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 120,
+          "reverse": false,
+          "rotation": 0,
+          "colorData": [],
+          "surfaceId": "srf_wall"
+        }
+      ],
+      "scene3D": {
+        "models": [
+          {
+            "id": "mdl_wall_screen",
+            "name": "Wall screen",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_wall",
+            "position": {
+              "x": 0,
+              "y": 1.6,
+              "z": 0.02
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 2.6,
+            "visible": true
+          },
+          {
+            "id": "mdl_floor_screen",
+            "name": "Floor projection",
+            "kind": "plane",
+            "path": "",
+            "surfaceId": "srf_floor",
+            "position": {
+              "x": 0,
+              "y": 0.002,
+              "z": 1.5625
+            },
+            "rotation": {
+              "x": -90,
+              "y": 0,
+              "z": 0
+            },
+            "scale": 1,
+            "scaleXYZ": [
+              3.2765625000000003,
+              3.125,
+              1
+            ],
+            "visible": true
+          }
+        ],
+        "lightIntensity": 1,
+        "environment": true,
+        "gridVisible": true,
+        "reflectiveFloor": false,
+        "trackingViz": true,
+        "augmentaViz": false,
+        "trackingSmoothing": 0.6,
+        "trackingPredictMs": 50,
+        "trackingLabels": true,
+        "trackingMergePeople": true,
+        "trackingMergeRadius": 0.8,
+        "trackingZoneEnterSec": 0.25,
+        "trackingZoneExitSec": 0.8,
+        "activeZoneIds": [
+          "zn_entrance",
+          "zn_left",
+          "zn_right"
+        ]
+      },
+      "timeline": {
+        "layers": [
+          {
+            "enabled": true,
+            "id": "lay_story_b_text",
+            "name": "Text",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_story_b_video",
+            "name": "Video",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          },
+          {
+            "enabled": true,
+            "id": "lay_story_b_floor",
+            "name": "Floor pads",
+            "kind": "video",
+            "opacity": 1,
+            "blendMode": "normal"
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip_story_b_video",
+            "layerId": "lay_story_b_video",
+            "name": "story-b",
+            "path": "assets/video/story-b.mp4",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "sourceDuration": 20
+          },
+          {
+            "id": "clip_story_b_text",
+            "layerId": "lay_story_b_text",
+            "name": "Story B title",
+            "path": "",
+            "start": 0.5,
+            "duration": 19,
+            "inPoint": 0,
+            "fadeIn": 1,
+            "fadeOut": 1,
+            "content": {
+              "type": "TEXT",
+              "textBody": "STORY B\nThe right path",
+              "textWeight": 700,
+              "textSize": 0.12,
+              "textLineHeight": 1.25,
+              "textAlign": "center",
+              "textVAlign": "middle",
+              "textColor": "#ffffff",
+              "textStrokeColor": "#000000",
+              "textStrokeWidth": 0.03,
+              "opacity": 1
+            }
+          },
+          {
+            "id": "clip_story_b_floor",
+            "layerId": "lay_story_b_floor",
+            "name": "Floor pads",
+            "path": "",
+            "start": 0,
+            "duration": 20,
+            "inPoint": 0,
+            "content": {
+              "type": "SHADER",
+              "shaderId": "plasma",
+              "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"show_zn_entrance\", \"LABEL\": \"Entrance\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_left\", \"LABEL\": \"Left pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_right\", \"LABEL\": \"Right pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"border\",   \"LABEL\": \"Border\",     \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.016 },\n    { \"NAME\": \"pulse\",    \"LABEL\": \"Pulse rate\", \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.8 },\n    { \"NAME\": \"interior\", \"LABEL\": \"Interior\",   \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.12 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON — the floor surface's background, with the live visitor markers drawn\n// over it by the TRACKING content. GENERATED by make-project.cjs from the trigger zones: do not\n// hand-edit, move a zone there and re-run it.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (show_zn_entrance) { float t = padCover(uv, vec4(0.3600, 0.0400, 0.6400, 0.3000), breath); col += vec3(0.9608, 0.6196, 0.0431) * t; a = max(a, t); }\n  if (show_zn_left) { float t = padCover(uv, vec4(0.0600, 0.4500, 0.3200, 0.8500), breath); col += vec3(0.0627, 0.7255, 0.5059) * t; a = max(a, t); }\n  if (show_zn_right) { float t = padCover(uv, vec4(0.6800, 0.4500, 0.9400, 0.8500), breath); col += vec3(0.8510, 0.2745, 0.9373) * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied — the shader context is premultipliedAlpha:true\n}",
+              "shaderRes": 1080,
+              "opacity": 1,
+              "shaderParams": {
+                "show_zn_entrance": true,
+                "show_zn_left": false,
+                "show_zn_right": false
+              }
+            }
+          }
+        ],
+        "duration": 20,
+        "fps": 30,
+        "markers": [],
+        "inPoint": null,
+        "outPoint": null,
+        "loop": true,
+        "holdAtEnd": false,
+        "trackingTakes": [],
+        "automation": [],
+        "audio": {
+          "tracks": [],
+          "clips": []
+        },
+        "boundedDuration": true,
+        "lightingTakes": [],
+        "lightingSequences": [],
+        "colorLanes": []
+      }
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_attract"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_welcome"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_story_a"
+        },
+        {
+          "col": 3,
+          "sceneId": "sc_story_b"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [
+      {
+        "id": "mdl_wall_screen",
+        "name": "Wall screen",
+        "kind": "plane",
+        "path": "",
+        "surfaceId": "srf_wall",
+        "position": {
+          "x": 0,
+          "y": 1.6,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": 2.6,
+        "visible": true
+      },
+      {
+        "id": "mdl_floor_screen",
+        "name": "Floor projection",
+        "kind": "plane",
+        "path": "",
+        "surfaceId": "srf_floor",
+        "position": {
+          "x": 0,
+          "y": 0.002,
+          "z": 1.5625
+        },
+        "rotation": {
+          "x": -90,
+          "y": 0,
+          "z": 0
+        },
+        "scale": 1,
+        "scaleXYZ": [
+          3.2765625000000003,
+          3.125,
+          1
+        ],
+        "visible": true
+      }
+    ],
+    "lightIntensity": 1,
+    "environment": true,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": true,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50,
+    "trackingLabels": true,
+    "trackingMergePeople": true,
+    "trackingMergeRadius": 0.8,
+    "trackingZoneEnterSec": 0.25,
+    "trackingZoneExitSec": 0.8,
+    "activeZoneIds": [
+      "zn_entrance",
+      "zn_left",
+      "zn_right"
+    ],
+    "trackingZones": [
+      {
+        "id": "zn_entrance",
+        "name": "Entrance",
+        "surface": "SOL",
+        "u0": 0.36,
+        "u1": 0.64,
+        "v0": 0.04,
+        "v1": 0.3,
+        "color": "#f59e0b",
+        "minBlobs": 1
+      },
+      {
+        "id": "zn_left",
+        "name": "Left pad",
+        "surface": "SOL",
+        "u0": 0.06,
+        "u1": 0.32,
+        "v0": 0.45,
+        "v1": 0.85,
+        "color": "#10b981",
+        "minBlobs": 1
+      },
+      {
+        "id": "zn_right",
+        "name": "Right pad",
+        "surface": "SOL",
+        "u0": 0.68,
+        "u1": 0.94,
+        "v0": 0.45,
+        "v1": 0.85,
+        "color": "#d946ef",
+        "minBlobs": 1
+      }
+    ]
+  },
+  "timeline": {
+    "layers": [
+      {
+        "enabled": true,
+        "id": "lay_attract_text",
+        "name": "Text",
+        "kind": "video",
+        "opacity": 1,
+        "blendMode": "normal"
+      },
+      {
+        "enabled": true,
+        "id": "lay_attract_video",
+        "name": "Video",
+        "kind": "video",
+        "opacity": 1,
+        "blendMode": "normal"
+      },
+      {
+        "enabled": true,
+        "id": "lay_attract_floor",
+        "name": "Floor pads",
+        "kind": "video",
+        "opacity": 1,
+        "blendMode": "normal"
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_attract_video",
+        "layerId": "lay_attract_video",
+        "name": "attract",
+        "path": "assets/video/attract.mp4",
+        "start": 0,
+        "duration": 20,
+        "inPoint": 0,
+        "sourceDuration": 20
+      },
+      {
+        "id": "clip_attract_text",
+        "layerId": "lay_attract_text",
+        "name": "Attract title",
+        "path": "",
+        "start": 0.5,
+        "duration": 19,
+        "inPoint": 0,
+        "fadeIn": 1,
+        "fadeOut": 1,
+        "content": {
+          "type": "TEXT",
+          "textBody": "ARTLUX\nWalk in to begin",
+          "textWeight": 700,
+          "textSize": 0.12,
+          "textLineHeight": 1.25,
+          "textAlign": "center",
+          "textVAlign": "middle",
+          "textColor": "#ffffff",
+          "textStrokeColor": "#000000",
+          "textStrokeWidth": 0.03,
+          "opacity": 1
+        }
+      },
+      {
+        "id": "clip_attract_floor",
+        "layerId": "lay_attract_floor",
+        "name": "Floor pads",
+        "path": "",
+        "start": 0,
+        "duration": 20,
+        "inPoint": 0,
+        "content": {
+          "type": "SHADER",
+          "shaderId": "plasma",
+          "shaderSource": "/*{\n  \"TITLE\": \"Floor pads\",\n  \"CATEGORIES\": [\"ambient\"],\n  \"INPUTS\": [\n    { \"NAME\": \"show_zn_entrance\", \"LABEL\": \"Entrance\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_left\", \"LABEL\": \"Left pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"show_zn_right\", \"LABEL\": \"Right pad\", \"TYPE\": \"bool\", \"DEFAULT\": true },\n    { \"NAME\": \"border\",   \"LABEL\": \"Border\",     \"TYPE\": \"float\", \"MIN\": 0.002, \"MAX\": 0.08, \"DEFAULT\": 0.016 },\n    { \"NAME\": \"pulse\",    \"LABEL\": \"Pulse rate\", \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 3.0,  \"DEFAULT\": 0.8 },\n    { \"NAME\": \"interior\", \"LABEL\": \"Interior\",   \"TYPE\": \"float\", \"MIN\": 0.0,   \"MAX\": 0.6,  \"DEFAULT\": 0.12 }\n  ]\n}*/\n// THE PADS A VISITOR STANDS ON — the floor surface's background, with the live visitor markers drawn\n// over it by the TRACKING content. GENERATED by make-project.cjs from the trigger zones: do not\n// hand-edit, move a zone there and re-run it.\nfloat padCover(vec2 uv, vec4 r, float breath) {\n  if (uv.x < r.x || uv.x > r.z || uv.y < r.y || uv.y > r.w) return 0.0;\n  float dx = min(uv.x - r.x, r.z - uv.x) * iAspect;\n  float dy = min(uv.y - r.y, r.w - uv.y);\n  float ring = 1.0 - smoothstep(border * 0.45, border, min(dx, dy));\n  return max(ring * breath, interior);\n}\n\nvec4 shaderColor(vec2 uv) {\n  float breath = 0.65 + 0.35 * sin(iTime * pulse * 6.2831853);\n  vec3 col = vec3(0.0);\n  float a = 0.0;\n  if (show_zn_entrance) { float t = padCover(uv, vec4(0.3600, 0.0400, 0.6400, 0.3000), breath); col += vec3(0.9608, 0.6196, 0.0431) * t; a = max(a, t); }\n  if (show_zn_left) { float t = padCover(uv, vec4(0.0600, 0.4500, 0.3200, 0.8500), breath); col += vec3(0.0627, 0.7255, 0.5059) * t; a = max(a, t); }\n  if (show_zn_right) { float t = padCover(uv, vec4(0.6800, 0.4500, 0.9400, 0.8500), breath); col += vec3(0.8510, 0.2745, 0.9373) * t; a = max(a, t); }\n  return vec4(col, a);   // premultiplied — the shader context is premultipliedAlpha:true\n}",
+          "shaderRes": 1080,
+          "opacity": 1,
+          "shaderParams": {
+            "show_zn_entrance": true,
+            "show_zn_left": false,
+            "show_zn_right": false
+          }
+        }
+      }
+    ],
+    "duration": 20,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": true,
+    "holdAtEnd": false,
+    "trackingTakes": [],
+    "automation": [],
+    "audio": {
+      "tracks": [],
+      "clips": []
+    },
+    "boundedDuration": true,
+    "lightingTakes": [],
+    "lightingSequences": [],
+    "colorLanes": []
+  },
+  "stateMachine": {
+    "enabled": true,
+    "states": [
+      {
+        "id": "st_attract",
+        "name": "Attract",
+        "sceneId": "sc_attract",
+        "x": 80,
+        "y": 190,
+        "entry": [
+          {
+            "kind": "play"
+          }
+        ],
+        "regionId": "rg_waiting"
+      },
+      {
+        "id": "st_welcome",
+        "name": "Welcome",
+        "sceneId": "sc_welcome",
+        "x": 380,
+        "y": 190,
+        "entry": [],
+        "regionId": "rg_visitor"
+      },
+      {
+        "id": "st_story_a",
+        "name": "Story A",
+        "sceneId": "sc_story_a",
+        "x": 700,
+        "y": 90,
+        "entry": [],
+        "regionId": "rg_visitor"
+      },
+      {
+        "id": "st_story_b",
+        "name": "Story B",
+        "sceneId": "sc_story_b",
+        "x": 700,
+        "y": 300,
+        "entry": [],
+        "regionId": "rg_visitor"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "tr_enter",
+        "from": "st_attract",
+        "to": "st_welcome",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_entrance",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1,
+        "waitForContent": true
+      },
+      {
+        "id": "tr_left",
+        "from": "st_welcome",
+        "to": "st_story_a",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_left",
+            "edge": "occupiedFor",
+            "seconds": 1.5
+          }
+        },
+        "fadeSec": 1,
+        "waitForContent": true
+      },
+      {
+        "id": "tr_right",
+        "from": "st_welcome",
+        "to": "st_story_b",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_right",
+            "edge": "occupiedFor",
+            "seconds": 1.5
+          }
+        },
+        "fadeSec": 1,
+        "waitForContent": true
+      },
+      {
+        "id": "tr_room_empty",
+        "from": "",
+        "to": "st_attract",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "match": "all",
+            "terms": [
+              {
+                "zone": "zn_entrance",
+                "edge": "emptyFor",
+                "seconds": 6
+              },
+              {
+                "zone": "zn_left",
+                "edge": "emptyFor",
+                "seconds": 6
+              },
+              {
+                "zone": "zn_right",
+                "edge": "emptyFor",
+                "seconds": 6
+              }
+            ]
+          }
+        },
+        "fadeSec": 2,
+        "waitForContent": true,
+        "fromAny": true
+      }
+    ],
+    "initialStateId": "st_attract",
+    "regions": [
+      {
+        "id": "rg_waiting",
+        "name": "Waiting",
+        "x": 40,
+        "y": 120,
+        "w": 240,
+        "h": 200,
+        "color": "#155e75"
+      },
+      {
+        "id": "rg_visitor",
+        "name": "A visitor is in the room",
+        "x": 340,
+        "y": 40,
+        "w": 560,
+        "h": 380,
+        "color": "#4c1d95"
+      }
+    ]
+  },
+  "schedule": [],
+  "audio": {
+    "tracks": [],
+    "clips": [],
+    "buses": []
+  },
+  "assets": [
+    {
+      "id": "asset_attract",
+      "name": "attract",
+      "type": "video",
+      "path": "assets/video/attract.mp4"
+    },
+    {
+      "id": "asset_welcome",
+      "name": "welcome",
+      "type": "video",
+      "path": "assets/video/welcome.mp4"
+    },
+    {
+      "id": "asset_story_a",
+      "name": "story-a",
+      "type": "video",
+      "path": "assets/video/story-a.mp4"
+    },
+    {
+      "id": "asset_story_b",
+      "name": "story-b",
+      "type": "video",
+      "path": "assets/video/story-b.mp4"
+    }
+  ],
+  "bakes": [],
+  "projectorOutputs": [
+    {
+      "surfaceId": "srf_wall",
+      "name": "Wall",
+      "enabled": false,
+      "displayId": null,
+      "cornerPin": {
+        "tl": [
+          0,
+          0
+        ],
+        "tr": [
+          1,
+          0
+        ],
+        "br": [
+          1,
+          1
+        ],
+        "bl": [
+          0,
+          1
+        ]
+      },
+      "warp": null,
+      "softEdge": {
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "gamma": 2.2
+      },
+      "gamma": 1
+    },
+    {
+      "surfaceId": "srf_floor",
+      "name": "Floor",
+      "enabled": false,
+      "displayId": null,
+      "cornerPin": {
+        "tl": [
+          0,
+          0
+        ],
+        "tr": [
+          1,
+          0
+        ],
+        "br": [
+          1,
+          1
+        ],
+        "bl": [
+          0,
+          1
+        ]
+      },
+      "warp": null,
+      "softEdge": {
+        "left": 0,
+        "right": 0,
+        "top": 0,
+        "bottom": 0,
+        "gamma": 2.2
+      },
+      "gamma": 1
+    }
+  ],
+  "outputSpans": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}

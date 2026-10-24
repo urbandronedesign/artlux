@@ -162,8 +162,10 @@ stick outside every search folder is still one click away.
 
 ![The Examples tab showing the three bundled sets](images/launcher/03-examples.png)
 
-The example projects ArtLux ships — audio, state machine, LiDAR tracking — each with the tutorial
-that goes with it.
+The example projects ArtLux ships — audio, state machine, LiDAR tracking and more — each with the
+tutorial that goes with it. To start an interactive installation, pick **Interactive show**: a room
+whose visitors drive the show (LiDAR zones, a branch, a Full HD video and a title per state), ready
+to adapt.
 
 Picking one **copies the whole set into your workspace first**, then opens it. The shipped copies
 live under `Program Files`, where saving fails; copying makes the obvious thing work. The whole set

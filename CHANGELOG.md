@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### New template: an interactive show the room drives
+
+A new example, **Interactive show**, ready to pick from the Launcher's Examples tab: a lobby installation
+where visitors choose what plays. Four states (an attract loop, a welcome and two stories), three LiDAR
+zones on the floor, a branch, and one rule that returns to the attract loop when the room empties. Every
+state has its own Full HD video, a title, and pads painted on the floor; the 3D view shows the room at
+real size. A scripted visitor walks the whole show, so it can be tested with no tracker. It comes with a
+five-chapter course, and its screenshots now illustrate the user guide's tracking and state-machine
+chapters.
+
+See [the example](examples/interactive-show/README.md).
+
 ### The 3D view no longer freezes when somebody is tracked
 
 With LiDAR tracking shown in the 3D view, the view could stop drawing for good the moment the first

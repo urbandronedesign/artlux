@@ -49,6 +49,7 @@
   ],
   "examples": [
     "audio",
+    "interactive-show",
     "lidar-tracking",
     "lighting",
     "osc-arduino",

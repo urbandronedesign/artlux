@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 570" width="780" height="570" font-family="ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="rm-arrow" markerWidth="10" markerHeight="10" refX="7.5" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1,1 L8.5,4.5 L1,8 Z" fill="#f3f4f6"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="780" height="570" rx="12" fill="#14171d" stroke="#2b3140" stroke-width="1"/>
+  <text x="34" y="42" fill="#f3f4f6" font-size="19px" font-weight="600">The room, seen from above</text>
+  <text x="34" y="66" fill="#f3f4f6" font-size="13px">The tracked floor at its real size, 5.825 m × 3.125 m. Each zone wears the colour of the state it leads to.</text>
+
+  <!-- the wall (v = 1 edge of the floor) -->
+  <rect x="99" y="104" width="582" height="14" rx="3" fill="#2b3a55" stroke="#4b6aa0"/>
+  <text x="390" y="98" text-anchor="middle" fill="#f3f4f6" font-size="13px" font-weight="600">WALL — the video and its title play here</text>
+
+  <!-- the tracked floor: x = 99 + u·582, y = 120 + (1 − v)·312 -->
+  <rect x="99" y="120" width="582" height="312" fill="#10161c" stroke="#34d399" stroke-opacity="0.55" stroke-dasharray="6 4"/>
+
+  <!-- Left pad: u 0.06–0.32, v 0.45–0.85 -->
+  <rect x="134" y="167" width="151" height="125" rx="4" fill="#10b981" fill-opacity="0.16" stroke="#10b981" stroke-width="2"/>
+  <text x="209.5" y="214" text-anchor="middle" font-size="14px" font-weight="600" fill="#34d399">Left pad</text>
+  <text x="209.5" y="236" text-anchor="middle" fill="#f3f4f6" font-size="12px" font-family="ui-monospace, 'Cascadia Code', 'Consolas', monospace">occupied 1.5 s</text>
+  <text x="209.5" y="254" text-anchor="middle" fill="#f3f4f6" font-size="12px" font-family="ui-monospace, 'Cascadia Code', 'Consolas', monospace">→ Story A</text>
+
+  <!-- Right pad: u 0.68–0.94 -->
+  <rect x="495" y="167" width="151" height="125" rx="4" fill="#d946ef" fill-opacity="0.16" stroke="#d946ef" stroke-width="2"/>
+  <text x="570.5" y="214" text-anchor="middle" font-size="14px" font-weight="600" fill="#e879f9">Right pad</text>
+  <text x="570.5" y="236" text-anchor="middle" fill="#f3f4f6" font-size="12px" font-family="ui-monospace, 'Cascadia Code', 'Consolas', monospace">occupied 1.5 s</text>
+  <text x="570.5" y="254" text-anchor="middle" fill="#f3f4f6" font-size="12px" font-family="ui-monospace, 'Cascadia Code', 'Consolas', monospace">→ Story B</text>
+
+  <!-- Entrance: u 0.36–0.64, v 0.04–0.30 -->
+  <rect x="308.5" y="338" width="163" height="81" rx="4" fill="#f59e0b" fill-opacity="0.16" stroke="#f59e0b" stroke-width="2"/>
+  <text x="390" y="366" text-anchor="middle" font-size="14px" font-weight="600" fill="#fbbf24">Entrance</text>
+  <text x="390" y="388" text-anchor="middle" fill="#f3f4f6" font-size="12px" font-family="ui-monospace, 'Cascadia Code', 'Consolas', monospace">someone enters</text>
+  <text x="390" y="406" text-anchor="middle" fill="#f3f4f6" font-size="12px" font-family="ui-monospace, 'Cascadia Code', 'Consolas', monospace">→ Welcome</text>
+
+  <!-- the visitor's walk -->
+  <g fill="none" stroke="#93a0b3" stroke-width="1.6" stroke-dasharray="5 4">
+    <path d="M390,512 L390,424" marker-end="url(#rm-arrow)"/>
+    <path d="M350,334 C310,318 262,310 236,298" marker-end="url(#rm-arrow)"/>
+    <path d="M430,334 C470,318 518,310 544,298" marker-end="url(#rm-arrow)"/>
+  </g>
+  <text x="400" y="508" fill="#f3f4f6" font-size="12px">people come in here</text>
+
+  <!-- dimensions -->
+  <text x="140" y="452" text-anchor="middle" fill="#f3f4f6" font-size="12px">← 5.825 m →</text>
+  <text x="702" y="280" fill="#f3f4f6" font-size="12px">3.125 m</text>
+
+  <text x="34" y="550" fill="#f3f4f6" font-size="13px">Nobody in any zone for 6 s → back to Attract, from wherever the show is (one global rule).</text>
+</svg>
