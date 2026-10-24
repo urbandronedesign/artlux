@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.33.13
 
 ### New template: an interactive show the room drives
 
