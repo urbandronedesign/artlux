@@ -199,7 +199,11 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // PROJECTORS PLACED IN THE FILE (modelScreens.ts). Published in WORLD space — after the recentre and
   // this model's transform, the same world the picks and the solve live in — so calibration can start
   // from where the modeller put each one. Re-published when the model moves; the wizard reads the
-  // latest. Each gets a small frustum marker so the operator can see it before calibrating.
+  // latest. Each gets a frustum marker so the operator can see it before calibrating.
+  //
+  // The marker reaches as far as the venue (the distance to the model's bounds centre), not one unit:
+  // a 1-deep marker 9 m from the screen was a speck, and a projector turned 20° in Blender and saved
+  // looked like "the reload did nothing" — the update had arrived; nobody could see it.
   //
   // The markers hang off `group`, NOT `cloned`: `cloned` is this model's depth caster, and lines
   // radiating from the projector's own eye would shadow content in the very projector's depth map.
@@ -208,12 +212,16 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   useEffect(() => {
     if (projectors.length === 0) return;
     const mat = new THREE.LineBasicMaterial({ color: '#22d3ee', toneMapped: false });
-    const marks = projectors.map((cam) => {
+    // Unit frustum (depth 1) in the camera's own space; `place` scales it out to the venue.
+    const frustumPoints = (cam: THREE.PerspectiveCamera, depth: number): THREE.Vector3[] => {
       const ty = Math.tan((cam.fov * Math.PI) / 360), tx = ty * cam.aspect;
-      const c = [[-tx, -ty], [tx, -ty], [tx, ty], [-tx, ty]].map(([x, y]) => new THREE.Vector3(x, y, -1));
+      const c = [[-tx, -ty], [tx, -ty], [tx, ty], [-tx, ty]].map(([x, y]) => new THREE.Vector3(x * depth, y * depth, -depth));
       const pts: THREE.Vector3[] = [];
       for (let i = 0; i < 4; i++) pts.push(new THREE.Vector3(), c[i], c[i], c[(i + 1) % 4]);
-      const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      return pts;
+    };
+    const marks = projectors.map((cam) => {
+      const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(frustumPoints(cam, 1)), mat);
       line.raycast = () => {};
       line.matrixAutoUpdate = false;
       group.add(line);
@@ -222,7 +230,15 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     const place = () => {
       group.updateWorldMatrix(true, true);
       const inv = group.matrixWorld.clone().invert();
-      for (const { cam, line } of marks) line.matrix.multiplyMatrices(inv, cam.matrixWorld);
+      // The venue's centre in world space — cameras have no geometry, so they do not stretch the box.
+      const centre = new THREE.Box3().setFromObject(cloned).getCenter(new THREE.Vector3());
+      const eye = new THREE.Vector3();
+      for (const { cam, line } of marks) {
+        line.matrix.multiplyMatrices(inv, cam.matrixWorld);
+        // Depth in the camera's LOCAL units: its world matrix may carry the model's scale.
+        const depth = Math.max(0.5, eye.setFromMatrixPosition(cam.matrixWorld).distanceTo(centre)) / (cam.matrixWorld.getMaxScaleOnAxis() || 1);
+        line.geometry.setFromPoints(frustumPoints(cam, depth));
+      }
       publishModelProjectors(model.id, marks.map(({ cam }) => ({
         modelId: model.id, modelName: model.name, name: cam.name,
         matrixWorld: cam.matrixWorld.toArray(), fovY: cam.fov, aspect: cam.aspect,
@@ -236,7 +252,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
       for (const { line } of marks) { group.remove(line); line.geometry.dispose(); }
       mat.dispose();
     };
-  }, [projectors, group, model.id, model.name]);
+  }, [projectors, group, cloned, model.id, model.name]);
   const placeProjectors = useRef<(() => void) | null>(null);
   useEffect(() => { placeProjectors.current?.(); }, [model.position, model.rotation, model.scale, model.scaleXYZ]);
 
