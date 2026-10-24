@@ -4709,7 +4709,11 @@ const App: React.FC = () => {
       const desired = new Map<string, string>(); // surfaceId -> NDI source name
       for (const o of projectorOutputs) {
           const surface = surfaces.find(s => s.id === o.surfaceId);
-          const live = o.enabled && o.displayId != null && surface && displays.some(d => d.id === o.displayId);
+          // The SAME liveness rule as the projector reconcile above, WINDOWED_DISPLAY included. This
+          // one omitted it, so a windowed output opened its window and captured frames but never got a
+          // sender — "Send as NDI" silently did nothing (found 2026-10-24: ndi:list stayed empty).
+          const live = o.enabled && o.displayId != null && surface
+              && (o.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === o.displayId));
           if (live && o.ndiSend) desired.set(o.surfaceId, `ArtLux — ${surface!.name}`);
       }
       for (const [surfaceId, name] of desired) {

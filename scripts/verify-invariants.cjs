@@ -6392,6 +6392,24 @@ check(
   },
 );
 
+// ── NDI send follows the same liveness rule as the projector window ───────────────────────────
+check(
+  'an output that opens a projector window also gets its NDI sender (windowed included)',
+  'App reconciles projector windows and NDI senders separately. The window rule accepted ' +
+  'WINDOWED_DISPLAY; the NDI rule only accepted a real display, so a windowed output opened, captured ' +
+  'frames and never got a sender — "Send as NDI" did nothing and ndi:list stayed empty. Found ' +
+  '2026-10-24 by the battle test (ArtLux receiving its own NDI output).',
+  () => {
+    const F = 'src/renderer/App.tsx';
+    const s = stripComments(read(F));
+    const i = s.indexOf("'ndi:send-configure'");
+    if (i < 0) return F + ': NDI send reconcile not found — this guard cannot see what it protects';
+    const block = s.slice(Math.max(0, i - 1200), i);
+    if (!/displayId\s*===\s*WINDOWED_DISPLAY/.test(block)) return F + ': the NDI send reconcile no longer treats a windowed output as live';
+    return null;
+  },
+);
+
 // ── GPU crash: the LEDs and the projectors come back on their own ─────────────────────────────
 check(
   'a lost GPU device is rebuilt — LEDs and projector outputs recover from a GPU-process crash',
