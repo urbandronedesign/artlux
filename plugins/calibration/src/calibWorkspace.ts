@@ -23,6 +23,7 @@ import type { ProjectorCalibration } from '../../../shared/protocol';
 import * as calibNative from './calibNative';
 import { storeCalibration, getCalibration, sendToProjector } from './calibHost';
 import { reproject } from './cvCamera';
+import { hasPickingPose } from './pickingPose';
 
 let latestCrosshair: [number, number] | null = null;
 let markerlessPick: ((world: [number, number, number], source?: string) => void) | null = null;
@@ -165,7 +166,7 @@ function pushLiveOverlay(d: LiveDrag): void {
   sendToProjector(d.sid, {
     t: 'calib', mode: 'crosshair',
     points: d.picks.map((p) => p.pixel),
-    predicted: d.picks.map((p) => (d.cal.poseRms != null
+    predicted: d.picks.map((p) => (hasPickingPose(d.cal)
       ? reproject(d.cal.intrinsics, dist, d.cal.rotation, d.cal.translation as [number, number, number], p.world)
       : null)),
     calibration: d.cal,
@@ -244,7 +245,7 @@ export function pick(world: [number, number, number], source?: string): void {
   // at the crosshair, and the operator drags it from the model's guess to the truth. Past the first
   // four points that turns every additional pick from "hunt for the pixel" into a short nudge, and
   // the error you are correcting is exactly the residual you can see on the object.
-  const predicted = cal.poseRms != null
+  const predicted = hasPickingPose(cal) // a solve, or the starting pose of a projector placed in the venue file
     ? reproject(cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0], cal.rotation, cal.translation as [number, number, number], world)
     : null;
   const inRaster = predicted != null && cal.imageSize[0] > 0
@@ -327,16 +328,16 @@ export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorC
     if (best && (!fixed || best.rms <= fixed.rms + 0.01)) {
       storeCalibration(surfaceId, {
         intrinsics: best.k, distortion: [0, 0, 0, 0, 0], intrinsicsRms: best.rms, intrinsicsSource: 'refined',
-        rotation: best.pose.rotation, translation: best.pose.translation, poseRms: best.pose.rms,
+        rotation: best.pose.rotation, translation: best.pose.translation, poseRms: best.pose.rms, poseSeeded: undefined,
       });
       return;
     }
-    if (fixed) { storeCalibration(surfaceId, { rotation: fixed.rotation, translation: fixed.translation, poseRms: fixed.rms }); return; }
+    if (fixed) { storeCalibration(surfaceId, { rotation: fixed.rotation, translation: fixed.translation, poseRms: fixed.rms, poseSeeded: undefined }); return; }
   }
 
   const res = await bestPose(obj, img, cal.intrinsics, dist, n);
   if (!res) return;
-  storeCalibration(surfaceId, { rotation: res.rotation, translation: res.translation, poseRms: res.rms });
+  storeCalibration(surfaceId, { rotation: res.rotation, translation: res.translation, poseRms: res.rms, poseSeeded: undefined });
 }
 
 // Remove ONE correspondence (the manual wizard's per-point delete): re-solve from what remains, or —
@@ -354,7 +355,7 @@ export function removePick(surfaceId: string, index: number): void {
     storeCalibration(surfaceId, { posePicks: picks });
     void solvePose(surfaceId, picks);
   } else {
-    storeCalibration(surfaceId, { posePicks: picks, poseRms: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
+    storeCalibration(surfaceId, { posePicks: picks, poseRms: undefined, poseSeeded: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
   }
 }
 

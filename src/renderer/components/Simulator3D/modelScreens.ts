@@ -97,6 +97,71 @@ export function assignContentMaterials(
   });
 }
 
+// ── Projectors placed in the file ───────────────────────────────────────────────────────────────
+//
+// A camera named `projector…` is where the modeller put a real projector. Calibration starts from it
+// (ManualWizard's Lens step): its lens gives the throw ratio, its placement a starting pose, and the
+// operator's points then correct both against the real room. Same naming rule as screens, and the
+// same reason for living here: the editor publishes what it found, the wizard reads it.
+export const PROJECTOR_RE = /^projector/i;
+
+/** A projector camera as it sits in the WORLD — after the recentre and the model's own transform. */
+export interface FileProjector {
+  modelId: string;
+  modelName: string;
+  name: string;
+  /** Camera → world, column-major (THREE.Matrix4.elements). May carry the model's scale. */
+  matrixWorld: number[];
+  /** Vertical field of view, degrees, and the aspect it was authored at (glTF yfov + aspectRatio). */
+  fovY: number;
+  aspect: number;
+}
+
+export function findProjectors(root: THREE.Object3D): THREE.PerspectiveCamera[] {
+  const out: THREE.PerspectiveCamera[] = [];
+  root.traverse((o) => {
+    if ((o as THREE.PerspectiveCamera).isPerspectiveCamera && PROJECTOR_RE.test(o.name)) out.push(o as THREE.PerspectiveCamera);
+  });
+  return out;
+}
+
+/** Spec-sheet throw ratio (throw distance ÷ image width) of a camera's lens. */
+export const throwRatioOf = (p: Pick<FileProjector, 'fovY' | 'aspect'>): number =>
+  1 / (2 * Math.tan((p.fovY * Math.PI) / 360) * p.aspect);
+
+/**
+ * The camera's placement as an OpenCV pose — R (world→camera, row-major 3×3) and t — the convention
+ * every calibration solve stores. three looks down −Z with +Y up; OpenCV looks down +Z with +Y down,
+ * so the camera's own axes map as (x, −y, −z). Axes are normalised, so a scaled model still yields a
+ * rotation and the centre is where the camera really is.
+ */
+export function cvPoseOf(matrixWorld: number[]): { rotation: number[]; translation: number[] } {
+  const e = matrixWorld;
+  const axis = (i: number) => { const v = [e[i * 4], e[i * 4 + 1], e[i * 4 + 2]]; const l = Math.hypot(v[0], v[1], v[2]) || 1; return v.map((x) => x / l); };
+  const x = axis(0), y = axis(1), z = axis(2);
+  const C = [e[12], e[13], e[14]];
+  const R = [x[0], x[1], x[2], -y[0], -y[1], -y[2], -z[0], -z[1], -z[2]];
+  const t = [0, 1, 2].map((r) => -(R[r * 3] * C[0] + R[r * 3 + 1] * C[1] + R[r * 3 + 2] * C[2]));
+  return { rotation: R, translation: t };
+}
+
+const projectors = new Map<string, FileProjector[]>();
+let projectorList: FileProjector[] = [];
+
+export function publishModelProjectors(modelId: string, list: FileProjector[] | null): void {
+  const prev = projectors.get(modelId);
+  if (!list || list.length === 0) { if (!prev) return; projectors.delete(modelId); }
+  else {
+    if (prev && JSON.stringify(prev) === JSON.stringify(list)) return; // a handful of numbers, at operator rate
+    projectors.set(modelId, list);
+  }
+  projectorList = [...projectors.values()].flat();
+  emit();
+}
+
+/** Every projector placed in a loaded venue file, across all models. */
+export const useFileProjectors = (): FileProjector[] => useSyncExternalStore(subscribe, () => projectorList);
+
 // ── What the editor knows about the loaded file ─────────────────────────────────────────────────
 //
 // The Model card lists a model's screens, but the panel never holds the GLB — only ModelObject does,

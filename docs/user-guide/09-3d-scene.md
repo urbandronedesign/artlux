@@ -299,6 +299,34 @@ a wall, plus a floor, so you can bind the room and the screen separately.
 
 ---
 
+## Projectors named in Blender
+
+You usually know where the projectors will hang before you reach the venue. Put that in the Blender
+file and calibration starts from there instead of from nothing.
+
+**In Blender:** add a **camera** where the projector hangs, aimed where it throws, and give the camera
+object a name that **starts with `projector`** — `projector_main`, `PROJECTOR-02`. Set its lens to
+the projector's throw: with the sensor fitted **horizontally**, *focal length ÷ sensor width* is the
+throw ratio (a throw ratio of 1.0 is a 36 mm lens on a 36 mm sensor). Export as above — the glTF
+export must include **cameras** (Blender's *Include ▸ Cameras* option).
+
+**In ArtLux:** each projector shows in the 3D view as a small cyan frustum, moving with the model.
+When you calibrate an output with the **Manual** flow, the Lens step offers it under **Projector
+placed in the venue file**; **Start from it** takes its throw ratio and its position. The projection
+then shows the venue's wireframe from where Blender put the projector before you place a single
+point, and each point you click starts where that projector predicts — you drag it the last few
+centimetres onto the real feature. See
+[the Manual flow](../CALIBRATION.md#the-manual-flow-no-board-no-camera) for the steps.
+
+The Blender position is only a **starting point**. The output is not calibrated, and does not render
+the venue from it, until your points have solved. Lens shift is not carried by glTF, so a projector
+with shift starts without it — enter it in the Lens step, or let the points find it.
+
+The example room in `examples/blender-screens/` has one, `projector_main`, 6 m back and aimed at the
+screen with a throw ratio of 1.0.
+
+---
+
 ## Look through a calibrated projector
 
 Once a projector output has been calibrated (see [Projector calibration](10-calibration.md)), a

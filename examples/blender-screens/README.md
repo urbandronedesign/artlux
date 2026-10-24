@@ -4,7 +4,8 @@ A room with **one 16:9 screen** named `screen_main` (3.2 × 1.8 m) on its back w
 floor. It is the test file for ArtLux's rule that any object named `screen…` is a screen of its own.
 
 It also holds a camera named `projector_main`, 6 m back and aimed at the screen with a throw ratio of
-1.0 — a projector placed in Blender. ArtLux does not use it yet; it simply loads alongside the room.
+1.0 — a projector placed in Blender. It shows in the 3D view as a cyan frustum, and the Manual
+calibration can start from it (see below).
 
 | File | What it is |
 |---|---|
@@ -24,6 +25,17 @@ It also holds a camera named `projector_main`, 6 m back and aimed at the screen 
 5. Now also set the model's own **Content** to something else. The wall and floor show that, and the
    screen keeps its own picture.
 6. Set the screen back to **— as the model —**, and it shows the model's content like the rest.
+
+## Start a calibration from the projector
+
+1. Route a surface to a projector output (windowed works for a test) and launch with `--calibrate`.
+2. Press **Calibrate** on that output, switch to **Manual**, and go to **Lens**.
+3. Under **Projector placed in the venue file**, choose **projector_main** and press **Start from it**:
+   the throw ratio becomes 1.00.
+4. Go to **Points**. Before you click anything, the projection already shows the room's wireframe as
+   seen from `projector_main`. Click a corner of the screen on the model: its point appears where
+   that projector predicts it, and you drag it onto the real corner.
+5. From 4 points the position solves and replaces the Blender one.
 
 ## Rebuild the files
 

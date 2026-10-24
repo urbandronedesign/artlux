@@ -6613,6 +6613,22 @@ check(
   },
 );
 
+check(
+  'a projector starting pose is never a calibration',
+  'poseSeeded (a camera named projector… in the venue file) lets PICKING predict from where the ' +
+  'modeller put the projector. If anything that means "this output is calibrated" accepted it, an ' +
+  'output would render the venue from a guess nobody has checked against the room.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/App.tsx', 'src/renderer/components/OutputsPanel.tsx', 'plugins/calibration/src/blendController.ts', 'plugins/calibration/src/projectedScene.ts']) {
+      if (exists(f) && /poseSeeded|hasPickingPose/.test(stripComments(read(f)))) bad.push(f);
+    }
+    const ws = stripComments(read('plugins/calibration/src/calibWorkspace.ts'));
+    if (!ws.includes('hasPickingPose(cal)')) bad.push('calibWorkspace.ts no longer predicts picks from hasPickingPose');
+    return bad.length ? `a calibrated-output test reads the starting pose: ${bad.join(', ')}` : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

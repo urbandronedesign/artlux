@@ -629,6 +629,13 @@ export interface ProjectorCalibration {
   imageSize: [number, number]; // projector raster the pixels were captured in
   intrinsicsRms?: number;      // structured-light reprojection RMS (px)
   poseRms?: number;            // solvePnP reprojection RMS (px)
+  // A STARTING pose, not a solve: `rotation`/`translation` were taken from a projector the modeller
+  // placed in the venue file (a camera named `projector…` — Simulator3D/modelScreens.ts), and holds
+  // that camera's name. Picking uses it to predict where each new point lands, exactly as it uses a
+  // solve; nothing else may — `poseRms` stays absent, so render-from-projector, blending and every
+  // "is this output calibrated?" test keep answering no until the points have actually solved. The
+  // first solve clears it.
+  poseSeeded?: string;
   // Editable pose correspondences (projector pixel ↔ venue-model world point), kept so a moved
   // projector can re-solve pose without redoing structured light.
   posePicks?: Array<{ world: [number, number, number]; pixel: [number, number] }>;

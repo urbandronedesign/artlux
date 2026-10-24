@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { ledUnderPointer } from './pickPriority';
 import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
 import { SceneModel, ScreenBinding } from '../../../../shared/protocol';
-import { findScreens, assignContentMaterials, newContentSwap, disposeContentSwap, type ContentSwap, publishModelScreens, focusScreen, screenUnder } from './modelScreens';
+import { findScreens, assignContentMaterials, newContentSwap, disposeContentSwap, type ContentSwap, publishModelScreens, focusScreen, screenUnder, findProjectors, publishModelProjectors } from './modelScreens';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
 import { blankMap } from './blankMap';
@@ -193,6 +193,50 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     applyModelTransform(group, model);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group, model.position, model.rotation, model.scale, model.scaleXYZ]);
+
+  // PROJECTORS PLACED IN THE FILE (modelScreens.ts). Published in WORLD space — after the recentre and
+  // this model's transform, the same world the picks and the solve live in — so calibration can start
+  // from where the modeller put each one. Re-published when the model moves; the wizard reads the
+  // latest. Each gets a small frustum marker so the operator can see it before calibrating.
+  //
+  // The markers hang off `group`, NOT `cloned`: `cloned` is this model's depth caster, and lines
+  // radiating from the projector's own eye would shadow content in the very projector's depth map.
+  // They are not raycastable either, so they never steal a pick or a calibration ray.
+  const projectors = useMemo(() => findProjectors(cloned), [cloned]);
+  useEffect(() => {
+    if (projectors.length === 0) return;
+    const mat = new THREE.LineBasicMaterial({ color: '#22d3ee', toneMapped: false });
+    const marks = projectors.map((cam) => {
+      const ty = Math.tan((cam.fov * Math.PI) / 360), tx = ty * cam.aspect;
+      const c = [[-tx, -ty], [tx, -ty], [tx, ty], [-tx, ty]].map(([x, y]) => new THREE.Vector3(x, y, -1));
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i < 4; i++) pts.push(new THREE.Vector3(), c[i], c[i], c[(i + 1) % 4]);
+      const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      line.raycast = () => {};
+      line.matrixAutoUpdate = false;
+      group.add(line);
+      return { cam, line };
+    });
+    const place = () => {
+      group.updateWorldMatrix(true, true);
+      const inv = group.matrixWorld.clone().invert();
+      for (const { cam, line } of marks) line.matrix.multiplyMatrices(inv, cam.matrixWorld);
+      publishModelProjectors(model.id, marks.map(({ cam }) => ({
+        modelId: model.id, modelName: model.name, name: cam.name,
+        matrixWorld: cam.matrixWorld.toArray(), fovY: cam.fov, aspect: cam.aspect,
+      })));
+    };
+    place();
+    placeProjectors.current = place;
+    return () => {
+      placeProjectors.current = null;
+      publishModelProjectors(model.id, null);
+      for (const { line } of marks) { group.remove(line); line.geometry.dispose(); }
+      mat.dispose();
+    };
+  }, [projectors, group, model.id, model.name]);
+  const placeProjectors = useRef<(() => void) | null>(null);
+  useEffect(() => { placeProjectors.current?.(); }, [model.position, model.rotation, model.scale, model.scaleXYZ]);
 
   // Record history on the first real drag movement, commit the new transform on drag end. Scale is
   // per-axis — the gizmo's X/Y/Z handles scale each axis independently and we persist all three.

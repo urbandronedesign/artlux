@@ -20,6 +20,7 @@ import { fillPattern, type CalibPatternKind } from './graycode';
 import { ProjectorScene, type BlendLook } from './ProjectorScene';
 import { setSurfaceFrame, clearSurfaceFrame, clearOwnedSurfaceFrames } from './surfaceFrameChannel';
 import { hasResidualWarp } from '@/projector/warp'; // host predicate — the ONE definition
+import { hasPickingPose } from './pickingPose';
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
@@ -284,9 +285,11 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
           one is selected for re-aiming. Raster px → css px is a ÷dpr (the ack/report convention). */}
       {/* Wireframe underlay while PICKING: once a pose has solved, project the live wireframe (+ vertex
           dots) so the operator sees, on the real object, where the model currently thinks its vertices
-          are — every added or edited point visibly pulls it into alignment. Opaque (black bg) is
+          are — every added or edited point visibly pulls it into alignment. A projector's starting pose
+          from the venue file counts (hasPickingPose): seeing Blender's guess land on the real room
+          BEFORE the first point is the reason to place one there. Opaque (black bg) is
           deliberate: high contrast beats the faint content for aiming. */}
-      {calibMode === 'crosshair' && meshLook !== 'shaded' && calibration?.poseRms != null && scene3D && (
+      {calibMode === 'crosshair' && meshLook !== 'shaded' && hasPickingPose(calibration) && scene3D && (
         <div style={{ position: 'absolute', inset: 0 }}>
           <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} meshLook={meshLook} frameloop="demand" />
         </div>

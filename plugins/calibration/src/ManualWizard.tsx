@@ -8,6 +8,8 @@ import * as ctl from './calibController';
 import * as calibNative from './calibNative';
 import { manualK, lensFromK, reprojectionErrors, lensConstraint } from './manualLens';
 import { cameraCenter, reproject } from './cvCamera';
+import { hasPickingPose } from './pickingPose';
+import { useFileProjectors, throwRatioOf, cvPoseOf } from '@/components/Simulator3D/modelScreens'; // host module — the ONE projector rule
 import type { MeshLook } from './ProjectorScene';
 
 interface Props {
@@ -134,7 +136,7 @@ export const ManualWizard: React.FC<Props> = (props) => {
     if (step !== 'pose') return;
     // `predicted` = where the current solve puts each pick's world point, for the leader lines. Null
     // per pick until a pose exists (nothing to predict from) or when it falls behind the lens.
-    const predicted = picks.map((p) => (cal?.poseRms != null
+    const predicted = picks.map((p) => (hasPickingPose(cal)
       ? reproject(cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0], cal.rotation, cal.translation as [number, number, number], p.world)
       : null));
     send({ t: 'calib', mode: 'crosshair', points: picks.map((p) => p.pixel), predicted, selected, calibration: cal ?? null, meshLook: wireOverlay ? meshLook : 'shaded' });
@@ -168,6 +170,33 @@ export const ManualWizard: React.FC<Props> = (props) => {
     setPrevLens(null); // the seed changed — a stale refine-undo would restore the wrong optics
     addLog(`✓ lens set — fx ${k[0].toFixed(0)} px @ ${r.w}×${r.h}`);
     // A new K invalidates a pose solved under the old one; re-solve from the picks we already have.
+    if (picks.length >= 4) void calibWorkspace.solvePose(surfaceId, picks);
+  };
+
+  // START FROM A PROJECTOR PLACED IN THE VENUE FILE (a camera named `projector…` — modelScreens.ts).
+  // Its lens becomes the throw ratio and its placement a STARTING pose (`poseSeeded`), so from the
+  // first point every pick lands where that projector predicts and is a nudge rather than a hunt, and
+  // the projected wireframe shows the guess on the real room before anything is clicked. The seed
+  // never counts as a solve (see hasPickingPose); the first solve replaces it. Lens shift does not
+  // survive a glTF export, so it is reset to 0 — the operator enters it, or the auto-lens finds it.
+  const fileProjectors = useFileProjectors();
+  const [fromFile, setFromFile] = useState('');
+  const startFromFile = () => {
+    const p = fileProjectors.find((x) => `${x.modelId}/${x.name}` === fromFile);
+    const r = raster.w > 0 ? raster : ctl.projectorRaster();
+    if (!p) return;
+    if (r.w === 0) { addLog('✗ projector raster unknown — is the output window open?'); return; }
+    const tr = throwRatioOf(p);
+    setThrowRatio(+tr.toFixed(3)); setShiftH(0); setShiftV(0);
+    const pose = cvPoseOf(p.matrixWorld);
+    calibHost.storeCalibration(surfaceId, {
+      intrinsics: manualK(tr, 0, 0, r.w, r.h), distortion: [0, 0, 0, 0, 0], imageSize: [r.w, r.h],
+      throwRatio: tr, lensShift: [0, 0], intrinsicsSource: 'manual', intrinsicsRms: undefined,
+      rotation: pose.rotation, translation: pose.translation, poseRms: undefined, poseSeeded: p.name,
+    });
+    setPrevLens(null);
+    addLog(`✓ started from ${p.name} — throw ${tr.toFixed(2)}, pose from the file`);
+    // Points already placed outrank a guess: re-solve from them under the new lens.
     if (picks.length >= 4) void calibWorkspace.solvePose(surfaceId, picks);
   };
 
@@ -319,6 +348,24 @@ export const ManualWizard: React.FC<Props> = (props) => {
             {cal?.intrinsicsRms != null && (cal.intrinsicsSource == null || cal.intrinsicsSource === 'board') && (
               <div className="text-fg-2 flex items-start gap-1.5"><Check size={12} className="text-ok shrink-0 mt-0.5" /> A board-calibrated lens already exists — you can skip this and go straight to Points.</div>
             )}
+            {fileProjectors.length > 0 && (
+              <div className="space-y-1.5 border-t border-line-1 pt-2">
+                <div className="text-fg-2">Projector placed in the venue file</div>
+                <div className="flex items-center gap-1.5">
+                  <select value={fromFile} onChange={(e) => setFromFile(e.target.value)}
+                    className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
+                    <option value="">— choose —</option>
+                    {fileProjectors.map((p) => (
+                      <option key={`${p.modelId}/${p.name}`} value={`${p.modelId}/${p.name}`}>{p.name} · {p.modelName} · throw {throwRatioOf(p).toFixed(2)}</option>
+                    ))}
+                  </select>
+                  <button onClick={startFromFile} disabled={!fromFile || raster.w === 0}
+                    className="px-2 py-1 rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 font-medium">Start from it</button>
+                </div>
+                <p className="text-fg-3 text-micro">Takes its lens and where it stands, so your points start from there. Lens shift is not in the file — enter it below if your projector has one.</p>
+                {cal?.poseSeeded && <div className="text-fg-2 flex items-center gap-1"><Check size={11} className="text-ok" /> Starting from <b>{cal.poseSeeded}</b> — not calibrated until the points solve.</div>}
+              </div>
+            )}
             <div className="space-y-2 border-t border-line-1 pt-2">
               <label className="flex items-center justify-between gap-2 text-fg-2">Throw ratio
                 <input type="number" min={0.2} max={6} step={0.01} value={throwRatio}
@@ -346,8 +393,8 @@ export const ManualWizard: React.FC<Props> = (props) => {
 
         {step === 'pose' && (
           <>
-            {poseSolved ? (
-              <p className="text-fg-3 leading-relaxed">Now that a pose exists, just <b>click a vertex on the model</b> (3D view, right): the new point lands where the solve <i>predicts</i> that vertex is on the projection — then <b>drag it</b> onto the real feature and watch the fit tighten. Keep spreading points across the raster <b>and across depth</b>.</p>
+            {hasPickingPose(cal) ? (
+              <p className="text-fg-3 leading-relaxed">{!poseSolved && cal?.poseSeeded ? <>Starting from <b>{cal.poseSeeded}</b>, the projector placed in the venue file: </> : <>Now that a pose exists, </>}just <b>click a vertex on the model</b> (3D view, right): the new point lands where the solve <i>predicts</i> that vertex is on the projection — then <b>drag it</b> onto the real feature and watch the fit tighten. Keep spreading points across the raster <b>and across depth</b>.</p>
             ) : (
               <p className="text-fg-3 leading-relaxed">On the <b>projector</b>, put the crosshair on a distinct physical feature (click or arrow keys — a corner, an edge), then click the same point on the model in the <b>3D view (right)</b> — the model click pairs with wherever the crosshair is, no confirmation needed. It snaps to the nearest vertex (hold <b>Alt</b> for free pick). ≥4 points solve the position{lensAuto ? <>; from <b>6</b>, the lens solves itself too</> : null} — spread them across the raster <b>and across depth</b>.</p>
             )}

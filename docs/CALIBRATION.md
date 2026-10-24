@@ -124,6 +124,18 @@ too small/complex for a board.
    solve is rejected outright if cx/cy leaves the raster's neighbourhood, and otherwise wins only on
    fit. (mapamok frees the principal point unconditionally; that works because it is always pointed
    at a real 3D object. Making it conditional keeps a near-planar screen from fitting noise.)
+
+   **Starting from a projector placed in Blender.** If the venue file holds a camera whose name
+   starts with `projector` (`projector_main`, `PROJECTOR-02`; see
+   [Projectors named in Blender](user-guide/09-3d-scene.md#projectors-named-in-blender)), the Lens
+   step lists it under **Projector placed in the venue file**. **Start from it** takes its lens as the
+   throw ratio and its position and aim as a *starting pose*. From then on the projection shows the
+   venue's wireframe from that position before you place a single point, and every point you click
+   lands where that projector predicts, so each one is a short nudge onto the real feature rather than
+   a hunt. The starting pose is **not** a calibration: the output does not render from it, and the
+   Points step's RMS stays empty until 4 points have solved, at which point the solve replaces it.
+   Lens shift does not travel in a glTF file, so it starts at 0 — enter it if your projector has
+   one, or let auto-solve find it.
 3. **Points** — identical gesture to the board flow's Pose step: crosshair on a physical feature →
    click the matching vertex on the model (vertex-snapped; **Alt** picks freely) — the model click
    pairs with the current crosshair, there is no confirm step. **Once a pose exists the seed flips:**
