@@ -7,13 +7,18 @@
 // and no caller. This module is that seam — capture, reload, solve, store, and the staleness rule.
 
 import type { ProjectorBlend, ProjectorOutput } from '../../../shared/protocol';
-import { computeBlendMaps, type ProjectorBlendInput } from './blendCompute';
+import {
+  computeBlendMaps, computeBlendMapsProjected, narrowestOverlap, adaptiveBlendWidth,
+  type BlendMap, type ProjectorBlendInput, type ProjectedBlendInput,
+} from './blendCompute';
 import * as blendStore from './blendStore';
 import * as calibNative from './calibNative';
 import { getHost, storeBlend } from './calibHost';
 import * as calibWorkspace from './calibWorkspace';
-import { cameraPixelRayWorld } from './cvCamera';
+import { cameraPixelRayWorld, reproject } from './cvCamera';
 import { raycastVenueBatch, hasVenueMeshes } from './venueRaycast';
+import { projectorViewProj } from './mpcdiData';
+import { bakeWorld, type WorldMap } from '@/components/Simulator3D/projectorBake'; // host module — the GPU bake
 
 export interface SolveReport {
   ok: boolean;
@@ -75,7 +80,11 @@ export async function loadScan(surfaceId: string): Promise<boolean> {
 // no Auto-Align scan, join a rig blend. Session-only, never written as an artifact: it derives FROM
 // the calibration, so persisting it would cache something regenerable — and a recalibrated output
 // must not blend against its old trace (solveRig re-traces when the calibration is newer).
-const TRACE_GRID_W = 96;
+// 160 rays across, not 96: computeBlendMaps sizes its grid to ~8 samples per cell, so the trace density
+// IS the blend's resolution — 96 gave a 20x11 map whose half-cell association error left the overlap
+// within ±8% of even light (measured on the multi-projector template); finer halves it. It is one pass
+// at solve time (~16k rays per projector), never per frame.
+const TRACE_GRID_W = 160;
 function traceScan(o: ProjectorOutput): boolean {
   const cal = o.calibration;
   if (!cal || cal.poseRms == null || !hasVenueMeshes()) return false;
@@ -103,6 +112,95 @@ function traceScan(o: ProjectorOutput): boolean {
     raster: [pw, ph], denseMap: { proj, world }, capturedAt: new Date().toISOString(), synthetic: true,
   });
   return true;
+}
+
+// A traced map back on its grid, with the projector's own projection — the exact blend's input. The
+// trace stores hits only, but it was cast on a known TRACE_GRID_W grid at cell centres, so each hit's
+// pixel names its cell exactly.
+function projectedInput(o: ProjectorOutput): ProjectedBlendInput {
+  const cal = o.calibration!, s = blendStore.get(o.surfaceId)!;
+  const [pw, ph] = s.raster, gw = TRACE_GRID_W, gh = Math.max(2, Math.round((gw * ph) / pw));
+  const world = new Float64Array(gw * gh * 3).fill(Number.NaN);
+  const P = s.denseMap.proj, Wd = s.denseMap.world;
+  for (let i = 0; i < P.length / 2; i++) {
+    const x = Math.min(gw - 1, Math.floor((P[i * 2] / pw) * gw)), y = Math.min(gh - 1, Math.floor((P[i * 2 + 1] / ph) * gh));
+    const c = (y * gw + x) * 3;
+    world[c] = Wd[i * 3]; world[c + 1] = Wd[i * 3 + 1]; world[c + 2] = Wd[i * 3 + 2];
+  }
+  const dist = cal.distortion ?? [0, 0, 0, 0, 0], t = cal.translation as [number, number, number];
+  return {
+    surfaceId: o.surfaceId, raster: [pw, ph], grid: { w: gw, h: gh, world },
+    project: (p) => reproject(cal.intrinsics, dist, cal.rotation, t, p),
+  };
+}
+
+// ── THE GPU PATH: every member calibrated, none camera-scanned ───────────────────────────────────
+//
+// The CPU trace above is three's Raycaster with no BVH — O(rays x triangles) — which is why it is held
+// to a 160-wide grid, and that grid WAS the blend's resolution. Here one depth-tested render per
+// projector (projectorBake.bakeWorld, over the same caster set the calibration file is baked from)
+// gives the world point under every pixel, so the grid can be whatever the overlap needs: measured on
+// a cheap analysis grid, then solved at adaptiveBlendWidth.
+const ANALYSIS_W = 256;
+const WORLD_BAKE_W = 1024;
+
+/**
+ * A projector's world map resampled onto a gw-wide grid of PHYSICAL pixel centres. The bake renders
+ * the ideal pinhole (no lens distortion, like ProjectorScene's own render), while the blend is indexed by
+ * the physical panel pixel (ProjectorScene's blend runs on gl_FragCoord, after the distortion pass) —
+ * so with a distorted lens each cell first finds the ideal pixel its physical ray goes through.
+ */
+function gridFromWorldMap(o: ProjectorOutput, map: WorldMap, gw: number): ProjectedBlendInput {
+  const cal = o.calibration!, [pw, ph] = cal.imageSize;
+  const gh = Math.max(2, Math.round((gw * ph) / pw));
+  const dist = cal.distortion ?? [0, 0, 0, 0, 0], t = cal.translation as [number, number, number];
+  const distorted = dist.some((v) => v !== 0), ideal = [0, 0, 0, 0, 0];
+  const world = new Float64Array(gw * gh * 3).fill(Number.NaN);
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+    let u = ((x + 0.5) / gw) * pw, v = ((y + 0.5) / gh) * ph;
+    if (distorted) {
+      const r = cameraPixelRayWorld(cal.intrinsics, dist, cal.rotation, t, u, v);
+      const q = reproject(cal.intrinsics, ideal, cal.rotation, t,
+        [r.origin[0] + r.dir[0], r.origin[1] + r.dir[1], r.origin[2] + r.dir[2]]);
+      if (!q) continue;
+      [u, v] = q;
+    }
+    const mx = Math.floor((u / pw) * map.w), my = Math.floor((v / ph) * map.h);
+    if (mx < 0 || my < 0 || mx >= map.w || my >= map.h) continue;
+    const s = (my * map.w + mx) * 3, c = (y * gw + x) * 3;
+    world[c] = map.world[s]; world[c + 1] = map.world[s + 1]; world[c + 2] = map.world[s + 2];
+  }
+  return {
+    surfaceId: o.surfaceId, raster: [pw, ph], grid: { w: gw, h: gh, world },
+    project: (p) => reproject(cal.intrinsics, dist, cal.rotation, t, p),
+  };
+}
+
+/**
+ * Bake every member and solve at the adaptive resolution. Null when nothing could be baked (the 3D
+ * view has not been opened this session, so no venue is registered) — the caller then falls back to the CPU trace, which
+ * still gives a correct, coarser blend. A bake that hits too little of the venue is NOT a fallback
+ * case: it is reported, as the trace would.
+ */
+function solveOnGpu(rig: ProjectorOutput[]): { maps: BlendMap[]; missing: string[] } | null {
+  const baked: Array<{ o: ProjectorOutput; map: WorldMap }> = [];
+  const missing: string[] = [];
+  for (const o of rig) {
+    const cal = o.calibration!, [pw, ph] = cal.imageSize;
+    const vp = pw && ph ? projectorViewProj(cal) : null;
+    if (!vp) { missing.push(o.surfaceId); continue; }
+    // At most WORLD_BAKE_W wide: the map is only ever sampled at blend-cell centres, and the blend's
+    // own budget keeps it under ~500 cells across — a 4K render would buy nothing but memory.
+    const bw = Math.min(pw, WORLD_BAKE_W), bh = Math.max(2, Math.round((bw * ph) / pw));
+    const map = bakeWorld(vp, bw, bh);
+    if (!map) return null;                       // nothing to bake against — not this projector's fault
+    if (map.hits < 60) { missing.push(o.surfaceId); continue; }
+    baked.push({ o, map });
+  }
+  if (missing.length) return { maps: [], missing };
+  const frac = narrowestOverlap(baked.map(({ o, map }) => gridFromWorldMap(o, map, Math.min(ANALYSIS_W, map.w))));
+  const inputs = baked.map(({ o, map }) => gridFromWorldMap(o, map, adaptiveBlendWidth(frac, o.calibration!.imageSize)));
+  return { maps: computeBlendMapsProjected(inputs), missing: [] };
 }
 
 /** The outputs a rig blend is about: enabled, and carrying a full calibration (pose actually solved). */
@@ -144,6 +242,23 @@ export async function solveRig(): Promise<SolveReport> {
     return { ok: false, solved: [], missing: [], message: `${rig.length} calibrated output(s) — a blend needs at least two` };
   }
 
+  // No camera scan anywhere in the rig → every member's geometry derives from its pose, so the exact
+  // path applies and the GPU can trace it at full resolution. A camera SCAN keeps the voxel path
+  // below — its geometry is measured, not derived from a pose.
+  let scanned = false;
+  for (const o of rig) if ((await loadScan(o.surfaceId)) && !blendStore.get(o.surfaceId)?.synthetic) scanned = true;
+  if (!scanned) {
+    const gpu = solveOnGpu(rig);
+    if (gpu?.missing.length) {
+      return {
+        ok: false, solved: [], missing: gpu.missing,
+        message: `no usable 3D map for ${gpu.missing.length} calibrated output(s) — rendered from the calibration, it hit too little of the venue model; check the calibration`,
+      };
+    }
+    if (gpu) return storeMaps(gpu.maps, 'exact');
+    console.warn('[blend] GPU world bake unavailable — tracing on the CPU at a fixed grid');
+  }
+
   const inputs: ProjectorBlendInput[] = [];
   const missing: string[] = [];
   for (const o of rig) {
@@ -163,12 +278,26 @@ export async function solveRig(): Promise<SolveReport> {
   if (missing.length) {
     return {
       ok: false, solved: [], missing,
-      message: `no usable 3D map for ${missing.length} calibrated output(s) — load the venue model in the 3D scene (the map is traced from the calibration), or re-run Auto-Align on them`,
+      // Two different situations, and the old single message only described one. With NO venue meshes
+      // registered, the model is usually in the project but the 3D view has not been opened this
+      // session — it is the view that loads the model the trace casts into — and telling that operator
+      // to "load the venue model" sent them looking for a model that was already there.
+      message: hasVenueMeshes()
+        ? `no usable 3D map for ${missing.length} calibrated output(s) — the traced coverage hit too little of the venue model; check the calibration, or re-run Auto-Align on them`
+        : `no usable 3D map for ${missing.length} calibrated output(s) — open the 3D view once (it loads the venue model the blend is traced against), then solve again`,
     };
   }
 
-  const maps = computeBlendMaps(inputs);
-  const rigIds = inputs.map((i) => i.surfaceId);
+  // Every member traced from its calibration → the EXACT path (computeBlendMapsProjected): each
+  // projector's pose says where a point lands on the others, so nothing has to be associated by voxel.
+  // A camera SCAN in the rig keeps the voxel path — its geometry is measured, not derived from a pose.
+  const traced = rig.every((o) => blendStore.get(o.surfaceId)?.synthetic && o.calibration);
+  const maps = traced ? computeBlendMapsProjected(rig.map((o) => projectedInput(o))) : computeBlendMaps(inputs);
+  return storeMaps(maps, traced ? 'exact, CPU trace' : 'scanned');
+}
+
+function storeMaps(maps: BlendMap[], how: string): SolveReport {
+  const rigIds = maps.map((m) => m.surfaceId);
   const solvedAt = new Date().toISOString();
   for (const m of maps) {
     const blend: ProjectorBlend = {
@@ -179,7 +308,10 @@ export async function solveRig(): Promise<SolveReport> {
     };
     storeBlend(m.surfaceId, blend);
   }
-  return { ok: true, solved: rigIds, missing: [], message: `blend solved across ${rigIds.length} projectors` };
+  // The map size is in the message because it is the blend's resolution — the number to look at when
+  // an overlap shows steps.
+  const size = maps.map((m) => `${m.w}×${m.h}`).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+  return { ok: true, solved: rigIds, missing: [], message: `blend solved across ${rigIds.length} projectors (${how}, ${size} map)` };
 }
 
 /** Drop the rig's blends — back to the analytic soft edge, without touching any calibration. */

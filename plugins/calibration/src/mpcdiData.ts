@@ -98,7 +98,7 @@ function uvSourceFor(modelId: string): UvSource {
  * a baked map and the live preview describe the same picture — two derivations would drift, and the
  * symptom would be a file that disagrees with what the operator just approved on the wall.
  */
-function projectorViewProj(cal: ProjectorCalibration): number[] | null {
+export function projectorViewProj(cal: ProjectorCalibration): number[] | null {
   const [w, h] = cal.imageSize;
   if (!w || !h) return null;
   const proj = new THREE.Matrix4().fromArray(glProjectionMatrix(cal.intrinsics, cal.imageSize, 0.05, 500));

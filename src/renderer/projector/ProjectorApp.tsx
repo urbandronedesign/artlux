@@ -119,7 +119,7 @@ export const ProjectorApp: React.FC = () => {
   // `tried` separates "not uploaded yet" from "cannot be uploaded here", which are opposite answers to
   // the question applyCalibMode asks — the first must not yet supersede the venue render, the second
   // must never do so.
-  const bakedRef = useRef<{ w: number; h: number; uv: Float32Array; uploaded: boolean; tried: boolean } | null>(null);
+  const bakedRef = useRef<{ w: number; h: number; uv: Float32Array; alpha?: { w: number; h: number; data: Uint8Array }; uploaded: boolean; tried: boolean } | null>(null);
   const portRef = useRef<MessagePort | null>(null);
   const surfaceRef = useRef<Surface | null>(null);
   // Content type this window actually renders: the surface's own, or — when it is a SLICE — the type
@@ -212,13 +212,26 @@ export const ProjectorApp: React.FC = () => {
   // Projector-panel plugins (e.g. calibration's pattern/crosshair/render overlay) subscribe to the
   // main→projector message stream and send acks back through this stable context.
   const panelMsgSubs = useRef(new Set<(m: unknown) => void>());
+  // THE LATEST STATE MESSAGES, replayed to a panel when it subscribes. Main pushes `config`, `scene`
+  // and `calib` once, on the handshake and on change — and a panel can subscribe AFTER that, because
+  // plugins activate asynchronously. One that missed them never learned this window's state: a
+  // calibrated output came up flat after a restart (render mode lost) about half the time — measured
+  // on the curved-calibration template, where it reproduced across restarts and window re-opens,
+  // while a page reload (a different timing) came up right. `calib` holds the EFFECTIVE mode (after
+  // the baked-map override in applyCalibMode), never the raw request.
+  const panelStateRef = useRef(new Map<string, unknown>());
+  const PANEL_STATE = ['config', 'scene', 'calib'] as const;
   // State, not a ref: a panel has to RE-RENDER to change its own loop. It moves on project load, not
   // per frame, so rebuilding the context that rarely costs nothing — the message subscriptions it
   // carries live in a ref and survive the new identity.
   const [panelFpsCap, setPanelFpsCap] = useState(0);
   const panelCtx = useMemo<ProjectorPanelContext>(() => ({
     fpsCap: panelFpsCap,
-    onMessage: (cb) => { panelMsgSubs.current.add(cb); return () => { panelMsgSubs.current.delete(cb); }; },
+    onMessage: (cb) => {
+      panelMsgSubs.current.add(cb);
+      for (const t of PANEL_STATE) { const m = panelStateRef.current.get(t); if (m) cb(m); }
+      return () => { panelMsgSubs.current.delete(cb); };
+    },
     send: (m) => portRef.current?.postMessage(m as ProjectorToMain),
     setRenderSource: (c) => {
       const prev = panelSourceRef.current;
@@ -379,6 +392,7 @@ export const ProjectorApp: React.FC = () => {
     const eff = req.mode === 'render' && bakedRef.current?.uploaded ? { ...req, mode: 'idle' as const } : req;
     calibRenderRef.current = eff.mode === 'render';
     applyLocalLayers();
+    panelStateRef.current.set('calib', eff);
     panelMsgSubs.current.forEach((cb) => cb(eff));
   };
 
@@ -522,6 +536,7 @@ export const ProjectorApp: React.FC = () => {
           if (m.on) window.focus();
         }
         // Fan out to projector-panel plugins (calibration's calib / calibPattern / scene overlay).
+        if (m.t === 'config' || m.t === 'scene') panelStateRef.current.set(m.t, m);
         panelMsgSubs.current.forEach((cb) => cb(m));
       };
       port.start();
@@ -624,6 +639,7 @@ export const ProjectorApp: React.FC = () => {
         if (b && !b.tried) {
           b.tried = true;
           b.uploaded = gl.setBakedMap(b.w, b.h, b.uv) && gl.canDrawBaked();
+          if (b.uploaded) gl.setBakedAlpha(b.alpha ?? null); // the rig blend, when the file carries one
           // Say which path is live, once. Two paths that draw the SAME silhouette is what made the
           // shadowed map look like it worked, and an operator at a venue has even less to go on than
           // a screenshot — so the window states it rather than leaving it to be inferred.

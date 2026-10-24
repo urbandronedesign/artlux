@@ -3,7 +3,7 @@
 // blend map (alpha 0..1 over a low-res projector raster) that feathers overlaps so that, at every
 // surface point lit by N projectors, the alphas sum to ~1 (a partition of unity — no seam, no
 // brightness step). The blend is computed on the actual 3D surface (VIOSO-style), not in 2D camera
-// space: each projector's footprint-edge distance ramps the weight, and world voxels associate the
+// space: each projector's distance to its own image frame ramps the weight, and world voxels associate the
 // same surface point across projectors.
 //
 // Pure math (no three.js / IPC) so it unit-tests in plain node. The result feeds both NVAPI
@@ -31,29 +31,26 @@ export interface BlendOptions {
   voxel?: number;  // world voxel size for cross-projector association; default = sceneDiag/80
 }
 
-// 2-pass chamfer distance from each covered cell to the nearest uncovered cell / grid border (= the
-// projector's footprint edge). Covered cells get their distance-to-edge; uncovered stay 0.
-function footprintEdgeDistance(covered: Uint8Array, w: number, h: number): Float32Array {
-  const INF = 1e9, D1 = 1, D2 = Math.SQRT2;
+// THE BLEND WEIGHT: how far a cell is from the edge of this projector's IMAGE (its raster frame), as the
+// product of its horizontal and vertical distances to that frame (in cells).
+//
+// It used to be the distance to the edge of the projector's lit FOOTPRINT. On a wall the projector
+// fills, the two are the same thing, which is why the flat-wall tests passed. On a real screen they
+// are not: a 1.8 m screen inside a 2 m tall image puts the footprint's top and bottom edges ~4 cells
+// from everything, so that distance capped every weight and two side-by-side projectors split the
+// whole overlap ~50/50 instead of cross-fading — measured on the multi-projector template's curved
+// panorama as 1.45x the light across the overlap and a dark dip at its edge. Those silhouette edges
+// are not seams: no projector continues past them, so they must not shape the fade at all.
+//
+// Distance to the FRAME is what goes to 0 exactly where this projector's light stops. The PRODUCT is
+// what keeps it to one direction: two projectors side by side share (nearly) the same vertical factor,
+// which cancels in the normalisation, leaving a pure horizontal cross-fade — and vice versa for a stack.
+// Known limit, same as before for that case: an occlusion shadow INSIDE a projector's image is not
+// feathered (the old footprint distance did feather it, at the cost of the bug above).
+function frameWeight(w: number, h: number): Float32Array {
   const d = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) d[i] = covered[i] ? INF : 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x; if (d[i] === 0) continue;
-    let m = d[i];
-    m = Math.min(m, (x > 0 ? d[i - 1] : 0) + D1);
-    m = Math.min(m, (y > 0 ? d[i - w] : 0) + D1);
-    m = Math.min(m, (x > 0 && y > 0 ? d[i - w - 1] : 0) + D2);
-    m = Math.min(m, (x < w - 1 && y > 0 ? d[i - w + 1] : 0) + D2);
-    d[i] = m;
-  }
-  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
-    const i = y * w + x; if (d[i] === 0) continue;
-    let m = d[i];
-    m = Math.min(m, (x < w - 1 ? d[i + 1] : 0) + D1);
-    m = Math.min(m, (y < h - 1 ? d[i + w] : 0) + D1);
-    m = Math.min(m, (x < w - 1 && y < h - 1 ? d[i + w + 1] : 0) + D2);
-    m = Math.min(m, (x > 0 && y < h - 1 ? d[i + w - 1] : 0) + D2);
-    d[i] = m;
+    d[y * w + x] = Math.min(x + 0.5, w - x - 0.5) * Math.min(y + 0.5, h - y - 0.5);
   }
   return d;
 }
@@ -108,7 +105,7 @@ export function computeBlendMaps(projectors: ProjectorBlendInput[], opts: BlendO
       }
       if (nb >= 4) { closed[c] = 1; wx[c] = sx / nb; wy[c] = sy / nb; wz[c] = sz / nb; }
     }
-    return { mapW, mapH, n, covered: closed, wx, wy, wz, dist: footprintEdgeDistance(closed, mapW, mapH) };
+    return { mapW, mapH, n, covered: closed, wx, wy, wz, dist: frameWeight(mapW, mapH) };
   });
 
   // ── The association voxel is sized like a CELL, not like the room ──────────────────────────────
@@ -210,4 +207,198 @@ export function computeBlendMaps(projectors: ProjectorBlendInput[], opts: BlendO
     surfaceId: projectors[pi].surfaceId, w: g.mapW, h: g.mapH, data: out[pi],
     ...(maxOverlap > 1 ? { black: black[pi] } : {}),
   }));
+}
+
+// ── THE EXACT PATH, for a rig of CALIBRATED projectors ─────────────────────────────────────────────
+//
+// computeBlendMaps above has to discover which projectors light the same spot by bucketing world
+// points into voxels, because a camera scan comes with no projector model to ask. That association is
+// quantised — a voxel, then a 3x3x3 neighbourhood mean — and on the wall it shows: blocky patches in
+// the ramp and ±8% of light across the overlap (measured on the multi-projector template's panorama,
+// a 20x11 map). When every projector is CALIBRATED there is nothing to discover: each one's pose says
+// exactly where a world point lands on its raster. So this path PROJECTS each traced point into every
+// other projector, checks that projector really lights that spot (its own trace at that pixel hits the
+// same point — not an occluder, not empty space), and weighs each by its CONTINUOUS distance to its
+// own image frame in pixels. No voxels and no averaging: the partition of unity is exact at every
+// sample, and the map has the trace's full resolution.
+
+export interface ProjectedBlendInput {
+  surfaceId: string;
+  raster: [number, number];
+  /** This projector's traced grid: w*h cells, world XYZ per cell (NaN where its ray missed the venue). */
+  grid: { w: number; h: number; world: Float64Array };
+  /** World point → this projector's raster pixel (its calibration), or null when behind the lens. */
+  project: (p: [number, number, number]) => [number, number] | null;
+}
+
+// The same weight as frameWeight, continuous and in pixels: 0 exactly at the image edge.
+const framePx = (u: number, v: number, w: number, h: number): number =>
+  Math.max(0, Math.min(u, w - u)) * Math.max(0, Math.min(v, h - v));
+
+// "Does projector j light world point p, and with what weight" — shared by the solve and by the
+// overlap measure that sizes its grid (blendGridWidth), so the two can never disagree about where the
+// overlap is.
+function projectedWeights(projectors: ProjectedBlendInput[]) {
+  const at = (g: ProjectedBlendInput['grid'], c: number): [number, number, number] | null => {
+    const x = g.world[c * 3];
+    return Number.isFinite(x) ? [x, g.world[c * 3 + 1], g.world[c * 3 + 2]] : null;
+  };
+  // How close a projector's own hit must be to a point to count as lighting it: a few cells of its
+  // grid in world units (median neighbour spacing) — enough to absorb a pixel of reprojection and the
+  // cell's own extent, far less than any occluder sitting in front of the surface.
+  const tolerance = projectors.map(({ grid: g }) => {
+    const d: number[] = [];
+    for (let y = 0; y < g.h; y++) for (let x = 1; x < g.w; x++) {
+      const a = at(g, y * g.w + x), b = at(g, y * g.w + x - 1);
+      if (a && b) d.push(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]));
+    }
+    d.sort((p, q) => p - q);
+    return 3 * (d.length ? d[d.length >> 1] : 0.05);
+  });
+  // Does projector j light world point p? Then its weight there; otherwise 0.
+  const weightOf = (j: number, p: [number, number, number]): number => {
+    const P = projectors[j], [W, H] = P.raster, g = P.grid;
+    const px = P.project(p);
+    if (!px || px[0] < 0 || px[1] < 0 || px[0] >= W || px[1] >= H) return 0;
+    // Search the 3x3 cells around where p lands, not just the one. At the venue's silhouette the cell
+    // under p can have its CENTRE ray just miss the surface while the projector plainly lights p — a
+    // single-cell test then said "not lit", handed the other projector the whole share, and drew a
+    // bright line along the screen's top and bottom edges right through the overlap (measured on the
+    // multi-projector template). An occluder is still rejected: none of its cells are near p.
+    const cx = Math.min(g.w - 1, Math.floor((px[0] / W) * g.w)), cy = Math.min(g.h - 1, Math.floor((px[1] / H) * g.h));
+    let lit = false;
+    for (let dy = -1; dy <= 1 && !lit; dy++) for (let dx = -1; dx <= 1 && !lit; dx++) {
+      const x = cx + dx, y = cy + dy;
+      if (x < 0 || y < 0 || x >= g.w || y >= g.h) continue;
+      const q = at(g, y * g.w + x);
+      if (q && Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) <= tolerance[j]) lit = true;
+    }
+    return lit ? framePx(px[0], px[1], W, H) : 0;
+  };
+  return { at, weightOf };
+}
+
+export function computeBlendMapsProjected(projectors: ProjectedBlendInput[]): BlendMap[] {
+  if (!projectors.length) return [];
+  const { at, weightOf } = projectedWeights(projectors);
+  const counts = projectors.map(({ grid: g }) => new Uint8Array(g.w * g.h));
+  const maps = projectors.map((P, i) => {
+    const { w, h } = P.grid, [W, H] = P.raster;
+    const data = new Float32Array(w * h);
+    const hit = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = y * w + x, p = at(P.grid, c);
+      if (!p) continue;
+      const own = framePx(((x + 0.5) / w) * W, ((y + 0.5) / h) * H, W, H);
+      let denom = own, n = 1;
+      for (let j = 0; j < projectors.length; j++) {
+        if (j === i) continue;
+        const wj = weightOf(j, p);
+        if (wj > 0) { denom += wj; n++; }
+      }
+      data[c] = denom > 0 ? own / denom : 1;
+      hit[c] = 1;
+      counts[i][c] = n;
+    }
+    // Carry each edge value one ring past the venue's silhouette. The map is sampled with linear
+    // filtering, and a missed cell left at 0 would pull the outline's last pixels toward black — a
+    // dark rim the blend did not mean. (Coverage at the silhouette is the bake's job, not this map's.)
+    for (let pass = 0; pass < 2; pass++) {
+      const src = data.slice(), had = hit.slice();
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const c = y * w + x;
+        if (had[c]) continue;
+        let s = 0, k = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          const cc = yy * w + xx;
+          if (had[cc]) { s += src[cc]; k++; }
+        }
+        if (k) { data[c] = s / k; hit[c] = 1; }
+      }
+    }
+    return { surfaceId: P.surfaceId, w, h, data } as BlendMap;
+  });
+
+  // Black-lift weight, as in computeBlendMaps: 1 where this projector is alone, 0 in the deepest overlap.
+  let maxOverlap = 1;
+  for (const cnt of counts) for (const n of cnt) if (n > maxOverlap) maxOverlap = n;
+  if (maxOverlap > 1) {
+    maps.forEach((m, i) => {
+      const black = new Float32Array(m.w * m.h);
+      for (let c = 0; c < black.length; c++) if (counts[i][c]) black[c] = (maxOverlap - counts[i][c]) / (maxOverlap - 1);
+      m.black = black;
+    });
+  }
+  return maps;
+}
+
+// ── HOW FINE THE EXACT PATH'S GRID HAS TO BE ───────────────────────────────────────────────────────
+//
+// The blend map is the fade's resolution, and the fade lives only across the OVERLAP. A fixed grid was
+// fine on the multi-projector template (a 1.5 m overlap, ~45 cells at 160 wide) and wrong for the rigs
+// that most need a blend: a 5% overlap gets 8 cells at 160 wide — steps of 12% of the light, visible as
+// banding — and a 4K projector is no better off than a 720p one. So the grid is sized from the overlap
+// it has to carry: at least BLEND_FADE_CELLS across the NARROWEST overlap in the rig, within a cell
+// budget, because the map is stored per output in the project file.
+//
+// The width is measured on the same weights the solve uses (projectedWeights), at a cheap analysis
+// grid, so the measure and the solve cannot disagree about where the overlap is.
+
+/** Cells across the narrowest overlap; past ~32 the linear-filtered ramp has no visible step left. */
+export const BLEND_FADE_CELLS = 32;
+/** Per-output cell budget (~500x270 at 16:9). Saved as JSON per output, so it is bounded, not free. */
+export const BLEND_MAX_CELLS = 131_072;
+/** Never coarser than the previous fixed grid — a wide overlap gains nothing from fewer cells. */
+export const BLEND_MIN_W = 160;
+
+/**
+ * The narrowest overlap in the rig, as a fraction of the projector image's WIDTH (0 = nothing
+ * overlaps). Thickness is twice the deepest point of each overlap's distance transform: for a strip,
+ * its width across; for a patch, its narrow dimension — the direction the fade has to cross.
+ */
+export function narrowestOverlap(projectors: ProjectedBlendInput[]): number {
+  if (projectors.length < 2) return 0;
+  const { at, weightOf } = projectedWeights(projectors);
+  let best = 0;
+  projectors.forEach((P, i) => {
+    const { w, h } = P.grid;
+    // Chamfer 3-4 distance to the nearest cell OUTSIDE the overlap (the grid's own edge counts as
+    // outside: the fade has to reach 0 at the image frame).
+    const INF = 1e9, d = new Float64Array(w * h);
+    let any = false;
+    for (let c = 0; c < w * h; c++) {
+      const p = at(P.grid, c);
+      let shared = false;
+      if (p) for (let j = 0; j < projectors.length && !shared; j++) if (j !== i && weightOf(j, p) > 0) shared = true;
+      d[c] = shared ? INF : 0;
+      if (shared) any = true;
+    }
+    if (!any) return;
+    const get = (x: number, y: number): number => (x < 0 || y < 0 || x >= w || y >= h ? 0 : d[y * w + x]);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = y * w + x;
+      if (d[c]) d[c] = Math.min(d[c], get(x - 1, y) + 3, get(x, y - 1) + 3, get(x - 1, y - 1) + 4, get(x + 1, y - 1) + 4);
+    }
+    let deepest = 0;
+    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+      const c = y * w + x;
+      if (d[c]) d[c] = Math.min(d[c], get(x + 1, y) + 3, get(x, y + 1) + 3, get(x + 1, y + 1) + 4, get(x - 1, y + 1) + 4);
+      if (d[c] > deepest) deepest = d[c];
+    }
+    // deepest/3 cells from the overlap's middle to its edge; a cell-centred count of the full width.
+    const frac = ((2 * deepest) / 3 - 1) / w;
+    if (frac > 0 && (best === 0 || frac < best)) best = frac;
+  });
+  return best;
+}
+
+/** The exact path's grid width for a raster, from the narrowest overlap (narrowestOverlap). */
+export function adaptiveBlendWidth(overlapFrac: number, raster: [number, number]): number {
+  const [W, H] = raster;
+  const byBudget = Math.floor(Math.sqrt((BLEND_MAX_CELLS * W) / H));
+  const want = overlapFrac > 0 ? Math.ceil(BLEND_FADE_CELLS / overlapFrac) : BLEND_MIN_W;
+  // Never finer than the projector itself, never coarser than the old fixed grid (unless the raster is).
+  return Math.min(W, Math.max(BLEND_MIN_W, Math.min(want, byBudget)));
 }

@@ -134,6 +134,8 @@ uniform float uGamma;
 uniform float uBrightness;
 uniform vec3 uColorGain;
 uniform vec3 uBlackLift;
+uniform sampler2D uAlpha;   // the rig blend from the imported file: a share of light (not a signal), top row first
+uniform float uHasAlpha;
 ${SOFT_EDGE_GLSL}
 void main() {
   vec4 m = texture2D(uMap, vRaster);
@@ -201,7 +203,12 @@ void main() {
   // ⚠ THE BLEND IS INDEXED IN RASTER SPACE, NOT CONTENT SPACE. A soft edge describes where THIS
   // PROJECTOR's light stops overlapping its neighbour's — a property of the physical footprint. Feed
   // it the content uv and the ramp would slide around with the mapping and stop matching the rig.
-  float pa = blendSignal(softEdgeShare(vRaster, uSoft), uBlendGamma);
+  // An imported RIG blend multiplies the same share, before the gamma-correct signal — the alpha map is
+  // light, exactly like the soft edge (MPCDI gammaEmbedded 1.0). Its PNG rows run top-down while
+  // vRaster.y counts up from the bottom, hence the flip. It is an 8-bit texture with smooth filtering —
+  // unlike uMap it holds no coordinates, and 8-bit filtering needs no extension.
+  float share = softEdgeShare(vRaster, uSoft) * mix(1.0, texture2D(uAlpha, vec2(vRaster.x, 1.0 - vRaster.y)).r, uHasAlpha);
+  float pa = blendSignal(share, uBlendGamma);
   c.rgb = c.rgb * pa * uColorGain + uBlackLift * (1.0 - pa);
   c.rgb *= uBrightness;
   c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / uGamma));
@@ -269,6 +276,8 @@ export class ProjectorGL {
   private bakedAPos = -1;
   private bakedU: Record<string, WebGLUniformLocation | null> = {};
   private mapTex: WebGLTexture | null = null;
+  private alphaTex: WebGLTexture | null = null;
+  private hasAlpha = false;
   private mapW = 0; private mapH = 0;
   private mapHasCoverage = false;
   private canMip = false;
@@ -525,7 +534,24 @@ export class ProjectorGL {
     return true;
   }
 
-  clearBakedMap(): void { this.mapW = 0; this.mapH = 0; }
+  clearBakedMap(): void { this.mapW = 0; this.mapH = 0; this.hasAlpha = false; }
+
+  /** The imported rig blend for the baked map (MPCDI alphaMap, 8-bit grey), or null for none. */
+  setBakedAlpha(a: { w: number; h: number; data: Uint8Array } | null): void {
+    const gl = this.gl;
+    if (!a || !a.w || !a.h || a.data.length < a.w * a.h) { this.hasAlpha = false; return; }
+    if (!this.alphaTex) this.alphaTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.alphaTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); // rows of w bytes need not be 4-aligned
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, a.w, a.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, a.data.subarray(0, a.w * a.h));
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    this.hasAlpha = true;
+  }
 
   /**
    * Can this context play a baked map at all? Both failure modes are PERMANENT — WebGL1 has no float
@@ -548,7 +574,7 @@ export class ProjectorGL {
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.warn('[ProjectorGL] baked link:', gl.getProgramInfoLog(p)); return false; }
     this.bakedProg = p;
     this.bakedAPos = gl.getAttribLocation(p, 'aPos');
-    for (const n of ['uTex', 'uMap', 'uMapTexel', 'uHasCoverage', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift']) {
+    for (const n of ['uTex', 'uMap', 'uMapTexel', 'uHasCoverage', 'uSoft', 'uBlendGamma', 'uGamma', 'uBrightness', 'uColorGain', 'uBlackLift', 'uAlpha', 'uHasAlpha']) {
       this.bakedU[n] = gl.getUniformLocation(p, n);
     }
     // An unresolved sampler uniform does not throw — it silently reads texture unit 0, which here is
@@ -599,6 +625,10 @@ export class ProjectorGL {
     // Texel size for the coverage taps in FRAG_BAKED — they are explicit neighbours, not filtering.
     gl.uniform1f(this.bakedU['uHasCoverage'] ?? null, this.mapHasCoverage ? 1 : 0);
     gl.uniform2f(this.bakedU['uMapTexel'] ?? null, 1 / Math.max(1, this.mapW), 1 / Math.max(1, this.mapH));
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.hasAlpha ? this.alphaTex : null);
+    gl.uniform1i(this.bakedU['uAlpha'] ?? null, 2);
+    gl.uniform1f(this.bakedU['uHasAlpha'] ?? null, this.hasAlpha ? 1 : 0);
     gl.activeTexture(gl.TEXTURE0);
 
     const soft = o.softEdge;

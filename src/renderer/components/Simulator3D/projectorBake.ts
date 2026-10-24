@@ -335,6 +335,22 @@ export async function bakeContentUv(
     const webgpuRead = gl as unknown as { readRenderTargetPixelsAsync?: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number) => Promise<ArrayBufferView> };
     if (webgpuRead.readRenderTargetPixelsAsync) {
       buf = await webgpuRead.readRenderTargetPixelsAsync(rt, 0, 0, rw, rh) as Float32Array;
+      // ⚠ WEBGPU PADS EVERY ROW of a texture readback to a multiple of 256 BYTES (copyTextureToBuffer's
+      // bytesPerRow rule), and three hands that buffer back as is. A float RGBA texel is 16 bytes, so
+      // any width that is not a multiple of 16 texels comes back with extra floats at the end of each
+      // row — read as rw-wide rows, every row starts a little further along and the map is sheared
+      // into diagonal stripes. Measured: a 932-wide projector window (14,912 B/row → 15,104) exported
+      // a garbled rig, while 1264 (exactly 79 x 256 B) was fine — which is how it hid. Strip the pad.
+      // three sizes the buffer as (rh - 1) padded rows + ONE UNPADDED last row
+      // (WebGPUTextureUtils.copyTextureToBuffer), so the stride is not buf.length / rh — derive it
+      // from the rows that ARE padded. A first version divided by rh, got a fraction, and silently
+      // skipped the repack.
+      const rowFloats = rw * 4, stride = rh > 1 ? (buf.length - rowFloats) / (rh - 1) : rowFloats;
+      if (buf.length !== rw * rh * 4 && stride > rowFloats && Number.isInteger(stride)) {
+        const tight = new Float32Array(rw * rh * 4);
+        for (let y = 0; y < rh; y++) tight.set(buf.subarray(y * stride, y * stride + rowFloats), y * rowFloats);
+        buf = tight;
+      }
     } else {
       buf = new Float32Array(rw * rh * 4);
       (gl as unknown as { readRenderTargetPixels: (rt: THREE.WebGLRenderTarget, x: number, y: number, w: number, h: number, out: Float32Array) => void }).readRenderTargetPixels(rt, 0, 0, rw, rh, buf);
@@ -404,4 +420,108 @@ export function ProjectorBakePass(): null {
   // merely guarantees this runs before it, so a bake never lands mid-frame.
   useFrame(() => { serviceBake(gl, scene); }, -1);
   return null;
+}
+
+// ── THE WORLD BAKE — the rig blend's input, on a renderer of its OWN ────────────────────────────
+//
+// The rig blend asks a different question from the calibration file: not "which content texel" but
+// "which POINT of the venue does this pixel light" — a position, with no uv in it (the header explains
+// why the FILE must not store this). It replaces a CPU raycast (three's Raycaster, no BVH, O(rays x
+// triangles)) that held the blend to a fixed 160-wide grid.
+//
+// ⚠ IT DOES NOT BORROW THE VIEWPORT'S RENDERER, deliberately. Run through the request registry above
+// on the viewport's WebGPU renderer, it stalled INTERMITTENTLY with nothing logged: compileAsync never
+// settled, and when raced past, readRenderTargetPixelsAsync never resolved either — a solve stuck on
+// "Solving…" for good. A short-lived WebGL2 renderer has neither async step: the program compiles
+// inside render() and readRenderTargetPixels is synchronous. It also never touches the live scene:
+// the casters are mirrored as standalone meshes on their world matrices, sharing geometry.
+//
+// One extra WebGL context for the length of a solve, released with forceContextLoss — Chromium caps
+// live contexts (~16) and evicts the OLDEST past that, so it must not outlive the call.
+
+export interface WorldMap {
+  w: number;
+  h: number;
+  /** w*h*3, row-major, top-left origin: the world XYZ this pixel's ray first hits. NaN = a miss. */
+  world: Float32Array;
+  hits: number;
+}
+
+/**
+ * Render the registered venue from `viewProj` at w×h and read back the world point under each
+ * pixel. Null when nothing can be baked (no venue registered — the 3D view has not been opened — or no
+ * float render targets), which the caller treats as "fall back", never as "this projector sees nothing".
+ */
+export function bakeWorld(viewProj: number[], w: number, h: number): WorldMap | null {
+  const casters = registeredCasters();
+  if (!casters.length) return null;
+  const material = new THREE.ShaderMaterial({
+    vertexShader: /* glsl */`
+      varying vec3 vBakeWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vBakeWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      varying vec3 vBakeWorld;
+      void main() { gl_FragColor = vec4(vBakeWorld, 1.0); }
+    `,
+    side: THREE.DoubleSide,   // a venue GLB with inverted winding must still bake
+    toneMapped: false,
+  });
+  const rt = new THREE.WebGLRenderTarget(w, h, {
+    minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+    format: THREE.RGBAFormat, type: THREE.FloatType,   // metres, not bytes
+    depthBuffer: true,                                 // the depth test IS the occlusion
+    stencilBuffer: false, generateMipmaps: false,
+  });
+  rt.texture.colorSpace = THREE.NoColorSpace;
+  let renderer: THREE.WebGLRenderer | null = null;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: false, alpha: true });
+    if (!renderer.extensions.has('EXT_color_buffer_float')) return null;
+    const scene = new THREE.Scene();
+    for (const c of casters) {
+      c.object.updateWorldMatrix(true, true);
+      c.object.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!(mesh as { isMesh?: boolean }).isMesh) return;
+        if (mesh.userData[PROXY_FLAG] || mesh.userData['artluxDepthProxy']) return;
+        if (!mesh.visible) return;                     // a hidden model is not lit, so it is not baked
+        const m = new THREE.Mesh(mesh.geometry, material);
+        m.matrixAutoUpdate = false;
+        m.matrix.copy(mesh.matrixWorld);
+        m.frustumCulled = false;
+        scene.add(m);
+      });
+    }
+    if (!scene.children.length) return null;
+    const cam = new BakeCamera();
+    cam.projectionMatrix.fromArray(viewProj);
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    renderer.setRenderTarget(rt);
+    renderer.setClearColor(0x000000, 0);              // alpha 0 = the hit flag says "no geometry"
+    renderer.clear(true, true, false);
+    renderer.render(scene, cam);
+    const buf = new Float32Array(w * h * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, w, h, buf);
+    const world = new Float32Array(w * h * 3);
+    let hits = 0;
+    for (let y = 0; y < h; y++) {
+      const ry = h - 1 - y;                            // GL reads bottom-up → top-left origin
+      for (let x = 0; x < w; x++) {
+        const s = (ry * w + x) * 4, d = (y * w + x) * 3;
+        if (buf[s + 3] > 0.5) { world[d] = buf[s]; world[d + 1] = buf[s + 1]; world[d + 2] = buf[s + 2]; hits++; }
+        else { world[d] = NaN; world[d + 1] = NaN; world[d + 2] = NaN; }
+      }
+    }
+    return { w, h, world, hits };
+  } finally {
+    material.dispose();
+    rt.dispose();
+    if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
+  }
 }

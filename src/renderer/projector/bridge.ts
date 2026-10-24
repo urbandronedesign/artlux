@@ -133,7 +133,9 @@ export type MainToProjector =
   // Sent ONCE per import, not per frame — it is ~10 MB at native raster, and the buffer is transferred
   // rather than copied. `null` withdraws it and returns the window to the mesh warp; without that,
   // clearing a calibration would leave the output silently frozen on the last map it was given.
-  | { t: 'bakedMap'; map: { w: number; h: number; uv: Float32Array } | null };
+  // `alpha`: the region's blend map (MPCDI alphaMap — a LINEAR light share, top row first), when the
+  // file carries one. Without it an imported multi-projector rig warps right and doubles its overlaps.
+  | { t: 'bakedMap'; map: { w: number; h: number; uv: Float32Array; alpha?: { w: number; h: number; data: Uint8Array } } | null };
 
 export type ProjectorToMain =
   | { t: 'ready' }                           // window mounted; (re)send config

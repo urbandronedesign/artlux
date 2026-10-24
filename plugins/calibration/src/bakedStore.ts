@@ -94,7 +94,8 @@ export function pushToProjector(surfaceId: string): void {
   const playable = r && r.geo.kind === 'uv';
   sendToProjector(surfaceId, {
     t: 'bakedMap',
-    map: playable ? { w: r.geo.w, h: r.geo.h, uv: r.geo.xyz } : null,
+    // The blend travels with the geometry: a rig file's alpha maps are what stop its overlaps doubling.
+    map: playable ? { w: r.geo.w, h: r.geo.h, uv: r.geo.xyz, ...(r.alpha ? { alpha: r.alpha } : {}) } : null,
   });
 }
 

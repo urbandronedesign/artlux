@@ -6713,6 +6713,207 @@ check(
   },
 );
 
+check(
+  'a native .blend import stays live, portable and in place',
+  'A .blend is re-exported OVER the same .glb path on every save in Blender, so (1) every window that ' +
+  'caches a model by path must drop it on BLEND_UPDATED or keep the old geometry — the projector ' +
+  'included; (2) the .blend must travel with the project or a moved show loses what it is edited ' +
+  'from; (3) it must keep its file origin, or adding geometry in Blender recentres the model and ' +
+  'moves everything — measured: screen_main slid left when a second screen was added.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/components/Simulator3D/useModelUrls.ts', 'plugins/calibration/src/CalibProjector.tsx', 'plugins/calibration/src/venueRegistrar.ts']) {
+      if (!stripComments(read(f)).includes('onBlendUpdated')) bad.push(`${f} does not reload on BLEND_UPDATED`);
+    }
+    const pf = stripComments(read('src/main/projectFolder.ts'));
+    if (!/m\?\.source/.test(pf)) bad.push('projectFolder.mapScene3D no longer maps SceneModel.source');
+    const app = stripComments(read('src/renderer/App.tsx'));
+    const i = app.indexOf('const handleAddModel');
+    if (i < 0 || !app.slice(i, i + 2500).includes("origin: 'file'")) bad.push("handleAddModel no longer gives a .blend origin: 'file'");
+    const vp = stripComments(read('src/renderer/components/Simulator3D/venuePlacement.ts'));
+    if (!/origin === 'file'/.test(vp)) bad.push("recenterClone no longer honours origin: 'file'");
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+check(
+  'projector edge lines never use a wireframe material',
+  'A material with wireframe:true makes three re-index whatever it draws as TRIANGLES. The edges look ' +
+  'shared one with its LineSegments, so crease edges were redrawn as phantom triangles — one edge ' +
+  'dropped and lines to the model origin — on the overlay operators align the real object against.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/ProjectorScene.tsx'));
+    return /new THREE\.LineSegments\([^)]*wireMatRef/.test(src) ? 'ProjectorScene draws LineSegments with the wireframe mesh material' : null;
+  },
+);
+
+check(
+  'a render-active projector streams its own surface when a mesh shows it',
+  'Image/effect/shader/text surfaces self-render in the projector window and are not streamed. In ' +
+  'render-from-projector the window draws the 3D scene instead, so a mesh bound to its OWN surface ' +
+  'stayed blank — a shader test card on its own projector\'s screen, measured on the template.',
+  () => {
+    const src = stripComments(read('src/renderer/App.tsx'));
+    return /!STREAMED\.has\(eff\.content\.type\)\s*&&\s*!\(renderActive && ownReferenced\)/.test(src)
+      ? null : 'the own-surface pump filters by STREAMED even when a render-active mesh is bound to it';
+  },
+);
+
+check(
+  'the 3D canvas region can shrink with its pane',
+  'A flex child\'s min-height defaults to its content, and the content is a canvas r3f sizes in pixels ' +
+  'from that box. Without min-h-0, a pane that had once been tall (the Calib context) kept the canvas ' +
+  'at that height after it shrank: the view\'s centre sat under the dock, and looking through a ' +
+  'projector showed the picture shifted down with its bottom cut off.',
+  () => {
+    const src = read('src/renderer/components/Simulator3D/Simulator3D.tsx');
+    return /<div className="flex-1 min-h-0 relative">/.test(src) ? null : 'the Simulator3D canvas region lost min-h-0';
+  },
+);
+
+check(
+  'projector panels get the window state replayed when they subscribe',
+  'Main pushes config / scene / calib to a projector window ONCE, and a panel plugin can subscribe ' +
+  'after that (plugins activate asynchronously). A late calibration panel never learned it was in ' +
+  'render mode: a calibrated output came up flat after a restart, reproducibly on the curved template.',
+  () => {
+    const src = stripComments(read('src/renderer/projector/ProjectorApp.tsx'));
+    const bad = [];
+    if (!/panelStateRef\.current\.set\('calib', eff\)/.test(src)) bad.push('applyCalibMode no longer records the effective calib for replay');
+    if (!/panelStateRef\.current\.set\(m\.t, m\)/.test(src)) bad.push('config/scene are no longer recorded for replay');
+    if (!/onMessage: \(cb\) => \{[\s\S]{0,200}panelStateRef\.current\.get/.test(src)) bad.push('onMessage no longer replays the recorded state to a new panel');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+check(
+  'clearing calibration points returns to the projector starting pose',
+  'A solve replaces the starting pose taken from the venue file; with it gone, Clear points (or ' +
+  'deleting below 4) fell back to NO pose and threw away the head start. poseSeed keeps it.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/calibWorkspace.ts'));
+    const body = fnBody(src, 'clearPoses');
+    if (!body) return 'calibWorkspace.clearPoses not found — this guard cannot see what it protects';
+    return body.includes('unsolvedPose(') && /cal\?\.poseSeed/.test(src) ? null : 'clearPoses no longer restores poseSeed';
+  },
+);
+
+// ── Multi-projector: what the two-projector curved template found (2026-10-24) ─────────────────
+check(
+  'the rig blend weighs by distance to the projector IMAGE frame',
+  'Weighing by distance to the lit FOOTPRINT let a screen\'s top/bottom silhouette cap every weight, so ' +
+  'two side-by-side projectors split the overlap ~50/50 instead of cross-fading: 1.45x the light across ' +
+  'it on the curved panorama. scripts/test-blend.ts has the case; this keeps the cause from returning.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/blendCompute.ts'));
+    return /dist:\s*frameWeight\(/.test(src) ? null : 'computeBlendMaps no longer weighs by frameWeight()';
+  },
+);
+
+check(
+  'the calibrated render applies its blend to the display-encoded signal',
+  'The BlendEffect runs in linear light and the composer sRGB-encodes afterwards; multiplying linear ' +
+  'colour by the already display-referred share^(1/g) encoded the blend twice (alpha 0.52 → 0.87).',
+  () => /blendEncodeSRGB\(inputColor\.rgb\)/.test(read('plugins/calibration/src/ProjectorScene.tsx'))
+    ? null : 'ProjectorScene blendFrag multiplies the linear colour by the blend signal again',
+);
+
+check(
+  'the projector bake strips WebGPU readback row padding',
+  'WebGPU pads every readback row to 256 bytes (the last row excepted), so a projector width that is ' +
+  'not a multiple of 16 texels exported a sheared, striped map — 932 px did, 1264 px did not.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Simulator3D/projectorBake.ts'));
+    return /\(buf\.length - rowFloats\) \/ \(rh - 1\)/.test(src) ? null : 'projectorBake no longer de-pads the WebGPU readback';
+  },
+);
+
+check(
+  'an imported rig file plays its blend',
+  'MPCDI import parsed each region\'s alphaMap and then sent the projector only the geometry, so an ' +
+  'imported multi-projector rig warped correctly and doubled the light in every overlap.',
+  () => {
+    const bad = [];
+    if (!/alpha: r\.alpha/.test(stripComments(read('plugins/calibration/src/bakedStore.ts')))) bad.push('bakedStore no longer sends the region alpha');
+    if (!/setBakedAlpha\(/.test(stripComments(read('src/renderer/projector/ProjectorApp.tsx')))) bad.push('ProjectorApp no longer uploads it');
+    if (!/uHasAlpha/.test(read('src/renderer/projector/ProjectorGL.ts'))) bad.push('the baked shader no longer applies it');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
+check(
+  'finishing a calibration hands the show the shaded look',
+  'The projector window keeps the last look it was given; the wizard leaves it on edges, so after ' +
+  'Apply & finish an output drew the wireframe instead of the content until its window was reopened.',
+  () => /t: 'calib', mode: 'render', calibration: out!\.calibration, meshLook: 'shaded'/.test(read('src/renderer/App.tsx'))
+    ? null : 'the show-mode render message no longer sets meshLook: shaded',
+);
+
+check(
+  'a calibrated output renders in a plain launch, not only under --calibrate',
+  'Main switches a calibrated output to render-from-projector from the project alone, in every launch. ' +
+  'With the projector panel registered below the authoring gate, a plain launch of a calibrated project ' +
+  'gave each projector nothing to render with: black projectors, nothing logged.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/plugin.renderer.ts'));
+    const reg = src.indexOf("projectorPanels.register({ id: 'calibration'"), gate = src.indexOf('if (!isAuthoringLaunch()) return');
+    if (reg < 0 || gate < 0) return 'plugin.renderer.ts: the projector panel or the authoring gate is gone — this guard cannot see what it protects';
+    return reg < gate ? null : 'the projector panel is registered after the authoring gate again';
+  },
+);
+
+check(
+  'a calibrated rig blends by projection, not by voxel',
+  'A rig whose projectors are all calibrated knows where each point lands on every other projector, so ' +
+  'the blend is computed exactly (computeBlendMapsProjected). The voxel path quantised the overlap into ' +
+  'blocky patches and ±8% of light; it stays for camera-scanned rigs only.',
+  () => /traced \? computeBlendMapsProjected\(/.test(stripComments(read('plugins/calibration/src/blendController.ts')))
+    ? null : 'solveRig no longer uses the exact path for a calibrated rig',
+);
+
+check(
+  'a calibrated rig blend is traced on the GPU at an overlap-sized grid',
+  'The CPU trace is a Raycaster with no BVH, held to a fixed 160-wide grid, and that grid IS the blend: ' +
+  'an 8% overlap got 13 cells and stepped by ~8% of the light per cell (banding). solveRig renders each ' +
+  'projector world map on the GPU (bakeWorld) and sizes the grid from the narrowest overlap ' +
+  '(narrowestOverlap -> adaptiveBlendWidth); the CPU trace is only the fallback when no venue is registered.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/blendController.ts'));
+    if (!/bakeWorld\(/.test(src)) return 'blendController no longer asks the GPU for the world map';
+    if (!/narrowestOverlap\(/.test(src) || !/adaptiveBlendWidth\(/.test(src)) return 'the blend grid is no longer sized from the overlap';
+    const i = src.indexOf('solveOnGpu(rig)'), j = src.indexOf('traceScan(o)', src.indexOf('export async function solveRig'));
+    if (i < 0 || j < 0 || i > j) return 'solveRig must try the GPU world bake before the CPU trace';
+    return null;
+  },
+);
+
+check(
+  'the world bake runs on its own short-lived WebGL renderer, not the viewport one',
+  'On the viewport WebGPU renderer the world bake stalled intermittently with nothing logged: compileAsync ' +
+  'never settled and, raced past, the async readback never resolved, leaving Solve blend on "Solving..." ' +
+  'for good. A dedicated WebGL2 renderer compiles inside render() and reads back synchronously. Its ' +
+  'context must be released (forceContextLoss): Chromium evicts the OLDEST live context past its cap.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Simulator3D/projectorBake.ts'));
+    const at = src.indexOf('export function bakeWorld(');
+    if (at < 0) return 'projectorBake.ts has no synchronous bakeWorld()';
+    const body = src.slice(at, src.indexOf('\n}\n', at));
+    if (/readRenderTargetPixelsAsync|compileAsync/.test(body)) return 'bakeWorld is back on an async (viewport) path';
+    if (!/new THREE\.WebGLRenderer\(/.test(body) || !/forceContextLoss\(\)/.test(body)) return 'bakeWorld must own a WebGLRenderer and release its context';
+    return null;
+  },
+);
+
+check(
+  'the GPU blend grid is indexed by the PHYSICAL pixel under lens distortion',
+  'The bake renders the ideal pinhole; the blend runs on gl_FragCoord after the distortion pass, i.e. on ' +
+  'the physical panel pixel. With a distorted lens each cell must look up the ideal pixel its physical ' +
+  'ray goes through, or the fade lands off the overlap by the distortion.',
+  () => /cameraPixelRayWorld\(/.test(stripComments(read('plugins/calibration/src/blendController.ts')).slice(
+    stripComments(read('plugins/calibration/src/blendController.ts')).indexOf('function gridFromWorldMap')))
+    ? null : 'gridFromWorldMap no longer undistorts the physical pixel before sampling the bake',
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

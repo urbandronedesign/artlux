@@ -206,8 +206,24 @@ world frame automatically, each rendering the venue from its own viewpoint. Wher
 use the **Rig blend** strip in the Outputs panel: with two or more calibrated outputs, press
 **Solve blend** and each projector gets its share of the light so the overlap sums to one (no seam,
 no double brightness). No camera scan is needed — the blend traces each projector's coverage from its
-calibration and the venue model (the model must be loaded in the 3D scene when you solve).
-Recalibrating a projector marks the blend **stale** — re‑solve it when convenient.
+calibration and the venue model, so **open the 3D view once** in the session before you solve — it
+is the view that loads the model the blend is traced against.
+Recalibrating a projector marks the blend **stale** — re‑solve it when convenient, and **save** the
+project afterwards: the blend is stored with each output.
+
+The blend cross-fades along the direction the projectors are laid out: two side by side fade left to
+right, each going dark exactly at the edge of its own picture. The edges of the screen itself are
+not seams — nobody continues past them — so they do not shape the fade.
+
+The fade is as fine as the overlap needs. **Solve blend** measures the narrowest overlap in the rig
+and sizes the blend so at least 32 steps run across it, so a narrow overlap does not show bands. The
+message after the solve gives the size it used, for example *432×243 map*. A very narrow overlap (a
+few percent of the picture) hits a size cap, because the blend is saved in the project. If it still
+shows steps, widen the overlap.
+
+To start from a ready-made rig, open the
+[multi-projector example](../../examples/multi-projector/README.md): two projectors placed in
+Blender on one wide curved screen, with the steps to calibrate both and blend them.
 
 ### Finalising the mapping — nudging a calibrated output
 
@@ -240,7 +256,9 @@ a bug, and it is what stops the correction being applied twice.
 **NDI:** an output sending NDI while rendering from a calibrated projector used to publish black.
 It now carries the picture.
 
-ArtLux also imports/exports **MPCDI** for interchange with other warping tools, and can camera‑measure
+ArtLux also imports/exports **MPCDI** for interchange with other warping tools — a rig's file carries
+every projector's warp **and its blend**, so importing it on the show machine reproduces the
+cross-fades too, with no calibration or 3D model needed there — and can camera‑measure
 projector **gamma**. Full details, the optimization passes (ArUco one‑click recal, masking, exposure,
 colour/black match), and troubleshooting are in [CALIBRATION.md](../CALIBRATION.md) and
 [CALIB-OPTIMIZATIONS.md](../CALIB-OPTIMIZATIONS.md).
