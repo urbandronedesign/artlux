@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.33.9
+
+### A graphics crash no longer freezes the LEDs or blacks out the projectors
+
+When the graphics driver reset or the graphics side of the app crashed (a driver update, a GPU hang,
+the GPU running out of memory, waking from sleep), the **LED output froze on one frame for the rest of
+the show** and **every projector output went black** — while the app's own readouts (FPS, output rate)
+still looked healthy. Now the LEDs come back by themselves in about half a second (also after a second
+crash in a row), each projector output reloads itself and shows the picture again, and the editor shows
+a red banner while it recovers. A new monitoring value, `artlux_gpu_device_lost`, reads 1 while the
+LEDs are holding a frozen frame — alert on it, because the FPS readouts cannot tell you.
+
+v0.33.6 said the show "keeps running through a real graphics crash". That was true of the video
+decoders only; the picture reaching the LEDs and the projectors did not come back until this release.
+
+**Still to do:** the **3D view** stays dark after a graphics crash until you reload the window. With
+**Unattended** mode on, the app still restarts itself straight away after a graphics crash, as before —
+that restart brings back everything, while the in-place recovery is not yet proven for HAP video,
+shaders and the tracking overlays.
+
+See [Unattended watchdog](docs/WATCHDOG.md) and [Monitoring](docs/MONITORING.md).
+
+### A project that opens on a lighting take starts straight away
+
+A project whose timeline starts with a recorded or generated **lighting take** waited **15 seconds** at
+every open before the show started (the log said an item "never became ready" with no name). It now
+starts as soon as its content is ready.
+
+### An NDI source that comes online after ArtLux is picked up
+
+If ArtLux started **before** the NDI sender it was set to receive, that surface stayed dark until
+ArtLux was restarted. It now keeps looking every two seconds and shows the source as soon as it
+appears, so the order the machines start in no longer matters.
+
+See [NDI](docs/NDI.md).
+
+### A restart keeps the profile it was started with
+
+A watchdog or playlist restart of an ArtLux started with `--user-data-dir` (a second profile) came
+back on the default profile. It now keeps the profile.
+
 ## v0.33.8
 
 ### MP4 video no longer flickers in a show that switches between states
