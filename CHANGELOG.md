@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.33.10
+
+### Everything comes back after a graphics crash — HAP, text, tracking, the 3D view
+
+v0.33.9 brought the LEDs and the projector outputs back after a graphics crash. Testing every other
+kind of content the same way found more that stayed dark for good: **HAP video** (on a surface, on the
+timeline and on a projector), **text**, the **LiDAR / Augmenta / camera-pose overlays** and the **3D
+view**. All of them now come back by themselves too, as do MP4, shaders, effects, Spout and NDI —
+checked through two graphics crashes in a row while the show ran in broadcast mode.
+
+### With Unattended on, a graphics crash no longer restarts the app
+
+The watchdog used to restart the whole app straight after a graphics crash, because nothing came back
+on its own. Now everything does, in about half a second while the last picture is held, so a restart
+— a cold start of every video and every output — would only make the outage longer. The crash is
+written to the watchdog log instead, and the app restarts only if the LEDs have still not come back 15
+seconds later.
+
+See [Unattended watchdog](docs/WATCHDOG.md).
+
 ## v0.33.9
 
 ### A graphics crash no longer freezes the LEDs or blacks out the projectors
