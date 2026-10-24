@@ -137,7 +137,13 @@ export function evaluate(nowMs: number): void {
     let count = 0;
     for (const p of pts) if (inside(z, p.u, p.v)) count++;
 
-    const st = states.get(z.id) ?? blank(z.id);
+    // A ZONE IS EMPTY FROM THE MOMENT IT IS WATCHED, not from the first time somebody leaves it. A fresh
+    // state used to carry emptySinceMs = 0, which `emptyFor` reads as "not empty for any time at all" —
+    // so a zone nobody had stepped into yet could never satisfy "empty for 6 s", and a room-empty rule
+    // over ALL zones (the standard way back to an attract loop) did not fire until a visitor had walked
+    // through every one of them. Found 2026-10-24: the interactive-show template's Story A held for good
+    // after its first visitor left, because nobody had used the Right pad yet.
+    const st = states.get(z.id) ?? { ...blank(z.id), emptySinceMs: nowMs };
     if (st.count !== count) { st.count = count; changed = true; }
 
     const enough = count >= (z.minBlobs ?? DEF_MIN_BLOBS);

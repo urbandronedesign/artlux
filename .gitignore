@@ -98,3 +98,7 @@ scripts/hap-exact/bundle.js
 # Chromium traces from scripts/trace-cdp.cjs — tens of MB each, and a trace is a
 # measurement of one machine on one day, never a fact about the tree.
 .traces/
+
+# The per-project cache ArtLux writes next to any .artlux it opens (thumbnails, probes) — machine-local,
+# and opening an example from the repo must not leave one to commit.
+.artlux-cache/

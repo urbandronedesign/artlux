@@ -152,6 +152,41 @@ const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
   );
 };
 
+// FRAME THE VENUE when the tracking view first appears in a 3D canvas. The host's startup camera is a
+// fixed (0, 1.2, 3) aimed at the origin — right for a rig built around the origin, and wrong for a LiDAR
+// room: it stands ON the floor (z 0..D) looking at the foot of the wall, so half the zones are behind
+// it and the wall is cut off. The venue's extent is known exactly (the tracker's own dims), so fit its
+// bounding sphere from an elevated front view: floor, wall and every zone in one picture.
+//
+// ONCE PER CANVAS (a flag on the camera), and in useFrame rather than an effect because OrbitControls
+// registers as the default controls after this mounts — its target has to move with the camera or the
+// first drag would snap the view back to orbiting the origin. Once per canvas means an operator's own
+// view is never stolen by a scene recall that toggles the viz; a new canvas (startup, a GPU-loss
+// remount) starts framed again instead of at the host's default.
+const FRAME_PITCH = (24 * Math.PI) / 180; // look down at the floor by this much
+const VenueFraming: React.FC<{ dims: Dims }> = ({ dims }) => {
+  useFrame(({ camera, controls }) => {
+    if (camera.userData.venueFramed) return;
+    const orbit = controls as { target?: THREE.Vector3; update?: () => void } | null;
+    if (!orbit?.target) return; // controls not registered yet — try next frame
+    const cam = camera as THREE.PerspectiveCamera;
+    const { W, D, H } = dims;
+    const target = new THREE.Vector3(0, H * 0.4, D * 0.5);
+    const radius = 0.5 * Math.hypot(W, D, H);
+    const vHalf = THREE.MathUtils.degToRad(cam.fov ?? 50) / 2;
+    const hHalf = Math.atan(Math.tan(vHalf) * (cam.aspect || 16 / 9));
+    // 0.8: the bounding sphere is a loose fit for a box this flat — at 1.0 the venue filled barely half
+    // the viewport. 0.8 still keeps the wall's top edge and the floor's front edge inside the frame.
+    const dist = (0.8 * radius) / Math.tan(Math.min(vHalf, hHalf));
+    camera.position.set(0, target.y + Math.sin(FRAME_PITCH) * dist, target.z + Math.cos(FRAME_PITCH) * dist);
+    orbit.target.copy(target);
+    camera.lookAt(target);
+    orbit.update?.();
+    camera.userData.venueFramed = true;
+  });
+  return null;
+};
+
 const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -236,17 +271,23 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
 
   return (
     <group>
+      <VenueFraming dims={dims} />
       {/* SOL — floor zone */}
       <PolyLine points={floorRect} color={ZONE_COLOR} />
-      <mesh position={[0, 0.001, D / 2]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
-        <planeGeometry args={[W, D]} />
+      {/* 1×1 GEOMETRY, SIZED BY scale — never by planeGeometry args. A changed args array makes r3f REPLACE the
+          geometry of a mesh that has already drawn, and on WebGPU three keeps that mesh's old vertex-buffer
+          bindings: "Vertex buffer slot 1 … was not set" rejects the whole frame and the 3D view freezes for good.
+          The first tracking packet changes the size (5.825 arrives as float32 5.82499…), so this froze the 3D
+          view the moment somebody walked in (found 2026-10-24). A scale is only a transform. */}
+      <mesh position={[0, 0.001, D / 2]} rotation={[-Math.PI / 2, 0, 0]} scale={[W, D, 1]} raycast={() => null}>
+        <planeGeometry args={[1, 1]} />
         <meshBasicMaterial color={ZONE_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
 
       {/* MUR — wall zone */}
       <PolyLine points={wallRect} color={ZONE_COLOR} />
-      <mesh position={[0, H / 2, 0]} raycast={() => null}>
-        <planeGeometry args={[W, H]} />
+      <mesh position={[0, H / 2, 0]} scale={[W, H, 1]} raycast={() => null}>
+        <planeGeometry args={[1, 1]} />
         <meshBasicMaterial color={ZONE_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
 

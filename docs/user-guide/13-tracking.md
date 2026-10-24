@@ -107,6 +107,8 @@ simulate this source.
 
 Open the **3D Scene** and enable **Tracking zones (LiDAR)** in the bottom‑right **Lighting** panel.
 The SOL (floor) and MUR (wall) zones appear at real scale with a glowing marker per active blob.
+The first time they appear, the view frames the whole venue — floor, wall and every trigger zone —
+so you start from the room rather than from a close-up of the origin. Orbit and zoom as usual from there.
 
 **Merge people (2 blobs → 1).** This venue's tracker emits roughly **two blobs per person**, and its
 raw ids flicker hard (median lifetime ~0.13 s). Turn on **Merge people** to run a small predictive

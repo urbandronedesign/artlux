@@ -6410,6 +6410,75 @@ check(
   },
 );
 
+// ── A 3D screen reallocates its texture when the source changes size ──────────────────────────
+check(
+  'a 3D screen shows the whole picture when the surface picture changes size',
+  'The WebGPU backend sizes a texture\'s storage at its first upload and copies later images INTO it. ' +
+  'A multi-track surface\'s composite starts at 640 px and grows to the video\'s 1920, so a 3D screen ' +
+  'showed only the top-left corner of the picture, stretched — and a centred title was simply missing. ' +
+  'Reallocating (dispose, or a fresh texture object) froze the screen for good on WebGPU, so a resized ' +
+  'source is drawn into a staging canvas of the born size instead. Found 2026-10-24 building the ' +
+  'interactive-show template.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/surfaceTextureCache.ts';
+    const s = stripComments(read(F));
+    if (!/\(w\s*!==\s*e\.w\s*\|\|\s*h\s*!==\s*e\.h\)\)\s*\{[\s\S]{0,400}drawImage\([\s\S]{0,60}e\.w,\s*e\.h\)/.test(s)) return F + ': a source at another size is no longer rescaled into the texture\'s born size';
+    if (/e\.tex\s*=\s*newCanvasTexture\(\)[\s\S]{0,40}\}\s*\n?\s*e\.w\s*=/.test(s)) return F + ': a size change swaps the texture object again — that froze the screen on WebGPU';
+    return null;
+  },
+);
+
+// ── A 3D plane is sized by scale, never by its geometry args ──────────────────────────────────
+check(
+  'no 3D plane is sized through planeGeometry args (a geometry swap freezes the WebGPU 3D view)',
+  'The LiDAR overlay sized its translucent floor/wall planes with <planeGeometry args={[W, D]}>. The first ' +
+  'tracking packet changes W/D (5.825 arrives as float32 5.82499…), r3f then REPLACES the geometry of a ' +
+  'mesh that has already drawn, and on WebGPU three keeps the old vertex-buffer bindings: "Vertex buffer ' +
+  'slot 1 required by [RenderPipeline MeshBasicMaterial_N] was not set" rejects every frame and the 3D view ' +
+  'froze for good the moment somebody walked in (wall screens stuck on the previous state). Found ' +
+  '2026-10-24. Use a 1×1 plane and the mesh\'s scale — a transform, never a new geometry.',
+  () => {
+    const bad = [];
+    for (const f of [...walk('src/renderer'), ...walk('plugins')]) {
+      if (!f.endsWith('.tsx')) continue;
+      const s = stripComments(read(f));
+      for (const m of s.matchAll(/<planeGeometry\s+args=\{([^}]*)\}/g)) {
+        if (/[A-Za-z_$]/.test(m[1])) bad.push(`${f}: <planeGeometry args={${m[1].trim()}}> — size it with the mesh's scale instead`);
+      }
+    }
+    return bad.length ? bad.join('\n') : null;
+  },
+);
+
+// ── A 3D polyline is rebuilt only when its shape changes ──────────────────────────────────────
+check(
+  'a 3D polyline is rebuilt when its points change by VALUE, not on every render',
+  'PolyLine memoised on the `points` array, which every caller builds inline — so each render of the ' +
+  'tracking overlay (4×/s plus every tracking update) built a new Line + material and WebGPU compiled a ' +
+  'new render pipeline: ~40 compiles in 10 s with three zones on screen. Found 2026-10-24.',
+  () => {
+    const F = 'src/renderer/components/Simulator3D/PolyLine.tsx';
+    const s = stripComments(read(F));
+    if (/\}\s*,\s*\[\s*points\s*,/.test(s)) return F + ': the line memo depends on the points ARRAY again (new every render)';
+    if (!/\}\s*,\s*\[\s*shape\s*,/.test(s)) return F + ': the line memo is no longer keyed on the points\' values (`shape`)';
+    return null;
+  },
+);
+
+// ── A zone nobody has entered yet is empty ─────────────────────────────────────────────────────
+check(
+  'a trigger zone is empty from the moment it is watched (emptyFor works before anyone has entered it)',
+  'A fresh zone state carried emptySinceMs = 0, which emptyFor reads as "not empty at all", so a ' +
+  'zone nobody had stepped into could never be "empty for 6 s" — and a room-empty rule over ALL zones ' +
+  'held the show until a visitor had crossed every one. Found 2026-10-24 in the interactive-show template.',
+  () => {
+    const F = 'plugins/lidar-tracking/src/zones.ts';
+    const s = stripComments(read(F));
+    if (!/states\.get\(z\.id\)\s*\?\?\s*\{\s*\.\.\.blank\(z\.id\),\s*emptySinceMs:\s*nowMs\s*\}/.test(s)) return F + ': a newly watched zone no longer starts its empty clock at nowMs';
+    return null;
+  },
+);
+
 // ── Broadcast never runs a project that is not there ──────────────────────────────────────────
 check(
   'broadcast never switches into, or silently runs, a project file that does not exist',

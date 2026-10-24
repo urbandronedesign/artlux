@@ -85,8 +85,11 @@ const PoseViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
   return (
     <group>
       <Line points={geom.line} color={FLOOR_COLOR} lineWidth={1.4} />
-      <mesh position={geom.plane.pos} rotation={geom.plane.rot} raycast={() => null}>
-        <planeGeometry args={geom.plane.args} />
+      {/* 1×1 geometry sized by `scale`, never by planeGeometry args — a changed args array swaps the
+          geometry of a mesh that has already drawn, which freezes the WebGPU 3D view for good (the floor
+          calibration resizes it after mount). See TrackingViz. */}
+      <mesh position={geom.plane.pos} rotation={geom.plane.rot} scale={[geom.plane.args[0], geom.plane.args[1], 1]} raycast={() => null}>
+        <planeGeometry args={[1, 1]} />
         <meshBasicMaterial color={FLOOR_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       <instancedMesh ref={meshRef} args={[undefined, undefined, MAX]} frustumCulled={false}>

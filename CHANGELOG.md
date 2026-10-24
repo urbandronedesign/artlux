@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### The 3D view no longer freezes when somebody is tracked
+
+With LiDAR tracking shown in the 3D view, the view could stop drawing for good the moment the first
+person was tracked: markers stopped moving, zones stopped lighting up, and a screen in the 3D scene
+stayed on the previous state while the show moved on. The outputs and the 2D map were never affected.
+It now keeps drawing. The same fix covers the Augmenta and camera-pose overlays.
+
+### "Empty for" works on a zone nobody has entered yet
+
+A trigger rule like *all zones empty for 6 s* (the usual way back to an attract loop) could not fire
+until a visitor had stepped into every one of those zones at least once. A zone now counts as empty
+from the moment it is watched.
+
+### A screen in the 3D scene shows the whole picture
+
+A 3D screen showing a surface with several tracks (a video with a title over it) could show only a
+stretched corner of the picture, so a centred title was missing. It now shows the whole picture.
+
+### The 3D view starts framed on the venue
+
+When the LiDAR zones are shown, the 3D view now opens on the whole room (floor, wall and every trigger
+zone) instead of a close-up of the origin.
+
+See [Tracking](docs/user-guide/13-tracking.md).
+
 ## v0.33.12
 
 ### Broadcast no longer opens a blank show when a project file is missing

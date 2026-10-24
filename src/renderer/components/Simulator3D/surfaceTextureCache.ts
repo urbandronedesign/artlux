@@ -28,6 +28,11 @@ interface Entry {
   stamp: number;
   /** The <video> this entry is bound to, if any — a VideoTexture is a different kind of binding. */
   video: HTMLVideoElement | null;
+  /** The size the texture was born with — its GPU storage can never be any other size (see below). */
+  w: number;
+  h: number;
+  /** A canvas of exactly w×h, created only once a source arrives at some other size. */
+  staging?: HTMLCanvasElement;
 }
 
 const entries = new Map<string, Entry>();
@@ -43,6 +48,15 @@ function stampNow(): number {
   const t = Math.floor(performance.now());
   if (t !== lastRaf) { lastRaf = t; frameStamp++; }
   return frameStamp;
+}
+
+function newCanvasTexture(): THREE.Texture {
+  const t = new THREE.Texture();
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.generateMipmaps = false;
+  return t;
 }
 
 /**
@@ -63,7 +77,7 @@ export function acquireSurfaceTexture(surfaceId: string, consumer: string): THRE
       e?.tex.dispose();
       const t = new THREE.VideoTexture(d);
       t.colorSpace = THREE.SRGBColorSpace;
-      e = { tex: t, users: e?.users ?? new Set(), lastGen: undefined, stamp: -1, video: d };
+      e = { tex: t, users: e?.users ?? new Set(), lastGen: undefined, stamp: -1, video: d, w: 0, h: 0 };
       entries.set(surfaceId, e);
     }
     e.users.add(consumer);
@@ -75,12 +89,8 @@ export function acquireSurfaceTexture(surfaceId: string, consumer: string): THRE
 
   if (!e || e.video) {
     e?.tex.dispose();
-    const t = new THREE.Texture();
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.minFilter = THREE.LinearFilter;
-    t.magFilter = THREE.LinearFilter;
-    t.generateMipmaps = false;
-    e = { tex: t, users: e?.users ?? new Set(), lastGen: undefined, stamp: -1, video: null };
+    const t = newCanvasTexture();
+    e = { tex: t, users: e?.users ?? new Set(), lastGen: undefined, stamp: -1, video: null, w: 0, h: 0 };
     entries.set(surfaceId, e);
   }
   e.users.add(consumer);
@@ -96,7 +106,34 @@ export function acquireSurfaceTexture(surfaceId: string, consumer: string): THRE
   if (gen !== undefined && gen === e.lastGen) return e.tex;
   e.lastGen = gen;
 
-  e.tex.image = d as unknown as HTMLImageElement;
+  // A SOURCE THAT CHANGES SIZE MUST NOT REACH THE TEXTURE AT ITS NEW SIZE. The WebGPU backend sizes a
+  // texture's storage once, at its first upload, and copies every later image INTO that storage — so
+  // when the canvas grew, only its top-left corner (the old size) reached the GPU, stretched over the
+  // whole mesh. A multi-track surface hits this on open: its composite canvas starts at 640 px and grows
+  // to the video's 1920 once the decoder delivers, so a 3D screen showed a zoomed-in corner of the
+  // picture, and a title in the middle of the frame was simply not there (found 2026-10-24 building the
+  // interactive-show template; whether it struck depended on whether the 3D view's first upload beat
+  // the video's first frame).
+  //
+  // RESCALED INTO THE FIRST SIZE, not reallocated. Both ways of reallocating were tried that day and
+  // both FROZE the screen on WebGPU for good: dispose() on the bound texture, and handing consumers a
+  // fresh texture object (the material kept sampling the old one). So the texture keeps the size it was
+  // born with, and a source of any other size is drawn into a staging canvas of exactly that size
+  // first. It costs one 2D draw per upload, only for a surface whose size changed, and caps that 3D
+  // preview at the first size (≥ 640 px wide for a stack), which is plenty for a mesh in a viewport.
+  const w = (d as { width?: number }).width ?? 0, h = (d as { height?: number }).height ?? 0;
+  if (!e.w) { e.w = w; e.h = h; }
+  let img: unknown = d;
+  if (w && h && (w !== e.w || h !== e.h)) {
+    if (!e.staging) {
+      e.staging = document.createElement('canvas');
+      e.staging.width = e.w; e.staging.height = e.h;
+    }
+    const ctx = e.staging.getContext('2d');
+    if (ctx) { ctx.clearRect(0, 0, e.w, e.h); ctx.drawImage(d as CanvasImageSource, 0, 0, e.w, e.h); img = e.staging; }
+  }
+
+  e.tex.image = img as HTMLImageElement;
   matchBitmapOrientation(e.tex);   // bitmapFlip.ts stays the one owner of the flip rule
   e.tex.needsUpdate = true;
   return e.tex;

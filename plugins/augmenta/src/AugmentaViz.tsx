@@ -64,8 +64,11 @@ const AugmentaViz: React.FC<{ scene3D: Scene3D }> = () => {
   return (
     <group>
       <PolyLine points={geom.line} color={FIELD_COLOR} />
-      <mesh position={geom.plane.pos} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
-        <planeGeometry args={geom.plane.args} />
+      {/* 1×1 geometry sized by `scale`, never by planeGeometry args — a changed args array swaps the
+          geometry of a mesh that has already drawn, which freezes the WebGPU 3D view for good. The field
+          size arrives from the box after mount, so this is exactly that case. See TrackingViz. */}
+      <mesh position={geom.plane.pos} rotation={[-Math.PI / 2, 0, 0]} scale={[geom.plane.args[0], geom.plane.args[1], 1]} raycast={() => null}>
+        <planeGeometry args={[1, 1]} />
         <meshBasicMaterial color={FIELD_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       <instancedMesh ref={meshRef} args={[undefined, undefined, MAX]} frustumCulled={false}>

@@ -22,6 +22,13 @@ export const PolyLine: React.FC<{
   gapSize?: number;
   opacity?: number;
 }> = ({ points, color, dashed = false, dashSize = 0.12, gapSize = 0.08, opacity = 1 }) => {
+  // KEYED ON THE POINTS' VALUES, not the array. Callers build `points` inline, so the array is new on
+  // every render — and the tracking overlay re-renders 4×/s plus on every tracking update. Keyed on the
+  // array, each render built a new Line with a new material, and WebGPU compiled a new render pipeline
+  // for it: measured ~40 pipeline compiles in 10 s with three zones on screen (2026-10-24). A rebuild is
+  // also the only safe way to change a drawn line (swapping a drawn mesh's geometry in place freezes the
+  // WebGPU view — see TrackingViz), so it must happen when the shape really changes, and only then.
+  const shape = points.map((p) => p.join(',')).join(';');
   const line = useMemo(() => {
     const geom = new THREE.BufferGeometry();
     const arr = new Float32Array(points.length * 3);
@@ -37,7 +44,8 @@ export const PolyLine: React.FC<{
     l.raycast = () => { /* overlays are never pick targets */ };
     return l;
     // Rebuilt when the shape or look changes; disposal is handled below.
-  }, [points, color, dashed, dashSize, gapSize, opacity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `shape` IS `points`, by value (see above)
+  }, [shape, color, dashed, dashSize, gapSize, opacity]);
 
   // A new Line means new GPU resources, so the previous one must be released — these rebuild whenever
   // a tracking zone moves, which is every time an operator drags one.
