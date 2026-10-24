@@ -6392,6 +6392,23 @@ check(
   },
 );
 
+// ── NDI: a source that is not on the network yet is retried ───────────────────────────────────
+check(
+  'an NDI receive that cannot find its source retries instead of giving up',
+  'startRecv logged "connect failed ndi source not found" and returned, so a surface whose sender came ' +
+  'up after ArtLux stayed dark for the life of the process. Found 2026-10-24 with NDI Tools Test ' +
+  'Patterns: sender first worked at once; ArtLux first, sender 15 s later, still dark 20 s after.',
+  () => {
+    const F = 'plugins/ndi/src/ndiManager.ts';
+    const body = braceBody(read(F), 'export function startRecv(');
+    if (!body) return F + ': startRecv() not found — this guard cannot see what it protects';
+    const c = /catch\s*\(e\)\s*\{([\s\S]*?)\n\s{4}\}/.exec(body);
+    if (!c || !/setTimeout\(\s*attempt/.test(c[1])) return F + ': startRecv()\'s connect failure no longer schedules a retry';
+    if (!/clearTimeout\(recvRetry\)/.test(braceBody(read(F), 'export function stopRecv(') ?? '')) return F + ': stopRecv() must cancel a pending connect retry';
+    return null;
+  },
+);
+
 // ── Every non-video layer kind is registered as one ───────────────────────────────────────────
 check(
   'every non-video LayerKind is registered as a clip kind that skips video sync',

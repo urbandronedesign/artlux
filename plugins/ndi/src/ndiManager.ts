@@ -78,19 +78,43 @@ export function listSources(): string[] {
   try { return native ? native.listSources() : []; } catch { return []; }
 }
 
+// ⚠ A SOURCE THAT IS NOT THERE YET IS RETRIED, NOT GIVEN UP ON. recvConnect throws "ndi source not
+// found" when nothing matching is on the network at the moment the surface starts, and this used to log
+// that and return — so the surface stayed dark for the life of the process even after the sender came
+// up. Boot order at a venue is not something an operator controls: measured 2026-10-24 with NDI Tools ▸
+// Test Patterns, a sender started 15 s after ArtLux was never picked up (still dark 20 s later), while
+// the same sender started first worked at once. Retry every RECV_RETRY_MS until it connects or the
+// surface lets go; log the first failure, then about once a minute, so a machine log shows the wait
+// without being flooded by it.
+const RECV_RETRY_MS = 2000;
+let recvRetry: NodeJS.Timeout | null = null;
+
 export function startRecv(name: string, onFrame: (frame: NdiFrame) => void): void {
   if (!native) return;
-  try { native.recvConnect(name); } catch (e) { console.error('[ndi] connect failed', e); return; }
-  if (recvTimer) clearInterval(recvTimer);
-  recvTimer = setInterval(() => {
-    try {
-      const f = native.recvFrame();
-      if (f) onFrame(f);
-    } catch { /* transient receive error */ }
-  }, 16); // ~60 Hz poll
+  if (recvRetry) { clearTimeout(recvRetry); recvRetry = null; }
+  let attempts = 0;
+  const attempt = (): void => {
+    recvRetry = null;
+    attempts++;
+    try { native.recvConnect(name); } catch (e) {
+      if (attempts === 1 || attempts % 30 === 0) console.error(`[ndi] connect failed (attempt ${attempts}, retrying every ${RECV_RETRY_MS / 1000}s)`, e);
+      recvRetry = setTimeout(attempt, RECV_RETRY_MS);
+      return;
+    }
+    if (attempts > 1) console.info(`[ndi] connected to "${name || 'first source'}" after ${attempts} attempts`);
+    if (recvTimer) clearInterval(recvTimer);
+    recvTimer = setInterval(() => {
+      try {
+        const f = native.recvFrame();
+        if (f) onFrame(f);
+      } catch { /* transient receive error */ }
+    }, 16); // ~60 Hz poll
+  };
+  attempt();
 }
 
 export function stopRecv(): void {
+  if (recvRetry) { clearTimeout(recvRetry); recvRetry = null; }
   if (recvTimer) { clearInterval(recvTimer); recvTimer = null; }
   if (native) { try { native.recvDisconnect(); } catch { /* */ } }
 }
