@@ -237,6 +237,16 @@ projector output on the HAP surface. It compares the change rate in the 8 s befo
 if the LED sampler is still lost after 15 s (`gpu-device-lost`), with render-stall and output-down
 behind that. The invariant forbids reintroducing `maybeRelaunch('gpu-gone')`.
 
+### Phase 8: the installed v0.33.10, re-tested end to end
+
+| Suite | Result |
+|---|---|
+| GPU crash, all ten consumers: editor · broadcast ×2 crashes · broadcast ×2 with Unattended ON | **ALL PASS** ×3 (no restart in the armed run) |
+| NDI with ArtLux started first | PASS (retries, then connects) |
+| Lighting example boot | No 15 s wait; 60 fps; output on the wire |
+| Output matrix · state machine · OSC out · bad media · headless/broadcast · cold-start lifecycle | **ALL PASS** (no regression) |
+| Inputs | 5/6. **New bug: "Send as NDI" never sent from a windowed output** (the NDI reconcile ignored `WINDOWED_DISPLAY`). Fixed in `960487f` and verified on a local build: the source appears and ArtLux receives its own stream. Not yet in a release. |
+
 ### Test hygiene: what the existing scripts did to the OWNER's machine (needs a human)
 
 The Phase 1 dev-launch scripts run on `%APPDATA%\artlux`, the owner's real profile, and left in it:
