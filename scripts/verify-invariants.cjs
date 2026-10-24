@@ -6392,6 +6392,28 @@ check(
   },
 );
 
+// ── Every non-video layer kind is registered as one ───────────────────────────────────────────
+check(
+  'every non-video LayerKind is registered as a clip kind that skips video sync',
+  'The timeline decides "is this lane a picture?" by asking clipKindRegistry. Plugin lanes register ' +
+  'themselves; the core LIGHTING lane did not, so its clip (path "") went through the per-frame video ' +
+  'sync, warmMedia and the cold-start gate as a video. The gate waited for a <video> that could never ' +
+  'load and armed by timeout — every project opening on a lighting take started 15 s late, logging ' +
+  '"never became ready: " with an empty name. Found 2026-10-24 by the battle-test examples sweep.',
+  () => {
+    const kinds = /export type LayerKind\s*=\s*([^;]+);/.exec(read('src/renderer/types.ts'));
+    if (!kinds) return 'src/renderer/types.ts: LayerKind not found — this guard cannot see what it protects';
+    const all = [...kinds[1].matchAll(/'([a-z-]+)'/g)].map(m => m[1]).filter(k => k !== 'video');
+    const sources = [stripComments(read('src/renderer/host/registries.ts'))];
+    for (const d of fs.readdirSync(path.join(ROOT, 'plugins'))) {
+      const f = path.join('plugins', d, 'src', 'plugin.renderer.ts');
+      if (fs.existsSync(path.join(ROOT, f))) sources.push(stripComments(read(f)));
+    }
+    const bad = all.filter(k => !sources.some(s => new RegExp(`kind:\\s*'${k}'[^}]*skipVideoSync:\\s*true`).test(s)));
+    return bad.length ? `no clip-kind registration with skipVideoSync: true for LayerKind ${bad.map(k => `'${k}'`).join(', ')}` : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

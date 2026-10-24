@@ -43,6 +43,14 @@ export const clipKindRegistry: ClipKindRegistry<VideoClip> = {
   has(kind) { return kind != null && clipKinds.has(kind); },
   get(kind) { return clipKinds.get(kind); },
 };
+// ⚠ THE ONE CORE CLIP KIND. Every other non-video lane (audio, tracking, augmenta, mediapipe) is
+// registered by the plugin that owns it, so `kind` alone told the timeline "not a picture". A LIGHTING
+// lane is core (App mints it, the lighting engine reads it) and nobody registered it, so the per-frame
+// video sync, warmMedia and the cold-start gate all treated its clip — `path: ''` — as a video to load.
+// The gate waited for a <video> that could never become ready and armed by timeout: every project
+// opening on a lighting take started 15 s late, logging "never became ready: " with an empty name.
+// Found 2026-10-24 opening examples/lighting/02-a-recorded-busk on the installed build.
+clipKinds.set('lighting', { kind: 'lighting', skipVideoSync: true, excludeFromProgram: true });
 
 // ── Projector data channels ───────────────────────────────────────────────────────────────
 const projectorChannels = new Map<string, ProjectorChannel<Surface>>();
