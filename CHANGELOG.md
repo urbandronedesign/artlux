@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.33.11
+
+### "Send as NDI" works on a windowed output
+
+Ticking **Send as NDI** on a projector output that runs **in a window** (rather than full screen on a
+display) opened the window but never published it on the network — no NDI source appeared, and nothing
+said why. A windowed output now sends exactly like a full-screen one, under the name *ArtLux — the
+surface's name*.
+
+See [NDI](docs/NDI.md).
+
 ## v0.33.10
 
 ### Everything comes back after a graphics crash — HAP, text, tracking, the 3D view
