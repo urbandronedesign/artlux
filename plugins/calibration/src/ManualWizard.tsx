@@ -193,6 +193,7 @@ export const ManualWizard: React.FC<Props> = (props) => {
       intrinsics: manualK(tr, 0, 0, r.w, r.h), distortion: [0, 0, 0, 0, 0], imageSize: [r.w, r.h],
       throwRatio: tr, lensShift: [0, 0], intrinsicsSource: 'manual', intrinsicsRms: undefined,
       rotation: pose.rotation, translation: pose.translation, poseRms: undefined, poseSeeded: p.name,
+      poseSeed: { from: p.name, rotation: pose.rotation, translation: pose.translation },
     });
     setPrevLens(null);
     addLog(`✓ started from ${p.name} — throw ${tr.toFixed(2)}, pose from the file`);

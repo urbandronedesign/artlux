@@ -173,16 +173,24 @@ const ProjectorPlane: React.FC<{ model: SceneModel; meshLook?: MeshLook }> = ({ 
 const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: MeshLook }> = ({ model, url, meshLook = 'shaded' }) => {
   const { scene } = useGLTF(url);
   const { material, hasContent } = useContentMaterial(model);
-  // One material for both looks: LineSegments and a wireframe Mesh both draw lines from it.
+  // TWO materials, one per look — and they must never be swapped. A material with `wireframe: true`
+  // makes three re-index whatever it draws AS TRIANGLES (WebGLRenderer.renderBufferDirect →
+  // getWireframeAttribute), whatever the object is. The 'edges' look used to share this one with its
+  // LineSegments, so every crease segment list was redrawn as phantom triangles: edges paired with
+  // the wrong vertices, one dropped, and an index read past the end of the buffer coming back as
+  // (0,0,0) — lines from the corners to the model's origin, on the very overlay an operator aligns the
+  // real object against (the Points underlay and Verify). Lines get a line material.
   const wireMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   if (!wireMatRef.current) wireMatRef.current = new THREE.MeshBasicMaterial({ color: '#00ffaa', wireframe: true, toneMapped: false });
+  const edgeMatRef = useRef<THREE.LineBasicMaterial | null>(null);
+  if (!edgeMatRef.current) edgeMatRef.current = new THREE.LineBasicMaterial({ color: '#00ffaa', toneMapped: false });
   // Vertex dots on the wire look: the 3D-side pick snaps to vertices, so lighting the vertices on the
   // REAL object shows the operator exactly which physical spots have a model counterpart to aim at.
   const ptsMatRef = useRef<THREE.PointsMaterial | null>(null);
   if (!ptsMatRef.current) ptsMatRef.current = new THREE.PointsMaterial({ color: '#ffcc00', size: 5, sizeAttenuation: false, toneMapped: false });
 
   // Same recentre as ModelObject → identical world coords, because it is literally the same function.
-  const cloned = useMemo(() => recenterClone(scene), [scene]);
+  const cloned = useMemo(() => recenterClone(scene, model.origin), [scene, model.origin]);
 
   // Casts into the projector depth map. Unconditional, and independent of whether THIS mesh reads
   // one: a mesh with no content of its own still stands in front of one that has some, and must
@@ -225,7 +233,7 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
           ? new THREE.EdgesGeometry(m.geometry as THREE.BufferGeometry, CREASE_DEG)
           : null;
         const line = geo
-          ? new THREE.LineSegments(geo, wireMatRef.current!)
+          ? new THREE.LineSegments(geo, edgeMatRef.current!)
           : new THREE.Mesh(m.geometry, wireMatRef.current!);
         line.applyMatrix4(mat);
         root.add(line);
@@ -279,7 +287,7 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
   // The flipped screen geometries belong to THIS clone — release them when the file swaps or unmounts.
   useEffect(() => () => disposeContentSwap(swapRef.current!), [cloned]);
 
-  useEffect(() => () => { wireMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
+  useEffect(() => () => { wireMatRef.current?.dispose(); edgeMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
 
   if (!model.visible) return null;
   return (
@@ -412,6 +420,15 @@ uniform sampler2D uBlendTex;  // world-space partition-of-unity alpha (blendComp
 uniform sampler2D uBlackTex;  // per-cell black-lift weight, R8
 uniform float uHasBlend;      // 0 = analytic soft edge only (no rig blend solved)
 ${SOFT_EDGE_GLSL}
+// THE BLEND IS APPLIED TO THE SIGNAL, AND HERE THE SIGNAL IS NOT WHAT inputColor HOLDS. An Effect runs
+// in LINEAR light and the composer sRGB-encodes the result afterwards. blendSignal already returns the
+// display-referred multiplier (share^(1/g)), so multiplying the linear colour by it encoded the blend
+// TWICE: an alpha of 0.52 came out as sRGB(0.74) = 0.87 instead of 0.74, and two projectors gave 1.45x
+// the light across their overlap — measured on the multi-projector template (the 2D path, which writes
+// its canvas directly, was right). So: encode, apply the blend where ProjectorGL applies it, decode,
+// and the composer's own encode then restores exactly the value the 2D path would have written.
+vec3 blendEncodeSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+vec3 blendDecodeSRGB(vec3 c) { c = max(c, 0.0); return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
   vec2 suv = vec2(gl_FragCoord.x / resolution.x, 1.0 - gl_FragCoord.y / resolution.y);
   float share = softEdgeShare(suv, uSoft) * mix(1.0, texture2D(uBlendTex, suv).r, uHasBlend);
@@ -421,7 +438,8 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   // of the deepest overlap. Without one, fall back to ProjectorGL's analytic (1 - a) so an output
   // with only a hand-set soft edge behaves exactly as it does on the 2D path — no silent change.
   float blackW = mix(1.0 - a, texture2D(uBlackTex, suv).r, uHasBlend);
-  outputColor = vec4(inputColor.rgb * a * uColorGain + uBlackLift * blackW, inputColor.a);
+  vec3 signal = blendEncodeSRGB(inputColor.rgb) * a * uColorGain + uBlackLift * blackW;
+  outputColor = vec4(blendDecodeSRGB(signal), inputColor.a);
 }`;
 
 export interface BlendLook {

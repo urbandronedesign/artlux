@@ -355,7 +355,7 @@ export function removePick(surfaceId: string, index: number): void {
     storeCalibration(surfaceId, { posePicks: picks });
     void solvePose(surfaceId, picks);
   } else {
-    storeCalibration(surfaceId, { posePicks: picks, poseRms: undefined, poseSeeded: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
+    storeCalibration(surfaceId, { posePicks: picks, ...unsolvedPose(getCalibration(surfaceId)) });
   }
 }
 
@@ -371,7 +371,16 @@ export function poseModeChange(on: boolean): void {
 export function clearPoses(surfaceId: string): void {
   cancelPickDrag();
   emit({ editWorld: null, editPixel: null });
-  storeCalibration(surfaceId, { posePicks: [], poseRms: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
+  storeCalibration(surfaceId, { posePicks: [], ...unsolvedPose(getCalibration(surfaceId)) });
+}
+
+// The pose to fall back to when there are no longer enough points to solve: the projector's starting
+// pose from the venue file if the calibration began from one (poseSeed), otherwise none.
+function unsolvedPose(cal: ProjectorCalibration | undefined): Partial<ProjectorCalibration> {
+  const seed = cal?.poseSeed;
+  return seed
+    ? { poseRms: undefined, poseSeeded: seed.from, rotation: seed.rotation, translation: seed.translation }
+    : { poseRms: undefined, poseSeeded: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] };
 }
 
 // Full teardown when the calibration panel closes (mirrors App's former closeCalib ref resets).

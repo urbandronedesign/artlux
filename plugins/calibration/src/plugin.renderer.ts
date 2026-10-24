@@ -112,17 +112,25 @@ export const plugin: RendererPlugin = {
     ctx.panels.register({ id: 'calibration.import', mount: 'dock', title: 'Calibration File', Component: ImportPanel });
     ctx.contexts.extend('project', { dock: ['calibration.import'] });
 
+    // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
+    // projector). Projector windows mount every registered panel; the editor window ignores this registry.
+    //
+    // PLAYBACK, so ABOVE the authoring gate. Render-from-projector is how a calibrated output SHOWS its
+    // picture, and main drives it from the project alone (useCalibration + a solved pose) in EVERY
+    // launch. With this panel gated to --calibrate, a plain launch of a calibrated project told each
+    // projector to render the venue and gave it nothing to render with: black projectors, nothing
+    // logged (measured 2026-10-24 on the multi-projector template). Its authoring modes (pattern,
+    // crosshair) only ever run when a wizard drives them, so registering it everywhere costs nothing
+    // until an output is actually calibrated.
+    ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
+
     // ── AUTHORING — only under --calibrate (and every show mode, which implies it) ───────────────
     //
     // Everything below produces a calibration rather than playing one: the wizards, the camera, the
-    // structured-light patterns, the pose solve, the venue render the projector window draws while you
-    // align it. Skipped rather than registered-and-inert, because a Calibration viewport on the rail
+    // structured-light patterns, the pose solve. (The projector-window panel is NOT here — see above:
+    // rendering a calibration is playback.) Skipped rather than registered-and-inert, because a Calibration viewport on the rail
     // and a panel on every projector window that both decline to work is worse than their absence.
     if (!isAuthoringLaunch()) return;
-
-    // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
-    // projector). Projector windows mount every registered panel; the editor window ignores this registry.
-    ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
 
     // The calibration WORKBENCH (ROADMAP Stage 2b, closed 2026-07-23). The wizards lived here all
     // along but App mounted them and held their state, because a Stage-coupled workspace had no mount

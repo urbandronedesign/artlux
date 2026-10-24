@@ -134,6 +134,8 @@ too small/complex for a board.
    lands where that projector predicts, so each one is a short nudge onto the real feature rather than
    a hunt. The starting pose is **not** a calibration: the output does not render from it, and the
    Points step's RMS stays empty until 4 points have solved, at which point the solve replaces it.
+   It is kept, though: **Clear points** (or deleting back below 4 points) returns to the starting pose
+   rather than to no pose at all, so starting your points over keeps the head start.
    Lens shift does not travel in a glTF file, so it starts at 0 — enter it if your projector has
    one, or let auto-solve find it.
 3. **Points** — identical gesture to the board flow's Pose step: crosshair on a physical feature →

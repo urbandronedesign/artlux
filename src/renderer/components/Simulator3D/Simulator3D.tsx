@@ -556,8 +556,13 @@ const Simulator3D: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Canvas region — fills the pane below the header. The inspector overlays only this area. */}
-      <div className="flex-1 relative">
+      {/* Canvas region — fills the pane below the header. The inspector overlays only this area.
+          `min-h-0` is load-bearing: a flex child's min-height defaults to its CONTENT, and the content
+          is a canvas r3f sized in pixels from this very box. Once the pane had been tall (the Calib
+          context's 772 px), the canvas held the box at that height after the pane shrank — the slot
+          clipped the overflow, the view's centre sat under the dock, and looking through a projector
+          showed the picture shifted down with its bottom cut off. */}
+      <div className="flex-1 min-h-0 relative">
       {/* The floating transform inspector that used to overlay this canvas is GONE. It was already
           dead code — App always passed `hideInspector`, so it never rendered in the main window — and
           the `3d` context's `core.inspector.model.transform` panel is its real replacement. */}
