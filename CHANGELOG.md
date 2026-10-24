@@ -1,5 +1,63 @@
 # Changelog
 
+## v0.34.0
+
+### Import a Blender file directly
+
+**3D Scene ▸ add model** now takes a `.blend` file. Blender runs in the background to convert it, so
+it must be installed on the machine; ArtLux finds the newest version, or set its path in
+**Preferences ▸ Blender**. Save the file in Blender and the venue updates in ArtLux a few seconds
+later, on every window, projectors included. The project keeps the converted model as well, so it
+still opens on a machine without Blender.
+
+See [3D scene](docs/user-guide/09-3d-scene.md).
+
+### Screens and projectors named in Blender
+
+- An object named `screen…` is a **screen**: it gets its own content binding (a layer, a surface or a
+  Program) and stays locked to the model. Its UVs come from Blender.
+- A camera named `projector…` is a **projector placed in the venue**. It is drawn in the 3D view,
+  reaching the venue, and a Manual calibration can **Start from it**: its lens and position are the
+  starting point, and your points correct them against the real room. **Clear points** returns to
+  that starting point.
+
+Content on a Blender model is now the right way up, on screens and on the whole model.
+
+### Three calibration templates
+
+New examples to start from: **Manual calibration** (one flat screen, one projector), **Curved
+calibration** (a curved screen) and **Multi-projector** (a 6 m curved panorama, two projectors
+blended). Each comes with its Blender file and the steps to calibrate it.
+
+See [the examples](examples/README.md).
+
+### A seamless rig blend
+
+**Solve blend** on calibrated projectors now computes each projector's share of the light exactly,
+from where every point lands on every projector, and on the GPU. Measured on the two-projector
+template, the overlap gives the same light as one projector alone (1.00), with a smooth fade. The fade
+gets finer when the overlap is narrow, so a narrow overlap no longer shows bands. The blend inspector
+now shows the real total of light at each point; it used to show a correct blend as too bright.
+
+See [Calibration](docs/user-guide/10-calibration.md).
+
+### Calibration files
+
+- **Fixed:** with a calibration file loaded and the venue model in the project, the projectors were
+  black. They now play, including video, in the editor and in broadcast.
+- **Unload** keeps the live calibration on a machine that has the venue model. It used to return
+  every output to its flat warp. Still images and paused video come back too, instead of blank grey.
+- A file's blend now plays when imported, and exporting a file no longer fails when the 3D view is
+  hidden or at some window widths.
+
+### Other fixes
+
+- A calibrated output was black in a plain launch (without `--calibrate`).
+- After a calibration saved the project, the title still said *Unsaved changes*.
+- Looking through a projector in the 3D view drew the move tool and the origin marker huge.
+- The calibration **Edges** look was garbled.
+- A projector window opened late could miss its calibration and show the wrong picture.
+
 ## v0.33.13
 
 ### New template: an interactive show the room drives
