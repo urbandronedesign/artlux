@@ -140,12 +140,21 @@ class GLRenderer {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
+  /** The GPU process crashed (or the browser reclaimed this context): every object above is gone. */
+  isLost(): boolean { return this.gl.isContextLost(); }
+
   dispose(): void {
     this.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }
 
 const renderers = new Map<string, GLRenderer | null>(); // null = construction failed (no s3tc)
+// ⚠ A FAILED CONSTRUCTION IS RETRIED, NOT REMEMBERED FOR EVER. `null` used to mean "this machine has no
+// WebGL2/s3tc" and was cached for the life of the window — but it is ALSO what a construction returns
+// while the GPU process is restarting after a crash, and caching it then left that HAP layer black for
+// the rest of the show. A real lack of s3tc just retries cheaply every few seconds.
+const failedAt = new Map<string, number>();
+const RETRY_FAILED_MS = 2000;
 // Each consumer key (layer id / surface path) gets its own WebGL2 context — one context backs
 // exactly one canvas, and simultaneous HAP sources each need their own live canvas. Browsers
 // force-lose the oldest context past a hard cap (~16), which would show as black/torn HAP frames,
@@ -157,8 +166,21 @@ let warnedContexts = false;
 // is unavailable, so the caller can fall back).
 export function uploadFrame(key: string, f: HapFrame): DecodeCanvas | null {
   let r = renderers.get(key);
+  // ⚠ A LOST CONTEXT IS REBUILT ON A NEW CANVAS. A GPU-process crash kills this WebGL2 context and
+  // nothing told HAP: uploads went into a dead context and every HAP surface, layer and projector
+  // showing one stayed BLACK for the rest of the show while MP4, shaders and effects came back.
+  // Measured 2026-10-24 (Browser.crashGpuProcess): HAP-Q and HAP-Alpha 100 → 0 lit LEDs, for good.
+  // isContextLost() is one boolean read, so asking on every upload costs nothing.
+  if (r && r.isLost()) {
+    console.warn(`[hapGL] WebGL context lost for ${key} — rebuilding on a new canvas`);
+    renderers.delete(key); r = undefined;
+  }
+  if (r === null && performance.now() - (failedAt.get(key) ?? 0) >= RETRY_FAILED_MS) { renderers.delete(key); r = undefined; }
   if (r === undefined) {
-    try { r = new GLRenderer(); } catch (e) { console.warn('[hapGL] unavailable:', (e as Error).message); r = null; }
+    try { r = new GLRenderer(); failedAt.delete(key); } catch (e) {
+      if (!failedAt.has(key)) console.warn('[hapGL] unavailable:', (e as Error).message);
+      failedAt.set(key, performance.now()); r = null;
+    }
     renderers.set(key, r);
     if (!warnedContexts && [...renderers.values()].filter(Boolean).length >= CONTEXT_WARN) {
       warnedContexts = true;
@@ -173,4 +195,5 @@ export function uploadFrame(key: string, f: HapFrame): DecodeCanvas | null {
 export function release(key: string): void {
   renderers.get(key)?.dispose();
   renderers.delete(key);
+  failedAt.delete(key);
 }

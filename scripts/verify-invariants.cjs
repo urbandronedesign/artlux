@@ -6421,6 +6421,19 @@ check(
     if (!rp || !/--user-data-dir=/.test(rp)) bad.push('src/main/runProfile.ts: relaunchArgs() no longer carries --user-data-dir — a relaunch lands on the default profile');
     const wd = stripComments(read('src/main/watchdog.ts'));
     if (!/gpuDeviceLost/.test(wd) || !/'gpu-device-lost'/.test(wd)) bad.push('src/main/watchdog.ts: the watchdog no longer relaunches on an unrecovered GPU device loss');
+    // The rest of the window's GPU users, measured one by one after the LEDs were fixed (each went
+    // black or froze for good after a crash): HAP, the three tracking overlays, text, the 3D view.
+    const hap = braceBody(read('plugins/hap/src/hapGL.ts'), 'export function uploadFrame(');
+    if (!hap || !/\.isLost\(\)/.test(hap)) bad.push('plugins/hap/src/hapGL.ts: uploadFrame no longer rebuilds a renderer whose WebGL context was lost');
+    if (hap && !/RETRY_FAILED_MS/.test(hap)) bad.push('plugins/hap/src/hapGL.ts: a failed renderer construction is cached for ever again — it must be retried');
+    for (const f of ['plugins/lidar-tracking/src/trackingDrawable.ts', 'plugins/augmenta/src/augmentaDrawable.ts', 'plugins/mediapipe/src/poseDrawable.ts']) {
+      const g = braceBody(read(f), 'function getGL(');
+      if (!g || !/isContextLost\(\)/.test(g)) bad.push(f + ': getGL no longer rebuilds a lost WebGL context');
+    }
+    if (!/onGpuLost\(/.test(stripComments(read('plugins/text/src/textRaster.ts')))) bad.push('plugins/text/src/textRaster.ts: the raster cache no longer drops its GPU-backed bitmaps on GPU loss');
+    if (!/dispatchEvent\(new Event\(GPU_LOST_EVENT\)\)/.test(rec ?? '')) bad.push(E + ': recoverFromDeviceLoss no longer announces GPU_LOST_EVENT to the window');
+    const s3 = stripComments(read('src/renderer/components/Simulator3D/Simulator3D.tsx'));
+    if (!/SCENE3D_LOST_EVENT/.test(s3) || !/key=\{glEpoch\}/.test(s3)) bad.push('src/renderer/components/Simulator3D/Simulator3D.tsx: the 3D canvas no longer remounts after its device is lost');
     return bad.length ? bad.join('; ') : null;
   },
 );

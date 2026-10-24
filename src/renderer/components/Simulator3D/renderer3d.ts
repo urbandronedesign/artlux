@@ -47,6 +47,9 @@ import { gpuDevice } from '../../gpu/gpuDevice';
  * machine that opted in during the spike gets the same answer either way, and a second key that only
  * ever agrees with the default is a thing to keep true for no benefit.
  */
+/** Fired when the 3D renderer's own GPUDevice is lost (not destroyed by us) — Simulator3D remounts. */
+export const SCENE3D_LOST_EVENT = 'artlux:scene3d-device-lost';
+
 export function wantsWebGPU(): boolean {
   try {
     if (localStorage.getItem('artlux.scene3dWebGL') === '1') return false;
@@ -127,7 +130,14 @@ export function glProp(onFallback: (reason: string) => void): GlProp {
       dev.addEventListener('uncapturederror', (ev) => {
         console.error('[scene3d] WebGPU uncaptured error:', (ev as GPUUncapturedErrorEvent).error?.message ?? ev);
       });
-      void dev.lost.then((i) => console.error('[scene3d] WebGPU DEVICE LOST:', i.reason, i.message));
+      void dev.lost.then((i) => {
+        console.error('[scene3d] WebGPU DEVICE LOST:', i.reason, i.message);
+        // A GPU-process crash leaves this viewport BLACK for good — measured 2026-10-24 — because a
+        // renderer cannot move to a new device. Simulator3D remounts its <Canvas> on this event (once
+        // the pane is visible), which builds a fresh renderer on a fresh device. Our own teardown
+        // (reason 'destroyed', an unmount) is not a loss.
+        if (i.reason !== 'destroyed') { try { window.dispatchEvent(new Event(SCENE3D_LOST_EVENT)); } catch { /* no window */ } }
+      });
     };
     // SKIP FRAMES UNTIL THE BACKEND IS UP. Returning the renderer synchronously is the whole point
     // (see below), but three does NOT initialise itself on first render — it throws

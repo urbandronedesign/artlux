@@ -3,6 +3,7 @@ import { IPixelMapper } from '../services/PixelMapper';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { publishGpuDevice } from '../gpu/gpuDevice';
+import { GPU_LOST_EVENT } from '@artlux/sdk/renderer';
 import { sendArtNetFrame } from '../services/mockSocketService';
 import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
@@ -325,6 +326,10 @@ class FrameEngine {
     this.mapper = null;
     try { dead.dispose(); } catch { /* it is already dead */ }
     this.setStatus({ ...this.status, gpuLost: true, gpuLosses: losses });
+    // Tell everything else in this window that cached GPU-backed pixels (text rasters, WebGL renderers):
+    // the same crash killed theirs, and a cache that still reads "fresh" hands out black. See the SDK's
+    // GPU_LOST_EVENT.
+    try { window.dispatchEvent(new Event(GPU_LOST_EVENT)); } catch { /* no window (test harness) */ }
     let attempt = 0;
     const retry = async (): Promise<void> => {
       attempt++;

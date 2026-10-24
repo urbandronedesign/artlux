@@ -43,7 +43,7 @@ import {
   useSnap, getSnap, setSnap, SNAP_MOVE_CHOICES, SNAP_ROTATE_CHOICES, SNAP_SCALE_CHOICES,
 } from '../../services/scene3dQuality';
 import { FrameRateCap } from './FrameRateCap';
-import { glProp, wantsWebGPU } from './renderer3d';
+import { glProp, wantsWebGPU, SCENE3D_LOST_EVENT } from './renderer3d';
 import { AxisTriad } from './AxisTriad';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
@@ -304,6 +304,24 @@ const Simulator3D: React.FC<Props> = ({
   const [glFallback, setGlFallback] = useState<string | null>(null);
   const glConfig = useMemo(() => glProp(setGlFallback), []);
   const webgpuSpike = useMemo(() => wantsWebGPU(), []);
+  // ── A LOST GPU DEVICE REMOUNTS THE CANVAS ──────────────────────────────────────────────────
+  // A renderer cannot move to a new device, so after a GPU-process crash this viewport stayed black
+  // until the window reloaded (measured 2026-10-24). A new <Canvas> key builds a fresh renderer on a
+  // fresh device through the same factory. Deferred until the pane is VISIBLE: mounting r3f at 0x0
+  // leaves its raycaster dead (the lazy-but-sticky rule), and a hidden pane loses nothing by waiting.
+  // Still ONE scene: the key swap unmounts the old canvas before the new one mounts.
+  const [glEpoch, setGlEpoch] = useState(0);
+  const [glLost, setGlLost] = useState(false);
+  useEffect(() => {
+    const on = () => setGlLost(true);
+    window.addEventListener(SCENE3D_LOST_EVENT, on);
+    return () => window.removeEventListener(SCENE3D_LOST_EVENT, on);
+  }, []);
+  useEffect(() => {
+    if (!glLost || paused) return;
+    const t = setTimeout(() => { setGlLost(false); setGlEpoch((e) => e + 1); }, 600); // let the GPU process come back
+    return () => clearTimeout(t);
+  }, [glLost, paused]);
   // Leaving pick mode drops the snap preview. It lives outside React (pointer-rate channel), so
   // unmounting SnapCursor would otherwise leave a stale vertex behind for the next session.
   useEffect(() => { if (!calibPickMode) setSnapHover(null); return () => setSnapHover(null); }, [calibPickMode]);
@@ -515,6 +533,7 @@ const Simulator3D: React.FC<Props> = ({
           the `3d` context's `core.inspector.model.transform` panel is its real replacement. */}
 
       <Canvas
+        key={glEpoch}
         // 'never' covers BOTH reasons this viewport stops driving itself: hidden (paused), and capped
         // — in which case <FrameRateCap> below is what advances it. Uncapped and visible is r3f's
         // ordinary 'always', i.e. exactly what this has always done.

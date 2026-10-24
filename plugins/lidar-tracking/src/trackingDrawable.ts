@@ -21,12 +21,19 @@ interface CPUSurf { el: HTMLCanvasElement; ctx: CanvasRenderingContext2D; w: num
 
 const glSurfaces = new Map<string, GLSurf | null>(); // null = GL init failed → CPU fallback
 const cpuSurfaces = new Map<string, CPUSurf>();
+const glFailedAt = new Map<string, number>(); // when GL init last failed — retried, not cached (see getGL)
 
 function getGL(id: string): GLSurf | null {
+  // ⚠ A LOST CONTEXT IS REBUILT. A GPU-process crash kills this canvas's WebGL2 context, and the
+  // overlay drew into it — blank — for the rest of the show (measured 2026-10-24). Same for a null
+  // cached while the GPU was restarting: it is retried, not remembered (see hapGL for the reasoning).
+  const cur = glSurfaces.get(id);
+  if (cur && cur.gl.isContextLost()) { console.warn(`[tracking] WebGL context lost for ${id} — rebuilding`); glSurfaces.delete(id); }
+  else if (cur === null && performance.now() - (glFailedAt.get(id) ?? 0) >= 2000) glSurfaces.delete(id);
   if (glSurfaces.has(id)) return glSurfaces.get(id)!;
   const el = document.createElement('canvas');
   const gl = el.getContext('webgl2', { premultipliedAlpha: true, antialias: true, alpha: true }) as WebGL2RenderingContext | null;
-  if (!gl) { glSurfaces.set(id, null); return null; }
+  if (!gl) { glSurfaces.set(id, null); glFailedAt.set(id, performance.now()); return null; }
   const s: GLSurf = { el, gl, bgTex: gl.createTexture()!, overlayTex: gl.createTexture()!, w: 0, h: 0 };
   glSurfaces.set(id, s);
   return s;

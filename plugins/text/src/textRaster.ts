@@ -29,6 +29,7 @@
 import type { SurfaceContent } from '@/types';
 import { getSurface } from '@/services/surfaceMedia'; // host service (transitional runtime seam, as in shaderDrawable)
 import { familyFor, revision as fontRevision } from './fontAssets';
+import { onGpuLost } from '@artlux/sdk/renderer';
 
 interface Entry {
   bitmap: ImageBitmap | null;
@@ -135,6 +136,16 @@ function signatureOf(c: SurfaceContent, w: number, h: number): string {
 // canvas can serve every consumer in turn.
 let scratch: OffscreenCanvas | null = null;
 let scratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+
+// ⚠ A GPU CRASH TAKES THE CACHED RASTERS WITH IT. The bitmaps below are GPU-backed, and the cache is
+// keyed only on the copy and the box — so after a GPU-process crash it went on handing out a dead,
+// black bitmap as "unchanged" for the rest of the show (measured 2026-10-24: 21 lit LEDs → 0, for
+// good, while the host's LED sampler had recovered). The host announces the loss; drop everything and
+// let the next getFor() repaint. The generation bump makes every consumer re-upload.
+onGpuLost(() => {
+  for (const e of entries.values()) { try { e.bitmap?.close(); } catch { /* already gone */ } e.bitmap = null; e.sig = ''; e.gen++; }
+  scratch = null; scratchCtx = null;
+});
 
 function canvasFor(w: number, h: number): OffscreenCanvasRenderingContext2D | null {
   if (typeof OffscreenCanvas === 'undefined') return null;

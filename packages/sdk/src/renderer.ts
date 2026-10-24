@@ -19,6 +19,22 @@ export type { OscMessage, OscConfig, PluginManifest, PluginState, PluginStatus }
 export { nextNumberedName } from './index.ts';
 export { nameStem } from './index.ts';
 
+// ── GPU LOSS — DROP WHAT LIVED ON THE GPU ──────────────────────────────────────────────────────
+// A GPU-process crash (driver reset/TDR, driver crash, GPU OOM) kills every WebGL context, WebGPU
+// device and GPU-backed canvas/ImageBitmap in the window AT ONCE, and a cache that still says "fresh"
+// then hands out a black picture forever — measured 2026-10-24 on text (a cached raster) after the
+// host's own LED sampler had been fixed to recover. The host fires this event when it detects the loss
+// (frameEngine.recoverFromDeviceLoss); a contribution that caches anything GPU-backed should listen and
+// re-create it on next use. A WebGL renderer can also check `gl.isContextLost()` itself, which covers
+// windows where the host's detector does not run (projector windows reload instead).
+export const GPU_LOST_EVENT = 'artlux:gpu-lost';
+/** Subscribe to GPU loss in this window. Returns the unsubscribe. Safe where `window` is missing. */
+export function onGpuLost(cb: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(GPU_LOST_EVENT, cb);
+  return () => window.removeEventListener(GPU_LOST_EVENT, cb);
+}
+
 // A drawable surface source — same as the host compositor's `CanvasImageSource`.
 export type Drawable = CanvasImageSource;
 
