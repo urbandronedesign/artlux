@@ -152,6 +152,8 @@ export type ProjectorToMain =
   | { t: 'calibPointDragEnd' }
   // Receipt of a `frame` / `layerFrame` / `surfaceFrame` carrying `ack` — releases that stream in main.
   | { t: 'frameAck'; key: string }
-  // The window (re)entered render-from-projector and holds no surface pictures for its venue: main
-  // forgets what it last shipped here, so even a STATIC surface is sent again. See ProjectorApp.
-  | { t: 'needFrames' };
+  // The window's EFFECTIVE render-from-projector state, sent whenever it changes. Main asks for render
+  // mode, but the WINDOW decides — a loaded calibration file supersedes it (ProjectorApp.applyCalibMode)
+  // — and main must stream what the window really draws: its own surface, or the venue's pictures.
+  // Entering render also makes main re-send those pictures, since the panel dropped them on leaving.
+  | { t: 'renderMode'; render: boolean };

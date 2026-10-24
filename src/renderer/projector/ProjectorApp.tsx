@@ -360,6 +360,7 @@ export const ProjectorApp: React.FC = () => {
   // because the override can flip long after the mode arrived — a venue file is imported while an
   // output is already rendering — and the panels then have to be told the effective mode again.
   const lastCalibRef = useRef<Extract<MainToProjector, { t: 'calib' }> | null>(null);
+  const reportedRenderRef = useRef<boolean | null>(null); // last renderMode told to main — see applyCalibMode
   const applyLocalLayers = () => {
     engine.setLocalLayers([...new Set([...configLocalRef.current, ...(calibRenderRef.current ? sceneLayersRef.current : [])])]);
   };
@@ -390,13 +391,18 @@ export const ProjectorApp: React.FC = () => {
     const req = lastCalibRef.current;
     if (!req) return;
     const eff = req.mode === 'render' && bakedRef.current?.uploaded ? { ...req, mode: 'idle' as const } : req;
-    const wasRender = calibRenderRef.current;
     calibRenderRef.current = eff.mode === 'render';
-    // ENTERING render mode: the calibration panel dropped the surface pictures it textures the venue
-    // with when it last left (CalibProjector clears them off-render), and main ships a picture only
-    // when it CHANGES. A static surface — a test card, a paused clip — therefore never came back:
-    // unloading an imported calibration returned the venue with every screen blank grey (measured).
-    if (calibRenderRef.current && !wasRender) send({ t: 'needFrames' });
+    // TELL MAIN WHAT THIS WINDOW REALLY DRAWS, on every change (and once at first). Main streams from
+    // its own rendersVenue(), which cannot see a loaded calibration file — so with the venue model
+    // present and a file imported, it withheld this window's own surface (it thought the window drew
+    // the venue) while the window, superseded, drew exactly that surface: BLACK. And it went on
+    // streaming the venue's pictures to nobody — a 5760×2880 clip, twice, every frame (measured).
+    // Entering render also makes main re-send the venue's pictures: the calibration panel dropped them
+    // on leaving, and a static surface is never sent again by itself (an unload came back blank grey).
+    if (calibRenderRef.current !== reportedRenderRef.current) {
+      reportedRenderRef.current = calibRenderRef.current;
+      send({ t: 'renderMode', render: calibRenderRef.current });
+    }
     applyLocalLayers();
     panelStateRef.current.set('calib', eff);
     panelMsgSubs.current.forEach((cb) => cb(eff));

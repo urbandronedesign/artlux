@@ -521,7 +521,10 @@ const App: React.FC = () => {
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   // Installed by the projector frame pump: a window's `frameAck` releases that stream's in-flight slot.
   const projFrameAckRef = useRef<(surfaceId: string, key: string) => void>(() => {});
-  const projNeedFramesRef = useRef<(surfaceId: string) => void>(() => {}); // see ProjectorToMain 'needFrames'
+  const projNeedFramesRef = useRef<(surfaceId: string) => void>(() => {}); // see ProjectorToMain 'renderMode'
+  // What each projector window REPORTS it draws (ProjectorToMain 'renderMode'). false = a calibration
+  // file superseded render-from-projector there, so the pump streams its own surface, not the venue's.
+  const windowRendersRef = useRef(new Map<string, boolean>());
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
   const ndiSendersRef = useRef<Set<string>>(new Set());                  // surfaceIds with a live NDI sender
   const [nvAvailable, setNvAvailable] = useState(false);                 // NVAPI scanout warp/blend present (Quadro/RTX-pro)
@@ -4332,7 +4335,10 @@ const App: React.FC = () => {
               // These two decide different halves of one behaviour: this one withholds the window's
               // own frames, that one tells the window to draw the venue. If they ever disagree the
               // output is BLACK — told to draw its surface while being sent nothing to draw.
-              const renderActive = rendersVenue(out, scene3DRef.current)
+              // …AND what the window says it draws: a loaded calibration file supersedes render mode
+              // INSIDE the window, which rendersVenue cannot see. Ignoring that withheld the own surface
+              // from a window drawing exactly that surface — black — whenever the venue model was loaded.
+              const renderActive = (rendersVenue(out, scene3DRef.current) && windowRendersRef.current.get(surfaceId) !== false)
                   || calibWorkspace.getState().target === surfaceId;
               // SURFACE-BOUND MESHES. A mesh can be bound to ANY surface, not only this output's own,
               // and until it was streamed one it simply stayed dark. What makes the extra streams
@@ -4683,8 +4689,12 @@ const App: React.FC = () => {
   onProjectorMsgRef.current = (surfaceId, m) => {
       // ~30/s per stream, and pure pump bookkeeping — answered here and never fanned out to plugins.
       if (m.t === 'frameAck') { projFrameAckRef.current(surfaceId, m.key); return; }
-      if (m.t === 'needFrames') { projNeedFramesRef.current(surfaceId); return; }
-      if (m.t === 'ready') pushProjectorStateRef.current(surfaceId);
+      if (m.t === 'renderMode') {
+          windowRendersRef.current.set(surfaceId, m.render);
+          if (m.render) projNeedFramesRef.current(surfaceId);
+          return;
+      }
+      if (m.t === 'ready') { windowRendersRef.current.delete(surfaceId); pushProjectorStateRef.current(surfaceId); } // a fresh window reports its own mode
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
       else if (m.t === 'editOff') setEditingOutputIds(prev => prev.filter(x => x !== surfaceId));

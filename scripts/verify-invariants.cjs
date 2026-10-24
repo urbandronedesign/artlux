@@ -6936,7 +6936,7 @@ check(
 );
 
 check(
-  'a projector window re-entering render mode gets its surface pictures again',
+  'a projector window gets the pictures it really draws (render mode, or a calibration file)',
   'The calibration panel drops the surface pictures it textures the venue with whenever it leaves render ' +
   'mode, and main ships a picture only when it changes. So a STATIC surface (a test card, a paused clip) ' +
   'never came back: unloading an imported calibration returned the venue with every screen blank grey. ' +
@@ -6944,8 +6944,11 @@ check(
   () => {
     const pa = stripComments(read('src/renderer/projector/ProjectorApp.tsx'));
     const app = stripComments(read('src/renderer/App.tsx'));
-    if (!/send\(\{ t: 'needFrames' \}\)/.test(pa)) return 'ProjectorApp no longer asks for its pictures when it enters render mode';
-    if (!/m\.t === 'needFrames'/.test(app) || !/projNeedFramesRef\.current = /.test(app)) return 'App no longer answers needFrames by forgetting what it shipped that window';
+    if (!/send\(\{ t: 'renderMode', render: calibRenderRef\.current \}\)/.test(pa)) return 'ProjectorApp no longer reports its effective render mode to main';
+    if (!/m\.t === 'renderMode'/.test(app) || !/projNeedFramesRef\.current = /.test(app)) return 'App no longer answers renderMode by forgetting what it shipped that window';
+    // …and main streams by what the window REALLY draws: a calibration file supersedes render mode
+    // inside the window, and ignoring that withheld the own surface from it — black, venue loaded.
+    if (!/windowRendersRef\.current\.get\(surfaceId\) !== false/.test(app)) return 'the frame pump no longer asks the window whether a calibration file superseded its render mode';
     return null;
   },
 );
