@@ -22,6 +22,9 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > [2026-10-23-session-record.md](2026-10-23-session-record.md) — v0.33.6 / v0.33.7: the MP4 decoder
 > freeze and memory residency, exact thumbnails, outputs surviving an editor reload, the picker import,
 > CI retention; what was retracted; and how to test on the RTX box without the session's traps.
+> [2026-10-24-session-record.md](2026-10-24-session-record.md) — v0.33.8 → v0.33.11: the MP4 flicker
+> between states, the battle test ([battle-test-v0.33.8.md](battle-test-v0.33.8.md)), GPU-crash
+> recovery for every consumer, NDI fixes; what the owner must clean up, what is still open and untested.
 
 ### How these were produced (and how much to trust them)
 
