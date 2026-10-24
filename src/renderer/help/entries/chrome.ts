@@ -139,6 +139,14 @@ export const chromeHelp: HelpEntry[] = [
     group: 'General',
     keywords: ['osc', 'prefix', 'namespace', 'control', 'address'],
   },
+  {
+    id: 'general.blender-path',
+    title: 'Blender path',
+    short: 'Which Blender imports and updates native .blend venue files.',
+    body: 'Leave empty to use the newest Blender installed in the standard place. Set it to a blender.exe when Blender lives somewhere else, or to choose one version over another. Only needed to import or update a .blend; a machine that only plays the show does not need Blender.',
+    group: 'General',
+    keywords: ['blender', 'blend', 'import', 'venue', 'model', 'path'],
+  },
 
   // ── Browser column (outliner actions) ───────────────────────────────────────────────────────
   {

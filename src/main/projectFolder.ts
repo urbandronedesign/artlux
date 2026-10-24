@@ -15,7 +15,7 @@ export const PROJECT_FILENAME = 'project.artlux';
 
 const ASSET_CATEGORIES: Record<string, string[]> = {
   video: ['mp4', 'webm', 'mov', 'mkv'],
-  models: ['glb', 'gltf'],
+  models: ['glb', 'gltf', 'blend'], // a .blend is the SOURCE of a model (SceneModel.source) — it travels too
   images: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
   // wav/aiff/flac/ogg decode NATIVELY in the JUCE engine; mp3 is CONFORMED to a cached WAV on the way in
   // (plugins/audio/src/conformFormats.ts explains why the JUCE mp3 flag is deliberately off). AAC/m4a are
@@ -111,13 +111,20 @@ function mapSurfaces(surfaces: unknown, map: PathMap): unknown {
   });
 }
 
-// 3D scene: mesh model paths (planes have path '' → skipped by isFilePath's empty check).
+// 3D scene: mesh model paths (planes have path '' → skipped by isFilePath's empty check), and a model's
+// native .blend `source` — relativised, resolved and collected exactly like the .glb it exports to, or
+// a project moved to the venue would carry the export but lose the file it is edited from.
 function mapScene3D(scene3D: unknown, map: PathMap): unknown {
   const s3d = scene3D as any;
   if (!s3d || typeof s3d !== 'object' || Array.isArray(s3d) || !Array.isArray(s3d.models)) return scene3D;
   return {
     ...s3d,
-    models: s3d.models.map((m: any) => (isFilePath(m?.path) ? { ...m, path: map(m.path) } : m)),
+    models: s3d.models.map((m: any) => {
+      let next = m;
+      if (isFilePath(m?.path)) next = { ...next, path: map(m.path) };
+      if (isFilePath(m?.source)) next = { ...next, source: map(m.source) };
+      return next;
+    }),
   };
 }
 

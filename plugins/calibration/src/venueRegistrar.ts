@@ -67,7 +67,8 @@ const wanted = (s: Scene3D): SceneModel[] =>
 
 // Same transform, no reload: moving a model must not re-parse its GLB, and re-placing in place keeps
 // the registered object identity (venueRaycast holds the reference).
-const sameGeometry = (a: SceneModel, b: SceneModel): boolean => a.path === b.path;
+// The origin mode changes where the geometry sits inside its group, so it is geometry too.
+const sameGeometry = (a: SceneModel, b: SceneModel): boolean => a.path === b.path && a.origin === b.origin;
 
 export async function reconcile(scene: Scene3D): Promise<void> {
   if (!active) return;
@@ -121,9 +122,20 @@ export function start(getScene: () => Scene3D, subscribe: (cb: () => void) => ()
   let unsub: (() => void) | null = null;
   void reconcile(getScene());
   unsub = subscribe(() => { void reconcile(getScene()); });
+  // A .blend re-exported over its .glb keeps the same path, so `sameGeometry` would keep the stale
+  // mesh forever: drop the entries built from that file and let reconcile load it again.
+  const offBlend = window.artlux?.onBlendUpdated?.((r) => {
+    if (!r.ok) return;
+    for (const [id, entry] of [...placed]) {
+      if (entry.model.path !== r.glbPath) continue;
+      unregisterVenueMesh(id); dispose(entry); placed.delete(id);
+    }
+    void reconcile(getScene());
+  });
   return () => {
     active = false;
     unsub?.();
+    offBlend?.();
     for (const [id, entry] of placed) { unregisterVenueMesh(id); dispose(entry); }
     placed.clear();
   };

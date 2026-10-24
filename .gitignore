@@ -102,3 +102,6 @@ scripts/hap-exact/bundle.js
 # The per-project cache ArtLux writes next to any .artlux it opens (thumbnails, probes) — machine-local,
 # and opening an example from the repo must not leave one to commit.
 .artlux-cache/
+
+# Blender writes x.blend1 (the previous save) next to every .blend it saves — a backup, never content.
+*.blend1

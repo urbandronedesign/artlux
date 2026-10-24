@@ -51,9 +51,10 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   const controls = useRef<any>(null);
 
   // Recentred so the group origin (and thus the gizmo) sits at the mesh's bounding-box centre rather
-  // than the GLB's authored origin. Shared with the calibration render + raycast paths — see
-  // venuePlacement.ts for why a private copy here would be a silent metric error.
-  const cloned = useMemo(() => recenterClone(scene), [scene]);
+  // than the GLB's authored origin — unless the model keeps its file's origin (a .blend import, see
+  // SceneModel.origin). Shared with the calibration render + raycast paths — see venuePlacement.ts
+  // for why a private copy here would be a silent metric error.
+  const cloned = useMemo(() => recenterClone(scene, model.origin), [scene, model.origin]);
 
   // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own

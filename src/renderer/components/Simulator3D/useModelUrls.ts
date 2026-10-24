@@ -9,6 +9,18 @@ import type { SceneModel } from '../../../../shared/protocol';
 export function useModelUrls(models: SceneModel[] | undefined): Record<string, string> {
   const [modelUrls, setModelUrls] = useState<Record<string, string>>({});
   const urlCache = useRef<Record<string, string>>({});
+  // A .blend saved in Blender is re-exported OVER the same .glb path (main/blendImport.ts), so a cache
+  // keyed on the path would keep the old geometry forever. Drop that entry and run the load again: the
+  // fresh Blob URL is a new useGLTF key, so ModelObject re-parses and every binding follows by name.
+  const [reloads, setReloads] = useState(0);
+  useEffect(() => window.artlux?.onBlendUpdated?.((r) => {
+    const url = r.ok ? urlCache.current[r.glbPath] : undefined;
+    if (!url) return;
+    try { useGLTF.clear(url); } catch { /* ignore */ }
+    URL.revokeObjectURL(url);
+    delete urlCache.current[r.glbPath];
+    setReloads((n) => n + 1);
+  }), []);
 
   useEffect(() => {
     const list = models ?? [];
@@ -38,7 +50,7 @@ export function useModelUrls(models: SceneModel[] | undefined): Record<string, s
       }
     })();
     return () => { alive = false; };
-  }, [models]);
+  }, [models, reloads]);
 
   return modelUrls;
 }

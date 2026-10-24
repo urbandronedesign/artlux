@@ -65,7 +65,11 @@ export function usageIndex(refs: ProjectRefs): Map<string, AssetUsage> {
     if (url) at(normPath(url)).s.add(s.id);
   }
   for (const sc of refs.scene3D) {
-    for (const m of sc?.models ?? []) if (m.path) at(normPath(m.path)).m.add(m.id);
+    for (const m of sc?.models ?? []) {
+      if (m.path) at(normPath(m.path)).m.add(m.id);
+      // A model's native .blend is in use too — it is what the operator edits and what re-exports.
+      if (m.source) at(normPath(m.source)).m.add(m.id);
+    }
   }
   for (const tl of refs.timelines) {
     for (const c of tl.clips ?? []) {

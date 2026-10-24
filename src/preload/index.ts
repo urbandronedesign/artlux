@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
-    type ProjectData, type RigData, type Prefs, type UpdateEvent,
+    type ProjectData, type RigData, type Prefs, type UpdateEvent, type BlendWatchEntry, type BlendConvertResult,
     type DisplayInfo, type OscConfig, type OscMessage, type OscOutPacket,
     type WindowCommand, type RenderStats, type WatchdogEvent, type RendererFault,
     type BootEntry, type BootReport, type LogRecord,
@@ -131,6 +131,20 @@ const api: ArtluxApi = {
     // 3D model import (used by the embedded 3D scene panel)
     pickModel: () => ipcRenderer.invoke(IPC.SCENE_PICK_MODEL),
     readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
+    // Native .blend import — main runs Blender headless (main/blendImport.ts).
+    convertBlend: (blendPath: string, glbPath?: string) => ipcRenderer.invoke(IPC.BLEND_CONVERT, blendPath, glbPath),
+    watchBlends: (list: BlendWatchEntry[]) => ipcRenderer.send(IPC.BLEND_WATCH, list),
+    findBlender: () => ipcRenderer.invoke(IPC.BLEND_FIND),
+    onBlendUpdating: (cb: (source: string) => void) => {
+        const listener = (_e: unknown, source: string) => cb(source);
+        ipcRenderer.on(IPC.BLEND_UPDATING, listener);
+        return () => { ipcRenderer.removeListener(IPC.BLEND_UPDATING, listener); };
+    },
+    onBlendUpdated: (cb: (r: BlendConvertResult & { source: string }) => void) => {
+        const listener = (_e: unknown, r: BlendConvertResult & { source: string }) => cb(r);
+        ipcRenderer.on(IPC.BLEND_UPDATED, listener);
+        return () => { ipcRenderer.removeListener(IPC.BLEND_UPDATED, listener); };
+    },
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
     perfOpenArmed: () => ipcRenderer.send(IPC.PERF_OPEN_ARMED),
     thumbGet: (path: string, qt: number) => ipcRenderer.invoke(IPC.THUMB_GET, path, qt),

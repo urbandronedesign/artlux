@@ -833,14 +833,51 @@ const App: React.FC = () => {
   // Returns the new model's id (null = the picker was cancelled) so a caller that is BLOCKED on having
   // a venue model — the calibration wizard's Setup prerequisite — can react rather than just hoping.
   const handleAddModel = async (): Promise<string | null> => {
-    const path = await window.artlux?.pickModel?.();
-    if (!path) return null;
-    const name = (path.replace(/\\/g, '/').split('/').pop() || path).replace(/\.(glb|gltf)$/i, '');
+    const picked = await window.artlux?.pickModel?.();
+    if (!picked) return null;
+    const name = (picked.replace(/\\/g, '/').split('/').pop() || picked).replace(/\.(glb|gltf|blend)$/i, '');
+    // A NATIVE .blend goes through Blender first (main/blendImport.ts): the model loads the .glb it
+    // exports, and keeps the .blend as `source` so saving it in Blender updates the scene.
+    let path = picked;
+    let source: string | undefined;
+    if (/\.blend$/i.test(picked)) {
+      toastRef.current.info('Importing from Blender…', `Exporting ${name} with the Blender installed on this machine.`);
+      const res = await window.artlux?.convertBlend?.(picked);
+      if (!res?.ok) { toastRef.current.error(`Could not import ${name}`, res?.error ?? 'Blender is not available.'); return null; }
+      path = res.glbPath;
+      source = picked;
+    }
     const count = (scene3D.models ?? []).length;
     const id = crypto.randomUUID();
-    addSceneModel({ id, name, path, position: { x: count * 2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 1, visible: true });
+    // A .blend lands exactly where Blender has it: its own origin (no recentre) at the world origin, so
+    // ArtLux coordinates ARE Blender's — a screen at 2 m is at 2 m, a projector placed in metres stays
+    // there, and adding geometry in Blender moves nothing that is already calibrated. A plain GLB keeps
+    // the old cascade so several imports do not land inside each other.
+    const placement = source
+      ? { source, origin: 'file' as const, position: { x: 0, y: 0, z: 0 } }
+      : { position: { x: count * 2, y: 0, z: 0 } };
+    addSceneModel({ id, name, path, ...placement, rotation: { x: 0, y: 0, z: 0 }, scale: 1, visible: true });
     return id;
   };
+
+  // LIVE .blend: keep main watching exactly the .blend files the scene uses — saving one in Blender
+  // re-exports it and every window reloads the model (useModelUrls, CalibProjector, venueRegistrar).
+  // Keyed on the list itself, so a transform drag does not re-send it at pointer rate. A show machine
+  // (headless / broadcast) plays the export it has: it neither needs Blender nor should spend a core on it.
+  const blendWatchKey = JSON.stringify((scene3D.models ?? []).filter((m) => m.source && m.path).map((m) => ({ source: m.source!, path: m.path })));
+  useEffect(() => {
+    if (HEADLESS || BROADCAST) return;
+    window.artlux?.watchBlends?.(JSON.parse(blendWatchKey));
+  }, [blendWatchKey]);
+  useEffect(() => {
+    const fileName = (p: string) => p.replace(/\\/g, '/').split('/').pop() ?? p;
+    const offStart = window.artlux?.onBlendUpdating?.((source) => toastRef.current.info('Updating from Blender…', fileName(source)));
+    const offDone = window.artlux?.onBlendUpdated?.((r) => {
+      if (r.ok) toastRef.current.success('Updated from Blender', `${fileName(r.source)}${r.ms ? ` — ${(r.ms / 1000).toFixed(1)} s` : ''}`);
+      else toastRef.current.error(`Could not update ${fileName(r.source)}`, r.error ?? 'Blender failed.');
+    });
+    return () => { offStart?.(); offDone?.(); };
+  }, []);
   const addModelRef = useRef(handleAddModel); addModelRef.current = handleAddModel; // live mirror for host.scene3D.addModel
   const handleAddPlane = () => {
     const count = (scene3D.models ?? []).length;
@@ -4382,7 +4419,13 @@ const App: React.FC = () => {
               // generation never advances and would otherwise be skipped forever.
               if (renderActive && !ownReferenced) { sentGen.delete(surfaceId); continue; }
               if (busy(surfaceId, port, now)) continue; // back-pressure: one bitmap in flight, to the ack
-              if (!STREAMED.has(eff.content.type)) continue;
+              // Self-rendering types (image, effect, shader, text…) are drawn BY the projector window for
+              // its flat output, so they are not streamed — but a render-active window draws the 3D
+              // scene instead, and a mesh bound to its OWN surface can only texture from this stream.
+              // Skipping it there left the screen blank on the wall (measured on the manual-calibration
+              // template: a shader test card bound to its own projector's screen). The "other surface"
+              // path below streams every type for the same reason; this is its own-surface twin.
+              if (!STREAMED.has(eff.content.type) && !(renderActive && ownReferenced)) continue;
               const drawable = getDrawable(surface);
               if (!drawable) {
                   // Nothing under the playhead (clip ended) or the live source dropped. Say so ONCE —
@@ -4618,7 +4661,11 @@ const App: React.FC = () => {
               // it. Never written back into the document — the projector's pose is the source of
               // truth, and a baked copy would silently disagree after a re-solve.
               port.postMessage({ t: 'scene', scene3D: resolveProjectedScene(scene3D, projectorOutputs) });
-              port.postMessage({ t: 'calib', mode: 'render', calibration: out!.calibration });
+              // `meshLook: 'shaded'` explicitly: the window keeps the last look it was given, and a
+              // calibration wizard leaves it on 'edges' (its Points underlay / Verify look). Without
+              // this, Apply & finish handed the show an output still drawing the wireframe instead of
+              // the content, until the window happened to be reopened.
+              port.postMessage({ t: 'calib', mode: 'render', calibration: out!.calibration, meshLook: 'shaded' });
           } else {
               port.postMessage({ t: 'calib', mode: 'idle' });
           }

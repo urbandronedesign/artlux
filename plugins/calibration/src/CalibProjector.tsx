@@ -18,6 +18,7 @@ import type { MainToProjector, ProjectorToMain } from '@/projector/bridge'; // h
 import type { Scene3D, ProjectorCalibration } from '../../../shared/protocol';
 import { fillPattern, type CalibPatternKind } from './graycode';
 import { ProjectorScene, type BlendLook } from './ProjectorScene';
+import { useGLTF } from '@react-three/drei';
 import { setSurfaceFrame, clearSurfaceFrame, clearOwnedSurfaceFrames } from './surfaceFrameChannel';
 import { hasResidualWarp } from '@/projector/warp'; // host predicate — the ONE definition
 import { hasPickingPose } from './pickingPose';
@@ -234,6 +235,18 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibMode]);
 
+  // A .blend re-exported over its .glb (saved in Blender while the show is open): this window holds its
+  // own copy of the model, so drop it and load again — or the wall keeps the geometry from before.
+  const [modelReloads, setModelReloads] = useState(0);
+  useEffect(() => window.artlux?.onBlendUpdated?.((r) => {
+    const url = r.ok ? urlCacheRef.current[r.glbPath] : undefined;
+    if (!url) return;
+    try { useGLTF.clear(url); } catch { /* ignore */ }
+    URL.revokeObjectURL(url);
+    delete urlCacheRef.current[r.glbPath];
+    setModelReloads((n) => n + 1);
+  }), []);
+
   // Render-from-projector: load the venue GLBs (same readModel→Blob path as the Scene window) so the
   // R3F ProjectorScene can render them from the calibrated camera.
   useEffect(() => {
@@ -253,7 +266,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       setModelUrls(next);
     })();
     return () => { alive = false; };
-  }, [scene3D]);
+  }, [scene3D, modelReloads]);
 
   return (
     <>

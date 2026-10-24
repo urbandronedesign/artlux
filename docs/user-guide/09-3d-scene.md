@@ -262,6 +262,31 @@ nothing in the GLB file is modified by any of this.
 
 ---
 
+## Import a Blender file
+
+Load a **`.blend`** directly with the **+** in OBJECTS (or the Media library), the same way as a
+`.glb`. ArtLux asks the Blender installed on this machine to convert it — in the background, in a
+couple of seconds — and loads the result.
+
+- **It lands where Blender has it.** The model keeps Blender's own origin and sits at the world origin,
+  so ArtLux coordinates are Blender's: a screen 2 m up in Blender is 2 m up here, and a projector
+  placed in Blender stands exactly there. (A `.glb` is centred on itself instead, as before.)
+- **Save in Blender, and ArtLux follows.** While the project is open, every `.blend` in the scene is
+  watched. Press **Ctrl+S** in Blender and within a few seconds ArtLux re-imports it — a notice says
+  *Updated from Blender* — keeping every screen's content and every placement. Adding geometry does
+  not move anything already there.
+- **The project carries both files**: the `.blend` you edit and the converted model it plays. A
+  machine that only plays the show — the venue PC — **does not need Blender**; it uses the converted
+  model. Blender is needed only to import or to update.
+- **Which Blender:** the newest one installed in the standard place. To use another, set its path in
+  **Preferences ▸ Blender**, which also shows the one in use. If none is found, or Blender cannot read
+  the file, ArtLux says so and shows Blender's own message.
+
+Everything below — named screens and projectors — works the same whether you load the `.blend` or a
+`.glb` you exported yourself.
+
+---
+
 ## Screens named in Blender
 
 A venue usually holds several screens, and each one should play something different. Rather than
@@ -275,12 +300,13 @@ cutting the venue into one file per screen, name the screens in Blender and ArtL
 2. Unwrap its **UVs** the way the picture should lie on it: the whole 0–1 square across the face, with
    the top of the image at the top of the screen. A 16:9 screen with a full 0–1 unwrap shows a 16:9
    picture without stretching.
-3. Export with Blender's **File, Export, glTF 2.0** menu, format **glTF Binary (.glb)**, with **+Y Up** on (the default). Keep
-   working in metres — ArtLux reads one unit as one metre.
+3. Save, and load the `.blend` in ArtLux (above). Keep working in metres — ArtLux reads one unit as one
+   metre. To hand over a `.glb` instead, export with Blender's **File, Export, glTF 2.0** menu, format
+   **glTF Binary (.glb)**, with **+Y Up** on (the default).
 
 A group works too: name an empty `screen_wall` and every mesh under it is one screen.
 
-**In ArtLux:** load the `.glb` as a venue model. Each screen appears **indented under the model** in
+**In ArtLux:** load the `.blend` (or `.glb`) as a venue model. Each screen appears **indented under the model** in
 the outliner, and the Model card gains a **Screens** list with a content picker per screen — the same
 choices as the model's own: **★ Timeline (Program)**, any **Surface**, or one **Timeline layer**.
 Clicking a screen in the 3D view or in the outliner points at its picker.
@@ -312,8 +338,9 @@ file and calibration starts from there instead of from nothing.
 **In Blender:** add a **camera** where the projector hangs, aimed where it throws, and give the camera
 object a name that **starts with `projector`** — `projector_main`, `PROJECTOR-02`. Set its lens to
 the projector's throw: with the sensor fitted **horizontally**, *focal length ÷ sensor width* is the
-throw ratio (a throw ratio of 1.0 is a 36 mm lens on a 36 mm sensor). Export as above — the glTF
-export must include **cameras** (Blender's *Include ▸ Cameras* option).
+throw ratio (a throw ratio of 1.0 is a 36 mm lens on a 36 mm sensor). Load the `.blend` and the
+camera comes with it. (Exporting a `.glb` yourself? It must include **cameras** — Blender's
+*Include ▸ Cameras* option.)
 
 **In ArtLux:** each projector shows in the 3D view as a small cyan frustum, moving with the model.
 When you calibrate an output with the **Manual** flow, the Lens step offers it under **Projector

@@ -26,9 +26,14 @@ const DEG = Math.PI / 180;
 // oblique projector pose, where three's frustum test drops parts of the geometry that are genuinely
 // on screen — and a raycast against a culled mesh still works, so the editor and the solver would
 // disagree about what exists.
-export function recenterClone(scene: THREE.Object3D): THREE.Object3D {
+//
+// `origin: 'file'` (SceneModel.origin — every .blend import) skips the recentre: the file's own
+// coordinates ARE the venue's, and recentring a file that is live-edited in Blender would move every
+// existing object whenever geometry was added.
+export function recenterClone(scene: THREE.Object3D, origin?: SceneModel['origin']): THREE.Object3D {
   const c = scene.clone(true);
   c.traverse((o) => { o.frustumCulled = false; });
+  if (origin === 'file') return c;
   const center = new THREE.Box3().setFromObject(c).getCenter(new THREE.Vector3());
   c.position.sub(center);
   return c;
@@ -48,7 +53,7 @@ export function applyModelTransform(obj: THREE.Object3D, model: SceneModel): voi
 // that do not need a stable container identity (ProjectorScene, the headless registrar).
 export function buildPlacedModel(scene: THREE.Object3D, model: SceneModel): THREE.Group {
   const g = new THREE.Group();
-  g.add(recenterClone(scene));
+  g.add(recenterClone(scene, model.origin));
   applyModelTransform(g, model);
   return g;
 }

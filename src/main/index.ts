@@ -24,6 +24,7 @@ import { registerMediaScheme, registerMediaProtocol } from './mediaProtocol';
 import { deactivateMainPlugins } from './host/plugins';
 import { noteQuitRequested } from './quitState';
 import { IPC } from '../../shared/protocol';
+import * as blendImport from './blendImport';
 
 // ⚠ MODULE SCOPE, BEFORE app.whenReady() — NOT inside it. Chromium fixes its scheme registry during
 // startup: registered late, `artlux-media://` either throws or comes up without the privileges
@@ -495,6 +496,7 @@ let cleanedUp = false;
 function shutdownSubsystems(reason: 'quit' | 'relaunch', extra?: Record<string, unknown>): void {
     if (cleanedUp) return;
     cleanedUp = true;
+    blendImport.stopAll(); // directory watchers on the scene's .blend files
     logger.shutdown(reason, extra);
     // A QUIT IS NOT A CRASH, and the Tier-2 Scheduled Task cannot tell the difference by itself —
     // it only sees "ArtLux.exe is not running" and starts it again within the minute. Mark the exit

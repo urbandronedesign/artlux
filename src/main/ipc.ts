@@ -1,7 +1,7 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord, type BlendWatchEntry } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
@@ -9,6 +9,7 @@ import * as osc from './transport/oscManager';
 import * as nvwarp from './nvwarpManager';
 import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
+import * as blendImport from './blendImport';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
 import * as mediaAccess from './mediaAccess';
@@ -141,11 +142,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const opts = {
             title: 'Import venue model',
             properties: ['openFile' as const],
-            filters: [{ name: '3D Model', extensions: ['glb', 'gltf'] }],
+            // .blend is converted by Blender on the way in — see blendImport.ts.
+            filters: [{ name: '3D Model', extensions: ['glb', 'gltf', 'blend'] }],
         };
         const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
         return res.canceled || !res.filePaths[0] ? null : res.filePaths[0];
     });
+    ipcMain.handle(IPC.BLEND_CONVERT, (_e, blendPath: string, glbPath?: string) => blendImport.convertBlend(blendPath, glbPath));
+    ipcMain.handle(IPC.BLEND_FIND, () => blendImport.findBlender());
+    ipcMain.on(IPC.BLEND_WATCH, (_e, list: BlendWatchEntry[]) => blendImport.setWatched(Array.isArray(list) ? list : [], getWindow));
     ipcMain.handle(IPC.SCENE_READ_MODEL, async (_e, path: string) => {
         try {
             return new Uint8Array(await readFile(path));

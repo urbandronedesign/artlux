@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert, LayoutGrid, Lock } from 'lucide-react';
+import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert, LayoutGrid, Lock, Box } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm } from './ui';
@@ -196,6 +196,43 @@ const WatchdogSection: React.FC = () => {
 // per-surface sampling. This section reports which backend is live (recorded to localStorage by Stage),
 // probes WebGPU on demand, and lets a tester force the WebGL fallback on this machine to compare — a
 // per-machine localStorage flag (`artlux.forceWebGL`), deliberately not a project/prefs field.
+// Which Blender imports and updates native .blend venue files (main/blendImport.ts). Empty = auto-detect
+// (ARTLUX_BLENDER, then the newest version in the standard install location). Shown with what it
+// resolves to RIGHT NOW, so "Blender was not found" is answerable here rather than in a log.
+const BlenderSection: React.FC = () => {
+  const [path, setPath] = useState('');
+  const [resolved, setResolved] = useState<string | null | undefined>(undefined);
+  const refresh = () => { void window.artlux?.findBlender?.().then((p) => setResolved(p ?? null)); };
+  useEffect(() => {
+    void window.artlux?.getPrefs?.().then((p) => setPath((p as { blenderPath?: string } | undefined)?.blenderPath ?? ''));
+    refresh();
+  }, []);
+  const commit = (v: string) => {
+    const next = v.trim();
+    void window.artlux?.setPrefs?.({ blenderPath: next || undefined }).then(refresh);
+  };
+  return (
+    <Section title="Blender" icon={<Box size={12} />}>
+      <p className="text-mini text-fg-3 leading-relaxed">Native <b>.blend</b> venue files are imported by the Blender installed on this machine, and updated when you save them. A machine that only plays the show does not need it.</p>
+      <Field label="Blender path">
+        <input
+          type="text" value={path} placeholder="auto-detect"
+          onChange={(e) => setPath(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit((e.target as HTMLInputElement).value); }}
+          className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-fg-1 text-mini focus:border-accent focus:outline-none"
+          {...help('general.blender-path')}
+        />
+      </Field>
+      <div className="text-mini">
+        {resolved === undefined ? <span className="text-fg-3">Looking for Blender…</span>
+          : resolved ? <span className="text-fg-2 flex items-center gap-1"><Check size={11} className="text-ok shrink-0" /><span className="truncate" title={resolved}>{resolved}</span></span>
+          : <span className="text-warn">Blender not found — .blend files cannot be imported or updated here.</span>}
+      </div>
+    </Section>
+  );
+};
+
 const GpuSection: React.FC = () => {
   const [forced, setForced] = useState(false);
   const [active, setActive] = useState('');
@@ -510,6 +547,8 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
         </Section></Tile>
 
         <Tile><WatchdogSection /></Tile>
+
+        <Tile><BlenderSection /></Tile>
 
         {/* Plugin-contributed settings sections (e.g. the mp4 plugin's "Video"). Each owns its fields;
             the host passes the shared settings + onChange. Keeps plugin settings out of core. They tile

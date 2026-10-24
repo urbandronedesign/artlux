@@ -119,6 +119,16 @@ export const IPC = {
   SCENE_PICK_MODEL: 'scene:pick-model',
   /** Renderer → main (invoke): read a model file's bytes by path. */
   SCENE_READ_MODEL: 'scene:read-model',
+  /** Renderer → main (invoke): export a native .blend to .glb with Blender (main/blendImport.ts). */
+  BLEND_CONVERT: 'blend:convert',
+  /** Renderer → main: the full list of .blend sources in the scene, to watch for saves. */
+  BLEND_WATCH: 'blend:watch',
+  /** Renderer → main (invoke): the Blender executable this machine would use, or null. */
+  BLEND_FIND: 'blend:find',
+  /** Main → renderer: a watched .blend was saved and is being re-exported (its source path). */
+  BLEND_UPDATING: 'blend:updating',
+  /** Main → renderer: a re-export finished — `BlendConvertResult & { source }`. */
+  BLEND_UPDATED: 'blend:updated',
   /** Renderer → main (invoke): read any file's bytes by path (e.g. timeline MP4s). */
   READ_FILE: 'app:read-file',
   /**
@@ -636,6 +646,10 @@ export interface ProjectorCalibration {
   // "is this output calibrated?" test keep answering no until the points have actually solved. The
   // first solve clears it.
   poseSeeded?: string;
+  // The starting pose itself, KEPT after a solve replaces it, so that clearing the points (or deleting
+  // below the 4 a solve needs) returns to where the venue file put the projector — not to no pose at
+  // all, which threw away the head start the moment an operator restarted their points.
+  poseSeed?: { from: string; rotation: number[]; translation: number[] };
   // Editable pose correspondences (projector pixel ↔ venue-model world point), kept so a moved
   // projector can re-solve pose without redoing structured light.
   posePicks?: Array<{ world: [number, number, number]; pixel: [number, number] }>;
@@ -799,6 +813,30 @@ export interface SceneModel {
   // own pair (layerId wins). A screen with no entry shows whatever the WHOLE model shows. Screens are
   // locked to the model — Blender places them; there is no per-screen transform on purpose.
   screens?: Record<string, ScreenBinding>;
+  // A NATIVE .blend this model was exported from (main/blendImport.ts). `path` is then the .glb Blender
+  // wrote; this is what the operator edits. Watched while the project is open: saving it in Blender
+  // re-exports to `path`, and main tells EVERY window (BLEND_UPDATED) so each model loader drops its
+  // cached copy of that file and reloads it. Deliberately not a field here: a reload counter in the
+  // document would light "Unsaved changes" on every save in Blender and diverge every scene snapshot.
+  source?: string;
+  // WHERE THE MODEL'S ORIGIN IS. Absent = 'centre': the file is recentred on its bounding box, so the
+  // gizmo sits in the middle of an arbitrary GLB (the long-standing behaviour — existing projects keep
+  // it). 'file' = the file's own origin, untouched: what a .blend import sets, because a venue built in
+  // Blender has meaningful coordinates (screens and projectors placed in metres) and, with live update,
+  // recentring would MOVE everything each time geometry was added — knocking a calibrated projector off.
+  origin?: 'centre' | 'file';
+}
+
+/** One .blend to watch, and the .glb its export goes to. */
+export interface BlendWatchEntry { source: string; path: string }
+export interface BlendConvertResult {
+  ok: boolean;
+  glbPath: string;
+  /** The Blender executable that ran (absent when none was found). */
+  blender?: string;
+  ms?: number;
+  /** Operator-readable, with Blender's last lines of output when it failed. */
+  error?: string;
 }
 
 // What a named screen inside a GLB is showing — the content half of SceneModel, nothing else.
@@ -1441,6 +1479,8 @@ export interface Prefs {
   globalBrightness?: number;
   recentFiles: string[];
   lastProjectPath?: string;
+  /** Blender executable for native .blend import; absent = auto-detect (main/blendImport.ts). */
+  blenderPath?: string;
   fixtureTemplates?: unknown[]; // saved fixture library (S4)
   /** Per-modal drag offset (px translate from centered), keyed by a stable modal id.
       Workspace ergonomics — persisted in prefs (not the project) so it survives restarts. */
@@ -1847,6 +1887,14 @@ export interface ArtluxApi {
   // 3D model import (used by the embedded 3D scene panel).
   pickModel(): Promise<string | null>;
   readModel(path: string): Promise<Uint8Array | null>;
+  /** Export a .blend to .glb with Blender. `glbPath` defaults to a per-source file in userData. */
+  convertBlend(blendPath: string, glbPath?: string): Promise<BlendConvertResult>;
+  /** Replace the set of .blend files watched for saves. */
+  watchBlends(list: BlendWatchEntry[]): void;
+  /** The Blender executable this machine would use (Preferences, ARTLUX_BLENDER, or auto-detected). */
+  findBlender(): Promise<string | null>;
+  onBlendUpdating(cb: (source: string) => void): () => void;
+  onBlendUpdated(cb: (r: BlendConvertResult & { source: string }) => void): () => void;
   // Generic file access (timeline video clips)
   readFile(path: string): Promise<Uint8Array | null>;
   /** Boot gate armed — main logs + resets its READ_FILE byte counter (cold-open diagnostics). */
