@@ -122,11 +122,21 @@ export function start(opts: { mode: string; project: string; cfg?: Partial<Unatt
     logEvent('startup', `mode=${mode}`, 'none', 'watching');
 
     // GPU-process crash is an app-level event (not per-webContents). WebGPU device loss is the classic
-    // silent show-killer, so a hard GPU crash triggers recovery.
+    // silent show-killer — and it used to be answered with an IMMEDIATE relaunch, because nothing in the
+    // renderer could come back from it.
+    //
+    // ⚠ RECOVER IN PLACE FIRST; RELAUNCH ONLY IF THAT FAILS. Every GPU user now rebuilds itself after a
+    // crash, measured one by one on 2026-10-24 (Browser.crashGpuProcess, twice in a row, broadcast):
+    // the LED sampler in ~0.5 s, projector outputs (reload), MP4, HAP-Q/Alpha, shaders, text, the three
+    // tracking overlays, Spout, NDI and the 3D view. A relaunch costs a cold start — every decoder,
+    // every projector window, the boot gate — where in-place recovery holds the last frame for half a
+    // second. So the crash is LOGGED here, and the relaunch is left to the detectors that see a recovery
+    // that did not happen: 'gpu-device-lost' (the LED sampler still lost after 15 s), render-stall and
+    // output-down. See plans/battle-test-v0.33.8.md, Phase 7.
     if (cfg.crashRecovery) {
       app.on('child-process-gone', (_e, details) => {
         if (details?.type === 'GPU' && details?.reason !== 'clean-exit') {
-          maybeRelaunch('gpu-gone', `reason=${details?.reason ?? 'unknown'}`);
+          logEvent('gpu-gone', `reason=${details?.reason ?? 'unknown'}`, 'none', 'recovering in place — relaunch only if the LED sampler is still lost after 15s');
         }
       });
     }

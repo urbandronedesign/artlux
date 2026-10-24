@@ -214,6 +214,29 @@ Also over the 7 h: frame p99 had a median of 18.1 ms and a max of 19.6 ms; main 
 | Cold-open bench (`bench-open`) | It launches on the default profile | here |
 | Real projector calibration (structured light, auto-align), NVWarp, LED nodes, ENTTEC USB-DMX, real LiDAR, audio heard on a device | Hardware | **on site** |
 
+### Phase 7: GPU crash, every consumer (after v0.33.9's LED and projector fix)
+
+**Harness.** `gpuall.mjs` gives one surface per GPU consumer, each on its own Art-Net universe, plus a
+projector output on the HAP surface. It compares the change rate in the 8 s before a
+`Browser.crashGpuProcess` with the rate 10–20 s after.
+
+| Consumer | v0.33.9 (the LED + projector fix only) | Fix | After |
+|---|---|---|---|
+| MP4 surface, HAP-Q | "slow" (1/s) | none: the clip is a sketch on white; on a constant-motion clip both run at 24/s before and after | PASS |
+| HAP-Alpha | **black for good** (100 → 0 lit) | `hapGL.uploadFrame` rebuilds a renderer whose context `isLost()`; a failed construction is retried every 2 s instead of being cached for ever | PASS |
+| Projector showing HAP | **black** | the same (the reloaded projector's HAP renderer) | PASS |
+| Text | **black for good** (21 → 0 lit) | the raster cache drops its GPU-backed bitmaps on `GPU_LOST_EVENT`, a new SDK event the engine fires (`onGpuLost`) | PASS |
+| Tracking overlay (+ Augmenta, MediaPipe) | **dead** | `getGL` rebuilds a lost context and retries a failed one | PASS |
+| 3D view | **black for good** | `renderer3d` fires `SCENE3D_LOST_EVENT`; `Simulator3D` remounts its `<Canvas>` (keyed) once the pane is visible | PASS (screenshot) |
+| Shader, effect, Spout, NDI | PASS already | none | PASS |
+
+**Two crashes in a row, broadcast, with Unattended ON:** all ten pass. The watchdog log reads
+`gpu-gone → recovering in place` twice, and there is one session with no restart.
+
+**Step 3 is done.** The watchdog no longer relaunches immediately on a GPU crash. It relaunches only
+if the LED sampler is still lost after 15 s (`gpu-device-lost`), with render-stall and output-down
+behind that. The invariant forbids reintroducing `maybeRelaunch('gpu-gone')`.
+
 ### Test hygiene: what the existing scripts did to the OWNER's machine (needs a human)
 
 The Phase 1 dev-launch scripts run on `%APPDATA%\artlux`, the owner's real profile, and left in it:

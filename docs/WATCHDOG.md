@@ -25,14 +25,15 @@ Tier 1 can't recover once its own process is dead — that's Tier 2's job. A **s
 Armed when `Prefs.unattended.enabled` is set **and** the process is `--broadcast` (or `unattended.always`).
 
 - **Renderer crash** — `webContents 'render-process-gone'` (skips a clean exit).
-- **GPU crash** — `app 'child-process-gone'` with `type === 'GPU'`. WebGPU device loss is the classic
-  silent show-killer.
+- **GPU crash** — `app 'child-process-gone'` with `type === 'GPU'`. **Logged, not relaunched** (since
+  v0.33.10): the app recovers in place — the LED sampler is rebuilt on a new device in about half a
+  second, each projector output reloads itself, and HAP, MP4, shaders, text, the tracking overlays,
+  Spout, NDI and the 3D view all come back (measured twice in a row in broadcast). A restart would cost
+  a cold start instead. Before v0.33.9 a GPU crash left the LEDs on **one frozen frame** and the
+  projectors **black** for the rest of the show, while every rate metric read healthy.
 - **GPU device lost and not rebuilt** — the renderer reports a lost device on its heartbeat
-  (`gpuDeviceLost`); still lost after 15 s → relaunch. Without the watchdog the app now recovers on its
-  own: the LED sampler is rebuilt on a new device in about half a second (measured twice in a row),
-  and each projector output reloads itself when its graphics context is lost. Before v0.33.9 a GPU crash
-  left the LEDs on **one frozen frame** and the projectors **black** for the rest of the show, while
-  every rate metric read healthy. Watch `artlux_gpu_device_lost` ([MONITORING.md](MONITORING.md)).
+  (`gpuDeviceLost`); still lost after 15 s → relaunch. This is the net under the in-place recovery.
+  Watch `artlux_gpu_device_lost` ([MONITORING.md](MONITORING.md)).
 - **Unresponsive window** — `'unresponsive'` held past `renderStallSec` (a `'responsive'` cancels it).
 - **Frozen render loop** — no renderer heartbeat for `renderStallSec`. The heartbeat is the existing
   ~1 Hz `render:stats` IPC ([src/main/ipc.ts](../src/main/ipc.ts)); this catches a stalled compositor

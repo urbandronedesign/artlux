@@ -6421,6 +6421,7 @@ check(
     if (!rp || !/--user-data-dir=/.test(rp)) bad.push('src/main/runProfile.ts: relaunchArgs() no longer carries --user-data-dir — a relaunch lands on the default profile');
     const wd = stripComments(read('src/main/watchdog.ts'));
     if (!/gpuDeviceLost/.test(wd) || !/'gpu-device-lost'/.test(wd)) bad.push('src/main/watchdog.ts: the watchdog no longer relaunches on an unrecovered GPU device loss');
+    if (/maybeRelaunch\(\s*'gpu-gone'/.test(wd)) bad.push('src/main/watchdog.ts: a GPU crash relaunches immediately again — the app recovers in place in ~0.5 s; relaunch only via gpu-device-lost');
     // The rest of the window's GPU users, measured one by one after the LEDs were fixed (each went
     // black or froze for good after a crash): HAP, the three tracking overlays, text, the 3D view.
     const hap = braceBody(read('plugins/hap/src/hapGL.ts'), 'export function uploadFrame(');
