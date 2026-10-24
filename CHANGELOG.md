@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.33.12
+
+### Broadcast no longer opens a blank show when a project file is missing
+
+If the **project playlist** had an entry whose project file had been deleted, moved, or was on a drive
+that wasn't plugged in, starting broadcast switched to that entry anyway. The file couldn't be read, so
+the show ran an empty project: no projector windows, nothing on screen, and your own project was gone
+too. Broadcast now skips a playlist entry whose file isn't there, keeps the show that is running, and
+writes the missing path to the log. It switches as soon as the file is back.
+
+The same applies to a project named at launch: if it can't be read, broadcast opens the last project you
+had open instead of an empty one, and the log says which file failed.
+
+See [Show control](docs/SHOW-CONTROL.md).
+
 ## v0.33.11
 
 ### "Send as NDI" works on a windowed output
