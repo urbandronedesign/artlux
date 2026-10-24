@@ -3,6 +3,8 @@ import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, Ra
 import { panelRegistry } from '../../host/registries';
 import { PROGRAM_LAYER_ID } from '../../services/timeline';
 import { modelScaleXYZ } from '../../../../shared/protocol';
+import type { SceneModel, ScreenBinding } from '../../../../shared/protocol';
+import type { Surface, Timeline } from '../../types';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -13,6 +15,7 @@ import * as layout from '../../services/fixtureLayout';
 import { isLight } from '../../services/fixtureKind';
 import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera';
 import { DEFAULT_BIAS_M } from '../../components/Simulator3D/projectedMapping';
+import { useModelScreens, useFocusedScreen, focusScreen } from '../../components/Simulator3D/modelScreens';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -74,9 +77,10 @@ export const ModelsPanel: React.FC = () => {
     <div className="p-1 space-y-0.5">
       {models.length === 0 && <div className="text-fg-3 italic px-2 py-1">No objects — add a GLB or screen</div>}
       {models.map((m) => (
+        <React.Fragment key={m.id}>
         <div
-          key={m.id} role="button" tabIndex={0} className={rowCls(selectedModelId === m.id)}
-          onClick={() => a.selectModel(m.id)}
+          role="button" tabIndex={0} className={rowCls(selectedModelId === m.id)}
+          onClick={() => { a.selectModel(m.id); focusScreen(m.id, null); }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.selectModel(m.id); } }}
         >
           {m.kind === 'plane' ? <MonitorPlay size={12} className="shrink-0" /> : <Box size={12} className="shrink-0" />}
@@ -88,8 +92,34 @@ export const ModelsPanel: React.FC = () => {
           </Tooltip>
           <button onClick={(e) => { e.stopPropagation(); a.removeModel(m.id); }} className="text-fg-3 hover:text-danger opacity-0 group-hover:opacity-100" title="Remove"><Trash2 size={11} /></button>
         </div>
+        {m.kind !== 'plane' && <ScreenRows modelId={m.id} />}
+        </React.Fragment>
       ))}
     </div>
+  );
+};
+
+// A model's named screens, indented under it. Selecting one selects the model (screens are locked to
+// it, so the model's gizmo is the right one) and points the Model card at that screen's picker.
+const ScreenRows: React.FC<{ modelId: string }> = ({ modelId }) => {
+  const { selectedModelId } = useEditor();
+  const a = useEditorActions();
+  const names = useModelScreens(modelId);
+  const focused = useFocusedScreen();
+  return (
+    <>
+      {names.map((name) => (
+        <div
+          key={name} role="button" tabIndex={0}
+          className={`${rowCls(selectedModelId === modelId && focused?.modelId === modelId && focused.name === name)} pl-6`}
+          onClick={() => { a.selectModel(modelId); focusScreen(modelId, name); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.selectModel(modelId); focusScreen(modelId, name); } }}
+        >
+          <MonitorPlay size={11} className="shrink-0" />
+          <span className="flex-1 truncate">{name}</span>
+        </div>
+      ))}
+    </>
   );
 };
 
@@ -293,6 +323,76 @@ export const FixtureArrangePanel: React.FC = () => {
   );
 };
 
+// The content choices every picker offers — the model's own and each named screen's. One list, so a
+// source added to one picker cannot be missing from the other.
+const ContentOptions: React.FC<{ surfaces: Surface[]; layers: Timeline['layers'] }> = ({ surfaces, layers }) => (
+  <>
+    <option value={PROGRAM_LAYER_ID}>★ Timeline (Program)</option>
+    {surfaces.length > 0 && (
+      <optgroup label="Surfaces">
+        {surfaces.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.name}</option>)}
+      </optgroup>
+    )}
+    <optgroup label="Timeline layers">
+      {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+    </optgroup>
+  </>
+);
+
+// NAMED SCREENS in the model's file (`screen…` in Blender — see Simulator3D/modelScreens.ts), each
+// with its own content picker. The names come from the LOADED file, the bindings from the project, and
+// the rows are their union: a binding whose name the file no longer has is kept and flagged rather
+// than dropped, because the usual cause is a rename in Blender, and silently losing the operator's
+// binding on a re-export is worse than one stale row they can clear.
+const ModelScreensSection: React.FC<{ model: SceneModel }> = ({ model: m }) => {
+  const { timeline, surfaces } = useEditor();
+  const a = useEditorActions();
+  const found = useModelScreens(m.id);
+  const focused = useFocusedScreen();
+  const bound = m.screens ?? {};
+  const rows = [...found, ...Object.keys(bound).filter((n) => !found.includes(n))];
+  if (rows.length === 0) return null;
+  const setBinding = (name: string, b: ScreenBinding | null) => {
+    const next = { ...bound };
+    if (b) next[name] = b; else delete next[name];
+    a.updateModel(m.id, { screens: Object.keys(next).length ? next : undefined });
+  };
+  return (
+    <div className="space-y-1">
+      <div className="text-mini text-fg-2 mt-1">Screens</div>
+      {rows.map((name) => {
+        const b = bound[name];
+        const missing = !found.includes(name);
+        const active = focused?.modelId === m.id && focused.name === name;
+        return (
+          <div key={name} className={`flex items-center gap-1.5 text-mini rounded ${active ? 'ring-1 ring-accent' : ''}`}>
+            <MonitorPlay size={12} className={`shrink-0 ${missing ? 'text-warn' : 'text-fg-3'}`} />
+            <span className={`w-20 shrink-0 truncate ${missing ? 'text-warn' : 'text-fg-2'}`}
+              title={missing ? `${name} — not found in the file (renamed or deleted in Blender?)` : name}>{name}</span>
+            <Tooltip id="scene3d.screen-content">
+              <select
+                value={b?.layerId ?? (b?.surfaceId ? `s:${b.surfaceId}` : '')}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBinding(name, !v ? null : v.startsWith('s:') ? { surfaceId: v.slice(2) } : { layerId: v });
+                }}
+                className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none"
+                {...help('scene3d.screen-content')}
+              >
+                <option value="">— as the model —</option>
+                <ContentOptions surfaces={surfaces} layers={timeline.layers} />
+              </select>
+            </Tooltip>
+            {missing && (
+              <button onClick={() => setBinding(name, null)} className="text-fg-3 hover:text-danger" title="Forget this screen's binding"><Trash2 size={11} /></button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const ModelTransformPanel: React.FC = () => {
   const { scene3D, selectedModelId, timeline, modelNaturalSizes, surfaces, projectorOutputs } = useEditor();
   const a = useEditorActions();
@@ -330,15 +430,7 @@ export const ModelTransformPanel: React.FC = () => {
             {...help('scene3d.model-layer')}
           >
             <option value="">{m.kind === 'plane' ? '— no layer —' : '— GLB materials —'}</option>
-            <option value={PROGRAM_LAYER_ID}>★ Timeline (Program)</option>
-            {surfaces.length > 0 && (
-              <optgroup label="Surfaces">
-                {surfaces.map((s) => <option key={s.id} value={`s:${s.id}`}>{s.name}</option>)}
-              </optgroup>
-            )}
-            <optgroup label="Timeline layers">
-              {timeline.layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </optgroup>
+            <ContentOptions surfaces={surfaces} layers={timeline.layers} />
           </select>
         </Tooltip>
         <Tooltip id="scene3d.model-program">
@@ -361,6 +453,7 @@ export const ModelTransformPanel: React.FC = () => {
           >TL</button>
         </Tooltip>
       </div>
+      {m.kind !== 'plane' && <ModelScreensSection model={m} />}
       {/* UV source for the layer texture — meshes only (planes own their full-frame UVs). 'Projected'
           bakes UVs through the CURRENT viewer camera (viewerCamera.ts), so it needs the 3D viewport
           mounted; picking it with no bake yet captures one immediately. The baked matrix survives a

@@ -6591,6 +6591,28 @@ check(
   },
 );
 
+// ── 3D: named screens inside a GLB are decided in ONE place ───────────────────────────────────
+check(
+  'GLB renderers assign materials through modelScreens',
+  'An object named screen… in Blender takes its own content. The editor (ModelObject) and the wall ' +
+  '(calibration ProjectorScene) each paint the same GLB; if either decides on its own which meshes are ' +
+  'a screen, or swaps materials with its own traverse, a screen looks right in the 3D view and shows ' +
+  'the wrong picture on the projector — the one place nobody is looking while editing. And the frame ' +
+  'pump must ask modelBindings(), or a screen bound to a surface is never streamed to the window.',
+  () => {
+    const bad = [];
+    for (const f of ['src/renderer/components/Simulator3D/ModelObject.tsx', 'plugins/calibration/src/ProjectorScene.tsx']) {
+      if (!exists(f)) { bad.push(`${f} (missing)`); continue; }
+      const src = stripComments(read(f));
+      if (!src.includes('findScreens(') || !src.includes('assignContentMaterials(')) bad.push(`${f}: not using findScreens()/assignContentMaterials()`);
+      if (/mesh\.material\s*=/.test(src)) bad.push(`${f}: assigns mesh.material itself`);
+    }
+    const app = stripComments(read('src/renderer/App.tsx'));
+    if ((app.match(/modelBindings\(/g) ?? []).length < 3) bad.push('src/renderer/App.tsx: frame pump / program retain no longer read modelBindings()');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

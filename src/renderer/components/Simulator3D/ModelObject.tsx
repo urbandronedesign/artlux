@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { isWebGPURenderer } from './renderer3d';
 import * as THREE from 'three';
 import { ledUnderPointer } from './pickPriority';
 import { snapToVertex, updateSnapHover, setSnapHover } from './vertexSnap';
-import { SceneModel } from '../../../../shared/protocol';
+import { SceneModel, ScreenBinding } from '../../../../shared/protocol';
+import { findScreens, assignContentMaterials, newContentSwap, disposeContentSwap, type ContentSwap, publishModelScreens, focusScreen, screenUnder } from './modelScreens';
 import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
 import { blankMap } from './blankMap';
@@ -57,6 +58,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own
   // UVs); restore the original GLB materials when cleared. Shares the binding path with planes.
+  // A named screen with a binding of its own is the exception — see assignContentMaterials.
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   // Born WITH a map (the 1x1 stand-in), never mapless — blankMap.ts: three's WebGPU observer snapshots
   // a material's uniforms once and skips whatever was null, so a map attached later is never watched.
@@ -67,7 +69,8 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // From THIS Canvas's renderer, never from module state — see makeProjectedMaterial.
   const glNodes = isWebGPURenderer(useThree((st) => st.gl));
   if (!projMatRef.current) projMatRef.current = makeProjectedMaterial(glNodes);
-  const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
+  const swapRef = useRef<ContentSwap | null>(null);
+  if (!swapRef.current) swapRef.current = newContentSwap();
 
   const projected = usesProjectedUv(model);
   const applyTex = (tex: THREE.Texture | null) => {
@@ -86,21 +89,32 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   useLayerTexture(model.layerId, applyTex);
   useSurfaceTexture(model.layerId ? undefined : model.surfaceId, applyTex);
 
+  // Named screens in the file (modelScreens.ts) — found once per load, and published so the Model
+  // card can list them without ever holding the GLB itself.
+  const screens = useMemo(() => findScreens(cloned), [cloned]);
+  useEffect(() => {
+    publishModelScreens(model.id, [...screens.keys()]);
+    return () => publishModelScreens(model.id, null);
+  }, [model.id, screens]);
+  // Each bound screen's material, reported by its <ScreenContent> once it exists. State, not a ref:
+  // a binding added or cleared must re-run the assignment below, and that happens at operator rate.
+  const [screenMats, setScreenMats] = useState<Record<string, THREE.Material>>({});
+  const onScreenMat = useCallback((name: string, mat: THREE.Material | null) => {
+    setScreenMats((prev) => {
+      if ((prev[name] ?? null) === mat) return prev;
+      const next = { ...prev };
+      if (mat) next[name] = mat; else delete next[name];
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const layered = !!model.layerId || !!model.surfaceId;
     const want = projected ? projMatRef.current!.material : layerMatRef.current!;
-    cloned.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!(mesh as { isMesh?: boolean }).isMesh) return;
-      if (layered) {
-        if (!origMats.current.has(mesh.uuid)) origMats.current.set(mesh.uuid, mesh.material);
-        mesh.material = want;
-      } else {
-        const orig = origMats.current.get(mesh.uuid);
-        if (orig) { mesh.material = orig; origMats.current.delete(mesh.uuid); }
-      }
-    });
-  }, [cloned, model.layerId, model.surfaceId, projected]);
+    assignContentMaterials(cloned, screens, layered ? want : null, screenMats, swapRef.current!);
+  }, [cloned, screens, screenMats, model.layerId, model.surfaceId, projected]);
+  // The flipped screen geometries belong to THIS clone — release them when the file swaps or unmounts.
+  useEffect(() => () => disposeContentSwap(swapRef.current!), [cloned]);
 
   useEffect(() => () => { layerMatRef.current?.dispose(); projMatRef.current?.dispose(); }, []);
 
@@ -234,6 +248,8 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
             return;
           }
           onSelect(model.id);
+          // Clicking a screen points the Model card at that screen's row; clicking the venue clears it.
+          focusScreen(model.id, screenUnder(e.object, cloned));
         }}
         // Only while calibrating: a move handler makes r3f raycast this mesh on every pointer move,
         // which is not a cost a venue GLB should carry when nobody is placing anchors.
@@ -241,6 +257,37 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
         onPointerOut={calibPickMode ? (() => setSnapHover(null)) : undefined}
       />
       {selected && !calibPickMode && <TransformControls ref={controls} object={group} mode={mode} size={0.8} />}
+      {Object.entries(model.screens ?? {}).map(([name, b]) => (
+        <ScreenContent key={name} name={name} binding={b} onMaterial={onScreenMat} />
+      ))}
     </>
   );
+};
+
+// One bound screen's content: its own material fed by its own layer or surface, mapped through the
+// UVs the file carries (screens are authored in Blender WITH their UVs — no projected mode here).
+// Renders nothing; it exists so each screen can call the texture hooks, which a loop cannot.
+const ScreenContent: React.FC<{
+  name: string;
+  binding: ScreenBinding;
+  onMaterial: (name: string, mat: THREE.Material | null) => void;
+}> = ({ name, binding, onMaterial }) => {
+  const matRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  // Born with a map — blankMap.ts, for the same WebGPU reason as the model's own material.
+  if (!matRef.current) matRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, map: blankMap() });
+  const applyTex = (tex: THREE.Texture | null) => {
+    const mat = matRef.current!;
+    mat.map = tex ?? blankMap();
+    mat.color.set(tex ? '#ffffff' : '#161616');
+    mat.needsUpdate = true;
+  };
+  useLayerTexture(binding.layerId, applyTex);
+  useSurfaceTexture(binding.layerId ? undefined : binding.surfaceId, applyTex);
+  const bound = !!binding.layerId || !!binding.surfaceId;
+  useEffect(() => {
+    onMaterial(name, bound ? matRef.current : null);
+    return () => onMaterial(name, null);
+  }, [name, bound, onMaterial]);
+  useEffect(() => () => { matRef.current?.dispose(); }, []);
+  return null;
 };

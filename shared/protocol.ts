@@ -783,7 +783,38 @@ export interface SceneModel {
   // of the behaviour their operator already expects. Absence means ON.
   uvProjOccludeOff?: boolean;
   uvProjBias?: number;                // self-shadow bias in METRES (absent = DEFAULT_BIAS_M, 0.02)
+  // NAMED SCREENS INSIDE THE FILE. An object the modeller named `screen…` (Blender, any DCC — the
+  // rule is case-insensitive, see Simulator3D/modelScreens.ts) is a screen of its own and takes its
+  // own content, mapped through the UVs authored in the file. Keyed by the NAME AS THREE LOADS IT
+  // (spaces → `_`, `.` `:` `/` `[` `]` dropped — so Blender's `Screen.001` is `Screen001`), not by
+  // a node index: re-exporting the venue after an edit must keep every screen's binding, and a name
+  // is the only thing an operator controls that survives a re-export. Same precedence as the model's
+  // own pair (layerId wins). A screen with no entry shows whatever the WHOLE model shows. Screens are
+  // locked to the model — Blender places them; there is no per-screen transform on purpose.
+  screens?: Record<string, ScreenBinding>;
 }
+
+// What a named screen inside a GLB is showing — the content half of SceneModel, nothing else.
+export interface ScreenBinding {
+  layerId?: string;
+  surfaceId?: string;
+}
+
+// EVERY content binding a model carries: its own, then one per named screen, each already resolved
+// to the ONE id that wins (layer over surface). The frame pump, the program retain and project import
+// all have to see screens too, and each used to read `m.layerId`/`m.surfaceId` directly — a screen
+// bound to a surface no projector window was streamed would simply stay dark on the wall while
+// looking right in the editor. One list, so a new consumer cannot forget the screens.
+export const modelBindings = (m: SceneModel): ScreenBinding[] => {
+  const out: ScreenBinding[] = [];
+  const add = (b: ScreenBinding) => {
+    if (b.layerId) out.push({ layerId: b.layerId });
+    else if (b.surfaceId) out.push({ surfaceId: b.surfaceId });
+  };
+  add(m);
+  for (const b of Object.values(m.screens ?? {})) add(b);
+  return out;
+};
 
 // Effective per-axis scale for a model: the per-axis vector when set, else the uniform `scale`.
 export const modelScaleXYZ = (m: { scale: number; scaleXYZ?: [number, number, number] }): [number, number, number] => {

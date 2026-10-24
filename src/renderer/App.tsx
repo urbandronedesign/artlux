@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type BakeEntry, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type NamedColor, normalizeNamedColors, type ColorValue, type Keyframe } from './types';
-import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
+import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY, modelBindings } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect } from '../../shared/protocol';
@@ -4281,11 +4281,14 @@ const App: React.FC = () => {
               if (renderActive) {
                   const refs = new Set<string>();
                   for (const mdl of (scene3DRef.current?.models ?? [])) {
-                      // layerId wins over surfaceId (SceneModel's documented precedence), and a layer
-                      // binding is served by the layerFrame pump below instead.
-                      if (!mdl.visible || mdl.layerId || !mdl.surfaceId) continue;
-                      if (mdl.surfaceId === surfaceId) { ownReferenced = true; continue; } // arrives as `frame`
-                      refs.add(mdl.surfaceId);
+                      if (!mdl.visible) continue;
+                      // modelBindings has already applied the precedence (layerId wins) for the model
+                      // AND each named screen in it; a layer binding is served by the layerFrame pump.
+                      for (const b of modelBindings(mdl)) {
+                          if (!b.surfaceId) continue;
+                          if (b.surfaceId === surfaceId) { ownReferenced = true; continue; } // arrives as `frame`
+                          refs.add(b.surfaceId);
+                      }
                   }
                   for (const refId of refs) wantSurface.push({ port, outId: surfaceId, refId });
               }
@@ -4298,9 +4301,13 @@ const App: React.FC = () => {
               if (coarse) {
                   const live = new Set<string>();
                   if (renderActive) {
+                      // Every layer a visible model shows — its own and its named screens' (modelBindings).
+                      const layerIds = new Set<string>();
                       for (const mdl of (scene3DRef.current?.models ?? [])) {
-                          if (!mdl.visible || !mdl.layerId) continue;
-                          const layerId = mdl.layerId;
+                          if (!mdl.visible) continue;
+                          for (const b of modelBindings(mdl)) if (b.layerId) layerIds.add(b.layerId);
+                      }
+                      for (const layerId of layerIds) {
                           live.add(layerId);
                           const key = `${surfaceId}:scene:${layerId}`;
                           if (busy(key, port, now)) continue;
@@ -4503,7 +4510,7 @@ const App: React.FC = () => {
   // the feature not working. Outside the frame pump on purpose: a retain/release per tick would
   // thrash programConsumers 30×/s.
   useEffect(() => {
-      const wanted = (scene3D.models ?? []).some(m => m.visible && m.layerId === PROGRAM_LAYER_ID)
+      const wanted = (scene3D.models ?? []).some(m => m.visible && modelBindings(m).some(b => b.layerId === PROGRAM_LAYER_ID))
           && (projectorOutputs.some(o => o.useCalibration && o.calibration?.poseRms != null)
               || calibratingOutputId != null);
       if (wanted) timelineEngine.retainProgram('venue-mesh'); else timelineEngine.releaseProgram('venue-mesh');

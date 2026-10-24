@@ -95,6 +95,14 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['layer', 'content', 'texture', 'timeline', 'program'],
   },
   {
+    id: 'scene3d.screen-content',
+    title: 'Named screen content',
+    short: 'Choose what one named screen inside the model displays.',
+    body: "Any object you named screen… in Blender (screen_left, SCREEN-02, Screen.001) is listed here and takes its own layer or surface, mapped through the UVs you made in Blender. Leave it on \"as the model\" to show whatever the whole model shows. A name shown in amber is no longer in the file — usually a rename in Blender — and its binding is kept until you clear it.",
+    group: '3D Scene',
+    keywords: ['screen', 'blender', 'glb', 'gltf', 'named', 'layer', 'surface', 'uv'],
+  },
+  {
     id: 'scene3d.model-program',
     title: 'Show Program',
     short: 'Display the whole timeline (Program composite) on this object.',

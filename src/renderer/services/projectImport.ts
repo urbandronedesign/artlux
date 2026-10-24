@@ -53,7 +53,7 @@ import type {
   AudioTrack, AudioClip,
 } from '../types';
 import type {
-  Scene3D, SceneModel, TrackingZone, AssetEntry, FixtureProfile,
+  Scene3D, SceneModel, ScreenBinding, TrackingZone, AssetEntry, FixtureProfile,
 } from '../../../shared/protocol';
 import {
   normalizeTimeline, normalizeStateMachine, normalizeCueBanks, normalizeNamedPoses,
@@ -823,6 +823,26 @@ function remapScene3D(s3: Scene3D, maps: Maps, layers: Map<string, string> | nul
     if (m.uvProjFrom) {
       const s = maps.surface.get(m.uvProjFrom);
       if (s) next.uvProjFrom = s; else delete next.uvProjFrom;
+    }
+    // Named screens bind the same two namespaces as the model itself, by the same rules. A screen
+    // left with nothing to show is dropped: it then shows the model's content, which is what an
+    // unbound screen does anyway.
+    if (m.screens) {
+      const screens: Record<string, ScreenBinding> = {};
+      for (const [name, b] of Object.entries(m.screens)) {
+        const nb: ScreenBinding = {};
+        if (b.layerId) {
+          const l = layers?.get(b.layerId);
+          if (l) nb.layerId = l;
+          else warn({ kind: 'cleared', message: `${where}: screen "${name}" of model "${m.name}" referenced a timeline track that was not imported.` });
+        }
+        if (b.surfaceId) {
+          const s = maps.surface.get(b.surfaceId);
+          if (s) nb.surfaceId = s;
+        }
+        if (nb.layerId || nb.surfaceId) screens[name] = nb;
+      }
+      if (Object.keys(screens).length) next.screens = screens; else delete next.screens;
     }
     return next;
   });

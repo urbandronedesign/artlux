@@ -1,11 +1,11 @@
-import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { isWebGPURenderer } from '@/components/Simulator3D/renderer3d'; // host module — which renderer THIS window built
 import { useGLTF } from '@react-three/drei';
 import { EffectComposer } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
 import * as THREE from 'three';
-import type { Scene3D, SceneModel, ProjectorCalibration, ProjectorBlend, SoftEdge } from '../../../shared/protocol';
+import type { Scene3D, SceneModel, ScreenBinding, ProjectorCalibration, ProjectorBlend, SoftEdge } from '../../../shared/protocol';
 import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from './cvCamera';
 import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
@@ -14,6 +14,7 @@ import { useStreamedSurfaceTexture } from './useStreamedSurfaceTexture';
 import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial, type ProjectedBasicMaterial } from '@/components/Simulator3D/projectedMapping'; // host module — the ONE projection definition
 import { ProjectorDepthPass, registerDepthCaster, unregisterDepthCaster, setDepthRequest } from '@/components/Simulator3D/projectorDepth'; // host module — the ONE depth pass
 import { recenterClone } from '@/components/Simulator3D/venuePlacement';   // host helper — same seam
+import { findScreens, assignContentMaterials, newContentSwap, disposeContentSwap, type ContentSwap } from '@/components/Simulator3D/modelScreens'; // host module — the ONE screen rule
 import { FrameRateCap } from '@/components/Simulator3D/FrameRateCap';      // host module — the ONE rate cap
 import { SOFT_EDGE_GLSL } from '@/projector/blendGlsl';                     // the ONE soft-edge ramp
 
@@ -253,20 +254,25 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
   // The restore half was missing: clearing a binding left the mesh on the flat #161616 material for
   // the rest of the session. Invisible while bindings were static, immediately visible now that an
   // operator can change one and watch the projector. Mirrors ModelObject's origMats.
-  const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
-  useEffect(() => {
-    cloned.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!(mesh as { isMesh?: boolean }).isMesh) return;
-      if (hasContent) {
-        if (!origMats.current.has(mesh.uuid)) origMats.current.set(mesh.uuid, mesh.material);
-        mesh.material = material;
-      } else {
-        const orig = origMats.current.get(mesh.uuid);
-        if (orig) { mesh.material = orig; origMats.current.delete(mesh.uuid); }
-      }
+  // Named screens get their own content — the editor's rule, from the editor's module, so the wall
+  // and the 3D view agree on which meshes are a screen and which material each one wears.
+  const swapRef = useRef<ContentSwap | null>(null);
+  if (!swapRef.current) swapRef.current = newContentSwap();
+  const screens = useMemo(() => findScreens(cloned), [cloned]);
+  const [screenMats, setScreenMats] = useState<Record<string, THREE.Material>>({});
+  const onScreenMat = useCallback((name: string, mat: THREE.Material | null) => {
+    setScreenMats((prev) => {
+      if ((prev[name] ?? null) === mat) return prev;
+      const next = { ...prev };
+      if (mat) next[name] = mat; else delete next[name];
+      return next;
     });
-  }, [cloned, hasContent, material]);
+  }, []);
+  useEffect(() => {
+    assignContentMaterials(cloned, screens, hasContent ? material : null, screenMats, swapRef.current!);
+  }, [cloned, screens, screenMats, hasContent, material]);
+  // The flipped screen geometries belong to THIS clone — release them when the file swaps or unmounts.
+  useEffect(() => () => disposeContentSwap(swapRef.current!), [cloned]);
 
   useEffect(() => () => { wireMatRef.current?.dispose(); ptsMatRef.current?.dispose(); }, []);
 
@@ -279,8 +285,37 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
     >
       <primitive object={cloned} visible={meshLook === 'shaded'} />
       {wireClone && <primitive object={wireClone} />}
+      {Object.entries(model.screens ?? {}).map(([name, b]) => (
+        <ProjectorScreenContent key={name} name={name} binding={b} onMaterial={onScreenMat} />
+      ))}
     </group>
   );
+};
+
+// One bound screen's material on the wall — the projector-window twin of the editor's ScreenContent.
+// Authored UVs only (screens carry their own from Blender). A surface arrives over the stream, which
+// App's frame pump sends because modelBindings() lists screens; a layer arrives as a layerFrame.
+const ProjectorScreenContent: React.FC<{
+  name: string;
+  binding: ScreenBinding;
+  onMaterial: (name: string, mat: THREE.Material | null) => void;
+}> = ({ name, binding, onMaterial }) => {
+  const matRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  // Born with a map and DoubleSide, exactly as useContentMaterial's — see the notes there.
+  if (!matRef.current) matRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false, side: THREE.DoubleSide, map: blankMap() });
+  const applyTex = (tex: THREE.Texture | null) => {
+    const mat = matRef.current!;
+    mat.map = tex ?? blankMap(); mat.color.set(tex ? '#ffffff' : '#161616'); mat.needsUpdate = true;
+  };
+  useLayerTexture(binding.layerId, applyTex);
+  useStreamedSurfaceTexture(binding.layerId ? undefined : binding.surfaceId, applyTex);
+  const bound = !!binding.layerId || !!binding.surfaceId;
+  useEffect(() => {
+    onMaterial(name, bound ? matRef.current : null);
+    return () => onMaterial(name, null);
+  }, [name, bound, onMaterial]);
+  useEffect(() => () => { matRef.current?.dispose(); }, []);
+  return null;
 };
 
 // In 'demand' mode R3F draws only when asked. A new solve arrives as a prop, not as scene-graph

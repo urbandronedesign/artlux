@@ -257,6 +257,48 @@ nothing in the GLB file is modified by any of this.
 
 ---
 
+## Screens named in Blender
+
+A venue usually holds several screens, and each one should play something different. Rather than
+cutting the venue into one file per screen, name the screens in Blender and ArtLux finds them.
+
+**In Blender:**
+
+1. Give each screen object a name that **starts with `screen`** — `screen_main`, `screen_left`,
+   `SCREEN-02`, `Screen.001`. Upper or lower case does not matter. It is the **object** name that
+   counts (the one in the Outliner), not the mesh data's name.
+2. Unwrap its **UVs** the way the picture should lie on it: the whole 0–1 square across the face, with
+   the top of the image at the top of the screen. A 16:9 screen with a full 0–1 unwrap shows a 16:9
+   picture without stretching.
+3. Export with Blender's **File, Export, glTF 2.0** menu, format **glTF Binary (.glb)**, with **+Y Up** on (the default). Keep
+   working in metres — ArtLux reads one unit as one metre.
+
+A group works too: name an empty `screen_wall` and every mesh under it is one screen.
+
+**In ArtLux:** load the `.glb` as a venue model. Each screen appears **indented under the model** in
+the outliner, and the Model card gains a **Screens** list with a content picker per screen — the same
+choices as the model's own: **★ Timeline (Program)**, any **Surface**, or one **Timeline layer**.
+Clicking a screen in the 3D view or in the outliner points at its picker.
+
+- A screen set to **— as the model —** shows whatever the whole model shows. So you can paint the
+  room with one surface and still give the main screen its own layer.
+- The picture is mapped through **your UVs** — the projected modes above apply to the rest of the
+  model, not to a named screen.
+- Screens **move with the model**. Blender is where they are placed; to move one, move it in Blender
+  and export again.
+- **Exporting again keeps every binding**, because bindings are matched by name. Rename a screen in
+  Blender and its old name stays in the list in **amber**, still bound, until you clear it with its
+  bin icon — so a rename never silently loses your content.
+- Everything here reaches a **calibrated projector** exactly as the model's own content does.
+
+Blender changes a few characters on export: spaces become `_`, and `.` `:` `/` `[` `]` are dropped,
+so `Screen.001` is listed as **Screen001**. That is the name ArtLux matches on.
+
+Try it with the ready-made room in `examples/blender-screens/`: one 16:9 screen named `screen_main` on
+a wall, plus a floor, so you can bind the room and the screen separately.
+
+---
+
 ## Look through a calibrated projector
 
 Once a projector output has been calibrated (see [Projector calibration](10-calibration.md)), a
