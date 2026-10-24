@@ -3,7 +3,7 @@ import { Download, X } from 'lucide-react';
 import type { ProjectorOutput } from '../../../shared/protocol';
 import * as baked from './bakedStore';
 import { describe } from './bakedStore';
-import { getHost, setUseCalibration } from './calibHost';
+import { getHost, getScene, setUseCalibration } from './calibHost';
 
 // LOADING A VENUE'S CALIBRATION — the half of calibration that is not authoring.
 //
@@ -61,8 +61,17 @@ export const ImportPanel: React.FC = () => {
     //
     // The pose (`calibration`) is deliberately left alone: it is expensive authoring data, and this
     // is a reversible switch, not a delete.
+    //
+    // ⚠ BUT ONLY WHERE THE OUTPUT CANNOT DRAW THE VENUE. Switching every output off threw away the live
+    // calibration on the machine that HAS the venue — the authoring machine, where an operator who had
+    // re-calibrated after an import pressed Unload and got flat, uncalibrated outputs (measured: the
+    // two-projector template after a Blender re-aim). An output with a solved pose and a visible venue
+    // model renders from its pose again; only one that would draw nothing goes back to its own warp.
+    // Same rule as App's rendersVenue, which also falls back on its own — this keeps the document
+    // honest instead of leaning on that.
+    const venue = (getScene().models ?? []).some((m) => m.visible);
     for (const o of (getHost()?.projectorOutputs.list() ?? []) as ProjectorOutput[]) {
-      if (o.useCalibration) setUseCalibration(o.surfaceId, false);
+      if (o.useCalibration && !(venue && o.calibration?.poseRms != null)) setUseCalibration(o.surfaceId, false);
     }
   };
 
@@ -79,7 +88,7 @@ export const ImportPanel: React.FC = () => {
           // geometry the venue no longer has, and re-calibrating an output means clearing its import
           // first (a wizard's Verify step renders live, and a loaded map supersedes exactly that).
           <button onClick={unload}
-            title="Unload the calibration and return every output to its own warp"
+            title="Unload the calibration file. Outputs go back to their live calibration where the venue model is loaded, otherwise to their own warp"
             className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-surface-2 border border-line-1 text-fg-2">
             <X size={12} /> Unload
           </button>

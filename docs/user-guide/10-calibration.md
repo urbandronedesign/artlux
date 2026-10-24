@@ -259,7 +259,13 @@ It now carries the picture.
 ArtLux also imports/exports **MPCDI** for interchange with other warping tools — a rig's file carries
 every projector's warp **and its blend**, so importing it on the show machine reproduces the
 cross-fades too, with no calibration or 3D model needed there — and can camera‑measure
-projector **gamma**. Full details, the optimization passes (ArUco one‑click recal, masking, exposure,
+projector **gamma**.
+
+A loaded calibration file **takes over** from the live calibration on every output it covers, and it
+stays loaded across restarts. To recalibrate on a machine that has a file loaded, press **Unload**
+under **Projection Outputs ▸ Calibration File** first. After Unload, an output with a calibration
+goes back to rendering from it when the venue model is loaded. Without the venue model it goes back
+to its own corner-pin warp, so it never goes black. Full details, the optimization passes (ArUco one‑click recal, masking, exposure,
 colour/black match), and troubleshooting are in [CALIBRATION.md](../CALIBRATION.md) and
 [CALIB-OPTIMIZATIONS.md](../CALIB-OPTIMIZATIONS.md).
 

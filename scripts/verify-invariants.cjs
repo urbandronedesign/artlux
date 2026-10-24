@@ -4343,7 +4343,12 @@ check(
     // to supersede it — the original black-after-reopen report.
     const imp = stripComments(read('plugins/calibration/src/ImportPanel.tsx'));
     if (!/setUseCalibration\([^)]*false\)/.test(imp)) {
-      problems.push('ImportPanel.unload no longer returns outputs to their own warp — its own tooltip promises it, and without it withdrawing a map leaves a black projector that survives a reopen');
+      problems.push('ImportPanel.unload no longer returns outputs to their own warp — without it withdrawing a map leaves a black projector that survives a reopen');
+    }
+    // …but only an output that cannot draw the venue. Switching EVERY output off threw away the live
+    // calibration on the machine that has the venue (the authoring machine, after a re-calibration).
+    if (!/venue && o\.calibration\?\.poseRms != null/.test(imp)) {
+      problems.push('ImportPanel.unload switches off outputs that could still render the venue — on the authoring machine that discards the live calibration');
     }
     return problems.length ? problems.join('; ') : null;
   },
@@ -6926,6 +6931,21 @@ check(
     const world = src.slice(src.indexOf('export function bakeWorld('));
     if (!/const ry = y \* SS \+ sy;/.test(uv)) return 'bakeContentUv no longer keeps GL row order — exported files would play upside down';
     if (!/const ry = h - 1 - y;/.test(world)) return 'bakeWorld no longer flips to a top-row-first map — the blend would weigh mirrored points';
+    return null;
+  },
+);
+
+check(
+  'a projector window re-entering render mode gets its surface pictures again',
+  'The calibration panel drops the surface pictures it textures the venue with whenever it leaves render ' +
+  'mode, and main ships a picture only when it changes. So a STATIC surface (a test card, a paused clip) ' +
+  'never came back: unloading an imported calibration returned the venue with every screen blank grey. ' +
+  'The window asks for them (needFrames) and main forgets what it last shipped that window.',
+  () => {
+    const pa = stripComments(read('src/renderer/projector/ProjectorApp.tsx'));
+    const app = stripComments(read('src/renderer/App.tsx'));
+    if (!/send\(\{ t: 'needFrames' \}\)/.test(pa)) return 'ProjectorApp no longer asks for its pictures when it enters render mode';
+    if (!/m\.t === 'needFrames'/.test(app) || !/projNeedFramesRef\.current = /.test(app)) return 'App no longer answers needFrames by forgetting what it shipped that window';
     return null;
   },
 );

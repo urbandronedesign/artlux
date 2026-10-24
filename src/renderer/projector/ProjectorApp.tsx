@@ -390,7 +390,13 @@ export const ProjectorApp: React.FC = () => {
     const req = lastCalibRef.current;
     if (!req) return;
     const eff = req.mode === 'render' && bakedRef.current?.uploaded ? { ...req, mode: 'idle' as const } : req;
+    const wasRender = calibRenderRef.current;
     calibRenderRef.current = eff.mode === 'render';
+    // ENTERING render mode: the calibration panel dropped the surface pictures it textures the venue
+    // with when it last left (CalibProjector clears them off-render), and main ships a picture only
+    // when it CHANGES. A static surface — a test card, a paused clip — therefore never came back:
+    // unloading an imported calibration returned the venue with every screen blank grey (measured).
+    if (calibRenderRef.current && !wasRender) send({ t: 'needFrames' });
     applyLocalLayers();
     panelStateRef.current.set('calib', eff);
     panelMsgSubs.current.forEach((cb) => cb(eff));

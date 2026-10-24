@@ -151,4 +151,7 @@ export type ProjectorToMain =
   | { t: 'calibPointDrag'; index: number; pixel: [number, number] }
   | { t: 'calibPointDragEnd' }
   // Receipt of a `frame` / `layerFrame` / `surfaceFrame` carrying `ack` — releases that stream in main.
-  | { t: 'frameAck'; key: string };
+  | { t: 'frameAck'; key: string }
+  // The window (re)entered render-from-projector and holds no surface pictures for its venue: main
+  // forgets what it last shipped here, so even a STATIC surface is sent again. See ProjectorApp.
+  | { t: 'needFrames' };

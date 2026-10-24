@@ -521,6 +521,7 @@ const App: React.FC = () => {
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   // Installed by the projector frame pump: a window's `frameAck` releases that stream's in-flight slot.
   const projFrameAckRef = useRef<(surfaceId: string, key: string) => void>(() => {});
+  const projNeedFramesRef = useRef<(surfaceId: string) => void>(() => {}); // see ProjectorToMain 'needFrames'
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
   const ndiSendersRef = useRef<Set<string>>(new Set());                  // surfaceIds with a live NDI sender
   const [nvAvailable, setNvAvailable] = useState(false);                 // NVAPI scanout warp/blend present (Quadro/RTX-pro)
@@ -4219,6 +4220,12 @@ const App: React.FC = () => {
           const f = inFlight.get(key);
           return !!f && f.port === port && now - f.at < ACK_TIMEOUT_MS;
       };
+      // A window that (re)entered render mode holds no pictures: forget what this pump last shipped it
+      // — its own surface (key = surfaceId) and every surface its venue references (surfaceId:…) — so
+      // the next tick sends them even when their generation has not moved.
+      projNeedFramesRef.current = (surfaceId) => {
+          for (const key of [...sentGen.keys()]) if (key === surfaceId || key.startsWith(`${surfaceId}:`)) sentGen.delete(key);
+      };
       projFrameAckRef.current = (surfaceId, key) => {
           // Only the window that owns the key may release it — a stale ack from a closed window's
           // port must not free a stream that now belongs to its replacement.
@@ -4676,6 +4683,7 @@ const App: React.FC = () => {
   onProjectorMsgRef.current = (surfaceId, m) => {
       // ~30/s per stream, and pure pump bookkeeping — answered here and never fanned out to plugins.
       if (m.t === 'frameAck') { projFrameAckRef.current(surfaceId, m.key); return; }
+      if (m.t === 'needFrames') { projNeedFramesRef.current(surfaceId); return; }
       if (m.t === 'ready') pushProjectorStateRef.current(surfaceId);
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
