@@ -9,6 +9,7 @@
 // it only reports status. The operator explicitly starts the playlist in broadcast (startBroadcast).
 
 import { app } from 'electron';
+import { existsSync } from 'node:fs';
 import { relaunchArgs } from '../../../src/main/runProfile'; // host relaunch seam (main-side, in-process)
 import { getPlaylist, resolve } from './playlist';
 import { describeWhen } from './recurrence';
@@ -81,7 +82,25 @@ export function status(): PlaylistStatus {
 export function startBroadcast(): void {
   const pl = getPlaylist();
   const { due } = resolve(new Date(), pl.entries);
-  if (due) relaunchBroadcast(due.entry.projectPath);
+  if (due && reachable(due.entry.projectPath)) relaunchBroadcast(due.entry.projectPath);
+}
+
+// NEVER SWITCH INTO A FILE THAT IS NOT THERE. A due entry whose project was deleted, renamed or sits on
+// an unplugged drive used to win anyway: the scheduler relaunched into it within a second of start,
+// the read failed, and broadcast ran an EMPTY project — no outputs, so no screen, and the operator's
+// own project (the one they had just launched) was gone too. Found 2026-10-24: a stale playlist left
+// by a test pointed at a deleted temp show and hijacked every broadcast launch on the machine. The
+// show already running is always the better picture than nothing, so a missing target is skipped
+// (warned once per path, not every 5 s tick) and the scheduler keeps re-checking — a drive that comes
+// back is switched to on the next tick.
+const warnedMissing = new Set<string>();
+function reachable(path: string): boolean {
+  if (existsSync(path)) { warnedMissing.delete(norm(path)); return true; }
+  if (!warnedMissing.has(norm(path))) {
+    warnedMissing.add(norm(path));
+    console.warn('[show-control] playlist entry skipped — project file not found:', path);
+  }
+  return false;
 }
 
 function tick(): void {
@@ -91,7 +110,7 @@ function tick(): void {
   if (!IS_BROADCAST || !pl.enabled) return;
   const { due } = resolve(new Date(), pl.entries);
   if (!due) return;
-  if (norm(due.entry.projectPath) !== norm(CURRENT_PROJECT)) {
+  if (norm(due.entry.projectPath) !== norm(CURRENT_PROJECT) && reachable(due.entry.projectPath)) {
     relaunchBroadcast(due.entry.projectPath);
   }
 }

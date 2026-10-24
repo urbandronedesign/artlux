@@ -4790,11 +4790,21 @@ const App: React.FC = () => {
           // runs on DEFAULT_SETTINGS — Art-Net unicast to 127.0.0.1, and audio falling back to binaural/2ch on
           // whatever rig is actually plugged in. This is the one mode a venue actually runs.
           if (prefs?.appSettings) setSettings(s => ({ ...s, ...(prefs.appSettings as Partial<AppSettings>) }));
-          const path = QUERY_PROJECT || prefs?.lastProjectPath;
-          if (!path) { console.warn(`[${mode}] no project to load`); return; }
-          const data = await window.artlux?.loadProjectPath?.(path);
-          if (data) { applyProjectData(data); setCurrentProjectPath(path); }
-          console.log(`[${mode}] loaded project: ${path}`);
+          // A --project= that does not load FALLS BACK to the last-opened project. It used to log "loaded
+          // project" whatever happened and run an empty document — no outputs, so no screen, and the log
+          // line said the opposite of the truth. On a show machine any real project beats a blank one, and
+          // each attempt now says plainly which file failed. (2026-10-24: a stale playlist entry pointed
+          // broadcast at a deleted file; the scheduler now skips those too.)
+          const candidates = [...new Set([QUERY_PROJECT, prefs?.lastProjectPath].filter((p): p is string => !!p))];
+          if (!candidates.length) { console.warn(`[${mode}] no project to load`); return; }
+          for (const path of candidates) {
+              const data = await window.artlux?.loadProjectPath?.(path);
+              if (!data) { console.error(`[${mode}] could not load project: ${path}`); continue; }
+              applyProjectData(data); setCurrentProjectPath(path);
+              console.log(`[${mode}] loaded project: ${path}`);
+              return;
+          }
+          console.error(`[${mode}] no project could be loaded — running empty, nothing will be output`);
       })();
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

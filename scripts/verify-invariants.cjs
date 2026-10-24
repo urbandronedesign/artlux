@@ -6410,6 +6410,32 @@ check(
   },
 );
 
+// ── Broadcast never runs a project that is not there ──────────────────────────────────────────
+check(
+  'broadcast never switches into, or silently runs, a project file that does not exist',
+  'A stale playlist entry pointed at a deleted temp show. On every broadcast launch the scheduler ' +
+  'relaunched into it within a second, the read failed, and the renderer logged "loaded project" and ran ' +
+  'an EMPTY document — no outputs, no screen, and the operator\'s own project gone. Found 2026-10-24 ' +
+  '(owner: "no screen appears"). The scheduler now skips a missing target and the loader falls back to ' +
+  'the last-opened project.',
+  () => {
+    const bad = [];
+    const S = 'plugins/show-control/src/scheduler.ts';
+    const sch = stripComments(read(S));
+    const relaunches = sch.match(/relaunchBroadcast\(due\.entry\.projectPath\)/g) || [];
+    const guarded = sch.match(/reachable\(due\.entry\.projectPath\)\)\s*\{?\s*relaunchBroadcast\(due\.entry\.projectPath\)/g) || [];
+    if (!relaunches.length) bad.push(S + ': the playlist relaunch was not found — this guard cannot see what it protects');
+    else if (guarded.length !== relaunches.length) bad.push(S + ': a playlist relaunch into a due entry no longer checks the file exists (reachable)');
+    if (!/existsSync\(/.test(sch)) bad.push(S + ': reachable() no longer checks existsSync');
+    const A = 'src/renderer/App.tsx';
+    const app = stripComments(read(A));
+    const i = app.indexOf('loaded project: ${path}');
+    if (i < 0) bad.push(A + ': the show-engine project loader was not found');
+    else if (!/if\s*\(!data\)\s*\{[\s\S]{0,200}?continue;/.test(app.slice(Math.max(0, i - 800), i))) bad.push(A + ': the show-engine loader no longer skips a project that failed to load');
+    return bad.length ? bad.join('\n') : null;
+  },
+);
+
 // ── GPU crash: the LEDs and the projectors come back on their own ─────────────────────────────
 check(
   'a lost GPU device is rebuilt — LEDs and projector outputs recover from a GPU-process crash',
