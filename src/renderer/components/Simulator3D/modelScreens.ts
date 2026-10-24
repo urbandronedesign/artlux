@@ -35,29 +35,48 @@ export function findScreens(root: THREE.Object3D): Map<string, THREE.Mesh[]> {
 // What assignContentMaterials swapped out and must be able to put back — one per model instance.
 export interface ContentSwap {
   mats: Map<string, THREE.Material | THREE.Material[]>;            // mesh uuid → its authored material
-  geos: Map<string, { orig: THREE.BufferGeometry; flipped: THREE.BufferGeometry }>;
+  geos: Map<string, THREE.BufferGeometry>;                          // mesh uuid → its authored geometry
 }
 export const newContentSwap = (): ContentSwap => ({ mats: new Map(), geos: new Map() });
-/** Release the flipped geometries this swap built (never the originals — the loader shares those). */
+/** Forget a swap. The flipped geometries are NOT disposed: they are shared per source (see flippedUv). */
 export function disposeContentSwap(s: ContentSwap): void {
-  for (const g of s.geos.values()) g.flipped.dispose();
+  s.mats.clear();
   s.geos.clear();
 }
 
 // A glTF UV has v = 0 at the TOP of the image; ArtLux's content textures are uploaded with v = 0 at
 // the BOTTOM (three's flipY, or bitmapFlip.ts's repeat/offset where flipY is ignored). Measured on
-// the Blender test venue: a screen unwrapped upright in Blender showed its content upside down. The
-// fix cannot live on the texture — it is the SAME texture a plane, the 2D stage and every other
-// binding draw, all of which are correct — so it lives on the screen's GEOMETRY: a private copy with
-// v → 1 − v, worn only while the screen wears its own content. Its GLB material comes back with the
-// authored geometry, so a texture the modeller painted on the screen is never turned over.
+// the Blender test venue: a mesh unwrapped upright in Blender showed its content upside down — the
+// named screen AND the whole model alike. The fix cannot live on the texture — it is the SAME texture
+// a plane, the 2D stage and every other binding draw, all of which are correct — so it lives on the
+// GEOMETRY: a twin with v → 1 − v, worn only while the mesh wears content. Its GLB material comes back
+// with the authored geometry, so a texture the modeller painted on the mesh is never turned over.
+// (The projected-UV material computes its UV from the vertex position and never reads this one.)
 //
-// Only NAMED screens get this. The whole-model binding keeps the UVs exactly as before, because
-// projects already exist whose content was authored against that orientation.
+// The twin SHARES position, normal, index — every buffer but `uv` — so a CAD venue bound as a whole
+// costs one extra UV array, not a second copy of its mesh. It is cached per SOURCE geometry: every
+// clone of a GLB shares the loader's geometry, so the editor, each placement and each remount reuse
+// one twin, and it lives exactly as long as the loaded file does. Never disposed for that reason —
+// disposing a geometry makes the renderer release its attributes' GPU buffers, and those are shared.
+const flippedCache = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
 function flippedUv(g: THREE.BufferGeometry): THREE.BufferGeometry {
-  const c = g.clone();
-  const uv = c.getAttribute('uv') as THREE.BufferAttribute | undefined;
-  if (uv) { for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i)); uv.needsUpdate = true; }
+  const hit = flippedCache.get(g);
+  if (hit) return hit;
+  const c = new THREE.BufferGeometry();
+  c.setIndex(g.index);
+  for (const [name, attr] of Object.entries(g.attributes)) {
+    if (name !== 'uv') { c.setAttribute(name, attr); continue; }
+    const uv = (attr as THREE.BufferAttribute).clone();
+    for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+    c.setAttribute('uv', uv);
+  }
+  c.morphAttributes = g.morphAttributes;
+  c.morphTargetsRelative = g.morphTargetsRelative;
+  for (const grp of g.groups) c.addGroup(grp.start, grp.count, grp.materialIndex);
+  c.drawRange = { ...g.drawRange };
+  c.boundingBox = g.boundingBox?.clone() ?? null;
+  c.boundingSphere = g.boundingSphere?.clone() ?? null;
+  flippedCache.set(g, c);
   return c;
 }
 
@@ -81,19 +100,19 @@ export function assignContentMaterials(
     const mesh = o as THREE.Mesh;
     if (!(mesh as { isMesh?: boolean }).isMesh) return;
     const s = screenOf.get(mesh.uuid);
-    const own = s ? screenMats[s] : undefined;
-    const want = own ?? modelMat;
+    const want = (s ? screenMats[s] : undefined) ?? modelMat;
     if (want) {
       if (!swap.mats.has(mesh.uuid)) swap.mats.set(mesh.uuid, mesh.material);
       mesh.material = want;
+      // The geometry half — see flippedUv. Content is worn with glTF's v turned over to ArtLux's.
+      if (!swap.geos.has(mesh.uuid)) swap.geos.set(mesh.uuid, mesh.geometry);
+      mesh.geometry = flippedUv(swap.geos.get(mesh.uuid)!);
     } else {
       const orig = swap.mats.get(mesh.uuid);
       if (orig) { mesh.material = orig; swap.mats.delete(mesh.uuid); }
+      const geo = swap.geos.get(mesh.uuid);
+      if (geo) { mesh.geometry = geo; swap.geos.delete(mesh.uuid); }
     }
-    // The geometry half — see flippedUv. Built once per mesh, kept while the model lives.
-    let g = swap.geos.get(mesh.uuid);
-    if (own && !g) { g = { orig: mesh.geometry, flipped: flippedUv(mesh.geometry) }; swap.geos.set(mesh.uuid, g); }
-    if (g) mesh.geometry = own ? g.flipped : g.orig;
   });
 }
 

@@ -114,6 +114,8 @@ export function formatMetric(v: number): string {
 // ── Measuring the live camera ──────────────────────────────────────────────────────────────────────
 // Module-scope scratch: this runs every frame, and allocating five Vector3s per tick is exactly the
 // per-frame garbage the rest of this folder is careful about.
+// How far the reference point may sit — see the clamp in solveGridFrame.
+const MAX_REF_M = 20;
 const _eye = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _at = new THREE.Vector3();
@@ -155,6 +157,12 @@ export function solveGridFrame(cam: THREE.Camera, heightPx: number, prevSection?
   // metres BEHIND the projector. A forward ray works in both modes.
   let t = Number.NaN;
   if (Math.abs(_dir.y) > 1e-4) t = -_eye.y / _dir.y;
+  // A camera aimed NEARLY level meets the floor absurdly far away — and a projector is aimed nearly
+  // level by nature. Looking through one (viewFrom) put the reference point ~2 km out, where a metre
+  // is a fraction of a pixel: the grid stepped up to a vast section and the origin gnomon, one section
+  // long, became coloured bands across the whole picture. Nothing the operator is working on is that
+  // far, so the reference stops at a venue's distance instead.
+  if (t > 0 && Number.isFinite(t)) t = Math.min(t, Math.max(MAX_REF_M, 10 * Math.abs(_eye.y)));
   if (t > 0 && Number.isFinite(t)) {
     _at.copy(_eye).addScaledVector(_dir, t);
     _at.y = 0;                                      // kill float drift; it IS the floor plane

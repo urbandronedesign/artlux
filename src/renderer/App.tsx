@@ -3846,7 +3846,16 @@ const App: React.FC = () => {
         const p = currentProjectPathRef.current;
         if (!p) return false;
         await afterCommit(); // see commitWaiters — never serialise a document the caller just patched
-        try { return !!(await window.artlux?.saveProject?.(buildProjectDataRef.current(), p)); }
+        try {
+          const data = buildProjectDataRef.current();
+          const ok = !!(await window.artlux?.saveProject?.(data, p));
+          // Rebase the dirty check on what was WRITTEN, exactly as handleSaveProject does. Without it a
+          // plugin save (every calibration wizard's Apply & finish) left the title on "Unsaved changes"
+          // over a file that was already correct — and an operator who trusts that light saves again,
+          // or worse, stops trusting it.
+          if (ok) { savedDocRef.current = signatureOf(data); setDocDirty(false); }
+          return ok;
+        }
         catch { return false; }
       },
     },

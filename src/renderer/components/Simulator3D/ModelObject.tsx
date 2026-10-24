@@ -57,8 +57,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
 
   // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own
-  // UVs); restore the original GLB materials when cleared. Shares the binding path with planes.
-  // A named screen with a binding of its own is the exception — see assignContentMaterials.
+  // UVs, v turned to glTF's convention — see flippedUv); restore the original GLB materials when
+  // cleared. Shares the binding path with planes. A named screen with a binding of its own is the
+  // exception — see assignContentMaterials.
   const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   // Born WITH a map (the 1x1 stand-in), never mapless — blankMap.ts: three's WebGPU observer snapshots
   // a material's uniforms once and skips whatever was null, so a map attached later is never watched.

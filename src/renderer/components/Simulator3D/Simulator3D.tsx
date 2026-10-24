@@ -160,6 +160,24 @@ const ViewerCameraBridge: React.FC = () => {
 // axis that has spare room letterboxes it instead — the picture stays the projector's, with slack
 // around it (the toolbar draws the raster frame so the slack is legible as slack).
 const ProjectorView: React.FC<{ calibration: ProjectorCalibration }> = ({ calibration }) => {
+  // The fields written below belong to the ORBIT camera once this view is left — put them back, or the
+  // editor view comes back at the projector's field of view (AdaptiveClipping rebuilds the matrix from
+  // them on its next frame).
+  const cameraOwn = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const paneSize = useThree((s) => s.size);
+  const paneRef = useRef(paneSize); paneRef.current = paneSize;
+  useEffect(() => {
+    const cam = cameraOwn;
+    if (!cam.isPerspectiveCamera) return;
+    const saved = { fov: cam.fov, zoom: cam.zoom };
+    return () => {
+      // Aspect from the pane as it is NOW — it may have been resized while looking through.
+      const { width, height } = paneRef.current;
+      cam.fov = saved.fov; cam.zoom = saved.zoom;
+      if (width > 0 && height > 0) cam.aspect = width / height;
+      cam.updateProjectionMatrix();
+    };
+  }, [cameraOwn]);
   useFrame(({ camera, size }) => {
     const { position, quaternion } = cameraPose(calibration.rotation, calibration.translation as [number, number, number]);
     camera.position.set(position[0], position[1], position[2]);
@@ -174,6 +192,18 @@ const ProjectorView: React.FC<{ calibration: ProjectorCalibration }> = ({ calibr
     }
     camera.projectionMatrix.fromArray(m);
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+    // Keep the camera's own FIELDS honest too. The matrix above is what draws, but anything that sizes
+    // itself in screen space reads `fov` — TransformControls scales its gizmo by distance × tan(fov/2),
+    // and with the orbit camera's fov left behind it drew a model's gizmo across the whole pane while
+    // looking through a projector. m[5] = 1/tan(vfov/2) once refitted, so this is the fov the pane
+    // actually shows. Fields only: updateProjectionMatrix() would rebuild the matrix from them and
+    // throw away the principal point the projector's intrinsics carry.
+    const cam = camera as THREE.PerspectiveCamera;
+    if (cam.isPerspectiveCamera && m[5] > 0) {
+      cam.fov = (2 * Math.atan(1 / m[5]) * 180) / Math.PI;
+      cam.aspect = size.height > 0 ? size.width / size.height : cam.aspect;
+      cam.zoom = 1;
+    }
   });
   return null;
 };

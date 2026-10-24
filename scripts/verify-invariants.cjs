@@ -6671,6 +6671,48 @@ check(
   },
 );
 
+check(
+  'a plugin save rebases the unsaved-changes light',
+  'host.project.save wrote the file but never told the dirty check, so after every calibration ' +
+  'wizard\'s Apply & finish the title read "Unsaved changes" over a file that was already correct.',
+  () => {
+    const src = stripComments(read('src/renderer/App.tsx'));
+    const i = src.indexOf('save: async () => {');
+    if (i < 0) return 'App.tsx: host.project.save not found — this guard cannot see what it protects';
+    return /savedDocRef\.current\s*=\s*signatureOf\(/.test(src.slice(i, i + 900)) ? null : 'host.project.save no longer rebases savedDocRef on what it wrote';
+  },
+);
+
+check(
+  'looking through a projector keeps the camera fov honest',
+  'ProjectorView writes the projection MATRIX; TransformControls sizes its gizmo from camera.fov. ' +
+  'With the orbit fov left behind, a selected model\'s gizmo filled the whole pane.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Simulator3D/Simulator3D.tsx'));
+    const i = src.indexOf('const ProjectorView');
+    if (i < 0) return 'Simulator3D.tsx: ProjectorView not found — this guard cannot see what it protects';
+    const body = src.slice(i, i + 3000);
+    if (!/cam\.fov\s*=/.test(body)) return 'ProjectorView no longer sets camera.fov from the projector';
+    if (!/updateProjectionMatrix\(\)/.test(body)) return 'ProjectorView no longer restores the orbit camera on exit';
+    return null;
+  },
+);
+
+check(
+  'GLB content is read with glTF\'s v convention, model-wide',
+  'glTF puts v = 0 at the top; ArtLux content textures at the bottom. A Blender mesh unwrapped ' +
+  'upright showed its content upside down, first on named screens, then on whole-model bindings. ' +
+  'Every mesh wearing content must wear the v-flipped twin.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Simulator3D/modelScreens.ts'));
+    const body = fnBody(src, 'assignContentMaterials');
+    if (!body) return 'modelScreens.ts: assignContentMaterials not found — this guard cannot see what it protects';
+    const w = body.indexOf('if (want)');
+    const e = body.indexOf('} else {', w);
+    return w >= 0 && e > w && body.slice(w, e).includes('flippedUv(') ? null : 'content is worn without the v-flipped geometry';
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

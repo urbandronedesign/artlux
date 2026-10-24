@@ -211,11 +211,16 @@ into its own frame and resizes once on the way through.
 Planes display the frame directly; meshes get it textured through UV coordinates, and a **UVs**
 selector chooses which:
 
-- **Mesh UVs** — the UV map authored in the GLB file. Two things go wrong here and both are the
+- **Mesh UVs** — the UV map authored in the GLB file, read the standard glTF way: a mesh unwrapped
+  upright in Blender shows its content upright. Two things can still go wrong and both are the
   file's doing, not yours: if it has no UV map (common for CAD exports) there is nothing to spread
-  the picture across and the whole mesh shows a single flat color, and if the exporter flipped the V
-  axis the content arrives **upside down**. Projecting sidesteps both, because the mapping then comes
-  from a matrix rather than from the file.
+  the picture across and the whole mesh shows a single flat color, and if the unwrap itself is
+  upside down so is the content. Projecting sidesteps both, because the mapping then comes from a
+  matrix rather than from the file.
+
+  > **Projects made before October 2026:** ArtLux used to read a standard glTF unwrap upside down. A
+  > mesh bound with **Mesh UVs** whose content was turned over to look right will now be upside down
+  > — turn the content back (or the unwrap in Blender).
 - **Projected from view** — projects the mesh from a **frozen** 3D viewpoint: orbit the camera until
   the mesh is framed the way the content should land, then press **From view**. From that viewpoint
   the content reads as a fullscreen image. The viewpoint does not follow the camera afterwards; press
