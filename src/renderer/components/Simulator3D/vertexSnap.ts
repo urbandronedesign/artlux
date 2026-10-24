@@ -102,16 +102,16 @@ function bestVertex(e: ThreeEvent<MouseEvent>, w: number, h: number): Candidate 
   // essentially the hit depth; a back corner is far past it.
   const maxDist = hitDist * 1.2 + 1e-6;
 
-  let bestV: THREE.Vector3 | null = null;
-  let bestD = Infinity;
+  // Every vertex that passes the coarse depth gate, nearest on screen first — the visibility test
+  // below then takes the first one the camera can actually see.
+  const near: Candidate[] = [];
   const consider = (x: number, y: number, z: number): void => {
     _v.set(x, y, z);
     mesh.localToWorld(_v);
     if (camPos.distanceTo(_v) > maxDist) return;
     const s = toScreen(_v, e.camera, w, h);
     if (!s) return;
-    const d = Math.hypot(s[0] - hitScreen[0], s[1] - hitScreen[1]);
-    if (d < bestD) { bestD = d; bestV = (bestV ?? new THREE.Vector3()).copy(_v); }
+    near.push({ v: _v.clone(), dist: Math.hypot(s[0] - hitScreen[0], s[1] - hitScreen[1]) });
   };
 
   const uniq = uniqueVertices(geom);
@@ -120,8 +120,27 @@ function bestVertex(e: ThreeEvent<MouseEvent>, w: number, h: number): Candidate 
   } else if (e.face) {
     for (const idx of [e.face.a, e.face.b, e.face.c]) consider(pos.getX(idx), pos.getY(idx), pos.getZ(idx));
   }
-  return bestV ? { v: bestV, dist: bestD } : null;
+  near.sort((a, b) => a.dist - b.dist);
+
+  // THE DEPTH GATE ABOVE IS RELATIVE, AND A VENUE WALL DEFEATS IT. A 0.2 m wall seen from 9 m puts its
+  // hidden back corner 2% deeper than the front one and ~2 px from it on screen, so the 20% gate lets
+  // it through and the nearer-on-screen one wins half the time. Measured in the Manual flow on the
+  // Blender test venue: two such picks moved the solved projector 0.7 m up at a "good" 1.4 px RMS —
+  // nothing on screen said the anchor was on the back of the wall. So the winner must be VISIBLE: one
+  // ray from the eye toward it, against this mesh, must not stop in front of it. Only the few nearest
+  // candidates are tested (the first visible one wins), so this is a handful of raycasts per click.
+  for (const c of near.slice(0, MAX_VIS_TESTS)) {
+    const d = camPos.distanceTo(c.v);
+    _ray.set(camPos, _dir.copy(c.v).sub(camPos).normalize());
+    _ray.far = d;
+    const hit = _ray.intersectObject(mesh, false)[0];
+    if (!hit || hit.distance >= d - (d * 1e-3 + 1e-4)) return c;
+  }
+  return null;
 }
+const MAX_VIS_TESTS = 6;
+const _ray = new THREE.Raycaster();
+const _dir = new THREE.Vector3();
 
 /**
  * The point a click should place: the nearest vertex when one is within SNAP_PX of the cursor on

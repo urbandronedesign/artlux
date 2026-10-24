@@ -213,6 +213,11 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string; meshLook?: Mesh
     if (meshLook === 'shaded') return null;
     const root = new THREE.Group();
     const walk = (obj: THREE.Object3D, parentMat: THREE.Matrix4) => {
+      // `matrix` is only refreshed from position/rotation/scale when three renders the object, and this
+      // memo runs BEFORE the first render — recenterClone writes `cloned.position`, so reading a stale
+      // matrix dropped the recentre and drew every verify look offset by the model's bbox centre
+      // (measured: 2 m high on the Blender test venue, right after Apply & finish). Refresh it here.
+      obj.updateMatrix();
       const mat = parentMat.clone().multiply(obj.matrix);
       const m = obj as THREE.Mesh;
       if ((m as { isMesh?: boolean }).isMesh && m.geometry) {

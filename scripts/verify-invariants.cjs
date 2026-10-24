@@ -6613,6 +6613,48 @@ check(
   },
 );
 
+// ── Calibration: what the 2026-10-24 Manual-flow test on the Blender venue found ─────────────────
+check(
+  'vertex snap only takes a vertex the camera can see',
+  'The snap gate was relative (20% deeper than the hit), and a venue wall defeats it: a 0.2 m wall ' +
+  'seen from 9 m puts its hidden back corner 2% deeper and ~2 px from the front one. Two such picks ' +
+  'moved the solved projector 0.7 m at a "good" 1.4 px RMS, with nothing on screen to say so.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Simulator3D/vertexSnap.ts'));
+    const body = fnBody(src, 'bestVertex');
+    if (!body) return 'vertexSnap.ts: bestVertex not found — this guard cannot see what it protects';
+    return body.includes('intersectObject(') ? null : 'bestVertex no longer ray-tests the winning vertex for visibility';
+  },
+);
+
+check(
+  'projector verify looks refresh node matrices before baking them',
+  'wireClone runs before the first render, when recenterClone has written cloned.position but not ' +
+  'cloned.matrix — so the edges/wireframe looks (and the picking underlay) drew the venue offset by ' +
+  'its bbox centre: 2 m high on the Blender test venue, right after Apply & finish.',
+  () => {
+    const src = stripComments(read('plugins/calibration/src/ProjectorScene.tsx'));
+    const i = src.indexOf('const walk = (obj: THREE.Object3D');
+    if (i < 0) return 'ProjectorScene.tsx: the wireClone walk is gone — this guard cannot see what it protects';
+    return /updateMatrix\(\)/.test(src.slice(i, i + 400)) ? null : 'the wireClone walk reads obj.matrix without updateMatrix()';
+  },
+);
+
+check(
+  'host.project.save waits for a commit before serialising',
+  'A plugin patch only queues a state update; the save builds the last RENDERED document. Every ' +
+  'calibration wizard patches useCalibration then saves, so the file kept render-from-projector OFF ' +
+  'and an output fell back to the flat warp after a restart.',
+  () => {
+    const src = stripComments(read('src/renderer/App.tsx'));
+    const i = src.indexOf('save: async () => {');
+    if (i < 0) return 'App.tsx: host.project.save not found — this guard cannot see what it protects';
+    const body = src.slice(i, i + 400);
+    return body.indexOf('await afterCommit()') >= 0 && body.indexOf('await afterCommit()') < body.indexOf('buildProjectDataRef.current()')
+      ? null : 'host.project.save serialises without awaiting afterCommit() first';
+  },
+);
+
 check(
   'a projector starting pose is never a calibration',
   'poseSeeded (a camera named projector… in the venue file) lets PICKING predict from where the ' +

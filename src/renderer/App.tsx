@@ -3817,6 +3817,17 @@ const App: React.FC = () => {
   // sees current state. Subscriber sets fire from the change effects below and the projector message
   // router; `projectors.onMessage` is the projector→main back-channel (e.g. calibration patternShown).
   const outputSubs = useRef(new Set<() => void>());
+  // PATCH-THEN-SAVE. A plugin's patch only QUEUES a state update, while buildProjectDataRef holds the
+  // document as of the last RENDER — so `patch(); save()` in one tick wrote the file without the patch.
+  // Every calibration wizard does exactly that on Apply & finish (useCalibration on, then save): the
+  // file kept render-from-projector OFF and the title read "Unsaved changes" the moment the save
+  // returned (measured 2026-10-24); after a restart the output fell back to the flat warp.
+  // host.project.save therefore waits for one commit — a tick queued BEHIND the caller's updates, so
+  // the commit that runs this effect carries them, and the build function it sees is current.
+  const commitWaiters = useRef<(() => void)[]>([]);
+  const [, setCommitTick] = useState(0);
+  useEffect(() => { if (commitWaiters.current.length) commitWaiters.current.splice(0).forEach((f) => f()); });
+  const afterCommit = () => new Promise<void>((resolve) => { commitWaiters.current.push(resolve); setCommitTick((n) => n + 1); });
   const surfaceSubs = useRef(new Set<() => void>());
   const sceneSubs = useRef(new Set<() => void>());
   const settingsSubs = useRef(new Set<() => void>());
@@ -3834,6 +3845,7 @@ const App: React.FC = () => {
       save: async () => {
         const p = currentProjectPathRef.current;
         if (!p) return false;
+        await afterCommit(); // see commitWaiters — never serialise a document the caller just patched
         try { return !!(await window.artlux?.saveProject?.(buildProjectDataRef.current(), p)); }
         catch { return false; }
       },
