@@ -108,7 +108,14 @@ export function rendererDevUrl(): string | undefined {
  * a watchdog self-heal three relaunches deep still knows the dev server is gone.
  */
 export function relaunchArgs(): string[] {
-  return app.isPackaged ? [] : [app.getAppPath(), '--built-renderer'];
+  const args = app.isPackaged ? [] : [app.getAppPath(), '--built-renderer'];
+  // ⚠ KEEP THE PROFILE. app.relaunch({ args }) REPLACES argv, so a process started on another
+  // userData (`--user-data-dir=…`: a second instance beside the operator's, a test bench) came back on
+  // the DEFAULT profile — its prefs, its playlist, its last project. Measured 2026-10-24: a watchdog
+  // relaunch from a scratch profile landed on the owner's and followed a stale test playlist there.
+  const ud = process.argv.find((a) => a.startsWith('--user-data-dir='));
+  if (ud) args.push(ud);
+  return args;
 }
 
 /**

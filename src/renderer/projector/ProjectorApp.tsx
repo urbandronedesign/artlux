@@ -537,8 +537,29 @@ export const ProjectorApp: React.FC = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // ── A LOST GL CONTEXT RELOADS THIS OUTPUT ─────────────────────────────────────────────────────
+    // A GPU-process crash (driver reset/TDR, driver crash, GPU OOM) kills this window's WebGL context,
+    // and with it every program, texture and the calibration map. Nothing handled that: measured
+    // 2026-10-24 with CDP Browser.crashGpuProcess in broadcast, both outputs went BLACK and stayed black
+    // while the editor and the LEDs carried on. A reload rebuilds all of it from the editor's state on
+    // the re-bridged port (main bridges on every load) — simpler and more complete than re-creating
+    // each GL object, and a projector window holds nothing a reload loses. preventDefault() so Chromium
+    // may restore contexts at all; the short delay lets the GPU process come back first. If WebGL still
+    // cannot be created after the reload, try again every 2 s rather than sitting black.
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    const reloadSoon = (why: string, ms: number) => {
+      if (reloadTimer) return;
+      console.error(`[projector] ${why} — reloading this output to rebuild it`);
+      reloadTimer = setTimeout(() => location.reload(), ms);
+    };
+    const onContextLost = (e: Event) => { e.preventDefault(); reloadSoon('WebGL context lost (GPU crash or driver reset)', 500); };
+    canvas.addEventListener('webglcontextlost', onContextLost);
     let gl: ProjectorGL;
-    try { gl = new ProjectorGL(canvas); } catch (err) { console.error(err); return; }
+    try { gl = new ProjectorGL(canvas); } catch (err) {
+      console.error(err);
+      reloadSoon('WebGL unavailable', 2000);
+      return () => { canvas.removeEventListener('webglcontextlost', onContextLost); if (reloadTimer) clearTimeout(reloadTimer); };
+    }
     glRef.current = gl;
     // Publish this output as NDI (~30 fps, capped resolution) when enabled. Extracted from the tail of
     // the loop because the calibrated-warp branch returns early and must still send — a calibrated
@@ -784,7 +805,10 @@ export const ProjectorApp: React.FC = () => {
       captureNdi(now);
     };
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); gl.dispose(); glRef.current = null; frameRef.current?.close(); frameRef.current = null; };
+    return () => {
+      canvas.removeEventListener('webglcontextlost', onContextLost); if (reloadTimer) clearTimeout(reloadTimer);
+      cancelAnimationFrame(raf); gl.dispose(); glRef.current = null; frameRef.current?.close(); frameRef.current = null;
+    };
   }, []);
 
   // Editable handles: the 16 Bézier control points, or the 4 corner-pin points.

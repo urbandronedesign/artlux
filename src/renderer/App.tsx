@@ -791,10 +791,14 @@ const App: React.FC = () => {
         notePainted();
         const ps = perfMonitor.stats();
         const us = uiPerfMonitor.stats();
+        // The GPU device's health rides the same heartbeat: a lost device keeps every rate above at
+        // 60 while the LEDs repeat one frozen frame, so main has no other way to know.
+        const es = frameEngine.getStatus();
         window.artlux?.reportRenderStats?.({
           ...ps,
           longTasks: us.longTasks, longTaskMs: us.longTaskMs, longTaskMaxMs: us.longTaskMaxMs,
           commits: us.commits, commitMs: us.commitMs,
+          gpuDeviceLost: !!es.gpuLost, gpuDeviceLosses: es.gpuLosses ?? 0,
         });
         // `gpu=` says n/a rather than 0 when the device cannot time itself — a broadcast log is read
         // long after the fact, and "0.0ms" would be remembered as a free GPU.

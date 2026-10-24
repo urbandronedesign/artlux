@@ -103,6 +103,13 @@ if (process.env.ARTLUX_DSHOW_CAPTURE === '1') {
     disabledFeatures.push('MediaFoundationVideoCapture');
 }
 app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
+// ⚠ A SHOW MACHINE MUST BE ALLOWED TO GET ITS GPU BACK. Chromium's default is to block WebGL and
+// WebGPU "until restart" for a page whose GPU process crashes too often — a browser protecting a tab.
+// For us the page IS the show: measured 2026-10-24, after the SECOND GPU-process crash in a session
+// `navigator.gpu.requestAdapter()` returned null and WebGL reported "not supported", so the in-process
+// rebuild (frameEngine.recoverFromDeviceLoss) had nothing to rebuild on and the LEDs froze for good.
+// Must run before 'ready'.
+app.disableDomainBlockingFor3DAPIs();
 
 // Dev-only: enable the Chromium remote-debugging (CDP) endpoint so the documentation
 // screenshot harness (scripts/capture-docs.cjs) can attach and drive the UI. Off unless

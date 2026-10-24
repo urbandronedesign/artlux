@@ -199,7 +199,13 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
   });
   // Bridge once the projector renderer is loaded (the port is buffered by its preload
   // until the renderer signals readiness, so racing the handshake is safe).
-  win.webContents.once('did-finish-load', () => bridge(getMain, win, surfaceId));
+  //
+  // ⚠ EVERY load, not once. A projector page that reloads gets a fresh document with no port, and a
+  // `once` here left it on "Waiting for the main window…" for good. Projectors reload themselves after
+  // a GPU crash (ProjectorApp: webglcontextlost → location.reload — measured 2026-10-24: without it
+  // every output went black for the rest of the show), and the renderer-fault ladder reloads them too.
+  // The editor accepts a replacement port for an output it already knows (see rebridgeAllProjectors).
+  win.webContents.on('did-finish-load', () => bridge(getMain, win, surfaceId));
 
   const devUrl = rendererDevUrl();
   // THE PROFILE MUST MATCH THE WINDOW THAT SPAWNED THIS ONE. A projector activates the same renderer

@@ -236,9 +236,27 @@ export class WebGPUMapper implements IPixelMapper {
   private paramScratch = new ArrayBuffer(32);
   private paramScratchView = new DataView(this.paramScratch);
 
+  /**
+   * Called once if this mapper's GPUDevice is lost (not when dispose() destroys it). The owner — the
+   * frame engine — rebuilds on a new device; nothing here can, because every buffer, texture and
+   * pipeline below belongs to the dead one. See FrameEngine.recoverFromDeviceLoss for the measurement.
+   */
+  onDeviceLost: ((reason: string, message: string) => void) | null = null;
+  private lost = false;
+  /** True once the device is gone: read() then returns a frozen picture, and must not be trusted. */
+  isLost(): boolean { return this.lost; }
+
   private constructor(device: GPUDevice, gpuTiming: boolean) {
     this.device = device;
     this.queue = device.queue;
+    // ⚠ WITHOUT THIS, A LOST DEVICE IS SILENT. Every later mapAsync rejects into the `.catch` in the
+    // read-back below, `latest` keeps the last good colours, and the show outputs one frozen frame for
+    // ever with every health signal green. `disposed` filters out our own destroy() in dispose().
+    void device.lost.then((info) => {
+      if (this.disposed) return;
+      this.lost = true;
+      this.onDeviceLost?.(String(info.reason ?? 'unknown'), info.message ?? '');
+    });
     if (gpuTiming) {
       try {
         this.timestampQuerySet = device.createQuerySet({ type: 'timestamp', count: 2 });

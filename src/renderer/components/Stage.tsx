@@ -908,7 +908,17 @@ const StageView: React.FC<StageProps> = ({
       {/* Non-blocking honesty banner: distinct from the full-screen webglError overlay above. Shows
           when the WebGPU compute path is unavailable and the WebGL fallback (approximate per-surface
           sampling) is running. Dismissable; re-shows on the next fallback (remount). */}
-      {reducedMode && !reducedDismissed && (
+      {/* A LOST GPU DEVICE, while the engine rebuilds the LED sampler (frameEngine.recoverFromDeviceLoss).
+          Not dismissable: until it clears, every LED and DMX output is repeating one frozen frame, and
+          that used to be invisible. It normally clears in under a second; if it does not, an armed
+          watchdog relaunches after 15 s. */}
+      {engineStatus.gpuLost && (
+      <div className="absolute top-0 left-0 right-0 z-stage-overlay flex items-center gap-2 px-3 py-1.5 text-mini font-medium pointer-events-none bg-danger text-white">
+          <AlertCircle size={13} className="shrink-0" />
+          <span className="flex-1">The graphics device was lost (driver reset or GPU crash). Rebuilding LED sampling — the outputs hold the last frame until it is back.</span>
+      </div>
+      )}
+      {reducedMode && !reducedDismissed && !engineStatus.gpuLost && (
       <div className="absolute top-0 left-0 right-0 z-stage-overlay flex items-center gap-2 px-3 py-1.5 text-mini font-medium pointer-events-none" style={{ background: '#e3b341', color: '#151515' }}>
           <AlertCircle size={13} className="shrink-0" />
           <span className="flex-1">Reduced rendering mode — GPU compute (WebGPU) unavailable. Per-surface sampling is approximate; fixtures may sample overlapping surfaces, and LEDs read black outside the document frame.</span>

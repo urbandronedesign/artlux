@@ -6392,6 +6392,39 @@ check(
   },
 );
 
+// ── GPU crash: the LEDs and the projectors come back on their own ─────────────────────────────
+check(
+  'a lost GPU device is rebuilt — LEDs and projector outputs recover from a GPU-process crash',
+  'A GPU-process crash (driver reset, driver crash, GPU OOM) killed the LED mapper\'s GPUDevice, and ' +
+  'nothing listened: every read-back failed into a silent catch, so the output sent ONE FROZEN FRAME ' +
+  'forever while render_fps / output_fps / the decoders all read healthy, and every projector output ' +
+  'went black for good. Measured 2026-10-24 (plans/battle-test-v0.33.8.md Phase 3): frozen 59 s of 60 ' +
+  'in editor and broadcast. After the second crash Chromium also blocked WebGPU+WebGL for the page. ' +
+  'Fixed: device.lost -> engine rebuilds the mapper (~0.5 s, twice in a row), 3D-API domain blocking off, ' +
+  'projectors reload on webglcontextlost and main re-bridges every load, the loss rides the heartbeat to ' +
+  'a metric + an armed watchdog, and relaunches keep --user-data-dir.',
+  () => {
+    const bad = [];
+    const M = 'src/renderer/gpu/WebGPUMapper.ts', E = 'src/renderer/engine/frameEngine.ts';
+    const mapper = stripComments(read(M));
+    if (!/device\.lost\.then\([\s\S]{0,200}onDeviceLost/.test(mapper)) bad.push(M + ': the constructor no longer forwards device.lost to onDeviceLost');
+    const eng = stripComments(read(E));
+    if (!/onDeviceLost\s*=\s*\([^)]*\)\s*=>\s*this\.recoverFromDeviceLoss/.test(eng)) bad.push(E + ': initMapper no longer wires onDeviceLost to recoverFromDeviceLoss');
+    const rec = braceBody(read(E), 'private recoverFromDeviceLoss(');
+    if (!rec || !/this\.initMapper\(/.test(rec)) bad.push(E + ': recoverFromDeviceLoss no longer rebuilds through initMapper');
+    if (!/app\.disableDomainBlockingFor3DAPIs\(\)/.test(stripComments(read('src/main/index.ts')))) bad.push('src/main/index.ts: app.disableDomainBlockingFor3DAPIs() is gone — the second GPU crash blocks WebGPU/WebGL for the page');
+    const pj = stripComments(read('src/main/projector.ts'));
+    if (/webContents\.once\(\s*'did-finish-load',\s*\(\)\s*=>\s*bridge\(/.test(pj) || !/webContents\.on\(\s*'did-finish-load',\s*\(\)\s*=>\s*bridge\(/.test(pj)) bad.push('src/main/projector.ts: a projector must be bridged on EVERY load (.on), or a reloaded output stays dark');
+    const pa = stripComments(read('src/renderer/projector/ProjectorApp.tsx'));
+    if (!/addEventListener\(\s*'webglcontextlost'/.test(pa) || !/location\.reload\(\)/.test(pa)) bad.push('src/renderer/projector/ProjectorApp.tsx: a lost WebGL context no longer reloads the output');
+    const rp = braceBody(read('src/main/runProfile.ts'), 'export function relaunchArgs(');
+    if (!rp || !/--user-data-dir=/.test(rp)) bad.push('src/main/runProfile.ts: relaunchArgs() no longer carries --user-data-dir — a relaunch lands on the default profile');
+    const wd = stripComments(read('src/main/watchdog.ts'));
+    if (!/gpuDeviceLost/.test(wd) || !/'gpu-device-lost'/.test(wd)) bad.push('src/main/watchdog.ts: the watchdog no longer relaunches on an unrecovered GPU device loss');
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── NDI: a source that is not on the network yet is retried ───────────────────────────────────
 check(
   'an NDI receive that cannot find its source retries instead of giving up',

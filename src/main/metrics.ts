@@ -195,6 +195,8 @@ export interface RenderTimingStats {
     commitMs?: number;
     gpuComputeP50Us?: number;
     gpuComputeP99Us?: number;
+    gpuDeviceLost?: boolean;
+    gpuDeviceLosses?: number;
 }
 
 /** Mirror ~1 Hz renderer frame-time stats into Prometheus gauges. Cheap; safe to call always. */
@@ -220,6 +222,20 @@ export function updateRenderStats(stats: RenderTimingStats | null): void {
         setGpuGauge('artlux_gpu_compute_p99_us',
             'GPU time for the LED sampling compute pass, p99 over the window (microseconds)',
             stats.gpuComputeP99Us);
+    }
+    // THE ONE SERIES THAT SAYS THE LEDS ARE FROZEN. A lost GPU device leaves render_fps and output_fps
+    // at full rate while the payload never changes (frameEngine.recoverFromDeviceLoss) — alert on
+    // `artlux_gpu_device_lost == 1` for more than a few seconds. Lazy like the GPU gauges above, so an
+    // older renderer that cannot report it publishes nothing rather than a reassuring 0.
+    if (stats.gpuDeviceLost !== undefined) {
+        setGpuGauge('artlux_gpu_device_lost',
+            '1 while the LED sampler\'s GPU device is lost and not yet rebuilt (the output repeats a frozen frame)',
+            stats.gpuDeviceLost ? 1 : 0);
+    }
+    if (stats.gpuDeviceLosses !== undefined) {
+        setGpuGauge('artlux_gpu_device_losses',
+            'GPU device losses since the renderer started (each one rebuilt or still being rebuilt)',
+            stats.gpuDeviceLosses);
     }
 }
 

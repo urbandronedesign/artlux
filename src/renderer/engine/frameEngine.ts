@@ -102,6 +102,13 @@ export interface EngineStatus {
   backend: 'webgpu' | 'webgl' | null;
   /** No GPU path at all — nothing will be sampled, and the UI says so in full. */
   failed: boolean;
+  /**
+   * The WebGPU device was lost and the LED sampler has not been rebuilt yet. While true the output
+   * repeats the last sampled frame — see recoverFromDeviceLoss. Absent/false = healthy.
+   */
+  gpuLost?: boolean;
+  /** Device losses since this renderer started (recovered or not). Reported to main as a metric. */
+  gpuLosses?: number;
 }
 
 // Hoisted so the composite z-sort doesn't allocate a fresh comparator every frame.
@@ -115,6 +122,10 @@ export const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
 // throttled by this — and neither is the WebGL fallback's composite, which is a sampling source,
 // not a preview.
 const PREVIEW_MS = 1000 / 30;
+
+// Rebuild schedule after a lost GPU device (ms before each attempt; the last repeats). See
+// FrameEngine.recoverFromDeviceLoss.
+const RECOVER_BACKOFF_MS = [250, 1000, 2000, 5000];
 
 // Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
 // A subtractive flag and the primary it takes out. Used by the lighting overlay's role lookup so a
@@ -252,11 +263,16 @@ class FrameEngine {
    * if neither works. This used to be an effect inside the Stage, which meant the app's ability to
    * sample pixels was created and destroyed by a component's lifecycle.
    */
-  private async initMapper(): Promise<void> {
+  private async initMapper(recovering = false): Promise<boolean> {
     let m: IPixelMapper | null = null;
     try {
       m = await WebGPUMapper.create();
-      if (m) { console.log('[engine] using the WebGPU compute mapper'); this.setStatus({ backend: 'webgpu', failed: false }); }
+      if (m) {
+        console.log('[engine] using the WebGPU compute mapper');
+        this.setStatus({ ...this.status, backend: 'webgpu', failed: false });
+        const wm = m as WebGPUMapper;
+        wm.onDeviceLost = (reason, message) => this.recoverFromDeviceLoss(wm, reason, message);
+      }
     } catch {
       m = null;
     }
@@ -268,14 +284,63 @@ class FrameEngine {
       try {
         m = new GPUMapper(512, 512);
         console.log('[engine] using the WebGL mapper (fallback)');
-        this.setStatus({ backend: 'webgl', failed: false });
+        this.setStatus({ ...this.status, backend: 'webgl', failed: false });
       } catch (e) {
+        // During a rebuild this is expected for a while (the GPU process restarting) and is logged by
+        // recoverFromDeviceLoss on its own schedule; the full "no GPU" overlay would hide its banner.
+        if (recovering) return false;
         console.error('[engine] no GPU mapper could be initialized:', e);
-        this.setStatus({ backend: null, failed: true });
-        return;
+        this.setStatus({ ...this.status, backend: null, failed: true });
+        return false;
       }
     }
     this.setMapper(m);
+    return true;
+  }
+
+  // ── A LOST GPU DEVICE IS REBUILT, NOT RIDDEN TO THE END OF THE SHOW ─────────────────────────────
+  // When the GPU process dies (a driver reset/TDR, a driver crash, GPU out-of-memory, sleep/resume)
+  // every object on the mapper's GPUDevice dies with it, and a restarted GPU process does not revive
+  // them. The mapper's read-back then fails on every frame, and it used to fail SILENTLY: `latest`
+  // kept the last good colours, so the output engine sent one frozen frame at full rate forever while
+  // render_fps, output_fps and the mp4 decoders (which DO recover — v0.33.6) all read healthy. Measured
+  // 2026-10-24 on the installed v0.33.8 with CDP Browser.crashGpuProcess: universe 0's payload frozen
+  // for 59 of 60 s, in editor and in broadcast; the only tell was gpuP99 collapsing to 0.02 ms.
+  // (plans/battle-test-v0.33.8.md, Phase 3.)
+  //
+  // So: drop the dead mapper and build a new one on a NEW device — setMapper() re-applies every input,
+  // which is all a mapper needs. Until it lands, tick() has no mapper and publishes nothing, so the
+  // native pacer's keep-alive repeats the last frame: the same picture as before, but now LABELLED
+  // (status.gpuLost → the Stage banner, the render-stats heartbeat → a metric, the watchdog and the
+  // machine log). Retried with backoff because the GPU process can take a moment to come back.
+  //
+  // NOT covered here: the 3D view shares this device (gpu/gpuDevice settles once) and stays dead until
+  // the window reloads; projector windows own their own contexts. The LED/DMX output is what an
+  // unattended show cannot lose, and it is what this restores.
+  private recoverFromDeviceLoss(dead: WebGPUMapper, reason: string, message: string): void {
+    if (this.mapper !== dead && this.mapper !== null) return; // an old mapper's late notice — already replaced
+    const losses = (this.status.gpuLosses ?? 0) + 1;
+    const t0 = performance.now();
+    console.error(`[engine] WebGPU DEVICE LOST (${reason}${message ? `: ${message}` : ''}) — LED sampling stopped, output holds the last frame; rebuilding (loss #${losses})`);
+    this.mapper = null;
+    try { dead.dispose(); } catch { /* it is already dead */ }
+    this.setStatus({ ...this.status, gpuLost: true, gpuLosses: losses });
+    let attempt = 0;
+    const retry = async (): Promise<void> => {
+      attempt++;
+      const ok = await this.initMapper(true).catch(() => false);
+      if (ok && this.mapper) {
+        console.info(`[engine] LED sampling recovered on a new GPU device after ${Math.round(performance.now() - t0)} ms (attempt ${attempt}, backend ${this.status.backend})`);
+        this.setStatus({ ...this.status, gpuLost: false });
+        return;
+      }
+      const wait = RECOVER_BACKOFF_MS[Math.min(attempt - 1, RECOVER_BACKOFF_MS.length - 1)];
+      if (attempt === 1 || attempt % 12 === 0) console.error(`[engine] GPU mapper rebuild failed (attempt ${attempt}); retrying in ${wait} ms`);
+      setTimeout(() => { void retry(); }, wait);
+    };
+    // The first rebuild waits a beat: requesting an adapter while the GPU process is still restarting
+    // just fails, and the first answer is the one that decides whether the next is a fallback.
+    setTimeout(() => { void retry(); }, RECOVER_BACKOFF_MS[0]);
   }
 
   // ── Status ────────────────────────────────────────────────────────────────────────────────────
@@ -284,7 +349,8 @@ class FrameEngine {
   subscribeStatus = (cb: () => void): (() => void) => { this.statusSubs.add(cb); return () => { this.statusSubs.delete(cb); }; };
 
   private setStatus(next: EngineStatus): void {
-    if (next.backend === this.status.backend && next.failed === this.status.failed) return;
+    if (next.backend === this.status.backend && next.failed === this.status.failed
+      && !!next.gpuLost === !!this.status.gpuLost && (next.gpuLosses ?? 0) === (this.status.gpuLosses ?? 0)) return;
     this.status = next;
     // Recorded per machine so Settings ▸ GPU rendering can report which path is live.
     if (next.backend) { try { localStorage.setItem('artlux.activeBackend', next.backend); } catch { /* ignore */ } }

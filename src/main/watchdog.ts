@@ -58,6 +58,9 @@ const HOUR_MS = 3_600_000;
 // merely-slow venue into a loop that trips the breaker. A floor, not a replacement: an operator who
 // raises renderStallSec raises this with it.
 const BOOT_GRACE_FLOOR_SEC = 30;
+// How long a reported GPU device loss may stay unrecovered before we relaunch. The engine rebuilds in
+// well under a second when the GPU process comes back; 15 s is several backoff rounds of it failing.
+const GPU_LOST_RELAUNCH_SEC = 15;
 const RING_CAP = 500; // events kept in memory / on disk before trimming
 const LOG_TRIM_AT = 2000; // rewrite the on-disk log once it exceeds this many lines
 
@@ -70,6 +73,7 @@ let deferTimer: ReturnType<typeof setTimeout> | null = null; // pending paced re
 let trippedNoted = false; // breaker refusal logged once this process (a persistent fault re-fires at 1 Hz)
 let healthTimer: ReturnType<typeof setInterval> | null = null;
 let lastRenderAt = 0; // epoch ms of the last renderer heartbeat, or of the document load that owes us the first one
+let gpuLostSince: number | null = null; // epoch ms the renderer first reported its GPU device lost (frameEngine)
 let awaitingFirstBeat = false; // true between did-finish-load and the first heartbeat (→ the longer boot grace)
 let everUp = false; // output was live at least once (so "down" means it died, not never-configured)
 let outputDownSince: number | null = null;
@@ -215,9 +219,13 @@ function noteOutputEdge(fps: number, universes: number): void {
 }
 
 // The payload is unused — its mere arrival is the heartbeat that the renderer frame loop is alive.
-export function noteRenderStats(_stats?: unknown): void {
+export function noteRenderStats(stats?: { gpuDeviceLost?: boolean }): void {
   if (!armed) return;
   lastRenderAt = Date.now();
+  // The heartbeat keeps beating through a lost GPU device — that is exactly why it went unnoticed —
+  // so the renderer reports the loss on it, and the health tick decides how long to wait for the
+  // in-process rebuild (frameEngine.recoverFromDeviceLoss) before relaunching.
+  if (stats?.gpuDeviceLost) { if (gpuLostSince === null) gpuLostSince = Date.now(); } else gpuLostSince = null;
   awaitingFirstBeat = false; // the renderer painted: from here the tighter render-stall window applies
 }
 
@@ -280,6 +288,13 @@ function healthTick(): void {
       maybeRelaunch('render-stall', awaitingFirstBeat
         ? `no first render heartbeat ${secs}s after load (boot grace ${Math.round(stallMs / 1000)}s)`
         : `no render heartbeat ${secs}s`);
+      return;
+    }
+    // A lost GPU device the renderer could not rebuild. The engine retries on its own (250 ms → 5 s
+    // backoff) and normally recovers in well under a second; still lost after GPU_LOST_RELAUNCH_SEC
+    // means it will not, and a frozen picture is all the venue gets until something restarts us.
+    if (cfg.crashRecovery && gpuLostSince !== null && now - gpuLostSince > GPU_LOST_RELAUNCH_SEC * 1000) {
+      maybeRelaunch('gpu-device-lost', `LED sampler GPU device lost ${Math.round((now - gpuLostSince) / 1000)}s, not rebuilt`);
       return;
     }
     // Sustained output loss after the wire was live. Keep-alive means the native pacer holds fps > 0

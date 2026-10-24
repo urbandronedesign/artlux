@@ -16,6 +16,8 @@ machine (localhost).
 | `artlux_output_pps` | gauge | Output packets/sec across all universes |
 | `artlux_output_universes` | gauge | Active output universes |
 | `artlux_output_up` | gauge | 1 when the engine is emitting, else 0 |
+| `artlux_gpu_device_lost` | gauge | **1 while the LEDs are repeating a frozen frame** because the graphics device was lost (a driver reset or GPU crash) and is still being rebuilt. Normally back to 0 within a second. Alert on `artlux_gpu_device_lost == 1` for more than ~10 s — `artlux_output_fps` and `artlux_render_fps` stay at full rate through it, so they cannot tell you. |
+| `artlux_gpu_device_losses` | gauge | How many times the graphics device was lost since the editor started (each one rebuilt). A number that keeps climbing points at the driver or the GPU. |
 | `artlux_process_cpu_seconds_total` | counter | Process CPU time (rate it for %) |
 | `artlux_process_resident_memory_bytes` | gauge | RSS memory |
 | `artlux_nodejs_heap_size_used_bytes` | gauge | V8 heap used |

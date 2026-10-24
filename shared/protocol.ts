@@ -517,6 +517,11 @@ export interface RenderStats {
   gpuComputeP50Us?: number;  // µs — typical GPU time for the sampling compute pass
   gpuComputeP99Us?: number;  // µs — worst case over the window
   gpuSamples?: number;       // measurements in the window (~10 Hz), 0/absent = none
+  // ---- GPU device health (frameEngine.recoverFromDeviceLoss) ----
+  // True while the LED sampler's GPUDevice is lost and not yet rebuilt — the output is then repeating
+  // a frozen frame, which every rate above would report as healthy. Absent on an older renderer.
+  gpuDeviceLost?: boolean;
+  gpuDeviceLosses?: number;  // cumulative device losses since the renderer started
 }
 
 // 'enttec' is a USB-serial DMX interface rather than a network protocol: it carries a COM PORT in

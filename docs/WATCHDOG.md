@@ -27,6 +27,12 @@ Armed when `Prefs.unattended.enabled` is set **and** the process is `--broadcast
 - **Renderer crash** — `webContents 'render-process-gone'` (skips a clean exit).
 - **GPU crash** — `app 'child-process-gone'` with `type === 'GPU'`. WebGPU device loss is the classic
   silent show-killer.
+- **GPU device lost and not rebuilt** — the renderer reports a lost device on its heartbeat
+  (`gpuDeviceLost`); still lost after 15 s → relaunch. Without the watchdog the app now recovers on its
+  own: the LED sampler is rebuilt on a new device in about half a second (measured twice in a row),
+  and each projector output reloads itself when its graphics context is lost. Before v0.33.9 a GPU crash
+  left the LEDs on **one frozen frame** and the projectors **black** for the rest of the show, while
+  every rate metric read healthy. Watch `artlux_gpu_device_lost` ([MONITORING.md](MONITORING.md)).
 - **Unresponsive window** — `'unresponsive'` held past `renderStallSec` (a `'responsive'` cancels it).
 - **Frozen render loop** — no renderer heartbeat for `renderStallSec`. The heartbeat is the existing
   ~1 Hz `render:stats` IPC ([src/main/ipc.ts](../src/main/ipc.ts)); this catches a stalled compositor
