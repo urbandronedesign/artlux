@@ -1,6 +1,7 @@
-# 2026-10-24 → 25 — session record: Blender venues, projection mapping, v0.34.0
+# 2026-10-24 → 25 — session record: Blender venues, projection mapping, v0.34.0 → v0.34.1
 
-> **Status:** Record. Written for two readers: the owner, and the next Claude session on this machine.
+> **Status:** Record (closed session, 2026-10-25). Written for two readers: the owner, and the next Claude
+> session on this machine. **Installed here: v0.34.1.**
 > It follows the [2026-10-24 evening record](2026-10-24-evening-session-record.md). The test campaign that
 > closes it is [battle-test-v0.34.0.md](battle-test-v0.34.0.md). Measurements are from the RTX test box
 > (RTX 5090, Windows 11, Electron 42.4.1).
@@ -19,7 +20,11 @@
 5. **Fixes found by using it:** the blend inspector's wrong sum, a calibration-file bake that hung, a
    Blender projector you could not see move, Unload throwing away the live calibration, and — the
    important one — **black projectors with a calibration file and the venue model loaded**.
-6. Merged to `main` (fast-forward), released **v0.34.0**, documentation pass, then this campaign.
+6. Merged to `main` (fast-forward), released **v0.34.0**, documentation pass.
+7. **"Install the latest version and run extensive tests — show preparation starts Monday, we don't want
+   hidden bugs."** Installed v0.34.0 and ran the [campaign](battle-test-v0.34.0.md). It found one show bug:
+   **a Blender save turned live-calibrated projectors black for good.**
+8. **"go"** → fixed, released **v0.34.1**, installed, re-tested: the fix holds, 12/12 regression.
 
 ## What shipped
 
@@ -37,6 +42,10 @@
 | `087b128` | **Each projector window gets what it really draws** (`renderMode`) — the black-with-a-file fix |
 | `ec28bfe` **v0.34.0** | Release. CI green on all three platforms; installed here 2026-10-25 |
 | `ff3cbba` | Documentation: calibration files, re-aiming a Blender projector, the rig blend |
+| `b59231d` | This record and the battle-test plan |
+| `544b896` | **A Blender save no longer turns live-calibrated projectors black** (+ invariant) |
+| `5f16502` **v0.34.1** | Release of that fix. CI green; installed here 2026-10-25 and re-tested |
+| `7b631d2` | The v0.34.1 re-test, recorded |
 
 ## Decisions the owner made (do not re-open without asking)
 
@@ -58,6 +67,48 @@
 | **Who decides render mode** | Main asks; the **window** decides (a loaded file supersedes render in `applyCalibMode`) and reports `renderMode`. The frame pump streams by that report. Before, a file + the venue model = black. |
 | **Rig blend** | Calibrated rig → `computeBlendMapsProjected` on `bakeWorld` maps at `adaptiveBlendWidth` (≥ 32 cells across the narrowest overlap, min 160, ≤ 131,072 cells). Camera-scanned rig → the voxel path. No venue → CPU raycast fallback. |
 | **`.blend`** | `main/blendImport.ts`: Blender `--background --factory-startup --python-exit-code 1`, write-then-rename. Watches the file's **directory** (Blender saves by rename). A mtime-only `touch` does **not** fire on Windows; a real save does. `SceneModel.origin = 'file'` keeps Blender coordinates. |
+
+## For Monday — working with v0.34.1
+
+**Which way to run an output** (the guide's
+[Calibration files](../docs/user-guide/10-calibration.md#calibration-files--make-one-when-you-need-one)
+section has the long version):
+
+| You are… | Do this |
+|---|---|
+| Building the venue and the content | Live calibration. Keep Blender open; saving updates ArtLux in a few seconds, projectors included. |
+| Re-aiming a projector you moved in Blender | **Calibrate ▸ Manual ▸ Start from it**, then **Clear points** (the old points keep solving the old aim), new points, **Apply & finish**, **Solve blend** again. |
+| Running the show with heavy video, or on another machine | Export a calibration file (Verify step), give each projector surface the show's content, import it. Measured: 60 fps where live calibration dropped to 30 (two projectors, moving content) or 4 (a 5.7K clip). |
+| Running a show on plain screens | Nothing changes — outputs draw their surface through their own warp. |
+
+**Remember:**
+- A loaded calibration file **stays loaded across restarts** until you press **Unload**.
+- **Broadcast** plays whatever is set up: a loaded file, live calibration, or plain outputs. It does not
+  watch the `.blend`; a show plays the converted model.
+- An editor launch can **stop a shader surface animating** at start ("disabled after 30 frames"). It is
+  the previous behaviour, and broadcast never does it; recompile the shader to re-arm it while editing.
+
+## Already tried — do not redo
+
+- **Running the bakes on the viewport's WebGPU renderer** (the request registry serviced by a frame
+  hook). Stalled silently and timed out when the 3D view was hidden. Bakes have their own WebGL2 renderer.
+- **Flipping the WebGL uv bake's rows to "top-left"** to match the old code's comment. It played upside
+  down; the uv map is bottom-row-first.
+- **Explaining the live-calibration 30 fps by the bitmap upload or its flip.** The upload costs 0.02 ms and
+  disabling the flip changed nothing. The saturated thing is Chromium's GPU process (~108 % CPU), with
+  one live projector at 60 and two at 30.
+- **Chasing the one-batch `preloadScripts` Electron error.** 0 in 38 launches with every navigation and
+  console line logged from the first moment; main loads the editor once.
+
+## Where things are
+
+| What | Where |
+|---|---|
+| The test campaign, every phase and measurement | [battle-test-v0.34.0.md](battle-test-v0.34.0.md) |
+| Operator docs changed | [10-calibration.md](../docs/user-guide/10-calibration.md), [09-3d-scene.md](../docs/user-guide/09-3d-scene.md), [17-installing.md](../docs/user-guide/17-installing.md), [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md), [CHANGELOG.md](../CHANGELOG.md) |
+| Reference docs changed | [AUTO-ALIGN.md](../docs/AUTO-ALIGN.md), [CALIBRATION.md](../docs/CALIBRATION.md), [NVWARP.md](../docs/NVWARP.md), [PROGRESS.md](../docs/PROGRESS.md) |
+| Harness, logs and scratch rigs (may be wiped) | `%TEMP%\claude\battle\` — `run-installed.sh`, `tools/` (`oi.mjs`, `mpe2e.sh`, `blendinst.sh`, `projfault.sh`, `calside.mjs`, `grabstore.mjs`, `lum.cjs`, `preload.mjs`), `soak-show.sh`, `soak-proj.sh`, `out/` |
+| Previous sessions | [2026-10-24 evening](2026-10-24-evening-session-record.md), [2026-10-24](2026-10-24-session-record.md), [2026-10-23](2026-10-23-session-record.md) |
 
 ## Needs the owner
 
@@ -99,3 +150,12 @@
   **Delete the junction itself before `git worktree remove`** — a recursive delete follows it.
 - **Brightness of a window screenshot:** `tools/lum.cjs` (mean + % lit, label strip skipped) tells black
   from playing without looking.
+- **`sweep.mjs`, `soak.mjs` and `soakreport.mjs` need `BATTLE` exported** (forward-slash path); without it
+  they write to `…\battle\undefined\…` and exit at once.
+- **With `MSYS_NO_PATHCONV=1`, give node `E:/zaki/…` paths**, never `/e/zaki/…` (it becomes `C:\e\zaki`).
+- **The installed build accepts `--inspect=9230`**, so `stubboth.mjs` (main-process dialog stubs) works on
+  it too — the MPCDI export can be driven end to end on the installed app.
+- **Measure live calibration in broadcast.** An editor launch freezes the test-card shader, so an
+  editor-mode fps hides what moving content costs.
+- **A Blender save is the regression test for the model reload:** live-calibrated projectors on, one
+  rename-save, both windows must stay lit and the log must show 0 errors.
