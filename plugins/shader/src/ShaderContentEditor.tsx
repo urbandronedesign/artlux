@@ -8,6 +8,7 @@
 import React from 'react';
 import type { SurfaceContent } from '@/types';
 import { STARTERS } from './starters';
+import { UV_CHECKER_ID, UV_CHECKER_RES, type UvCheckerSize } from './uvChecker';
 import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDrawable';
 import { maxRenderHeight, rendererDescription } from './shaderContext';
 import { compileStatus } from './shaderDrawable';
@@ -29,6 +30,16 @@ export function ShaderContentEditor({
   const status = compileStatus(content);
   const inputs = inputsOf(content);
   const problems = headerProblems(content);
+  // Picking a shader. The UV checker carries a marker (and its Detail), because its code is GENERATED
+  // from the project by the host and regenerated when the project changes; any other pick drops the
+  // marker, so a surface that stopped being a checker is never rewritten into one. The checker's own
+  // source is generated, never edited, so leaving it needs no confirmation.
+  const pick = (id: string): Partial<SurfaceContent> => id === UV_CHECKER_ID
+    ? { shaderId: id, shaderSource: undefined, shaderGraph: undefined, uvChecker: { size: 'fhd' }, shaderRes: UV_CHECKER_RES.fhd }
+    : { shaderId: id, shaderSource: undefined, shaderGraph: undefined, uvChecker: undefined };
+  const isChecker = content.shaderId === UV_CHECKER_ID && !!content.uvChecker;
+  const setSize = (size: UvCheckerSize) =>
+    onChange({ uvChecker: { size }, shaderRes: Math.min(UV_CHECKER_RES[size], Math.max(maxRenderHeight(), UV_CHECKER_RES.fhd)) });
 
   return (
     <div className="space-y-1 pt-1">
@@ -47,8 +58,8 @@ export function ShaderContentEditor({
             // THE GRAPH GOES WITH THE CODE. Clearing only the source left the node editor holding a
             // graph for a shader that is no longer there — and the next node you touched regenerated
             // it straight back over the built-in you had just chosen.
-            if (!content.shaderSource && !content.shaderGraph) {
-              onChange({ shaderId: id, shaderSource: undefined, shaderGraph: undefined }); return;
+            if ((!content.shaderSource && !content.shaderGraph) || content.uvChecker) {
+              onChange(pick(id)); return;
             }
             void (async () => {
               const name = STARTERS.find((s) => s.id === id)?.name ?? id;
@@ -60,7 +71,7 @@ export function ShaderContentEditor({
                 confirmLabel: 'Replace',
                 danger: true,
               });
-              if (ok) onChange({ shaderId: id, shaderSource: undefined, shaderGraph: undefined });
+              if (ok) onChange(pick(id));
             })();
           }}>
           {STARTERS.map((s) => (
@@ -68,6 +79,29 @@ export function ShaderContentEditor({
           ))}
         </select>
       </div>
+
+      {/* The checker's density: cells and labels sized for a Full HD or a 4K raster. A 4K checker on a
+          GPU not trusted with 2160p still draws (the projector renders at its own raster) — only the
+          editor's Detail is capped. */}
+      {isChecker && (
+        <div className="flex items-center gap-1">
+          <label className="text-fg-2 w-12 text-micro">Size</label>
+          <div role="radiogroup" aria-label="UV checker size" className="flex gap-1">
+            {(['fhd', '4k'] as const).map((sz) => (
+              <button key={sz} role="radio" aria-checked={content.uvChecker?.size === sz}
+                onClick={() => setSize(sz)}
+                className={`px-2 py-0.5 rounded-sm text-micro border ${content.uvChecker?.size === sz ? 'border-accent bg-accent-dim text-fg-1' : 'border-line-2 text-fg-2'}`}>
+                {sz === 'fhd' ? 'Full HD' : '4K'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {isChecker && (
+        <div className="pl-[3.4rem] text-micro leading-snug text-fg-2">
+          Names this surface and outlines each venue screen on it. Redrawn when the project changes.
+        </div>
+      )}
 
       {/* Detail is per surface because the two consumers want opposite things: the LED path samples an
           atlas rect scaled to fixture density and throws away anything finer, while a projector wants

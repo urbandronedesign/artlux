@@ -7088,6 +7088,36 @@ check(
 );
 
 check(
+  'the UV checker is never the default shader, and its regeneration never enters the undo history',
+  'Suite plan Phase 3, decision 13: the UV checker\'s code is GENERATED from the project and rewritten ' +
+  'when the project changes. Two silent ways to get that wrong: put it first in STARTERS, and every ' +
+  'shader surface without a shaderId (the picker\'s and starterSource()\'s fallback is STARTERS[0]) ' +
+  'turns into a test card; or route the rewrite through handleUpdateSurface, and every rename, Blender ' +
+  'save or project open adds undo entries nobody made — an operator\'s undo would step through "the ' +
+  'checker noticed". Also: a pick of any other shader must drop the marker, or that surface is rewritten ' +
+  'back into a checker at the next project change.',
+  () => {
+    const problems = [];
+    const st = read('plugins/shader/src/starters.ts');
+    const first = (st.match(/export const STARTERS: Starter\[\] = \[\s*\{\s*id:\s*'([^']+)'/) || [])[1];
+    if (!first) problems.push('starters.ts: cannot find the first STARTERS entry');
+    else if (first === 'uv-checker' || /UV_CHECKER_ID/.test(st.slice(st.indexOf('export const STARTERS'), st.indexOf('];', st.indexOf('export const STARTERS')))))
+      problems.push('the UV checker is in the STARTERS literal — it must be pushed last, never be STARTERS[0]');
+    const app = read('src/renderer/App.tsx');
+    const at = app.indexOf('syncUvCheckers(');
+    if (at < 0) problems.push('App no longer runs the UV-checker sync');
+    else {
+      const body = app.slice(at, app.indexOf('}, [surfaces, scene3D', at));
+      if (/handleUpdateSurface|recordHistory/.test(body)) problems.push('the UV-checker sync writes through the undo history');
+      if (!/setSurfaces\(\(prev\)/.test(body)) problems.push('the UV-checker sync no longer writes state directly');
+    }
+    const ed = read('plugins/shader/src/ShaderContentEditor.tsx');
+    if (!/uvChecker: undefined/.test(ed)) problems.push('picking another shader no longer drops the uvChecker marker');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'OpenCV loads when calibration is used, never at import or for the splash',
   'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
   'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +

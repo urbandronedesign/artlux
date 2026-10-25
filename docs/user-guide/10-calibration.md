@@ -261,6 +261,16 @@ a bug, and it is what stops the correction being applied twice.
 **NDI:** an output sending NDI while rendering from a calibrated projector used to publish black.
 It now carries the picture.
 
+### Checking it on the wall — the UV checker
+
+To judge a calibration, play something that says where every point belongs. Give the screen's surface
+the **UV checker** shader (Surface ▸ Content ▸ Shader ▸ **UV checker**, then **Full HD** or **4K**): a
+labelled grid whose cells name their column, row and U/V, with coloured corners and an arrow pointing
+up. It names the surface and outlines each Blender screen that shows it, so a misplaced point or a
+swapped screen reads straight off the wall — "C4 landed where F2 should be". Look at the seams between
+projectors: the grid lines must run straight across them. See
+[Shaders ▸ The UV checker](../SHADERS.md#the-uv-checker--a-test-source-that-knows-the-project).
+
 ## Calibration files — make one when you need one
 
 An output can put its picture on the wall in three ways, and a show can use any of them:

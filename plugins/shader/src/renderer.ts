@@ -11,6 +11,7 @@
 export * as shaderContext from './shaderContext';
 export * as shaderDrawable from './shaderDrawable';
 export * as starters from './starters';
+export * as uvChecker from './uvChecker';
 export * as wrapper from './wrapper';
 export * as shaderGuard from './shaderGuard';
 export * as header from './header';

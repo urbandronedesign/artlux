@@ -30,10 +30,29 @@ That is the whole setup. The picture starts immediately.
 | **Comet trails** | A head wandering the surface, leaving a long fading tail | Projection — and the worked example of **feedback** |
 | **Spectrum** · LED | Sixteen bars rising with the music, coloured by a palette | LED tape — and the worked example of **sound** |
 | **Beat quads** | Four panels, each flashing on its own drum: kick, snare, mid, hats | Projection — and the worked example of **beats** |
+| **UV checker** | A labelled grid: every cell names its column, row and U/V; coloured corners and an up arrow | Lining up projectors and screens — see below |
 
 The `· LED` mark is the important one. A shader made for a projector usually looks like noise on sixty
 LEDs, because a strip samples a single line across the picture: whatever varies top-to-bottom is lost,
 and whatever varies left-to-right is all you get. **Strip chase** is built that way on purpose.
+
+### The UV checker — a test source that knows the project
+
+Pick **UV checker** as the shader, then a **Size**: **Full HD** or **4K** sets how dense the cells and
+their labels are, and the Detail to match. It is made for checking a projection on the real wall:
+
+- **Every cell says where it is**: a column letter and row number (**A1** is top-left) and the **U/V**
+  of its centre. A mapping error reads off the wall as "C4 landed where F2 should be".
+- **The corners are coloured** — top-left red, top-right green, bottom-right blue, bottom-left yellow —
+  and an **arrow points up**, so a turned or mirrored picture shows at once.
+- **Cells stay square** on any surface shape: a wide panorama gets more columns, never stretched cells.
+- **It names your project's pieces**: the surface's name across the top, and **each screen** from your
+  Blender venue that shows this surface outlined where it lands, with its name and U/V range. Rename the
+  surface, bind or unbind a screen, or save the venue in Blender, and the checker redraws to match.
+
+It plays like any other content — through live calibration and through a calibration file alike. Its
+code is generated, so pick another shader to leave it; to keep an edited copy, save it to your
+Effects library first.
 
 ## Write your own
 

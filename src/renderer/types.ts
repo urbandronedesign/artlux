@@ -385,6 +385,13 @@ export interface SurfaceContent {
    * curve stopped.
    */
   shaderParams?: Record<string, number | boolean | number[]>;
+  /**
+   * THE UV CHECKER (suite plan Phase 3): present when this shader surface is the generated projector-
+   * alignment checker (shaderId 'uv-checker'). Its `shaderSource` is GENERATED from the project — the
+   * surface's name and the Blender screens bound to it — and regenerated when those change
+   * (services/uvCheckerSync.ts); `size` picks the density, Full HD or 4K.
+   */
+  uvChecker?: { size: 'fhd' | '4k' };
   shaderRes?: number;  // DETAIL: a pixel budget (720 ⇒ "as many pixels as 1280×720"), spent in the
                        // surface's own proportions. Absent ⇒ 720. Per surface because the two consumers
                        // want opposite things: the LED path samples an atlas rect scaled to fixture

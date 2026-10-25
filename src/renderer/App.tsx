@@ -72,6 +72,7 @@ import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, LAYOUT_PREF_KEY, type WorkspaceLayout } from './services/layoutStore';
+import { syncUvCheckers, isUvChecker, onVenueChanged } from './services/uvCheckerSync';
 import { workspaceStore } from './services/workspaceStore';
 import { CALIBRATION_ENABLED } from './services/runProfile';
 import { keymap } from './shortcuts/keymapStore';
@@ -1219,6 +1220,21 @@ const App: React.FC = () => {
     setSurfaces(next);
   };
   const handleRenameSurface = (id: string, name: string) => handleUpdateSurface(id, { name });
+
+  // THE UV CHECKER STAYS TRUE TO THE PROJECT (services/uvCheckerSync.ts): a surface renamed, a screen
+  // bound or unbound, or the venue re-saved in Blender regenerates every checker's code. Derived, so it
+  // goes straight to state — never into the undo history — and only for checkers whose code changed.
+  const [venueRev, setVenueRev] = useState(0);
+  useEffect(() => onVenueChanged(() => setVenueRev((n) => n + 1)), []);
+  useEffect(() => {
+    if (!surfaces.some(isUvChecker)) return;
+    let current = true;
+    void syncUvCheckers(surfaces, scene3D, (sources) => {
+      setSurfaces((prev) => prev.map((s) => sources.has(s.id) && isUvChecker(s)
+        ? { ...s, content: { ...s.content, shaderSource: sources.get(s.id) } } : s));
+    }, () => current);
+    return () => { current = false; };
+  }, [surfaces, scene3D, venueRev]);
 
   // ── COPY / PASTE ────────────────────────────────────────────────────────────────────────────
   //
