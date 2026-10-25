@@ -1,23 +1,36 @@
-// The AUTHORING half of the calibration plugin — everything that PRODUCES a calibration: the
-// workbench and its three wizards, camera capture, structured light, the pose solves, the rig-blend
-// solve and its inspector, camera gamma, and unattended recalibration.
+// @artlux/plugin-calibration/authoring — the AUTHORING barrel: everything that PRODUCES a calibration.
+// The workbench and its three wizards, the session logic (pose pairing + solve), camera capture,
+// structured light, the rig-blend scan store + solve + inspector, camera gamma, unattended
+// recalibration. Ships in ArtLux Calibrator only once the suite has two build targets (Phase 3).
 //
-// Reached ONLY through `authoringLoader` (a dynamic import), never statically — that is the point of
-// this file (suite plan Phase 1, plans/artlux-suite-show-calibrator.md). A plain editor launch, and a
-// projector window, then never parse or evaluate it: the bundler splits it into its own chunk, and
-// nothing loads that chunk until an authoring panel mounts or an authoring command runs.
+// LOADED ON DEMAND, never statically (suite plan Phases 1–2, plans/artlux-suite-show-calibrator.md):
+// the only value import of this file is the dynamic `import()` in ./authoringLoader, so the bundler
+// keeps it in its own `authoring-*.js` chunk that a plain launch and every projector window never
+// fetch. Host code may `import type` from `@artlux/plugin-calibration/authoring`; for values it goes
+// through the loader the playback barrel exports.
 //
-// ⚠ A STATIC import of any of these modules from playback code or from the host re-merges them into
-// the shared chunk, silently — the app still works, it just pays for authoring everywhere again.
-// `verify:invariants` checks that this file is the only door, and the built-chunk marker test in the
-// plan's §8b checks the result.
+// ⚠ A STATIC import of any of these modules from playback or host code re-merges them into the shared
+// chunk, silently — the app still works, it just pays for authoring everywhere again.
+// `verify:invariants` checks the static graph; `verify:plugins` checks the built chunks.
 
 export { CalibViewport } from './CalibViewport';
 export { RecalPanel } from './RecalPanel';
 export { BlendInspector } from './BlendInspector';
+export * as calibWorkspace from './calibWorkspace';
 export * as autoRecal from './autoRecal';
 export * as calibController from './calibController';
 export * as slCapture from './slCapture';
 export * as calibCapture from './calibCapture';
 export * as blendController from './blendController';
+// The rig's scan store — a session singleton the scans fill and the solve reads. Authoring: nothing
+// but a scan or a solve ever has anything to put in it.
+export * as blendStore from './blendStore';
 export { measureGamma } from './gammaController';
+
+// Types the host may name with `import type` (no runtime cost).
+export type { BoardConfig } from './calibController';
+export type { ColorFrame } from './calibCapture';
+export type { Verdict, RejectReason } from './validateSolve';
+export type { ResidualStats } from './residuals';
+export type { DriftScore } from './driftScore';
+export type * from './markerlessController';

@@ -286,26 +286,34 @@ Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`**
 [PLUGINS.md](PLUGINS.md)); its code lives under `plugins/calibration/src/` (the native solver stays in
 `native/calib`).
 
-**Two halves, and only one loads by default** (2026-10-25, the first step of
-[plans/artlux-suite-show-calibrator.md](../plans/artlux-suite-show-calibrator.md)):
-- *Playback* — render-from-projector (`CalibProjector`, `ProjectorScene`), calibration files
-  (`bakedStore`, `ImportPanel`), the pick workspace state, the scan store. Statically imported; every
-  launch and every projector window has it.
-- *Authoring* — the workbench and its three wizards, camera capture, structured light, the blend solve
-  and inspector, camera gamma, unattended recalibration. Named in `authoring.ts` and reached **only**
-  through `authoringLoader.tsx` (a dynamic `import()`), so it is its own `authoring-*.js` chunk: a
-  panel registers synchronously as a `lazyAuthoring(...)` component, host UI asks with
-  `useCalibrationAuthoring(want)`, and an action awaits `loadCalibrationAuthoring()`. A plain launch, and
-  every projector window, never fetch that chunk.
+**Two halves, two barrels, and only one loads by default** (2026-10-25, Phases 1–2 of
+[plans/artlux-suite-show-calibrator.md](../plans/artlux-suite-show-calibrator.md) — the line ArtLux Show
+and ArtLux Calibrator will be cut along):
+- *Playback* — **`@artlux/plugin-calibration/playback`** (`playback.ts`): render-from-projector
+  (`CalibProjector`, `ProjectorScene`), calibration files (`bakedStore`, `ImportPanel`), the session's
+  state (`calibSession` — App reads it every render), the projector maths the 3D view draws with, the
+  blend staleness rule. Statically imported; every launch and every projector window has it.
+- *Authoring* — **`@artlux/plugin-calibration/authoring`** (`authoring.ts`): the workbench and its three
+  wizards, the session logic (`calibWorkspace`: pose pairing and solve — the only writer of
+  `calibSession`), camera capture, structured light, the rig-blend scan store, solve and inspector,
+  camera gamma, unattended recalibration. Reached **only** through `authoringLoader.tsx` (a dynamic
+  `import()`), so it is its own `authoring-*.js` chunk: a panel registers synchronously as a
+  `lazyAuthoring(...)` component, host UI asks with `useCalibrationAuthoring(want)`, an action awaits
+  `loadCalibrationAuthoring()`, and code that only runs inside an open session (a 3D pick, a projector
+  crosshair) uses `loadedCalibrationAuthoring()`, which never loads. Host code may `import type` from
+  `/authoring`, never values. A plain launch, and every projector window, never fetch that chunk.
+- *Main* — `@artlux/plugin-calibration/main` is authoring in its entirety (the OpenCV addon, dense-map
+  sidecars, the recalibration audit trail); nothing in playback calls it.
 - *OpenCV* loads on first use too — `calibManager.ts` requires `calib.node` (and with it the 65 MB
   `opencv_world4110.dll`) the first time a `calib:*` call needs it, typically the wizard's checklist.
   The splash asks `addonState()` instead, which checks that both files are on disk without loading
   them, so `[calib] native OpenCV addon loaded` appears in the log only once calibration is used.
 
-Both are guarded: `verify:invariants` walks the static import graph from the plugin's renderer entry
-points and fails if it reaches a module `authoring.ts` names, and checks the addon is not loaded at
-import, for the splash or at quit; `verify:plugins` checks on the built chunks that authoring markers
-live in `authoring-*.js`. **A static import of an authoring module from playback or host code breaks
+All of it is guarded: `verify:invariants` walks the static import graph from `playback.ts` and the
+plugin entry and fails if it reaches a module `authoring.ts` names, fails a host file that value-imports
+`/authoring` or reaches past the barrels, and checks the addon is not loaded at import, for the splash
+or at quit; `verify:plugins` checks on the built chunks that authoring markers live in
+`authoring-*.js` and the playback singletons in the shared chunk. **A static import of an authoring module from playback or host code breaks
 nothing visible** — it only merges the half back into the shared chunk — which is why it is guarded.
 
 - **Native solver** — `native/calib` exposes `detectBoard`, `mapCornersToProjector` (Gray-code decode

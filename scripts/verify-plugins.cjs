@@ -37,6 +37,11 @@ const CHECKS = [
   // the wizards everywhere again, which is exactly what nothing else would notice.
   { plugin: 'calibration', where: 'renderer', chunk: 'authoring', marker: 'artlux_calib_drift_mm', note: 'autoRecal (unattended recalibration) stays in the on-demand authoring chunk' },
   { plugin: 'calibration', where: 'renderer', chunk: 'authoring', marker: 'Start from it',         note: 'ManualWizard stays in the on-demand authoring chunk' },
+  // …and the PLAYBACK barrel's singletons (suite plan Phase 2) stay in the shared chunk every window
+  // loads: the calibration-file store must be ONE module that the import panel writes and the projector
+  // push reads — and it must not have drifted into the on-demand chunk, where a plain launch never
+  // loads it and a calibrated rig plays undeformed.
+  { plugin: 'calibration', where: 'renderer', chunk: 'plugins', marker: 'world map — needs the venue to replay', note: 'bakedStore (playback) is one module, in the shared chunk' },
   { plugin: 'lidar-tracking', where: 'renderer', marker: 'tracking] subscriber', note: 'trackingStore subscriber log' },
   // The zone occupancy store is a SINGLETON with latched state: the plugin's per-frame evaluate()
   // writes it and the FSM's trigger reads it. Duplicate the module and the writer fills one copy

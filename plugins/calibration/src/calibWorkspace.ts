@@ -24,47 +24,18 @@ import * as calibNative from './calibNative';
 import { storeCalibration, getCalibration, sendToProjector } from './calibHost';
 import { reproject } from './cvCamera';
 import { hasPickingPose } from './pickingPose';
+import { emit, IDLE, getState as sessionState } from './calibSession';
 
 let latestCrosshair: [number, number] | null = null;
 let markerlessPick: ((world: [number, number, number], source?: string) => void) | null = null;
 let markerlessSelect: ((i: number) => void) | null = null;
 let calibratingId: string | null = null; // the output whose board pose is being captured
 
-// ── Workspace state (was App's useStates) ───────────────────────────────────────────────────────
-// A tiny pub/sub singleton in the cueBus/helpBus idiom. Read it with useCalibWorkspace() in plugin UI;
-// App subscribes to feed the embedded 3D its calibPickMode / activePicks / selectedPick.
-export interface CalibWorkspaceState {
-  /** Surface id being calibrated, or null when no session is open. */
-  target: string | null;
-  flow: 'board' | 'auto' | 'manual';
-  /** The embedded 3D is in pick mode (a click places a correspondence, not a selection). */
-  pickMode: boolean;
-  /** Markerless anchor world points, mirrored for the 3D markers. */
-  picks: [number, number, number][];
-  /** Which correspondence is being edited (highlighted in 3D). */
-  selectedPick: number | null;
-  // Armed one-shot edits on a pose pick (manual/board flow). ARMED, NEVER IMPLIED — same doctrine as
-  // the markerless replaceArmed: selection happens as a side effect of ordinary clicks, so selection
-  // alone must never make the next click MOVE a point. In state (not module refs) because the wizard
-  // renders the armed banner from it.
-  /** Next 3D model pick REPLACES this pick's world point instead of creating a pair. */
-  editWorld: number | null;
-  /** Next crosshair confirm (Enter on the projector) REPLACES this pick's pixel. */
-  editPixel: number | null;
-  /** Manual flow: re-estimate the lens (focal) from the picks on every solve, so the operator can
-   *  calibrate without knowing the throw ratio at all. Off = the entered lens is locked. */
-  lensAuto: boolean;
-}
-const IDLE: CalibWorkspaceState = { target: null, flow: 'board', pickMode: false, picks: [], selectedPick: null, editWorld: null, editPixel: null, lensAuto: true };
-let state: CalibWorkspaceState = IDLE;
-const subs = new Set<() => void>();
-function emit(patch: Partial<CalibWorkspaceState>): void {
-  state = { ...state, ...patch };
-  subs.forEach((f) => f());
-}
-
-export function getState(): CalibWorkspaceState { return state; }
-export function subscribe(cb: () => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; }
+// ── Workspace state ──────────────────────────────────────────────────────────────────────────────
+// The STATE lives in ./calibSession (playback) so the host can read it — App feeds the embedded 3D its
+// pick props from it — without loading this module, which is authoring (suite plan Phase 2). Only this
+// module writes it.
+export { getState, subscribe, type CalibWorkspaceState } from './calibSession';
 
 /** Open a calibration session on an output (the Outputs table's Calibrate button). */
 export function begin(surfaceId: string): void { calibratingId = surfaceId; emit({ ...IDLE, target: surfaceId }); }
@@ -93,12 +64,13 @@ export function onCrosshair(pixel: [number, number]): void {
   // every move and the pose re-solves (throttled: solving is cheap, but each store re-renders the
   // wizard and re-pushes the projector overlay, and pointermove arrives at display rate). The guard
   // re-checks the arm at fire time: a trailing update must not move a point the operator released.
-  if (state.editPixel != null && calibratingId) dragPickTo(state.editPixel, { pixel });
+  const editPixel = sessionState().editPixel;
+  if (editPixel != null && calibratingId) dragPickTo(editPixel, { pixel });
 }
 // Enter on the projector: releases a live re-aim (commit what the crosshair shows now). With no
 // armed edit it is a no-op — pairing needs no confirmation, the 3D model click IS the gesture.
 export function onConfirm(): void {
-  if (state.editPixel != null) {
+  if (sessionState().editPixel != null) {
     emit({ editPixel: null });
     endPickDrag(); // commit where the crosshair left it, in one write
   }
@@ -231,13 +203,14 @@ export function pick(world: [number, number, number], source?: string): void {
   const sid = calibratingId;
   if (!sid) return;
   // Armed move: this model click re-places an existing pick's 3D point. One shot.
-  if (state.editWorld != null) {
-    const i = state.editWorld;
+  const editWorld = sessionState().editWorld;
+  if (editWorld != null) {
+    const i = editWorld;
     emit({ editWorld: null });
     updatePick(sid, i, { world });
     return;
   }
-  if (state.editPixel != null) return; // a live re-aim is running — a model click is not a new pair
+  if (sessionState().editPixel != null) return; // a live re-aim is running — a model click is not a new pair
   const cal = getCalibration(sid);
   if (!cal) return;
   // PREDICTED-POSITION SEEDING (the mapamok gesture). Once a pose exists, the solve already has an
@@ -308,7 +281,7 @@ export async function solvePose(surfaceId: string, picks: NonNullable<ProjectorC
   // but it is only conditioned when the picks are genuinely non-coplanar, which is why it is offered
   // as a candidate and kept on merit rather than made the rule. Both are measured the same way: the
   // pose they produce must fit the picks better than the lens already in hand.
-  if (!poseOnly && state.flow === 'manual' && state.lensAuto && cal.intrinsicsSource !== 'board' && n >= 6 && cal.imageSize[0] > 0) {
+  if (!poseOnly && sessionState().flow === 'manual' && sessionState().lensAuto && cal.intrinsicsSource !== 'board' && n >= 6 && cal.imageSize[0] > 0) {
     const [w, h] = cal.imageSize;
     const fixed = await bestPose(obj, img, cal.intrinsics, dist, n);
     let best: { k: number[]; rms: number; pose: NonNullable<Awaited<ReturnType<typeof bestPose>>> } | null = null;
@@ -364,7 +337,7 @@ export function poseModeChange(on: boolean): void {
   if (!on) {
     latestCrosshair = null;
     endPickDrag(); // leaving the step must not strand a provisional drag — commit what is held
-    if (state.editWorld != null || state.editPixel != null) emit({ editWorld: null, editPixel: null });
+    if (sessionState().editWorld != null || sessionState().editPixel != null) emit({ editWorld: null, editPixel: null });
   }
 }
 

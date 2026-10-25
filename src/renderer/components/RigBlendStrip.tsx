@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Layers, Loader2, AlertTriangle, ScanEye } from 'lucide-react';
 import type { ProjectorOutput } from '../../../shared/protocol';
-import { blendStore, isBlendStale, loadCalibrationAuthoring, useCalibrationAuthoring } from '@artlux/plugin-calibration/renderer';
+import { isBlendStale, loadCalibrationAuthoring, useCalibrationAuthoring } from '@artlux/plugin-calibration/playback';
 import { Button } from './ui';
 import { useToast } from './ui/feedback';
 
@@ -20,18 +20,21 @@ export const RigBlendStrip: React.FC<Props> = ({ outputs }) => {
   const [, bump] = useState(0);
   const toast = useToast();
 
-  // The store is a plain singleton, not React state: subscribe so a scan finishing in the wizard
-  // updates the count without the operator having to leave the panel and come back.
-  useEffect(() => blendStore.subscribe(() => bump((n) => n + 1)), []);
-
   const rig = outputs.filter(o => o.enabled && o.calibration?.poseRms != null);
-  // The solve, Clear and the inspector are the plugin's AUTHORING half (suite plan Phase 1): loaded
-  // when the operator asks for one of them, never just because the strip is on screen — a show
-  // machine opening Projection Outputs on a blended rig must not pay for the calibration code.
+  // The solve, Clear, the inspector and the scan store are the plugin's AUTHORING half (suite plan
+  // Phases 1–2): loaded when the operator asks for one of them, never just because the strip is on
+  // screen — a show machine opening Projection Outputs on a blended rig must not pay for the
+  // calibration code. `au` is the half whenever it IS loaded (a wizard ran, or Solve was pressed).
   const au = useCalibrationAuthoring(open);
+
+  // The scan store is a plain singleton, not React state: subscribe so a scan finishing in the wizard
+  // updates the count without the operator having to leave the panel and come back.
+  useEffect(() => au?.blendStore.subscribe(() => bump((n) => n + 1)), [au]);
+
   // Only the in-memory half is knowable synchronously; a projector scanned in an earlier session is
   // on disk and gets loaded by the solve. Saying so beats showing a count that reads as "not ready".
-  const scanned = rig.filter(o => blendStore.has(o.surfaceId)).length;
+  // Nothing loaded means nothing was scanned in this session — a scan IS the authoring half.
+  const scanned = au ? rig.filter(o => au.blendStore.has(o.surfaceId)).length : 0;
   const solved = rig.filter(o => o.blend).length;
   const stale = rig.some(o => isBlendStale(o, rig));
 

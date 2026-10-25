@@ -19,7 +19,7 @@ import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServ
 import type { BootEntry } from '../../../shared/protocol';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
-import { plugin as calibration } from '@artlux/plugin-calibration/renderer';
+import { plugin as calibration } from '@artlux/plugin-calibration/playback';
 import { plugin as spout } from '@artlux/plugin-spout/renderer';
 import { plugin as hap } from '@artlux/plugin-hap/renderer';
 import { plugin as mp4 } from '@artlux/plugin-mp4';

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExtern
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type BakeEntry, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type NamedColor, normalizeNamedColors, type ColorValue, type Keyframe } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY, modelBindings } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
-import { loadCalibrationAuthoring, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
+import { loadCalibrationAuthoring, loadedCalibrationAuthoring, calibSession, resolveProjectedScene } from '@artlux/plugin-calibration/playback';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect } from '../../shared/protocol';
 import { spanTiles, tileName } from './services/outputSpan';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
@@ -377,10 +377,10 @@ const App: React.FC = () => {
   const setDockHeight = setLayoutField('dockHeight');
   const setSplitView = setLayoutField('splitView');
   const setSplitRatio = setLayoutField('splitRatio');
-  // Calibration's session state lives in the PLUGIN (calibWorkspace) since the `calib` context took
-  // ownership. App only reads it, to feed the embedded 3D its pick props and to let the projector
+  // Calibration's session state lives in the PLUGIN since the `calib` context took ownership — its
+  // playback-side store (calibSession), so reading it never loads the authoring half. App only reads it, to feed the embedded 3D its pick props and to let the projector
   // reconciler know which output the wizard is currently driving.
-  const calib = useSyncExternalStore(calibWorkspace.subscribe, calibWorkspace.getState);
+  const calib = useSyncExternalStore(calibSession.subscribe, calibSession.getState);
   const calibratingOutputId = calib.target;
   // Is the 3D pane on screen right now? (The 3D context, or any split-view context.)
   const scene3dVisible = splitView || contextRegistry.get(L.activeContext)?.viewport === VIEWPORT_SCENE_3D;
@@ -4344,7 +4344,7 @@ const App: React.FC = () => {
               // INSIDE the window, which rendersVenue cannot see. Ignoring that withheld the own surface
               // from a window drawing exactly that surface — black — whenever the venue model was loaded.
               const renderActive = (rendersVenue(out, scene3DRef.current) && windowRendersRef.current.get(surfaceId) !== false)
-                  || calibWorkspace.getState().target === surfaceId;
+                  || calibSession.getState().target === surfaceId;
               // SURFACE-BOUND MESHES. A mesh can be bound to ANY surface, not only this output's own,
               // and until it was streamed one it simply stayed dark. What makes the extra streams
               // affordable is the other half of this change: a render-active window is no longer sent
@@ -5331,15 +5331,15 @@ const App: React.FC = () => {
                                 onSceneConfig={handleSceneConfig}
                                 onRecordHistory={recordHistory}
                                 calibPickMode={calib.pickMode}
-                                onCalibPick={(world, source) => calibWorkspace.pick(world, source)}
+                                onCalibPick={(world, source) => loadedCalibrationAuthoring()?.calibWorkspace.pick(world, source)}
                                 projectorCalibs={projectorCalibs}
                                 activePicks={calib.flow === 'auto'
                                     ? calib.picks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
                                 selectedPick={calib.flow === 'board' ? null : calib.selectedPick}
-                                onSelectPick={calib.flow === 'board' ? undefined : ((i: number) => calibWorkspace.selectPick(i))}
-                                onMovePick={calib.flow === 'auto' ? undefined : ((i: number, world: [number, number, number]) => calibWorkspace.movePickWorld(i, world))}
-                                onMovePickEnd={calib.flow === 'auto' ? undefined : (() => calibWorkspace.endPickDrag())}
+                                onSelectPick={calib.flow === 'board' ? undefined : ((i: number) => loadedCalibrationAuthoring()?.calibWorkspace.selectPick(i))}
+                                onMovePick={calib.flow === 'auto' ? undefined : ((i: number, world: [number, number, number]) => loadedCalibrationAuthoring()?.calibWorkspace.movePickWorld(i, world))}
+                                onMovePickEnd={calib.flow === 'auto' ? undefined : (() => loadedCalibrationAuthoring()?.calibWorkspace.endPickDrag())}
                                 paused={!scene3dVisible}
                             />
                             </div>
@@ -5395,7 +5395,13 @@ const App: React.FC = () => {
           onToggleNdiSend={handleToggleNdiSend}
           onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
-          onCalibrate={(surfaceId) => { calibWorkspace.begin(surfaceId); goToContext('calib'); }}
+          onCalibrate={(surfaceId) => {
+            // The session logic is the plugin's AUTHORING half — load it, then open the session. The pick
+            // handlers above use loadedCalibrationAuthoring(): a pick only exists inside an open session.
+            loadCalibrationAuthoring()
+              .then((a) => { a.calibWorkspace.begin(surfaceId); goToContext('calib'); })
+              .catch((e) => console.error('[calibration] the calibration code could not be loaded', e));
+          }}
           onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
           nvAvailable={nvAvailable}
           onSetHwWarp={(surfaceId, on) => upsertOutput(surfaceId, { hwWarp: on })}

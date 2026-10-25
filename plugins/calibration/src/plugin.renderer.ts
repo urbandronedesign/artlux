@@ -13,7 +13,6 @@
 import React from 'react';
 import { Timer } from 'lucide-react';
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
-import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
 import { CalibProjector } from './CalibProjector';
 import { ImportPanel } from './ImportPanel';
@@ -191,23 +190,25 @@ export const plugin: RendererPlugin = {
     // service is inert and the callback is never invoked.
     msgUnsub = ctx.host.projectors.onMessage((_surfaceId, msg) => {
       const m = msg as { t?: string };
+      // Every message below exists only while a wizard drives a projector — patterns, the crosshair, a
+      // dragged point — so the authoring half is loaded whenever one can arrive; before that there is
+      // nobody to deliver it to, and loading it for a stray message would be the cost Phase 1 removed.
+      const au = loadedAuthoring();
+      if (!au) return;
       if (m.t === 'patternShown') {
         const a = m as PatternShown;
         const ack = { index: a.index, projW: a.projW, projH: a.projH };
-        // Patterns are only ever shown by a wizard, so the authoring half is loaded whenever an ack
-        // can arrive; before that there is nobody to deliver it to.
-        const au = loadedAuthoring();
-        au?.calibController.onPatternShown(ack); // board flow
-        au?.slCapture.onPatternShown(ack);       // markerless flow (the inactive one is a no-op)
+        au.calibController.onPatternShown(ack); // board flow
+        au.slCapture.onPatternShown(ack);       // markerless flow (the inactive one is a no-op)
       } else if (m.t === 'calibCrosshair') {
-        calibWorkspace.onCrosshair((m as { pixel: [number, number] }).pixel); // projector aim → pending pose pixel
+        au.calibWorkspace.onCrosshair((m as { pixel: [number, number] }).pixel); // projector aim → pending pose pixel
       } else if (m.t === 'calibConfirm') {
-        calibWorkspace.onConfirm(); // Enter: releases a live re-aim
+        au.calibWorkspace.onConfirm(); // Enter: releases a live re-aim
       } else if (m.t === 'calibPointDrag') {
         const d = m as { index: number; pixel: [number, number] };
-        calibWorkspace.onPointDrag(d.index, d.pixel); // a point grabbed + dragged on the projection
+        au.calibWorkspace.onPointDrag(d.index, d.pixel); // a point grabbed + dragged on the projection
       } else if (m.t === 'calibPointDragEnd') {
-        calibWorkspace.endPickDrag(); // released → commit the provisional picks in one write
+        au.calibWorkspace.endPickDrag(); // released → commit the provisional picks in one write
       }
     });
   },

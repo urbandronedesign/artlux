@@ -53,8 +53,11 @@
       "@artlux/plugin-calibration/main": [
         "./plugins/calibration/src/main.ts"
       ],
-      "@artlux/plugin-calibration/renderer": [
-        "./plugins/calibration/src/renderer.ts"
+      "@artlux/plugin-calibration/playback": [
+        "./plugins/calibration/src/playback.ts"
+      ],
+      "@artlux/plugin-calibration/authoring": [
+        "./plugins/calibration/src/authoring.ts"
       ],
       "@artlux/plugin-spout/main": [
         "./plugins/spout/src/main.ts"

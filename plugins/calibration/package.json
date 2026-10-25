@@ -2,12 +2,13 @@
   "name": "@artlux/plugin-calibration",
   "version": "0.0.0",
   "private": true,
-  "description": "First-party ArtLux plugin: projector auto-calibration — OpenCV engine (native) + structured-light / pose / markerless logic. Stage 1: engine + logic (wizards + projector rendering still host-side).",
+  "description": "First-party ArtLux plugin: projector calibration. /playback plays a calibration (both apps); /authoring produces one — wizards, camera, structured light, solves, recalibration — and is loaded on demand; /main owns the OpenCV addon.",
   "type": "module",
   "sideEffects": false,
   "exports": {
     "./main": "./src/main.ts",
-    "./renderer": "./src/renderer.ts"
+    "./playback": "./src/playback.ts",
+    "./authoring": "./src/authoring.ts"
   },
   "dependencies": {
     "@artlux/sdk": "*"

@@ -12,7 +12,7 @@ import * as placement from '../../services/fixturePlacement';
 import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
-import { cameraPose, glProjectionMatrix, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
+import { cameraPose, glProjectionMatrix, resolveProjectedScene } from '@artlux/plugin-calibration/playback';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
 import { setSnapHover, getSnapHover } from './vertexSnap';

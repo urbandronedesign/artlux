@@ -128,6 +128,32 @@ Switching apps is **"open this project in the other app"**, never a restart of t
 - Two barrels as in §3; host imports only barrels; `verify:plugins` gains both identities.
 - Every invariant that asserts "gated by the profile" is re-pointed at the barrel boundary.
 
+**Built 2026-10-25 on `feat/artlux-suite`.**
+- *Barrels:* `@artlux/plugin-calibration/playback` (was `/renderer`, removed) and `/authoring` — the
+  latter a package export the host may only `import type` from; its values come through the loader in
+  `/playback`. `/main` stays as is and is authoring in its entirety (OpenCV, dense-map sidecars, the
+  recalibration audit trail) — Phase 3 drops it from Show.
+- *Moved across the line:* the session STATE App reads every render → `calibSession.ts` (playback);
+  `calibWorkspace` (pose pairing + solve, the only writer) and `blendStore` (the scan store) →
+  authoring. App's Calibrate button loads the half then opens the session; its 3D pick handlers and
+  the plugin's projector-message tap use `loadedCalibrationAuthoring()`, which never loads — those
+  events exist only inside an open session. The rig-blend strip counts scans from the loaded half (0
+  when it is not loaded: a scan is authoring).
+- *Still shared, deliberately:* `calibNative` (the thin `calib:*` IPC wrappers) stays reachable from
+  playback through `recalInterrupted` — the boot-time "a recalibration was interrupted" report.
+  `venueRegistrar` still starts in broadcast so a markerless recalibration has venue meshes. Both move
+  with recalibration in Phase 4.
+- *Built:* `authoring-*.js` 283 KB, shared `plugins-*.js` 5,734 KB.
+- *Guards:* a new invariant (host files reach calibration only through `/playback` for values and
+  `/authoring` for types; nothing deep-imports `plugins/calibration/src`; the package keeps its three
+  exports); the Phase-1 graph walk starts from `playback.ts`; `verify:plugins` adds a playback identity
+  marker (`bakedStore` must be one module in the shared chunk).
+- *Verified* on the unpacked build: a plain launch still parses no authoring code in any window, with
+  the rig-blend strip on screen; the whole regression (12/12 suites; the projection flow — both
+  projectors calibrated Manual from their Blender cameras, blend within 6 %, export, playback live and
+  from the file, editor and broadcast; the projection faults; the `.blend` save; the show test, editor
+  and broadcast) passes, identical to Phase 1.
+
 ### Phase 3 — two build targets, two installers *(large)*
 - **Two electron-builder configurations** from one tree, each with its own `productName`, `appId`, icon,
   `extraResources` and the `ARTLUX_APP` define:

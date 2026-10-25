@@ -206,6 +206,10 @@ the projector got none, because `App`'s snapshot bridge and the OSC-tap `trackin
 - **Cross-process plugin** (ndi, calib): explicit `/main` + `/renderer` barrels (like the SDK), so a
   main bundle never pulls renderer code and vice-versa. Host imports `@artlux/plugin-ndi/main` /
   `@artlux/plugin-ndi/renderer`.
+- **Calibration has THREE barrels** (2026-10-25): `/main`, `/playback` and `/authoring`. `/authoring`
+  is loaded on demand — the host may only `import type` from it and reaches its values through the
+  loader `/playback` exports — because it is the half ArtLux Show will not ship. See
+  [CALIBRATION.md ▸ How it works](CALIBRATION.md#how-it-works-architecture).
 
 **Verify single identity** after wiring, with the automated harness:
 ```bash

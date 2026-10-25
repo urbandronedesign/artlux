@@ -13,7 +13,7 @@ import { blankMap } from './blankMap';
 import { recenterClone, applyModelTransform } from './venuePlacement';
 import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from './projectedMapping';
 import { registerDepthCaster, unregisterDepthCaster, setDepthRequest } from './projectorDepth';
-import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
+import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/playback';
 
 const DEG = Math.PI / 180;
 

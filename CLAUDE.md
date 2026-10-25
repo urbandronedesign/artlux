@@ -298,7 +298,9 @@ DXV was considered and **dropped** (2026-07-03) — see ROADMAP.
   `TRACKING`, `ProjectorCalibration`, `SurfaceContent.ndiName`, …) stay in `shared/protocol.ts` /
   `renderer/types.ts`. Only *behavior* moves into the plugin → zero project-file migration.
 - **Cross-process plugins** (native in main + UI in renderer, e.g. ndi/calib) use explicit `/main` +
-  `/renderer` barrels like the SDK; renderer-only plugins (lidar-tracking) use one barrel.
+  `/renderer` barrels like the SDK; renderer-only plugins (lidar-tracking) use one barrel. **Calibration
+  is the exception**: `/main` + `/playback` + `/authoring`, the last loaded on demand and never
+  value-imported by the host (docs/CALIBRATION.md, guarded by `verify:invariants`).
 - **Structural edits don't HMR cleanly into open projector windows** — close & reopen them after such
   changes when testing.
 

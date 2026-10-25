@@ -6982,7 +6982,7 @@ check(
   'plain editor launch and every projector window never parse them. ONE static import from the barrel, ' +
   'plugin.renderer.ts or anything they reach merges the whole half back into the shared chunk — and ' +
   'nothing breaks, nothing logs, the app just pays for authoring everywhere again. This walks the ' +
-  'static import graph from the two renderer entry points and fails if it reaches a module that ' +
+  'static import graph from the playback barrel and the plugin entry and fails if it reaches a module that ' +
   'authoring.ts names. (verify:plugins checks the same thing on the built chunks.)',
   () => {
     const DIR = 'plugins/calibration/src/';
@@ -7005,7 +7005,7 @@ check(
     };
     const authoring = new Set(edges(DIR + 'authoring.ts'));
     if (authoring.size < 5) return `${DIR}authoring.ts names ${authoring.size} modules — the authoring door is gone or unreadable`;
-    const seen = new Set(), stack = [DIR + 'renderer.ts', DIR + 'plugin.renderer.ts'], problems = [];
+    const seen = new Set(), stack = [DIR + 'playback.ts', DIR + 'plugin.renderer.ts'], problems = [];
     const via = new Map();
     while (stack.length) {
       const f = stack.pop();
@@ -7016,6 +7016,41 @@ check(
       for (const e of edges(f)) { if (!via.has(e)) via.set(e, path.posix.basename(f)); stack.push(e); }
     }
     if (!seen.has(DIR + 'authoringLoader.tsx')) problems.push('the barrel / plugin.renderer.ts no longer go through authoringLoader');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the host reaches calibration through its barrels: /playback for values, /authoring for types only',
+  'Suite plan Phase 2: the plugin has two renderer barrels, and the line between them is the line ' +
+  'ArtLux Show and ArtLux Calibrator will be cut along (Phase 3). /playback is everything that plays a ' +
+  'calibration; /authoring is everything that produces one and is loaded on demand. A host VALUE import ' +
+  'from /authoring is static, so it would put the wizards back into every launch and every projector ' +
+  'window; a deep import past either barrel duplicates singletons (the barrel rule, docs/PLUGINS.md). ' +
+  'The old /renderer barrel is gone — anything still naming it would not build, but a doc or a script ' +
+  'can, so this says where to go instead.',
+  () => {
+    const problems = [];
+    const files = [];
+    const walk = (d) => { for (const e of fs.readdirSync(path.join(ROOT, d), { withFileTypes: true })) {
+      const p = `${d}/${e.name}`;
+      if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name)) files.push(p);
+    } };
+    walk('src'); walk('packages');
+    for (const d of fs.readdirSync(path.join(ROOT, 'plugins'))) if (d !== 'calibration' && exists(`plugins/${d}/src`)) walk(`plugins/${d}/src`);
+    for (const f of files) {
+      const src = stripComments(read(f));
+      for (const m of src.matchAll(/(import|export)\s+(type\s+)?[^;'"]*?from\s+'@artlux\/plugin-calibration(\/[a-z]+)?'/g)) {
+        const sub = m[3] ?? '';
+        if (sub === '/renderer' || sub === '') problems.push(`${f} imports @artlux/plugin-calibration${sub} — use /playback (or /main in main)`);
+        else if (sub === '/authoring' && !m[2]) problems.push(`${f} VALUE-imports /authoring — that is static; use loadCalibrationAuthoring / useCalibrationAuthoring from /playback`);
+      }
+      if (/@artlux\/plugin-calibration\/src\/|plugins\/calibration\/src\//.test(src.replace(/import\s+type[^;]*;/g, '')))
+        problems.push(`${f} reaches past the calibration barrels into plugins/calibration/src`);
+    }
+    const pkg = JSON.parse(raw('plugins/calibration/package.json'));
+    for (const k of ['./main', './playback', './authoring']) if (!pkg.exports?.[k]) problems.push(`plugins/calibration/package.json lost its ${k} export`);
+    if (pkg.exports?.['./renderer']) problems.push('plugins/calibration/package.json still exports ./renderer');
     return problems.length ? problems.join('; ') : null;
   },
 );
