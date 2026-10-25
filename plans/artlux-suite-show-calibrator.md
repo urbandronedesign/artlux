@@ -305,6 +305,18 @@ own install or profile until level 3, and level 3 only on the owner's go.
 | **2 · Unpacked builds** | `npm run package:show:dir` and `npm run package:calibrator:dir` (new, beside today's `package:dir`): one folder and one `.exe` per app, run in place on the scratch profile (`--user-data-dir=%TEMP%\claude\battle\profile`) | That each build leaves out the other app's parts — no OpenCV and no authoring chunk in Show's `resources/` and `app.asar`; startup memory against today's plain launch; the installed-build suite, the projection flow and the hand-off between the two `.exe`s. No UAC prompt. |
 | **3 · The two installers, installed** | `npm run package:show` and `npm run package:calibrator` (NSIS), then installed **with the owner's approval** (one UAC prompt each) | Only a real install shows these: the upgrade from v0.34.1 into ArtLux Show in `C:\Program Files\ArtLux` with `%APPDATA%\artlux` kept; the Calibrator beside it; two Start-menu entries and taskbar icons; each app finding the other through its install key; the machine-wide lock refusing a second app. |
 
+**Level 3, run 2026-10-25 on the RTX box (then reverted).** Both installers built locally (inside the
+Visual Studio x64 environment — the audio engine needs MSVC + CMake; `fetch:redist` staged the NDI and VC++
+redistributables). Installed over v0.34.1: Show upgraded IN PLACE — same `C:\Program Files\ArtLux\ArtLux.exe`,
+same uninstall entry (renamed "ArtLux Show 0.34.1"), Start-menu and desktop shortcuts renamed, no OpenCV,
+the owner's profile byte-identical. The Calibrator installed beside it with its own entry and shortcuts. On
+the scratch profile: Show up with projectors lit and the Calibrator found; the lock (Calibrator started →
+exits, Show asks; Stay keeps Show); hand-off Show → Calibrator; and back to Show through the lock dialog's
+Switch — all passed. Then v0.34.1 reinstalled and the Calibrator uninstalled: the machine matched the
+pre-test snapshot exactly. Found: the uninstall entry's InstallLocation is empty for electron-builder's
+per-machine installs — the lookup now falls back to the UninstallString's folder; the two apps shared one
+updater cache — the Calibrator now has its own (`artlux-calibrator-updater`).
+
 **Prerequisites on the test machine:** `npm run fetch:redist` (the NDI runtime and the VC++ redistributable —
 missing on the RTX box, so a full installer cannot be built there yet) and the OpenCV DLL already staged by
 `npm run fetch:opencv`. Levels 1 and 2 need neither redistributable.

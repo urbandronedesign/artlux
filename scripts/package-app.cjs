@@ -67,6 +67,11 @@ if (app === 'show') {
   config.nsis = { ...base.nsis, shortcutName: 'ArtLux Calibrator', uninstallDisplayName: 'ArtLux Calibrator ${version}' };
   // Its own update metadata (calibrator.yml), so electron-updater in one app never offers the other.
   config.publish = { ...base.publish, channel: 'calibrator' };
+  // …and its own updater CACHE. electron-updater keeps downloaded installers in
+  // %LOCALAPPDATA%\<name>-updater, named from package.json `name` — shared with Show it was one folder
+  // for two products' pending updates (harmless, each checks the sha512, but never right). The name
+  // does not reach userData: that comes from the product name and is pinned (main/appPaths.ts).
+  config.extraMetadata = { ...(base.extraMetadata ?? {}), name: 'artlux-calibrator' };
   // The icon is the Calibrator's own once build/icon-calibrator.* exists (Phase 3, icons); until then the
   // shared mark, so a build never fails for want of artwork.
   const fs = require('node:fs');

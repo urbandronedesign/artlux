@@ -47,7 +47,11 @@ function fromRegistry(other: 'show' | 'calibrator'): string | null {
       // DisplayName STARTS with the app's name ("ArtLux Show 0.35.0"), so "ArtLux" alone never matches.
       for (const block of out.split(/\r?\n(?=HKEY_)/)) {
         if (!new RegExp(`DisplayName\\s+REG_SZ\\s+${NAME[other]}\\b`).test(block)) continue;
-        const loc = block.match(/InstallLocation\s+REG_SZ\s+(.+)/)?.[1]?.trim();
+        // InstallLocation when the entry carries one; electron-builder's per-machine entries leave it
+        // EMPTY (the path lives under HKLM\SOFTWARE\<guid>), so fall back to the folder of the
+        // UninstallString, which always points into the install folder (measured on v0.34.1's entry).
+        const loc = block.match(/InstallLocation\s+REG_SZ\s+(.+)/)?.[1]?.trim()
+          || dirname(block.match(/UninstallString\s+REG_SZ\s+"?([^"\r\n]+?\.exe)"?/i)?.[1] ?? '');
         if (loc && existsSync(join(loc, EXE_NAME[other]))) return join(loc, EXE_NAME[other]);
       }
     } catch { /* no match → reg exits 1; not installed in this hive */ }
