@@ -237,15 +237,31 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
 
   // A .blend re-exported over its .glb (saved in Blender while the show is open): this window holds its
   // own copy of the model, so drop it and load again — or the wall keeps the geometry from before.
+  //
+  // ⚠ RETIRE THE OLD URL ONLY ONCE THE SCENE HAS MOVED OFF IT. Clearing useGLTF's cache and revoking the
+  // blob at the moment of the update left the mounted ProjectorScene holding a URL whose parse was gone:
+  // its next render re-suspended, fetched the revoked blob, threw, and the plugin's error boundary took
+  // the panel down — BOTH live-calibrated projectors went black on a Blender save and stayed black
+  // (measured on the installed v0.34.0, 0 % lit 35 s later). Same rule as the host's useModelUrls.
   const [modelReloads, setModelReloads] = useState(0);
+  const retiringRef = useRef<string[]>([]);
   useEffect(() => window.artlux?.onBlendUpdated?.((r) => {
     const url = r.ok ? urlCacheRef.current[r.glbPath] : undefined;
     if (!url) return;
-    try { useGLTF.clear(url); } catch { /* ignore */ }
-    URL.revokeObjectURL(url);
+    retiringRef.current.push(url);
     delete urlCacheRef.current[r.glbPath];
     setModelReloads((n) => n + 1);
   }), []);
+  useEffect(() => {
+    if (!retiringRef.current.length) return;
+    const shown = new Set(Object.values(modelUrls));
+    retiringRef.current = retiringRef.current.filter((u) => {
+      if (shown.has(u)) return true;            // still drawn — the new load has not landed yet
+      try { useGLTF.clear(u); } catch { /* ignore */ }
+      URL.revokeObjectURL(u);
+      return false;
+    });
+  }, [modelUrls]);
 
   // Render-from-projector: load the venue GLBs (same readModel→Blob path as the Scene window) so the
   // R3F ProjectorScene can render them from the calibrated camera.

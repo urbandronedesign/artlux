@@ -6953,6 +6953,27 @@ check(
   },
 );
 
+check(
+  'a Blender save never revokes a model URL that is still on screen',
+  'On BLEND_UPDATED the old blob URL used to be cleared from useGLTF and revoked at once, while the mounted ' +
+  'scene still held it: its next render fetched the revoked blob and threw. In the 3D view that blanked ' +
+  'the model and logged an uncaught error on every save; in a projector window the calibration plugin\'s ' +
+  'error boundary took the panel down, and BOTH live-calibrated projectors went black for good (measured ' +
+  'on the installed v0.34.0). The old URL must be retired only once the published modelUrls drop it.',
+  () => {
+    const problems = [];
+    for (const F of ['src/renderer/components/Simulator3D/useModelUrls.ts', 'plugins/calibration/src/CalibProjector.tsx']) {
+      const src = stripComments(read(F));
+      const at = src.indexOf('onBlendUpdated');
+      if (at < 0) { problems.push(`${F} no longer reloads on a Blender save`); continue; }
+      const handler = src.slice(at, src.indexOf('}), []);', at));
+      if (/revokeObjectURL|useGLTF\.clear/.test(handler)) problems.push(`${F} revokes or clears the model URL inside the Blender-update handler again`);
+      if (!/new Set\(Object\.values\(modelUrls\)\)/.test(src)) problems.push(`${F} no longer retires old URLs only once modelUrls stops showing them`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
