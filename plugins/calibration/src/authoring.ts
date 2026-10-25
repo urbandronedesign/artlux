@@ -16,6 +16,11 @@
 export { CalibViewport } from './CalibViewport';
 export { RecalPanel } from './RecalPanel';
 export { BlendInspector } from './BlendInspector';
+// ArtLux Calibrator's own panels (suite plan Phase 3, step 5 — the approved design's S1/S4/S5).
+export { RigList } from './RigList';
+export { RigStatus } from './RigStatus';
+export { BlendPanel } from './BlendPanel';
+export { SignoffPanel } from './SignoffPanel';
 export * as calibWorkspace from './calibWorkspace';
 export * as autoRecal from './autoRecal';
 export * as calibController from './calibController';

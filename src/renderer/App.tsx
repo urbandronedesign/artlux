@@ -521,6 +521,10 @@ const App: React.FC = () => {
   // Off by default: raster space is what you want on the ladder, and warp space is what you want once
   // the machine is hung. See AlignAids.tsx.
   const [alignAid, setAlignAid] = useState<{ pattern: AidPattern | 'off'; dim: number; warp: boolean }>({ pattern: 'off', dim: 0.9, warp: false });
+  // SOLO / MUTE (ArtLux Calibrator ▸ Blend): outputs shown BLACK until unmuted — the fastest way to see
+  // who lights what on the wall. Transient, never saved; set by the calibration plugin through
+  // host.projectors.setMuted, drawn as a black alignment-aid field (it overrides the global aid).
+  const [mutedOutputIds, setMutedOutputIds] = useState<string[]>([]);
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
@@ -3955,7 +3959,11 @@ const App: React.FC = () => {
       list: () => surfacesRef.current,
       get: (id) => surfacesRef.current.find(s => s.id === id),
       subscribe: (cb) => { surfaceSubs.current.add(cb); return () => { surfaceSubs.current.delete(cb); }; },
+      // A test source over the show content (and back) — the plugin keeps the show's copy in
+      // calibRig.testBackup, so this is a plain replace.
+      setContent: (id, content) => setSurfaces((prev) => prev.map((s) => s.id === id ? { ...s, content: content as Surface['content'] } : s)),
     },
+    ui: { goToContext: (id: string) => goToContext(id) },
     bakes: {
       list: () => bakesRef.current,
       forSurface: (surfaceId: string) => bakesRef.current.find((b) => b.surfaceId === surfaceId),
@@ -3981,6 +3989,7 @@ const App: React.FC = () => {
     projectors: {
       send: (id, msg) => sendToProjector(id, msg as MainToProjector),
       onMessage: (cb) => { projMsgSubs.current.add(cb); return () => { projMsgSubs.current.delete(cb); }; },
+      setMuted: (ids) => setMutedOutputIds((prev) => (prev.length === ids.length && prev.every((x, i) => x === ids[i]) ? prev : [...ids])),
     },
     settings: {
       get: () => settingsRef.current,
@@ -4691,9 +4700,13 @@ const App: React.FC = () => {
       // geometry the GPU is deliberately handed a flat soft edge (the double-blend guard) — but the
       // blend band still physically exists on the wall, and an aid that vanished on a hardware-blended
       // rig would disappear exactly where an operator needs it most.
+      const muted = mutedOutputIds.includes(surfaceId);
       port.postMessage({
           t: 'aid',
-          aid: alignAid.pattern === 'off' ? null : {
+          aid: muted ? {
+              pattern: 'black', hue: litAidHue(projectorOutputs, surfaceId), label: out?.name || surface.name,
+              soft: out?.softEdge ?? defaultSoftEdge(), dim: 1, warp: false,
+          } : alignAid.pattern === 'off' ? null : {
               pattern: alignAid.pattern,
               hue: litAidHue(projectorOutputs, surfaceId),
               label: out?.name || surface.name,
@@ -4771,7 +4784,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, identifyOutputIds, alignAid, displays, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, identifyOutputIds, alignAid, mutedOutputIds, displays, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
   // ── THE SHOW STARTS AT THE TOP ────────────────────────────────────────────────────────────────
   // The gate armed on its own, so a show is about to begin: put BOTH clocks back on their in-points
   // first. In the ordinary case this is a no-op — opening a project already restarted them (swap with

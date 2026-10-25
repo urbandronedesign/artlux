@@ -807,6 +807,9 @@ export interface SurfacesService<S = unknown> {
   list(): S[];
   get(id: string): S | undefined;
   subscribe(cb: () => void): () => void;
+  /** Replace a surface's CONTENT (a test source over the show content, and back). Optional: a host that
+   *  does not offer it leaves the plugin read-only, and the plugin says so rather than pretending. */
+  setContent?(id: string, content: unknown): void;
 }
 
 export interface Scene3DService<S = unknown> {
@@ -836,6 +839,9 @@ export interface SettingsService<S = unknown> {
 export interface ProjectorsService<Out = unknown, In = unknown> {
   send(surfaceId: string, msg: Out): void;
   onMessage(cb: (surfaceId: string, msg: In) => void): () => void;
+  /** MUTE outputs: they show black (an alignment-aid field over the picture) until unmuted. Transient,
+   *  never persisted — a solo/mute is a question asked of the wall, not a property of the show. */
+  setMuted?(surfaceIds: string[]): void;
 }
 
 // Read-mostly view of the project "show model" (state machine + scenes + cue banks + schedule) for a
@@ -1158,6 +1164,8 @@ export interface BakeService<E = unknown> {
 
 export interface RendererHostServices {
   project: ProjectService;
+  /** Workspace navigation. Optional — a window with no shell (a projector) has none. */
+  ui?: { goToContext(id: string): void };
   projectorOutputs: ProjectorOutputsService;
   surfaces: SurfacesService;
   scene3D: Scene3DService;

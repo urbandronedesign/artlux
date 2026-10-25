@@ -976,6 +976,23 @@ export interface CalibRig {
   camera?: CalibCameraProfile;
   references?: CalibReference[];
   autoRecal?: AutoRecalConfig;
+  /** The SIGNED sign-off (ArtLux Calibrator ▸ Test & sign-off): who checked the rig on the wall, when,
+   *  which checks they ticked, and the calibration each projector had at that moment — so a projector
+   *  recalibrated afterwards makes the sign-off read as stale rather than silently still valid. */
+  signOff?: CalibSignOff;
+  /** A test source is on the rig: each surface's SHOW content, kept here while the test source plays
+   *  so "back to the show" and the hand-off to ArtLux Show can always restore it — persisted, because
+   *  a test card saved into the project must never cost the show its content. Absent = no test on. */
+  testBackup?: Record<string, unknown>;
+  /** The audience seat: a saved 3D viewpoint to judge the wall from where people will stand. */
+  audienceSeat?: { position: [number, number, number]; target: [number, number, number] };
+}
+
+export interface CalibSignOff {
+  by: string;
+  at: string;
+  checks: string[];
+  rig: { surfaceId: string; calibratedAt?: string; blendSolvedAt?: string }[];
 }
 
 // Floor calibration for camera pose tracking (@artlux/plugin-mediapipe): a 4-point homography relating

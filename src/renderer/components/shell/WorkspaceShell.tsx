@@ -42,7 +42,8 @@ import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 // splitView flag then only change the two panes' WIDTHS. Split view, a maximized 3D context and a
 // plain 2D context are all the same tree with different widths, and nothing ever remounts.
 
-export const SCENE_3D_VIEWPORT = 'core.viewport.scene3d';
+import { SCENE_3D_VIEWPORT } from './viewportIds'; // declared once, there
+export { SCENE_3D_VIEWPORT };
 
 /**
  * Per-machine kill switch for the dockable workspace, read once at module load.

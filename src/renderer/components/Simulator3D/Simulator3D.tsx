@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useMemo, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
@@ -12,7 +12,7 @@ import * as placement from '../../services/fixturePlacement';
 import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
-import { cameraPose, glProjectionMatrix, resolveProjectedScene } from '@artlux/plugin-calibration/playback';
+import { cameraPose, glProjectionMatrix, resolveProjectedScene, calibSession } from '@artlux/plugin-calibration/playback';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
 import { setSnapHover, getSnapHover } from './vertexSnap';
@@ -423,6 +423,10 @@ const Simulator3D: React.FC<Props> = ({
     () => fixtures.filter(f => !gdtfFixtures.includes(f)),
     [fixtures, gdtfFixtures],
   );
+  // ArtLux Calibrator's FOCUS (calibSession): the focused projector's frustum in the accent, the others
+  // grey — the design's "one projector in focus". Null (the combined app, or nothing picked) keeps every
+  // frustum the colour it has always had.
+  const focusedProjector = useSyncExternalStore(calibSession.subscribeFocus, calibSession.getFocus);
   // The stored projector viewpoint (Scene3D.viewFrom), resolved against the calibrated outputs. A
   // saved id whose output was un-calibrated or deleted simply falls back to the editor camera rather
   // than freezing the view — the selector then shows "Editor camera" and the scene is orbitable again.
@@ -671,7 +675,8 @@ const Simulator3D: React.FC<Props> = ({
         {/* The frustum you are looking THROUGH is skipped: from its own apex it collapses to lines
             radiating out of the camera, drawn over everything it is meant to help you judge. */}
         {projectorCalibs.filter((p) => p.surfaceId !== viewFrom?.surfaceId).map(({ surfaceId, calibration }) => (
-          <ProjectorFrustum key={surfaceId} calibration={calibration} />
+          <ProjectorFrustum key={surfaceId} calibration={calibration}
+            color={focusedProjector == null ? undefined : focusedProjector === surfaceId ? '#27b6c4' : '#8a8a8a'} />
         ))}
         {/* Calibration anchor markers — one numbered marker per placed correspondence (board pose picks
             or Auto-Align anchors). Rendered independently of a solved calibration so they appear as you

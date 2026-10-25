@@ -102,8 +102,8 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   dockTab: DockTab.FIXTURE_EDITOR,
   mediaView: 'medium',
   activePreset: 'edit',
-  // The Calibrator has no Mapping context; it opens on the rig (Projection Outputs).
-  activeContext: __ARTLUX_APP__ === 'calibrator' ? 'project' : 'mapping',
+  // The Calibrator has no Mapping context; it opens on the Rig (the calibration plugin's first step).
+  activeContext: __ARTLUX_APP__ === 'calibrator' ? 'rig' : 'mapping',
   contexts: {},
   dockTrees: {},
 };

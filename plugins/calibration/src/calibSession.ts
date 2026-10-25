@@ -37,4 +37,14 @@ export function emit(patch: Partial<CalibWorkspaceState>): void {
 }
 
 export function getState(): CalibWorkspaceState { return state; }
+
+// ── FOCUS — the one projector ArtLux Calibrator is about (its rig list) ─────────────────────────────
+// Kept HERE, beside the session, because the host's 3D view draws it: the focused projector is the only
+// frustum in the accent, the others grey (design: "one projector in focus"). Null — the combined app,
+// or nothing picked — leaves the 3D view drawing every frustum as it always has.
+let focus: string | null = null;
+const focusSubs = new Set<() => void>();
+export function getFocus(): string | null { return focus; }
+export function subscribeFocus(cb: () => void): () => void { focusSubs.add(cb); return () => { focusSubs.delete(cb); }; }
+export function setFocus(id: string | null): void { if (focus !== id) { focus = id; focusSubs.forEach((f) => f()); } }
 export function subscribe(cb: () => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; }

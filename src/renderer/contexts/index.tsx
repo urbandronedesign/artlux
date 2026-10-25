@@ -168,7 +168,10 @@ export function registerCoreWorkspace(): void {
     register(c) {
       if (__ARTLUX_APP__ === 'calibrator') {
         if (!CALIBRATOR_CONTEXTS.has(c.id)) return;
-        coreContextRegistry.register({ ...c, bottom: undefined });
+        // Setting the room up (outputs, the venue) comes first on the rail; the alignment flow the
+        // calibration plugin registers (Rig → Calibrate → Blend → Test → Recalibration) follows it.
+        const setup = c.id === 'project' || c.id === '3d';
+        coreContextRegistry.register({ ...c, bottom: undefined, ...(setup ? { cluster: 'build' as const } : {}) });
         return;
       }
       coreContextRegistry.register(c);

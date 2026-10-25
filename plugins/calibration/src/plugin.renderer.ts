@@ -11,7 +11,8 @@
 // now (Stage 2b); they'll consume host.projectorOutputs/scene3D/projectors when moved.
 
 import React from 'react';
-import { Timer } from 'lucide-react';
+import { Timer, ListChecks, Layers, ScanEye, Radar } from 'lucide-react';
+import { SCENE_3D_VIEWPORT as VIEWPORT_SCENE_3D } from '@/components/shell/viewportIds'; // the ONE scene3d viewport id — a leaf module, never the shell
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
 import { setHost } from './calibHost';
 import { CalibProjector } from './CalibProjector';
@@ -27,6 +28,10 @@ import { registerCommandHandler } from '@artlux/plugin-show-control/renderer';
 // Registered synchronously like any panel; their code loads on first mount.
 const CalibViewport = lazyAuthoring((m) => m.CalibViewport);
 const RecalPanel = lazyAuthoring((m) => m.RecalPanel);
+const RigList = lazyAuthoring((m) => m.RigList);
+const RigStatus = lazyAuthoring((m) => m.RigStatus);
+const BlendPanel = lazyAuthoring((m) => m.BlendPanel);
+const SignoffPanel = lazyAuthoring((m) => m.SignoffPanel);
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
 // typed structurally so the plugin doesn't import a host module).
@@ -140,6 +145,33 @@ export const plugin: RendererPlugin = {
     // its right pane) and this plugin claims its viewport — so App now imports no calibration UI.
     ctx.panels.register({ id: 'calibration.workbench', mount: 'viewport', title: 'Calibration', Component: CalibViewport });
     ctx.contexts.extend('calib', { viewport: 'calibration.workbench' });
+
+    // ── ARTLUX CALIBRATOR'S FLOW (suite plan Phase 3, step 5 — the approved design) ─────────────────
+    // The venue is the workspace: every step is the SAME shell layout — the rig on the left, the ONE 3D
+    // scene in the centre, the step's panel on the right — so moving through the flow never moves the
+    // venue. Rig → Calibrate (the host's `calib`) → Blend → Test & sign-off → Recalibration. Registered
+    // only in a Calibrator build; the combined app keeps its workbench as it was.
+    if (__ARTLUX_APP__ === 'calibrator') {
+      ctx.panels.register({ id: 'calibration.rig', mount: 'browser', title: 'Rig', icon: React.createElement(Radar, { size: 12 }), grow: true, Component: RigList } as Parameters<typeof ctx.panels.register>[0]);
+      ctx.panels.register({ id: 'calibration.rigStatus', mount: 'inspector', title: 'Rig status', Component: RigStatus } as Parameters<typeof ctx.panels.register>[0]);
+      ctx.panels.register({ id: 'calibration.blend', mount: 'inspector', title: 'Blend', Component: BlendPanel } as Parameters<typeof ctx.panels.register>[0]);
+      ctx.panels.register({ id: 'calibration.signoff', mount: 'inspector', title: 'Test & sign-off', Component: SignoffPanel } as Parameters<typeof ctx.panels.register>[0]);
+      ctx.panels.register({ id: 'calibration.recal', mount: 'inspector', title: 'Recalibration', Component: RecalPanel } as Parameters<typeof ctx.panels.register>[0]);
+      const stepLayout = { showLeft: true, showRight: true, dockOpen: false, splitView: false, bottomOpen: false };
+      const step = (id: string, title: string, shortTitle: string, icon: React.ReactNode, order: number, inspector: string[], browser: string[], en: string, fr: string) =>
+        ctx.contexts.register({
+          id, title, shortTitle, icon, cluster: 'align', order, viewport: VIEWPORT_SCENE_3D, browser, inspector,
+          layout: stepLayout, layoutRev: 1, hint: { en, fr },
+        } as unknown as Parameters<typeof ctx.contexts.register>[0]);
+      step('rig', 'Rig', 'Rig', React.createElement(Radar, { size: 16 }), -1, ['calibration.rigStatus'], ['calibration.rig'],
+        'Every projector of the venue, what is done and what is next.', 'Chaque projecteur du lieu, ce qui est fait et ce qui reste.');
+      step('blend', 'Blend', 'Blend', React.createElement(Layers, { size: 16 }), 2, ['calibration.blend'], ['calibration.rig'],
+        'Solve and inspect the rig blend; solo and mute projectors on the wall.', 'Résoudre et inspecter le blend ; solo et mute des projecteurs sur le mur.');
+      step('signoff', 'Test & sign-off', 'Test', React.createElement(ListChecks, { size: 16 }), 3, ['calibration.signoff'], ['calibration.rig'],
+        'Play the UV checker on the wall, sign the rig off, hand it to ArtLux Show.', 'Projeter le damier UV, valider le kit, le passer à ArtLux Show.');
+      step('recal', 'Recalibration', 'Recal', React.createElement(ScanEye, { size: 16 }), 4, ['calibration.recal'], [],
+        'Commission unattended recalibration: camera, thresholds, schedule, history.', 'Mettre en service la recalibration automatique : caméra, seuils, planning, historique.');
+    }
 
     // Commissioning + status for the unattended recalibration. A Preferences section rather than
     // anything in the wizard: it is a property of the INSTALLATION (which camera, which thresholds,
