@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import { Button } from '@/components/ui';
 import { Aperture, Download } from 'lucide-react';
 import type { DisplayInfo, ProjectorOutput, Scene3D } from '../../../shared/protocol';
 import { WINDOWED_DISPLAY } from '../../../shared/protocol';
@@ -57,10 +58,24 @@ export const CalibViewport: React.FC = () => {
       <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-fg-3 text-mini p-6 text-center bg-surface-0">
         <Aperture size={22} />
         <div className="text-fg-2">No calibration session.</div>
-        <div className="text-micro max-w-[420px]">
-          Go to Projection Outputs and press <span className="text-fg-2">Calibrate</span> on the output you want to
-          align. The camera view opens here and the 3D venue scene sits alongside for placing correspondences.
-        </div>
+        {/* ArtLux Calibrator starts a session from the RIG (a projector's card → Recalibrate, or the
+            Rig's main button); there is no Calibrate button on Projection Outputs to send anyone to. */}
+        {__ARTLUX_APP__ === 'calibrator' ? (
+          <>
+            <div className="text-micro max-w-[420px]">
+              Pick a projector in the <span className="text-fg-2">Rig</span> and press <span className="text-fg-2">Recalibrate</span>,
+              or follow the Rig's next step. The steps open here, beside the venue.
+            </div>
+            {host?.ui && (
+              <Button variant="tonal" size="sm" className="mt-1" onClick={() => host.ui!.goToContext('rig')}>Go to the Rig</Button>
+            )}
+          </>
+        ) : (
+          <div className="text-micro max-w-[420px]">
+            Go to Projection Outputs and press <span className="text-fg-2">Calibrate</span> on the output you want to
+            align. The camera view opens here and the 3D venue scene sits alongside for placing correspondences.
+          </div>
+        )}
         {/* THE OTHER WAY IN. A venue that has already been calibrated does not need a wizard at all —
             it needs its file. This is the no-session screen precisely because importing is what you do
             INSTEAD of starting a session, not during one.

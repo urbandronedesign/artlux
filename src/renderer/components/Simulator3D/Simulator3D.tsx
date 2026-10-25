@@ -573,9 +573,13 @@ const Simulator3D: React.FC<Props> = ({
         {/* Calibration picking is an armed mode too, and snapping silently moves the point you clicked
             — so both have to be on screen. Same rule as `placing` above. */}
         {calibPickMode && !placing && (
-          <div className="ml-auto flex items-center gap-1.5 text-mini text-fg-3">
-            <span className="text-accent">Click the model to place an anchor</span>
-            <span>· the <span style={{ color: '#ffd400' }}>amber dot</span> is the vertex it will snap to — solid means it captures the click · hold <strong>Alt</strong> for the exact surface point</span>
+          // ONE LINE, TRUNCATED: the header is a fixed-height toolbar, and in a narrow viewport (ArtLux
+          // Calibrator's centre pane between two columns) the wrapped hint spilled over the 3D view.
+          // The full sentence stays in the tooltip.
+          <div className="ml-auto min-w-0 flex items-center gap-1.5 text-mini text-fg-3 whitespace-nowrap"
+            title="Click the model to place an anchor · the amber dot is the vertex it will snap to — solid means it captures the click · hold Alt for the exact surface point">
+            <span className="text-accent shrink-0">Click the model to place an anchor</span>
+            <span className="truncate">· the <span style={{ color: '#ffd400' }}>amber dot</span> is the vertex it will snap to — solid means it captures the click · hold <strong>Alt</strong> for the exact surface point</span>
           </div>
         )}
       </div>
