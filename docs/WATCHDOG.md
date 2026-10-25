@@ -143,6 +143,17 @@ sees it — the same way it honours the tripped marker.
 - It is written as a normal audit line too (`trigger: shutdown`, `action: stopped`), so a venue that
   comes in to a dark install reads *"the operator stopped it at 19:04"* instead of a silence that
   looks exactly like a machine that died.
+
+## A recalibration hand-off — the show is away on purpose
+
+With the suite's two apps (plans/artlux-suite-show-calibrator.md, Phase 4), a scheduled `recalibrate`
+makes ArtLux Show hand the machine to **ArtLux Calibrator**, which runs the job in broadcast and hands it
+back. While it does, `ArtLux.exe` is not running — and Tier 2 must not "fix" that: a relaunched show
+would collide with the Calibrator on the shared single-instance lock. So **`watchdog-check.ps1` stands
+down while an `ArtLux Calibrator` process exists.** The hand-off is a relaunch (`app.relaunch`), so it
+writes no stopped flag; the Calibrator hands back on success, on failure, after a **15-minute timeout**,
+or at once if Show is started meanwhile. If the Calibrator **crashes**, it is no longer running and the
+next Tier-2 tick brings the show back like any crash.
 - The same path **blacks the rig out** — one all-zero frame over the whole live patch, then a short
   drain so the send thread can transmit it before the process goes. Stopping the stream does not turn
   anything off, and a relaunch deliberately does *not* do this (see

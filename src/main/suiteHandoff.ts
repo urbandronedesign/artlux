@@ -96,14 +96,14 @@ export function describeOtherApp(): SuiteOtherApp | null {
  * starts the target WITHOUT inheriting handles — the same door every other relaunch in the app uses
  * (runProfile.relaunchArgs). The successor also waits for our pid itself (handoffWait.ts).
  */
-export function launchOtherApp(projectPath: string, exeHint?: string): boolean {
+export function launchOtherApp(projectPath: string, exeHint?: string, extraArgs: string[] = []): boolean {
   const exe = findOtherAppExe(exeHint);
   if (!exe) return false;
   // relaunchArgs() is the one argv builder for every relaunch; of what it carries, only the PROFILE applies
   // to another app's exe (its app path and --built-renderer are this app's dev-mode business).
   const args = relaunchArgs().filter((a) => a.startsWith('--user-data-dir='));
   if (projectPath) args.push(`--project=${projectPath}`);
-  args.push(`--handoff-from=${process.pid}`);
+  args.push(`--handoff-from=${process.pid}`, ...extraArgs);
   app.relaunch({ execPath: exe, args });
   console.info(`[suite] handing ${projectPath || '(no project)'} to ${NAME[OTHER!]} — ${exe}`);
   return true;

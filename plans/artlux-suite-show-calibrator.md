@@ -245,6 +245,20 @@ this job"**:
   already has).
 - `calibRevert` follows the same path.
 
+**Built 2026-10-25.** Show (plugin.renderer, Show build): `recalibrate` / `calibRevert` save and call
+`suiteRecalibrate`; main checks the Calibrator is installed BEFORE tearing anything down (not installed →
+`suite.recal.skipped`, the show keeps running), then relaunches into `ArtLux Calibrator --broadcast
+--recalibrate=check|full|revert [--recal-surface=]`. The Calibrator (runProfile RECAL_JOB → the `recal`
+query) waits for project, outputs, boot and venue meshes, runs autoRecal, and `suiteHandBack`s — main hands
+back on that, on a 15-minute timeout, or when Show is started mid-job. `watchdog-check.ps1` stands down
+while `ArtLux Calibrator` runs (not the stopped flag: a hand-off is a relaunch and must come back). Every
+step is a `suite.recal.*` event in both apps' machine logs. Measured (unpacked builds, scratch profile, the
+calibrated rig in broadcast, the command sent through show-control): Show → Calibrator at 1.6 s → back to
+Show at 5.6 s with both projectors; the job itself aborted "auto-recalibration is disabled" — this desk rig
+has no commissioned camera, so a real recalibration through the hand-off is still to be run on a
+commissioned venue. With no Calibrator to find, the job was skipped and the show kept playing. Not
+exercised: the 15-minute timeout, and a Calibrator crash mid-job (the supervisor path).
+
 ### Phase 5 — the Launcher installs, updates and opens both apps *(medium)*
 - Two app tiles, **ArtLux Show** and **ArtLux Calibrator**, each with its installed version, an install /
   update button, and "open the selected project in it". "Open projects in: Normal / Calibration" goes away.

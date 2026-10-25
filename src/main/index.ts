@@ -21,7 +21,7 @@ import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import * as output from './transport/outputManager';
 import * as persistence from './persistence';
-import { profileQuery, CALIBRATION_ENABLED, rendererDevUrl, relaunchArgs, missingBuiltRenderer } from './runProfile';
+import { profileQuery, CALIBRATION_ENABLED, RECAL_JOB, rendererDevUrl, relaunchArgs, missingBuiltRenderer } from './runProfile';
 import { registerMediaScheme, registerMediaProtocol } from './mediaProtocol';
 import { deactivateMainPlugins } from './host/plugins';
 import { noteQuitRequested } from './quitState';
@@ -75,6 +75,9 @@ const isMac = process.platform === 'darwin';
 const isPrimaryInstance = app.requestSingleInstanceLock({ app: ARTLUX_APP });
 app.on('second-instance', (_e, incomingArgv, _cwd, additionalData) => {
     if (!mainWindow) return;
+    // Mid-JOB, ArtLux Show being started means someone wants the show back: give it back now rather than
+    // asking on a broadcast Calibrator's invisible window (suite plan Phase 4).
+    if (RECAL_JOB && (additionalData as { app?: string } | null)?.app === 'show') { handBackToShow('ArtLux Show was started during the job'); return; }
     // The OTHER app of the suite tried to start: offer the hand-over instead (suiteHandoff.ts).
     if (suite.offerHandover(mainWindow, incomingArgv, additionalData)) return;
     // HONOUR A --project= CARRIED BY THE SECOND LAUNCH. The incoming argv used to be discarded
@@ -90,6 +93,23 @@ app.on('second-instance', (_e, incomingArgv, _cwd, additionalData) => {
     mainWindow.show();
     mainWindow.focus();
 });
+// ArtLux Calibrator, at the end of an unattended job (suite plan Phase 4): hand the machine back to
+// ArtLux Show IN BROADCAST, on the same project — on success, on failure, on the timeout, or when Show is
+// started meanwhile. Show missing is the one case with nothing to hand to: quit, and say why in the log.
+let handingBack = false;
+function handBackToShow(outcome: string, projectPath?: string): void {
+    if (!RECAL_JOB || handingBack) return;
+    handingBack = true;
+    const path = projectPath || PROJECT_PATH || persistence.getPrefs().lastProjectPath || '';
+    logger.log('info', 'suite', 'suite.recal.handback', { outcome, project: path });
+    shutdownSubsystems('relaunch');
+    releaseLockForRelaunch();
+    if (!suite.launchOtherApp(path, undefined, ['--broadcast'])) {
+        logger.log('error', 'suite', 'suite.recal.noshow', { why: 'ArtLux Show was not found — nothing to hand the machine back to' });
+    }
+    app.exit(0);
+}
+
 // Drop the single-instance lock immediately before an intentional relaunch so the incoming process can
 // acquire it even if this one lingers a moment during teardown.
 const releaseLockForRelaunch = () => { try { app.releaseSingleInstanceLock(); } catch { /* ignore */ } };
@@ -458,6 +478,31 @@ app.whenReady().then(() => {
         suite.launchOtherApp(projectPath, exeHint);
         app.exit(0);
     });
+    // ── UNATTENDED RECALIBRATION THROUGH A HAND-OFF (suite plan Phase 4) ─────────────────────────────
+    // ArtLux Show: a scheduled `recalibrate` hands the machine to ArtLux Calibrator, which runs the job in
+    // broadcast and hands it back. The renderer has SAVED before asking. Not installed is a normal
+    // answer: logged, refused, and the show keeps running.
+    ipcMain.handle(IPC.SUITE_RECALIBRATE, (_e, job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }, projectPath: string) => {
+        if (ARTLUX_APP !== 'show') return { ok: false, why: 'only ArtLux Show hands a recalibration over' };
+        if (!suite.findOtherAppExe()) {
+            logger.log('warn', 'suite', 'suite.recal.skipped', { job, why: 'ArtLux Calibrator is not installed' });
+            return { ok: false, why: 'ArtLux Calibrator is not installed — the recalibration was skipped, the show keeps running' };
+        }
+        logger.log('info', 'suite', 'suite.recal.handoff', { job, project: projectPath });
+        shutdownSubsystems('relaunch'); // app.exit() skips before-quit AND will-quit — tear down here or nothing does
+        releaseLockForRelaunch();
+        suite.launchOtherApp(projectPath, undefined,
+            ['--broadcast', `--recalibrate=${job.mode}`, ...(job.surfaceId ? [`--recal-surface=${job.surfaceId}`] : [])]);
+        app.exit(0);
+        return { ok: true };
+    });
+    // ArtLux Calibrator: the job's end, whatever the outcome — the show takes the machine back.
+    ipcMain.on(IPC.SUITE_HAND_BACK, (_e, projectPath: string, outcome: string) => handBackToShow(outcome, projectPath));
+    // A job must never hold the machine: whatever happens inside it, the show is back within this.
+    if (RECAL_JOB) {
+        logger.log('info', 'suite', 'suite.recal.job', { job: RECAL_JOB, project: PROJECT_PATH });
+        setTimeout(() => handBackToShow('the job did not finish within 15 minutes'), 15 * 60_000).unref?.();
+    }
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
         if (refuseRelaunchWithoutBuild('broadcast mode')) return;
         const args = relaunchArgs();

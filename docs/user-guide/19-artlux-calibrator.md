@@ -71,6 +71,12 @@ on the real wall.
 Unattended recalibration is set up here: the camera, the thresholds, and whether it may change the
 calibration. See [Running unattended](18-unattended.md).
 
+It is **scheduled in ArtLux Show**, like any other show command. At the scheduled time the show pauses:
+ArtLux Show saves, hands the machine to ArtLux Calibrator, which checks (or recalibrates) the projectors
+on its own and then hands the machine back to the show. The projectors are dark or show markers for the
+length of the check — typically a few seconds to a few minutes. If ArtLux Calibrator is not installed on
+the show machine, the check is skipped and the show keeps playing; the machine log says so.
+
 ## What the Calibrator does not have
 
 The timeline, LED fixtures and patching, the state machine, scenes and cues, audio, the tablet remote

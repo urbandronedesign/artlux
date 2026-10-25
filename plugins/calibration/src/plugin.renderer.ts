@@ -69,6 +69,40 @@ function isAuthoringLaunch(): boolean {
   } catch { return false; }
 }
 
+// The job ArtLux Show handed over (main/runProfile.ts RECAL_JOB → the `recal` query param).
+function handedJob(): { mode: 'check' | 'full' | 'revert'; surfaceId?: string } | null {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const mode = q.get('recal');
+    if (mode !== 'check' && mode !== 'full' && mode !== 'revert') return null;
+    return { mode, surfaceId: q.get('recalSurface') || undefined };
+  } catch { return null; }
+}
+
+async function runHandedJob(ctx: RendererPluginContext): Promise<void> {
+  const job = handedJob();
+  if (!job) return;
+  const ready = () => !!ctx.host.project.path() && ctx.host.projectorOutputs.list().length > 0
+    && !ctx.host.boot?.isBooting?.() && venueRegistrar.isReady();
+  // The project loads, the projectors open, the venue meshes register — then the job can raycast.
+  for (let t = 0; t < 180 && !ready(); t++) await new Promise((r) => setTimeout(r, 1000));
+  let outcome: string;
+  try {
+    const au = await loadAuthoring();
+    if (job.mode === 'revert') {
+      outcome = job.surfaceId && await au.autoRecal.revertCalibration(job.surfaceId) ? 'reverted' : 'revert: nothing to revert';
+    } else {
+      const report = await au.autoRecal.run({ mode: job.mode, surfaceId: job.surfaceId });
+      outcome = report.aborted ? `aborted: ${report.aborted}`
+        : report.results.map((r) => `${r.surfaceId}: ${r.outcome}`).join(', ') || 'nothing to do';
+    }
+  } catch (e) {
+    outcome = `failed: ${(e as Error)?.message ?? e}`;
+  }
+  console.info(`[recal] handed job ${job.mode} done — ${outcome}`);
+  window.artlux?.suiteHandBack?.(ctx.host.project.path() ?? '', outcome);
+}
+
 export const plugin: RendererPlugin = {
   manifest: { id: 'calibration', name: 'Projector Calibration', version: '0.0.0' },
 
@@ -131,6 +165,30 @@ export const plugin: RendererPlugin = {
     // crosshair) only ever run when a wizard drives them, so registering it everywhere costs nothing
     // until an output is actually calibrated.
     ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
+
+    // ── ARTLUX SHOW: A SCHEDULED RECALIBRATION IS A HAND-OFF (suite plan Phase 4) ──────────────────
+    // Show carries no recalibration of its own. The scheduler's `recalibrate` / `calibRevert` (and the
+    // tablet's) keep their meaning: save, then hand the machine to ArtLux Calibrator for the job, which
+    // hands it back in broadcast. When it cannot (the Calibrator is not installed) main says why in the
+    // machine log and the show simply keeps running.
+    if (__ARTLUX_APP__ === 'show' && ctx.window === 'main') {
+      const handOver = async (job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }) => {
+        const path = ctx.host.project.path();
+        if (!path) { console.warn('[recal] the project has never been saved — a recalibration hand-off needs a file'); return; }
+        await ctx.host.project.save();
+        const r = await window.artlux?.suiteRecalibrate?.(job, path);
+        if (r && !r.ok) console.warn(`[recal] not handed over: ${r.why}`);
+      };
+      cmdUnsubs = [
+        registerCommandHandler('recalibrate', (c) => {
+          const cmd = c as { surfaceId?: string; mode?: 'check' | 'full' };
+          void handOver({ mode: cmd.mode ?? 'check', surfaceId: cmd.surfaceId });
+        }),
+        registerCommandHandler('calibRevert', (c) => {
+          void handOver({ mode: 'revert', surfaceId: (c as { surfaceId: string }).surfaceId });
+        }),
+      ];
+    }
 
     // ── AUTHORING — only under --calibrate (and every show mode, which implies it) ───────────────
     //
@@ -217,6 +275,9 @@ export const plugin: RendererPlugin = {
             .catch((e) => console.error('[recal] could not load the calibration code — revert skipped', e));
         }),
       ];
+      // ARTLUX CALIBRATOR ON A JOB (suite plan Phase 4): launched by Show with --recalibrate, it runs the
+      // job unattended and hands the machine back — whatever happened. Main keeps a hard timeout as well.
+      if (__ARTLUX_APP__ === 'calibrator' && ctx.window === 'main') void runHandedJob(ctx);
       // A run killed part-way (watchdog relaunch, power cut) leaves a marker and no other trace —
       // the project file looks untouched because its single save never happened. Say so, once.
       void reportInterrupted();

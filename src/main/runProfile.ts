@@ -66,12 +66,29 @@ if (ARTLUX_APP === 'show' && WANTS_CALIBRATE) {
   console.warn('[profile] --calibrate ignored: ArtLux Show carries no calibration authoring — calibrate in ArtLux Calibrator');
 }
 
+// ── AN UNATTENDED RECALIBRATION JOB (suite plan Phase 4) ─────────────────────────────────────────
+// ArtLux Show cannot recalibrate — it hands the machine to ArtLux Calibrator for the job:
+//   ArtLux Calibrator.exe --broadcast --project=<p> --recalibrate=check|full|revert [--recal-surface=<id>]
+// The Calibrator runs it unattended (the calibration plugin's autoRecal), then hands the machine BACK to
+// ArtLux Show in broadcast — on success, on failure, on a timeout, or when Show is started meanwhile
+// (main/index.ts). Only a Calibrator build honours it; anywhere else it is ignored and logged.
+const argOf = (name: string): string | undefined => argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const RECAL_MODE = argOf('recalibrate');
+export const RECAL_JOB: { mode: 'check' | 'full' | 'revert'; surfaceId?: string } | null =
+  ARTLUX_APP === 'calibrator' && (RECAL_MODE === 'check' || RECAL_MODE === 'full' || RECAL_MODE === 'revert')
+    ? { mode: RECAL_MODE, surfaceId: argOf('recal-surface') || undefined }
+    : null;
+if (RECAL_MODE && !RECAL_JOB) console.warn(`[suite] --recalibrate=${RECAL_MODE} ignored: only ArtLux Calibrator runs a recalibration job`);
+
 /**
  * The profile as renderer query params, merged into whatever a window already passes. Absent when
  * off, so a plain editor launch keeps the byte-identical URL it had before this existed.
  */
 export function profileQuery(): Record<string, string> {
-  return CALIBRATION_ENABLED ? { calibrate: '1' } : {};
+  return {
+    ...(CALIBRATION_ENABLED ? { calibrate: '1' } : {}),
+    ...(RECAL_JOB ? { recal: RECAL_JOB.mode, ...(RECAL_JOB.surfaceId ? { recalSurface: RECAL_JOB.surfaceId } : {}) } : {}),
+  };
 }
 
 // ── WHERE THE RENDERER COMES FROM, AND WHY A RELAUNCH CANNOT INHERIT THE ANSWER ────────────────

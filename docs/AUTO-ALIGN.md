@@ -71,6 +71,13 @@ What's proven without hardware: the **blend partition-of-unity** (Σα ≈ 1 in 
 Reachable at **Preferences ▸ Recalibration**, and schedulable as a `recalibrate` Show Control command
 (so the nightly scheduler *and* the tablet reach it with no extra plumbing).
 
+**In the two-app suite** (plans/artlux-suite-show-calibrator.md, Phase 4) ArtLux Show has no
+recalibration of its own: the same command makes Show save and **hand the machine to ArtLux
+Calibrator** (`--broadcast --recalibrate=check|full|revert`), which runs this exact path unattended and
+hands it back to Show in broadcast — on success, on failure, after 15 minutes, or when Show is started
+meanwhile. No Calibrator installed: the job is skipped, `suite.recal.skipped` in the machine log, and the
+show keeps running. Every step is a `suite.recal.*` event in the two apps' machine logs.
+
 1. **The camera is never an absolute reference.** It is mounted but bumpable, so its pose is re-solved
    from the ArUco marker map at the start of every run and used only within that session. Everything
    persisted is in projector/world space. Markers must be registered with **four corners** (`⌗` in the

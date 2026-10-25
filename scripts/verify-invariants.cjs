@@ -7126,6 +7126,39 @@ check(
 );
 
 check(
+  'a recalibration hand-off can never strand the show',
+  'Suite plan Phase 4: ArtLux Show hands a scheduled recalibration to ArtLux Calibrator and gets the ' +
+  'machine back. Each rule here is a way for a venue to go dark with nothing logged: Show tearing its ' +
+  'outputs down BEFORE finding the Calibrator (no Calibrator, no show); a Calibrator job that never ' +
+  'hands back (no timeout); a Show started mid-job left to a dialog on a broadcast Calibrator’s ' +
+  'invisible window; the OS supervisor relaunching the show on top of a running job (the shared lock ' +
+  'turns that into a fight); and Show with no handler at all, so the scheduler’s command did nothing.',
+  () => {
+    const problems = [];
+    const main = read('src/main/index.ts');
+    const h = main.indexOf('IPC.SUITE_RECALIBRATE');
+    const body = h < 0 ? '' : main.slice(h, main.indexOf('IPC.SUITE_HAND_BACK', h));
+    if (h < 0) problems.push('main no longer handles SUITE_RECALIBRATE');
+    else {
+      const find = body.indexOf('findOtherAppExe'), down = body.indexOf('shutdownSubsystems');
+      if (find < 0 || down < 0 || find > down) problems.push('Show tears its outputs down before checking the Calibrator is installed');
+    }
+    if (!/if \(RECAL_JOB\)[\s\S]{0,400}setTimeout\(\(\) => handBackToShow\(/.test(main)) problems.push('a Calibrator job has no hard timeout handing the machine back');
+    if (!/RECAL_JOB && \(additionalData[^)]*\)\?\.app === 'show'\) \{ handBackToShow/.test(main)) problems.push('Show started mid-job no longer takes the machine back');
+    const sup = read('scripts/watchdog-check.ps1');
+    const stand = sup.indexOf("Get-Process -Name 'ArtLux Calibrator'"), start = sup.indexOf('Start-Process');
+    if (stand < 0 || start < 0 || stand > start) problems.push('the OS supervisor no longer stands down while ArtLux Calibrator holds the machine');
+    const plug = read('plugins/calibration/src/plugin.renderer.ts');
+    const showAt = plug.indexOf("__ARTLUX_APP__ === 'show' && ctx.window === 'main'");
+    const showBlock = showAt < 0 ? '' : plug.slice(showAt, showAt + 2000);
+    if (!/suiteRecalibrate/.test(showBlock) || !/registerCommandHandler\('recalibrate'/.test(showBlock))
+      problems.push('ArtLux Show no longer turns the recalibrate command into a hand-off');
+    if (!/runHandedJob[\s\S]*suiteHandBack/.test(plug)) problems.push('the Calibrator job runner no longer hands back at its end');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'OpenCV loads when calibration is used, never at import or for the splash',
   'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
   'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +

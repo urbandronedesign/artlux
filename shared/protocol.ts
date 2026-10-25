@@ -97,6 +97,10 @@ export const IPC = {
   SUITE_OTHER_APP: 'suite:other-app',
   /** Renderer → main: hand the (saved) project to the other app of the suite and exit (`projectPath`, `exeHint?`). */
   SUITE_OPEN_IN_OTHER: 'suite:open-in-other',
+  /** Show renderer → main (invoke): hand an unattended recalibration job to ArtLux Calibrator. */
+  SUITE_RECALIBRATE: 'suite:recalibrate',
+  /** Calibrator renderer → main: the job is done (or failed) — hand the machine back to ArtLux Show. */
+  SUITE_HAND_BACK: 'suite:hand-back',
   /** Renderer → main (invoke): current watchdog status + recent self-heal events. */
   WATCHDOG_STATUS: 'watchdog:status',
   /** Renderer → main (invoke): install the Tier-2 OS supervisor (Windows Scheduled Task). */
@@ -1910,6 +1914,14 @@ export interface ArtluxApi {
   suiteOtherApp(): Promise<SuiteOtherApp | null>;
   /** Hand the saved project to the other app: start it on `projectPath`, free the outputs, exit. */
   openInOtherApp(projectPath: string, exeHint?: string): void;
+  /**
+   * ArtLux Show: hand a scheduled recalibration to ArtLux Calibrator — save first; main frees the
+   * outputs and exits on success. Resolves `{ ok: false, why }` (and the show keeps running) when it
+   * cannot, e.g. the Calibrator is not installed.
+   */
+  suiteRecalibrate(job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }, projectPath: string): Promise<{ ok: boolean; why?: string }>;
+  /** ArtLux Calibrator, at the end of a job: hand the machine back to ArtLux Show, in broadcast. */
+  suiteHandBack(projectPath: string, outcome: string): void;
   // Unattended watchdog (self-healing for broadcast/show installs — see docs/WATCHDOG.md)
   /** Current watchdog arming state + circuit-breaker status + tail of the self-heal event log. */
   getWatchdogStatus(): Promise<WatchdogStatus>;

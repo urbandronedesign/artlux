@@ -31,6 +31,12 @@ if (Test-Path $stoppedFlag) { exit 0 }
 # Already running? Nothing to do.
 if (Get-Process -Name $name -ErrorAction SilentlyContinue) { exit 0 }
 
+# ArtLux Calibrator holds the machine — a scheduled recalibration ArtLux Show handed over (suite plan
+# Phase 4). It hands the machine back itself, on success, failure or a 15-minute timeout; relaunching the
+# show now would only collide with it on the shared lock. If the Calibrator CRASHES it is no longer
+# running, and the next tick brings the show back as for any crash.
+if (Get-Process -Name 'ArtLux Calibrator' -ErrorAction SilentlyContinue) { exit 0 }
+
 $launchArgs = @('--broadcast')
 if ($Project) { $launchArgs += "--project=$Project" }
 Start-Process -FilePath $Exe -ArgumentList $launchArgs
