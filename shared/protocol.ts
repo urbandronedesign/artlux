@@ -93,6 +93,10 @@ export const IPC = {
   APP_RELAUNCH_BROADCAST: 'app:relaunch-broadcast',
   /** Renderer → main: relaunch with the calibration profile on/off (`on`, `projectPath`). */
   APP_RELAUNCH_PROFILE: 'app:relaunch-profile',
+  /** Renderer → main (invoke): the OTHER app of the suite — its name and, if found, its exe. */
+  SUITE_OTHER_APP: 'suite:other-app',
+  /** Renderer → main: hand the (saved) project to the other app of the suite and exit (`projectPath`, `exeHint?`). */
+  SUITE_OPEN_IN_OTHER: 'suite:open-in-other',
   /** Renderer → main (invoke): current watchdog status + recent self-heal events. */
   WATCHDOG_STATUS: 'watchdog:status',
   /** Renderer → main (invoke): install the Tier-2 OS supervisor (Windows Scheduled Task). */
@@ -1491,6 +1495,11 @@ export interface Prefs {
   /** Serialized editor layout (panel sizes/visibility/tabs + active preset). Renderer-owned blob —
       typed as WorkspaceLayout in the renderer; kept `unknown` here like appSettings. */
   layoutState?: unknown;
+  /** ArtLux Calibrator's own layout (suite plan Phase 3). The two apps share one userData — prefs,
+      recents and the remembered calibration file are facts about the machine — but not a layout: their
+      context sets differ, and one app restoring the other's active context would land on a workbench it
+      does not have. Same shape as layoutState. */
+  layoutStateCalibrator?: unknown;
   /** NAMED WORKSPACES — saved shell arrangements the operator can switch between and share between
       machines, plus which one is live. Renderer-owned blob (`{ v, activeId?, items }`, typed in
       services/workspaceStore.ts) for the same reason as layoutState.
@@ -1761,6 +1770,16 @@ export interface DocChunk {
   audience: 'operator' | 'contributor';
 }
 
+/** The other app of the suite (suite plan Phase 3) — see ArtluxApi.suiteOtherApp. */
+export interface SuiteOtherApp {
+  app: 'show' | 'calibrator';
+  name: string;
+  /** The exe that would be started, or null: not installed (or not found). */
+  exe: string | null;
+  /** Where to get it when it is not installed. */
+  downloadUrl: string;
+}
+
 export interface ArtluxApi {
   configureOutput(cfg: OutputConfig): void;
   /** One frame, encoded by shared/frameCodec.encodeFrame (binary handoff). */
@@ -1866,6 +1885,14 @@ export interface ArtluxApi {
    * once per window, and the editor's projector windows must carry the same profile.
    */
   relaunchWithCalibration(on: boolean, projectPath: string): void;
+  /**
+   * The suite's other app (ArtLux Show ↔ ArtLux Calibrator): its display name, and the exe that would be
+   * started, or null when it is not installed (the menu then says so instead of failing). Null overall
+   * in the combined app, which has no other half.
+   */
+  suiteOtherApp(): Promise<SuiteOtherApp | null>;
+  /** Hand the saved project to the other app: start it on `projectPath`, free the outputs, exit. */
+  openInOtherApp(projectPath: string, exeHint?: string): void;
   // Unattended watchdog (self-healing for broadcast/show installs — see docs/WATCHDOG.md)
   /** Current watchdog arming state + circuit-breaker status + tail of the self-heal event log. */
   getWatchdogStatus(): Promise<WatchdogStatus>;

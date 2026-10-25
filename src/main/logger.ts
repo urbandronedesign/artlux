@@ -364,7 +364,7 @@ export function start(prefs?: LoggingPrefs, session?: Record<string, unknown>): 
   if (!cfg.enabled) return;
   let file = '';
   try {
-    const dir = join(app.getPath('userData'), 'logs');
+    const dir = logDirPath();
     mkdirSync(dir, { recursive: true });
     file = sessionFileName();
     sinkA = openSink('A', dir, file);
@@ -500,5 +500,13 @@ export function shutdown(reason: string, extra?: Record<string, unknown>): void 
 
 /** Where the local log is, for anyone asked to go and read it. */
 export function logDir(): string | null {
-  try { return join(app.getPath('userData'), 'logs'); } catch { return null; }
+  try { return logDirPath(); } catch { return null; }
+}
+
+// The suite's two apps share one userData (main/appPaths.ts) but NOT a log folder: a machine log has to
+// say which app wrote it, and the Calibrator's sessions must not rotate the show's history out of
+// `logs/`. ArtLux Show (and the combined app) keep `logs/` exactly where every tool and doc expects it.
+function logDirPath(): string {
+  const base = join(app.getPath('userData'), 'logs');
+  return __ARTLUX_APP__ === 'calibrator' ? join(base, 'calibrator') : base;
 }

@@ -31,7 +31,14 @@ import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
 import { plugin as audio } from '@artlux/plugin-audio/renderer';
 import { bakeRendererPlugin } from '@artlux/plugin-bake/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, text, shader, showControl, audio, bakeRendererPlugin];
+// WHICH PLUGINS THIS APP CARRIES (shared/appIdentity.ts), tested on the literal so the bundler can drop
+// the rest. ArtLux Show keeps the calibration plugin: its PLAYBACK half is how a calibrated output shows
+// its picture (the authoring half is not in a Show build at all — see the plugin's authoringLoader).
+// ArtLux Calibrator carries what alignment and its test sources need: calibration, the video codecs, and
+// shaders (the UV checker and the test cards are shader surfaces).
+const FIRST_PARTY: RendererPlugin[] =
+  __ARTLUX_APP__ === 'calibrator' ? [calibration, hap, mp4, shader]
+  : [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, text, shader, showControl, audio, bakeRendererPlugin];
 
 // EVERY PLUGIN ACTIVATES. The launch profile no longer decides that, because calibration is two
 // halves and only one of them is expensive:

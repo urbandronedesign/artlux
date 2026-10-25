@@ -7056,6 +7056,38 @@ check(
 );
 
 check(
+  'ArtLux Show carries no calibration authoring; ArtLux Calibrator carries only alignment',
+  'Suite plan Phase 3: which app a build is, is a BUILD fact (shared/appIdentity.ts, the __ARTLUX_APP__ ' +
+  'literal), so the bundler DROPS what the other app owns. Each rule below is one door: the authoring ' +
+  'loader refusing before its import() (or a Show build grows an authoring chunk), the main plugin list ' +
+  '(or OpenCV ships in Show), the launch profile (or `--calibrate` from an old shortcut turns a Show ' +
+  'into a half-calibrator with nothing behind it), and the Show UI offering no door it cannot open — a ' +
+  'Calibrate button or Solve blend that silently does nothing reads as the app being broken. ' +
+  'verify:plugins (ARTLUX_APP=show) checks the built result.',
+  () => {
+    const problems = [];
+    const loader = read('plugins/calibration/src/authoringLoader.tsx');
+    const g = loader.search(/__ARTLUX_APP__\s*===\s*'show'\)\s*return Promise\.reject/), imp = loader.indexOf("pending ??= import('./authoring')");
+    if (g < 0 || imp < 0 || g > imp) problems.push('authoringLoader no longer refuses in ArtLux Show before its import() — a Show build would carry the authoring chunk');
+    const mainPlugins = read('src/main/host/plugins.ts');
+    const showList = (mainPlugins.match(/__ARTLUX_APP__ === 'show' \? \[([^\]]*)\]/) || [])[1];
+    if (showList == null) problems.push('src/main/host/plugins.ts has no Show plugin list');
+    else if (/\bcalibration\b/.test(showList)) problems.push('the Show main plugin list includes calibration — OpenCV would ship in ArtLux Show');
+    const prof = read('src/main/runProfile.ts');
+    if (!/ARTLUX_APP === 'show' \? false/.test(prof)) problems.push('runProfile no longer turns calibration authoring OFF in ArtLux Show');
+    if (!/ARTLUX_APP === 'calibrator' \? true/.test(prof)) problems.push('runProfile no longer turns calibration authoring ON in ArtLux Calibrator');
+    for (const [f, re, what] of [
+      ['src/renderer/components/OutputsPanel.tsx', /HAS_CALIBRATION_AUTHORING && \(\s*<button\s+onClick=\{\(\) => onCalibrate/, 'the Calibrate button'],
+      ['src/renderer/components/OutputsPanel.tsx', /HAS_CALIBRATION_AUTHORING && \(\s*<div[^>]*>\s*<button onClick=\{\(\) => onMeasureGamma/, 'the camera gamma measurement'],
+      ['src/renderer/components/RigBlendStrip.tsx', /HAS_CALIBRATION_AUTHORING && <>[\s\S]*Solve blend[\s\S]*<\/>\}/, 'Solve / Clear / Inspect blend'],
+    ]) if (!re.test(read(f))) problems.push(`${f}: ${what} is no longer hidden in ArtLux Show`);
+    const ctx = read('src/renderer/contexts/index.tsx');
+    if (!/CALIBRATOR_CONTEXTS = new Set\(\['project', '3d', 'calib', 'settings'\]\)/.test(ctx)) problems.push('the Calibrator context set changed — update the plan (§3) and this check together');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'OpenCV loads when calibration is used, never at import or for the splash',
   'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
   'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +

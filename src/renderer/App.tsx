@@ -71,7 +71,7 @@ import * as openTrace from './services/openTrace';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
-import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
+import { layoutStore, LAYOUT_PREF_KEY, type WorkspaceLayout } from './services/layoutStore';
 import { workspaceStore } from './services/workspaceStore';
 import { CALIBRATION_ENABLED } from './services/runProfile';
 import { keymap } from './shortcuts/keymapStore';
@@ -169,6 +169,10 @@ const keepNotALook = <T extends object>(next: T, live: T): T => {
 // against a context that hasn't registered yet), but doing it here means the rail is populated on the
 // very first render instead of after an effect.
 registerCoreWorkspace();
+
+// The native title bar shows the page title. index.html says "ARTLux" — right for the combined app; the
+// suite's two apps say which one this is, so a machine running one never leaves anyone guessing.
+if (__ARTLUX_APP__ !== 'suite') document.title = __ARTLUX_APP__ === 'show' ? 'ARTLux Show' : 'ARTLux Calibrator';
 
 // The DMX monitor's panel id — View ▸ DMX Monitor targets it by id now that dock tabs are
 // panels rather than the core-only DockTab enum.
@@ -3560,6 +3564,22 @@ const App: React.FC = () => {
   // activated once per window at load, in this window and in every projector window it spawns, and a
   // half-switched pair is the shape of bug that ends with a black output at a venue. Dropping it is
   // what keeps an open output cheap — 60 fps against 17.6 with a calibrated one on this machine.
+  // THE SUITE HAND-OFF (main/suiteHandoff.ts): open THIS project in the other app. Saved first, because
+  // the other app opens it from disk; refused with the reason when the other app is not installed, so the
+  // menu item never does nothing. `exeHint` is the exe of the other app that just tried to start (main's
+  // second-instance dialog), so the hand-over reaches exactly that install.
+  const handleOpenInOtherApp = async (exeHint?: string) => {
+      const other = await window.artlux?.suiteOtherApp?.();
+      if (!other) return;
+      if (!other.exe && !exeHint) {
+          toast.warn(`${other.name} is not installed`, `Install it from the Launcher or ${other.downloadUrl}`);
+          return;
+      }
+      const path = await handleSaveProject();
+      if (!path) { toast.warn('Save first', `Save the project to a file, then open it in ${other.name}.`); return; }
+      window.artlux?.openInOtherApp?.(path, exeHint);
+  };
+
   const handleToggleCalibration = async () => {
       const path = await handleSaveProject();
       if (!path) { toast.warn('Save first', 'Save the project to a file, then switch to calibration.'); return; }
@@ -3573,6 +3593,10 @@ const App: React.FC = () => {
   // the listener can be registered exactly once.
   const dispatchMenu = (action: string) => {
       if (action.startsWith('open-recent:')) { handleOpenRecent(action.slice('open-recent:'.length)); return; }
+      if (action === 'open-in-other-app' || action.startsWith('open-in-other-app:')) {
+          void handleOpenInOtherApp(action.slice('open-in-other-app:'.length) || undefined);
+          return;
+      }
       // Workspace-context switches from either menu (see CONTEXT_MENU_ITEMS in shared/protocol).
       if (action.startsWith('context:')) { goToContext(action.slice('context:'.length)); return; }
       switch (action) {
@@ -4967,7 +4991,7 @@ const App: React.FC = () => {
           setRecentFiles(prefs.recentFiles ?? []);
           // Hydrate the workspace layout (panel sizes/visibility/tabs). One-time migration: older installs
           // kept split view in localStorage — seed from it when there's no saved layout yet, then clear it.
-          let savedLayout = prefs.layoutState as Partial<WorkspaceLayout> | undefined;
+          let savedLayout = prefs[LAYOUT_PREF_KEY] as Partial<WorkspaceLayout> | undefined;
           if (!savedLayout) {
               const sv = localStorage.getItem('artlux.splitView');
               const sr = parseFloat(localStorage.getItem('artlux.splitRatio') || '');
@@ -4981,6 +5005,13 @@ const App: React.FC = () => {
           // tab that mounts at next boot, so a poisoned panel re-crashes the app every launch. This
           // is the other half of breaking that cycle (the autoload skip below is the first).
           layoutStore.hydrate(SAFE_MODE ? undefined : savedLayout);
+          // A saved context this app does not have — a layout from a build with more contexts, or one
+          // ArtLux Calibrator never registers — would leave the rail with nothing selected. Checked AFTER
+          // hydrate, which first maps retired ids onto what replaced them; only what is still unknown
+          // lands on this app's first context.
+          if (!contextRegistry.get(layoutStore.get().activeContext)) {
+              layoutStore.hydrate({ ...layoutStore.get(), activeContext: contextRegistry.all()[0]?.id });
+          }
           // …then put the active context's own panel sizes back on. See enterActiveContext().
           layoutStore.enterActiveContext(contextLayoutOf(layoutStore.get().activeContext));
           // Adopt the user's keyboard-shortcut overrides (absent → registry defaults). Migrated keydown

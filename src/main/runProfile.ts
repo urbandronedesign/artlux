@@ -38,14 +38,33 @@
 import { app } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { ARTLUX_APP } from '../../shared/appIdentity';
 
 const argv = process.argv.slice(1);
 
 const HEADLESS = argv.includes('--headless');
 const BROADCAST = argv.includes('--broadcast');
 
-/** `--calibrate`: bring the calibration workbench into an EDITOR launch. Implied by show modes. */
-export const CALIBRATION_ENABLED = argv.includes('--calibrate') || HEADLESS || BROADCAST;
+const WANTS_CALIBRATE = argv.includes('--calibrate');
+
+/**
+ * Does this launch carry calibration AUTHORING? Decided by which app this build is first
+ * (shared/appIdentity.ts), and only in the combined app by the launch profile:
+ *   calibrator → always: aligning projectors is the whole app.
+ *   show       → never. ArtLux Show plays calibrations and makes none; its build does not even contain
+ *                the authoring code. A `--calibrate` from an old shortcut or the old Launcher is logged
+ *                and ignored, not an error — the show must still start.
+ *   suite      → today's rule: `--calibrate` brings the workbench into an editor launch, and the show
+ *                modes imply it.
+ */
+export const CALIBRATION_ENABLED =
+  ARTLUX_APP === 'calibrator' ? true
+  : ARTLUX_APP === 'show' ? false
+  : WANTS_CALIBRATE || HEADLESS || BROADCAST;
+
+if (ARTLUX_APP === 'show' && WANTS_CALIBRATE) {
+  console.warn('[profile] --calibrate ignored: ArtLux Show carries no calibration authoring — calibrate in ArtLux Calibrator');
+}
 
 /**
  * The profile as renderer query params, merged into whatever a window already passes. Absent when

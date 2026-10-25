@@ -12,7 +12,7 @@ import React from 'react';
 import {
   Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route, FolderInput,
 } from 'lucide-react';
-import { panelRegistry, contextRegistry } from '../host/registries';
+import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import {
@@ -154,6 +154,26 @@ export function registerCoreWorkspace(): void {
   // ── Contexts ───────────────────────────────────────────────────────────────────────────────
   // Actions reuse App's menu dispatcher by id wherever the function already exists there, so no
   // function is re-plumbed to appear on a bar.
+
+  // ── WHICH CONTEXTS THIS APP HAS (shared/appIdentity.ts) ──────────────────────────────────────
+  // ArtLux Calibrator is ONE shell with a smaller manifest (suite plan §3): only what aligning a venue
+  // needs — Projection Outputs, the venue in 3D, the Calibration workbench, Preferences — and no timeline
+  // drawer, because the Calibrator plays a test source, not a show. Show and the combined app register
+  // everything. Filtered here, at the one door, so no context below has to know which app it is in.
+  const CALIBRATOR_CONTEXTS = new Set(['project', '3d', 'calib', 'settings']);
+  // Shadows the imported registry for this function only, so every registration below keeps the plain
+  // `contextRegistry.register({ id: … })` shape (verify:invariants reads that shape to know the ids).
+  const contextRegistry: typeof coreContextRegistry = {
+    ...coreContextRegistry,
+    register(c) {
+      if (__ARTLUX_APP__ === 'calibrator') {
+        if (!CALIBRATOR_CONTEXTS.has(c.id)) return;
+        coreContextRegistry.register({ ...c, bottom: undefined });
+        return;
+      }
+      coreContextRegistry.register(c);
+    },
+  };
 
   // MAPPING — surfaces AND fixtures in one workbench.
   //

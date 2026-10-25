@@ -73,8 +73,14 @@ function buildMenus(recents: string[], workspaceItems: Item[]): Menu[] {
         { label: 'Routing…', action: 'routing' },
         { label: 'Preferences…', accel: 'Ctrl+,', action: 'preferences' },
         { sep: true },
-        { label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', action: 'calibration-profile' },
-        { label: 'Launch in Broadcast Mode', action: 'broadcast' },
+        // The profile switch exists only in the combined app: ArtLux Show has no workbench to open and
+        // ArtLux Calibrator is never anything else (shared/appIdentity.ts). Neither app broadcasts a show
+        // from the Calibrator. Mirrors src/main/menu.ts.
+        ...(__ARTLUX_APP__ === 'suite' ? [{ label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', action: 'calibration-profile' }] : []),
+        // The suite's hand-off: save, then open THIS project in the other app (main/suiteHandoff.ts).
+        ...(__ARTLUX_APP__ === 'show' ? [{ label: 'Open in ArtLux Calibrator…', action: 'open-in-other-app' }] : []),
+        ...(__ARTLUX_APP__ === 'calibrator' ? [{ label: 'Open in ArtLux Show…', action: 'open-in-other-app' }] : []),
+        ...(__ARTLUX_APP__ !== 'calibrator' ? [{ label: 'Launch in Broadcast Mode', action: 'broadcast' }] : []),
         { sep: true },
         // macOS quits with ⌘Q from the application menu (src/main/menu.ts); everywhere else the
         // global Ctrl+Shift+Q is the handler. Written in the Ctrl spelling either way because acc()

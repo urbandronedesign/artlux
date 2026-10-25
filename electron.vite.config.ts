@@ -41,8 +41,19 @@ const sdkAliases = [
   { find: '@artlux/plugin-audio/renderer', replacement: resolve(__dirname, 'plugins/audio/src/renderer.ts') },
 ];
 
+// WHICH APP THIS BUILD IS (shared/appIdentity.ts): `ARTLUX_APP=show|calibrator npm run build`, default
+// the combined app. Written into every bundle as a literal so a condition on it folds and the other
+// app's code is dropped, not merely skipped. An unknown value fails the build rather than shipping a
+// third kind of app nobody designed.
+const ARTLUX_APP = process.env.ARTLUX_APP ?? 'suite';
+if (!['suite', 'show', 'calibrator'].includes(ARTLUX_APP)) {
+  throw new Error(`ARTLUX_APP must be suite, show or calibrator — got "${ARTLUX_APP}"`);
+}
+const define = { __ARTLUX_APP__: JSON.stringify(ARTLUX_APP) };
+
 export default defineConfig({
   main: {
+    define,
     build: {
       outDir: 'out/main',
       rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } },
@@ -52,6 +63,7 @@ export default defineConfig({
     },
   },
   preload: {
+    define,
     build: {
       outDir: 'out/preload',
       rollupOptions: { input: { index: resolve(__dirname, 'src/preload/index.ts') } },
@@ -61,6 +73,7 @@ export default defineConfig({
     },
   },
   renderer: {
+    define,
     root: 'src/renderer',
     build: {
       outDir: 'out/renderer',

@@ -87,8 +87,12 @@ function template(): MenuItemConstructorOptions[] {
         { type: 'separator' },
         // Calibration is a launch profile, not a workbench you switch to — see main/runProfile.ts.
         // The label says which way the switch goes, because the menu is the only place that knows.
-        { label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', click: () => send('calibration-profile') },
-        { label: 'Launch in Broadcast Mode', click: () => send('broadcast') },
+        // Only the combined app has a profile to switch (shared/appIdentity.ts); the Calibrator does not
+        // broadcast. Mirrors the renderer's MenuBar.
+        ...(__ARTLUX_APP__ === 'suite' ? [{ label: CALIBRATION_ENABLED ? 'Leave Calibration Workbench' : 'Open Calibration Workbench…', click: () => send('calibration-profile') }] : []),
+        ...(__ARTLUX_APP__ === 'show' ? [{ label: 'Open in ArtLux Calibrator…', click: () => send('open-in-other-app') }] : []),
+        ...(__ARTLUX_APP__ === 'calibrator' ? [{ label: 'Open in ArtLux Show…', click: () => send('open-in-other-app') }] : []),
+        ...(__ARTLUX_APP__ !== 'calibrator' ? [{ label: 'Launch in Broadcast Mode', click: () => send('broadcast') }] : []),
         // Windows/Linux only: they have no application menu, so File is where Quit belongs. The
         // accelerator is shown for discoverability and NOT registered here — the real handler is the
         // global shortcut in main, which also reaches a focused fullscreen projector window. On macOS

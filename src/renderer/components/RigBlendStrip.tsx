@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Layers, Loader2, AlertTriangle, ScanEye } from 'lucide-react';
 import type { ProjectorOutput } from '../../../shared/protocol';
+import { HAS_CALIBRATION_AUTHORING } from '../../../shared/appIdentity';
 import { isBlendStale, loadCalibrationAuthoring, useCalibrationAuthoring } from '@artlux/plugin-calibration/playback';
 import { Button } from './ui';
 import { useToast } from './ui/feedback';
@@ -57,19 +58,22 @@ export const RigBlendStrip: React.FC<Props> = ({ outputs }) => {
         <span className="flex items-center gap-1.5 text-fg-1 shrink-0"><Layers size={13} className="text-accent" /> Rig blend</span>
 
         <span className="text-fg-2 truncate">
-          {rig.length} calibrated · {scanned} scanned this session
+          {rig.length} calibrated{HAS_CALIBRATION_AUTHORING && <> · {scanned} scanned this session</>}
           {solved > 0 && <> · <span className={stale ? 'text-warn' : 'text-ok'}>{solved} solved{stale ? ' (stale)' : ''}</span></>}
         </span>
 
         {stale && (
           <span className="flex items-center gap-1 text-warn shrink-0"
             title="A projector was recalibrated, or the rig changed, after this blend was solved. It still renders — a slightly wrong seam beats a hole in the show — but re-solve when you can.">
-            <AlertTriangle size={12} /> re-solve
+            <AlertTriangle size={12} /> {HAS_CALIBRATION_AUTHORING ? 're-solve' : 're-solve in ArtLux Calibrator'}
           </span>
         )}
 
         <div className="flex-1" />
 
+        {/* Solving, clearing and inspecting a blend PRODUCE calibration — ArtLux Calibrator's job. Show
+            plays the solved blend and says whether it is current; it offers no door it cannot open. */}
+        {HAS_CALIBRATION_AUTHORING && <>
         {solved > 0 && (
           <Button size="sm" variant="ghost" onClick={() => setOpen(o => !o)} aria-expanded={open}
             title="Show each projector's share of the light, and whether the overlap sums to one">
@@ -84,6 +88,7 @@ export const RigBlendStrip: React.FC<Props> = ({ outputs }) => {
           <Button size="sm" variant="ghost" onClick={() => { void loadCalibrationAuthoring().then((a) => { a.blendController.clearRig(); toast.success('Rig blend cleared', 'Outputs fall back to the hand-set soft edge.'); }, (e) => toast.error('Could not clear the blend', (e as Error)?.message ?? 'the calibration code did not load')); }}
             title="Drop the solved blend and fall back to the hand-set soft edge">Clear</Button>
         )}
+        </>}
       </div>
 
       {open && solved > 0 && au && (

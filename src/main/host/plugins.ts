@@ -24,7 +24,15 @@ import { plugin as audio } from '@artlux/plugin-audio/main';
 import { plugin as shader } from '@artlux/plugin-shader/main';
 import { bakeMainPlugin } from '@artlux/plugin-bake/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl, audio, shader, bakeMainPlugin];
+// WHICH PLUGINS THIS APP CARRIES (shared/appIdentity.ts). Tested on `__ARTLUX_APP__` itself so the
+// condition folds at build time and an excluded plugin's code is DROPPED from the bundle, not skipped:
+//   show        no calibration main half — it is OpenCV and the recalibration audit, all authoring.
+//   calibrator  only what alignment needs: calibration, the HAP codec and shaders for the test source.
+//   suite       everything, as before the split.
+const FIRST_PARTY: MainPlugin[] =
+  __ARTLUX_APP__ === 'calibrator' ? [calibration, hap, shader]
+  : __ARTLUX_APP__ === 'show' ? [ndi, spout, hap, showControl, audio, shader, bakeMainPlugin]
+  : [ndi, calibration, spout, hap, showControl, audio, shader, bakeMainPlugin];
 
 let activated = false;
 let deactivated = false;

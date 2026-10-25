@@ -102,7 +102,8 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   dockTab: DockTab.FIXTURE_EDITOR,
   mediaView: 'medium',
   activePreset: 'edit',
-  activeContext: 'mapping',
+  // The Calibrator has no Mapping context; it opens on the rig (Projection Outputs).
+  activeContext: __ARTLUX_APP__ === 'calibrator' ? 'project' : 'mapping',
   contexts: {},
   dockTrees: {},
 };
@@ -114,11 +115,14 @@ let state: WorkspaceLayout = DEFAULT_LAYOUT;
 const subs = new Set<() => void>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Which prefs key holds THIS app's layout — the Calibrator keeps its own (see Prefs.layoutStateCalibrator). */
+export const LAYOUT_PREF_KEY = __ARTLUX_APP__ === 'calibrator' ? 'layoutStateCalibrator' : 'layoutState';
+
 // Coalesce persistence: layout changes fire on every pointer tick during a resize; debounce the
 // single-object write so we hit disk at most a few times, not per-frame.
 function persistSoon(): void {
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { void window.artlux?.setPrefs?.({ layoutState: state }); }, 300);
+  saveTimer = setTimeout(() => { void window.artlux?.setPrefs?.({ [LAYOUT_PREF_KEY]: state }); }, 300);
 }
 
 export const layoutStore = {

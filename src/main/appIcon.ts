@@ -16,4 +16,7 @@ import { join } from 'path';
 // ⚠ On Windows a PACKAGED build takes the title-bar icon from the .exe's embedded resource, so this
 // is what you see in dev and what a non-Windows build uses. Both need to be the mark, and the
 // electron-builder side is configured separately in package.json → build.win.icon.
-export const APP_ICON = join(__dirname, '../renderer/icon.png');
+//
+// ArtLux Calibrator wears its own mark (scripts/gen-icon.cjs: the same tile, inverted, with a crosshair
+// badge) — and its packaged exe is built with build/icon-calibrator.ico by scripts/package-app.cjs.
+export const APP_ICON = join(__dirname, __ARTLUX_APP__ === 'calibrator' ? '../renderer/icon-calibrator.png' : '../renderer/icon.png');

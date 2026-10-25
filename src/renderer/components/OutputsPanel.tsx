@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2, Tag, Crosshair } from 'lucide-react';
 import { Surface, SourceType } from '../types';
 import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
+import { HAS_CALIBRATION_AUTHORING } from '../../../shared/appIdentity';
 import { SpanEditor } from './SpanEditor';
 import { RigBlendStrip } from './RigBlendStrip';
 import { Tooltip } from './ui/Tooltip';
@@ -355,6 +356,9 @@ export const OutputsPanel: React.FC<Props> = ({
                         <Tag size={12} />
                       </button>
                     </Tooltip>
+                    {/* Producing a calibration is ArtLux Calibrator's job — Show has no door to it
+                        (shared/appIdentity.ts; a rendered control must act, DESIGN-SYSTEM §4.4). */}
+                    {HAS_CALIBRATION_AUTHORING && (
                     <button
                       onClick={() => onCalibrate(s.id)}
                       disabled={!live}
@@ -363,6 +367,7 @@ export const OutputsPanel: React.FC<Props> = ({
                     >
                       <Aperture size={12} />
                     </button>
+                    )}
                   </div>
                   <button
                     onClick={() => setExpanded(isOpen ? null : s.id)}
@@ -436,6 +441,7 @@ export const OutputsPanel: React.FC<Props> = ({
 
                     {/* Camera-measured gamma + colour: projects a level ramp on this output, samples the
                         camera RGB in the lit footprint, fits the response → writes Output γ + Colour gain. */}
+                    {HAS_CALIBRATION_AUTHORING && (
                     <div className="flex items-center gap-2 flex-wrap">
                       <button onClick={() => onMeasureGamma(s.id)} disabled={measuringGammaId != null}
                         title="Project a ramp and measure this projector's gamma + colour through the camera"
@@ -447,6 +453,7 @@ export const OutputsPanel: React.FC<Props> = ({
                         <span className={`text-micro num ${gammaMsg.ok ? 'text-ok' : 'text-danger'}`}>{gammaMsg.text}</span>
                       )}
                     </div>
+                    )}
 
                     {/* Colour + black-level match across projectors (overlap brightness / black floor) */}
                     {(() => {

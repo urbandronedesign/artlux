@@ -16,6 +16,11 @@
  * the marker occurs exactly once (catches accidental double-bundling).
  *
  * Run AFTER `npm run build` (it inspects out/, it does not build). Wired as `npm run verify:plugins`.
+ *
+ * WHICH APP WAS BUILT (suite plan Phase 3, shared/appIdentity.ts): set ARTLUX_APP to the value the build
+ * used (`ARTLUX_APP=show npm run build && ARTLUX_APP=show npm run verify:plugins`); default the combined
+ * app. Checks for plugins an app does not carry are skipped, and ArtLux Show additionally must contain
+ * NO calibration authoring and NO OpenCV — the whole point of that build.
  */
 
 const fs = require('fs');
@@ -30,6 +35,23 @@ const MAIN_BUNDLE = path.join(ROOT, 'out', 'main', 'index.js');
 //   where: 'main'     → single bundle; must occur exactly `occurrences` times (default 1).
 //   chunk: 'name'     → (renderer) and that one chunk must be the `name-*.js` one — for code that is
 //                       split out ON PURPOSE, where landing in the shared chunk is the failure.
+const APP = process.env.ARTLUX_APP ?? 'suite';
+// What each app carries — mirrors FIRST_PARTY in src/main/host/plugins.ts and src/renderer/host/plugins.ts.
+const CARRIES = {
+  suite: null, // everything
+  show: { renderer: null, main: ['ndi', 'spout', 'hap', 'show-control', 'audio', 'shader', 'bake'] },
+  calibrator: { renderer: ['calibration', 'hap', 'mp4', 'shader'], main: ['calibration', 'hap', 'shader'] },
+}[APP];
+if (CARRIES === undefined) { console.error(`ARTLUX_APP must be suite, show or calibrator — got "${APP}"`); process.exit(2); }
+const carried = (plugin, where) => !CARRIES || !CARRIES[where] || CARRIES[where].includes(plugin);
+
+// ArtLux Show must not contain these AT ALL — not in any renderer chunk, not in main.
+const SHOW_ABSENT = [
+  { where: 'renderer', marker: 'Start from it',        note: 'ManualWizard (calibration authoring)' },
+  { where: 'renderer', marker: 'artlux_calib_drift_mm', note: 'autoRecal (unattended recalibration)' },
+  { where: 'main',     marker: 'native OpenCV addon',  note: 'calibManager (the OpenCV addon loader)' },
+];
+
 const CHECKS = [
   // The calibration plugin's AUTHORING half is loaded on demand (suite plan Phase 1): a plain launch and
   // every projector window must not evaluate it. One static import of an authoring module from host or
@@ -47,7 +69,7 @@ const CHECKS = [
   // writes it and the FSM's trigger reads it. Duplicate the module and the writer fills one copy
   // while the show machine questions an empty other — zones would simply never fire, silently.
   { plugin: 'lidar-tracking', where: 'renderer', marker: 'zones] subscriber',    note: 'trigger-zone occupancy store' },
-  { plugin: 'calibration',    where: 'renderer', marker: 'calib:camera-open',    note: 'calibCapture native channel' },
+  { plugin: 'calibration',    where: 'renderer', marker: 'calib:camera-open',    note: 'calibNative camera channel', authoringOnly: true },
   { plugin: 'ndi',            where: 'renderer', marker: 'ndi:configure',        note: 'ndiReceiver plugin-IPC channel' },
   { plugin: 'ndi',            where: 'main',     marker: 'NDI_RUNTIME_DIR_V6',   note: 'ndiManager native runtime dir' },
   { plugin: 'calibration',    where: 'main',     marker: 'calib:detect-board',   note: 'calibManager IPC handle' },
@@ -115,7 +137,22 @@ function main() {
   }
 
   let failures = 0;
+  console.log(`app: ${APP}`);
+  if (APP === 'show') {
+    // Authoring is DROPPED from a Show build, not merely skipped: no chunk, no marker anywhere.
+    const au = chunks.filter((k) => /\/authoring-[^/]*\.js$/.test(k.file));
+    if (au.length) { failures++; fail(`[show] an authoring chunk was built: ${au.map((k) => path.basename(k.file)).join(', ')} — something reaches the authoring half past the Show gate`); }
+    else ok('[show] no authoring chunk');
+    for (const a of SHOW_ABSENT) {
+      const n = a.where === 'main' ? occurrences(mainText, a.marker) : chunks.filter((k) => k.text.includes(a.marker)).length;
+      if (n) { failures++; fail(`[show] "${a.marker}" is in the ${a.where} bundle — ${a.note} must not ship in ArtLux Show`); }
+      else ok(`[show] "${a.marker}" absent — ${a.note}`);
+    }
+  }
   for (const c of CHECKS) {
+    if (!carried(c.plugin, c.where)) continue;
+    // Show carries the calibration PLAYBACK half only: its authoring-chunk checks do not apply.
+    if (APP === 'show' && (c.chunk === 'authoring' || c.authoringOnly)) continue;
     if (c.where === 'renderer') {
       const hits = chunks.filter((k) => k.text.includes(c.marker));
       if (hits.length === 1 && c.chunk && !path.basename(hits[0].file).startsWith(`${c.chunk}-`)) {
@@ -138,6 +175,7 @@ function main() {
 
   // Contribution-coverage: each marker must appear at least once across the renderer chunks.
   for (const c of CONTRIBUTIONS) {
+    if (!carried(c.plugin, 'renderer')) continue;
     const hits = chunks.filter((k) => k.text.includes(c.marker)).length;
     if (hits >= 1) ok(`[${c.plugin}] contribution "${c.marker}" — present (${hits} chunk${hits > 1 ? 's' : ''}) — ${c.note}`);
     else { failures++; fail(`[${c.plugin}] contribution "${c.marker}" — MISSING from the renderer bundle (contribution dropped, or the marker changed) — ${c.note}`); }

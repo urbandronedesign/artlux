@@ -1,4 +1,6 @@
 import './threadpool'; // MUST stay first — sizes the libuv pool before anything can initialise it
+import './appPaths';   // MUST stay second — pins the suite's shared userData before anything reads it
+import './handoffWait'; // MUST stay third — a suite hand-over waits for the previous app to be gone
 import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme, dialog } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
@@ -25,6 +27,8 @@ import { deactivateMainPlugins } from './host/plugins';
 import { noteQuitRequested } from './quitState';
 import { IPC } from '../../shared/protocol';
 import * as blendImport from './blendImport';
+import * as suite from './suiteHandoff';
+import { ARTLUX_APP } from '../../shared/appIdentity';
 
 // ⚠ MODULE SCOPE, BEFORE app.whenReady() — NOT inside it. Chromium fixes its scheme registry during
 // startup: registered late, `artlux-media://` either throws or comes up without the privileges
@@ -63,9 +67,16 @@ const isMac = process.platform === 'darwin';
 // copies fighting over the same Art-Net universes and displays. The primary holds the lock; a second
 // launch just focuses the existing window and exits. Every relaunch site releases the lock first (see
 // releaseLockForRelaunch) so a fresh process reclaims it without racing this guard.
-const isPrimaryInstance = app.requestSingleInstanceLock();
-app.on('second-instance', (_e, incomingArgv) => {
+// The lock carries WHICH APP holds it. ArtLux Show and ArtLux Calibrator share one userData (appPaths.ts),
+// so this lock is shared too: the second app to start loses it, exits, and its argv + identity land in
+// the running one's 'second-instance' — which is how a Show that is running learns someone just started
+// the Calibrator (or the reverse) and can offer to hand the machine over, naming both, instead of
+// either app silently taking the other's displays.
+const isPrimaryInstance = app.requestSingleInstanceLock({ app: ARTLUX_APP });
+app.on('second-instance', (_e, incomingArgv, _cwd, additionalData) => {
     if (!mainWindow) return;
+    // The OTHER app of the suite tried to start: offer the hand-over instead (suiteHandoff.ts).
+    if (suite.offerHandover(mainWindow, incomingArgv, additionalData)) return;
     // HONOUR A --project= CARRIED BY THE SECOND LAUNCH. The incoming argv used to be discarded
     // outright, and the second process then exited 0 — so `ArtLux.exe --project=<other>` against a
     // running copy brought the existing window forward STILL SHOWING THE OLD PROJECT and reported
@@ -426,6 +437,22 @@ app.whenReady().then(() => {
         shutdownSubsystems('relaunch'); // app.exit() skips before-quit AND will-quit — tear down here or nothing does
         releaseLockForRelaunch();
         app.relaunch({ args });
+        app.exit(0);
+    });
+    // THE SUITE HAND-OFF (suiteHandoff.ts). Found BEFORE anything is torn down: an app that is not
+    // installed must leave this one running, with the reason on screen.
+    ipcMain.handle(IPC.SUITE_OTHER_APP, () => suite.describeOtherApp());
+    ipcMain.on(IPC.SUITE_OPEN_IN_OTHER, (_e, projectPath: string, exeHint?: string) => {
+        const other = suite.otherAppName();
+        if (!other) return;
+        if (!suite.findOtherAppExe(exeHint)) {
+            void dialog.showMessageBox(mainWindow!, { type: 'warning', title: `${other} is not installed`,
+                message: `${other} is not installed on this machine.`, detail: 'Install it from the Launcher or the release page, then try again.' });
+            return;
+        }
+        shutdownSubsystems('relaunch'); // app.exit() skips before-quit AND will-quit — tear down here or nothing does
+        releaseLockForRelaunch();
+        suite.launchOtherApp(projectPath, exeHint);
         app.exit(0);
     });
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {

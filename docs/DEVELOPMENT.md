@@ -242,6 +242,46 @@ then **assert** them:
 > declarations out of `package.json` and hard-fails if a declared source is absent or zero-length. It
 > runs in `package`, `package:dir`, and CI, ahead of electron-builder.
 
+### Two apps from one tree — ArtLux Show and ArtLux Calibrator
+
+*In progress on `feat/artlux-suite` — [plans/artlux-suite-show-calibrator.md](../plans/artlux-suite-show-calibrator.md),
+Phase 3. Until the release workflow builds both, `npm run package` still produces the combined app.*
+
+**Which app a build is, is a BUILD fact.** `ARTLUX_APP=show|calibrator` (default `suite`, the combined app)
+is written into every bundle as the literal `__ARTLUX_APP__` (`electron.vite.config.ts`, read through
+[shared/appIdentity.ts](../shared/appIdentity.ts)), so a condition on it folds and the other app's code is
+dropped, not skipped. Test the literal itself where code must disappear (plugin lists, the calibration
+authoring loader); `ARTLUX_APP` / `HAS_CALIBRATION_AUTHORING` are fine for behaviour.
+
+| | ArtLux Show | ArtLux Calibrator |
+|---|---|---|
+| Build / package | `npm run package:show[:dir]` | `npm run package:calibrator[:dir]` |
+| Output | `release/show/` | `release/calibrator/` |
+| Calibration authoring | none — no authoring chunk, no `calib.node`, no OpenCV; `--calibrate` is logged and ignored | always on |
+| Contexts | all | Projection Outputs, Venue & Rig, Calibration, Preferences — no timeline drawer |
+| Exe / folder / appId | `ArtLux.exe`, `C:\Program Files\ArtLux`, `com.urbandronedesign.artlux` (unchanged: an installed ArtLux updates into Show in place) | `ArtLux Calibrator.exe`, `C:\Program Files\ArtLux Calibrator`, `com.urbandronedesign.artlux.calibrator` |
+| Update metadata | `latest.yml` | `calibrator.yml` |
+| Icon | `build/icon.*` | `build/icon-calibrator.*` (`npm run gen:icon`) |
+
+`scripts/package-app.cjs` derives both electron-builder configs from `package.json` `build` and runs it
+with `--config <file>` — handed an object instead, electron-builder merges `package.json` underneath and
+copies every resource twice (EBUSY). `ARTLUX_APP=… npm run verify:plugins` checks a built `out/` for that
+app; for Show it also fails on any authoring chunk or OpenCV marker.
+
+**One profile, one lock.** The Calibrator pins `userData` to Show's `%APPDATA%\ArtLux`
+(`src/main/appPaths.ts`, unless `--user-data-dir` is given) — prefs, recents and the remembered
+calibration file are the machine's. Only the layout (`layoutStateCalibrator`) and the logs
+(`logs/calibrator/`) are per app. Sharing userData shares Electron's single-instance lock, so the two can
+never run at once: the second one exits and the running one offers to switch (`suiteHandoff.ts`).
+**Switching** (File ▸ Open in ArtLux Calibrator / Show) saves, frees the outputs, and starts the other app
+through `app.relaunch({ execPath })`, never `spawn` — the successor waits for the old pid
+(`--handoff-from=`, `handoffWait.ts`). The other app is found by the exe that just tried to start, then
+`ARTLUX_OTHER_EXE`, the sibling `release/<app>/win-unpacked`, its uninstall entry, the default folder.
+
+> **Testing over a hand-off:** Chromium's DevTools socket (`ARTLUX_CDP_PORT`) is inherited across the
+> relaunch and stays bound under the dead pid, so the successor cannot open the same port. The app's own
+> ports (Art-Net, OSC, show control, metrics) are not affected — verified by owner after a round trip.
+
 ### What the installer provisions (`build/installer.nsh`)
 
 NSIS `customInstall`, which electron-builder also re-runs on every **electron-updater update**, so all

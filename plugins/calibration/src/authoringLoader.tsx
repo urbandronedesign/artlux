@@ -20,6 +20,10 @@ const subs = new Set<() => void>();
 
 /** Load the authoring half (once; later calls share the first). */
 export function loadAuthoring(): Promise<Authoring> {
+  // ArtLux Show does not contain the authoring half (suite plan Phase 3). Tested on the build literal so
+  // the import() below is dropped from a Show build — no authoring chunk exists to load. Show's UI does
+  // not offer an authoring door; if one slips through, the caller sees this error, not a hang.
+  if (__ARTLUX_APP__ === 'show') return Promise.reject(new Error('Calibration is done in ArtLux Calibrator — this is ArtLux Show'));
   pending ??= import('./authoring').then(
     (m) => { mod = m; subs.forEach((f) => f()); return m; },
     // A failed chunk load must not stick: forget it so the next ask retries, and let THIS caller see
