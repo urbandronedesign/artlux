@@ -67,6 +67,9 @@ export const RigStatus: React.FC = () => {
           {rig.length < 2 ? <span className="text-fg-2">needs two calibrated projectors</span>
             : !solved ? <span className="text-fg-2">○ not solved</span>
             : stale ? <span className="text-warn">⚠ stale — solve again</span>
+            // A blend covers the CALIBRATED projectors, so one added and not yet calibrated leaves it
+            // "current" — and a plain ✓ then read as "the rig is blended" with a projector missing.
+            : todo.length ? <span className="text-fg-2">◐ without {todo.length === 1 ? outputName(todo[0], surfaces) : `${todo.length} projectors`} — calibrate, then solve again</span>
             : <span className="text-ok">✓ solved</span>}
         </div>
         <div className="flex justify-between gap-2">

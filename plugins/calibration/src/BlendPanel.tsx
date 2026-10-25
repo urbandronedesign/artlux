@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/feedback';
 import * as blendController from './blendController';
 import { isStale, rigOutputs } from './blendStale';
 import { BlendInspector } from './BlendInspector';
-import { useOutputs } from './useHostData';
+import { outputName, useOutputs, useSurfaces } from './useHostData';
 
 export const BlendPanel: React.FC = () => {
   const outputs = useOutputs();
@@ -20,6 +20,9 @@ export const BlendPanel: React.FC = () => {
   const rig = rigOutputs();
   const solved = rig.filter((o) => o.blend).length;
   const stale = rig.some((o) => isStale(o, rig));
+  // Enabled and not calibrated: outside the blend until it is (same rule as RigStatus).
+  const surfaces = useSurfaces();
+  const todo = outputs.filter((o) => o.enabled && o.calibration?.poseRms == null);
 
   const solve = async () => {
     setBusy(true);
@@ -39,6 +42,7 @@ export const BlendPanel: React.FC = () => {
           <div className="text-mini">
             {!solved ? <span className="text-fg-2">○ Not solved yet.</span>
               : stale ? <span className="text-warn">⚠ Stale — a projector changed after the last solve. It still plays; solve again when you can.</span>
+              : todo.length ? <span className="text-fg-2">◐ Solved without {todo.map((o) => outputName(o, surfaces)).join(', ')} — calibrate {todo.length === 1 ? 'it' : 'them'}, then solve again.</span>
               : <span className="text-ok">✓ Solved and current.</span>}
           </div>
           <p className="text-mini text-fg-2 m-0">Use Solo and Mute in the rig list to look at each projector's share on the wall.</p>

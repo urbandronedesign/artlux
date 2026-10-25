@@ -105,7 +105,7 @@ export function pushToProjector(surfaceId: string): void {
  * from a file that parsed cleanly and describes nothing. A region can be well-formed, correctly
  * sized, and 0% covered, which happens when the pose is wrong or the venue moved after the bake.
  */
-export function describe(r: ImportedRig): string[] {
+export function describe(r: ImportedRig, nameOf: (id: string) => string = (id) => id): string[] {
   return r.regions.map((g) => {
     const n = g.geo.w * g.geo.h;
     let hits = 0;
@@ -117,6 +117,8 @@ export function describe(r: ImportedRig): string[] {
     // Kind is not a detail: a 'world' map cannot be played without the venue, so an operator who
     // imported one needs to know before wondering why the output is black.
     const kind = g.geo.kind === 'uv' ? 'uv map' : 'world map — needs the venue to replay';
-    return `${g.id}: ${g.projW}×${g.projH}, ${pct}% covered (${note}, ${kind})`;
+    // Named the way the operator knows the projector (the region id is a surface id — "55a30igmj"
+    // for an output added from Projection Outputs).
+    return `${nameOf(g.id)}: ${g.projW}×${g.projH}, ${pct}% covered (${note}, ${kind})`;
   });
 }

@@ -15,6 +15,16 @@ export function registerVenueMesh(id: string, obj: THREE.Object3D): void { group
 export function unregisterVenueMesh(id: string): void { groups.delete(id); }
 export function hasVenueMeshes(): boolean { return groups.size > 0; }
 
+/** The venue's world-space box (centre + largest side), or null with no venue loaded. */
+export function venueBounds(): { center: [number, number, number]; size: number } | null {
+  if (!groups.size) return null;
+  const box = new THREE.Box3();
+  for (const g of groups.values()) { g.updateMatrixWorld(true); box.expandByObject(g); }
+  if (box.isEmpty()) return null;
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  return { center: [c.x, c.y, c.z], size: Math.max(s.x, s.y, s.z) };
+}
+
 // Intersect one ray against all registered meshes → nearest world-space hit (assumes world matrices
 // are current — callers update them once per batch).
 function cast(origin: readonly [number, number, number], dir: readonly [number, number, number]): [number, number, number] | null {

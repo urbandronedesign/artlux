@@ -9,6 +9,7 @@
 
 import { getHost } from './calibHost';
 import * as session from './calibSession';
+import { frameProjector } from './focusView';
 
 interface RigUiState { focus: string | null; solo: string | null; muted: string[] }
 // `focus` mirrors calibSession's (the host's 3D view reads it there); solo/mute live only here.
@@ -32,7 +33,11 @@ function pushMute(): void { getHost()?.projectors.setMuted?.(effectiveMuted()); 
 export function getState(): RigUiState { return state; }
 export function subscribe(cb: () => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; }
 
-export function setFocus(id: string | null): void { if (state.focus !== id) { session.setFocus(id); emit({ focus: id }); } }
+// Focusing a projector also frames it in the 3D view (focusView.ts) — un-focusing leaves the view be.
+export function setFocus(id: string | null): void {
+  if (state.focus !== id) { session.setFocus(id); emit({ focus: id }); }
+  if (id) frameProjector(id);
+}
 export function toggleMute(id: string): void {
   emit({ muted: state.muted.includes(id) ? state.muted.filter((x) => x !== id) : [...state.muted, id] });
 }

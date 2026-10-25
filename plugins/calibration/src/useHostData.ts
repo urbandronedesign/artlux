@@ -37,6 +37,12 @@ export const useScene = (): Scene3D => {
 export const outputName = (o: ProjectorOutput, surfaces: SurfaceLite[]): string =>
   o.name || surfaces.find((s) => s.id === o.surfaceId)?.name || o.surfaceId;
 
+/** The same rule from a surface id — for what is keyed by id (a blend's coverage, a file's regions). */
+export const projectorName = (id: string, outputs: ProjectorOutput[], surfaces: SurfaceLite[]): string => {
+  const o = outputs.find((x) => x.surfaceId === id);
+  return o ? outputName(o, surfaces) : (surfaces.find((s) => s.id === id)?.name ?? id);
+};
+
 export type RigState = 'calibrated' | 'calibrating' | 'none' | 'off';
 export function rigState(o: ProjectorOutput, sessionTarget: string | null): RigState {
   if (sessionTarget === o.surfaceId) return 'calibrating';

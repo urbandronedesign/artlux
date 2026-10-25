@@ -39,7 +39,13 @@ A scheduled recalibration handed over by ArtLux Show does not put the checker up
 
 Every projector has a card with its **number**, its name, and its state — **✓ calibrated**,
 **◐ calibrating**, **○ not calibrated**. Click a card to **focus** that projector: it becomes the one
-thing drawn in teal, in the list and in 3D.
+thing drawn in teal, in the list and in 3D, and the 3D view turns to it:
+- **from just behind it**, looking where it throws, once it has a calibration or a starting pose from
+  Blender;
+- **at the whole venue**, from the side the other projectors stand on, before that.
+
+The Rig and the Blend step say when a blend leaves out a projector that is switched on but not
+calibrated yet: "◐ without Projector Center". Calibrate it, then solve the blend again.
 
 **Solo** shows only that projector on the wall; **Mute** turns that projector black. Both are for looking,
 and neither is saved.

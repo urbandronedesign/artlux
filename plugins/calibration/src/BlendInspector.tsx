@@ -3,6 +3,7 @@ import { Layers, AlertTriangle, Check } from 'lucide-react';
 import type { ProjectorOutput } from '../../../shared/protocol';
 import * as blendController from './blendController';
 import { getHost } from './calibHost';
+import { projectorName, useSurfaces } from './useHostData';
 
 // Proving a solved blend WITHOUT two projectors on a wall.
 //
@@ -68,10 +69,10 @@ export const BlendInspector: React.FC<Props> = ({ outputs }) => {
     }
     return { cov, lit, offUnity, worst };
   }, [outs.map((o) => o.blend?.solvedAt).join('|'), outs.length, recheck]);
-  const nameOf = (id: string): string => {
-    const o = outs.find((x) => x.surfaceId === id);
-    return o?.name || id;
-  };
+  // The ONE naming rule (useHostData.projectorName): an output added from Projection Outputs carries no
+  // `name` of its own, and reading only that labelled it by its id ("55a30igmj").
+  const surfaces = useSurfaces();
+  const nameOf = (id: string): string => projectorName(id, outs, surfaces);
 
   if (!outs.length) {
     // Empty states name the next action (DESIGN-SYSTEM §6).

@@ -4,6 +4,7 @@ import type { ProjectorOutput } from '../../../shared/protocol';
 import * as baked from './bakedStore';
 import { describe } from './bakedStore';
 import { getHost, getScene, setUseCalibration } from './calibHost';
+import { projectorName, useOutputs, useSurfaces } from './useHostData';
 
 // LOADING A VENUE'S CALIBRATION — the half of calibration that is not authoring.
 //
@@ -25,6 +26,9 @@ import { getHost, getScene, setUseCalibration } from './calibHost';
 export const ImportPanel: React.FC = () => {
   const imported = useSyncExternalStore(baked.subscribe, baked.get);
   const [note, setNote] = useState<string | null>(null);
+  const outputs = useOutputs();
+  const surfaces = useSurfaces();
+  const nameOf = (id: string): string => projectorName(id, outputs, surfaces);
 
   // Import is a MAIN-process dialog + parse; the regions arrive as plain structured-cloned data.
   //
@@ -100,7 +104,7 @@ export const ImportPanel: React.FC = () => {
           <div className="text-fg-2">
             {imported.regions.length} region(s) — {imported.path.split(/[\\/]/).pop()}
           </div>
-          {describe(imported).map((l) => <div key={l} className="num">· {l}</div>)}
+          {describe(imported, nameOf).map((l) => <div key={l} className="num">· {l}</div>)}
         </div>
       ) : (
         <div className="text-micro text-fg-3">
