@@ -216,6 +216,30 @@ this job"**:
 
 ## 8. Test / verification plan
 
+### 8a. How the two apps are built and run for testing (agreed 2026-10-25)
+
+Both apps are built **locally** and tested at three levels, cheapest first. Nothing touches the owner's
+own install or profile until level 3, and level 3 only on the owner's go.
+
+| Level | How | What it proves |
+|---|---|---|
+| **1 · Dev loop** | `npm run dev` with `ARTLUX_APP=show` or `ARTLUX_APP=calibrator` (the build define, read at dev time too) | Each app registers the right contexts and loads the right code. Seconds per restart, nothing installed. |
+| **2 · Unpacked builds** | `npm run package:show:dir` and `npm run package:calibrator:dir` (new, beside today's `package:dir`): one folder and one `.exe` per app, run in place on the scratch profile (`--user-data-dir=%TEMP%\claude\battle\profile`) | That each build leaves out the other app's parts — no OpenCV and no authoring chunk in Show's `resources/` and `app.asar`; startup memory against today's plain launch; the installed-build suite, the projection flow and the hand-off between the two `.exe`s. No UAC prompt. |
+| **3 · The two installers, installed** | `npm run package:show` and `npm run package:calibrator` (NSIS), then installed **with the owner's approval** (one UAC prompt each) | Only a real install shows these: the upgrade from v0.34.1 into ArtLux Show in `C:\Program Files\ArtLux` with `%APPDATA%\artlux` kept; the Calibrator beside it; two Start-menu entries and taskbar icons; each app finding the other through its install key; the machine-wide lock refusing a second app. |
+
+**Prerequisites on the test machine:** `npm run fetch:redist` (the NDI runtime and the VC++ redistributable —
+missing on the RTX box, so a full installer cannot be built there yet) and the OpenCV DLL already staged by
+`npm run fetch:opencv`. Levels 1 and 2 need neither redistributable.
+
+**What local builds cannot test, and how it is covered:**
+- **Auto-update and the Launcher's download path** need published releases: publish a **pre-release** of
+  both products first (the Launcher already keeps pre-releases apart from `/releases/latest`), update a
+  machine from it, then cut the real release.
+- **The new Launcher against unreleased builds:** point it at the level-2 folders or at the pre-release,
+  never at the public feed.
+
+### 8b. What each phase must pass
+
 - **Every phase:** `npm run verify`, `verify:plugins`, the installed-build suite (`run-installed.sh`,
   12 suites), the projection flow (`tools/mpe2e.sh`), the projection faults (`tools/projfault.sh`), and the
   Blender-save check (live-calibrated projectors stay lit through a save).
