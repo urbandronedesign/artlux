@@ -90,6 +90,7 @@ Save with **Ctrl/Cmd+S**.
 | 16 | [Moving lights & light shows](16-moving-lights.md) | The *other* kind of fixture: profiles, placing heads in 3D, pose keys, cues, precedence |
 | 17 | [Installing ArtLux](17-installing.md) | The Launcher, the SmartScreen warning, the preflight, and verifying a venue install |
 | 18 | [Running unattended](18-unattended.md) | Broadcast mode, the watchdog, schedules & playlists, the pre-flight before you leave |
+| 19 | [ArtLux Calibrator](19-artlux-calibrator.md) | The app that aligns the projectors: rig, calibrate, blend, test & sign-off, hand-off to ArtLux Show |
 
 For engine internals and protocol details, see the other files in [`docs/`](../) (ARCHITECTURE,
 SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE, ASSETS, CALIBRATION, OSC, MONITORING).

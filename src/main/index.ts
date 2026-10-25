@@ -393,6 +393,9 @@ app.whenReady().then(() => {
     // open a project still leaves a record of what it IS. See main/logger.ts.
     logger.start(persistence.getPrefs().logging, {
         version: app.getVersion(),
+        // Which app of the suite wrote this session — both share one profile, and a project folder's
+        // logs/ gets sessions from both (shared/appIdentity.ts).
+        app: ARTLUX_APP,
         mode: RUN_MODE,
         install: machineInfo.installId(),
         argv: process.argv.slice(1),

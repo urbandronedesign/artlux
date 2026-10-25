@@ -3173,7 +3173,15 @@ check(
     for (const F of ['plugins/calibration/src/CalibWizard.tsx', 'plugins/calibration/src/AutoAlignWizard.tsx']) {
       const src = read(F);
       if (!/<CameraViewport/.test(src)) { problems.push(`${F} no longer mounts CameraViewport`); continue; }
-      // The wrapper is the element immediately preceding the <CameraViewport mount.
+      // The wrapper is the element immediately preceding the <CameraViewport mount — since the suite's
+      // Phase 3 the wizards' <WizardView>, whose box must then be the positioned one (wizardLayout.tsx).
+      if (/<WizardView[^>]*>\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?<CameraViewport/.test(src)) {
+        const lay = read('plugins/calibration/src/wizardLayout.tsx');
+        const boxes = lay.slice(lay.indexOf('export const WizardView')).match(/className=\{?[`"]([^`"]*bg-black[^`"]*)[`"]/g) || [];
+        if (boxes.length < 2 || boxes.some((b) => !/\brelative\b/.test(b)))
+          problems.push('wizardLayout.tsx WizardView no longer gives the camera a positioned box in BOTH arrangements');
+        continue;
+      }
       const m = src.match(/<div className="([^"]*)"[^>]*>\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?<CameraViewport/);
       if (!m) { problems.push(`${F} CameraViewport is not wrapped in a <div className="…"> — cannot verify it is positioned`); continue; }
       if (!/\brelative\b/.test(m[1]))

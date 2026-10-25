@@ -6,6 +6,7 @@ import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewpor
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
 import * as cam from './calibCapture';
 import * as calibHost from './calibHost';
+import { WizardRoot, WizardColumn, WizardView } from './wizardLayout';
 import * as calibWorkspace from './calibWorkspace';
 import * as slCapture from './slCapture';
 import { computeResiduals } from './residuals';
@@ -436,8 +437,8 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
 
   return (
     // See CalibWizard: rail + camera side by side; the 3D venue scene is the context's right pane.
-    <div className="w-full h-full flex bg-surface-0 min-h-0">
-    <div className="w-[340px] shrink-0 flex flex-col bg-surface-1 border-r border-line-1 min-h-0">
+    <WizardRoot>
+    <WizardColumn>
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><ScanLine size={14} /> Auto-Align — {surfaceName}</span>
         <div className="flex items-center gap-2">
@@ -672,10 +673,10 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
           ? <button onClick={finish} className="text-mini px-2 py-1 rounded bg-ok/20 border border-ok text-fg-1">Finish</button>
           : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-mini px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
       </div>
-    </div>
+    </WizardColumn>
     {/* `relative` is load-bearing — see the same note in CalibWizard: CameraViewport is `absolute
         inset-0`, so a static parent lets it cover the rail beside it. */}
-    <div className="relative flex-1 min-w-0 min-h-0 bg-black">
+    <WizardView title="Camera">
       <CameraViewport
         ref={viewportRef}
         active={camOn}
@@ -692,8 +693,8 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         onMaskPoint={onMaskPoint}
         onMaskClose={onPreviewDblClick}
       />
-    </div>
-    </div>
+    </WizardView>
+    </WizardRoot>
   );
 };
 

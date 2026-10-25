@@ -4,6 +4,7 @@ import type { MainToProjector } from '@/projector/bridge'; // host bridge type �
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
 import * as cam from './calibCapture';
 import * as calibHost from './calibHost';
+import { WizardRoot, WizardColumn, WizardView } from './wizardLayout';
 import * as calibWorkspace from './calibWorkspace';
 import * as ctl from './calibController';
 import { defaultBoardConfig, type BoardConfig } from './calibController';
@@ -277,8 +278,8 @@ export const CalibWizard: React.FC<Props> = (props) => {
     // The context's viewport: wizard rail + camera, side by side. The camera used to be PORTALED into a
     // black div App laid over the Stage — the only way to get a big preview next to the 3D scene before
     // there was a workbench to put them in. It renders inline now; the 3D is the context's right pane.
-    <div className="w-full h-full flex bg-surface-0 min-h-0">
-    <div className="w-[340px] shrink-0 flex flex-col bg-surface-1 border-r border-line-1 min-h-0">
+    <WizardRoot>
+    <WizardColumn>
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><Aperture size={14} /> Calibrate — {surfaceName}</span>
@@ -496,20 +497,20 @@ export const CalibWizard: React.FC<Props> = (props) => {
             className="flex items-center gap-1 px-3 py-1.5 rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 font-medium text-mini">Next <ChevronRight size={13} /></button>
         )}
       </div>
-    </div>
+    </WizardColumn>
     {/* `relative` is load-bearing: CameraViewport's root is `absolute inset-0`, so without a positioned
         parent it resolves against the nearest positioned ancestor — the workbench slot — and paints
         black over the 340px rail beside it. The wizard was then present, laid out and clickable, but
         invisible. Only shows up in the docked shell, whose slot container is the positioned ancestor. */}
-    <div className="relative flex-1 min-w-0 min-h-0 bg-black">
+    <WizardView title="Camera">
       <CameraViewport
         ref={viewportRef}
         active={camOn}
         detect={step === 'camera' || step === 'intrinsics' ? detect : { found: false }}
         placeholder="start the camera"
       />
-    </div>
-    </div>
+    </WizardView>
+    </WizardRoot>
   );
 };
 

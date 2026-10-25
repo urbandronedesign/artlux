@@ -825,6 +825,10 @@ export interface Scene3DService<S = unknown> {
   // one, so the operator had to leave the context, find the Scene panel, come back, and start again.
   // Resolves to the model's id, or null if the picker was cancelled.
   addModel(): Promise<string | null>;
+  /** The editor camera's viewpoint (position + orbit target), or null with no 3D view mounted. Optional. */
+  captureView?(): { position: [number, number, number]; target: [number, number, number] } | null;
+  /** Move the editor camera to a viewpoint; false with no 3D view mounted. Optional. */
+  applyView?(v: { position: [number, number, number]; target: [number, number, number] }): boolean;
 }
 
 // Read-only view of the persisted app settings (AppSettings), for feature plugins whose UI has no

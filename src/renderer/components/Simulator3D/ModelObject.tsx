@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { isWebGPURenderer } from './renderer3d';
@@ -13,7 +13,7 @@ import { blankMap } from './blankMap';
 import { recenterClone, applyModelTransform } from './venuePlacement';
 import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from './projectedMapping';
 import { registerDepthCaster, unregisterDepthCaster, setDepthRequest } from './projectorDepth';
-import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/playback';
+import { registerVenueMesh, unregisterVenueMesh, calibSession } from '@artlux/plugin-calibration/playback';
 
 const DEG = Math.PI / 180;
 
@@ -209,9 +209,16 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   // radiating from the projector's own eye would shadow content in the very projector's depth map.
   // They are not raycastable either, so they never steal a pick or a calibration ray.
   const projectors = useMemo(() => findProjectors(cloned), [cloned]);
+  // ArtLux Calibrator's focus (calibSession): while one projector is in focus the accent belongs to its
+  // calibrated frustum alone, so these placement markers step back to grey. No focus — the combined app,
+  // or nothing picked — keeps them the cyan they have always been.
+  const focus = useSyncExternalStore(calibSession.subscribeFocus, calibSession.getFocus);
+  const markerMat = useRef<THREE.LineBasicMaterial | null>(null);
+  useEffect(() => { markerMat.current?.color.set(focus ? '#8a8a8a' : '#22d3ee'); }, [focus]);
   useEffect(() => {
     if (projectors.length === 0) return;
-    const mat = new THREE.LineBasicMaterial({ color: '#22d3ee', toneMapped: false });
+    const mat = new THREE.LineBasicMaterial({ color: calibSession.getFocus() ? '#8a8a8a' : '#22d3ee', toneMapped: false });
+    markerMat.current = mat;
     // Unit frustum (depth 1) in the camera's own space; `place` scales it out to the venue.
     const frustumPoints = (cam: THREE.PerspectiveCamera, depth: number): THREE.Vector3[] => {
       const ty = Math.tan((cam.fov * Math.PI) / 360), tx = ty * cam.aspect;
@@ -250,6 +257,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
       placeProjectors.current = null;
       publishModelProjectors(model.id, null);
       for (const { line } of marks) { group.remove(line); line.geometry.dispose(); }
+      if (markerMat.current === mat) markerMat.current = null;
       mat.dispose();
     };
   }, [projectors, group, cloned, model.id, model.name]);

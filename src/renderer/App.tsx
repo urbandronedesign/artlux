@@ -73,6 +73,7 @@ import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, LAYOUT_PREF_KEY, type WorkspaceLayout } from './services/layoutStore';
 import { syncUvCheckers, isUvChecker, onVenueChanged } from './services/uvCheckerSync';
+import { captureView, applyView } from './services/viewBus';
 import { workspaceStore } from './services/workspaceStore';
 import { CALIBRATION_ENABLED } from './services/runProfile';
 import { keymap } from './shortcuts/keymapStore';
@@ -3984,6 +3985,8 @@ const App: React.FC = () => {
       // Through a ref for the same reason as project.save: pluginHost is memoized once, and the
       // handler closes over scene3D for the placement cascade.
       addModel: () => addModelRef.current(),
+      captureView: () => captureView(),
+      applyView: (v) => applyView(v),
       subscribe: (cb) => { sceneSubs.current.add(cb); return () => { sceneSubs.current.delete(cb); }; },
     },
     projectors: {

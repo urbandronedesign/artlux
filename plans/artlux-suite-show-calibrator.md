@@ -203,6 +203,20 @@ Switching apps is **"open this project in the other app"**, never a restart of t
   for each projector's share, **solo / mute**), Test & sign-off (test sources, through-projector,
   **audience seat**, the **signed checklist**, export, hand-off), Unattended recalibration. The wizards'
   logic is kept; their sidebar layout is replaced by the step inspector.
+
+  **Built 2026-10-25 (step 5).** In a Calibrator build the calibration plugin registers the flow — Rig →
+  Calibration → Blend → Test & sign-off → Recalibration — after Projection Outputs and Venue & Rig; every
+  step is the shell's own layout (rig list left, the one 3D scene centre, the step's panel right), so the
+  venue never moves. The Rig carries the machine check (S0's content: displays, OpenCV, camera, Blender,
+  ArtLux Show installed). Calibration renders the existing wizards in an **inspector arrangement**
+  (wizardLayout.tsx): the column fills the inspector, the camera / raster floats over the venue as a
+  resizable picture-in-picture; the combined app keeps the old workbench. Focus is the only accent (the
+  rig card and the frustum; Blender camera markers turn grey). Solo / mute black the real projectors;
+  the test source keeps the show content in `calibRig.testBackup`; the sign-off and the audience seat
+  persist in `calibRig`. Usage: [docs/user-guide/19-artlux-calibrator.md](../docs/user-guide/19-artlux-calibrator.md).
+  **Not built:** blend coverage painted on the venue with hover-for-shares (the inspector's coverage
+  maps stand in), a separate Start screen with recent projects (File ▸ Open Recent and the Rig's machine
+  check cover it), the projector-overlap tint on the UV checker.
 - **Icons:** both derive from `build/icon.svg` — the same mark, told apart by a badge or a colour shift
   (a play / stage mark for Show, a crosshair for the Calibrator). Each build target writes its own
   `.ico` / `.png` from its SVG, so the Launcher, the taskbar and the installers all match.

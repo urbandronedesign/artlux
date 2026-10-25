@@ -3,6 +3,7 @@ import { X, Check, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Aperture, 
 import type { MainToProjector } from '@/projector/bridge';
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
 import * as calibHost from './calibHost';
+import { WizardRoot, WizardColumn, WizardView } from './wizardLayout';
 import * as calibWorkspace from './calibWorkspace';
 import * as ctl from './calibController';
 import * as calibNative from './calibNative';
@@ -277,8 +278,8 @@ export const ManualWizard: React.FC<Props> = (props) => {
   const pct = (v: number) => Math.round(v * 100);
 
   return (
-    <div className="w-full h-full flex bg-surface-0 min-h-0">
-    <div className="w-[340px] shrink-0 flex flex-col bg-surface-1 border-r border-line-1 min-h-0">
+    <WizardRoot>
+    <WizardColumn>
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><Aperture size={14} /> Calibrate — {surfaceName}</span>
@@ -583,16 +584,16 @@ export const ManualWizard: React.FC<Props> = (props) => {
             className="flex items-center gap-1 px-3 py-1.5 rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 font-medium text-mini">Next <ChevronRight size={13} /></button>
         )}
       </div>
-    </div>
+    </WizardColumn>
 
     {/* Right pane: the projector-raster map — where the picked pixels sit on the raster (spread
         feedback, the manual flow's stand-in for the board wizard's camera coverage grid) + the live
         crosshair. See the `relative` note in CalibWizard: the positioned parent is load-bearing. */}
-    <div className="relative flex-1 min-w-0 min-h-0 bg-black">
+    <WizardView title="Projector raster">
       <RasterMap raster={raster} picks={picks} errors={errors} selected={selected} onSelect={setSelected} active={step === 'pose'}
         onMovePixel={(i, px) => calibWorkspace.onPointDrag(i, px)} />
-    </div>
-    </div>
+    </WizardView>
+    </WizardRoot>
   );
 };
 

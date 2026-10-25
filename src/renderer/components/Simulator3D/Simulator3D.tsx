@@ -12,6 +12,7 @@ import * as placement from '../../services/fixturePlacement';
 import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
+import { registerView } from '../../services/viewBus';
 import { cameraPose, glProjectionMatrix, resolveProjectedScene, calibSession } from '@artlux/plugin-calibration/playback';
 import { AnchorMarker } from './AnchorMarker';
 import { SnapCursor } from './SnapCursor';
@@ -219,6 +220,26 @@ const ProjectorView: React.FC<{ calibration: ProjectorCalibration }> = ({ calibr
 // WebGPU swap having already bought back what this would have. The lever still matters where the
 // viewport is genuinely expensive — a maximized pane, a hiDPI panel, a machine forced onto WebGL —
 // which is why it defaults to uncapped instead of guessing a value on the operator's behalf.
+
+// The camera's door to the outside (services/viewBus.ts — the audience seat). Inside the Canvas because
+// only here are the camera and OrbitControls (`makeDefault`, so `controls`) reachable.
+const ViewBridge: React.FC = () => {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as { target?: THREE.Vector3; update?: () => void } | null;
+  useEffect(() => registerView({
+    capture: () => {
+      const t = controls?.target;
+      if (!t) return null;
+      return { position: camera.position.toArray() as [number, number, number], target: t.toArray() as [number, number, number] };
+    },
+    apply: (v) => {
+      camera.position.set(...v.position);
+      controls?.target?.set(...v.target);
+      controls?.update?.();
+    },
+  }), [camera, controls]);
+  return null;
+};
 
 const AdaptiveClipping: React.FC<{ off?: boolean }> = ({ off }) => {
   useFrame(({ camera, controls }) => {
@@ -758,6 +779,7 @@ const Simulator3D: React.FC<Props> = ({
         {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit — and
             while looking through a projector, whose camera is driven from the calibration. */}
         <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select'} />
+        <ViewBridge />
         {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,
             which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that
             happens inside the Canvas it takes the whole viewport down rather than just the widget. The

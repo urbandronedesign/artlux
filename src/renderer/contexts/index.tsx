@@ -161,6 +161,7 @@ export function registerCoreWorkspace(): void {
   // drawer, because the Calibrator plays a test source, not a show. Show and the combined app register
   // everything. Filtered here, at the one door, so no context below has to know which app it is in.
   const CALIBRATOR_CONTEXTS = new Set(['project', '3d', 'calib', 'settings']);
+  const CALIBRATOR_CALIB_LAYOUT = { showLeft: true, showRight: true, dockOpen: false, splitView: false, bottomOpen: false, rightWidth: 360 };
   // Shadows the imported registry for this function only, so every registration below keeps the plain
   // `contextRegistry.register({ id: … })` shape (verify:invariants reads that shape to know the ids).
   const contextRegistry: typeof coreContextRegistry = {
@@ -171,7 +172,19 @@ export function registerCoreWorkspace(): void {
         // Setting the room up (outputs, the venue) comes first on the rail; the alignment flow the
         // calibration plugin registers (Rig → Calibrate → Blend → Test → Recalibration) follows it.
         const setup = c.id === 'project' || c.id === '3d';
-        coreContextRegistry.register({ ...c, bottom: undefined, ...(setup ? { cluster: 'build' as const } : {}) });
+        // Calibrating, the venue is the workspace (suite plan Phase 3, the approved design S2/S3): the
+        // 3D in the centre, the rig on the left, the wizard in the step inspector on the right (the
+        // plugin's `calibration.wizard`, in its inspector arrangement), the camera or raster floating.
+        const calib = c.id === 'calib' ? {
+          viewport: VIEWPORT_SCENE_3D, browser: ['calibration.rig'], inspector: ['calibration.wizard'],
+          layout: CALIBRATOR_CALIB_LAYOUT,
+          layoutRev: 100,
+          hint: {
+            en: 'Calibrate the focused projector: the steps on the right, the venue in the centre, the camera or raster floating.',
+            fr: 'Calibrez le projecteur actif : les étapes à droite, le lieu au centre, la caméra ou la trame en vignette.',
+          },
+        } : {};
+        coreContextRegistry.register({ ...c, bottom: undefined, ...(setup ? { cluster: 'build' as const } : {}), ...calib });
         return;
       }
       coreContextRegistry.register(c);

@@ -46,7 +46,7 @@ The lines worth knowing:
 
 | Line | What it tells you |
 |---|---|
-| `session.start` | **Always the first line.** A run began — version, mode, and which project. |
+| `session.start` | **Always the first line.** A run began — version, which app (`app`: `show`, `calibrator`, or `suite` for the combined app — the two apps share one profile, and ArtLux Calibrator's machine log is in `logs/calibrator/`), mode, and which project. |
 | `session.end` | **The last line of a healthy file.** How the run ended, and how long it lasted. |
 | `session.incomplete` | The *previous* run never wrote `session.end` — it crashed, was killed, or relaunched. Names the file. |
 | `config.snapshot` | **The full machine spec** — see below. |

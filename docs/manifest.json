@@ -42,7 +42,8 @@
     "15-keyboard-reference.md",
     "16-moving-lights.md",
     "17-installing.md",
-    "18-unattended.md"
+    "18-unattended.md",
+    "19-artlux-calibrator.md"
   ],
   "guideExclude": [
     "PLAN.md"

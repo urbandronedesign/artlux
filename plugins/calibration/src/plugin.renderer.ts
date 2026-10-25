@@ -32,6 +32,7 @@ const RigList = lazyAuthoring((m) => m.RigList);
 const RigStatus = lazyAuthoring((m) => m.RigStatus);
 const BlendPanel = lazyAuthoring((m) => m.BlendPanel);
 const SignoffPanel = lazyAuthoring((m) => m.SignoffPanel);
+const CalibInspector = lazyAuthoring((m) => m.CalibInspector);
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
 // typed structurally so the plugin doesn't import a host module).
@@ -144,7 +145,9 @@ export const plugin: RendererPlugin = {
     // point; the `calib` context is one. The host declares that context (rail slot, title, the 3D as
     // its right pane) and this plugin claims its viewport — so App now imports no calibration UI.
     ctx.panels.register({ id: 'calibration.workbench', mount: 'viewport', title: 'Calibration', Component: CalibViewport });
-    ctx.contexts.extend('calib', { viewport: 'calibration.workbench' });
+    // ArtLux Calibrator lays the calib context out around the 3D venue instead (contexts/index.tsx), with
+    // the wizard as the step inspector below; only the combined app claims the viewport for the workbench.
+    if (__ARTLUX_APP__ !== 'calibrator') ctx.contexts.extend('calib', { viewport: 'calibration.workbench' });
 
     // ── ARTLUX CALIBRATOR'S FLOW (suite plan Phase 3, step 5 — the approved design) ─────────────────
     // The venue is the workspace: every step is the SAME shell layout — the rig on the left, the ONE 3D
@@ -153,6 +156,7 @@ export const plugin: RendererPlugin = {
     // only in a Calibrator build; the combined app keeps its workbench as it was.
     if (__ARTLUX_APP__ === 'calibrator') {
       ctx.panels.register({ id: 'calibration.rig', mount: 'browser', title: 'Rig', icon: React.createElement(Radar, { size: 12 }), grow: true, Component: RigList } as Parameters<typeof ctx.panels.register>[0]);
+      ctx.panels.register({ id: 'calibration.wizard', mount: 'inspector', title: 'Calibrate', grow: true, Component: CalibInspector } as Parameters<typeof ctx.panels.register>[0]);
       ctx.panels.register({ id: 'calibration.rigStatus', mount: 'inspector', title: 'Rig status', Component: RigStatus } as Parameters<typeof ctx.panels.register>[0]);
       ctx.panels.register({ id: 'calibration.blend', mount: 'inspector', title: 'Blend', Component: BlendPanel } as Parameters<typeof ctx.panels.register>[0]);
       ctx.panels.register({ id: 'calibration.signoff', mount: 'inspector', title: 'Test & sign-off', Component: SignoffPanel } as Parameters<typeof ctx.panels.register>[0]);

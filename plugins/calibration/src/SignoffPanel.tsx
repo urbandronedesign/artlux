@@ -62,6 +62,7 @@ export const SignoffPanel: React.FC = () => {
   const backup = scene.calibRig?.testBackup;
   const source = currentSource(backup, surfaces);
   const signOff = scene.calibRig?.signOff;
+  const seat = scene.calibRig?.audienceSeat;
   const [by, setBy] = useState(signOff?.by ?? '');
   const [checks, setChecks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -127,6 +128,29 @@ export const SignoffPanel: React.FC = () => {
         {source === 'show' ? 'The screens play the show. Pick the UV checker to judge the calibration on the wall.'
           : 'Every screen the rig lights plays the UV checker. The show content is kept and comes back with “Show content”.'}
       </p>
+
+      <div className="h-px bg-line-1" />
+
+      {/* THE AUDIENCE SEAT (decision 15): judge the wall from where people will stand, not from wherever
+          the orbit camera happened to be. Saved in the project (calibRig.audienceSeat). */}
+      <div className="text-mini uppercase tracking-wider text-fg-2">Audience seat</div>
+      <div className="flex gap-1.5">
+        <Button variant="tonal" size="sm" className="flex-1" disabled={!host?.scene3D.captureView}
+          onClick={() => {
+            const v = host?.scene3D.captureView?.();
+            if (!v) { toast.warn('No 3D view', 'Open the venue in 3D, frame the wall from the audience, then save.'); return; }
+            patchRig({ audienceSeat: v });
+            toast.success('Audience seat saved', 'Go to the seat brings the 3D view back here.');
+          }}>Save this view</Button>
+        <Button variant="tonal" size="sm" className="flex-1" disabled={!seat}
+          title={seat ? 'Look at the venue from the saved seat' : 'Save a seat first'}
+          onClick={() => {
+            if (!seat) return;
+            // A seat is an EDITOR-camera viewpoint: leave any through-projector view first.
+            if ((scene as { viewFrom?: string }).viewFrom) host?.scene3D.patch({ viewFrom: undefined } as Partial<Scene3D>);
+            setTimeout(() => host?.scene3D.applyView?.(seat), 50);
+          }}>Go to the seat</Button>
+      </div>
 
       <div className="h-px bg-line-1" />
 

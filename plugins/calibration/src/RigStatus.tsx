@@ -13,6 +13,7 @@ import * as calibWorkspace from './calibWorkspace';
 import { isStale, rigOutputs } from './blendStale';
 import { useOutputs, useSurfaces, useScene, outputName, rigState } from './useHostData';
 import { signOffStale } from './SignoffPanel';
+import { MachineCheck } from './MachineCheck';
 
 export const RigStatus: React.FC = () => {
   const outputs = useOutputs();
@@ -75,6 +76,9 @@ export const RigStatus: React.FC = () => {
             : <span className="text-ok">✓ {signOff.by}, {new Date(signOff.at).toLocaleDateString()}</span>}
         </div>
       </div>
+
+      <div className="h-px bg-line-1" />
+      <MachineCheck />
 
       <div className="flex-1" />
 

@@ -21,6 +21,7 @@ export { RigList } from './RigList';
 export { RigStatus } from './RigStatus';
 export { BlendPanel } from './BlendPanel';
 export { SignoffPanel } from './SignoffPanel';
+export { CalibInspector } from './CalibInspector';
 export * as calibWorkspace from './calibWorkspace';
 export * as autoRecal from './autoRecal';
 export * as calibController from './calibController';
