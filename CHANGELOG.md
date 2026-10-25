@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.34.1
+
+### Saving in Blender no longer turns calibrated projectors black
+
+With projectors on live calibration, saving the venue's `.blend` file turned them black, and they stayed
+black until ArtLux was restarted. The 3D view also lost the model for a moment and logged an error on
+every save. Projectors now keep playing through a save, and switch to the updated venue when it is ready.
+
 ## v0.34.0
 
 ### Import a Blender file directly
