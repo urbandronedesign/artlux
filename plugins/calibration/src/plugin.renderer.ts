@@ -13,18 +13,21 @@
 import React from 'react';
 import { Timer } from 'lucide-react';
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
-import * as calibController from './calibController';
-import * as slCapture from './slCapture';
 import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
-import { CalibViewport } from './CalibViewport';
 import { CalibProjector } from './CalibProjector';
 import { ImportPanel } from './ImportPanel';
 import * as baked from './bakedStore';
-import { RecalPanel } from './RecalPanel';
 import * as venueRegistrar from './venueRegistrar';
-import * as autoRecal from './autoRecal';
+import { reportInterrupted } from './recalInterrupted';
+// The authoring half is NEVER imported statically here — only through the loader, so a plain launch
+// and every projector window skip it entirely (suite plan Phase 1; see ./authoring).
+import { lazyAuthoring, loadAuthoring, loadedAuthoring } from './authoringLoader';
 import { registerCommandHandler } from '@artlux/plugin-show-control/renderer';
+
+// Registered synchronously like any panel; their code loads on first mount.
+const CalibViewport = lazyAuthoring((m) => m.CalibViewport);
+const RecalPanel = lazyAuthoring((m) => m.RecalPanel);
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
 // typed structurally so the plugin doesn't import a host module).
@@ -166,17 +169,22 @@ export const plugin: RendererPlugin = {
     // and would silently "run" a recalibration that can talk to nothing.
     if (ctx.host.projectors) {
       cmdUnsubs = [
+        // The handler loads the authoring half when a command ARRIVES: a show that is never asked to
+        // recalibrate never loads it. A failed load is logged — the scheduler records a run that did
+        // not happen through the audit trail's silence, and this line says why.
         registerCommandHandler('recalibrate', (c) => {
           const cmd = c as { surfaceId?: string; mode?: 'check' | 'full' };
-          void autoRecal.run({ mode: cmd.mode ?? 'check', surfaceId: cmd.surfaceId });
+          loadAuthoring().then((a) => a.autoRecal.run({ mode: cmd.mode ?? 'check', surfaceId: cmd.surfaceId }))
+            .catch((e) => console.error('[recal] could not load the calibration code — recalibration skipped', e));
         }),
         registerCommandHandler('calibRevert', (c) => {
-          void autoRecal.revertCalibration((c as { surfaceId: string }).surfaceId);
+          loadAuthoring().then((a) => a.autoRecal.revertCalibration((c as { surfaceId: string }).surfaceId))
+            .catch((e) => console.error('[recal] could not load the calibration code — revert skipped', e));
         }),
       ];
       // A run killed part-way (watchdog relaunch, power cut) leaves a marker and no other trace —
       // the project file looks untouched because its single save never happened. Say so, once.
-      void autoRecal.reportInterrupted();
+      void reportInterrupted();
     }
 
     // Only the main window owns the bridge ports, so this fires there; in projector windows the host
@@ -186,8 +194,11 @@ export const plugin: RendererPlugin = {
       if (m.t === 'patternShown') {
         const a = m as PatternShown;
         const ack = { index: a.index, projW: a.projW, projH: a.projH };
-        calibController.onPatternShown(ack); // board flow
-        slCapture.onPatternShown(ack);       // markerless flow (the inactive one is a no-op)
+        // Patterns are only ever shown by a wizard, so the authoring half is loaded whenever an ack
+        // can arrive; before that there is nobody to deliver it to.
+        const au = loadedAuthoring();
+        au?.calibController.onPatternShown(ack); // board flow
+        au?.slCapture.onPatternShown(ack);       // markerless flow (the inactive one is a no-op)
       } else if (m.t === 'calibCrosshair') {
         calibWorkspace.onCrosshair((m as { pixel: [number, number] }).pixel); // projector aim → pending pose pixel
       } else if (m.t === 'calibConfirm') {

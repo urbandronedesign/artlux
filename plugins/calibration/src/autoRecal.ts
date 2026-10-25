@@ -329,13 +329,9 @@ async function report(surfaceId: string, r: SurfaceResult): Promise<void> {
   }
 }
 
-/** On activation: was a previous run killed part-way? Report it once, and do NOT resume. */
-export async function reportInterrupted(log: Log = (l) => console.warn(`[recal] ${l}`)): Promise<void> {
-  const m = await calibNative.calibRecalTakeInterrupted();
-  if (!m) return;
-  log(`a previous recalibration was interrupted (started ${String(m.startedAt)}) — not resuming; the next scheduled run starts fresh`);
-  void calibNative.calibAuditAppend({ ts: new Date().toISOString(), event: 'interrupted', ...m });
-}
+// reportInterrupted lives in ./recalInterrupted — it runs at every show boot, and importing it from
+// here would load this whole module (and the authoring half with it) to ask one IPC question.
+export { reportInterrupted } from './recalInterrupted';
 
 // Patch state, refresh the rig blend, then save ONCE. Adjacency matters: a watchdog relaunch between
 // the patch and the save reloads the incumbent from disk, which is consistent — only the night's

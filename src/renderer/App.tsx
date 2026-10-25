@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExtern
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type VideoClipAudio, type VideoLayerAudio, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type BakeEntry, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type FixtureMount, type OutputProtocol, type NamedPose, normalizeNamedPoses, type NamedColor, normalizeNamedColors, type ColorValue, type Keyframe } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY, modelBindings } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
-import { calibCapture as cam, measureGamma, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
+import { loadCalibrationAuthoring, calibWorkspace, resolveProjectedScene } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect } from '../../shared/protocol';
 import { spanTiles, tileName } from './services/outputSpan';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
@@ -1142,6 +1142,11 @@ const App: React.FC = () => {
     const live = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
     if (!live) { setGammaMsg({ id: surfaceId, text: 'Enable this output on a display first.', ok: false }); return; }
     setMeasuringGammaId(surfaceId); setGammaMsg(null);
+    // Camera + gamma are the calibration plugin's authoring half, loaded on demand (suite plan Phase 1).
+    let au: Awaited<ReturnType<typeof loadCalibrationAuthoring>>;
+    try { au = await loadCalibrationAuthoring(); }
+    catch { setGammaMsg({ id: surfaceId, text: 'The calibration code could not be loaded.', ok: false }); setMeasuringGammaId(null); return; }
+    const { calibCapture: cam, measureGamma } = au;
     const startedCam = !cam.dims().w;
     try {
       if (startedCam) {

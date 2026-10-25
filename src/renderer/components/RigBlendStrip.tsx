@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Layers, Loader2, AlertTriangle, ScanEye } from 'lucide-react';
 import type { ProjectorOutput } from '../../../shared/protocol';
-import { blendController, blendStore, BlendInspector } from '@artlux/plugin-calibration/renderer';
+import { blendStore, isBlendStale, loadCalibrationAuthoring, useCalibrationAuthoring } from '@artlux/plugin-calibration/renderer';
 import { Button } from './ui';
 import { useToast } from './ui/feedback';
 
@@ -25,18 +25,24 @@ export const RigBlendStrip: React.FC<Props> = ({ outputs }) => {
   useEffect(() => blendStore.subscribe(() => bump((n) => n + 1)), []);
 
   const rig = outputs.filter(o => o.enabled && o.calibration?.poseRms != null);
+  // The solve, Clear and the inspector are the plugin's AUTHORING half (suite plan Phase 1): loaded
+  // when the operator asks for one of them, never just because the strip is on screen — a show
+  // machine opening Projection Outputs on a blended rig must not pay for the calibration code.
+  const au = useCalibrationAuthoring(open);
   // Only the in-memory half is knowable synchronously; a projector scanned in an earlier session is
   // on disk and gets loaded by the solve. Saying so beats showing a count that reads as "not ready".
   const scanned = rig.filter(o => blendStore.has(o.surfaceId)).length;
   const solved = rig.filter(o => o.blend).length;
-  const stale = rig.some(o => blendController.isStale(o, rig));
+  const stale = rig.some(o => isBlendStale(o, rig));
 
   const solve = async () => {
     setBusy(true);
     try {
-      const r = await blendController.solveRig();
+      const r = await (await loadCalibrationAuthoring()).blendController.solveRig();
       if (r.ok) { toast.success('Rig blend solved', r.message); setOpen(true); }
       else toast.error('Could not solve the blend', r.message);
+    } catch (e) {
+      toast.error('Could not solve the blend', (e as Error)?.message ?? 'the calibration code did not load');
     } finally { setBusy(false); }
   };
 
@@ -72,14 +78,14 @@ export const RigBlendStrip: React.FC<Props> = ({ outputs }) => {
           {busy ? <><Loader2 size={12} className="animate-spin" /> Solving…</> : 'Solve blend'}
         </Button>
         {solved > 0 && (
-          <Button size="sm" variant="ghost" onClick={() => { blendController.clearRig(); toast.success('Rig blend cleared', 'Outputs fall back to the hand-set soft edge.'); }}
+          <Button size="sm" variant="ghost" onClick={() => { void loadCalibrationAuthoring().then((a) => { a.blendController.clearRig(); toast.success('Rig blend cleared', 'Outputs fall back to the hand-set soft edge.'); }, (e) => toast.error('Could not clear the blend', (e as Error)?.message ?? 'the calibration code did not load')); }}
             title="Drop the solved blend and fall back to the hand-set soft edge">Clear</Button>
         )}
       </div>
 
-      {open && solved > 0 && (
+      {open && solved > 0 && au && (
         <div className="border-t border-line-2">
-          <BlendInspector outputs={outputs} />
+          <au.BlendInspector outputs={outputs} />
         </div>
       )}
     </div>

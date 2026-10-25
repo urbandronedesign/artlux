@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Calibration code loads only when you calibrate
+
+A show no longer loads the calibration engine (OpenCV) or the calibration wizards at startup. They
+load the first time you use them — opening the Calibration workbench, solving a rig blend, measuring
+gamma with a camera, or a scheduled recalibration. Playing a calibrated rig, live or from a
+calibration file, works exactly as before. The startup screen now says the calibration engine is
+*present* rather than *loaded*, until it is used.
+
 ## v0.34.1
 
 ### Saving in Blender no longer turns calibrated projectors black

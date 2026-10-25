@@ -28,7 +28,15 @@ const MAIN_BUNDLE = path.join(ROOT, 'out', 'main', 'index.js');
 // Each check: a string literal unique to one plugin singleton module, and where it should live.
 //   where: 'renderer' → must appear in exactly one renderer chunk file (code-split output).
 //   where: 'main'     → single bundle; must occur exactly `occurrences` times (default 1).
+//   chunk: 'name'     → (renderer) and that one chunk must be the `name-*.js` one — for code that is
+//                       split out ON PURPOSE, where landing in the shared chunk is the failure.
 const CHECKS = [
+  // The calibration plugin's AUTHORING half is loaded on demand (suite plan Phase 1): a plain launch and
+  // every projector window must not evaluate it. One static import of an authoring module from host or
+  // playback code merges it back into the shared plugins chunk — the app still works, it just pays for
+  // the wizards everywhere again, which is exactly what nothing else would notice.
+  { plugin: 'calibration', where: 'renderer', chunk: 'authoring', marker: 'artlux_calib_drift_mm', note: 'autoRecal (unattended recalibration) stays in the on-demand authoring chunk' },
+  { plugin: 'calibration', where: 'renderer', chunk: 'authoring', marker: 'Start from it',         note: 'ManualWizard stays in the on-demand authoring chunk' },
   { plugin: 'lidar-tracking', where: 'renderer', marker: 'tracking] subscriber', note: 'trackingStore subscriber log' },
   // The zone occupancy store is a SINGLETON with latched state: the plugin's per-frame evaluate()
   // writes it and the FSM's trigger reads it. Duplicate the module and the writer fills one copy
@@ -105,7 +113,9 @@ function main() {
   for (const c of CHECKS) {
     if (c.where === 'renderer') {
       const hits = chunks.filter((k) => k.text.includes(c.marker));
-      if (hits.length === 1) {
+      if (hits.length === 1 && c.chunk && !path.basename(hits[0].file).startsWith(`${c.chunk}-`)) {
+        failures++; fail(`[${c.plugin}] "${c.marker}" — in ${path.basename(hits[0].file)}, not the ${c.chunk}-*.js chunk — something imports it statically again — ${c.note}`);
+      } else if (hits.length === 1) {
         ok(`[${c.plugin}] "${c.marker}" — 1 chunk (${path.basename(hits[0].file)}) — ${c.note}`);
       } else if (hits.length === 0) {
         failures++; fail(`[${c.plugin}] "${c.marker}" — NOT FOUND in any renderer chunk (stale build, or the marker string changed) — ${c.note}`);

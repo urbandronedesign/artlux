@@ -12,6 +12,7 @@ import {
   type BlendMap, type ProjectorBlendInput, type ProjectedBlendInput,
 } from './blendCompute';
 import * as blendStore from './blendStore';
+import { rigOutputs, allOutputs } from './blendStale';
 import * as calibNative from './calibNative';
 import { getHost, storeBlend } from './calibHost';
 import * as calibWorkspace from './calibWorkspace';
@@ -237,29 +238,9 @@ export function blendCoverage(): BlendCoverage[] | null {
   return outs.map((o, i) => ({ surfaceId: o.surfaceId, w: o.blend!.w, h: o.blend!.h, sums: sums[i] }));
 }
 
-/** The outputs a rig blend is about: enabled, and carrying a full calibration (pose actually solved). */
-// The SDK types the outputs service generically (the host supplies the concrete type), so the cast
-// here is the same one calibHost makes — not a papering-over.
-const allOutputs = (): ProjectorOutput[] => (getHost()?.projectorOutputs.list() ?? []) as ProjectorOutput[];
-
-export function rigOutputs(): ProjectorOutput[] {
-  return allOutputs().filter((o) => o.enabled && o.calibration?.poseRms != null);
-}
-
-// A blend goes stale when the rig it describes is no longer the rig on stage: a member was
-// recalibrated after the solve, or a projector joined or left. Stale still RENDERS — a slightly wrong
-// seam beats a black hole in the middle of a show — but it must say so.
-export function isStale(out: ProjectorOutput, rig: ProjectorOutput[] = rigOutputs()): boolean {
-  const b = out.blend;
-  if (!b) return false;
-  const ids = rig.map((o) => o.surfaceId).sort();
-  if (JSON.stringify(ids) !== JSON.stringify([...b.rigIds].sort())) return true;
-  const solved = Date.parse(b.solvedAt);
-  return rig.some((o) => {
-    const t = o.calibration?.calibratedAt ? Date.parse(o.calibration.calibratedAt) : 0;
-    return t > solved;
-  });
-}
+// rigOutputs / allOutputs / isStale live in ./blendStale — the PLAYBACK side reads the staleness rule
+// (RigBlendStrip's "(stale)" label) without loading this module, which is authoring (suite plan Phase 1).
+export { rigOutputs, isStale } from './blendStale';
 
 // Solve the blend across every calibrated output and write it to each.
 //

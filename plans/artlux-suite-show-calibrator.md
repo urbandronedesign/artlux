@@ -1,6 +1,6 @@
 # ArtLux as a suite — ArtLux Show and ArtLux Calibrator
 
-> **Status:** Draft (2026-10-25) · not started · owner's decisions recorded in §2a. Do not build during
+> **Status:** In progress (2026-10-25) · **Phase 1 built** on `feat/artlux-suite`, not merged · owner's decisions recorded in §2a. Do not build during
 > show-preparation weeks: every phase touches plugin activation in the projector windows, which is where
 > the 2026-10-24 black-projector bug lived.
 
@@ -98,6 +98,31 @@ Switching apps is **"open this project in the other app"**, never a restart of t
   so a plain launch does not parse it. Verify with a marker string per window bundle.
 - Measure the delta on two machines of different weight (the RTX box and any lighter PC at hand): startup
   memory, renderer CPU, time to first frame, plain against `--calibrate`.
+
+**Built 2026-10-25 on `feat/artlux-suite`.** How it landed, and what it measured:
+- *OpenCV:* `calibManager.ts` loads `calib.node` on the first call that needs it (`native()`); the splash
+  asks `addonState()` (both files on disk, nothing loaded); `cameraClose()` at quit never loads it.
+- *Authoring code:* `authoring.ts` names the half; `authoringLoader.tsx` is the only door (lazy panels,
+  `useCalibrationAuthoring`, `loadCalibrationAuthoring`). Moved out so playback can ask without loading
+  it: `reportInterrupted` → `recalInterrupted.ts`, `isStale` / `rigOutputs` → `blendStale.ts`. The
+  rig-blend strip loads the half only on Solve / Clear / Inspect. Built: `authoring-*.js` 273 KB; the
+  shared `plugins-*.js` 6,010 → 5,744 KB.
+- *Guards:* two invariants (the static import graph from the plugin's renderer entries never reaches an
+  authoring module; the addon is not loaded at import, for the splash, or at quit), and a `chunk:` rule in
+  `verify:plugins` (authoring markers live in `authoring-*.js`).
+- *When the half loads* (CDP `Debugger.scriptParsed`, unpacked build, two-projector calibrated rig):
+  plain launch, Projection Outputs open with the rig-blend strip on screen — **no window**; broadcast —
+  **no window** until a `recalibrate` command arrives, then the editor only; `--calibrate` — the editor,
+  on Inspect / Solve / the workbench; **projector windows never**. OpenCV maps into main when a wizard
+  opens (its checklist asks), and not before — not even in broadcast for a recalibration that the policy
+  refuses.
+- *Cost, RTX box* (installed v0.34.1 against the branch, plain and `--calibrate`, three projects ×2):
+  OpenCV mapped in main in **12/12 v0.34.1 launches, 0/12 branch launches**; main's working set **~6 MB
+  lower** (150–159 against 155–165 MB — the DLL was mapped but mostly never paged in); startup, editor and
+  projector fps, renderer and GPU-process CPU and memory **unchanged within run-to-run noise**. As
+  predicted in §1: on this machine the split costs and saves almost nothing; what Phase 1 buys is that
+  Show *loads* nothing of calibration authoring, which is the boundary Phase 3 builds on. The lighter
+  second machine is still to be measured.
 
 ### Phase 2 — split the plugin into playback and authoring *(medium, no visible change)*
 - Two barrels as in §3; host imports only barrels; `verify:plugins` gains both identities.

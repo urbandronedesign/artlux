@@ -14,27 +14,31 @@ export { plugin } from './plugin.renderer';
 export * as calibWorkspace from './calibWorkspace';
 
 // Namespaces (host imports these as `import { X }` and uses X.member).
-export * as calibController from './calibController';
-export * as slCapture from './slCapture';
-export * as calibCapture from './calibCapture';
 export * as calibNative from './calibNative';
 
+// THE AUTHORING HALF (wizards, camera, structured light, the blend solve + inspector, gamma, unattended
+// recalibration) is NOT re-exported here — re-exporting it would put it back in the shared chunk that
+// every launch and every projector window evaluates (suite plan Phase 1). Host code reaches it on
+// demand: `useCalibrationAuthoring(want)` in a component, `await loadCalibrationAuthoring()` in an action.
+export {
+  useAuthoring as useCalibrationAuthoring,
+  loadAuthoring as loadCalibrationAuthoring,
+  type Authoring as CalibrationAuthoring,
+} from './authoringLoader';
+
 // Flat named symbols the host imports directly.
-export { defaultBoardConfig, type BoardConfig } from './calibController';
-export { measureGamma } from './gammaController';
+export type { BoardConfig } from './calibController';
 export { reproject, frustumCorners, cameraPose, cameraCenter, glProjectionMatrix } from './cvCamera';
 export { fillPattern, type CalibPatternKind } from './graycode';
 export type { BlendMap } from './blendCompute';
-// The rig blend: capture/solve/apply + the staleness rule. Host UI (OutputsPanel) drives this — as
-// always, ONLY through this barrel, or blendStore becomes two singletons and the solve reads an
-// empty one (docs/PLUGINS.md).
-export * as blendController from './blendController';
+// The rig's scan store — a session singleton the blend solve (authoring) fills and RigBlendStrip reads.
+// ONLY through this barrel, or blendStore becomes two singletons and the solve reads an empty one
+// (docs/PLUGINS.md). The solve itself and the inspector come through the authoring loader.
 export * as blendStore from './blendStore';
-export { BlendInspector } from './BlendInspector';
-// Unattended recalibration: the orchestrator, its policy gate and the pure drift scoring.
-export * as autoRecal from './autoRecal';
-export { validateSolve, type Verdict, type RejectReason } from './validateSolve';
-export { computeResiduals, type ResidualStats } from './residuals';
+// The staleness rule alone — pure, so the strip can label a stale blend without loading the solve.
+export { isStale as isBlendStale } from './blendStale';
+export type { Verdict, RejectReason } from './validateSolve';
+export type { ResidualStats } from './residuals';
 export type { DriftScore } from './driftScore';
 export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
 // Live projected mapping: turns a model's `uvProjFrom` (a calibrated output's surfaceId) into the
@@ -42,4 +46,4 @@ export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
 // holds every calibration, and a projector window holds only its own, so this cannot run there.
 export { resolveProjectedScene } from './projectedScene';
 export type { ColorFrame } from './calibCapture';
-export * from './markerlessController';
+export type * from './markerlessController';

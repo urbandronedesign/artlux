@@ -6974,6 +6974,75 @@ check(
   },
 );
 
+// ── The calibration AUTHORING half is reached only on demand ─────────────────────────────────────
+check(
+  'the calibration authoring half is never imported statically from the playback side',
+  'Suite plan Phase 1 (plans/artlux-suite-show-calibrator.md): the wizards, camera, structured light, ' +
+  'the blend solve and unattended recalibration load through authoringLoader\'s dynamic import, so a ' +
+  'plain editor launch and every projector window never parse them. ONE static import from the barrel, ' +
+  'plugin.renderer.ts or anything they reach merges the whole half back into the shared chunk — and ' +
+  'nothing breaks, nothing logs, the app just pays for authoring everywhere again. This walks the ' +
+  'static import graph from the two renderer entry points and fails if it reaches a module that ' +
+  'authoring.ts names. (verify:plugins checks the same thing on the built chunks.)',
+  () => {
+    const DIR = 'plugins/calibration/src/';
+    const resolve = (from, spec) => {
+      const base = path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
+      for (const ext of ['.ts', '.tsx', '/index.ts']) if (fs.existsSync(path.join(ROOT, base + ext))) return base + ext;
+      return null;
+    };
+    // Value imports and re-exports only: `import type` / `export type` cost nothing at runtime, and a
+    // dynamic import() has no `from`, which is exactly the door this check wants left open.
+    const edges = (file) => {
+      const src = stripComments(read(file));
+      const out = [];
+      for (const m of src.matchAll(/(?:^|[;\n])\s*(?:import|export)\s+(type\s+)?[^;'"]*?\bfrom\s+'(\.[^']+)'/g)) {
+        if (m[1]) continue;
+        const r = resolve(file, m[2]);
+        if (r) out.push(r);
+      }
+      return out;
+    };
+    const authoring = new Set(edges(DIR + 'authoring.ts'));
+    if (authoring.size < 5) return `${DIR}authoring.ts names ${authoring.size} modules — the authoring door is gone or unreadable`;
+    const seen = new Set(), stack = [DIR + 'renderer.ts', DIR + 'plugin.renderer.ts'], problems = [];
+    const via = new Map();
+    while (stack.length) {
+      const f = stack.pop();
+      if (seen.has(f)) continue;
+      seen.add(f);
+      if (f.endsWith('/authoring.ts')) { problems.push(`authoring.ts itself is imported statically (via ${via.get(f)})`); continue; }
+      if (authoring.has(f)) { problems.push(`${path.posix.basename(f)} is reached statically via ${via.get(f)}`); continue; }
+      for (const e of edges(f)) { if (!via.has(e)) via.set(e, path.posix.basename(f)); stack.push(e); }
+    }
+    if (!seen.has(DIR + 'authoringLoader.tsx')) problems.push('the barrel / plugin.renderer.ts no longer go through authoringLoader');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'OpenCV loads when calibration is used, never at import or for the splash',
+  'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
+  'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +
+  'or not (measured 2026-10-25; suite plan Phase 1). The status line on the splash is the other ' +
+  'trap: it is asked at every boot, so a status() that calls isAvailable() loads the DLL just to say ' +
+  'it could. And a quit must not load it to close a camera that was never opened.',
+  () => {
+    const M = 'plugins/calibration/src/calibManager.ts', P = 'plugins/calibration/src/plugin.main.ts';
+    const m = read(M), p = read(P), problems = [];
+    // A top-level statement that calls the loader = loading at import.
+    if (/^(?:const|let|var)\s+\w+\s*=\s*(?:loadNative|native)\(\)/m.test(m) || /^(?:loadNative|native)\(\);?/m.test(m))
+      problems.push(`${M} loads the addon at import again`);
+    if (!/export function addonState\(\)/.test(m)) problems.push(`${M} lost addonState() — the splash has no way to ask without loading`);
+    const status = p.slice(p.indexOf('status:'));
+    if (!/addonState\(\)/.test(status) || /isAvailable\(\)/.test(status)) problems.push(`${P} status() must use addonState(), not isAvailable() — the splash would load OpenCV`);
+    const c0 = m.indexOf('export function cameraClose'), c1 = m.indexOf('export function', c0 + 1);
+    const close = m.slice(c0, c1 < 0 ? undefined : c1);
+    if (/native\(\)/.test(close)) problems.push('cameraClose() loads the addon — every quit would map OpenCV to close nothing');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

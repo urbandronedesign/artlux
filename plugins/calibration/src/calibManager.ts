@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type {
   BoardDetectResult, ArucoDetection, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, CameraMode, DenseMap, CameraSelfCal,
 } from '../../../shared/protocol';
@@ -67,33 +67,59 @@ interface CalibNative {
 
 const req = createRequire(__filename);
 
-function loadNative(): CalibNative | null {
-  const candidates = [
+function candidates(): string[] {
+  return [
     join(process.resourcesPath ?? '', 'calib.node'), // packaged (extraResources)
     join(process.cwd(), 'native/calib/calib.node'),
     join(__dirname, '../../native/calib/calib.node'),
   ];
-  for (const p of candidates) {
+}
+
+// Loaded on FIRST USE, not at import (suite plan Phase 1). Requiring calib.node maps the 65 MB
+// opencv_world4110.dll into main, and the main plugin activates in every launch — so a show that never
+// calibrates used to pay for OpenCV from the first second. Now only an authoring call (a wizard asking
+// `calib:available`, a solve, the camera, an unattended recalibration) loads it. `undefined` = not
+// tried yet; `null` = tried and failed — never retried, so a missing DLL logs once, not per frame.
+let loaded: CalibNative | null | undefined;
+
+function native(): CalibNative | null {
+  if (loaded !== undefined) return loaded;
+  loaded = null;
+  for (const p of candidates()) {
     try {
-      if (existsSync(p)) return req(p) as CalibNative;
+      if (existsSync(p)) { loaded = req(p) as CalibNative; break; }
     } catch (e) {
       console.warn('[calib] native addon load failed at', p, e);
     }
   }
-  return null;
+  console.log(loaded ? '[calib] native OpenCV addon loaded' : '[calib] native OpenCV addon unavailable (calibration disabled)');
+  return loaded;
 }
 
-const native = loadNative();
-console.log(native ? '[calib] native OpenCV addon loaded' : '[calib] native OpenCV addon unavailable (calibration disabled)');
-
+/** Loads the addon if it was not tried yet — call it only where calibration is about to be used. */
 export function isAvailable(): boolean {
-  return !!native;
+  return !!native();
+}
+
+/**
+ * The addon's state WITHOUT loading it, for the startup splash and the machine log: 'loaded',
+ * 'missing' (load failed, or no calib.node on disk), or 'present' (on disk, not loaded yet — the
+ * normal state of a show that has not calibrated).
+ */
+export function addonState(): 'loaded' | 'present' | 'missing' {
+  if (loaded) return 'loaded';
+  if (loaded === null) return 'missing';
+  // The DLL ships beside calib.node (package.json extraResources; native/calib/ in dev) and is the
+  // usual venue-PC failure, so it is checked here too — the splash keeps warning without loading it.
+  return candidates().some((p) => existsSync(p) && existsSync(join(dirname(p), 'opencv_world4110.dll')))
+    ? 'present' : 'missing';
 }
 
 export function detectBoard(image: Buffer, w: number, h: number, cols: number, rows: number): BoardDetectResult | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.detectBoard(image, w, h, cols, rows);
+    return n.detectBoard(image, w, h, cols, rows);
   } catch (e) {
     console.warn('[calib] detectBoard failed:', (e as Error)?.message ?? e);
     return null;
@@ -101,9 +127,10 @@ export function detectBoard(image: Buffer, w: number, h: number, cols: number, r
 }
 
 export function detectAruco(image: Buffer, w: number, h: number, dict: number): ArucoDetection | null {
-  if (!native?.detectAruco) return null;
+  const n = native();
+  if (!n?.detectAruco) return null;
   try {
-    return native.detectAruco(image, w, h, dict);
+    return n.detectAruco(image, w, h, dict);
   } catch (e) {
     console.warn('[calib] detectAruco failed:', (e as Error)?.message ?? e);
     return null;
@@ -114,9 +141,10 @@ export function mapCorners(
   captures: Buffer, captureCount: number, camW: number, camH: number,
   projW: number, projH: number, corners: number[], white: Buffer, black: Buffer,
 ): CornerProjMap | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.mapCornersToProjector(captures, captureCount, camW, camH, projW, projH, corners, white, black);
+    return n.mapCornersToProjector(captures, captureCount, camW, camH, projW, projH, corners, white, black);
   } catch (e) {
     console.warn('[calib] mapCornersToProjector failed:', (e as Error)?.message ?? e);
     return null;
@@ -127,9 +155,10 @@ export function calibrateProjector(
   objectPoints: number[], imagePoints: number[], pointCounts: number[],
   projW: number, projH: number,
 ): ProjectorIntrinsicsResult | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.calibrateProjector(objectPoints, imagePoints, pointCounts, projW, projH);
+    return n.calibrateProjector(objectPoints, imagePoints, pointCounts, projW, projH);
   } catch (e) {
     console.warn('[calib] calibrateProjector failed:', (e as Error)?.message ?? e);
     return null;
@@ -137,9 +166,10 @@ export function calibrateProjector(
 }
 
 export function solvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): PnpResult | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.solvePnp(objectPts, imagePts, k, dist);
+    return n.solvePnp(objectPts, imagePts, k, dist);
   } catch (e) {
     console.warn('[calib] solvePnp failed:', (e as Error)?.message ?? e);
     return null;
@@ -150,9 +180,10 @@ export function decodeDense(
   captures: Buffer, captureCount: number, camW: number, camH: number,
   projW: number, projH: number, white: Buffer, black: Buffer, stride: number,
 ): DenseMap | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.decodeDenseMap(captures, captureCount, camW, camH, projW, projH, white, black, stride);
+    return n.decodeDenseMap(captures, captureCount, camW, camH, projW, projH, white, black, stride);
   } catch (e) {
     console.warn('[calib] decodeDenseMap failed:', (e as Error)?.message ?? e);
     return null;
@@ -160,9 +191,10 @@ export function decodeDense(
 }
 
 export function solvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): PnpResult | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.solvePnpRansac(objectPts, imagePts, k, dist, reprojErr);
+    return n.solvePnpRansac(objectPts, imagePts, k, dist, reprojErr);
   } catch (e) {
     console.warn('[calib] solvePnpRansac failed:', (e as Error)?.message ?? e);
     return null;
@@ -173,9 +205,10 @@ export function calibrateGuided(
   objectPoints: number[], imagePoints: number[], pointCounts: number[],
   projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean,
 ): ProjectorIntrinsicsResult | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.calibrateProjectorGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect);
+    return n.calibrateProjectorGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect);
   } catch (e) {
     console.warn('[calib] calibrateProjectorGuided failed:', (e as Error)?.message ?? e);
     return null;
@@ -186,9 +219,10 @@ export function selfCalibrate(
   camX: number[], camY: number[], projX: number[], projY: number[],
   camW: number, camH: number, projW: number, projH: number,
 ): CameraSelfCal | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    return native.selfCalibrateStereo(camX, camY, projX, projY, camW, camH, projW, projH);
+    return n.selfCalibrateStereo(camX, camY, projX, projY, camW, camH, projW, projH);
   } catch (e) {
     console.warn('[calib] selfCalibrateStereo failed:', (e as Error)?.message ?? e);
     return null;
@@ -200,9 +234,10 @@ export function selfCalibrate(
 // filter). Frames flow renderer ⇄ main over IPC; the grayscale buffer feeds detectBoard directly.
 
 export function cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean {
-  if (!native) return false;
+  const n = native();
+  if (!n) return false;
   try {
-    return native.cameraOpen(index, width, height, fps, fourcc);
+    return n.cameraOpen(index, width, height, fps, fourcc);
   } catch (e) {
     console.warn('[calib] cameraOpen failed:', (e as Error)?.message ?? e);
     return false;
@@ -213,9 +248,10 @@ export function cameraOpen(index: number, width: number, height: number, fps: nu
 // camera: an addon without the export (an older prebuilt .node) or a driver we can't introspect both
 // yield [], and the caller falls back to its static list — i.e. exactly the pre-enumeration behaviour.
 export function cameraListModes(index: number): CameraMode[] {
-  if (!native?.cameraListModes) return [];
+  const n = native();
+  if (!n?.cameraListModes) return [];
   try {
-    return native.cameraListModes(index) ?? [];
+    return n.cameraListModes(index) ?? [];
   } catch (e) {
     console.warn('[calib] cameraListModes failed:', (e as Error)?.message ?? e);
     return [];
@@ -223,9 +259,10 @@ export function cameraListModes(index: number): CameraMode[] {
 }
 
 export function cameraGrab(): CameraFrame | null {
-  if (!native) return null;
+  const n = native();
+  if (!n) return null;
   try {
-    const f = native.cameraGrabGray();
+    const f = n.cameraGrabGray();
     if (!f) return null;
     // Hand the renderer a tightly-sliced ArrayBuffer (the napi Buffer may sit in a larger pool).
     const ab = f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength);
@@ -237,9 +274,10 @@ export function cameraGrab(): CameraFrame | null {
 }
 
 export function cameraGrabColor(): CameraFrame | null {
-  if (!native?.cameraGrabRgba) return null;
+  const n = native();
+  if (!n?.cameraGrabRgba) return null;
   try {
-    const f = native.cameraGrabRgba();
+    const f = n.cameraGrabRgba();
     if (!f) return null;
     // Hand the renderer a tightly-sliced ArrayBuffer (the napi Buffer may sit in a larger pool).
     const ab = f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength);
@@ -251,18 +289,22 @@ export function cameraGrabColor(): CameraFrame | null {
 }
 
 export function cameraClose(): void {
-  if (!native) return;
+  // Never LOADS the addon: deactivate() calls this at every quit, and an addon that was never loaded
+  // has no camera open.
+  const n = loaded;
+  if (!n) return;
   try {
-    native.cameraClose();
+    n.cameraClose();
   } catch (e) {
     console.warn('[calib] cameraClose failed:', (e as Error)?.message ?? e);
   }
 }
 
 export function cameraSetProp(prop: string, value: number): boolean {
-  if (!native?.cameraSetProp) return false;
+  const n = native();
+  if (!n?.cameraSetProp) return false;
   try {
-    return native.cameraSetProp(prop, value);
+    return n.cameraSetProp(prop, value);
   } catch (e) {
     console.warn('[calib] cameraSetProp failed:', (e as Error)?.message ?? e);
     return false;
@@ -270,9 +312,10 @@ export function cameraSetProp(prop: string, value: number): boolean {
 }
 
 export function cameraGetProp(prop: string): number | null {
-  if (!native?.cameraGetProp) return null;
+  const n = native();
+  if (!n?.cameraGetProp) return null;
   try {
-    return native.cameraGetProp(prop) ?? null;
+    return n.cameraGetProp(prop) ?? null;
   } catch (e) {
     console.warn('[calib] cameraGetProp failed:', (e as Error)?.message ?? e);
     return null;

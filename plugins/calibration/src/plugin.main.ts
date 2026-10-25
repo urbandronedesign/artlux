@@ -59,8 +59,14 @@ export const plugin: MainPlugin = {
   deactivate(): void { try { calib.cameraClose(); } catch { /* addon absent */ } },
 
   // Reported on the startup splash. The addon needs opencv_world4110.dll beside it, so "the wizard
-  // won't open" on a fresh venue PC is usually a missing DLL, not a missing feature.
-  status: () => calib.isAvailable()
-    ? { state: 'ok', detail: 'OpenCV addon loaded' }
-    : { state: 'degraded', detail: 'OpenCV addon unavailable — calibration wizards disabled' },
+  // won't open" on a fresh venue PC is usually a missing DLL, not a missing feature. addonState(), NOT
+  // isAvailable(): asking the splash must not load the OpenCV DLL a show may never use (suite plan
+  // Phase 1). 'present' means calib.node is on disk; a DLL missing beside it only shows at first use,
+  // where the wizards report "addon unavailable".
+  status: () => {
+    const st = calib.addonState();
+    if (st === 'loaded') return { state: 'ok', detail: 'OpenCV addon loaded' };
+    if (st === 'present') return { state: 'ok', detail: 'OpenCV addon present — loads when calibration is used' };
+    return { state: 'degraded', detail: 'OpenCV addon unavailable — calibration wizards disabled' };
+  },
 };
