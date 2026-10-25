@@ -51,6 +51,14 @@ references and 9 doc pages police it.
 12. **Two icons derived from today's icon** (`build/icon.svg`), so both read as ArtLux and differ at a glance.
 13. **The Calibrator's test source includes a procedural UV checker, in Full HD and 4K, that adapts to
     the project's configuration** (§4, Phase 3).
+14. **The Calibrator's UI is the proposal at https://claude.ai/artifact/4dK14u94Gk55XtKop56Qyw**
+    (2026-10-25, the design-system version): the 3D venue takes the centre, the rig list on the left
+    (icons while a step is open), one step inspector on the right with one primary action, second views
+    (camera, projector raster, through-projector) as swappable picture-in-picture. Built from ArtLux's own
+    tokens: colour means selection (accent) or status only — projectors have numbers, not colours.
+15. **Three additions are in:** solo / mute a projector on the blend screen (mirrored on the real wall);
+    a signed sign-off checklist (who, when) saved in the project; an "audience seat" view — the wall seen
+    from a saved position.
 
 ### 2b. The two apps
 
@@ -190,6 +198,11 @@ Switching apps is **"open this project in the other app"**, never a restart of t
       and mirroring read at a glance.
   - It stays a normal surface content: it plays through live calibration and through a calibration file
     alike, and can be exported to an image for media servers that need one.
+- **The Calibrator's screens** (decision 14): Start (machine check), Rig overview, the three methods as
+  steps in the inspector (Manual / Auto-Align / Board), Blend & coverage (coverage on the venue, hover
+  for each projector's share, **solo / mute**), Test & sign-off (test sources, through-projector,
+  **audience seat**, the **signed checklist**, export, hand-off), Unattended recalibration. The wizards'
+  logic is kept; their sidebar layout is replaced by the step inspector.
 - **Icons:** both derive from `build/icon.svg` — the same mark, told apart by a badge or a colour shift
   (a play / stage mark for Show, a crosshair for the Calibrator). Each build target writes its own
   `.ico` / `.png` from its SVG, so the Launcher, the taskbar and the installers all match.
