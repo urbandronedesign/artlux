@@ -25,6 +25,9 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > [2026-10-24-session-record.md](2026-10-24-session-record.md) — v0.33.8 → v0.33.11: the MP4 flicker
 > between states, the battle test ([battle-test-v0.33.8.md](battle-test-v0.33.8.md)), GPU-crash
 > recovery for every consumer, NDI fixes; what the owner must clean up, what is still open and untested.
+> [2026-10-25-suite-session-record.md](2026-10-25-suite-session-record.md) — the ArtLux suite on
+> `feat/artlux-suite`: Phases 1–5 built (ArtLux Show + ArtLux Calibrator, the Launcher), the UV checker on open,
+> per-projector calibration files, the close-dialog data-loss fix; measurements, the incident, what is open.
 
 ### How these were produced (and how much to trust them)
 
