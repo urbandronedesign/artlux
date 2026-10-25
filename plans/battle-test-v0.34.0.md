@@ -137,7 +137,7 @@ deaths, no picture loss.**
 
 ## Verdict
 
-**v0.34.0 is ready for the show preparation, with one fix to ship first** — a Blender save while projectors
+**v0.34.1 is ready for the show preparation** (v0.34.0 needed one fix, released as v0.34.1 below) — a Blender save while projectors
 run on live calibration turns them black (fixed in the working tree, not yet released). Everything else
 held: 12/12 regression suites, 22/22 examples, the workshop show 6/6 plus a 2 h soak, the full
 projection-mapping flow, the projection faults, and a 1.5 h projection soak.
@@ -164,3 +164,16 @@ projection-mapping flow, the projection faults, and a 1.5 h projection soak.
    a calibration file (the 3D view still blinks and logs an error on each save; harmless).
 3. Optional cleanup, unchanged from 2026-10-24: `%APPDATA%\artlux\showctl-devices.json` and temp entries
    in Recent files in your real profile.
+
+## v0.34.1 — the fix, released and re-tested (2026-10-25)
+
+`544b896` (fix) + `5f16502` (release). CI green on all three platforms; installed here from the release
+asset (SHA-512 checked).
+
+| Re-test on the installed v0.34.1 | Result |
+|---|---|
+| **The bug:** two Blender saves with both projectors on live calibration, 3D view open | **both stay 64 % lit, both saves converted, 0 errors** (v0.34.0: 0 % lit, black for good) |
+| Same in broadcast | lit throughout; broadcast does not watch `.blend` files (by design — a show plays the export) |
+| Regression suite (`run-installed.sh`) | **12 / 12 PASS** |
+| `interactive-show` walk, editor + broadcast | **PASS** ×2 |
+| `.blend` checks (`blendinst.sh`) | all pass; machine log: 1 error = the deliberate corrupt file (v0.34.0: 7) |

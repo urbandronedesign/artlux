@@ -70,7 +70,7 @@
 
 | Item | Status |
 |---|---|
-| **A Blender save turned live-calibrated projectors black for good** (the old model URL was revoked while the scene still drew it; the plugin's error boundary took the panel down) | **Fixed in the working tree** (`CalibProjector.tsx`, `useModelUrls.ts`, + an invariant), verified on a production build. **Not committed or released yet** — the installed v0.34.0 still has it. Until then: do not save the `.blend` while live-calibrated projectors are switched on (editor or broadcast). |
+| **A Blender save turned live-calibrated projectors black for good** (the old model URL was revoked while the scene still drew it; the plugin's error boundary took the panel down) | **Fixed and released in v0.34.1** (`544b896`, `5f16502`), installed here and re-tested: projectors stay lit through saves, 0 errors. |
 | Live calibration at 30 fps in broadcast with 2 projectors and animated content | Open, performance; a calibration file plays at 60 fps. Details in the campaign file. |
 
 ## Still open (none of these block the show)
