@@ -194,32 +194,54 @@ pub async fn list_tags() -> Result<Vec<String>, String> {
     Ok(tags)
 }
 
+/// The newest release of ArtLux SHOW (or, before the suite, of the one ArtLux) — `latest.yml`.
 pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
+    resolve_latest_product("show").await
+}
+
+/// Which update-metadata file a product publishes (plans/artlux-suite-show-calibrator.md, Phase 3):
+/// ArtLux Show keeps `latest.yml` — every installed ArtLux and this launcher already read it — and
+/// ArtLux Calibrator publishes `calibrator.yml` beside it in the same release.
+pub fn meta_file(product: &str) -> &'static str {
+    if product == "calibrator" { "calibrator.yml" } else { "latest.yml" }
+}
+
+/// The newest release of a product of the suite: `"show"` or `"calibrator"`. Both ship in the SAME
+/// `v*` release (one version, one tag), so this resolves the tag once and reads that product's
+/// metadata from it. A release from before the suite carries no `calibrator.yml`: that is reported as
+/// "not published yet", not as a network failure.
+pub async fn resolve_latest_product(product: &str) -> Result<ReleaseInfo, String> {
+    let meta = meta_file(product);
     let http = client()?;
     let rel = newest_release(&http, |r| !r.prerelease && is_app_tag(&r.tag_name), "ArtLux release").await?;
 
-    // latest.yml is fetched from the TAG, not from /latest/download: resolving the tag once and
+    // The metadata is fetched from the TAG, not from /latest/download: resolving the tag once and
     // pinning it means the metadata and the installer cannot come from two different releases if a
     // new one is published between the two requests.
-    let yml_url = format!("https://github.com/{OWNER_REPO}/releases/download/{}/latest.yml", rel.tag_name);
-    let yml = check(
-        http.get(&yml_url).send().await.map_err(|e| format!("could not fetch latest.yml: {e}"))?,
-        "fetching latest.yml",
-    ).await?
-        .text().await.map_err(|e| format!("could not read latest.yml: {e}"))?;
+    let yml_url = format!("https://github.com/{OWNER_REPO}/releases/download/{}/{meta}", rel.tag_name);
+    let resp = http.get(&yml_url).send().await.map_err(|e| format!("could not fetch {meta}: {e}"))?;
+    if product == "calibrator" && resp.status().as_u16() == 404 {
+        return Err(format!("ArtLux Calibrator is not published in {} — it arrives with the first release of the suite", rel.tag_name));
+    }
+    let yml = check(resp, &format!("fetching {meta}")).await?
+        .text().await.map_err(|e| format!("could not read {meta}: {e}"))?;
 
     let version = yaml_top_level(&yml, "version")
-        .ok_or("latest.yml carries no version")?;
+        .ok_or(format!("{meta} carries no version"))?;
     let file = yaml_top_level(&yml, "path")
-        .ok_or("latest.yml carries no installer filename")?;
+        .ok_or(format!("{meta} carries no installer filename"))?;
     let sha512_b64 = yaml_top_level(&yml, "sha512")
         .filter(|s| is_base64_sha512(s))
-        .ok_or("latest.yml carries no usable sha512 — refusing to offer a download that cannot be verified")?;
+        .ok_or(format!("{meta} carries no usable sha512 — refusing to offer a download that cannot be verified"))?;
 
-    // The launcher is Windows-only, so a latest.yml naming anything else means we are reading the
-    // wrong metadata file (latest-mac.yml / latest-linux.yml) and must not proceed.
+    // The launcher is Windows-only, so metadata naming anything else means we are reading the wrong
+    // file (latest-mac.yml / latest-linux.yml) and must not proceed. And each product's file must name
+    // that product's installer — Show's would otherwise also accept ArtLux-Calibrator-<v>-x64.exe.
     if !file.to_ascii_lowercase().ends_with(".exe") || !file.contains(WIN_ARCH) {
-        return Err(format!("latest.yml names '{file}', which is not the Windows {WIN_ARCH} installer"));
+        return Err(format!("{meta} names '{file}', which is not the Windows {WIN_ARCH} installer"));
+    }
+    if installer_product(&file) != product {
+        return Err(format!("{meta} names '{file}', which is not the {product} installer"));
     }
 
     // `size` lives under the nested `files:` entry, so it is read leniently and only used as an
@@ -315,5 +337,34 @@ pub fn is_newer(latest: &str, installed: &str) -> bool {
         // An unparseable installed version (an install found by path guess, which carries none)
         // means we cannot claim an update is needed. Say nothing rather than something wrong.
         _ => false,
+    }
+}
+
+/// Which product an installer file belongs to, by its published name: `ArtLux-Calibrator-<v>-x64.exe`
+/// is the Calibrator, every other `ArtLux-<v>-x64.exe` is ArtLux Show (and was the one ArtLux before
+/// the suite). Lower-cased: the name comes from metadata someone may have edited by hand.
+pub fn installer_product(file: &str) -> &'static str {
+    if file.to_ascii_lowercase().starts_with("artlux-calibrator-") { "calibrator" } else { "show" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_product_reads_its_own_metadata() {
+        assert_eq!(meta_file("show"), "latest.yml");
+        assert_eq!(meta_file("calibrator"), "calibrator.yml");
+        // Anything unknown is Show's, the file every existing install already reads.
+        assert_eq!(meta_file(""), "latest.yml");
+    }
+
+    #[test]
+    fn an_installer_name_says_which_product_it_is() {
+        assert_eq!(installer_product("ArtLux-0.35.0-x64.exe"), "show");
+        assert_eq!(installer_product("ArtLux-Calibrator-0.35.0-x64.exe"), "calibrator");
+        assert_eq!(installer_product("artlux-calibrator-0.35.0-x64.exe"), "calibrator");
+        // Show's metadata must never be satisfied by the Calibrator's installer, nor the reverse.
+        assert_ne!(installer_product("ArtLux-Calibrator-0.35.0-x64.exe"), "show");
     }
 }

@@ -8,10 +8,11 @@
 // without it is broken, and with it you have copied the set anyway. You choose which one opens.
 
 import { useCallback, useEffect, useState } from 'react';
-import { copyExample, getWorkspace, listExamples, mb, openProject, pickFolder, setWorkspace, type ExampleSet, type InstallInfo, type LaunchMode } from './api';
+import { copyExample, getWorkspace, listExamples, mb, openProject, openTarget, pickFolder, setWorkspace, type ExampleSet, type InstallInfo, type LaunchMode } from './api';
 import { LaunchModeNote, LaunchModePicker, ModeNotAppliedBand } from './LaunchModePicker';
 
-export function Examples({ install, mode, onModeChange }: {
+export function Examples({ install, calibrator, mode, onModeChange }: {
+  calibrator: InstallInfo | null;
   install: InstallInfo | null;
   mode: LaunchMode;
   onModeChange: (m: LaunchMode) => void;
@@ -43,7 +44,10 @@ export function Examples({ install, mode, onModeChange }: {
     try {
       const r = await copyExample(install.dir, set.id, project);
       setNote(r.message);
-      const o = await openProject(install.exe, r.project, mode, install.version);
+      // Same rule as Projects: api.openTarget decides which app opens it.
+      const t = openTarget(install, calibrator, mode);
+      if (!t.ok) { setNote(t.message); return; }
+      const o = await openProject(t.exe, r.project, t.mode, t.version);
       // The copy always happened and is worth saying — so unlike Projects, the note stays and only
       // the OPEN half moves into the band. Same rule underneath: each fact is stated once.
       const missed = o.ok && !o.mode_applied && mode !== 'normal';
@@ -88,9 +92,9 @@ export function Examples({ install, mode, onModeChange }: {
         <div className="row" style={{ marginBottom: 8 }}>
           <span className="panel-title">Open projects in</span>
           <span className="grow" />
-          <LaunchModePicker mode={mode} onChange={onModeChange} disabled={!!busy} />
+          <LaunchModePicker mode={mode} onChange={onModeChange} disabled={!!busy} split={install?.split !== false} />
         </div>
-        <LaunchModeNote mode={mode} />
+        <LaunchModeNote mode={mode} split={install?.split !== false} />
       </section>
 
       {sets.map((s) => (

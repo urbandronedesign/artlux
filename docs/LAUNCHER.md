@@ -92,6 +92,15 @@ Shows every ArtLux on the machine and what is published, then does the whole ins
 Declining the administrator prompt gets its own message, because a declined UAC installs *nothing*
 while looking like an ordinary failure.
 
+**Two apps: ArtLux Show and ArtLux Calibrator.** From the release that split ArtLux in two, each
+install is listed by name — **ArtLux Show**, **ArtLux Calibrator**, or **ArtLux (before the split)**
+for an older one — and *Check for the latest version* resolves both. ArtLux Calibrator then gets its
+own card with its own Install / Update button. It is the app that aligns the projectors, so install it
+on the machine you calibrate with, and on a show machine that recalibrates on a schedule. Each
+installer is checked the same way and refused while *that* app is running; the other one can stay
+open. Before the first release that ships both, the card says the Calibrator is not published yet.
+That is a note, not an error.
+
 ### Projects
 
 ![The Projects tab listing projects found on disk](images/launcher/02-projects.png)
@@ -130,6 +139,13 @@ venue:
 - **The installed ArtLux is older than 0.25.1.** `--calibrate` arrived with that release, and an older
   build drops an unknown flag in silence and opens the ordinary editor. That launch is refused with
   the version named, rather than spawned and reported as success.
+
+**With ArtLux Show and ArtLux Calibrator installed, the same control picks the app.** Its two choices
+read **ArtLux Show** and **ArtLux Calibrator**. Calibrating means opening the project in the other
+app, which writes the calibration into the same project; inside it, **File ▸ Open in ArtLux Show…**
+hands the project back. If ArtLux Calibrator is not installed, an open in that mode is refused with
+that reason, rather than opening the Show. An ArtLux from before the split keeps the Normal /
+Calibration control and `--calibrate`, exactly as described above.
 
 **New projects start here too.** Type a name beside **Create** and the launcher makes the folder in
 your workspace, then asks ArtLux to write the project into it.
@@ -320,6 +336,20 @@ HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<GUID>
 `Find-ArtLuxInstall` in [`scripts/preflight.ps1`](../scripts/preflight.ps1) had exactly this bug and
 survived only on its path fallback.
 
+**Which app an entry is comes from its `DisplayName`** (`install::classify`, which has a test):
+- `ArtLux Calibrator …` is the Calibrator (`ArtLux Calibrator.exe`, under its own appId, so its own
+  GUID).
+- `ArtLux Show …` is the Show, split.
+- `ArtLux Launcher …` is skipped.
+- Any other `ArtLux …` is the one app from before the split: Show's exe and folder, with calibration
+  behind `--calibrate`.
+
+The order matters, because every one of these names starts with "ArtLux". A path guess carries no
+name, so it is reported as *before the split*. That is the conservative reading: `--calibrate` on a
+split Show is logged and ignored, whereas offering a Calibrator that may not exist would fail. The
+double-install warning counts **Show** installs only, because a Calibrator beside a Show is the suite
+and not a duplicate.
+
 ### 3. The release feed
 
 Public repo, so unauthenticated access works — 60 requests/hour/IP, and a rate-limit response is a
@@ -331,6 +361,13 @@ real state to name rather than spin on.
   `electron-updater` consumes, so it is the only correct source for the hash.
 - Windows asset name: `ArtLux-<version>-x64.exe` (arch is `x64`, not `x86_64`) — read from
   `latest.yml`'s `path`, never by scanning the release's asset list.
+- **ArtLux Calibrator** is in the same release, with its own metadata, `…/<tag>/calibrator.yml`
+  (`releases::meta_file`), and an asset named `ArtLux-Calibrator-<version>-x64.exe`. The resolver
+  checks that the file a metadata file names belongs to the product it asked for
+  (`releases::installer_product`), so `latest.yml` can never install the Calibrator, and the other way
+  round. A 404 on `calibrator.yml` means a release from before the split. It is reported as
+  "not published in <tag>", not as a network fault. `run_installer` infers the product from the same
+  file name, so it knows which app must not be running and which install to re-read afterwards.
 
 > ⚠ **The walk is load-bearing, because the two products share one list.** The request was a single
 > un-paginated page of 30 until 2026-09-06. App releases land roughly ten times as often as launcher
@@ -529,6 +566,8 @@ inert while it is unused.
 | "Two installs are present" | The legacy per-user install alongside the per-machine one. Remove the per-user one; Windows will not do it for you. |
 | "ArtLux was already running — … a launch mode cannot be changed in a copy that is already up" | Exactly that: the project opened, in the mode the running copy started in. Close ArtLux and open it again, or switch inside the app with **File ▸ Open Calibration Workbench…**. |
 | "This ArtLux (…) cannot be launched into the calibration workbench" | The install predates 0.25.1, which is where `--calibrate` arrived. Update from the Install tab. |
+| "ArtLux Calibrator is not installed — install it from the Install tab, or choose Normal." | You asked to open a project in ArtLux Calibrator on a machine that only has ArtLux Show. Install it from its card on the Install tab. |
+| "ArtLux Calibrator is not published in …" | The newest release predates the split into two apps. This is not a fault; the card fills in once a release ships both. |
 | Projects tab is empty | Nothing was found in the search folders. Check the "Where it looked" list. |
 | The scan says it stopped early | It hit the 4000-project or 20-second limit. Narrow the search folders. |
 | Examples tab says ArtLux is not installed | The examples ship inside the app; install it first. |
@@ -569,6 +608,7 @@ renewal for a project that takes no money. Two consequences worth holding on to:
 | 4 | Health: run `preflight.ps1`, triage as data, repair via `-Fix` | **done** |
 | 5 | CI on `launcher-v*`, self-update | **done** |
 | 6 | Launch mode: open a project in the editor or the **calibration workbench**, with the running-instance and version cases named rather than silently dropped | **done** (v0.1.2) |
+| 7 | The suite: ArtLux Show and ArtLux Calibrator detected, resolved (`calibrator.yml`), installed and opened separately; an ArtLux from before the split keeps `--calibrate` | built on `feat/artlux-suite`, not released |
 
 Not built, and worth considering later: **thumbnails for projects**, which would mean rendering a
 project through the WebGPU pipeline and is therefore a real feature rather than a detail; and a

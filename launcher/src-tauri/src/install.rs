@@ -24,9 +24,16 @@ use winreg::RegKey;
 /// One ArtLux install found on this machine.
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallInfo {
+    /// Which app of the suite (plans/artlux-suite-show-calibrator.md): `"show"` — ArtLux Show, or the
+    /// one ArtLux from before the suite — or `"calibrator"` — ArtLux Calibrator.
+    pub product: String,
+    /// False for an ArtLux from BEFORE the suite: one app, calibration behind `--calibrate`. True for
+    /// ArtLux Show and ArtLux Calibrator, where calibrating means opening the other app instead.
+    pub split: bool,
     /// Absolute install directory, e.g. `C:\Program Files\ArtLux`.
     pub dir: String,
-    /// Absolute path to ArtLux.exe inside `dir`. Always verified to exist.
+    /// Absolute path to the app's exe inside `dir` — `ArtLux.exe` (Show) or `ArtLux Calibrator.exe`.
+    /// Always verified to exist.
     pub exe: String,
     /// `DisplayVersion`, e.g. `0.25.0`. Empty when the key carried none.
     pub version: String,
@@ -57,14 +64,36 @@ fn dir_from_display_icon(icon: &str) -> Option<PathBuf> {
     if p.is_file() { p.parent().map(|d| d.to_path_buf()) } else { None }
 }
 
-/// A directory only counts as an install if ArtLux.exe is actually in it. A registry entry left by a
+/// What an Uninstall entry's `DisplayName` says it is: `(product, exe file name, split)`, or None for
+/// something that is not an app of the suite (the launcher itself registers as "ArtLux Launcher").
+///   "ArtLux Calibrator 0.35.0" → the Calibrator;  "ArtLux Show 0.35.0" → Show, split;
+///   "ArtLux 0.34.1" → the one ArtLux from before the suite (Show's exe and folder, not split).
+/// The order matters: every name here starts with "ArtLux".
+pub fn classify(display: &str) -> Option<(&'static str, &'static str, bool)> {
+    if display.starts_with("ArtLux Calibrator") {
+        Some(("calibrator", "ArtLux Calibrator.exe", true))
+    } else if display.starts_with("ArtLux Show") {
+        Some(("show", "ArtLux.exe", true))
+    } else if display.starts_with("ArtLux Launcher") {
+        None
+    } else if display.starts_with("ArtLux") {
+        Some(("show", "ArtLux.exe", false))
+    } else {
+        None
+    }
+}
+
+/// A directory only counts as an install if its exe is actually in it. A registry entry left by a
 /// failed or half-removed install otherwise reads as a working one.
-fn accept(dir: PathBuf, version: String, per_user: bool, quiet: String, found_by: &str) -> Option<InstallInfo> {
-    let exe = dir.join("ArtLux.exe");
+fn accept(dir: PathBuf, kind: (&str, &str, bool), version: String, per_user: bool, quiet: String, found_by: &str) -> Option<InstallInfo> {
+    let (product, exe_name, split) = kind;
+    let exe = dir.join(exe_name);
     if !exe.is_file() {
         return None;
     }
     Some(InstallInfo {
+        product: product.to_string(),
+        split,
         dir: dir.to_string_lossy().into_owned(),
         exe: exe.to_string_lossy().into_owned(),
         version,
@@ -84,9 +113,7 @@ fn scan_hive(hive: winreg::HKEY, wow: bool) -> Vec<InstallInfo> {
     for name in uninstall.enum_keys().flatten() {
         let Ok(entry) = uninstall.open_subkey_with_flags(&name, KEY_READ) else { continue };
         let display: String = entry.get_value("DisplayName").unwrap_or_default();
-        if !display.starts_with("ArtLux") {
-            continue;
-        }
+        let Some(kind) = classify(&display) else { continue };
         let version: String = entry.get_value("DisplayVersion").unwrap_or_default();
         let quiet: String = entry.get_value("QuietUninstallString").unwrap_or_default();
         let uninstall_str: String = entry.get_value("UninstallString").unwrap_or_default();
@@ -99,7 +126,7 @@ fn scan_hive(hive: winreg::HKEY, wow: bool) -> Vec<InstallInfo> {
         //    it if a future installer ever populates it.
         let loc: String = entry.get_value("InstallLocation").unwrap_or_default();
         if !loc.is_empty() {
-            if let Some(i) = accept(PathBuf::from(&loc), version.clone(), per_user, quiet.clone(), "uninstall key InstallLocation") {
+            if let Some(i) = accept(PathBuf::from(&loc), kind, version.clone(), per_user, quiet.clone(), "uninstall key InstallLocation") {
                 out.push(i);
                 continue;
             }
@@ -109,7 +136,7 @@ fn scan_hive(hive: winreg::HKEY, wow: bool) -> Vec<InstallInfo> {
         if let Ok(product) = root.open_subkey_with_flags(&product_base, KEY_READ) {
             let ploc: String = product.get_value("InstallLocation").unwrap_or_default();
             if !ploc.is_empty() {
-                if let Some(i) = accept(PathBuf::from(&ploc), version.clone(), per_user, quiet.clone(), "product key InstallLocation") {
+                if let Some(i) = accept(PathBuf::from(&ploc), kind, version.clone(), per_user, quiet.clone(), "product key InstallLocation") {
                     out.push(i);
                     continue;
                 }
@@ -118,7 +145,7 @@ fn scan_hive(hive: winreg::HKEY, wow: bool) -> Vec<InstallInfo> {
         // 3. DisplayIcon, which carries the exe path.
         let icon: String = entry.get_value("DisplayIcon").unwrap_or_default();
         if let Some(dir) = dir_from_display_icon(&icon) {
-            if let Some(i) = accept(dir, version.clone(), per_user, quiet.clone(), "DisplayIcon") {
+            if let Some(i) = accept(dir, kind, version.clone(), per_user, quiet.clone(), "DisplayIcon") {
                 out.push(i);
             }
         }
@@ -136,9 +163,12 @@ pub fn scan() -> InstallScan {
     installs.extend(scan_hive(HKEY_CURRENT_USER, false));
     installs.extend(scan_hive(HKEY_LOCAL_MACHINE, true));
 
-    if installs.is_empty() {
-        let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
-        let pf = std::env::var("ProgramFiles").unwrap_or_default();
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let pf = std::env::var("ProgramFiles").unwrap_or_default();
+    // Show (or the one ArtLux before the suite). A guess carries no DisplayName, so it is reported as
+    // the app from before the split — the conservative reading: the UI then offers `--calibrate`,
+    // which a split Show logs and ignores, rather than a Calibrator that may not exist.
+    if !installs.iter().any(|i| i.product == "show") {
         for (guess, per_user) in [
             (format!(r"{local}\Programs\ArtLux"), true),
             (format!(r"{local}\Programs\artlux"), true),
@@ -147,15 +177,39 @@ pub fn scan() -> InstallScan {
             if guess.starts_with('\\') {
                 continue; // the env var was missing; do not probe a relative path
             }
-            if let Some(i) = accept(PathBuf::from(&guess), String::new(), per_user, String::new(), "path guess (no registry entry)") {
+            if let Some(i) = accept(PathBuf::from(&guess), ("show", "ArtLux.exe", false), String::new(), per_user, String::new(), "path guess (no registry entry)") {
                 installs.push(i);
                 break;
             }
         }
     }
+    // ArtLux Calibrator, per-machine only.
+    if !installs.iter().any(|i| i.product == "calibrator") && !pf.is_empty() {
+        if let Some(i) = accept(PathBuf::from(format!(r"{pf}\ArtLux Calibrator")), ("calibrator", "ArtLux Calibrator.exe", true), String::new(), false, String::new(), "path guess (no registry entry)") {
+            installs.push(i);
+        }
+    }
 
     // Same directory reached from two hives is one install, not two.
     installs.dedup_by(|a, b| a.dir.eq_ignore_ascii_case(&b.dir));
-    let duplicate = installs.iter().any(|i| i.per_user) && installs.iter().any(|i| !i.per_user);
+    // The legacy per-user + per-machine double install is a SHOW-side state (releases before
+    // 2026-07-22); a Calibrator beside a Show is the suite, not a duplicate.
+    let shows = || installs.iter().filter(|i| i.product == "show");
+    let duplicate = shows().any(|i| i.per_user) && shows().any(|i| !i.per_user);
     InstallScan { installs, duplicate }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify;
+
+    #[test]
+    fn display_names_classify_into_the_suite() {
+        assert_eq!(classify("ArtLux Calibrator 0.35.0"), Some(("calibrator", "ArtLux Calibrator.exe", true)));
+        assert_eq!(classify("ArtLux Show 0.35.0"), Some(("show", "ArtLux.exe", true)));
+        // The one ArtLux from before the suite: Show's exe and folder, calibration behind --calibrate.
+        assert_eq!(classify("ArtLux 0.34.1"), Some(("show", "ArtLux.exe", false)));
+        assert_eq!(classify("ArtLux Launcher 0.1.3"), None);
+        assert_eq!(classify("Something Else"), None);
+    }
 }

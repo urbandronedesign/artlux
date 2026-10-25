@@ -11,8 +11,9 @@ import { Projects } from './Projects';
 import { Examples } from './Examples';
 import { Health } from './Health';
 import {
-  artluxRunning, cancelDownload, downloadInstaller, getLaunchMode, isNewer, launcherLatest,
-  launcherVersion, mb, onProgress, resolveLatest, runInstaller, scanInstalls, setLaunchMode,
+  artluxRunning, calibratorRunning, cancelDownload, downloadInstaller, getLaunchMode, isNewer, launcherLatest,
+  launcherVersion, mb, onProgress, productName, resolveLatest, resolveLatestCalibrator, runInstaller,
+  scanInstalls, setLaunchMode,
   uninstallInstall, updateLauncher,
   type InstallScan, type LaunchMode, type Progress, type ReleaseInfo,
 } from './api';
@@ -31,6 +32,11 @@ export default function App() {
   const [tab, setTab] = useState<string>('install');
   const [scan, setScan] = useState<InstallScan | null>(null);
   const [latest, setLatest] = useState<ReleaseInfo | null>(null);
+  // ArtLux Calibrator, the suite's second product (calibrator.yml in the same release). Its absence
+  // is a normal answer before the suite's first release, so it is a note, never the error panel.
+  const [latestCal, setLatestCal] = useState<ReleaseInfo | null>(null);
+  const [calNote, setCalNote] = useState('');
+  const [calRunning, setCalRunning] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState('');
@@ -49,6 +55,7 @@ export default function App() {
   const refresh = useCallback(async () => {
     setScan(await scanInstalls());
     setRunning(await artluxRunning());
+    setCalRunning(await calibratorRunning());
   }, []);
 
   // Write-through: the state changes immediately so the control never lags a click, and the config
@@ -80,6 +87,8 @@ export default function App() {
     setError(''); setOutcome(''); setPhase('checking');
     try { setLatest(await resolveLatest()); }
     catch (e) { setError(String(e)); }
+    try { setLatestCal(await resolveLatestCalibrator()); setCalNote(''); }
+    catch (e) { setLatestCal(null); setCalNote(String(e)); }
     finally { setPhase('idle'); }
   };
 
@@ -93,11 +102,12 @@ export default function App() {
     finally { setRemoving(false); refresh(); }
   };
 
-  const installNow = async () => {
-    if (!latest) return;
+  // One flow for either app: run_installer infers which from the file name and checks THAT app.
+  const installNow = async (rel: ReleaseInfo | null) => {
+    if (!rel) return;
     setError(''); setOutcome(''); setProgress(null); setPhase('downloading');
     try {
-      const path = await downloadInstaller(latest);
+      const path = await downloadInstaller(rel);
       setPhase('installing');
       const res = await runInstaller(path);
       setOutcome(res.message);
@@ -113,7 +123,11 @@ export default function App() {
     }
   };
 
-  const primary = scan?.installs.find((i) => !i.per_user) ?? scan?.installs[0] ?? null;
+  // ArtLux Show — or the one ArtLux from before the suite — is what Projects, Examples and Health act
+  // on; ArtLux Calibrator is where a split install opens a project to calibrate (api.openTarget).
+  const shows = scan?.installs.filter((i) => i.product === 'show') ?? [];
+  const primary = shows.find((i) => !i.per_user) ?? shows[0] ?? null;
+  const calibrator = scan?.installs.find((i) => i.product === 'calibrator') ?? null;
   const busy = phase !== 'idle';
 
   // "Is the published version newer?" is answered by Rust's semver, never here. A second comparison
@@ -126,6 +140,13 @@ export default function App() {
     isNewer(latest.version, primary.version).then((v) => { if (live) setUpdatable(v); });
     return () => { live = false; };
   }, [latest, primary?.version]);
+  const [calUpdatable, setCalUpdatable] = useState(false);
+  useEffect(() => {
+    if (!latestCal || !calibrator?.version) { setCalUpdatable(false); return; }
+    let live = true;
+    isNewer(latestCal.version, calibrator.version).then((v) => { if (live) setCalUpdatable(v); });
+    return () => { live = false; };
+  }, [latestCal, calibrator?.version]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -157,8 +178,8 @@ export default function App() {
         </nav>
 
         <main className="stack-3" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 20 }}>
-          {tab === 'projects' && <Projects install={primary} mode={mode} onModeChange={chooseMode} />}
-          {tab === 'examples' && <Examples install={primary} mode={mode} onModeChange={chooseMode} />}
+          {tab === 'projects' && <Projects install={primary} calibrator={calibrator} mode={mode} onModeChange={chooseMode} />}
+          {tab === 'examples' && <Examples install={primary} calibrator={calibrator} mode={mode} onModeChange={chooseMode} />}
           {tab === 'health' && <Health install={primary} />}
 
           {tab === 'install' && <>
@@ -174,7 +195,8 @@ export default function App() {
               )}
               {scan?.installs.map((i) => (
                 <div key={i.dir} className="row" style={{ marginBottom: 4 }}>
-                  <span className="text-md fw-semi">{i.version || 'unknown version'}</span>
+                  <span className="text-md fw-semi">{productName(i)}</span>
+                  <span className="text-md">{i.version || 'unknown version'}</span>
                   <span className="mono text-mini fg-2 truncate">{i.dir}</span>
                   <span className="caption">{i.per_user ? 'per-user' : 'per-machine'} · found via {i.found_by}</span>
                 </div>
@@ -199,7 +221,8 @@ export default function App() {
                 </div>
               )}
 
-              {running && <div className="caption" style={{ marginTop: 8 }}>ArtLux is running right now — close it before installing.</div>}
+              {running && <div className="caption" style={{ marginTop: 8 }}>{primary?.split ? 'ArtLux Show' : 'ArtLux'} is running right now — close it before installing it.</div>}
+              {calRunning && <div className="caption" style={{ marginTop: 4 }}>ArtLux Calibrator is running right now — close it before installing it.</div>}
             </section>
 
             <section className="panel">
@@ -224,8 +247,8 @@ export default function App() {
                       : 'Not installed yet.'}
                   </div>
                   <div className="row">
-                    <button className="btn btn-primary" onClick={installNow} disabled={busy || running}>
-                      {primary ? (updatable ? 'Update' : 'Reinstall') : 'Install ArtLux'}
+                    <button className="btn btn-primary" onClick={() => installNow(latest)} disabled={busy || running}>
+                      {primary ? (updatable ? 'Update' : 'Reinstall') : latestCal ? 'Install ArtLux Show' : 'Install ArtLux'}
                     </button>
                     {phase === 'downloading' && <button className="btn" onClick={cancelDownload}>Cancel</button>}
                     <span className="grow" />
@@ -234,6 +257,39 @@ export default function App() {
                 </>
               )}
             </section>
+
+            {/* ArtLux Calibrator — the suite's second app, with its own installer and update. Shown
+                once a check has run (a release or a "not published" note) or when it is installed. */}
+            {(latestCal || calNote || calibrator) && (
+              <section className="panel">
+                <div className="panel-title" style={{ marginBottom: 10 }}>ArtLux Calibrator</div>
+                {latestCal ? (
+                  <>
+                    <div className="row" style={{ marginBottom: 4 }}>
+                      <span className="text-md fw-semi">{latestCal.version}</span>
+                      <span className="mono text-mini fg-2">{latestCal.file}</span>
+                      <span className="caption">{mb(latestCal.size)}</span>
+                    </div>
+                    <div className="caption" style={{ marginBottom: 12 }}>
+                      {calibrator
+                        ? calUpdatable
+                          ? `Newer than the ${calibrator.version} you have installed.`
+                          : `You already have ${calibrator.version || 'an install'}. Reinstalling is safe.`
+                        : 'Aligns the projectors of a venue. Install it where you calibrate — and on a show machine that recalibrates on a schedule.'}
+                    </div>
+                    <div className="row">
+                      <button className="btn btn-primary" onClick={() => installNow(latestCal)} disabled={busy || calRunning}>
+                        {calibrator ? (calUpdatable ? 'Update' : 'Reinstall') : 'Install ArtLux Calibrator'}
+                      </button>
+                      <span className="grow" />
+                      <span className="caption">Windows will ask for administrator permission.</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="caption">{calNote || 'Check for the latest version above to see its release.'}</div>
+                )}
+              </section>
+            )}
 
             {(phase === 'downloading' || phase === 'installing' || progress) && (
               <section className="panel">

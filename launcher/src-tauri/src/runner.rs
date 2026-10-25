@@ -174,14 +174,23 @@ pub struct InstallOutcome {
 /// True if any ArtLux process is running. The installer cannot replace files that are in use, and
 /// "installing over a running app" fails in confusing, partial ways.
 pub fn artlux_running() -> bool {
+    image_running("ArtLux.exe")
+}
+
+/// Is ArtLux Calibrator running? Its own exe, so it can be updated while Show plays and vice versa.
+pub fn calibrator_running() -> bool {
+    image_running("ArtLux Calibrator.exe")
+}
+
+fn image_running(image: &str) -> bool {
     // tasklist rather than a process-enumeration crate: one dependency fewer for one question, and
     // its output is stable enough for an exact-name filter.
     let out = Command::new("tasklist")
-        .args(["/FI", "IMAGENAME eq ArtLux.exe", "/NH"])
+        .args(["/FI", &format!("IMAGENAME eq {image}"), "/NH"])
         .creation_flags(CREATE_NO_WINDOW)
         .output();
     match out {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).contains("ArtLux.exe"),
+        Ok(o) => String::from_utf8_lossy(&o.stdout).contains(image),
         Err(_) => false, // cannot tell -> do not block the user on a guess
     }
 }
@@ -449,11 +458,17 @@ pub fn uninstall(quiet_uninstall: &str) -> InstallOutcome {
 /// Run a VERIFIED installer. `path` must have come from download::fetch_verified.
 pub fn run_installer(path: &str) -> InstallOutcome {
     let before = install::scan();
+    // WHICH APP OF THE SUITE this installer is, from its published name (releases::installer_product):
+    // the running check and the after-the-fact verification are both about THAT product. Checking "any
+    // ArtLux" would call a Calibrator install a success because Show was already there.
+    let file = std::path::Path::new(path).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    let product = crate::releases::installer_product(&file);
+    let name = if product == "calibrator" { "ArtLux Calibrator" } else { "ArtLux" };
 
-    if artlux_running() {
+    if (product == "calibrator" && calibrator_running()) || (product != "calibrator" && artlux_running()) {
         return InstallOutcome {
             ok: false,
-            message: "ArtLux is running. Close it first — an installer cannot replace files that are in use.".into(),
+            message: format!("{name} is running. Close it first — an installer cannot replace files that are in use."),
             scan: before,
         };
     }
@@ -479,12 +494,13 @@ pub fn run_installer(path: &str) -> InstallOutcome {
             let after = install::scan();
             // Verify the OUTCOME, not the exit code. An installer that returns 0 having done nothing
             // is indistinguishable from success unless we go and look.
-            let installed = after.installs.iter().find(|i| !i.per_user).or_else(|| after.installs.first());
+            let mine = || after.installs.iter().filter(|i| i.product == product);
+            let installed = mine().find(|i| !i.per_user).or_else(|| mine().next());
             match installed {
                 Some(i) if code == 0 => InstallOutcome {
                     ok: true,
                     message: format!(
-                        "ArtLux {} installed to {}",
+                        "{name} {} installed to {}",
                         if i.version.is_empty() { "(unknown version)" } else { &i.version },
                         i.dir
                     ),
@@ -501,7 +517,7 @@ pub fn run_installer(path: &str) -> InstallOutcome {
                 None => InstallOutcome {
                     ok: false,
                     message: format!(
-                        "The installer exited with code {code} and no ArtLux install can be found afterwards — nothing was installed."
+                        "The installer exited with code {code} and no {name} install can be found afterwards — nothing was installed."
                     ),
                     scan: after,
                 },

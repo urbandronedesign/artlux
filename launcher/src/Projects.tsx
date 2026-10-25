@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addLibraryRoot, cancelScan, createProject, getConfig, getEffectiveRoots, onScanProgress,
-  openProject, pickFolder, recentProjects, removeLibraryRoot, resetLibraryRoots, scanProjects, when,
+  openProject, openTarget, pickFolder, recentProjects, removeLibraryRoot, resetLibraryRoots, scanProjects, when,
   type InstallInfo, type LaunchMode, type ProjectEntry, type ScanProgress, type ScanResult,
 } from './api';
 import { LaunchModeNote, LaunchModePicker, ModeNotAppliedBand } from './LaunchModePicker';
@@ -57,8 +57,10 @@ const STOPPED: Record<string, string> = {
   cancelled: 'Cancelled — this list is incomplete.',
 };
 
-export function Projects({ install, mode, onModeChange }: {
+export function Projects({ install, calibrator, mode, onModeChange }: {
   install: InstallInfo | null;
+  /** ArtLux Calibrator, when installed — where a split install opens a project to calibrate (api.openTarget). */
+  calibrator: InstallInfo | null;
   mode: LaunchMode;
   onModeChange: (m: LaunchMode) => void;
 }) {
@@ -135,10 +137,13 @@ export function Projects({ install, mode, onModeChange }: {
   };
 
   const open = async (p: ProjectEntry) => {
-    if (!install) { setNote('ArtLux is not installed yet — install it from the Install tab first.'); return; }
-    // install.version, not a guess: the Rust refuses calibration on an ArtLux older than 0.25.1,
-    // which would otherwise drop the flag in silence and open the ordinary editor.
-    const r = await openProject(install.exe, p.path, mode, install.version);
+    // WHICH APP opens it: ArtLux Show, ArtLux Calibrator, or the ArtLux from before the suite with
+    // --calibrate — one rule, in api.openTarget. The version is the target's own, not a guess: the
+    // Rust refuses calibration on an ArtLux older than 0.25.1, which would otherwise drop the flag in
+    // silence and open the ordinary editor.
+    const t = openTarget(install, calibrator, mode);
+    if (!t.ok) { setNote(t.message); setModeMiss(''); return; }
+    const r = await openProject(t.exe, p.path, t.mode, t.version);
     // ONE place says it: the band carries the message when the mode was missed, the note carries it
     // otherwise. Both at once reads as two separate things having happened.
     //
@@ -196,9 +201,9 @@ export function Projects({ install, mode, onModeChange }: {
         <div className="row" style={{ marginBottom: 8 }}>
           <span className="panel-title">Open projects in</span>
           <span className="grow" />
-          <LaunchModePicker mode={mode} onChange={onModeChange} />
+          <LaunchModePicker mode={mode} onChange={onModeChange} split={install?.split !== false} />
         </div>
-        <LaunchModeNote mode={mode} />
+        <LaunchModeNote mode={mode} split={install?.split !== false} />
       </section>
 
       <section className="panel">

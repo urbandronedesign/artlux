@@ -16,8 +16,19 @@ const MODES: { id: LaunchMode; label: string; hint: string }[] = [
   { id: 'normal', label: 'Normal', hint: 'The editor as it ships.' },
   { id: 'calibrate', label: 'Calibration', hint: 'Adds the alignment workbench and its Calib rail entry.' },
 ];
+// The suite (plans/artlux-suite-show-calibrator.md, Phase 5): the same choice, named for the APP it opens.
+const SUITE_MODES: { id: LaunchMode; label: string; hint: string }[] = [
+  { id: 'normal', label: 'ArtLux Show', hint: 'Build and run the show.' },
+  { id: 'calibrate', label: 'ArtLux Calibrator', hint: 'Align the projectors of the venue.' },
+];
 
 /** What the choice means, spelled out under the control — a segment label is four words at most. */
+const SUITE_EXPLAIN: Record<LaunchMode, string> = {
+  normal: 'Projects open in ArtLux Show — the show, its content, its outputs.',
+  calibrate: 'Projects open in ArtLux Calibrator — the projectors of the venue, aligned on the wall. '
+    + 'It writes the calibration into the same project; File ▸ Open in ArtLux Show… hands it back.',
+};
+
 const EXPLAIN: Record<LaunchMode, string> = {
   normal:
     'Projects open in the ordinary editor. Projector outputs use the cheap warp path.',
@@ -26,16 +37,19 @@ const EXPLAIN: Record<LaunchMode, string> = {
     + 'The same thing File ▸ Open Calibration Workbench… does inside ArtLux — but without the save-and-restart, because the choice is made before the app starts.',
 };
 
-export function LaunchModePicker({ mode, onChange, disabled }: {
+export function LaunchModePicker({ mode, onChange, disabled, split }: {
   mode: LaunchMode;
   onChange: (m: LaunchMode) => void;
   disabled?: boolean;
+  /** An ArtLux Show + ArtLux Calibrator install: the choice is which APP, not which mode of one. */
+  split?: boolean;
 }) {
+  const modes = split ? SUITE_MODES : MODES;
   return (
     // role=radiogroup + aria-checked, per the design system's Segmented recipe: the active segment
     // carries a surface AND a border AND a text tier AND a weight, never tint alone (§6).
-    <span className="seg" role="radiogroup" aria-label="Which mode ArtLux opens a project in">
-      {MODES.map((m) => (
+    <span className="seg" role="radiogroup" aria-label={split ? 'Which app opens a project' : 'Which mode ArtLux opens a project in'}>
+      {modes.map((m) => (
         <button
           key={m.id}
           type="button"
@@ -54,8 +68,8 @@ export function LaunchModePicker({ mode, onChange, disabled }: {
 }
 
 /** The sentence under the control. Separate so a tab can place it where it has room. */
-export function LaunchModeNote({ mode }: { mode: LaunchMode }) {
-  return <div className="caption">{EXPLAIN[mode]}</div>;
+export function LaunchModeNote({ mode, split }: { mode: LaunchMode; split?: boolean }) {
+  return <div className="caption">{(split ? SUITE_EXPLAIN : EXPLAIN)[mode]}</div>;
 }
 
 /**

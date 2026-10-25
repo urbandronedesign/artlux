@@ -8,6 +8,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 export interface InstallInfo {
+  /** Which app of the suite: ArtLux Show (or the one ArtLux before it) or ArtLux Calibrator. */
+  product: 'show' | 'calibrator';
+  /** False for an ArtLux from before the suite — one app, calibration behind `--calibrate`. */
+  split: boolean;
   dir: string;
   exe: string;
   version: string;
@@ -169,6 +173,33 @@ export const setWorkspace = (path: string) => invoke<string>('set_workspace', { 
 export const scanInstalls = () => invoke<InstallScan>('scan_installs');
 export const artluxRunning = () => invoke<boolean>('artlux_running');
 export const resolveLatest = () => invoke<ReleaseInfo>('resolve_latest');
+/** ArtLux Calibrator's newest release (calibrator.yml) — rejects with "not published" before the suite's first release. */
+export const resolveLatestCalibrator = () => invoke<ReleaseInfo>('resolve_latest_calibrator');
+export const calibratorRunning = () => invoke<boolean>('calibrator_running');
+
+/** The name an operator knows an install by. */
+export const productName = (i: InstallInfo): string =>
+  i.product === 'calibrator' ? 'ArtLux Calibrator' : i.split ? 'ArtLux Show' : 'ArtLux (before the split)';
+
+/**
+ * WHICH APP OPENS A PROJECT, and with which flag (plans/artlux-suite-show-calibrator.md, Phase 5).
+ *
+ * The operator's choice stays the same two words — open normally, or to calibrate — but what it MEANS
+ * depends on what is installed:
+ *   - ArtLux Show + Calibrator (split): calibrating is the OTHER APP. The project opens in ArtLux
+ *     Calibrator, with no flag; ArtLux Show ignores `--calibrate` anyway (it carries no calibration).
+ *   - the one ArtLux from before the suite: calibrating is `--calibrate`, exactly as before.
+ * One place decides, so Projects and Examples cannot disagree about it.
+ */
+export function openTarget(show: InstallInfo | null, calibrator: InstallInfo | null, mode: LaunchMode):
+  { ok: true; exe: string; version: string; mode: LaunchMode } | { ok: false; message: string } {
+  if (mode === 'calibrate' && show?.split !== false) {
+    if (calibrator) return { ok: true, exe: calibrator.exe, version: calibrator.version, mode: 'normal' };
+    if (show) return { ok: false, message: 'ArtLux Calibrator is not installed — install it from the Install tab, or choose Normal.' };
+  }
+  if (!show) return { ok: false, message: 'ArtLux is not installed yet — install it from the Install tab first.' };
+  return { ok: true, exe: show.exe, version: show.version, mode };
+}
 export const isNewer = (latest: string, installed: string) => invoke<boolean>('is_newer', { latest, installed });
 export const cancelDownload = () => invoke<void>('cancel_download');
 export const runInstaller = (path: string) => invoke<InstallOutcome>('run_installer', { path });

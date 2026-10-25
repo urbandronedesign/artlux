@@ -267,6 +267,36 @@ exercised: the 15-minute timeout, and a Calibrator crash mid-job (the supervisor
 - An ArtLux from before the split, behind the new Launcher, is shown as "ArtLux (before the split)" and is
   still launched with `--calibrate` for calibration.
 
+**Built 2026-10-25** (Launcher only; no app change).
+
+Rust:
+- `install::classify` reads `DisplayName` → `(product, exe, split)`.
+- `InstallInfo` gains `product` and `split`.
+- Guesses are made per product.
+- The duplicate warning counts Show installs only.
+- `releases::resolve_latest_product` + `meta_file` (`latest.yml` / `calibrator.yml`) + `installer_product`, which refuses a metadata file naming the other product's installer.
+- A 404 on `calibrator.yml` → "ArtLux Calibrator is not published in <tag>".
+- `runner::run_installer` infers the product from the file name, checks only THAT app is not running, and re-reads THAT install.
+- New commands `resolve_latest_calibrator` and `calibrator_running`.
+- `cargo test --lib`: 3 tests.
+
+UI:
+- Install lists each install by `productName`.
+- *Check* resolves both apps.
+- An **ArtLux Calibrator** card has its own Install / Update; "not published" is a caption, not the error panel.
+- One `api.openTarget` decides the app for Projects and Examples:
+  - split + Calibration → the Calibrator's exe, no flag;
+  - split without a Calibrator → refused with the reason;
+  - before the split → `--calibrate` as before.
+
+**Deviation from the sketch above:** no separate tiles. The existing Open-in control stays and, on a split install, its two choices read **ArtLux Show / ArtLux Calibrator**. It is the same remembered setting and one control on both tabs, so the "which app" choice did not need a second UI.
+
+Checked: `tsc` and `vite build` in `launcher/`, `cargo build` and the unit tests.
+
+Not yet exercised: a real run of the Launcher against the installed suite. That has to wait until a release publishes `calibrator.yml`; the level-3 machine was restored to v0.34.1.
+
+Docs: LAUNCHER.md (Install, Projects, §2, §3, Troubleshooting, Status row 7).
+
 ## 5. ⚠️ Breaking changes
 
 - **Calibrating needs the second install.** A machine with only ArtLux Show cannot calibrate at all; one

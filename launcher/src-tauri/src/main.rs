@@ -36,6 +36,20 @@ async fn resolve_latest() -> Result<releases::ReleaseInfo, String> {
     releases::resolve_latest().await
 }
 
+/// The same, for ArtLux Calibrator — the second product of the suite, published in the same release
+/// with its own metadata (calibrator.yml). A release from before the suite has none: that comes back
+/// as an Err the UI shows as "not published yet", not as a failure.
+#[tauri::command]
+async fn resolve_latest_calibrator() -> Result<releases::ReleaseInfo, String> {
+    releases::resolve_latest_product("calibrator").await
+}
+
+/// Is ArtLux Calibrator running right now? Its own exe, so either app can be updated while the other runs.
+#[tauri::command]
+fn calibrator_running() -> bool {
+    runner::calibrator_running()
+}
+
 /// This launcher's own version, and the newest one published — so it can update itself with the
 /// same verified-download path it uses for ArtLux, rather than a second update mechanism.
 #[tauri::command]
@@ -427,7 +441,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             scan_installs,
             artlux_running,
+            calibrator_running,
             resolve_latest,
+            resolve_latest_calibrator,
             is_newer,
             download_installer,
             cancel_download,
