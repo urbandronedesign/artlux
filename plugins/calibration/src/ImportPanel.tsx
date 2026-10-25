@@ -1,6 +1,6 @@
 import React, { useState, useSyncExternalStore } from 'react';
-import { Download, X } from 'lucide-react';
-import type { ProjectorOutput } from '../../../shared/protocol';
+import { Download, Plus, X } from 'lucide-react';
+import type { CalibAssign, ProjectorOutput } from '../../../shared/protocol';
 import * as baked from './bakedStore';
 import { describe } from './bakedStore';
 import { getHost, getScene, setUseCalibration } from './calibHost';
@@ -23,8 +23,27 @@ import { projectorName, useOutputs, useSurfaces } from './useHostData';
 // business in an undo snapshot. It therefore does NOT survive a restart — which is a deliberate
 // property, not an omission, and the reason this panel always states what is currently loaded.
 
+// The value of a projector's row in the per-output table: 'auto', 'none', or `<file>\n<region>`.
+const AUTO = 'auto', NONE = 'none';
+const choiceKey = (a: CalibAssign | undefined): string => (!a ? AUTO : 'none' in a ? NONE : `${a.file}\n${a.region}`);
+const fileName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
+
+/**
+ * An output that stops playing a map falls back to what it would draw without one — and with
+ * `useCalibration` on and no venue to render, that is a BLACK wall (see unload below). Same rule for
+ * one output as for all of them.
+ */
+function releaseIfBlind(ids: string[]): void {
+  const venue = (getScene().models ?? []).some((m) => m.visible);
+  for (const o of (getHost()?.projectorOutputs.list() ?? []) as ProjectorOutput[]) {
+    if (!ids.includes(o.surfaceId)) continue;
+    if (o.useCalibration && !(venue && o.calibration?.poseRms != null)) setUseCalibration(o.surfaceId, false);
+  }
+}
+
 export const ImportPanel: React.FC = () => {
   const imported = useSyncExternalStore(baked.subscribe, baked.get);
+  const bs = useSyncExternalStore(baked.subscribe, baked.getState);
   const [note, setNote] = useState<string | null>(null);
   const outputs = useOutputs();
   const surfaces = useSurfaces();
@@ -41,14 +60,20 @@ export const ImportPanel: React.FC = () => {
     const res = await window.artlux?.importMpcdi?.();
     if (!res) { setNote('Import cancelled, or the file could not be read.'); return; }
     if (!res.regions.length) { setNote('That file parsed but declares no regions.'); return; }
+    const previous = bs.rig?.path;
     baked.set({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
-    void window.artlux?.setPrefs?.({ calibrationFile: res.path });
+    // A choice that pointed into the REPLACED rig file points at nothing now — back to Auto, which
+    // reads the new file, rather than a projector quietly left with no map.
+    const assign = Object.fromEntries(Object.entries(bs.assign).filter(([, a]) => !('file' in a && a.file === previous && previous !== res.path)));
+    if (Object.keys(assign).length !== Object.keys(bs.assign).length) baked.setAssign(assign);
+    void window.artlux?.setPrefs?.({ calibrationFile: res.path, calibrationAssign: assign });
   };
 
   const unload = (): void => {
-    baked.set(null);
-    // Forget the path too, or the next start would silently re-load what was just withdrawn.
-    void window.artlux?.setPrefs?.({ calibrationFile: '' });
+    // Everything: the rig file, any extra file and every per-output choice — "Unload" means no file.
+    baked.clearAll();
+    // Forget the paths too, or the next start would silently re-load what was just withdrawn.
+    void window.artlux?.setPrefs?.({ calibrationFile: '', calibrationExtraFiles: [], calibrationAssign: {} });
     // ⚠ …AND RETURN EVERY OUTPUT TO ITS OWN WARP, WHICH IS WHAT THIS BUTTON SAYS IT DOES.
     //
     // Withdrawing the map was only half of it, and the missing half turned the projector BLACK.
@@ -73,10 +98,47 @@ export const ImportPanel: React.FC = () => {
     // model renders from its pose again; only one that would draw nothing goes back to its own warp.
     // Same rule as App's rendersVenue, which also falls back on its own — this keeps the document
     // honest instead of leaning on that.
-    const venue = (getScene().models ?? []).some((m) => m.visible);
-    for (const o of (getHost()?.projectorOutputs.list() ?? []) as ProjectorOutput[]) {
-      if (o.useCalibration && !(venue && o.calibration?.poseRms != null)) setUseCalibration(o.surfaceId, false);
-    }
+    releaseIfBlind(((getHost()?.projectorOutputs.list() ?? []) as ProjectorOutput[]).map((o) => o.surfaceId));
+  };
+
+  // ── PER PROJECTOR ────────────────────────────────────────────────────────────────────────────
+  // Another file to pick regions from — one exported by another project or another media server.
+  const addFile = async (): Promise<void> => {
+    setNote(null);
+    const res = await window.artlux?.importMpcdi?.();
+    if (!res) { setNote('Import cancelled, or the file could not be read.'); return; }
+    if (!res.regions.length) { setNote('That file parsed but declares no regions.'); return; }
+    const next = [...bs.extras.filter((e) => e.path !== res.path), { path: res.path, regions: res.regions, importedAt: new Date().toISOString() }];
+    baked.setExtras(next);
+    void window.artlux?.setPrefs?.({ calibrationExtraFiles: next.map((e) => e.path) });
+  };
+  const removeFile = (path: string): void => {
+    const next = bs.extras.filter((e) => e.path !== path);
+    // Outputs that played a region of it go back to Auto — never silently to a map that is gone.
+    const assign = Object.fromEntries(Object.entries(bs.assign).filter(([, a]) => !('file' in a && a.file === path)));
+    const dropped = Object.keys(bs.assign).filter((id) => !(id in assign));
+    baked.setExtras(next);
+    baked.setAssign(assign);
+    releaseIfBlind(dropped.filter((id) => !baked.regionFor(id)));
+    void window.artlux?.setPrefs?.({ calibrationExtraFiles: next.map((e) => e.path), calibrationAssign: assign });
+  };
+  const choose = (surfaceId: string, key: string): void => {
+    const assign = { ...bs.assign };
+    if (key === AUTO) delete assign[surfaceId];
+    else if (key === NONE) assign[surfaceId] = { none: true };
+    else { const [file, region] = key.split('\n'); assign[surfaceId] = { file, region }; }
+    baked.setAssign(assign);
+    if (!baked.regionFor(surfaceId)) releaseIfBlind([surfaceId]);
+    void window.artlux?.setPrefs?.({ calibrationAssign: assign });
+  };
+
+  const projectors = outputs.filter((o) => o.enabled);
+  const loaded = baked.files();
+  const mixed = baked.mixedExports(projectors.map((o) => o.surfaceId));
+  // What Auto resolves to for one output, said in the option itself so "Auto" is never a guess.
+  const autoLabel = (id: string): string => {
+    const r = bs.rig?.regions.find((x) => x.id === id);
+    return r ? `Auto — ${fileName(bs.rig!.path)}` : bs.rig ? 'Auto — not in the file' : 'Auto — no file loaded';
   };
 
   return (
@@ -109,6 +171,59 @@ export const ImportPanel: React.FC = () => {
       ) : (
         <div className="text-micro text-fg-3">
           No calibration loaded. Outputs use their own corner-pin / Bézier warp.
+        </div>
+      )}
+
+      {/* WHICH REGION EACH PROJECTOR PLAYS. Auto is the rig file matched by surface id — what a file
+          exported by this project wants. A region can be picked by hand for a file whose ids match
+          nothing here, or None to keep a projector on its live calibration / own warp. */}
+      {projectors.length > 0 && (loaded.length > 0 || Object.keys(bs.assign).length > 0) && (
+        <div className="flex flex-col gap-1.5 pt-2 mt-1 border-t border-line-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-micro uppercase tracking-wider text-fg-2">Per projector</span>
+            <button onClick={() => void addFile()}
+              title="Load another calibration file to pick regions from — one from another project or another media server"
+              className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-2 text-micro">
+              <Plus size={11} /> Add a file…
+            </button>
+          </div>
+          {projectors.map((o) => {
+            const src = baked.sourceFor(o.surfaceId);
+            return (
+              <label key={o.surfaceId} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] items-center gap-2">
+                <span className="truncate text-fg-1" title={o.surfaceId}>{nameOf(o.surfaceId)}</span>
+                <select value={choiceKey(bs.assign[o.surfaceId])} onChange={(e) => choose(o.surfaceId, e.target.value)}
+                  className={`min-w-0 bg-surface-0 border rounded px-1 py-0.5 text-micro ${src ? 'border-line-1 text-fg-1' : 'border-line-1 text-fg-3'}`}>
+                  <option value={AUTO}>{autoLabel(o.surfaceId)}</option>
+                  <option value={NONE}>None — live calibration or own warp</option>
+                  {loaded.map((f) => (
+                    <optgroup key={f.path} label={fileName(f.path)}>
+                      {f.regions.map((r) => (
+                        <option key={r.id} value={`${f.path}\n${r.id}`}>{nameOf(r.id)}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
+          {bs.extras.length > 0 && (
+            <div className="flex flex-col gap-0.5 text-micro text-fg-3">
+              {bs.extras.filter((e) => e.path !== bs.rig?.path).map((e) => (
+                <div key={e.path} className="flex items-center gap-1.5">
+                  <span className="truncate" title={e.path}>+ {fileName(e.path)} · {e.regions.length} region(s)</span>
+                  <button onClick={() => removeFile(e.path)} title="Remove this file — projectors that played one of its regions go back to Auto"
+                    className="text-fg-3 hover:text-fg-1"><X size={11} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          {mixed.length > 0 && (
+            <div className="text-micro text-warn">
+              ⚠ The projectors play regions from {mixed.length} different files. A blend is solved for one set of
+              projectors, so the soft edges between files were not made to add up — check the overlaps on the wall.
+            </div>
+          )}
         </div>
       )}
 

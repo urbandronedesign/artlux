@@ -1,4 +1,4 @@
-import type { MpcdiRegion } from '../../../shared/protocol';
+import type { CalibAssign, MpcdiRegion } from '../../../shared/protocol';
 import { getHost, sendToProjector } from './calibHost';
 
 // IMPORTED CALIBRATION MAPS — the other half of the baked-file design.
@@ -42,20 +42,62 @@ export interface ImportedRig {
   importedAt: string;
 }
 
+// ── PER-OUTPUT CHOICE ───────────────────────────────────────────────────────────────────────────
+//
+// The RIG file (Prefs.calibrationFile) is matched to outputs AUTOMATICALLY: each region carries the
+// surface id it was exported for. That is right for the file this project made, and useless for one
+// from another project or another media server, whose ids match nothing here. So an output can also be
+// told which region to play — from the rig file or from an EXTRA file loaded only for that — or to play
+// none. Both persist per machine beside calibrationFile, because they describe the room too.
 let rig: ImportedRig | null = null;
+let extras: ImportedRig[] = [];
+let assign: Record<string, CalibAssign> = {};
+// One immutable snapshot per change, for useSyncExternalStore.
+export interface BakedState { rig: ImportedRig | null; extras: ImportedRig[]; assign: Record<string, CalibAssign> }
+let state: BakedState = { rig, extras, assign };
 const subs = new Set<() => void>();
 
 export function subscribe(cb: () => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; }
-const emit = (): void => { subs.forEach((f) => f()); };
+const emit = (): void => { state = { rig, extras, assign }; subs.forEach((f) => f()); };
 
 export function get(): ImportedRig | null { return rig; }
+export function getState(): BakedState { return state; }
 
-/** The map for one output, or undefined — regions are keyed by the surfaceId they were exported for. */
-export function regionFor(surfaceId: string): MpcdiRegion | undefined {
-  return rig?.regions.find((r) => r.id === surfaceId);
+/** Every loaded file, the rig file first. */
+export const files = (): ImportedRig[] => (rig ? [rig, ...extras.filter((e) => e.path !== rig!.path)] : extras);
+const fileAt = (path: string): ImportedRig | undefined => files().find((f) => f.path === path);
+
+/** The region an output plays and the file it comes from — its own choice, else the rig file's region
+ *  exported for it, else nothing. THE one door: every window gets its map through here. */
+export function sourceFor(surfaceId: string): { file: ImportedRig; region: MpcdiRegion } | undefined {
+  const a = assign[surfaceId];
+  if (a && 'none' in a) return undefined;
+  if (a && 'file' in a) {
+    const f = fileAt(a.file);
+    const region = f?.regions.find((r) => r.id === a.region);
+    return f && region ? { file: f, region } : undefined;
+  }
+  const region = rig?.regions.find((r) => r.id === surfaceId);
+  return rig && region ? { file: rig, region } : undefined;
 }
+export function regionFor(surfaceId: string): MpcdiRegion | undefined { return sourceFor(surfaceId)?.region; }
 
 export function set(next: ImportedRig | null): void { rig = next; emit(); pushToProjectors(); }
+export function setExtras(next: ImportedRig[]): void { extras = next; emit(); pushToProjectors(); }
+export function setAssign(next: Record<string, CalibAssign>): void { assign = next; emit(); pushToProjectors(); }
+/** Everything off: the rig file, the extra files and every choice. */
+export function clearAll(): void { rig = null; extras = []; assign = {}; emit(); pushToProjectors(); }
+
+/**
+ * The outputs' regions come from more than one export. A blend is solved for one set of projectors, so
+ * soft edges taken from different exports were never made to add up — worth saying, not refusing: a
+ * venue may well blend a pair from one file and run a third projector on its own.
+ */
+export function mixedExports(surfaceIds: string[]): string[] {
+  const used = new Set<string>();
+  for (const id of surfaceIds) { const s = sourceFor(id); if (s) used.add(s.file.path); }
+  return used.size > 1 ? [...used] : [];
+}
 
 /**
  * Hand each output's map to its projector window — and hand a `null` to every output that has none,

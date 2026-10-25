@@ -5153,13 +5153,15 @@ check(
     if (!/MPCDI_IMPORT, async \(e, path\?: string\)/.test(ipc))
       problems.push('the MPCDI import handler takes no path — a show machine would have to answer a file dialog to be calibrated');
     const panel = stripComments(read('plugins/calibration/src/ImportPanel.tsx'));
-    if (!/setPrefs\?\.\(\{ calibrationFile: res\.path \}\)/.test(panel))
+    if (!/setPrefs\?\.\(\{ calibrationFile: res\.path[ ,}]/.test(panel))
       problems.push('importing no longer remembers the path — the calibration would be lost on the next start');
-    if (!/setPrefs\?\.\(\{ calibrationFile: '' \}\)/.test(panel))
-      problems.push('unloading no longer forgets the path — the next start would silently re-load what was just withdrawn');
+    // Unload forgets the extra files and the per-projector choices as well (Projection Outputs ▸
+    // Calibration File ▸ Per projector): left behind, they would bring a withdrawn map back at startup.
+    if (!/setPrefs\?\.\(\{ calibrationFile: '', calibrationExtraFiles: \[\], calibrationAssign: \{\} \}\)/.test(panel))
+      problems.push('unloading no longer forgets the path, the extra files and the per-projector choices — the next start would silently re-load what was just withdrawn');
     const plug = stripComments(read('plugins/calibration/src/plugin.renderer.ts'));
-    if (!/getPrefs\?\.\(\)\)\?\.calibrationFile/.test(plug))
-      problems.push('the plugin never reads the remembered path — a broadcast install would boot uncalibrated with nothing to say so');
+    if (!/prefs\?\.calibrationFile\b/.test(plug) || !/prefs\?\.calibrationExtraFiles/.test(plug) || !/prefs\?\.calibrationAssign/.test(plug))
+      problems.push('the plugin no longer reads back the remembered path, extra files and per-projector choices — a broadcast install would boot with the wrong calibration and nothing to say so');
     // ⚠ The restore must sit in the PLAYBACK half. Below the authoring gate it still works under
     // --broadcast (which implies it) and silently does nothing in a plain editor launch.
     const gate = plug.indexOf('if (!isAuthoringLaunch()) return;');
@@ -7201,8 +7203,6 @@ check(
     return problems.length ? problems.join('; ') : null;
   },
 );
-
-check(
 check(
   'the close backstop never closes a window under its own save dialog',
   'Closing with unsaved changes is a round trip: main holds the window and the renderer asks "Save ' +
@@ -7225,6 +7225,8 @@ check(
     return problems.length ? problems.join('; ') : null;
   },
 );
+
+check(
   'OpenCV loads when calibration is used, never at import or for the splash',
   'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
   'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +

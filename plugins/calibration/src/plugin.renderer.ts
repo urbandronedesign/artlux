@@ -142,12 +142,30 @@ export const plugin: RendererPlugin = {
       // rig empty and every output on its own warp, which is a show that starts and looks wrong rather
       // than a show that does not start.
       void (async () => {
-        const p = (await window.artlux?.getPrefs?.())?.calibrationFile;
-        if (!p) return;
-        const res = await window.artlux?.importMpcdi?.(p);
-        if (!res?.regions.length) { console.warn(`[calibration] remembered calibration could not be loaded: ${p}`); return; }
-        console.info(`[calibration] restored ${res.regions.length} region(s) from ${p}`);
-        baked.set({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
+        const prefs = await window.artlux?.getPrefs?.();
+        const p = prefs?.calibrationFile;
+        if (p) {
+          const res = await window.artlux?.importMpcdi?.(p);
+          if (!res?.regions.length) console.warn(`[calibration] remembered calibration could not be loaded: ${p}`);
+          else {
+            console.info(`[calibration] restored ${res.regions.length} region(s) from ${p}`);
+            baked.set({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
+          }
+        }
+        // The per-output choices and the extra files they point into (Projection Outputs ▸ Calibration
+        // File). Same quiet failure: a missing extra file leaves its outputs on nothing, said in the log.
+        const extras: baked.ImportedRig[] = [];
+        for (const x of prefs?.calibrationExtraFiles ?? []) {
+          const res = await window.artlux?.importMpcdi?.(x);
+          if (res?.regions.length) extras.push({ path: res.path, regions: res.regions, importedAt: new Date().toISOString() });
+          else console.warn(`[calibration] remembered extra calibration file could not be loaded: ${x}`);
+        }
+        if (extras.length) baked.setExtras(extras);
+        const assign = prefs?.calibrationAssign;
+        if (assign && Object.keys(assign).length) {
+          baked.setAssign(assign);
+          console.info(`[calibration] restored ${Object.keys(assign).length} per-output calibration choice(s)`);
+        }
       })();
     }
 

@@ -304,6 +304,29 @@ A loaded file **takes over** from the live calibration on every output it covers
 **Broadcast**, and the machine **remembers it**: it is loaded again at every start until you press
 **Unload**. So on a machine where you loaded a file for one show, unload it afterwards.
 
+### Per projector — which part of which file
+
+A loaded file is matched to the outputs **automatically**: each part of the file (a *region*) carries
+the projector it was exported for. That is what you want for a file this project made. Under
+**Projection Outputs ▸ Calibration File ▸ Per projector**, each switched-on projector has a list:
+
+| Choice | The projector plays |
+|---|---|
+| **Auto** | Its own region of the loaded file (the default). The option says which file, or "not in the file". |
+| **None** | No file: its live calibration where the venue model is loaded, otherwise its own warp. |
+| **A region of a file** | That region, whatever projector it was exported for. |
+
+**Add a file…** loads another file only to pick regions from. Use it for a file exported by another
+project or by another media server, whose regions match none of your projectors. The × next to it
+removes it, and projectors that played one of its regions go back to **Auto**.
+
+When the projectors play regions from **different files**, the panel warns you. A blend is solved for one
+set of projectors, so soft edges taken from different exports were not made to add up: check the overlaps
+on the wall.
+
+The choices are remembered on this machine with the file and loaded again at every start. **Unload**
+clears all of it: the file, the added files and the choices.
+
 To **recalibrate** on a machine that has a file loaded, press **Unload** first — a loaded file also
 takes over from the wizard's live render. After Unload, an output with a calibration goes back to
 rendering from it when the venue model is loaded; without the venue model it goes back to its own

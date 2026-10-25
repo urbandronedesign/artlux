@@ -388,6 +388,9 @@ export interface CameraSelfCal {
 // surface map (world XYZ) on a w×h grid (the geometry warp / PFM); `alpha` is the optional blend map
 // (0..255 / PNG). MPCDI is the open standard for exchanging projector calibration with other media
 // servers + projectors (see src/main/mpcdi.ts).
+/** One output's choice of calibration-file region (Prefs.calibrationAssign). */
+export type CalibAssign = { file: string; region: string } | { none: true };
+
 export interface MpcdiRegion {
   id: string;
   projW: number; projH: number;
@@ -1556,6 +1559,14 @@ export interface Prefs {
    *  operator to click it; without a remembered path the map was an editor-only feature, unreachable
    *  in the mode it exists for. Absent = no baked calibration, outputs use their own warp. */
   calibrationFile?: string;
+  /** Further calibration files loaded on this machine only to pick regions from (Projection Outputs ▸
+   *  Calibration File ▸ Add a file…) — a file from another project or another media server, whose
+   *  region ids match none of this project's outputs. Re-read at startup like calibrationFile. */
+  calibrationExtraFiles?: string[];
+  /** Which calibration-file region each output plays, per output (keyed by surface id). Absent = AUTO:
+   *  the region of calibrationFile exported for that surface. `{ none: true }` = no file for this output
+   *  (live calibration or its own warp). Per machine, like the files it points into. */
+  calibrationAssign?: Record<string, CalibAssign>;
   /** Ceiling on how often the 3D Scene viewport redraws, in Hz. 0 / absent = the display's own rate,
       which is what it has always done. Per-MACHINE for the same reason as scene3dRenderScale.
       This does NOT touch the frame engine: compositing, GPU sampling and Art-Net stay at the engine
@@ -1749,6 +1760,9 @@ export type WindowCommand =
   // whether the document differs from the file — only the renderer knows that, so the close has to
   // make a round trip.
   | 'force-close' | 'cancel-close'
+  // …and "I am asking the operator": the renderer is alive and a dialog is up, so main's backstop must
+  // stand down. Without it the 4 s backstop closed the window UNDER the "Save before closing?" dialog.
+  | 'close-asking'
   | 'reload' | 'devtools' | 'fullscreen'
   | 'zoom-in' | 'zoom-out' | 'zoom-reset'
   | 'cut' | 'copy' | 'paste' | 'select-all';
@@ -1760,9 +1774,6 @@ export interface DocSection { id: string; title: string; entries: DocEntry[]; }
 /** One doc's rendered source + its absolute directory (for resolving sibling images / .artlux links). */
 export interface DocContent { markdown: string; dir: string; }
 /** Raw bytes + MIME of a doc-referenced image, read from disk in main (renderer wraps it in a Blob). */
-  // …and "I am asking the operator": the renderer is alive and a dialog is up, so main's backstop must
-  // stand down. Without it the 4 s backstop closed the window UNDER the "Save before closing?" dialog.
-  | 'close-asking'
 export interface DocAsset { mime: string; data: Uint8Array; }
 /**
  * One searchable slice of documentation: the prose under a single heading.
