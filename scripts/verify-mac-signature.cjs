@@ -24,18 +24,21 @@ if (process.platform !== 'darwin') {
 }
 
 const releaseDir = path.join(__dirname, '..', 'release');
-// electron-builder emits release/mac-arm64/ArtLux.app (or release/mac/ for x64).
-const apps = fs.existsSync(releaseDir)
-  ? fs
-      .readdirSync(releaseDir)
-      .filter((d) => d === 'mac' || d.startsWith('mac-'))
-      .flatMap((d) =>
-        fs
-          .readdirSync(path.join(releaseDir, d))
-          .filter((e) => e.endsWith('.app'))
-          .map((e) => path.join(releaseDir, d, e))
-      )
-  : [];
+// electron-builder emits release/mac-arm64/ArtLux.app (or release/mac/ for x64) — and, for the suite's
+// two products (scripts/package-app.cjs), the same under release/show/ and release/calibrator/. Every
+// .app found is checked: a release ships both, and either one being unopenable is a failed release.
+const roots = [releaseDir, path.join(releaseDir, 'show'), path.join(releaseDir, 'calibrator')].filter((r) => fs.existsSync(r));
+const apps = roots.flatMap((root) =>
+  fs
+    .readdirSync(root)
+    .filter((d) => d === 'mac' || d.startsWith('mac-'))
+    .flatMap((d) =>
+      fs
+        .readdirSync(path.join(root, d))
+        .filter((e) => e.endsWith('.app'))
+        .map((e) => path.join(root, d, e))
+    )
+);
 
 if (apps.length === 0) {
   console.error(`[verify-mac-signature] no .app found under ${releaseDir}/mac*/ — nothing to verify`);

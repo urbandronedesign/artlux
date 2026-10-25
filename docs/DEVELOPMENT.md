@@ -244,8 +244,9 @@ then **assert** them:
 
 ### Two apps from one tree — ArtLux Show and ArtLux Calibrator
 
-*In progress on `feat/artlux-suite` — [plans/artlux-suite-show-calibrator.md](../plans/artlux-suite-show-calibrator.md),
-Phase 3. Until the release workflow builds both, `npm run package` still produces the combined app.*
+*On `feat/artlux-suite` — [plans/artlux-suite-show-calibrator.md](../plans/artlux-suite-show-calibrator.md), Phase 3.
+`npm run package` still produces the combined app; the release workflow on this branch builds the two
+products instead (below).*
 
 **Which app a build is, is a BUILD fact.** `ARTLUX_APP=show|calibrator` (default `suite`, the combined app)
 is written into every bundle as the literal `__ARTLUX_APP__` (`electron.vite.config.ts`, read through
@@ -277,6 +278,15 @@ never run at once: the second one exits and the running one offers to switch (`s
 through `app.relaunch({ execPath })`, never `spawn` — the successor waits for the old pid
 (`--handoff-from=`, `handoffWait.ts`). The other app is found by the exe that just tried to start, then
 `ARTLUX_OTHER_EXE`, the sibling `release/<app>/win-unpacked`, its uninstall entry, the default folder.
+
+**Releasing both.** On this branch a `v*` tag makes `.github/workflows/build.yml` package **both**
+products on every OS (`node scripts/package-app.cjs <app> --ci`, after the workflow's own staging) and
+publish both sets: `ArtLux-<v>-<arch>` + `latest.yml` (Show — the names every installed ArtLux and the
+launcher already follow) and `ArtLux-Calibrator-<v>-<arch>` + `calibrator.yml`. The fixed-name copies are
+`ArtLux-Setup-x64.exe` (Show — its glob excludes `ArtLux-Calibrator-*`, which it would otherwise also
+match) and `ArtLux-Calibrator-Setup-x64.exe`, plus the macOS and Linux equivalents. `verify:macsign`
+checks every `.app` under `release/`, `release/show/` and `release/calibrator/`. A tag on `main` before
+the merge still builds the combined app exactly as before — the workflow that runs is the tagged commit's.
 
 > **Testing over a hand-off:** Chromium's DevTools socket (`ARTLUX_CDP_PORT`) is inherited across the
 > relaunch and stays bound under the dead pid, so the successor cannot open the same port. The app's own

@@ -104,17 +104,28 @@ jobs:
       - name: Verify ASIO licence position
         run: npm run verify:asio
 
-      - name: Build app (main/preload/renderer)
-        run: npm run build
-
       # Hard gate: assert every file electron-builder is DECLARED to bundle actually exists, because
       # electron-builder itself will not. Without this the job stays green while producing an installer
       # that is missing native runtimes -- the failure then surfaces on the venue PC, silently.
       - name: Verify packaged resources
         run: npm run verify:resources
 
-      - name: Package
-        run: npx electron-builder --publish never
+      # TWO PRODUCTS FROM ONE TREE (plans/artlux-suite-show-calibrator.md, Phase 3): ArtLux Show and
+      # ArtLux Calibrator. scripts/package-app.cjs builds each with its own ARTLUX_APP (the renderer,
+      # main and preload are rebuilt per product -- the build is what makes them different), checks it
+      # (verify:invariants, verify:plugins for that app: Show must carry no calibration authoring and
+      # no OpenCV) and packages it into release/<app>/. Show keeps the historical names -- ArtLux.exe,
+      # ArtLux-<v>-<arch>, latest.yml -- so every installed ArtLux and the launcher update into it
+      # unchanged; the Calibrator publishes ArtLux-Calibrator-<v>-<arch> and calibrator.yml.
+      # --ci: the steps above already staged the redistributables, OpenCV and the audio engine.
+      - name: Package ArtLux Show
+        run: node scripts/package-app.cjs show --ci
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package ArtLux Calibrator
+        run: node scripts/package-app.cjs calibrator --ci
         env:
           # No Developer ID in CI -- do not let electron-builder hunt the keychain for one. macOS
           # artifacts are still AD-HOC signed (package.json `mac.identity: "-"`), which is not a
@@ -138,13 +149,14 @@ jobs:
         with:
           name: artlux-${{ matrix.os }}
           retention-days: 7
+          # Both products, each in its own folder (release/show, release/calibrator).
           path: |
-            release/*.exe
-            release/*.dmg
-            release/*.AppImage
-            release/*.yml
-            release/*.blockmap
-            !release/builder-debug.yml
+            release/*/*.exe
+            release/*/*.dmg
+            release/*/*.AppImage
+            release/*/*.yml
+            release/*/*.blockmap
+            !release/*/builder-debug.yml
           if-no-files-found: ignore
 
   # Publish a GitHub Release with the installers when building a v* tag.
@@ -179,8 +191,12 @@ jobs:
           set -uo pipefail
           mkdir -p aliases
           made=0
+          # $3 (optional) excludes a name pattern: Show's installers are ArtLux-<v>-<arch>, and that glob
+          # ALSO matches ArtLux-Calibrator-<v>-<arch> -- `find | head -1` would then publish either one as
+          # "ArtLux-Setup-x64.exe", depending on directory order. So Show's aliases exclude the
+          # Calibrator's names explicitly.
           copy() {
-            src=$(find artifacts -name "$1" -type f | head -1)
+            src=$(find artifacts -name "$1" ${3:+! -name "$3"} -type f | head -1)
             if [ -z "$src" ]; then
               # A platform can legitimately be absent: the package matrix is fail-fast: false, so a
               # broken macOS job still publishes Windows and Linux. Warn, do not fail the release.
@@ -191,9 +207,12 @@ jobs:
             made=$((made + 1))
             echo "$2 <- $src"
           }
-          copy 'ArtLux-*-x64.exe'         ArtLux-Setup-x64.exe
-          copy 'ArtLux-*-arm64.dmg'       ArtLux-arm64.dmg
-          copy 'ArtLux-*-x86_64.AppImage' ArtLux-x86_64.AppImage
+          copy 'ArtLux-*-x64.exe'         ArtLux-Setup-x64.exe   'ArtLux-Calibrator-*'
+          copy 'ArtLux-*-arm64.dmg'       ArtLux-arm64.dmg       'ArtLux-Calibrator-*'
+          copy 'ArtLux-*-x86_64.AppImage' ArtLux-x86_64.AppImage 'ArtLux-Calibrator-*'
+          copy 'ArtLux-Calibrator-*-x64.exe'         ArtLux-Calibrator-Setup-x64.exe
+          copy 'ArtLux-Calibrator-*-arm64.dmg'       ArtLux-Calibrator-arm64.dmg
+          copy 'ArtLux-Calibrator-*-x86_64.AppImage' ArtLux-Calibrator-x86_64.AppImage
           # Zero is not a missing platform, it is a release with no installer in it at all. That has
           # to stop here: fail_on_unmatched_files is false below, so nothing else would notice.
           if [ "$made" -eq 0 ]; then

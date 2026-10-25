@@ -29,8 +29,11 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const [app, ...flags] = process.argv.slice(2);
 const DIR_ONLY = flags.includes('--dir');
+// --ci: the release workflow stages the redistributables, the OpenCV DLL and the audio engine itself
+// (.github/workflows/build.yml), per OS, and runs the licence gate — so here only build, check, package.
+const CI = flags.includes('--ci');
 if (!['show', 'calibrator'].includes(app)) {
-  console.error('usage: node scripts/package-app.cjs <show|calibrator> [--dir]');
+  console.error('usage: node scripts/package-app.cjs <show|calibrator> [--dir] [--ci]');
   process.exit(2);
 }
 
@@ -79,7 +82,7 @@ const run = (cmd, env = {}) => execSync(cmd, { cwd: ROOT, stdio: 'inherit', env:
 console.log(`[package] ${app}${DIR_ONLY ? ' (unpacked)' : ''} → release/${app}`);
 // The guards first, as `npm run package` does — a build that breaks an invariant must not be packaged.
 run('node scripts/verify-invariants.cjs');
-if (!DIR_ONLY) {
+if (!DIR_ONLY && !CI) {
   // An INSTALLER needs what `npm run package` stages: the redistributables, the OpenCV DLL, the audio
   // engine, and the resource check that fails a build electron-builder would otherwise ship incomplete.
   run('npm run prepack:assets');
