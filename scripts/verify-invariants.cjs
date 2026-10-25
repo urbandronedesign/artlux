@@ -7159,6 +7159,28 @@ check(
 );
 
 check(
+  'ArtLux Show never opens a project on the Calibrator test card',
+  'ArtLux Calibrator opens every project with the UV checker in place of the show content, kept in ' +
+  'calibRig.testBackup. Every route back to the show ends with ArtLux Show OPENING the file, so the ' +
+  'restore lives there: before it did, only the sign-off hand-off button restored, and a show opened ' +
+  'after File > Open in ArtLux Show, or after a plain save and quit, played the grid on the wall. A ' +
+  'handed recalibration job must not put the card up either, or it hands the show back a test card.',
+  () => {
+    const problems = [];
+    const app = read('src/renderer/App.tsx');
+    const at = app.indexOf('const applyProjectData = (');
+    const head = at < 0 ? '' : app.slice(at, at + 900);
+    if (at < 0) problems.push('applyProjectData is gone — find the one door every open goes through');
+    if (!/__ARTLUX_APP__ !== 'calibrator' \? withShowContent\(/.test(head)) problems.push('a non-Calibrator open no longer restores the show content first');
+    if (!/has\('recal'\) \? opened : withTestSource\(/.test(head)) problems.push('a handed recalibration job now opens on the test card');
+    const ts = read('src/renderer/services/testSource.ts');
+    if (!/testBackup: _dropped/.test(ts)) problems.push('withShowContent no longer drops the backup after restoring');
+    if (/modelBindings/.test(read('plugins/calibration/src/SignoffPanel.tsx'))) problems.push('SignoffPanel grew its own copy of testTargets');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'OpenCV loads when calibration is used, never at import or for the splash',
   'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
   'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +

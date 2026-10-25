@@ -2,7 +2,7 @@
 // step 5; design S5).
 //
 // Three jobs, in the order they happen on site:
-//   1. a TEST SOURCE on every screen the rig lights — the UV checker, Full HD or 4K — with the show's own
+//   1. a TEST SOURCE on every screen (the Calibrator OPENS on it — services/testSource.ts) the rig lights — the UV checker, Full HD or 4K — with the show's own
 //      content kept in the project (calibRig.testBackup) while it plays, so "back to the show" and the
 //      hand-off to ArtLux Show can always restore it, even after a save;
 //   2. a SIGNED CHECKLIST: who checked the wall, when, against which calibration — stale the moment a
@@ -13,7 +13,7 @@ import React, { useState } from 'react';
 import { Button, Segmented } from '@/components/ui';
 import { useToast } from '@/components/ui/feedback';
 import type { CalibSignOff, ProjectorOutput, Scene3D } from '../../../shared/protocol';
-import { modelBindings } from '../../../shared/protocol';
+import { testTargets, uvCheckerContent } from '@/services/testSource'; // host helpers — the ONE definition, shared with the open
 import { getHost, getRig, patchRig, exportRigMpcdi, saveProject } from './calibHost';
 import { useOutputs, useScene, useSurfaces, type SurfaceLite } from './useHostData';
 import * as rigUi from './rigUi';
@@ -36,15 +36,6 @@ export function signOffStale(s: CalibSignOff, outputs: ProjectorOutput[]): boole
     const r = s.rig.find((x) => x.surfaceId === o.surfaceId);
     return !r || r.calibratedAt !== o.calibration?.calibratedAt || r.blendSolvedAt !== o.blend?.solvedAt;
   });
-}
-
-/** The surfaces the rig actually puts on the wall: every one a venue mesh or screen shows, plus the own
- *  surface of an output that is not rendering the venue (a flat, uncalibrated projector). */
-function testTargets(scene: Scene3D, outputs: ProjectorOutput[]): string[] {
-  const ids = new Set<string>();
-  for (const m of scene.models ?? []) for (const b of modelBindings(m)) if (b.surfaceId) ids.add(b.surfaceId);
-  for (const o of outputs) if (o.enabled && !(o.useCalibration && o.calibration?.poseRms != null)) ids.add(o.surfaceId);
-  return [...ids];
 }
 
 function currentSource(backup: Record<string, unknown> | undefined, surfaces: SurfaceLite[]): Source {
@@ -82,7 +73,7 @@ export const SignoffPanel: React.FC = () => {
     const keep = backup ?? Object.fromEntries(targets.map((id) => [id, surfaces.find((s) => s.id === id)?.content]).filter(([, c]) => c));
     patchRig({ testBackup: keep });
     for (const id of Object.keys(keep)) {
-      set(id, { type: 'SHADER', shaderId: 'uv-checker', uvChecker: { size: next }, shaderRes: next === '4k' ? 2160 : 1080, opacity: 1 });
+      set(id, uvCheckerContent(next));
     }
   };
 

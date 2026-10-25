@@ -25,6 +25,16 @@ The venue in 3D is always in the middle of the window. The rail on the left take
 Each step keeps the same layout: the **projectors on the left**, the **venue in the centre**, the
 **step's controls on the right**, with one main button at the bottom of the right column.
 
+**A project opens on the UV checker.** Every screen the projectors light shows the
+[UV checker](../SHADERS.md#the-uv-checker--a-test-source-that-knows-the-project) in Full HD, so you
+judge the rig against a known image from the first second. The show's content is not lost:
+- it is kept in the project, and **Test & sign-off ▸ Show content** brings it back;
+- **ArtLux Show always opens the project with the show's content**, however you get there: the
+  hand-off, **File ▸ Open in ArtLux Show…**, or a plain save and quit;
+- opening a project and closing it without saving leaves the file as it was.
+
+A scheduled recalibration handed over by ArtLux Show does not put the checker up.
+
 ## Rig
 
 Every projector has a card with its **number**, its name, and its state — **✓ calibrated**,
@@ -55,8 +65,9 @@ on the real wall.
 ## Test & sign-off
 
 - **Test source**: **UV · Full HD** or **UV · 4K** puts the [UV checker](../SHADERS.md#the-uv-checker--a-test-source-that-knows-the-project)
-  on every screen the projectors light. **Show content** puts the show back. The show's own content is
-  kept in the project while the test plays, so saving during a test loses nothing.
+  on every screen the projectors light, and it is what a project opens on. **Show content** puts the
+  show back. The show's own content is kept in the project while the test plays, so saving during a
+  test loses nothing, and ArtLux Show opens the project with its show content in any case.
 - **Audience seat**: frame the wall in 3D from where the audience will stand and **Save this view**;
   **Go to the seat** brings you back there later.
 - **Sign-off**: tick each check you have made on the wall, add your name, and **Sign off**. The sign-off

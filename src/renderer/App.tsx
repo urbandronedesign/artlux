@@ -73,6 +73,7 @@ import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, LAYOUT_PREF_KEY, type WorkspaceLayout } from './services/layoutStore';
 import { syncUvCheckers, isUvChecker, onVenueChanged } from './services/uvCheckerSync';
+import { withShowContent, withTestSource } from './services/testSource';
 import { captureView, applyView } from './services/viewBus';
 import { workspaceStore } from './services/workspaceStore';
 import { CALIBRATION_ENABLED } from './services/runProfile';
@@ -2650,7 +2651,12 @@ const App: React.FC = () => {
   });
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
-  const applyProjectData = (data: any) => {
+  const applyProjectData = (opened: any) => {
+      // THE TEST SOURCE (services/testSource.ts): ArtLux Calibrator opens on the UV checker; every
+      // other build puts the show's own content back. Not on a handed recalibration job — that run
+      // projects its markers and saves, and must hand the show back its project, not a test card.
+      const data = __ARTLUX_APP__ !== 'calibrator' ? withShowContent(opened)
+        : new URLSearchParams(window.location.search).has('recal') ? opened : withTestSource(opened);
       // Cold-open trace: a fresh table per open (see services/openTrace.ts). The main-side half —
       // read/parse/resolve — logs its own `[open]` line; this covers the renderer half through to
       // bootGate's 'gate-armed'. It is how "a heavy project opens slowly" becomes "WHICH phase grew".
