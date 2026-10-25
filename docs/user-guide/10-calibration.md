@@ -309,6 +309,17 @@ takes over from the wizard's live render. After Unload, an output with a calibra
 rendering from it when the venue model is loaded; without the venue model it goes back to its own
 corner‑pin warp, so it never goes black. Re‑export the file when you are done.
 
+**ArtLux Calibrator reminds you.** When you hand a project back to ArtLux Show, the Calibrator compares
+the file the show plays with your latest calibration or blend. If the file is older, it asks before
+handing over:
+- **Export and replace** writes the new calibration over the same file, so the show loads it with
+  nothing else to do.
+- **Hand over without exporting** keeps the old file. The show then plays the old aim.
+- **Cancel** stays in the Calibrator.
+
+The question only comes up when a file is loaded on this machine. A show that plays live calibration
+has nothing to fall behind.
+
 The format is **MPCDI**, a standard interchange format for warp and blend, and ArtLux can also
 camera‑measure projector **gamma**. Full details, the optimization passes (ArUco one‑click recal,
 masking, exposure, colour/black match), and troubleshooting are in [CALIBRATION.md](../CALIBRATION.md)

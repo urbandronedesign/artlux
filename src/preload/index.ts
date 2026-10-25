@@ -75,7 +75,8 @@ const api: ArtluxApi = {
         ipcRenderer.invoke(IPC.NVWARP_SET_INTENSITY, electronDisplayId, w, h, rgb),
     nvwarpClear: (electronDisplayId: number) => ipcRenderer.send(IPC.NVWARP_CLEAR, electronDisplayId),
     // MPCDI interchange
-    exportMpcdi: (regions: unknown[]) => ipcRenderer.invoke(IPC.MPCDI_EXPORT, regions),
+    exportMpcdi: (regions: unknown[], opts?: { replaceRemembered?: boolean }) => ipcRenderer.invoke(IPC.MPCDI_EXPORT, regions, opts),
+    rememberedCalibrationFile: () => ipcRenderer.invoke(IPC.MPCDI_REMEMBERED),
     importMpcdi: (path?: string) => ipcRenderer.invoke(IPC.MPCDI_IMPORT, path),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {

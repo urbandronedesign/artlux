@@ -20,6 +20,7 @@ import { ImportPanel } from './ImportPanel';
 import * as baked from './bakedStore';
 import * as venueRegistrar from './venueRegistrar';
 import { reportInterrupted } from './recalInterrupted';
+import { registerFileFreshnessCheck } from './fileFreshness';
 // The authoring half is NEVER imported statically here — only through the loader, so a plain launch
 // and every projector window skip it entirely (suite plan Phase 1; see ./authoring).
 import { lazyAuthoring, loadAuthoring, loadedAuthoring } from './authoringLoader';
@@ -39,6 +40,7 @@ const CalibInspector = lazyAuthoring((m) => m.CalibInspector);
 type PatternShown = { t: 'patternShown'; index: number; projW: number; projH: number };
 
 let msgUnsub: (() => void) | null = null;
+let freshUnsub: (() => void) | null = null;
 let venueUnsub: (() => void) | null = null;
 // Playback-half subscriptions — see the two events in activate().
 let outsUnsub: (() => void) | null = null;
@@ -278,6 +280,9 @@ export const plugin: RendererPlugin = {
       // ARTLUX CALIBRATOR ON A JOB (suite plan Phase 4): launched by Show with --recalibrate, it runs the
       // job unattended and hands the machine back — whatever happened. Main keeps a hard timeout as well.
       if (__ARTLUX_APP__ === 'calibrator' && ctx.window === 'main') void runHandedJob(ctx);
+      // …and on an OPERATOR's hand-off, the calibration file the show plays must not be older than the
+      // calibration (fileFreshness.ts). An unattended job hands back through main, never through this.
+      if (__ARTLUX_APP__ === 'calibrator' && ctx.window === 'main') freshUnsub = registerFileFreshnessCheck();
       // A run killed part-way (watchdog relaunch, power cut) leaves a marker and no other trace —
       // the project file looks untouched because its single save never happened. Say so, once.
       void reportInterrupted();
@@ -312,6 +317,7 @@ export const plugin: RendererPlugin = {
 
   deactivate(): void {
     msgUnsub?.(); msgUnsub = null;
+    freshUnsub?.(); freshUnsub = null;
     venueUnsub?.(); venueUnsub = null;
     outsUnsub?.(); outsUnsub = null;
     readyUnsub?.(); readyUnsub = null;

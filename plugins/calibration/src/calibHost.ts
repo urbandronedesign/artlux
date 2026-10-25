@@ -61,7 +61,7 @@ export function getCalibration(surfaceId: string): ProjectorCalibration | undefi
  * like a structured-light one; it needs a solved pose, a loaded venue mesh, and a mounted 3D viewport
  * to render in. Measured on the dev laptop: 1264×681 = 860,784 samples in ~250 ms.
  */
-export async function exportRigMpcdi(): Promise<string> {
+export async function exportRigMpcdi(opts?: { replaceRemembered?: boolean }): Promise<string> {
   const outs = (host?.projectorOutputs.list() ?? []) as ProjectorOutput[];
   if (!outs.length) return '✗ MPCDI: no projector outputs';
   const { regions, skipped } = await regionsForRig(outs.map((o) => ({
@@ -71,8 +71,8 @@ export async function exportRigMpcdi(): Promise<string> {
     const why = skipped.some((s) => s.why === 'no venue model loaded') ? 'no venue model loaded' : 'nothing calibrated yet';
     return `✗ MPCDI: ${why}`;
   }
-  const path = await window.artlux?.exportMpcdi?.(regions);
-  if (!path) return 'MPCDI export cancelled';
+  const path = await window.artlux?.exportMpcdi?.(regions, opts);
+  if (!path) return opts?.replaceRemembered ? '✗ MPCDI: could not write the calibration file' : 'MPCDI export cancelled';
   // Every region in the file is GPU-baked — there is no other path (see mpcdiData's header). What
   // still has to be said out loud is what was DROPPED: "exported 2 regions" reads identically to
   // "exported 2 of your 4 projectors", and the two missing ones go dark at the venue.

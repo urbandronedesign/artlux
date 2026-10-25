@@ -7179,6 +7179,28 @@ check(
     return problems.length ? problems.join('; ') : null;
   },
 );
+check(
+  'both hand-off doors run the hand-off checks, and a replace writes only the remembered file',
+  'ArtLux Calibrator asks, before a hand-off, whether the calibration file the show plays is older than ' +
+  'the calibration (plugins/calibration/src/fileFreshness.ts). There are two doors — File > Open in ' +
+  'ArtLux Show (App) and the sign-off button (SignoffPanel) — and a check behind one of them is a check ' +
+  'the other skips: the show then plays the old aim with nothing to say so. The replace itself must ' +
+  'take its path from prefs in main, never from the renderer, or it is a write-anywhere door.',
+  () => {
+    const problems = [];
+    const app = read('src/renderer/App.tsx');
+    const h = app.indexOf('const handleOpenInOtherApp');
+    const body = h < 0 ? '' : app.slice(h, app.indexOf('openInOtherApp?.(', h));
+    if (!/await beforeHandOff\(/.test(body)) problems.push('File > Open in ArtLux Show no longer runs beforeHandOff before it saves and hands over');
+    const so = read('plugins/calibration/src/SignoffPanel.tsx');
+    const ho = so.indexOf('const handOff');
+    if (ho < 0 || !/await beforeHandOff\(/.test(so.slice(ho, so.indexOf('openInOtherApp', ho)))) problems.push('the sign-off hand-off button no longer runs beforeHandOff');
+    if (!/registerFileFreshnessCheck\(\)/.test(read('plugins/calibration/src/plugin.renderer.ts'))) problems.push('the Calibrator no longer registers the calibration-file freshness check');
+    const ipc = read('src/main/ipc.ts');
+    if (!/if \(how\?\.replaceRemembered\) \{\s*const target = persistence\.getPrefs\(\)\.calibrationFile;/.test(ipc)) problems.push('the MPCDI replace no longer takes its target from prefs in main');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
 
 check(
   'OpenCV loads when calibration is used, never at import or for the splash',

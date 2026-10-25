@@ -76,6 +76,9 @@ on the real wall.
 - **Export calibration file…** writes a calibration file if the show needs one (see
   [Calibration files](10-calibration.md#calibration-files--make-one-when-you-need-one)).
 - **Open in ArtLux Show** puts the show content back, saves, and hands the project to the Show.
+  If this machine plays a calibration file that is older than your latest calibration or blend, it
+  first offers to **export and replace** it. **File ▸ Open in ArtLux Show…** asks the same. See
+  [Calibration files](10-calibration.md#calibration-files--make-one-when-you-need-one).
 
 ## Recalibration
 

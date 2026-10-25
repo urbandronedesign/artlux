@@ -74,6 +74,7 @@ import { useLayout } from './hooks/useLayout';
 import { layoutStore, LAYOUT_PREF_KEY, type WorkspaceLayout } from './services/layoutStore';
 import { syncUvCheckers, isUvChecker, onVenueChanged } from './services/uvCheckerSync';
 import { withShowContent, withTestSource } from './services/testSource';
+import { beforeHandOff } from './services/handOffChecks';
 import { captureView, applyView } from './services/viewBus';
 import { workspaceStore } from './services/workspaceStore';
 import { CALIBRATION_ENABLED } from './services/runProfile';
@@ -3602,6 +3603,10 @@ const App: React.FC = () => {
           toast.warn(`${other.name} is not installed`, `Install it from the Launcher or ${other.downloadUrl}`);
           return;
       }
+      // Checks a plugin registered for the hand-off (services/handOffChecks.ts) — in ArtLux Calibrator,
+      // "the calibration file the show plays is older than the calibration". The sign-off's hand-off
+      // button runs the same ones.
+      if (!(await beforeHandOff({ confirm, toast }))) return;
       const path = await handleSaveProject();
       if (!path) { toast.warn('Save first', `Save the project to a file, then open it in ${other.name}.`); return; }
       window.artlux?.openInOtherApp?.(path, exeHint);

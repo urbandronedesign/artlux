@@ -83,6 +83,9 @@ export const IPC = {
   MPCDI_EXPORT: 'mpcdi:export',
   /** Renderer → main (invoke): import an .mpcdi file (open dialog) → regions. */
   MPCDI_IMPORT: 'mpcdi:import',
+  /** Renderer → main (invoke): the calibration file this machine plays (Prefs.calibrationFile) and its
+   *  modification time — how ArtLux Calibrator tells it is older than the calibration it describes. */
+  MPCDI_REMEMBERED: 'mpcdi:remembered',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -1870,8 +1873,13 @@ export interface ArtluxApi {
   nvwarpSetIntensity(electronDisplayId: number, w: number, h: number, rgb: number[]): Promise<boolean>;
   /** Clear scanout warp + intensity from an Electron display. */
   nvwarpClear(electronDisplayId: number): void;
-  /** Export projector warp+blend regions as an .mpcdi file (save dialog) → path, or null if cancelled. */
-  exportMpcdi(regions: MpcdiRegion[]): Promise<string | null>;
+  /** Export projector warp+blend regions as an .mpcdi file (save dialog) → path, or null if cancelled.
+   *  `replaceRemembered` writes over the file this machine plays (Prefs.calibrationFile) with no dialog —
+   *  the ONLY path a renderer can name, so this cannot write anywhere else. */
+  exportMpcdi(regions: MpcdiRegion[], opts?: { replaceRemembered?: boolean }): Promise<string | null>;
+  /** The calibration file this machine plays, and its mtime (null when the file is missing). Null when
+   *  none is set — the show plays live calibration. */
+  rememberedCalibrationFile?(): Promise<{ path: string; mtimeMs: number | null } | null>;
   /** Import an .mpcdi file (open dialog) → regions, or null if cancelled/failed. */
   /**
    * Open an .mpcdi and return its regions WITH the path they came from. The path is not decoration:

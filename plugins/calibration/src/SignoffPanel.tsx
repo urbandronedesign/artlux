@@ -11,8 +11,9 @@
 
 import React, { useState } from 'react';
 import { Button, Segmented } from '@/components/ui';
-import { useToast } from '@/components/ui/feedback';
+import { useConfirm, useToast } from '@/components/ui/feedback';
 import type { CalibSignOff, ProjectorOutput, Scene3D } from '../../../shared/protocol';
+import { beforeHandOff } from '@/services/handOffChecks'; // the SAME checks File > Open in ArtLux Show runs
 import { testTargets, uvCheckerContent } from '@/services/testSource'; // host helpers — the ONE definition, shared with the open
 import { getHost, getRig, patchRig, exportRigMpcdi, saveProject } from './calibHost';
 import { useOutputs, useScene, useSurfaces, type SurfaceLite } from './useHostData';
@@ -49,6 +50,7 @@ export const SignoffPanel: React.FC = () => {
   const surfaces = useSurfaces();
   const scene = useScene();
   const toast = useToast();
+  const confirm = useConfirm();
   const host = getHost();
   const backup = scene.calibRig?.testBackup;
   const source = currentSource(backup, surfaces);
@@ -98,6 +100,8 @@ export const SignoffPanel: React.FC = () => {
 
   const handOff = async () => {
     // The show takes the wall back: its content, no solo/mute, saved — then ArtLux Show opens it.
+    // First the hand-off checks (a calibration file older than the calibration asks here).
+    if (!(await beforeHandOff({ confirm, toast }))) return;
     if (getRig().testBackup) setSource('show');
     rigUi.clearSoloMute();
     await new Promise((r) => setTimeout(r, 150)); // let the restore land in the document (React state + its refs) before saving

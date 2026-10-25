@@ -1,6 +1,6 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord, type BlendWatchEntry } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
@@ -355,13 +355,27 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.NVWARP_CLEAR, (_e, electronDisplayId: number) => nvwarp.clearDisplay(electronDisplayId));
 
     // ---- MPCDI interchange (export/import projector warp+blend) ----
-    ipcMain.handle(IPC.MPCDI_EXPORT, async (e, regions: MpcdiRegion[]) => {
+    ipcMain.handle(IPC.MPCDI_EXPORT, async (e, regions: MpcdiRegion[], how?: { replaceRemembered?: boolean }) => {
+        // REPLACE THE FILE THIS MACHINE PLAYS (ArtLux Calibrator's hand-off, when that file is older than
+        // the calibration). The path comes from prefs, never from the renderer, so this door writes one
+        // file and one file only.
+        if (how?.replaceRemembered) {
+            const target = persistence.getPrefs().calibrationFile;
+            if (!target || !target.toLowerCase().endsWith('.mpcdi')) return null;
+            try { writeFileSync(target, buildMpcdi(regions)); return target; }
+            catch (err) { console.warn('[mpcdi] replace failed:', (err as Error)?.message ?? err); return null; }
+        }
         const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined;
         const opts = { title: 'Export MPCDI', defaultPath: 'artlux.mpcdi', filters: [{ name: 'MPCDI', extensions: ['mpcdi'] }] };
         const res = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts);
         if (res.canceled || !res.filePath) return null;
         try { writeFileSync(res.filePath, buildMpcdi(regions)); return res.filePath; }
         catch (err) { console.warn('[mpcdi] export failed:', (err as Error)?.message ?? err); return null; }
+    });
+    ipcMain.handle(IPC.MPCDI_REMEMBERED, () => {
+        const path = persistence.getPrefs().calibrationFile;
+        if (!path) return null;
+        try { return { path, mtimeMs: statSync(path).mtimeMs }; } catch { return { path, mtimeMs: null }; }
     });
     // With a path, read it; without, ask. The path form serves BOOT-TIME RESTORE, which is the only
     // way a `--broadcast` machine is ever calibrated by a baked map: it renders no editor chrome, so
