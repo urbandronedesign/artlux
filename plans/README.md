@@ -25,6 +25,9 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > [2026-10-24-session-record.md](2026-10-24-session-record.md) — v0.33.8 → v0.33.11: the MP4 flicker
 > between states, the battle test ([battle-test-v0.33.8.md](battle-test-v0.33.8.md)), GPU-crash
 > recovery for every consumer, NDI fixes; what the owner must clean up, what is still open and untested.
+> [2026-10-24-evening-session-record.md](2026-10-24-evening-session-record.md) — v0.33.12 / v0.33.13:
+> broadcast and a missing project, the interactive-show template and its course, the WebGPU 3D freeze
+> (and the detours that did not find it), the BIP student deck; open items and new test recipes.
 
 ### How these were produced (and how much to trust them)
 
