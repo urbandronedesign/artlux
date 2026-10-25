@@ -549,6 +549,12 @@ open source.
 ## Release process
 A `v*` tag drives `.github/workflows/build.yml` (matrix: windows/macos/ubuntu) → per-OS installers +
 `latest*.yml` auto-update metadata → a published GitHub Release (`softprops/action-gh-release`).
+The Launcher releases separately on a `launcher-v*` tag ([LAUNCHER.md ▸ Releasing](LAUNCHER.md#releasing)).
+
+> ⚠ **Read the licence before you push a `v*` tag.** Every installer bundles `audio-engine.node`, with
+> **JUCE** and **libspatialaudio** linked into it, and a tag is the moment every distribution obligation
+> attaches. The elections are made and written down — [`LICENSE`](../LICENSE), [`NOTICE`](../NOTICE) and
+> [LICENSING.md](../LICENSING.md) — but re-read them (and JUCE's own terms) before you publish.
 ```bash
 # bump "version" in package.json + update CHANGELOG.md (+ docs/PROGRESS.md), commit on main, then:
 git push origin main

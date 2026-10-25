@@ -35,4 +35,4 @@ To open any of them: **File ▸ Open…** (`Ctrl+O`) in ArtLux and pick the `.ar
 - [`docs/`](../docs/) — the reference documentation (start at [`docs/AUDIO.md`](../docs/AUDIO.md),
   [`docs/STATE-MACHINE.md`](../docs/STATE-MACHINE.md), [`docs/SCENES.md`](../docs/SCENES.md),
   [`docs/EFFECTS.md`](../docs/EFFECTS.md)).
-- [`README.md`](../README.md) — project overview, build, and run instructions.
+- [`README.md`](../README.md) — what ArtLux is and its principal features; build and run instructions are in [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md).
