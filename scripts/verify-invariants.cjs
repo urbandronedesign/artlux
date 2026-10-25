@@ -7203,6 +7203,28 @@ check(
 );
 
 check(
+check(
+  'the close backstop never closes a window under its own save dialog',
+  'Closing with unsaved changes is a round trip: main holds the window and the renderer asks "Save ' +
+  'before closing?". Main also has a 4 s backstop so a crashed renderer cannot make the app ' +
+  'unquittable - and it fired under the dialog, because a renderer waiting on a PERSON had not ' +
+  'answered either. The window vanished with the dialog on screen and the work was discarded ' +
+  '(2026-10-25, log: "renderer did not answer in time"). The renderer now says it is asking before the ' +
+  'dialog opens, and the backstop stands down for a window that is asking.',
+  () => {
+    const problems = [];
+    const guard = read('src/main/closeGuard.ts');
+    if (!/asking\.has\(win\)/.test(guard.slice(guard.indexOf('setTimeout('), guard.indexOf('ANSWER_MS);'))))
+      problems.push('the close backstop no longer stands down for a window that is asking the operator');
+    if (!/export function closeAsking\(/.test(guard)) problems.push('closeGuard lost closeAsking');
+    if (!/case 'close-asking': closeAsking\(win\)/.test(read('src/main/ipc.ts'))) problems.push("main no longer routes the renderer's 'close-asking'");
+    const app = read('src/renderer/App.tsx');
+    const h = app.indexOf("case 'close-request'");
+    const body = h < 0 ? '' : app.slice(h, app.indexOf('confirmRef.current(', h));
+    if (!/cmd\?\.\('close-asking'\)/.test(body)) problems.push('the renderer opens the save dialog without telling main it is asking');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
   'OpenCV loads when calibration is used, never at import or for the splash',
   'calib.node maps the 65 MB opencv_world4110.dll, and the calibration MAIN plugin activates in every ' +
   'launch — so loading it at import made every show pay for OpenCV from the first second, calibrating ' +

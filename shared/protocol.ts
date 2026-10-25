@@ -1760,6 +1760,9 @@ export interface DocSection { id: string; title: string; entries: DocEntry[]; }
 /** One doc's rendered source + its absolute directory (for resolving sibling images / .artlux links). */
 export interface DocContent { markdown: string; dir: string; }
 /** Raw bytes + MIME of a doc-referenced image, read from disk in main (renderer wraps it in a Blob). */
+  // …and "I am asking the operator": the renderer is alive and a dialog is up, so main's backstop must
+  // stand down. Without it the 4 s backstop closed the window UNDER the "Save before closing?" dialog.
+  | 'close-asking'
 export interface DocAsset { mime: string; data: Uint8Array; }
 /**
  * One searchable slice of documentation: the prose under a single heading.

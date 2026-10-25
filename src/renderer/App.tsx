@@ -3651,6 +3651,9 @@ const App: React.FC = () => {
                   flushPrefs();
                   const pending = docDirtyRef.current || sceneLookDirtyRef.current;
                   if (!pending) { cmd?.('force-close'); return; }
+                  // Tell main a PERSON is being asked, before the dialog opens: its 4 s backstop is for
+                  // a renderer that cannot answer, and it used to close the window under this dialog.
+                  cmd?.('close-asking');
                   const answer = await confirmRef.current({
                       title: 'Save before closing?',
                       message: sceneLookDirtyRef.current

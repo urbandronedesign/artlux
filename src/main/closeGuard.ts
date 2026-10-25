@@ -22,6 +22,11 @@ const ANSWER_MS = 4000;
 
 const allowed = new WeakSet<BrowserWindow>();
 const waiting = new WeakSet<BrowserWindow>();
+// The renderer said it is ASKING the operator (a dialog is up). The backstop is for a renderer that
+// cannot answer; one that is waiting on a person has answered "alive", and closing under its dialog
+// discarded unsaved work after 4 s — measured 2026-10-25, the log read "did not answer in time" while
+// "Save before closing?" was on screen.
+const asking = new WeakSet<BrowserWindow>();
 
 /**
  * Ask the renderer before this window closes. `enabled` is false in show modes (broadcast/headless):
@@ -30,14 +35,18 @@ const waiting = new WeakSet<BrowserWindow>();
  */
 export function guardClose(win: BrowserWindow, enabled: boolean): void {
   if (!enabled) return;
+  // A renderer that dies WHILE asking can never answer, and `asking` has stood the backstop down — so
+  // its death is the answer: let the pending close through rather than leave an unquittable window.
+  win.webContents.on('render-process-gone', () => { if (waiting.has(win) && !win.isDestroyed()) allowClose(win); });
   win.on('close', (e) => {
     if (allowed.has(win)) return;         // the renderer already said go ahead
     e.preventDefault();
     if (waiting.has(win)) return;         // a second click while the dialog is up — ignore, don't stack
     waiting.add(win);
+    asking.delete(win);
     win.webContents.send(IPC.MENU_ACTION, 'close-request');
     setTimeout(() => {
-      if (!waiting.has(win) || allowed.has(win) || win.isDestroyed()) return;
+      if (!waiting.has(win) || allowed.has(win) || asking.has(win) || win.isDestroyed()) return;
       console.warn('[closeGuard] renderer did not answer in time — closing anyway');
       allowClose(win);
     }, ANSWER_MS);
@@ -55,15 +64,22 @@ export function guardClose(win: BrowserWindow, enabled: boolean): void {
  */
 export function allowClose(win: BrowserWindow): void {
   waiting.delete(win);
+  asking.delete(win);
   allowed.add(win);
   if (win.isDestroyed()) { resumeQuit(); return; }
   if (quitRequested()) win.once('closed', () => resumeQuit());
   win.close();
 }
 
+/** The renderer is asking the operator: it is alive, so the backstop stands down until they answer. */
+export function closeAsking(win: BrowserWindow): void {
+  if (waiting.has(win)) asking.add(win);
+}
+
 /** The operator cancelled. Clear the latch so the NEXT close asks again rather than closing mutely. */
 export function cancelClose(win: BrowserWindow): void {
   waiting.delete(win);
+  asking.delete(win);
   // "Keep editing" answers the QUIT too, not just the window close — otherwise the aborted quit would
   // sit armed and the next unrelated window close would silently end the app.
   abandonQuit();
