@@ -148,8 +148,19 @@ function bridge(getMain: () => BrowserWindow | null, projWin: BrowserWindow, sur
   const main = getMain();
   if (!main || main.isDestroyed() || projWin.isDestroyed()) return;
   const { port1, port2 } = new MessageChannelMain();
-  main.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port1]);
-  projWin.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port2]);
+  // ⚠ isDestroyed() is not enough. A window mid-reload or mid-close still exists while its render
+  // frame is already disposed, and postMessage then THROWS ("Render frame was disposed before
+  // WebFrameMain could be accessed") — uncaught in main, that is Electron's modal error box. Seen
+  // 2026-10-26 opening a project in the Calibrator, which closes and reopens the outputs while a
+  // did-finish-load is in flight. Dropping the pair is safe: whichever end went away bridges again
+  // on its next load (the projector's did-finish-load below; the editor's rebridgeAllProjectors).
+  try {
+    main.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port1]);
+    projWin.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port2]);
+  } catch (err) {
+    port1.close(); port2.close();
+    console.warn(`[projector] bridge for ${surfaceId} skipped — a window frame was gone:`, (err as Error).message);
+  }
 }
 
 // Create the projector BrowserWindow: a normal movable/resizable window (windowed mode, for working

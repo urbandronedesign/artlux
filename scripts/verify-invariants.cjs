@@ -6237,6 +6237,11 @@ check(
     const idx = read('src/main/index.ts');
     if (!/on\('did-finish-load',[\s\S]{0,200}?rebridgeAllProjectors\(/.test(idx))
       bad.push("src/main/index.ts: the main window's did-finish-load no longer re-bridges the open outputs — a reload leaves them all waiting forever");
+    // bridge() runs from did-finish-load, often while the OTHER window is reloading or closing: a
+    // disposed frame makes postMessage throw, and uncaught in main that is a modal error box (2026-10-26).
+    const br = braceBody(read(P), 'function bridge(');
+    if (!br || !/try\s*\{[\s\S]*postMessage[\s\S]*\}\s*catch/.test(br))
+      bad.push(P + ': bridge() posts its ports outside a try/catch — a window frame disposed mid-reload throws an uncaught error in main');
     return bad.length ? bad.join('; ') : null;
   },
 );
