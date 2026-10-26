@@ -42,6 +42,9 @@ export function setDamping(bandFall: number, beatFall: number): void {
 
 let ipc: PluginIpc | null = null;
 let polling = false;
+// The audio plugin is not in this app at all (ArtLux Calibrator ships without it). Main plugins
+// register their IPC before any window loads, so a missing handler never turns up later: stop asking.
+let absent = false;
 const bands = new Float32Array(BAND_COUNT);   // enveloped — what shaders read
 const raw = new Float32Array(BAND_COUNT);     // last value from the engine
 let level = 0;
@@ -58,17 +61,26 @@ export function setIpc(handle: PluginIpc): void { ipc = handle; }
  * a projector window or an idle editor gets.
  */
 export function start(): void {
-  if (polling || !ipc) return;
+  if (polling || !ipc || absent) return;
   polling = true;
   const tick = async () => {
     if (!polling) return;
     try {
       const next = (await ipc!.invoke('audio:getSpectrum')) as Float32Array | number[] | undefined;
       if (next) for (let i = 0; i < BAND_COUNT; i++) raw[i] = Number(next[i]) || 0;
-    } catch {
+    } catch (e) {
       // The audio plugin may not be there at all (no engine built, or a launch without it). Silence is
       // the honest answer and it must not be a per-frame exception in a render loop.
       raw.fill(0);
+      // ⚠ …nor a per-frame failed invoke. MAIN logs every one ("Error occurred in handler for
+      // 'plugin:audio:getSpectrum': No handler registered") with a stack — ~100 lines a second in the
+      // Calibrator, a third of its whole log (measured 2026-10-26). No handler is final: go silent.
+      if (/No handler registered/.test(String((e as Error)?.message ?? e))) {
+        absent = true; polling = false;
+        bands.fill(0); level = 0;
+        console.info('[shader] no audio engine in this app — audio-reactive inputs stay silent');
+        return;
+      }
     }
     const now = performance.now() / 1000;
     const dt = lastT < 0 ? 1 / 60 : Math.max(0, Math.min(0.25, now - lastT));
