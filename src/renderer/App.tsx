@@ -253,6 +253,9 @@ interface DocSnapshot {
 }
 const QUERY_PROJECT = QS.get('project') || '';
 const QUERY_NEW_PROJECT = QS.get('newProject') || '';
+// `?recovered=<reason>`: main loaded this window again because the previous renderer PROCESS died
+// (crash, OOM, a GPU reset). See src/main/editorRecovery.ts. Read once, for the message below.
+const RECOVERED = QS.get('recovered') || '';
 // Perf HUD debug flag: `?perf=1` forces it on; otherwise it persists via localStorage (toggle: Ctrl+Alt+P).
 const PERF_FLAG = QS.get('perf') === '1';
 
@@ -5011,9 +5014,27 @@ const App: React.FC = () => {
       if (!SAFE_MODE || SHOW_ENGINE) return;
       toast.error(
           'Opened in Safe Mode',
-          'ARTLux crashed twice while opening the last project, so it started empty with the default '
-          + 'workspace. Your project file on disk has not been modified — open it again from File ▸ '
-          + 'Open Recent to retry.',
+          RECOVERED
+              ? `The editor stopped three times in a few minutes (last: ${RECOVERED}), so ARTLux started it `
+                + 'empty with the default workspace. Your project file on disk has not been modified — open '
+                + 'it again from File ▸ Open Recent to retry.'
+              : 'ARTLux crashed twice while opening the last project, so it started empty with the default '
+                + 'workspace. Your project file on disk has not been modified — open it again from File ▸ '
+                + 'Open Recent to retry.',
+      );
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The editor came back on its own after its renderer died (main: editorRecovery.ts). Sticky, like
+  // the Safe Mode notice, and for the same reason: the operator may have been away from the screen,
+  // and "my last edits are gone" with nothing on screen saying why reads as the app eating work. The
+  // edits died with the old renderer; this reload is what got the outputs running again.
+  useEffect(() => {
+      if (!RECOVERED || SAFE_MODE || SHOW_ENGINE) return;
+      toast.error(
+          'The editor stopped and was reloaded',
+          `Its process ended (${RECOVERED}) — often a graphics driver reset. ARTLux reopened the last `
+          + 'project and reconnected the outputs. Changes made since your last save are lost.',
       );
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

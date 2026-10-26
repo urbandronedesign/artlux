@@ -6242,6 +6242,16 @@ check(
     const br = braceBody(read(P), 'function bridge(');
     if (!br || !/try\s*\{[\s\S]*postMessage[\s\S]*\}\s*catch/.test(br))
       bad.push(P + ': bridge() posts its ports outside a try/catch — a window frame disposed mid-reload throws an uncaught error in main');
+    // A DEAD editor renderer (not a reload — the process gone) is never followed by a load on its own,
+    // so the re-bridge above never runs and every output waits forever. 2026-10-26: a GPU reset left
+    // the Calibrator dead for 28 minutes with nothing in the log. editorRecovery loads it again.
+    const R = 'src/main/editorRecovery.ts';
+    const rec = exists(R) ? stripComments(read(R)) : '';
+    if (!/on\('render-process-gone'/.test(rec)) bad.push(R + ': no render-process-gone listener — a dead editor stays dead');
+    if (!/logger\.log\([^)]*'renderer\.gone'/.test(rec)) bad.push(R + ': a renderer death is no longer logged before anything else');
+    if (!/othersOwnIt\(\)\)\s*return/.test(rec)) bad.push(R + ': recovery no longer stands down for broadcast/headless/an armed watchdog — two recoveries would race');
+    if (!/safe:\s*'1'/.test(rec) || !/n\s*>=\s*4/.test(rec)) bad.push(R + ': the crash-loop ladder (Safe Mode at 3, stop at 4) is gone — a renderer that dies on load would reload forever');
+    if (!/guardEditorRenderer\(mainWindow/.test(stripComments(read('src/main/index.ts')))) bad.push('src/main/index.ts: the editor window is not guarded by guardEditorRenderer()');
     return bad.length ? bad.join('; ') : null;
   },
 );

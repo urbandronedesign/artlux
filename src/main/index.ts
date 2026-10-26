@@ -10,6 +10,7 @@ import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors, rebridgeAllProjectors } from './projector';
 import { APP_ICON } from './appIcon';
 import { guardClose } from './closeGuard';
+import { guardEditorRenderer } from './editorRecovery';
 import { registerDocsWindow } from './docsWindow';
 import * as splash from './splashWindow';
 import { applyUiScale } from './uiScale';
@@ -220,6 +221,20 @@ function createWindow(): void {
     // Unattended self-heal: wire the crash/hang detectors to this window. No-op unless the watchdog
     // armed itself in whenReady (unattended.enabled + broadcast/always).
     watchdog.attach(mainWindow);
+    // …and the case the watchdog leaves alone: an EDITOR whose renderer died stays dead, outputs and
+    // all, unless something loads it again. Logs every death in every mode; recovers only where the
+    // watchdog does not. See editorRecovery.ts.
+    guardEditorRenderer(mainWindow, {
+        othersOwnIt: () => HEADLESS || BROADCAST || watchdog.isArmed(),
+        lastProject: () => persistence.getPrefs().lastProjectPath || PROJECT_PATH || '',
+        load: (q) => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            const query = { ...profileQuery(), ...q };
+            const devUrl = rendererDevUrl();
+            if (devUrl) void mainWindow.loadURL(`${devUrl}/?${new URLSearchParams(query)}`);
+            else void mainWindow.loadFile(join(__dirname, '../renderer/index.html'), { query });
+        },
+    });
     // Custom title bar: tell the renderer when maximized state flips so it swaps the maximize/restore icon.
     const emitMaximized = () => mainWindow?.webContents.send(IPC.WINDOW_MAXIMIZE_CHANGED, !!mainWindow?.isMaximized());
     mainWindow.on('maximize', emitMaximized);
