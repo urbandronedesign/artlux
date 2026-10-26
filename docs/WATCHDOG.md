@@ -110,8 +110,7 @@ Sometimes the editor does not crash *inside* — its whole process ends, most of
 driver resets. The window stays on screen but no longer answers, and every projector output shows
 **Waiting for the main window…**.
 
-In the editor and in ArtLux Calibrator, the app now loads the editor again by itself, about a second
-later:
+In the editor, the app now loads it again by itself, about a second later:
 
 - it reopens the **last project you opened or saved**, and the outputs reconnect on their own;
 - a message says **The editor stopped and was reloaded**, with the reason. Changes made since your last
