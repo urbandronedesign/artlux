@@ -104,6 +104,24 @@ The path stays in **File ▸ Open Recent**, so retrying it once it is fixed is o
 A crashed *panel* is not this: panels are contained individually, so one shows a small recovery card
 while the rest of the app — and the output — keeps running.
 
+### When the editor's own process stops
+
+Sometimes the editor does not crash *inside* — its whole process ends, most often when the graphics
+driver resets. The window stays on screen but no longer answers, and every projector output shows
+**Waiting for the main window…**.
+
+In the editor and in ArtLux Calibrator, the app now loads the editor again by itself, about a second
+later:
+
+- it reopens the **last project you opened or saved**, and the outputs reconnect on their own;
+- a message says **The editor stopped and was reloaded**, with the reason. Changes made since your last
+  save are lost — they were lost when the process ended, not by the reload;
+- if it stops **three times within five minutes**, the third reload opens in **Safe Mode** instead;
+- a **fourth** stop in that time ends the reloading: a dialog offers to quit, so it can never loop.
+
+Each stop is written to the [machine log](LOGGING.md) as `renderer.gone`, with the reason. In broadcast
+and headless this section does not apply: there the watchdog relaunches the whole app.
+
 ## Recovery — a full relaunch (not a reload)
 
 Recovery reuses the proven, leak-safe pattern from the playlist scheduler: `app.relaunch()` + `exit(0)`

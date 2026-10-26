@@ -426,6 +426,9 @@ function pruneRelaunchTimes(): number[] {
 
 // ─── Status + audit surface ─────────────────────────────────────────────────────────────────────
 
+/** Armed this process (cheap — status() also shells out to schtasks). editorRecovery stands down for it. */
+export function isArmed(): boolean { return armed; }
+
 export function status(): WatchdogStatus {
   return {
     enabled: armed,
