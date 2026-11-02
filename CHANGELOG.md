@@ -10,6 +10,21 @@ gamma with a camera, or a scheduled recalibration. Playing a calibrated rig, liv
 calibration file, works exactly as before. The startup screen now says the calibration engine is
 *present* rather than *loaded*, until it is used.
 
+## v0.34.2
+
+### After a graphics driver reset, the editor comes back by itself
+
+A graphics driver reset could stop the editor's own process. The editor window stayed on screen but no
+longer answered, every projector output waited for it forever, and an error box (*"A JavaScript error
+occurred in the main process — Render frame was disposed…"*) could freeze the whole app.
+
+There is no error box any more. The editor now loads again by itself about a second later, reopens the
+last project you opened or saved, and the outputs reconnect. A message says what happened; changes
+since your last save are lost. If it stops three times in five minutes it opens in Safe Mode, and a
+fourth stop ends the reloading and asks you instead. Each stop is written to the machine log.
+
+See [the watchdog page](docs/WATCHDOG.md#when-the-editors-own-process-stops).
+
 ## v0.34.1
 
 ### Saving in Blender no longer turns calibrated projectors black

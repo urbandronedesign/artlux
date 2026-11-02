@@ -74,6 +74,13 @@ cannot be opened because the developer cannot be verified"* or, if the quarantin
    leaves the app running perfectly with no output on the wire, which looks exactly like a wiring fault.
    Both live in **System Settings ▸ Privacy & Security** if you need to change your mind.
 
+> **macOS 15 (Sequoia) removed the right-click ▸ Open shortcut.** Use the `xattr` command above, or open
+> the app once, dismiss the warning, and go to **System Settings ▸ Privacy & Security ▸ Open Anyway**.
+
+> **"Damaged" even after clearing the quarantine flag** is not a corrupt download: it is a broken signature
+> in the build itself. Report it (see [DEVELOPMENT.md ▸ macOS signing](DEVELOPMENT.md#macos-signing)).
+> Releases **v0.19.1 – v0.25.4** are affected.
+
 > ⚠ **Apple Silicon only.** The published `.dmg` is `arm64`. There is no Intel build.
 
 **What macOS does not have:** the NSIS installer, so nothing is provisioned for you — no NDI runtime, no

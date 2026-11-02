@@ -5,305 +5,105 @@
    / ___ \  |  _ <    | |   | |___ | |_| |  /  \
   /_/   \_\ |_| \_\   |_|   |_____| \___/  /_/\_\
 
-  GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN
+  A media server for interactive installations
 ```
 
 # ArtLux
 
-ArtLux is a **professional addressable-LED pixel-mapping console** for Windows/macOS/Linux —
-a MadMapper-class tool for driving RGB/RGBW LED rigs. Sample color from video, images, a live
-camera, incoming DMX, or a **Spout** stream; lay fixtures out in 2D (and 3D); and stream the
-result to your hardware over **Art-Net** or **sACN/E1.31** with a native, threaded output engine.
+ArtLux is a **media server for interactive installations**. From one project file it plays video,
+generative content, light and sound across **projectors, LED rigs, DMX lighting and speakers**, and it
+reacts to the people in the room: tracked bodies, sensors and show control drive what happens next.
+It runs on Windows, macOS and Linux, and it is built to run a show unattended.
 
-It also plays the **sound**. A native **JUCE + ambisonics** engine puts every source at a *point in the
-room*, decodes it to headphones (HRTF) or a real speaker array, and rides the **same transport** as the
-picture — so a cue restarts the visuals without ever stuttering the house music.
+Designed and built by Zaki Jawhari and Bérenger Recoules. Free for education and non-commercial use —
+see [Licence](#licence).
 
-It runs as a native **Electron** desktop app with a **WebGPU** compute pixel-mapper (WebGL
-fallback), a **Rust** output engine (napi-rs) that owns UDP transmission on a dedicated thread, and a
-**C++** audio engine (JUCE + libspatialaudio).
+## Principal features
 
-## Features
+### Content
 
-- **GPU pixel mapping** — a WebGPU compute shader samples the source per-LED in real time.
-- **WLED-style effects** — gradient palettes, stateful fire2012, and multi-segment fixtures.
-- **Content sources** — video, image, live camera, **DMX in** (Art-Net/sACN), **Spout** (Windows), and **NDI** (network video).
-- **Media library** — a managed asset library (video, image, 3D model, LiDAR take): import (copy-in), previews, usage/missing tracking, relink, and drag-to-place onto the Stage or Timeline.
-- **Tracking sources** — the custom **OSC LiDAR blob** feed, **camera pose** (MediaPipe BlazePose, in-renderer WASM), and **Augmenta** optical tracking (OSC v2); visualize/project the blobs, and **record takes** to replay an interactive show with no tracker present.
-- **Interactive show engine** — a project **state machine** (a "Show" graph over scenes): states + transitions driven by manual GO, auto-at-end, OSC, and **LiDAR trigger zones + combinations**, with hold-a-state, global `fromAny` rules, and a cold-start gate that waits for the opening content to decode. ▶ [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md).
-- **Show-control remote** — an embedded tablet **PWA** (scene / cue / transport / state-machine over your LAN), a **wall-clock scheduler**, live metrics, and an unattended **multi-project broadcast playlist**. ▶ [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md).
-- **Projector outputs + NDI out** — map each surface fullscreen to a projector (corner-pin / Bézier warp, soft-edge, gamma) and optionally publish each output as an **NDI source**.
-- **Projection mapping & auto-align** — calibrate a real projector (structured-light Gray-code + pose, or **markerless camera auto-align** onto the venue 3D model) and render the scene from its recovered viewpoint; export/import **MPCDI**. On **Quadro / RTX-pro** GPUs, apply geometry **warp + edge-blend at the GPU scanout via NVIDIA NVAPI** (content-agnostic, persistent), with a GLSL fallback everywhere else.
-- **2D + 3D** — drag/resize/rotate/snap on a 2D stage; arrange the same fixtures in a 3D simulator.
-- **Per-pixel correctness** — color order, RGBW white extraction, gamma, matrix + serpentine, ledmap.
-- **Per-fixture routing** — each fixture can target its own controller IP / protocol / priority.
-- **Native output** — Art-Net + sACN over UDP from a Rust send thread (pacer, keep-alive, sparse,
-  **ArtSync**).
-- **Art-Net device discovery** — ArtPoll/ArtPollReply; pick a controller instead of typing its IP.
-- **Spatial audio, on the show's clock** — a native **JUCE + libspatialaudio** engine: every source is a
-  point in an **ambisonic** field, decoded **binaurally** (HRTF) or to a **speaker array**. Three containers on
-  two clocks — a project-wide **bed** that a cue never restarts, a Scene's **own** audio that always does, and
-  the soundtrack that came with a video clip. Insert chains (reverb / filter / delay / compressor) on a clip
-  *or* a whole track, a three-list mixer, and full **automation** of gain and position across all three.
-  ▶ [docs/AUDIO.md](docs/AUDIO.md) · [a six-chapter tutorial](examples/audio/tuto/README.md).
-- **Headless mode** — run the compute + output engine with no UI to save resources.
-- **Projects & rigs** — native save/load (`.artlux`), auto-restore on launch, recent files, and a
-  reusable patch/wiring/routing **rig** export (`.artrig`).
-- **Groups & scenes**, **undo/redo**, live **DMX monitor**, and a tokenized MadMapper-style UI.
+- **Video and images** — MP4 decoded on the GPU, HAP and still images, from a managed
+  [media library](docs/ASSETS.md) inside a portable project folder.
+- **Live sources** — cameras, **NDI** and **Spout** video ([NDI](docs/NDI.md), [Spout](docs/SPOUT.md)), and
+  incoming DMX over Art-Net / sACN.
+- **Generative content** — built-in [effects and palettes](docs/EFFECTS.md), [GPU shaders](docs/SHADERS.md)
+  with a node editor, and [text](docs/TEXT.md) with its own fonts and motion.
+- **Baking** — [pre-render a surface to video](docs/BAKE.md) (MP4 + AAC) when the live version is too heavy.
 
-See **[docs/FEATURES.md](docs/FEATURES.md)** for a usage guide.
+### Mapping and outputs
 
-## Run locally
+- **Surfaces** on a 2D stage, and a **3D venue** loaded from glTF or straight from a **Blender** file that
+  updates when you save it ([surfaces](docs/SURFACES.md), [3D scene](docs/user-guide/09-3d-scene.md)).
+- **Projectors** — corner-pin and Bézier warp, soft edges, one picture spanning several projectors
+  ([outputs](docs/OUTPUTS.md)).
+- **Projection-mapping calibration** — align projectors to the venue model by hand, with structured light, or
+  with a markerless camera auto-align; blend overlapping projectors on the GPU; import and export
+  **MPCDI** calibration files; warp and blend at the scanout on NVIDIA Quadro / RTX
+  ([calibration](docs/CALIBRATION.md), [auto-align](docs/AUTO-ALIGN.md), [NVIDIA warp](docs/NVWARP.md)).
+- **LED pixel mapping** — fixtures sampled per LED on the GPU, sent over **Art-Net / sACN** by a native
+  output engine, with device discovery and ArtSync ([LED map](docs/LEDMAP.md)).
+- **DMX lighting** — moving heads and other fixtures from a [fixture library](docs/FIXTURE-LIBRARY.md), over
+  the network or USB DMX, with recorded [lighting takes](docs/LIGHTING-SHOW.md).
+- **NDI out** — any output published as an NDI source.
+- **Spatial audio** — every sound at a point in the room, decoded to headphones (binaural) or a speaker array,
+  on the same clock as the picture; insert effects and automation ([audio](docs/AUDIO.md)).
 
-**Prerequisites** — there are **two** native toolchains, because there are two native languages:
+### Interaction
 
-| For | You need |
-|---|---|
-| **Node / Electron** | [Node.js](https://nodejs.org/) **20+** |
-| The **Rust** addons (output engine, Spout, HAP) | the [Rust toolchain](https://rustup.rs/) — **MSVC** on Windows |
-| The **C++ audio engine** (JUCE + libspatialaudio) | **CMake ≥ 3.23** and a **C++17** compiler (MSVC on Windows / clang / gcc). CMake fetches JUCE 8.0.14 and libspatialaudio 0.4.0 at configure time — the first build downloads them. On Linux, JUCE also wants the usual ALSA/X11 dev packages. |
+- **Tracking** — LiDAR over OSC, [Augmenta](docs/AUGMENTA.md) optical tracking and
+  [camera pose tracking](docs/MEDIAPIPE.md); trigger zones on the floor; record a take and replay the show
+  with no tracker present ([tracking](docs/TRACKING_SYNC.md), [takes](docs/TRACKING_TAKES.md)).
+- **State machine** — the show as a graph of scenes, moved on by a GO, a timer, OSC or people entering a
+  zone ([state machine](docs/STATE-MACHINE.md)).
+- **OSC in and out** — control ArtLux from anything that speaks OSC, and send timeline curves to devices
+  such as Arduino boards ([OSC](docs/OSC.md)).
 
-```bash
-npm install
-npm run build:native   # 3 Rust addons (output-engine, spout-receiver, hap) + the audio engine (optional)
-npm run build:audio    # the JUCE audio engine on its own — STRICT (fails loudly)
-npm run dev            # launch the Electron app
-```
+### Show
 
-> ### ⚠ Two traps, and both of them look like "it just doesn't work".
->
-> **1. No audio engine ⇒ a silent app that reports nothing is wrong.** `build:native` calls the audio build
-> with `--optional`, so on a machine with no C++ toolchain it **warns and carries on** — deliberately, so a
-> Rust-only contributor is not blocked. The app then starts, **the entire audio UI renders**, and there is no
-> sound. It is not silent about it (a **`no audio engine`** badge and a startup notice), but if you skipped
-> the warning you will not connect the two. **`npm run build:audio` is the strict build** — run it and read
-> what it says.
->
-> **2. A running app LOCKS the addon, and a failed link leaves the STALE one on disk.** If ArtLux is open,
-> MSVC cannot overwrite `audio_engine.node`: the link fails with **`LNK1104`**, the build exits non-zero —
-> **and the previous `.node` is still sitting there.** So a build you *think* succeeded silently ships the old
-> engine, and a correct fix looks broken. **Close the app before any native rebuild.** If you edited
-> `engine.cpp` and nothing changed, compare mtimes — see
-> [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#the-audio-ui-is-all-there-and-nothing-plays--no-sound).
+- **Timeline** — a non-linear editor for the show and for each scene ([timeline](docs/TIMELINE.md),
+  [scene timelines](docs/SCENE-TIMELINES.md)), with [scenes and cues](docs/SCENES.md).
+- **Show control** — a tablet remote in the browser, a wall-clock scheduler and an unattended multi-project
+  playlist ([show control](docs/SHOW-CONTROL.md)).
+- **Unattended running** — broadcast and headless modes, a [self-healing watchdog](docs/WATCHDOG.md) that
+  recovers from crashes and hangs, [machine logging](docs/LOGGING.md) and [monitoring](docs/MONITORING.md).
+- **Reuse** — copy a show, its scenes and everything they use [between projects](docs/PROJECT-IMPORT.md).
 
-**NDI (Windows):** the real NDI addon (`native/ndi/ndi.node`) is **committed as a prebuilt**, built
-once against the [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/) — so CI and end users **don't
-need the SDK**. End users only install the free **NDI Runtime / NDI Tools** (the app shows an install
-hint and degrades gracefully without it). To rebuild the addon after changing `native/ndi/src`, install
-the NDI 6 SDK + LLVM and run `npm run build:ndi` (set `LIBCLANG_PATH` to your LLVM `bin`), then commit
-the updated `ndi.node`. Full setup + usage + architecture: [docs/NDI.md](docs/NDI.md).
+### Around it
 
-### Build / package
+- **The Launcher** — a small separate app that installs ArtLux, checks the machine, finds your projects and
+  opens the example gallery ([Launcher](docs/LAUNCHER.md)).
+- **Plugins** — features are built as plugins on an internal SDK ([plugins](docs/PLUGINS.md)).
 
-```bash
-npm run build          # main + preload + renderer bundles
-npm run package        # installers — REBUILDS the audio engine first (strict), then electron-builder
-npm run package:dir    # the same, unpacked, for a quick smoke test
-```
+The full tour is in **[docs/FEATURES.md](docs/FEATURES.md)**.
 
-**Packaging rebuilds the C++ audio engine and hard-fails without it** — `package` runs
-`scripts/build-audio.cjs` with no flags. That is on purpose: the loader graceful-degrades to *silence*, so an
-installer cut without an engine would ship a complete, working-looking audio UI that makes no sound. It must
-be impossible to cut one by accident. (The **Rust** addons are *not* rebuilt by `package` — run
-`npm run build:native` yourself if you changed them.)
+## Get ArtLux
 
-### Headless
+The easiest way onto a Windows machine is the **Launcher** —
+[download it](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe).
+It installs ArtLux, verifies the download, sets up what the machine needs and checks it can run a show.
 
-```bash
-ArtLux.exe --headless --project="C:\path\to\show.artlux"
-```
-
-Runs only the Stage compute + output loop in an invisible, GPU-backed window. See
-[docs/FEATURES.md](docs/FEATURES.md#headless-mode).
-
-## Tech stack
-
-Electron · React 19 · TypeScript · Vite · Tailwind CSS · WebGPU (WebGL fallback) ·
-react-three-fiber · Rust (napi-rs) · **C++17 (CMake / cmake-js) · JUCE 8 · libspatialaudio** ·
-Art-Net + sACN/E1.31
+Downloads for Windows, macOS and Linux, installing by hand, and what to expect on first launch:
+**[docs/INSTALL.md](docs/INSTALL.md)**.
 
 ## Documentation
 
-- [docs/LAUNCHER.md](docs/LAUNCHER.md) — **the Launcher**: the small separate app that installs ArtLux, checks the machine, finds your projects and ships the example gallery. Start here if you are putting ArtLux on a machine.
-- [docs/user-guide/](docs/user-guide/README.md) — **illustrated end-user guide**: a screenshot‑driven, task‑oriented page for every screen of the app (interface, surfaces/content, fixtures, routing, effects, timeline, outputs, 3D, calibration, projects/media, preferences) + keyboard reference.
-- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — the same end-user guide as a single text page (no screenshots).
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
-- [docs/PLUGINS.md](docs/PLUGINS.md) · [docs/SDK.md](docs/SDK.md) — the **plugin architecture** + the internal plugin SDK.
-- [docs/WORKSPACE.md](docs/WORKSPACE.md) — the context-driven **editor shell** (workspace contexts, layout, UI scaling).
-- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
-- [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
-- [examples/](examples/README.md) — **openable template projects + written tutorials** (start with the [audio course](examples/audio/tuto/README.md) or the [state-machine course](examples/state-machine/tuto/README.md)).
-- [docs/AUDIO.md](docs/AUDIO.md) — **spatialised, show-synchronised audio**: the bed vs a scene's own sound, two clocks, ambisonics + HRTF, insert chains, automation.
-- [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md) — the project **state machine** (a "Show" graph over scenes: states, triggers, actions).
-- [docs/EFFECTS.md](docs/EFFECTS.md) — built-in **effects & palettes** reference (generative, media-free content).
-- [docs/ASSETS.md](docs/ASSETS.md) — media library & asset management (import, usage, relink, consolidate).
-- [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) — record & replay LiDAR blob takes from the timeline.
-- [docs/SURFACES.md](docs/SURFACES.md) — surfaces engine design & roadmap.
-- [docs/ROADMAP.md](docs/ROADMAP.md) — plugin-architecture record + what's next.
-- [docs/PROGRESS.md](docs/PROGRESS.md) — build log / decisions.
-- [docs/archive/](docs/archive/) — historical/superseded docs (the pre-Electron `ARCHITECTURE_PLAN`, the `UI_REFACTOR` notes, audio acceptance records).
-- [CHANGELOG.md](CHANGELOG.md) — release notes.
+- **[User guide](docs/user-guide/README.md)** — every screen of the app, task by task.
+- **[Examples](examples/README.md)** — projects you can open, with written tutorials.
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** — a symptom, and the page that fixes it.
+- **[Changelog](CHANGELOG.md)** — what changed in each release.
+- For contributors: [architecture](docs/ARCHITECTURE.md), [building and releasing](docs/DEVELOPMENT.md),
+  [plugin SDK](docs/SDK.md).
 
-## Releases
+## Build from source
 
-### Installing
+Node.js 20+, the Rust toolchain and a C++17 toolchain with CMake. Setup, the native builds, packaging,
+testing and releasing are in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
 
-**The easiest way onto a Windows machine is the [Launcher](docs/LAUNCHER.md)** —
-**[download it here](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe)**.
-It downloads ArtLux, verifies it against the checksum GitHub published, installs the NDI and VC++
-runtimes and the firewall rules, and checks the machine can actually run a show.
+## Licence
 
-Installing ArtLux by hand still works and is documented in [docs/INSTALL.md](docs/INSTALL.md):
+**ArtLux is licensed for education and non-commercial use only — no commercial work is permitted.** It is not
+an open-source licence. The licence is **[`LICENSE`](LICENSE)**, the third-party inventory is
+**[`NOTICE`](NOTICE)**, and the record of what is linked into ArtLux and what was decided about it is
+**[LICENSING.md](LICENSING.md)**.
 
-| | Download | Notes |
-|---|---|---|
-| **Launcher** (recommended) | [`ArtLuxLauncher-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe) | Windows. Installs and provisions everything else. |
-| **ArtLux** — Windows | [`ArtLux-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Setup-x64.exe) | NSIS, per-machine, elevated. |
-| **ArtLux** — macOS | [`ArtLux-arm64.dmg`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-arm64.dmg) | Apple Silicon. Not notarized — see below. |
-| **ArtLux** — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) | |
-
-**Those links never change and always give the newest build** — they are fixed-name copies published
-alongside the versioned assets, so nothing here has to be edited when a release goes out.
-
-The [releases page](https://github.com/urbandronedesign/artlux/releases) keeps the **three most
-recent** versions installable, which is what a rollback needs. Older ones are *retired to drafts* by
-CI, not deleted: they vanish from the list and their installers stop resolving, but the release, its
-notes and every asset are intact and one command away
-(`gh release edit v0.25.3 --draft=false`) — and the **git tag never moves either way**, so
-`git checkout v0.25.3` and every link to source at that version work regardless. Ask if you need an
-old build put back.
-
-> A file downloaded through one of those links carries no version in its name, which is exactly why
-> `scripts/verify-download.ps1` resolves the release itself rather than reading it off the filename.
-> Verify it the same way regardless — see [docs/INSTALL.md](docs/INSTALL.md).
-
-Both are unsigned, so Windows SmartScreen warns on first run — **More info → Run anyway**. That is
-[a deliberate, permanent decision](docs/LAUNCHER.md#licence-and-signing), which is also why the
-launcher verifies every download: with no signature, the checksum is the only integrity guarantee
-this project offers.
-
-### Cutting one
-
-Pushing a `v*` tag triggers a GitHub Actions matrix build that produces per-OS installers and
-publishes a Release. The launcher releases separately on a **`launcher-v*`** tag
-([why, and why they are pre-releases](docs/LAUNCHER.md#releasing)).
-
-> ## ⚠ READ THE LICENCE BEFORE PUSHING A `v*` TAG.
-> Every installer bundles `audio-engine.node`, which has **JUCE** and **libspatialaudio** linked into it
-> (`extraResources`, `package.json`). The elections are now made and written down — [`LICENSE`](LICENSE),
-> [`NOTICE`](NOTICE), and the `license` field — but a tag is still the moment every obligation attaches, so
-> re-read **Licensing** below (and JUCE's own terms) before you publish.
-
-## Licensing
-
-**ArtLux is licensed for education and non-commercial use only — no commercial work is permitted.** The
-operative text is **[`LICENSE`](LICENSE)** (Non-Commercial Educational Licence, © Zaki Jawhari and Bérenger
-Recoules). **It is not an open-source licence**: it withholds the commercial rights every OSI-approved licence
-grants. Full third-party inventory: **[`NOTICE`](NOTICE)**.
-
-The app states this itself — the startup splash and the About dialog carry the credit and the restriction, and
-that is a licence requirement (`LICENSE` §3), not decoration. The strings have one source,
-[`shared/credits.ts`](shared/credits.ts).
-
-That context matters, and it is worth being precise about *why*:
-
-| | |
-|---|---|
-| **Building and running it locally** | Raises essentially nothing. Use JUCE and libspatialaudio, do research, teach with it. |
-| **Publishing an installer** | Raises **everything below.** This is *distribution*, and it is what copyleft attaches to. |
-
-**And distribution is already wired:** `extraResources` ships `audio-engine.node` — with **JUCE 8.0.14** and
-**libspatialaudio 0.4.0** compiled into it — inside every installer, and pushing a **`v*` tag** runs a CI
-matrix that **publishes a GitHub Release**. Nothing stands between this repo and a public binary except that
-nobody has pushed a tag.
-
-### What was decided
-
-- **JUCE 8 → the free Starter tier, held by the two authors personally.** JUCE is dual-licensed: **AGPLv3**,
-  or the JUCE 8 EULA (Starter free up to $20k revenue · Indie · Pro · Educational free for academics).
-  **AGPLv3 is expressly not elected** — it is strong copyleft that would reach this whole application on
-  distribution *and* would grant recipients the commercial rights `LICENSE` §2 withholds.
-  **Educational was considered and rejected despite the authors qualifying for it**, because §1.2.4's last
-  sentence makes it non-perpetual — it "shall only come into effect and endure for the period of time the
-  Education Licence requirements are met", i.e. it ends at graduation and takes the right to keep
-  distributing with it — and because it bars "promotional" use, which catches exhibitions, open days and
-  showreels. **JUCE's terms change between major versions — read them at [juce.com](https://juce.com), and do
-  not trust any figure quoted in this repository.**
-- **`JUCE_DISPLAY_SPLASH_SCREEN=0` is reconciled** (`native/audio-engine/CMakeLists.txt`). The JUCE 8 EULA
-  states no splash or attribution requirement on any tier, so the flag is consistent with Starter — and the
-  addon genuinely has no window to draw one in. ArtLux's own splash names JUCE regardless.
-- **libspatialaudio's LGPL static-link relinking obligation is discharged by a written offer** (`LICENSE` §5):
-  object files + build instructions on request. Honouring it means keeping a reproducible audio-engine build
-  per tagged release.
-- **ArtLux has a `LICENSE`** — non-commercial, educational. Coherent with Starter, which imposes no copyleft.
-
-#### The Starter revenue test, precisely
-
-Starter is **free and perpetual**, capped at **$20,000 annual revenue** — but *whose* revenue depends on who
-the licensee is, and the EULA's two definitions differ in a way that matters:
-
-| Licensee | What §1.2.1 counts |
-|---|---|
-| **An individual** | "the total revenue or funding generated by that individual or entity's **use of the Framework** from all sources, including donations, sponsorship, advertising" — **JUCE-related income only.** ArtLux is free, takes no donations, and `LICENSE` §2 forbids charging for it → **zero**. |
-| **A company** | "the total revenue or funding received by the entity **and all its Affiliates** … from all sources, **whether it be received in connection with the entity's use of the Framework or not**, without offsets of any kind" — **all income, JUCE-related or not.** |
-
-So the licensee must be **the two authors as individuals** — never a company, studio or institution, whose
-revenue counts in full whether it came from JUCE work or not. Also **§1.7** — "Every Framework User
-contributing to or modifying source code … requires
-a Licence" — so that is **two Starter seats, one each**, free but not automatic. §1.10's "keep seats active to
-keep distributing" applies to *subscription* tiers only, so a perpetual Starter cannot retroactively strand a
-published release. If the cap is ever exceeded, **§1.14** gives no grace period: upgrade the tier or stop
-distributing.
-
-### What is still open
-
-*The JUCE side is closed:* **both authors hold an active free Starter seat**, each registered personally
-(confirmed 2026-07-25), which is §1.7 satisfied and what keeps the revenue test on the individual definition.
-Nothing in the code or build was involved — JUCE comes in via CMake `FetchContent`, there is no licence key,
-and the EULA imposes no splash or attribution requirement. **Standing rule:** a new contributor needs their
-own free seat before they build or touch `native/audio-engine`, because `build:audio` fetches and compiles
-JUCE locally. See [`NOTICE`](NOTICE) for the clauses and the one question still worth asking JUCE.
-*Copyright is settled:* the two authors hold it **as individuals**; no company, studio or institution is a
-party to the work or a JUCE licensee for it (`NOTICE` (g)).
-- **HRTF/SOFA data terms** shipped with libspatialaudio are unreviewed.
-- `appId` (`com.urbandronedesign.artlux`) and the GitHub release owner still say *urbandronedesign*. Those are
-  **machine identifiers** — installer upgrade identity and release URL — and changing them would orphan every
-  installed machine and its watchdog task. Authorship is `LICENSE` + [`shared/credits.ts`](shared/credits.ts).
-
-> *Nothing here is legal advice. It is an engineer's record of what is linked, what is loaded, and what was
-> decided — written down so the decisions were made on purpose. Have a lawyer read `LICENSE` before you rely
-> on it, especially clause 2.*
-
-### macOS install note
-
-ArtLux is **ad-hoc signed but not notarized** (no Apple Developer account), so macOS Gatekeeper
-flags the downloaded app. Builds are **Apple Silicon / arm64**. After dragging **ArtLux** to
-Applications, clear the quarantine flag once:
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/ArtLux.app"
-```
-
-Then open it normally. This is a one-time step per install.
-
-On **macOS 14 and earlier** you can instead right-click -> **Open** -> *"Open Anyway"*. macOS 15
-(Sequoia) removed that shortcut: use the `xattr` command above, or open the app once, dismiss the
-warning, and go to **System Settings -> Privacy & Security -> "Open Anyway"**.
-
-> If macOS says *"ArtLux is damaged and can't be opened"* **even after** clearing the quarantine
-> flag, that is not a corrupt download -- it is a broken signature in the build itself. Report it;
-> see [DEVELOPMENT.md - macOS signing](docs/DEVELOPMENT.md#macos-signing). Affected releases:
-> **v0.19.1 - v0.25.4**.
-
-### Acknowledgements
-
-**NDI®** is a registered trademark of Vizrt NDI AB. NDI support uses the free NDI® SDK / Runtime
-(<https://ndi.video>). Install the NDI Runtime / NDI Tools to enable NDI send + receive.
-*NDI is loaded at runtime and is not linked into any binary here.*
-
-**JUCE** (<https://juce.com>) and **libspatialaudio** (<https://github.com/videolabs/libspatialaudio>) are
-**compiled and linked into `audio-engine.node`**, which ships inside every installer — an obligation of a
-different kind from NDI's. JUCE 8 is used under its free **Starter** licence; libspatialaudio is **LGPL-2.1+**
-and statically linked, with the relink offer in [`LICENSE`](LICENSE) §5. See **[Licensing](#licensing)**.
-
-ArtLux was **designed & built by Zaki Jawhari and Bérenger Recoules**.
+NDI® is a registered trademark of Vizrt NDI AB.
