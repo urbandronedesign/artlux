@@ -1,0 +1,22 @@
+[package]
+name = "artlux-syphon-sys"
+version = "0.0.0"
+edition = "2021"
+description = "Flat Rust bindings over the Objective-C Syphon framework (macOS). No napi — see lib.rs."
+
+# rlib, NOT cdylib. This crate is linked BY the napi addon and BY the selftest example, and the
+# separation is the whole reason it exists as its own crate:
+#
+# a napi crate's generated registration code references Node's `napi_*` symbols, which resolve only
+# because a .node is linked with `-undefined dynamic_lookup`. An EXECUTABLE (a cargo example) linked
+# against that same crate has no such escape and fails at link time. Putting the Objective-C and its
+# bindings one level down means the loopback selftest — the thing that buys back most of the
+# blindness of building this without a Mac — can be an ordinary binary that links no Node at all.
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+
+[build-dependencies]
+# Compiles src/shim.m. Harmless on Windows: build.rs skips the whole step off macOS.
+cc = "1"

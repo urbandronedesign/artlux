@@ -11,6 +11,16 @@ ArtLux Show on in **System Settings ▸ Privacy & Security ▸ Local Network**.
 
 See [NDI](docs/NDI.md).
 
+### Syphon on macOS
+
+ArtLux Show on macOS receives a **Syphon** server as a surface's content, so the output of Resolume,
+MadMapper, TouchDesigner, Isadora, VDMX or Millumin plays on your surfaces and fixtures with no file and
+no network: the picture stays on the graphics card. It is Spout's counterpart on the Mac. Servers are
+listed as **App — Name**, because many apps publish one unnamed server. A moment of nothing after you
+switch servers is normal while the two apps connect.
+
+See [Syphon](docs/SYPHON.md).
+
 ## v0.35.0
 
 ### ArtLux is now two apps: ArtLux Show and ArtLux Calibrator

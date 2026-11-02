@@ -18,6 +18,7 @@ import * as bootReport from '../bootReport';
 import { plugin as ndi } from '@artlux/plugin-ndi/main';
 import { plugin as calibration } from '@artlux/plugin-calibration/main';
 import { plugin as spout } from '@artlux/plugin-spout/main';
+import { plugin as syphon } from '@artlux/plugin-syphon/main';
 import { plugin as hap } from '@artlux/plugin-hap/main';
 import { plugin as showControl } from '@artlux/plugin-show-control/main';
 import { plugin as audio } from '@artlux/plugin-audio/main';
@@ -31,8 +32,8 @@ import { bakeMainPlugin } from '@artlux/plugin-bake/main';
 //   suite       everything, as before the split.
 const FIRST_PARTY: MainPlugin[] =
   __ARTLUX_APP__ === 'calibrator' ? [calibration, hap, shader]
-  : __ARTLUX_APP__ === 'show' ? [ndi, spout, hap, showControl, audio, shader, bakeMainPlugin]
-  : [ndi, calibration, spout, hap, showControl, audio, shader, bakeMainPlugin];
+  : __ARTLUX_APP__ === 'show' ? [ndi, spout, syphon, hap, showControl, audio, shader, bakeMainPlugin]
+  : [ndi, calibration, spout, syphon, hap, showControl, audio, shader, bakeMainPlugin];
 
 let activated = false;
 let deactivated = false;

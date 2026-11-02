@@ -47,6 +47,7 @@ const DROP = {
     'native/audio-engine/audio_engine.node', 'resources/fixture-library', 'scripts/lidar-emitter.cjs',
     'native/spout-receiver/spout-receiver.node', 'native/ndi/ndi.node', 'build/ndi/NDI-Runtime.exe',
     'native/ndi/macos/ndi.node', 'native/ndi/macos/libndi.dylib',
+    'native/syphon-receiver/syphon-receiver.node', 'native/syphon-receiver/Syphon.framework',
     'scripts/install-watchdog-task.ps1', 'scripts/uninstall-watchdog-task.ps1', 'scripts/watchdog-check.ps1',
   ],
 }[app];
@@ -58,7 +59,7 @@ const config = {
   win: { ...base.win, extraResources: keep(base.win?.extraResources) },
   // macOS has its own per-platform list too (NDI: ndi.node + libndi.dylib) — filtered the same way, or
   // the Calibrator would ship the NDI it leaves out on Windows.
-  mac: { ...base.mac, extraResources: keep(base.mac?.extraResources) },
+  mac: { ...base.mac, extraResources: keep(base.mac?.extraResources), extraFiles: keep(base.mac?.extraFiles) },
   directories: { ...base.directories, output: `release/${app}` },
 };
 

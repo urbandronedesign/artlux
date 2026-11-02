@@ -2071,6 +2071,114 @@ check(
   },
 );
 
+// ── Syphon is GPU-only too, and its IOSurface is given back ────────────────────────────────────
+check(
+  'Syphon delivers GPU textures only — and the IOSurface reference is released on every path',
+  'Syphon is the macOS twin of the Spout check above, and every word of that reasoning applies: no ' +
+  'pixel-readback path, not even as a silent fallback, and every VideoFrame closed on replacement. ' +
+  'But it carries ONE HAZARD SPOUT DOES NOT, and it is the whole reason this check exists ' +
+  'separately. On Windows, Electron DUPLICATES the NT handle on import, so the addon owns its copy ' +
+  'and the plugin owes nothing. On macOS, Electron RETAINS the IOSurface instead (Chromium: ' +
+  'ScopedCFTypeRef(io_surface, scoped_policy::RETAIN)) — so the +1 that newSurface handed us is ' +
+  'STILL OURS after the hand-off, whether the import succeeded, failed, or threw. Release it on the ' +
+  'happy path only and a full-resolution surface leaks every time an import fails; forget it and one ' +
+  'leaks every frame, which at 60 Hz is VRAM gone in seconds. That is why the release lives in a ' +
+  'finally, and why this asserts the finally and not merely the call.',
+  () => {
+    const problems = [];
+    const rx = stripComments(read('plugins/syphon/src/syphonReceiver.ts'));
+    for (const [re, what] of [[/new OffscreenCanvas\(/, 'builds a canvas'], [/putImageData/, 'paints pixels'], [/createImageData/, 'allocates ImageData']]) {
+      if (re.test(rx)) problems.push(`syphonReceiver ${what} — Syphon takes textures, not pixels`);
+    }
+    if (!/\.close\(\)/.test(rx)) problems.push('syphonReceiver never closes a VideoFrame — it leaks a GPU image per frame');
+    if (!/syphonIncompatibility/.test(rx)) problems.push('syphonReceiver no longer reports incompatibility — a machine that cannot do this must be told');
+    // Same comment-preservation rule as Spout: this file is a near-copy, and a copy made without the
+    // measurement grows a retirement queue back. `raw`, not `read` — it asserts a COMMENT.
+    if (!/createImageBitmap/.test(raw('plugins/syphon/src/syphonReceiver.ts'))) {
+      problems.push('syphonReceiver lost the note on why closing a frame on replacement is safe for async readers — without it someone will add a grace period again');
+    }
+    // THE macOS-SPECIFIC ONE. The release must be unconditional, so require the finally that makes
+    // it so — a bare releaseSurface() on the success path is the bug this is here to catch.
+    const mgr = stripComments(read('plugins/syphon/src/syphonManager.ts'));
+    if (!/releaseSurface/.test(mgr)) problems.push('syphonManager never releases the IOSurface — Electron RETAINS it, so our +1 leaks a surface per frame');
+    if (!/finally\s*\{[\s\S]*?releaseSurface/.test(mgr)) {
+      problems.push('syphonManager releases the IOSurface outside a finally — a failed or throwing import would leak it');
+    }
+    if (!/Incompatibility/.test(mgr)) problems.push('syphonManager no longer reports why Syphon is unavailable');
+    // The addon must keep the GPU surface entry point and the release that balances it.
+    const lib = stripComments(read('native/syphon-receiver/src/lib.rs'));
+    if (!/fn receive_shared/.test(lib)) problems.push('the addon no longer exposes receive_shared — the GPU path is gone');
+    if (!/fn release_surface/.test(lib)) problems.push('the addon no longer exposes release_surface — nothing can give the +1 back');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── No raw NUL bytes in source ─────────────────────────────────────────────────────────────────
+check(
+  'no source file contains a raw NUL byte',
+  'A NUL inside a string literal is legal JavaScript and compiles, runs and typechecks without a ' +
+  'murmur — so nothing catches it. Git does: its binary heuristic keys on NUL in the first 8 KB, and ' +
+  'a file that trips it is marked -text, which silently turns OFF line-ending normalisation. The ' +
+  'result is a 3,700-line phantom diff on a file whose actual change was one line, a review nobody ' +
+  'can read, and a merge conflict surface across the whole file. That happened here: a composite-key ' +
+  'separator meant to be a space went in as U+0000, in three files, and the first symptom was ' +
+  'Timeline.tsx appearing wholly rewritten. A control character IS a legitimate key separator — the ' +
+  'timeline already joins with \\x01 and that is fine — but WRITE IT AS AN ESCAPE (\'\\u0001\'), so ' +
+  'the bytes on disk stay ASCII and the intent is visible to the next reader. NUL specifically is ' +
+  'never worth it, because it is the one byte git treats as "this is not text".',
+  () => {
+    const bad = [];
+    for (const f of [...walk('src'), ...walk('shared'), ...walk('plugins'), ...walk('packages')]) {
+      // Bytes, not text: the whole point is a character that reading as UTF-8 would hide.
+      if (fs.readFileSync(path.join(ROOT, f)).includes(0x00)) bad.push(f);
+    }
+    return bad.length
+      ? `raw NUL byte in ${bad.join(', ')} — write it as an escape (\\u0001) or use a printable separator`
+      : null;
+  },
+);
+
+// ── Spout and Syphon are siblings, and the operator can actually REACH Syphon ──────────────────
+check(
+  'Syphon has a door, and every file that knows about Spout knows about Syphon',
+  'Syphon is Spout on the other OS. The behaviour lives in a plugin, but the places that DISPATCH on ' +
+  'content type are core and hardcoded — the picker row in ContentEditor, the STREAMED sets in ' +
+  'App/ProjectorApp, the timeline conflict check, the atlas key. A content-source plugin can ' +
+  'contribute its editor but NOT its own button, so a new type is only half-added until core names ' +
+  'it, and every one of those sites fails silently: no button means the feature is unreachable, and ' +
+  'a missing STREAMED entry means projector outputs treat it as SELF_RENDER and render NOTHING while ' +
+  'the editor preview looks perfect. Both of those were real, in this repo, on this branch — the ' +
+  'plugin was complete, shipped, CI-green and had no way to select it. The rule that catches it is ' +
+  'blunt on purpose: the two are siblings, so a file that names one must name the other. If you are ' +
+  'adding a THIRD GPU-share source, generalise this check rather than deleting it. See also the ' +
+  'repo\'s standing lesson that "it already exists" is never the answer to "I cannot find it".',
+  () => {
+    const problems = [];
+    // Sibling parity, by file. Cheap, and it finds a new dispatch site the day someone adds one.
+    // Comment-stripped (via read), so a passing mention in prose does not satisfy the rule.
+    const files = [...walk('src'), ...walk('shared')];
+    for (const f of files) {
+      const src = read(f);
+      for (const [a, b] of [['SourceType.SPOUT', 'SourceType.SYPHON'], ['spoutName', 'syphonName']]) {
+        if (src.includes(a) && !src.includes(b)) {
+          problems.push(`${f} handles ${a} but not ${b} — the two are siblings and divergence is always a bug`);
+        }
+      }
+    }
+    // The door itself. A button that only exists inside a platform conditional still counts: the
+    // point is that the type is reachable somewhere, not that it is always visible.
+    const editor = read('src/renderer/components/ContentEditor.tsx');
+    if (!/pickType\(SourceType\.SYPHON\)/.test(editor)) {
+      problems.push('ContentEditor has no Syphon button — the content type cannot be selected, so the plugin is unreachable');
+    }
+    // And a glyph with no help entry is the exact shape of a feature that ships and is never found.
+    if (!/content\.syphon/.test(read('src/renderer/help/entries/content.ts'))) {
+      problems.push('no content.syphon help entry — a picker glyph with no help is how a shipped feature stays invisible');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── The output port copies its frames, and does not transfer them ─────────────────────────────
 check(
   'frames are POSTED to the output port, never transferred',

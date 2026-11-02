@@ -3,6 +3,11 @@
 # build would stop being verifiably idempotent (run twice ⇒ empty `git diff`).
 resources/fixture-library/** -text eol=lf
 
+# Shell scripts must stay LF. They are authored on Windows and run on a macOS CI runner, and a CRLF
+# shebang fails there with `bad interpreter: /usr/bin/env bash^M` — which names the interpreter, not
+# the line endings, and so reads as a broken toolchain rather than a broken checkout.
+*.sh text eol=lf
+
 graphify-out/graph.json filter=lfs diff=lfs merge=lfs -text
 graphify-out/graph.html filter=lfs diff=lfs merge=lfs -text
 graphify-plugins/graph.json filter=lfs diff=lfs merge=lfs -text

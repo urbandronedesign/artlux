@@ -21,6 +21,7 @@ import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
 import { plugin as calibration } from '@artlux/plugin-calibration/playback';
 import { plugin as spout } from '@artlux/plugin-spout/renderer';
+import { plugin as syphon } from '@artlux/plugin-syphon/renderer';
 import { plugin as hap } from '@artlux/plugin-hap/renderer';
 import { plugin as mp4 } from '@artlux/plugin-mp4';
 import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
@@ -38,7 +39,7 @@ import { bakeRendererPlugin } from '@artlux/plugin-bake/renderer';
 // shaders (the UV checker and the test cards are shader surfaces).
 const FIRST_PARTY: RendererPlugin[] =
   __ARTLUX_APP__ === 'calibrator' ? [calibration, hap, mp4, shader]
-  : [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, text, shader, showControl, audio, bakeRendererPlugin];
+  : [lidarTracking, ndi, calibration, spout, syphon, hap, mp4, mediapipe, augmenta, text, shader, showControl, audio, bakeRendererPlugin];
 
 // EVERY PLUGIN ACTIVATES. The launch profile no longer decides that, because calibration is two
 // halves and only one of them is expensive:

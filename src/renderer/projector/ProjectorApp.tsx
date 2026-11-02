@@ -42,7 +42,7 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 const SELF_RENDER = new Set<string>([
   SourceType.IMAGE, 'EFFECT', SourceType.TRACKING, SourceType.MEDIAPIPE, SourceType.AUGMENTA, 'SHADER', 'TEXT',
 ]);
-const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.SYPHON, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
 /**
  * A surface's own opacity, 0..1 — the value frameEngine has always applied for the LED sampler, the 2D
  * preview and the 3D scene, and which no projector ever read.

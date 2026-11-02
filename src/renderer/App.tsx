@@ -4278,7 +4278,7 @@ const App: React.FC = () => {
   // layers all stream — only IMAGE / EFFECT self-render in the projector. Decoding the same
   // media in every window otherwise exhausts the GPU's concurrent hardware-decode sessions.
   useEffect(() => {
-      const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
+      const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.SYPHON, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
       // ── BACK-PRESSURE ENDS AT THE RECEIVER, NOT AT postMessage ─────────────────────────────────
       // A stream key (a surfaceId, or `<out>:scene:<layer>` / `<out>:bg` / `<out>:surf:<ref>`) stays
       // busy from its createImageBitmap until the projector window says it RECEIVED the bitmap

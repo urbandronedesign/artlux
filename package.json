@@ -35,6 +35,7 @@
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "build:calib": "powershell -ExecutionPolicy Bypass -File scripts/build-calib.ps1",
     "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
+    "build:syphon": "bash scripts/build-syphon.sh",
     "package": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && npm run verify:asio && electron-vite build && npm run verify:resources && electron-builder --publish never && npm run verify:macsign",
     "package:dir": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && npm run verify:asio && electron-vite build && npm run verify:resources && electron-builder --dir",
     "package:show": "node scripts/package-app.cjs show",
@@ -243,6 +244,10 @@
         {
           "from": "native/ndi/macos/libndi.dylib",
           "to": "libndi.dylib"
+        },
+        {
+          "from": "native/syphon-receiver/syphon-receiver.node",
+          "to": "syphon-receiver.node"
         }
       ],
       "extendInfo": {
@@ -250,7 +255,13 @@
         "NSBonjourServices": [
           "_ndi._tcp"
         ]
-      }
+      },
+      "extraFiles": [
+        {
+          "from": "native/syphon-receiver/Syphon.framework",
+          "to": "Frameworks/Syphon.framework"
+        }
+      ]
     },
     "linux": {
       "icon": "build/icon.png",

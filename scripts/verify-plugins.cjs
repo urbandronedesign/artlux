@@ -39,7 +39,7 @@ const APP = process.env.ARTLUX_APP ?? 'suite';
 // What each app carries — mirrors FIRST_PARTY in src/main/host/plugins.ts and src/renderer/host/plugins.ts.
 const CARRIES = {
   suite: null, // everything
-  show: { renderer: null, main: ['ndi', 'spout', 'hap', 'show-control', 'audio', 'shader', 'bake'] },
+  show: { renderer: null, main: ['ndi', 'spout', 'syphon', 'hap', 'show-control', 'audio', 'shader', 'bake'] },
   calibrator: { renderer: ['calibration', 'hap', 'mp4', 'shader'], main: ['calibration', 'hap', 'shader'] },
 }[APP];
 if (CARRIES === undefined) { console.error(`ARTLUX_APP must be suite, show or calibrator — got "${APP}"`); process.exit(2); }
@@ -80,6 +80,8 @@ const CHECKS = [
   { plugin: 'bake',           where: 'renderer', marker: 'bake:chunk',           note: 'bake client plugin-IPC channel' },
   { plugin: 'spout',          where: 'renderer', marker: 'spout:configure',      note: 'spoutReceiver plugin-IPC channel' },
   { plugin: 'spout',          where: 'main',     marker: 'spout] native receiver loaded', note: 'spoutManager native-load log' },
+  { plugin: 'syphon',         where: 'renderer', marker: 'syphon:configure',     note: 'syphonReceiver plugin-IPC channel' },
+  { plugin: 'syphon',         where: 'main',     marker: 'syphon] native receiver loaded', note: 'syphonManager native-load log' },
   { plugin: 'hap',            where: 'renderer', marker: 'hap:decode',           note: 'hapDecode plugin-IPC channel' },
   { plugin: 'hap',            where: 'main',     marker: 'hap] native decoder loaded', note: 'hapManager native-load log' },
   { plugin: 'mp4',            where: 'renderer', marker: 'mp4-webcodecs',        note: 'mp4Codec id (renderer-only)' },

@@ -266,7 +266,8 @@ export enum SourceType {
   IMAGE = 'IMAGE',
   CAMERA = 'CAMERA',
   DMX_IN = 'DMX_IN',
-  SPOUT = 'SPOUT',
+  SPOUT = 'SPOUT',       // Windows GPU texture share (@artlux/plugin-spout)
+  SYPHON = 'SYPHON',     // macOS GPU texture share — the Spout sibling (@artlux/plugin-syphon)
   NDI = 'NDI',           // network video (NDI receive)
   LAYER = 'LAYER',       // a single timeline track (by layerId)
   PROGRAM = 'PROGRAM',   // the whole timeline composited (all contributing layers, z-ordered)
@@ -289,6 +290,11 @@ export interface SurfaceContent {
   type: SourceType | 'EFFECT' | (string & {});
   url?: string;        // VIDEO / IMAGE object URL or file path
   spoutName?: string;  // SPOUT sender name (empty = active sender)
+  // SYPHON identity is a PAIR, not a name. A Syphon server's own name is frequently empty and the
+  // application is what identifies it, so matching on the name alone would pick the wrong server (or
+  // none). Both empty = active server, mirroring spoutName's convention. See docs/SYPHON.md.
+  syphonName?: string;
+  syphonAppName?: string;
   ndiName?: string;    // NDI source name (empty = first discovered)
   // CAMERA — WHICH video input to open. Absent ⇒ the OS default device, which is what a camera surface
   // ALWAYS used before: `getUserMedia({ video: true })` and no way to say otherwise. On a machine with
