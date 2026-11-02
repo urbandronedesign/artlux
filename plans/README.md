@@ -31,6 +31,9 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > [2026-10-25-suite-session-record.md](2026-10-25-suite-session-record.md) — the ArtLux suite on
 > `feat/artlux-suite`: Phases 1–5 built (ArtLux Show + ArtLux Calibrator, the Launcher), the UV checker on open,
 > per-projector calibration files, the close-dialog data-loss fix; measurements, the incident, what is open.
+> [2026-11-02-suite-release-session-record.md](2026-11-02-suite-release-session-record.md) — v0.34.2 (a GPU
+> reset killed the editor: bridge catch + editor recovery), the merge plan, pre-release support, the NDI
+> fallback, v0.35.0 + Launcher 0.1.4 released and tested installed; traps and test tools.
 
 ### How these were produced (and how much to trust them)
 

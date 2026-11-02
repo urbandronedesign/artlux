@@ -1,8 +1,11 @@
 # ArtLux as a suite — ArtLux Show and ArtLux Calibrator
 
-> **Status:** In progress (2026-10-25) · **Phase 1 built** on `feat/artlux-suite`, not merged · owner's decisions recorded in §2a. Do not build during
-> show-preparation weeks: every phase touches plugin activation in the projector windows, which is where
-> the 2026-10-24 black-projector bug lived.
+> **Status:** **Done — shipped in v0.35.0 (2026-11-02)** with Launcher 0.1.4. Phases 1–5 built on
+> `feat/artlux-suite`, tested installed from `v0.35.0-rc.2`, and fast-forwarded into `main` (`c237e89`). The
+> merge, the release pipeline's pre-release support and every installed-build test are in the
+> [2026-11-02 record](2026-11-02-suite-release-session-record.md). Owner's decisions recorded in §2a.
+> (Original caution, kept for later work in this area: every phase touched plugin activation in the projector
+> windows, which is where the 2026-10-24 black-projector bug lived — re-test projectors after any change there.)
 
 ## 1. Where things are now (measured 2026-10-25, installed v0.34.1, RTX test box)
 
