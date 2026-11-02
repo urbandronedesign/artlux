@@ -34,12 +34,22 @@ async fn main() {
         println!("   no ArtLux install found");
     }
     for i in &scan.installs {
+        println!("   product : {}", i.product);
         println!("   version : {}", if i.version.is_empty() { "(none recorded)" } else { &i.version });
         println!("   dir     : {}", i.dir);
         println!("   exe     : {}", i.exe);
         println!("   scope   : {}", if i.per_user { "per-user" } else { "per-machine" });
         println!("   found by: {}", i.found_by);
     }
+    // THE INSTALL THE LAUNCHER ACTS ON — chosen exactly as App.tsx chooses `primary`: ArtLux Show (or
+    // the one ArtLux from before the suite), per-machine first. Every section below that needs "the"
+    // install uses this. It used `installs.first()`, which on a machine with both apps of the suite was
+    // the CALIBRATOR (2026-11-02, v0.35.0-rc.2): the machine check then ran the Calibrator's preflight and
+    // reported the audio engine — which the Calibrator ships without, by design — as dead.
+    let shows: Vec<_> = scan.installs.iter().filter(|i| i.product == "show").collect();
+    let primary = shows.iter().find(|i| !i.per_user).or(shows.first()).copied();
+    let calibrator_install = scan.installs.iter().find(|i| i.product == "calibrator");
+    println!("   acts on : {}", primary.map(|i| i.dir.as_str()).unwrap_or("(no ArtLux Show)"));
     println!("   duplicate install state: {}", scan.duplicate);
     println!("   ArtLux running now     : {}", runner::artlux_running());
     // The point of install.rs: the Uninstall key's InstallLocation is empty on every real install,
@@ -66,7 +76,7 @@ async fn main() {
                 println!("   !! that does not look like base64 SHA-512 (expected 88 chars ending '==')");
                 failures += 1;
             }
-            if let Some(i) = scan.installs.iter().find(|i| !i.version.is_empty()) {
+            if let Some(i) = primary.filter(|i| !i.version.is_empty()) {
                 println!("   newer than installed {}: {}", i.version, releases::is_newer(&r.version, &i.version));
             }
             Some(r)
@@ -77,6 +87,21 @@ async fn main() {
             None
         }
     };
+    // ArtLux Calibrator, from the same release. Before the first suite release this is a NOTE (the
+    // release has no calibrator.yml), not a failure; after it, its metadata must name ITS installer.
+    match releases::resolve_latest_product("calibrator").await {
+        Ok(c) => {
+            println!("   calibrator: {} / {} ({} bytes)", c.tag, c.file, c.size);
+            if !c.file.to_ascii_lowercase().starts_with("artlux-calibrator-") {
+                println!("   !! calibrator.yml names an installer that is not the Calibrator's");
+                failures += 1;
+            }
+            if let Some(i) = calibrator_install.filter(|i| !i.version.is_empty()) {
+                println!("   calibrator newer than installed {}: {}", i.version, releases::is_newer(&c.version, &i.version));
+            }
+        }
+        Err(e) => println!("   calibrator: {e}"),
+    }
 
     line();
     println!("2b. RELEASE FILTERING  (two products, one repo)");
@@ -337,7 +362,7 @@ async fn main() {
         line();
         println!("7. OPEN A PROJECT IN ARTLUX");
         line();
-        match (scan.installs.first(), projects::scan(&projects::effective_roots(&projects::load_config()), |_| {}).entries.first()) {
+        match (primary, projects::scan(&projects::effective_roots(&projects::load_config()), |_| {}).entries.first()) {
             (Some(inst), Some(proj)) => {
                 println!("   exe    : {}", inst.exe);
                 println!("   project: {}", proj.path);
@@ -384,7 +409,7 @@ async fn main() {
     line();
     println!("8. EXAMPLE GALLERY");
     line();
-    if let Some(inst) = scan.installs.first() {
+    if let Some(inst) = primary {
         let sets = examples::list(&inst.dir);
         if sets.is_empty() {
             println!("   !! no example sets found in {}", examples::examples_dir(&inst.dir).display());
@@ -445,7 +470,7 @@ async fn main() {
         // The bundled copy is what makes a PRE-install check possible; in a dev tree it is the one
         // sync-preflight.cjs wrote. Prefer the installed copy exactly as main.rs does.
         let bundled = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources").join("preflight.ps1");
-        let installed = scan.installs.first().map(|i| std::path::Path::new(&i.dir).join("resources").join("scripts").join("preflight.ps1"));
+        let installed = primary.map(|i| std::path::Path::new(&i.dir).join("resources").join("scripts").join("preflight.ps1"));
         let script = installed.filter(|p| p.is_file()).unwrap_or(bundled);
         println!("   script: {}", script.display());
         println!("   winget: {}", preflight::winget_available());
@@ -456,7 +481,7 @@ async fn main() {
         }
 
         let t = std::time::Instant::now();
-        match preflight::run(&script, scan.installs.first().map(|i| i.dir.as_str())) {
+        match preflight::run(&script, primary.map(|i| i.dir.as_str())) {
             Ok(r) => {
                 println!("   ran in {:?}: {} pass / {} warn / {} fail / {} skip (from {})",
                     t.elapsed(), r.summary.pass, r.summary.warn, r.summary.fail, r.summary.skip, r.from);
@@ -482,7 +507,7 @@ async fn main() {
                     println!("     {:<5} {:<22} {}", it.status, it.id, it.detail);
                 }
                 // The install the script found must be the one we told it about, not a guess.
-                if let (Some(inst), Some(found)) = (scan.installs.first(), r.results.iter().find(|i| i.id == "install.found")) {
+                if let (Some(inst), Some(found)) = (primary, r.results.iter().find(|i| i.id == "install.found")) {
                     if found.status == "PASS" && !found.detail.eq_ignore_ascii_case(&inst.dir) {
                         println!("   !! -InstallDir was ignored: script found {} but we passed {}", found.detail, inst.dir);
                         failures += 1;
@@ -639,7 +664,7 @@ async fn main() {
         line();
         // The whole chain minus the button's onClick: WebView2 does not receive synthetic keystrokes,
         // so the React handler is the one link automation cannot drive here.
-        match scan.installs.first() {
+        match primary {
             Some(inst) => {
                 let ws = std::env::temp_dir().join("artlux-create-e2e");
                 let _ = std::fs::remove_dir_all(&ws);
