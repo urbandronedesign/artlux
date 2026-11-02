@@ -16,7 +16,6 @@
 // prove only that it is self-consistent; driving the app's own reader with the solver's output and
 // comparing the colour that comes back is what makes it a round trip.
 
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -32,13 +31,16 @@ fs.writeFileSync(entry, `
 export * from ${JSON.stringify(path.join(ROOT, 'src/renderer/services/colorEngine').replace(/\\/g, '/'))};
 export { resolveFixture } from ${JSON.stringify(path.join(ROOT, 'src/renderer/services/fixtureSignal').replace(/\\/g, '/'))};
 `, 'utf8');
+// esbuild's JS API, not `node node_modules/esbuild/bin/esbuild`: that file is a JS shim only on Windows.
+// On macOS and Linux esbuild's install step REPLACES it with the native binary, so running it through
+// node is a SyntaxError — this check was red on every Mac and never on the machine it was written on.
 try {
-  execFileSync(process.execPath, [
-    path.join(ROOT, 'node_modules', 'esbuild', 'bin', 'esbuild'),
-    entry, '--bundle', '--platform=node', '--format=cjs', `--outfile=${bundle}`, '--log-level=error',
-  ], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+  require('esbuild').buildSync({
+    entryPoints: [entry], bundle: true, platform: 'node', format: 'cjs', outfile: bundle, logLevel: 'error',
+    absWorkingDir: ROOT,
+  });
 } catch (e) {
-  console.error('could not bundle the colour engine:', e.stderr ? e.stderr.toString() : e.message);
+  console.error('could not bundle the colour engine:', e.message);
   process.exit(1);
 }
 const E = require(bundle);
