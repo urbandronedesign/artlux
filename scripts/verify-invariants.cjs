@@ -7264,6 +7264,34 @@ check(
   },
 );
 
+check(
+  'macOS ships a real NDI: built in CI, libndi beside it, and the Local Network declaration',
+  'Until v0.35.0 the only ndi.node was a committed WINDOWS prebuilt, packaged for Windows only, so NDI ' +
+  'was "unavailable" on every Mac and nothing said so (found 2026-11-02). Each link below fails ' +
+  'silently on its own: no mac extraResources = no addon; no libndi.dylib beside it or no @loader_path ' +
+  'rpath = the addon will not load on a Mac without NDI Tools; and on macOS 15+ an app that does not ' +
+  'declare NSLocalNetworkUsageDescription + NSBonjourServices (_ndi._tcp) is quietly handed NO sources ' +
+  'by Bonjour — NDI looks loaded and finds nothing.',
+  () => {
+    const problems = [];
+    // raw(), not read(): read() strips comments, and package.json's "out/**/*" glob opens a block comment.
+    const pkg = JSON.parse(raw('package.json'));
+    const mac = pkg.build?.mac ?? {};
+    const froms = (mac.extraResources ?? []).map((r) => (typeof r === 'string' ? r : r.from));
+    for (const f of ['native/ndi/macos/ndi.node', 'native/ndi/macos/libndi.dylib'])
+      if (!froms.includes(f)) problems.push(`package.json build.mac.extraResources does not ship ${f}`);
+    if (!mac.extendInfo?.NSLocalNetworkUsageDescription) problems.push('build.mac.extendInfo lacks NSLocalNetworkUsageDescription — macOS 15 hides every NDI source');
+    if (!(mac.extendInfo?.NSBonjourServices ?? []).includes('_ndi._tcp')) problems.push('build.mac.extendInfo.NSBonjourServices does not list _ndi._tcp — NDI discovery is blocked on macOS 15');
+    if (!/rpath,@loader_path/.test(read('native/ndi/build.rs'))) problems.push('native/ndi/build.rs no longer adds the @loader_path rpath — ndi.node cannot find the libndi.dylib shipped beside it');
+    const ci = read('.github/workflows/build.yml');
+    if (!/cargo build --release --features ndi --manifest-path native\/ndi\/Cargo\.toml/.test(ci) || !/node scripts\/stage-ndi-macos\.cjs/.test(ci))
+      problems.push('.github/workflows/build.yml no longer builds + stages the macOS NDI addon');
+    const pa = read('scripts/package-app.cjs');
+    if (!/mac:\s*\{\s*\.\.\.base\.mac,\s*extraResources:\s*keep\(/.test(pa)) problems.push('scripts/package-app.cjs does not filter mac.extraResources per product');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

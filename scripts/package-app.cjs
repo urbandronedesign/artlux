@@ -46,6 +46,7 @@ const DROP = {
   calibrator: [
     'native/audio-engine/audio_engine.node', 'resources/fixture-library', 'scripts/lidar-emitter.cjs',
     'native/spout-receiver/spout-receiver.node', 'native/ndi/ndi.node', 'build/ndi/NDI-Runtime.exe',
+    'native/ndi/macos/ndi.node', 'native/ndi/macos/libndi.dylib',
     'scripts/install-watchdog-task.ps1', 'scripts/uninstall-watchdog-task.ps1', 'scripts/watchdog-check.ps1',
   ],
 }[app];
@@ -55,6 +56,9 @@ const config = {
   ...base,
   extraResources: keep(base.extraResources),
   win: { ...base.win, extraResources: keep(base.win?.extraResources) },
+  // macOS has its own per-platform list too (NDI: ndi.node + libndi.dylib) — filtered the same way, or
+  // the Calibrator would ship the NDI it leaves out on Windows.
+  mac: { ...base.mac, extraResources: keep(base.mac?.extraResources) },
   directories: { ...base.directories, output: `release/${app}` },
 };
 
@@ -77,7 +81,7 @@ if (app === 'show') {
   const fs = require('node:fs');
   if (fs.existsSync(path.join(ROOT, 'build/icon-calibrator.ico'))) config.win.icon = 'build/icon-calibrator.ico';
   if (fs.existsSync(path.join(ROOT, 'build/icon-calibrator.png'))) {
-    config.mac = { ...base.mac, icon: 'build/icon-calibrator.png' };
+    config.mac = { ...config.mac, icon: 'build/icon-calibrator.png' }; // config.mac, not base: keep the filtered list
     config.linux = { ...base.linux, icon: 'build/icon-calibrator.png' };
   }
 }

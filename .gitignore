@@ -21,6 +21,9 @@ native/**/target
 # users don't need the (gated) SDK — they only install the free NDI Runtime. Rebuild with
 # `npm run build:ndi` (needs the SDK + LLVM) and re-commit when native/ndi/src changes.
 !native/ndi/ndi.node
+# The macOS NDI addon is NOT committed: CI builds it against the NDI SDK for Apple and stages it here
+# with libndi.dylib beside it (scripts/stage-ndi-macos.cjs).
+native/ndi/macos/
 # …and the prebuilt projector-calibration addon (our small build artifact, like ndi.node): committed
 # so CI/end users don't need OpenCV to RUN it. Rebuild with `npm run build:calib` (needs OpenCV 4.11
 # + LLVM); re-commit when native/calib/src changes.

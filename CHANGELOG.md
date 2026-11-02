@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### NDI works on macOS
+
+NDI was never available on a Mac: the app did not contain it. ArtLux Show for macOS now carries NDI
+itself, with nothing else to install. The first time it looks for NDI sources, macOS asks whether ArtLux
+may find devices on your local network — answer **Allow**, or the list stays empty. If you said no, turn
+ArtLux Show on in **System Settings ▸ Privacy & Security ▸ Local Network**.
+
+See [NDI](docs/NDI.md).
+
 ## v0.35.0
 
 ### ArtLux is now two apps: ArtLux Show and ArtLux Calibrator

@@ -84,9 +84,41 @@ jobs:
         run: npm run fetch:redist && npm run fetch:opencv
 
       # NDI: native/ndi/ndi.node is a committed prebuilt (Windows, built against the NDI SDK),
-      # so CI doesn't build it — build:native covers output-engine + spout + hap only.
+      # so CI doesn't build it on Windows — build:native covers output-engine + spout + hap only.
       - name: Build native engine
         run: npm run build:native
+
+      # NDI ON macOS — built here, because nothing else ever built it: until v0.35.0 the only ndi.node was
+      # the Windows prebuilt, packaged for Windows only, so NDI was silently "unavailable" on every Mac.
+      # The NDI SDK for Apple comes from NDI's own server (the same host as the Windows runtime fallback in
+      # scripts/fetch-redist.cjs); its .pkg is checked to be signed by NDI's publisher before it is
+      # installed. scripts/stage-ndi-macos.cjs then ships libndi.dylib beside ndi.node, fixes the library
+      # path, re-signs, LOADS it and fails this job unless the NDI runtime answers — and verify:resources
+      # below fails the package if the two files are not there.
+      - name: Install the NDI SDK for Apple
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/ndi-sdk.pkg" \
+            "https://downloads.ndi.tv/SDK/NDI_SDK_Mac/Install_NDI_SDK_v6_Apple.pkg"
+          sig=$(pkgutil --check-signature "$RUNNER_TEMP/ndi-sdk.pkg" || true)
+          echo "$sig"
+          echo "$sig" | grep -Eqi 'signed by a (developer )?certificate trusted|Status: signed' || { echo "::error::NDI SDK pkg is not validly signed"; exit 1; }
+          echo "$sig" | grep -Eqi 'vizrt|newtek|ndi' || { echo "::error::NDI SDK pkg is not signed by NDI's publisher"; exit 1; }
+          sudo installer -pkg "$RUNNER_TEMP/ndi-sdk.pkg" -target /
+          for d in "/Library/NDI SDK for Apple" "/Library/NDI SDK for macOS" "/Library/NDI 6 SDK"; do
+            if [ -d "$d" ]; then echo "NDI_SDK_DIR=$d" >> "$GITHUB_ENV"; echo "NDI SDK at $d"; break; fi
+          done
+
+      - name: Build + stage the NDI addon (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          # grafton-ndi generates its bindings with bindgen, which needs libclang: Xcode's toolchain has it.
+          lc="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+          [ -f "$lc/libclang.dylib" ] && export LIBCLANG_PATH="$lc"
+          cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml
+          node scripts/stage-ndi-macos.cjs
 
       # The JUCE audio engine, built STRICTLY (build:native only warns, so it cannot be relied on to
       # fail the job). This compiles native/audio-engine with cmake-js and copies the addon to

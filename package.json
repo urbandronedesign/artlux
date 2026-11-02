@@ -234,7 +234,23 @@
       ],
       "category": "public.app-category.utilities",
       "identity": "-",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "extraResources": [
+        {
+          "from": "native/ndi/macos/ndi.node",
+          "to": "ndi.node"
+        },
+        {
+          "from": "native/ndi/macos/libndi.dylib",
+          "to": "libndi.dylib"
+        }
+      ],
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "ArtLux finds and sends NDI video sources on your local network.",
+        "NSBonjourServices": [
+          "_ndi._tcp"
+        ]
+      }
     },
     "linux": {
       "icon": "build/icon.png",

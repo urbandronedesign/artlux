@@ -15,8 +15,12 @@ NDI® is a registered trademark of Vizrt NDI AB.
 ## For users — installation & use
 
 ### 1. Install the NDI Runtime (one time)
-ArtLux ships the NDI integration, but the actual NDI runtime library is provided by Vizrt (free).
-Install either:
+**On macOS there is nothing to install**: ArtLux Show carries NDI's own library inside the app. The first
+time NDI looks for sources, macOS asks whether ArtLux may **find devices on your local network** —
+answer **Allow**, or the source list stays empty (see [Troubleshooting](#on-a-mac-the-list-is-empty-and-macos-never-asked)).
+
+On Windows and Linux, the NDI runtime library is provided by Vizrt (free). The Windows installer installs
+it for you; otherwise install either:
 
 - **NDI Tools** — <https://ndi.video/tools/> (recommended: also gives **Studio Monitor** to view
   output and **Test Patterns** to generate a test source), or
@@ -114,8 +118,22 @@ the VPN on. If this is ever hardened: keep one long-lived finder, retry the conn
 *not found* vs *connected, no frames* to the source picker.
 
 ### Packaging
-`win.extraResources` ships `native/ndi/ndi.node` (Windows only — NDI is Windows-first). `build/installer.nsh`
-is a template to silently install the NDI Runtime during install/update once you bundle the redist.
+`win.extraResources` ships `native/ndi/ndi.node` (the committed Windows prebuilt) and the NDI Runtime
+installer, which `build/installer.nsh` runs silently.
+
+**macOS (from v0.35.1) is built in CI, never committed.** Until then NDI did not exist on a Mac: the only
+`ndi.node` was the Windows one. The macOS job installs the **NDI SDK for Apple** (its `.pkg` from
+`downloads.ndi.tv`, signature checked), builds with `--features ndi`, and
+[`scripts/stage-ndi-macos.cjs`](../scripts/stage-ndi-macos.cjs) puts `ndi.node` and `libndi.dylib` in
+`native/ndi/macos/` — the library path rewritten to `@rpath/libndi.dylib`, an `@loader_path` rpath
+(`native/ndi/build.rs`), both re-signed — then **loads it and fails the job unless `runtimeAvailable()`
+is true**. `mac.extraResources` ships both into `Contents/Resources`. `mac.extendInfo` declares
+`NSLocalNetworkUsageDescription` and `NSBonjourServices: _ndi._tcp`: on macOS 15 and later, without them
+Bonjour silently returns no sources. ArtLux Calibrator leaves NDI out on every platform
+(`scripts/package-app.cjs`). `verify:invariants` guards each of these links.
+
+To build it on a Mac by hand: install the NDI SDK for Apple, then
+`cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/stage-ndi-macos.cjs`.
 
 <!-- audience:operator -->
 
@@ -145,6 +163,16 @@ tools, not in ArtLux.
 
 Confirm the network half independently before suspecting ArtLux: if **NDI Studio Monitor** on the same
 machine cannot see the source either, nothing in this app will change that.
+
+### On a Mac, the list is empty and macOS never asked
+
+macOS 15 and later only lets an app look for devices on the local network after you allow it. ArtLux asks
+the first time NDI searches; if that was answered **Don't Allow**, every search comes back empty without
+any error. Open **System Settings ▸ Privacy & Security ▸ Local Network**, turn **ArtLux Show** on, and quit
+and reopen it. If ArtLux is not in that list at all, it has not searched yet: open an NDI source picker
+once, and answer the question when it appears.
+
+On an ArtLux older than **v0.35.1**, NDI does not exist on a Mac at all — update.
 
 ### The source is in the list, but the surface says "No signal"
 
