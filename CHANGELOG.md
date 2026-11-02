@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.35.0
 
 ### ArtLux is now two apps: ArtLux Show and ArtLux Calibrator
 
