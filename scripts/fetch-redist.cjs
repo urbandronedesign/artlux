@@ -39,6 +39,12 @@ const REDISTS = [
     // NDI's own permanent short-link for the v6 redistributable (documented in the NDI SDK's
     // "Redistribution" section). Redirects to downloads.ndi.tv.
     url: 'https://ndi.link/NDIRedistV6',
+    // ⚠ THE SHORT-LINK SERVICE IS A SEPARATE POINT OF FAILURE. On 2026-11-02 ndi.link answered HTTP 500
+    // to every request while downloads.ndi.tv itself was fine, and the Windows job of v0.35.0-rc.1
+    // failed on it. The file the short link redirects to, fetched directly, was byte-identical to the
+    // one shipped since (same SHA-256, 6.3.2.0, signed Vizrt AG) — so it is the fallback, tried only
+    // when the short link fails. The short link stays first because it follows NDI's newest v6 build.
+    fallback: 'https://downloads.ndi.tv/SDK/NDI_SDK/NDI%206%20Runtime.exe',
     dst: path.join(ROOT, 'build', 'ndi', 'NDI-Runtime.exe'),
     minBytes: 5 * 1024 * 1024,
   },
@@ -61,7 +67,14 @@ const REDISTS = [
     // line is what made the failing build ambiguous to read, because the runner's log only flushed it
     // when the NEXT process printed, stamping the two with the same timestamp.
     console.log(`[redist] ${r.name}: downloading…`);
-    const size = await download(r.url, r.dst, { label: 'redist', minBytes: r.minBytes });
+    let size;
+    try {
+      size = await download(r.url, r.dst, { label: 'redist', minBytes: r.minBytes });
+    } catch (e) {
+      if (!r.fallback) throw e;
+      console.log(`[redist] ${r.name}: ${r.url} failed (${e.message}) — trying ${r.fallback}`);
+      size = await download(r.fallback, r.dst, { label: 'redist', minBytes: r.minBytes });
+    }
     console.log(`[redist] ${r.name}: done (${(size / 1e6).toFixed(1)} MB) → ${path.relative(ROOT, r.dst)}`);
   }
   console.log('[redist] redistributables ready.');
