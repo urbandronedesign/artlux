@@ -26,9 +26,6 @@ name: Syphon (macOS gate)
 # artlux is public, so the minutes are unbilled (see the CI-artifact-storage note in the repo docs).
 
 on:
-  # By hand, on any branch: the suite port (feat/syphon) and anything after it needs this gate run
-  # before a merge, and the push trigger below only ever watched the original `syphon` branch.
-  workflow_dispatch:
   push:
     branches: [syphon]
     paths:
