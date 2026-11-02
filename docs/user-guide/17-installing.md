@@ -18,6 +18,14 @@ something goes wrong, [INSTALL.md](../INSTALL.md) is the long one.
 installs ArtLux and everything ArtLux needs, checks that the machine can actually run a show, finds
 your projects, and opens them.
 
+**ArtLux is two apps**, and the Launcher installs and updates each one from its own card:
+
+- **ArtLux Show** builds and runs the show. Every show machine needs it.
+- **ArtLux Calibrator** aligns the projectors. Install it on the machine you calibrate with, and on a
+  show machine that recalibrates on a schedule. See [ArtLux Calibrator](19-artlux-calibrator.md).
+
+An ArtLux from before the split (v0.34 and older) becomes ArtLux Show when it updates, in place.
+
 It exists because installing used to be a *procedure* rather than a download, and because ArtLux
 itself cannot help you before it is installed or when it is broken.
 
@@ -30,19 +38,18 @@ Four tabs:
 | **Examples** | the example sets ArtLux ships, copied somewhere you can actually save |
 | **Health** | the preflight — can this machine run a show? |
 
-**Which mode a project opens in** is chosen on the Projects tab, above the list, and applies to the
+**Which app a project opens in** is chosen on the Projects tab, above the list, and applies to the
 Examples tab too:
 
-- **Normal** — the editor as it ships.
-- **Calibration** — the editor *plus* the projector‑alignment workbench, so a machine you are about
-  to align comes up ready. This is the same thing as **File ▸ Open Calibration Workbench…** inside
-  ArtLux, except that the in‑app route has to save and restart the app to get there, and this one
-  does not. See [Projector calibration](10-calibration.md).
+- **ArtLux Show** — to build and run the show.
+- **ArtLux Calibrator** — to align the projectors. It writes the calibration into the same project;
+  **File ▸ Open in ArtLux Show…** hands the project back. If ArtLux Calibrator is not installed, the
+  Launcher says so instead of opening the Show.
 
-The choice is remembered. It needs ArtLux **0.25.1 or newer**; on an older install the launcher says
-so rather than opening the ordinary editor and letting you hunt for the missing **Calib** rail entry.
-And a mode can only be chosen for an ArtLux that is *starting* — if one is already running, the
-project opens in it, in whatever mode that copy was launched in, and the launcher tells you so.
+The choice is remembered. With an ArtLux from before the split, the same control reads **Normal** and
+**Calibration** (the editor plus the alignment workbench; it needs ArtLux **0.25.1 or newer**). And the
+choice applies only to an app that is *starting* — if one is already running, the project opens in it,
+and the launcher tells you so.
 
 Three things the Install tab does that are worth knowing:
 

@@ -23,9 +23,18 @@ in a venue does not go stale:
 | | Download |
 |---|---|
 | **Launcher** (recommended for a venue PC) | [`ArtLuxLauncher-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe) |
-| ArtLux — Windows | [`ArtLux-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Setup-x64.exe) |
-| ArtLux — macOS (Apple Silicon) | [`ArtLux-arm64.dmg`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-arm64.dmg) |
-| ArtLux — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) |
+| ArtLux Show — Windows | [`ArtLux-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Setup-x64.exe) |
+| ArtLux Show — macOS (Apple Silicon) | [`ArtLux-arm64.dmg`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-arm64.dmg) |
+| ArtLux Show — Linux | [`ArtLux-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-x86_64.AppImage) |
+| ArtLux Calibrator — Windows | [`ArtLux-Calibrator-Setup-x64.exe`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Calibrator-Setup-x64.exe) |
+| ArtLux Calibrator — macOS (Apple Silicon) | [`ArtLux-Calibrator-arm64.dmg`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Calibrator-arm64.dmg) |
+| ArtLux Calibrator — Linux | [`ArtLux-Calibrator-x86_64.AppImage`](https://github.com/urbandronedesign/artlux/releases/latest/download/ArtLux-Calibrator-x86_64.AppImage) |
+
+**Which do you need?** Every machine that plays a show needs **ArtLux Show**; it also plays a
+calibrated rig, live or from a calibration file. Add **ArtLux Calibrator** on the machine you align
+projectors with, and on a show machine that recalibrates on a schedule. The two install side by side
+and open the same project files — see [ArtLux Calibrator](user-guide/19-artlux-calibrator.md). (Up to
+v0.34, ArtLux was one app with calibration inside; updating it turns it into ArtLux Show, in place.)
 
 These are fixed-name copies published beside the versioned assets, not replacements for them. The
 versioned files — `ArtLux-<version>-x64.exe` and the rest — are what you go to

@@ -15,6 +15,9 @@ generative content, light and sound across **projectors, LED rigs, DMX lighting 
 reacts to the people in the room: tracked bodies, sensors and show control drive what happens next.
 It runs on Windows, macOS and Linux, and it is built to run a show unattended.
 
+It comes as two apps that open the same project: **ArtLux Show**, which builds and runs the show, and
+**ArtLux Calibrator**, which aligns the projectors to the venue.
+
 Designed and built by Zaki Jawhari and Bérenger Recoules. Free for education and non-commercial use —
 see [Licence](#licence).
 
@@ -36,10 +39,13 @@ see [Licence](#licence).
   updates when you save it ([surfaces](docs/SURFACES.md), [3D scene](docs/user-guide/09-3d-scene.md)).
 - **Projectors** — corner-pin and Bézier warp, soft edges, one picture spanning several projectors
   ([outputs](docs/OUTPUTS.md)).
-- **Projection-mapping calibration** — align projectors to the venue model by hand, with structured light, or
-  with a markerless camera auto-align; blend overlapping projectors on the GPU; import and export
-  **MPCDI** calibration files; warp and blend at the scanout on NVIDIA Quadro / RTX
-  ([calibration](docs/CALIBRATION.md), [auto-align](docs/AUTO-ALIGN.md), [NVIDIA warp](docs/NVWARP.md)).
+- **Projection-mapping calibration**, in **ArtLux Calibrator** — align projectors to the venue model by
+  hand, with structured light, or with a markerless camera auto-align; blend overlapping projectors on
+  the GPU; import and export **MPCDI** calibration files, chosen per projector; recalibrate on a
+  schedule, handing the machine over from the show and back. ArtLux Show plays the result, and warps
+  and blends at the scanout on NVIDIA Quadro / RTX
+  ([ArtLux Calibrator](docs/user-guide/19-artlux-calibrator.md), [calibration](docs/CALIBRATION.md),
+  [auto-align](docs/AUTO-ALIGN.md), [NVIDIA warp](docs/NVWARP.md)).
 - **LED pixel mapping** — fixtures sampled per LED on the GPU, sent over **Art-Net / sACN** by a native
   output engine, with device discovery and ArtSync ([LED map](docs/LEDMAP.md)).
 - **DMX lighting** — moving heads and other fixtures from a [fixture library](docs/FIXTURE-LIBRARY.md), over
@@ -70,8 +76,8 @@ see [Licence](#licence).
 
 ### Around it
 
-- **The Launcher** — a small separate app that installs ArtLux, checks the machine, finds your projects and
-  opens the example gallery ([Launcher](docs/LAUNCHER.md)).
+- **The Launcher** — a small separate app that installs and updates ArtLux Show and ArtLux Calibrator,
+  checks the machine, finds your projects and opens the example gallery ([Launcher](docs/LAUNCHER.md)).
 - **Plugins** — features are built as plugins on an internal SDK ([plugins](docs/PLUGINS.md)).
 
 The full tour is in **[docs/FEATURES.md](docs/FEATURES.md)**.
@@ -80,7 +86,8 @@ The full tour is in **[docs/FEATURES.md](docs/FEATURES.md)**.
 
 The easiest way onto a Windows machine is the **Launcher** —
 [download it](https://github.com/urbandronedesign/artlux/releases/download/launcher-latest/ArtLuxLauncher-Setup-x64.exe).
-It installs ArtLux, verifies the download, sets up what the machine needs and checks it can run a show.
+It installs ArtLux Show and, on a machine you calibrate with, ArtLux Calibrator; it verifies each
+download, sets up what the machine needs and checks it can run a show.
 
 Downloads for Windows, macOS and Linux, installing by hand, and what to expect on first launch:
 **[docs/INSTALL.md](docs/INSTALL.md)**.

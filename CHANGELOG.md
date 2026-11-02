@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### ArtLux is now two apps: ArtLux Show and ArtLux Calibrator
+
+**Read this before you update a machine you calibrate on.**
+
+- **ArtLux Show** builds and runs the show. Your installed ArtLux becomes ArtLux Show when it updates,
+  in the same folder, with the same settings, recent projects and preferences.
+- **ArtLux Calibrator** aligns the projectors. It is a **separate download**: ArtLux Show no longer
+  contains the calibration workbench. Install it on the machine you calibrate with, and on a show
+  machine that recalibrates on a schedule.
+- Both open **the same project file**. **File ▸ Open in ArtLux Calibrator…** in the Show, and
+  **File ▸ Open in ArtLux Show…** in the Calibrator, save the project and switch apps. Only one of the
+  two runs at a time, because only one may drive the projectors.
+- **Playing a calibration does not need the Calibrator.** ArtLux Show plays a calibrated rig, live or
+  from a calibration file, exactly as before.
+- A scheduled recalibration now hands the machine to ArtLux Calibrator and back to the Show.
+- The **Launcher** (update it to 0.1.4) installs, updates and opens both apps.
+
+See [ArtLux Calibrator](docs/user-guide/19-artlux-calibrator.md) and
+[the Launcher](docs/LAUNCHER.md#install).
+
+### When a calibration file is older than the calibration, the Calibrator offers to update it
+
+Handing a project back to ArtLux Show checks the calibration file the show plays from. If you have
+calibrated or blended since it was exported, ArtLux Calibrator offers to export it again, replacing the
+file, before it hands over.
+
+### Choose the calibration file for each projector
+
+Calibration files can now be loaded side by side, and each projector can take its region from any of
+them, or none, instead of all of them coming from one file. See
+[Calibration ▸ Per projector](docs/user-guide/10-calibration.md#per-projector--which-part-of-which-file).
+
+### Fixes
+
+- A "Save before closing?" question left open for more than four seconds no longer closes the window
+  anyway and loses the unsaved work.
+
 ### Calibration code loads only when you calibrate
 
 A show no longer loads the calibration engine (OpenCV) or the calibration wizards at startup. They
