@@ -440,6 +440,11 @@ cargo run --example selftest -- --open      # + open a project, cold and with Ar
 **Run the self-test after touching `install.rs` or `releases.rs`.** It fails if detection ever
 resolves by *path guess*, which is how the registry gotcha would silently come back.
 
+**Testing against an app pre-release.** A `v*` tag with a hyphen (`v0.35.0-rc.1`) publishes as a
+pre-release, which the Launcher skips — that is what keeps a test build off venue machines. To point a
+Launcher at one, start it with `ARTLUX_LAUNCHER_PRERELEASE=1` in its environment: app pre-releases are
+then resolved like real ones, for that process only. Nothing else reads the variable.
+
 > ⚠ **The self-test is a cargo EXAMPLE, never a `[[bin]]`.** As a second binary in the crate it became
 > a bundle candidate and `tauri build` shipped *it* as the launcher: launcher-v0.1.0's installer
 > deployed the console self-test under the launcher's name, with a Start Menu shortcut that ran a

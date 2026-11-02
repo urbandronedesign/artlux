@@ -194,6 +194,16 @@ pub async fn list_tags() -> Result<Vec<String>, String> {
     Ok(tags)
 }
 
+/// TESTING A PRE-RELEASE. A hyphenated tag (`v0.35.0-rc.1`) is published as a pre-release, and the
+/// resolver below skips pre-releases — which is what keeps a test build off every venue. But it also
+/// means the Launcher itself could never be tested against an RC before the real release, and the
+/// suite's first one is exactly when it most needs to be. `ARTLUX_LAUNCHER_PRERELEASE=1` in the
+/// environment lets app pre-releases through, for this process only. Launcher releases are not
+/// affected (they are pre-releases by design and matched by their own prefix).
+fn allow_prerelease() -> bool {
+    std::env::var("ARTLUX_LAUNCHER_PRERELEASE").map(|v| v == "1").unwrap_or(false)
+}
+
 /// The newest release of ArtLux SHOW (or, before the suite, of the one ArtLux) — `latest.yml`.
 pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
     resolve_latest_product("show").await
@@ -213,7 +223,8 @@ pub fn meta_file(product: &str) -> &'static str {
 pub async fn resolve_latest_product(product: &str) -> Result<ReleaseInfo, String> {
     let meta = meta_file(product);
     let http = client()?;
-    let rel = newest_release(&http, |r| !r.prerelease && is_app_tag(&r.tag_name), "ArtLux release").await?;
+    let pre = allow_prerelease();
+    let rel = newest_release(&http, |r| (pre || !r.prerelease) && is_app_tag(&r.tag_name), "ArtLux release").await?;
 
     // The metadata is fetched from the TAG, not from /latest/download: resolving the tag once and
     // pinning it means the metadata and the installer cannot come from two different releases if a
