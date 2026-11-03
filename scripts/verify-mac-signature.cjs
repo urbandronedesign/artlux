@@ -70,4 +70,66 @@ if (failed) {
   );
   process.exit(1);
 }
+
+// ── NO BINARY MAY ASK FOR A NEWER macOS THAN ELECTRON ITSELF ─────────────────────────────────────
+// A signature can be perfect and the app still half-dead: every Mach-O records the oldest macOS it
+// will load on (LC_BUILD_VERSION minos), and a build with no deployment target stamps the RUNNER's
+// version. The v0.35.0 audio engine said "minos 26.0" — on macOS 13 dlopen refused it, the plugin
+// degraded gracefully, and the app played no sound with nothing on screen to say why. The floor is
+// read from the Electron binary rather than typed here, so an Electron upgrade moves it by itself.
+const ver = (v) => `${v >>> 16}.${(v >> 8) & 255}`;
+// Each Mach-O slice's minos (fat binaries carry one per architecture), or [] for a non-Mach-O file.
+function minosOf(file) {
+  const fd = fs.openSync(file, 'r');
+  const head = Buffer.alloc(4);
+  fs.readSync(fd, head, 0, 4, 0);
+  fs.closeSync(fd);
+  const fat = head.readUInt32BE(0) === 0xcafebabe;
+  if (!fat && head.readUInt32LE(0) !== 0xfeedfacf) return [];
+  const b = fs.readFileSync(file);
+  const offsets = fat
+    ? Array.from({ length: b.readUInt32BE(4) }, (_, i) => b.readUInt32BE(8 + i * 20 + 8))
+    : [0];
+  return offsets.map((off) => {
+    let p = off + 32;
+    for (let i = 0, n = b.readUInt32LE(off + 16); i < n; i++) {
+      const cmd = b.readUInt32LE(p);
+      if (cmd === 0x32) return b.readUInt32LE(p + 12); // LC_BUILD_VERSION
+      if (cmd === 0x24) return b.readUInt32LE(p + 8); //  LC_VERSION_MIN_MACOSX (older toolchains)
+      p += b.readUInt32LE(p + 4);
+    }
+    return 0;
+  });
+}
+// The ONE exemption: NDI's own runtime library, which we ship but cannot rebuild — NDI 6 for Apple
+// is built for macOS 13. Below that the app still runs and only NDI is unavailable (the ndi plugin
+// degrades on a failed load), which docs/NDI.md states. Anything else above the floor is ours.
+const EXEMPT = new Set(['libndi.dylib']);
+let tooNew = false;
+for (const app of apps) {
+  const before = tooNew;
+  tooNew = false;
+  const floor = Math.max(...minosOf(path.join(app, 'Contents', 'MacOS', path.basename(app, '.app'))));
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const f = path.join(dir, e.name);
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) { walk(f); continue; }
+      const worst = Math.max(0, ...minosOf(f));
+      if (worst <= floor) continue;
+      const rel = path.relative(app, f);
+      if (EXEMPT.has(e.name)) { console.log(`[verify-mac-signature] minos ${ver(worst)} allowed: ${rel}`); continue; }
+      console.error(`[verify-mac-signature] ${rel} needs macOS ${ver(worst)} — the app itself runs on ${ver(floor)}`);
+      tooNew = true;
+    }
+  };
+  walk(app);
+  if (!tooNew) console.log(`[verify-mac-signature] ${path.basename(app)}: every binary loads on macOS ${ver(floor)}`);
+  tooNew = tooNew || before;
+}
+if (tooNew) {
+  console.error('[verify-mac-signature] FAILED — set a deployment target on the build that made it ' +
+    '(CMAKE_OSX_DEPLOYMENT_TARGET / MACOSX_DEPLOYMENT_TARGET), or it will not load on older Macs.');
+  process.exit(1);
+}
 console.log('[verify-mac-signature] OK');

@@ -16,7 +16,8 @@ NDI® is a registered trademark of Vizrt NDI AB.
 ## For users — installation & use
 
 ### 1. Install the NDI Runtime (one time)
-**On macOS there is nothing to install**: ArtLux Show carries NDI's own library inside the app. The first
+**On macOS there is nothing to install**: ArtLux Show carries NDI's own library inside the app. It needs
+**macOS 13 or later** — NDI's library is built for it; on macOS 12 ArtLux runs without NDI. The first
 time NDI looks for sources, macOS asks whether ArtLux may **find devices on your local network** —
 answer **Allow**, or the source list stays empty (see [Troubleshooting](#on-a-mac-the-list-is-empty-and-macos-never-asked)).
 

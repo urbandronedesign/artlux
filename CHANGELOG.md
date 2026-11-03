@@ -21,6 +21,12 @@ switch servers is normal while the two apps connect.
 
 See [Syphon](docs/SYPHON.md).
 
+### Sound works on Macs older than macOS 26
+
+On a Mac running anything older than macOS 26, ArtLux played no sound at all, and nothing said why: the
+audio engine had been built for the newest macOS only. It now runs on every macOS ArtLux itself runs on
+(12 and later).
+
 ## v0.35.0
 
 ### ArtLux is now two apps: ArtLux Show and ArtLux Calibrator

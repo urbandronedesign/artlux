@@ -114,6 +114,15 @@ const cmakeArgs = [];
 // re-checks the ARTIFACT rather than trusting that any of this worked.
 cmakeArgs.push('--CDARTLUX_ENABLE_ASIO=' + (wantAsio ? 'ON' : 'OFF'));
 
+// ⚠ PIN THE MINIMUM macOS, OR THE ADDON REQUIRES THE BUILD MACHINE'S. With no deployment target CMake
+// takes the SDK's own version, so the CI runner's macOS 26 SDK produced an addon stamped "minos 26.0":
+// on macOS 13 — and every Mac older than the runner — dlopen refuses it, the audio plugin degrades
+// gracefully, and the app plays NOTHING with no error anyone sees (measured on the v0.35.0 dmg,
+// 2026-11-03). 12.0 is Electron 42's own floor; asking for less buys nothing, since the app will not
+// start below it. Passed every time for the same cache reason as ASIO above. verify:macsign re-checks
+// every Mach-O in the packaged app against the Electron binary's own minimum.
+if (process.platform === 'darwin') cmakeArgs.push('--CDCMAKE_OSX_DEPLOYMENT_TARGET=12.0');
+
 if (wantAsio && asioSdk) {
   if (!fs.existsSync(path.join(asioSdk, 'iasiodrv.h'))) {
     fail('ARTLUX_ASIO_SDK is set to ' + asioSdk + ', but there is no iasiodrv.h there.',
