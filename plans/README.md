@@ -34,6 +34,9 @@ Every plan follows the same 10-section template and carries a one-line `> **Stat
 > [2026-11-02-suite-release-session-record.md](2026-11-02-suite-release-session-record.md) — v0.34.2 (a GPU
 > reset killed the editor: bridge catch + editor recovery), the merge plan, pre-release support, the NDI
 > fallback, v0.35.0 + Launcher 0.1.4 released and tested installed; traps and test tools.
+> [2026-11-03-mac-ndi-syphon-session-record.md](2026-11-03-mac-ndi-syphon-session-record.md) — NDI, Syphon and
+> sound on the Mac (`feat/syphon`, v0.35.1-beta.1/beta.2 pre-releases): the wrong-installer mix-up, the audio
+> engine that needed macOS 26, legacy Syphon's untagged surfaces; the real-Mac results and the retest pending.
 
 ### How these were produced (and how much to trust them)
 
