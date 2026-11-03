@@ -170,6 +170,15 @@ fn main() -> ExitCode {
     syphon::release_surface(f1.surface);
     syphon::release_surface(f2.surface);
 
+    // ── a server built on an OLDER Syphon (the first real-Mac test) ─────────────────────────
+    // Our test server runs on the framework we build, which tags its surface 'BGRA'. TouchDesigner's
+    // does not tag it at all, and the receiver refused every one of its frames. The legacy surface is
+    // made directly, since no server we can run here produces one.
+    r.check(t::accepts(0x42475241, 4) == 1, "a surface tagged BGRA is accepted");
+    r.check(t::accepts(0, 4) == 1, "an untagged 4-byte surface (legacy Syphon: TouchDesigner) is accepted");
+    r.check(t::accepts(0x4C303038, 1) == 0, "a one-channel 'L008' surface is still refused");
+    r.check(t::accepts(0, 2) == 0, "an untagged 2-byte surface is still refused");
+
     // ── a client does not follow its server (§1.1) ──────────────────────────────────────────
     t::server_stop();
     r.check(spin_until(|| !syphon::is_valid(), 3.0), "client goes invalid when its server stops");

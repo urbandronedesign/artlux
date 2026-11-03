@@ -87,6 +87,9 @@ int artlux_syphon_test_connect_direct(void);
  * completes on RUN-LOOP TURNS, not synchronously in -init — so this is the diagnostic that separates
  * "the connection never happened" from "we did not wait for it". */
 int artlux_syphon_test_server_has_clients(void);
+/* Would the format check accept a surface with this pixel format (0 = key absent, as legacy Syphon
+ * servers make them) and this many bytes per pixel? 1 yes, 0 no, -1 the surface could not be made. */
+int artlux_syphon_test_accepts(uint32_t pixel_format, uint32_t bytes_per_element);
 /* Let the run loop turn, so distributed notifications can actually be delivered. */
 void artlux_syphon_runloop_spin(double seconds);
 int artlux_syphon_surface_retain_count(uintptr_t surface);

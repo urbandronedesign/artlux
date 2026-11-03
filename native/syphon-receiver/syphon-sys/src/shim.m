@@ -22,6 +22,23 @@
  * read as the wrong colours with nothing anywhere saying why. */
 #define ARTLUX_BGRA 0x42475241u
 
+/* Can this surface go to Chromium as BGRA?
+ *
+ * ⚠ THE NOTE ABOVE IS TRUE OF THE SYPHON *WE* BUILD, NOT OF THE SERVER'S. Every Syphon app ships its
+ * own copy of the framework, and the surface is created by THAT copy. Older Syphon (the OpenGL
+ * servers — TouchDesigner, and many others) never set kIOSurfacePixelFormat at all: the surface reads
+ * as format 0 with 4 bytes per element, and its bytes are BGRA all the same, because BGRA8 is the only
+ * thing Syphon has ever published. Requiring the 'BGRA' tag refused EVERY frame from TouchDesigner on
+ * the first real-Mac test (2026-11-03, M1 Pro, macOS 13.1) — an empty surface with the server found and
+ * connected. The loopback selftest could not see it: its server is our own, current framework.
+ * So: the tag, or no tag and 4 bytes a pixel. Anything else is still refused. */
+static int artlux_surface_is_bgra(IOSurfaceRef s)
+{
+    OSType fmt = IOSurfaceGetPixelFormat(s);
+    if (fmt == ARTLUX_BGRA) return 1;
+    return (fmt == 0 && IOSurfaceGetBytesPerElement(s) == 4) ? 1 : 0;
+}
+
 static SyphonServerDirectory *gDirectory = nil;
 static SyphonClientBase *gClient = nil;
 static NSString *gWantName = nil;   /* "" means don't care */
@@ -158,18 +175,25 @@ uintptr_t artlux_syphon_new_surface(uint32_t *w, uint32_t *h, uint32_t *pixel_fo
     IOSurfaceRef s = [gClient newSurface];   /* +1 — ours to release. See shim.h. */
     if (s == NULL) return 0;
 
-    OSType fmt = IOSurfaceGetPixelFormat(s);
-    if (fmt != ARTLUX_BGRA) {
+    if (!artlux_surface_is_bgra(s)) {
         /* Defensive, not a supported path: a future Syphon that publishes something else must not
          * be silently reinterpreted as BGRA. Refusing produces an empty surface and a log; guessing
-         * produces wrong colours and no explanation. */
-        NSLog(@"[syphon] refusing surface with unexpected pixel format 0x%08X (want BGRA)", (unsigned)fmt);
+         * produces wrong colours and no explanation. ONE line per format, not one per frame: the
+         * poll asks ~60×/s, and the first Mac test's log was 3,463 copies of this line. */
+        static OSType lastRefused = 0xFFFFFFFFu;
+        OSType fmt = IOSurfaceGetPixelFormat(s);
+        if (fmt != lastRefused) {
+            lastRefused = fmt;
+            NSLog(@"[syphon] refusing surface with unexpected pixel format 0x%08X, %zu bytes/pixel (want BGRA)",
+                  (unsigned)fmt, IOSurfaceGetBytesPerElement(s));
+        }
         CFRelease(s);
         return 0;
     }
     if (w) *w = (uint32_t)IOSurfaceGetWidth(s);
     if (h) *h = (uint32_t)IOSurfaceGetHeight(s);
-    if (pixel_format) *pixel_format = (uint32_t)fmt;
+    /* Normalised: a legacy surface says 0, and every caller should see the BGRA it really is. */
+    if (pixel_format) *pixel_format = ARTLUX_BGRA;
     return (uintptr_t)s;
 }
 
@@ -235,6 +259,22 @@ int artlux_syphon_test_server_has_clients(void)
 void artlux_syphon_runloop_spin(double seconds)
 {
     [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:seconds]];
+}
+
+int artlux_syphon_test_accepts(uint32_t pixel_format, uint32_t bytes_per_element)
+{
+    NSMutableDictionary *props = [@{
+        (id)kIOSurfaceWidth: @16, (id)kIOSurfaceHeight: @16,
+        (id)kIOSurfaceBytesPerElement: @(bytes_per_element),
+    } mutableCopy];
+    /* 0 = leave the key out entirely, which is what a legacy Syphon server does — not the same as
+     * setting it to 0, and the case the format check has to accept. */
+    if (pixel_format) props[(id)kIOSurfacePixelFormat] = @(pixel_format);
+    IOSurfaceRef s = IOSurfaceCreate((__bridge CFDictionaryRef)props);
+    if (s == NULL) return -1;
+    int ok = artlux_surface_is_bgra(s);
+    CFRelease(s);
+    return ok;
 }
 
 int artlux_syphon_surface_retain_count(uintptr_t surface)
