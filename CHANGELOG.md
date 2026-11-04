@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.35.1
 
 ### NDI works on macOS
 

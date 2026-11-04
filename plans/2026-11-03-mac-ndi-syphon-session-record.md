@@ -1,6 +1,8 @@
 # 2026-11-03 — session record: NDI, Syphon and sound on the Mac (v0.35.1-beta.1 → beta.2)
 
-> **Status:** Record (open: the Syphon retest). Written for two readers: the owner, and the next Claude
+> **Status:** Record (closed 2026-11-04). **Syphon passed on the Mac with beta.3 and shipped in v0.35.1** —
+> see [Closing: beta.2, beta.3 and the release](#closing-beta2-beta3-and-the-release) at the end; the
+> tables below are the state on 3 November. Written for two readers: the owner, and the next Claude
 > session on this machine. It follows the [2026-11-02 suite release record](2026-11-02-suite-release-session-record.md)
 > and executes, in part, [syphon-plugin.md](syphon-plugin.md) §9B. Nothing here has reached `main` yet.
 
@@ -91,3 +93,33 @@
   `LC_BUILD_VERSION` from each Mach-O — the same parser now lives in `scripts/verify-mac-signature.cjs`.
 - **Publish a Mac test build:** bump to `0.35.1-beta.N`, commit, push, `git tag v0.35.1-beta.N <sha>` and push
   the tag. A hyphenated tag is a pre-release: public, never Latest, retires nothing.
+
+## Closing: beta.2, beta.3 and the release
+
+**4 November.** Same tester, same Mac (M1 Pro, macOS 13.1), TouchDesigner as the Syphon server.
+
+1. **beta.2 crashed the editor.** Accepting the untagged surface was only half the fix: Chromium checks the
+   same tag, refuses *inside the GPU process* ("IOSurface pixel format does not match specified shared
+   image format", ×384) while `importSharedTexture` returns normally — so nothing in JS saw a failure. The
+   renderer got a `VideoFrame` over a mailbox that did not exist; WebGPU lost its device 11 ms after the
+   first frame and the editor crashed 170 ms later. The project reopened with its Syphon surface, so
+   every recovery reload crashed again: 1/3, 2/3, Safe Mode in under five seconds.
+2. **beta.3 (`54a8600`, `24a8125`):** an untagged frame is **copied into a BGRA-tagged surface** (a ring of
+   three, freed on disconnect) before Chromium sees it; a tagged one still goes straight across. The plugin
+   **trips Syphon off for the session** if the editor dies within 2 s of a delivered frame
+   (`editor-crashed`, documented in SYPHON.md), so a bad source costs one crash, never a loop. The first
+   gate run failed to compile (a function used before its declaration — only the Mac compiler sees the
+   Objective-C); the same log showed `shim.m` compiled for macOS 26.5, now pinned to 11.0 in
+   `build-syphon.sh`.
+3. **beta.3 passed: "everything is working"** — NDI, video sound, and Syphon from TouchDesigner.
+4. **v0.35.1:** version set, CHANGELOG's Unreleased became v0.35.1, the "not yet tested on a Mac" banner
+   left SYPHON.md, the plan's STATUS block records the result; `feat/syphon` fast-forwarded into `main`
+   and tagged. The release retires the three betas to drafts.
+
+**Still not walked on a Mac** (§9B 4, 6, 7, 8): a 10-minute leak watch with Syphon playing, a server
+resize, two surfaces on one server, a projector output — and NDI **send**. The leak watch matters most:
+the copy path adds a ring of surfaces, and a leak there grows silently through a long show.
+
+**Traps added:** Chromium's refusal of an IOSurface is silent to JS — watch the stdout log
+(`artlux-mac.txt`), not the machine log, for `shared_image` errors; and a gate failure on `shim.m` is only
+visible in the `cargo:warning=` lines of the failed step (`gh run view <id> --log-failed`).

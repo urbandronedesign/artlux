@@ -1,8 +1,27 @@
 # Syphon — macOS GPU video receive (`@artlux/plugin-syphon`)
 
-**Branch:** `syphon` · **Written:** 2026-08-08
+**Branch:** `syphon` → `feat/syphon` → `main` (v0.35.1) · **Written:** 2026-08-08
 
-> # ⚠ STATUS: BUILT, GUARDED, GREEN — AND NEVER RUN ON A MAC
+> # STATUS: SHIPPED IN v0.35.1 — TESTED ON A REAL MAC (2026-11-04)
+>
+> Merged to `main` from `feat/syphon` (the August `syphon` branch, ported onto the suite). Tested by the
+> owner's tester on a **MacBook Pro M1 Pro, macOS 13.1**, receiving **TouchDesigner**: the picture appears
+> and moves (§9B steps 1–3, 5). It took three betas — the record is
+> [2026-11-03-mac-ndi-syphon-session-record.md](2026-11-03-mac-ndi-syphon-session-record.md):
+>
+> | | |
+> |---|---|
+> | **beta.1** | TouchDesigner found and connected; the receiver refused every frame — older Syphon never tags the surface's pixel format (it reads 0). |
+> | **beta.2** | Accepting it was half the fix: Chromium checks the tag too, refuses *inside the GPU process* while `importSharedTexture` returns normally, and the editor crashed three times into Safe Mode. |
+> | **beta.3** | An untagged frame is copied into a BGRA-tagged surface (a ring of three) before Chromium sees it; a tagged one still goes straight across. And the editor dying within 2 s of a delivered frame trips Syphon off for the session (`editor-crashed`), so a bad source costs one crash, never a loop. |
+>
+> The two unknowns this plan feared both resolved in Syphon's favour on the real hardware: Chromium
+> accepts a (tagged) Syphon surface, and the picture moves — no frozen first frame, so the §4.6 Metal
+> blit is not needed. **Not yet walked:** §9B step 4 (10-minute leak watch), 6 (server resize),
+> 7 (several consumers), 8 (projector output in the packaged app). The original status block follows
+> for the record.
+
+> # (2026-08-08) STATUS: BUILT, GUARDED, GREEN — AND NEVER RUN ON A MAC
 >
 > **The branch is feature-complete and unmerged. It must be tested on Apple hardware before it is
 > merged or released.** Nothing here has met a real Syphon server in another application, a
