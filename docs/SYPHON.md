@@ -74,13 +74,14 @@ it does **not** fall back to a slower, softer picture. That is deliberate: a sil
 something you can fix into something you can only wonder about.
 
 The reason appears **in the content inspector**, right under the server picker, and on the **startup
-splash** next to the Syphon plugin. Three cases:
+splash** next to the Syphon plugin. Four cases:
 
 | What it says | What it means | What to do |
 |---|---|---|
 | *The Syphon receiver did not load. Syphon is macOS-only.* | The native receiver is missing — you're not on macOS, or the addon wasn't built. | On macOS, run `npm run build:syphon`. On Windows use [Spout](SPOUT.md) instead. |
 | *This build cannot share GPU textures, which Syphon requires.* | The app build lacks the GPU texture-sharing support Syphon needs. | Update to a current build. |
 | *The GPU refused the shared texture.* | The system declined to hand the server's surface to ArtLux. | Rare on macOS — see below. |
+| *Syphon was turned off because the editor stopped while showing this server.* | The editor crashed while Syphon frames were arriving. ArtLux reloaded your project with Syphon off, so the same frames could not crash it again. | Restart ArtLux to try again. If it happens again with the same server, send the log — that server's frames are ones ArtLux cannot show yet. |
 
 ### There is no "both apps on the same GPU" problem here
 

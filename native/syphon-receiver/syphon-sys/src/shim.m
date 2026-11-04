@@ -157,6 +157,7 @@ void artlux_syphon_disconnect(void)
     gClient = nil;
     gWantName = nil;
     gWantApp = nil;
+    artlux_ring_release();  /* up to three full-resolution surfaces — not worth holding with no server */
 }
 
 int artlux_syphon_is_valid(void)
@@ -169,11 +170,86 @@ int artlux_syphon_has_new_frame(void)
     return (gClient != nil && gClient.hasNewFrame) ? 1 : 0;
 }
 
+/* ── re-tagging a legacy surface ─────────────────────────────────────────────────────────────
+ *
+ * ⚠ ACCEPTING AN UNTAGGED SURFACE IS NOT ENOUGH: CHROMIUM CHECKS THE TAG TOO, AND ITS REFUSAL IS
+ * SILENT TO US. Second real-Mac test (2026-11-04, beta.2, TouchDesigner): with the check above relaxed,
+ * Electron's importSharedTexture returned normally, the GPU process logged "IOSurface pixel format does
+ * not match specified shared image format" and made no image, and the renderer was handed a VideoFrame
+ * over a mailbox that did not exist. ~9,000 "non-existent mailbox" errors later the editor's renderer
+ * crashed — three times, into Safe Mode. Nothing on the JS side ever saw a failure to react to.
+ *
+ * So an untagged frame is COPIED into a surface we create with the 'BGRA' tag, and that is what goes to
+ * Chromium. A tagged frame (current Syphon) still goes straight across, no copy. The copy is a locked
+ * memcpy, row by row since the two surfaces may pad rows differently: 3.7 MB a frame at 720p, 33 MB at
+ * 4K — unified memory on Apple Silicon, so no bus to cross. A Metal blit would avoid the CPU touch, and
+ * would pull Metal into a crate built to avoid it (see the import note at the top); measure first.
+ *
+ * A RING of three, not one surface: Electron RETAINS what it imports and Chromium may still be reading
+ * the previous frame while the poll copies the next. Three keeps the surface being written two frames
+ * away from the one on screen. */
+#define ARTLUX_RING 3
+static IOSurfaceRef gRing[ARTLUX_RING];
+static size_t gRingNext = 0;
+
+static IOSurfaceRef artlux_ring_surface(size_t w, size_t h)
+{
+    IOSurfaceRef s = gRing[gRingNext];
+    if (s && (IOSurfaceGetWidth(s) != w || IOSurfaceGetHeight(s) != h)) { CFRelease(s); s = NULL; }
+    if (s == NULL) {
+        NSDictionary *props = @{
+            (id)kIOSurfaceWidth: @(w), (id)kIOSurfaceHeight: @(h),
+            (id)kIOSurfaceBytesPerElement: @4, (id)kIOSurfacePixelFormat: @(ARTLUX_BGRA),
+        };
+        s = IOSurfaceCreate((__bridge CFDictionaryRef)props);
+    }
+    gRing[gRingNext] = s;
+    gRingNext = (gRingNext + 1) % ARTLUX_RING;
+    return s;
+}
+
+static void artlux_ring_release(void)
+{
+    for (size_t i = 0; i < ARTLUX_RING; i++) { if (gRing[i]) CFRelease(gRing[i]); gRing[i] = NULL; }
+    gRingNext = 0;
+}
+
+/* A +1 tagged copy of an untagged BGRA surface, or NULL. The source is left as it was (and still ours). */
+static IOSurfaceRef artlux_retag(IOSurfaceRef src)
+{
+    size_t w = IOSurfaceGetWidth(src), h = IOSurfaceGetHeight(src);
+    IOSurfaceRef dst = artlux_ring_surface(w, h);
+    if (dst == NULL) return NULL;
+    IOSurfaceLock(src, kIOSurfaceLockReadOnly, NULL);
+    IOSurfaceLock(dst, 0, NULL);
+    const uint8_t *from = (const uint8_t *)IOSurfaceGetBaseAddress(src);
+    uint8_t *to = (uint8_t *)IOSurfaceGetBaseAddress(dst);
+    size_t fromBpr = IOSurfaceGetBytesPerRow(src), toBpr = IOSurfaceGetBytesPerRow(dst);
+    size_t row = w * 4;
+    for (size_t y = 0; y < h; y++) memcpy(to + y * toBpr, from + y * fromBpr, row);
+    IOSurfaceUnlock(dst, 0, NULL);
+    IOSurfaceUnlock(src, kIOSurfaceLockReadOnly, NULL);
+    CFRetain(dst);  /* the caller's +1, released through artlux_syphon_release_surface like any frame */
+    return dst;
+}
+
 uintptr_t artlux_syphon_new_surface(uint32_t *w, uint32_t *h, uint32_t *pixel_format)
 {
     if (gClient == nil) return 0;
     IOSurfaceRef s = [gClient newSurface];   /* +1 — ours to release. See shim.h. */
     if (s == NULL) return 0;
+
+    if (IOSurfaceGetPixelFormat(s) != ARTLUX_BGRA && artlux_surface_is_bgra(s)) {
+        static int announced = 0;
+        if (!announced) {
+            announced = 1;
+            NSLog(@"[syphon] server publishes untagged BGRA (an older Syphon) — copying each frame into a tagged surface");
+        }
+        IOSurfaceRef tagged = artlux_retag(s);
+        CFRelease(s);
+        if (tagged == NULL) return 0;
+        s = tagged;
+    }
 
     if (!artlux_surface_is_bgra(s)) {
         /* Defensive, not a supported path: a future Syphon that publishes something else must not
@@ -274,6 +350,31 @@ int artlux_syphon_test_accepts(uint32_t pixel_format, uint32_t bytes_per_element
     if (s == NULL) return -1;
     int ok = artlux_surface_is_bgra(s);
     CFRelease(s);
+    return ok;
+}
+
+int artlux_syphon_test_retag(void)
+{
+    /* An untagged 4-byte surface with a known pixel in it, as a legacy server would publish. */
+    NSDictionary *props = @{
+        (id)kIOSurfaceWidth: @16, (id)kIOSurfaceHeight: @16, (id)kIOSurfaceBytesPerElement: @4,
+    };
+    IOSurfaceRef src = IOSurfaceCreate((__bridge CFDictionaryRef)props);
+    if (src == NULL) return -1;
+    IOSurfaceLock(src, 0, NULL);
+    uint8_t *base = (uint8_t *)IOSurfaceGetBaseAddress(src);
+    *(uint32_t *)(base + 5 * IOSurfaceGetBytesPerRow(src) + 7 * 4) = 0xFF00FF00u;
+    IOSurfaceUnlock(src, 0, NULL);
+
+    IOSurfaceRef dst = artlux_retag(src);
+    int ok = dst != NULL
+        && dst != src
+        && IOSurfaceGetPixelFormat(dst) == ARTLUX_BGRA   /* what Chromium checks */
+        && IOSurfaceGetWidth(dst) == 16 && IOSurfaceGetHeight(dst) == 16
+        && artlux_syphon_surface_pixel((uintptr_t)dst, 7, 5) == 0xFF00FF00u;
+    if (dst) CFRelease(dst);
+    CFRelease(src);
+    artlux_ring_release();
     return ok;
 }
 

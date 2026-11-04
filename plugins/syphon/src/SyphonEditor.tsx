@@ -14,6 +14,7 @@ const REASON: Record<SyphonIncompatibility, string> = {
   // an IOSurface is not tied to one adapter, so suggesting a GPU switch here would send the operator
   // to a setting that does not exist and cannot help.
   'import-failed': 'The GPU refused the shared texture. Check the server is still publishing, and that it is running on this machine.',
+  'editor-crashed': 'Syphon was turned off because the editor stopped while showing this server. Restart ArtLux to try again — and if it happens again, send the log.',
 };
 
 // The Syphon server picker shown in the content inspector when the content type is SYPHON.

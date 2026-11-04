@@ -62,9 +62,21 @@ let currentFps = 0;
 const DEFAULT_FPS = 30;
 
 /** Why Syphon is not running, or null when it is fine. Surfaced to the operator. */
-export type Incompatibility = 'no-native' | 'no-shared-texture' | 'import-failed';
+export type Incompatibility = 'no-native' | 'no-shared-texture' | 'import-failed' | 'editor-crashed';
 
 let incompatible: Incompatibility | null = null;
+/**
+ * Set once, for the rest of the session: the editor's renderer died while we were delivering.
+ *
+ * ⚠ A SYPHON SOURCE MUST COST AT MOST ONE CRASH, NEVER A LOOP. Second real-Mac test (2026-11-04): the
+ * project reopened with a Syphon surface, so every recovery reload re-armed the receiver, the same bad
+ * frames arrived, and the editor died again within a second — 1/3, 2/3, Safe Mode in under five
+ * seconds. Nothing in JS saw a failure to react to (Chromium refused the import inside the GPU
+ * process). So the death itself is the signal: trip, stop, and refuse every start() until restart —
+ * the reload then comes back on the project, without Syphon, saying why.
+ */
+let tripped: Incompatibility | null = null;
+let lastDeliveryAt = 0;
 let onIncompatible: ((why: Incompatibility) => void) | null = null;
 
 /** Did the native receiver load? Reported on the startup splash. */
@@ -102,7 +114,18 @@ function fail(why: Incompatibility): void {
   stop();
 }
 
+/** Were frames handed to the renderer within the last `ms`? */
+export function deliveredWithin(ms: number): boolean { return Date.now() - lastDeliveryAt < ms; }
+
+/** Stop now and refuse every later start() this session. See `tripped`. */
+export function trip(why: Incompatibility): void {
+  tripped = why;
+  console.warn(`[syphon] disabled for this session: ${why}`);
+  fail(why);
+}
+
 export function start(name: string, appName: string, fps: number | undefined): void {
+  if (tripped) { incompatible = null; fail(tripped); return; } // re-announce to the reloaded editor
   if (!native) { fail('no-native'); return; }
   if (!onShared) { fail('no-shared-texture'); return; }
   const rate = Math.max(1, Math.min(240, Math.round(fps || DEFAULT_FPS)));
@@ -150,6 +173,7 @@ function arm(): void {
       s = native!.receiveShared();
       if (!s) return; // nothing to hand over this poll — ordinary, not a failure
       if (!onShared!(s)) fail('import-failed');
+      else lastDeliveryAt = Date.now();
     } catch { /* transient receive error */ }
     finally {
       // ⚠ ALWAYS, AND IN A `finally`. Electron RETAINS the IOSurface on import rather than taking

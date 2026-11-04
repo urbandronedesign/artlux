@@ -69,6 +69,7 @@ mod imp {
         fn artlux_syphon_test_connect_direct() -> c_int;
         fn artlux_syphon_test_server_has_clients() -> c_int;
         fn artlux_syphon_test_accepts(pixel_format: u32, bytes_per_element: u32) -> c_int;
+        fn artlux_syphon_test_retag() -> c_int;
         fn artlux_syphon_runloop_spin(seconds: c_double);
         fn artlux_syphon_surface_retain_count(surface: usize) -> c_int;
         fn artlux_syphon_surface_pixel(surface: usize, x: u32, y: u32) -> u32;
@@ -144,6 +145,7 @@ mod imp {
         pub fn accepts(pixel_format: u32, bytes_per_element: u32) -> i32 {
             unsafe { artlux_syphon_test_accepts(pixel_format, bytes_per_element) }
         }
+        pub fn retag() -> i32 { unsafe { artlux_syphon_test_retag() } }
         pub fn runloop_spin(seconds: f64) { unsafe { artlux_syphon_runloop_spin(seconds) } }
         pub fn retain_count(surface: usize) -> i32 { unsafe { artlux_syphon_surface_retain_count(surface) } }
         pub fn pixel(surface: usize, x: u32, y: u32) -> u32 { unsafe { artlux_syphon_surface_pixel(surface, x, y) } }
@@ -175,6 +177,7 @@ mod imp {
         pub fn connect_direct() -> bool { false }
         pub fn server_has_clients() -> bool { false }
         pub fn accepts(_pixel_format: u32, _bytes_per_element: u32) -> i32 { -1 }
+        pub fn retag() -> i32 { -1 }
         pub fn runloop_spin(_seconds: f64) {}
         pub fn retain_count(_surface: usize) -> i32 { -1 }
         pub fn pixel(_surface: usize, _x: u32, _y: u32) -> u32 { 0 }

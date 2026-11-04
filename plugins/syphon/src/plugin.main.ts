@@ -17,6 +17,16 @@ export const plugin: MainPlugin = {
     // Stop polling before the window goes. Otherwise the poll keeps producing frames into a render
     // frame that is being disposed, and every one of them logs an Electron error on the way out.
     app.on('before-quit', () => syphon.stop());
+    // The editor's renderer died while Syphon frames were reaching it: assume they are why, and keep
+    // Syphon off until restart, so the recovery reload (main/editorRecovery.ts, 1 s later) does not walk
+    // straight back into the same crash. A wrong guess costs one source until restart; a right one is
+    // the difference between one crash and a Safe-Mode loop. 2 s covers the ~170 ms measured between
+    // the first frame and the crash on the Mac, with room.
+    app.on('render-process-gone', (_e, wc, details) => {
+      if (details.reason === 'clean-exit') return;
+      if (wc !== (ctx.window() as BrowserWindow | null)?.webContents) return;
+      if (syphon.deliveredWithin(2000)) syphon.trip('editor-crashed');
+    });
     ipc.handle('syphon:list', () => syphon.listServers());
     ipc.on('syphon:configure', (cfg) => {
       const c = cfg as SyphonConfig;

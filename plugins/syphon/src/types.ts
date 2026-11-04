@@ -23,7 +23,7 @@ export interface SyphonConfig {
 
 // Why Syphon is not running. Syphon is GPU-only — there is no pixel-readback path behind it — so any
 // of these means no picture, and the operator is told rather than silently given a degraded one.
-export type SyphonIncompatibility = 'no-native' | 'no-shared-texture' | 'import-failed';
+export type SyphonIncompatibility = 'no-native' | 'no-shared-texture' | 'import-failed' | 'editor-crashed';
 
 /** A frame: an `IOSurfaceRef` instead of pixels.
  *

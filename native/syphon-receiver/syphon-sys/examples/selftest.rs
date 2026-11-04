@@ -178,6 +178,9 @@ fn main() -> ExitCode {
     r.check(t::accepts(0, 4) == 1, "an untagged 4-byte surface (legacy Syphon: TouchDesigner) is accepted");
     r.check(t::accepts(0x4C303038, 1) == 0, "a one-channel 'L008' surface is still refused");
     r.check(t::accepts(0, 2) == 0, "an untagged 2-byte surface is still refused");
+    // …and accepting it is only half: Chromium checks the tag itself and silently makes no image
+    // (second Mac test — the editor crashed into Safe Mode). The receiver must hand over a TAGGED copy.
+    r.check(t::retag() == 1, "an untagged surface is handed over as a BGRA-tagged copy, pixels intact");
 
     // ── a client does not follow its server (§1.1) ──────────────────────────────────────────
     t::server_stop();
