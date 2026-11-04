@@ -84,7 +84,11 @@ cp -R "$BUILD_DIR/Syphon.framework" "$OUT"
 echo "[build-syphon] $(lipo -archs "$OUT/Versions/A/Syphon" 2>/dev/null || echo '?') -> native/syphon-receiver/Syphon.framework"
 
 # ── 3. Build the crate ──────────────────────────────────────────────────────────────────────────
-cargo build --release --manifest-path "$CRATE/Cargo.toml"
+# The SAME deployment target as the framework, for the shim too. Unset, cc-rs compiles shim.m for the
+# SDK's own macOS (the CI log read -mmacosx-version-min=26.5) while rustc stamps the link 11.0 — so
+# verify:macsign sees a harmless 11.0 over code that may call APIs macOS 13 does not have. The audio
+# engine shipped exactly that gap as "minos 26.0" (2026-11-03); here the stamp would have hidden it.
+MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" cargo build --release --manifest-path "$CRATE/Cargo.toml"
 
 # ── 4. cdylib -> .node ──────────────────────────────────────────────────────────────────────────
 # Deliberately NOT scripts/copy-native.cjs. That script treats output-engine as required and exits 1

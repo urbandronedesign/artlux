@@ -39,6 +39,8 @@ static int artlux_surface_is_bgra(IOSurfaceRef s)
     return (fmt == 0 && IOSurfaceGetBytesPerElement(s) == 4) ? 1 : 0;
 }
 
+static void artlux_ring_release(void);  /* defined with the re-tagging ring, below; disconnect frees it */
+
 static SyphonServerDirectory *gDirectory = nil;
 static SyphonClientBase *gClient = nil;
 static NSString *gWantName = nil;   /* "" means don't care */
