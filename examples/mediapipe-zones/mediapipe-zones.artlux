@@ -1,0 +1,421 @@
+{
+  "version": "1.1",
+  "timestamp": "2026-11-09T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_wall",
+      "name": "Wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "EFFECT",
+        "effectId": 1,
+        "paletteId": 0,
+        "speed": 0.25,
+        "intensity": 0.9,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fx_wall",
+      "name": "Wall strip",
+      "x": 0.08,
+      "y": 0.46,
+      "width": 0.84,
+      "height": 0.08,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 60,
+      "reverse": false,
+      "colorData": [],
+      "source": "MEDIA",
+      "surfaceId": "srf_wall",
+      "shape": "LINE",
+      "colorOrder": "GRB",
+      "rgbwMode": "NONE",
+      "channelsPerPixel": 3
+    }
+  ],
+  "controllers": [],
+  "globalBrightness": 0.8,
+  "groups": [],
+  "scenes": [
+    {
+      "id": "sc_idle",
+      "name": "Idle",
+      "accent": "#60a5fa",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 1,
+            "paletteId": 0,
+            "speed": 0.25,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.46,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_left",
+      "name": "Left",
+      "accent": "#34d399",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 3,
+            "paletteId": 2,
+            "speed": 0.6,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.46,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_right",
+      "name": "Right",
+      "accent": "#fb7185",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 4,
+            "paletteId": 4,
+            "speed": 1,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.46,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_idle"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_show"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_finale"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50,
+    "mediapipeViz": false,
+    "mediapipeArea": {
+      "imageQuad": [
+        [
+          0.15,
+          0.85
+        ],
+        [
+          0.85,
+          0.85
+        ],
+        [
+          0.85,
+          0.15
+        ],
+        [
+          0.15,
+          0.15
+        ]
+      ],
+      "aspect": 1.6
+    },
+    "trackingZones": [
+      {
+        "id": "zn_left",
+        "name": "Left pad",
+        "surface": "POSE",
+        "u0": 0.03,
+        "v0": 0.2,
+        "u1": 0.33,
+        "v1": 0.8,
+        "color": "#f59e0b",
+        "minBlobs": 1,
+        "parts": [
+          "handL",
+          "handR"
+        ]
+      },
+      {
+        "id": "zn_right",
+        "name": "Right pad",
+        "surface": "POSE",
+        "u0": 0.67,
+        "v0": 0.2,
+        "u1": 0.97,
+        "v1": 0.8,
+        "color": "#d946ef",
+        "minBlobs": 1,
+        "parts": [
+          "handL",
+          "handR"
+        ]
+      }
+    ]
+  },
+  "timeline": {
+    "layers": [],
+    "clips": [],
+    "duration": 60,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": false,
+    "trackingTakes": []
+  },
+  "stateMachine": {
+    "enabled": true,
+    "initialStateId": "st_idle",
+    "regions": [],
+    "states": [
+      {
+        "id": "st_idle",
+        "name": "Idle",
+        "sceneId": "sc_idle",
+        "x": 120,
+        "y": 160,
+        "entry": []
+      },
+      {
+        "id": "st_left",
+        "name": "Left",
+        "sceneId": "sc_left",
+        "x": 420,
+        "y": 60,
+        "entry": []
+      },
+      {
+        "id": "st_right",
+        "name": "Right",
+        "sceneId": "sc_right",
+        "x": 420,
+        "y": 260,
+        "entry": []
+      }
+    ],
+    "transitions": [
+      {
+        "id": "tr_idle_left",
+        "from": "st_idle",
+        "to": "st_left",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_left",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_idle_right",
+        "from": "st_idle",
+        "to": "st_right",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_right",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_left_right",
+        "from": "st_left",
+        "to": "st_right",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_right",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_right_left",
+        "from": "st_right",
+        "to": "st_left",
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "zoneId": "zn_left",
+            "edge": "enter"
+          }
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "tr_home",
+        "from": "st_idle",
+        "to": "st_idle",
+        "fromAny": true,
+        "fadeSec": 2,
+        "trigger": {
+          "kind": "plugin",
+          "source": "lidar.zone",
+          "params": {
+            "match": "all",
+            "terms": [
+              {
+                "zone": "zn_left",
+                "edge": "emptyFor",
+                "seconds": 3
+              },
+              {
+                "zone": "zn_right",
+                "edge": "emptyFor",
+                "seconds": 3
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}
