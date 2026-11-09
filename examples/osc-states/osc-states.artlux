@@ -1,0 +1,322 @@
+{
+  "version": "1.1",
+  "timestamp": "2026-11-09T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_wall",
+      "name": "Wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "EFFECT",
+        "effectId": 1,
+        "paletteId": 0,
+        "speed": 0.25,
+        "intensity": 0.9,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fx_wall",
+      "name": "Wall strip",
+      "x": 0.08,
+      "y": 0.46,
+      "width": 0.84,
+      "height": 0.08,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 60,
+      "reverse": false,
+      "colorData": [],
+      "source": "MEDIA",
+      "surfaceId": "srf_wall",
+      "shape": "LINE",
+      "colorOrder": "GRB",
+      "rgbwMode": "NONE",
+      "channelsPerPixel": 3
+    }
+  ],
+  "controllers": [],
+  "globalBrightness": 0.8,
+  "groups": [],
+  "scenes": [
+    {
+      "id": "sc_idle",
+      "name": "Idle",
+      "accent": "#60a5fa",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 1,
+            "paletteId": 0,
+            "speed": 0.25,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.46,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_show",
+      "name": "Show",
+      "accent": "#34d399",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 3,
+            "paletteId": 2,
+            "speed": 0.6,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.46,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_finale",
+      "name": "Finale",
+      "accent": "#fb7185",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 4,
+            "paletteId": 4,
+            "speed": 1,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.46,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_idle"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_show"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_finale"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50
+  },
+  "timeline": {
+    "layers": [],
+    "clips": [],
+    "duration": 60,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": false,
+    "trackingTakes": []
+  },
+  "stateMachine": {
+    "enabled": true,
+    "initialStateId": "st_idle",
+    "regions": [],
+    "states": [
+      {
+        "id": "st_idle",
+        "name": "Idle",
+        "sceneId": "sc_idle",
+        "x": 120,
+        "y": 160,
+        "entry": []
+      },
+      {
+        "id": "st_show",
+        "name": "Show",
+        "sceneId": "sc_show",
+        "x": 360,
+        "y": 160,
+        "entry": []
+      },
+      {
+        "id": "st_finale",
+        "name": "Finale",
+        "sceneId": "sc_finale",
+        "x": 600,
+        "y": 160,
+        "entry": [],
+        "osc": {
+          "address": "/show/finale",
+          "sender": "Tablet"
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "idle_to_show",
+        "from": "st_idle",
+        "to": "st_show",
+        "trigger": {
+          "kind": "osc",
+          "oscAddress": "/show/next",
+          "oscSender": "Tablet"
+        },
+        "fadeSec": 1.5
+      },
+      {
+        "id": "show_to_finale",
+        "from": "st_show",
+        "to": "st_finale",
+        "trigger": {
+          "kind": "osc",
+          "oscAddress": "/show/next",
+          "oscSender": "Tablet"
+        },
+        "fadeSec": 1.5
+      },
+      {
+        "id": "home",
+        "from": "st_idle",
+        "to": "st_idle",
+        "fromAny": true,
+        "trigger": {
+          "kind": "osc",
+          "oscAddress": "/show/home"
+        },
+        "fadeSec": 2
+      }
+    ]
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}
