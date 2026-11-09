@@ -1,7 +1,10 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Line } from '@react-three/drei';
 import * as THREE from 'three';
+// NOT drei's <Line>: its LineMaterial is WebGL-only, and on the WebGPU path (the 3D view's default) a
+// calibration change that reshaped it threw "drawIndexed: Value is infinite" on every frame and froze
+// the whole 3D view (2026-11-09). PolyLine is the host's one line impl for both backends.
+import { PolyLine } from '@/components/Simulator3D/PolyLine';
 import { Scene3D } from '../../../shared/protocol';
 import * as poseStore from './poseStore';
 import { applyH, imageToWorld, type Mat3 } from './poseHomography';
@@ -84,7 +87,7 @@ const PoseViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
 
   return (
     <group>
-      <Line points={geom.line} color={FLOOR_COLOR} lineWidth={1.4} />
+      <PolyLine points={geom.line} color={FLOOR_COLOR} />
       {/* 1×1 geometry sized by `scale`, never by planeGeometry args — a changed args array swaps the
           geometry of a mesh that has already drawn, which freezes the WebGPU 3D view for good (the floor
           calibration resizes it after mount). See TrackingViz. */}

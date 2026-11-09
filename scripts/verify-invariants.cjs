@@ -3674,9 +3674,14 @@ check(
   '(GridLabels.tsx) — in the scene, so they are depth-tested, and built only from parts both renderers ' +
   'draw. drei <Html> stays legitimate: it is a DOM overlay, not a material.',
   () => {
+    // The host's scene AND every plugin file that draws into it (scene-viz contributions are mounted
+    // inside the same Canvas). Scanning only Simulator3D let MediaPipe's PoseViz keep a drei <Line>
+    // for months; reshaping it on a calibration save threw on every frame and froze the 3D view
+    // (2026-11-09). A plugin file is in scope when it imports @react-three/fiber — i.e. it is 3D.
     const DIR = 'src/renderer/components/Simulator3D';
+    const pluginScene = walk('plugins').filter((f) => /\.tsx?$/.test(f) && /@react-three\/fiber/.test(read(f)));
     const problems = [];
-    for (const rel of walk(DIR)) {
+    for (const rel of [...walk(DIR), ...pluginScene]) {
       const src = read(rel);
       if (/<Grid\b/.test(src) || /\bGrid\b[^\n]*from '@react-three\/drei'/.test(src))
         problems.push(rel + " uses drei's <Grid>, whose ShaderMaterial does not run on the node renderer");
