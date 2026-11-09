@@ -70,6 +70,7 @@ import * as bootGate from './services/bootGate';
 import * as openTrace from './services/openTrace';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
+import * as oscInbox from './services/smOscInbox';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, LAYOUT_PREF_KEY, type WorkspaceLayout } from './services/layoutStore';
 import { syncUvCheckers, isUvChecker, onVenueChanged } from './services/uvCheckerSync';
@@ -4158,6 +4159,9 @@ const App: React.FC = () => {
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.
   useEffect(() => oscController.start(), []);
+  // The devices allowed to drive the state machine (Preferences ▸ OSC). Machine-scoped; a project's
+  // OSC triggers name an entry by its name — see services/smOscInbox.
+  useEffect(() => { oscInbox.setSenders(settings.oscSenders); }, [settings.oscSenders]);
   useEffect(() => {
       oscController.setControlPrefix(settings.oscControlPrefix);
       window.artlux?.configureOsc?.({

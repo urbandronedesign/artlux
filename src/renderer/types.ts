@@ -655,6 +655,11 @@ export type SmTriggerKind =
   | 'onMarker'           // when the playhead crosses marker `markerId`
   | 'onClipEnd'          // when the active clip on `layerId` ends (a gap appears)
   | 'onTimelineEnd'      // when the bound timeline reaches its end (not looping) — auto-advance
+  // AN OSC MESSAGE FROM A NAMED DEVICE — `oscAddress`, optionally only from sender `oscSender`. Core,
+  // not a plugin source, because the listener, the sender list and the control namespace it must not
+  // collide with are all core already. A one-frame PULSE (services/smOscInbox), so it goes through the
+  // same guards as every automatic trigger: requireEnd, waitForContent and lock time all still apply.
+  | 'osc'
   // THE WORLD OUTSIDE THE TIMELINE. A trigger whose condition a PLUGIN owns and evaluates: a person
   // entering a LiDAR trigger zone, a pose appearing on a camera, a DMX channel crossing a level.
   //
@@ -670,6 +675,11 @@ export interface SmTrigger {
   time?: number;         // atTime
   markerId?: string;     // onMarker
   layerId?: string;      // onClipEnd
+  oscAddress?: string;   // osc — exact, case-sensitive address, e.g. '/show/next'
+  // osc — the NAME of an AppSettings.oscSenders entry. By name, not id, so a project carried from the
+  // build PC to the venue PC relinks to the venue's own entry of that name (its IPs differ). Empty =
+  // any sender. A name this machine does not have is INERT — never silently widened to "any".
+  oscSender?: string;
   // 'plugin' — which registered trigger source evaluates this, and its own opaque parameters. Core
   // never parses `params`; it hands the object back to the source that authored it (same contract as
   // an AutomationLane's targetPath tail, which only its provider understands).
@@ -685,6 +695,11 @@ export interface SmState {
   sceneId?: string;      // scene auto-recalled on entry (1:1 binding — nodes ARE looks)
   lockSec?: number;      // AutomataUI "lock time": dwell before this state's auto/afterDelay transitions fire
   regionId?: string;     // owning Region (visual grouping — see SmRegion)
+  // OSC JUMP — this address (optionally only from this sender, by name — see SmTrigger.oscSender)
+  // forces entry into this state from ANYWHERE, through requestEnter(). It SKIPS THE GRAPH: no guard,
+  // no transition fade. The hard "go there now" button; an `osc` trigger on a global rule into this
+  // state is the graph-respecting way to the same place.
+  osc?: { address: string; sender?: string };
 }
 export interface SmTransition {
   id: string;
@@ -1741,6 +1756,13 @@ export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefin
       // runEntry() does `for (const a of s.entry)` on state ENTRY — i.e. inside a recall, inside a GO.
       // A missing/junk `entry` (an old save, a hand-edit) is not iterable and throws there.
       entry: Array.isArray(s.entry) ? (s.entry as SmAction[]) : [],
+      // The OSC jump is matched by string compare on every incoming message; a junk shape (a hand-edit)
+      // must read as NO binding rather than reach that compare as `undefined`/an object.
+      osc: (() => {
+        const o = s.osc as { address?: unknown; sender?: unknown } | undefined;
+        if (!o || typeof o !== 'object' || typeof o.address !== 'string' || !o.address.trim()) return undefined;
+        return { address: o.address, ...(typeof o.sender === 'string' && o.sender ? { sender: o.sender } : {}) };
+      })(),
     })),
     transitions: objectsIn(sm.transitions).map((t) => ({
       ...(t as unknown as SmTransition),
@@ -1801,6 +1823,12 @@ export type SurfaceAspect = '16:9' | '16:10' | '4:3' | '21:9' | '1:1';
 //
 // Adding a field here? Ask whose data it is. If the answer is "the show's", it belongs in ProjectData —
 // as `reserveLockedRanges` now does.
+// One external OSC device the state machine may take triggers from (AppSettings.oscSenders).
+export interface OscSender {
+  name: string;   // what a project refers to it by — unique per machine
+  host: string;   // its IPv4 address, as the datagram arrives from it
+  port?: number;  // its SOURCE port; absent/0 = any port from `host`
+}
 export interface AppSettings {
   artNetIp: string;
   artNetPort: number;
@@ -1816,6 +1844,10 @@ export interface AppSettings {
   oscListenPort: number;  // UDP port (installation default: 10000)
   oscListenAddress: string; // bind to a specific local NIC IP (this machine's address); '' = all interfaces
   oscControlPrefix: string; // namespace for external control messages, e.g. '/artlux'
+  // THE DEVICES ALLOWED TO DRIVE THE STATE MACHINE over OSC — machine-scoped, because they are IPs on
+  // THIS venue's network. A project's OSC triggers name an entry here (SmTrigger.oscSender); `port`
+  // absent/0 = any source port from that host (most OSC apps send from a random port). Absent ⇒ [].
+  oscSenders?: OscSender[];
   // Help panel
   helpLang: 'en' | 'fr'; // language for the bilingual Help panel + contextual hints
   // Video decode

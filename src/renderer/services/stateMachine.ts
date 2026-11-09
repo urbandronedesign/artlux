@@ -54,6 +54,10 @@ export interface SmContext {
   // `stateEnteredAtSec`, which is how a source distinguishes "someone just walked in" from "someone
   // is standing here", the difference between a show that advances once and one that never settles.
   pluginTrigger: (source: string, params: Record<string, unknown>, stateEnteredAtSec: number) => boolean;
+  // 'osc' — did a matching OSC press (address, optionally from one named sender) arrive since the last
+  // frame? A one-frame pulse owned by services/smOscInbox; injected for the same reason pluginTrigger
+  // is, so this module stays types-only. Absent (an older caller) = never fires.
+  oscHit?: (address: string | undefined, sender: string | undefined) => boolean;
 }
 
 let currentStateId: string | null = null;
@@ -210,6 +214,10 @@ function triggerFires(tr: SmTransition, fromState: SmState | undefined, playhead
     // trigger this build has no plugin for (a disabled plugin, a newer version), and that must never
     // be truthy; the registry lookup in the host returns false for it.
     case 'plugin': return !!g.source && ctx.pluginTrigger(g.source, g.params ?? {}, stateEnteredAtWall);
+    // An external device's press (services/smOscInbox: a one-frame pulse, drained after this tick).
+    // NOT gated on lockSec, same as 'plugin': lock time is afterDelay's dwell, and a press swallowed
+    // by a lock nobody can see reads as a dead button. requireEnd is the guard for "not yet".
+    case 'osc': return !!ctx.oscHit?.(g.oscAddress, g.oscSender);
   }
   // Exhaustiveness: a new SmTriggerKind that forgets its case above becomes a COMPILE error here rather
   // than a trigger that silently never fires. The runtime `return false` still stands — a project file

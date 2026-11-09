@@ -113,6 +113,7 @@ The runtime evaluates them in array order and fires **at most one per frame** (n
 | `onMarker` | the **playhead** crosses timeline marker `markerId` | `markerId` | **playhead** |
 | `onClipEnd` | the active clip on track `layerId` **ends** (a gap appears under the playhead) | `layerId` | **playhead** — **does not fire** for a clip that runs to the end of the timeline: the non-looping end-stop parks the playhead *inside* that clip (no gap ever opens), so a final, full-length clip never fires this. Use `onTimelineEnd` for "the show finished". |
 | `onTimelineEnd` | the bound timeline reaches its **end** while playing and **not looping** | — | **playhead** — a loop wrap is **not** an end and does not fire it |
+| `osc` | an **OSC message** arrives at `oscAddress`, optionally only from one named **sender** — see [Triggering states from OSC devices](#triggering-states-from-osc-devices) | `oscAddress`, `oscSender` | **the network** — a one-frame pulse, transport or no transport |
 | `plugin` | a **plugin-owned** condition fires — today: a person enters/leaves a **LiDAR trigger zone**, a crowd threshold, a dwell ([TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room)) | `source`, `params` | **the world** — evaluated every frame, transport or no transport |
 
 ### The dual-clock rule (the #1 gotcha)
@@ -599,6 +600,45 @@ So in [template 3](../examples/state-machine/03-interactive-installation.artlux)
 blackout. Scenes and cues have their own addresses too (`/artlux/scene/<ref>/go`,
 `/artlux/cue/<ref>/go`). **Give your transitions readable ids** and the OSC surface documents itself.
 
+### Triggering states from OSC devices
+
+Use this when a **device** (a TouchOSC tablet, an Arduino, a LiDAR box, another show PC) should move
+the show with **its own addresses**, and only when the message comes from **that device**. You can
+have several devices sending at the same time.
+
+**1. Name your devices** in **Preferences ▸ OSC / Tracking ▸ State trigger senders**. Each sender has:
+- a **name**, which is what your project refers to it by;
+- an **IP**;
+- an optional **port**, which is the port the device sends *from*. Leave it blank to accept any port
+  from that IP. Most OSC apps send from a random port, so blank is usually right.
+
+Once a device has sent anything, its real `IP:port` appears under **Seen recently**. Click it to add
+it as a sender, so you are not guessing the values.
+
+**2. Bind the address.** There are two ways.
+
+| | Where | What happens |
+|---|---|---|
+| **`osc` trigger** | Select a transition, set **Trigger** to `osc`, then pick a **Sender** and an **OSC address** | The transition fires like any automatic trigger. Its **fade** still applies, and so do **Only after the state has finished** and **wait for content**. To make an address go to a state *from anywhere*, put the `osc` trigger on a [global rule](#global-rules--a-trigger-that-fires-from-any-state) into that state. |
+| **OSC jump** | Select a state and open **OSC jump** | The show jumps straight into that state from anywhere, **immediately**. There is no fade, and it ignores the "finished" guard. This is the hard "go there now" button. |
+
+Both have a **Learn** button. Press Learn, then press the button on your device: the next message
+fills in the address, and the sender too if that device is one you've named.
+
+**Rules worth knowing**
+- **A press fires, a release doesn't.** A message with no argument, a string, or a non-zero number
+  fires. `0` doesn't. That way a TouchOSC button (1 on press, 0 on release) fires once per tap.
+- **Addresses are exact and case-sensitive.** They don't need the control prefix. Avoid addresses
+  under `/artlux/state/`, because that namespace is already used for "fire transition by id". The
+  editor warns you if you use one.
+- **A missed message is dropped.** If a message arrives while the current state has no matching edge,
+  it is thrown away. It won't fire later when the show reaches a state that has one.
+- **Sender names travel with the project; IPs don't.** On another machine (say, the venue PC), add a
+  sender with the **same name** and that machine's IP. Until you do, the binding shows a warning and
+  never fires. It never falls back to accepting any sender.
+- OSC receive must be **on**, and the state machine **enabled**. A jump sent to a disabled machine is
+  ignored.
+
 ### Show-control tablet
 The [show-control plugin](SHOW-CONTROL.md) serves a tablet PWA whose **States tab** lists states and
 manual transitions for touch control, plus a scheduler that can drive the machine on a wall clock.
@@ -646,6 +686,8 @@ it (or drive `requestEnter`/OSC). Regions group such states visually but don't w
 | [`src/renderer/components/timeline/StateLane.tsx`](../src/renderer/components/timeline/StateLane.tsx) | live current-state lane + manual buttons |
 | [`src/renderer/services/cueBus.ts`](../src/renderer/services/cueBus.ts) | React-free bus the FSM recalls Scenes / fires Cues through |
 | [`src/renderer/services/bootGate.ts`](../src/renderer/services/bootGate.ts) | the cold-start gate — holds the machine until the opening look is decoded |
+| [`src/renderer/services/smOscInbox.ts`](../src/renderer/services/smOscInbox.ts) | OSC trigger inbox: one-frame press pulses (drained after every tick), sender matching, Learn, "seen recently" |
+| [`src/renderer/services/oscController.ts`](../src/renderer/services/oscController.ts) | routes every OSC message to the inbox, the per-state OSC jumps, then the control prefix |
 
 ## Verify
 

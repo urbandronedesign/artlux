@@ -14,6 +14,7 @@ import type { VideoCodecContribution } from '@artlux/sdk/renderer';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
 import * as cueBus from './cueBus';
+import * as oscInbox from './smOscInbox';
 import * as renderClock from '../engine/renderClock';
 
 // Per-window video-layer timeline engine. The single source of playback time so React
@@ -212,7 +213,7 @@ const contentReadyFor = (sceneId: string): boolean => {
   return tl ? poolReadiness(sceneId, tl).ready : true;
 };
 
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, contentReady: contentReadyFor, pluginTrigger });
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, contentReady: contentReadyFor, pluginTrigger, oscHit: oscInbox.hit });
 
 function getLayerVideo(layerId: string, pool: LayerPool = layerVideos): LayerVid {
   let lv = pool.get(layerId);
@@ -1198,6 +1199,10 @@ function runFrame(now: number): void {
       // emits: the end-stop can only have raised it under `playing`, and a transport that is running
       // during a boot hold is one a human started, which arms the gate anyway.
       if (armed) try { fsm.tick(projectSm, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
+      // OSC trigger presses are ONE-FRAME pulses: whatever the tick above did not take is dropped now —
+      // armed or not, enabled or not — or it would fire later, from a state the sender never saw. See
+      // services/smOscInbox.
+      oscInbox.drain();
       // THE END-STOP'S `pause`, DEFERRED TO HERE — the whole point of the 'onTimelineEnd' feature.
       //
       // The end-stop and the FSM edge it feeds happen on the SAME frame: hitEnd is set up in the clock
@@ -1990,6 +1995,7 @@ export const timeline = {
   getSmElapsedSec(): number { return fsm.getStateElapsedSec(); },
   // Register the project-level state machine to drive each frame. App calls this whenever it changes.
   setStateMachine(sm: StateMachine | undefined): void { projectSm = sm; },
+  getStateMachine(): StateMachine | undefined { return projectSm; },
   // ── THE COLD-START ARM (services/bootGate owns the policy; this is only the seam) ──────────────
   // Hold the machine while a freshly-opened project's first look loads, then arm it. Deliberately NOT
   // `stateMachine.enabled`: that flag is PERSISTED PROJECT DATA, and flipping it off to wait would

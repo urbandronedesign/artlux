@@ -48,6 +48,10 @@ scrolling panel with collapsible sections.
 - **OSC receive** — enable the listener.
 - **Listen port** / **Bind addr…** — where to listen (pick a NIC or *All interfaces*).
 - **Control prefix** — the OSC address namespace (e.g. `/artlux`).
+- **State trigger senders** — the devices allowed to move the state machine with their own OSC
+  addresses. Each one has a name, an IP and an optional source port (blank means any port).
+  **Seen recently** lists the `IP:port` traffic actually arriving from. Click one to add it. See
+  [Trigger it from OSC](14-show-state-machine.md#trigger-it-from-osc).
 
 See [OSC.md](../OSC.md) for the full address map.
 

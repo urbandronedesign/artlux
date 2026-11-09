@@ -54,7 +54,8 @@ function scoreOf(t: SmTransition): number {
     case 'onClipEnd': base = TIER.clipEnd; break;
     case 'atTime': case 'onMarker': base = TIER.playhead; break;
     case 'plugin': base = TIER.plugin; break;
-    case 'manual': default: base = TIER.manual; break;
+    // An OSC press is a hand (a remote) or a sensor — unknowable, like manual.
+    case 'osc': case 'manual': default: base = TIER.manual; break;
   }
   // requireEnd gates the trigger on the source timeline having finished — it cannot fire before then,
   // so it is strictly less imminent than the same trigger without the guard. One tier, not a penalty

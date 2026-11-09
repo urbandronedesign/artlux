@@ -97,6 +97,7 @@ The runtime evaluates the current state's outgoing edges in order and fires **at
 | **on marker** | the playhead crosses a timeline marker | playhead |
 | **on clip end** | the active clip on a track ends (a gap opens under the playhead) | playhead |
 | **on timeline end** | the bound timeline reaches its end while playing and **not** looping | playhead — a loop wrap is not an end |
+| **osc** | an OSC message arrives at an address, optionally only from one named device | the network — transport or not |
 | **LiDAR zone** | a person enters/leaves a [trigger zone](13-tracking.md#wire-a-zone-to-the-show), a crowd threshold, a dwell | the world — every frame, transport or not |
 
 ### The dual‑clock rule (the #1 gotcha)
@@ -262,6 +263,27 @@ transition leaves the **current** state ([Preferences ▸ OSC / Tracking](13-tra
 Scenes and cues have their own addresses too (`/artlux/scene/<ref>/go`, `/artlux/cue/<ref>/go`). **Give
 your transitions readable ids** and the OSC surface documents itself. Full list in
 [`docs/OSC.md`](../OSC.md).
+
+### Your device's own addresses, from named devices
+
+To let a TouchOSC tablet, an Arduino or a show PC use **its own addresses**, and only that device,
+even with several devices sending at once:
+
+1. **Preferences ▸ OSC / Tracking ▸ State trigger senders:** add each device with a name, its IP and
+   its source port. Leave the port blank to accept any port; most apps send from a random one. Once a
+   device has sent something, click it under **Seen recently** to fill the values in.
+2. **In the state machine editor**, either:
+   - select a transition and set **Trigger** to **osc**, then choose the **Sender** and the
+     **OSC address**. The transition's fade and its "only after finished" guard still apply. For
+     "this address goes to that state from anywhere", put it on a **global rule** into that state.
+   - select a state and open **OSC jump**. The address jumps straight into that state from anywhere,
+     immediately, with no fade and no guard.
+
+   **Learn** fills both in from the next button press on your device.
+
+A press fires (no argument, a string, or a non-zero number) and a button's release (`0`) doesn't. A
+message that arrives when nothing matches is dropped, not saved for later. On another machine, add a
+sender with the **same name**. Until you do, the editor flags the binding and it doesn't fire.
 
 ---
 

@@ -25,6 +25,10 @@ export interface OscConfig {
 export interface OscMessage {
   address: string;
   args: (number | string)[];
+  // WHO SENT IT — the UDP datagram's source (rinfo), stamped in main. Optional so a synthetic message
+  // (a test, a replay) stays valid; a consumer that filters on it must treat "absent" as "unknown
+  // sender", never as "any sender". Used by the state machine's sender-filtered OSC triggers.
+  from?: { host: string; port: number };
 }
 
 // ─── Plugin identity ────────────────────────────────────────────────────────────────────────

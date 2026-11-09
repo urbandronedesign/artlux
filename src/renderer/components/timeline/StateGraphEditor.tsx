@@ -7,6 +7,7 @@ import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Z
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { keymap } from '../../shortcuts/keymapStore';
+import { OscBindingFields } from './OscBindingFields';
 
 // `holdsAtEnd` = this scene's timeline ends by FREEZING on its last frame (Timeline.holdAtEnd, Loop
 // off) rather than by stopping. It is what a `requireEnd` transition out of this state waits for, so
@@ -47,7 +48,7 @@ const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop'
 // DMX level) are appended at render time from the registry, one entry per registered source, so this
 // list never has to learn about them. The dropdown's value for those is `plugin:<source>`; nothing
 // but this file's two small helpers below ever sees that encoding.
-const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd', 'onTimelineEnd'];
+const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd', 'onTimelineEnd', 'osc'];
 const triggerValue = (t: SmTrigger): string => (t.kind === 'plugin' ? `plugin:${t.source ?? ''}` : t.kind);
 const triggerFromValue = (v: string, prev: SmTrigger): SmTrigger =>
   // Switching to a plugin source keeps nothing from the old trigger but its identity — the params of
@@ -483,7 +484,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     // A plugin trigger describes ITSELF ("Entrance: someone enters") — "toReaction" says where the
     // edge goes but not what fires it, and for a live trigger that is the half worth reading.
     const src = t.trigger.kind === 'plugin' ? smTriggerRegistry.get(t.trigger.source ?? '') : undefined;
-    const desc = src?.describe?.(t.trigger.params ?? {});
+    // An OSC trigger shows its address — the thing an operator matches against their device's layout.
+    const desc = src?.describe?.(t.trigger.params ?? {})
+      ?? (t.trigger.kind === 'osc' && t.trigger.oscAddress ? `osc ${t.trigger.oscAddress}` : undefined);
     const base = desc ?? (to ? `to${cap(to.name.replace(/\s+/g, ''))}` : 'transition');
     // The `requireEnd` guard changes WHEN an edge can fire, so it belongs on the edge itself — reading
     // a graph should not require selecting every transition to discover which ones are gated.
@@ -765,6 +768,17 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                 )}
                 <NumField label="Lock time (s) — dwell before auto transitions" helpId="timeline.sm-lock-time" value={selState.lockSec ?? 0} onChange={(v) => patchState(selState.id, { lockSec: v || undefined })} />
 
+                {/* OSC JUMP — the hard "go there now" from an external device. Skips the graph (no
+                    guard, no fade); an `osc` trigger on a global rule is the graph-respecting route. */}
+                <details open={!!selState.osc} className="border border-line-1 rounded p-1.5 bg-surface-0">
+                  <summary className="text-fg-3 text-micro cursor-pointer">OSC jump{selState.osc?.address ? ` — ${selState.osc.address}` : ''}</summary>
+                  <div className="mt-1.5 space-y-1.5">
+                    <div className="text-fg-3 italic text-micro">Entering by OSC jumps here from any state, immediately — no transition fade, no “only after finished” guard.</div>
+                    <OscBindingFields address={selState.osc?.address ?? ''} sender={selState.osc?.sender ?? ''}
+                      onChange={({ address, sender }) => patchState(selState.id, { osc: address.trim() || sender ? { address, ...(sender ? { sender } : {}) } : undefined })} />
+                  </div>
+                </details>
+
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-fg-3 text-micro">Entry actions</span>
@@ -859,6 +873,12 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                     onChange={(params) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, params } })} />;
                 })()}
                 {selTrans.trigger.kind === 'manual' && <div className="text-fg-3 italic">Fires from the state-lane button, Ctrl+click on the edge, or OSC.</div>}
+                {/* An external device's press. On a GLOBAL rule this is "this address goes to that
+                    state from anywhere", with the transition's fade and guards still applied. */}
+                {selTrans.trigger.kind === 'osc' && (
+                  <OscBindingFields address={selTrans.trigger.oscAddress ?? ''} sender={selTrans.trigger.oscSender ?? ''}
+                    onChange={({ address, sender }) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, oscAddress: address || undefined, oscSender: sender || undefined } })} />
+                )}
                 {/* THE GUARD, not a trigger: the trigger above still has to fire, this decides whether
                     it MAY. It is the piece that makes a live trigger (a person walking into a LiDAR
                     zone) safe on a state that is showing a film — without it the film gets cut. */}

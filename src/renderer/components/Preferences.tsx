@@ -15,6 +15,7 @@ import {
 } from '../services/scene3dQuality';
 import { useLayout } from '../hooks/useLayout';
 import { useWorkspaceActions } from '../hooks/useWorkspaceActions';
+import { OscSendersBlock } from './OscSendersBlock';
 
 interface Props {
   settings: AppSettings;
@@ -544,6 +545,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               />
             </Tooltip>
           </Field>
+          <OscSendersBlock settings={settings} onChange={onChange} />
         </Section></Tile>
 
         <Tile><WatchdogSection /></Tile>

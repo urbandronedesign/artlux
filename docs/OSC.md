@@ -49,6 +49,21 @@ Under the control prefix (default `/artlux`):
 Transport messages flow through the same intent path the timeline's state-machine uses, so the app
 stays the single writer of play/pause.
 
+#### State triggers from named devices (your own addresses)
+The `/artlux/state/<id>` route above needs a transition's internal id and accepts every sender. To
+let **a device use its own address**, and only that device, do this:
+1. Add the device under **Preferences ▸ OSC / Tracking ▸ State trigger senders**: a name, an IP, and
+   a source port (blank means any port). Click a **Seen recently** chip to copy the real `IP:port`.
+2. In the state machine editor, either:
+   - set a transition's trigger to **`osc`**, then pick the sender and the address; or
+   - open a state's **OSC jump** to jump straight into that state.
+
+   **Learn** fills in both from the next press.
+
+Several devices can send at once. LiDAR and tracking traffic on the same port is unaffected. A press
+fires (no argument, a string, or a non-zero number) and a release (`0`) doesn't. Details are in
+[STATE-MACHINE.md › Triggering states from OSC devices](STATE-MACHINE.md#triggering-states-from-osc-devices).
+
 ### 3. See the LiDAR blobs in 3D
 1. Open the **3D Scene** window.
 2. In the bottom-right panel → **Lighting** → enable **Tracking zones (LiDAR)**.

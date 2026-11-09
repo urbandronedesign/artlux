@@ -123,10 +123,16 @@ let sendSocket: dgram.Socket | null = null;
 export function start(port: number, onMessages: (msgs: OscMessage[]) => void, address?: string): void {
   stop();
   const s = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-  s.on('message', (data) => {
+  s.on('message', (data, rinfo) => {
     const msgs: OscMessage[] = [];
     decodePacket(data, msgs);
-    if (msgs.length) onMessages(msgs);
+    if (!msgs.length) return;
+    // Stamp the sender on every message of the packet (a bundle is one datagram, so one sender). The
+    // renderer's state-machine OSC triggers filter on it — several devices (a LiDAR box, a TouchOSC
+    // tablet, an Arduino) share this one listener, and a binding names which of them it answers to.
+    const from = { host: rinfo.address, port: rinfo.port };
+    for (const m of msgs) m.from = from;
+    onMessages(msgs);
   });
   s.on('error', (err) => {
     // EADDRNOTAVAIL here means the chosen bind address isn't on any local NIC.
