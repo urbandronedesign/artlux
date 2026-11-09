@@ -76,6 +76,20 @@ window; projector windows receive the results.
 picture. While it is open the people BlazePose sees are drawn on the picture, with their hands lettered
 **L** and **R**, so you place corners where a hand really shows up.
 
+**Interaction area or Floor — which one do I need?** Both tabs ask for four corners on the same picture,
+but they do unrelated jobs. The window shows this comparison at the top of both tabs.
+
+| | **Interaction area** | **Floor (3D)** |
+|---|---|---|
+| What it does | **Fires the show.** Trigger zones live inside it. | **Only the 3D preview.** Places each person on a real-size floor in the 3D scene. |
+| Where | Any surface the camera sees: a wall, a screen, the floor, a box of air. | A floor rectangle. |
+| Measurements | None. Zones are drawn in proportions (**Shape W÷H**). | Width and depth in metres, measured on site. |
+| Body | Counts hands, feet, head or body, as each zone chooses. | Uses the feet only (where a person stands). |
+| Do I need it? | **Yes**, for a camera-driven show. | **Optional.** Zones never use it. |
+
+They are independent: marking one never moves the other's corners. On a floor installation you may
+want both on the same rectangle, but you still mark them separately.
+
 ### Mark the interaction area (camera trigger zones)
 
 The **interaction area** is the part of the picture people interact with: a wall they touch, a screen,

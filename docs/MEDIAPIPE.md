@@ -91,6 +91,12 @@ disabled` and no-ops (never crashes) — the app-wide native-degradation contrac
 
 ## The interaction area → trigger zones → the show
 
+> **Two calibrations, two jobs.** The **interaction area** (`mediapipeArea`) is where trigger zones live:
+> any plane, no units, it fires the show. The **floor** (`mediapipeFloor`, [below](#floor-calibration--real-world-position-preview))
+> only places people in the 3D preview: a measured floor rectangle in metres, never read by zones. Both are
+> four corners on the same picture and are stored separately. The wizard shows the comparison on both tabs
+> (`AreaVsFloor` in `PoseCalibration.tsx`); the guide has the operator table in chapter 13.
+
 The camera drives the state machine through the same **trigger zones** as the LiDAR, without the two
 plugins knowing about each other:
 

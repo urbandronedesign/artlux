@@ -26,6 +26,40 @@ import { POSE_SURFACE_KEY, cameraMismatch, points as areaPoints } from './poseAr
 // flagged instead of silently mapping people to the wrong patch of wall.
 
 type Tab = 'area' | 'floor' | 'test';
+
+const TAB_HINT: Record<Tab, string> = {
+  area: 'Where trigger zones live — what makes the camera fire the show. Any plane: wall, screen, floor.',
+  floor: 'Only for the 3D preview: places people on a real-size floor. Triggers nothing.',
+  test: 'Walk through your zones and watch them light.',
+};
+
+// THE TWO CALIBRATIONS, SIDE BY SIDE. They look alike (four corners on the same picture) and do unrelated
+// jobs, and the first question every operator asked was "which one makes my zones work?". So both tabs
+// show the same two-column answer, the current one ringed. Colour is selection only (design system).
+const AreaVsFloor: React.FC<{ active: 'area' | 'floor' }> = ({ active }) => {
+  const col = (id: 'area' | 'floor', title: string, lines: React.ReactNode[]) => (
+    <div className={`rounded border px-2 py-1.5 ${active === id ? 'border-accent bg-accent/5' : 'border-line-1'}`}>
+      <div className={`text-micro font-bold ${active === id ? 'text-fg-1' : 'text-fg-2'}`}>{title}</div>
+      <ul className="mt-0.5 space-y-0.5 text-micro text-fg-3 leading-snug">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {col('area', 'Interaction area — fires the show', [
+        <>Trigger zones live inside it and count hands, feet, head or body.</>,
+        <>Any surface the camera sees: a wall, a screen, the floor, a box of air.</>,
+        <>No measurements — zones are drawn in proportions.</>,
+        <><b>Needed</b> for a camera-driven show.</>,
+      ])}
+      {col('floor', 'Floor (3D) — the 3D preview only', [
+        <>Places each person's feet on a real-size floor in the 3D scene.</>,
+        <>A floor rectangle whose width and depth you measure, in metres.</>,
+        <>Triggers nothing: zones never use it.</>,
+        <><b>Optional.</b> Mark both if you want both; the corners are separate.</>,
+      ])}
+    </div>
+  );
+};
 const FLOOR_DEFAULT: Quad = [[0.28, 0.70], [0.72, 0.70], [0.9, 0.18], [0.1, 0.18]]; // a perspective trapezoid hint
 
 function useScene3D<T>(): T | undefined {
@@ -160,7 +194,7 @@ export const PoseCalibration: React.FC<PanelProps> = ({ onClose }) => {
 
         <div className="flex gap-1 px-3 pt-2 border-b border-line-1">
           {([['area', 'Interaction area', areaDirty], ['floor', 'Floor (3D)', floorDirty], ['test', 'Test', false]] as const).map(([id, label, d]) => (
-            <button key={id} onClick={() => setTab(id)}
+            <button key={id} onClick={() => setTab(id)} title={TAB_HINT[id]}
               className={`text-mini px-3 py-1.5 rounded-t border-b-2 -mb-px ${tab === id ? 'border-accent text-fg-1' : 'border-transparent text-fg-3 hover:text-fg-1'}`}>
               {label}{d ? ' •' : ''}
             </button>
@@ -175,6 +209,8 @@ export const PoseCalibration: React.FC<PanelProps> = ({ onClose }) => {
             </div>
           )}
           {mismatch && tab !== 'floor' && <div className="text-micro text-warn border border-warn/40 bg-warn/10 rounded px-2 py-1.5">⚠ {mismatch}</div>}
+
+          {tab !== 'test' && <AreaVsFloor active={tab} />}
 
           {tab === 'area' && (
             <>
