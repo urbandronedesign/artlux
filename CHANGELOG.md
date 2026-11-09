@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.36.0
+
+### Move the show with a webcam: camera trigger zones
+
+A webcam can now drive the show the way a LiDAR does, with no extra sensor. Mark the part of the
+camera picture people interact with (a wall, a screen, the floor) in **View ▸ Pose Calibration…**, draw
+trigger zones on it in the **Trigger Zones** editor (surface **Camera area (MediaPipe)**), and choose
+what each zone counts: **hands**, **feet**, the **head**, the **body**, or a mix. A zone fires states
+and transitions exactly like a LiDAR zone: someone enters, leaves, stays N seconds, or N people at once.
+Both hands of one visitor in a zone count as one person.
+
+The calibration window is rebuilt to be quick and safe on site: the camera picture at its true shape,
+the people it sees drawn over it, **Walk the corners** (stand at each corner and hold a hand still),
+a magnifier and arrow-key nudging, a grid that shows a bad corner at a glance, your zones drawn on the
+picture, a **Test** tab, nothing saved until you press Save, and a warning if the webcam was swapped.
+It explains the difference between its two tabs: the **interaction area** fires the show; the
+**floor** only places people in the 3D preview.
+
+With **Camera pose markers (MediaPipe)** on, the 3D view shows the camera picture as a panel, with the
+area, a dot for every hand or foot the zones count, and the zones themselves, solid while occupied.
+
+The transition trigger **LiDAR zone** is now called **Trigger zone**, since it works for both. Try the
+[mediapipe-zones example](examples/mediapipe-zones/README.md). See [MediaPipe](docs/MEDIAPIPE.md) and
+the user guide's tracking chapter.
+
+### Trigger states from your own OSC devices
+
+A tablet, an Arduino or another show PC can move the state machine with its own OSC addresses
+(`/show/next`), and you decide which devices are allowed: name them in **Preferences ▸ OSC / Tracking ▸
+State trigger senders**. A transition can wait for an OSC message, and a state can be jumped to from
+anywhere by one. **Learn** fills in the address from the next button press. Projects keep the device's
+name, so they work on the venue computer once that computer names the same device. Try the
+[osc-states example](examples/osc-states/README.md). See [State machine](docs/STATE-MACHINE.md).
+
+### Fixed
+
+- **The 3D view froze** when the MediaPipe camera overlay was on and its outline changed (for example
+  after a calibration). It now keeps drawing.
+- **The camera floor calibration no longer travels with scenes.** It describes the room, like the
+  trigger zones, so recalling an older scene can no longer bring back an old floor.
+
 ## v0.35.1
 
 ### NDI works on macOS
