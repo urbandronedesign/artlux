@@ -9,6 +9,7 @@ import {
   contentSourceRegistry, clipKindRegistry, projectorChannelRegistry,
   settingsSectionRegistry, panelRegistry, contextRegistry, sceneVizRegistry, projectorPanelRegistry,
   smTriggerRegistry,
+  trackingSurfaceRegistry,
   videoCodecRegistry, automationTargetRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
@@ -130,6 +131,7 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     contexts: contextRegistry,
     sceneViz: sceneVizRegistry,
     smTriggers: smTriggerRegistry,
+    trackingSurfaces: trackingSurfaceRegistry,
     projectorPanels: projectorPanelRegistry,
     videoCodecs: videoCodecRegistry,
     automationTargets: automationTargetRegistry,

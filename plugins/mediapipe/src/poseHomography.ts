@@ -12,13 +12,15 @@ import type { CornerPin } from '../../../shared/protocol';
 export type { Mat3 };
 export { applyH };
 
-// Adjugate/determinant inverse of a row-major 3x3. Returns the identity if (near-)singular so a
-// degenerate calibration can't produce NaNs downstream (the caller just sees an unhelpful mapping).
-export function invert(m: Mat3): Mat3 {
+// Adjugate/determinant inverse of a row-major 3x3. Returns NULL if (near-)singular.
+// It used to return the IDENTITY, which is the worst possible answer: a degenerate calibration then
+// "worked" — people were mapped straight through as if the camera image were the floor/area — and
+// nothing said the calibration was broken. Null makes every caller say "not calibrated" instead.
+export function invert(m: Mat3): Mat3 | null {
   const [a, b, c, d, e, f, g, h, i] = m;
   const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
   const det = a * A + b * B + c * C;
-  if (Math.abs(det) < 1e-12) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-12) return null;
   const inv = 1 / det;
   return [
     A * inv, (c * h - b * i) * inv, (b * f - c * e) * inv,
@@ -41,6 +43,7 @@ export function multiply(a: Mat3, b: Mat3): Mat3 {
 // The homography mapping an image quad (normalized [u,v]) to a world quad (metres). The two quads use
 // different coordinate systems; that's fine — the perspective divide in applyH handles the scale. Both
 // quads must be given in the SAME logical corner order ({tl,tr,br,bl}) so corners correspond.
-export function imageToWorld(imageQuad: CornerPin, worldQuad: CornerPin): Mat3 {
-  return multiply(squareToQuad(worldQuad), invert(squareToQuad(imageQuad)));
+export function imageToWorld(imageQuad: CornerPin, worldQuad: CornerPin): Mat3 | null {
+  const inv = invert(squareToQuad(imageQuad));
+  return inv ? multiply(squareToQuad(worldQuad), inv) : null;
 }

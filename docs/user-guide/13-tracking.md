@@ -72,87 +72,48 @@ window; projector windows receive the results.
 4. **View ▸ Pose Monitor…** — live camera preview, fps, and the tracked‑people count.
 5. Toggle **Camera pose markers (MediaPipe)** in the 3D scene panel for the simulator overlay.
 
-**Floor calibration (real‑world position).** When the camera points *down* at the floor, the raw
-image is perspective‑distorted. **View ▸ Pose Floor Calibration…**: drag the four handles onto the
-corners of a floor rectangle whose real size you know, enter its **width × depth** in metres, and
-**Save** (order: top‑left, top‑right, bottom‑right, bottom‑left; the image's top edge is the *far*
-side). The 3D preview then places each person at their mapped metres. The mapping assumes feet on the
-floor plane — a standing/walking person maps accurately, a jumping one momentarily doesn't.
+**Calibrate the camera: View ▸ Pose Calibration…** One window, three tabs, all over the live camera
+picture. While it is open the people BlazePose sees are drawn on the picture, with their hands lettered
+**L** and **R**, so you place corners where a hand really shows up.
 
----
+### Mark the interaction area (camera trigger zones)
 
-## Enable Augmenta
+The **interaction area** is the part of the picture people interact with: a wall they touch, a screen,
+the floor, or a box of air in front of the camera. [Trigger zones](#draw-trigger-zones-tracking-workbench--trigger-zones)
+on the camera are drawn inside it, so marking it is the first step to a camera‑driven show.
 
-A self‑contained, pre‑calibrated optical box that streams tracked objects over **OSC v2** into the
-same OSC listener ArtLux already runs — no extra port, no native module.
+1. Open **View ▸ Pose Calibration…** and stay on **Interaction area**.
+2. Place the four corners **TL, TR, BR, BL** on the area. Either:
+   - **Walk the corners** — stand at each corner in turn and hold a hand still for 2 seconds; the
+     corner snaps to it and the next one is asked for. One person can calibrate a wall from the wall.
+   - **Drag** the corners. A magnifier follows the corner you hold; click a corner and nudge it with
+     the **arrow keys** (one camera pixel; **Shift** for finer). **Snap to hand** moves the selected
+     corner to the nearest visible hand. Keys **1–4** select a corner.
+3. Check the **grid** drawn inside the area: it should look like a flat grid lying on your wall or
+   floor. A bent grid means a corner is off. Zones you have already drawn appear on the picture too.
+4. Tick **Mirror (selfie view)** if the people face the camera and you want the area to read like a
+   mirror. Left and right hands stay the person's own.
+5. Set **Shape W÷H** to the area's real proportions (blank uses the picture's estimate), so a square
+   zone is a square on the wall.
+6. **Save area.** A shape the camera cannot use — corners crossed, in the wrong order, in a line, or
+   too small — is refused with the reason, and the outline turns red.
 
-1. **Enable OSC receive** and note the listen port (**Preferences ▸ OSC / Tracking**).
-2. Configure the **Augmenta box (Fusion)** to send its **OSC v2** output to this machine on that port.
-3. **View ▸ Augmenta Monitor…** — confirm `/au/…` messages arrive (the dot turns green) and check the
-   live object count + field size.
-4. Select a surface → content type **Augmenta**; configure markers / trails / IDs / flip / rotate.
-5. Toggle **Augmenta field + objects** in the 3D scene panel for the overlay.
+Then open the **Test** tab and walk through your zones: it shows the saved area flat, every body part
+it sees, and lights each zone as soon as a part it counts is inside.
 
-Because the box reports its field size in metres, the 3D viz places objects at their real position
-directly — Augmenta needs **no** floor‑calibration wizard.
+**Safety nets.** Nothing is written until you save. Closing with unsaved changes, and **Clear…**, both
+ask first; **Revert** goes back to the last saved corners and **Reset corners** to the starting
+rectangle. The area belongs to the room, like the zones, so recalling a scene never changes it. If you
+swap the webcam, the window and the zone editor warn that the area was marked on another camera. If the
+camera fails to start, **Retry camera** tries again without restarting ArtLux.
 
-Testing without the box: `node scripts/augmenta-emitter.cjs 127.0.0.1 12000 3`, pointed at the app's OSC
-listen port. ⚠ **Unlike the LiDAR emitter, this one is not packaged with the app** — it exists only in a
-source checkout of the repository. With an installed build and no Augmenta box, there is no way to
-simulate this source.
+### Floor (3D preview)
 
----
-
-## See people in the 3D scene — and merge the doubles
-
-Open the **3D Scene** and enable **Tracking zones (LiDAR)** in the bottom‑right **Lighting** panel.
-The SOL (floor) and MUR (wall) zones appear at real scale with a glowing marker per active blob.
-The first time they appear, the view frames the whole venue — floor, wall and every trigger zone —
-so you start from the room rather than from a close-up of the origin. Orbit and zoom as usual from there.
-
-**Merge people (2 blobs → 1).** This venue's tracker emits roughly **two blobs per person**, and its
-raw ids flicker hard (median lifetime ~0.13 s). Turn on **Merge people** to run a small predictive
-tracker that clusters blobs into stable people with steady ids:
-
-- **Merge radius (m)** — default **0.8**. Lower it if distinct people merge into one; raise it if one
-  person still shows two markers. **Don't guess it** — the **Trigger Zones** map reads
-  `4 blobs → 2 people · closest pair 0.30m / merge 0.80m`. Stand *one* person on the surface:
-  `closest pair` is the gap between their own two blobs, and if it is bigger than the radius the line
-  turns **red** because nothing can merge. Raise the radius past it.
-- **Predict (ms)** / **Smoothing** — motion tuning (≈66–100 ms predict at 30 Hz).
-
-**A blob does not mean the same thing on every surface**, so you say which per surface, on the
-**Trigger Zones** tab next to the surface picker — *a blob is*:
-
-- **part of a person (merge)** — the **floor**, where the tracker paints ~2 blobs per visitor.
-- **one whole thing — a hand** — the **wall**, where a blob *is* a hand and a visitor raises one.
-  Never merged, so two people touching near each other stay two triggers; still tracked, so a hand
-  lost for a frame does not drop the trigger.
-
-A steady marker count that matches your real headcount, with each person keeping one `#id` as they
-move, means it's tuned. Counting downstream (zones, thresholds) is **post‑merge**: `People needed 1`
-means one person, not one blob. These are **sensor** settings — they belong to the venue, not to a
-look, so a GO never reverts them.
-
-> **No sensor to hand?** `node scripts/lidar-emitter.cjs 127.0.0.1 10000 2 --pairs` emits two people
-> as four blobs 0.3 m apart, exactly like the venue does.
-
----
-
-## Project the blobs onto the real floor/wall (1:1)
-
-Blobs are a surface **content type**, so they flow through the normal projector pipeline
-([Projector outputs](08-projector-outputs.md), [Calibration](10-calibration.md)):
-
-1. Add a surface → Inspector → **Content** → **Tracking**. Pick **Source** (`SOL` floor / `MUR` wall /
-   `SOL_MUR` combined). Options: **Blob size**, **Show IDs**, **Flip H/V**, **Rotate**, **Calibrate**
-   (overlay), **Background** (a timeline layer drawn under the blobs).
-2. Route each surface to its projector in the **Outputs** panel (floor surface → floor projector,
-   wall surface → wall projector).
-3. Tick **Calibrate** to project each zone's border + grid + corner labels + amber **U/V** arrows,
-   then **Outputs ▸ Align** the corner‑pin/Bézier onto the physical edges.
-4. Confirm orientation: a person stands at a known corner; toggle **Flip H/V / Rotate** until the blob
-   lands on them. Then turn Calibrate off.
+When the camera points *down* at the floor, the **Floor (3D)** tab places each person in the 3D scene at
+real size. Drag the corners onto a floor rectangle whose real size you know, enter its **width** and
+**depth** in metres, and **Save floor**. The top edge is the *far* side. The mapping assumes feet on the
+floor, so a standing or walking person maps accurately and a jumping one briefly doesn't. This tab only
+affects the 3D preview; camera zones use the interaction area.
 
 ---
 
@@ -174,7 +135,7 @@ recreates or loses them.
 **Author them** in the **3D** (Venue & Rig) workbench, on the **Trigger Zones** dock tab. Three ways
 to it, all landing on the same tab — use whichever you are nearest:
 
-- the **Trigger Zones** button on the Venue & Rig action bar (top of the window, beside *Pose Floor
+- the **Trigger Zones** button on the Venue & Rig action bar (top of the window, beside *Pose
   Calibration…*);
 - **Draw trigger zones…** at the top of the **Tracking** section in the right‑hand parameter column —
   where the dwell and merge settings below it already live;
@@ -203,11 +164,26 @@ A single zone can **Override dwell for this zone** for the odd entrance that mus
 lounge that must hold longer) than the rest of the room. The same zones appear in the 3D scene,
 labelled with name and live headcount, so you can check they sit where you think.
 
+### Zones on the camera area
+
+Pick **Camera area (MediaPipe)** in the zone editor's **Surface** list. The map takes the area's real
+proportions and shows every body part the camera sees, lettered: **L / R** hands, **l / r** feet,
+**H** head, **B** body. Draw zones exactly as on a LiDAR surface. If the area is not marked yet, the map
+says so and offers **Calibrate Camera area…**.
+
+Each camera zone has a **Detect** row: **Any part**, **Hands**, **Feet**, or any mix of left hand, right
+hand, left foot, right foot, head and body. Only the parts you pick count. **People needed** still
+counts **people**: a visitor with both hands on a pad is one person, not two.
+
+While a camera zone is live, ArtLux keeps the camera running, even if no surface shows the camera's
+content. The camera sees in 2D: a hand "in" a zone means a hand in front of it from the camera's point
+of view. Hands are BlazePose's wrist and index finger; there are no gestures (open hand, fist).
+
 ---
 
 ## Wire a zone to the show
 
-In the [state machine](14-show-state-machine.md), a transition's **trigger** can be **LiDAR zone**.
+In the [state machine](14-show-state-machine.md), a transition's **trigger** can be **Trigger zone**.
 Pick it in the transition inspector and choose a mode:
 
 - **One zone** — `someone enters` · `everyone leaves` · `occupied for…` · `empty for…` (the

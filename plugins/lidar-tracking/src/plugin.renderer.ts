@@ -26,7 +26,7 @@ import * as take from './trackingTake';
 import TrackingViz from './TrackingViz';
 import { OscMonitor } from './OscMonitor';
 import { ZonePanel } from './ZonePanel';
-import { setHost } from './trackingHost';
+import { setHost, setSurfaceRegistry } from './trackingHost';
 
 let oscUnsub: (() => void) | null = null;
 let sceneUnsub: (() => void) | null = null;   // Scene3D → zones.configure
@@ -38,6 +38,7 @@ export const plugin: RendererPlugin = {
   activate(ctx: RendererPluginContext): void {
     // Stash host services so the OSC Monitor panel (below) can read live OSC settings for its status strip.
     setHost(ctx.host);
+    setSurfaceRegistry(ctx.trackingSurfaces);
 
     // OSC Monitor: a diagnostic modal that sniffs the raw OSC stream (LiDAR blob addresses). Registered
     // as a DOCK panel on the `3d` workspace context: the host declares that context, this plugin
@@ -57,7 +58,7 @@ export const plugin: RendererPlugin = {
     // monitors' blobs are actually drawn. An extend() against an unknown id queues forever in silence,
     // so verify:invariants checks every target resolves.
     //
-    // The ACTION rides along in the host's existing `tracking` group (beside Pose Floor Calibration —
+    // The ACTION rides along in the host's existing `tracking` group (beside Pose Calibration —
     // groups are matched by name, so appending here joins that cluster rather than starting a new one):
     // the venue workbench is where zones are drawn, so the way in belongs at the top of it, not only
     // in a menu three levels deep.
@@ -139,6 +140,9 @@ export const plugin: RendererPlugin = {
         people.configure(!!s.trackingMergePeople, s.trackingMergeRadius ?? 0.8, s.trackingSurfaceMerge);
         zones.configure(s.trackingZones, s.activeZoneIds, s.trackingZoneEnterSec, s.trackingZoneExitSec);
       };
+      // Zones on a surface ANOTHER plugin provides (the camera area — 'POSE') read their points
+      // through the SDK registry; LiDAR keys are never registered there, so they fall through to people.
+      zones.setSurfaceLookup((key) => ctx.trackingSurfaces.get(key));
       pushZones();
       sceneUnsub = ctx.host.scene3D.subscribe(pushZones);
       // Evaluated on the host's per-frame callback — which fires every frame INCLUDING while the
@@ -159,7 +163,7 @@ export const plugin: RendererPlugin = {
     // `{ kind:'plugin', source:'lidar.zone', params }` and never parses `params`.
     ctx.smTriggers.register({
       source: ZONE_TRIGGER_SOURCE,
-      label: 'LiDAR zone',
+      label: 'Trigger zone',
       describe: (p) => describeZoneTrigger(p as ZoneTriggerParams),
       fires: (p, c) => zoneTriggerFires(p as ZoneTriggerParams, c),
       Inspector: ZoneTriggerInspector,
@@ -182,6 +186,7 @@ export const plugin: RendererPlugin = {
     oscUnsub?.(); oscUnsub = null;
     sceneUnsub?.(); sceneUnsub = null;
     frameUnsub?.(); frameUnsub = null;
+    zones.setSurfaceLookup(null); zones.configure([]); zones.evaluate(performance.now()); // releases any camera hold
   },
 
   // On the startup splash. Renderer-only and native-free, so there is nothing here that can be

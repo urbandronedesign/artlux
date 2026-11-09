@@ -220,9 +220,15 @@ exactly like a LiDAR blob, with no special sensor (inference runs in-app, no clo
 3. Open **View ▸ Pose Monitor…** to see the live feed, frame rate and tracked-people count.
 4. For a 3D preview, toggle **Camera pose markers (MediaPipe)** in the 3D Scene panel.
 
-**Floor calibration (real-world position):** when the camera looks *down* at the floor, run **View ▸
-Pose Floor Calibration…** — drag the four handles onto the corners of a floor rectangle whose real
-size you know, enter its **width × depth** in metres and **Save**. The 3D floor then shows each person
+**Camera trigger zones:** **View ▸ Pose Calibration…**, tab **Interaction area** — place four corners
+on the wall, screen or floor people interact with (drag them, or **Walk the corners**: hold a hand still
+at each corner for 2 s) and **Save area**. Then draw zones on **Camera area (MediaPipe)** in the Trigger
+Zones editor and choose what each one **Detects** (hands, feet, head, body). They drive the show machine
+like LiDAR zones. See [Tracking ▸ Mark the interaction area](user-guide/13-tracking.md#mark-the-interaction-area-camera-trigger-zones).
+
+**Floor calibration (real-world position):** when the camera looks *down* at the floor, open **View ▸
+Pose Calibration…**, tab **Floor (3D)** — drag the four handles onto the corners of a floor rectangle whose real
+size you know, enter its **width × depth** in metres and **Save floor**. The 3D floor then shows each person
 at their true position. (Accurate for a standing/walking person; a jumping one is momentarily off the
 plane.)
 
@@ -461,7 +467,7 @@ default**; open its editor from the Timeline dock's **state lane** (**Edit logic
     stopped (so a delay-only graph loops with no Play).
   - **At a time / on a marker / when a clip ends / when the timeline ends** — these follow the playhead
     (need playback running). Reach for **when the timeline ends** to advance the whole show unattended.
-  - **LiDAR zone** — a person enters/leaves a trigger zone (see below).
+  - **Trigger zone** — a person enters/leaves a trigger zone (see below).
 - **Hold at end** — set a timeline out-point (the **End state here** button) and turn on **Hold at
   end** (the snowflake): the state plays to that frame and **freezes there with the audio bed still
   running**, waiting for a trigger. Pair it with a transition's **Only after the state has finished**
@@ -492,7 +498,7 @@ and state shares them.
   a zone's **eye** off and draw straight over it — a hidden zone ignores the pointer as well as the
   show — then switch the eye back on. Failing that, **+ Zone in the centre** at the foot of the list
   always makes one you can drag into place.
-- **Wire a zone to a transition** — in the transition inspector pick trigger **LiDAR zone**, then
+- **Wire a zone to a transition** — in the transition inspector pick trigger **Trigger zone**, then
   choose **One zone** (*someone enters / everyone leaves / occupied for N s / empty for N s / at least
   N people*) or **Combination** (ALL/ANY of several zones, **each with its own rule**, optionally
   **NOT** — e.g. "somebody in the entrance for 5 s *and* nobody on the stage"). A combination is

@@ -176,7 +176,7 @@ here, looping `demo.lblob`, with **no venue and no emitter**.
    scene, so a GO never recreates or loses them. A zone switched off for a scene is *unanswerable* there,
    and any rule naming it is inert — the trigger inspector warns you.
 3. **Fire a transition on it.** In the **Show Machine** context, add a transition and set its trigger to
-   **LiDAR zone**. Its inspector (`ZoneTriggerInspector`) has two modes:
+   **Trigger zone**. Its inspector (`ZoneTriggerInspector`) has two modes:
    - **One zone** — *someone enters · everyone leaves · occupied for N s · empty for N s · at least N
      people.*
    - **Combination** — **ALL / ANY** of several zones, **each with its own rule** from that same list,
@@ -189,11 +189,8 @@ here, looping `demo.lblob`, with **no venue and no emitter**.
    gives the canonical installation state: *play the look, freeze on the last frame, advance when someone
    walks in.*
 
-![The Show Machine's LiDAR-zone trigger inspector — Trigger: LiDAR zone, the One zone / Combination toggle, the Zone and When dropdowns, and the "Only after the state has finished" guard](images/zone-trigger-inspector.png)
-<!-- ⚠ THIS IMAGE IS STALE: it predates per-term rules, when a combination term was a single row of
-     zone + NOT. A term is now a two-line card carrying its own rule, so the picture no longer shows
-     what the text describes. The spec below is the durable artefact — re-shoot to it. -->
-<!-- shot spec (use when re-shooting): the transition inspector with trigger = LiDAR zone. LEFT:
+![The Show Machine's zone trigger inspector — Trigger: Trigger zone, the One zone / Combination toggle, the Zone and When dropdowns, and the "Only after the state has finished" guard](images/zone-trigger-inspector.png)
+<!-- shot spec (use when re-shooting): the transition inspector with trigger = Trigger zone. LEFT:
      One-zone mode (Zone dropdown + When = "someone enters"). RIGHT: Combination mode — "Fires when ALL
      of these are true" over TWO term cards, each two lines: line 1 the live dot + zone dropdown + ✕,
      line 2 the NOT chip + rule dropdown (+ its number). Make them differ, e.g. "Zone 1 · occupied

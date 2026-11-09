@@ -165,8 +165,11 @@ type** on a surface, a projector self-render, and a 3D-scene overlay). Both are 
   **in the renderer** (WebAssembly, GPU delegate) with no extra sensor. Run `npm run assets:mediapipe`
   once, then select a surface → content **MediaPipe**, pick the camera + model in **Preferences ▸ Pose
   Tracking (MediaPipe)**, and open **View ▸ Pose Monitor…** for the live feed / fps / tracked count.
-  A **4-point floor calibration** (**View ▸ Pose Floor Calibration…**) maps the down-pointed camera to
-  real floor metres for a world-space preview in the 3D scene. See [MEDIAPIPE.md](MEDIAPIPE.md).
+  **View ▸ Pose Calibration…** marks the camera's **interaction area** (a wall, a screen, the floor —
+  four corners, or "walk the corners" by holding a hand still at each), on which **trigger zones** are
+  drawn that count chosen **body parts** (hands, feet, head, body) and drive the show machine like LiDAR
+  zones; its **Floor (3D)** tab maps a down-pointed camera to real floor metres for the 3D preview. See
+  [MEDIAPIPE.md](MEDIAPIPE.md).
 - **Augmenta optical tracking** — an [Augmenta](https://augmenta.tech) box streaming tracked objects over
   **OSC v2**. It shares the app's single OSC listener (no extra port): enable OSC receive in **Preferences
   ▸ OSC / Tracking**, point the box at that port, confirm arrivals in **View ▸ Augmenta Monitor…**, then
@@ -189,7 +192,7 @@ show loops with no Play pressed. Triggers:
 - **manual** (state-lane button, Ctrl/Cmd+click an edge, or OSC/tablet),
 - **afterDelay** (wall-clock — runs stopped), **atTime / onMarker / onClipEnd / onTimelineEnd** (follow
   the playhead — need Play),
-- **LiDAR zone** and other **plugin** conditions (see below).
+- **Trigger zone** and other **plugin** conditions (see below).
 
 **Hold at end** parks a state on its last frame with the audio bed still playing (the picture waits, the
 room stays alive); **Only after the state has finished** (`requireEnd`) gates an automatic trigger until
@@ -212,7 +215,7 @@ load equals a single-timeline app no matter how many states exist. See
 ### Interactive triggers — LiDAR trigger zones
 A **trigger zone** is a named rectangle on a tracking surface that the show machine transitions on. Draw
 zones once in the **Tracking** workbench → **Trigger Zones** dock tab (they're project-scope room geometry,
-shared by every scene; also shown in the 3D scene with live headcount). A transition's **LiDAR zone**
+shared by every scene; also shown in the 3D scene with live headcount). A transition's **Trigger zone**
 trigger watches **one zone** — `someone enters` / `everyone leaves` / `occupied for…` / `empty for…` /
 `at least N people` — or a **Combination** of zones (`ALL`/`ANY`, **each zone carrying its own rule**,
 optionally `NOT`, e.g. *somebody in the entrance for 5 s and nobody on the stage*). Occupancy uses an

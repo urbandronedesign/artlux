@@ -854,6 +854,8 @@ function remapScene3D(s3: Scene3D, maps: Maps, layers: Map<string, string> | nul
   delete next.markerMap;
   delete next.calibRig;
   delete next.viewFrom;
+  delete next.mediapipeFloor;
+  delete next.mediapipeArea;
   // The room's zones are project scope and are carried separately (patch.trackingZones); a scene
   // snapshot must never bring its own copy of them.
   delete next.trackingZones;
@@ -974,8 +976,9 @@ export function planImport(
   }
 
   // ── Zones ───────────────────────────────────────────────────────────────────────────────────────
-  // TrackingZone.surface is 'SOL' | 'MUR' | 'SOL_MUR' — a trackingStore surface KEY, not a Surface
-  // id. It is carried verbatim; remapping it would point the zone at nothing.
+  // TrackingZone.surface is 'SOL' | 'MUR' | 'SOL_MUR' (or a plugin key like 'POSE') — a tracking surface
+  // KEY, not a Surface id. It is carried verbatim; remapping it would point the zone at nothing. A POSE
+  // zone arrives without the source's camera area (venue calibration) and stays inert until it is marked.
   for (const z of src.scene3D?.trackingZones ?? []) {
     if (!closure.zoneIds.has(z.id)) continue;
     patch.trackingZones.push({

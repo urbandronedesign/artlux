@@ -778,6 +778,49 @@ export interface SmTriggerRegistry {
   all(): SmTriggerContribution[];
 }
 
+// ─── Tracking surfaces (points a trigger zone can count) ──────────────────────────────────────
+// A TRIGGER ZONE is a normalized rect on a named tracking surface. The LiDAR plugin owns the zone
+// engine and its own surfaces (SOL / MUR / SOL_MUR); any OTHER source of "where are people" — a camera
+// pose model, an optical tracker — contributes a surface here and the same zones, editor and show
+// rules work on it unchanged. Plugins never import each other; this registry is the only contract.
+//
+// Points are in the surface's own 0..1 space, BOTTOM-LEFT origin, Y up (the tracking convention).
+// `person` groups points that belong to one body: a zone counts PEOPLE, so two hands of one visitor in
+// the same zone are one, not two — `minBlobs` keeps meaning "people needed".
+export interface TrackedPoint {
+  u: number;
+  v: number;
+  person: string;
+  /** A body part id from the surface's `parts` (e.g. 'handL'). Absent = the point IS the person. */
+  part?: string;
+}
+
+export interface TrackingSurfaceContribution {
+  /** Persisted in TrackingZone.surface — stable. Must not collide with the LiDAR keys. */
+  key: string;
+  label: string;
+  /** What a zone may filter on. Omit for a surface whose points are whole people. */
+  parts?: { id: string; label: string }[];
+  /** Calibrated and producing data. False = zones on it are drawn but cannot see anyone. */
+  available(): boolean;
+  /** This frame's points. Cheap — called once per frame per zone evaluation pass. */
+  points(): TrackedPoint[];
+  /** Width / height of the surface, so the editor draws it with true proportions. Default 1. */
+  aspect?(): number;
+  /** Keep the source running while something depends on it (zones listening). Returns a release. */
+  acquire?(owner: string): () => void;
+  /** Optional: the menu action that opens this surface's calibration — the zone editor offers a button. */
+  calibrateAction?: string;
+  /** Optional: a one-line problem worth showing beside the map (e.g. "calibrated on another camera"). */
+  warning?(): string | null;
+}
+
+export interface TrackingSurfaceRegistry {
+  register(s: TrackingSurfaceContribution): void;
+  get(key: string): TrackingSurfaceContribution | undefined;
+  all(): TrackingSurfaceContribution[];
+}
+
 // ─── Plugin IPC bridge (renderer side) ──────────────────────────────────────────────────────
 // The host preload exposes three generic forwarders so a plugin can talk to its own main-process
 // entry without per-plugin preload methods (contextIsolation keeps plugin code out of preload).
@@ -1169,7 +1212,12 @@ export interface BakeService<E = unknown> {
 export interface RendererHostServices {
   project: ProjectService;
   /** Workspace navigation. Optional — a window with no shell (a projector) has none. */
-  ui?: { goToContext(id: string): void };
+  ui?: {
+    goToContext(id: string): void;
+    /** Run a menu action — opens (toggles) the panel that declares it, wherever it is mounted. Lets one
+     *  plugin's panel open another's (the zone editor → a tracking surface's calibration) by id only. */
+    menuAction?(action: string): void;
+  };
   projectorOutputs: ProjectorOutputsService;
   surfaces: SurfacesService;
   scene3D: Scene3DService;
@@ -1220,6 +1268,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   contexts: ContextRegistry;
   sceneViz: SceneVizRegistry;
   smTriggers: SmTriggerRegistry;
+  trackingSurfaces: TrackingSurfaceRegistry;
   projectorPanels: ProjectorPanelRegistry;
   videoCodecs: VideoCodecRegistry;
   automationTargets: AutomationTargetRegistry;

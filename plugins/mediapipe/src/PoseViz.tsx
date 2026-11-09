@@ -12,7 +12,7 @@ import { footPoint, worldQuad, imageCornerPin } from './poseFloor';
 //     marker per person at their homography-mapped ground position (foot → floor). This is the
 //     real-world position preview. Mirrors the LiDAR TrackingViz floor placement.
 //   • UNCALIBRATED — falls back to a floating vertical "camera field" billboard with raw image (u,v)
-//     markers (a spatial debug overlay), prompting the user to run Pose Floor Calibration.
+//     markers (a spatial debug overlay), prompting the user to run Pose Calibration (Floor tab).
 // Fed from poseStore; render-free (marker matrices update in useFrame, never React state).
 
 const R = 0.09;       // marker radius, metres

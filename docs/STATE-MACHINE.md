@@ -254,7 +254,7 @@ seconds, force-return to `initialStateId`** (your idle / attract state) so the l
   `[fsm] idle reset: held Ns with no transition → returning to initial state`.
 
 This is the hard safety net that complements the *soft* one you may already author with tracking — the
-canonical `Reaction ──[LiDAR zone: empty for 30s]──▶ Attract` edge returns the show when the sensor says
+canonical `Reaction ──[Trigger zone: empty for 30s]──▶ Attract` edge returns the show when the sensor says
 the room emptied; `idleResetSec` returns it even when **no sensor is configured, the tracker is down, or
 the room-empty rule was never drawn**. Belt and braces.
 
@@ -554,9 +554,11 @@ registered that `source` (`SmTriggerContribution` — see [SDK.md](SDK.md)). So 
 camera pose, Augmenta, a DMX level, an audio threshold — needs **no core change and no file
 migration**, and a project naming a source this build has no plugin for is **inert**, never truthy.
 
-Shipped today: **`lidar.zone`** — LiDAR trigger zones
+Shipped today: **`lidar.zone`** — trigger zones on a LiDAR surface **or on the camera's interaction
+area** (MediaPipe, where a zone also picks which body parts count — see
+[MEDIAPIPE.md](MEDIAPIPE.md#the-interaction-area--trigger-zones--the-show))
 ([TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room)). Pick
-**LiDAR zone** in the transition inspector's trigger dropdown and the plugin's own editor appears
+**Trigger zone** in the transition inspector's trigger dropdown and the plugin's own editor appears
 (zone · when · seconds/people) — or a **Combination**, where each zone carries its own rule, so
 *"Zone 1 occupied for 5 s AND Zone 2 empty"* is one edge rather than a chain of states. The edge label
 in the graph then describes the *rule* —
@@ -566,8 +568,8 @@ The canonical interactive state combines all three pieces:
 
 ```
 Attract ──[hold at end]──▶ frozen last frame, bed still playing
-        ──[LiDAR zone: someone enters + ⏱ only after the state has finished]──▶ Reaction
-Reaction ──[LiDAR zone: empty for 30s]──▶ Attract
+        ──[Trigger zone: someone enters + ⏱ only after the state has finished]──▶ Reaction
+Reaction ──[Trigger zone: empty for 30s]──▶ Attract
         ⚡ global: [entrance ∧ ¬stage] ──▶ Welcome     (from wherever the show is)
 ```
 

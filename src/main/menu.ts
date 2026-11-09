@@ -150,7 +150,7 @@ function template(): MenuItemConstructorOptions[] {
         // These five existed ONLY in the renderer's menu bar until now, so they were unreachable from
         // the native menu that owns real accelerators — and on macOS the native menu is the only menu.
         { label: 'Pose Monitor…', click: () => send('pose-monitor') },
-        { label: 'Pose Floor Calibration…', click: () => send('pose-calibrate') },
+        { label: 'Pose Calibration…', click: () => send('pose-calibrate') },
         { label: 'Augmenta Monitor…', click: () => send('augmenta-monitor') },
         { label: 'Show Control…', click: () => send('show-control') },
         { label: 'Audio Bed…', click: () => send('audio-bed') },

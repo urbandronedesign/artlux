@@ -12,7 +12,7 @@ the headline of a modern installation is that **the room drives the show**. Two 
 a **floor**), one LED strip each.
 
 ![Hub-and-spoke topology: the Attract hub with four performance spokes](images/hub-and-spoke.svg)
-*The hub-and-spoke shape: **Attract** is the unattended hub; a trigger fans out to each performance, and each returns to Attract on its own. **Blackout** is held — released only by a manual trigger. The chapter builds the interactive version of this: the fan-out becomes a **LiDAR zone**, and the hub **holds on its last frame** until someone walks in.*
+*The hub-and-spoke shape: **Attract** is the unattended hub; a trigger fans out to each performance, and each returns to Attract on its own. **Blackout** is held — released only by a manual trigger. The chapter builds the interactive version of this: the fan-out becomes a **Trigger zone**, and the hub **holds on its last frame** until someone walks in.*
 
 ## 1. Open it
 
@@ -60,13 +60,13 @@ all built for this, combine into the shape every reactive ArtLux show uses:
 
 ```
 Attract ──[hold at end]──▶ frozen on its last frame, the bed still playing
-        ──[LiDAR zone: someone enters  +  ⏱ only after the state has finished]──▶ Reaction
-Reaction ──[LiDAR zone: empty for 30s]──▶ Attract
+        ──[Trigger zone: someone enters  +  ⏱ only after the state has finished]──▶ Reaction
+Reaction ──[Trigger zone: empty for 30s]──▶ Attract
         ⚡ global: [entrance ∧ ¬stage] ──▶ Welcome     (from wherever the show is)
 ```
 
-![The canonical interactive graph — Attract holds, a LiDAR zone with a requireEnd guard advances to Reaction, and a global rule reaches Welcome from anywhere](images/03-interactive-graph.png)
-<!-- shot spec (this image exists; use when re-shooting): the Show Machine context showing Attract (snowflake hold badge) ──LiDAR zone + ⏱ requireEnd──▶ Reaction, a ⚡ global-rule badge on a Welcome state, and the timeline state lane below with a HOLDING chip -->
+![The canonical interactive graph — Attract holds, a Trigger zone with a requireEnd guard advances to Reaction, and a global rule reaches Welcome from anywhere](images/03-interactive-graph.png)
+<!-- shot spec (this image exists; use when re-shooting): the Show Machine context showing Attract (snowflake hold badge) ──Trigger zone + ⏱ requireEnd──▶ Reaction, a ⚡ global-rule badge on a Welcome state, and the timeline state lane below with a HOLDING chip -->
 
 ### a. Hold at end — the attract loop that waits
 
@@ -107,7 +107,7 @@ select, drag to move/resize. Zones are **project-scope room geometry** — you d
 **once**, and they're shared by every scene and state. (Each scene can switch which zones it *listens to*
 with the eye toggle, but by default every zone is live everywhere.)
 
-Then select the **Attract → Reaction** arrow, open its **Trigger** dropdown, and pick **LiDAR zone** —
+Then select the **Attract → Reaction** arrow, open its **Trigger** dropdown, and pick **Trigger zone** —
 the plugin's own editor appears (zone · when · seconds/people). The one-zone rules:
 
 | Rule | Fires when |
@@ -223,7 +223,7 @@ Reference: [`docs/STATE-MACHINE.md`](../../../docs/STATE-MACHINE.md#the-cold-sta
 ## 7. Make it yours
 
 1. **Add a performance look.** Capture a new **Scene** (Scenes & Cues → **Capture scene**), add a state
-   bound to it in **Show Machine**, draw a trigger *in* (a **LiDAR zone**, a **manual** button, or OSC)
+   bound to it in **Show Machine**, draw a trigger *in* (a **Trigger zone**, a **manual** button, or OSC)
    and an **`afterDelay`**/`empty for…` arrow back. Give the return a `fadeSec` and the state a `lockSec`.
    Rename the transition's id for a clean OSC address (`/artlux/state/<your-id>`).
 2. **"Blackout from anywhere" — the right way.** Instead of drawing a manual edge from *each* performance
@@ -241,7 +241,7 @@ Reference: [`docs/STATE-MACHINE.md`](../../../docs/STATE-MACHINE.md#the-cold-sta
 ## Recap
 
 The interactive pattern is a **hub that holds** (attract plays out, then freezes on its last frame with
-the bed still running) and **reacts to the room**: a **LiDAR zone** advances it, guarded by
+the bed still running) and **reacts to the room**: a **Trigger zone** advances it, guarded by
 **`requireEnd`** so a visitor never cuts the film, and a `empty for…` zone (or `afterDelay`) returns it.
 A **`fromAny` global rule** covers "from anywhere" behaviour without hand-wiring every state. **Manual**
 and **OSC** remain for hands-on and controller-driven venues, **lock time** debounces, and the

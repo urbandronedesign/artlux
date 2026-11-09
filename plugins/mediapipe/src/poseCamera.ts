@@ -57,3 +57,11 @@ export function aspect(): number | null {
 
 // The live MediaStream for a debug <video> preview (null while capture is stopped).
 export function getStream(): MediaStream | null { return stream; }
+
+// What the capture IS — recorded with a calibration so a swapped webcam can be flagged (a quad marked
+// on one camera's picture means nothing on another's). Null while capture is stopped.
+export function info(): { label: string; w: number; h: number } | null {
+  const t = stream?.getVideoTracks()[0];
+  if (!t || !video || !video.videoWidth) return null;
+  return { label: t.label || 'Camera', w: video.videoWidth, h: video.videoHeight };
+}

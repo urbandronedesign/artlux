@@ -113,7 +113,7 @@ export function trails(surface: Surface, now: number, trailSeconds: number): Flo
 }
 
 // BlazePose 33-landmark skeleton connections (index pairs). The standard MediaPipe POSE_CONNECTIONS.
-const POSE_CONNECTIONS: [number, number][] = [
+export const POSE_CONNECTIONS: [number, number][] = [
   [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],           // shoulders + arms
   [11, 23], [12, 24], [23, 24],                               // torso
   [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],           // left leg

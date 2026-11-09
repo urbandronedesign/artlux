@@ -98,7 +98,7 @@ The runtime evaluates the current state's outgoing edges in order and fires **at
 | **on clip end** | the active clip on a track ends (a gap opens under the playhead) | playhead |
 | **on timeline end** | the bound timeline reaches its end while playing and **not** looping | playhead — a loop wrap is not an end |
 | **osc** | an OSC message arrives at an address, optionally only from one named device | the network — transport or not |
-| **LiDAR zone** | a person enters/leaves a [trigger zone](13-tracking.md#wire-a-zone-to-the-show), a crowd threshold, a dwell | the world — every frame, transport or not |
+| **Trigger zone** | a person (or, on the camera area, a chosen hand, foot, head or body) enters/leaves a [trigger zone](13-tracking.md#wire-a-zone-to-the-show), a crowd threshold, a dwell | the world — every frame, transport or not |
 
 ### The dual‑clock rule (the #1 gotcha)
 

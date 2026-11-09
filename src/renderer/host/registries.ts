@@ -17,6 +17,7 @@ import type {
   PanelContribution, PanelRegistry,
   SceneVizContribution, SceneVizRegistry,
   SmTriggerContribution, SmTriggerRegistry,
+  TrackingSurfaceContribution, TrackingSurfaceRegistry,
   ProjectorPanelContribution, ProjectorPanelRegistry,
   VideoCodecContribution, VideoCodecRegistry,
   AutomationTargetProvider, AutomationTargetRegistry,
@@ -115,6 +116,16 @@ export const smTriggerRegistry: SmTriggerRegistry = {
   register(t) { smTriggers.set(t.source, t); },
   get(source) { return smTriggers.get(source); },
   all() { return [...smTriggers.values()]; },
+};
+
+// ── Tracking surfaces (non-LiDAR point sources trigger zones can sit on) ───────────────────
+// Keyed by `key`, persisted in TrackingZone.surface. A miss is a zone on a surface no active plugin
+// provides: it is drawn, it never counts anyone — inert, like an unknown trigger source.
+const trackingSurfaces = new Map<string, TrackingSurfaceContribution>();
+export const trackingSurfaceRegistry: TrackingSurfaceRegistry = {
+  register(s) { trackingSurfaces.set(s.key, s); },
+  get(key) { return trackingSurfaces.get(key); },
+  all() { return [...trackingSurfaces.values()]; },
 };
 
 // ── Video codecs (pluggable decoders for non-<video> file content, e.g. HAP) ────────────────

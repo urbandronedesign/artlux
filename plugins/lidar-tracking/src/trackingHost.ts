@@ -5,7 +5,7 @@
 // address / port / enabled) for its status strip. Read-only; the panel never mutates settings.
 
 import { useSyncExternalStore } from 'react';
-import type { RendererHostServices } from '@artlux/sdk/renderer';
+import type { RendererHostServices, TrackingSurfaceRegistry, TrackingSurfaceContribution } from '@artlux/sdk/renderer';
 import type { Scene3D, TrackingZone } from '../../../shared/protocol';
 
 // The subset of AppSettings the OSC Monitor reads. (AppSettings is a core type; we only need these.)
@@ -19,6 +19,15 @@ let host: RendererHostServices | null = null;
 
 // Called once from the plugin's renderer activate() (main window — the only place the panel mounts).
 export function setHost(h: RendererHostServices): void { host = h; }
+
+// OTHER PLUGINS' TRACKING SURFACES (the camera area, …) — so the zone editor can list them, draw their
+// points and open their calibration, without importing the plugin that provides them.
+let surfaceRegistry: TrackingSurfaceRegistry | null = null;
+export function setSurfaceRegistry(r: TrackingSurfaceRegistry | null): void { surfaceRegistry = r; }
+export function providerSurfaces(): TrackingSurfaceContribution[] { return surfaceRegistry?.all() ?? []; }
+export function providerSurface(key: string): TrackingSurfaceContribution | undefined { return surfaceRegistry?.get(key); }
+/** Open a menu action's panel (a provider surface's calibration modal). */
+export function runMenuAction(action: string): void { host?.ui?.menuAction?.(action); }
 
 // Reactive host-settings hook: subscribes to the host's settings service so the panel re-renders when
 // OSC settings change. Falls back to an empty object before the host is set / in windows without one.

@@ -105,7 +105,7 @@ latches *occupied*) and **Zone exit dwell** (default **0.5 s** — how long abse
 clears; also the *gap tolerance* for a tracker that constantly drops blobs). Every zone follows these
 unless it overrides — nudge once, the whole room retunes.
 
-**The rules** (a transition's **LiDAR zone** trigger, edited in the Show Machine — see below) come in two
+**The rules** (a transition's **Trigger zone** trigger, edited in the Show Machine — see below) come in two
 modes:
 
 - **One zone** — *someone enters · everyone leaves · occupied for N s · empty for N s · at least N

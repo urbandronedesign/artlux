@@ -1,4 +1,5 @@
 import type { TrackingZone } from '../../../shared/protocol';
+import type { TrackingSurfaceContribution, TrackedPoint } from '@artlux/sdk/renderer';
 import * as people from './people';
 
 // TRIGGER ZONES — "is anybody standing there?", answered once per frame, with hysteresis.
@@ -75,6 +76,71 @@ const subs = new Set<() => void>();
 interface Presence { lastSeenMs: number; runStartMs: number }
 const presence = new Map<string, Presence>();
 
+// ── OTHER SOURCES: plugin tracking surfaces (the camera area, …) ──────────────────────────────────
+// A zone whose `surface` is not one of this plugin's LiDAR keys reads its points from a surface another
+// plugin contributed (ctx.trackingSurfaces). The lookup is injected by plugin.renderer.ts so this module
+// stays render-free and SDK-type-only. A key nobody provides is a zone that sees nobody — inert, never
+// an error, exactly like a trigger naming a disabled plugin.
+let surfaceLookup: ((key: string) => TrackingSurfaceContribution | undefined) | null = null;
+export function setSurfaceLookup(fn: ((key: string) => TrackingSurfaceContribution | undefined) | null): void { surfaceLookup = fn; }
+
+// KEEP THE SOURCE RUNNING WHILE A ZONE LISTENS. A camera pose model only infers while somebody holds
+// it (a pose surface on screen, the monitor panel, the calibration wizard). A show whose camera zones
+// are its only consumer would otherwise have NO inference running and every camera zone would sit
+// empty for good — a show that "stops seeing people" with nothing on screen to say why. So every live
+// zone on a provider surface holds that provider, and lets go when no live zone needs it any more.
+// Reconciled per frame (zones are a handful) because a provider may register AFTER the first configure.
+const holds = new Map<string, () => void>();
+function reconcileHolds(): void {
+  const need = new Set<string>();
+  if (surfaceLookup) for (const z of zones) if (!activeIds || activeIds.has(z.id)) {
+    const p = surfaceLookup(z.surface);
+    if (p?.acquire) need.add(z.surface);
+  }
+  for (const [k, release] of holds) if (!need.has(k)) { try { release(); } catch { /* best effort */ } holds.delete(k); }
+  for (const k of need) if (!holds.has(k)) {
+    const p = surfaceLookup!(k)!;
+    try { holds.set(k, p.acquire!('trigger-zones')); } catch (e) { console.error('[zones] acquire failed', k, e); }
+  }
+}
+
+// ── COUNTING PEOPLE IN A ZONE ─────────────────────────────────────────────────────────────────────
+// One answer for every source. A point is tagged with the PERSON it belongs to; a zone counts the
+// distinct people with at least one qualifying point inside. LiDAR points are each their own person
+// (people.ts already merged blobs into people), so their count is what it always was. A camera person
+// has several tagged parts — both hands of one visitor on the same pad are ONE person, so `minBlobs`
+// keeps meaning "people needed" whatever the source. `parts` filters which tags qualify; an untagged
+// point qualifies only when the zone filters nothing.
+export function countInZone(z: TrackingZone, pts: readonly TrackedPoint[]): number {
+  const want = z.parts && z.parts.length ? z.parts : null;
+  const seen = new Set<string>();
+  for (const p of pts) {
+    if (want && (!p.part || !want.includes(p.part))) continue;
+    if (seen.has(p.person)) continue;
+    if (inside(z, p.u, p.v)) seen.add(p.person);
+  }
+  return seen.size;
+}
+
+// This frame's points for one surface key — LiDAR people, or a provider's tagged points. Memoised per
+// evaluate() pass so N zones on the camera area cost one points() call, not N.
+function pointsFor(key: string, memo: Map<string, readonly TrackedPoint[]>): readonly TrackedPoint[] {
+  const hit = memo.get(key);
+  if (hit) return hit;
+  const provider = surfaceLookup?.(key);
+  let pts: readonly TrackedPoint[];
+  if (provider) {
+    try { pts = provider.available() ? provider.points() : []; } catch { pts = []; }
+  } else {
+    pts = people.get(key).map((p, i) => ({ u: p.u, v: p.v, person: String(i) }));
+  }
+  memo.set(key, pts);
+  return pts;
+}
+
+/** The points a zone on `key` is counted against, for the editor's live overlay. */
+export function surfacePoints(key: string): readonly TrackedPoint[] { return pointsFor(key, new Map()); }
+
 const blank = (id: string): ZoneState => ({ id, count: 0, occupied: false, occupiedSinceMs: 0, emptySinceMs: 0, enterSeq: 0, exitSeq: 0 });
 
 // Push the authored zones + the venue dwell + this look's active set (all from Scene3D). The
@@ -120,8 +186,10 @@ const inside = (z: TrackingZone, u: number, v: number): boolean =>
 
 // Advance every zone one frame. Call ONCE per frame from the main window.
 export function evaluate(nowMs: number): void {
-  if (zones.length === 0) return; // the no-zones cost is one compare
+  if (zones.length === 0) { if (holds.size) reconcileHolds(); return; } // the no-zones cost is one compare
+  reconcileHolds();
   let changed = false;
+  const memo = new Map<string, readonly TrackedPoint[]>();
 
   // The per-surface people were computed once for this frame by people.refresh(), which the host's
   // frame callback runs immediately before this. Nothing to gather here any more — and nothing to get
@@ -133,9 +201,7 @@ export function evaluate(nowMs: number): void {
     // UNANSWERABLE, not answered "empty", or an `exit`/`emptyFor` rule would fire on a look that was
     // never listening to that part of the room.
     if (activeIds && !activeIds.has(z.id)) continue;
-    const pts = people.get(z.surface);
-    let count = 0;
-    for (const p of pts) if (inside(z, p.u, p.v)) count++;
+    const count = countInZone(z, pointsFor(z.surface, memo));
 
     // A ZONE IS EMPTY FROM THE MOMENT IT IS WATCHED, not from the first time somebody leaves it. A fresh
     // state used to carry emptySinceMs = 0, which `emptyFor` reads as "not empty for any time at all" —

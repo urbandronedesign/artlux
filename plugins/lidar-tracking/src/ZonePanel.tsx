@@ -6,7 +6,7 @@ import { nextNumberedName } from '@artlux/sdk/renderer';
 import * as trackingStore from './trackingStore';
 import * as zones from './zones';
 import * as people from './people';
-import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge } from './trackingHost';
+import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge, providerSurfaces, providerSurface, runMenuAction } from './trackingHost';
 
 // TRIGGER ZONES — the authoring surface. A dock tab on the `tracking` workspace context (registered
 // by the plugin; the host declares that context and knows nothing about zones).
@@ -32,11 +32,19 @@ import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge } from './t
 // across the room (or a rectangle being dragged) re-renders nothing. Only the zone LIST is React.
 
 const SURFACES = ['SOL', 'MUR', 'SOL_MUR'];
+// A part's tag on the map — letters, not hues: colour on this map already means "which zone".
+const PART_TAG: Record<string, string> = { handL: 'L', handR: 'R', footL: 'l', footR: 'r', head: 'H', body: 'B' };
 const PALETTE = ['#f5a623', '#22d3ee', '#a855f7', '#7ed957', '#ef4444', '#38bdf8'];
 const MIN_SIZE = 0.02;   // a rect smaller than this is a mis-click, not a zone
 const HANDLE_PX = 9;     // corner grab radius, in screen px
 
 const uid = (): string => crypto.randomUUID();
+// The largest box of aspect `a` (W÷H) that fits the frame.
+const fitAspect = (f: { w: number; h: number }, a: number): React.CSSProperties => {
+  if (!f.w || !f.h) return { width: '100%', height: '100%' };
+  const w = Math.min(f.w, f.h * a);
+  return { width: Math.floor(w), height: Math.floor(w / a) };
+};
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 type Rect = { u0: number; v0: number; u1: number; v1: number };
 const norm = (r: Rect): Rect => ({ u0: Math.min(r.u0, r.u1), v0: Math.min(r.v0, r.v1), u1: Math.max(r.u0, r.u1), v1: Math.max(r.v0, r.v1) });
@@ -52,7 +60,18 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   const scene = useHostScene3D();
   const list = useMemo(() => scene.trackingZones ?? [], [scene.trackingZones]);
   const active = scene.activeZoneIds;                    // undefined ⇒ every zone is live
-  const [surface, setSurface] = useState('SOL');
+  // Open on the surface the project's zones are on (a camera-only show has none on SOL).
+  const [surface, setSurface] = useState(() => scene.trackingZones?.[0]?.surface ?? 'SOL');
+  // A surface ANOTHER plugin provides (the camera area): its own points, aspect, parts and calibration.
+  const prov = providerSurface(surface);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = frameRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => setFrame({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [selId, setSelId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -164,6 +183,19 @@ export const ZonePanel: React.FC<PanelProps> = () => {
         g.strokeStyle = '#ffffff'; g.setLineDash([5, 4]); g.lineWidth = 1.5;
         g.strokeRect(X(r.u0), Y(r.v1), X(r.u1) - X(r.u0), Y(r.v0) - Y(r.v1));
         g.setLineDash([]);
+      }
+
+      // A PROVIDER SURFACE (the camera area): draw exactly what the zones count — every tagged body part,
+      // lettered (L/R hand, l/r foot, H head, B body). No blob/merge diagnostics: those are LiDAR's.
+      if (providerSurface(surfaceRef.current)) {
+        g.font = 'bold 9px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (const p of zones.surfacePoints(surfaceRef.current)) {
+          const x = X(p.u), y = Y(p.v);
+          g.fillStyle = '#e8e8e8'; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
+          g.fillStyle = '#0d0d0d'; g.fillText(PART_TAG[p.part ?? ''] ?? '•', x, y + 0.5);
+        }
+        g.textAlign = 'start'; g.textBaseline = 'alphabetic';
+        return;
       }
 
       // Live blobs, raw (NOT people-merged): this is a diagnostic view, and an operator drawing a zone
@@ -352,8 +384,12 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           <select value={surface} onChange={(e) => setSurface(e.target.value)}
             className="bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-fg-1 focus:border-accent outline-none">
             {[...new Set([...SURFACES, ...trackingStore.getSurfaces()])].map((s) => <option key={s} value={s}>{s}</option>)}
+            {providerSurfaces().map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
-          <span className="text-fg-3 text-micro">{dims}</span>
+          <span className="text-fg-3 text-micro whitespace-nowrap">{prov ? (prov.available() ? `shape ${(prov.aspect?.() ?? 1).toFixed(2)} : 1` : 'not calibrated') : dims}</span>
+          {prov?.calibrateAction && (
+            <button onClick={() => runMenuAction(prov.calibrateAction!)} className="text-accent text-micro hover:underline">Calibrate…</button>
+          )}
           {/* ⚠ WHAT A BLOB MEANS, PER SURFACE — and it lives HERE, beside the surface selector,
               because this is the one place an operator is already thinking about one surface at a
               time. A single project-wide flag could not express a venue whose FLOOR paints two blobs
@@ -361,7 +397,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               silently merged the wall too, so two people touching near each other became one trigger.
               Opting a surface out still TRACKS it — flicker rejection and coasting — so a hand the
               sensor loses for a frame does not drop the trigger; it just never merges. */}
-          {scene.trackingMergePeople && (
+          {scene.trackingMergePeople && !prov && (
             <>
               <span className="text-fg-3 text-micro">a blob is</span>
               <select
@@ -378,10 +414,25 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           )}
           <span className="ml-auto text-fg-3 text-micro truncate">{hint}</span>
         </div>
-        <div ref={boxRef} tabIndex={0} onKeyDown={onKeyDown}
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-          className="flex-1 min-h-0 relative rounded border border-line-1 overflow-hidden cursor-crosshair outline-none focus-visible:border-accent">
-          <canvas ref={canvasRef} className="absolute inset-0" />
+        {prov?.warning?.() && <div className="text-warn text-micro">⚠ {prov.warning()}</div>}
+        {/* A provider surface is drawn at its REAL proportions (the camera area's W÷H), so a square
+            zone on the map is a square on the wall. LiDAR surfaces keep filling the column as before. */}
+        <div ref={frameRef} className="flex-1 min-h-0 relative flex items-center justify-center">
+          <div ref={boxRef} tabIndex={0} onKeyDown={onKeyDown}
+            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+            style={prov ? fitAspect(frame, prov.aspect?.() ?? 1) : undefined}
+            className={`${prov ? 'relative' : 'absolute inset-0'} rounded border border-line-1 overflow-hidden cursor-crosshair outline-none focus-visible:border-accent`}>
+            <canvas ref={canvasRef} className="absolute inset-0" />
+            {prov && !prov.available() && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
+                <span className="text-fg-2 text-micro">{prov.label} is not calibrated yet — zones drawn here cannot see anyone until it is.</span>
+                {prov.calibrateAction && (
+                  <button onPointerDown={(e) => e.stopPropagation()} onClick={() => runMenuAction(prov.calibrateAction!)}
+                    className="pointer-events-auto px-2 py-1 rounded bg-accent text-white text-micro">Calibrate {prov.label}…</button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="text-fg-3 text-micro">
           Origin is bottom-left, matching the tracker. Zones are normalized and belong to the ROOM — they
@@ -440,6 +491,31 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               <input value={sel.name} onChange={(e) => patchZone(sel.id, { name: e.target.value })}
                 className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
             </label>
+            {/* WHICH BODY PARTS COUNT — only on a surface that tags them (the camera area). None selected
+                = any part. Still counts PEOPLE: a visitor with both hands on the pad is one. */}
+            {(() => {
+              const parts = providerSurface(sel.surface)?.parts;
+              if (!parts?.length) return null;
+              const cur = sel.parts ?? [];
+              const set = (next: string[]) => patchZone(sel.id, { parts: next.length ? next : undefined });
+              const toggle = (id: string) => set(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+              const chip = (on: boolean) => `px-1.5 py-0.5 rounded-sm border text-micro ${on ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`;
+              const isSet = (ids: string[]) => cur.length === ids.length && ids.every((i) => cur.includes(i));
+              return (
+                <div className="space-y-1">
+                  <span className="text-fg-3 text-micro">Detect</span>
+                  <div className="flex flex-wrap gap-1">
+                    <button className={chip(cur.length === 0)} onClick={() => set([])}>Any part</button>
+                    <button className={chip(isSet(['handL', 'handR']))} onClick={() => set(['handL', 'handR'])}>Hands</button>
+                    <button className={chip(isSet(['footL', 'footR']))} onClick={() => set(['footL', 'footR'])}>Feet</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {parts.map((p) => <button key={p.id} className={chip(cur.includes(p.id))} onClick={() => toggle(p.id)}>{p.label}</button>)}
+                  </div>
+                  <span className="block text-fg-3 italic text-micro">Left and right are the person's own hands, whatever the mirror.</span>
+                </div>
+              );
+            })()}
             {/* ⚠ THE LABEL SAYS PEOPLE, SO THE NUMBER HAD BETTER BE PEOPLE. The persisted key is
                 `minBlobs` and stays that way (renaming it would be a project migration for a label),
                 but what it is compared against is a PERSON count only while merging is on. With
@@ -451,7 +527,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               <input type="number" min={1} step={1} value={sel.minBlobs ?? 1}
                 onChange={(e) => patchZone(sel.id, { minBlobs: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
                 className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
-              {!people.isMerging() && (
+              {!people.isMerging() && !providerSurface(sel.surface) && (
                 <span className="block mt-0.5 text-warn text-micro">
                   Merge people is off, so this counts raw blobs — and a LiDAR that reports two per
                   person makes this mean half what you type. Turn on <span className="text-fg-2">Merge
@@ -507,7 +583,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               briefly disappears from ending the state they are standing in.
             </div>
             <div className="text-fg-3 text-micro">
-              Use it from a transition: trigger <span className="text-fg-2">LiDAR zone</span> in the Show Machine.
+              Use it from a transition: trigger <span className="text-fg-2">Trigger zone</span> in the Show Machine.
             </div>
           </div>
         )}

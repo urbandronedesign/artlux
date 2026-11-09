@@ -1732,6 +1732,26 @@ check(
   },
 );
 
+// ── Trigger zones on another plugin's surface (the camera area) ───────────────────────────────
+check(
+  'a trigger zone counts PEOPLE from every source, and holds a provider surface running',
+  'A camera person has several tagged parts. Counting POINTS made a visitor with both hands on a pad two ' +
+  'people, so "People needed: 2" fired for one visitor. And a camera only infers while somebody holds it: ' +
+  'a show whose camera zones were its only consumer had NO inference running, and every camera zone sat ' +
+  'empty for good with nothing on screen to say why. (Also: a degenerate calibration inverted to the ' +
+  'IDENTITY, so a broken area "worked" by mapping the raw picture — it must be null, i.e. not calibrated.)',
+  () => {
+    const z = read('plugins/lidar-tracking/src/zones.ts');
+    const h = read('plugins/mediapipe/src/poseHomography.ts');
+    const problems = [];
+    if (!/const count = countInZone\(z, pointsFor\(/.test(z)) problems.push('zones.evaluate() no longer counts through countInZone(pointsFor(...)) — the per-person rule');
+    if (!/seen\.add\(p\.person\)/.test(z)) problems.push('countInZone() no longer dedupes by person');
+    if (!/reconcileHolds\(\);[\s\S]{0,80}let changed = false;/.test(z)) problems.push('evaluate() no longer reconciles provider holds every pass (a provider registered after configure() would never be acquired)');
+    if (/return \[1, 0, 0, 0, 1, 0, 0, 0, 1\]/.test(h)) problems.push('poseHomography.invert() returns the identity for a singular matrix again — it must return null');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── FSM: a guard suppresses the ACTION, never the EVALUATION ──────────────────────────────────
 check(
   'the FSM evaluates a transition\'s trigger before applying its guard',

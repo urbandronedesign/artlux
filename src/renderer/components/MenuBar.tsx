@@ -124,7 +124,7 @@ function buildMenus(recents: string[], workspaceItems: Item[]): Menu[] {
         { label: 'Timeline', accel: 'Ctrl+T', action: 'toggle-timeline' },
         { sep: true },
         // These navigate to dock tabs / context viewports (per WORKSPACE.md), so no dialog "…". Only
-        // Pose Floor Calibration opens a modal flow and keeps its ellipsis.
+        // Pose Calibration (camera area + floor) opens a modal flow and keeps its ellipsis.
         { label: 'OSC Monitor', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },
         { label: 'DMX Monitor', action: 'dmx-monitor' },
         // Where trigger zones are DRAWN. Listed beside the monitors because it is reached the same
@@ -132,7 +132,7 @@ function buildMenus(recents: string[], workspaceItems: Item[]): Menu[] {
         // nobody has.
         { label: 'Trigger Zones', action: 'zone-editor' },
         { label: 'Pose Monitor', action: 'pose-monitor' },
-        { label: 'Pose Floor Calibration…', action: 'pose-calibrate' },
+        { label: 'Pose Calibration…', action: 'pose-calibrate' },
         { label: 'Augmenta Monitor', action: 'augmenta-monitor' },
         { label: 'Show Control', action: 'show-control' },
         { label: 'Audio Bed', action: 'audio-bed' },

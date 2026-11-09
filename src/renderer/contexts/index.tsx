@@ -333,7 +333,7 @@ export function registerCoreWorkspace(): void {
         live: takeRecorder.lightingActionLive, stayPut: true,
         enabled: (s) => s.kinds.includes('fixture.light') },
       // Followed the tracking context here — a modal step-by-step flow, so it stays an action.
-      { id: 'pose-cal', label: 'Pose Floor Calibration…', icon: <Crosshair size={13} />, menuAction: 'pose-calibrate', group: 'tracking' },
+      { id: 'pose-cal', label: 'Pose Calibration…', icon: <Crosshair size={13} />, menuAction: 'pose-calibrate', group: 'tracking' },
       // No `enabled`: a tracking take has no target to select. It captures the live feed or refuses
       // (with a toast) because a take is already replaying.
       { id: 'record-tracking', label: 'Record Tracking Take', icon: <Radar size={13} />, menuAction: 'record-tracking-take', group: 'tracking',

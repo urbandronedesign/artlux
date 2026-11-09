@@ -1016,6 +1016,21 @@ export interface MediapipeFloor {
   depth: number;                 // floor rectangle depth (z), metres
 }
 
+// The camera INTERACTION AREA (@artlux/plugin-mediapipe): the part of the webcam image that trigger
+// zones are drawn on. Four corners marked in the live feed — normalized [u,v], BOTTOM-LEFT origin, in
+// tl,tr,br,bl order — on ANY plane: a wall people touch, a screen, a floor, or simply a box of air in
+// front of the camera. Body points are mapped through the image→area homography into the area's own
+// 0..1 space, so a zone stays put when the camera is nudged and the area re-marked.
+//
+// VENUE, NOT LOOK (App SCENE3D_NOT_A_LOOK): where the camera points is the room. `camera` records what
+// it was calibrated ON so a swapped webcam can be flagged instead of silently mis-mapping.
+export interface MediapipeArea {
+  imageQuad: [[number, number], [number, number], [number, number], [number, number]]; // tl, tr, br, bl
+  aspect: number;                // width / height of the area in the real world (drawing proportions only)
+  mirror?: boolean;              // flip u — the area reads as a mirror of the camera image (selfie view)
+  camera?: { label: string; w: number; h: number };
+}
+
 // A TRIGGER ZONE on a tracking surface — an area of the real venue that the show can react to.
 // (@artlux/plugin-lidar-tracking owns the behaviour; only the persisted shape is core, exactly like
 // `SourceType.TRACKING` and the trackingSmoothing/trackingMergeRadius settings below.)
@@ -1032,7 +1047,7 @@ export interface MediapipeFloor {
 export interface TrackingZone {
   id: string;
   name: string;                  // readable — it is what the trigger UI lists and what an operator debugs by
-  surface: string;               // SOL | MUR | SOL_MUR — a trackingStore surface key
+  surface: string;               // SOL | MUR | SOL_MUR (LiDAR) or a plugin tracking surface key, e.g. POSE
   u0: number; v0: number;        // rect corners, normalized [0..1]; stored min→max (u0<u1, v0<v1)
   u1: number; v1: number;
   color?: string;
@@ -1040,6 +1055,9 @@ export interface TrackingZone {
   minBlobs?: number;             // people needed before the zone counts as occupied (default 1, AFTER people-merge)
   enterSec?: number;             // must stay occupied this long before it latches (debounce, default 0.2)
   exitSec?: number;              // must stay empty this long before it un-latches (hysteresis, default 0.5)
+  // WHICH BODY PARTS COUNT, on a surface that tags them (the camera area: handL, handR, footL, footR,
+  // head, body). Absent/empty = any part. Still counts PEOPLE: a visitor with both hands in is one.
+  parts?: string[];
 }
 
 export interface Scene3D {
@@ -1133,6 +1151,7 @@ export interface Scene3D {
   activeZoneIds?: string[];
   mediapipeViz?: boolean;             // overlay the camera-pose (MediaPipe) tracked-people markers in 3D
   mediapipeFloor?: MediapipeFloor;    // camera→floor homography for real-world pose position preview
+  mediapipeArea?: MediapipeArea;      // camera interaction area — trigger zones on surface 'POSE' sit in it
   augmentaViz?: boolean;              // overlay the Augmenta field + tracked-object markers in 3D (@artlux/plugin-augmenta)
   camMask?: CamMask;                  // markerless calibration camera exclusion mask (reflective hotspots)
   markerMap?: MarkerMap;              // registered fiducial markers for one-click recalibration

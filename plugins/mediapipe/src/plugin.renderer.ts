@@ -25,6 +25,7 @@ import { PoseCalibration } from './PoseCalibration';
 import { PoseSettings } from './poseSettings';
 import { PoseContentEditor } from './poseContentEditor';
 import { setHost } from './poseHost';
+import { poseSurface } from './poseArea';
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'mediapipe', name: 'MediaPipe Pose', version: '0.0.0' },
@@ -40,9 +41,29 @@ export const plugin: RendererPlugin = {
     ctx.panels.register({ id: 'pose-monitor', mount: 'dock', menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
     ctx.contexts.extend('3d', { dock: ['pose-monitor'] });
 
-    // Pose Floor Calibration: the 4-point wizard relating the camera feed to real floor space; writes
-    // Scene3D.mediapipeFloor, which PoseViz reads to place people at real-world positions on the floor.
-    ctx.panels.register({ id: 'pose-calibrate', mount: 'modal', menuAction: 'pose-calibrate', title: 'Pose Floor Calibration', Component: PoseCalibration });
+    // Pose Calibration: one modal, two quads marked on the live camera picture —
+    //   · the INTERACTION AREA (Scene3D.mediapipeArea) that trigger zones on 'POSE' are drawn in;
+    //   · the FLOOR (Scene3D.mediapipeFloor), which PoseViz reads to place people in the 3D scene.
+    ctx.panels.register({ id: 'pose-calibrate', mount: 'modal', menuAction: 'pose-calibrate', title: 'Pose Calibration', Component: PoseCalibration });
+
+    // The interaction area as a TRACKING SURFACE: trigger zones (owned by the LiDAR plugin's zone
+    // engine) can sit on it and filter by body part. The SDK registry is the only link between the two.
+    ctx.trackingSurfaces.register(poseSurface);
+
+    // A SIMULATED POSE SOURCE for tests and rehearsals without a visitor (main window, from devtools/CDP):
+    //   __artluxPose.inject([{ u, v, score, landmarks: [33 × {x,y,z,visibility}] }, …])  — bottom-left space
+    //   __artluxPose.release()                                                        — back to the camera
+    // It takes the store as a REPLAY SOURCE, so the live camera cannot overwrite the injected people
+    // mid-test (the zones acquire the engine, and a real webcam would otherwise ingest "nobody" 30×/s).
+    // Same family as __artluxWarmPools / __artluxOpenTrace: read-mostly diagnostics, never wired to UI.
+    if (ctx.window === 'main') {
+      (window as unknown as Record<string, unknown>)['__artluxPose'] = {
+        inject: (dets: PoseSnapshot['detections']) => { poseStore.setReplaySource(true); poseStore.applySnapshot({ detections: dets }); },
+        release: () => { poseStore.setReplaySource(false); poseStore.applySnapshot({ detections: [] }); },
+        points: () => poseSurface.points(),
+        status: () => poseEngine.status(),
+      };
+    }
 
     // Preferences section: camera device / model / delegate / max-people / confidence.
     ctx.settings.register({ id: 'mediapipe', title: 'Pose Tracking (MediaPipe)', Component: PoseSettings });
@@ -91,5 +112,5 @@ export const plugin: RendererPlugin = {
 
   // On the startup splash. The WASM runtime + model are fetched lazily on the first MEDIAPIPE surface,
   // so "did the model load" is unknowable here — report the contributions, not a guess.
-  status: () => ({ state: 'ok', detail: 'webcam pose source · monitor · floor calibration' }),
+  status: () => ({ state: 'ok', detail: 'webcam pose source · monitor · camera area for trigger zones · floor calibration' }),
 };

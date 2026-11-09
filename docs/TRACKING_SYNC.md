@@ -179,13 +179,23 @@ last clause — every zone is simply live everywhere.
 ```ts
 TrackingZone {
   id, name,
-  surface,                 // SOL | MUR | SOL_MUR — a trackingStore surface key
+  surface,                 // SOL | MUR | SOL_MUR (LiDAR), or a plugin tracking surface key — 'POSE' = the camera area
   u0, v0, u1, v1,          // normalized rect [0..1], origin BOTTOM-LEFT (the blob convention, Y up)
   color?,
   minBlobs?,               // people needed to count as occupied (default 1, AFTER people-merge)
   enterSec?, exitSec?,     // dwell OVERRIDE; absent ⇒ follows the venue-wide dwell (below)
+  parts?,                  // body parts that count, on a surface that tags them (camera: handL/handR/footL/footR/head/body)
 }
 ```
+
+**Other sources, same zones.** A zone whose `surface` is not a LiDAR key reads its points from a surface
+another plugin contributes through `ctx.trackingSurfaces` (SDK `TrackingSurfaceContribution`): today the
+MediaPipe **camera area** (`POSE`, see [MEDIAPIPE.md](MEDIAPIPE.md#the-interaction-area--trigger-zones--the-show)).
+Points carry a `person` and a `part`; `zones.countInZone` counts **distinct people** with a qualifying part
+inside, so `minBlobs` keeps meaning people whatever the source (LiDAR points are each their own person, so
+their count is unchanged). While a live zone sits on a provider surface, the zone engine holds the
+provider's `acquire()` — otherwise a camera whose only consumer is the zones would never run. A key no
+active plugin provides is inert, like an unknown trigger source.
 
 **Normalized, not metres** — deliberately. Blobs arrive as `u`/`v` in [0..1], so that is what the test
 compares against: no unit conversion on the frame path, and no re-authoring when the venue re-measures
@@ -265,7 +275,7 @@ standing in it. The caption is **screen-space**: it stays the same tiny size and
 the camera does, so it labels the room without ever growing large enough to cover the rectangle it names.
 The rectangle itself is the state display — **dashed while empty, solid once occupied**.
 
-## The rules (transition ▸ trigger ▸ **LiDAR zone**)
+## The rules (transition ▸ trigger ▸ **Trigger zone**)
 
 Two modes in the inspector: **One zone** and **Combination**.
 

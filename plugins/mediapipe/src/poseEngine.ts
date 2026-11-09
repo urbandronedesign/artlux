@@ -194,6 +194,15 @@ function loop(): void {
   if (now - fpsWindowStart >= 500) { fps = Math.round((frames * 1000) / (now - fpsWindowStart)); frames = 0; fpsWindowStart = now; }
 }
 
+// RETRY after a failure. `disabled` exists so a missing asset does not retry-storm on every reconcile —
+// but it used to be permanent for the session, so an unplugged-then-replugged webcam (or a camera another
+// app was holding) meant "Camera unavailable" until the app restarted. This is the operator's way back.
+export function retry(): void {
+  disabled = false;
+  lastError = null;
+  if (running || starting) restart(); else reconcile();
+}
+
 export interface EngineStatus { running: boolean; disabled: boolean; error: string | null; fps: number; count: number; consumers: number }
 export function status(): EngineStatus {
   return { running, disabled, error: lastError, fps, count, consumers: consumers.size };

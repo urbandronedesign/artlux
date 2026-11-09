@@ -23,7 +23,7 @@ Click an arrow's label to see its rule in the panel on the right.
 
 ## 2. "Someone enters" — Attract to Welcome
 
-Click **Entrance: someone enters**. The rule is **LiDAR zone**, **One zone**, **Entrance**,
+Click **Entrance: someone enters**. The rule is **Trigger zone**, **One zone**, **Entrance**,
 **someone enters**.
 
 It fires the moment the Entrance goes from empty to occupied. One detail matters: if someone is

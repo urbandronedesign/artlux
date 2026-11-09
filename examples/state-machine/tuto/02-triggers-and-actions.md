@@ -97,12 +97,12 @@ Click **`edit`** on the state lane (or pick **Show Machine** from the rail — c
 - `onMarker` — a **Marker** picker (→ "Hit").
 - `onClipEnd` — a **Track** picker (→ *Track A*). Fires when that track's clip ends under the playhead.
 
-![The transition inspector's Trigger dropdown, showing all seven kinds including LiDAR zone](images/02-transition-inspector.png)
-<!-- shot spec (this image exists; use when re-shooting): the Show Machine transition inspector — the Trigger dropdown open showing manual/afterDelay/atTime/onMarker/onClipEnd/onTimelineEnd + the LiDAR zone plugin option, plus the "Only after the state has finished" guard checkbox and Transition time field -->
+![The transition inspector's Trigger dropdown, showing all the kinds including Trigger zone](images/02-transition-inspector.png)
+<!-- shot spec (this image exists; use when re-shooting): the Show Machine transition inspector — the Trigger dropdown open showing manual/afterDelay/atTime/onMarker/onClipEnd/onTimelineEnd + the Trigger zone plugin option, plus the "Only after the state has finished" guard checkbox and Transition time field -->
 
 The **Trigger** dropdown lists all the kinds, not just these five. Two more sit below `onClipEnd`:
 **`onTimelineEnd`** (fires once when the timeline ends with Loop off — a loop wrap is *not* an end) and
-any **plugin-owned** source, which today reads **LiDAR zone** (chapter 3). Below the dropdown you'll
+any **plugin-owned** source, which today reads **Trigger zone** (chapter 3). Below the dropdown you'll
 also see two controls we don't use here but chapter 3 leans on: an **Only after the state has finished**
 checkbox (the `requireEnd` guard) and the **Transition time (s)** crossfade.
 
@@ -140,7 +140,7 @@ Five triggers, two clocks: `manual` (you), `afterDelay` (wall clock, runs while 
 own scene timeline** — every Scene owns one — so ruler content is authored per state, not on the
 Global timeline. ArtLux has **two** triggers this walkthrough skips: `onTimelineEnd` (fires once when a
 non-looping timeline reaches its end — a loop wrap doesn't count; the trigger for "the show finished
-→ advance") and the plugin-owned `plugin` kind (a **LiDAR zone**), both in
+→ advance") and the plugin-owned `plugin` kind (a **Trigger zone**), both in
 [docs/STATE-MACHINE.md](../../../docs/STATE-MACHINE.md) and chapter 3. **Entry actions** let a state
 drive the transport; **lock time** guarantees a dwell; **regions** keep the graph tidy. Next: wire
 these into a real, deployable **interactive installation** that reacts to the room.

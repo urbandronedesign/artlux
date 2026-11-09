@@ -151,6 +151,11 @@ const SCENE3D_NOT_A_LOOK = [
   // gridVisible joining it is a deliberate change to shipped behaviour: it used to ride the snapshot.
   'gridVisible',
   'gridLabels',
+  // WHERE THE CAMERA POINTS is the room, exactly like the zones drawn in it. The floor calibration rode
+  // every snapshot until the interaction area joined it here (2026-11-09) — a GO onto a scene captured
+  // before calibrating put the old quad back, and every camera zone then sat on the wrong patch of wall.
+  'mediapipeFloor',
+  'mediapipeArea',
 ] as const;
 
 // Strip them on the way INTO a scene snapshot: a scene must not carry a copy at all.
@@ -3982,7 +3987,7 @@ const App: React.FC = () => {
       // calibRig.testBackup, so this is a plain replace.
       setContent: (id, content) => setSurfaces((prev) => prev.map((s) => s.id === id ? { ...s, content: content as Surface['content'] } : s)),
     },
-    ui: { goToContext: (id: string) => goToContext(id) },
+    ui: { goToContext: (id: string) => goToContext(id), menuAction: (action: string) => dispatchMenuRef.current(action) },
     bakes: {
       list: () => bakesRef.current,
       forSurface: (surfaceId: string) => bakesRef.current.find((b) => b.surfaceId === surfaceId),
