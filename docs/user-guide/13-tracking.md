@@ -98,6 +98,11 @@ on the camera are drawn inside it, so marking it is the first step to a camera�
 6. **Save area.** A shape the camera cannot use — corners crossed, in the wrong order, in a line, or
    too small — is refused with the reason, and the outline turns red.
 
+**See it in the 3D scene:** switch on **Camera pose markers (MediaPipe)** in the 3D panel. The camera
+picture appears as an upright panel behind the floor, with the area's dashed outline, a yellow dot for
+every hand, foot or head the zones count, and the zones themselves, dashed while empty and solid while
+someone is in them. The panel is the camera's view, not a place in the room.
+
 Then open the **Test** tab and walk through your zones: it shows the saved area flat, every body part
 it sees, and lights each zone as soon as a part it counts is inside.
 
@@ -162,7 +167,9 @@ any one zone, so the enter/exit dwell is a **venue‑wide** control in the track
 
 A single zone can **Override dwell for this zone** for the odd entrance that must react faster (or a
 lounge that must hold longer) than the rest of the room. The same zones appear in the 3D scene,
-labelled with name and live headcount, so you can check they sit where you think.
+labelled with name and live headcount, so you can check they sit where you think: LiDAR zones on the
+floor and wall with **Tracking zones (LiDAR)** on, camera zones on the camera panel with **Camera pose
+markers (MediaPipe)** on.
 
 ### Zones on the camera area
 

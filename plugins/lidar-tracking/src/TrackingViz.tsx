@@ -7,6 +7,7 @@ import { Scene3D } from '../../../shared/protocol';
 import * as tracking from './trackingStore';
 import * as blobMotion from './blobMotion';
 import * as zones from './zones';
+import { providerSurface } from './trackingHost';
 
 // LiDAR tracking visualization for the 3D Scene. Reconstructs the venue's interactive zones at
 // real-world dimensions and renders a smoothed, predicted, ID-labeled marker per tracked blob.
@@ -68,9 +69,16 @@ const rect = (points: [number, number, number][]): [number, number, number][] =>
 // deliberate rather than convenient: any disagreement between the two mappings would draw the zone
 // somewhere the trigger does not actually test, and the error would only show up as a show that fires
 // at the wrong moment.
-const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
+//
+// SURFACE-AGNOSTIC. `place` maps a zone corner on its surface to the scene, or null where that surface has
+// no place in 3D right now; `only` picks which zones this instance draws. TrackingViz passes the LiDAR
+// mapping + the LiDAR keys; ProviderZonesViz (below) passes a provider surface's own toWorld — so a camera
+// zone is drawn on the camera panel, never dropped onto the LiDAR floor because its key is unknown here.
+type Place = (surface: string, u: number, v: number) => [number, number, number] | null;
+export const LIDAR_SURFACES = new Set(['SOL', 'MUR', 'SOL_MUR']);
+const ZoneOutlines: React.FC<{ place: Place; only: (surface: string) => boolean }> = ({ place, only }) => {
   const [tick, setTick] = useState(0);
-  const list = zones.getZones();
+  const list = zones.getZones().filter((z) => only(z.surface));
   // Occupancy is a low-rate event (a person arriving), so a 4 Hz poll is plenty and keeps the r3f
   // scene out of the high-rate blob path entirely.
   useEffect(() => {
@@ -78,17 +86,14 @@ const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
     return () => window.clearInterval(id);
   }, []);
   void tick;
-  const p = useMemo(() => new THREE.Vector3(), []);
-  const corner = (surface: string, u: number, v: number): [number, number, number] => {
-    blobPosition(surface, u, v, dims, p);
-    // Lift a hair off the surface so the outline is not z-fighting the zone plane it sits on.
-    return [p.x, p.y + 0.002, p.z];
-  };
   return (
     <group>
       {list.map((z) => {
         const u0 = Math.min(z.u0, z.u1), u1 = Math.max(z.u0, z.u1);
         const v0 = Math.min(z.v0, z.v1), v1 = Math.max(z.v0, z.v1);
+        const cs = [place(z.surface, u0, v0), place(z.surface, u1, v0), place(z.surface, u1, v1), place(z.surface, u0, v1)];
+        const centre = place(z.surface, (u0 + u1) / 2, (v0 + v1) / 2);
+        if (!centre || cs.some((c) => !c)) return null; // that surface is not in the scene right now
         const st = zones.getState(z.id);
         const occupied = st?.occupied ?? false;
         // No state at all ⇒ this look does not listen to the zone (Scene3D.activeZoneIds). It still
@@ -96,15 +101,11 @@ const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
         // deleted — but faintly, because nothing here can fire it.
         const inScene = !!st;
         const col = z.color || '#f5a623';
-        const centre = corner(z.surface, (u0 + u1) / 2, (v0 + v1) / 2);
         return (
           <group key={z.id}>
             {/* Occupancy reads as SOLID vs dashed. It used to also thicken the line, which no longer
                 survives (see PolyLine), but solid-vs-dashed was always the stronger signal. */}
-            <PolyLine points={rect([
-              corner(z.surface, u0, v0), corner(z.surface, u1, v0),
-              corner(z.surface, u1, v1), corner(z.surface, u0, v1),
-            ])} color={col} dashed={!occupied} dashSize={0.12} gapSize={0.08}
+            <PolyLine points={rect(cs as [number, number, number][])} color={col} dashed={!occupied} dashSize={0.12} gapSize={0.08}
               opacity={inScene ? 1 : 0.35} />
             {/* THE NAME. Anchored through the same blobPosition() mapping as the corners above, so the
                 label can never drift from the rectangle it names. DOM via drei Html (offline-safe,
@@ -265,6 +266,13 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
     }
   });
 
+  // A zone corner maps to 3D through the EXACT code path a blob does (see ZoneOutlines). Lifted a hair
+  // off the surface so the outline is not z-fighting the zone plane it sits on.
+  const placeLidar = useMemo<Place>(() => {
+    const p = new THREE.Vector3();
+    return (surface, u, v) => { blobPosition(surface, u, v, dims, p); return [p.x, p.y + 0.002, p.z]; };
+  }, [dims]);
+
   const { W, D, H } = dims;
   const floorRect = rect([[-W / 2, 0, 0], [W / 2, 0, 0], [W / 2, 0, D], [-W / 2, 0, D]]);
   const wallRect = rect([[-W / 2, 0, 0], [W / 2, 0, 0], [W / 2, H, 0], [-W / 2, H, 0]]);
@@ -292,7 +300,7 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
       </mesh>
 
       {/* Trigger zones — dashed while empty, solid + thick while occupied. */}
-      <ZoneOutlines dims={dims} />
+      <ZoneOutlines place={placeLidar} only={isLidar} />
 
       {/* Live blob markers — unlit + bright (per-surface instanceColor) so they read at any lighting. */}
       <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_BLOBS]} frustumCulled={false}>
@@ -329,5 +337,19 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
     </group>
   );
 };
+
+const isLidar = (surface: string): boolean => LIDAR_SURFACES.has(surface);
+
+// TRIGGER ZONES ON ANOTHER PLUGIN'S SURFACE (the camera area, …). The provider says where its surface sits
+// in the scene (TrackingSurfaceContribution.toWorld) and draws the surface itself; this draws the zones
+// on it — same outlines, same occupancy (solid/dashed), same name + headcount as the LiDAR ones, because
+// the zones and their state are ours. Mounted on its own (not inside TrackingViz), so camera zones show
+// without switching on the LiDAR venue. A provider returns null while its own overlay is off, and then
+// nothing is drawn: a zone floating on a panel that is not there would be worse than none.
+export const ProviderZonesViz: React.FC<{ scene3D: Scene3D }> = () => {
+  const place = useMemo<Place>(() => (surface, u, v) => providerSurface(surface)?.toWorld?.(u, v) ?? null, []);
+  return <ZoneOutlines place={place} only={notLidar} />;
+};
+const notLidar = (surface: string): boolean => !LIDAR_SURFACES.has(surface);
 
 export default TrackingViz;

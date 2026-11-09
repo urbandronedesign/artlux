@@ -17,6 +17,7 @@ import * as poseEngine from './poseEngine';
 import * as poseCamera from './poseCamera';
 import { getHost } from './poseHost';
 import { PARTS, extractParts, imageToArea, mapToArea, inArea, type PartId } from './poseAreaMath';
+import { areaToField } from './poseField';
 
 export const POSE_SURFACE_KEY = 'POSE';
 const STALE_MS = 500; // same window as poseStore.snapshot(): a dead camera is NOBODY, not a frozen crowd
@@ -87,6 +88,15 @@ export const poseSurface: TrackingSurfaceContribution = {
   },
   calibrateAction: 'pose-calibrate',
   warning: cameraMismatch,
+  // Zones sit on the camera-field panel PoseViz draws — so only while that overlay is on (the 3D
+  // panel's "Camera pose markers" toggle) and the area is valid. Lifted 2 cm so a zone outline is not
+  // z-fighting the panel it is drawn on.
+  toWorld: (u, v) => {
+    const s = getHost()?.scene3D.get() as { mediapipeViz?: boolean; mediapipeArea?: MediapipeArea } | undefined;
+    const area = s?.mediapipeArea;
+    if (!s?.mediapipeViz || !area || !homography(area)) return null;
+    return areaToField(area, u, v, 0.02);
+  },
 };
 
 export type { PartId };

@@ -23,7 +23,7 @@ import * as trackingDrawable from './trackingDrawable';
 import * as trackingProjector from './trackingProjector';
 import * as take from './trackingTake';
 
-import TrackingViz from './TrackingViz';
+import TrackingViz, { ProviderZonesViz, LIDAR_SURFACES } from './TrackingViz';
 import { OscMonitor } from './OscMonitor';
 import { ZonePanel } from './ZonePanel';
 import { setHost, setSurfaceRegistry } from './trackingHost';
@@ -120,6 +120,14 @@ export const plugin: RendererPlugin = {
       id: 'lidar-tracking',
       enabled: (s) => (s as { trackingViz?: boolean }).trackingViz === true,
       Component: TrackingViz as ComponentType<{ scene3D: unknown }>,
+    });
+    // …and the zones on OTHER plugins' tracking surfaces (the camera area). Not gated on trackingViz:
+    // the provider decides — its toWorld() is null while its own overlay is off, and then this draws
+    // nothing. So a camera zone appears with the camera panel, without switching on the LiDAR venue.
+    ctx.sceneViz.register({
+      id: 'trigger-zones-provider',
+      enabled: (s) => ((s as { trackingZones?: { surface: string }[] }).trackingZones ?? []).some((z) => !LIDAR_SURFACES.has(z.surface)),
+      Component: ProviderZonesViz as ComponentType<{ scene3D: unknown }>,
     });
 
     // ── TRIGGER ZONES → the show machine ─────────────────────────────────────────────────────────

@@ -813,6 +813,11 @@ export interface TrackingSurfaceContribution {
   calibrateAction?: string;
   /** Optional: a one-line problem worth showing beside the map (e.g. "calibrated on another camera"). */
   warning?(): string | null;
+  /** Optional: where a point of this surface (u,v in 0..1, bottom-left) sits in the 3D scene, in metres —
+   *  or null while the provider draws no 3D representation of it (its overlay is off, not calibrated).
+   *  The zone owner draws zones on the surface through this, so a zone lands exactly where the
+   *  provider draws the surface itself. Omit for a surface with no place in the venue. */
+  toWorld?(u: number, v: number): [number, number, number] | null;
 }
 
 export interface TrackingSurfaceRegistry {

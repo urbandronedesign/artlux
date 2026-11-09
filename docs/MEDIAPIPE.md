@@ -44,7 +44,8 @@ starts on the first `MEDIAPIPE` surface and stops when the last one goes away.
 | `poseRenderer.ts` | Shared compute: marker instances, trails, `#id`/skeleton overlay, orientation transform. |
 | `posePass.ts` | Self-contained WebGL marker/trail/quad primitives (a copy of the LiDAR `blobPass`). |
 | `poseDrawable.ts` / `poseProjector.ts` | Stage GL canvas / projector-FBO render of `MEDIAPIPE` content. |
-| `PoseViz.tsx` | r3f scene overlay: calibrated floor + world-mapped markers, else the camera-field billboard (gated on `scene.mediapipeViz`). |
+| `PoseViz.tsx` | r3f scene overlay: calibrated floor + world-mapped markers; the camera-field panel (uncalibrated markers, the interaction area, the counted parts) — gated on `scene.mediapipeViz`. |
+| `poseField.ts` | The camera-field panel's one mapping (image/area → scene), shared by `PoseViz` and the area's `toWorld()`. |
 | `PosePanel.tsx` | Pose Monitor modal — live camera preview, status, fps, tracked count. |
 | `PoseCalibration.tsx` | Pose Calibration modal — three tabs: **Interaction area** (`Scene3D.mediapipeArea`), **Floor (3D)** (`Scene3D.mediapipeFloor`), **Test**. Staged edits, one patch per Save, in-app confirms, camera binding, Retry. |
 | `QuadPicker.tsx` | The four-corner picker both tabs use: true video aspect, live skeleton + part overlay, walk-the-corners capture, loupe, arrow-key nudge, homography grid, zones drawn back on the picture, inline validation. |
@@ -110,6 +111,15 @@ visibility is ignored. Points up to 5 % outside the area are kept so a hand on t
 A zone counts **people** with at least one selected part inside, so both hands of one visitor are one.
 Left and right are the person's own, whatever the mirror.
 
+**Seeing it in 3D.** With **Camera pose markers (MediaPipe)** on in the 3D scene panel, the camera
+picture stands as a vertical panel behind the floor origin: the marked area is its dashed outline, every
+body part the zones count is a yellow dot, and the zones themselves sit on it, dashed while empty, solid
+while occupied, with name and headcount. The panel shows whenever an area is marked, even with a floor
+calibration. It is a picture of the camera's view, not a place in the room, because a 2D camera cannot say
+which plane the area is on. *Implementation:* `poseField.ts` is the one mapping; the camera area's
+`TrackingSurfaceContribution.toWorld()` places zones on it (null while the overlay is off), and the
+LiDAR plugin's `ProviderZonesViz` draws them, so zones stay owned by the zone engine.
+
 **Limits.** The camera sees in 2D: a hand "in" a zone is a hand in front of it from the camera's point
 of view. BlazePose gives wrists and fingertips, not gestures. A stale camera (no frame for 500 ms) is
 nobody, not a frozen crowd.
@@ -132,7 +142,8 @@ preview on the 3D floor.
   with the image's top edge as the *far* side of the floor.
 - **Preview:** enable **Camera pose markers (MediaPipe)** in the 3D scene panel. With a calibration set,
   `PoseViz` draws the real floor rectangle and a marker per person at their mapped `(x,z)` metres; without
-  one it falls back to the vertical camera-field billboard.
+  one the markers sit on the vertical camera-field panel. The panel is also drawn whenever an interaction
+  area is marked, carrying the area, its zones and the counted body parts (see above).
 - **Persistence:** the calibration lives in `Scene3D.mediapipeFloor` — saved per-project in the `.artlux`
   file and bridged to projector windows, exactly like `camMask`/`markerMap`. Like the interaction area
   it is the room, not a look: a scene snapshot no longer carries it (before 2026-11-09 it did, so a GO
