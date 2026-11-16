@@ -64,6 +64,13 @@ Several devices can send at once. LiDAR and tracking traffic on the same port is
 fires (no argument, a string, or a non-zero number) and a release (`0`) doesn't. Details are in
 [STATE-MACHINE.md › Triggering states from OSC devices](STATE-MACHINE.md#triggering-states-from-osc-devices).
 
+#### By voice (VIK)
+[VIK](https://github.com/b2renger/voice-interaction-kit), the Voice Interaction Kit, sends these messages when a
+visitor asks for something out loud: a pattern of its agent ("the person mentions a scene") has a **Send OSC**
+action, whose address and value can be filled from what was asked (`/artlux/scene/recall {scene}`,
+`/vik/{scene}`). Its **Settings ▸ OSC ▸ Send to** is ArtLux's `IP:port`. The walkthrough, with a project and
+the agent, is [examples/vik-voice/](../examples/vik-voice/README.md).
+
 ### 3. See the LiDAR blobs in 3D
 1. Open the **3D Scene** window.
 2. In the bottom-right panel → **Lighting** → enable **Tracking zones (LiDAR)**.
