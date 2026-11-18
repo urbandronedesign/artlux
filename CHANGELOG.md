@@ -9,6 +9,16 @@ hold and bezier: sine, quad, cubic, quart, quint, expo, circ and back (each as i
 plus elastic and bounce. The shapes that are plain curves load into the bezier handles, so you can
 start from one and adjust it. See [Timeline](docs/TIMELINE.md).
 
+### See and set the ease on many keys at once
+
+Every key now shows its ease in its shape, the way After Effects does: the right half is the ease
+leaving the key, the left half the ease arriving at it (point = linear, square = hold, round = ease,
+wedge = overshoot). The ease is chosen from a **picker of curve drawings** instead of a list of names,
+and hovering one previews it on the curve. Select keys with **Ctrl-click** or by **dragging a box**
+over an empty part of a lane (across lanes, colour rows and lighting clips), then press **E**: with one
+key it opens that key's settings, with several it sets one ease on all of them, undone in one step.
+Clicking an empty part of a curve lane now moves the playhead there. See [Timeline](docs/TIMELINE.md).
+
 ### Fixtures for your own hardware
 
 The fixture library's **New custom fixture** builds a light fixture from a name and a list of channel
