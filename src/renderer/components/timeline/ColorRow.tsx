@@ -14,6 +14,7 @@
 // standing rule is that a per-frame value never enters React: a clock in state was measured at
 // 224 ms/s and removed, which is why AutomationLane's readout is written straight to a ref'd node.
 // The same applies here, doubly — this repaints on every frame the rig changes colour.
+import { CurveOptions } from './CurveOptions';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
@@ -478,9 +479,7 @@ export const ColorRow: React.FC<Props> = ({
               value={selectedKey.curve ?? 'linear'}
               onChange={(e) => commit(keys.map((k, i) => (i === selected ? { ...k, curve: e.target.value as ColorKey['curve'] } : k)))}
               className="flex-1 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-mini">
-              <option value="linear">linear</option>
-              <option value="hold">hold</option>
-              <option value="bezier">bezier</option>
+              <CurveOptions />
             </select>
           </div>
           {/* NO PATH ON A TEMPERATURE. Two temperature keys interpolate ALONG the warm-cold line

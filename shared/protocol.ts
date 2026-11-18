@@ -181,6 +181,11 @@ export const IPC = {
    * AND the real geometry). Returns the profile id plus any notes, or null if cancelled.
    */
   FIXTURE_IMPORT_GDTF: 'fixtureLibrary:import-gdtf',
+  /**
+   * Renderer → main (invoke): build a user fixture profile from a name and a list of channel names
+   * (custom hardware) and save it into userData/fixture-profiles. Returns its id, or an `error`.
+   */
+  FIXTURE_SAVE_CUSTOM: 'fixtureLibrary:save-custom',
   /** Renderer → main (invoke): write a recorded LiDAR-blob take to a sidecar file → absolute path. */
   SAVE_TRACKING_TAKE: 'tracking:save-take',
   /** Renderer → main (invoke): pick + copy media into the project's assets/<cat>/ → AssetEntry[]. */
@@ -2013,6 +2018,8 @@ export interface ArtluxApi {
   listSerialDevices(): Promise<Array<{ path: string; label: string }>>;
   /** Pick and import a .gdtf → a user profile carrying the manufacturer's own channels and meshes. */
   importGdtf(): Promise<{ id: string; model: string; notes: string[] } | null>;
+  /** Save a custom fixture: one mode, one plain 8-bit channel per name, in the order given. */
+  saveCustomFixture(name: string, channels: string[]): Promise<{ id: string; model: string; error?: string }>;
   docsList(): Promise<DocSection[]>;
   /** Every heading-sized slice of the shipped docs, for in-app search. Built once and cached in main. */
   docsSearchIndex(): Promise<DocChunk[]>;

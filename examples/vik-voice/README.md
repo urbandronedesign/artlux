@@ -16,8 +16,7 @@ out loud, and sends ArtLux an **OSC** message. Everything runs on this computer:
   VIK ── decides: the Scenes table, entry Grove ── says "Here is Grove."
         │  OSC, 127.0.0.1:10000
         ▼
-  ArtLux ── /artlux/scene/recall Grove   (chapter 1: the look)
-         ── /vik/Grove                    (chapter 2: the show machine)
+  ArtLux ── /vik/Grove ── a global rule takes the show machine into Grove
 ```
 
 Nothing leaves this computer: VIK sends to `127.0.0.1`, and the project's output is aimed at `127.0.0.1` too.

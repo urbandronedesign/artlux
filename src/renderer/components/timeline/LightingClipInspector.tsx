@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { CurveOptions } from './CurveOptions';
 import type {
   ChannelRole, CurveKind, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingKey, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
@@ -179,9 +180,7 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures,
               onChange={(e) => onPatchKeyCurve?.(e.target.value as CurveKind)}
               className={sel}
               title="How the look moves INTO the next key. Shapes the segment starting here.">
-              <option value="linear">linear</option>
-              <option value="hold">hold — snap at the next key</option>
-              <option value="bezier">bezier — ease in and out</option>
+              <CurveOptions />
             </select>
           </Row>
           {/* A key may instead REFERENCE a library pose, and inline slots win when both exist — so

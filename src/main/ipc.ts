@@ -206,6 +206,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
             return { id: '', model: '', notes: [`Import failed: ${(e as Error).message}`] };
         }
     });
+    ipcMain.handle(IPC.FIXTURE_SAVE_CUSTOM, (_e, name: string, channels: string[]) =>
+        fixtureLibrary.saveCustomProfile(String(name ?? ''), Array.isArray(channels) ? channels.map(String) : []));
     ipcMain.handle(IPC.DOCS_LIST, () => docs.listDocs());
     ipcMain.handle(IPC.DOCS_SEARCH_INDEX, () => docs.searchIndex());
     ipcMain.handle(IPC.DOCS_READ, (_e, id: string) => docs.readDoc(id));

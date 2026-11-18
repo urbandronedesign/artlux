@@ -2,7 +2,7 @@ import type {
   ColorKey, ColorLane, ColorValue, Fixture, FixtureGroup, NamedColor, Timeline,
 } from '../types';
 import { timeline as engine } from './timeline';
-import { bezierEase, BEZ_DEFAULT } from './automation';
+import { segmentEase } from './automation';
 import { mixColor, resolveColorValue, temperatureColor } from './colorEngine';
 import { phaseOffset } from './lightingTake';
 import * as overlay from './colorOverlay';
@@ -109,9 +109,9 @@ export function sampleColorLane(
   // TIME EASING FIRST, COLOUR PATH SECOND. They are different axes: the curve decides how fast the
   // fade moves, the space decides which colours it moves through. Easing the parameter and then
   // interpolating in the chosen space composes them correctly and in one place.
-  const e = a.curve === 'bezier'
-    ? bezierEase(u, a.cx1 ?? BEZ_DEFAULT.cx1, a.cy1 ?? BEZ_DEFAULT.cy1, a.cx2 ?? BEZ_DEFAULT.cx2, a.cy2 ?? BEZ_DEFAULT.cy2)
-    : u;
+  // Clamped: an overshooting ease (back, elastic) has no meaning past either colour — there is no
+  // "more than the destination colour" to extrapolate to, only out-of-gamut values.
+  const e = Math.min(1, Math.max(0, segmentEase(a, u)));
 
   return blend(av, bv, a.space ?? 'oklab', e);
 }

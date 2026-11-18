@@ -159,6 +159,7 @@ const api: ArtluxApi = {
     fixtureLibraryGet: (manufacturerKey: string) => ipcRenderer.invoke(IPC.FIXTURE_LIBRARY_GET, manufacturerKey),
     listSerialDevices: () => ipcRenderer.invoke(IPC.SERIAL_DEVICES),
     importGdtf: () => ipcRenderer.invoke(IPC.FIXTURE_IMPORT_GDTF),
+    saveCustomFixture: (name: string, channels: string[]) => ipcRenderer.invoke(IPC.FIXTURE_SAVE_CUSTOM, name, channels),
     docsList: () => ipcRenderer.invoke(IPC.DOCS_LIST),
     docsSearchIndex: () => ipcRenderer.invoke(IPC.DOCS_SEARCH_INDEX),
     docsRead: (id: string) => ipcRenderer.invoke(IPC.DOCS_READ, id),

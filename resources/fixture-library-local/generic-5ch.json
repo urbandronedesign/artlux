@@ -1,0 +1,86 @@
+{
+ "id": "generic/generic-5ch",
+ "manufacturer": "Generic",
+ "model": "generic-5ch",
+ "aliases": [
+  "generic-5ch",
+  "generic 5ch",
+  "generic5ch",
+  "5 channel",
+  "5ch"
+ ],
+ "categories": [
+  "Other"
+ ],
+ "channels": [
+  {
+   "key": "ch1",
+   "label": "Channel 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch2",
+   "label": "Channel 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch3",
+   "label": "Channel 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch4",
+   "label": "Channel 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch5",
+   "label": "Channel 5",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "5ch",
+   "name": "5ch",
+   "footprint": 5,
+   "slots": [
+    {
+     "channelKey": "ch1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch2",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch3",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch4",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch5",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "source": {
+  "origin": "manual",
+  "ref": "scripts/make-local-fixtures.py"
+ },
+ "verified": true
+}

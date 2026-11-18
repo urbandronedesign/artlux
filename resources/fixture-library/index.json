@@ -3434,6 +3434,31 @@
   ]
  },
  {
+  "id": "briteq/bt-hurricane",
+  "manufacturer": "Briteq",
+  "model": "BT-HURRICANE",
+  "aliases": [
+   "BT-HURRICANE",
+   "BT HURRICANE",
+   "bthurricane",
+   "Briteq BT-HURRICANE",
+   "briteqbthurricane",
+   "04850",
+   "Hurricane"
+  ],
+  "categories": [
+   "Fan"
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1ch",
+    "footprint": 1
+   }
+  ],
+  "origin": "pdf"
+ },
+ {
   "id": "briteq/bt-stagepar-6in1",
   "manufacturer": "Briteq",
   "model": "BT-STAGEPAR 6in1",
@@ -3489,6 +3514,56 @@
     "footprint": 9
    }
   ]
+ },
+ {
+  "id": "briteq/bt-theatre-60fc",
+  "manufacturer": "Briteq",
+  "model": "BT-THEATRE 60FC",
+  "aliases": [
+   "BT-THEATRE 60FC",
+   "BT THEATRE 60FC",
+   "bttheatre60fc",
+   "Briteq BT-THEATRE 60FC",
+   "briteqbttheatre60fc",
+   "06015",
+   "B06015"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "4ch-rgb-dim",
+    "name": "4CH RGB+DIM",
+    "footprint": 4
+   },
+   {
+    "key": "4ch-rgbw",
+    "name": "4CH RGBW",
+    "footprint": 4
+   },
+   {
+    "key": "5ch",
+    "name": "5CH RGBW+DIM",
+    "footprint": 5
+   },
+   {
+    "key": "6ch",
+    "name": "6CH",
+    "footprint": 6
+   },
+   {
+    "key": "6ch-plus",
+    "name": "6CH+",
+    "footprint": 6
+   },
+   {
+    "key": "7ch",
+    "name": "7CH",
+    "footprint": 7
+   }
+  ],
+  "origin": "pdf"
  },
  {
   "id": "briteq/btx-titan",
@@ -4191,6 +4266,90 @@
     "footprint": 11
    }
   ]
+ },
+ {
+  "id": "cameo/movo-beam-100",
+  "manufacturer": "cameo",
+  "model": "MOVO BEAM 100",
+  "aliases": [
+   "MOVO BEAM 100",
+   "Movo Beam 100",
+   "movobeam100",
+   "CLMB100",
+   "clmb100",
+   "cameo MOVO BEAM 100",
+   "cameomovobeam100"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4
+   },
+   {
+    "key": "15ch",
+    "name": "15ch",
+    "footprint": 15
+   },
+   {
+    "key": "20ch",
+    "name": "20ch",
+    "footprint": 20
+   },
+   {
+    "key": "35ch",
+    "name": "35ch",
+    "footprint": 35
+   }
+  ],
+  "origin": "pdf",
+  "verified": false
+ },
+ {
+  "id": "cameo/movo-beam-z100",
+  "manufacturer": "cameo",
+  "model": "MOVO BEAM Z100",
+  "aliases": [
+   "MOVO BEAM Z100",
+   "Movo Beam Z 100",
+   "movobeamz100",
+   "CLMBZ100",
+   "clmbz100",
+   "cameo MOVO BEAM Z100",
+   "cameomovobeamz100"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5ch",
+    "footprint": 5
+   },
+   {
+    "key": "16ch",
+    "name": "16ch",
+    "footprint": 16
+   },
+   {
+    "key": "21ch",
+    "name": "21ch",
+    "footprint": 21
+   },
+   {
+    "key": "36ch",
+    "name": "36ch",
+    "footprint": 36
+   }
+  ],
+  "origin": "pdf",
+  "verified": false
  },
  {
   "id": "cameo/nanospot-120",
@@ -9961,6 +10120,121 @@
     "footprint": 15
    }
   ]
+ },
+ {
+  "id": "generic/generic-1ch",
+  "manufacturer": "Generic",
+  "model": "generic-1ch",
+  "aliases": [
+   "generic-1ch",
+   "generic 1ch",
+   "generic1ch",
+   "1 channel",
+   "1ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1ch",
+    "footprint": 1
+   }
+  ],
+  "origin": "manual"
+ },
+ {
+  "id": "generic/generic-2ch",
+  "manufacturer": "Generic",
+  "model": "generic-2ch",
+  "aliases": [
+   "generic-2ch",
+   "generic 2ch",
+   "generic2ch",
+   "2 channel",
+   "2ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2
+   }
+  ],
+  "origin": "manual"
+ },
+ {
+  "id": "generic/generic-3ch",
+  "manufacturer": "Generic",
+  "model": "generic-3ch",
+  "aliases": [
+   "generic-3ch",
+   "generic 3ch",
+   "generic3ch",
+   "3 channel",
+   "3ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3ch",
+    "footprint": 3
+   }
+  ],
+  "origin": "manual"
+ },
+ {
+  "id": "generic/generic-4ch",
+  "manufacturer": "Generic",
+  "model": "generic-4ch",
+  "aliases": [
+   "generic-4ch",
+   "generic 4ch",
+   "generic4ch",
+   "4 channel",
+   "4ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4
+   }
+  ],
+  "origin": "manual"
+ },
+ {
+  "id": "generic/generic-5ch",
+  "manufacturer": "Generic",
+  "model": "generic-5ch",
+  "aliases": [
+   "generic-5ch",
+   "generic 5ch",
+   "generic5ch",
+   "5 channel",
+   "5ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5ch",
+    "footprint": 5
+   }
+  ],
+  "origin": "manual"
  },
  {
   "id": "generic/grbw-fader",
@@ -15913,6 +16187,30 @@
     "footprint": 10
    }
   ]
+ },
+ {
+  "id": "stairville/dds-405",
+  "manufacturer": "Stairville",
+  "model": "DDS 405",
+  "aliases": [
+   "DDS 405",
+   "DDS-405",
+   "dds405",
+   "Stairville DDS 405",
+   "stairvilledds405",
+   "DDS-405 DMX Dimmer & Switchpack"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4
+   }
+  ],
+  "origin": "pdf"
  },
  {
   "id": "stairville/hz-200-compact-hazer",

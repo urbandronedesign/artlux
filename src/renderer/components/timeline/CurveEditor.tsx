@@ -22,7 +22,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Keyframe } from '../../types';
 import { toDisplay, fromDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
-import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
+import { sampleLane, normValue, denormValue, BEZ_DEFAULT, EASE_BEZIER } from '../../services/automation';
+import { CurveOptions } from './CurveOptions';
 import { clamp } from './geometry';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -294,9 +295,14 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
   // click, with no way to see the three options or to go back except by going round. It is a NAMED
   // CHOICE in the keyframe editor now (the same double-click opens it), which is the same control
   // made legible rather than a control removed.
+  //
+  // GOING TO `bezier` FROM A NAMED EASE KEEPS THE SHAPE: the handles are seeded from that ease's own
+  // cubic (EASE_BEZIER), so a preset is also a starting point you can then drag. Elastic and bounce
+  // are not cubics and fall back to the default S, as does coming from linear or hold.
   const setCurve = (i: number, curve: Keyframe['curve']) => {
     if (readOnly) return;
-    commit(keyframes.map((x, j) => (j === i ? { ...x, curve, ...(curve === 'bezier' ? BEZ_DEFAULT : {}) } : x)));
+    const seed = curve === 'bezier' ? (EASE_BEZIER[keyframes[i]?.curve as keyof typeof EASE_BEZIER] ?? BEZ_DEFAULT) : {};
+    commit(keyframes.map((x, j) => (j === i ? { ...x, curve, ...seed } : x)));
   };
 
   /**
@@ -503,9 +509,7 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
                     <select value={k.curve ?? 'linear'}
                       onChange={(e) => setCurve(i, e.target.value as Keyframe['curve'])}
                       className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro text-fg-1 outline-none focus:border-accent">
-                      <option value="linear">linear</option>
-                      <option value="hold">hold</option>
-                      <option value="bezier">bezier</option>
+                      <CurveOptions />
                     </select>
                   </div>
                   <div className="flex items-center gap-1.5 pt-0.5">

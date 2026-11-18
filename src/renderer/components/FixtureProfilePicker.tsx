@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, BadgeCheck, AlertTriangle, Loader2, FileDown } from 'lucide-react';
+import { Search, BadgeCheck, AlertTriangle, Loader2, FileDown, Plus } from 'lucide-react';
 import type { FixtureProfileSummary } from '../types';
 import * as profiles from '../services/fixtureProfiles';
 import { search } from '../services/fixtureSearch';
@@ -52,6 +52,26 @@ export const FixtureProfilePicker: React.FC<Props> = ({ selectedId, onPick, maxH
     } finally {
       setImporting(false);
     }
+  };
+
+  // "New custom fixture" — hardware that is not a product: a name and one name per DMX channel.
+  // `custom` is the open form's draft (null = closed); nothing is written until Save.
+  const [custom, setCustom] = useState<{ name: string; channels: string[] } | null>(null);
+  const setCustomCount = (n: number) => setCustom((c) => {
+    if (!c) return c;
+    const count = Math.min(64, Math.max(1, Math.round(n) || 1));
+    return { ...c, channels: Array.from({ length: count }, (_, i) => c.channels[i] ?? '') };
+  });
+  const saveCustom = async () => {
+    if (!custom) return;
+    const r = await window.artlux?.saveCustomFixture?.(custom.name, custom.channels);
+    if (!r) return;
+    if (r.error || !r.id) { setImportNote(r.error ?? 'Could not save the fixture'); return; }
+    profiles.invalidateIndex();
+    setIndex(await profiles.index());
+    setQuery(r.model);
+    setImportNote(`Saved ${r.model} to this computer's fixture library`);
+    setCustom(null);
   };
 
   useEffect(() => { let alive = true; void profiles.index().then((rows) => { if (alive) setIndex(rows); }); return () => { alive = false; }; }, []);
@@ -154,15 +174,56 @@ export const FixtureProfilePicker: React.FC<Props> = ({ selectedId, onPick, maxH
         <span className="text-mini text-fg-3">
           {results.length === 60 ? 'first 60 matches' : `${results.length} of ${index.length}`}
         </span>
-        <button
-          onClick={importGdtf}
-          disabled={importing}
-          title="Import a manufacturer .gdtf — its own channels, modes and 3D model"
-          className="inline-flex items-center gap-1 text-mini text-fg-2 hover:text-fg-1 disabled:opacity-40"
-        >
-          {importing ? <Loader2 size={11} className="animate-spin" /> : <FileDown size={11} />} Import .gdtf
-        </button>
+        <span className="inline-flex items-center gap-3">
+          <button
+            onClick={() => setCustom((c) => (c ? null : { name: '', channels: [''] }))}
+            title="Build a fixture for your own hardware: a name and one name per DMX channel"
+            className="inline-flex items-center gap-1 text-mini text-fg-2 hover:text-fg-1"
+          >
+            <Plus size={11} /> New custom fixture
+          </button>
+          <button
+            onClick={importGdtf}
+            disabled={importing}
+            title="Import a manufacturer .gdtf — its own channels, modes and 3D model"
+            className="inline-flex items-center gap-1 text-mini text-fg-2 hover:text-fg-1 disabled:opacity-40"
+          >
+            {importing ? <Loader2 size={11} className="animate-spin" /> : <FileDown size={11} />} Import .gdtf
+          </button>
+        </span>
       </div>
+
+      {custom && (
+        <div className="mx-1.5 mt-1 p-2 rounded-sm border border-line-1 bg-surface-0 flex flex-col gap-1.5 text-mini">
+          <div className="flex items-center gap-1.5">
+            <label className="text-fg-3 w-16 shrink-0">Name</label>
+            <input autoFocus value={custom.name} placeholder="e.g. Relay board"
+              onChange={(e) => setCustom({ ...custom, name: e.target.value })}
+              className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-fg-3 w-16 shrink-0">Channels</label>
+            <input type="number" min={1} max={64} value={custom.channels.length}
+              onChange={(e) => setCustomCount(Number(e.target.value))}
+              className="w-14 bg-surface-1 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 tabular-nums focus:border-accent focus:outline-none" />
+          </div>
+          <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
+            {custom.channels.map((c, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="text-fg-3 w-16 shrink-0 tabular-nums">ch {i + 1}</span>
+                <input value={c} placeholder={`Channel ${i + 1}`} aria-label={`Name of channel ${i + 1}`}
+                  onChange={(e) => setCustom({ ...custom, channels: custom.channels.map((x, j) => (j === i ? e.target.value : x)) })}
+                  className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none" />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button onClick={() => setCustom(null)} className="text-fg-3 hover:text-fg-1">Cancel</button>
+            <button onClick={saveCustom} disabled={!custom.name.trim()}
+              className="px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 disabled:opacity-40">Save fixture</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

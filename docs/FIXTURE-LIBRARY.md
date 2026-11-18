@@ -195,7 +195,11 @@ PDF) so the derivation can be redone, and note the id in `MANIFEST.json ▸ loca
 writes. A malformed local file **fails the build** rather than landing in the skip report: it was
 written by hand in this repo, so the person running the build is the one who can fix it.
 
-Three occupants so far, all **hand-written GDTFs** kept beside their profile, and all derived the same
+The profiles with no GDTF (generic-Nch, Briteq, Stairville, Cameo Movo) are written by
+[scripts/make-local-fixtures.py](../scripts/make-local-fixtures.py), which holds their channel tables
+and names the manufacturer document each was transcribed from — edit the script, not the JSON.
+
+Three more are **hand-written GDTFs** kept beside their profile, and all derived the same
 way: run the app's own `importGdtf` on the `.gdtf`, then prune the import timestamp so the generated
 output stays byte-stable.
 
@@ -232,7 +236,7 @@ Never edit `resources/fixture-library/` itself — the build wipes it.
 | `MANIFEST.json` | source commit, counts, and **the skip report** |
 | `LICENSE-OFL.txt`, `NOTICE.txt` | attribution — see below |
 
-Current output: **509 profiles** (506 from OFL + 3 local), 117 manufacturers, 1662 modes, 46 gobos —
+Current output: **519 profiles** (506 from OFL + 13 local), 117 manufacturers, 1662 modes, 46 gobos —
 but read `MANIFEST.json ▸ counts`, not this line, which is typed by hand.
 
 ### Read the skip report, not the profile count
@@ -385,6 +389,28 @@ The renderer never imports the library — main reads it off disk (`process.reso
 does not belong in a bundle that hot-reloads.
 
 <!-- audience:operator -->
+
+## Your own hardware — generic and custom fixtures
+
+Not everything on a DMX line is a product with a manual: a relay board, a home-made LED driver, a
+motor controller. Two ways to patch one, both in the fixture picker (Library dock ▸ **Light Fixtures**):
+
+- **Generic ▸ generic-1ch … generic-5ch** are ready-made fixtures of one to five plain channels,
+  named *Channel 1*, *Channel 2*, … Search `generic-3ch` and add it.
+- **New custom fixture** asks for a **name**, the **number of channels**, and a **name for each
+  channel** (*Pump*, *Valve*, *Motor speed*). **Save fixture** writes it to this computer's fixture
+  library, where it is found under **Custom** like any other fixture. A project that uses it carries
+  it along, so it opens on another computer too.
+
+Each channel is a plain 0-255 value: you set it in the inspector, automate it on the timeline and
+store it in cues. Nothing is assumed about what it does, so it draws no beam in the 3D scene. A custom
+fixture's name must be new: to change one, save it under another name.
+
+Shipped from manufacturer documents rather than the Open Fixture Library: **Briteq BT-THEATRE 60FC**
+(six modes) and **BT-HURRICANE** (fan speed), **Stairville DDS 405** (four dimmer channels), **Cameo
+MOVO BEAM Z100** and **MOVO BEAM 100**. The two Movo heads are marked unverified: their manuals do not
+state how far the pan and tilt position channels turn, so one full turn (360°) is assumed. If a head
+aims short or long in the 3D scene, that is the number to correct.
 
 ## `verified: false` — drafts
 

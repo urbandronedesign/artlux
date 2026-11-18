@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { readFile, readdir, mkdir } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FixtureProfile, FixtureProfileSummary } from '../../shared/protocol';
@@ -137,4 +137,50 @@ export async function ensureUserDir(): Promise<string> {
   const dir = userRoot();
   await mkdir(dir, { recursive: true }).catch(() => undefined);
   return dir;
+}
+
+// ── CUSTOM FIXTURES — "my hardware is not a product" ─────────────────────────────────────────────
+//
+// A relay board, a home-made LED driver, a motor controller: N DMX channels, each with a name the
+// operator knows it by, and nothing else to say about it. So that is all this asks for. Every
+// channel is one plain 8-bit slot with role `unknown` — addressed, patched and automatable, with no
+// role-aware behaviour invented for hardware we know nothing about.
+//
+// A NAME THAT IS ALREADY TAKEN IS REFUSED, not overwritten: the renderer caches resolved profiles for
+// the session, so replacing one in place would leave fixtures already patched from it running the
+// old channel list until a restart. Pick another name (or delete the file from fixture-profiles).
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+export async function saveCustomProfile(name: string, channelNames: string[]): Promise<{ id: string; model: string; error?: string }> {
+  const model = name.trim();
+  const key = slug(model);
+  if (!key) return { id: '', model, error: 'Give the fixture a name.' };
+  const n = channelNames.length;
+  if (n < 1 || n > 512) return { id: '', model, error: 'A fixture needs between 1 and 512 channels.' };
+  const id = `custom/${key}`;
+  if ((await readUserProfiles()).some((p) => p.id === id)) return { id: '', model, error: `A custom fixture named "${model}" already exists.` };
+  const channels = channelNames.map((raw, i) => ({
+    key: `ch${i + 1}`,                           // positional, so two channels may share a label
+    label: raw.trim() || `Channel ${i + 1}`,
+    role: 'unknown' as const,
+    resolution: 1 as const,
+    default: 0,
+  }));
+  const profile: FixtureProfile = {
+    id, manufacturer: 'Custom', model,
+    aliases: [model, `Custom ${model}`],
+    categories: ['Other'],
+    channels,
+    modes: [{ key: `${n}ch`, name: `${n}ch`, footprint: n, slots: channels.map((c) => ({ channelKey: c.key, byte: 0 as const })) }],
+    source: { origin: 'manual', importedAt: new Date().toISOString() },
+    // The operator described their own hardware: there is no manual to check it against.
+    verified: true,
+  };
+  try {
+    await writeFile(join(await ensureUserDir(), `custom-${key}.json`), `${JSON.stringify(profile, null, 1)}\n`, 'utf8');
+  } catch (e) {
+    return { id: '', model, error: `Could not save: ${(e as Error).message}` };
+  }
+  invalidateUserProfiles();
+  return { id, model };
 }

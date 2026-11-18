@@ -506,6 +506,11 @@ the toolbar.
   **handles**: select the key and drag them to shape that segment. They are bounded to the segment, so
   moving either end keeps the shape you drew, and a double-click resets a handle. A segment whose ends
   hold the same value has no handles — there is nothing for an ease to move.
+  The ease list also holds the **named eases**: sine, quad, cubic, quart, quint, expo, circ and back,
+  each as *in* (starts slowly), *out* (arrives slowly) and *in-out*, plus **elastic** and **bounce**.
+  Back and elastic go past the next key's value before settling on it. To adjust a named ease, pick
+  it and then pick **bezier**: the handles start on that ease's shape (elastic and bounce have no
+  handle shape). Colour keys and lighting keys offer the same list.
 - **Markers:** **M** adds at the playhead; click a marker to seek, Alt/right-click to delete,
   double-click to edit its note.
 - **Range:** **I/O** (or the toolbar **Set In**/**Set Out** buttons) set the timeline in/out points,

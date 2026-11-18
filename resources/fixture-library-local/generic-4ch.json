@@ -1,0 +1,75 @@
+{
+ "id": "generic/generic-4ch",
+ "manufacturer": "Generic",
+ "model": "generic-4ch",
+ "aliases": [
+  "generic-4ch",
+  "generic 4ch",
+  "generic4ch",
+  "4 channel",
+  "4ch"
+ ],
+ "categories": [
+  "Other"
+ ],
+ "channels": [
+  {
+   "key": "ch1",
+   "label": "Channel 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch2",
+   "label": "Channel 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch3",
+   "label": "Channel 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch4",
+   "label": "Channel 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "4ch",
+   "name": "4ch",
+   "footprint": 4,
+   "slots": [
+    {
+     "channelKey": "ch1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch2",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch3",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch4",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "source": {
+  "origin": "manual",
+  "ref": "scripts/make-local-fixtures.py"
+ },
+ "verified": true
+}

@@ -1,0 +1,1086 @@
+{
+ "id": "cameo/movo-beam-100",
+ "manufacturer": "cameo",
+ "model": "MOVO BEAM 100",
+ "aliases": [
+  "MOVO BEAM 100",
+  "Movo Beam 100",
+  "movobeam100",
+  "CLMB100",
+  "clmb100",
+  "cameo MOVO BEAM 100",
+  "cameomovobeam100"
+ ],
+ "categories": [
+  "Moving Head",
+  "Color Changer"
+ ],
+ "channels": [
+  {
+   "key": "pan",
+   "label": "Pan",
+   "role": "pan",
+   "resolution": 2,
+   "default": 0.5,
+   "min": 0,
+   "max": 360,
+   "unit": "deg"
+  },
+  {
+   "key": "pan-endless",
+   "label": "Endless Pan Rotation",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "No function"
+    },
+    {
+     "from": 6,
+     "to": 126,
+     "label": "Clockwise pan rotation fast-slow"
+    },
+    {
+     "from": 127,
+     "to": 128,
+     "label": "No movement"
+    },
+    {
+     "from": 129,
+     "to": 255,
+     "label": "Counter-clockwise pan rotation slow-fast"
+    }
+   ]
+  },
+  {
+   "key": "tilt",
+   "label": "Tilt",
+   "role": "tilt",
+   "resolution": 2,
+   "default": 0.5,
+   "min": 0,
+   "max": 360,
+   "unit": "deg"
+  },
+  {
+   "key": "tilt-endless",
+   "label": "Endless Tilt Rotation",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "No function"
+    },
+    {
+     "from": 6,
+     "to": 126,
+     "label": "Clockwise tilt rotation fast-slow"
+    },
+    {
+     "from": 127,
+     "to": 128,
+     "label": "No movement"
+    },
+    {
+     "from": 129,
+     "to": 255,
+     "label": "Counter-clockwise tilt rotation slow-fast"
+    }
+   ]
+  },
+  {
+   "key": "dimmer",
+   "label": "Dimmer",
+   "role": "dimmer",
+   "resolution": 2,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "strobe",
+   "label": "Strobe",
+   "role": "shutter",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Open"
+    },
+    {
+     "from": 6,
+     "to": 255,
+     "label": "Strobe slow-fast <1-20 Hz"
+    }
+   ]
+  },
+  {
+   "key": "strobe-functions",
+   "label": "Strobe Functions",
+   "role": "shutter",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Open"
+    },
+    {
+     "from": 6,
+     "to": 10,
+     "label": "Closed"
+    },
+    {
+     "from": 11,
+     "to": 33,
+     "label": "Pulse random slow-fast"
+    },
+    {
+     "from": 34,
+     "to": 56,
+     "label": "Ramp up random slow-fast"
+    },
+    {
+     "from": 57,
+     "to": 79,
+     "label": "Ramp down random slow-fast"
+    },
+    {
+     "from": 80,
+     "to": 102,
+     "label": "Random strobe slow-fast"
+    },
+    {
+     "from": 103,
+     "to": 127,
+     "label": "Strobe break 5s-1s"
+    },
+    {
+     "from": 128,
+     "to": 250,
+     "label": "Strobe slow-fast <1-20 Hz"
+    },
+    {
+     "from": 251,
+     "to": 255,
+     "label": "Open"
+    }
+   ]
+  },
+  {
+   "key": "red",
+   "label": "Red",
+   "role": "red",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "green",
+   "label": "Green",
+   "role": "green",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "blue",
+   "label": "Blue",
+   "role": "blue",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "white",
+   "label": "White",
+   "role": "white",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "colour-macro",
+   "label": "Colour Macro",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Colour off"
+    },
+    {
+     "from": 6,
+     "to": 13,
+     "label": "Red"
+    },
+    {
+     "from": 14,
+     "to": 21,
+     "label": "Amber"
+    },
+    {
+     "from": 22,
+     "to": 29,
+     "label": "Yellow warm"
+    },
+    {
+     "from": 30,
+     "to": 37,
+     "label": "Yellow"
+    },
+    {
+     "from": 38,
+     "to": 45,
+     "label": "Green"
+    },
+    {
+     "from": 46,
+     "to": 53,
+     "label": "Turquoise"
+    },
+    {
+     "from": 54,
+     "to": 61,
+     "label": "Cyan"
+    },
+    {
+     "from": 62,
+     "to": 69,
+     "label": "Blue"
+    },
+    {
+     "from": 70,
+     "to": 77,
+     "label": "Lavender"
+    },
+    {
+     "from": 78,
+     "to": 85,
+     "label": "Mauve"
+    },
+    {
+     "from": 86,
+     "to": 93,
+     "label": "Magenta"
+    },
+    {
+     "from": 94,
+     "to": 101,
+     "label": "Pink"
+    },
+    {
+     "from": 102,
+     "to": 109,
+     "label": "Warm White"
+    },
+    {
+     "from": 110,
+     "to": 117,
+     "label": "White"
+    },
+    {
+     "from": 118,
+     "to": 125,
+     "label": "Cold White"
+    },
+    {
+     "from": 126,
+     "to": 127,
+     "label": "Colour jumping stop"
+    },
+    {
+     "from": 128,
+     "to": 191,
+     "label": "Colour jumping slow-fast"
+    },
+    {
+     "from": 192,
+     "to": 255,
+     "label": "Colour fading slow-fast"
+    }
+   ]
+  },
+  {
+   "key": "auto-program",
+   "label": "Auto Program",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Off"
+    },
+    {
+     "from": 6,
+     "to": 36,
+     "label": "Auto Program 1"
+    },
+    {
+     "from": 37,
+     "to": 67,
+     "label": "Auto Program 2"
+    },
+    {
+     "from": 68,
+     "to": 98,
+     "label": "Auto Program 3"
+    },
+    {
+     "from": 99,
+     "to": 129,
+     "label": "Auto Program 4"
+    },
+    {
+     "from": 130,
+     "to": 160,
+     "label": "Auto Program 5"
+    },
+    {
+     "from": 161,
+     "to": 191,
+     "label": "Auto Program 6"
+    },
+    {
+     "from": 192,
+     "to": 222,
+     "label": "Auto Program 7"
+    },
+    {
+     "from": 223,
+     "to": 255,
+     "label": "Auto Program 8"
+    }
+   ]
+  },
+  {
+   "key": "pan-tilt-macro",
+   "label": "Pan/Tilt Macro",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Off"
+    },
+    {
+     "from": 6,
+     "to": 40,
+     "label": "Pan small-big"
+    },
+    {
+     "from": 41,
+     "to": 75,
+     "label": "Tilt small-big"
+    },
+    {
+     "from": 76,
+     "to": 110,
+     "label": "Pan/Tilt small-big"
+    },
+    {
+     "from": 111,
+     "to": 145,
+     "label": "Pan/Tilt inverse small-big"
+    },
+    {
+     "from": 146,
+     "to": 180,
+     "label": "Circle small-big"
+    },
+    {
+     "from": 181,
+     "to": 215,
+     "label": "Circle inverse small-big"
+    },
+    {
+     "from": 216,
+     "to": 255,
+     "label": "Random small-big"
+    }
+   ]
+  },
+  {
+   "key": "dimmer-curve",
+   "label": "Dimmer Curve",
+   "role": "maintenance",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "No function"
+    },
+    {
+     "from": 6,
+     "to": 63,
+     "label": "Linear"
+    },
+    {
+     "from": 64,
+     "to": 127,
+     "label": "Exponential"
+    },
+    {
+     "from": 128,
+     "to": 191,
+     "label": "Logarithmic"
+    },
+    {
+     "from": 192,
+     "to": 255,
+     "label": "S-Curve"
+    }
+   ]
+  },
+  {
+   "key": "pan-tilt-speed",
+   "label": "Pan/Tilt Speed",
+   "role": "panTiltSpeed",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "device-settings",
+   "label": "Device Settings",
+   "role": "maintenance",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "No function"
+    },
+    {
+     "from": 6,
+     "to": 32,
+     "label": "Blackout while moving on (hold 3s)"
+    },
+    {
+     "from": 33,
+     "to": 59,
+     "label": "Blackout while moving off (hold 5s)"
+    },
+    {
+     "from": 60,
+     "to": 86,
+     "label": "Invert pan on (hold 3s)"
+    },
+    {
+     "from": 87,
+     "to": 113,
+     "label": "Invert pan off (hold 5s)"
+    },
+    {
+     "from": 114,
+     "to": 140,
+     "label": "Invert tilt on (hold 3s)"
+    },
+    {
+     "from": 141,
+     "to": 167,
+     "label": "Invert tilt off (hold 5s)"
+    },
+    {
+     "from": 168,
+     "to": 194,
+     "label": "Silent fan on (hold 3s)"
+    },
+    {
+     "from": 195,
+     "to": 221,
+     "label": "Silent fan off (hold 5s)"
+    },
+    {
+     "from": 222,
+     "to": 255,
+     "label": "Reset all functions (hold 3s)"
+    }
+   ]
+  },
+  {
+   "key": "ring-dimmer",
+   "label": "Ring Dimmer",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-strobe",
+   "label": "Ring Strobe",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Open"
+    },
+    {
+     "from": 6,
+     "to": 255,
+     "label": "Strobe slow-fast <1-20 Hz"
+    }
+   ]
+  },
+  {
+   "key": "ring-red",
+   "label": "Ring Red",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-green",
+   "label": "Ring Green",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-blue",
+   "label": "Ring Blue",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-red1",
+   "label": "Ring Red 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-green1",
+   "label": "Ring Green 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-blue1",
+   "label": "Ring Blue 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-red2",
+   "label": "Ring Red 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-green2",
+   "label": "Ring Green 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-blue2",
+   "label": "Ring Blue 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-red3",
+   "label": "Ring Red 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-green3",
+   "label": "Ring Green 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-blue3",
+   "label": "Ring Blue 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-red4",
+   "label": "Ring Red 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-green4",
+   "label": "Ring Green 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-blue4",
+   "label": "Ring Blue 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ring-macro",
+   "label": "Ring Colour Macro",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 5,
+     "label": "Colour off"
+    },
+    {
+     "from": 6,
+     "to": 13,
+     "label": "Macro 1 (Colour Jump)"
+    },
+    {
+     "from": 14,
+     "to": 21,
+     "label": "Macro 2 (Red 1 Step)"
+    },
+    {
+     "from": 22,
+     "to": 29,
+     "label": "Macro 3 (Green 1 Step)"
+    },
+    {
+     "from": 30,
+     "to": 37,
+     "label": "Macro 4 (Blue 1 Step)"
+    },
+    {
+     "from": 38,
+     "to": 45,
+     "label": "Macro 5 (Yellow 1 Step)"
+    },
+    {
+     "from": 46,
+     "to": 53,
+     "label": "Macro 6 (Cyan 1 Step)"
+    },
+    {
+     "from": 54,
+     "to": 61,
+     "label": "Macro 7 (Magenta 1 Step)"
+    },
+    {
+     "from": 62,
+     "to": 69,
+     "label": "Macro 8 (2step Magenta Yellow)"
+    },
+    {
+     "from": 70,
+     "to": 77,
+     "label": "Macro 9 (2step Red Green)"
+    },
+    {
+     "from": 78,
+     "to": 85,
+     "label": "Macro 10 (2step Red Blue)"
+    },
+    {
+     "from": 86,
+     "to": 93,
+     "label": "Macro 11 (2step Blue Yellow)"
+    },
+    {
+     "from": 94,
+     "to": 101,
+     "label": "Macro 12 (2step Green Blue)"
+    },
+    {
+     "from": 102,
+     "to": 109,
+     "label": "Macro 13 (2step Magenta Blue)"
+    },
+    {
+     "from": 110,
+     "to": 117,
+     "label": "Macro 14 (2step Green Yellow)"
+    },
+    {
+     "from": 118,
+     "to": 125,
+     "label": "Macro 15 (2step Cyan Magenta)"
+    },
+    {
+     "from": 126,
+     "to": 133,
+     "label": "Macro 16 (2step Cyan Red)"
+    },
+    {
+     "from": 134,
+     "to": 255,
+     "label": "No function"
+    }
+   ]
+  },
+  {
+   "key": "ring-macro-speed",
+   "label": "Ring Macro Speed",
+   "role": "speed",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "4ch",
+   "name": "4ch",
+   "footprint": 4,
+   "slots": [
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "strobe",
+     "byte": 0
+    },
+    {
+     "channelKey": "auto-program",
+     "byte": 0
+    },
+    {
+     "channelKey": "pan-tilt-speed",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "15ch",
+   "name": "15ch",
+   "footprint": 15,
+   "slots": [
+    {
+     "channelKey": "pan",
+     "byte": 0
+    },
+    {
+     "channelKey": "pan",
+     "byte": 1
+    },
+    {
+     "channelKey": "pan-endless",
+     "byte": 0
+    },
+    {
+     "channelKey": "tilt",
+     "byte": 0
+    },
+    {
+     "channelKey": "tilt",
+     "byte": 1
+    },
+    {
+     "channelKey": "tilt-endless",
+     "byte": 0
+    },
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "strobe-functions",
+     "byte": 0
+    },
+    {
+     "channelKey": "red",
+     "byte": 0
+    },
+    {
+     "channelKey": "green",
+     "byte": 0
+    },
+    {
+     "channelKey": "blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "white",
+     "byte": 0
+    },
+    {
+     "channelKey": "device-settings",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-macro",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-macro-speed",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "20ch",
+   "name": "20ch",
+   "footprint": 20,
+   "slots": [
+    {
+     "channelKey": "pan",
+     "byte": 0
+    },
+    {
+     "channelKey": "pan",
+     "byte": 1
+    },
+    {
+     "channelKey": "pan-endless",
+     "byte": 0
+    },
+    {
+     "channelKey": "tilt",
+     "byte": 0
+    },
+    {
+     "channelKey": "tilt",
+     "byte": 1
+    },
+    {
+     "channelKey": "tilt-endless",
+     "byte": 0
+    },
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "strobe-functions",
+     "byte": 0
+    },
+    {
+     "channelKey": "red",
+     "byte": 0
+    },
+    {
+     "channelKey": "green",
+     "byte": 0
+    },
+    {
+     "channelKey": "blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "white",
+     "byte": 0
+    },
+    {
+     "channelKey": "device-settings",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-strobe",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-macro",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-macro-speed",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "35ch",
+   "name": "35ch",
+   "footprint": 35,
+   "slots": [
+    {
+     "channelKey": "pan",
+     "byte": 0
+    },
+    {
+     "channelKey": "pan",
+     "byte": 1
+    },
+    {
+     "channelKey": "pan-endless",
+     "byte": 0
+    },
+    {
+     "channelKey": "tilt",
+     "byte": 0
+    },
+    {
+     "channelKey": "tilt",
+     "byte": 1
+    },
+    {
+     "channelKey": "tilt-endless",
+     "byte": 0
+    },
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "dimmer",
+     "byte": 1
+    },
+    {
+     "channelKey": "strobe-functions",
+     "byte": 0
+    },
+    {
+     "channelKey": "red",
+     "byte": 0
+    },
+    {
+     "channelKey": "green",
+     "byte": 0
+    },
+    {
+     "channelKey": "blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "white",
+     "byte": 0
+    },
+    {
+     "channelKey": "colour-macro",
+     "byte": 0
+    },
+    {
+     "channelKey": "auto-program",
+     "byte": 0
+    },
+    {
+     "channelKey": "pan-tilt-macro",
+     "byte": 0
+    },
+    {
+     "channelKey": "dimmer-curve",
+     "byte": 0
+    },
+    {
+     "channelKey": "pan-tilt-speed",
+     "byte": 0
+    },
+    {
+     "channelKey": "device-settings",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-strobe",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-red1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-green1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-blue1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-red2",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-green2",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-blue2",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-red3",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-green3",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-blue3",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-red4",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-green4",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-blue4",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-macro",
+     "byte": 0
+    },
+    {
+     "channelKey": "ring-macro-speed",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "source": {
+  "origin": "pdf",
+  "ref": "Cameo MOVO BEAM 100 user manual CLMB100 REV 03, pages 69-74 (4 / 15 / 20 / 35 CH)"
+ },
+ "verified": false
+}

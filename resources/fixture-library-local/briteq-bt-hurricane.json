@@ -1,0 +1,53 @@
+{
+ "id": "briteq/bt-hurricane",
+ "manufacturer": "Briteq",
+ "model": "BT-HURRICANE",
+ "aliases": [
+  "BT-HURRICANE",
+  "BT HURRICANE",
+  "bthurricane",
+  "Briteq BT-HURRICANE",
+  "briteqbthurricane",
+  "04850",
+  "Hurricane"
+ ],
+ "categories": [
+  "Fan"
+ ],
+ "channels": [
+  {
+   "key": "fan",
+   "label": "Fan Speed",
+   "role": "speed",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "1ch",
+   "name": "1ch",
+   "footprint": 1,
+   "slots": [
+    {
+     "channelKey": "fan",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "physical": {
+  "dimsMm": [
+   496,
+   548,
+   397
+  ],
+  "weightKg": 16.5,
+  "powerW": 200
+ },
+ "source": {
+  "origin": "pdf",
+  "ref": "datasheet BT-HURRICANE_04850_en.pdf (\"DMX-control 1channel\", seamless fan speed)"
+ },
+ "verified": true
+}

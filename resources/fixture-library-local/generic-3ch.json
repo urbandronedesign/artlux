@@ -1,0 +1,64 @@
+{
+ "id": "generic/generic-3ch",
+ "manufacturer": "Generic",
+ "model": "generic-3ch",
+ "aliases": [
+  "generic-3ch",
+  "generic 3ch",
+  "generic3ch",
+  "3 channel",
+  "3ch"
+ ],
+ "categories": [
+  "Other"
+ ],
+ "channels": [
+  {
+   "key": "ch1",
+   "label": "Channel 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch2",
+   "label": "Channel 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch3",
+   "label": "Channel 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "3ch",
+   "name": "3ch",
+   "footprint": 3,
+   "slots": [
+    {
+     "channelKey": "ch1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch2",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch3",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "source": {
+  "origin": "manual",
+  "ref": "scripts/make-local-fixtures.py"
+ },
+ "verified": true
+}

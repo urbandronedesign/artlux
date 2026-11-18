@@ -1403,6 +1403,59 @@
   "verified": true
  },
  {
+  "id": "briteq/bt-hurricane",
+  "manufacturer": "Briteq",
+  "model": "BT-HURRICANE",
+  "aliases": [
+   "BT-HURRICANE",
+   "BT HURRICANE",
+   "bthurricane",
+   "Briteq BT-HURRICANE",
+   "briteqbthurricane",
+   "04850",
+   "Hurricane"
+  ],
+  "categories": [
+   "Fan"
+  ],
+  "channels": [
+   {
+    "key": "fan",
+    "label": "Fan Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1ch",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    496,
+    548,
+    397
+   ],
+   "weightKg": 16.5,
+   "powerW": 200
+  },
+  "source": {
+   "origin": "pdf",
+   "ref": "datasheet BT-HURRICANE_04850_en.pdf (\"DMX-control 1channel\", seamless fan speed)"
+  },
+  "verified": true
+ },
+ {
   "id": "briteq/bt-stagepar-6in1",
   "manufacturer": "Briteq",
   "model": "BT-STAGEPAR 6in1",
@@ -1847,6 +1900,388 @@
    "origin": "ofl",
    "ref": "briteq/bt-stagepar-6in1",
    "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/bt-theatre-60fc",
+  "manufacturer": "Briteq",
+  "model": "BT-THEATRE 60FC",
+  "aliases": [
+   "BT-THEATRE 60FC",
+   "BT THEATRE 60FC",
+   "bttheatre60fc",
+   "Briteq BT-THEATRE 60FC",
+   "briteqbttheatre60fc",
+   "06015",
+   "B06015"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Sound / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 190,
+      "label": "Master dimmer 0-100%"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "Sound control (7 colors)"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe slow-fast"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Master dimmer 100%"
+     }
+    ]
+   },
+   {
+    "key": "sound-strobe",
+    "label": "Sound / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "On"
+     },
+     {
+      "from": 5,
+      "to": 24,
+      "label": "Sound control (7 colors)"
+     },
+     {
+      "from": 25,
+      "to": 34,
+      "label": "On"
+     },
+     {
+      "from": 35,
+      "to": 255,
+      "label": "Strobe slow-fast"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "On"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe slow-fast"
+     }
+    ]
+   },
+   {
+    "key": "strobe-multi",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "On"
+     },
+     {
+      "from": 8,
+      "to": 37,
+      "label": "Random strobe slow-fast"
+     },
+     {
+      "from": 38,
+      "to": 67,
+      "label": "Sound strobe"
+     },
+     {
+      "from": 68,
+      "to": 255,
+      "label": "Strobe slow-fast"
+     }
+    ]
+   },
+   {
+    "key": "color-macro",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "No function"
+     },
+     {
+      "from": 8,
+      "to": 127,
+      "label": "Color change slow-fast"
+     },
+     {
+      "from": 128,
+      "to": 247,
+      "label": "Color fade slow-fast"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch-rgb-dim",
+    "name": "4CH RGB+DIM",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch-rgbw",
+    "name": "4CH RGBW",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5CH RGBW+DIM",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6CH",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch-plus",
+    "name": "6CH+",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7CH",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-multi",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    241,
+    251,
+    195
+   ],
+   "weightKg": 3.63,
+   "powerW": 62,
+   "lensDegMin": 10,
+   "lensDegMax": 50
+  },
+  "source": {
+   "origin": "pdf",
+   "ref": "Beglec operation manual B06015-05.pdf (BT-THEATRE 60FC); datasheet BT-THEATRE_60FC_06015_en.pdf"
   },
   "verified": true
  },

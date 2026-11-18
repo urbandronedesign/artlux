@@ -1,12 +1,12 @@
 # 02 · The show machine by voice
 
 > Project: [`../vik-voice.artlux`](../vik-voice.artlux) · the VIK agent of [chapter 1](01-scenes-by-voice.md)
-> You'll learn: **global rules** with an **`osc` trigger**, one OSC address per state, and how to **edit the OSC
-> message** in VIK, with a placeholder in the address.
+> You'll learn: **global rules** with an **`osc` trigger**, how to **edit the OSC message** in VIK, and the scene
+> recall, which changes the look only.
 
-In chapter 1 the voice changed the look and the show machine stayed in Attract. Here the voice moves the
-**machine**: the state changes, its scene comes with the transition's fade, and the performance returns to Attract
-after 10 s, as it does when you drive it by hand.
+In chapter 1 the voice moved the show machine: the state changed, its scene came with the transition's fade, and
+the performance returned to Attract after 10 s, as it does when you drive it by hand. Here is how both sides are
+set up, so you can do the same in your own project.
 
 ## 1. The ArtLux side: one address per state
 
@@ -29,18 +29,23 @@ The graph draws the rest: from Attract, one **manual** link to each performance 
 and from each performance an **`afterDelay` 10 s** link back. Each pair is curved: select a link and drag its
 orange handles to bend it your way.
 
-## 2. The VIK side: edit the OSC message
+## 2. The VIK side: the OSC message
 
 In VIK, open the agent **ArtLux scenes** ▸ **Interactions** ▸ the pattern **A scene**. Its **Send OSC** action has
-two fields. Change them:
+two fields: the address `/vik/{scene}`, and an empty value. The address is filled from the row found: "la forêt"
+gives `/vik/Grove`. Edits are saved as you type (the top bar says **Saved**; **Save** or **Ctrl+S** saves at once).
 
-| | chapter 1 | now |
+**To change the look only**, there is another message, which works with any project, show machine or not:
+
+| | the show machine | the look only |
 |---|---|---|
-| address | `/artlux/scene/recall` | `/vik/{scene}` |
-| value | `{scene}` | *(empty)* |
+| address | `/vik/{scene}` | `/artlux/scene/recall` |
+| value | *(empty)* | `{scene}` |
 
-The address too is filled from the row found: "la forêt" gives `/vik/Grove`, with no value. It is saved as you type
-(the top bar says **Saved**; **Save** or **Ctrl+S** saves at once).
+`/artlux/scene/recall <name>` recalls a scene by its name (or its id), exactly as clicking it in **Scenes & Cues**
+would. It changes the **look**, not the **state**: a running show machine stays where it was, the graph keeps
+marking that state, and the 10 s return never starts, because the machine never entered the performance. In a
+project with a show machine, send the state's address.
 
 ## 3. Talk
 
@@ -50,9 +55,9 @@ the forest": a global rule leaves from any state, so the show goes straight from
 
 "Lights out" holds: Blackout has no automatic way back. "Go back to the start" (`/vik/Attract`) releases it.
 
-> **After chapter 1, the look and the state may disagree.** A recall left the look on Grove with the machine in
-> Attract. `/vik/Attract` then does nothing: a global rule into the state the machine is already in is skipped. Ask
-> for any performance, and the machine takes over again.
+> **After a scene recall, the look and the state may disagree.** A recall can leave the look on Grove with the
+> machine in Attract. `/vik/Attract` then does nothing: a global rule into the state the machine is already in is
+> skipped. Ask for any performance, and the machine takes over again.
 
 ## 4. Your own messages and triggers
 

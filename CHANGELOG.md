@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### More keyframe curves
+
+Double-click a keyframe and the **curve** list now offers the classic easing shapes next to linear,
+hold and bezier: sine, quad, cubic, quart, quint, expo, circ and back (each as in, out and in-out),
+plus elastic and bounce. The shapes that are plain curves load into the bezier handles, so you can
+start from one and adjust it. See [Timeline](docs/TIMELINE.md).
+
+### Fixtures for your own hardware
+
+The fixture library's **New custom fixture** builds a light fixture from a name and a list of channel
+names, and saves it to this computer's library. Ready-made **generic-1ch** to **generic-5ch**
+fixtures cover hardware that only needs a few plain channels. New profiles: Briteq BT-THEATRE 60FC
+and BT-HURRICANE, Cameo MOVO BEAM Z100 and MOVO BEAM 100, Stairville DDS 405. See
+[Fixture library](docs/FIXTURE-LIBRARY.md).
+
 ## v0.36.0
 
 ### Move the show with a webcam: camera trigger zones

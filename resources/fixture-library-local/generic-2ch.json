@@ -1,0 +1,53 @@
+{
+ "id": "generic/generic-2ch",
+ "manufacturer": "Generic",
+ "model": "generic-2ch",
+ "aliases": [
+  "generic-2ch",
+  "generic 2ch",
+  "generic2ch",
+  "2 channel",
+  "2ch"
+ ],
+ "categories": [
+  "Other"
+ ],
+ "channels": [
+  {
+   "key": "ch1",
+   "label": "Channel 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "ch2",
+   "label": "Channel 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "2ch",
+   "name": "2ch",
+   "footprint": 2,
+   "slots": [
+    {
+     "channelKey": "ch1",
+     "byte": 0
+    },
+    {
+     "channelKey": "ch2",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "source": {
+  "origin": "manual",
+  "ref": "scripts/make-local-fixtures.py"
+ },
+ "verified": true
+}

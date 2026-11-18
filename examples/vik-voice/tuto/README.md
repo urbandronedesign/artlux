@@ -24,5 +24,5 @@ sender.*
 
 | | Chapter | You end up with |
 |---|---|---|
-| 1 | [Scenes by voice](01-scenes-by-voice.md) | "Show me the forest": VIK sends `/artlux/scene/recall Grove`, and the look changes. Works with any project. |
-| 2 | [The show machine by voice](02-the-show-machine-by-voice.md) | The OSC message edited in VIK (`/vik/{scene}`), and ArtLux's global rules taking the show into each state, which returns to Attract by itself. Then your own messages and triggers. |
+| 1 | [Scenes by voice](01-scenes-by-voice.md) | "Show me the forest": VIK sends `/vik/Grove`, the show machine goes to Grove, and returns to Attract by itself. |
+| 2 | [The show machine by voice](02-the-show-machine-by-voice.md) | How it works: ArtLux's global rules, one address per state, and the OSC message in VIK (`/vik/{scene}`). The scene recall, for the look only. Then your own messages and triggers. |

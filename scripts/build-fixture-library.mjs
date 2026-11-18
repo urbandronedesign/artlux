@@ -564,6 +564,8 @@ function main() {
     modes: p.modes.map((m) => ({ key: m.key, name: m.name, footprint: m.footprint })),
     // Only a non-OFL origin is worth a byte in the eager catalogue: the picker badges it as imported.
     ...(p.source?.origin && p.source.origin !== 'ofl' ? { origin: p.source.origin } : {}),
+    // A local DRAFT must be badged in the picker like a user draft is; absent = verified.
+    ...(p.verified === false ? { verified: false } : {}),
   })));
 
   // Gobo images, referenced by ProfileRange.goboKey. Same MIT licence as the rest of the repo.

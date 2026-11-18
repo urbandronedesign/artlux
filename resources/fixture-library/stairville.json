@@ -857,6 +857,94 @@
   "verified": true
  },
  {
+  "id": "stairville/dds-405",
+  "manufacturer": "Stairville",
+  "model": "DDS 405",
+  "aliases": [
+   "DDS 405",
+   "DDS-405",
+   "dds405",
+   "Stairville DDS 405",
+   "stairvilledds405",
+   "DDS-405 DMX Dimmer & Switchpack"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer1",
+    "label": "Dimmer 1",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer3",
+    "label": "Dimmer 3",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer4",
+    "label": "Dimmer 4",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer1",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer3",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer4",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    65,
+    180
+   ],
+   "weightKg": 2
+  },
+  "source": {
+   "origin": "pdf",
+   "ref": "Thomann user manual DMX_Gradateur_DDS405.pdf (ID 174194) - continuous addressing, 4 dimmable channels"
+  },
+  "verified": true
+ },
+ {
   "id": "stairville/hz-200-compact-hazer",
   "manufacturer": "Stairville",
   "model": "Hz-200 Compact Hazer",

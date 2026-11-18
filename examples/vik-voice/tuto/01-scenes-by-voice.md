@@ -1,8 +1,8 @@
 # 01 · Scenes by voice
 
 > Project: [`../vik-voice.artlux`](../vik-voice.artlux) · VIK agent: [`artlux-scenes.vik.json`](https://github.com/b2renger/voice-interaction-kit/blob/main/examples/artlux/artlux-scenes.vik.json)
-> You'll learn: ArtLux's **OSC receive**, the address **`/artlux/scene/recall`**, and how VIK turns a sentence into
-> that message.
+> You'll learn: ArtLux's **OSC receive**, **one OSC address per state** (`/vik/Grove`), and how VIK turns a
+> sentence into that message.
 
 ## 1. ArtLux listens
 
@@ -10,8 +10,9 @@
    `127.0.0.1`).
 2. **File ▸ Open…** → `vik-voice.artlux`. The stage shows **Attract**, a slow rainbow.
 
-`/artlux/scene/recall <name>` is one of ArtLux's control addresses ([OSC.md](../../../docs/OSC.md)): it recalls a
-scene by its **name** (or its id), exactly as clicking it in **Scenes & Cues** would.
+The project's show machine has one state per scene, and one OSC address per state: `/vik/Attract`, `/vik/Ember`,
+`/vik/Tide`, `/vik/Grove`, `/vik/Blackout`. A message on one of them takes the show into that state, which brings
+its scene. [Chapter 2](02-the-show-machine-by-voice.md) shows where these addresses are set.
 
 ## 2. VIK understands
 
@@ -35,11 +36,11 @@ Look at what the agent knows. **Knowledge ▸ Scenes** has one row per ArtLux sc
 The first name of each row is the **scene's name in ArtLux**, letter for letter. The others are the words people
 may use. **Interactions** has the pattern that uses it:
 
-> **When** the person mentions an entry of **Scenes** → **Send OSC** address `/artlux/scene/recall`, value `{scene}`
+> **When** the person mentions an entry of **Scenes** → **Send OSC** address `/vik/{scene}`, no value
 > → **Say** "Here is {scene}."
 
 `{scene}` is filled with the first name of the row found: someone says "la forêt", the row is Grove, and the message
-is `/artlux/scene/recall Grove`.
+is `/vik/Grove`.
 
 ## 3. Talk
 
@@ -58,23 +59,23 @@ understands more than the words in the table: "something warm and glowing" finds
 column.
 
 In VIK's **Talk** view, **Why it answered** shows each decision: the row found, how sure VIK was, and the message
-sent: `OSC to 127.0.0.1:10000: /artlux/scene/recall Grove.` No microphone? Type the sentence in the field under the
+sent: `OSC to 127.0.0.1:10000: /vik/Grove.` No microphone? Type the sentence in the field under the
 conversation: it is decided the same way.
 
 ## 4. What the show machine does
 
-Nothing: a recall changes the **look**, not the **state**. Open **Show Machine**: the machine is still in
-**Attract**, and the 10 s returns never start, because the machine never entered Ember or Grove. For a show that
-only needs to switch looks, that is all you need, and it works with any project.
+It follows the voice. Open **Show Machine** and say "show me the forest": the graph marks **Grove**, the state
+lane says Grove, and 10 s later the show returns to **Attract** by itself. "Lights out" holds: Blackout has no
+automatic way back, and "go back to the start" releases it.
 
-For a show whose machine follows the voice (a performance that returns to Attract by itself, entry actions, a
-fade per transition), go on to [chapter 2](02-the-show-machine-by-voice.md).
+How ArtLux maps each address to a state, how to edit the message in VIK, and how to change only the look in a
+project with no show machine: go on to [chapter 2](02-the-show-machine-by-voice.md).
 
 ## When nothing happens
 
 - **VIK's trace shows no OSC line.** The pattern did not fire: check which pattern was chosen, and that the agent
   is **ArtLux scenes**.
 - **"OSC … not sent: no address in Settings".** Fill **Settings ▸ OSC ▸ Send to** in VIK.
-- **The OSC line is there, ArtLux does not move.** Is **OSC receive** on, on the same port? Does the name match a
-  scene of the open project, letter for letter? Under **Preferences ▸ OSC / Tracking ▸ State trigger senders**, the
+- **The OSC line is there, ArtLux does not move.** Is **OSC receive** on, on the same port? Does the address match a
+  global rule of the open project (`/vik/Grove`), letter for letter? Under **Preferences ▸ OSC / Tracking ▸ State trigger senders**, the
   devices **Seen recently** are listed: a `127.0.0.1:…` chip means VIK's messages arrive.

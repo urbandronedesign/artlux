@@ -1093,6 +1093,326 @@
   "verified": true
  },
  {
+  "id": "generic/generic-1ch",
+  "manufacturer": "Generic",
+  "model": "generic-1ch",
+  "aliases": [
+   "generic-1ch",
+   "generic 1ch",
+   "generic1ch",
+   "1 channel",
+   "1ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "ch1",
+    "label": "Channel 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1ch",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "ch1",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "manual",
+   "ref": "scripts/make-local-fixtures.py"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/generic-2ch",
+  "manufacturer": "Generic",
+  "model": "generic-2ch",
+  "aliases": [
+   "generic-2ch",
+   "generic 2ch",
+   "generic2ch",
+   "2 channel",
+   "2ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "ch1",
+    "label": "Channel 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch2",
+    "label": "Channel 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "ch1",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch2",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "manual",
+   "ref": "scripts/make-local-fixtures.py"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/generic-3ch",
+  "manufacturer": "Generic",
+  "model": "generic-3ch",
+  "aliases": [
+   "generic-3ch",
+   "generic 3ch",
+   "generic3ch",
+   "3 channel",
+   "3ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "ch1",
+    "label": "Channel 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch2",
+    "label": "Channel 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch3",
+    "label": "Channel 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3ch",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "ch1",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch2",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch3",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "manual",
+   "ref": "scripts/make-local-fixtures.py"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/generic-4ch",
+  "manufacturer": "Generic",
+  "model": "generic-4ch",
+  "aliases": [
+   "generic-4ch",
+   "generic 4ch",
+   "generic4ch",
+   "4 channel",
+   "4ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "ch1",
+    "label": "Channel 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch2",
+    "label": "Channel 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch3",
+    "label": "Channel 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch4",
+    "label": "Channel 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4ch",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "ch1",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch2",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch3",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch4",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "manual",
+   "ref": "scripts/make-local-fixtures.py"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/generic-5ch",
+  "manufacturer": "Generic",
+  "model": "generic-5ch",
+  "aliases": [
+   "generic-5ch",
+   "generic 5ch",
+   "generic5ch",
+   "5 channel",
+   "5ch"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "ch1",
+    "label": "Channel 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch2",
+    "label": "Channel 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch3",
+    "label": "Channel 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch4",
+    "label": "Channel 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ch5",
+    "label": "Channel 5",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5ch",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "ch1",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch2",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch3",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch4",
+      "byte": 0
+     },
+     {
+      "channelKey": "ch5",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "manual",
+   "ref": "scripts/make-local-fixtures.py"
+  },
+  "verified": true
+ },
+ {
   "id": "generic/grbw-fader",
   "manufacturer": "Generic",
   "model": "GRBW Fader",

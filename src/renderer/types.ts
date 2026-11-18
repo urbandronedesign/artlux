@@ -787,7 +787,22 @@ export const defaultStateMachine = (): StateMachine => ({
 // each scene's own (scene.timeline). The engine evaluates the GLOBAL timeline's lanes as a BASE LAYER
 // underneath the active scene's, shadowed per targetPath, so a scene can override one curve without
 // disturbing the rest of the show's automation.
-export type CurveKind = 'linear' | 'hold' | 'bezier';
+// The NAMED eases are the classic easing set (easings.net). They are closed-form functions evaluated by
+// services/automation.ts (`EASE_FN`, keyed by exactly these names), so a key carries only the name — no
+// handles — which is what lets a colour key and a lighting key use them too. A build that does not know
+// a name degrades it to linear, like any unknown curve.
+export type EaseKind =
+  | 'easeInSine' | 'easeOutSine' | 'easeInOutSine'
+  | 'easeInQuad' | 'easeOutQuad' | 'easeInOutQuad'
+  | 'easeInCubic' | 'easeOutCubic' | 'easeInOutCubic'
+  | 'easeInQuart' | 'easeOutQuart' | 'easeInOutQuart'
+  | 'easeInQuint' | 'easeOutQuint' | 'easeInOutQuint'
+  | 'easeInExpo' | 'easeOutExpo' | 'easeInOutExpo'
+  | 'easeInCirc' | 'easeOutCirc' | 'easeInOutCirc'
+  | 'easeInBack' | 'easeOutBack' | 'easeInOutBack'
+  | 'easeInElastic' | 'easeOutElastic' | 'easeInOutElastic'
+  | 'easeInBounce' | 'easeOutBounce' | 'easeInOutBounce';
+export type CurveKind = 'linear' | 'hold' | 'bezier' | EaseKind;
 // One breakpoint. `t` is TIMELINE seconds (never clip-relative, and never clamped to `duration` — the
 // timeline is unbounded). `v` is in the TARGET'S NATIVE UNITS: Hz, dB, linear gain, metres — the very
 // number the authoring slider writes, so a keyframe means exactly what the fader meant. `curve` shapes
