@@ -12,9 +12,9 @@ interface Props {
   laneH: number;
   conflictIds?: Set<string>;
   /** clip id → its sequence's key times, for the lighting diamonds. Built once by Timeline. */
-  sequenceKeys?: Map<string, ReadonlyArray<{ t: number; name?: string }>>;
+  sequenceKeys?: Map<string, ReadonlyArray<{ t: number; name?: string; curve?: string }>>;
   selectedKey?: { clipId: string; t: number } | null;
-  onSelectKey?: (clipId: string, t: number) => void;
+  onSelectKey?: (clipId: string, t: number, index: number, additive: boolean) => void;
   onSeek: (clientX: number) => void;
   onDropFile: (e: React.DragEvent, layerId: string) => void;
   onAddContent?: (e: React.MouseEvent, layerId: string) => void; // right-click empty lane → source picker

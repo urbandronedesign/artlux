@@ -284,6 +284,7 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
       {/* body — the curve, shared with every other surface that draws one */}
       <div style={{ opacity: enabled ? 1 : 0.4 }}>
         <CurveEditor
+          laneId={lane.id}
           keyframes={lane.keyframes}
           draft={draft}
           def={def}

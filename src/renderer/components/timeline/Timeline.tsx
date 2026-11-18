@@ -42,6 +42,10 @@ import { ClipAudioInspector } from './ClipAudioInspector';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
 import { useStableHandlers } from '../../hooks/useStableHandlers';
 import { usePopoverAnchor } from './usePopoverAnchor';
+import * as keySel from '../../services/keyframeSelection';
+import { EasePicker } from './EasePicker';
+import { curvePatch } from './ease';
+import { useToast } from '../ui';
 
 // Fallback length for an audio file the browser cannot decode (some .aiff): place a trimmable clip rather
 // than refuse the drop. A decodable file gets its real length from probeAudioDuration.
@@ -166,6 +170,7 @@ const AddRow: React.FC<{
 
 export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
+  const toast = useToast();
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   // The pill menu is portalled (usePopoverAnchor), so it is placed from the button's measured rect
   // rather than anchored with `absolute top-full`.
@@ -1703,14 +1708,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // clip id → its sequence's key times, for the lighting clip's diamonds. Built once per change
   // here rather than looked up inside the memoized ClipBlock, which must not read a store.
   const sequenceKeys = useMemo(() => {
-    const m = new Map<string, ReadonlyArray<{ t: number; name?: string }>>();
+    const m = new Map<string, ReadonlyArray<{ t: number; name?: string; curve?: string }>>();
     const seqs = timeline.lightingSequences;
     if (!seqs?.length) return m;
     for (const c of timeline.clips) {
       const id = c.lighting?.sequenceId;
       if (!id) continue;
       const s = seqs.find((x) => x.id === id);
-      if (s) m.set(c.id, s.keys.map((k) => ({ t: k.t, name: k.name })));
+      if (s) m.set(c.id, s.keys.map((k) => ({ t: k.t, name: k.name, curve: k.curve })));
     }
     return m;
   }, [timeline.clips, timeline.lightingSequences]);
@@ -1727,11 +1732,119 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // Selecting a key MOVES THE PLAYHEAD TO IT — the snap-to-key half of the authoring loop. The rig
   // is already live-scrubbing (lightingPlayback subscribes every frame, even paused), so this is
   // what makes clicking a diamond show you that look on the actual fixtures.
-  const selectKey = (clipId: string, t: number) => {
+  //
+  // Pose keys also live in the TIMELINE-WIDE key selection (services/keyframeSelection), as owner
+  // `light:<clipId>` with the key's index in its sequence — so they can be selected together with
+  // automation and colour keys (Ctrl-click, marquee) and take one ease with them. A pose key's other
+  // parameters already sit in the clip inspector the selection brings up; the ease is the one the
+  // half-icon shows, so E with one pose key selected opens that picker (`easeOpen`).
+  const [easeOpen, setEaseOpen] = useState(false);
+  const selectKey = (clipId: string, t: number, index = -1, additive = false) => {
+    if (additive && index >= 0) { keySel.click(`light:${clipId}`, index, true); return; }
     setSelectedKey({ clipId, t });
     setSelected(clipId);
+    setEaseOpen(false);
+    if (index >= 0) keySel.click(`light:${clipId}`, index, false);
     const clip = timeline.clips.find((c) => c.id === clipId);
     if (clip) engine.seek(clip.start + (t - (clip.inPoint ?? 0)));
+  };
+
+  // ONE OWNER PER LIGHTING CLIP. Re-registered only when the SHAPE changes (which clips, which
+  // sequences, how many keys) — never on a value edit, or applying an ease would re-register every
+  // clip and drop the very selection it was applied to. Registration is also what drops a clip's
+  // selected indices when its key count changes (the unregister clears its slice), so an index never
+  // outlives the sorted array it indexes.
+  const lightShape = useMemo(() => {
+    const seqs = timeline.lightingSequences ?? [];
+    return timeline.clips
+      .filter((c) => c.lighting?.sequenceId)
+      .map((c) => `${c.id}:${c.lighting!.sequenceId}:${seqs.find((s) => s.id === c.lighting!.sequenceId)?.keys.length ?? 0}`)
+      .join('|');
+  }, [timeline.clips, timeline.lightingSequences]);
+  useEffect(() => {
+    const offs = lightShape.split('|').filter(Boolean).map((entry) => {
+      const [clipId, sequenceId] = entry.split(':');
+      const keyAt = (index: number) => timelineRef.current.lightingSequences?.find((s) => s.id === sequenceId)?.keys[index];
+      return keySel.register(`light:${clipId}`, {
+        ref: (index) => { const k = keyAt(index); return k ? { kind: 'light', sequenceId, t: k.t } : null; },
+        open: (index) => {
+          const k = keyAt(index);
+          if (!k) return false;
+          setSelectedKey({ clipId, t: k.t });
+          setSelected(clipId);    // the inspector is where the picker lives — bring it back if closed
+          setEaseOpen(true);
+          return true;
+        },
+        // Selection moved elsewhere (a plain click on another lane's key): the inspector's key goes too.
+        onChange: (s) => {
+          if (s.size) return;
+          setSelectedKey((cur) => (cur?.clipId === clipId ? null : cur));
+          setEaseOpen(false);
+        },
+      });
+    });
+    return () => offs.forEach((off) => off());
+  }, [lightShape]);
+
+  // ── ONE EASE ON MANY KEYS ──────────────────────────────────────────────────────────────────────
+  // ONE document write for the whole selection, whatever lanes, rows and clips it spans. The owners
+  // cannot do this themselves: each writes by spreading timelineRef.current, so two of them in the
+  // same tick would both start from the same document and the second would erase the first's edit.
+  const applyCurveToSelection = (curve: CurveKind) => {
+    const refs = keySel.refs();
+    if (!refs.length) return;
+    const tl = timelineRef.current;
+    const auto = new Map<string, Set<number>>(), color = new Map<string, Set<number>>(), light = new Map<string, number[]>();
+    for (const r of refs) {
+      if (r.kind === 'light') { light.set(r.sequenceId, [...(light.get(r.sequenceId) ?? []), r.t]); continue; }
+      const m = r.kind === 'auto' ? auto : color;
+      if (!m.has(r.laneId)) m.set(r.laneId, new Set());
+      m.get(r.laneId)!.add(r.index);
+    }
+    onChangeRef.current({
+      ...tl,
+      ...(tl.automation && auto.size ? {
+        automation: tl.automation.map((l) => {
+          const s = auto.get(l.id);
+          return s ? { ...l, keyframes: l.keyframes.map((k, i) => (s.has(i) ? { ...k, ...curvePatch(k.curve, curve) } : k)) } : l;
+        }),
+      } : {}),
+      ...(tl.colorLanes && color.size ? {
+        colorLanes: tl.colorLanes.map((l) => {
+          const s = color.get(l.id);
+          return s ? { ...l, keys: l.keys.map((k, i) => (s.has(i) ? { ...k, curve } : k)) } : l;
+        }),
+      } : {}),
+      ...(tl.lightingSequences && light.size ? {
+        lightingSequences: tl.lightingSequences.map((s) => {
+          const ts = light.get(s.id);
+          return ts ? { ...s, keys: s.keys.map((k) => (ts.some((t) => Math.abs(t - k.t) < 1e-6) ? { ...k, curve } : k)) } : s;
+        }),
+      } : {}),
+    });
+  };
+  /** The ease every selected key shares, or null when they differ (the picker then marks none). */
+  const selectionCurve = (): CurveKind | null => {
+    const tl = timelineRef.current;
+    let out: CurveKind | undefined;
+    for (const r of keySel.refs()) {
+      const c: CurveKind = (r.kind === 'auto' ? tl.automation?.find((l) => l.id === r.laneId)?.keyframes[r.index]?.curve
+        : r.kind === 'color' ? tl.colorLanes?.find((l) => l.id === r.laneId)?.keys[r.index]?.curve
+          : tl.lightingSequences?.find((s) => s.id === r.sequenceId)?.keys.find((k) => Math.abs(k.t - r.t) < 1e-6)?.curve) ?? 'linear';
+      if (out === undefined) out = c; else if (out !== c) return null;
+    }
+    return out ?? null;
+  };
+  // The multi-key picker, opened by E, placed AT the most recently selected key (a fixed, measured
+  // box — there is no field for it to drop down from).
+  const [multiEase, setMultiEase] = useState<{ left: number; top: number; w: number; h: number; n: number; value: CurveKind | null } | null>(null);
+  const multiAnchorRef = useRef<HTMLDivElement | null>(null);
+  const openMultiEase = () => {
+    const p = keySel.primaryKey();
+    const el = p ? panelRef.current?.querySelector<HTMLElement>(`[data-kf="${CSS.escape(keySel.keyAttr(p.owner, p.index))}"]`) : null;
+    const r = el?.getBoundingClientRect() ?? panelRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setMultiEase({ left: r.left, top: r.top, w: r.width, h: r.height, n: keySel.count(), value: selectionCurve() });
   };
   // A key that no longer exists must not stay selected — the inspector would edit a hole.
   useEffect(() => {
@@ -1796,6 +1909,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     seekEnd: () => engine.seek(contentEnd),
     toggleMax: () => onToggleMax?.(),
     toggleLoop,
+    // E: open the selected keyframe's parameters — whichever lane, colour row or lighting clip holds
+    // the one selected key. Never a silent no-op: with nothing selected, say what to do instead.
+    editKeyframe: () => {
+      const r = keySel.openSelected();
+      if (r === 'multi') openMultiEase();
+      else if (r === 'none') toast.info('Select a keyframe first', 'Click a key on a curve, a colour row or a lighting clip (Ctrl-click or drag a box for several), then press E.');
+    },
   }, () => !!panelRef.current && (hoverRef.current || panelRef.current.contains(document.activeElement)));
 
   const laneHeightOf = (l: VideoLayer) => (resizeDraft && resizeDraft.id === l.id ? resizeDraft.height : laneHeight(l));
@@ -1903,7 +2023,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // `data-owns-delete`: this panel binds Del/Backspace to its OWN selection (clips, keys, lanes), so
     // the global "delete the selected fixture" shortcut must step aside while the pointer or focus is
     // in here. The attribute is the claim; App queries it with :hover rather than tracking a pointer.
-    <div ref={panelRef} data-owns-delete tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
+    <div ref={panelRef} data-owns-delete data-timeline-root tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
       className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none"
       style={{ borderTop: authoring ? `2px solid ${author!.activeAccent}` : undefined }}>
       {author && (
@@ -2326,6 +2446,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         </div>
       )}
 
+      {/* E with SEVERAL keys selected: one ease for all of them, written in one document change
+          (applyCurveToSelection). Anchored to a measured box over the last-selected key. */}
+      {multiEase && (
+        <>
+          {/* Portalled: `fixed` inside the dock is offset by the dock's own positioning, so a box
+              written in viewport coordinates would land somewhere else and drag the picker with it. */}
+          {createPortal(
+            <div ref={multiAnchorRef} className="fixed pointer-events-none"
+              style={{ left: multiEase.left, top: multiEase.top, width: multiEase.w, height: multiEase.h }} />,
+            document.body,
+          )}
+          <EasePicker
+            anchorRef={multiAnchorRef}
+            open
+            onOpenChange={(o) => { if (!o) setMultiEase(null); }}
+            value={multiEase.value}
+            header={`Ease for ${multiEase.n} keys`}
+            onChange={applyCurveToSelection} />
+        </>
+      )}
+
       {selectedClip && selectedClip.kind === 'lighting' && (
         <LightingClipInspector
           clip={selectedClip}
@@ -2334,6 +2475,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           fixtureProfiles={rigProfiles}
           lanePaths={enabledLanePaths}
           selectedKey={selectedKeyObj}
+          easeOpen={easeOpen}
+          onEaseOpenChange={setEaseOpen}
           onPatchKeyCurve={(curve) => {
             const seqId = selectedClip.lighting?.sequenceId;
             if (seqId && selectedKey) patchKeyCurve(seqId, selectedKey.t, curve);

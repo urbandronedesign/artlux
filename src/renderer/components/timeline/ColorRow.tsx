@@ -14,8 +14,12 @@
 // standing rule is that a per-frame value never enters React: a clock in state was measured at
 // 224 ms/s and removed, which is why AutomationLane's readout is written straight to a ref'd node.
 // The same applies here, doubly — this repaints on every frame the rig changes colour.
-import { CurveOptions } from './CurveOptions';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { EasePicker } from './EasePicker';
+import { KeyGlyph } from './KeyGlyph';
+import { easeLabel } from './ease';
+import * as keySel from '../../services/keyframeSelection';
+import { startMarquee } from './marquee';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   ColorKey, ColorKeyValue, ColorLane, ColorValue, Fixture, FixtureProfile, NamedColor, ProfileMode,
@@ -111,6 +115,26 @@ export const ColorRow: React.FC<Props> = ({
   // exists — the same guard CurveEditor keeps on docKey.
   useEffect(() => { setDraft(null); setSelected(null); }, [docKey]);
 
+  // ── THE TIMELINE-WIDE KEY SELECTION (services/keyframeSelection) ─────────────────────────────
+  // `selected` means "the panel is open on it" — dismissing the panel nulls it. Which keys are
+  // SELECTED is a different thing, held by the store with every other lane's: it survives the panel
+  // closing (so E reopens it), it can be several keys, and an ease set on many of them is written by
+  // Timeline in ONE document write (the store's header says why this row must not write it).
+  const selId = useId();
+  const selSet = keySel.useKeySelection(selId);
+  const keyCountRef = useRef(0);
+  const laneIdRef = useRef(lane?.id); laneIdRef.current = lane?.id;
+  useEffect(() => keySel.register(selId, {
+    ref: (index) => (laneIdRef.current ? { kind: 'color', laneId: laneIdRef.current, index } : null),
+    open: (index) => {
+      if (index >= keyCountRef.current) return false;
+      setSelected(index);
+      return true;
+    },
+  }), [selId]);
+  // Indices only mean something against the array they index — see CurveEditor's same rule.
+  useEffect(() => { keySel.dropOwner(selId); }, [docKey, lane?.keys.length, selId]);
+
   // ── the live swatch: subscribed, written to the DOM, never setState ──────────────────────────
   useEffect(() => {
     const paint = () => {
@@ -123,6 +147,7 @@ export const ColorRow: React.FC<Props> = ({
 
   const keys = draft ?? lane?.keys ?? [];
   draftRef.current = draft;
+  keyCountRef.current = keys.length;
 
   // ── the strip ────────────────────────────────────────────────────────────────────────────────
   // Sampled through the SAME function the engine plays, so the fade you look at is the fade the rig
@@ -182,7 +207,12 @@ export const ColorRow: React.FC<Props> = ({
     if (e.button !== 0) return;             // middle-drag pans the timeline
     e.stopPropagation();
     e.preventDefault();
-    setSelected(i);
+    // Ctrl/Cmd-click toggles the key in the selection (no panel, no drag) — the same gesture on every
+    // surface that draws keys. Shift is taken here: it drags off the snap grid.
+    if (e.ctrlKey || e.metaKey) { keySel.click(selId, i, true); return; }
+    // A press on one key of a multi-selection keeps the selection until release (see CurveEditor).
+    const keepMulti = selSet.has(i) && keySel.count() > 1;
+    if (!keepMulti) { setSelected(i); keySel.click(selId, i, false); }
     const el = bodyRef.current;
     if (!el || !lane) return;
     const rect = el.getBoundingClientRect();
@@ -211,7 +241,11 @@ export const ColorRow: React.FC<Props> = ({
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);
       setDragging(false);
-      if (!moved) { engine.seek(base[i].t); return; }     // a click: show the look this key makes
+      if (!moved) {                                       // a click: show the look this key makes
+        if (keepMulti && allowCommit) { keySel.click(selId, i, false); setSelected(i); }
+        engine.seek(base[i].t);
+        return;
+      }
       const d = draftRef.current;
       setDraft(null);
       if (!allowCommit || !d) return;
@@ -305,7 +339,13 @@ export const ColorRow: React.FC<Props> = ({
           const r = e.currentTarget.getBoundingClientRect();
           addKeyAt((e.clientX - r.left) / pxPerSec);
         }}
-        onPointerDown={(e) => { if (e.button === 0 && e.target === e.currentTarget) onSeek(e.clientX); }}
+        // Empty row: a click seeks (on release) and drops the selection; a drag draws the marquee
+        // that selects keys across lanes — marquee.ts, shared with the curve lanes.
+        onPointerDown={(e) => {
+          if (e.button !== 0 || e.target !== e.currentTarget) return;   // (no e.detail: 0 on pointerdown — see CurveEditor)
+          const x = e.clientX;
+          startMarquee(e, () => onSeek(x));
+        }}
       >
         {!lane ? (
           <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-line-1/40" />
@@ -319,29 +359,31 @@ export const ColorRow: React.FC<Props> = ({
               </defs>
               <rect x={0} y={0} width={width} height={COLOR_ROW_H - 8} fill={`url(#${gradientId})`} rx={2} />
             </svg>
-            {keys.map((k, i) => (
-              <div
-                key={`${k.t}-${i}`}
-                ref={selected === i ? keyAnchorRef : undefined}
-                onPointerDown={dragKey(i)}
-                title={resolveColorValue(k.value, palette)
-                  ? `Colour key @ ${k.t.toFixed(2)}s — drag to move it, click to edit (shift: ignore snapping)`
-                  : `Colour key @ ${k.t.toFixed(2)}s — its named colour is MISSING, so this key drives nothing`}
-                className="absolute w-2.5 h-2.5 rotate-45 border cursor-pointer pointer-events-auto"
-                style={{
-                  left: k.t * pxPerSec - 5,
-                  top: COLOR_ROW_H / 2 - 5,
-                  // A key whose reference is gone is drawn hollow rather than given a stand-in
-                  // colour: it drives nothing, and a swatch would be a claim that it does.
-                  background: resolveColorValue(k.value, palette)
-                    ? linearToHex(colorOf(resolveColorValue(k.value, palette)!))
-                    : 'transparent',
-                  borderColor: resolveColorValue(k.value, palette)
-                    ? (selected === i ? '#fff' : 'rgba(0,0,0,0.5)')
-                    : 'var(--warn, #f5a623)',
-                }}
-              />
-            ))}
+            {keys.map((k, i) => {
+              const resolved = resolveColorValue(k.value, palette);
+              const on = selected === i || selSet.has(i);
+              return (
+                <div
+                  key={`${k.t}-${i}`}
+                  ref={selected === i ? keyAnchorRef : undefined}
+                  data-kf={keySel.keyAttr(selId, i)}
+                  onPointerDown={dragKey(i)}
+                  title={resolved
+                    ? `Colour key @ ${k.t.toFixed(2)}s · ${easeLabel(k.curve)} — drag to move it, click or E to edit, ctrl-click to add to the selection (shift: ignore snapping)`
+                    : `Colour key @ ${k.t.toFixed(2)}s — its named colour is MISSING, so this key drives nothing`}
+                  className="absolute w-3 h-3 cursor-pointer pointer-events-auto"
+                  style={{ left: k.t * pxPerSec - 6, top: COLOR_ROW_H / 2 - 6 }}
+                >
+                  {/* The key's half-icon (KeyGlyph): the shape is the ease, the fill is the colour.
+                      A key whose reference is gone is drawn hollow rather than given a stand-in
+                      colour: it drives nothing, and a swatch would be a claim that it does. */}
+                  <KeyGlyph size={12} inCurve={keys[i - 1]?.curve} outCurve={k.curve}
+                    hasIn={i > 0} hasOut={i < keys.length - 1}
+                    fill={resolved ? linearToHex(colorOf(resolved)) : 'transparent'}
+                    stroke={resolved ? (on ? '#fff' : 'rgba(0,0,0,0.5)') : 'var(--warn, #f5a623)'} />
+                </div>
+              );
+            })}
           </>
         )}
       </div>
@@ -475,12 +517,14 @@ export const ColorRow: React.FC<Props> = ({
 
           <div className="flex items-center gap-1 mt-2">
             <label className="text-fg-3 w-10">Ease</label>
-            <select
-              value={selectedKey.curve ?? 'linear'}
-              onChange={(e) => commit(keys.map((k, i) => (i === selected ? { ...k, curve: e.target.value as ColorKey['curve'] } : k)))}
-              className="flex-1 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-mini">
-              <CurveOptions />
-            </select>
+            {/* Hover previews on the strip: the draft is what the gradient samples, so the fade
+                above redraws with the hovered ease before anything is committed. Built from the
+                COMMITTED keys, never from a draft that is itself a preview. */}
+            <EasePicker
+              value={selectedKey.curve}
+              onChange={(c) => commit((lane?.keys ?? keys).map((k, i) => (i === selected ? { ...k, curve: c } : k)))}
+              onPreview={(c) => setDraft(c && lane ? lane.keys.map((k, i) => (i === selected ? { ...k, curve: c } : k)) : null)}
+              className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-mini" />
           </div>
           {/* NO PATH ON A TEMPERATURE. Two temperature keys interpolate ALONG the warm-cold line
               (colorPlayback.blend), which is the whole point — a colour space would bow the fade off

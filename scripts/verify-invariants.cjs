@@ -4391,7 +4391,7 @@ check(
     const I = 'src/renderer/components/timeline/LightingClipInspector.tsx';
     const t = read(T), l = read(L), c = read(C), i = read(I);
     // The chain, link by link: diamond → Lane → Timeline state → inspector.
-    if (!/onSelectKey\?\.\(clip\.id,\s*k\.t\)/.test(c))
+    if (!/onSelectKey\?\.\(clip\.id,\s*k\.t[,)]/.test(c))   // (+ index, additive since multi-select)
       return `${C} no longer reports a clicked key — the diamonds are decoration`;
     if (!/onSelectKey=\{onSelectKey\}/.test(l))
       return `${L} no longer forwards onSelectKey to ClipBlock`;

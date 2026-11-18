@@ -3,6 +3,9 @@ import { Trash2, AlertTriangle } from 'lucide-react';
 import { VideoClip, isContentClip, SourceType } from '../../types';
 import { Filmstrip } from './Filmstrip';
 import { BlobSparkline } from './BlobSparkline';
+import { KeyGlyph } from './KeyGlyph';
+import { easeLabel } from './ease';
+import * as keySel from '../../services/keyframeSelection';
 import { fmtClock } from './geometry';
 import { resolveMediaUrl } from '../../services/mediaCache';
 import { Tooltip } from '../ui/Tooltip';
@@ -29,10 +32,10 @@ interface Props {
   conflict?: boolean; // a live receiver (Spout/NDI) is contested by another overlapping clip
   /** A lighting clip's authored pose keys, for the diamonds. Passed in rather than looked up here:
    *  this component is memoized on its props and must not read a store. */
-  sequenceKeys?: ReadonlyArray<{ t: number; name?: string }>;
+  sequenceKeys?: ReadonlyArray<{ t: number; name?: string; curve?: string }>;
   /** The selected key on THIS clip, if any — highlighted so the inspector and the lane agree. */
   selectedKeyT?: number;
-  onSelectKey?: (clipId: string, t: number) => void;
+  onSelectKey?: (clipId: string, t: number, index: number, additive: boolean) => void;
   onStartDrag: (e: React.PointerEvent, clip: VideoClip, mode: DragMode) => void;
   onBlade: (clip: VideoClip, clientX: number) => void;
   onRemove: (clipId: string) => void;
@@ -47,6 +50,11 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
   const fadeInPx = Math.max(0, Math.min(clip.fadeIn ?? 0, clip.duration)) * pxPerSec;
   const fadeOutPx = Math.max(0, Math.min(clip.fadeOut ?? 0, clip.duration)) * pxPerSec;
   const blade = tool === 'blade' && !locked;
+  // WHICH OF THIS CLIP'S POSE KEYS ARE IN THE TIMELINE-WIDE SELECTION. A subscription to one slice
+  // (useSyncExternalStore), not a store read in render: it re-renders this clip only when its own
+  // keys' selection changes, which is exactly as narrow as the memo on its props. Owner id is
+  // `light:<clipId>` — Timeline registers it (selection + where each key lives in the document).
+  const keySelSet = keySel.useKeySelection(`light:${clip.id}`);
 
   const onDown = (e: React.PointerEvent) => {
     if (blade) { e.stopPropagation(); e.preventDefault(); onBlade(clip, e.clientX); return; }
@@ -76,24 +84,30 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
             {/* KEY DIAMONDS. A clip whose keys you cannot see is not authorable — you would be
                 storing into an invisible list and guessing where the previous one landed. Drawn from
                 the clip's own trim, so sliding or trimming the clip moves them with the look. */}
-            {sequenceKeys?.map((k) => {
+            {sequenceKeys?.map((k, i) => {
               const x = (k.t - (clip.inPoint ?? 0)) * pxPerSec;
               if (x < 0 || x > widthPx) return null;
-              const on = selectedKeyT !== undefined && Math.abs(selectedKeyT - k.t) < 1e-6;
+              const on = keySelSet.has(i) || (selectedKeyT !== undefined && Math.abs(selectedKeyT - k.t) < 1e-6);
+              const last = i === sequenceKeys.length - 1;
               // CLICKABLE, so a key can be selected and edited — the container is
               // `pointer-events-none` so the clip body still drags, and this one element opts back
               // in. stopPropagation on pointerdown, or selecting a key would start a clip drag.
+              // The icon is the shared half-icon (KeyGlyph): its shape is the ease in and out.
               return (
                 <div
                   key={k.t}
                   role="button"
                   aria-label={`Key at ${k.t.toFixed(2)}s`}
-                  onPointerDown={(e) => { e.stopPropagation(); onSelectKey?.(clip.id, k.t); }}
-                  className={`absolute bottom-1 w-2 h-2 rotate-45 border pointer-events-auto cursor-pointer ${
-                    on ? 'bg-white border-white' : 'bg-accent border-black/40 hover:bg-white'}`}
-                  style={{ left: x - 4 }}
-                  title={k.name ? `${k.name} — ${k.t.toFixed(2)}s` : `key @ ${k.t.toFixed(2)}s`}
-                />
+                  data-kf={keySel.keyAttr(`light:${clip.id}`, i)}
+                  onPointerDown={(e) => { e.stopPropagation(); onSelectKey?.(clip.id, k.t, i, e.ctrlKey || e.metaKey); }}
+                  className={`absolute bottom-1 w-2.5 h-2.5 pointer-events-auto cursor-pointer ${on ? 'text-white' : 'text-accent hover:text-white'}`}
+                  style={{ left: x - 5 }}
+                  title={`${k.name ? `${k.name} — ` : 'key @ '}${k.t.toFixed(2)}s${last ? '' : ` · ${easeLabel(k.curve)}`} — click to select, ctrl-click to add to the selection, E to choose its ease`}
+                >
+                  <KeyGlyph size={10} inCurve={sequenceKeys[i - 1]?.curve} outCurve={k.curve}
+                    hasIn={i > 0} hasOut={!last}
+                    fill="currentColor" stroke={on ? '#fff' : 'rgba(0,0,0,0.4)'} />
+                </div>
               );
             })}
           </div>

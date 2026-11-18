@@ -511,6 +511,41 @@ the toolbar.
   Back and elastic go past the next key's value before settling on it. To adjust a named ease, pick
   it and then pick **bezier**: the handles start on that ease's shape (elastic and bounce have no
   handle shape). Colour keys and lighting keys offer the same list.
+- **Choosing an ease:** the ease opens a **picker of small curve drawings** rather than a list of
+  names: *linear*, *hold* and *bezier* on top, then one row per family with columns *in*, *out* and
+  *in-out*. The faint lines in each drawing mark the start and end values, so back and elastic show
+  where they go past them. On an automation curve, **hovering a drawing previews it on the lane** and
+  nothing changes until you click; on a colour row the hover previews on the colour strip.
+- **Reading a key's ease:** every key (on a curve, a colour row or a lighting clip) is drawn in two
+  halves, as in After Effects. The **right half** is the ease that *leaves* the key, the **left half**
+  the ease that *arrives* at it (the previous key's):
+
+  | Shape | Ease |
+  |---|---|
+  | ◆ point | linear |
+  | ■ square | hold (steps, no fade) |
+  | ● round | bezier and the in / out / in-out eases |
+  | ▷◁ wedge | back, elastic, bounce (they go past the target value) |
+
+  A half with no segment behind it (before the first key, after the last) is drawn faint. Hovering a
+  key also prints its ease next to its value and time.
+- **Selecting keys.** A click selects one key and drops the rest. To select several, on any mix of
+  curves, colour rows and lighting clips:
+  - **Ctrl-click** a key to add it to the selection, or take it out again;
+  - **drag a box** starting on an empty part of a curve or colour row: every key inside it is
+    selected, across lanes. Hold **Shift** (or Ctrl) as you start the box to add to the selection.
+
+  A click on an empty part of a curve or colour row still moves the playhead there (on release) and
+  also clears the selection. Selected keys are drawn highlighted.
+- **Editing the selected keys: E.** Press **E** with the pointer over the timeline:
+  - **one key selected:** opens its parameters without having to double-click it: value, time and
+    ease on a curve; the colour panel on a colour key; the ease picker on a lighting key;
+  - **several keys selected:** opens the ease picker for all of them at once, next to the last key
+    you selected. Its header says how many keys it will change; a picked ease applies to every
+    one, and a single **Undo** takes it back. When the keys already share an ease it is marked;
+    when they differ, none is.
+
+  With no key selected, E says so. E can be rebound in the shortcut editor (*Edit selected keyframe*).
 - **Markers:** **M** adds at the playhead; click a marker to seek, Alt/right-click to delete,
   double-click to edit its note.
 - **Range:** **I/O** (or the toolbar **Set In**/**Set Out** buttons) set the timeline in/out points,
@@ -528,6 +563,7 @@ Scoped to when the timeline panel is hovered/focused, suppressed while typing in
 | S / N | toggle snapping | + / − / wheel | zoom in / out |
 | C | blade at playhead | Home / End | seek start / content end |
 | F | maximize / restore | Shift+L | toggle loop region |
+| E | edit the selected keyframe(s) | Ctrl-click key | add / remove from selection |
 | Shift+wheel | horizontal scroll | middle-drag | pan both axes |
 
 ## Tracking takes (v0.14.0)

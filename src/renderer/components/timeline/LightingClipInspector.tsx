@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { CurveOptions } from './CurveOptions';
+import { EasePicker } from './EasePicker';
 import type {
   ChannelRole, CurveKind, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingKey, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
@@ -47,6 +47,9 @@ interface Props {
   onPatchKeySlot?: (slot: number, role: ChannelRole, value: number | undefined) => void;
   /** Shape the segment STARTING at the selected key — see the Ease row below. */
   onPatchKeyCurve?: (curve: CurveKind) => void;
+  /** The Ease picker's open state, controlled by Timeline so the E shortcut can open it. */
+  easeOpen?: boolean;
+  onEaseOpenChange?: (open: boolean) => void;
   takes: LightingTake[];
   onChange: (patch: Partial<LightingClip>) => void;
   onClose: () => void;
@@ -62,7 +65,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 const sel = 'flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none';
 const num = 'w-16 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-right text-fg-1 num focus:border-accent focus:outline-none';
 
-export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, selectedKey, onPatchKeySlot, onPatchKeyCurve, takes, onChange, onClose }) => {
+export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, selectedKey, onPatchKeySlot, onPatchKeyCurve, easeOpen, onEaseOpenChange, takes, onChange, onClose }) => {
   const l = clip.lighting ?? {};
   const usingTake = !!l.takeId;
   const role = l.effect?.role ?? 'pan';
@@ -175,13 +178,13 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures,
               type that does not work. (`roleCurves`, the per-role override underneath it, is still
               data-only — one control at a time.) */}
           <Row label="Ease">
-            <select
-              value={selectedKey.curve ?? 'linear'}
-              onChange={(e) => onPatchKeyCurve?.(e.target.value as CurveKind)}
+            <EasePicker
+              value={selectedKey.curve}
+              onChange={(c) => onPatchKeyCurve?.(c)}
+              open={easeOpen}
+              onOpenChange={(o) => onEaseOpenChange?.(o)}
               className={sel}
-              title="How the look moves INTO the next key. Shapes the segment starting here.">
-              <CurveOptions />
-            </select>
+              title="How the look moves INTO the next key. Shapes the segment starting here. E opens this with a key selected." />
           </Row>
           {/* A key may instead REFERENCE a library pose, and inline slots win when both exist — so
               editing here would silently promote the key off the library look it was sharing. Say

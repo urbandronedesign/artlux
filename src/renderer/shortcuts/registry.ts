@@ -33,6 +33,11 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'timeline.setIn',          label: 'Set in point',          category: 'Editing',   scope: 'timeline', defaultBinding: ['I'] },
   { id: 'timeline.setOut',         label: 'Set out point',         category: 'Editing',   scope: 'timeline', defaultBinding: ['O'] },
   { id: 'timeline.deleteSelected', label: 'Delete selected (ripple)', category: 'Editing', scope: 'timeline', defaultBinding: ['Delete', 'Backspace'], description: 'Hold Shift to lift (no ripple).' },
+  // The selected KEYFRAME's parameters, from the keyboard — the double-click, without having to land a
+  // double-click on an 11px icon. One key is selected timeline-wide (services/keyframeSelection), so
+  // this opens whichever editor owns it. E is free in the timeline scope; scene3d's E (rotate) is a
+  // different scope and only answers while the 3D view is hovered.
+  { id: 'timeline.editKeyframe',   label: 'Edit selected keyframe', category: 'Editing', scope: 'timeline', defaultBinding: ['E'], description: 'One key selected: opens it (value, time and ease on a curve; the colour panel on a colour key; the ease picker on a lighting key). Several keys selected: one ease picker for all of them.' },
 
   // ── Global (active app-wide, suppressed while typing) ─────────────────────────────────────────────
   { id: 'global.undo',        label: 'Undo',                 category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+Z'] },

@@ -105,6 +105,7 @@ Live only while the timeline drawer is hovered or focused (`Ctrl+T` opens it).
 | `I` | Set in point |
 | `O` | Set out point |
 | `Delete` or `Backspace` | Delete selected (ripple) — Hold Shift to lift (no ripple) |
+| `E` | Edit selected keyframe — One key selected: opens it (value, time and ease on a curve; the colour panel on a colour key; the ease picker on a lighting key). Several keys selected: one ease picker for all of them |
 
 ### 3D scene
 

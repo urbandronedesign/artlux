@@ -18,12 +18,16 @@
 // split is not ceremony — it is what the lane already did internally (`kfs = draft ?? lane.keyframes`
 // for drawing, `lane.keyframes` as the base for every edit), and the caller has to see the draft
 // anyway to keep its live readout tracking the thumb.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Keyframe } from '../../types';
 import { toDisplay, fromDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT, EASE_BEZIER } from '../../services/automation';
-import { CurveOptions } from './CurveOptions';
+import { EasePicker } from './EasePicker';
+import { KeyGlyph } from './KeyGlyph';
+import { easeLabel } from './ease';
+import * as keySel from '../../services/keyframeSelection';
+import { startMarquee } from './marquee';
 import { clamp } from './geometry';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -78,14 +82,15 @@ export interface CurveEditorProps {
   onCommit: (next: Keyframe[]) => void;
   onSnap: (t: number) => number;
   onSeek: (clientX: number) => void;
+  /** The automation lane's id in the bound document — what a multi-key ease writes to. */
+  laneId?: string;
 }
 
 export const CurveEditor: React.FC<CurveEditorProps> = ({
   keyframes, draft, def, width, height: h, pxPerSec, color, readOnly, docKey,
-  onDraft, onCommit, onSnap, onSeek,
+  onDraft, onCommit, onSnap, onSeek, laneId,
 }) => {
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [sel, setSel] = useState<number | null>(null);
   // WHICH KEYFRAME IS OPEN IN THE EDITOR (an index into the committed keys), and the two drafts its
   // inputs hold while they are being typed into. Drafts, not direct commits: every keystroke would
   // otherwise be a whole-document write — invariant 7 — and typing "-180" would commit "-", then
@@ -101,7 +106,30 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
 
   // The document can rebind under a live pointer: drop any selection and close the editor, so what is
   // on screen belongs to the bound document and not the departed one.
-  useEffect(() => { setSel(null); setEditing(null); }, [docKey]);
+  useEffect(() => { setEditing(null); }, [docKey]);
+
+  // ── THE SELECTION IS TIMELINE-WIDE (services/keyframeSelection) ──────────────────────────────
+  // This lane registers as an OWNER: the store holds which of its keys are selected (alongside keys
+  // on other lanes, colour rows and lighting clips), and asks it how to open its editor (E with one
+  // key selected) and where its keys live in the document (an ease set on many keys at once is ONE
+  // write, made by Timeline — see the store's header for why the lane must not write it).
+  // A read-only lane registers no owner: its keys cannot be edited, so they cannot be selected.
+  const selId = useId();
+  const selSet = keySel.useKeySelection(selId);
+  // The bezier handles belong to ONE segment — shown when exactly one key of this lane is selected.
+  const sel: number | null = selSet.size === 1 ? (selSet.values().next().value as number) : null;
+  const openRef = useRef<(i: number) => boolean>(() => false);
+  const laneIdRef = useRef(laneId); laneIdRef.current = laneId;
+  useEffect(() => {
+    if (readOnly) return;
+    return keySel.register(selId, {
+      ref: (index) => (laneIdRef.current ? { kind: 'auto', laneId: laneIdRef.current, index } : null),
+      open: (index) => openRef.current(index),
+    });
+  }, [selId, readOnly]);
+  // Indices are only meaningful against the array they index: a rebind, or a key added or removed
+  // (which re-sorts), drops this lane's part of the selection rather than letting it point elsewhere.
+  useEffect(() => { keySel.dropOwner(selId); }, [docKey, keyframes.length, selId]);
 
   // ⚠ THE EDITOR MUST NOT OUTLIVE THE KEYFRAME IT NAMES. `editing` is an INDEX, and every write path
   // re-sorts the array — so a key deleted from under the panel (its own delete button, the alt-click,
@@ -170,7 +198,15 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
     if (e.button !== 0) return; // middle-drag pans the timeline
     e.stopPropagation();
     e.preventDefault();
-    setSel(i);
+    // Ctrl/Cmd-click TOGGLES this key in the selection and does not drag. (Not Shift: Shift during a
+    // key drag already means "value only", and an operator holding it from the press would otherwise
+    // toggle the key off every time they started a constrained drag.)
+    if (e.ctrlKey || e.metaKey) { keySel.click(selId, i, true); return; }
+    // Pressing a key that is part of a multi-selection keeps the selection until release, so a press
+    // that turns into a drag does not throw away a selection built key by key; a press that does NOT
+    // move collapses it to this key on release, as After Effects does.
+    const keepMulti = selSet.has(i) && keySel.count() > 1;
+    if (!keepMulti) keySel.click(selId, i, false);
     const el = bodyRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -197,6 +233,7 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
       const d = draftRef.current;
       draftRef.current = null;
       onDraft(null);
+      if (keepMulti && !d && allowCommit) keySel.click(selId, i, false);   // a click, not a drag
       if (!allowCommit || !d) return;
       if (doc !== docKeyRef.current) return;   // the document rebound mid-drag → ABANDON, never merge
       commit(d);
@@ -299,10 +336,19 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
   // GOING TO `bezier` FROM A NAMED EASE KEEPS THE SHAPE: the handles are seeded from that ease's own
   // cubic (EASE_BEZIER), so a preset is also a starting point you can then drag. Elastic and bounce
   // are not cubics and fall back to the default S, as does coming from linear or hold.
+  const withCurve = (i: number, curve: Keyframe['curve']): Keyframe[] => {
+    const seed = curve === 'bezier' ? (EASE_BEZIER[keyframes[i]?.curve as keyof typeof EASE_BEZIER] ?? BEZ_DEFAULT) : {};
+    return keyframes.map((x, j) => (j === i ? { ...x, curve, ...seed } : x));
+  };
   const setCurve = (i: number, curve: Keyframe['curve']) => {
     if (readOnly) return;
-    const seed = curve === 'bezier' ? (EASE_BEZIER[keyframes[i]?.curve as keyof typeof EASE_BEZIER] ?? BEZ_DEFAULT) : {};
-    commit(keyframes.map((x, j) => (j === i ? { ...x, curve, ...seed } : x)));
+    commit(withCurve(i, curve));
+  };
+  // HOVER IN THE PICKER PREVIEWS ON THE REAL CURVE — the same draft a drag draws, so the lane (and
+  // its live readout) shows the hovered ease before anything is written. null hands the curve back.
+  const previewCurve = (i: number, curve: Keyframe['curve'] | null) => {
+    if (readOnly) return;
+    onDraft(curve ? withCurve(i, curve) : null);
   };
 
   /**
@@ -340,15 +386,17 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
 
   // Open on the key's CURRENT values, as strings — the inputs are drafts (see the state), and seeding
   // them from the live keyframe is what makes the editor a starting point rather than a blank form.
-  const openEditor = (i: number) => {
-    if (readOnly) return;
+  const openEditor = (i: number): boolean => {
+    if (readOnly) return false;
     const k = keyframes[i];
-    if (!k) return;
-    setSel(i);
+    if (!k) return false;
+    keySel.click(selId, i, false);   // the key being edited is THE selected key
     setEditV(String(round4(toDisplay(def, k.v))));   // in the unit the field reads — see setValue
     setEditT(k.t.toFixed(3));
     setEditing(i);
+    return true;
   };
+  openRef.current = openEditor;
   const closeEditor = () => setEditing(null);
   // Both fields land, then the panel closes. `onBlur` commits each field on its own for the ordinary
   // path (tab out, click away); this is the Enter/`done` path, where neither field has necessarily
@@ -368,7 +416,17 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
   return (
     <div ref={bodyRef} className="relative" style={{ width, height: h }}
       onDoubleClick={addAt}
-      onPointerDown={(e) => { if (e.button === 0 && e.detail === 1) onSeek(e.clientX); }}>
+      // A press on empty curve is a CLICK (seek there, drop the selection) or, once it travels, a
+      // MARQUEE that selects every key inside the box — across lanes. See marquee.ts: the seek now
+      // lands on release, because that is the only moment a press can be told apart from a drag.
+      // (No `e.detail` test: on a POINTERdown Chromium reports 0, so the `detail === 1` this used to
+      // carry made the click-to-seek dead code. A double-click still adds a key via onDoubleClick;
+      // its first press is just a click here.)
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        const x = e.clientX;
+        startMarquee(e, () => onSeek(x));
+      }}>
       <svg width={width} height={h} className="absolute inset-0 pointer-events-none">
         <line x1={0} y1={valueToY(max)} x2={width} y2={valueToY(max)} className="stroke-line-1/40" strokeWidth={1} />
         <line x1={0} y1={valueToY(min)} x2={width} y2={valueToY(min)} className="stroke-line-1/40" strokeWidth={1} />
@@ -422,7 +480,10 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
         // persists), and on hover. The wrapper's box is 0×0, so it is not a hit target and cannot
         // steal the body's click-to-seek or double-click-to-add; only the diamond and the (inert)
         // label are.
-        const active = sel === i;
+        // `active` = selected (possibly one of many); the value label stays for the SOLE selected key
+        // only — twenty open labels over a marquee'd run of keys would hide the curve they describe.
+        const active = selSet.has(i);
+        const labelled = sel === i;
         const flip = k.t * pxPerSec > width - 70;   // near the right edge — label on the other side
         return (
           <div key={i} className="absolute group" style={{ left: k.t * pxPerSec, top: valueToY(k.v) }}>
@@ -434,20 +495,27 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
                 survives the drag; it reads `k.v`, which is the DRAFT while dragging, so it tracks the
                 thumb. The time comes with it because a drag moves both axes at once. */}
             <span
-              className={`absolute top-0 -translate-y-1/2 ${flip ? 'right-2' : 'left-2'} z-10 px-1 rounded border border-line-1 bg-surface-0/95 text-micro leading-tight text-fg-1 tabular-nums whitespace-nowrap pointer-events-none transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-              {fmt(k.v)} <span className="text-fg-3">· {k.t.toFixed(2)}s</span>
+              className={`absolute top-0 -translate-y-1/2 ${flip ? 'right-2' : 'left-2'} z-10 px-1 rounded border border-line-1 bg-surface-0/95 text-micro leading-tight text-fg-1 tabular-nums whitespace-nowrap pointer-events-none transition-opacity ${labelled ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+              {fmt(k.v)} <span className="text-fg-3">· {k.t.toFixed(2)}s{i < kfs.length - 1 ? ` · ${easeLabel(k.curve)}` : ''}</span>
             </span>
             <Tooltip id="timeline.automation-keyframe">
               {/* The editor is placed from THIS element's measured rect (usePopoverAnchor), so the
                   ref rides whichever diamond is open — one ref, never a list of them. */}
               <div ref={editing === i ? kfAnchorRef : undefined}
+                data-kf={readOnly ? undefined : keySel.keyAttr(selId, i)}
                 onPointerDown={dragKf(i)}
                 onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
                 onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
                 onDoubleClick={(e) => { e.stopPropagation(); openEditor(i); }}
                 {...help('timeline.automation-keyframe')}
-                title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: edit value, time and curve · right-click: delete`}
-                className={`absolute left-0 top-0 -ml-[4.5px] -mt-[4.5px] w-[9px] h-[9px] rotate-45 cursor-pointer ${active ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`} />
+                title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${easeLabel(k.curve)}\ndrag to move (shift = value only, alt = time only) · ctrl-click: add to selection · double-click or E: edit value, time and curve · right-click: delete`}
+                className={`absolute left-0 top-0 -ml-[5.5px] -mt-[5.5px] w-[11px] h-[11px] cursor-pointer ${active ? 'text-fg-1' : 'text-accent'}`}>
+                {/* The half-icon: left = how the value arrives (the previous key's curve), right =
+                    how it leaves (this key's). See KeyGlyph. */}
+                <KeyGlyph size={11} inCurve={kfs[i - 1]?.curve} outCurve={k.curve}
+                  hasIn={i > 0} hasOut={i < kfs.length - 1}
+                  fill="currentColor" stroke={active ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.45)'} />
+              </div>
             </Tooltip>
 
             {/* ── THE KEYFRAME EDITOR ──────────────────────────────────────────────────────────────
@@ -506,11 +574,11 @@ export const CurveEditor: React.FC<CurveEditorProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-micro text-fg-3 w-9 shrink-0">curve</span>
-                    <select value={k.curve ?? 'linear'}
-                      onChange={(e) => setCurve(i, e.target.value as Keyframe['curve'])}
-                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro text-fg-1 outline-none focus:border-accent">
-                      <CurveOptions />
-                    </select>
+                    <EasePicker value={k.curve}
+                      onChange={(c) => setCurve(i, c)}
+                      onPreview={(c) => previewCurve(i, c)}
+                      bez={k}
+                      className="flex-1 min-w-0 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-micro text-fg-1 outline-none focus:border-accent" />
                   </div>
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <button onClick={() => removeKf(i)} disabled={keyframes.length <= 1}

@@ -24,6 +24,7 @@ export interface TimelineKeyHandlers {
   seekEnd: () => void;
   toggleMax: () => void;
   toggleLoop: () => void;
+  editKeyframe: () => void;
 }
 
 export function useTimelineKeys(handlers: TimelineKeyHandlers, isActive: () => boolean): void {
@@ -59,6 +60,7 @@ export function useTimelineKeys(handlers: TimelineKeyHandlers, isActive: () => b
       else if (m('timeline.seekHome')) { e.preventDefault(); h.seekHome(); }
       else if (m('timeline.seekEnd')) { e.preventDefault(); h.seekEnd(); }
       else if (m('timeline.bladeAtPlayhead')) h.bladeAtPlayhead();
+      else if (m('timeline.editKeyframe')) { e.preventDefault(); h.editKeyframe(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

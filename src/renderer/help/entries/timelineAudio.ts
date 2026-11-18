@@ -92,9 +92,9 @@ export const timelineAudioHelp: HelpEntry[] = [
     id: 'timeline.automation-keyframe',
     title: 'Keyframe',
     short: 'Drag to move; the curve follows in real time.',
-    body: 'Drag to retime and revalue (Shift = value only, Alt = time only). Double-click opens its editor: value, time and the curve of the segment that starts here — linear, hold, bezier (with handles), or a named ease such as easeOutCubic, easeInOutBack or easeOutBounce. Right-click or Alt-click deletes.',
+    body: 'Drag to retime and revalue (Shift = value only, Alt = time only). Double-click (or select it and press E) opens its editor: value, time and the ease of the segment that starts here, picked from drawings of each curve — linear, hold, bezier (with handles), or a named ease such as out cubic, in-out back or out bounce. Hovering a drawing previews it on the lane. The key icon shows its eases: right half = leaving, left half = arriving; point = linear, square = hold, round = ease, wedge = overshoot. Ctrl-click adds a key to the selection; dragging a box on an empty part of a lane selects every key inside it, across lanes (Shift adds). With several keys selected, E sets one ease on all of them. Right-click or Alt-click deletes.',
     group: 'Timeline',
-    keywords: ['keyframe', 'curve', 'bezier', 'hold'],
+    keywords: ['keyframe', 'curve', 'bezier', 'hold', 'ease', 'easing', 'shortcut', 'select', 'multiple', 'marquee'],
   },
   {
     id: 'timeline.automation-remove-lane',
