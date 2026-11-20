@@ -10,9 +10,10 @@
 // changes. verify:invariants fails if a migrated slice reappears as a `useState` in App.tsx.
 //
 //   migrated: the whole undoable DocSnapshot — fixtures, surfaces, groups, scenes, timeline, cueBanks,
-//             stateMachine, audioMix, scene3D, globalBrightness
-//   next:     the non-undoable project slices (controllers, templates, lightingPoses, colorPalette,
-//             schedule, assets, projectorOutputs, outputSpans, bakes, patchPolicy), then session state.
+//             stateMachine, audioMix, scene3D, globalBrightness — and the non-undoable project
+//             slices: patchPolicy, lightingPoses, colorPalette, schedule, templates, controllers,
+//             assets, projectorOutputs, outputSpans, bakes.
+//   next:     shared SESSION state (selection, active scene, transport) — not persisted, not undoable.
 //
 // WHY App STILL RE-RENDERS ON EVERY CHANGE. useDocSlice() inside App subscribes App to that slice, so
 // for now a fixture edit re-renders App exactly as the useState did. That is the point of W1: move the
@@ -24,12 +25,13 @@ import { createDocStore, type Updater } from '../../../shared/docStore';
 import {
   SourceType, defaultTimeline, defaultStateMachine, defaultAudioMix,
   type Fixture, type Surface, type FixtureGroup, type Scene, type CueBank, type Timeline,
-  type StateMachine, type AudioMix,
+  type StateMachine, type AudioMix, type PatchPolicy, type NamedPose, type NamedColor, type FixtureTemplate,
+  type Controller, type AssetEntry, type BakeEntry,
 } from '../types';
-import { defaultScene3D, type Scene3D } from '../../../shared/protocol';
+import { defaultScene3D, type Scene3D, type ProjectorOutput, type OutputSpan } from '../../../shared/protocol';
 
-// The undoable document — exactly App's DocSnapshot, so undo/redo snapshot the same ten slices.
 export interface DocSlices {
+  // ── The undoable document — exactly App's DocSnapshot, so undo/redo snapshot these ten. ──
   fixtures: Fixture[];
   surfaces: Surface[];
   groups: FixtureGroup[];
@@ -40,6 +42,18 @@ export interface DocSlices {
   audioMix: AudioMix;
   scene3D: Scene3D;
   globalBrightness: number;
+  // ── The rest of the project file: persisted, NOT undoable (DocSnapshot leaves them out on purpose). ──
+  patchPolicy: PatchPolicy;
+  lightingPoses: NamedPose[];
+  colorPalette: NamedColor[];
+  /** In-project wall-clock schedule; show-control owns the entry shape, so it is opaque here. */
+  schedule: unknown[];
+  templates: FixtureTemplate[];
+  controllers: Controller[];
+  assets: AssetEntry[];
+  projectorOutputs: ProjectorOutput[];
+  outputSpans: OutputSpan[];
+  bakes: BakeEntry[];
 }
 
 // The initial document — what App's useState initialisers held. Moved here verbatim: a fresh editor
@@ -65,6 +79,16 @@ const INITIAL: DocSlices = {
   audioMix: defaultAudioMix(),
   scene3D: defaultScene3D(),
   globalBrightness: 1.0,
+  patchPolicy: { reserveLockedRanges: false },
+  lightingPoses: [],
+  colorPalette: [],
+  schedule: [],
+  templates: [],
+  controllers: [],
+  assets: [],
+  projectorOutputs: [],
+  outputSpans: [],
+  bakes: [],
 };
 
 /**

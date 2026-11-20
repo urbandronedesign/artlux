@@ -356,26 +356,26 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   // Patch policy — SHOW state (it addresses this project's fixtures), not machine state. It used to live in
   // AppSettings, which no longer travels in the project file.
-  const [patchPolicy, setPatchPolicy] = useState<PatchPolicy>({ reserveLockedRanges: false });
+  const patchPolicy = useDocSlice('patchPolicy'); const setPatchPolicy = sliceSetter('patchPolicy'); // docStore slice (W1)
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const globalBrightness = useDocSlice('globalBrightness'); const setGlobalBrightness = sliceSetter('globalBrightness'); // docStore slice (W1)
   const groups = useDocSlice('groups'); const setGroups = sliceSetter('groups'); // docStore slice (W1)
   // THE POSE LIBRARY — project-level, not per-Timeline, because a cue fired from the tablet or a
   // state's entry action belongs to no timeline at all. It also means a look used in five scenes is
   // stored once. Shared by pose CUES and by keyframes that carry a `poseRef`.
-  const [lightingPoses, setLightingPoses] = useState<NamedPose[]>([]);
+  const lightingPoses = useDocSlice('lightingPoses'); const setLightingPoses = sliceSetter('lightingPoses'); // docStore slice (W1)
   // The project's named colours. Beside the pose library, and persisted the same way — see NamedColor.
-  const [colorPalette, setColorPalette] = useState<NamedColor[]>([]);
+  const colorPalette = useDocSlice('colorPalette'); const setColorPalette = sliceSetter('colorPalette'); // docStore slice (W1)
   const scenes = useDocSlice('scenes'); const setScenes = sliceSetter('scenes'); // docStore slice (W1)
   const cueBanks = useDocSlice('cueBanks'); const setCueBanks = sliceSetter('cueBanks'); // docStore slice (W1)
   // In-project wall-clock schedule (show-control plugin owns the entry shape; opaque here). Persisted
   // in ProjectData.schedule and exposed to the plugin read/write via the host `show` service below.
-  const [schedule, setSchedule] = useState<unknown[]>([]);
+  const schedule = useDocSlice('schedule'); const setSchedule = sliceSetter('schedule'); // docStore slice (W1)
   // Global audio bed (ProjectData.audio → AudioMix): tracks/clips/buses that ride the main transport
   // playhead, played by the native engine (plugins/audio). Survives scene swaps.
   const audioMix = useDocSlice('audioMix'); const setAudioMix = sliceSetter('audioMix'); // docStore slice (W1)
-  const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
-  const [controllers, setControllers] = useState<Controller[]>([]);
+  const templates = useDocSlice('templates'); const setTemplates = sliceSetter('templates'); // docStore slice (W1)
+  const controllers = useDocSlice('controllers'); const setControllers = sliceSetter('controllers'); // docStore slice (W1)
   // Editor layout lives in the workspace store (persisted to prefs, hydrated on boot). Destructure with
   // the old local names + setter shims that preserve the useState API (a value OR an updater fn), so
   // every existing call site below is unchanged. Split view is included; the calibration wizard turns it on.
@@ -437,7 +437,7 @@ const App: React.FC = () => {
   // Project-level "Show" state machine over scenes (lives outside the timeline; runs on a standalone
   // clock via the engine — see services/timeline.ts setStateMachine).
   const stateMachine = useDocSlice('stateMachine'); const setStateMachine = sliceSetter('stateMachine'); // docStore slice (W1)
-  const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
+  const assets = useDocSlice('assets'); const setAssets = sliceSetter('assets'); // docStore slice (W1) // managed media library (video/image/model)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   // The scene currently being authored and the timeline the editor is bound to. `activeTimeline` is
@@ -490,15 +490,15 @@ const App: React.FC = () => {
   const lastFiredTransitionRef = useRef<string | null>(null);
 
   // Projector outputs: per-surface fullscreen on a physical display.
-  const [projectorOutputs, setProjectorOutputs] = useState<ProjectorOutput[]>([]);
+  const projectorOutputs = useDocSlice('projectorOutputs'); const setProjectorOutputs = sliceSetter('projectorOutputs'); // docStore slice (W1)
   // How a source surface was cut into overlapping SLICE surfaces (one picture across several
   // projectors). Authoring metadata only — the truth lives on the member surfaces and their outputs;
   // see shared/protocol OutputSpan.
-  const [outputSpans, setOutputSpans] = useState<OutputSpan[]>([]);
+  const outputSpans = useDocSlice('outputSpans'); const setOutputSpans = sliceSetter('outputSpans'); // docStore slice (W1)
   // PRE-RENDERED SURFACES. Project scope, never on a Surface — a scene captures surfaces wholesale and
   // the FSM recalls one on entering every state, so anything stored there is reverted silently within
   // seconds of opening the project. See services/bakeStore for the full argument.
-  const [bakes, setBakes] = useState<BakeEntry[]>([]);
+  const bakes = useDocSlice('bakes'); const setBakes = sliceSetter('bakes'); // docStore slice (W1)
   // The document is the source of truth; bakeStore is only the frame path's view of it. Pushed here
   // rather than read there because services/ must not reach back into React.
   useEffect(() => { bakeStore.setEntries(bakes); }, [bakes]);
