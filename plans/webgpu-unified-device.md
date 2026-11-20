@@ -1,5 +1,8 @@
 # One GPU device — the 3D scene and the pixel mapper on a single WebGPU renderer
 
+> **⛔ CLOSED 2026-11-20 by [native-engine.md](native-engine.md)**: one Rust-owned GPU device makes the
+> shared-device question disappear. Kept as the record of what was tried.
+>
 > **Status:** ⬜ **NOT STARTED — and likely SUPERSEDED by [native-core.md](native-core.md)** (2026-08-04),
 > pending that plan's Phase 0 hardware gate. Its Phase 3 moves LED sampling onto a Rust-owned `wgpu`
 > device, which makes the shared-device question **disappear** rather than solving it: the reason

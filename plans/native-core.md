@@ -1,5 +1,9 @@
 # A Rust-owned GPU core for output — staged, measured, and killable
 
+> **⛔ ABSORBED 2026-11-20 into [native-engine.md](native-engine.md)**, which the owner adopted as the
+> target architecture. Its staging and decode ledger carry over; its "never the 3D view, never the
+> timeline" limit does not. Read the new plan first; this one stays as the record.
+>
 > **Status:** ⬜ **NOT STARTED — and Phase 0 may close it.** Written 2026-08-04 out of the 3D-viewport
 > performance investigation that shipped the WebGPU viewport swap (`04d6c8a`) and the per-machine
 > render-scale / frame-rate controls (`8ca24b8`). Every performance figure quoted here comes from an
