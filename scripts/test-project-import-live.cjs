@@ -20,6 +20,17 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+// PREFS GUARD. Launching the app writes the prefs file (layout, recentFiles, lastProjectPath) — and this
+// harness used to leave it that way: after a run, ArtLux reopened the TEST project instead of the operator's
+// last show (found 2026-11-20). Back the whole file up now; restore it on EVERY exit path (process.exit is
+// called from several places below), by which point the app has been killed.
+const PREFS_FILE = path.join(process.env.APPDATA || require('node:os').homedir(), 'ArtLux', 'artlux-prefs.json');
+const PREFS_BACKUP = (() => { try { return require('node:fs').readFileSync(PREFS_FILE); } catch { return null; } })();
+process.on('exit', () => {
+  if (!PREFS_BACKUP) return;
+  try { require('node:fs').writeFileSync(PREFS_FILE, PREFS_BACKUP); console.log('prefs restored'); }
+  catch (e) { console.log(`prefs NOT restored (${e.message})`); }
+});
 
 const ROOT = path.resolve(__dirname, '..');
 const CDP_PORT = process.env.ARTLUX_CDP_PORT || '9391';
