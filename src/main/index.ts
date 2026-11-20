@@ -7,6 +7,7 @@ import { registerIpc } from './ipc';
 import * as logger from './logger';
 import * as machineInfo from './machineInfo';
 import { openEnginePort, closeEnginePort } from './enginePort';
+import { connectShowHost, stopShowHost } from './showHost';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors, rebridgeAllProjectors } from './projector';
@@ -282,6 +283,10 @@ function createWindow(): void {
     // broadcast are precisely the runs where output matters most. The renderer relays it into the
     // frame-engine worker — see main/enginePort.ts.
     mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) openEnginePort(mainWindow); });
+    // The Show Host (E5/W3): the process holding the authoritative document. Same reasons as the engine
+    // port — every load (a reload drops the old port), every mode (the editor replica works without it,
+    // but a broadcast run is still a document a later panel window may want to read). See main/showHost.ts.
+    mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) connectShowHost(mainWindow); });
     // The projector outputs' ports die with the page too — re-bridge every open output on every load,
     // or a reload leaves them all on "Waiting for the main window…" for good (see projector.ts).
     // On the first load there are no outputs yet; each one bridges itself when it opens.
@@ -587,6 +592,7 @@ function shutdownSubsystems(reason: 'quit' | 'relaunch', extra?: Record<string, 
     if (cleanedUp) return;
     cleanedUp = true;
     blendImport.stopAll(); // directory watchers on the scene's .blend files
+    stopShowHost(); // the document authority (E5/W3) — no restart once we are going down
     logger.shutdown(reason, extra);
     // A QUIT IS NOT A CRASH, and the Tier-2 Scheduled Task cannot tell the difference by itself —
     // it only sees "ArtLux.exe is not running" and starts it again within the minute. Mark the exit

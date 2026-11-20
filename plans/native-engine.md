@@ -374,8 +374,23 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > It also found a second cause on the timeline. The automation-target poll used each target's `def`,
 > which is the parameter's *current value*, in its change signature, so any value edit anywhere
 > re-rendered the whole timeline within the second. `def` is out of the signature now, and a keyless
-> lane reads its value live from the provider. Guarded by verify:invariants (mutation-tested). Next:
-> **W3** (Show Host).
+> lane reads its value live from the provider. Guarded by verify:invariants (mutation-tested).
+>
+> ✅ **W3a (Show Host + replication) done 2026-11-20.** `src/showhost/index.ts` is a `utilityProcess`
+> (forked and restarted by `main/showHost.ts`) holding the authoritative `doc` and `session` stores;
+> the editor is a full replica (`state/hostLink.ts`). Every App setter is unchanged: a write applies
+> locally at once and reaches the host at most once per slice per task. The wire and its ordering
+> rule (last writer wins, identically on both sides) are in `shared/showHostProtocol.ts`.
+> `scripts/test-show-host.cjs` proves the following:
+> - all 26 slices digest identically on both sides, before and after an edit;
+> - 3 s of a running editor sent the document **0** times;
+> - a host killed with `taskkill /F` is replaced about 500 ms later, an edit made during the outage
+>   still lands, and the fresh host agrees.
+>
+> Guarded by verify:invariants (mutation-tested): the host imports only the store core and its wire.
+> **Next: W3b**, undo and redo into the host. Restored slices will be merged with structural sharing,
+> so the unchanged items of a slice keep their identity, as today's reference-based undo does. Then
+> **W3c**: persistence, autosave, the unsaved-changes check and the close guard.
 
 | WP | What | Size |
 |---|---|---|

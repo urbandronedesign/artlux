@@ -251,6 +251,24 @@ ipcRenderer.on(IPC.ENGINE_PORT, (e) => {
     if (port) pendingEnginePort = port;
     flushEnginePort();
 });
+// ── THE SHOW HOST PORT (E5/W3) ───────────────────────────────────────────────────────────────────
+// The same relay as the engine port above, for the same reason (contextIsolation strips a
+// MessagePort's methods, so it travels by window.postMessage), with the same buffering: the port is
+// held until the page says 'artlux:showhost-ready', so a port that arrives before state/hostLink.ts has
+// loaded is not lost. A later port (a host restart) replaces an unflushed one.
+let pendingHostPort: MessagePort | null = null;
+let hostReady = false;
+const flushHostPort = () => {
+    if (!hostReady || !pendingHostPort) return;
+    const port = pendingHostPort;
+    pendingHostPort = null;
+    window.postMessage({ kind: 'artlux:showhost-port' }, '*', [port]);
+};
+ipcRenderer.on(IPC.SHOW_HOST_PORT, (e) => {
+    const port = e.ports[0];
+    if (port) pendingHostPort = port;
+    flushHostPort();
+});
 // ── SHARED GPU TEXTURES ──────────────────────────────────────────────────────────────────────────
 // A GPU texture handed to the renderer WITHOUT the pixels ever reaching system memory. Main imports a
 // native shared texture (Electron's `sharedTexture`) and sends it here; we turn it into a `VideoFrame`
@@ -308,6 +326,9 @@ window.addEventListener('message', (e) => {
     } else if (e.data === 'artlux:engine-ready') {
         engineReady = true;
         flushEnginePort();
+    } else if (e.data === 'artlux:showhost-ready') {
+        hostReady = true;
+        flushHostPort();
     }
 });
 

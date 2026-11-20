@@ -250,6 +250,12 @@ export const IPC = {
    * second road to the same door, not a second protocol.
    */
   ENGINE_PORT: 'engine:port',
+  /**
+   * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
+   * process that holds the authoritative project document. Sent on every load; the preload relays it
+   * into the page (state/hostLink.ts) exactly as it relays ENGINE_PORT.
+   */
+  SHOW_HOST_PORT: 'showhost:port',
   /** Main → renderer: the set of connected displays changed (add/remove). */
   PROJECTOR_DISPLAYS_CHANGED: 'projector:displays-changed',
   /**

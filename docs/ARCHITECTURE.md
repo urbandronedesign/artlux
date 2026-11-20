@@ -61,6 +61,17 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   [Media transport](#media-transport-srcmainmediaprotocolts--sharedmediaurlts).
 - **Preload** (`src/preload/index.ts`): `contextBridge` exposes a typed `window.artlux` API over IPC.
 - **Renderer** (`src/renderer/`): the React UI + the frame-generation loop (Stage + GPU mapper).
+- **Show Host** (`src/showhost/`, forked by `src/main/showHost.ts`): an Electron `utilityProcess` that
+  holds the **authoritative copy of the project document** and the session (selection, active scene,
+  transport): the two stores of `src/renderer/state/docStore.ts`. The editor is a full **replica**: it
+  applies every edit at once and forwards it to the host over a direct MessagePort
+  (`state/hostLink.ts`, at most once per slice per task), so the frame engine and every panel read the
+  replica exactly as before. The host is **not on the output path**: if it dies the editor keeps
+  editing and the show keeps playing, main forks a fresh one, and the editor hands it its whole state.
+  It exists so that separate panel windows can share one document (plan:
+  [plans/native-engine.md](../plans/native-engine.md) §9a, W3). The wire and its ordering rule are in
+  `shared/showHostProtocol.ts`; `scripts/test-show-host.cjs` proves the two copies agree, that nothing
+  writes the document per frame, and that a killed host loses nothing.
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
 - **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),

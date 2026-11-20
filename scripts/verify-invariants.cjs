@@ -7563,6 +7563,44 @@ check(
   },
 );
 
+// ── The Show Host stays a document authority, and the editor stays a full replica (E5/W3) ─────────
+// src/showhost is forked as a utilityProcess (main/showHost.ts) and holds the authoritative stores.
+// Two failures would compile, boot and look fine:
+//   • the host growing a dependency on renderer/main code (or React, or a decoder): it would then be a
+//     second runtime, and "one producer per datum" (plans/native-engine.md §9a rule 1) would be gone;
+//   • the editor losing its link (the import dropped from App, or the entry dropped from the main build):
+//     everything keeps working on the replica, the host sits empty, and a detached panel window (W5)
+//     would read a blank show.
+check(
+  'the Show Host imports only the store core and its wire; the editor links to it; it is a main build entry',
+  'A host that imports app code becomes a second runtime; an editor without hostLink leaves the host ' +
+  'empty while everything still looks fine; a missing build entry means main forks a file that is not there.',
+  () => {
+    const problems = [];
+    const hostDir = 'src/showhost';
+    for (const f of fs.readdirSync(path.join(ROOT, hostDir)).filter((n) => /\.tsx?$/.test(n))) {
+      const src = read(`${hostDir}/${f}`);
+      // Every way a module can be pulled in: `import … from`, a bare side-effect `import '…'`,
+      // `export … from`, a dynamic `import('…')` and `require('…')`. (A bare import slipped past the
+      // first version of this check when it was mutation-tested.)
+      const specs = /(?:^\s*(?:import|export)\s[^;]*?from\s+|^\s*import\s+|\bimport\(\s*|\brequire\(\s*)['"]([^'"]+)['"]/gm;
+      for (const m of src.matchAll(specs)) {
+        const spec = m[1];
+        const okSpec = spec === '../../shared/docStore' || spec === '../../shared/showHostProtocol' || spec.startsWith('./') || spec.startsWith('node:');
+        if (!okSpec) problems.push(`${hostDir}/${f} imports '${spec}' — the host may import only the store core, its wire, its own files and node: builtins`);
+      }
+    }
+    const app = read('src/renderer/App.tsx');
+    if (!/^import '\.\/state\/hostLink';/m.test(app)) problems.push("App.tsx no longer imports './state/hostLink' — the host would sit empty");
+    const cfg = read('electron.vite.config.ts');
+    if (!/showHost:\s*resolve\(__dirname,\s*'src\/showhost\/index\.ts'\)/.test(cfg)) problems.push('electron.vite.config.ts does not build src/showhost/index.ts as the main entry `showHost`');
+    if (!/path\.join\(__dirname,\s*'showHost\.js'\)/.test(read('src/main/showHost.ts'))) problems.push("main/showHost.ts no longer forks out/main/showHost.js");
+    const link = read('src/renderer/state/hostLink.ts');
+    if (!/queueMicrotask\(flushToHost\)/.test(link)) problems.push('hostLink no longer coalesces writes per task (queueMicrotask(flushToHost)) — every set would be cloned and sent');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

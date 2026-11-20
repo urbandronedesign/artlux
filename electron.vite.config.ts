@@ -59,7 +59,9 @@ export default defineConfig({
     define,
     build: {
       outDir: 'out/main',
-      rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } },
+      // `showHost` is the Show Host utilityProcess (E5/W3): forked by main/showHost.ts from
+      // out/main/showHost.js, so it has to be its own entry in the MAIN build (Node target).
+      rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts'), showHost: resolve(__dirname, 'src/showhost/index.ts') } },
     },
     resolve: {
       alias: [...sdkAliases],

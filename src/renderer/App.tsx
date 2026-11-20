@@ -35,6 +35,9 @@ import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
 import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter } from './state/docStore';
+// Side-effect import: replicates the two stores above into the Show Host process (E5/W3). The editor
+// works the same with no host; see state/hostLink.ts.
+import './state/hostLink';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
