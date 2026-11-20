@@ -352,6 +352,15 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 
 ### Work packages
 
+> **Progress (branch `feat/e5-store`):** ✅ **W1 done 2026-11-20.** `shared/docStore.ts` (core, imports
+> nothing) + `src/renderer/state/docStore.ts` hold the whole project document (20 slices: the 10
+> undoable + 10 persisted-only) and a separate `sessionStore` (selection, active scene, transport). App
+> keeps its local names, so no call site changed; undo is still App's `useHistory` (it moves with the
+> authority in W3). Guarded by verify:invariants. Real-app harnesses green: engine-output, copy-paste,
+> scene-timelines 10/10, hold-at-end 13/13, zone-fsm 9/9, lighting-take, show-control,
+> project-import-live. Not yet covered by any harness: **undo/redo**. Next: **W2** (panels read their
+> slice directly).
+
 | WP | What | Size |
 |---|---|---|
 | **W1 The store, in-process** | `shared/store`: the action vocabulary, Immer patches, revisions, undo moved into the store (today's snapshot undo is already document-wide, so it maps directly). Migrate `App.tsx` **slice by slice** (fixtures → surfaces → controllers → scenes/cues → timeline → state machine → lighting → settings → …), each slice shipped and verified alone. `App` stops owning state; it becomes the composition root | 5–7 wk |
