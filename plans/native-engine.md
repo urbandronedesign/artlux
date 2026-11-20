@@ -360,7 +360,14 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > scene-timelines 10/10, hold-at-end 13/13, zone-fsm 9/9, lighting-take, show-control,
 > project-import-live, and **undo/redo** (`scripts/test-undo.cjs`, 18/18, mutation-tested: fixture
 > delete, a selection click is not history, a timeline clip, a scene + machine state in one step).
-> Next: **W2** (panels read their slice directly).
+>
+> ✅ **W2 (registry panels) done 2026-11-20.** `useEditorPick(...)` (EditorData published to a small
+> external store) + the `PanelBody` memo boundary around every registry panel; all 39 panel reads
+> migrated; lidar ZonePanel now subscribes to zones (the one render-time read the audit found).
+> `scripts/test-panel-renders.cjs`, one fixture edit: unrelated panels **2 renders → 0**, fixtures panel
+> 2 → 1. Guarded by verify:invariants. **Still open in W2:** the persistent viewports (TimelinePanel,
+> Simulator3D) get inline props from App and re-render on every App render — stabilise their props.
+> Then **W3** (Show Host).
 
 | WP | What | Size |
 |---|---|---|
