@@ -9,9 +9,10 @@
 // and a no-op when the value is unchanged — so not one call site, effect dependency or undo path
 // changes. verify:invariants fails if a migrated slice reappears as a `useState` in App.tsx.
 //
-//   migrated: fixtures
-//   next:     surfaces, groups, scenes, timeline, cueBanks, stateMachine, audioMix, scene3D,
-//             globalBrightness (the rest of the undoable DocSnapshot), then the non-undoable slices.
+//   migrated: the whole undoable DocSnapshot — fixtures, surfaces, groups, scenes, timeline, cueBanks,
+//             stateMachine, audioMix, scene3D, globalBrightness
+//   next:     the non-undoable project slices (controllers, templates, lightingPoses, colorPalette,
+//             schedule, assets, projectorOutputs, outputSpans, bakes, patchPolicy), then session state.
 //
 // WHY App STILL RE-RENDERS ON EVERY CHANGE. useDocSlice() inside App subscribes App to that slice, so
 // for now a fixture edit re-renders App exactly as the useState did. That is the point of W1: move the
@@ -20,14 +21,29 @@
 
 import { useSyncExternalStore } from 'react';
 import { createDocStore, type Updater } from '../../../shared/docStore';
-import type { Fixture } from '../types';
+import {
+  SourceType, defaultTimeline, defaultStateMachine, defaultAudioMix,
+  type Fixture, type Surface, type FixtureGroup, type Scene, type CueBank, type Timeline,
+  type StateMachine, type AudioMix,
+} from '../types';
+import { defaultScene3D, type Scene3D } from '../../../shared/protocol';
 
+// The undoable document — exactly App's DocSnapshot, so undo/redo snapshot the same ten slices.
 export interface DocSlices {
   fixtures: Fixture[];
+  surfaces: Surface[];
+  groups: FixtureGroup[];
+  scenes: Scene[];
+  timeline: Timeline;
+  cueBanks: CueBank[];
+  stateMachine: StateMachine;
+  audioMix: AudioMix;
+  scene3D: Scene3D;
+  globalBrightness: number;
 }
 
 // The initial document — what App's useState initialisers held. Moved here verbatim: a fresh editor
-// still opens with one arch on surf-1 (the surface App still owns) and selects 'fix-1'.
+// still opens with one arch on surf-1 and selects 'fix-1'.
 const INITIAL: DocSlices = {
   fixtures: [
     {
@@ -38,6 +54,17 @@ const INITIAL: DocSlices = {
       colorData: [], surfaceId: 'surf-1'
     }
   ],
+  surfaces: [
+    { id: 'surf-1', name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
+  ],
+  groups: [],
+  scenes: [],
+  timeline: defaultTimeline(),
+  cueBanks: [],
+  stateMachine: defaultStateMachine(),
+  audioMix: defaultAudioMix(),
+  scene3D: defaultScene3D(),
+  globalBrightness: 1.0,
 };
 
 /**

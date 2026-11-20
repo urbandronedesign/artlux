@@ -351,31 +351,29 @@ const App: React.FC = () => {
   }, [fixtures]);
   const fixtureProfilesRef = useRef(fixtureProfiles);
   fixtureProfilesRef.current = fixtureProfiles;
-  const [surfaces, setSurfaces] = useState<Surface[]>([
-    { id: 'surf-1', name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
-  ]);
+  const surfaces = useDocSlice('surfaces'); const setSurfaces = sliceSetter('surfaces'); // docStore slice (W1)
   const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   // Patch policy — SHOW state (it addresses this project's fixtures), not machine state. It used to live in
   // AppSettings, which no longer travels in the project file.
   const [patchPolicy, setPatchPolicy] = useState<PatchPolicy>({ reserveLockedRanges: false });
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
-  const [globalBrightness, setGlobalBrightness] = useState(1.0);
-  const [groups, setGroups] = useState<FixtureGroup[]>([]);
+  const globalBrightness = useDocSlice('globalBrightness'); const setGlobalBrightness = sliceSetter('globalBrightness'); // docStore slice (W1)
+  const groups = useDocSlice('groups'); const setGroups = sliceSetter('groups'); // docStore slice (W1)
   // THE POSE LIBRARY — project-level, not per-Timeline, because a cue fired from the tablet or a
   // state's entry action belongs to no timeline at all. It also means a look used in five scenes is
   // stored once. Shared by pose CUES and by keyframes that carry a `poseRef`.
   const [lightingPoses, setLightingPoses] = useState<NamedPose[]>([]);
   // The project's named colours. Beside the pose library, and persisted the same way — see NamedColor.
   const [colorPalette, setColorPalette] = useState<NamedColor[]>([]);
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  const [cueBanks, setCueBanks] = useState<CueBank[]>([]);
+  const scenes = useDocSlice('scenes'); const setScenes = sliceSetter('scenes'); // docStore slice (W1)
+  const cueBanks = useDocSlice('cueBanks'); const setCueBanks = sliceSetter('cueBanks'); // docStore slice (W1)
   // In-project wall-clock schedule (show-control plugin owns the entry shape; opaque here). Persisted
   // in ProjectData.schedule and exposed to the plugin read/write via the host `show` service below.
   const [schedule, setSchedule] = useState<unknown[]>([]);
   // Global audio bed (ProjectData.audio → AudioMix): tracks/clips/buses that ride the main transport
   // playhead, played by the native engine (plugins/audio). Survives scene swaps.
-  const [audioMix, setAudioMix] = useState<AudioMix>(defaultAudioMix());
+  const audioMix = useDocSlice('audioMix'); const setAudioMix = sliceSetter('audioMix'); // docStore slice (W1)
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
   // Editor layout lives in the workspace store (persisted to prefs, hydrated on boot). Destructure with
@@ -425,20 +423,20 @@ const App: React.FC = () => {
   const [openModals, setOpenModals] = useState<Set<string>>(new Set()); // plugin modal panels open by id
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
-  const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
+  const scene3D = useDocSlice('scene3D'); const setScene3D = sliceSetter('scene3D'); // docStore slice (W1)
   const scene3DRef = useRef(scene3D); scene3DRef.current = scene3D; // live mirror for the []-deps tracking bridge
   const settingsRef = useRef(settings); settingsRef.current = settings; // live mirror for host.settings service
   // Embedded 3D scene (split view): model GLB urls + selection/natural-size.
   const modelUrls = useModelUrls(scene3D.models);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelNaturalSizes, setModelNaturalSizes] = useState<Record<string, number>>({});
-  const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
+  const timeline = useDocSlice('timeline'); const setTimeline = sliceSetter('timeline'); // docStore slice (W1)
   // Per-scene decoupled timelines: the editor binds to ONE timeline at a time — the scene currently
   // being authored (its own `scene.timeline`) or the shared global `timeline` when none is (null).
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   // Project-level "Show" state machine over scenes (lives outside the timeline; runs on a standalone
   // clock via the engine — see services/timeline.ts setStateMachine).
-  const [stateMachine, setStateMachine] = useState<StateMachine>(defaultStateMachine());
+  const stateMachine = useDocSlice('stateMachine'); const setStateMachine = sliceSetter('stateMachine'); // docStore slice (W1)
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
