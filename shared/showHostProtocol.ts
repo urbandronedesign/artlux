@@ -31,7 +31,8 @@ export type ClientToHost =
   // learns it here rather than from a second copy of the list.
   // `projectFile` names the doc slices the project file carries (PROJECT_FILE_SLICES): what "unsaved
   // changes" compares (W3c).
-  | { t: 'hello'; role: 'editor' | 'panel'; undoable?: string[]; projectFile?: string[] }
+  // `autosave`: whether this editor wants its work autosaved (never in a show mode: nobody edits there).
+  | { t: 'hello'; role: 'editor' | 'panel'; undoable?: string[]; projectFile?: string[]; autosave?: boolean }
   | { t: 'set'; store: StoreName; key: string; value: unknown; seq: number }
   // UNDO LIVES IN THE HOST (W3b). `present` is what the client considers the current document for this
   // op, as OVERRIDES on the host's copy: only the undoable slices whose last-rendered value differs from
@@ -44,7 +45,16 @@ export type ClientToHost =
   // history), and while a freshly opened project settles. `dirty: true` means "the file is behind, and I
   // cannot tell you by how much" — a reconnect to a fresh host while the editor knows it has unsaved
   // work; the host then reports dirty until the next real baseline.
-  | { t: 'baseline'; present: Slices; dirty?: boolean; seq: number }
+  // `projectPath` names the file the baseline is about (null = untitled): it is where autosave writes.
+  // `save: true` marks a real write to disk (not a project settling), which retires that file's autosave.
+  | { t: 'baseline'; present: Slices; dirty?: boolean; seq: number; projectPath?: string | null; save?: boolean }
+  // AUTOSAVE (W3c). `loading`: a project is about to be applied — autosave stops until its settling
+  // baseline, so a half-loaded show is never written under the PREVIOUS project's name.
+  | { t: 'loading' }
+  // Is there an autosave for this project that is newer than its file? (null = untitled.)
+  | { t: 'autosaveQuery'; req: number; path: string | null }
+  // The operator chose not to keep it ("Discard", or "Close without saving").
+  | { t: 'autosaveDiscard'; path: string | null }
   // Test/diagnostic: the host answers with a digest of every slice, so a harness can prove the
   // replica and the authority hold the same document.
   | { t: 'digest'; req: number };
@@ -56,6 +66,8 @@ export type HostToClient =
   | { t: 'historyState'; canUndo: boolean; canRedo: boolean; depth: number }
   // Whether the document differs from the last baseline. Sent when it flips, and after every baseline.
   | { t: 'dirty'; dirty: boolean }
+  // The answer to autosaveQuery: the autosaved project-file slices, or null.
+  | { t: 'autosaveFound'; req: number; found: { savedAt: string; slices: Slices } | null }
   // `unsaved`: the project-file slices that differ from the last baseline (diagnostic, for harnesses).
   | { t: 'digest'; req: number; digests: Record<string, string>; unsaved?: string[] };
 

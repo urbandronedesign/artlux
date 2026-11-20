@@ -407,7 +407,33 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > - `test-undo` 18/18 on the host, and 18/18 again with `ARTLUX_NO_SHOW_HOST=1` (the fallback).
 > - verify:invariants, mutation-tested with 7 mutations.
 >
-> **Next: W3c**: persistence, autosave, the unsaved-changes check and the close guard.
+> ✅ **W3c done 2026-11-20 — W3 complete.** Following the owner's decisions ("autosave, and follow your
+> recommendations"):
+> - **Unsaved changes** are the host's answer: per-slice digests of `PROJECT_FILE_SLICES` against
+>   the last baseline, so the 1 Hz stringify of the whole project left the UI thread. Every save
+>   rebases both baselines (`markDocSaved`). `projectorFpsCap` and `projectorBrightness` moved into
+>   the store; W1 had missed them.
+> - **Autosave** is new. The host writes a recovery file per project in `<userData>/autosave`, never
+>   over the `.artlux`. It writes every 30 s while unsaved, and at once when an editor page replaces
+>   one that held unsaved work (a renderer crash). It never writes in show modes. The editor offers
+>   the copy back when the project is next opened: Restore (one undoable step, the project stays
+>   unsaved), Discard, or Not now. A save or "Close without saving" retires the copy. Usage:
+>   `docs/user-guide/11` § Autosave.
+> - **Building and loading the project file stay in the editor, by recommendation.** They're
+>   entangled with the profile library, engine resets and normalizers, and a panel window only needs
+>   "is it saved" and "save", which W5 can route to the editor through the host. The close guard
+>   keeps asking the editor, which now reads the host's answer.
+>
+> Proof:
+> - `test-show-host` steps 6 and 8: the dirty-flag states; an autosave in seconds with the file
+>   untouched; a **renderer crash** (CDP `Page.crash`), after which recovery reloads the editor and it
+>   offers the work back; Restore, one undo step, then save, which retires the copy.
+> - Step 8 caught a real bug, now fixed: Restore answered before the first settling tick left the
+>   host with no baseline.
+> - Two verify:invariants checks, mutation-tested with 6 and 7 mutations.
+> - Harness runs (`ARTLUX_CDP_PORT`) autosave to a temp folder.
+>
+> **Next: W4** (live channels).
 >
 > ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
 > Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on

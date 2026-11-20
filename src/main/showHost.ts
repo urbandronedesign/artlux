@@ -1,6 +1,20 @@
-import { MessageChannelMain, utilityProcess, type BrowserWindow, type UtilityProcess } from 'electron';
+import { app, MessageChannelMain, utilityProcess, type BrowserWindow, type UtilityProcess } from 'electron';
+import os from 'node:os';
 import path from 'node:path';
 import { IPC } from '../../shared/protocol';
+
+/**
+ * Where autosaves go (W3c). `<userData>/autosave` for an operator. A run with `ARTLUX_CDP_PORT` set is a
+ * harness or a debugging session: its recovery files go to a temp folder, because every real-app
+ * harness edits a throwaway project and then kills the app, which is precisely what autosave keeps —
+ * a suite run left four of them in the owner's real folder (measured 2026-11-20, then deleted).
+ * `ARTLUX_AUTOSAVE_DIR` overrides both.
+ */
+function autosaveDir(): string {
+  if (process.env.ARTLUX_AUTOSAVE_DIR) return process.env.ARTLUX_AUTOSAVE_DIR;
+  if (process.env.ARTLUX_CDP_PORT) return path.join(os.tmpdir(), 'artlux-autosave-harness');
+  return path.join(app.getPath('userData'), 'autosave');
+}
 
 // MAIN'S HALF OF THE SHOW HOST (src/showhost/index.ts): start it, keep it alive, introduce windows to it.
 //
@@ -40,7 +54,11 @@ function spawn(): UtilityProcess | null {
     // 'pipe', forwarded line by line through main's console: 'inherit' does not reach main's stdout on
     // Windows (measured: a forked host logged nothing), and main's console is what the machine log
     // (docs/LOGGING.md) records.
-    proc = utilityProcess.fork(entry, [], { serviceName: 'ArtLux Show Host', stdio: 'pipe' });
+    // The autosave folder (W3c): main owns where userData is; the host only writes there.
+    // ARTLUX_AUTOSAVE_MS shortens the 30 s cadence for scripts/test-show-host.cjs only.
+    const args = [`--autosave-dir=${autosaveDir()}`];
+    if (process.env.ARTLUX_AUTOSAVE_MS) args.push(`--autosave-ms=${process.env.ARTLUX_AUTOSAVE_MS}`);
+    proc = utilityProcess.fork(entry, args, { serviceName: 'ArtLux Show Host', stdio: 'pipe' });
   } catch (e) {
     console.error(`[showHost] could not fork ${entry}:`, (e as Error).message);
     return null;

@@ -6841,7 +6841,7 @@ check(
     const i = src.indexOf('save: async () => {');
     if (i < 0) return 'App.tsx: host.project.save not found — this guard cannot see what it protects';
     // Since E5/W3c the rebase is markDocSaved(data): it signs savedDocRef AND rebases the Show Host.
-    return /markDocSaved\(data\)/.test(src.slice(i, i + 900)) ? null : 'host.project.save no longer rebases the unsaved-changes baselines (markDocSaved(data)) on what it wrote';
+    return /markDocSaved\(data, p\)/.test(src.slice(i, i + 900)) ? null : 'host.project.save no longer rebases the unsaved-changes baselines (markDocSaved(data)) on what it wrote';
   },
 );
 
@@ -7658,13 +7658,58 @@ check(
     else if (!/if \(viaHost && !settlingRef\.current\) \{[^}]*return; \}/.test(poll[1])) problems.push('the dirty poll computes the signature while a host is connected and the project has settled');
     const direct = app.match(/savedDocRef\.current = signatureOf\(/g) || [];
     if (direct.length !== 1) problems.push(`savedDocRef is signed in ${direct.length} places — every save must go through markDocSaved (which signs once and rebases the host)`);
-    if (!/const markDocSaved = [\s\S]*?markSaved\(writtenSlices\(data\)\)/.test(app)) problems.push('markDocSaved no longer rebases the Show Host (markSaved(writtenSlices(data)))');
+    if (!/const markDocSaved = [\s\S]*?markSaved\(writtenSlices\(data\), false, \{ projectPath: path, save: true \}\)/.test(app)) problems.push('markDocSaved no longer rebases the Show Host as a real save (markSaved(writtenSlices(data), false, { projectPath: path, save: true }))');
     if (/setDocDirty\(false\);\s*\n\s*}\s*\n\s*return path/.test(app)) problems.push('handleSaveProject clears the flag without markDocSaved');
     const link = read('src/renderer/state/hostLink.ts');
     if (!/projectFile: \[\.\.\.PROJECT_FILE_SLICES\]/.test(link)) problems.push("hostLink's hello no longer names PROJECT_FILE_SLICES");
     const host = read('src/showhost/index.ts');
     if (!/if \(m\.store === 'doc'\) scheduleDirty\(\);/.test(host)) problems.push('the host no longer re-evaluates "unsaved" after a doc write');
     if (!/function restore[\s\S]*?scheduleDirty\(\);\n\}/.test(host.replace(/\r\n/g, '\n'))) problems.push('the host no longer re-evaluates "unsaved" after an undo/redo restore');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Autosave writes a RECOVERY copy, never the project, never in a show mode (E5/W3c) ───────────────
+// Each of these would be silent until it cost someone a show:
+//   • the host writing anywhere but <userData>/autosave (an autosave over the operator's .artlux would
+//     save work they never chose to keep);
+//   • autosave enabled in broadcast/headless (an unattended machine growing recovery files forever);
+//   • Restore applied without first baselining the opened file: answered before the first settling
+//     tick, the host has no baseline and calls the restored work "saved" (measured, then fixed);
+//   • "Close without saving" leaving the autosave behind (the next open offers back discarded work);
+//   • a load path that never offers the autosave back.
+check(
+  'autosave writes only recovery files, only in the editor; Restore baselines first; discards retire it',
+  'An autosave over the project, in a show mode, a Restore with no baseline, or a discard that leaves ' +
+  'the file behind all compile, boot and look fine — until a show depends on it.',
+  () => {
+    const problems = [];
+    const host = read('src/showhost/index.ts');
+    const writes = [...host.matchAll(/fs\.(writeFileSync|renameSync|unlinkSync|appendFileSync|copyFileSync)\(([^,)]*)/g)].map((m) => m[2].trim());
+    for (const target of writes) {
+      if (!/^(`\$\{file\}\.tmp`|file)$/.test(target)) problems.push(`the host writes to ${target} — only the autosave file (autosaveFile()) may be written`);
+    }
+    if (!/return path\.join\(AUTOSAVE_DIR, `\$\{id\}\.json`\);/.test(host)) problems.push('autosaveFile() no longer resolves inside AUTOSAVE_DIR');
+    // A harness run (ARTLUX_CDP_PORT) must never autosave into the owner's userData: a suite run left four
+    // recovery files of throwaway projects there before this rule existed.
+    if (!/if \(process\.env\.ARTLUX_CDP_PORT\) return path\.join\(os\.tmpdir\(\), 'artlux-autosave-harness'\);/.test(read('src/main/showHost.ts'))) problems.push('main/showHost.ts no longer sends a CDP (harness) run\'s autosaves to a temp folder — harnesses would litter the owner\'s userData');
+    if (!/if \(!file \|\| !autosaveOn \|\| autosaveSuspended/.test(host)) problems.push('writeAutosave no longer checks autosaveOn and autosaveSuspended first');
+    const app = read('src/renderer/App.tsx');
+    if (!/^setAutosaveEnabled\(!SHOW_ENGINE\);/m.test(app)) problems.push('App no longer turns autosave off in show modes (setAutosaveEnabled(!SHOW_ENGINE))');
+    const restore = app.match(/const restoreAutosave = \(slices: Record<string, unknown>\) => \{([\s\S]*?)\n  \};/);
+    if (!restore) problems.push('restoreAutosave not found');
+    else {
+      const b = restore[1];
+      const base = b.indexOf('markSaved({}, false');
+      const apply = b.indexOf('shareEqual(prev, slices[k])');
+      if (base < 0 || apply < 0 || base > apply) problems.push('restoreAutosave must baseline the opened file (markSaved) BEFORE applying the autosaved slices');
+      if (!/recordHistory\(\);/.test(b)) problems.push('restoreAutosave is no longer one undoable step (recordHistory)');
+    }
+    if (!/if \(answer === 'alt'\) discardAutosave\(currentProjectPathRef\.current\);/.test(app)) problems.push('"Close without saving" no longer retires the autosave');
+    if (!/const applyProjectData = \(opened: any\) => \{\s*\n\s*projectLoading\(\);/.test(app.replace(/\r\n/g, '\n'))) problems.push('applyProjectData no longer suspends autosave first (projectLoading()) — a half-loaded show could be written under the previous name');
+    const offers = (app.match(/checkAutosaveRef\.current\(/g) || []).length;
+    // Five editor load paths, and each must offer (mutation-tested: dropping one was missed at "≥ 4").
+    if (offers < 5) problems.push(`only ${offers} load path(s) offer the autosave back (expected 5: open, open recent / --project=, open folder, last project at boot, untitled boot)`);
     return problems.length ? problems.join('; ') : null;
   },
 );

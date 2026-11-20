@@ -34,10 +34,11 @@ import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
-import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc } from './state/docStore';
+import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc, PROJECT_FILE_SLICES } from './state/docStore';
 // Side-effect import: replicates the two stores above into the Show Host process (E5/W3). The editor
 // works the same with no host; see state/hostLink.ts.
-import { historyOp, hostConnected, hostDirtyNow, markSaved, subscribeHostDirty, subscribeHostConnect } from './state/hostLink';
+import { historyOp, hostConnected, hostDirtyNow, markSaved, subscribeHostDirty, subscribeHostConnect, setAutosaveEnabled, projectLoading, queryAutosave, discardAutosave } from './state/hostLink';
+import { shareEqual } from '../../shared/shareEqual';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
@@ -249,6 +250,9 @@ const BROADCAST = QS.get('broadcast') === '1';
 const HEADLESS = QS.get('headless') === '1';
 // True for both hidden run modes — used to share the offscreen-Stage render branch + project loader.
 const SHOW_ENGINE = BROADCAST || HEADLESS;
+// Autosave (E5/W3c): the Show Host keeps a recovery copy of unsaved work — in the editor only. A show
+// mode edits nothing, and an unattended machine must never grow a folder of recovery files.
+setAutosaveEnabled(!SHOW_ENGINE);
 
 // Who caused a state change. Threaded into the two functions that both an operator AND the show can
 // reach (handleRecallScene, applyCues, fireColumn). ONLY an 'operator' edit may push undo history —
@@ -2685,6 +2689,7 @@ const App: React.FC = () => {
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
   const applyProjectData = (opened: any) => {
+      projectLoading(); // E5/W3c: no autosave of a half-applied show under the previous project's name
       // THE TEST SOURCE (services/testSource.ts): ArtLux Calibrator opens on the UV checker; every
       // other build puts the show's own content back. Not on a handed recalibration job — that run
       // projects its markers and saves, and must hand the show back its project, not a test card.
@@ -2957,10 +2962,11 @@ const App: React.FC = () => {
   };
   // "The file now holds THIS payload." Both baselines move together: the in-process signature (the
   // no-host fallback) and the Show Host's digests (E5/W3c), so whichever answers next is right.
-  const markDocSaved = (data: ReturnType<typeof buildProjectData>) => {
+  const markDocSaved = (data: ReturnType<typeof buildProjectData>, path: string) => {
       savedDocRef.current = signatureOf(data);
       setDocDirty(false);
-      markSaved(writtenSlices(data));
+      // `save: true` = a real write: the host retires this project's autosave (W3c).
+      markSaved(writtenSlices(data), false, { projectPath: path, save: true });
   };
   const docSignatureRef = useRef(docSignature); docSignatureRef.current = docSignature;
   const savedDocRef = useRef<string | null>(null); // the document as last written to / read from disk
@@ -3020,7 +3026,7 @@ const App: React.FC = () => {
               if (!bootGate.isBooting() && sig === lastSigRef.current) settlingRef.current = false;
               lastSigRef.current = sig;
               savedDocRef.current = sig;
-              if (viaHost) markSaved({});   // the host adopts the settling document as "what the file holds"
+              if (viaHost) markSaved({}, false, { projectPath: currentProjectPathRef.current });   // the host adopts the settling document as "what the file holds"
               setDocDirty(false);
               return;
           }
@@ -3045,7 +3051,7 @@ const App: React.FC = () => {
               // Signed from THE PAYLOAD THAT WAS WRITTEN, not from current state — with an override in
               // play those two differ until React commits, and signing the state would leave the
               // document reading as modified the moment it was saved.
-              markDocSaved(data);
+              markDocSaved(data, path);
           }
           return path ?? null; // null = the user cancelled the Save dialog (not an error)
       } catch (err) {
@@ -3086,8 +3092,52 @@ const App: React.FC = () => {
   // behind" (the host then reports dirty until the next save). During settling the poll does it.
   useEffect(() => subscribeHostConnect(() => {
       if (settlingRef.current || HEADLESS || BROADCAST) return;
-      markSaved({}, docDirtyRef.current);
+      markSaved({}, docDirtyRef.current, { projectPath: currentProjectPathRef.current });
   }), []);
+
+  // ── AUTOSAVE RECOVERY (E5/W3c) ──────────────────────────────────────────────────────────────────
+  // The Show Host writes a recovery copy of unsaved work (src/showhost/index.ts). Here it is offered back:
+  // after a project is opened, if its autosave is newer than its file. The project opens from DISK first
+  // and settles as usual, so the file is the saved baseline; RESTORE then applies the autosaved slices
+  // on top as ONE undoable edit, and the project reads "unsaved" until it is saved, which is the truth.
+  // (Applying them as the load itself would make the restored work look saved, and the next Close
+  // without saving would lose it a second time.)
+  //
+  // Three answers, and the safe one is the default: Escape / "Not now" keeps the file and asks again
+  // next time; only "Discard" deletes it.
+  const restoreAutosave = (slices: Record<string, unknown>) => {
+      settlingRef.current = false;   // this is the operator's edit, never part of the opening burst
+      // BASELINE FIRST: the document as opened IS the file. Restore can be answered before the project's
+      // first settling tick (measured: the harness clicks in ~1 s), and ending settling here would then
+      // leave the host with no baseline at all — every document "saved", restored work included.
+      savedDocRef.current = docSignatureRef.current();
+      markSaved({}, false, { projectPath: currentProjectPathRef.current });
+      recordHistory();
+      for (const k of PROJECT_FILE_SLICES) {
+          if (!(k in slices)) continue;
+          const set = sliceSetter(k) as unknown as (u: (prev: unknown) => unknown) => void;
+          set((prev) => shareEqual(prev, slices[k]));
+      }
+  };
+  const checkAutosave = (path: string | null) => {
+      if (SHOW_ENGINE) return;
+      void (async () => {
+          const found = await queryAutosave(path);
+          if (!found) return;
+          const when = new Date(found.savedAt);
+          const stamp = when.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+          const answer = await confirmRef.current({
+              title: 'Restore unsaved changes?',
+              message: `${path ? 'This project' : 'An untitled project'} has changes from ${stamp} that were never saved — ArtLux closed before they were. Restore puts them back as one step you can undo; the project then reads as unsaved until you save it.`,
+              confirmLabel: 'Restore',
+              altLabel: 'Discard',
+              cancelLabel: 'Not now',
+          });
+          if (answer === true) { restoreAutosave(found.slices); toast.success('Unsaved changes restored', 'Save the project to keep them.'); }
+          else if (answer === 'alt') discardAutosave(path);
+      })();
+  };
+  const checkAutosaveRef = useRef(checkAutosave); checkAutosaveRef.current = checkAutosave;
   const confirmRef = useRef(confirm); confirmRef.current = confirm;
   const saveAllRef = useRef(handleSaveAll); saveAllRef.current = handleSaveAll;
 
@@ -3102,7 +3152,7 @@ const App: React.FC = () => {
   const handleOpenProject = async () => {
       try {
           const res = await window.artlux?.openProject?.();
-          if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); }
+          if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); checkAutosaveRef.current(res.path); }
       } catch (err) {
           toast.error('Could not open project', String((err as Error)?.message ?? err));
       }
@@ -3110,7 +3160,7 @@ const App: React.FC = () => {
   const handleOpenRecent = async (path: string) => {
       try {
           const data = await window.artlux?.loadProjectPath?.(path);
-          if (data) { applyProjectData(data); setCurrentProjectPath(path); refreshRecents(); }
+          if (data) { applyProjectData(data); setCurrentProjectPath(path); refreshRecents(); checkAutosaveRef.current(path); }
           else toast.error('Could not open project', 'The file could not be read.');
       } catch (err) {
           toast.error('Could not open project', String((err as Error)?.message ?? err));
@@ -3220,6 +3270,7 @@ const App: React.FC = () => {
   // *remember* to extend is a list that will drift again. It is returned from the function that does the
   // resetting, so it cannot.
   const resetToNewProject = (st: ReturnType<typeof makeNewProjectState>) => {
+      projectLoading();
       // File→New clears the undo stack — the fresh document shares no history with the outgoing one
       // (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
       resetHistory();
@@ -3400,7 +3451,7 @@ const App: React.FC = () => {
 
   const handleOpenProjectFolder = async () => {
       const res = await window.artlux?.openProjectFolder?.();
-      if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); }
+      if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); checkAutosaveRef.current(res.path); }
   };
 
   // Copy every referenced external asset into the project folder's assets/ tree, rewrite the
@@ -3734,7 +3785,9 @@ const App: React.FC = () => {
                       cancelLabel: 'Keep editing',
                   });
                   if (answer === false) { cmd?.('cancel-close'); return; }
-                  // 'alt' = discard. Only the confirm path writes anything.
+                  // 'alt' = discard. Only the confirm path writes anything — and discarding the work also
+                  // retires its autosave (W3c), or the next open would offer back what was just thrown away.
+                  if (answer === 'alt') discardAutosave(currentProjectPathRef.current);
                   if (answer === true && !(await saveAllRef.current())) { cmd?.('cancel-close'); return; } // Save-As cancelled or the write failed → do NOT close
                   cmd?.('force-close');
               } catch {
@@ -4028,7 +4081,7 @@ const App: React.FC = () => {
           // plugin save (every calibration wizard's Apply & finish) left the title on "Unsaved changes"
           // over a file that was already correct — and an operator who trusts that light saves again,
           // or worse, stops trusting it.
-          if (ok) markDocSaved(data);
+          if (ok) markDocSaved(data, p);
           return ok;
         }
         catch { return false; }
@@ -5153,7 +5206,10 @@ const App: React.FC = () => {
           // loaded automatically. Nothing here writes the project file.
           if (prefs.lastProjectPath && !QUERY_PROJECT && !QUERY_NEW_PROJECT && !SAFE_MODE) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
-              if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); }
+              if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); checkAutosaveRef.current(prefs.lastProjectPath); }
+          } else if (!prefs.lastProjectPath && !QUERY_PROJECT && !QUERY_NEW_PROJECT && !SAFE_MODE) {
+              // An untitled boot: offer back untitled work a crash took (W3c).
+              checkAutosaveRef.current(null);
           }
       })();
       // eslint-disable-next-line react-hooks/exhaustive-deps

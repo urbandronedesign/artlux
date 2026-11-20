@@ -16,6 +16,9 @@
 //
 // Plain Node + Electron's parentPort. It imports the dependency-free store core and the wire types only.
 
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 import { createDocStore, type DocStore } from '../../shared/docStore';
 import { shareEqual } from '../../shared/shareEqual';
 import { sliceDigest, type ClientToHost, type HostConnect, type HostToClient, type Slices, type StoreName } from '../../shared/showHostProtocol';
@@ -86,6 +89,70 @@ function computeDirty(): boolean {
   for (const k of projectFile) if (digestOf(doc[k]) !== saved[k]) return true;
   return false;
 }
+// ── AUTOSAVE (W3c) ──────────────────────────────────────────────────────────────────────────────────
+// The host holds the document, so the host keeps it safe: it outlives the editor renderer, and it
+// writes off the UI thread. A RECOVERY FILE, never the project: the operator's .artlux changes only
+// when they save. One file per project (a hash of its path; 'untitled' for an unsaved one) in
+// <userData>/autosave, written atomically (temp + rename):
+//   • every AUTOSAVE_MS while the document has unsaved changes and has changed since the last write;
+//   • AT ONCE when a new editor page says hello while this one holds unsaved work — the renderer died
+//     (crash, GPU reset) and main reloaded it; the work it had not saved is still here, and this is the
+//     last moment before the new page's handover replaces it;
+// and DELETED by a real save of that project, or when the operator discards it. Never in a show mode.
+// The editor offers it back when that project is opened again and the autosave is newer than the file.
+// 30 s. `--autosave-ms=` (from ARTLUX_AUTOSAVE_MS, harness only) shortens it; never below 1 s.
+const AUTOSAVE_MS = Math.max(1000, Number((process.argv.find((a) => a.startsWith('--autosave-ms=')) ?? '').slice('--autosave-ms='.length)) || 30_000);
+const AUTOSAVE_DIR = (process.argv.find((a) => a.startsWith('--autosave-dir=')) ?? '').slice('--autosave-dir='.length) || null;
+let autosaveOn = false;
+let autosaveSuspended = true;      // until the first baseline names the project
+let projectPath: string | null = null;
+let autosavedRev = -1;
+function autosaveFile(p: string | null): string | null {
+  if (!AUTOSAVE_DIR) return null;
+  const id = crypto.createHash('sha1').update(p ?? 'untitled').digest('hex').slice(0, 16);
+  return path.join(AUTOSAVE_DIR, `${id}.json`);
+}
+function writeAutosave(reason: string): void {
+  const file = autosaveFile(projectPath);
+  if (!file || !autosaveOn || autosaveSuspended || !computeDirty() || !projectFile.length) return;
+  const rev = stores.doc.revision();
+  if (rev === autosavedRev) return;
+  try {
+    const doc = stores.doc.get();
+    const slices: Slices = {};
+    for (const k of projectFile) slices[k] = doc[k];
+    const body = JSON.stringify({ kind: 'artlux-autosave', format: 1, projectPath, savedAt: new Date().toISOString(), slices });
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(`${file}.tmp`, body);
+    fs.renameSync(`${file}.tmp`, file);
+    autosavedRev = rev;
+    console.log(`[showHost] autosaved (${reason}): ${projectPath ?? 'untitled'} — ${Math.round(body.length / 1024)} kB`);
+  } catch (e) {
+    console.error('[showHost] autosave failed:', (e as Error).message);
+  }
+}
+function deleteAutosave(p: string | null, why: string): void {
+  const file = autosaveFile(p);
+  if (!file) return;
+  try { if (fs.existsSync(file)) { fs.unlinkSync(file); console.log(`[showHost] autosave retired (${why}): ${p ?? 'untitled'}`); } }
+  catch (e) { console.warn('[showHost] could not delete autosave:', (e as Error).message); }
+}
+function readAutosave(p: string | null): { savedAt: string; slices: Slices } | null {
+  const file = autosaveFile(p);
+  if (!file || !fs.existsSync(file)) return null;
+  try {
+    const j = JSON.parse(fs.readFileSync(file, 'utf8')) as { kind?: string; format?: number; savedAt?: string; slices?: Slices };
+    if (j.kind !== 'artlux-autosave' || j.format !== 1 || !j.savedAt || !j.slices) return null;
+    // Stale: the file on disk was written after the autosave (saved elsewhere, or by another build).
+    if (p && fs.existsSync(p) && fs.statSync(p).mtimeMs >= Date.parse(j.savedAt)) { deleteAutosave(p, 'older than the file'); return null; }
+    return { savedAt: j.savedAt, slices: j.slices };
+  } catch (e) {
+    console.warn('[showHost] unreadable autosave ignored:', (e as Error).message);
+    return null;
+  }
+}
+setInterval(() => writeAutosave('timer'), AUTOSAVE_MS);
+
 function publishDirty(always = false): void {
   const d = computeDirty();
   if (d === lastDirty && !always) return;
@@ -134,7 +201,13 @@ function onMessage(c: Client, raw: unknown): void {
       if (Array.isArray(m.undoable)) undoable = m.undoable.slice();
       if (Array.isArray(m.projectFile)) projectFile = m.projectFile.slice();
       // A new editor page also starts with no baseline: it opens a project and settles it.
-      if (m.role === 'editor') { saved = null; forcedDirty = false; lastDirty = false; }
+      // …but first, keep what the page it replaces had not saved (a crashed renderer's last work).
+      if (m.role === 'editor') {
+        writeAutosave('editor page replaced');
+        saved = null; forcedDirty = false; lastDirty = false;
+        autosaveOn = m.autosave === true;
+        autosaveSuspended = true;
+      }
       // A NEW EDITOR PAGE STARTS A NEW HISTORY, as it did when the stacks lived in the page: a reload
       // (crash recovery, a dev reload) must not let Ctrl+Z restore a snapshot recorded against the
       // previous page's document. (A panel window joining, from W5, keeps the history.)
@@ -159,9 +232,21 @@ function onMessage(c: Client, raw: unknown): void {
       saved = {};
       for (const k of projectFile) saved[k] = digestOf(present[k]);
       forcedDirty = !!m.dirty;
+      if (m.projectPath !== undefined) projectPath = m.projectPath;
+      autosaveSuspended = false;
+      if (m.save) { deleteAutosave(projectPath, 'saved'); autosavedRev = stores.doc.revision(); }
       publishDirty(true);
       return;
     }
+    case 'loading':
+      autosaveSuspended = true;
+      return;
+    case 'autosaveQuery':
+      send(c, { t: 'autosaveFound', req: m.req, found: readAutosave(m.path) });
+      return;
+    case 'autosaveDiscard':
+      deleteAutosave(m.path, 'discarded');
+      return;
     case 'history': {
       c.lastSeq = m.seq;
       const present = presentDoc(m.present ?? {});

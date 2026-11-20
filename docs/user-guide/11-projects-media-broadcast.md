@@ -51,6 +51,26 @@ overwrite your whole show with what happens to be on screen right now.
 > **Show modes never ask.** `--broadcast` and `--headless` have no operator to answer a dialog, so the
 > close guard is editor‑only: an unattended machine always closes when told to.
 
+### Autosave
+
+While the project has unsaved changes, ArtLux keeps a **recovery copy** of them: every 30 seconds,
+and immediately if the editor itself crashes. The copy is a separate file in ArtLux's own settings
+folder (`%APPDATA%\ArtLux\autosave` on Windows, `~/Library/Application Support/ArtLux/autosave` on
+macOS, `~/.config/ArtLux/autosave` on Linux). It is never your project: the `.artlux` file changes
+only when you save.
+
+The next time that project is opened (after a crash, ArtLux reopens it for you), you are asked
+**Restore unsaved changes?**, with the time of the copy:
+
+- **Restore** puts the changes back on top of the saved file as **one step you can undo**. The amber
+  dot stays on until you save, because the file still holds the old version.
+- **Discard** throws the recovery copy away.
+- **Not now** (or Escape) keeps it and asks again the next time the project is opened.
+
+Saving the project retires its recovery copy, and so does **Close without saving**, because that
+means you chose to throw the work away. A recovery copy older than its project file is ignored,
+because the file is the newer truth. Show modes (`--broadcast`, `--headless`) never autosave.
+
 ---
 
 ## Media library

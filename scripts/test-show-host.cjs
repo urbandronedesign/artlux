@@ -19,6 +19,10 @@
 //      clears it (saved through the indicator button) — and the editor's own state agrees with the host's at every step.
 //   7. A DEAD HOST IS NOT A DEAD EDITOR. The harness kills the host process; the editor keeps editing,
 //      main forks a fresh host, the editor reconnects and hands it its state, and the two agree again.
+//   8. AUTOSAVE (W3c): the host writes a recovery copy of an unsaved edit (cadence shortened for the
+//      harness) and leaves the project file alone; the harness CRASHES the editor renderer, main reloads
+//      it, and the editor offers the work back; Restore puts it back as one undoable step with the project
+//      unsaved; saving writes it and retires the autosave. Only this harness's autosaves are touched.
 // Restores the whole prefs file, like every harness here.
 
 const { spawn, execSync } = require('node:child_process');
@@ -70,6 +74,8 @@ function launch(project) {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   env.ARTLUX_CDP_PORT = CDP_PORT;
+  env.ARTLUX_AUTOSAVE_MS = '1500';
+  env.ARTLUX_AUTOSAVE_DIR = AUTOSAVE_DIR;   // step 8: the autosave timer, at harness speed (30 s in the app)
   return spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm',
     ['run', 'dev', '--', '--', `--project=${project}`],
     // main's console goes to a file: step 5 reads the [showHost] lines back when it fails.
@@ -81,6 +87,27 @@ async function stop(child) {
   try { child.kill('SIGKILL'); } catch { /* gone */ }
   try { execSync(process.platform === 'win32' ? 'taskkill /IM electron.exe /F /T' : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
   await sleep(2000);
+}
+
+// The autosaves the host wrote for THIS harness's project. The app is pointed at a folder inside WORK
+// (ARTLUX_AUTOSAVE_DIR, set in launch()), so the owner's real autosave folder is never written; files are
+// still matched by the projectPath recorded inside them.
+const AUTOSAVE_DIR = path.join(WORK, 'autosave');
+let HARNESS_PROJECT = null;
+const samePath = (a, b) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+function ourAutosaves() {
+  let names = [];
+  try { names = fs.readdirSync(AUTOSAVE_DIR).filter((n) => n.endsWith('.json')); } catch { return []; }
+  const out = [];
+  for (const n of names) {
+    try {
+      const j = JSON.parse(fs.readFileSync(path.join(AUTOSAVE_DIR, n), 'utf8'));
+      if (j.kind !== 'artlux-autosave' || !samePath(j.projectPath, HARNESS_PROJECT)) continue;
+      const strip = (j.slices.fixtures || []).find((f) => f.name === 'Strip 1');
+      out.push({ file: path.join(AUTOSAVE_DIR, n), savedAt: j.savedAt, reverse: strip ? strip.reverse : null });
+    } catch { /* not ours, or mid-write */ }
+  }
+  return out;
 }
 
 let failures = 0;
@@ -128,6 +155,7 @@ const clickReverse = (page) => page.evaluate(() => {
 (async () => {
   if (!puppeteer) { console.error('puppeteer-core not installed — run npm install'); process.exit(1); }
   const project = buildProject();
+  HARNESS_PROJECT = project;
   const child = launch(project);
   let browser = null;
   try {
@@ -309,6 +337,81 @@ const clickReverse = (page) => page.evaluate(() => {
     v = await sh(() => window.__showHost.verify());
     note(!!v && v.mismatched.length === 0, "the fresh host holds the editor's document, including the outage edit",
       v ? (v.mismatched.length ? `differ: ${v.mismatched.join(', ')}` : `${v.compared} slices agree`) : 'no answer');
+
+    console.log('\n8. autosave keeps unsaved work, and a crash gives it back');
+    {
+      const save = async () => {
+        const b0 = (await sh(() => window.__showHost.dirty())).baselines;
+        await sh(() => { const el = [...document.querySelectorAll('button[title]')].find((e) => /Unsaved changes|Everything is saved/.test(e.getAttribute('title') || '')); if (el) el.click(); });
+        for (let i = 0; i < 20; i++) { if ((await sh(() => window.__showHost.dirty())).baselines > b0) return true; await sleep(200); }
+        return false;
+      };
+      // Start saved: whatever the outage step left is written to the file, and no autosave stands.
+      note(await save(), 'the project is saved before the test', '');
+      await sleep(800);
+      const fileReverse = () => { try { return JSON.parse(fs.readFileSync(project, 'utf8')).fixtures.find((f) => f.name === 'Strip 1').reverse; } catch { return null; } };
+      const onDisk0 = fileReverse();
+      const before = await reverseBox(page);
+      await clickReverse(page);
+      const edited = await reverseBox(page);
+      note(edited === !before, 'an unsaved edit', `reverse ${before} → ${edited}`);
+      // The timer (ARTLUX_AUTOSAVE_MS=1500 for this harness) writes a recovery copy: find it.
+      let auto = null;
+      for (let i = 0; i < 25 && !auto; i++) {
+        await sleep(200);
+        auto = ourAutosaves().find((a) => a.reverse === edited) || null;
+      }
+      note(!!auto, 'the host autosaved it within seconds', auto ? `${path.basename(auto.file)}, saved ${auto.savedAt}` : `autosaves for this project: ${JSON.stringify(ourAutosaves())}`);
+      note(fileReverse() === onDisk0, 'and the project FILE was not touched', `file reverse ${onDisk0} → ${fileReverse()}`);
+
+      // Crash the editor renderer. Main's editor recovery reloads it on the last project, and the work
+      // the crashed page never saved must be offered back.
+      // Recovery reloads the SAME window (the same CDP target), so the new page is told apart from the
+      // crashed one by a mark the crashed document carried, not by object identity.
+      await sh(() => { window.__beforeCrash = true; });
+      const cdp = await page.createCDPSession();
+      try { await cdp.send('Page.crash'); } catch { /* the session dies with the page */ }
+      let next = null;
+      for (let i = 0; i < 60 && !next; i++) {
+        await sleep(500);
+        for (const p of await browser.pages()) {
+          if (!/localhost:3000/.test(p.url()) || /splash\.html|projector\.html|docs\.html/.test(p.url())) continue;
+          const ready = await p.evaluate(() => !window.__beforeCrash && document.querySelectorAll('button').length > 3 && !!window.__showHost).catch(() => false);
+          if (ready) { next = p; break; }
+        }
+      }
+      note(!!next, 'the editor came back after the renderer crash', next ? next.url().slice(0, 80) : 'no new editor page');
+      if (!next) throw new Error('no editor after the crash');
+      page = next;
+      let asked = false;
+      for (let i = 0; i < 40 && !asked; i++) {
+        asked = await sh(() => [...document.querySelectorAll('button')].some((b) => (b.textContent || '').trim() === 'Restore') && /Restore unsaved changes\?/.test(document.body.innerText));
+        if (!asked) await sleep(250);
+      }
+      note(asked, 'it offers the unsaved changes back', asked ? '"Restore unsaved changes?"' : 'no dialog');
+      if (asked) {
+        await sh(() => [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === 'Restore').click());
+        await sleep(1200);
+        if (!(await clickRow(page, 'Strip 1'))) throw new Error('could not select Strip 1 after the restore');
+        await sleep(600);
+        const restored = await reverseBox(page);
+        note(restored === edited, 'Restore puts the unsaved edit back', `reverse ${restored} (the crashed page had ${edited}, the file ${onDisk0})`);
+        let unsaved = false;
+        for (let i = 0; i < 20 && !unsaved; i++) { unsaved = (await sh(() => window.__showHost.dirty())).dirty; if (!unsaved) await sleep(200); }
+        note(unsaved, 'and the project reads as unsaved — the file still holds the old value', `host dirty ${unsaved}`);
+        await sh(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
+        await page.mouse.move(120, 140);
+        await page.keyboard.down('Control'); await page.keyboard.press('KeyZ'); await page.keyboard.up('Control');
+        await sleep(800);
+        note(await reverseBox(page) === onDisk0, 'the restore is ONE undo step: Ctrl+Z gives the file version back', `reverse ${await reverseBox(page)}`);
+        await page.keyboard.down('Control'); await page.keyboard.press('KeyY'); await page.keyboard.up('Control');
+        await sleep(800);
+        note(await save(), 'saving the restored work', '');
+        await sleep(800);
+        note(fileReverse() === edited && ourAutosaves().length === 0, 'the file now holds it, and the autosave is retired',
+          `file reverse ${fileReverse()}; autosaves left ${ourAutosaves().length}`);
+      }
+    }
   } catch (e) {
     failures++;
     console.error('\nharness error:', e.message);
@@ -316,6 +419,7 @@ const clickReverse = (page) => page.evaluate(() => {
     try { if (browser) await browser.disconnect(); } catch { /* gone */ }
     await stop(child);
     restorePrefs();
+    for (const a of ourAutosaves()) { try { fs.unlinkSync(a.file); } catch { /* gone */ } }   // only this harness's
     if (!KEEP) { try { fs.rmSync(WORK, { recursive: true, force: true }); } catch { /* leave it */ } }
   }
   console.log(failures ? `\n\x1b[31mshow host: ${failures} failure(s)\x1b[0m` : '\n\x1b[32mshow host OK — the editor and the authority hold one document, and a dead host loses nothing\x1b[0m');

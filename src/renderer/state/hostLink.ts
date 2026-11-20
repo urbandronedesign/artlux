@@ -47,6 +47,9 @@ let hostDirty = false;
 let baselines = 0;
 const dirtyListeners = new Set<(dirty: boolean) => void>();
 const connectListeners = new Set<() => void>();
+let autosaveEnabled = false;
+const autosaveWaiters = new Map<number, (found: { savedAt: string; slices: Slices } | null) => void>();
+let autosaveReq = 0;
 
 function post(msg: ClientToHost): boolean {
   if (!port) return false;
@@ -119,6 +122,10 @@ function onHostMessage(m: HostToClient): void {
       hostDirty = m.dirty;
       for (const fn of [...dirtyListeners]) fn(m.dirty);
       return;
+    case 'autosaveFound':
+      autosaveWaiters.get(m.req)?.(m.found);
+      autosaveWaiters.delete(m.req);
+      return;
     case 'digest':
       digestWaiters.get(m.req)?.(m.digests, m.unsaved ?? []);
       digestWaiters.delete(m.req);
@@ -136,7 +143,7 @@ function attach(p: MessagePort): void {
   p.onmessage = (e: MessageEvent) => { try { onHostMessage(e.data as HostToClient); } catch (err) { console.error('[hostLink] host message failed:', err); } };
   p.start();
   connected = true;
-  post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES], projectFile: [...PROJECT_FILE_SLICES] });
+  post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES], projectFile: [...PROJECT_FILE_SLICES], autosave: autosaveEnabled });
   history = { canUndo: false, canRedo: false, depth: 0 };   // a new editor page starts a new history
   hostDirty = false;
   sendAll();
@@ -228,7 +235,7 @@ function idOf(o: object): number { let n = ids.get(o); if (n == null) { n = next
  * reconnect to a fresh host while it knows it has unsaved work). False when there is no host: the
  * caller then keeps its own signature compare, as before W3c.
  */
-export function markSaved(present: Record<string, unknown>, dirty = false): boolean {
+export function markSaved(present: Record<string, unknown>, dirty = false, opts: { projectPath?: string | null; save?: boolean } = {}): boolean {
   if (!connected || !port) return false;
   flushToHost();
   const overrides: Slices = {};
@@ -236,13 +243,44 @@ export function markSaved(present: Record<string, unknown>, dirty = false): bool
     if (k in present && !Object.is(present[k], docStore.getSlice(k))) overrides[k] = present[k];
   }
   try {
-    post({ t: 'baseline', present: overrides, dirty, seq: ++seq });
+    post({ t: 'baseline', present: overrides, dirty, seq: ++seq, projectPath: opts.projectPath, save: opts.save });
   } catch (e) {
     console.warn('[hostLink] baseline could not be sent:', (e as Error).message);
     return false;
   }
   baselines++;
   return true;
+}
+
+// ── AUTOSAVE (W3c) — the host writes it; this window turns it on, and asks for it back. ─────────────
+
+/** Before the first connect: whether this editor wants autosave (App: never in a show mode). */
+export function setAutosaveEnabled(on: boolean): void { autosaveEnabled = on; }
+
+/** A project is about to be applied: the host stops autosaving until its settling baseline. */
+export function projectLoading(): void { if (connected) post({ t: 'loading' }); }
+
+/** The operator declined the autosave (Discard, or Close without saving). */
+export function discardAutosave(path: string | null): void { if (connected) post({ t: 'autosaveDiscard', path }); }
+
+/**
+ * Is there an autosave for this project newer than its file? Waits up to 5 s for a host (a project
+ * opened at boot can be applied before the port arrives); null when there is none, or no host.
+ */
+export async function queryAutosave(path: string | null): Promise<{ savedAt: string; slices: Slices } | null> {
+  if (!connected) {
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(() => { off(); resolve(); }, 5000);
+      const off = subscribeHostConnect(() => { clearTimeout(t); off(); resolve(); });
+    });
+    if (!connected) return null;
+  }
+  return new Promise((resolve) => {
+    const req = ++autosaveReq;
+    const t = setTimeout(() => { autosaveWaiters.delete(req); resolve(null); }, 5000);
+    autosaveWaiters.set(req, (found) => { clearTimeout(t); resolve(found); });
+    post({ t: 'autosaveQuery', req, path });
+  });
 }
 
 /** The host's latest answer to "does the document differ from the file?". */

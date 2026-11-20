@@ -74,7 +74,16 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   patches merged with `shared/shareEqual.ts`, so the items an undo did not touch keep their identity,
   as they did when undo restored references in-process. App's `useHistory` stacks remain only as the
   fallback for a window with no host. `ARTLUX_NO_SHOW_HOST=1` runs the editor standalone on purpose:
-  no host, in-process undo. The wire and its ordering rule are in `shared/showHostProtocol.ts`;
+  no host, in-process undo. **"Unsaved changes" is the host's answer too**: per-slice digests of the
+  project-file slices (`PROJECT_FILE_SLICES`) against the last baseline. With a host connected, the
+  editor no longer JSON-stringifies the project once a second on the UI thread. Every save rebases
+  both baselines (`markDocSaved`). **Autosave** is the host's job: a recovery file per project in
+  `<userData>/autosave`, written every 30 s while unsaved, and at once when an editor page replaces
+  one that held unsaved work (a crashed renderer). It is never written in show modes. A real save or
+  "Close without saving" retires it, and the editor offers it back when the project is next opened
+  (usage: [user-guide/11](user-guide/11-projects-media-broadcast.md#autosave)). A run with
+  `ARTLUX_CDP_PORT` set (every real-app harness) autosaves to a temp folder instead, so throwaway test
+  projects never reach an operator's recovery folder; `ARTLUX_AUTOSAVE_DIR` overrides both. The wire and its ordering rule are in `shared/showHostProtocol.ts`;
   `scripts/test-show-host.cjs` proves the two copies agree, that nothing writes the document per frame,
   that undo runs in the host and keeps identity, and that a killed host loses nothing.
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
