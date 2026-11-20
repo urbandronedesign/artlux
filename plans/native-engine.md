@@ -223,7 +223,7 @@ x86_64 AppImage), so the engine is too, from its first commit.
 | Windows | engine owns its main thread: winit | same; AppKit's main-thread rule is why the engine is its own binary | winit on X11 and Wayland |
 | Fullscreen outputs | borderless on the display, flip-model swapchain | borderless window at the display frame; avoid native fullscreen Spaces | Wayland: `set_fullscreen(output)` per projector (supported); X11: borderless at the output's geometry |
 | Placing UI windows | exact position per display | exact | ⚠ **Wayland does not let an app position its windows**, so "restore the timeline on screen 2" cannot be exact there. Either run Electron under XWayland (`--ozone-platform=x11`) for exact placement, or accept fullscreen-on-output plus compositor placement. E0 decides |
-| Refresh | 60 / 144 / 165 mixed, per-window present | ProMotion 120 + 60, display link per window | per-output present (Wayland presentation-time; X11 per-window vsync is weaker, measure it) |
+| Refresh | 60 / 144 / 165 mixed, per-window present | ProMotion 120 + 60, display link per window | per-output present (Wayland presentation-time; X11 per-window vsync is weaker) |
 | Audio | JUCE (WASAPI / ASIO) | JUCE (CoreAudio) | JUCE (ALSA; already built strictly in CI) |
 | Packaging | engine `.exe` in `extraResources` | engine inside the `.app` bundle, ad-hoc signed like the rest (unsigned decision stands) | engine binary inside the AppImage; x86_64 only, as today |
 
@@ -293,7 +293,7 @@ staged into `extraResources`, `fail-fast: false` across the matrix):
 
 | Phase | Delivers | Deletes | Size |
 |---|---|---|---|
-| **E0 Measure + spikes** | Baseline of today on the RTX PC and a Mac (frame-budget harness). Spikes, **on Windows, macOS and Linux (X11 + Wayland)**: engine binary presenting on 3 displays at their own refresh rates; engine → `sharedTexture` → page latency (NT handle dup, IOSurface mach port, dmabuf over `SCM_RIGHTS`); zero-copy import of Spout, Syphon, HAP BC, MF, VideoToolbox and VA-API frames; the engine skeleton building and passing its headless test on all three CI runners (§6b) | — | 3–4 wk |
+| **E0 Spikes** | Feasibility prototypes (throwaway), **on Windows, macOS and Linux (X11 + Wayland)**: engine binary presenting on 3 displays at their own refresh rates; engine → `sharedTexture` → page latency (NT handle dup, IOSurface mach port, dmabuf over `SCM_RIGHTS`); zero-copy import of Spout, Syphon, HAP BC, MF, VideoToolbox and VA-API frames; the engine skeleton building and passing its headless test on all three CI runners (§6b) | — | 3–4 wk |
 | **E1 Output path** | Engine process + watchdog rung; LED sampling + Art-Net/sACN/USB-DMX in-engine; sources image, HAP, NDI, Spout, Syphon, DMX-in, effect, slice; native projector windows (warp/blend, uncalibrated). Fed by today's `App` through main. Per-surface fallback to the browser engine | bitmap pump + web projector windows for eligible outputs | 2–3 mo |
 | **E2 Decode + generative** | MP4 HW decode, camera, text, shaders (WGSL), tracking blobs, mediapipe via shared frames, thumbnails | WebCodecs path, renderer `<video>` pools | 2–3 mo |
 | **E3 Timeline + clock** | Timeline composite and blend modes in-engine; time evaluation in Rust on the audio clock; JUCE in the engine process; lighting evaluation | `services/timeline.ts` composite, canvas blends | 2–3 mo |
@@ -301,8 +301,8 @@ staged into `extraResources`, `fail-fast: false` across the matrix):
 | **E5 State lift + multi-window UI — FIRST (owner, 2026-11-20)** | Document store in the Show Host; `App.tsx` becomes a client; any panel in its own window with no performance drop. Detail in §9a | `App` state ownership | **4–5 mo** (re-estimated in §9a) |
 | **E6 Finish** | Bake via the engine; SDK v2 for render contributions; delete the browser engine and the WebGL fallback | `frameEngine.ts`, `WebGPUMapper.ts`, `GPUMapper.ts` | ~1 mo |
 
-**Order (decided 2026-11-20): E5 first** (§9a), then E0's engine spikes and E1–E4. E0's harness is
-built in E5's W0 and reused. Total stays 12–18 months; the multi-window goal lands at months 4–5.
+**Order (decided 2026-11-20): E5 first** (§9a), then E0's engine spikes and E1–E4. Total stays 12–18 months; the multi-window goal lands at about
+month 4.
 
 ## 9a. Phase E5 first, in detail — any panel in its own window, with no drop in performance
 
@@ -338,7 +338,7 @@ Today all state sits at the root of `App.tsx` and nothing is memoised, so any ch
 whole tree (recorded in the perf notes; it is why sliders commit on release). The store replaces
 "`App` passes everything down" with **selector subscriptions** (`useSyncExternalStore`), so a panel
 re-renders only when *its* slice changes. Moving a fixture stops re-rendering the timeline. That is the
-first measurable gain of E5, before any window is detached.
+first gain of E5, before any window is detached.
 
 ### What each kind of panel needs
 
@@ -354,10 +354,9 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 
 | WP | What | Size |
 |---|---|---|
-| **W0 Baseline** | The frame-budget harness on the RTX PC, a Mac **and a Linux box** (Intel Gen12+ so today's WebGPU path runs; X11 and Wayland): engine Hz and headroom, wire rate, editor p99 (idle / playback / heavy edit), React commit ms/s, memory per process. Plus two new probes: **edit latency** (action in window A → painted in window B) and **clock drift** between windows | 1 wk |
 | **W1 The store, in-process** | `shared/store`: the action vocabulary, Immer patches, revisions, undo moved into the store (today's snapshot undo is already document-wide, so it maps directly). Migrate `App.tsx` **slice by slice** (fixtures → surfaces → controllers → scenes/cues → timeline → state machine → lighting → settings → …), each slice shipped and verified alone. `App` stops owning state; it becomes the composition root | 5–7 wk |
-| **W2 Selectors** | Panels move from `useEditor()` (the whole object) to `useStore(selector)`. Measure the re-render drop against W0 | 2 wk |
-| **W3 Show Host** | Move store authority, undo, persistence, autosave and the close guard into an Electron `utilityProcess`. The editor renderer becomes a replica, and the frame engine reads that replica. Host-authoritative round trip measured; **optimistic local apply only if W0's probe shows > 2 ms** (it should be well under a frame on local IPC) | 2–3 wk |
+| **W2 Selectors** | Panels move from `useEditor()` (the whole object) to `useStore(selector)` | 2 wk |
+| **W3 Show Host** | Move store authority, undo, persistence, autosave and the close guard into an Electron `utilityProcess`. The editor renderer becomes a replica, and the frame engine reads that replica. Host-authoritative: an edit goes to the host and comes back as a patch (local IPC, well under a frame). **Optimistic local apply is added only if an edit visibly lags** | 2–3 wk |
 | **W4 Live channels** | Stream broker (pull-based `MessagePort` pairs), the clock anchor, the thumbnail / filmstrip / peaks service, the live-drag channel (a detached slider drives `livePreview` in the engine owner directly) | 2–3 wk |
 | **W5 Panel windows** | A new `panel.html` entry that mounts any registered panel by id. A window is **a dock tree of its own**, so it can hold several tabs and be split. Main gets a window manager: create, restore per machine, match displays by id then label + bounds, re-attach when a display is missing, never off-screen. Plugins get a **UI-only activation** (contribute panels without starting their runtime). Shortcuts: transport keys (Space, J/K/L) work in every window; undo routes to the host | 3–4 wk |
 | **W7 Docs + invariants** | Usage page in `docs/WORKSPACE.md` (detach, re-attach, multi-screen), the new invariant checks (services run once, no decode in panel windows, no bare `App` state) | ongoing |
@@ -365,27 +364,38 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 **Total: about 4 months** (more than the 2–3 months first estimated for E5 in §9: W1 alone touches
 60 `useState`, 69 `useRef` and 81 `useEffect` in `App.tsx`, and 38 registered panels).
 
-### The "no drop" gate, run after every WP
+### The "no drop" guarantee — by construction, not by a measurement phase
 
-Against W0's baseline, on the RTX PC, a Mac and the Linux box:
-- engine Hz, headroom and wire rate: **not worse** (± noise, 3%);
-- editor p99 in idle and playback: **not worse**; after W2, expected **better**;
-- edit latency between windows: **≤ 1 frame** at the receiving window's refresh;
-- clock drift between windows: **< 1 ms**;
-- per extra window: memory is **reported** (a Chromium process costs roughly 100–200 MB). It is a cost
-  in RAM, not frame time, and the owner decides whether it matters on venue machines.
+**No measurement phase (owner, 2026-11-20).** There is no baseline step and no benchmark gate. "No
+drop" is held by **structure**, and each rule is a `verify:invariants` check, so it is enforced on
+every `npm run verify` and in CI, not remembered:
 
-Any WP that fails the gate does not merge.
+1. **One producer per datum** (the five classes above): no runtime service is instantiated in a
+   panel window (unique-marker count = 1 per service across bundles), and no decoder, `<video>`,
+   WebGL or WebGPU context is created in `panel.html`'s bundle.
+2. **The frame engine stays where it is.** It keeps running in the editor renderer with the same
+   inputs; W1–W3 change where those inputs come *from*, never the engine's loop.
+3. **Live streams are pull-based.** A stream with no visible subscriber sends nothing, so an open
+   window costs nothing it is not showing.
+4. **No per-frame traffic for time.** The playhead travels as an anchor on change, never per frame.
+5. **Selectors, not the whole object.** A panel subscribes to its slice; `useEditor()` wholesale is
+   forbidden in migrated panels, so a store change cannot re-render the tree.
+6. **GPU viewports never leave the editor process before E4.**
+
+What remains is the owner's hands-on check on the venue machines, as with every release, plus the
+correctness tests that already exist or are planned (the CI byte-compare of the wire output in §6b,
+and the TS-vs-Rust evaluator parity in §4). Those are **correctness** tests, not performance
+measurements. The one known cost is RAM: each extra window is a Chromium process (roughly 100–200 MB).
 
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).
 2. **UI shell after E5:** keep Electron (Node host, `sharedTexture`, one Chromium on every OS), or
    reassess Tauri once no GPU work remains in the webview? The proposal is to keep Electron and
-   reassess only if a measured reason appears.
+   reassess only if a concrete reason appears.
 3. **One developer or more?** The 12–18 month estimate assumes one; E5 and E1–E4 parallelise cleanly
    across two.
 4. ~~Linux?~~ **Decided: in scope**, built and shipped by CI on all three OSes (§6, §6b).
 5. ~~GPU viewports before E4?~~ **Decided: docked until the engine exists** (§9a).
 6. **Wayland window placement:** XWayland for exact placement of UI windows, or native Wayland with
-   compositor placement? E0 measures both.
+   compositor placement? E0's spike tries both.
