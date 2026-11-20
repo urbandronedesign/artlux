@@ -195,7 +195,7 @@ PDF) so the derivation can be redone, and note the id in `MANIFEST.json ▸ loca
 writes. A malformed local file **fails the build** rather than landing in the skip report: it was
 written by hand in this repo, so the person running the build is the one who can fix it.
 
-The profiles with no GDTF (generic-Nch, Briteq, Stairville, Cameo Movo, BeamZ Zelos) are written by
+The profiles with no GDTF (generic-Nch, Briteq, Stairville, Cameo Movo, BeamZ Zelos and Kratos) are written by
 [scripts/make-local-fixtures.py](../scripts/make-local-fixtures.py), which holds their channel tables
 and names the manufacturer document each was transcribed from — edit the script, not the JSON.
 
@@ -236,7 +236,7 @@ Never edit `resources/fixture-library/` itself — the build wipes it.
 | `MANIFEST.json` | source commit, counts, and **the skip report** |
 | `LICENSE-OFL.txt`, `NOTICE.txt` | attribution — see below |
 
-Current output: **520 profiles** (506 from OFL + 14 local), 117 manufacturers, 1693 modes, 46 gobos —
+Current output: **521 profiles** (506 from OFL + 15 local), 117 manufacturers, 1700 modes, 46 gobos —
 but read `MANIFEST.json ▸ counts`, not this line, which is typed by hand.
 
 ### Read the skip report, not the profile count
@@ -426,6 +426,20 @@ set, each at the address shown on its own display. Pick the mode the tube's menu
 It is marked unverified because the manual prints its channel tables without naming the mode above
 each: which 4-channel table is A and which is B (the same for 6CH) is read from their order. If
 4CH A behaves like 4CH B on your tube, pick the other one.
+
+**BeamZ Kratos LED Tube** (the display says *BeamZ Pro Kratos*; set of 8: 150.658) is the RGBW
+sibling of the Zelos and looks much the same, so check which one you have: if the tube's *DMX
+channel* menu offers **2CH / 4CH / 6CH / 11CH / 32CH / 64CH / 128CH**, it is a Kratos. As with the
+Zelos, one fixture is one tube.
+
+| Tube menu | What you get |
+|---|---|
+| 2CH | dimmer and a colour temperature (2800K to 10000K in steps) |
+| 4CH, 6CH | red, green, blue, white (6CH adds a dimmer and a strobe in front). The colour picker drives these |
+| 11CH | dimmer, strobe, the tube's own colour and effect programs, then the four colours |
+| 32CH, 64CH, 128CH | the tube in 8, 16 or 32 sections, four channels each (*Red 1*, *Green 1*, … ). Each is a plain channel: the colour picker does not drive them |
+
+It is written from the manual and has not been tried on a tube yet, so it is marked unverified.
 
 ## `verified: false` — drafts
 

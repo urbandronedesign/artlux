@@ -1,0 +1,2221 @@
+{
+ "id": "beamz/kratos",
+ "manufacturer": "BeamZ",
+ "model": "Kratos LED Tube",
+ "aliases": [
+  "Kratos",
+  "BeamZ Kratos",
+  "BeamZ Pro Kratos",
+  "beamzkratos",
+  "Kratos LED Tube",
+  "Kratos LED Tube Set",
+  "150.658",
+  "150658"
+ ],
+ "categories": [
+  "Color Changer"
+ ],
+ "channels": [
+  {
+   "key": "dimmer",
+   "label": "Overall Dimmer",
+   "role": "dimmer",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "strobe",
+   "label": "Strobe",
+   "role": "shutter",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 10,
+     "label": "No function"
+    },
+    {
+     "from": 11,
+     "to": 255,
+     "label": "Strobe slow to fast (1-20 Hz)"
+    }
+   ]
+  },
+  {
+   "key": "red",
+   "label": "Red",
+   "role": "red",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "green",
+   "label": "Green",
+   "role": "green",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "blue",
+   "label": "Blue",
+   "role": "blue",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "white",
+   "label": "White",
+   "role": "white",
+   "resolution": 1,
+   "default": 0,
+   "highlight": 1
+  },
+  {
+   "key": "cct",
+   "label": "Color Temperature",
+   "role": "colorTemp",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 10,
+     "label": "No function"
+    },
+    {
+     "from": 11,
+     "to": 24,
+     "label": "2800K"
+    },
+    {
+     "from": 25,
+     "to": 38,
+     "label": "3000K"
+    },
+    {
+     "from": 39,
+     "to": 52,
+     "label": "3200K"
+    },
+    {
+     "from": 53,
+     "to": 66,
+     "label": "3500K"
+    },
+    {
+     "from": 67,
+     "to": 80,
+     "label": "3800K"
+    },
+    {
+     "from": 81,
+     "to": 94,
+     "label": "4000K"
+    },
+    {
+     "from": 95,
+     "to": 108,
+     "label": "4500K"
+    },
+    {
+     "from": 109,
+     "to": 122,
+     "label": "5000K"
+    },
+    {
+     "from": 123,
+     "to": 136,
+     "label": "5600K"
+    },
+    {
+     "from": 137,
+     "to": 150,
+     "label": "6000K"
+    },
+    {
+     "from": 151,
+     "to": 164,
+     "label": "6500K"
+    },
+    {
+     "from": 165,
+     "to": 178,
+     "label": "7000K"
+    },
+    {
+     "from": 179,
+     "to": 192,
+     "label": "7500K"
+    },
+    {
+     "from": 193,
+     "to": 206,
+     "label": "8000K"
+    },
+    {
+     "from": 207,
+     "to": 220,
+     "label": "8500K"
+    },
+    {
+     "from": 221,
+     "to": 234,
+     "label": "9000K"
+    },
+    {
+     "from": 235,
+     "to": 248,
+     "label": "9500K"
+    },
+    {
+     "from": 249,
+     "to": 255,
+     "label": "10000K"
+    }
+   ]
+  },
+  {
+   "key": "static-macro",
+   "label": "Static Macro",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 10,
+     "label": "No function"
+    },
+    {
+     "from": 11,
+     "to": 255,
+     "label": "Static color (17 values each)"
+    }
+   ]
+  },
+  {
+   "key": "background",
+   "label": "Macro Background Color",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 16,
+     "label": "No function"
+    },
+    {
+     "from": 17,
+     "to": 255,
+     "label": "Background color (17 values each)"
+    }
+   ]
+  },
+  {
+   "key": "background-brightness",
+   "label": "Macro Background Brightness",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "effect",
+   "label": "Macro",
+   "role": "macro",
+   "resolution": 1,
+   "default": 0,
+   "ranges": [
+    {
+     "from": 0,
+     "to": 10,
+     "label": "No function"
+    },
+    {
+     "from": 11,
+     "to": 220,
+     "label": "Macro effects (3 values each)"
+    },
+    {
+     "from": 221,
+     "to": 228,
+     "label": "Sound control mode 1"
+    },
+    {
+     "from": 229,
+     "to": 236,
+     "label": "Sound control mode 2"
+    },
+    {
+     "from": 237,
+     "to": 244,
+     "label": "No function"
+    },
+    {
+     "from": 245,
+     "to": 255,
+     "label": "Sound control mode 3"
+    }
+   ]
+  },
+  {
+   "key": "effect-speed",
+   "label": "Macro Speed",
+   "role": "speed",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s1-red",
+   "label": "Red 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s1-green",
+   "label": "Green 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s1-blue",
+   "label": "Blue 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s1-white",
+   "label": "White 1",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s2-red",
+   "label": "Red 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s2-green",
+   "label": "Green 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s2-blue",
+   "label": "Blue 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s2-white",
+   "label": "White 2",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s3-red",
+   "label": "Red 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s3-green",
+   "label": "Green 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s3-blue",
+   "label": "Blue 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s3-white",
+   "label": "White 3",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s4-red",
+   "label": "Red 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s4-green",
+   "label": "Green 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s4-blue",
+   "label": "Blue 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s4-white",
+   "label": "White 4",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s5-red",
+   "label": "Red 5",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s5-green",
+   "label": "Green 5",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s5-blue",
+   "label": "Blue 5",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s5-white",
+   "label": "White 5",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s6-red",
+   "label": "Red 6",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s6-green",
+   "label": "Green 6",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s6-blue",
+   "label": "Blue 6",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s6-white",
+   "label": "White 6",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s7-red",
+   "label": "Red 7",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s7-green",
+   "label": "Green 7",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s7-blue",
+   "label": "Blue 7",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s7-white",
+   "label": "White 7",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s8-red",
+   "label": "Red 8",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s8-green",
+   "label": "Green 8",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s8-blue",
+   "label": "Blue 8",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s8-white",
+   "label": "White 8",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s9-red",
+   "label": "Red 9",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s9-green",
+   "label": "Green 9",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s9-blue",
+   "label": "Blue 9",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s9-white",
+   "label": "White 9",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s10-red",
+   "label": "Red 10",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s10-green",
+   "label": "Green 10",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s10-blue",
+   "label": "Blue 10",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s10-white",
+   "label": "White 10",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s11-red",
+   "label": "Red 11",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s11-green",
+   "label": "Green 11",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s11-blue",
+   "label": "Blue 11",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s11-white",
+   "label": "White 11",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s12-red",
+   "label": "Red 12",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s12-green",
+   "label": "Green 12",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s12-blue",
+   "label": "Blue 12",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s12-white",
+   "label": "White 12",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s13-red",
+   "label": "Red 13",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s13-green",
+   "label": "Green 13",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s13-blue",
+   "label": "Blue 13",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s13-white",
+   "label": "White 13",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s14-red",
+   "label": "Red 14",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s14-green",
+   "label": "Green 14",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s14-blue",
+   "label": "Blue 14",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s14-white",
+   "label": "White 14",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s15-red",
+   "label": "Red 15",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s15-green",
+   "label": "Green 15",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s15-blue",
+   "label": "Blue 15",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s15-white",
+   "label": "White 15",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s16-red",
+   "label": "Red 16",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s16-green",
+   "label": "Green 16",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s16-blue",
+   "label": "Blue 16",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s16-white",
+   "label": "White 16",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s17-red",
+   "label": "Red 17",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s17-green",
+   "label": "Green 17",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s17-blue",
+   "label": "Blue 17",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s17-white",
+   "label": "White 17",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s18-red",
+   "label": "Red 18",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s18-green",
+   "label": "Green 18",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s18-blue",
+   "label": "Blue 18",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s18-white",
+   "label": "White 18",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s19-red",
+   "label": "Red 19",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s19-green",
+   "label": "Green 19",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s19-blue",
+   "label": "Blue 19",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s19-white",
+   "label": "White 19",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s20-red",
+   "label": "Red 20",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s20-green",
+   "label": "Green 20",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s20-blue",
+   "label": "Blue 20",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s20-white",
+   "label": "White 20",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s21-red",
+   "label": "Red 21",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s21-green",
+   "label": "Green 21",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s21-blue",
+   "label": "Blue 21",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s21-white",
+   "label": "White 21",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s22-red",
+   "label": "Red 22",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s22-green",
+   "label": "Green 22",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s22-blue",
+   "label": "Blue 22",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s22-white",
+   "label": "White 22",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s23-red",
+   "label": "Red 23",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s23-green",
+   "label": "Green 23",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s23-blue",
+   "label": "Blue 23",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s23-white",
+   "label": "White 23",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s24-red",
+   "label": "Red 24",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s24-green",
+   "label": "Green 24",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s24-blue",
+   "label": "Blue 24",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s24-white",
+   "label": "White 24",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s25-red",
+   "label": "Red 25",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s25-green",
+   "label": "Green 25",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s25-blue",
+   "label": "Blue 25",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s25-white",
+   "label": "White 25",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s26-red",
+   "label": "Red 26",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s26-green",
+   "label": "Green 26",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s26-blue",
+   "label": "Blue 26",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s26-white",
+   "label": "White 26",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s27-red",
+   "label": "Red 27",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s27-green",
+   "label": "Green 27",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s27-blue",
+   "label": "Blue 27",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s27-white",
+   "label": "White 27",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s28-red",
+   "label": "Red 28",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s28-green",
+   "label": "Green 28",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s28-blue",
+   "label": "Blue 28",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s28-white",
+   "label": "White 28",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s29-red",
+   "label": "Red 29",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s29-green",
+   "label": "Green 29",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s29-blue",
+   "label": "Blue 29",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s29-white",
+   "label": "White 29",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s30-red",
+   "label": "Red 30",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s30-green",
+   "label": "Green 30",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s30-blue",
+   "label": "Blue 30",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s30-white",
+   "label": "White 30",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s31-red",
+   "label": "Red 31",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s31-green",
+   "label": "Green 31",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s31-blue",
+   "label": "Blue 31",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s31-white",
+   "label": "White 31",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s32-red",
+   "label": "Red 32",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s32-green",
+   "label": "Green 32",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s32-blue",
+   "label": "Blue 32",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  },
+  {
+   "key": "s32-white",
+   "label": "White 32",
+   "role": "unknown",
+   "resolution": 1,
+   "default": 0
+  }
+ ],
+ "modes": [
+  {
+   "key": "2ch",
+   "name": "2CH (dimmer, CCT)",
+   "footprint": 2,
+   "slots": [
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "cct",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "4ch",
+   "name": "4CH (RGBW)",
+   "footprint": 4,
+   "slots": [
+    {
+     "channelKey": "red",
+     "byte": 0
+    },
+    {
+     "channelKey": "green",
+     "byte": 0
+    },
+    {
+     "channelKey": "blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "white",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "6ch",
+   "name": "6CH (dimmer, strobe, RGBW)",
+   "footprint": 6,
+   "slots": [
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "strobe",
+     "byte": 0
+    },
+    {
+     "channelKey": "red",
+     "byte": 0
+    },
+    {
+     "channelKey": "green",
+     "byte": 0
+    },
+    {
+     "channelKey": "blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "white",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "11ch",
+   "name": "11CH (effects)",
+   "footprint": 11,
+   "slots": [
+    {
+     "channelKey": "dimmer",
+     "byte": 0
+    },
+    {
+     "channelKey": "strobe",
+     "byte": 0
+    },
+    {
+     "channelKey": "static-macro",
+     "byte": 0
+    },
+    {
+     "channelKey": "background",
+     "byte": 0
+    },
+    {
+     "channelKey": "background-brightness",
+     "byte": 0
+    },
+    {
+     "channelKey": "effect",
+     "byte": 0
+    },
+    {
+     "channelKey": "effect-speed",
+     "byte": 0
+    },
+    {
+     "channelKey": "red",
+     "byte": 0
+    },
+    {
+     "channelKey": "green",
+     "byte": 0
+    },
+    {
+     "channelKey": "blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "white",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "32ch",
+   "name": "32CH (8 sections)",
+   "footprint": 32,
+   "slots": [
+    {
+     "channelKey": "s1-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-white",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "64ch",
+   "name": "64CH (16 sections)",
+   "footprint": 64,
+   "slots": [
+    {
+     "channelKey": "s1-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-white",
+     "byte": 0
+    }
+   ]
+  },
+  {
+   "key": "128ch",
+   "name": "128CH (32 sections)",
+   "footprint": 128,
+   "slots": [
+    {
+     "channelKey": "s1-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s1-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s2-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s3-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s4-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s5-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s6-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s7-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s8-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s9-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s10-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s11-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s12-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s13-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s14-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s15-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s16-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s17-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s17-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s17-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s17-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s18-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s18-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s18-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s18-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s19-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s19-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s19-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s19-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s20-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s20-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s20-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s20-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s21-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s21-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s21-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s21-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s22-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s22-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s22-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s22-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s23-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s23-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s23-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s23-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s24-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s24-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s24-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s24-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s25-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s25-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s25-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s25-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s26-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s26-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s26-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s26-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s27-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s27-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s27-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s27-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s28-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s28-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s28-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s28-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s29-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s29-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s29-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s29-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s30-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s30-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s30-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s30-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s31-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s31-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s31-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s31-white",
+     "byte": 0
+    },
+    {
+     "channelKey": "s32-red",
+     "byte": 0
+    },
+    {
+     "channelKey": "s32-green",
+     "byte": 0
+    },
+    {
+     "channelKey": "s32-blue",
+     "byte": 0
+    },
+    {
+     "channelKey": "s32-white",
+     "byte": 0
+    }
+   ]
+  }
+ ],
+ "physical": {
+  "dimsMm": [
+   52,
+   52,
+   1195
+  ]
+ },
+ "source": {
+  "origin": "pdf",
+  "ref": "beamZ manual 150.658-Kratos-LED-Tube-RGBW_Manual_V1.4.pdf, DMX channels pages 36-37"
+ },
+ "verified": false
+}

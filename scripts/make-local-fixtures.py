@@ -251,4 +251,43 @@ write('beamz-zelos', profile(
     ],
     'beamZ manual 150.654_150.656-Zelos_Manual_V1.3.pdf, DMX channels pages 34-37',
     verified=False, physical={'dimsMm': [65, 65, 1440]}))
+
+# ── BeamZ Kratos LED Tube (battery LED tube, RGBW, set of 8: 150.658) ────────────────────────────
+# ONE PROFILE IS ONE TUBE. Not the Zelos: the Kratos is 4-in-1 RGBW and its modes are 2/4/6/11/32/64/128.
+# The manual prints the tables without mode names, but here every table has a different length, so the
+# mapping is unambiguous. Per-section channels are `unknown` for the same reason as on the Zelos.
+K_CCT = [2800, 3000, 3200, 3500, 3800, 4000, 4500, 5000, 5600, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000]
+K_EMIT = [('red', 'Red', 'red'), ('green', 'Green', 'green'), ('blue', 'Blue', 'blue'), ('white', 'White', 'white')]
+K_RGBW = [k for k, _, _ in K_EMIT]
+kratos = [
+    ch('dimmer', 'Overall Dimmer', 'dimmer', highlight=1),
+    ch('strobe', 'Strobe', 'shutter', ranges=rng((0, 10, 'No function'), (11, 255, 'Strobe slow to fast (1-20 Hz)'))),
+] + [ch(k, l, r, highlight=1) for k, l, r in K_EMIT] + [
+    ch('cct', 'Color Temperature', 'colorTemp', ranges=rng(
+        (0, 10, 'No function'),
+        *[(11 + 14 * i, 255 if i == len(K_CCT) - 1 else 24 + 14 * i, f'{k}K') for i, k in enumerate(K_CCT)])),
+    ch('static-macro', 'Static Macro', 'macro', ranges=rng((0, 10, 'No function'), (11, 255, 'Static color (17 values each)'))),
+    ch('background', 'Macro Background Color', 'macro', ranges=rng((0, 16, 'No function'), (17, 255, 'Background color (17 values each)'))),
+    ch('background-brightness', 'Macro Background Brightness', 'unknown'),
+    ch('effect', 'Macro', 'macro', ranges=rng(
+        (0, 10, 'No function'), (11, 220, 'Macro effects (3 values each)'), (221, 228, 'Sound control mode 1'),
+        (229, 236, 'Sound control mode 2'), (237, 244, 'No function'), (245, 255, 'Sound control mode 3'))),
+    ch('effect-speed', 'Macro Speed', 'speed'),
+] + [ch(f's{i}-{k}', f'{l} {i}', 'unknown') for i in range(1, 33) for k, l, _ in K_EMIT]
+k_sections = lambda n: [f's{i}-{k}' for i in range(1, n + 1) for k in K_RGBW]
+write('beamz-kratos', profile(
+    'beamz/kratos', 'BeamZ', 'Kratos LED Tube',
+    ['Kratos', 'BeamZ Kratos', 'BeamZ Pro Kratos', 'beamzkratos', 'Kratos LED Tube', 'Kratos LED Tube Set', '150.658', '150658'],
+    ['Color Changer'], kratos, [
+        mode('2ch', '2CH (dimmer, CCT)', ['dimmer', 'cct']),
+        mode('4ch', '4CH (RGBW)', K_RGBW),
+        mode('6ch', '6CH (dimmer, strobe, RGBW)', ['dimmer', 'strobe'] + K_RGBW),
+        mode('11ch', '11CH (effects)', ['dimmer', 'strobe', 'static-macro', 'background', 'background-brightness',
+                                        'effect', 'effect-speed'] + K_RGBW),
+        mode('32ch', '32CH (8 sections)', k_sections(8)),
+        mode('64ch', '64CH (16 sections)', k_sections(16)),
+        mode('128ch', '128CH (32 sections)', k_sections(32)),
+    ],
+    'beamZ manual 150.658-Kratos-LED-Tube-RGBW_Manual_V1.4.pdf, DMX channels pages 36-37',
+    verified=False, physical={'dimsMm': [52, 52, 1195]}))
 print('wrote local profiles to', os.path.normpath(OUT))

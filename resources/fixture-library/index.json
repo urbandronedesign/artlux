@@ -2680,6 +2680,63 @@
   ]
  },
  {
+  "id": "beamz/kratos",
+  "manufacturer": "BeamZ",
+  "model": "Kratos LED Tube",
+  "aliases": [
+   "Kratos",
+   "BeamZ Kratos",
+   "BeamZ Pro Kratos",
+   "beamzkratos",
+   "Kratos LED Tube",
+   "Kratos LED Tube Set",
+   "150.658",
+   "150658"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2CH (dimmer, CCT)",
+    "footprint": 2
+   },
+   {
+    "key": "4ch",
+    "name": "4CH (RGBW)",
+    "footprint": 4
+   },
+   {
+    "key": "6ch",
+    "name": "6CH (dimmer, strobe, RGBW)",
+    "footprint": 6
+   },
+   {
+    "key": "11ch",
+    "name": "11CH (effects)",
+    "footprint": 11
+   },
+   {
+    "key": "32ch",
+    "name": "32CH (8 sections)",
+    "footprint": 32
+   },
+   {
+    "key": "64ch",
+    "name": "64CH (16 sections)",
+    "footprint": 64
+   },
+   {
+    "key": "128ch",
+    "name": "128CH (32 sections)",
+    "footprint": 128
+   }
+  ],
+  "origin": "pdf",
+  "verified": false
+ },
+ {
   "id": "beamz/panther-7r",
   "manufacturer": "BeamZ",
   "model": "Panther 7R",

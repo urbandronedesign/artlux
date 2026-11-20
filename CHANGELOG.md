@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.37.2
+
+### BeamZ Kratos LED tube
+
+New profile for the **BeamZ Kratos LED Tube** (RGBW battery tube, set of 8), with its seven DMX
+modes: 2, 4, 6, 11, 32, 64 and 128 channels. It is a different tube from the Zelos added in
+v0.37.1, whose modes are 4 to 160 channels. See [Fixture library](docs/FIXTURE-LIBRARY.md).
+
 ## v0.37.1
 
 ### BeamZ Zelos LED tube
