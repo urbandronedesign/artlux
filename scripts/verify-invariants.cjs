@@ -6840,7 +6840,8 @@ check(
     const src = stripComments(read('src/renderer/App.tsx'));
     const i = src.indexOf('save: async () => {');
     if (i < 0) return 'App.tsx: host.project.save not found — this guard cannot see what it protects';
-    return /savedDocRef\.current\s*=\s*signatureOf\(/.test(src.slice(i, i + 900)) ? null : 'host.project.save no longer rebases savedDocRef on what it wrote';
+    // Since E5/W3c the rebase is markDocSaved(data): it signs savedDocRef AND rebases the Show Host.
+    return /markDocSaved\(data\)/.test(src.slice(i, i + 900)) ? null : 'host.project.save no longer rebases the unsaved-changes baselines (markDocSaved(data)) on what it wrote';
   },
 );
 
@@ -7632,6 +7633,38 @@ check(
     const link = read('src/renderer/state/hostLink.ts');
     if (!/const next = shareEqual\(store\.getSlice\(m\.key\), m\.value\);/.test(link)) problems.push('hostLink applies host patches without shareEqual — an undo would re-create every item of the slice');
     if (!/undoable: \[\.\.\.UNDOABLE_SLICES\]/.test(link)) problems.push("hostLink's hello no longer names UNDOABLE_SLICES — the host would keep stacks over the wrong slices");
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── "Unsaved changes" is the Show Host's answer; the UI thread stops stringifying the show (E5/W3c) ─
+// The editor used to JSON.stringify the whole project once a second on the UI thread to answer "does
+// the document differ from the file?". The host now answers from per-slice digests after a write. Four
+// silent failures this guards:
+//   • the poll computing the signature while a host is connected (the cost comes back, nothing breaks);
+//   • a save path that rebases only the in-process signature: the host keeps calling a saved show
+//     dirty — or, the other way round, a host baseline the fallback never hears of;
+//   • the host never re-evaluating after a write (the flag would freeze);
+//   • the project-file list forked from the store's.
+check(
+  "unsaved changes come from the Show Host; every save rebases both baselines; one project-file list",
+  'A signature computed while the host is connected brings the 1 Hz stringify back; a save that rebases ' +
+  'one baseline leaves the other calling a saved show dirty; a host that does not re-evaluate freezes the flag.',
+  () => {
+    const problems = [];
+    const app = read('src/renderer/App.tsx');
+    const poll = app.match(/const viaHost = hostConnected\(\);([\s\S]*?)const sig = docSignatureRef\.current\(\);/);
+    if (!poll) problems.push('the dirty poll no longer decides on hostConnected() BEFORE computing the signature');
+    else if (!/if \(viaHost && !settlingRef\.current\) \{[^}]*return; \}/.test(poll[1])) problems.push('the dirty poll computes the signature while a host is connected and the project has settled');
+    const direct = app.match(/savedDocRef\.current = signatureOf\(/g) || [];
+    if (direct.length !== 1) problems.push(`savedDocRef is signed in ${direct.length} places — every save must go through markDocSaved (which signs once and rebases the host)`);
+    if (!/const markDocSaved = [\s\S]*?markSaved\(writtenSlices\(data\)\)/.test(app)) problems.push('markDocSaved no longer rebases the Show Host (markSaved(writtenSlices(data)))');
+    if (/setDocDirty\(false\);\s*\n\s*}\s*\n\s*return path/.test(app)) problems.push('handleSaveProject clears the flag without markDocSaved');
+    const link = read('src/renderer/state/hostLink.ts');
+    if (!/projectFile: \[\.\.\.PROJECT_FILE_SLICES\]/.test(link)) problems.push("hostLink's hello no longer names PROJECT_FILE_SLICES");
+    const host = read('src/showhost/index.ts');
+    if (!/if \(m\.store === 'doc'\) scheduleDirty\(\);/.test(host)) problems.push('the host no longer re-evaluates "unsaved" after a doc write');
+    if (!/function restore[\s\S]*?scheduleDirty\(\);\n\}/.test(host.replace(/\r\n/g, '\n'))) problems.push('the host no longer re-evaluates "unsaved" after an undo/redo restore');
     return problems.length ? problems.join('; ') : null;
   },
 );

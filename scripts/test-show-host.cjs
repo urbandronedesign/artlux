@@ -14,7 +14,10 @@
 //      the host reports the stack depth), the document comes back on both sides, and the fixture the
 //      edit did NOT touch is still the same object afterwards (shareEqual), as it was when undo
 //      restored references in-process.
-//   6. A DEAD HOST IS NOT A DEAD EDITOR. The harness kills the host process; the editor keeps editing,
+//   6. "UNSAVED CHANGES" IS THE HOST'S ANSWER (W3c): an edit lights the indicator, undoing back to the
+//      saved content clears it (a content compare, not a revision count), redo lights it, a save
+//      clears it (saved through the indicator button) — and the editor's own state agrees with the host's at every step.
+//   7. A DEAD HOST IS NOT A DEAD EDITOR. The harness kills the host process; the editor keeps editing,
 //      main forks a fresh host, the editor reconnects and hands it its state, and the two agree again.
 // Restores the whole prefs file, like every harness here.
 
@@ -216,7 +219,58 @@ const clickReverse = (page) => page.evaluate(() => {
       note(!!v && v.mismatched.length === 0, 'after the redo the two sides agree', v ? (v.mismatched.length ? `differ: ${v.mismatched.join(', ')}` : `${v.compared} slices agree`) : 'no answer');
     }
 
-    console.log('\n6. a dead host is not a dead editor');
+    console.log('\n6. "unsaved changes" is the host\'s answer');
+    {
+      const indicator = () => sh(() => {
+        const el = [...document.querySelectorAll('button[title]')].find((e) => /Unsaved changes|Everything is saved|Not stored into/.test(e.getAttribute('title') || ''));
+        return el ? (/Everything is saved/.test(el.getAttribute('title')) ? 'saved' : 'unsaved') : null;
+      });
+      const key = async (k, shift = false) => {
+        await sh(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
+        await page.mouse.move(120, 140);
+        await page.keyboard.down('Control'); if (shift) await page.keyboard.down('Shift');
+        await page.keyboard.press(k);
+        if (shift) await page.keyboard.up('Shift'); await page.keyboard.up('Control');
+      };
+      // SAVE THROUGH THE UI, not Ctrl+S: Ctrl+S is a NATIVE MENU accelerator, and keys sent over CDP never
+      // reach one (measured: two "Ctrl+S" presses, zero saves — the first 'saved' was the project settling).
+      // The indicator button is Save All, which with no scene look pending is a plain save.
+      const save = async () => {
+        const b0 = (await sh(() => window.__showHost.dirty())).baselines;
+        await sh(() => { const el = [...document.querySelectorAll('button[title]')].find((e) => /Unsaved changes|Everything is saved/.test(e.getAttribute('title') || '')); if (el) el.click(); });
+        for (let i = 0; i < 20; i++) { if ((await sh(() => window.__showHost.dirty())).baselines > b0) return true; await sleep(200); }
+        return false;
+      };
+      // Wait for a state, with the host and the indicator agreeing: up to 4 s (the poll is 1 Hz).
+      const settleTo = async (want) => {
+        let ind = null, host = null;
+        for (let i = 0; i < 20; i++) {
+          ind = await indicator(); host = (await sh(() => window.__showHost.dirty())).dirty;
+          if (ind === want && host === (want === 'unsaved')) return { ok: true, ind, host };
+          await sleep(200);
+        }
+        return { ok: false, ind, host };
+      };
+      // Start from a saved file, so every later state has a known reference.
+      let saved = await save();
+      let s = await settleTo('saved');
+      note(saved && s.ok, 'after a save the project reads as saved, on both sides', `indicator ${s.ind}, host dirty ${s.host}`);
+      await clickReverse(page);
+      s = await settleTo('unsaved');
+      note(s.ok, 'an edit makes it unsaved, and the host says so', `indicator ${s.ind}, host dirty ${s.host}`);
+      await key('KeyZ');
+      s = await settleTo('saved');
+      note(s.ok, 'undoing back to the saved content makes it saved again (content, not a revision count)', `indicator ${s.ind}, host dirty ${s.host}`);
+      await key('KeyY');
+      s = await settleTo('unsaved');
+      note(s.ok, 'redo makes it unsaved again', `indicator ${s.ind}, host dirty ${s.host}`);
+      saved = await save();
+      s = await settleTo('saved');
+      note(saved && s.ok, 'saving makes it saved', `indicator ${s.ind}, host dirty ${s.host}`);
+      if (!s.ok) console.log(`        host says these differ from the save: ${JSON.stringify((await sh(() => window.__showHost.verify()))?.unsaved)}`);
+    }
+
+    console.log('\n7. a dead host is not a dead editor');
     const pid1 = await sh(() => window.__showHost.pid());
     const beforeOutage = await reverseBox(page);   // the box as it is NOW (step 5 flipped it since step 3)
     const connects1 = await sh(() => window.__showHost.connects());

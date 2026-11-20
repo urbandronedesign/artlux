@@ -29,7 +29,9 @@ export type ClientToHost =
   // that reloaded always converge on what the editor is showing.
   // `undoable` names the doc slices the undo stacks cover (UNDOABLE_SLICES in the editor). The host
   // learns it here rather than from a second copy of the list.
-  | { t: 'hello'; role: 'editor' | 'panel'; undoable?: string[] }
+  // `projectFile` names the doc slices the project file carries (PROJECT_FILE_SLICES): what "unsaved
+  // changes" compares (W3c).
+  | { t: 'hello'; role: 'editor' | 'panel'; undoable?: string[]; projectFile?: string[] }
   | { t: 'set'; store: StoreName; key: string; value: unknown; seq: number }
   // UNDO LIVES IN THE HOST (W3b). `present` is what the client considers the current document for this
   // op, as OVERRIDES on the host's copy: only the undoable slices whose last-rendered value differs from
@@ -37,6 +39,12 @@ export type ClientToHost =
   // it is what keeps "record captures the document as last rendered" exactly as it was in-process.
   // The client flushes its pending writes before sending this, so the host's copy is otherwise current.
   | { t: 'history'; op: 'record' | 'undo' | 'redo' | 'reset'; present: Slices; seq: number }
+  // UNSAVED CHANGES LIVE IN THE HOST (W3c). "This is what the file on disk now holds": after a save (with
+  // `present` = the slices the WRITTEN payload differs from the store in, the same override rule as
+  // history), and while a freshly opened project settles. `dirty: true` means "the file is behind, and I
+  // cannot tell you by how much" — a reconnect to a fresh host while the editor knows it has unsaved
+  // work; the host then reports dirty until the next real baseline.
+  | { t: 'baseline'; present: Slices; dirty?: boolean; seq: number }
   // Test/diagnostic: the host answers with a digest of every slice, so a harness can prove the
   // replica and the authority hold the same document.
   | { t: 'digest'; req: number };
@@ -46,7 +54,10 @@ export type HostToClient =
   | { t: 'patch'; store: StoreName; key: string; value: unknown; acked: number }
   // After every history op, to every client: what Undo / Redo would do now (a menu's enabled state).
   | { t: 'historyState'; canUndo: boolean; canRedo: boolean; depth: number }
-  | { t: 'digest'; req: number; digests: Record<string, string> };
+  // Whether the document differs from the last baseline. Sent when it flips, and after every baseline.
+  | { t: 'dirty'; dirty: boolean }
+  // `unsaved`: the project-file slices that differ from the last baseline (diagnostic, for harnesses).
+  | { t: 'digest'; req: number; digests: Record<string, string>; unsaved?: string[] };
 
 /** The message main sends the host to hand it one client's port. */
 export interface HostConnect { t: 'connect'; clientId: number }

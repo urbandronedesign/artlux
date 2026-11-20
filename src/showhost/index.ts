@@ -51,11 +51,51 @@ let undoable: string[] = [];
 let past: Slices[] = [];
 let future: Slices[] = [];
 
-function presentDoc(overrides: Slices): Slices {
+function presentDoc(overrides: Slices, keys: string[] = undoable): Slices {
   const doc = stores.doc.get();
   const out: Slices = {};
-  for (const k of undoable) out[k] = k in overrides ? shareEqual(doc[k], overrides[k]) : doc[k];
+  for (const k of keys) out[k] = k in overrides ? shareEqual(doc[k], overrides[k]) : doc[k];
   return out;
+}
+
+// ── UNSAVED CHANGES (W3c) ───────────────────────────────────────────────────────────────────────────
+// The question "does the document differ from the file?" used to be answered in the editor by
+// JSON-stringifying the whole project once a second ON THE UI THREAD (~78 kB). Here it is answered by
+// digests of the project-file slices against the digests at the last baseline, computed only for a
+// slice whose value actually changed (digests are cached per object, and a slice keeps its object
+// unless written: shareEqual), and only after a write, never on a clock. Content, not revisions: an edit
+// and its undo leave the document clean, exactly as the signature compare did.
+let projectFile: string[] = [];
+let saved: Record<string, string> | null = null;
+let forcedDirty = false;
+let lastDirty = false;
+let dirtyTimer: ReturnType<typeof setTimeout> | null = null;
+const digestCache = new WeakMap<object, string>();
+function digestOf(v: unknown): string {
+  if (v && typeof v === 'object') {
+    let d = digestCache.get(v);
+    if (d == null) { d = sliceDigest(v); digestCache.set(v, d); }
+    return d;
+  }
+  return sliceDigest(v);
+}
+function computeDirty(): boolean {
+  if (forcedDirty) return true;
+  if (!saved) return false;
+  const doc = stores.doc.get();
+  for (const k of projectFile) if (digestOf(doc[k]) !== saved[k]) return true;
+  return false;
+}
+function publishDirty(always = false): void {
+  const d = computeDirty();
+  if (d === lastDirty && !always) return;
+  lastDirty = d;
+  for (const c of clients.values()) send(c, { t: 'dirty', dirty: d });
+}
+/** After a write, a moment later (a burst of writes is one evaluation). */
+function scheduleDirty(): void {
+  if (dirtyTimer) return;
+  dirtyTimer = setTimeout(() => { dirtyTimer = null; publishDirty(); }, 150);
 }
 
 /** Restore a snapshot: write each slice that differs, and patch EVERY client (the asker included). */
@@ -65,6 +105,7 @@ function restore(snap: Slices): void {
     stores.doc.set(k, snap[k]);
     for (const c of clients.values()) send(c, { t: 'patch', store: 'doc', key: k, value: snap[k], acked: c.lastSeq });
   }
+  scheduleDirty();
 }
 
 function historyState(): void {
@@ -91,6 +132,9 @@ function onMessage(c: Client, raw: unknown): void {
       // The editor names the undoable slices. A changed list means a different editor build: stacks
       // recorded over the old list would restore the wrong set of slices, so they are dropped.
       if (Array.isArray(m.undoable)) undoable = m.undoable.slice();
+      if (Array.isArray(m.projectFile)) projectFile = m.projectFile.slice();
+      // A new editor page also starts with no baseline: it opens a project and settles it.
+      if (m.role === 'editor') { saved = null; forcedDirty = false; lastDirty = false; }
       // A NEW EDITOR PAGE STARTS A NEW HISTORY, as it did when the stacks lived in the page: a reload
       // (crash recovery, a dev reload) must not let Ctrl+Z restore a snapshot recorded against the
       // previous page's document. (A panel window joining, from W5, keeps the history.)
@@ -106,6 +150,16 @@ function onMessage(c: Client, raw: unknown): void {
       if (Object.is(prev, next)) return;
       stores[m.store].set(m.key, next);
       relay(c, m.store, m.key, next);
+      if (m.store === 'doc') scheduleDirty();
+      return;
+    }
+    case 'baseline': {
+      c.lastSeq = m.seq;
+      const present = presentDoc(m.present ?? {}, projectFile);
+      saved = {};
+      for (const k of projectFile) saved[k] = digestOf(present[k]);
+      forcedDirty = !!m.dirty;
+      publishDirty(true);
       return;
     }
     case 'history': {
@@ -137,7 +191,8 @@ function onMessage(c: Client, raw: unknown): void {
         const all = stores[name].get();
         for (const k of Object.keys(all)) digests[`${name}.${k}`] = sliceDigest(all[k]);
       }
-      send(c, { t: 'digest', req: m.req, digests });
+      const unsaved = saved ? projectFile.filter((k) => digestOf(stores.doc.getSlice(k)) !== saved![k]) : [];
+      send(c, { t: 'digest', req: m.req, digests, unsaved });
       return;
     }
     default:

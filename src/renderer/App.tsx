@@ -37,7 +37,7 @@ import { EditorStore, buildSelection, type EditorData, type EditorActions, type 
 import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc } from './state/docStore';
 // Side-effect import: replicates the two stores above into the Show Host process (E5/W3). The editor
 // works the same with no host; see state/hostLink.ts.
-import { historyOp } from './state/hostLink';
+import { historyOp, hostConnected, hostDirtyNow, markSaved, subscribeHostDirty, subscribeHostConnect } from './state/hostLink';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
@@ -533,8 +533,8 @@ const App: React.FC = () => {
   // who lights what on the wall. Transient, never saved; set by the calibration plugin through
   // host.projectors.setMuted, drawn as a black alignment-aid field (it overrides the global aid).
   const [mutedOutputIds, setMutedOutputIds] = useState<string[]>([]);
-  const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
-  const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
+  const projectorFpsCap = useDocSlice('projectorFpsCap'); const setProjectorFpsCap = sliceSetter('projectorFpsCap'); // docStore slice (W3c) — performance mode: 0 = uncapped
+  const projectorBrightness = useDocSlice('projectorBrightness'); const setProjectorBrightness = sliceSetter('projectorBrightness'); // docStore slice (W3c) — projected content master, separate from the LED master
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   // Installed by the projector frame pump: a window's `frameAck` releases that stream's in-flight slot.
   const projFrameAckRef = useRef<(surfaceId: string, key: string) => void>(() => {});
@@ -2944,6 +2944,24 @@ const App: React.FC = () => {
       return JSON.stringify(rest);
   };
   const docSignature = (): string => signatureOf(buildProjectData());
+  // A written payload, by STORE SLICE name — what markSaved compares against the store. Two fields are
+  // named differently in the file: `audio` is the audioMix slice, and `reserveLockedRanges` is the whole
+  // of patchPolicy (kept as the same object when unchanged, so it is not sent for nothing).
+  const writtenSlices = (data: ReturnType<typeof buildProjectData>): Record<string, unknown> => {
+      const { audio, reserveLockedRanges, ...rest } = data;
+      return {
+          ...rest,
+          audioMix: audio,
+          patchPolicy: reserveLockedRanges === patchPolicy.reserveLockedRanges ? patchPolicy : { ...patchPolicy, reserveLockedRanges },
+      };
+  };
+  // "The file now holds THIS payload." Both baselines move together: the in-process signature (the
+  // no-host fallback) and the Show Host's digests (E5/W3c), so whichever answers next is right.
+  const markDocSaved = (data: ReturnType<typeof buildProjectData>) => {
+      savedDocRef.current = signatureOf(data);
+      setDocDirty(false);
+      markSaved(writtenSlices(data));
+  };
   const docSignatureRef = useRef(docSignature); docSignatureRef.current = docSignature;
   const savedDocRef = useRef<string | null>(null); // the document as last written to / read from disk
   // OPENING DOES NOT END WHEN THE FILE IS PARSED, and that is what made the first three attempts at
@@ -2987,12 +3005,22 @@ const App: React.FC = () => {
   useEffect(() => {
       if (HEADLESS || BROADCAST) return; // no operator, no editing, nothing to warn about
       const id = window.setInterval(() => {
+          // E5/W3c: WITH A SHOW HOST, THE HOST ANSWERS "unsaved?" (subscribeHostDirty, below) from
+          // per-slice digests, off this thread, only after a write. This tick then has one job left:
+          // settling a freshly opened project, which is also when the signature is still computed, so
+          // the no-host fallback always has a current baseline should the host go away later. Without
+          // a host, it is the 1 Hz signature compare it has always been.
+          const viaHost = hostConnected();
+          // …and resyncs from the host's current answer each tick (a boolean read, no stringify): a flip
+          // the host sent while this window was still settling was ignored, and would not be sent again.
+          if (viaHost && !settlingRef.current) { setDocDirty(hostDirtyNow()); return; }
           const sig = docSignatureRef.current();
           if (settlingRef.current) {
               // Two identical ticks with the gate disarmed = the project has stopped opening.
               if (!bootGate.isBooting() && sig === lastSigRef.current) settlingRef.current = false;
               lastSigRef.current = sig;
               savedDocRef.current = sig;
+              if (viaHost) markSaved({});   // the host adopts the settling document as "what the file holds"
               setDocDirty(false);
               return;
           }
@@ -3017,8 +3045,7 @@ const App: React.FC = () => {
               // Signed from THE PAYLOAD THAT WAS WRITTEN, not from current state — with an override in
               // play those two differ until React commits, and signing the state would leave the
               // document reading as modified the moment it was saved.
-              savedDocRef.current = signatureOf(data);
-              setDocDirty(false);
+              markDocSaved(data);
           }
           return path ?? null; // null = the user cancelled the Save dialog (not an error)
       } catch (err) {
@@ -3050,6 +3077,17 @@ const App: React.FC = () => {
   // render would answer with whatever was true before the operator started thinking.
   const docDirtyRef = useRef(docDirty); docDirtyRef.current = docDirty;
   const sceneLookDirtyRef = useRef(sceneLookDirty); sceneLookDirtyRef.current = sceneLookDirty;
+
+  // THE SHOW HOST'S ANSWER (E5/W3c). Ignored while a project settles: that phase adopts every tick as
+  // the baseline and holds the flag down itself (see the poll above).
+  useEffect(() => subscribeHostDirty((d) => { if (!settlingRef.current) setDocDirty(d); }), []);
+  // A (re)connect after settling: a fresh host has no baseline, so it would call every document saved.
+  // Hand it the truth this window holds — clean means "the file is this", dirty means "the file is
+  // behind" (the host then reports dirty until the next save). During settling the poll does it.
+  useEffect(() => subscribeHostConnect(() => {
+      if (settlingRef.current || HEADLESS || BROADCAST) return;
+      markSaved({}, docDirtyRef.current);
+  }), []);
   const confirmRef = useRef(confirm); confirmRef.current = confirm;
   const saveAllRef = useRef(handleSaveAll); saveAllRef.current = handleSaveAll;
 
@@ -3990,7 +4028,7 @@ const App: React.FC = () => {
           // plugin save (every calibration wizard's Apply & finish) left the title on "Unsaved changes"
           // over a file that was already correct — and an operator who trusts that light saves again,
           // or worse, stops trusting it.
-          if (ok) { savedDocRef.current = signatureOf(data); setDocDirty(false); }
+          if (ok) markDocSaved(data);
           return ok;
         }
         catch { return false; }

@@ -18,7 +18,7 @@
 // that is still waiting in here. `window.__showHost.stats()` counts what was sent, per slice, so a
 // harness can assert that nothing writes the document per frame.
 
-import { docStore, sessionStore, UNDOABLE_SLICES } from './docStore';
+import { docStore, sessionStore, UNDOABLE_SLICES, PROJECT_FILE_SLICES } from './docStore';
 import { sliceDigest, type ClientToHost, type HostToClient, type Slices, type StoreName } from '../../../shared/showHostProtocol';
 import type { DocStore } from '../../../shared/docStore';
 import { shareEqual } from '../../../shared/shareEqual';
@@ -39,10 +39,14 @@ let flushQueued = false;
 const sentCount = new Map<string, number>();
 const unclonable = new Set<string>();                 // slices that failed to structured-clone (logged once)
 let connects = 0;
-const digestWaiters = new Map<number, (d: Record<string, string>) => void>();
+const digestWaiters = new Map<number, (d: Record<string, string>, unsaved: string[]) => void>();
 let digestReq = 0;
 let history = { canUndo: false, canRedo: false, depth: 0 };
 const historyOps = new Map<string, number>();
+let hostDirty = false;
+let baselines = 0;
+const dirtyListeners = new Set<(dirty: boolean) => void>();
+const connectListeners = new Set<() => void>();
 
 function post(msg: ClientToHost): boolean {
   if (!port) return false;
@@ -111,8 +115,12 @@ function onHostMessage(m: HostToClient): void {
     case 'historyState':
       history = { canUndo: m.canUndo, canRedo: m.canRedo, depth: m.depth };
       return;
+    case 'dirty':
+      hostDirty = m.dirty;
+      for (const fn of [...dirtyListeners]) fn(m.dirty);
+      return;
     case 'digest':
-      digestWaiters.get(m.req)?.(m.digests);
+      digestWaiters.get(m.req)?.(m.digests, m.unsaved ?? []);
       digestWaiters.delete(m.req);
       return;
   }
@@ -128,10 +136,13 @@ function attach(p: MessagePort): void {
   p.onmessage = (e: MessageEvent) => { try { onHostMessage(e.data as HostToClient); } catch (err) { console.error('[hostLink] host message failed:', err); } };
   p.start();
   connected = true;
-  post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES] });
+  post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES], projectFile: [...PROJECT_FILE_SLICES] });
   history = { canUndo: false, canRedo: false, depth: 0 };   // a new editor page starts a new history
+  hostDirty = false;
   sendAll();
   console.log(`[hostLink] connected to the Show Host (connect #${connects})`);
+  // After the handover, so a listener's baseline is processed against the state just sent (FIFO).
+  for (const fn of [...connectListeners]) { try { fn(); } catch (e) { console.error('[hostLink] connect listener failed:', e); } }
 }
 
 // Watch every slice of both stores. A store's KEYS are fixed at creation (W1's INITIAL objects), so
@@ -156,6 +167,7 @@ if (typeof window !== 'undefined') {
     connects: () => connects,
     stats: () => Object.fromEntries(sentCount),
     history: () => ({ ...history, ops: Object.fromEntries(historyOps) }),
+    dirty: () => ({ dirty: hostDirty, baselines }),
     /**
      * Identity probe for harnesses: a stable small number per OBJECT (WeakMap), for a slice and for each
      * of its array items. Two reads that report the same number are the same object, which is how a
@@ -169,12 +181,12 @@ if (typeof window !== 'undefined') {
     resetStats: () => sentCount.clear(),
     unclonable: () => [...unclonable],
     /** Ask the host for its digests and compare with this replica's. Resolves to the mismatching slices. */
-    verify: (): Promise<{ mismatched: string[]; compared: number } | null> => new Promise((resolve) => {
+    verify: (): Promise<{ mismatched: string[]; compared: number; unsaved: string[] } | null> => new Promise((resolve) => {
       flushToHost();
       const req = ++digestReq;
       if (!post({ t: 'digest', req })) { resolve(null); return; }
       const timer = setTimeout(() => { digestWaiters.delete(req); resolve(null); }, 3000);
-      digestWaiters.set(req, (host) => {
+      digestWaiters.set(req, (host, unsaved) => {
         clearTimeout(timer);
         const mismatched: string[] = [];
         let compared = 0;
@@ -187,7 +199,7 @@ if (typeof window !== 'undefined') {
             if (host[id] !== sliceDigest(all[key])) mismatched.push(id);
           }
         }
-        resolve({ mismatched, compared });
+        resolve({ mismatched, compared, unsaved });
       });
     }),
   };
@@ -209,6 +221,45 @@ function idOf(o: object): number { let n = ids.get(o); if (n == null) { n = next
  * differs from the store's (a write earlier in this same handler) travel as overrides. The restored
  * slices come back as patches, a round trip on a local port, applied through shareEqual.
  */
+/**
+ * UNSAVED CHANGES, IN THE HOST (W3c): "the file on disk now holds this". `present` is the document as it
+ * was WRITTEN (or, while a project settles, as it is), by slice name; only the slices that differ from
+ * the store travel. `dirty: true` = the file is behind by an amount this window cannot state (a
+ * reconnect to a fresh host while it knows it has unsaved work). False when there is no host: the
+ * caller then keeps its own signature compare, as before W3c.
+ */
+export function markSaved(present: Record<string, unknown>, dirty = false): boolean {
+  if (!connected || !port) return false;
+  flushToHost();
+  const overrides: Slices = {};
+  for (const k of PROJECT_FILE_SLICES) {
+    if (k in present && !Object.is(present[k], docStore.getSlice(k))) overrides[k] = present[k];
+  }
+  try {
+    post({ t: 'baseline', present: overrides, dirty, seq: ++seq });
+  } catch (e) {
+    console.warn('[hostLink] baseline could not be sent:', (e as Error).message);
+    return false;
+  }
+  baselines++;
+  return true;
+}
+
+/** The host's latest answer to "does the document differ from the file?". */
+export function hostDirtyNow(): boolean { return hostDirty; }
+
+/** The host's answer to "does the document differ from the file?", every time it flips. */
+export function subscribeHostDirty(fn: (dirty: boolean) => void): () => void {
+  dirtyListeners.add(fn);
+  return () => { dirtyListeners.delete(fn); };
+}
+
+/** Called after every (re)connect, once this window has handed the host its state. */
+export function subscribeHostConnect(fn: () => void): () => void {
+  connectListeners.add(fn);
+  return () => { connectListeners.delete(fn); };
+}
+
 export function historyOp(op: 'record' | 'undo' | 'redo' | 'reset', present: Record<string, unknown>): boolean {
   if (!connected || !port) return false;
   flushToHost();

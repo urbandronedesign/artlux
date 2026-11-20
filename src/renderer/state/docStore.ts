@@ -57,6 +57,10 @@ export interface DocSlices {
   projectorOutputs: ProjectorOutput[];
   outputSpans: OutputSpan[];
   bakes: BakeEntry[];
+  /** Projector performance mode: 0 = uncapped. Saved with the project (E5/W3c moved it out of App). */
+  projectorFpsCap: number;
+  /** Master brightness of projected content, separate from the LED master. Saved with the project. */
+  projectorBrightness: number;
 }
 
 // The initial document — what App's useState initialisers held. Moved here verbatim: a fresh editor
@@ -92,6 +96,8 @@ const INITIAL: DocSlices = {
   projectorOutputs: [],
   outputSpans: [],
   bakes: [],
+  projectorFpsCap: 0,
+  projectorBrightness: 1,
 };
 
 // ─────────────────────────────── THE SESSION — shared, never saved ───────────────────────────────
@@ -141,6 +147,18 @@ export const UNDOABLE_SLICES = [
   'fixtures', 'surfaces', 'groups', 'scenes', 'timeline', 'cueBanks', 'stateMachine', 'audioMix', 'scene3D', 'globalBrightness',
 ] as const satisfies readonly (keyof DocSlices)[];
 export type UndoableDoc = Pick<DocSlices, (typeof UNDOABLE_SLICES)[number]>;
+
+/**
+ * THE SLICES THE PROJECT FILE CARRIES — what "unsaved changes" and autosave are about (E5/W3c). Every
+ * doc slice except `templates`, which is the fixture library in userData, not part of a show. App's
+ * buildProjectData writes exactly these (plus the profiles they reference, derived from `fixtures`).
+ * The Show Host compares them against the last save, and learns the list from the editor's `hello`.
+ */
+export const PROJECT_FILE_SLICES = [
+  'fixtures', 'surfaces', 'groups', 'scenes', 'timeline', 'cueBanks', 'stateMachine', 'audioMix', 'scene3D', 'globalBrightness',
+  'patchPolicy', 'lightingPoses', 'colorPalette', 'schedule', 'controllers', 'assets', 'projectorOutputs', 'outputSpans', 'bakes',
+  'projectorFpsCap', 'projectorBrightness',
+] as const satisfies readonly (keyof DocSlices)[];
 export const sessionStore = createDocStore<SessionSlices>(INITIAL_SESSION);
 
 /** A setter with React's useState contract. Stable: built once per slice, never per render. */
