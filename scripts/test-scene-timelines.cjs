@@ -5,6 +5,10 @@
 // real renderer to verify the reported bug is fixed:
 //   - on open, the timeline editor is bound to the CURRENT scene (initial-state scene), not "Global"
 //   - selecting a scene in the pill shows THAT scene's own timeline (distinct per scene)
+//   - (2026-11-20) a scene OWNS its timeline: there is no fallback to Global any more. Since
+//     Scene.timeline became required, a missing one is normalized to an EMPTY timeline with no layers
+//     (docs/SCENE-TIMELINES.md). So Scene A is seeded with its own one-layer, empty timeline, which is
+//     what makes it editable here; the old "falls back to the global clip" assertion was removed.
 //   - editing while a scene is current attaches to the scene and does NOT leak to the global timeline
 //   - triggering a scene (GO) makes the editor follow it
 //
@@ -28,8 +32,8 @@ const SHOTS = path.join(os.tmpdir(), 'artlux-scene-timeline-test');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------------
-// Crafted project: global timeline + 2 scenes (A has NO own timeline → falls back to global;
-// B owns a distinct timeline), a state machine whose initial state binds Scene A, and cue cells.
+// Crafted project: global timeline + 2 scenes (A owns an EMPTY one-layer timeline; B owns a timeline
+// with one clip), a state machine whose initial state binds Scene A, and cue cells.
 // ---------------------------------------------------------------------------
 function buildProject() {
     const dir = path.join(os.tmpdir(), 'artlux-scene-timeline-proj');
@@ -47,9 +51,9 @@ function buildProject() {
         controllers: [{ id: 'ctrl', name: 'Main', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, priority: 100, startUniverse: 0 }],
         settings: { artNetIp: '127.0.0.1', artNetPort: 6454, outputEnabled: false, broadcast: true, gamma: 1.2, protocol: 'artnet', fps: 44, keepAlive: true, artNetSync: true, oscEnabled: false, oscListenPort: 10000, oscListenAddress: '', oscControlPrefix: '/artlux', helpLang: 'en' },
         globalBrightness: 1, groups: [],
-        // Scene A: NO own timeline (falls back to global). Scene B: its own distinct timeline.
+        // Scene A: its own EMPTY timeline (one layer, no clips). Scene B: its own timeline with one clip.
         scenes: [
-            { id: 'A', name: 'Scene A', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#f5a623' },
+            { id: 'A', name: 'Scene A', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#f5a623', timeline: { ...emptyTl('A', 'unused', effect(1, 0)), clips: [] } },
             { id: 'B', name: 'Scene B', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, accent: '#7ed957', timeline: emptyTl('B', 'SceneBClip', effect(2, 1)) },
         ],
         cueBanks: [{ id: 'bank1', name: 'Bank 1', rows: 8, cols: 16, cues: [], sceneCells: [{ col: 0, sceneId: 'A' }, { col: 1, sceneId: 'B' }] }],
@@ -62,7 +66,7 @@ function buildProject() {
             transitions: [], initialStateId: 'stA', regions: [],
         },
         scene3D: { models: [], lightIntensity: 0.7, environment: false, exposure: 0.8, gridVisible: true, reflectiveFloor: true, trackingViz: false, trackingSmoothing: 0.6, trackingPredictMs: 50, trackingLabels: true, trackingMergePeople: false, trackingMergeRadius: 0.8 },
-        // Global timeline — the shared default; Scene A falls back to this until it is edited.
+        // Global timeline — the shared default. No scene falls back to it; it is edited via the pill.
         timeline: emptyTl('G', 'GlobalClip', effect(1, 0)),
         assets: [], projectorOutputs: [], projectorFpsCap: 30, projectorBrightness: 1,
     };
@@ -94,7 +98,14 @@ async function waitForCdp(deadlineMs) {
 async function findRenderer(browser, deadlineMs) {
     const start = Date.now();
     while (Date.now() - start < deadlineMs) {
-        for (const p of await browser.pages()) { const u = p.url(); if (u.includes(DEV_URL_HINT)) return p; }
+        // The EDITOR page only. The splash (splash.html), the docs window and projector windows are served
+        // from the same dev origin; matching the origin alone grabbed the SPLASH when it registered first,
+        // which then closed under the test as "Attempted to use detached Frame" — an intermittent failure
+        // that looked like a reload (found 2026-11-20 by logging framenavigated).
+        for (const p of await browser.pages()) {
+            const u = p.url();
+            if (u.includes(DEV_URL_HINT) && !/(splash|docs|projector)\.html/.test(u)) return p;
+        }
         await sleep(500);
     }
     throw new Error('No renderer page target found');
@@ -148,8 +159,35 @@ async function pickPill(page, label) {
     });
     if (!btn) throw new Error('pill button not found');
     await page.mouse.click(btn.x, btn.y);
-    await sleep(300);
-    await clickByText(page, label, { exact: true, wait: 700 });
+    await sleep(400);
+    // Pick INSIDE the dropdown only: it is the container that lists "Global timeline". A page-wide text
+    // match found another "Scene B" first (a parked panel still has a size) and the pill never moved.
+    const item = await page.evaluate((lbl) => {
+        const g = [...document.querySelectorAll('span')].find((s) => s.textContent.trim() === 'Global timeline');
+        let box = g; while (box && ![...box.querySelectorAll('button')].some((b) => /Scene/.test(b.textContent))) box = box.parentElement;
+        if (!box) return null;
+        const b = [...box.querySelectorAll('button')].find((x) => {
+            const name = [...x.querySelectorAll('span')].map((s) => s.textContent.trim());
+            return name.includes(lbl) || x.textContent.trim() === lbl;
+        });
+        if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, label);
+    if (!item) throw new Error(`pill dropdown entry "${label}" not found`);
+    await page.mouse.click(item.x, item.y);
+    await sleep(700);
+    await discardStoreDialog(page);
+}
+
+// Recalling a scene while the live look differs from the stored one asks "Store your changes into
+// <scene> first?" (shipped after this harness was written). The seeded scenes hold no captured look, so
+// the dialog appears on every recall. Answer DISCARD: this test asserts timelines, and Update-scene
+// would rewrite the very scenes it is measuring. Optional, because a recall with no change asks nothing.
+async function discardStoreDialog(page) {
+    const b = await page.evaluate(() => {
+        const x = [...document.querySelectorAll('button')].find((e) => /^Discard\s*&\s*continue$/i.test((e.innerText || '').replace(/\s+/g, ' ').trim()));
+        if (!x) return null; const r = x.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    if (b) { await page.mouse.click(b.x, b.y); await sleep(700); }
 }
 
 // Click the GO button inside the Scenes/Cues cell that contains a given scene name.
@@ -166,19 +204,68 @@ async function goScene(page, name) {
     if (!box) throw new Error(`GO for "${name}" not found`);
     await page.mouse.click(box.x, box.y);
     await sleep(600);
+    await discardStoreDialog(page);
 }
 
-// Right-click an empty part of the first lane and add an EFFECT clip via the content menu.
+// THE TIMELINE IS A DRAWER (CLAUDE.md), collapsed to a strip by default, and its open state is banked
+// PER CONTEXT. Its toggle is `button[aria-controls="workspace-bottom"]`, and it is NOT hit-testable:
+// PersistentLayer draws the timeline's own toolbar over the strip, so a MOUSE click at the toggle's
+// centre lands inside that toolbar and the drawer stays shut (measured 2026-11-20: elementFromPoint at
+// the toggle returned the toolbar div). Hence a DOM click(), then proof via aria-expanded. Never Ctrl+T
+// blind: it toggles (artlux-cdp-harness-traps).
+async function openTimeline(page) {
+    const state = await page.evaluate(() => {
+        const b = document.querySelector('button[aria-controls="workspace-bottom"]');
+        if (!b) return 'missing';
+        if (b.getAttribute('aria-expanded') !== 'true') b.click();
+        return 'ok';
+    });
+    if (state === 'missing') throw new Error('timeline drawer toggle not found');
+    await page.waitForFunction(
+        () => document.querySelector('button[aria-controls="workspace-bottom"]')?.getAttribute('aria-expanded') === 'true',
+        { timeout: 5000 });
+    await sleep(800);
+}
+
+// Switch workbench via its rail button (title "Scenes & Cues — …"); the rail shows only the short title.
+async function goContext(page, title) {
+    const box = await page.evaluate((t) => {
+        const b = [...document.querySelectorAll('button[title]')].find((x) => x.title.startsWith(t + ' —'));
+        if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, title);
+    if (!box) throw new Error(`rail button "${title}" not found`);
+    await page.mouse.click(box.x, box.y);
+    await sleep(900);
+}
+
+// Right-click the BODY of the first track row and pick Effect in the "Add clip" menu. Rows are found
+// by their sticky gutter cell, the reliable handle (see test-timeline-rightclick.cjs), so this works on
+// an EMPTY lane, which is what a scene's own fresh timeline is.
 async function addEffectClip(page) {
     const spot = await page.evaluate(() => {
-        const clip = [...document.querySelectorAll('[title]')].find((e) => / — \d/.test(e.getAttribute('title') || ''));
-        if (!clip) return null; const r = clip.getBoundingClientRect();
-        return { x: r.right + 220, y: r.top + r.height / 2 }; // empty lane area to the right of a clip
+        const sc = [...document.querySelectorAll('div.overflow-auto')].find((d) => /Tracks/.test(d.innerText || ''));
+        if (!sc) return null;
+        const sr = sc.getBoundingClientRect();
+        // A TRACK row, not the state-machine strip above the tracks: a track's gutter holds its name in an
+        // <input> (the state strip's says "disabled · edit" and has none).
+        const row = [...sc.querySelectorAll('div')]
+            .filter((d) => { const cs = (d.className || '').toString(); return /sticky/.test(cs) && /left-0/.test(cs) && d.querySelector('input'); })
+            .map((d) => d.getBoundingClientRect())
+            .find((r) => r.height > 12 && r.y > sr.y + 22 && r.y + Math.min(r.height, 26) < sr.bottom - 2);
+        if (!row) return null;
+        return { x: Math.round(sr.x + 420), y: Math.round(row.y + Math.min(row.height, 26) / 2) };
     });
-    if (!spot) throw new Error('no clip found to locate a lane');
+    if (!spot) throw new Error('no track row found to right-click');
     await page.mouse.click(spot.x, spot.y, { button: 'right' });
-    await sleep(400);
-    await clickByText(page, 'Effect', { exact: true, wait: 600 });
+    await sleep(600);
+    const eff = await page.evaluate(() => {
+        const menu = [...document.querySelectorAll('div.fixed')].find((d) => /add clip/i.test(d.innerText || ''));
+        const b = menu && [...menu.querySelectorAll('button')].find((x) => (x.innerText || '').trim() === 'Effect');
+        if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    if (!eff) throw new Error('"Add clip" menu with an Effect source did not open');
+    await page.mouse.click(eff.x, eff.y);
+    await sleep(600);
 }
 
 async function shoot(page, name) {
@@ -216,8 +303,7 @@ async function main() {
         browser = await puppeteer.connect({ browserWSEndpoint: ver.webSocketDebuggerUrl, defaultViewport: null });
         const page = await findRenderer(browser, 30000);
         page.on('pageerror', (e) => console.log(`[page-error] ${e.message}`));
-        page.on('console', (m) => { if (m.type() === 'error') console.log(`[page-console-error] ${m.text()}`); });
-        await page.waitForFunction(() => document.body && /Surfaces|Fixtures/i.test(document.body.innerText), { timeout: 60000 });
+        page.on('console', (m) => { if (m.type() === 'error') console.log(`[page-console-error] ${m.text()}`); });        await page.waitForFunction(() => document.body && /Surfaces|Fixtures/i.test(document.body.innerText), { timeout: 60000 });
 
         orig = await page.evaluate(async () => (await window.artlux.getPrefs())?.lastProjectPath ?? null);
         await page.evaluate((p) => window.artlux.setPrefs({ lastProjectPath: p }), proj);
@@ -225,18 +311,17 @@ async function main() {
         await page.waitForFunction(() => document.body && /Surfaces|Fixtures/i.test(document.body.innerText), { timeout: 60000 });
         await sleep(2500);
 
-        // Open the Timeline dock.
-        await clickByText(page, 'Timeline', { wait: 800 });
-        await sleep(800);
+        // Open the timeline drawer.
+        await openTimeline(page);
         await shoot(page, '01-loaded-timeline.png');
 
         // 1. On load, the editor is bound to the current scene (initial-state scene = Scene A), not Global.
         const pill1 = await readPill(page);
         check('load binds to current scene (initial state), not Global', pill1 === 'Scene A', `pill = ${JSON.stringify(pill1)}`);
 
-        // 2. Scene A has no own timeline → falls back to the global timeline's clips.
+        // 2. Scene A shows ITS OWN (empty) timeline — no fallback to Global.
         const clipsA0 = await readClips(page);
-        check('Scene A (no own tl) shows global fallback clips', sameSet(clipsA0, ['GlobalClip']), `clips = ${JSON.stringify(clipsA0)}`);
+        check('Scene A shows its own empty timeline, not the global clip', sameSet(clipsA0, []), `clips = ${JSON.stringify(clipsA0)}`);
 
         // 3. Pill → Scene B shows B's OWN distinct timeline.
         await pickPill(page, 'Scene B');
@@ -258,7 +343,7 @@ async function main() {
         await addEffectClip(page);
         await sleep(600); await shoot(page, '03-sceneA-edited.png');
         const clipsAedit = await readClips(page);
-        check('editing Scene A attaches the new clip to Scene A', sameSet(clipsAedit, ['GlobalClip', 'Effect']), `clips = ${JSON.stringify(clipsAedit)}`);
+        check('editing Scene A attaches the new clip to Scene A', sameSet(clipsAedit, ['Effect']), `clips = ${JSON.stringify(clipsAedit)}`);
 
         // 6. KEY: the edit must NOT have leaked into the global timeline.
         await pickPill(page, 'Global timeline');
@@ -270,13 +355,12 @@ async function main() {
         await pickPill(page, 'Scene A');
         await sleep(500);
         const clipsAback = await readClips(page);
-        check('Scene A retained its edited timeline', sameSet(clipsAback, ['GlobalClip', 'Effect']), `clips = ${JSON.stringify(clipsAback)}`);
+        check('Scene A retained its edited timeline', sameSet(clipsAback, ['Effect']), `clips = ${JSON.stringify(clipsAback)}`);
 
         // 8. Follows GO: trigger Scene B from the Scenes/Cues panel → editor follows.
-        await clickByText(page, 'Scenes & Cues', { wait: 700 });
-        await sleep(500);
+        await goContext(page, 'Scenes & Cues');
         await goScene(page, 'Scene B');
-        await clickByText(page, 'Timeline', { wait: 700 });
+        await openTimeline(page);   // the drawer's open state is banked per context
         await sleep(600); await shoot(page, '05-after-go-B.png');
         const pillAfterGo = await readPill(page);
         check('editor follows GO (→ Scene B)', pillAfterGo === 'Scene B', `pill = ${JSON.stringify(pillAfterGo)}`);

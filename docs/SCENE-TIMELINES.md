@@ -308,11 +308,13 @@ to the initial-state scene (not Global); each scene renders its own timeline; ed
 to it and **does not leak** into the global timeline; the editor **follows GO**. Extend this harness for
 future timeline-UI tests. (Reuses the launch/connect plumbing from `scripts/capture-docs.cjs`.)
 
-> ⚠ **Harness note (stale premise):** this script still seeds a Scene A with **no** `timeline` field and
-> a comment expecting it to "fall back to global." Since `Scene.timeline` became required, the loader
-> normalizes a missing timeline to an **empty** one (`normalizeTimeline`, `App.tsx`), so that scene now
-> renders empty, not the global clip. The fallback assertion is obsolete — update the harness before
-> relying on it.
+> **Harness note (updated 2026-11-20, 10/10 passing):** Scene A is seeded with its **own empty one-layer
+> timeline** and asserted to render empty — there is no fallback to Global since `Scene.timeline` became
+> required (`normalizeTimeline`). The harness also handles three things the UI grew after it was written:
+> the timeline is a collapsed **drawer** (opened via its `aria-controls="workspace-bottom"` toggle with a
+> DOM click, because the timeline's toolbar is drawn over that toggle), a recall asks **"Store your
+> changes into … first?"** (answered *Discard*), and the **splash window** shares the dev origin, so the
+> page finder must exclude `splash.html` or it intermittently attaches to a window that then closes.
 
 ## Verify (manual)
 
