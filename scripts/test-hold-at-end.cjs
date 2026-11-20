@@ -120,7 +120,9 @@ async function waitForCdp(deadlineMs) {
 async function findRenderer(browser, deadlineMs) {
     const start = Date.now();
     while (Date.now() - start < deadlineMs) {
-        for (const p of await browser.pages()) { const u = p.url(); if (u.includes(DEV_URL_HINT)) return p; }
+        // The EDITOR page only: the splash, docs and projector windows share the dev origin, and the splash
+        // closes under the test ("Attempted to use detached Frame") when it happens to register first.
+        for (const p of await browser.pages()) { const u = p.url(); if (u.includes(DEV_URL_HINT) && !/(splash|docs|projector)\.html/.test(u)) return p; }
         await sleep(500);
     }
     throw new Error('No renderer page target found');
@@ -145,6 +147,33 @@ async function clickByText(page, text, opts = {}) {
     return true;
 }
 async function shoot(page, name) { try { await page.screenshot({ path: path.join(SHOTS, name) }); } catch {} }
+
+// THE TIMELINE IS A DRAWER, not a workbench (there is no 'Time' rail entry any more). Its toggle is
+// button[aria-controls="workspace-bottom"], covered by the timeline's own toolbar, so a mouse click at
+// its centre misses: DOM click(), then proof via aria-expanded (see test-scene-timelines.cjs).
+async function openTimeline(page) {
+    const ok = await page.evaluate(() => {
+        const b = document.querySelector('button[aria-controls="workspace-bottom"]');
+        if (!b) return false;
+        if (b.getAttribute('aria-expanded') !== 'true') b.click();
+        return true;
+    });
+    if (!ok) throw new Error('timeline drawer toggle not found');
+    await page.waitForFunction(
+        () => document.querySelector('button[aria-controls="workspace-bottom"]')?.getAttribute('aria-expanded') === 'true',
+        { timeout: 5000 });
+    await sleep(800);
+}
+// Switch workbench through its rail button, whose title is "<full title> — <cluster>".
+async function goContext(page, title) {
+    const box = await page.evaluate((t) => {
+        const b = [...document.querySelectorAll('button[title]')].find((x) => x.title.startsWith(t + ' —'));
+        if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, title);
+    if (!box) throw new Error(`rail button "${title}" not found`);
+    await page.mouse.click(box.x, box.y);
+    await sleep(900);
+}
 
 // ---------------------------------------------------------------------------
 // In-page readers. All of these read what an OPERATOR sees, deliberately: the numbers behind them are
@@ -218,10 +247,9 @@ async function main() {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => !!window.artlux && document.querySelectorAll('button').length > 3, { timeout: 60000 });
         await sleep(2500);
-        // The shell is context-driven: the left rail carries SHORT titles ('Time' for the Timeline
-        // workbench), not the context's full name. Click the rail, not a tab.
-        await clickByText(page, 'Time', { exact: true, wait: 900 });
-        await sleep(600);
+        // The timeline is a DRAWER (8 of 9 workbenches name it as their bottom), so open it in whatever
+        // workbench the project opened in. There is no 'Time' workbench any more.
+        await openTimeline(page);
 
         // ── BEFORE the hold: the state is playing its 3 s and the gated edge must be refused. ───────
         const early = {
@@ -283,9 +311,9 @@ async function main() {
         // can script a person walking around; a UI harness cannot). This is the WIRING: the plugin's
         // panel reaches the Tracking context, and a zone drawn there lands in Scene3D — i.e. in the
         // project file — through the host service rather than in some plugin-local state.
-        await clickByText(page, 'Track', { exact: true, wait: 900 });
+        await goContext(page, 'Venue & Rig');
         const zoneTab = await clickByText(page, 'Trigger Zones', { wait: 900, optional: true });
-        check('the Trigger Zones panel reaches the Tracking workbench', zoneTab === true);
+        check('the Trigger Zones panel reaches the Venue & Rig workbench', zoneTab === true);
         if (zoneTab) {
             await shoot(page, '04-zones.png');
             const before = await page.evaluate(() => document.body.innerText.includes('drag on the map to draw a zone'));
@@ -296,8 +324,8 @@ async function main() {
             // …and it is APP state, not panel-local: leave the workbench and come back. The panel is
             // unmounted in between, so a zone that survives can only have been written through
             // host.scene3D.patch into the project — which is what makes it save and recall.
-            await clickByText(page, 'Time', { exact: true, wait: 700 });
-            await clickByText(page, 'Track', { exact: true, wait: 700 });
+            await goContext(page, 'Mapping');
+            await goContext(page, 'Venue & Rig');
             await clickByText(page, 'Trigger Zones', { wait: 800, optional: true });
             const survived = await page.evaluate(() => document.body.innerText.includes('Zone 1'));
             check('the zone lives in the project, not in the panel', survived === true);
