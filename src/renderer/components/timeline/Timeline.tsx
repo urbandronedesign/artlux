@@ -74,9 +74,15 @@ function enumerateAutomationDefs(): Map<string, AutomationTargetDef> {
 // every project — including the overwhelming majority where nothing had changed since the app started.
 // Comparing is cheap; a render of this panel is 22 ms. Every field a lane DRAWS is in the signature (the
 // axis, the label, the step, the unit), because a provider relabelling a target must still reach the screen.
+//
+// `def` is NOT, and must not be put back. Providers report the parameter's CURRENT value there, so with
+// it in the signature every value edit anywhere (the master brightness, a surface opacity, a fixture
+// channel) re-rendered the whole timeline within the second, for a number only a lane with no keys
+// shows, and that readout reads the provider live (AutomationLane.liveNow), as addLane does.
+// Found by scripts/test-panel-renders.cjs (E5/W2), which fails if a brightness edit renders the timeline.
 function defsSignature(m: Map<string, AutomationTargetDef>): string {
   const rows: string[] = [];
-  for (const d of m.values()) rows.push(`${d.path}|${d.label}|${d.group}|${d.min}|${d.max}|${d.def}|${d.step ?? ''}|${d.unit ?? ''}|${d.log ? 1 : 0}`);
+  for (const d of m.values()) rows.push(`${d.path}|${d.label}|${d.group}|${d.min}|${d.max}|${d.step ?? ''}|${d.unit ?? ''}|${d.log ? 1 : 0}`);
   return rows.sort().join('');
 }
 
@@ -168,7 +174,10 @@ const AddRow: React.FC<{
   </button>
 );
 
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
+// React.memo'd (E5/W2): App hands this stable props (useStableHandlers / useMemo), so an App render
+// that changes nothing the timeline shows no longer reconciles it. Its live state (playhead, colour
+// swatches, lane readouts) arrives through its own engine/signal subscriptions, never a parent render.
+const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const toast = useToast();
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
@@ -2585,3 +2594,5 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     </div>
   );
 };
+
+export const Timeline = React.memo(TimelineImpl);

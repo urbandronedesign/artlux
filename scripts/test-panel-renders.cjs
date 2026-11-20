@@ -18,6 +18,12 @@
 // The edit is the inspector's "Reverse Direction" checkbox: a pure fixture change that leaves the
 // selection alone (a selection change legitimately re-renders every panel — `selection` is a PanelBody
 // prop, because panels' applicability is decided by it).
+//
+// Step 2 is the persistent VIEWPORTS — the timeline and the 3D view, which App renders with props, not
+// through PanelBody. The edit is the LED master brightness: App state neither takes. Before the viewport
+// half of W2 that edit rendered the timeline ×3 and the 3D view ×1 (inline lambdas and lists, plus the
+// timeline's automation-target poll keying on each target's current value); after it, 0 and 0. When a
+// viewport does render, the report says why: which props changed identity, or which state hook did.
 
 const { spawn, execSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -97,6 +103,8 @@ function installRenderCounter() {
   // untouched editor fiber looked new — the source of a SurfacesPanel count that varied 1–3 across runs
   // while an in-component log proved its body never ran.
   const prevTrees = new WeakMap();
+  const whyNames = new Set(['TimelineImpl', 'Timeline', 'Simulator3D']);
+  const why = [];
   let prevTree = new WeakSet();
   let mounted = new Map();   // name -> instances present in the last committed tree
   let nextTree = null;
@@ -115,6 +123,24 @@ function installRenderCounter() {
                                        : f.memoizedProps !== f.alternate.memoizedProps);
         const n = nameOf(f.type) || nameOf(f.elementType);
         if (did && n) counts.set(n, (counts.get(n) || 0) + 1);
+        // Why did it render? For the viewports under test, record which props changed identity, or, when
+        // none did, which state hooks changed (slot index + value). Diagnostic only, read via whyRendered().
+        // It is what found the timeline's poll: hook #14 = the automation-target {map, sig} state.
+        if (did && n && whyNames.has(n) && f.alternate) {
+          const a = f.alternate.memoizedProps || {}, b = f.memoizedProps || {};
+          const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => a[k] !== b[k]);
+          let reason = keys.length ? keys.join(',') : '(no prop changed: state/context)';
+          if (!keys.length) {
+            const changed = [];
+            for (let h = f.memoizedState, g = f.alternate.memoizedState, i = 0; h && g; h = h.next, g = g.next, i++) {
+              const v = h.memoizedState, w = g.memoizedState;
+              const isState = h.queue && typeof h.queue.dispatch === 'function';
+              if (isState && v !== w) changed.push(`#${i}=${typeof v === 'object' ? JSON.stringify(v)?.slice(0, 60) : String(v)}`);
+            }
+            reason += ` hooks[${changed.join(' ')}] ctx=${!!(f.dependencies && f.dependencies.firstContext)}`;
+          }
+          why.push(`${n}: ${reason}`);
+        }
       }
       if (f.child) walk(f.child);
     }
@@ -133,7 +159,8 @@ function installRenderCounter() {
     },
   };
   window.__renderCounts = {
-    reset() { counts.clear(); },
+    reset() { counts.clear(); why.length = 0; },
+    whyRendered() { return why.slice(); },
     read() { return Object.fromEntries(counts); },
     mounted() { return Object.fromEntries(mounted); },
   };
@@ -226,6 +253,54 @@ const clickReverse = (page) => page.evaluate(() => {
     note(n('SurfacesPanel') === 0, 'the surfaces browser (reads surfaces only) did NOT re-render', `SurfacesPanel ×${n('SurfacesPanel')}`);
     const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}×${v}`).join(' ');
     console.log(`        rendered in that edit: ${top}`);
+
+    // ── 2. the persistent viewports ─────────────────────────────────────────────────────────────
+    // The timeline and the 3D view are not registry panels: App renders them with props. Before W2's
+    // viewport half they got fresh lambdas and lists on every App render and re-rendered with it. The
+    // edit here is the LED master brightness — App state that neither viewport takes as a prop — and
+    // the positive control is the panel that does read it.
+    // The 3D view is lazy-but-sticky: visiting its context mounts it, and it stays mounted afterwards.
+    await clickRail(page, '3D');
+    await sleep(3000);
+    await clickRail(page, 'Map');
+    await sleep(1500);
+    const m2 = await page.evaluate(() => window.__renderCounts.mounted());
+    // The timeline is "TimelineImpl" behind its memo; before W2 the same component was "Timeline". Both are
+    // counted so this harness can run on the pre-change commit as a negative control.
+    const TL = (o) => (o.TimelineImpl || 0) + (o.Timeline || 0);
+    console.log('\n2. a master-brightness edit: App state that neither viewport reads');
+    note(TL(m2) === 1 && (m2.Simulator3D || 0) === 1,
+      'the timeline and the 3D view are each mounted exactly once',
+      `timeline ${TL(m2)} · Simulator3D ${m2.Simulator3D || 0}`);
+    // Driven by POINTER, never the keyboard: the timeline owns window-level keys (useTimelineKeys), so
+    // an arrow key would make the timeline render for its OWN reason and fail this check falsely.
+    // The value is set through the native setter (React tracks the last value it saw), then the input
+    // event plays the drag and pointerup the release, which is when the Slider commits to App state.
+    const slid = await page.evaluate(() => {
+      const lab = [...document.querySelectorAll('label')].find((e) => (e.textContent || '').trim() === 'LED Brightness');
+      const r = lab && document.getElementById(lab.htmlFor);
+      if (!r) return null;
+      window.__renderCounts.reset();
+      const from = Number(r.value);
+      const to = from > 0.5 ? from - 0.1 : from + 0.1;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(r, String(to));
+      r.dispatchEvent(new Event('input', { bubbles: true }));
+      r.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      return { from, to };
+    });
+    if (slid === null) throw new Error('no LED Brightness slider on screen');
+    // 2.5 s, longer than the timeline's 1 Hz automation-target poll, so a pass cannot be the luck of a
+    // window the poll missed. That poll is what rendered the timeline here before `def` left its
+    // signature (see defsSignature in Timeline.tsx); every pre-fix run failed with it.
+    await sleep(2500);
+    const c2 = await page.evaluate(() => window.__renderCounts.read());
+    const n2 = (k) => c2[k] || 0;
+    note(n2('GlobalParamsPanel') > 0, 'POSITIVE CONTROL: the brightness panel re-rendered', `GlobalParamsPanel ×${n2('GlobalParamsPanel')}`);
+    const why2 = await page.evaluate(() => window.__renderCounts.whyRendered());
+    note(TL(c2) === 0, 'the timeline did NOT re-render', `timeline ×${TL(c2)}${why2.length ? ` — ${why2.join(' | ')}` : ''}`);
+    note(n2('Simulator3D') === 0, 'the 3D view did NOT re-render', `Simulator3D ×${n2('Simulator3D')}`);
+    const top2 = Object.entries(c2).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}×${v}`).join(' ');
+    console.log(`        rendered in that edit: ${top2}`);
   } catch (e) {
     failures++;
     console.error('\nharness error:', e.message);

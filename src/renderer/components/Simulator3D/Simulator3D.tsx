@@ -821,4 +821,7 @@ const Simulator3D: React.FC<Props> = ({
   );
 };
 
-export default Simulator3D;
+// React.memo'd (E5/W2): App hands this stable props, so an App render that touches nothing in the
+// 3D view no longer reconciles the whole r3f tree. Per-frame state (LED colours, beams, pan/tilt) is
+// read inside useFrame and by the children's own subscriptions, never through a parent render.
+export default React.memo(Simulator3D);

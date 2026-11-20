@@ -7525,6 +7525,44 @@ check(
   },
 );
 
+// ── The timeline and the 3D view hold still across unrelated App renders (E5/W2) ──────────────────
+// They are not registry panels: App renders them with props, so PanelBody does nothing for them. Each is
+// React.memo'd, and App hands them handlers through useStableHandlers and derived lists through useMemo.
+// One inline `() => …` or `.map(…)` in their JSX is enough to make the memo compare fail on every App
+// render: the whole timeline (≈22 ms) and the whole r3f tree reconciled again, silently. Measured by
+// scripts/test-panel-renders.cjs step 2 (before: timeline ×3, 3D ×1 per brightness edit; after: 0, 0).
+//
+// The timeline's automation-target poll is part of the same property: `def` is a target's CURRENT value,
+// so in defsSignature it made every value edit anywhere re-render the timeline within the second.
+check(
+  'the timeline and the 3D view are memoized and get stable props; the target poll ignores values',
+  'An inline lambda or list in their JSX, a dropped React.memo, or `def` back in defsSignature makes the ' +
+  'timeline and the 3D view re-render on App renders that change nothing they show — no error, just cost.',
+  () => {
+    const problems = [];
+    const app = read('src/renderer/App.tsx');
+    for (const tag of ['TimelinePanel', 'Simulator3D']) {
+      const els = app.match(new RegExp(`<${tag}\\b[\\s\\S]*?\\/>`, 'g')) || [];
+      if (!els.length) problems.push(`App.tsx renders no <${tag}> — this check is looking at the wrong file`);
+      for (const el of els) {
+        const props = [...el.matchAll(/(\w+)=\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g)];
+        for (const [, name, value] of props) {
+          if (/=>/.test(value)) problems.push(`<${tag} ${name}> is an inline function — route it through useStableHandlers`);
+          else if (/\.(map|flatMap|filter|concat|slice)\(/.test(value)) problems.push(`<${tag} ${name}> builds a list inline — useMemo it`);
+          else if (/^\s*[[{]/.test(value)) problems.push(`<${tag} ${name}> is an inline object/array literal — useMemo it`);
+        }
+      }
+    }
+    if (!/export const Timeline = React\.memo\(/.test(read('src/renderer/components/timeline/Timeline.tsx'))) problems.push('Timeline is no longer exported as React.memo(...)');
+    if (!/export default React\.memo\(Simulator3D\)/.test(read('src/renderer/components/Simulator3D/Simulator3D.tsx'))) problems.push('Simulator3D is no longer exported as React.memo(Simulator3D)');
+    const tl = read('src/renderer/components/timeline/Timeline.tsx');
+    const sig = tl.match(/function defsSignature\([\s\S]*?\n\}/);
+    if (!sig) problems.push('could not find defsSignature in Timeline.tsx');
+    else if (/\.def\b/.test(sig[0])) problems.push('defsSignature reads `def` (a target\'s current value) — every value edit would re-render the timeline');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

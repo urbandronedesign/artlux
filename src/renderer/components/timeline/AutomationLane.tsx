@@ -20,6 +20,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
 import { type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane } from '../../services/automation';
+import { automationTargetRegistry } from '../../host/registries';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER } from './geometry';
 import { Trash2, Zap, ZapOff, Diamond, AlertTriangle, Settings2, Send } from 'lucide-react';
@@ -127,7 +128,12 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   const liveNow = () => {
     const d = defRef.current;
     const t = clockRef.current === 'show' ? engine.getShowTime() : engine.getPlayhead();
-    return kfsRef.current.length ? sampleLane(kfsRef.current, t, { i: -1 }, d?.log ?? false) : (d?.def ?? 0);
+    if (kfsRef.current.length) return sampleLane(kfsRef.current, t, { i: -1 }, d?.log ?? false);
+    // A lane with no keys drives nothing, so it shows the parameter's own value, read LIVE from its
+    // provider the way addLane seeds a new lane. `def` is only the value at the last time the target SET
+    // changed: Timeline keeps it out of defsSignature on purpose, so a value edit never refreshes it.
+    const live = d ? automationTargetRegistry.get(d.path.split('.')[0])?.get(d.path) : undefined;
+    return typeof live === 'number' ? live : (d?.def ?? 0);
   };
   // FORMAT IN THE OPERATOR'S UNIT, NOT THE STORED ONE. A profiled channel STORES 0..1 — that is what
   // reaches `Fixture.dmx` and what the clamp works on — but is AUTHORED in degrees, so a Pan lane now

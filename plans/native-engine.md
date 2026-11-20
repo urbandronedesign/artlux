@@ -365,9 +365,17 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > external store) + the `PanelBody` memo boundary around every registry panel; all 39 panel reads
 > migrated; lidar ZonePanel now subscribes to zones (the one render-time read the audit found).
 > `scripts/test-panel-renders.cjs`, one fixture edit: unrelated panels **2 renders → 0**, fixtures panel
-> 2 → 1. Guarded by verify:invariants. **Still open in W2:** the persistent viewports (TimelinePanel,
-> Simulator3D) get inline props from App and re-render on every App render — stabilise their props.
-> Then **W3** (Show Host).
+> 2 → 1. Guarded by verify:invariants.
+>
+> ✅ **W2 (persistent viewports) done 2026-11-20 — W2 complete.** `Timeline` and `Simulator3D` are
+> React.memo'd; App hands them handlers through `useStableHandlers` and derived lists (`cues`, the
+> author bundle, calibration picks) through `useMemo`. Step 2 of `test-panel-renders.cjs` (a master
+> brightness edit, App state neither viewport reads): timeline **3 → 0** renders, 3D view **1 → 0**.
+> It also found a second cause on the timeline. The automation-target poll used each target's `def`,
+> which is the parameter's *current value*, in its change signature, so any value edit anywhere
+> re-rendered the whole timeline within the second. `def` is out of the signature now, and a keyless
+> lane reads its value live from the provider. Guarded by verify:invariants (mutation-tested). Next:
+> **W3** (Show Host).
 
 | WP | What | Size |
 |---|---|---|

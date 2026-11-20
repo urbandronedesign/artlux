@@ -2414,7 +2414,18 @@ const App: React.FC = () => {
   };
   // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
   // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
-  const timelineAuthor = {
+  //
+  // Memoized (E5/W2): the timeline is React.memo'd, and this object is one of its props, so a fresh one
+  // per App render would defeat the memo on every render. The data half is rebuilt only when the scenes
+  // or the bound scene change; the callbacks forward to today's closures through useStableHandlers.
+  const timelineAuthorHandlers = useStableHandlers({
+    onSelect: (sid: string | null) => { if (sid) enterAuthor(sid); else exitToGlobal(); },
+    onSave: handleSaveState,
+    onPrev: () => authorStep(-1),
+    onNext: () => authorStep(1),
+    onNew: handleCreateState,
+  });
+  const timelineAuthor = useMemo(() => ({
     activeSceneId,
     activeName: activeScene ? activeScene.name : 'Global',
     activeAccent: activeScene?.accent ?? GLOBAL_ACCENT,
@@ -2423,12 +2434,12 @@ const App: React.FC = () => {
     // `holdsAtEnd` mirrors the engine's own rule (LOOP WINS — a wrapping clock never reaches an end),
     // so the graph never advertises a hold the transport will not perform.
     scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop })),
-    onSelect: (sid: string | null) => { if (sid) enterAuthor(sid); else exitToGlobal(); },
-    onSave: handleSaveState,
-    onPrev: () => authorStep(-1),
-    onNext: () => authorStep(1),
-    onNew: handleCreateState,
-  };
+    onSelect: timelineAuthorHandlers.onSelect,
+    onSave: timelineAuthorHandlers.onSave,
+    onPrev: timelineAuthorHandlers.onPrev,
+    onNext: timelineAuthorHandlers.onNext,
+    onNew: timelineAuthorHandlers.onNew,
+  }), [activeSceneId, activeScene, scenes, timelineAuthorHandlers]);
   // THE BED, handed to the timeline panel — and ONLY while Global is bound.
   //
   // `undefined` while a scene is bound is not a nicety: it is the single line that enforces "never draw
@@ -5239,6 +5250,43 @@ const App: React.FC = () => {
     onRecordHistory: recordHistory,
     onToggle3DMax: handleToggle3DMax,
   });
+  // ── Stable props for the timeline and the 3D view (E5/W2) ────────────────────────────────────────
+  // The same treatment as the Stage, for the other two persistent viewports. Both are React.memo'd;
+  // these give the memo something that holds still: handlers through useStableHandlers, derived lists
+  // through useMemo. Without them every App render (a fixture edit, a context switch, a selection)
+  // reconciled the whole timeline and the whole r3f tree for nothing.
+  //
+  // The optional calibration handlers stay CONDITIONAL at the call site: `undefined` is meaningful to
+  // Simulator3D (it disables the gesture), so only the function identity is stabilised, never its presence.
+  const timelineHandlers = useStableHandlers({
+    onChange: handleTimelineChange,
+    onRegisterAsset: handleRegisterAsset,
+    onTogglePlay: () => setIsVideoPlaying(!isVideoPlaying),
+    onMaximize: () => setTimelineMax(true),
+    onRestore: () => setTimelineMax(false),
+  });
+  const timelineCues = useMemo(
+    () => cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name }))),
+    [cueBanks]);
+  const sim3dHandlers = useStableHandlers({
+    onSelectFixture: (id: string) => handleSelectFixture(id || null),
+    onSelectFixtures: handleSelectFixtures,
+    onSelectModel: handleSelectModel,
+    onCommitFixture3D: handleCommitFixtures,
+    onCommitModel: handleCommitModel,
+    onModelNaturalSize: handleModelNaturalSize,
+    onSceneConfig: handleSceneConfig,
+    onCalibPick: (world: [number, number, number], source?: string) => loadedCalibrationAuthoring()?.calibWorkspace.pick(world, source),
+    onSelectPick: (i: number) => loadedCalibrationAuthoring()?.calibWorkspace.selectPick(i),
+    onMovePick: (i: number, world: [number, number, number]) => loadedCalibrationAuthoring()?.calibWorkspace.movePickWorld(i, world),
+    onMovePickEnd: () => loadedCalibrationAuthoring()?.calibWorkspace.endPickDrag(),
+  });
+  const sim3dActivePicks = useMemo(
+    () => (calib.flow === 'auto'
+      ? calib.picks.map(world => ({ world }))
+      : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))),
+    [calib.flow, calib.picks, projectorOutputs, calibratingOutputId]);
+
   const stageExtraControls = useMemo(() => (
     <>
       <button
@@ -5423,24 +5471,22 @@ const App: React.FC = () => {
                                 modelUrls={modelUrls}
                                 selectedModelId={selectedModelId}
                                 fixtureProfiles={fixtureProfiles}
-                                onSelectFixture={(id: string) => handleSelectFixture(id || null)}
-                                onSelectFixtures={handleSelectFixtures}
-                                onSelectModel={handleSelectModel}
-                                onCommitFixture3D={handleCommitFixtures}
-                                onCommitModel={handleCommitModel}
-                                onModelNaturalSize={handleModelNaturalSize}
-                                onSceneConfig={handleSceneConfig}
+                                onSelectFixture={sim3dHandlers.onSelectFixture}
+                                onSelectFixtures={sim3dHandlers.onSelectFixtures}
+                                onSelectModel={sim3dHandlers.onSelectModel}
+                                onCommitFixture3D={sim3dHandlers.onCommitFixture3D}
+                                onCommitModel={sim3dHandlers.onCommitModel}
+                                onModelNaturalSize={sim3dHandlers.onModelNaturalSize}
+                                onSceneConfig={sim3dHandlers.onSceneConfig}
                                 onRecordHistory={recordHistory}
                                 calibPickMode={calib.pickMode}
-                                onCalibPick={(world, source) => loadedCalibrationAuthoring()?.calibWorkspace.pick(world, source)}
+                                onCalibPick={sim3dHandlers.onCalibPick}
                                 projectorCalibs={projectorCalibs}
-                                activePicks={calib.flow === 'auto'
-                                    ? calib.picks.map(world => ({ world }))
-                                    : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
+                                activePicks={sim3dActivePicks}
                                 selectedPick={calib.flow === 'board' ? null : calib.selectedPick}
-                                onSelectPick={calib.flow === 'board' ? undefined : ((i: number) => loadedCalibrationAuthoring()?.calibWorkspace.selectPick(i))}
-                                onMovePick={calib.flow === 'auto' ? undefined : ((i: number, world: [number, number, number]) => loadedCalibrationAuthoring()?.calibWorkspace.movePickWorld(i, world))}
-                                onMovePickEnd={calib.flow === 'auto' ? undefined : (() => loadedCalibrationAuthoring()?.calibWorkspace.endPickDrag())}
+                                onSelectPick={calib.flow === 'board' ? undefined : sim3dHandlers.onSelectPick}
+                                onMovePick={calib.flow === 'auto' ? undefined : sim3dHandlers.onMovePick}
+                                onMovePickEnd={calib.flow === 'auto' ? undefined : sim3dHandlers.onMovePickEnd}
                                 paused={!scene3dVisible}
                             />
                             </div>
@@ -5455,7 +5501,7 @@ const App: React.FC = () => {
                     {timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
+                        <TimelinePanel timeline={activeTimeline} onChange={timelineHandlers.onChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={timelineHandlers.onTogglePlay} onToggleMax={timelineHandlers.onMaximize} projectPath={currentProjectPath} onRegisterAsset={timelineHandlers.onRegisterAsset} scenes={scenes} cues={timelineCues} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
                     )}
                   </UiProfiler>
           ),
@@ -5601,7 +5647,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
+          <TimelinePanel timeline={activeTimeline} onChange={timelineHandlers.onChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={timelineHandlers.onTogglePlay} maximized onToggleMax={timelineHandlers.onRestore} projectPath={currentProjectPath} onRegisterAsset={timelineHandlers.onRegisterAsset} scenes={scenes} cues={timelineCues} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
         </div>
       )}
 
