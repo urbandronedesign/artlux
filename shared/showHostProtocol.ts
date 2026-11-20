@@ -27,8 +27,16 @@ export type ClientToHost =
   // First message on a fresh port. The EDITOR is the primary through W3a: it hands over its full
   // state as a sequence of `set`s right after `hello`, so a host that restarted (crash) or a renderer
   // that reloaded always converge on what the editor is showing.
-  | { t: 'hello'; role: 'editor' | 'panel' }
+  // `undoable` names the doc slices the undo stacks cover (UNDOABLE_SLICES in the editor). The host
+  // learns it here rather than from a second copy of the list.
+  | { t: 'hello'; role: 'editor' | 'panel'; undoable?: string[] }
   | { t: 'set'; store: StoreName; key: string; value: unknown; seq: number }
+  // UNDO LIVES IN THE HOST (W3b). `present` is what the client considers the current document for this
+  // op, as OVERRIDES on the host's copy: only the undoable slices whose last-rendered value differs from
+  // the store (a write made earlier in the same handler, not yet rendered). It is almost always empty;
+  // it is what keeps "record captures the document as last rendered" exactly as it was in-process.
+  // The client flushes its pending writes before sending this, so the host's copy is otherwise current.
+  | { t: 'history'; op: 'record' | 'undo' | 'redo' | 'reset'; present: Slices; seq: number }
   // Test/diagnostic: the host answers with a digest of every slice, so a harness can prove the
   // replica and the authority hold the same document.
   | { t: 'digest'; req: number };
@@ -36,6 +44,8 @@ export type ClientToHost =
 export type HostToClient =
   | { t: 'welcome'; clientId: number; pid: number }
   | { t: 'patch'; store: StoreName; key: string; value: unknown; acked: number }
+  // After every history op, to every client: what Undo / Redo would do now (a menu's enabled state).
+  | { t: 'historyState'; canUndo: boolean; canRedo: boolean; depth: number }
   | { t: 'digest'; req: number; digests: Record<string, string> };
 
 /** The message main sends the host to hand it one client's port. */

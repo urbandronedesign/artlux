@@ -6,8 +6,8 @@
 //
 // WHAT IT IS TODAY (W3a): the authority for the two W1 stores, kept in lockstep with the editor. The
 // editor hands over its whole state on connect (so a host restart, or a renderer reload, converges on
-// what the operator is looking at), and every slice write after that arrives in order. Undo moves here
-// in W3b, persistence and the close guard in W3c.
+// what the operator is looking at), and every slice write after that arrives in order. Since W3b the
+// UNDO STACKS live here too (below); persistence and the close guard follow in W3c.
 //
 // WHAT IT MUST NEVER BECOME: a second engine. No decode, no GPU, no output, no timers that write the
 // document. It orders writes and remembers them. The frame engine stays in the editor renderer, reading
@@ -17,6 +17,7 @@
 // Plain Node + Electron's parentPort. It imports the dependency-free store core and the wire types only.
 
 import { createDocStore, type DocStore } from '../../shared/docStore';
+import { shareEqual } from '../../shared/shareEqual';
 import { sliceDigest, type ClientToHost, type HostConnect, type HostToClient, type Slices, type StoreName } from '../../shared/showHostProtocol';
 
 // Electron's MessagePortMain, as far as this file uses it (the utility process has no `electron` module
@@ -36,6 +37,40 @@ const stores: Record<StoreName, DocStore<Slices>> = {
 };
 const clients = new Map<number, Client>();
 
+// ── UNDO / REDO (W3b) ───────────────────────────────────────────────────────────────────────────────
+// The same model App's useHistory had in-process (hooks/useHistory.ts): snapshots of the undoable doc
+// slices, held BY REFERENCE, capped in depth, FIFO when full. References are cheap here for the same
+// reason they were there: nothing in this process mutates a value, and every write is folded into the
+// previous value with shareEqual, so consecutive snapshots share every part that did not change.
+//
+// The present document for an op is the host's copy with the client's `present` overrides on top (see
+// the protocol): the client flushed its writes first, so the copy is current except for writes it made
+// earlier in the same handler and has not rendered yet, which is exactly what the overrides carry.
+const MAX_DEPTH = 100;
+let undoable: string[] = [];
+let past: Slices[] = [];
+let future: Slices[] = [];
+
+function presentDoc(overrides: Slices): Slices {
+  const doc = stores.doc.get();
+  const out: Slices = {};
+  for (const k of undoable) out[k] = k in overrides ? shareEqual(doc[k], overrides[k]) : doc[k];
+  return out;
+}
+
+/** Restore a snapshot: write each slice that differs, and patch EVERY client (the asker included). */
+function restore(snap: Slices): void {
+  for (const k of undoable) {
+    if (!(k in snap) || Object.is(stores.doc.getSlice(k), snap[k])) continue;
+    stores.doc.set(k, snap[k]);
+    for (const c of clients.values()) send(c, { t: 'patch', store: 'doc', key: k, value: snap[k], acked: c.lastSeq });
+  }
+}
+
+function historyState(): void {
+  for (const c of clients.values()) send(c, { t: 'historyState', canUndo: past.length > 0, canRedo: future.length > 0, depth: past.length });
+}
+
 function send(c: Client, msg: HostToClient): void {
   try { c.port.postMessage(msg); } catch (e) { console.warn(`[showHost] client ${c.id} send failed:`, (e as Error).message); }
 }
@@ -53,14 +88,47 @@ function onMessage(c: Client, raw: unknown): void {
   switch (m?.t) {
     case 'hello':
       c.role = m.role;
+      // The editor names the undoable slices. A changed list means a different editor build: stacks
+      // recorded over the old list would restore the wrong set of slices, so they are dropped.
+      if (Array.isArray(m.undoable)) undoable = m.undoable.slice();
+      // A NEW EDITOR PAGE STARTS A NEW HISTORY, as it did when the stacks lived in the page: a reload
+      // (crash recovery, a dev reload) must not let Ctrl+Z restore a snapshot recorded against the
+      // previous page's document. (A panel window joining, from W5, keeps the history.)
+      if (m.role === 'editor') { past = []; future = []; historyState(); }
       return;
     case 'set': {
       if (m.store !== 'doc' && m.store !== 'session') return;
       c.lastSeq = m.seq;
-      // Object.is no-op inside the store: a structured-cloned value is always a new object, so this
-      // always lands — it is the replica that decides whether anything changed, never this side.
-      stores[m.store].set(m.key, m.value);
-      relay(c, m.store, m.key, m.value);
+      // Folded into the previous value: the parts that did not change keep their identity, so undo
+      // snapshots share structure, and a write that changed nothing is a no-op (and is not relayed).
+      const prev = stores[m.store].getSlice(m.key);
+      const next = shareEqual(prev, m.value);
+      if (Object.is(prev, next)) return;
+      stores[m.store].set(m.key, next);
+      relay(c, m.store, m.key, next);
+      return;
+    }
+    case 'history': {
+      c.lastSeq = m.seq;
+      const present = presentDoc(m.present ?? {});
+      if (m.op === 'record') {
+        past.push(present);
+        if (past.length > MAX_DEPTH) past = past.slice(past.length - MAX_DEPTH);
+        future = [];
+      } else if (m.op === 'undo') {
+        const prev = past.pop();
+        if (prev) { future.unshift(present); restore(prev); }
+      } else if (m.op === 'redo') {
+        const next = future.shift();
+        if (next) {
+          past.push(present);
+          if (past.length > MAX_DEPTH) past = past.slice(past.length - MAX_DEPTH);
+          restore(next);
+        }
+      } else if (m.op === 'reset') {
+        past = []; future = [];
+      }
+      historyState();
       return;
     }
     case 'digest': {

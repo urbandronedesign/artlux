@@ -388,9 +388,32 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 >   still lands, and the fresh host agrees.
 >
 > Guarded by verify:invariants (mutation-tested): the host imports only the store core and its wire.
-> **Next: W3b**, undo and redo into the host. Restored slices will be merged with structural sharing,
-> so the unchanged items of a slice keep their identity, as today's reference-based undo does. Then
-> **W3c**: persistence, autosave, the unsaved-changes check and the close guard.
+>
+> ✅ **W3b (undo in the host) done 2026-11-20.** The undo and redo stacks live in the Show Host. App's
+> record, undo, redo and reset are host ops (`hostLink.historyOp`). Each op carries only the slices
+> whose last-rendered value differs from the store, so "record captures the document as last
+> rendered" is unchanged. `shared/shareEqual.ts` gives structural sharing on both sides:
+> - the host folds every write into the previous value, so its 100-deep stack shares structure;
+> - the replica merges restored slices, so items an undo did not touch keep their identity, as with
+>   the old reference-based undo.
+>
+> `UNDOABLE_SLICES` names the undoable list once, and `DocSnapshot` is its type. App's `useHistory`
+> remains only as the fallback for a window with no host. `ARTLUX_NO_SHOW_HOST=1` runs standalone on
+> purpose.
+>
+> Proof:
+> - `test-show-host` step 5: Ctrl+Z and Ctrl+Y are host ops, both sides agree, and the untouched
+>   fixture keeps its object identity. A negative control without `shareEqual` fails it.
+> - `test-undo` 18/18 on the host, and 18/18 again with `ARTLUX_NO_SHOW_HOST=1` (the fallback).
+> - verify:invariants, mutation-tested with 7 mutations.
+>
+> **Next: W3c**: persistence, autosave, the unsaved-changes check and the close guard.
+>
+> ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
+> Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on
+> "Save before closing?" and the remote `/shutdown` never completes. It fails identically when built
+> from `5e49680` (pre-E5); it used to pass only against a stale `out/renderer`. The harness, or the
+> remote-shutdown policy, needs a decision on `main`.
 
 | WP | What | Size |
 |---|---|---|

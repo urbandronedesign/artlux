@@ -18,9 +18,10 @@
 // that is still waiting in here. `window.__showHost.stats()` counts what was sent, per slice, so a
 // harness can assert that nothing writes the document per frame.
 
-import { docStore, sessionStore } from './docStore';
+import { docStore, sessionStore, UNDOABLE_SLICES } from './docStore';
 import { sliceDigest, type ClientToHost, type HostToClient, type Slices, type StoreName } from '../../../shared/showHostProtocol';
 import type { DocStore } from '../../../shared/docStore';
+import { shareEqual } from '../../../shared/shareEqual';
 
 const STORES: Record<StoreName, DocStore<Slices>> = {
   doc: docStore as unknown as DocStore<Slices>,
@@ -40,6 +41,8 @@ const unclonable = new Set<string>();                 // slices that failed to s
 let connects = 0;
 const digestWaiters = new Map<number, (d: Record<string, string>) => void>();
 let digestReq = 0;
+let history = { canUndo: false, canRedo: false, depth: 0 };
+const historyOps = new Map<string, number>();
 
 function post(msg: ClientToHost): boolean {
   if (!port) return false;
@@ -95,10 +98,19 @@ function onHostMessage(m: HostToClient): void {
       // Drop a patch for a slice this window has written since the host made it: the host will process
       // that newer write after the patch, and this window already shows it (shared/showHostProtocol.ts).
       if ((lastSent.get(`${m.store}.${m.key}`) ?? 0) > m.acked) return;
+      // Folded into what this window already holds (shared/shareEqual.ts): an undo of one fixture's
+      // rename re-creates THAT fixture only, so effects and memos keyed on the others stay quiet, as they
+      // did when undo restored the old references in-process. Deep-equal → nothing to apply at all.
+      const store = STORES[m.store];
+      const next = shareEqual(store.getSlice(m.key), m.value);
+      if (Object.is(next, store.getSlice(m.key))) return;
       applyingRemote = true;
-      try { STORES[m.store].set(m.key, m.value); } finally { applyingRemote = false; }
+      try { store.set(m.key, next); } finally { applyingRemote = false; }
       return;
     }
+    case 'historyState':
+      history = { canUndo: m.canUndo, canRedo: m.canRedo, depth: m.depth };
+      return;
     case 'digest':
       digestWaiters.get(m.req)?.(m.digests);
       digestWaiters.delete(m.req);
@@ -116,7 +128,8 @@ function attach(p: MessagePort): void {
   p.onmessage = (e: MessageEvent) => { try { onHostMessage(e.data as HostToClient); } catch (err) { console.error('[hostLink] host message failed:', err); } };
   p.start();
   connected = true;
-  post({ t: 'hello', role: 'editor' });
+  post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES] });
+  history = { canUndo: false, canRedo: false, depth: 0 };   // a new editor page starts a new history
   sendAll();
   console.log(`[hostLink] connected to the Show Host (connect #${connects})`);
 }
@@ -142,6 +155,17 @@ if (typeof window !== 'undefined') {
     pid: () => hostPid,
     connects: () => connects,
     stats: () => Object.fromEntries(sentCount),
+    history: () => ({ ...history, ops: Object.fromEntries(historyOps) }),
+    /**
+     * Identity probe for harnesses: a stable small number per OBJECT (WeakMap), for a slice and for each
+     * of its array items. Two reads that report the same number are the same object, which is how a
+     * harness proves an undo kept the untouched items' identity (shareEqual).
+     */
+    identity: (store: StoreName, key: string) => {
+      const v = STORES[store].getSlice(key) as unknown;
+      const id = (o: unknown) => (o && typeof o === 'object' ? idOf(o as object) : null);
+      return { slice: id(v), items: Array.isArray(v) ? v.map(id) : [] };
+    },
     resetStats: () => sentCount.clear(),
     unclonable: () => [...unclonable],
     /** Ask the host for its digests and compare with this replica's. Resolves to the mismatching slices. */
@@ -171,3 +195,33 @@ if (typeof window !== 'undefined') {
 
 /** Is a host there right now? */
 export function hostConnected(): boolean { return connected; }
+
+const ids = new WeakMap<object, number>();
+let nextId = 1;
+function idOf(o: object): number { let n = ids.get(o); if (n == null) { n = nextId++; ids.set(o, n); } return n; }
+
+/**
+ * UNDO / REDO, IN THE HOST (W3b). `present` is the undoable document as App last RENDERED it (its
+ * docRef), which is what record/undo/redo have always captured. Returns false when there is no host, and
+ * the caller then uses its in-process history: a window that never reached a host must still undo.
+ *
+ * Pending writes are flushed first, so the host's copy is current; only the slices whose rendered value
+ * differs from the store's (a write earlier in this same handler) travel as overrides. The restored
+ * slices come back as patches, a round trip on a local port, applied through shareEqual.
+ */
+export function historyOp(op: 'record' | 'undo' | 'redo' | 'reset', present: Record<string, unknown>): boolean {
+  if (!connected || !port) return false;
+  flushToHost();
+  const overrides: Slices = {};
+  for (const k of UNDOABLE_SLICES) {
+    if (!Object.is(present[k], docStore.getSlice(k))) overrides[k] = present[k];
+  }
+  try {
+    post({ t: 'history', op, present: overrides, seq: ++seq });
+  } catch (e) {
+    console.warn(`[hostLink] history ${op} could not be sent:`, (e as Error).message);
+    return false;
+  }
+  historyOps.set(op, (historyOps.get(op) ?? 0) + 1);
+  return true;
+}

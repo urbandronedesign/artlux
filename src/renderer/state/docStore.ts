@@ -131,6 +131,16 @@ const INITIAL_SESSION: SessionSlices = {
  * plugin-barrel bug in CLAUDE.md), and writers would hit one copy while readers watch the other.
  */
 export const docStore = createDocStore<DocSlices>(INITIAL);
+
+/**
+ * THE UNDOABLE DOCUMENT, named once. App's DocSnapshot is `UndoableDoc`, so this list and the snapshot
+ * cannot drift apart; the Show Host keeps its undo stacks over exactly these slices (E5/W3b), and it
+ * learns the list from the editor's `hello` rather than from a second copy of it.
+ */
+export const UNDOABLE_SLICES = [
+  'fixtures', 'surfaces', 'groups', 'scenes', 'timeline', 'cueBanks', 'stateMachine', 'audioMix', 'scene3D', 'globalBrightness',
+] as const satisfies readonly (keyof DocSlices)[];
+export type UndoableDoc = Pick<DocSlices, (typeof UNDOABLE_SLICES)[number]>;
 export const sessionStore = createDocStore<SessionSlices>(INITIAL_SESSION);
 
 /** A setter with React's useState contract. Stable: built once per slice, never per render. */

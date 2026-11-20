@@ -10,7 +10,11 @@
 //   4. Nothing writes the document PER FRAME: over a few seconds of a running editor, the slices sent
 //      to the host stay in single figures (one per frame would be hundreds). A structural check, not a
 //      timing measurement: replication costs what the document's rate of change costs, nothing more.
-//   5. A DEAD HOST IS NOT A DEAD EDITOR. The harness kills the host process; the editor keeps editing,
+//   5. UNDO LIVES IN THE HOST (W3b): Ctrl+Z and Ctrl+Y are host ops (the editor's op counters move,
+//      the host reports the stack depth), the document comes back on both sides, and the fixture the
+//      edit did NOT touch is still the same object afterwards (shareEqual), as it was when undo
+//      restored references in-process.
+//   6. A DEAD HOST IS NOT A DEAD EDITOR. The harness kills the host process; the editor keeps editing,
 //      main forks a fresh host, the editor reconnects and hands it its state, and the two agree again.
 // Restores the whole prefs file, like every harness here.
 
@@ -176,8 +180,45 @@ const clickReverse = (page) => page.evaluate(() => {
     note(docSends < 10, 'over 3 s of a running editor, the document was sent fewer than 10 times',
       `${docSends} doc sends${Object.keys(stats).length ? ` — ${Object.entries(stats).map(([k, c]) => `${k}×${c}`).join(' ')}` : ''}`);
 
-    console.log('\n5. a dead host is not a dead editor');
+    console.log('\n5. undo lives in the host');
+    {
+      const press = async (key) => {
+        await sh(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
+        await page.mouse.move(120, 140);
+        await page.keyboard.down('Control'); await page.keyboard.press(key); await page.keyboard.up('Control');
+        await sleep(700);
+      };
+      const h0 = await sh(() => window.__showHost.history());
+      const id0 = await sh(() => window.__showHost.identity('doc', 'fixtures'));
+      const r0 = await reverseBox(page);
+      await clickReverse(page);
+      await sleep(700);
+      const r1 = await reverseBox(page);
+      const h1 = await sh(() => window.__showHost.history());
+      note(r1 === !r0 && (h1.ops.record || 0) > (h0.ops.record || 0) && h1.canUndo,
+        'the edit was recorded in the host', `reverse ${r0} → ${r1}; record ops ${h0.ops.record || 0} → ${h1.ops.record || 0}; host depth ${h1.depth}`);
+      await press('KeyZ');
+      const r2 = await reverseBox(page);
+      const h2 = await sh(() => window.__showHost.history());
+      const id2 = await sh(() => window.__showHost.identity('doc', 'fixtures'));
+      note(r2 === r0 && (h2.ops.undo || 0) > (h1.ops.undo || 0) && h2.canRedo, 'Ctrl+Z is a host op and the edit comes back',
+        `reverse ${r1} → ${r2}; undo ops ${h1.ops.undo || 0} → ${h2.ops.undo || 0}; canRedo ${h2.canRedo}`);
+      // Strip 2 (index 1) was never touched: after the edit AND its undo it must be the SAME object.
+      note(id0.items.length === 2 && id2.items.length === 2 && id2.items[1] === id0.items[1],
+        'the untouched fixture kept its identity through the edit and the undo', `fixture object ids ${JSON.stringify(id0.items)} → ${JSON.stringify(id2.items)}`);
+      v = await sh(() => window.__showHost.verify());
+      note(!!v && v.mismatched.length === 0, 'after the undo the two sides agree', v ? (v.mismatched.length ? `differ: ${v.mismatched.join(', ')}` : `${v.compared} slices agree`) : 'no answer');
+      await press('KeyY');
+      const r3 = await reverseBox(page);
+      const h3 = await sh(() => window.__showHost.history());
+      note(r3 === r1 && (h3.ops.redo || 0) > (h2.ops.redo || 0), 'Ctrl+Y is a host op and redoes it', `reverse ${r2} → ${r3}; redo ops ${h2.ops.redo || 0} → ${h3.ops.redo || 0}`);
+      v = await sh(() => window.__showHost.verify());
+      note(!!v && v.mismatched.length === 0, 'after the redo the two sides agree', v ? (v.mismatched.length ? `differ: ${v.mismatched.join(', ')}` : `${v.compared} slices agree`) : 'no answer');
+    }
+
+    console.log('\n6. a dead host is not a dead editor');
     const pid1 = await sh(() => window.__showHost.pid());
+    const beforeOutage = await reverseBox(page);   // the box as it is NOW (step 5 flipped it since step 3)
     const connects1 = await sh(() => window.__showHost.connects());
     // taskkill /F on Windows: Node's process.kill(pid) returned without error and left the utility
     // process running (measured). A kill that did not happen would make every check below vacuous, so
@@ -195,16 +236,16 @@ const clickReverse = (page) => page.evaluate(() => {
     await clickReverse(page);
     await sleep(400);
     const duringOutage = await reverseBox(page);
-    note(duringOutage === !after, 'an edit made while the host is down still lands in the editor', `reverse ${after} → ${duringOutage}`);
+    note(duringOutage === !beforeOutage, 'an edit made while the host is down still lands in the editor', `reverse ${beforeOutage} → ${duringOutage}`);
     // Back = a NEW connect AND the new host's welcome (a pid that is not the dead one). The pid alone is
     // never null after the first welcome, so waiting on "pid != null" stopped on the reconnect itself,
     // before the fresh host had said who it was, and failed about half the runs.
     let back = false;
     const t0 = Date.now();
-    for (let i = 0; i < 60 && !back; i++) { back = await sh((c, old) => window.__showHost.connects() > c && window.__showHost.pid() !== old, connects1, pid1); if (!back) await sleep(500); }
+    for (let i = 0; i < 60 && !back; i++) { back = await sh((c, old) => window.__showHost.connects() > c && window.__showHost.pid() != null && window.__showHost.pid() !== old, connects1, pid1); if (!back) await sleep(500); }
     const restartMs = Date.now() - t0;
     const pid2 = await sh(() => window.__showHost.pid());
-    console.log(`        reconnected ${back ? `after ${restartMs} ms` : 'never'} (from the kill confirmation)`);
+    console.log(`        reconnected ${back ? `after ${restartMs} ms` : 'never'} (timed from after the outage edit, ~0.5 s after the kill)`);
     note(back && pid2 !== pid1, 'main forked a fresh host and the editor reconnected', `pid ${pid1} → ${pid2}`);
     if (!(back && pid2 !== pid1)) {
       console.log(`        main log:\n          ${hostLog().join('\n          ')}`);

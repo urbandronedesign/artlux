@@ -34,10 +34,10 @@ import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
-import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter } from './state/docStore';
+import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc } from './state/docStore';
 // Side-effect import: replicates the two stores above into the Show Host process (E5/W3). The editor
 // works the same with no host; see state/hostLink.ts.
-import './state/hostLink';
+import { historyOp } from './state/hostLink';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
@@ -262,13 +262,10 @@ type EditOrigin = 'operator' | 'show';
 // change and no migration. Deliberately NOT ProjectData: controllers, projectorOutputs/outputSpans,
 // the managed asset library, the schedule and machine settings are excluded — reverting a projector
 // calibration or a controller mapping mid-show is a footgun, not a feature. See plans/timeline-undo.md.
-interface DocSnapshot {
-  fixtures: Fixture[]; surfaces: Surface[]; groups: FixtureGroup[];
-  scenes: Scene[];              // each Scene carries its OWN cloned Timeline
-  timeline: Timeline;           // the global doc
-  cueBanks: CueBank[]; stateMachine: StateMachine; audioMix: AudioMix;
-  scene3D: Scene3D; globalBrightness: number;
-}
+// The ten slices are named ONCE, in state/docStore.ts (UNDOABLE_SLICES): fixtures, surfaces, groups,
+// scenes (each Scene carries its OWN cloned Timeline), timeline (the global doc), cueBanks, stateMachine,
+// audioMix, scene3D, globalBrightness. The Show Host keeps its undo stacks over the same list (E5/W3b).
+type DocSnapshot = UndoableDoc;
 const QUERY_PROJECT = QS.get('project') || '';
 const QUERY_NEW_PROJECT = QS.get('newProject') || '';
 // `?recovered=<reason>`: main loaded this window again because the previous renderer PROCESS died
@@ -325,7 +322,9 @@ const App: React.FC = () => {
   const setFixtures = sliceSetter('fixtures');
   // The ONE document-history primitive (undo/redo). Holds only past/future snapshots; the live
   // document is assembled from the slices into docRef below.
-  const { record: historyRecord, undo: historyUndo, redo: historyRedo, reset: resetHistory } = useHistory<DocSnapshot>();
+  // The IN-PROCESS stacks are the FALLBACK since E5/W3b: undo lives in the Show Host (state/hostLink.ts
+  // historyOp), and these are used only by a window that has no host connected. See recordHistory below.
+  const { record: historyRecord, undo: historyUndo, redo: historyRedo, reset: resetLocalHistory } = useHistory<DocSnapshot>();
 
   const selectedFixtureId = useSessionSlice('selectedFixtureId'); const setSelectedFixtureId = sessionSetter('selectedFixtureId'); // sessionStore slice (W1)
   // Full multi-selection set (for grouping/bulk ops); selectedFixtureId is the "primary"
@@ -593,20 +592,36 @@ const App: React.FC = () => {
   // stack must not exist there — an FSM hopping states all night would otherwise fill it with changes
   // nobody made (plans/timeline-undo.md §5.2). recordHistory captures the PRE-mutation document (this
   // render's docRef reflects state before a handler's setState); undo/redo swap it for a neighbour.
+  //
+  // THE STACKS LIVE IN THE SHOW HOST (E5/W3b), so a detached panel window (W5) undoes the same history as
+  // the editor. historyOp() hands the host docRef.current, the document as last RENDERED, exactly what
+  // the in-process stacks captured; the restored slices come back as patches through the replica, which
+  // is how every imperative service re-syncs off the same state it always did. It returns false when no
+  // host is connected (never reached one, or main gave up restarting it), and only THEN are the
+  // in-process stacks used, so a window with no host still undoes. Never both: two stacks would diverge.
   const recordHistory = useCallback(() => {
     if (SHOW_ENGINE) return;
+    if (historyOp('record', docRef.current)) return;
     historyRecord(docRef.current);
   }, [historyRecord]);
   const undo = useCallback(() => {
     if (SHOW_ENGINE) return;
+    if (historyOp('undo', docRef.current)) return;
     const prev = historyUndo(docRef.current);
     if (prev) applySnapshot(prev);
   }, [historyUndo, applySnapshot]);
   const redo = useCallback(() => {
     if (SHOW_ENGINE) return;
+    if (historyOp('redo', docRef.current)) return;
     const next = historyRedo(docRef.current);
     if (next) applySnapshot(next);
   }, [historyRedo, applySnapshot]);
+  // MANDATORY on File→New / File→Open (see useHistory). Both stacks are cleared: the host's, and the
+  // in-process fallback, so a host that later dies cannot hand the fallback a stale project's snapshots.
+  const resetHistory = useCallback(() => {
+    resetLocalHistory();
+    historyOp('reset', docRef.current);
+  }, [resetLocalHistory]);
   // ──────────────────────────────────────────────────────────────────────────────────────────────
   // The GLOBAL timeline's lanes run as a BASE under every scene: the audio bed is global and survives
   // scene swaps, so its curves must too. A scene's own lane on the same targetPath shadows the base one.

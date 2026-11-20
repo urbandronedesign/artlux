@@ -69,9 +69,14 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   replica exactly as before. The host is **not on the output path**: if it dies the editor keeps
   editing and the show keeps playing, main forks a fresh one, and the editor hands it its whole state.
   It exists so that separate panel windows can share one document (plan:
-  [plans/native-engine.md](../plans/native-engine.md) §9a, W3). The wire and its ordering rule are in
-  `shared/showHostProtocol.ts`; `scripts/test-show-host.cjs` proves the two copies agree, that nothing
-  writes the document per frame, and that a killed host loses nothing.
+  [plans/native-engine.md](../plans/native-engine.md) §9a, W3). **Undo and redo live in the host**: App's
+  record/undo/redo/reset are host ops (`hostLink.historyOp`), and the restored slices come back as
+  patches merged with `shared/shareEqual.ts`, so the items an undo did not touch keep their identity,
+  as they did when undo restored references in-process. App's `useHistory` stacks remain only as the
+  fallback for a window with no host. `ARTLUX_NO_SHOW_HOST=1` runs the editor standalone on purpose:
+  no host, in-process undo. The wire and its ordering rule are in `shared/showHostProtocol.ts`;
+  `scripts/test-show-host.cjs` proves the two copies agree, that nothing writes the document per frame,
+  that undo runs in the host and keeps identity, and that a killed host loses nothing.
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
 - **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),

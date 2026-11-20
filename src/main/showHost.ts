@@ -80,9 +80,18 @@ function connect(win: BrowserWindow): void {
  * page's port away, and the new page needs its own (the host replaces the old one under the same id).
  */
 export function connectShowHost(win: BrowserWindow): void {
+  // THE KILL SWITCH. `ARTLUX_NO_SHOW_HOST=1` runs the editor standalone, exactly as when main gives up
+  // restarting a host: the replica is the whole document and undo uses the in-process stacks. Two uses:
+  // a venue that needs the host out of the picture while a fault is diagnosed, and the harnesses, which
+  // run test-undo this way to prove the fallback still undoes.
+  if (process.env.ARTLUX_NO_SHOW_HOST === '1') {
+    if (!disabledLogged) { disabledLogged = true; console.log('[showHost] disabled by ARTLUX_NO_SHOW_HOST=1 — the editor runs standalone'); }
+    return;
+  }
   if (!windows.has(win)) win.once('closed', () => windows.delete(win));
   connect(win);
 }
+let disabledLogged = false;
 
 /** Quit: stop the host for good (no restart). */
 export function stopShowHost(): void {

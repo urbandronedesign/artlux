@@ -7586,17 +7586,52 @@ check(
       const specs = /(?:^\s*(?:import|export)\s[^;]*?from\s+|^\s*import\s+|\bimport\(\s*|\brequire\(\s*)['"]([^'"]+)['"]/gm;
       for (const m of src.matchAll(specs)) {
         const spec = m[1];
-        const okSpec = spec === '../../shared/docStore' || spec === '../../shared/showHostProtocol' || spec.startsWith('./') || spec.startsWith('node:');
-        if (!okSpec) problems.push(`${hostDir}/${f} imports '${spec}' — the host may import only the store core, its wire, its own files and node: builtins`);
+        const okSpec = ['../../shared/docStore', '../../shared/showHostProtocol', '../../shared/shareEqual'].includes(spec) || spec.startsWith('./') || spec.startsWith('node:');
+        if (!okSpec) problems.push(`${hostDir}/${f} imports '${spec}' — the host may import only the store core, its wire, shareEqual, its own files and node: builtins`);
       }
     }
     const app = read('src/renderer/App.tsx');
-    if (!/^import '\.\/state\/hostLink';/m.test(app)) problems.push("App.tsx no longer imports './state/hostLink' — the host would sit empty");
+    if (!/^import (?:\{[^}]*\} from )?'\.\/state\/hostLink';/m.test(app)) problems.push("App.tsx no longer imports './state/hostLink' — the host would sit empty");
     const cfg = read('electron.vite.config.ts');
     if (!/showHost:\s*resolve\(__dirname,\s*'src\/showhost\/index\.ts'\)/.test(cfg)) problems.push('electron.vite.config.ts does not build src/showhost/index.ts as the main entry `showHost`');
     if (!/path\.join\(__dirname,\s*'showHost\.js'\)/.test(read('src/main/showHost.ts'))) problems.push("main/showHost.ts no longer forks out/main/showHost.js");
     const link = read('src/renderer/state/hostLink.ts');
     if (!/queueMicrotask\(flushToHost\)/.test(link)) problems.push('hostLink no longer coalesces writes per task (queueMicrotask(flushToHost)) — every set would be cloned and sent');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Undo lives in the Show Host; the in-process stacks are only the no-host fallback (E5/W3b) ──────
+// Three ways this goes wrong silently:
+//   • a history verb that skips historyOp: the editor would undo its own stack while a detached panel
+//     (W5) undoes the host's, two histories of one document that disagree;
+//   • a restored slice applied without shareEqual: every fixture/surface/scene becomes a new object on
+//     each undo, re-firing whatever effect keys on identity (the old in-process undo restored the same
+//     references) — no error, just a show that re-initialises things on Ctrl+Z;
+//   • the undoable list forked: DocSnapshot and the host's stacks covering different slices.
+check(
+  'undo, redo, record and reset go through the Show Host first; restored slices keep identity; one undoable list',
+  'A verb that bypasses historyOp gives the editor and the host two histories; a patch applied without ' +
+  'shareEqual re-creates every item on each undo; a second undoable list drifts from DocSnapshot.',
+  () => {
+    const problems = [];
+    const app = read('src/renderer/App.tsx');
+    for (const verb of ['record', 'undo', 'redo']) {
+      const name = verb === 'record' ? 'recordHistory' : verb;
+      const m = app.match(new RegExp(`const ${name} = useCallback\\(\\(\\) => \\{([\\s\\S]*?)\\n  \\}, \\[`));
+      if (!m) { problems.push(`could not find App's ${name}`); continue; }
+      const body = m[1];
+      const host = body.indexOf(`historyOp('${verb}'`);
+      const local = body.search(/history(Record|Undo|Redo)\(/);
+      if (host < 0) problems.push(`${name} does not call historyOp('${verb}', …)`);
+      else if (local >= 0 && local < host) problems.push(`${name} uses the in-process stack BEFORE asking the host`);
+      else if (!new RegExp(`if \\(historyOp\\('${verb}'[^)]*\\)\\) return;`).test(body)) problems.push(`${name} must return when the host took the op (if (historyOp(...)) return;) — otherwise both stacks record`);
+    }
+    if (!/const resetHistory = useCallback\(\(\) => \{[\s\S]*?historyOp\('reset'/.test(app)) problems.push("resetHistory does not reset the host's stacks (historyOp('reset', …))");
+    if (!/type DocSnapshot = UndoableDoc;/.test(app)) problems.push('DocSnapshot is no longer UndoableDoc — the undoable list is defined twice');
+    const link = read('src/renderer/state/hostLink.ts');
+    if (!/const next = shareEqual\(store\.getSlice\(m\.key\), m\.value\);/.test(link)) problems.push('hostLink applies host patches without shareEqual — an undo would re-create every item of the slice');
+    if (!/undoable: \[\.\.\.UNDOABLE_SLICES\]/.test(link)) problems.push("hostLink's hello no longer names UNDOABLE_SLICES — the host would keep stacks over the wrong slices");
     return problems.length ? problems.join('; ') : null;
   },
 );
