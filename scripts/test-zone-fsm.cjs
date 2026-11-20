@@ -178,7 +178,13 @@ async function waitForCdp(deadlineMs) {
 async function findRenderer(browser, deadlineMs) {
     const start = Date.now();
     while (Date.now() - start < deadlineMs) {
-        for (const p of await browser.pages()) if (p.url().includes(DEV_URL_HINT)) return p;
+        // The EDITOR page only: the splash, docs and projector windows share the dev origin, and the splash
+        // closes under the test ("Attempted to use detached Frame" / "Waiting failed") when it happens to
+        // register first (found 2026-11-20 in test-scene-timelines by logging framenavigated).
+        for (const p of await browser.pages()) {
+            const u = p.url();
+            if (u.includes(DEV_URL_HINT) && !/(splash|docs|projector)\.html/.test(u)) return p;
+        }
         await sleep(500);
     }
     throw new Error('No renderer page target found');
