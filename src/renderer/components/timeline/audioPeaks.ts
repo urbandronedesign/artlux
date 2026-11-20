@@ -216,6 +216,9 @@ export function peaksFor(path: string, buckets: number): Float32Array | null {
   return out;
 }
 
+/** True once `path` is known not to decode here (not an audio container, or it failed for good). */
+export function peaksFailed(path: string): boolean { return failed.has(path); }
+
 // A dropped file's real length, for the clip's initial `duration`/`sourceDuration`. Resolves null when the
 // browser can't decode it (an .aiff, say) — the caller then places a default-length clip the user can trim,
 // which is strictly better than refusing the drop.

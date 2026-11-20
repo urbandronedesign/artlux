@@ -350,6 +350,11 @@ export function getThumb(path: string, time: number): ImageBitmap | undefined {
   return nearest(path, qt);
 }
 
+/** True when the EXACT thumbnail for (path, time) is cached — getThumb() may return a nearer one. */
+export function hasExactThumb(path: string, time: number): boolean {
+  return cache.has(keyOf(path, qtime(time)));
+}
+
 export const THUMB_ASPECT = THUMB_W / THUMB_H;
 
 // Diagnostics: what the strip cache holds, and a way to ask for a thumbnail without a Filmstrip on

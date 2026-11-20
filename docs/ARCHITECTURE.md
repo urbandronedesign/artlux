@@ -86,6 +86,28 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   projects never reach an operator's recovery folder; `ARTLUX_AUTOSAVE_DIR` overrides both. The wire and its ordering rule are in `shared/showHostProtocol.ts`;
   `scripts/test-show-host.cjs` proves the two copies agree, that nothing writes the document per frame,
   that undo runs in the host and keeps identity, and that a killed host loses nothing.
+- **Live channel** (`src/renderer/live/`, paired by `src/main/liveHub.ts`, wire in
+  `shared/liveProtocol.ts`): what another window needs that is NOT the document, and so never goes
+  through the Show Host. The editor is the **engine owner**, the one producer of all of it, and
+  `live/broker.ts` is its end; a client window uses `live/client.ts`, which produces nothing. A client
+  asks main for a port (`IPC.LIVE_CONNECT`), and main pairs it with the editor over a MessageChannel,
+  then leaves the path. Four kinds of traffic:
+  - **Streams** (`registerLiveStream`; core ones in `live/coreStreams.ts`: `dmx.pixels`, `perf`) are
+    **pull-based**: a subscription is sent one sample, and the next only after the client pulls,
+    which it does from its own `requestAnimationFrame`. So it runs at that window's refresh, sends
+    nothing to a hidden window, and a producer hook is attached only while someone subscribes.
+  - **The clock** is an **anchor** (`ClockAnchor`: both playheads, a rate for each, wall time), sent
+    only when the transport stops agreeing with the last anchor by more than 1 ms. The anchor is
+    stamped with the frame's own time (`timeline.getFrameTimeMs()`). Clients extrapolate it with
+    `clockAt()` from `performance.timeOrigin + performance.now()`, which is comparable across
+    processes.
+  - **Thumbnails and peaks** are answered from the editor's own caches, and always as copies.
+  - **Drags**: a slider in another window drives `livePreview` in the editor
+    (`registerLiveDragTarget`). When main reports that a client is gone (closed, crashed or
+    reloaded), every drag it held is abandoned back to the committed value.
+
+  `scripts/test-live-channel.cjs` pairs the editor with itself through main and checks these rules,
+  including a negative control.
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
 - **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),

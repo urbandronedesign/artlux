@@ -7714,6 +7714,99 @@ check(
   },
 );
 
+// ── The live channel: pull-based streams, the clock as an anchor, one owner (E5/W4) ─────────────────
+// renderer/live/broker.ts is the editor's end of every live channel (shared/liveProtocol.ts). Its rules
+// are plans/native-engine.md §9a "no drop" rules 1, 3 and 4, and each break compiles, boots and works —
+// a panel window would just cost the editor a message per frame per stream, forever.
+check(
+  'live streams are pull-based, attached only while watched, and produced only by the owner',
+  'A push-based stream floods a hidden or slow window at the producer\'s rate; a producer hook left ' +
+  'attached costs every frame for nobody; a client that imports a producer duplicates the work the ' +
+  'owner already does (decode twice, sample twice).',
+  () => {
+    const problems = [];
+    const b = read('src/renderer/live/broker.ts').replace(/\r\n/g, '\n');
+    const deliver = b.match(/\nfunction deliver\(sub: Sub\): void \{([\s\S]*?)\n\}/);
+    if (!deliver) problems.push('broker.ts: deliver() not found');
+    else {
+      const d = deliver[1];
+      if (!/^\s*if \(!sub\.waiting\) return;/.test(d)) problems.push('deliver() no longer starts with `if (!sub.waiting) return;` — samples would be pushed, not pulled');
+      const clear = d.indexOf('sub.waiting = false;');
+      const send = d.indexOf("t: 'data'");
+      if (clear < 0 || send < 0 || clear > send) problems.push('deliver() must clear `waiting` before it posts the sample');
+    }
+    if ((b.match(/t: 'data'/g) || []).length !== 1) problems.push("broker.ts posts `t: 'data'` outside deliver() — every sample must pass the waiting gate");
+    if (!/function detachIfIdle\(name: string\): void \{\s*\n\s*const e = streams\.get\(name\);\s*\n\s*if \(!e \|\| e\.subs\.size \|\| !e\.stop\) return;/.test(b)) problems.push('detachIfIdle() no longer detaches exactly when the last subscription goes');
+    const unsub = b.match(/case 'unsub': \{([\s\S]*?)\n    \}/);
+    if (!unsub || !/detachIfIdle\(sub\.stream\)/.test(unsub[1])) problems.push("'unsub' no longer detaches an idle producer");
+    if (/\b(setInterval|requestAnimationFrame)\(/.test(b)) problems.push('broker.ts runs its own timer or rAF — the owner side is driven by producers and pulls only');
+    const c = read('src/renderer/live/client.ts').replace(/\r\n/g, '\n');
+    const pulls = [...c.matchAll(/t: 'pull'/g)].length;
+    const raf = c.match(/requestAnimationFrame\(\(\) => \{([\s\S]*?)\n  \}\);/);
+    if (pulls !== 1 || !raf || !/t: 'pull'/.test(raf[1])) problems.push("client.ts must send `pull` only from its requestAnimationFrame callback (the window's own refresh)");
+    // Every way a module comes in, bare side-effect imports included (one slipped past a from-only regex).
+    for (const m of c.matchAll(/(?:^\s*(?:import|export)\s[^;]*?from\s+|^\s*import\s+|\bimport\(\s*|\brequire\(\s*)['"]([^'"]+)['"]/gm)) {
+      if (m[1] !== '../../../shared/liveProtocol') problems.push(`live/client.ts imports '${m[1]}' — a client produces nothing; it may import only the wire`);
+    }
+    if (/^\s*import\s/m.test(read('shared/liveProtocol.ts'))) problems.push('shared/liveProtocol.ts imports something — it is the contract every side reads and must stay dependency-free');
+    // Panel pixels are COPIES: the cache's own bitmap transferred away would vanish from every filmstrip.
+    if (!/const copy = bmp \? await createImageBitmap\(bmp\)/.test(b)) problems.push('the thumbnail answer no longer sends a copy (createImageBitmap(bmp)) — transferring the cached bitmap detaches it');
+    if (!/const copy = p \? p\.slice\(\) : null;/.test(b)) problems.push('the peaks answer no longer sends a copy (p.slice()) — transferring the cached array empties it');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the clock travels as an anchor, checked only while a client asks for it',
+  'A playhead sent per frame is per-frame traffic to every window for as long as the show plays; a ' +
+  'check left on the transport for no client costs every frame; an anchor stamped with "now" instead ' +
+  'of the frame time reads the frame\'s own work as drift and re-sends constantly.',
+  () => {
+    const problems = [];
+    const b = read('src/renderer/live/broker.ts').replace(/\r\n/g, '\n');
+    const fn = b.match(/\nfunction checkClock\(\): void \{([\s\S]*?)\n\}/);
+    if (!fn || !/^\s*const next = sampleClock\(\);\s*\n\s*if \(anchor && agrees\(anchor, next\)\) return;/.test(fn[1])) problems.push('checkClock() no longer returns early while the transport agrees with the last anchor');
+    if ((b.match(/t: 'clock'/g) || []).length !== 2) problems.push("broker.ts posts `t: 'clock'` somewhere other than checkClock() and the clock-on answer");
+    const sync = b.match(/\nfunction syncClockWatch\(\): void \{([\s\S]*?)\n\}/);
+    if (!sync || !/const wanted = \[\.\.\.clients\.values\(\)\]\.some\(\(c\) => c\.clock\);/.test(sync[1]) || !/clockStop\(\);/.test(sync[1])) problems.push('syncClockWatch() no longer attaches the transport check only while some client asks for the clock (and detaches it after)');
+    if ((b.match(/timeline\.subscribe\(/g) || []).length !== 1 || !sync || !/timeline\.subscribe\(/.test(sync[1])) problems.push('the broker subscribes to the transport outside syncClockWatch()');
+    const sample = b.match(/\nfunction sampleClock\(\): ClockAnchor \{([\s\S]*?)\n\}/);
+    if (!sample || !/at: performance\.timeOrigin \+ timeline\.getFrameTimeMs\(\)/.test(sample[1])) problems.push('the anchor is no longer stamped with the frame time (performance.timeOrigin + timeline.getFrameTimeMs())');
+    const tl = read('src/renderer/services/timeline.ts').replace(/\r\n/g, '\n');
+    if (!/function runFrame\(now: number\): void \{\s*\n\s*frameMs = now;/.test(tl)) problems.push('timeline.runFrame() no longer records the frame time first (frameMs = now)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  "a live client's drags die with the client, and the editor is the one live owner",
+  'A panel window that crashes mid-drag would leave a live override above the show — pinning a ' +
+  'channel or the master until the app restarts; a second broker would be a second producer.',
+  () => {
+    const problems = [];
+    const b = read('src/renderer/live/broker.ts').replace(/\r\n/g, '\n');
+    const rm = b.match(/\nfunction removeClient\(clientId: number\): void \{([\s\S]*?)\n\}/);
+    if (!rm || !/for \(const d of c\.held\.values\(\)\)[\s\S]*?\.abandon\(d\)/.test(rm[1])) problems.push('removeClient() no longer abandons every drag the client held');
+    if (!rm || !/detachIfIdle\(sub\.stream\)/.test(rm[1])) problems.push('removeClient() no longer detaches the producers only that client watched');
+    if (!rm || !/syncClockWatch\(\)/.test(rm[1])) problems.push('removeClient() no longer re-checks whether anyone still wants the clock');
+    const hub = read('src/main/liveHub.ts');
+    if (!/wc\.once\('destroyed', \(\) => \{ clients\.delete\(wc\); drop\(id\); \}\);/.test(hub)) problems.push("liveHub no longer tells the owner when a client's window is destroyed");
+    if (!/wc\.on\('render-process-gone', \(\) => drop\(id\)\);/.test(hub)) problems.push('liveHub no longer tells the owner when a client page crashes');
+    if (!/if \(entry\) \{[\s\S]*?drop\(entry\.clientId\);/.test(hub)) problems.push("liveHub no longer retires a reloaded client's old pair before pairing the new page");
+    const core = read('src/renderer/live/coreStreams.ts');
+    if (!/abandon: \(\) => livePreview\.setBrightness\(docStore\.getSlice\('globalBrightness'\)\)/.test(core)) problems.push('an abandoned LED-brightness drag no longer returns to the committed value');
+    if (!/abandon: \(d\) => livePreview\.releaseFixtureChannel\(d\.fixtureId, d\.key\)/.test(core)) problems.push('an abandoned fixture-channel drag no longer releases the channel');
+    const app = read('src/renderer/App.tsx');
+    if (!/^startLiveBroker\(\);/m.test(app) || !/^installCoreLiveStreams\(\);/m.test(app)) problems.push('App.tsx no longer starts the broker and the core streams at module scope');
+    if (!/abandon: \(\) => pushProjectorBrightnessRef\.current\(docStore\.getSlice\('projectorBrightness'\)\)/.test(app)) problems.push('an abandoned projector-brightness drag no longer returns the projectors to the committed value');
+    for (const f of ['src/renderer/projector.tsx', 'src/renderer/docs.tsx', 'src/renderer/splash.tsx']) {
+      if (/live\/broker/.test(read(f))) problems.push(`${f} imports the live broker — only the editor owns the live data`);
+    }
+    if (!/initLiveHub\(mainWindow\);/.test(read('src/main/index.ts'))) problems.push('main/index.ts no longer registers the editor as the live owner (initLiveHub(mainWindow))');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

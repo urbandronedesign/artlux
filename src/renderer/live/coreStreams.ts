@@ -1,0 +1,58 @@
+// The core's live streams and drag targets (E5/W4) — what a panel in another window can watch or drive
+// in the engine owner. A plugin adds its own through registerLiveStream / registerLiveDragTarget; this
+// file is only the part that belongs to core. The editor's projector-brightness target needs App's
+// projector ports, so App registers that one itself.
+
+import { registerLiveDragTarget, registerLiveStream } from './broker';
+import { dmxSignal } from '../services/dmxSignal';
+import { perfMonitor } from '../services/perfMonitor';
+import { telemetry } from '../services/telemetry';
+import { livePreview } from '../services/livePreview';
+import { docStore } from '../state/docStore';
+
+let installed = false;
+
+export function installCoreLiveStreams(): void {
+  if (installed) return;
+  installed = true;
+
+  // THE CANONICAL PIXEL BUFFER — what the DMX monitor draws. `params` = { start, count } in bytes, so a
+  // monitor showing one universe is sent that universe, not the rig. The engine's buffer is its own and
+  // is reused, so a sample is a copy (and the copy's memory is transferred, not cloned again).
+  let pixels: Uint8Array | null = null;
+  registerLiveStream('dmx.pixels', {
+    watch(onNew) { return dmxSignal.subscribe((d) => { pixels = d.pixels; onNew(); }); },
+    read(params) {
+      if (!pixels) return undefined;
+      const p = (params ?? {}) as { start?: number; count?: number };
+      const start = Math.max(0, Math.min(pixels.length, p.start ?? 0));
+      const end = p.count == null ? pixels.length : Math.min(pixels.length, start + Math.max(0, p.count));
+      const copy = pixels.slice(start, end);
+      return { value: { start, total: pixels.length, bytes: copy }, transfer: [copy.buffer] };
+    },
+  });
+
+  // Render and output health. The numbers are windowed statistics that move once a second at most, so
+  // the producer hook is a 1 Hz timer — running only while someone watches (broker rule 2).
+  registerLiveStream('perf', {
+    watch(onNew) { const t = setInterval(onNew, 1000); return () => clearInterval(t); },
+    read() { return { value: { render: perfMonitor.stats(), telemetry: telemetry.get() } }; },
+  });
+
+  // THE LED MASTER, dragged from another window: the same render-free channel the editor's own slider
+  // writes (contexts/panels/browser.tsx), so the wire follows the hand at frame rate and the document
+  // is written once, on release, by the client — through the Show Host like any edit.
+  registerLiveDragTarget('ledBrightness', {
+    move: (d) => livePreview.setBrightness(d.value),
+    end: () => { /* the client's commit follows; the engine re-reads the committed value */ },
+    abandon: () => livePreview.setBrightness(docStore.getSlice('globalBrightness')),
+  });
+
+  // A FIXTURE CHANNEL under a hand in another window: the top of the precedence stack, with the same
+  // settle-then-retire handover as the inspector's faders (services/livePreview.ts).
+  registerLiveDragTarget('fixtureChannel', {
+    move: (d) => livePreview.setFixtureChannel(d.fixtureId, d.key, d.value),
+    end: (d) => livePreview.releaseFixtureChannel(d.fixtureId, d.key),
+    abandon: (d) => livePreview.releaseFixtureChannel(d.fixtureId, d.key),
+  });
+}

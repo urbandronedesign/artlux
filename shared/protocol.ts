@@ -256,6 +256,17 @@ export const IPC = {
    * into the page (state/hostLink.ts) exactly as it relays ENGINE_PORT.
    */
   SHOW_HOST_PORT: 'showhost:port',
+  /**
+   * Renderer → main: "pair me with the engine owner" (E5/W4, src/main/liveHub.ts). The argument is a
+   * label for logs. Answered by LIVE_PORT on both sides.
+   */
+  LIVE_CONNECT: 'live:connect',
+  /**
+   * Main → renderer: one end of a live channel (shared/liveProtocol.ts). Payload `{ role, clientId }`:
+   * 'client' = this window asked; 'owner' = the editor's end for that client; 'drop' (no port) = that
+   * client is gone, release what it held. Relayed into the page by the preload, like SHOW_HOST_PORT.
+   */
+  LIVE_PORT: 'live:port',
   /** Main → renderer: the set of connected displays changed (add/remove). */
   PROJECTOR_DISPLAYS_CHANGED: 'projector:displays-changed',
   /**
@@ -1964,6 +1975,8 @@ export interface ArtluxApi {
    * in the combined app, which has no other half.
    */
   suiteOtherApp(): Promise<SuiteOtherApp | null>;
+  /** Ask main to pair this window with the engine owner (E5/W4). The port arrives as 'artlux:live-port'. */
+  liveConnect(label: string): void;
   /** Hand the saved project to the other app: start it on `projectPath`, free the outputs, exit. */
   openInOtherApp(projectPath: string, exeHint?: string): void;
   /**

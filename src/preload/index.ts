@@ -104,6 +104,7 @@ const api: ArtluxApi = {
     relaunchBroadcast: (projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_BROADCAST, projectPath),
     relaunchWithCalibration: (on: boolean, projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_PROFILE, on, projectPath),
     suiteOtherApp: () => ipcRenderer.invoke(IPC.SUITE_OTHER_APP),
+    liveConnect: (label: string) => ipcRenderer.send(IPC.LIVE_CONNECT, label),
     openInOtherApp: (projectPath: string, exeHint?: string) => ipcRenderer.send(IPC.SUITE_OPEN_IN_OTHER, projectPath, exeHint),
     suiteRecalibrate: (job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }, projectPath: string) => ipcRenderer.invoke(IPC.SUITE_RECALIBRATE, job, projectPath),
     suiteHandBack: (projectPath: string, outcome: string) => ipcRenderer.send(IPC.SUITE_HAND_BACK, projectPath, outcome),
@@ -264,6 +265,23 @@ const flushHostPort = () => {
     pendingHostPort = null;
     window.postMessage({ kind: 'artlux:showhost-port' }, '*', [port]);
 };
+// ── THE LIVE CHANNEL PORTS (E5/W4) ───────────────────────────────────────────────────────────────
+// Same relay again, but a QUEUE, not a slot: the editor (the engine owner) receives one port per client,
+// and a 'drop' notice carries no port at all — both must reach the page in order. Held until the page
+// says 'artlux:live-ready' (renderer/live/*.ts posts it once it listens).
+const pendingLive: Array<{ payload: unknown; port?: MessagePort }> = [];
+let liveReady = false;
+const flushLive = () => {
+    if (!liveReady) return;
+    while (pendingLive.length) {
+        const { payload, port } = pendingLive.shift()!;
+        window.postMessage({ kind: 'artlux:live-port', payload }, '*', port ? [port] : []);
+    }
+};
+ipcRenderer.on(IPC.LIVE_PORT, (e, payload: unknown) => {
+    pendingLive.push({ payload, port: e.ports[0] });
+    flushLive();
+});
 ipcRenderer.on(IPC.SHOW_HOST_PORT, (e) => {
     const port = e.ports[0];
     if (port) pendingHostPort = port;
@@ -329,6 +347,9 @@ window.addEventListener('message', (e) => {
     } else if (e.data === 'artlux:showhost-ready') {
         hostReady = true;
         flushHostPort();
+    } else if (e.data === 'artlux:live-ready') {
+        liveReady = true;
+        flushLive();
     }
 });
 

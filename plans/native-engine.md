@@ -433,7 +433,40 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > - Two verify:invariants checks, mutation-tested with 6 and 7 mutations.
 > - Harness runs (`ARTLUX_CDP_PORT`) autosave to a temp folder.
 >
-> **Next: W4** (live channels).
+> ✅ **W4 done 2026-11-20 (live channels).** The editor is the engine owner
+> (`src/renderer/live/broker.ts`); a client window uses `live/client.ts`; main only pairs the two
+> (`src/main/liveHub.ts`). The wire is `shared/liveProtocol.ts`. What was built:
+> - **Stream broker, pull-based.** A sample is sent only to a subscription that is waiting. The client
+>   pulls from its rAF, so traffic runs at its refresh and stops while it is hidden. Producer hooks
+>   attach with the first subscriber and detach with the last. Core streams are `dmx.pixels` (the
+>   canonical RGBW buffer, by byte range) and `perf`; plugins add theirs with `registerLiveStream`.
+> - **Clock anchor.** Each clock carries its own rate, because a playing transport can park while the
+>   show clock runs on. The anchor is stamped with the frame time, and re-sent only on more than 1 ms
+>   of disagreement, or when the play state or a rate changes. A bake sends at most one anchor every
+>   100 ms. `timeline.getFrameTimeMs()` was added for this.
+> - **Thumbnails and peaks** are served from `thumbnailCache` and `audioPeaks` in the editor, as copies.
+>   `hasExactThumb` and `peaksFailed` were added. Audio peaks stay in the renderer rather than main for
+>   now; the owner can move later without changing the wire.
+> - **Live drag.** The drag targets are `ledBrightness`, `fixtureChannel` and `projectorBrightness`
+>   (the last one is App's, because it needs the projector ports). A client that main reports gone
+>   has every drag it held abandoned back to the committed value.
+>
+> Proof:
+> - `test-live-channel`, 7 claims, all green:
+>   - DMX samples arrive at ~30/s, and **0 in 3 s** once the client stops pulling;
+>   - **2 anchors over 2.5 s** of playback, with a 0.00 ms extrapolation error;
+>   - 0 anchors at rest; seek and end-stop agree;
+>   - a 160×90 thumbnail in 95 ms, and the cache intact after a second ask;
+>   - 64-bucket peaks;
+>   - drags applied, and abandoned on drop.
+> - Negative control: with the pull gate and the anchor gate removed, the harness reports 91 samples
+>   while held, and 155 anchors in 2.5 s.
+> - Three verify:invariants checks, mutation-tested 17/17.
+> - Regressions green: `test-show-host`, `test-engine-output`, `test-panel-renders`, `test-undo`.
+> - Not proven yet: main's "client gone" notice from a real second window. The harness simulates the
+>   notice, because its client is the editor itself; W5's panel windows exercise the real path.
+>
+> **Next: W5** (panel windows).
 >
 > ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
 > Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on

@@ -34,9 +34,12 @@ import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
-import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc, PROJECT_FILE_SLICES } from './state/docStore';
+import { docStore, useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc, PROJECT_FILE_SLICES } from './state/docStore';
 // Side-effect import: replicates the two stores above into the Show Host process (E5/W3). The editor
 // works the same with no host; see state/hostLink.ts.
+import { startLiveBroker, registerLiveDragTarget } from './live/broker';
+import { installCoreLiveStreams } from './live/coreStreams';
+import './live/client';
 import { historyOp, hostConnected, hostDirtyNow, markSaved, subscribeHostDirty, subscribeHostConnect, setAutosaveEnabled, projectLoading, queryAutosave, discardAutosave } from './state/hostLink';
 import { shareEqual } from '../../shared/shareEqual';
 import {
@@ -253,6 +256,13 @@ const SHOW_ENGINE = BROADCAST || HEADLESS;
 // Autosave (E5/W3c): the Show Host keeps a recovery copy of unsaved work — in the editor only. A show
 // mode edits nothing, and an unattended machine must never grow a folder of recovery files.
 setAutosaveEnabled(!SHOW_ENGINE);
+// The live channel (E5/W4): THIS window is the engine owner — the one producer of every live stream,
+// the clock anchor, thumbnails and peaks — and other windows' panels are its clients. In every mode:
+// a show machine has no client windows today, and then the broker costs nothing (no client, no hook).
+// `./live/client` is imported for the harness only (scripts/test-live-channel.cjs pairs the editor
+// with itself through main); it does nothing until connect() is called.
+startLiveBroker();
+installCoreLiveStreams();
 
 // Who caused a state change. Threaded into the two functions that both an operator AND the show can
 // reach (handleRecallScene, applyCues, fireColumn). ONLY an 'operator' edit may push undo history —
@@ -4962,6 +4972,13 @@ const App: React.FC = () => {
   pushProjectorBrightnessRef.current = (v: number) => {
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'brightness', value: v });
   };
+  // The same push, driven by a slider in ANOTHER window (E5/W4, live/broker.ts). A client that vanishes
+  // mid-drag leaves the projectors at the committed value, not at wherever its hand was.
+  useEffect(() => registerLiveDragTarget('projectorBrightness', {
+      move: (d) => pushProjectorBrightnessRef.current(d.value),
+      end: () => { /* the client commits through the host; the config push follows that */ },
+      abandon: () => pushProjectorBrightnessRef.current(docStore.getSlice('projectorBrightness')),
+  }), []);
   // Stop aligning any output that got disabled / removed (the rest of the span keeps its grid up).
   useEffect(() => {
       setEditingOutputIds(prev => {

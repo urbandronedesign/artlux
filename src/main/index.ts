@@ -8,6 +8,7 @@ import * as logger from './logger';
 import * as machineInfo from './machineInfo';
 import { openEnginePort, closeEnginePort } from './enginePort';
 import { connectShowHost, stopShowHost } from './showHost';
+import { initLiveHub } from './liveHub';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors, rebridgeAllProjectors } from './projector';
@@ -287,6 +288,8 @@ function createWindow(): void {
     // port — every load (a reload drops the old port), every mode (the editor replica works without it,
     // but a broadcast run is still a document a later panel window may want to read). See main/showHost.ts.
     mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) connectShowHost(mainWindow); });
+    // The live channel (E5/W4): this window is the ENGINE OWNER that other windows' live panels pair with.
+    initLiveHub(mainWindow);
     // The projector outputs' ports die with the page too — re-bridge every open output on every load,
     // or a reload leaves them all on "Waiting for the main window…" for good (see projector.ts).
     // On the first load there are no outputs yet; each one bridges itself when it opens.

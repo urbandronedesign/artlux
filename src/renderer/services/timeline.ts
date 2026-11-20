@@ -170,6 +170,10 @@ const SLEW = 0.1; // fraction of residual drift a mirror window corrects per tra
 // The project-level state machine (set by App via setStateMachine). Lives here — not in `data` — so
 // it runs independently of the timeline document and can drive scenes while the transport is stopped.
 let projectSm: StateMachine | undefined;
+// The time THIS frame was computed for (ms, renderClock domain), for the live clock anchor (E5/W4,
+// renderer/live/broker.ts): an anchor stamped with the moment a subscriber happened to run would carry
+// the frame's own work time as clock error. Set at the top of runFrame, read through getFrameTimeMs().
+let frameMs = 0;
 let frameNowSec = 0; // wall clock (seconds) sampled each frame — the FSM's standalone clock
 
 // ── THE COLD-START ARM ───────────────────────────────────────────────────────────────────────────
@@ -1015,6 +1019,7 @@ function frame(rafNow: number): void {
  * something the other was not.
  */
 function runFrame(now: number): void {
+  frameMs = now;
   try {
     hitEnd = false; // one frame only: set below when the playhead lands on the end, read by the FSM tick
     // Cleared here and re-established below on every frame the hold branch actually parks — so ANY
@@ -1934,6 +1939,8 @@ export const timeline = {
   // THE SHOW CLOCK, in seconds. In a MIRROR window this is the number the bridge last told us (plus the
   // frame-loop's interpolation), not a number this window derived — see setExternalShowTime.
   getShowTime(): number { return showTime; },
+  /** The renderClock time the current playhead and show time were computed for (see `frameMs`). */
+  getFrameTimeMs(): number { return frameMs; },
   // TELL A MIRROR WINDOW THE SHOW CLOCK. The counterpart to showSeek(), which deliberately REFUSES in a
   // mirror (`if (!external)`): a projector must never MOVE the show, only be told where it is. Called from
   // the transport bridge at ~30 Hz alongside setPlaying/seek; the frame loop interpolates between messages
