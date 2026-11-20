@@ -358,8 +358,9 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > keeps its local names, so no call site changed; undo is still App's `useHistory` (it moves with the
 > authority in W3). Guarded by verify:invariants. Real-app harnesses green: engine-output, copy-paste,
 > scene-timelines 10/10, hold-at-end 13/13, zone-fsm 9/9, lighting-take, show-control,
-> project-import-live. Not yet covered by any harness: **undo/redo**. Next: **W2** (panels read their
-> slice directly).
+> project-import-live, and **undo/redo** (`scripts/test-undo.cjs`, 18/18, mutation-tested: fixture
+> delete, a selection click is not history, a timeline clip, a scene + machine state in one step).
+> Next: **W2** (panels read their slice directly).
 
 | WP | What | Size |
 |---|---|---|
