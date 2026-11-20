@@ -22,6 +22,18 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+// PREFS GUARD. The app persists LAYOUT to the prefs file as a test clicks around — which workbenches
+// have the timeline drawer open, the current workbench — and restoring only lastProjectPath left the
+// operator's layout changed after every run (found 2026-11-20: a drawer a previous harness opened in
+// Venue & Rig covered the rows the next harness clicked). Back the WHOLE file up before launch and put
+// it back once the app is dead, as test-engine-output and test-lighting-take already do.
+const PREFS_FILE = path.join(process.env.APPDATA || require('node:os').homedir(), 'ArtLux', 'artlux-prefs.json');
+const PREFS_BACKUP = (() => { try { return require('node:fs').readFileSync(PREFS_FILE); } catch { return null; } })();
+function restorePrefs() {
+    if (!PREFS_BACKUP) return;
+    try { require('node:fs').writeFileSync(PREFS_FILE, PREFS_BACKUP); console.log('prefs restored'); }
+    catch (e) { console.log(`prefs NOT restored (${e.message}) — backup was taken from ${PREFS_FILE}`); }
+}
 const puppeteer = require('puppeteer-core');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -378,6 +390,7 @@ async function main() {
         if (browser) { try { await browser.disconnect(); } catch {} }
         killTree(child.pid);
         if (process.platform === 'win32') { try { execSync('taskkill /im electron.exe /T /F', { stdio: 'ignore' }); } catch {} }
+        restorePrefs();   // after the app is dead, so nothing writes over it
     }
 }
 main();

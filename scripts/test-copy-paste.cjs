@@ -22,6 +22,18 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+// PREFS GUARD. The app persists LAYOUT to the prefs file as a test clicks around — which workbenches
+// have the timeline drawer open, the current workbench — and restoring only lastProjectPath left the
+// operator's layout changed after every run (found 2026-11-20: a drawer a previous harness opened in
+// Venue & Rig covered the rows the next harness clicked). Back the WHOLE file up before launch and put
+// it back once the app is dead, as test-engine-output and test-lighting-take already do.
+const PREFS_FILE = path.join(process.env.APPDATA || require('node:os').homedir(), 'ArtLux', 'artlux-prefs.json');
+const PREFS_BACKUP = (() => { try { return require('node:fs').readFileSync(PREFS_FILE); } catch { return null; } })();
+function restorePrefs() {
+    if (!PREFS_BACKUP) return;
+    try { require('node:fs').writeFileSync(PREFS_FILE, PREFS_BACKUP); console.log('prefs restored'); }
+    catch (e) { console.log(`prefs NOT restored (${e.message}) — backup was taken from ${PREFS_FILE}`); }
+}
 
 const ROOT = path.resolve(__dirname, '..');
 const CDP_PORT = process.env.ARTLUX_CDP_PORT || '9381';
@@ -266,6 +278,15 @@ const press = async (page, key, mods = ['Control']) => {
     console.log('\n5. Del removes the selected fixtures');
     await clickRail(page, '3D');
     await sleep(1200);
+    // CLOSE THE DRAWER FIRST. It spans under the browser column, so when it is open (layout is saved per
+    // workbench, and another run may have left it so) it covers the lower rows: the click below then lands
+    // on the timeline, the pointer stays over it, and App rightly hands Delete to the timeline. Step 6
+    // opens it again on purpose.
+    await page.evaluate(() => {
+      const b = document.querySelector('button[aria-controls="workspace-bottom"]');
+      if (b && b.getAttribute('aria-expanded') === 'true') b.click();
+    });
+    await sleep(800);
     if (!(await clickRow(page, 'Head 5'))) throw new Error('could not select Head 5');
     await press(page, 'Delete', []);
     let heads2 = (await rows(page)).filter((r) => /^Head \d+$/.test(r));
@@ -351,6 +372,7 @@ const press = async (page, key, mods = ['Control']) => {
   } finally {
     try { if (browser) await browser.disconnect(); } catch { /* gone */ }
     await stop(child);
+    restorePrefs();   // after the app is dead, so nothing writes over it
     if (!KEEP) { try { fs.rmSync(WORK, { recursive: true, force: true }); } catch { /* leave it */ } }
   }
 
