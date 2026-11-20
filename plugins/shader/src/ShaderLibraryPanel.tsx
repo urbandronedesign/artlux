@@ -4,13 +4,13 @@
 // Cards, because a shader is recognised by its picture and not by its name.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useEditor, useEditorActions } from '@/state/EditorStore';
+import { useEditorPick, useEditorActions } from '@/state/EditorStore';
 import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 import * as library from './libraryClient';
 import { resolve as resolveParams } from './shaderParams';
 
 export const ShaderLibraryPanel: React.FC = () => {
-  const { surfaces, selectedSurfaceId } = useEditor();
+  const { surfaces, selectedSurfaceId } = useEditorPick('surfaces', 'selectedSurfaceId');
   const { updateSurface } = useEditorActions();
   const [entries, setEntries] = useState(library.all());
   const [busy, setBusy] = useState(false);

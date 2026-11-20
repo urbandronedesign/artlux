@@ -7,7 +7,7 @@ import { score, searchDocs, loadDocIndex, type DocHit } from '../../services/doc
 import type { DocChunk } from '../../../../shared/protocol';
 import type { HelpLang } from '../../services/helpBus';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 import { Segmented } from '../ui';
 
 // THE help surface — a Ctrl+K-style centered overlay, and the only one. It merged two surfaces that
@@ -113,7 +113,7 @@ const HelpBrowserBody: React.FC<{
 
   // EN/FR writes through to AppSettings.helpLang (persisted) — the same field the old drawer's
   // toggle wrote, so an operator's language survives the merge and the restart.
-  const { settings } = useEditor();
+  const { settings } = useEditorPick('settings');
   const { updateSettings } = useEditorActions();
   const lang = settings.helpLang;
 

@@ -5,7 +5,7 @@ import { PROGRAM_LAYER_ID } from '../../services/timeline';
 import { modelScaleXYZ } from '../../../../shared/protocol';
 import type { SceneModel, ScreenBinding } from '../../../../shared/protocol';
 import type { Surface, Timeline } from '../../types';
-import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { Button, NumberField } from '../../components/ui';
@@ -70,7 +70,7 @@ const rowCls = (active: boolean) =>
 
 // ── Objects ─────────────────────────────────────────────────────────────────────────────────
 export const ModelsPanel: React.FC = () => {
-  const { scene3D, selectedModelId } = useEditor();
+  const { scene3D, selectedModelId } = useEditorPick('scene3D', 'selectedModelId');
   const a = useEditorActions();
   const models = scene3D.models ?? [];
   return (
@@ -102,7 +102,7 @@ export const ModelsPanel: React.FC = () => {
 // A model's named screens, indented under it. Selecting one selects the model (screens are locked to
 // it, so the model's gizmo is the right one) and points the Model card at that screen's picker.
 const ScreenRows: React.FC<{ modelId: string }> = ({ modelId }) => {
-  const { selectedModelId } = useEditor();
+  const { selectedModelId } = useEditorPick('selectedModelId');
   const a = useEditorActions();
   const names = useModelScreens(modelId);
   const focused = useFocusedScreen();
@@ -126,7 +126,7 @@ const ScreenRows: React.FC<{ modelId: string }> = ({ modelId }) => {
 // Add-object buttons plus the scene Save — Save lives here rather than on the action bar because it
 // carries transient "Saved" feedback, which a static ContextAction label cannot show.
 export const ModelsHeaderActions: React.FC = () => {
-  const { sceneSaved } = useEditor();
+  const { sceneSaved } = useEditorPick('sceneSaved');
   const a = useEditorActions();
   return (
     <>
@@ -152,7 +152,7 @@ export const ModelsHeaderActions: React.FC = () => {
 
 // ── Fixtures (read-only picker inside the 3D context) ───────────────────────────────────────
 export const Scene3DFixturesPanel: React.FC = () => {
-  const { fixtures, selectedFixtureId, selectedFixtureIds, selectedModelId } = useEditor();
+  const { fixtures, selectedFixtureId, selectedFixtureIds, selectedModelId } = useEditorPick('fixtures', 'selectedFixtureId', 'selectedFixtureIds', 'selectedModelId');
   const a = useEditorActions();
   // Anchor for shift-range selection, in list order.
   const anchor = React.useRef<string | null>(null);
@@ -208,7 +208,7 @@ export const Scene3DFixturesPanel: React.FC = () => {
 // Each action commits the whole selection at once, so it is ONE undo step — see
 // services/fixtureLayout.ts for the maths and for why selection order is preserved.
 export const FixtureArrangePanel: React.FC = () => {
-  const { fixtures, selectedFixtureIds } = useEditor();
+  const { fixtures, selectedFixtureIds } = useEditorPick('fixtures', 'selectedFixtureIds');
   const a = useEditorActions();
   const [spacing, setSpacing] = useState(1);
   const [radius, setRadius] = useState(4);
@@ -345,7 +345,7 @@ const ContentOptions: React.FC<{ surfaces: Surface[]; layers: Timeline['layers']
 // than dropped, because the usual cause is a rename in Blender, and silently losing the operator's
 // binding on a re-export is worse than one stale row they can clear.
 const ModelScreensSection: React.FC<{ model: SceneModel }> = ({ model: m }) => {
-  const { timeline, surfaces } = useEditor();
+  const { timeline, surfaces } = useEditorPick('timeline', 'surfaces');
   const a = useEditorActions();
   const found = useModelScreens(m.id);
   const focused = useFocusedScreen();
@@ -394,7 +394,7 @@ const ModelScreensSection: React.FC<{ model: SceneModel }> = ({ model: m }) => {
 };
 
 export const ModelTransformPanel: React.FC = () => {
-  const { scene3D, selectedModelId, timeline, modelNaturalSizes, surfaces, projectorOutputs } = useEditor();
+  const { scene3D, selectedModelId, timeline, modelNaturalSizes, surfaces, projectorOutputs } = useEditorPick('scene3D', 'selectedModelId', 'timeline', 'modelNaturalSizes', 'surfaces', 'projectorOutputs');
   const a = useEditorActions();
   const [fitMeters, setFitMeters] = useState(5);
   const m = (scene3D.models ?? []).find((x) => x.id === selectedModelId) ?? null;
@@ -615,7 +615,7 @@ export const ModelTransformPanel: React.FC = () => {
 
 // ── Lighting ────────────────────────────────────────────────────────────────────────────────
 export const SceneLightingPanel: React.FC = () => {
-  const { scene3D } = useEditor();
+  const { scene3D } = useEditorPick('scene3D');
   const a = useEditorActions();
   return (
     <>
@@ -647,7 +647,7 @@ export const SceneLightingPanel: React.FC = () => {
 // contribution — core owns the flag, the plugin owns what it draws. That split is why a toggle can
 // stay in core while nothing here imports lidar-tracking, mediapipe or augmenta.
 export const SceneTrackingPanel: React.FC = () => {
-  const { scene3D } = useEditor();
+  const { scene3D } = useEditorPick('scene3D');
   const a = useEditorActions();
   // THE WAY TO THE AUTHORING SURFACE, from the place an operator is already standing when they think
   // about zones. Everything else in this section VIEWS or TUNES them; the rectangles themselves are

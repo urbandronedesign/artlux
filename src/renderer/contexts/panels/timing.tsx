@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { timeline as engine } from '../../services/timeline';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { useEditor } from '../../state/EditorStore';
+import { useEditorPick } from '../../state/EditorStore';
 
 // Timing monitor — the clocks an operator watches while firing cues.
 //
@@ -30,7 +30,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode; hint?: string }>
 );
 
 export const TimingPanel: React.FC = () => {
-  const { scenes, stateMachine, activeSceneId } = useEditor();
+  const { scenes, stateMachine, activeSceneId } = useEditorPick('scenes', 'stateMachine', 'activeSceneId');
   const [stateId, setStateId] = useState<string | null>(null);
 
   const showRef = useRef<HTMLSpanElement>(null);
@@ -86,7 +86,7 @@ export const TimingPanel: React.FC = () => {
 
 // The transport state, on the section header — the one thing you want visible with Timing collapsed.
 export const TimingHeaderActions: React.FC = () => {
-  const { isVideoPlaying } = useEditor();
+  const { isVideoPlaying } = useEditorPick('isVideoPlaying');
   return (
     <span className={`text-micro px-1.5 rounded ${isVideoPlaying ? 'bg-ok/20 text-ok' : 'bg-surface-2 text-fg-3'}`}>
       {isVideoPlaying ? 'PLAYING' : 'STOPPED'}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Trash2, Plus, Users, Eye, EyeOff } from 'lucide-react';
 import type { TrackingZone } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
@@ -64,6 +64,12 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   const [surface, setSurface] = useState(() => scene.trackingZones?.[0]?.surface ?? 'SOL');
   // A surface ANOTHER plugin provides (the camera area): its own points, aspect, parts and calibration.
   const prov = providerSurface(surface);
+  // RE-RENDER WHEN OCCUPANCY CHANGES. The list's person icon reads zones.getState() during render, and
+  // until the shell put a memo boundary around registry panels (plans/native-engine.md §9a, W2) it was
+  // only fresh because App happened to re-render the whole tree. zones.subscribe() fires on an actual
+  // enter/exit (not per frame), so this costs one small render per change and nothing while it holds.
+  const [, bumpZones] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => zones.subscribe(bumpZones), []);
   const frameRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState({ w: 0, h: 0 });
   useEffect(() => {

@@ -4,7 +4,7 @@ import type { SurfaceContent } from '@/types';
 import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textRaster';
 import { families, lastError, refresh, canRender } from './fontList';
 import { stateOf } from './fontAssets';
-import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell store, as the shader panels use
+import { useEditorPick, useEditorActions } from '@/state/EditorStore'; // shell store, as the shader panels use
 
 // The per-surface inspector fragment for TEXT content, rendered by the host ContentEditor through the
 // content-source provider's `editor` hook.
@@ -43,7 +43,7 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
-  const { assets } = useEditor();
+  const { assets } = useEditorPick('assets');
   const a = useEditorActions();
 
   // ⚠ ASKED ON THE CLICK THAT OPENS THE LIST, never on mount. queryLocalFonts needs transient user

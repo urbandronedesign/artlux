@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
+import { PanelBody } from './PanelBody';
 import { contextRegistry, panelRegistry, appliesToSelection } from '../../host/registries';
 import { layoutStore, DEFAULT_LAYOUT, type WorkspaceLayout } from '../../services/layoutStore';
 import { keymap } from '../../shortcuts/keymapStore';
@@ -84,7 +85,7 @@ const PanelSection: React.FC<{ panel: PanelContribution; contextId: string; sele
   // crash shows the recovery card and output keeps flowing. (See ErrorBoundary.)
   const body = (
     <ErrorBoundary variant="panel" label={panel.title ?? panel.id}>
-      <panel.Component contextId={contextId} selection={selection} />
+      <PanelBody Component={panel.Component} contextId={contextId} selection={selection} />
     </ErrorBoundary>
   );
   // A bare panel draws its own chrome, but it still has to participate in the browser column's flex
@@ -325,7 +326,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 {registryViewport && (
                   <div className="absolute inset-0 overflow-auto">
                     <ErrorBoundary variant="panel" label={registryViewport.title ?? registryViewport.id}>
-                      <registryViewport.Component contextId={context.id} selection={selection} />
+                      <PanelBody Component={registryViewport.Component} contextId={context.id} selection={selection} />
                     </ErrorBoundary>
                   </div>
                 )}
@@ -361,7 +362,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
               >
                 {activeDock && (
                   <ErrorBoundary variant="panel" label={activeDock.title ?? activeDock.id}>
-                    <activeDock.Component contextId={context.id} selection={selection} />
+                    <PanelBody Component={activeDock.Component} contextId={context.id} selection={selection} />
                   </ErrorBoundary>
                 )}
               </Dock>
@@ -441,7 +442,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
             <div id="workspace-bottom" className="relative flex-1 min-h-0 overflow-hidden">
               {bottomPanel
                 ? <ErrorBoundary variant="panel" label={bottomPanel.title ?? bottomPanel.id}>
-                    <bottomPanel.Component contextId={context.id} selection={selection} />
+                    <PanelBody Component={bottomPanel.Component} contextId={context.id} selection={selection} />
                   </ErrorBoundary>
                 : PERSISTENT_LAYER_ENABLED
                   // The drawer's slot for the timeline. It stays VISIBLE while closed: the box is zero

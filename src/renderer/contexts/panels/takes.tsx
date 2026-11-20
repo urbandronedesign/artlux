@@ -4,7 +4,7 @@ import { trackingStore } from '@artlux/plugin-lidar-tracking';
 import * as takeRecorder from '../../services/takeRecorder';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 import * as orphanTakes from '../../services/orphanTakes';
 import { isLight } from '../../services/fixtureKind';
 import type { ChannelRole, LightingTake, TrackingTakeRef } from '../../types';
@@ -153,7 +153,7 @@ const rolesOf = (t: LightingTake): ChannelRole[] => {
 };
 
 export const LightingTakesDock: React.FC = () => {
-  const { timeline, selectedFixtureIds, fixtures, scenes, activeSceneId } = useEditor();
+  const { timeline, selectedFixtureIds, fixtures, scenes, activeSceneId } = useEditorPick('timeline', 'selectedFixtureIds', 'fixtures', 'scenes', 'activeSceneId');
   // Resolved out of `scenes`, never off a pre-collapsed name — the rule Timeline's audioOwnerName
   // documents: a bound-but-unresolvable scene must read "Scene", never the literal "Global".
   const owner = activeSceneId ? (scenes.find((s) => s.id === activeSceneId)?.name || 'Scene') : 'the global timeline';
@@ -294,7 +294,7 @@ export const TrackingTakesDock: React.FC = () => {
   // THE PROJECT LIBRARY, not the bound document. A LiDAR take is captured reality — a recording of what
   // the venue did — so it belongs to the project and every scene can draw on it. `globalTimeline` is
   // the same list the Media panel renders (services/assetLibrary.libraryItems).
-  const { globalTimeline, timeline } = useEditor();
+  const { globalTimeline, timeline } = useEditorPick('globalTimeline', 'timeline');
   const rec = useSyncExternalStore(takeRecorder.subscribe, takeRecorder.getRec);
   const takes = globalTimeline.trackingTakes ?? [];
   // …but the LANE is a property of the document you are editing, so it is read from the bound one.

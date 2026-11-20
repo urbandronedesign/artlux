@@ -9,7 +9,7 @@ import { fixtureFootprint, resolveMode } from '../../services/addressing';
 import {
   fixtureKind, groupKind, lightState, profileOf, KIND_LABEL, KIND_LABEL_PLURAL, type FixtureKind,
 } from '../../services/fixtureKind';
-import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 import { useRovingTabindex } from '../../hooks/useRovingTabindex';
 
 // Browser-column panels — the outliners. These are the four sections `ScenePanel` used to render as
@@ -50,7 +50,7 @@ function useRename(commit: (id: string, name: string) => void) {
 
 // ── Surfaces ────────────────────────────────────────────────────────────────────────────────
 export const SurfacesPanel: React.FC = () => {
-  const { surfaces, selectedSurfaceId } = useEditor();
+  const { surfaces, selectedSurfaceId } = useEditorPick('surfaces', 'selectedSurfaceId');
   const a = useEditorActions();
   const rename = useRename(a.renameSurface);
 
@@ -139,7 +139,7 @@ export const SurfacesHeaderActions: React.FC = () => {
 const KIND_ORDER = ['pixel', 'light'] as const;
 
 export const FixturesPanel: React.FC = () => {
-  const { fixtures, fixtureProfiles, selectedFixtureId, selectedFixtureIds } = useEditor();
+  const { fixtures, fixtureProfiles, selectedFixtureId, selectedFixtureIds } = useEditorPick('fixtures', 'fixtureProfiles', 'selectedFixtureId', 'selectedFixtureIds');
   const a = useEditorActions();
   const rename = useRename(a.renameFixture);
   const [filter, setFilter] = useState<'all' | FixtureKind>('all');
@@ -299,7 +299,7 @@ export const FixturesHeaderActions: React.FC = () => {
 
 // ── Groups ──────────────────────────────────────────────────────────────────────────────────
 export const GroupsPanel: React.FC = () => {
-  const { groups, fixtures } = useEditor();
+  const { groups, fixtures } = useEditorPick('groups', 'fixtures');
   const a = useEditorActions();
   return (
     <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
@@ -350,7 +350,7 @@ export const GroupsHeaderActions: React.FC = () => {
 // Both sliders drive a RENDER-FREE live channel while dragging (`onInput`) and commit React state
 // only on release (`onChange`) — see services/livePreview.ts. Do not "simplify" that into onChange.
 export const GlobalParamsPanel: React.FC = () => {
-  const { globalBrightness, projectorBrightness } = useEditor();
+  const { globalBrightness, projectorBrightness } = useEditorPick('globalBrightness', 'projectorBrightness');
   const a = useEditorActions();
   return (
     <div className="p-3 space-y-4">

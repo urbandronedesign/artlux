@@ -7474,6 +7474,39 @@ check(
   },
 );
 
+// ── Panels re-render for their own data only (plans/native-engine.md §9a, E5/W2) ─────────────────
+// Two halves, both needed, both silent when broken: (1) the shell must render every registry panel
+// through the PanelBody memo boundary — an inline <x.Component …/> puts the panel back on App's render
+// cadence; (2) a panel must name the fields it reads with useEditorPick — a whole-object useEditor()
+// re-renders it on every EditorData change, boundary or not. Proven by scripts/test-panel-renders.cjs
+// (a fixture edit: unrelated panels 2 renders → 0).
+check(
+  'registry panels render through PanelBody and read EditorData with useEditorPick',
+  'Without the memo boundary, or with a whole-object useEditor(), every App render re-renders the panel ' +
+  'again — the W2 gain disappears without a single error, and a panel cannot later move to its own window.',
+  () => {
+    const problems = [];
+    for (const f of ['src/renderer/components/shell/WorkspaceShell.tsx', 'src/renderer/components/shell/DockRenderer.tsx']) {
+      const src = read(f);
+      const inline = src.match(/<[\w.]+\.Component\s+contextId=/g);
+      if (inline) problems.push(`${f} renders a registry panel inline (${inline.join(', ')}) — use <PanelBody Component={…} …/>`);
+      if (!/<PanelBody\b/.test(src)) problems.push(`${f} no longer renders panels through <PanelBody>`);
+    }
+    if (!/React\.memo\(/.test(read('src/renderer/components/shell/PanelBody.tsx'))) problems.push('PanelBody is no longer React.memo — it is the boundary');
+    const offenders = [];
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+        const rel = path.join(dir, e.name).replace(/\\/g, '/');
+        if (e.isDirectory()) { if (e.name !== 'node_modules') walk(rel); }
+        else if (/\.tsx?$/.test(e.name) && rel !== 'src/renderer/state/EditorStore.tsx' && /=\s*useEditor\(\)/.test(read(rel))) offenders.push(rel);
+      }
+    };
+    walk('src/renderer'); walk('plugins');
+    if (offenders.length) problems.push(`whole-object useEditor() in: ${offenders.join(', ')} — name the fields with useEditorPick(...)`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── The collapsed timeline strip must stay clickable ───────────────────────────────────────────────
 // The drawer's ViewportSlot is `absolute inset-0`. If #workspace-bottom is not a positioned box, the
 // slot resolves against the outer drawer box (strip included), PersistentLayer draws the timeline over

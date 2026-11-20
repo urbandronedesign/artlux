@@ -8,6 +8,7 @@ import { useDockDrag, type DragApi } from './DockDrag';
 import { X, Plus, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { ViewportSlot } from './PersistentLayer';
+import { PanelBody } from './PanelBody';
 
 // Renders a DockTree. Plan: plans/dockable-workspace.md §2-§4.
 //
@@ -365,7 +366,7 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
             {active.panel
               ? <div className="absolute inset-0 overflow-auto">
                   <ErrorBoundary variant="panel" label={active.panel.title ?? active.panel.id}>
-                    <active.panel.Component contextId={ctx.contextId} selection={ctx.selection} />
+                    <PanelBody Component={active.panel.Component} contextId={ctx.contextId} selection={ctx.selection} />
                   </ErrorBoundary>
                 </div>
               : <ViewportSlot id={active.id} />}

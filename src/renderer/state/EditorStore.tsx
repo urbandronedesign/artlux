@@ -20,7 +20,7 @@
 // discipline (React.memo, local-during-drag + commit-on-release sliders, `services/livePreview.ts`
 // for the render-free live channel). Reading state here is not a licence to re-render per frame.
 
-import React, { createContext, useContext, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { SelectionSnapshot } from '@artlux/sdk/renderer';
 import type {
   Surface, Fixture, FixtureGroup, Controller, FixtureTemplate, FixtureProfile, AppSettings, PatchPolicy,
@@ -203,9 +203,27 @@ export interface EditorActions {
 const DataCtx = createContext<EditorData | null>(null);
 const ActionsCtx = createContext<EditorActions | null>(null);
 
+// ── The selective read path (plans/native-engine.md §9a, W2) ───────────────────────────────────
+// A React context has no selectors: every useEditor() consumer re-renders whenever ANY field of
+// EditorData changes, so moving one fixture re-rendered every panel that reads `settings`. The same
+// object is therefore ALSO published to this tiny external store, which useEditorPick() reads through
+// useSyncExternalStore with a per-field identity check — a panel re-renders only when one of the
+// fields it named changed.
+//
+// Publication order is load-bearing. `current` is written DURING EditorStore's render (an assignment,
+// no notification), so any child rendering in the same pass reads the same object its siblings do.
+// Subscribers are notified in a LAYOUT effect, so a memoized panel that the pass skipped still updates
+// synchronously before paint — never a frame of stale picture. Notifying during render instead would
+// set state in other components mid-render (React forbids it).
+let current: EditorData | null = null;
+const listeners = new Set<() => void>();
+const subscribeData = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
+
 interface Props { data: EditorData; actions: EditorActions; children: React.ReactNode }
 
 export const EditorStore: React.FC<Props> = ({ data, actions, children }) => {
+  current = data;
+  useLayoutEffect(() => { for (const fn of [...listeners]) fn(); }, [data]);
   // The actions facade. `latest` tracks App's freshly-created handlers every render; the facade
   // hands out PERMANENT wrapper functions that forward to `latest.current` at CALL time.
   //
@@ -245,6 +263,33 @@ export function useEditor(): EditorData {
   const v = useContext(DataCtx);
   if (!v) throw new Error('useEditor() outside <EditorStore> — panels must render inside the shell');
   return v;
+}
+
+/**
+ * Read only the fields a panel uses, and re-render only when one of THEM changes identity.
+ *
+ *     const { fixtures, selectedFixtureId } = useEditorPick('fixtures', 'selectedFixtureId');
+ *
+ * The drop-in for `const { fixtures, selectedFixtureId } = useEditor()`: same names, same values, but a
+ * fixture edit no longer re-renders a panel that only reads `settings`. Identity comparison per field
+ * is exact here because every EditorData field already has a stable identity (App memoizes the object
+ * on its fields, and each field is a store slice or a memoized derivation).
+ *
+ * ⚠ It only pays off where the panel is not also re-rendered by its parent — the shell's memo boundary
+ * around registry panels is what provides that (see PanelBody in components/shell).
+ */
+export function useEditorPick<K extends keyof EditorData>(...keys: K[]): Pick<EditorData, K> {
+  const cache = useRef<Pick<EditorData, K> | null>(null);
+  const getSnapshot = (): Pick<EditorData, K> => {
+    if (!current) throw new Error('useEditorPick() outside <EditorStore> — panels must render inside the shell');
+    const prev = cache.current;
+    if (prev && keys.every((k) => Object.is(prev[k], current![k]))) return prev;
+    const next = {} as Pick<EditorData, K>;
+    for (const k of keys) next[k] = current[k];
+    cache.current = next;
+    return next;
+  };
+  return useSyncExternalStore(subscribeData, getSnapshot);
 }
 
 export function useEditorActions(): EditorActions {

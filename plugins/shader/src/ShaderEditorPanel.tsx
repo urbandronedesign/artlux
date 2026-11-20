@@ -22,7 +22,7 @@ import { autocompletion, completionKeymap, type CompletionContext } from '@codem
 import { bracketMatching, indentUnit, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { cpp } from '@codemirror/lang-cpp';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
-import { useEditor, useEditorActions } from '@/state/EditorStore'; // shell store (panels read state, App owns it)
+import { useEditorPick, useEditorActions } from '@/state/EditorStore'; // shell store (panels read state, App owns it)
 import { compile, rearmKey } from './shaderDrawable';
 import { sourceOf } from './shaderSource';
 import { STARTERS } from './starters';
@@ -72,7 +72,7 @@ const THEME = EditorView.theme({
 }, { dark: true });
 
 export const ShaderEditorPanel: React.FC = () => {
-  const { surfaces, selectedSurfaceId } = useEditor();
+  const { surfaces, selectedSurfaceId } = useEditorPick('surfaces', 'selectedSurfaceId');
   const { updateSurface } = useEditorActions();
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);

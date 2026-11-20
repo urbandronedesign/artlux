@@ -6,7 +6,7 @@ import { PerfPanel } from '../../components/PerfPanel';
 import { RoutingModal } from '../../components/RoutingModal';
 import { Preferences } from '../../components/Preferences';
 import { StateGraphEditor } from '../../components/timeline/StateGraphEditor';
-import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 import { revealBottom } from '../nav';
 
 // Thin adapters: existing whole-panel components, fed from the editor store instead of ~10 props
@@ -14,7 +14,7 @@ import { revealBottom } from '../nav';
 // unlike ScenePanel/InspectorPanel there is nothing to decompose.
 
 export const MediaBrowserPanel: React.FC = () => {
-  const { assets, globalTimeline, projectRefs, selectedSurfaceId, currentProjectPath } = useEditor();
+  const { assets, globalTimeline, projectRefs, selectedSurfaceId, currentProjectPath } = useEditorPick('assets', 'globalTimeline', 'projectRefs', 'selectedSurfaceId', 'currentProjectPath');
   const a = useEditorActions();
   return (
     <MediaPanel
@@ -37,7 +37,7 @@ export const MediaBrowserPanel: React.FC = () => {
 // The old seven-card `FixtureEditorDock` is gone — five of its cards were a second rendering of the
 // kind-gated inspector. What is left is two docks, each holding something that exists nowhere else.
 export const FixtureLibraryDock: React.FC = () => {
-  const { fixtures, selectedFixtureId, templates } = useEditor();
+  const { fixtures, selectedFixtureId, templates } = useEditorPick('fixtures', 'selectedFixtureId', 'templates');
   const a = useEditorActions();
   return (
     <FixtureLibrary
@@ -52,7 +52,7 @@ export const FixtureLibraryDock: React.FC = () => {
 };
 
 export const FixtureWiringDock: React.FC = () => {
-  const { fixtures, selectedFixtureId } = useEditor();
+  const { fixtures, selectedFixtureId } = useEditorPick('fixtures', 'selectedFixtureId');
   const a = useEditorActions();
   return (
     <FixtureWiring
@@ -63,7 +63,7 @@ export const FixtureWiringDock: React.FC = () => {
 };
 
 export const MonitorDock: React.FC = () => {
-  const { fixtures, fixtureProfiles } = useEditor();
+  const { fixtures, fixtureProfiles } = useEditorPick('fixtures', 'fixtureProfiles');
   return <DMXMonitor fixtures={fixtures} fixtureProfiles={fixtureProfiles} />;
 };
 
@@ -72,7 +72,7 @@ export const PerfDock: React.FC = () => <PerfPanel />;
 // Was the Routing MODAL. Patching belongs beside the fixture list and the DMX monitor, so it is a dock
 // panel in the `led` context now.
 export const RoutingDock: React.FC = () => {
-  const { fixtures, surfaces, controllers, fixtureProfiles, settings, patchPolicy } = useEditor();
+  const { fixtures, surfaces, controllers, fixtureProfiles, settings, patchPolicy } = useEditorPick('fixtures', 'surfaces', 'controllers', 'fixtureProfiles', 'settings', 'patchPolicy');
   const a = useEditorActions();
   return (
     <RoutingModal
@@ -100,7 +100,7 @@ export const RoutingDock: React.FC = () => {
 // `scenes` carries a clip count per scene so the graph can show which states actually have content —
 // read straight off each scene's own timeline (every scene owns one; see the Scene type).
 export const StateMachineViewport: React.FC = () => {
-  const { stateMachine, timeline, scenes, cueBanks } = useEditor();
+  const { stateMachine, timeline, scenes, cueBanks } = useEditorPick('stateMachine', 'timeline', 'scenes', 'cueBanks');
   const a = useEditorActions();
   return (
     <StateGraphEditor
@@ -126,7 +126,7 @@ export const StateMachineViewport: React.FC = () => {
 // Preferences as the `settings` context's viewport. It hosts every plugin's SettingsSection too, so
 // this one adapter carries the whole app-settings surface.
 export const PreferencesViewport: React.FC = () => {
-  const { settings } = useEditor();
+  const { settings } = useEditorPick('settings');
   const a = useEditorActions();
   return <Preferences settings={settings} onChange={a.updateSettings} />;
 };

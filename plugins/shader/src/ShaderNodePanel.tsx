@@ -22,7 +22,7 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useEditor, useEditorActions } from '@/state/EditorStore';
+import { useEditorPick, useEditorActions } from '@/state/EditorStore';
 import { Button, Select } from '@/components/ui'; // host UI primitives (pure presentational — no singletons)
 import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 import { NODE_LIST, NODES, type NodeDef, type PortType } from './nodeCatalog';
@@ -515,7 +515,7 @@ const NodeInspector: React.FC<{
 let clipboard: { nodes: ShaderGraph['nodes']; edges: ShaderGraph['edges'] } | null = null;
 
 export const ShaderNodePanel: React.FC = () => {
-  const { surfaces, selectedSurfaceId } = useEditor();
+  const { surfaces, selectedSurfaceId } = useEditorPick('surfaces', 'selectedSurfaceId');
   const { updateSurface } = useEditorActions();
   const surface = useMemo(
     () => surfaces.find((s) => s.id === selectedSurfaceId && s.content.type === 'SHADER') ?? null,

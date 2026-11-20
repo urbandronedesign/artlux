@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { MonitorPlay, MonitorOff } from 'lucide-react';
 import { getDrawable } from '../../services/surfaceMedia';
 import { timeline as timelineEngine } from '../../services/timeline';
-import { useEditor } from '../../state/EditorStore';
+import { useEditorPick } from '../../state/EditorStore';
 import type { Surface } from '../../types';
 import { WINDOWED_DISPLAY } from '../../../../shared/protocol';
 
@@ -134,7 +134,7 @@ export const ProgramMonitorViewport: React.FC = () => {
 // content on the right screen", which is the question a multi-projector rig actually fails at. The
 // badges carry the rest (display binding, warp/blend/calibration state).
 export const OutputsPreviewPanel: React.FC = () => {
-  const { surfaces, projectorOutputs, displays } = useEditor();
+  const { surfaces, projectorOutputs, displays } = useEditorPick('surfaces', 'projectorOutputs', 'displays');
   const outputs = projectorOutputs.filter((o) => o.enabled);
 
   if (outputs.length === 0) {

@@ -18,7 +18,7 @@ import { channelValue, matchChannel, modeChannels, modeOf, physicalValue, select
 import { livePreview } from '../../services/livePreview';
 import * as autoKey from '../../services/autoKey';
 import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
-import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 
 // Parameter-column panels — the sections `InspectorPanel` used to render as one component.
 //
@@ -33,11 +33,11 @@ import { useEditor, useEditorActions } from '../../state/EditorStore';
 // Resolve the selected objects once. Sections render nothing when their object is gone — the shell's
 // `appliesTo` filter already prevents that, so this is belt-and-braces for a mid-render deselect.
 function useSelectedSurface(): Surface | null {
-  const { surfaces, selectedSurfaceId } = useEditor();
+  const { surfaces, selectedSurfaceId } = useEditorPick('surfaces', 'selectedSurfaceId');
   return surfaces.find((s) => s.id === selectedSurfaceId) ?? null;
 }
 function useSelectedFixture() {
-  const { fixtures, selectedFixtureId } = useEditor();
+  const { fixtures, selectedFixtureId } = useEditorPick('fixtures', 'selectedFixtureId');
   return fixtures.find((f) => f.id === selectedFixtureId) ?? null;
 }
 
@@ -62,7 +62,7 @@ function useSelectedFixture() {
 // `appliesTo: ['fixture.light']` — the body guard is only for a MIXED multi-selection, where the
 // kind is live but the primary fixture is a pixel (same idiom as the Channels section).
 export const FixtureProfilePanel: React.FC = () => {
-  const { fixtureProfiles } = useEditor();
+  const { fixtureProfiles } = useEditorPick('fixtureProfiles');
   const a = useEditorActions();
   const f = useSelectedFixture();
   const [picking, setPicking] = useState(false);
@@ -163,7 +163,7 @@ export const FixtureProfilePanel: React.FC = () => {
  * that makes a take replayable on a rig it was not recorded on (docs/LIGHTING-SHOW.md → Role space).
  */
 export const FixtureChannelsPanel: React.FC = () => {
-  const { fixtureProfiles, fixtures, selectedFixtureIds } = useEditor();
+  const { fixtureProfiles, fixtures, selectedFixtureIds } = useEditorPick('fixtureProfiles', 'fixtures', 'selectedFixtureIds');
   const a = useEditorActions();
   const f = useSelectedFixture();
   if (!f || isPixel(f)) return null;
@@ -302,7 +302,7 @@ export const FixtureChannelsPanel: React.FC = () => {
 
 // ── Surface ▸ Content ───────────────────────────────────────────────────────────────────────
 export const SurfaceContentPanel: React.FC = () => {
-  const { surfaces, timeline } = useEditor();
+  const { surfaces, timeline } = useEditorPick('surfaces', 'timeline');
   const a = useEditorActions();
   const surface = useSelectedSurface();
   if (!surface) return null;
@@ -380,7 +380,7 @@ export const SurfaceTransformPanel: React.FC = () => {
 // operator reads here is the number the patch actually reserves: a light's mode footprint, a pixel
 // fixture's ledCount x channelsPerPixel, and 0 for a light whose profile did not resolve.
 export const FixturePatchPanel: React.FC = () => {
-  const { fixtureProfiles } = useEditor();
+  const { fixtureProfiles } = useEditorPick('fixtureProfiles');
   const a = useEditorActions();
   const f = useSelectedFixture();
   if (!f) return null;
@@ -411,7 +411,7 @@ export const FixturePatchPanel: React.FC = () => {
 // it — so a Surface dropdown, an LED count and a wiring direction are all meaningless on one. The
 // panel is registered `appliesTo: ['fixture.pixel']`, which is why there is no guard in the body.
 export const FixtureMappingPanel: React.FC = () => {
-  const { surfaces } = useEditor();
+  const { surfaces } = useEditorPick('surfaces');
   const a = useEditorActions();
   const f = useSelectedFixture();
   if (!f) return null;
@@ -657,7 +657,7 @@ export const FixtureOutputPanel: React.FC = () => {
 // So: USB DMX is selectable, the blank entry says what it actually falls through to for THIS
 // fixture, and the panel always ends with the resolved destination and which rung supplied it.
 export const FixtureRoutingPanel: React.FC = () => {
-  const { settings, controllers } = useEditor();
+  const { settings, controllers } = useEditorPick('settings', 'controllers');
   const a = useEditorActions();
   const f = useSelectedFixture();
 
@@ -785,7 +785,7 @@ export const FixtureRoutingPanel: React.FC = () => {
 // then nudge exactly. So the position/rotation half of 3D Layout lives here too, for the kind that
 // has no layout to go with it.
 export const FixturePositionPanel: React.FC = () => {
-  const { fixtures, selectedFixtureIds } = useEditor();
+  const { fixtures, selectedFixtureIds } = useEditorPick('fixtures', 'selectedFixtureIds');
   const a = useEditorActions();
   const f = useSelectedFixture();
   if (!f) return null;
