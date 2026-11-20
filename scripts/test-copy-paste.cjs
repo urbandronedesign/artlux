@@ -275,6 +275,18 @@ const press = async (page, key, mods = ['Control']) => {
     // ── 8. THE SCOPE GUARD ──────────────────────────────────────────────────────────────────────
     console.log("\n6. Del while the pointer is over the timeline belongs to the timeline");
     if (!(await clickRow(page, 'Head 4'))) throw new Error('could not select Head 4');
+    // OPEN THE DRAWER FIRST. This step used to pass against a COLLAPSED drawer only because of a shell
+    // bug: the timeline was drawn over the 28px strip (an unpositioned #workspace-bottom let its absolute
+    // slot cover the strip), so its toolbar was "on screen" and hoverable while closed. With that fixed
+    // (88264e6) a collapsed timeline is genuinely zero-height, and an operator hovers an OPEN one.
+    await page.evaluate(() => {
+      const b = document.querySelector('button[aria-controls="workspace-bottom"]');
+      if (b && b.getAttribute('aria-expanded') !== 'true') b.click();
+    });
+    await page.waitForFunction(
+      () => document.querySelector('button[aria-controls="workspace-bottom"]')?.getAttribute('aria-expanded') === 'true',
+      { timeout: 5000 }).catch(() => {});
+    await sleep(800);
     const overTimeline = await page.evaluate(() => {
       const el = document.querySelector('[data-owns-delete]');
       if (!el) return null;
