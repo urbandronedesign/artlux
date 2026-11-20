@@ -7425,6 +7425,51 @@ check(
   },
 );
 
+// ── The document store (plans/native-engine.md §9a, E5/W1) ──────────────────────────────────────
+// Slices move out of App.tsx's useState into state/docStore.ts one at a time, so that panels can later
+// subscribe to one slice and other windows can hold a replica. Two ways this silently comes undone:
+// a merge or a hurried fix re-adds `const [x, setX] = useState` for a migrated slice (App compiles, the
+// app runs, and the store and App now hold two diverging copies of the show); or the core store grows
+// a React/DOM/renderer import, which breaks W3 — moving the same module into the Show Host process,
+// where none of those exist.
+check(
+  'migrated document slices live in docStore, never in App useState; the core store stays dependency-free',
+  'Two copies of a slice diverge without an error: one window edits the store, App renders its own ' +
+  'stale useState. And shared/docStore.ts must run unchanged in a utilityProcess with no DOM or React.',
+  () => {
+    const problems = [];
+    const core = read('shared/docStore.ts');
+    if (/^\s*import\s/m.test(core)) problems.push('shared/docStore.ts imports something — the core store must depend on nothing');
+    if (/\b(window|document|React|useSyncExternalStore)\b/.test(core)) problems.push('shared/docStore.ts references window/document/React');
+    const binding = read('src/renderer/state/docStore.ts');
+    const iface = binding.match(/export interface DocSlices\s*\{([\s\S]*?)\n\}/);
+    if (!iface) return 'could not find `export interface DocSlices` in src/renderer/state/docStore.ts';
+    const keys = [...iface[1].matchAll(/^\s*(\w+)\s*:/gm)].map((m) => m[1]);
+    if (!keys.length) return 'DocSlices declares no slices';
+    const app = read('src/renderer/App.tsx');
+    for (const k of keys) {
+      const setter = 'set' + k[0].toUpperCase() + k.slice(1);
+      if (new RegExp(`\\[\\s*${k}\\s*,\\s*${setter}\\s*\\]\\s*=\\s*useState`).test(app))
+        problems.push(`App.tsx declares \`${k}\` with useState again — it is a migrated docStore slice`);
+      if (!new RegExp(`useDocSlice\\(\\s*'${k}'\\s*\\)`).test(app))
+        problems.push(`App.tsx does not read \`${k}\` through useDocSlice('${k}')`);
+    }
+    // One store per window bundle: a second createDocStore call is a second, empty document.
+    const offenders = [];
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+        const rel = path.join(dir, e.name).replace(/\\/g, '/');
+        if (e.isDirectory()) { if (e.name !== 'node_modules') walk(rel); }
+        else if (/\.(ts|tsx)$/.test(e.name) && rel !== 'shared/docStore.ts' && rel !== 'src/renderer/state/docStore.ts'
+          && /\bcreateDocStore\s*\(/.test(read(rel))) offenders.push(rel);
+      }
+    };
+    walk('src'); walk('plugins'); walk('shared');
+    if (offenders.length) problems.push(`createDocStore() is called outside state/docStore.ts: ${offenders.join(', ')}`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

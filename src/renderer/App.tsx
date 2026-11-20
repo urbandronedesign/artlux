@@ -34,6 +34,7 @@ import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
+import { useDocSlice, sliceSetter } from './state/docStore';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
@@ -311,19 +312,14 @@ const App: React.FC = () => {
   // api today, but a service must not depend on another module keeping that promise.
   const toastRef = useRef(toast); toastRef.current = toast;
   const confirm = useConfirm();
-  // Fixtures are now a plain state slice (they used to BE the history hook's present). The document
-  // history that Ctrl+Z drives is the separate stack below, which snapshots fixtures alongside every
-  // other authored slice. recordHistory / undo / redo are defined further down (after every slice it
-  // snapshots is in scope) — see the "document history" block.
-  const [fixtures, setFixtures] = useState<Fixture[]>([
-    {
-      id: 'fix-1',
-      name: 'Main Arch',
-      x: 0.15, y: 0.15, width: 0.7, height: 0.1,
-      universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0,
-      colorData: [], surfaceId: 'surf-1'
-    }
-  ]);
+  // Fixtures live in the DOCUMENT STORE (state/docStore.ts), the first slice moved out of App for the
+  // multi-window work (plans/native-engine.md §9a, W1). The names and the setter's useState contract
+  // (value or updater, stable identity, no-op when unchanged) are kept, so every call site below, the
+  // effects keyed on `fixtures`, and the document history all behave exactly as before. The history
+  // that Ctrl+Z drives is still the separate stack below, which snapshots fixtures alongside every
+  // other authored slice — see the "document history" block.
+  const fixtures = useDocSlice('fixtures');
+  const setFixtures = sliceSetter('fixtures');
   // The ONE document-history primitive (undo/redo). Holds only past/future snapshots; the live
   // document is assembled from the slices into docRef below.
   const { record: historyRecord, undo: historyUndo, redo: historyRedo, reset: resetHistory } = useHistory<DocSnapshot>();
