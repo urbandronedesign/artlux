@@ -34,7 +34,7 @@ import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell, isDockingOn } from './components/shell/WorkspaceShell';
 import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
-import { useDocSlice, sliceSetter } from './state/docStore';
+import { useDocSlice, sliceSetter, useSessionSlice, sessionSetter } from './state/docStore';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
@@ -324,10 +324,10 @@ const App: React.FC = () => {
   // document is assembled from the slices into docRef below.
   const { record: historyRecord, undo: historyUndo, redo: historyRedo, reset: resetHistory } = useHistory<DocSnapshot>();
 
-  const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>('fix-1');
+  const selectedFixtureId = useSessionSlice('selectedFixtureId'); const setSelectedFixtureId = sessionSetter('selectedFixtureId'); // sessionStore slice (W1)
   // Full multi-selection set (for grouping/bulk ops); selectedFixtureId is the "primary"
   // member that drives the inspector + on-stage transform gizmo.
-  const [selectedFixtureIds, setSelectedFixtureIds] = useState<string[]>(['fix-1']);
+  const selectedFixtureIds = useSessionSlice('selectedFixtureIds'); const setSelectedFixtureIds = sessionSetter('selectedFixtureIds'); // sessionStore slice (W1)
   // Live mirror of fixtures for the global keydown handler (avoids stale closure).
   const fixturesRef = useRef<Fixture[]>(fixtures);
   fixturesRef.current = fixtures;
@@ -352,12 +352,12 @@ const App: React.FC = () => {
   const fixtureProfilesRef = useRef(fixtureProfiles);
   fixtureProfilesRef.current = fixtureProfiles;
   const surfaces = useDocSlice('surfaces'); const setSurfaces = sliceSetter('surfaces'); // docStore slice (W1)
-  const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(null);
+  const selectedSurfaceId = useSessionSlice('selectedSurfaceId'); const setSelectedSurfaceId = sessionSetter('selectedSurfaceId'); // sessionStore slice (W1)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   // Patch policy — SHOW state (it addresses this project's fixtures), not machine state. It used to live in
   // AppSettings, which no longer travels in the project file.
   const patchPolicy = useDocSlice('patchPolicy'); const setPatchPolicy = sliceSetter('patchPolicy'); // docStore slice (W1)
-  const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+  const isVideoPlaying = useSessionSlice('isVideoPlaying'); const setIsVideoPlaying = sessionSetter('isVideoPlaying'); // sessionStore slice (W1)
   const globalBrightness = useDocSlice('globalBrightness'); const setGlobalBrightness = sliceSetter('globalBrightness'); // docStore slice (W1)
   const groups = useDocSlice('groups'); const setGroups = sliceSetter('groups'); // docStore slice (W1)
   // THE POSE LIBRARY — project-level, not per-Timeline, because a cue fired from the tablet or a
@@ -428,12 +428,12 @@ const App: React.FC = () => {
   const settingsRef = useRef(settings); settingsRef.current = settings; // live mirror for host.settings service
   // Embedded 3D scene (split view): model GLB urls + selection/natural-size.
   const modelUrls = useModelUrls(scene3D.models);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const selectedModelId = useSessionSlice('selectedModelId'); const setSelectedModelId = sessionSetter('selectedModelId'); // sessionStore slice (W1)
   const [modelNaturalSizes, setModelNaturalSizes] = useState<Record<string, number>>({});
   const timeline = useDocSlice('timeline'); const setTimeline = sliceSetter('timeline'); // docStore slice (W1)
   // Per-scene decoupled timelines: the editor binds to ONE timeline at a time — the scene currently
   // being authored (its own `scene.timeline`) or the shared global `timeline` when none is (null).
-  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
+  const activeSceneId = useSessionSlice('activeSceneId'); const setActiveSceneId = sessionSetter('activeSceneId'); // sessionStore slice (W1)
   // Project-level "Show" state machine over scenes (lives outside the timeline; runs on a standalone
   // clock via the engine — see services/timeline.ts setStateMachine).
   const stateMachine = useDocSlice('stateMachine'); const setStateMachine = sliceSetter('stateMachine'); // docStore slice (W1)

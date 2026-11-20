@@ -13,7 +13,10 @@
 //             stateMachine, audioMix, scene3D, globalBrightness — and the non-undoable project
 //             slices: patchPolicy, lightingPoses, colorPalette, schedule, templates, controllers,
 //             assets, projectorOutputs, outputSpans, bakes.
-//   next:     shared SESSION state (selection, active scene, transport) — not persisted, not undoable.
+//   session:  selectedFixtureId, selectedFixtureIds, selectedSurfaceId, selectedModelId, activeSceneId,
+//             isVideoPlaying — in the separate sessionStore (see SessionSlices for why separate).
+//   W1 is then complete for App's shared state. Still in App, deliberately: per-window UI state (open
+//   modals, docs panel, dialogs) and the projector-UI lists (editing/identify/muted output ids).
 //
 // WHY App STILL RE-RENDERS ON EVERY CHANGE. useDocSlice() inside App subscribes App to that slice, so
 // for now a fixture edit re-renders App exactly as the useState did. That is the point of W1: move the
@@ -21,7 +24,7 @@
 // directly and App stops passing it down.
 
 import { useSyncExternalStore } from 'react';
-import { createDocStore, type Updater } from '../../../shared/docStore';
+import { createDocStore, type DocStore, type Updater } from '../../../shared/docStore';
 import {
   SourceType, defaultTimeline, defaultStateMachine, defaultAudioMix,
   type Fixture, type Surface, type FixtureGroup, type Scene, type CueBank, type Timeline,
@@ -91,38 +94,78 @@ const INITIAL: DocSlices = {
   bakes: [],
 };
 
+// ─────────────────────────────── THE SESSION — shared, never saved ───────────────────────────────
+// What every window must agree on WHILE the editor runs, and which is neither the document nor undoable:
+// the selection, the bound scene, the transport. It is a SEPARATE store, not more DocSlices, on purpose:
+//   • undo snapshots DocSlices, and a click that selects a fixture must never be an undo step;
+//   • persistence serialises the document, and the selection must never travel in a .artlux;
+//   • in W3 the document is replicated with revisions, while session state is cheaper to resync whole.
+// The timeline CLIP selection is not here: it already lives render-free in services/selection.ts.
+export interface SessionSlices {
+  /** The primary selected fixture: drives the inspector and the stage gizmo. */
+  selectedFixtureId: string | null;
+  /** The full fixture multi-selection, in click order (a lighting take captures them in this order). */
+  selectedFixtureIds: string[];
+  selectedSurfaceId: string | null;
+  /** The selected 3D model. Selecting a fixture must also clear it (CLAUDE.md, 3D picking). */
+  selectedModelId: string | null;
+  /** The scene the timeline editor is bound to (null = the global timeline). */
+  activeSceneId: string | null;
+  /** The transport: drives timelineEngine.setPlaying. */
+  isVideoPlaying: boolean;
+}
+
+// Moved verbatim from App's useState initialisers: a fresh editor selects the default arch, and plays.
+const INITIAL_SESSION: SessionSlices = {
+  selectedFixtureId: 'fix-1',
+  selectedFixtureIds: ['fix-1'],
+  selectedSurfaceId: null,
+  selectedModelId: null,
+  activeSceneId: null,
+  isVideoPlaying: true,
+};
+
 /**
- * The one store. A module singleton, like layoutStore — one per window bundle. ⚠ Import it ONLY from
+ * The two stores. Module singletons, like layoutStore — one per window bundle. ⚠ Import them ONLY from
  * this file's path: a second import path to the same module would duplicate the singleton (the
  * plugin-barrel bug in CLAUDE.md), and writers would hit one copy while readers watch the other.
  */
 export const docStore = createDocStore<DocSlices>(INITIAL);
+export const sessionStore = createDocStore<SessionSlices>(INITIAL_SESSION);
 
 /** A setter with React's useState contract. Stable: built once per slice, never per render. */
 export type SliceSetter<T> = (next: Updater<T>) => void;
 
-const setterCache = new Map<keyof DocSlices, SliceSetter<never>>();
-export function sliceSetter<K extends keyof DocSlices>(key: K): SliceSetter<DocSlices[K]> {
-  let s = setterCache.get(key) as SliceSetter<DocSlices[K]> | undefined;
-  if (!s) {
-    s = (next) => docStore.set(key, next);
-    setterCache.set(key, s as SliceSetter<never>);
-  }
-  return s;
+// One binding implementation for both stores. Setters AND subscribe functions are cached per key:
+// a setter's identity must be stable (App lists them in effect deps exactly as it did useState's), and
+// an unstable subscribe would make useSyncExternalStore resubscribe on every render.
+function bind<D extends object>(store: DocStore<D>) {
+  const setters = new Map<keyof D, SliceSetter<never>>();
+  const subs = new Map<keyof D, (fn: () => void) => () => void>();
+  const setter = <K extends keyof D>(key: K): SliceSetter<D[K]> => {
+    let s = setters.get(key) as SliceSetter<D[K]> | undefined;
+    if (!s) { s = (next) => store.set(key, next); setters.set(key, s as SliceSetter<never>); }
+    return s;
+  };
+  const subscribe = (key: keyof D): ((fn: () => void) => () => void) => {
+    let s = subs.get(key);
+    if (!s) { s = (fn) => store.subscribeSlice(key, fn); subs.set(key, s); }
+    return s;
+  };
+  // Read one slice and re-render when (and only when) it changes.
+  const useSlice = <K extends keyof D>(key: K): D[K] =>
+    useSyncExternalStore(subscribe(key), () => store.getSlice(key));
+  return { setter, useSlice };
 }
 
-// Subscribe functions must also be stable, or useSyncExternalStore resubscribes on every render.
-const subscribeCache = new Map<keyof DocSlices, (fn: () => void) => () => void>();
-function sliceSubscribe(key: keyof DocSlices): (fn: () => void) => () => void {
-  let s = subscribeCache.get(key);
-  if (!s) {
-    s = (fn) => docStore.subscribeSlice(key, fn);
-    subscribeCache.set(key, s);
-  }
-  return s;
-}
+const doc = bind(docStore);
+const session = bind(sessionStore);
 
-/** Read one slice and re-render when (and only when) it changes. */
-export function useDocSlice<K extends keyof DocSlices>(key: K): DocSlices[K] {
-  return useSyncExternalStore(sliceSubscribe(key), () => docStore.getSlice(key));
-}
+/** Read one DOCUMENT slice. */
+export const useDocSlice = doc.useSlice;
+/** The stable setter for one DOCUMENT slice. */
+export const sliceSetter = doc.setter;
+/** Read one SESSION slice. */
+export const useSessionSlice = session.useSlice;
+/** The stable setter for one SESSION slice. */
+export const sessionSetter = session.setter;

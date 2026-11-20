@@ -7433,7 +7433,7 @@ check(
 // a React/DOM/renderer import, which breaks W3 — moving the same module into the Show Host process,
 // where none of those exist.
 check(
-  'migrated document slices live in docStore, never in App useState; the core store stays dependency-free',
+  'migrated document and session slices live in their stores, never in App useState; the core store stays dependency-free',
   'Two copies of a slice diverge without an error: one window edits the store, App renders its own ' +
   'stale useState. And shared/docStore.ts must run unchanged in a utilityProcess with no DOM or React.',
   () => {
@@ -7442,17 +7442,21 @@ check(
     if (/^\s*import\s/m.test(core)) problems.push('shared/docStore.ts imports something — the core store must depend on nothing');
     if (/\b(window|document|React|useSyncExternalStore)\b/.test(core)) problems.push('shared/docStore.ts references window/document/React');
     const binding = read('src/renderer/state/docStore.ts');
-    const iface = binding.match(/export interface DocSlices\s*\{([\s\S]*?)\n\}/);
-    if (!iface) return 'could not find `export interface DocSlices` in src/renderer/state/docStore.ts';
-    const keys = [...iface[1].matchAll(/^\s*(\w+)\s*:/gm)].map((m) => m[1]);
-    if (!keys.length) return 'DocSlices declares no slices';
     const app = read('src/renderer/App.tsx');
-    for (const k of keys) {
-      const setter = 'set' + k[0].toUpperCase() + k.slice(1);
-      if (new RegExp(`\\[\\s*${k}\\s*,\\s*${setter}\\s*\\]\\s*=\\s*useState`).test(app))
-        problems.push(`App.tsx declares \`${k}\` with useState again — it is a migrated docStore slice`);
-      if (!new RegExp(`useDocSlice\\(\\s*'${k}'\\s*\\)`).test(app))
-        problems.push(`App.tsx does not read \`${k}\` through useDocSlice('${k}')`);
+    // Two stores, same rule: the document (DocSlices / useDocSlice) and the session (SessionSlices /
+    // useSessionSlice). A slice in either must not come back as an App useState.
+    for (const [iname, hook] of [['DocSlices', 'useDocSlice'], ['SessionSlices', 'useSessionSlice']]) {
+      const iface = binding.match(new RegExp(`export interface ${iname}\\s*\\{([\\s\\S]*?)\\n\\}`));
+      if (!iface) { problems.push(`could not find \`export interface ${iname}\` in src/renderer/state/docStore.ts`); continue; }
+      const keys = [...iface[1].matchAll(/^\s*(\w+)\s*:/gm)].map((m) => m[1]);
+      if (!keys.length) { problems.push(`${iname} declares no slices`); continue; }
+      for (const k of keys) {
+        const setter = 'set' + k[0].toUpperCase() + k.slice(1);
+        if (new RegExp(`\\[\\s*${k}\\s*,\\s*${setter}\\s*\\]\\s*=\\s*useState`).test(app))
+          problems.push(`App.tsx declares \`${k}\` with useState again — it is a migrated ${iname} slice`);
+        if (!new RegExp(`${hook}\\(\\s*'${k}'\\s*\\)`).test(app))
+          problems.push(`App.tsx does not read \`${k}\` through ${hook}('${k}')`);
+      }
     }
     // One store per window bundle: a second createDocStore call is a second, empty document.
     const offenders = [];
