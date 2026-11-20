@@ -7470,6 +7470,24 @@ check(
   },
 );
 
+// ── The collapsed timeline strip must stay clickable ───────────────────────────────────────────────
+// The drawer's ViewportSlot is `absolute inset-0`. If #workspace-bottom is not a positioned box, the
+// slot resolves against the outer drawer box (strip included), PersistentLayer draws the timeline over
+// the strip, and its toolbar eats every click on the "Show Timeline" toggle — collapsed, the drawer
+// opens with Ctrl+T only. Nothing throws and the strip even looks populated. Reported 2026-11-20.
+check(
+  'the timeline drawer slot is positioned, so the collapsed strip stays clickable',
+  'Without `relative` on #workspace-bottom the timeline is drawn over the strip and the toggle cannot be ' +
+  'clicked: a collapsed drawer can then only be opened with Ctrl+T.',
+  () => {
+    const src = read('src/renderer/components/shell/WorkspaceShell.tsx');
+    const m = src.match(/id="workspace-bottom"\s+className="([^"]*)"/);
+    if (!m) return 'could not find the #workspace-bottom element in WorkspaceShell.tsx';
+    return /(^|\s)(relative|absolute|fixed|sticky)(\s|$)/.test(m[1]) ? null
+      : `#workspace-bottom is not a positioned box (className="${m[1]}") — the absolute ViewportSlot will cover the strip`;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

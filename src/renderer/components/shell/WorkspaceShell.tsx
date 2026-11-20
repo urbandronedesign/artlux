@@ -431,8 +431,14 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
               {bottomOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
               <span className="uppercase tracking-wide">{bottomTitle}</span>
             </button>
-            {/* flex-1 of a strip-height box is 0 when closed: mounted, measurable at zero, no remount. */}
-            <div id="workspace-bottom" className="flex-1 min-h-0 overflow-hidden">
+            {/* flex-1 of a strip-height box is 0 when closed: mounted, measurable at zero, no remount.
+                `relative` IS LOAD-BEARING. The ViewportSlot inside is `absolute inset-0`, and without a
+                positioned box here it resolved against the OUTER drawer box — strip included. The slot
+                then started at the strip's top, PersistentLayer drew the timeline over the strip, and
+                its toolbar swallowed every click on the toggle: collapsed, the drawer could be opened
+                with Ctrl+T only (reported by the owner 2026-11-20; elementFromPoint at the toggle
+                returned the timeline toolbar). Guarded by verify:invariants. */}
+            <div id="workspace-bottom" className="relative flex-1 min-h-0 overflow-hidden">
               {bottomPanel
                 ? <ErrorBoundary variant="panel" label={bottomPanel.title ?? bottomPanel.id}>
                     <bottomPanel.Component contextId={context.id} selection={selection} />
