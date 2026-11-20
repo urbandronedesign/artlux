@@ -2725,6 +2725,79 @@
   ]
  },
  {
+  "id": "beamz/zelos",
+  "manufacturer": "BeamZ",
+  "model": "Zelos",
+  "aliases": [
+   "Zelos",
+   "BeamZ Zelos",
+   "beamzzelos",
+   "Zelos LED Tube",
+   "Zelos LED Tube Set",
+   "150.654",
+   "150.656",
+   "150654",
+   "150656"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "modes": [
+   {
+    "key": "4ch-a",
+    "name": "4CH A (CCT)",
+    "footprint": 4
+   },
+   {
+    "key": "4ch-b",
+    "name": "4CH B (hue)",
+    "footprint": 4
+   },
+   {
+    "key": "5ch",
+    "name": "5CH (RGB CW WW)",
+    "footprint": 5
+   },
+   {
+    "key": "6ch-a",
+    "name": "6CH A (hue + CCT)",
+    "footprint": 6
+   },
+   {
+    "key": "6ch-b",
+    "name": "6CH B (dimmer + RGB CW WW)",
+    "footprint": 6
+   },
+   {
+    "key": "7ch",
+    "name": "7CH (dimmer, strobe, RGB CW WW)",
+    "footprint": 7
+   },
+   {
+    "key": "12ch",
+    "name": "12CH (effects)",
+    "footprint": 12
+   },
+   {
+    "key": "40ch",
+    "name": "40CH (8 sections)",
+    "footprint": 40
+   },
+   {
+    "key": "80ch",
+    "name": "80CH (16 sections)",
+    "footprint": 80
+   },
+   {
+    "key": "160ch",
+    "name": "160CH (32 sections)",
+    "footprint": 160
+   }
+  ],
+  "origin": "pdf",
+  "verified": false
+ },
+ {
   "id": "big-dipper/lp001",
   "manufacturer": "Big Dipper",
   "model": "LP001",

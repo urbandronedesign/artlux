@@ -7,10 +7,10 @@
   "license": "MIT"
  },
  "counts": {
-  "profiles": 519,
-  "local": 13,
+  "profiles": 520,
+  "local": 14,
   "manufacturers": 117,
-  "modes": 1683,
+  "modes": 1693,
   "gobos": 46,
   "skipped": 114,
   "redirects": 7,
@@ -476,6 +476,7 @@
  ],
  "danglingRedirects": [],
  "local": [
+  "beamz/zelos",
   "briteq/bt-hurricane",
   "briteq/bt-theatre-60fc",
   "cameo/movo-beam-100",

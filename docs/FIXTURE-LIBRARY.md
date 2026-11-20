@@ -195,7 +195,7 @@ PDF) so the derivation can be redone, and note the id in `MANIFEST.json ▸ loca
 writes. A malformed local file **fails the build** rather than landing in the skip report: it was
 written by hand in this repo, so the person running the build is the one who can fix it.
 
-The profiles with no GDTF (generic-Nch, Briteq, Stairville, Cameo Movo) are written by
+The profiles with no GDTF (generic-Nch, Briteq, Stairville, Cameo Movo, BeamZ Zelos) are written by
 [scripts/make-local-fixtures.py](../scripts/make-local-fixtures.py), which holds their channel tables
 and names the manufacturer document each was transcribed from — edit the script, not the JSON.
 
@@ -236,7 +236,7 @@ Never edit `resources/fixture-library/` itself — the build wipes it.
 | `MANIFEST.json` | source commit, counts, and **the skip report** |
 | `LICENSE-OFL.txt`, `NOTICE.txt` | attribution — see below |
 
-Current output: **519 profiles** (506 from OFL + 13 local), 117 manufacturers, 1662 modes, 46 gobos —
+Current output: **520 profiles** (506 from OFL + 14 local), 117 manufacturers, 1693 modes, 46 gobos —
 but read `MANIFEST.json ▸ counts`, not this line, which is typed by hand.
 
 ### Read the skip report, not the profile count
@@ -411,6 +411,21 @@ Shipped from manufacturer documents rather than the Open Fixture Library: **Brit
 MOVO BEAM Z100** and **MOVO BEAM 100**. The two Movo heads are marked unverified: their manuals do not
 state how far the pan and tilt position channels turn, so one full turn (360°) is assumed. If a head
 aims short or long in the 3D scene, that is the number to correct.
+
+**BeamZ Zelos** (battery LED tube, sold alone or as a set of 8) has no GDTF and is not in the Open
+Fixture Library, so it is written from its manual. One fixture is **one tube**: patch eight for the
+set, each at the address shown on its own display. Pick the mode the tube's menu shows:
+
+| Tube menu | Mode in ArtLux | What you get |
+|---|---|---|
+| 5CH, 6CHB, 7CH | 5CH, 6CH B, 7CH | red, green, blue, cool white, warm white (6CH B adds a dimmer, 7CH a dimmer and a strobe). The colour picker drives these |
+| 4CHA, 4CHB, 6CHA | 4CH A, 4CH B, 6CH A | dimmer and strobe with a colour temperature and/or a hue channel |
+| 12CH | 12CH | the tube's own colour and effect programs, then the five colours |
+| 40CH, 80CH, 160CH | 40CH, 80CH, 160CH | the tube in 8, 16 or 32 sections, five channels each (*Red 1*, *Green 1*, … ). Each is a plain channel: the colour picker does not drive them |
+
+It is marked unverified because the manual prints its channel tables without naming the mode above
+each: which 4-channel table is A and which is B (the same for 6CH) is read from their order. If
+4CH A behaves like 4CH B on your tube, pick the other one.
 
 ## `verified: false` — drafts
 

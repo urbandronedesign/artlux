@@ -188,4 +188,67 @@ write('cameo-movo-beam-100', profile(
     ['MOVO BEAM 100', 'Movo Beam 100', 'movobeam100', 'CLMB100', 'clmb100', 'cameo MOVO BEAM 100', 'cameomovobeam100'],
     ['Moving Head', 'Color Changer'], movo, movo_modes(False),
     'Cameo MOVO BEAM 100 user manual CLMB100 REV 03, pages 69-74 (4 / 15 / 20 / 35 CH)', verified=False))
+
+# ── BeamZ Zelos (battery LED tube, RGB + cool white + warm white, 150.654 / set of 8: 150.656) ───
+# ONE PROFILE IS ONE TUBE: each tube of the set has its own address. The manual prints the channel
+# tables without naming the mode above each one, so which 4-channel table is "4CHA" and which is "4CHB"
+# (same for 6CH) is read from the ORDER of the tables against the order of the menu — hence unverified.
+# The per-section channels of the 40/80/160CH modes are `unknown` on purpose, like the Movo ring: eight
+# channels sharing the role `red` cannot be told apart by anything that drives a fixture by role.
+Z_STROBE = rng((0, 10, 'No function'), (11, 255, 'Strobe'))
+Z_EMIT = [('red', 'Red', 'red'), ('green', 'Green', 'green'), ('blue', 'Blue', 'blue'),
+          ('cool-white', 'Cool White', 'coldWhite'), ('warm-white', 'Warm White', 'warmWhite')]
+Z_COLOUR = rng(
+    (0, 10, 'No function'), (11, 19, 'Red'), (20, 28, 'Green'), (29, 37, 'Blue'), (38, 46, 'Cool white'),
+    (47, 55, 'Warm white'), (56, 64, 'Red + green'), (65, 73, 'Green + blue'), (74, 82, 'Red + blue'),
+    (83, 91, 'Red + green'), (92, 100, 'Green + blue'), (101, 109, 'Red + warm white'), (110, 118, 'Red + green'),
+    (119, 127, 'Green + blue'), (128, 136, 'Red + blue'), (137, 145, 'Blue + warm white'),
+    (146, 154, 'Warm white + cool white'), (155, 163, 'Green + cool white'), (164, 172, 'Green + warm white'),
+    (173, 181, 'Red + blue + cool white'), (182, 190, 'Red + warm white + cool white'),
+    (191, 199, 'Green + blue + cool white'), (200, 208, 'Green + blue + warm white'),
+    (209, 217, 'Blue + warm white + cool white'), (218, 226, 'Red + green + blue'),
+    (227, 235, 'Red + green + blue + cool white'), (236, 244, 'Green + blue + cool white + warm white'),
+    (245, 255, 'Red + green + blue + cool white + warm white'))
+Z_BACKGROUND = rng(
+    (0, 16, 'No function'), (17, 33, 'Background red'), (34, 50, 'Background green'), (51, 67, 'Background blue'),
+    (68, 84, 'Background cool white'), (85, 101, 'Background warm white'), (102, 118, 'Background red + green'),
+    (119, 135, 'Background green + blue'), (136, 152, 'Background red + blue'), (153, 169, 'Background red + green'),
+    (170, 186, 'Background green + blue'), (187, 203, 'Background red + warm white'),
+    (204, 220, 'Background red + green'), (221, 237, 'Background green + blue'), (238, 254, 'Background red + blue'),
+    (255, 255, 'Background blue + warm white'))
+Z_SECTIONS = 32
+zelos = [
+    ch('dimmer', 'Total Dimming', 'dimmer', highlight=1),
+    ch('strobe', 'Strobe', 'shutter', ranges=Z_STROBE),
+] + [ch(k, l, r, highlight=1) for k, l, r in Z_EMIT] + [
+    ch('cct', 'Color Temperature', 'colorTemp', ranges=rng((0, 4, 'No function'), (5, 255, 'Color temperature'))),
+    ch('green-magenta', 'Tune Green / Magenta', 'unknown', default=0.5),
+    ch('hue', 'RGB Mixed Color', 'macro', ranges=rng((0, 4, 'No function'), (5, 255, 'RGB mixed color'))),
+    ch('saturation', 'Color Saturation', 'unknown'),
+    ch('colour', 'Color', 'macro', ranges=Z_COLOUR),
+    ch('background', 'Background Color', 'macro', ranges=Z_BACKGROUND),
+    ch('base-tint', 'Base Tint', 'macro', ranges=rng((0, 1, 'No function'), (2, 255, 'Base tint'))),
+    ch('effect', 'Effects', 'macro', ranges=rng(
+        (0, 10, 'No function'), (11, 220, 'Effects (68 types, 3 values each)'), (221, 255, 'No function'))),
+    ch('effect-speed', 'Effect Speed', 'speed'),
+] + [ch(f's{i}-{k}', f'{l} {i}', 'unknown') for i in range(1, Z_SECTIONS + 1) for k, l, _ in Z_EMIT]
+Z_RGBCW = [k for k, _, _ in Z_EMIT]
+z_sections = lambda n: [f's{i}-{k}' for i in range(1, n + 1) for k in Z_RGBCW]
+write('beamz-zelos', profile(
+    'beamz/zelos', 'BeamZ', 'Zelos',
+    ['Zelos', 'BeamZ Zelos', 'beamzzelos', 'Zelos LED Tube', 'Zelos LED Tube Set', '150.654', '150.656', '150654', '150656'],
+    ['Color Changer'], zelos, [
+        mode('4ch-a', '4CH A (CCT)', ['dimmer', 'strobe', 'cct', 'green-magenta']),
+        mode('4ch-b', '4CH B (hue)', ['dimmer', 'strobe', 'hue', 'saturation']),
+        mode('5ch', '5CH (RGB CW WW)', Z_RGBCW),
+        mode('6ch-a', '6CH A (hue + CCT)', ['dimmer', 'strobe', 'hue', 'saturation', 'cct', 'green-magenta']),
+        mode('6ch-b', '6CH B (dimmer + RGB CW WW)', ['dimmer'] + Z_RGBCW),
+        mode('7ch', '7CH (dimmer, strobe, RGB CW WW)', ['dimmer', 'strobe'] + Z_RGBCW),
+        mode('12ch', '12CH (effects)', ['dimmer', 'strobe', 'colour', 'background', 'base-tint', 'effect', 'effect-speed'] + Z_RGBCW),
+        mode('40ch', '40CH (8 sections)', z_sections(8)),
+        mode('80ch', '80CH (16 sections)', z_sections(16)),
+        mode('160ch', '160CH (32 sections)', z_sections(32)),
+    ],
+    'beamZ manual 150.654_150.656-Zelos_Manual_V1.3.pdf, DMX channels pages 34-37',
+    verified=False, physical={'dimsMm': [65, 65, 1440]}))
 print('wrote local profiles to', os.path.normpath(OUT))

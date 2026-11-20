@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.37.1
+
+### BeamZ Zelos LED tube
+
+New profile for the **BeamZ Zelos** battery tube (also sold as a set of 8), with its ten DMX modes
+from 4 to 160 channels. One fixture is one tube. See [Fixture library](docs/FIXTURE-LIBRARY.md).
+
 ## v0.37.0
 
 ### More keyframe curves
