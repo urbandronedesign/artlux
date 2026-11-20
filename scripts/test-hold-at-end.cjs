@@ -149,8 +149,8 @@ async function clickByText(page, text, opts = {}) {
 async function shoot(page, name) { try { await page.screenshot({ path: path.join(SHOTS, name) }); } catch {} }
 
 // THE TIMELINE IS A DRAWER, not a workbench (there is no 'Time' rail entry any more). Its toggle is
-// button[aria-controls="workspace-bottom"], covered by the timeline's own toolbar, so a mouse click at
-// its centre misses: DOM click(), then proof via aria-expanded (see test-scene-timelines.cjs).
+// button[aria-controls="workspace-bottom"]: DOM click(), then proof via aria-expanded (the reason it is
+// a DOM click, and the strip bug it surfaced, are in test-scene-timelines.cjs).
 async function openTimeline(page) {
     const ok = await page.evaluate(() => {
         const b = document.querySelector('button[aria-controls="workspace-bottom"]');

@@ -208,11 +208,10 @@ async function goScene(page, name) {
 }
 
 // THE TIMELINE IS A DRAWER (CLAUDE.md), collapsed to a strip by default, and its open state is banked
-// PER CONTEXT. Its toggle is `button[aria-controls="workspace-bottom"]`, and it is NOT hit-testable:
-// PersistentLayer draws the timeline's own toolbar over the strip, so a MOUSE click at the toggle's
-// centre lands inside that toolbar and the drawer stays shut (measured 2026-11-20: elementFromPoint at
-// the toggle returned the toolbar div). Hence a DOM click(), then proof via aria-expanded. Never Ctrl+T
-// blind: it toggles (artlux-cdp-harness-traps).
+// PER CONTEXT. Its toggle is `button[aria-controls="workspace-bottom"]`. Until 88264e6 it was NOT
+// hit-testable (the timeline was drawn over the strip and a mouse click hit its toolbar — the bug this
+// harness surfaced); fixed, but a DOM click() stays: it tests timelines, not the toggle, and it cannot
+// be intercepted by an overlay. Proof via aria-expanded. Never Ctrl+T blind: it toggles.
 async function openTimeline(page) {
     const state = await page.evaluate(() => {
         const b = document.querySelector('button[aria-controls="workspace-bottom"]');

@@ -312,7 +312,8 @@ future timeline-UI tests. (Reuses the launch/connect plumbing from `scripts/capt
 > timeline** and asserted to render empty — there is no fallback to Global since `Scene.timeline` became
 > required (`normalizeTimeline`). The harness also handles three things the UI grew after it was written:
 > the timeline is a collapsed **drawer** (opened via its `aria-controls="workspace-bottom"` toggle with a
-> DOM click, because the timeline's toolbar is drawn over that toggle), a recall asks **"Store your
+> DOM click — it surfaced a bug where the timeline was drawn over that toggle, fixed in the shell), a
+> recall asks **"Store your
 > changes into … first?"** (answered *Discard*), and the **splash window** shares the dev origin, so the
 > page finder must exclude `splash.html` or it intermittently attaches to a window that then closes.
 
