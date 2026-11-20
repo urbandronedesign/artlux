@@ -73,7 +73,14 @@ export type LiveClientMsg =
   | { t: 'clock'; on: boolean }
   | { t: 'thumb'; req: number; path: string; time: number }
   | { t: 'peaks'; req: number; path: string; buckets: number }
-  | ({ t: 'drag' } & LiveDrag);
+  | ({ t: 'drag' } & LiveDrag)
+  /**
+   * Run one of the editor's actions (state/EditorStore.tsx `EditorActions`) — how a panel in another
+   * window EDITS (E5/W5). The editor runs it exactly as if its own panel had called it, so every rule
+   * App's handlers keep (repatching, undo entries, scene capture) holds; the result reaches every
+   * window as an ordinary document change, through the Show Host.
+   */
+  | { t: 'action'; req: number; name: string; args: unknown[] };
 
 export type LiveOwnerMsg =
   | { t: 'welcome'; clientId: number; streams: string[] }
@@ -83,7 +90,9 @@ export type LiveOwnerMsg =
   | { t: 'clock'; anchor: ClockAnchor }
   /** `bitmap` null = nothing to show for this path (unreadable, or not decodable in time). */
   | { t: 'thumb'; req: number; bitmap: ImageBitmap | null }
-  | { t: 'peaks'; req: number; peaks: Float32Array | null; duration: number | null };
+  | { t: 'peaks'; req: number; peaks: Float32Array | null; duration: number | null }
+  /** `value` = what the action returned (awaited), when it structured-clones; `error` = it threw. */
+  | { t: 'actionResult'; req: number; value?: unknown; error?: string };
 
 /**
  * Wall milliseconds, comparable ACROSS PROCESSES on one machine. Both browser windows and Node have

@@ -553,6 +553,13 @@ export interface PanelContribution {
   // Clicks there do not toggle the section.
   HeaderActions?: ComponentType<PanelProps>;
   Component: ComponentType<PanelProps>;
+  /**
+   * May open in its own window (E5/W5). Only for a panel that reads nothing but the editor store and
+   * dispatches nothing but editor actions — in another window those are a replica and a remote call,
+   * and a panel that reaches a runtime service directly would read that window's idle copy of it. The
+   * host checks this by import graph; a plugin panel cannot be detached yet.
+   */
+  detachable?: boolean;
 }
 
 export interface PanelRegistry {

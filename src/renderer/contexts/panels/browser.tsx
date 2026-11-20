@@ -4,7 +4,6 @@ import type { Fixture } from '../../types';
 import { Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
-import { livePreview } from '../../services/livePreview';
 import { fixtureFootprint, resolveMode } from '../../services/addressing';
 import {
   fixtureKind, groupKind, lightState, profileOf, KIND_LABEL, KIND_LABEL_PLURAL, type FixtureKind,
@@ -359,7 +358,7 @@ export const GlobalParamsPanel: React.FC = () => {
         value={globalBrightness}
         min={0} max={1} step={0.01}
         format={(v) => `${Math.round(v * 100)}%`}
-        onInput={(v) => livePreview.setBrightness(v)}
+        onInput={a.pushMasterBrightness}
         onChange={a.setMasterBrightness}
       />
       <Slider

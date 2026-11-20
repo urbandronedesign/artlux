@@ -767,6 +767,8 @@ function remapSurface(s: Surface, maps: Maps, layers: Map<string, string> | null
     const s = maps.surface.get(content.sliceOf);
     if (s) content.sliceOf = s; else delete content.sliceOf;
   }
+  // `panelId` (shared/protocol SavedPanelWindow) is not in a project at all: it is a registered PANEL id in
+  // the machine's prefs (where a panel window stood, main/panelWindows.ts). Nothing to carry or remap.
   // `shaderId` names a BUILT-IN shader, not an object in the document — the same category as
   // `effectId` / `paletteId`, which are indices into EFFECT_NAMES / PALETTE_NAMES. Build-coupled,
   // not project-coupled, so all three carry across unchanged. (`shaderSource` / `shaderGraph` are

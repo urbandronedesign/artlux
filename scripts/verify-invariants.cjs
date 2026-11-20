@@ -2366,7 +2366,7 @@ check(
     // Every window with a frame (i.e. an OS title bar / taskbar entry) must set it. The splash and the
     // editor are frameless and draw their own chrome, but the editor is also the taskbar entry, so it
     // is included; splash is excluded because it has no frame AND no taskbar button.
-    for (const f of ['src/main/index.ts', 'src/main/projector.ts', 'src/main/docsWindow.ts']) {
+    for (const f of ['src/main/index.ts', 'src/main/projector.ts', 'src/main/docsWindow.ts', 'src/main/panelWindows.ts']) {
       const src = stripComments(read(f));
       if (!/new BrowserWindow\(/.test(src)) continue; // no window here any more — nothing to assert
       if (!/icon:\s*APP_ICON/.test(src)) problems.push(`${f} opens a window without icon: APP_ICON`);
@@ -7803,6 +7803,104 @@ check(
       if (/live\/broker/.test(read(f))) problems.push(`${f} imports the live broker — only the editor owns the live data`);
     }
     if (!/initLiveHub\(mainWindow\);/.test(read('src/main/index.ts'))) problems.push('main/index.ts no longer registers the editor as the live owner (initLiveHub(mainWindow))');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Panel windows: a client that produces nothing, on a read-only replica (E5/W5) ───────────────────
+// renderer/panel.tsx is a detachable panel in its own window. It must PRODUCE NOTHING (plans/native-
+// engine.md §9a rule 1) and it must never write the authority directly. Both breaks compile and boot:
+// a panel window that imports the transport reads its own idle copy (a playhead stuck at 0) or runs a
+// second one; a panel replica that sends its stores on connect overwrites the show with built-in
+// defaults the moment the window opens.
+check(
+  "a panel window's import graph holds no transport, engine, decoder, GPU, broker or App code",
+  'Checked on the BUNDLER\'S graph, not by reading import lines: a producer arrives through a chain ' +
+  '(panel → some panel file → a helper → services/timeline), and the only thing that sees the whole ' +
+  'chain is the bundler. The list of panels allowed out (contexts/detachable.tsx) is part of that graph.',
+  () => {
+    let esbuild;
+    try { esbuild = require(path.join(ROOT, 'node_modules', 'esbuild')); } catch { return 'esbuild is not installed (npm install) — the panel-window graph cannot be checked'; }
+    let meta;
+    try {
+      meta = esbuild.buildSync({
+        entryPoints: [path.join(ROOT, 'src/renderer/panel.tsx')], absWorkingDir: ROOT, bundle: true, write: false, metafile: true,
+        platform: 'browser', format: 'esm', jsx: 'automatic', logLevel: 'silent', external: ['electron'],
+        loader: { '.svg': 'empty', '.png': 'empty', '.css': 'empty', '.wgsl': 'text', '.glsl': 'text', '.woff2': 'empty', '.wasm': 'empty' },
+        alias: { '@artlux/sdk/renderer': './packages/sdk/src/renderer.ts', '@artlux/sdk': './packages/sdk/src/index.ts' },
+      }).metafile;
+    } catch (e) { return `bundling src/renderer/panel.tsx failed: ${(e.errors || []).slice(0, 2).map((x) => x.text).join(' | ') || e.message}`; }
+    const inputs = Object.keys(meta.inputs).map((i) => i.replace(/\\/g, '/'));
+    const BANNED = [
+      [/^src\/renderer\/engine\//, 'the frame engine'],
+      [/^src\/renderer\/services\/timeline\.ts$/, 'the transport (services/timeline)'],
+      [/^src\/renderer\/services\/(stateMachine|cueBus|surfaceMedia|contentSource|mediaCache|thumbnailCache|timelinePreloader|lightingPlayback|lightingRecorder|takeRecorder|oscController)\.ts$/, 'a runtime service'],
+      [/^src\/renderer\/gpu\//, 'GPU code'],
+      [/Simulator3D\//, 'the 3D view'],
+      [/node_modules\/(three|@react-three)\//, 'three.js'],
+      [/audioPeaks\.ts$/, 'the peaks decoder'],
+      [/^src\/renderer\/live\/(broker|coreStreams)\.ts$/, 'the live broker (the editor is the one owner)'],
+      [/^src\/renderer\/App\.tsx$/, 'App'],
+      [/^src\/renderer\/host\/plugins\.ts$/, 'plugin activation'],
+      [/^plugins\//, 'a plugin'],
+    ];
+    const problems = [];
+    for (const [re, what] of BANNED) {
+      const hit = inputs.find((i) => re.test(i));
+      if (hit) problems.push(`panel.tsx reaches ${what}: ${hit}`);
+    }
+    if (!inputs.includes('src/renderer/contexts/detachable.tsx')) problems.push('panel.tsx no longer mounts its panels from contexts/detachable.tsx — the one list the editor registers too');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  "a panel window's replica is read-only, and the host gives it the document",
+  'A panel replica that hands the host its state on connect overwrites the show with the built-in ' +
+  'defaults; one that renders before the snapshot lands shows a "Main Arch" fixture nobody made; a ' +
+  'host that accepted a raw write from a panel would skip every rule App\'s handlers keep.',
+  () => {
+    const problems = [];
+    const panel = read('src/renderer/panel.tsx');
+    if (!/^setHostLinkRole\('panel'\);/m.test(panel)) problems.push("panel.tsx no longer sets its Show Host role to 'panel' at module scope");
+    const link = read('src/renderer/state/hostLink.ts').replace(/\r\n/g, '\n');
+    if (!/function markWritten\(store: StoreName, key: string\): void \{\s*\n\s*if \(applyingRemote \|\| !connected \|\| role === 'panel'\) return;/.test(link)) problems.push("hostLink.markWritten no longer refuses to send from a 'panel' replica");
+    const att = link.match(/\nfunction attach\(p: MessagePort\): void \{([\s\S]*?)\n\}/);
+    if (!att || !/if \(role === 'panel'\) \{\s*\n\s*post\(\{ t: 'hello', role: 'panel' \}\);/.test(att[1])) problems.push('hostLink.attach no longer greets as a panel without handing over its state');
+    if (att && /sendAll\(\)/.test(att[1].split("if (role === 'panel')")[1]?.split('} else {')[0] ?? '')) problems.push('hostLink.attach sends the panel replica\'s state');
+    const store = read('src/renderer/live/panelStore.tsx');
+    if (!/if \(!extras \|\| !ready\) return null;/.test(store)) problems.push('PanelEditorStore no longer waits for the host snapshot (and the editor extras) before rendering');
+    const host = read('src/showhost/index.ts');
+    if (!/if \(c\.role === 'panel'\) return;/.test(host)) problems.push("the Show Host no longer refuses a raw 'set' from a panel window");
+    if (!/if \(m\.role === 'panel'\) \{[\s\S]*?send\(c, \{ t: 'patch', store, key, value: stores\[store\]\.getSlice\(key\), acked: c\.lastSeq \}\)[\s\S]*?send\(c, \{ t: 'historyState'/.test(host)) problems.push('the Show Host no longer sends a joining panel the whole document, then historyState (the end-of-snapshot mark)');
+    // Edits leave the window as actions, with arguments that can cross (a click event cannot).
+    if (!/const call = \(name: string, args: unknown\[\]\) => liveClient\.action\(name, args\.map\(sendable\)\);/.test(store)) problems.push('remote actions no longer drop unsendable arguments — `onClick={a.addFixture}` would lose the whole edit');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'panel windows open on a screen, close with the editor, and only in the editor',
+  'A window restored to a screen that is gone is a window nobody can see or close; one closed with the ' +
+  'editor on "close" vanishes when the unsaved-changes guard then cancels the close; a show machine ' +
+  'that reopened panel windows would put editor UI on a venue screen.',
+  () => {
+    const problems = [];
+    const pw = read('src/main/panelWindows.ts').replace(/\r\n/g, '\n');
+    const place = pw.match(/\nfunction placement\(panelId: string\): Rectangle \{([\s\S]*?)\n\}/);
+    if (!place) problems.push('placement() not found');
+    else {
+      const returns = [...place[1].matchAll(/\breturn ([^;]+);/g)].map((m) => m[1]);
+      if (!returns.length || returns.some((r) => !/^clampInto\(/.test(r))) problems.push('every placement() result must go through clampInto() — a window must never open off-screen');
+    }
+    if (!/editor\.on\('closed', \(\) => \{\s*\n\s*editorClosing = true;/.test(pw)) problems.push("panel windows must close on the editor's 'closed', not 'close' (the close guard can cancel a 'close')");
+    if (!/win\.on\('closed', \(\) => \{\s*\n\s*if \(t\) clearTimeout\(t\);\s*\n\s*remember\(last\);/.test(pw)) problems.push("a panel window's place must be written from its TRACKED bounds on 'closed' (a page-closed window never emits 'close')");
+    if (!/win\.webContents\.on\('did-finish-load', \(\) => \{ if \(!win\.isDestroyed\(\)\) connectShowHost\(win\); \}\);/.test(pw)) problems.push('a panel window is no longer given a Show Host port on every load');
+    if (!/if \(!HEADLESS && !BROADCAST\) registerPanelWindows\(mainWindow, \(\) => mainWindow\);/.test(read('src/main/index.ts'))) problems.push('panel windows must be registered in the editor only (never headless / broadcast)');
+    // The operator's door: a detachable panel's SECTION HEADER (a stacked section has no tab, so a tab
+    // menu alone would never be reached for exactly the panels that can detach).
+    if (!/panel\.detachable && window\.artlux\?\.openPanelWindow/.test(read('src/renderer/components/shell/WorkspaceShell.tsx'))) problems.push('the section header no longer offers "Open in new window" for a detachable panel');
+    if (!/panel: resolve\(__dirname, 'src\/renderer\/panel\.html'\)/.test(read('electron.vite.config.ts'))) problems.push('electron.vite.config.ts no longer builds panel.html — main would open a window onto nothing');
     return problems.length ? problems.join('; ') : null;
   },
 );

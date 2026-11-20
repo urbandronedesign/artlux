@@ -88,6 +88,8 @@ export default defineConfig({
           projector: resolve(__dirname, 'src/renderer/projector.html'),
           docs: resolve(__dirname, 'src/renderer/docs.html'),
           splash: resolve(__dirname, 'src/renderer/splash.html'),
+          // A detachable panel in its own window (E5/W5, renderer/panel.tsx) — a client that produces nothing.
+          panel: resolve(__dirname, 'src/renderer/panel.html'),
         },
       },
     },

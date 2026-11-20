@@ -9,6 +9,7 @@ import * as machineInfo from './machineInfo';
 import { openEnginePort, closeEnginePort } from './enginePort';
 import { connectShowHost, stopShowHost } from './showHost';
 import { initLiveHub } from './liveHub';
+import { registerPanelWindows } from './panelWindows';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors, rebridgeAllProjectors } from './projector';
@@ -290,6 +291,8 @@ function createWindow(): void {
     mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) connectShowHost(mainWindow); });
     // The live channel (E5/W4): this window is the ENGINE OWNER that other windows' live panels pair with.
     initLiveHub(mainWindow);
+    // Panel windows (E5/W5): any detachable panel on any screen. The editor only — a show mode has none.
+    if (!HEADLESS && !BROADCAST) registerPanelWindows(mainWindow, () => mainWindow);
     // The projector outputs' ports die with the page too — re-bridge every open output on every load,
     // or a reload leaves them all on "Waiting for the main window…" for good (see projector.ts).
     // On the first load there are no outputs yet; each one bridges itself when it opens.

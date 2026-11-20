@@ -147,6 +147,31 @@ have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable w
 > None of this touches the show. The rendering engine does not live in the interface: output keeps
 > running while you rearrange, and it keeps running even if a panel crashes.
 
+### A panel in its own window
+
+Some panels can leave the editor and open in a window of their own, which you can put on any screen:
+**Surfaces**, **Fixtures**, **Groups** and **Global Params** for now.
+
+- **Open one:** click **Open in new window** (the arrow-out-of-a-box button) in the panel's header, or
+  right-click its tab and choose **Open in new window**.
+- **It is the same panel, live.** It shows the open project and follows every change, whichever window
+  you make it in: select a fixture in either and both show it selected, add one in either and both list it.
+  An edit made in a window is undone from the editor, like any other edit: a panel window does not take
+  keyboard shortcuts (Undo, Space, …) yet.
+- **Sliders drag live.** Dragging **LED Brightness** in a window moves the rig as you drag, as it does in
+  the editor; the value is kept when you let go.
+- **It remembers where it was** on this machine, screen included, and opens there next time. If that
+  screen is not connected any more, the window comes back on the editor's screen, never off-screen.
+- **It closes with the editor, and comes back with it.** A window you close yourself stays closed.
+- The editor keeps its own copy of the panel; close the window when you are done with it.
+
+**Viewports stay in the editor for now:** the stage, the 3D view and the output previews draw on the
+graphics card inside the editor window. Their **Open in new window** entry is greyed out and says so.
+Other panels will be able to detach as they are moved over.
+
+> A crashed panel window does not touch the show, and does not leave a slider stuck: if it goes while
+> you are dragging, the value goes back to what was set.
+
 ---
 
 ## Saving a workspace (and taking it to another machine)

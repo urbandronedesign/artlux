@@ -37,8 +37,8 @@ import { EditorStore, buildSelection, type EditorData, type EditorActions, type 
 import { docStore, useDocSlice, sliceSetter, useSessionSlice, sessionSetter, type UndoableDoc, PROJECT_FILE_SLICES } from './state/docStore';
 // Side-effect import: replicates the two stores above into the Show Host process (E5/W3). The editor
 // works the same with no host; see state/hostLink.ts.
-import { startLiveBroker, registerLiveDragTarget } from './live/broker';
-import { installCoreLiveStreams } from './live/coreStreams';
+import { startLiveBroker, registerLiveDragTarget, setLiveActionRunner } from './live/broker';
+import { installCoreLiveStreams, publishEditorExtras } from './live/coreStreams';
 import './live/client';
 import { historyOp, hostConnected, hostDirtyNow, markSaved, subscribeHostDirty, subscribeHostConnect, setAutosaveEnabled, projectLoading, queryAutosave, discardAutosave } from './state/hostLink';
 import { shareEqual } from '../../shared/shareEqual';
@@ -5342,6 +5342,28 @@ const App: React.FC = () => {
     () => buildSelection(selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, selectedFixtureKinds),
     [selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, selectedFixtureKinds]);
 
+  // ── PANEL WINDOWS (E5/W5) ───────────────────────────────────────────────────────────────────────
+  // A panel in its own window (panel.tsx) reads the document from its own Show Host replica, and gets
+  // from here, over the live channel, the two things a replica cannot give it:
+  //   • what App holds outside the stores (published as the 'editor.extras' stream, on change only);
+  //   • the ability to EDIT: it names one of App's actions and the broker runs it here, so a detached
+  //     panel's edit goes through exactly the handler the docked panel's would.
+  // editorActionsRef is filled in below, where the actions object is built.
+  const editorActionsRef = useRef<EditorActions | null>(null);
+  useEffect(() => {
+      setLiveActionRunner((name, args) => {
+          const acts = editorActionsRef.current as unknown as Record<string, unknown> | null;
+          // OWN properties only: a name is looked up in the actions object, never on its prototype chain.
+          const fn = acts && Object.prototype.hasOwnProperty.call(acts, name) ? acts[name] : undefined;
+          if (typeof fn !== 'function') throw new Error(`no editor action "${name}"`);
+          return (fn as (...a: unknown[]) => unknown)(...args);
+      });
+      return () => setLiveActionRunner(null);
+  }, []);
+  useEffect(() => {
+      publishEditorExtras({ fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds });
+  }, [fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds]);
+
   // MEMOIZED ON ITS FIELDS, NOT REBUILT PER RENDER — this is load-bearing, not tidiness.
   //
   // Every field here is a useState value with a stable identity, so memoizing keeps the whole object's
@@ -5489,6 +5511,7 @@ const App: React.FC = () => {
     dropAssetOnSurface: handleDropAssetOnSurface,
     collectAssets: handleCollectAssets,
     setMasterBrightness: handleMasterBrightness,
+    pushMasterBrightness: (v) => livePreview.setBrightness(v),
     setProjectorBrightness,
     pushProjectorBrightness: (v) => pushProjectorBrightnessRef.current(v),
     setVideoPlaying: setIsVideoPlaying,
@@ -5514,6 +5537,7 @@ const App: React.FC = () => {
   // All the output effects above still run; broadcast additionally opens the saved projector outputs
   // while headless suppresses them (reconcilers gated on HEADLESS above). isVideoPlaying defaults
   // true, so media-source fixtures play (not black) in both.
+  editorActionsRef.current = editorActions; // what the live action runner above calls (panel windows)
   if (SHOW_ENGINE) {
     return null;
   }

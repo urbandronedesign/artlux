@@ -168,6 +168,12 @@ export interface EditorActions {
   collectAssets(): void;
   // globals
   setMasterBrightness(v: number): void;
+  /**
+   * The LED master under a hand right now: the render-free live channel (services/livePreview), no
+   * document write. An ACTION rather than a direct livePreview call so a panel in another window
+   * (E5/W5) drives the EDITOR's channel — its own livePreview drives nothing.
+   */
+  pushMasterBrightness(v: number): void;
   setProjectorBrightness(v: number): void;
   pushProjectorBrightness(v: number): void;   // render-free live channel (drag)
   setVideoPlaying(v: boolean): void;

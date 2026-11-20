@@ -24,6 +24,9 @@ let nextId = 1;
 let nextReq = 1;
 const subs = new Map<number, ClientSub>();
 const asks = new Map<number, Ask>();
+// Actions are NOT replayed on a new port the way asks are: the new owner page may already have run one,
+// and running an edit twice is worse than reporting that it may not have run.
+const actions = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 let clockWatchers = 0;
 let anchor: ClockAnchor | null = null;
 const clockSubs = new Set<(a: ClockAnchor) => void>();
@@ -69,6 +72,13 @@ function onMessage(m: LiveOwnerMsg): void {
       anchor = m.anchor;
       for (const cb of clockSubs) { try { cb(m.anchor); } catch { /* one bad listener only */ } }
       return;
+    case 'actionResult': {
+      const a = actions.get(m.req);
+      if (!a) return;
+      actions.delete(m.req);
+      if (m.error) a.reject(new Error(m.error)); else a.resolve(m.value);
+      return;
+    }
     case 'thumb': case 'peaks': {
       const a = asks.get(m.req);
       if (!a) { if (m.t === 'thumb') m.bitmap?.close(); return; }
@@ -85,6 +95,8 @@ function attach(p: MessagePort, id: number): void {
   clientId = id;
   connecting = false;
   p.onmessage = (e) => onMessage(e.data as LiveOwnerMsg);
+  for (const a of actions.values()) a.reject(new Error('the editor reloaded before answering'));
+  actions.clear();
   // Replay everything this window wants: a fresh port is a fresh owner page, which knows nothing.
   send({ t: 'hello', label });
   for (const [sid, s] of subs) send({ t: 'sub', id: sid, stream: s.stream, params: s.params });
@@ -166,6 +178,22 @@ export const liveClient = {
     return new Promise((resolve) => {
       asks.set(req, { msg, resolve: (m) => resolve(m && m.t === 'peaks' ? { peaks: m.peaks, duration: m.duration } : { peaks: null, duration: null }) });
       send(msg);
+    });
+  },
+
+  /**
+   * Run an editor action (EditorActions) in the engine owner. Resolves with its result; rejects when it
+   * threw, when this window is not connected, or when the editor reloaded before answering.
+   */
+  action(name: string, args: unknown[]): Promise<unknown> {
+    if (!port) return Promise.reject(new Error('not connected to the editor'));
+    const req = nextReq++;
+    return new Promise((resolve, reject) => {
+      actions.set(req, { resolve, reject });
+      // Not send(): it swallows a failed post (right for a stream, whose owner may be reloading), and a
+      // swallowed edit would wait for an answer forever.
+      try { port!.postMessage({ t: 'action', req, name, args } satisfies LiveClientMsg); }
+      catch (e) { actions.delete(req); reject(e as Error); }
     });
   },
 

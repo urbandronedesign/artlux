@@ -158,6 +158,8 @@ export const IPC = {
   DOCS_READ_ASSET: 'docs:read-asset',
   /** Renderer → main: open (or focus) the detached Docs window, optionally at a doc id. */
   DOCS_OPEN_WINDOW: 'docs:open-window',
+  /** Renderer → main: open (or focus) a detachable panel in its own window (E5/W5, main/panelWindows.ts). */
+  PANEL_WINDOW_OPEN: 'panel-window:open',
   /** Renderer (docs window) → main: load an example project into the MAIN editor window. */
   DOCS_OPEN_EXAMPLE: 'docs:open-example',
   /**
@@ -1546,8 +1548,22 @@ export interface RigData {
 }
 
 // Persisted across launches in userData.
+/** Where a panel window was, per machine (main/panelWindows.ts). */
+export interface SavedPanelWindow {
+  panelId: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  /** The screen it was on: matched by id, then by label + size (ids change across reboots). */
+  displayId?: number;
+  displayLabel?: string;
+  displaySize?: { width: number; height: number };
+}
+
 export interface Prefs {
   appSettings?: unknown;
+  /** Panel windows' last positions, by panel (E5/W5). */
+  panelWindows?: SavedPanelWindow[];
+  /** The panel windows that were open when the editor last closed — reopened with it. */
+  openPanelWindows?: string[];
   globalBrightness?: number;
   recentFiles: string[];
   lastProjectPath?: string;
@@ -1721,7 +1737,7 @@ export interface UnattendedPrefs {
 // window reports on the same channel; `window` + the sender's identity decide whether a fault is a
 // show failure (the main window) or merely auditable (a projector/docs window).
 export interface RendererFault {
-  window: 'main' | 'projector' | 'docs' | 'splash';
+  window: 'main' | 'projector' | 'docs' | 'splash' | 'panel';
   /** Which containment region caught it: 'root' | 'stage' | a panel id | 'global-error' | … */
   scope: string;
   /** Set when the throw came from a plugin's render, so the audit log names the culprit. */
@@ -1975,6 +1991,8 @@ export interface ArtluxApi {
    * in the combined app, which has no other half.
    */
   suiteOtherApp(): Promise<SuiteOtherApp | null>;
+  /** Open a detachable panel in its own window, or focus it if it is open (E5/W5). */
+  openPanelWindow(panelId: string): void;
   /** Ask main to pair this window with the engine owner (E5/W4). The port arrives as 'artlux:live-port'. */
   liveConnect(label: string): void;
   /** Hand the saved project to the other app: start it on `projectPath`, free the outputs, exit. */

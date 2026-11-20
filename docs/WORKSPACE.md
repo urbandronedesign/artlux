@@ -433,6 +433,17 @@ harmless.
   [`state/EditorStore.tsx`](../src/renderer/state/EditorStore.tsx). App remains the sole owner of state
   and of every mutation — the store only distributes it. Action identities are permanent (a facade
   forwards to App's latest handler at call time), so a panel that only dispatches never re-renders.
+- **Let a panel open in its own window (E5/W5):** add it to
+  [`contexts/detachable.tsx`](../src/renderer/contexts/detachable.tsx), the one list the editor registers
+  and `panel.html` mounts. The import graph decides whether it may: `verify:invariants` bundles
+  `renderer/panel.tsx` and fails if anything in it reaches the transport, the frame engine, a decoder,
+  the GPU code, three.js, the live broker or App, and names the module. A panel window reads the document
+  from its own read-only Show Host replica (`hostLink` role `'panel'`), gets everything else App holds
+  (resolved profiles, settings, displays…) from the `editor.extras` live stream, and EDITS by calling
+  the editor's actions over the live channel (`live/panelStore.tsx`), so App's handlers stay the only
+  mutation path. A render-free drag must be an action (`pushMasterBrightness`), not a direct
+  `livePreview` call, or it moves the panel window's own idle channel. Windows are placed, remembered
+  and reopened by [`main/panelWindows.ts`](../src/main/panelWindows.ts).
 - **Persist any other workspace state** (not project content): add a top-level `Prefs` field in
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.

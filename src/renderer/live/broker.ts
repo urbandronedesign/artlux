@@ -47,6 +47,11 @@ export interface LiveDragTarget<D extends LiveDrag = LiveDrag> {
 }
 
 const streams = new Map<string, { s: LiveStream; gen: number; stop: (() => void) | null; subs: Set<Sub> }>();
+// The editor's actions, set by App (E5/W5): a panel in another window edits by naming one of these.
+type ActionRunner = (name: string, args: unknown[]) => unknown;
+let runAction: ActionRunner | null = null;
+/** App hands the broker its action facade. A name it does not have is refused, never guessed. */
+export function setLiveActionRunner(fn: ActionRunner | null): void { runAction = fn; }
 const dragTargets = new Map<LiveDrag['target'], LiveDragTarget>();
 
 export function registerLiveStream(name: string, s: LiveStream): () => void {
@@ -164,6 +169,19 @@ async function onPeaksAsk(c: Client, req: number, path: string, buckets: number)
   post(c, { t: 'peaks', req, peaks: copy, duration: sourceDurationFor(path) }, copy ? [copy.buffer] : []);
 }
 
+async function onAction(c: Client, req: number, name: string, args: unknown[]): Promise<void> {
+  let value: unknown;
+  let error: string | undefined;
+  try {
+    if (!runAction) throw new Error('the editor is not ready');
+    value = await runAction(name, args);
+  } catch (e) { error = (e as Error)?.message ?? String(e); }
+  if (!clients.has(c.clientId)) return;
+  // A return value that does not clone (a function, a DOM node) is dropped, not an error: the action ran.
+  try { c.port.postMessage({ t: 'actionResult', req, value, error } satisfies LiveOwnerMsg); c.sent.actionResult = (c.sent.actionResult ?? 0) + 1; }
+  catch { post(c, { t: 'actionResult', req, error }); }
+}
+
 function onMessage(c: Client, m: LiveClientMsg): void {
   switch (m.t) {
     case 'hello': c.label = String(m.label ?? c.label); return;
@@ -204,6 +222,7 @@ function onMessage(c: Client, m: LiveClientMsg): void {
     case 'thumb': void onThumbAsk(c, m.req, String(m.path), Number(m.time) || 0); return;
     case 'peaks': void onPeaksAsk(c, m.req, String(m.path), Number(m.buckets) || 0); return;
     case 'drag': onDrag(c, m); return;
+    case 'action': void onAction(c, m.req, String(m.name), Array.isArray(m.args) ? m.args : []); return;
   }
 }
 

@@ -5,7 +5,7 @@ import type { DockNode, DockSize, DockTree } from '../../services/dockTree';
 import { addPanel, closePanel, defaultTreeOf, moveTab, panelIds, setActive, setSplitSizes, toggleCollapsed,
   type DockManifest, type DropZone } from '../../services/dockTree';
 import { useDockDrag, type DragApi } from './DockDrag';
-import { X, Plus, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
+import { X, Plus, ChevronDown, ChevronRight, RotateCcw, ExternalLink } from 'lucide-react';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { ViewportSlot } from './PersistentLayer';
 import { PanelBody } from './PanelBody';
@@ -227,6 +227,8 @@ const TabMenu: React.FC<{ ctx: Ctx; node: Extract<DockNode, { kind: 'group' }>; 
       {zones.map(([z, label]) => <Item key={z} onClick={() => send(moveTab(ctx.tree, at.panelId, node.id, z))}>{label}</Item>)}
       {others.length > 0 && <div className="h-px bg-line-1 my-1" />}
       {others.map((g) => <Item key={g} onClick={() => send(moveTab(ctx.tree, at.panelId, g, 'center'))}>Move to group {g}</Item>)}
+      <div className="h-px bg-line-1 my-1" />
+      <WindowItem ctx={ctx} panelId={at.panelId} onDone={send} />
       {at.panelId !== ctx.tree.meta.viewport && (
         <>
           <div className="h-px bg-line-1 my-1" />
@@ -234,6 +236,34 @@ const TabMenu: React.FC<{ ctx: Ctx; node: Extract<DockNode, { kind: 'group' }>; 
         </>
       )}
     </Popover>
+  );
+};
+
+/**
+ * "Open in new window" (E5/W5): the panel opens in a window of its own (main/panelWindows.ts), which
+ * remembers its screen and reopens with the editor. The docked copy stays, as from a section header's
+ * button (WorkspaceShell's PanelSection) — one behaviour from both doors. Offered only for a panel
+ * registered `detachable` (contexts/detachable.tsx — the import graph decides, see there). For the rest
+ * the item stays, disabled, saying why: an operator who looks for the function finds the reason.
+ */
+const WindowItem: React.FC<{ ctx: Ctx; panelId: string; onDone: (t: DockTree) => void }> = ({ ctx, panelId, onDone }) => {
+  const p = panelRegistry.get(panelId);
+  if (p?.detachable && window.artlux?.openPanelWindow) {
+    return (
+      <Item onClick={() => { window.artlux.openPanelWindow(panelId); onDone(ctx.tree); }}>
+        <span className="inline-flex items-center gap-1.5"><ExternalLink size={11} /> Open in new window</span>
+      </Item>
+    );
+  }
+  // GPU viewports stay docked until the native engine draws them (plans/native-engine.md, owner 2026-11-20).
+  const viewport = p?.mount === 'viewport' || panelId === ctx.tree.meta.viewport;
+  return (
+    <div className="px-2 py-1.5 text-mini text-fg-3 cursor-default" title={viewport
+      ? 'A viewport draws on the GPU in the editor window and cannot be moved to another window yet.'
+      : 'This panel cannot open in its own window yet.'}>
+      <span className="inline-flex items-center gap-1.5"><ExternalLink size={11} /> Open in new window</span>
+      <div className="text-micro">{viewport ? 'Viewports stay in the editor for now' : 'Not available for this panel yet'}</div>
+    </div>
   );
 };
 

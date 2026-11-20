@@ -108,6 +108,14 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
 
   `scripts/test-live-channel.cjs` pairs the editor with itself through main and checks these rules,
   including a negative control.
+- **Panel windows** (`renderer/panel.html` + `panel.tsx`, opened by `src/main/panelWindows.ts`): a
+  detachable panel (`contexts/detachable.tsx`) in its own `BrowserWindow`, so its own process. It is a
+  pure client: the document comes from its own read-only Show Host replica, and the rest of the editor's
+  state comes over the live channel. Every edit is an editor action run in the editor
+  (`live/panelStore.tsx`). `verify:invariants` bundles `panel.tsx` and refuses any producer in its
+  graph. Positions are kept per machine in the prefs, screens are matched by id and then by label and
+  size, windows are clamped on-screen, and the windows open at quit reopen with the editor.
+  `scripts/test-panel-window.cjs` proves all of it, including a crash mid-drag.
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
 - **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),

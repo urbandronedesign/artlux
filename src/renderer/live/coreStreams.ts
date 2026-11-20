@@ -12,6 +12,30 @@ import { docStore } from '../state/docStore';
 
 let installed = false;
 
+// ── What a panel window cannot derive from its replica ──────────────────────────────────────────
+// EditorData (state/EditorStore.tsx) is mostly the document and the session, which a panel window
+// already has through its own Show Host replica. The rest App holds itself: the RESOLVED fixture
+// profiles (project-embedded → user → bundled, services/fixtureProfiles), the displays main reported,
+// app settings (prefs, not project), the 3D model sizes measured on load, the scene-saved flag, the
+// open project's path and the selection's fixture KINDS. App publishes them here when they change and
+// a panel window watches the stream: one producer, sent only on change, pulled like any other stream.
+export interface EditorExtras {
+  fixtureProfiles: ReadonlyMap<string, unknown>;
+  displays: unknown[];
+  settings: unknown;
+  modelNaturalSizes: Record<string, number>;
+  sceneSaved: boolean;
+  currentProjectPath: string | null;
+  selectedFixtureKinds: string;
+}
+let extras: EditorExtras | null = null;
+let extrasChanged: (() => void) | null = null;
+/** App, on every change of any field (one object per change; unchanged fields keep their identity). */
+export function publishEditorExtras(x: EditorExtras): void {
+  extras = x;
+  extrasChanged?.();
+}
+
 export function installCoreLiveStreams(): void {
   if (installed) return;
   installed = true;
@@ -30,6 +54,11 @@ export function installCoreLiveStreams(): void {
       const copy = pixels.slice(start, end);
       return { value: { start, total: pixels.length, bytes: copy }, transfer: [copy.buffer] };
     },
+  });
+
+  registerLiveStream('editor.extras', {
+    watch(onNew) { extrasChanged = onNew; return () => { extrasChanged = null; }; },
+    read() { return extras ? { value: extras } : undefined; },
   });
 
   // Render and output health. The numbers are windowed statistics that move once a second at most, so

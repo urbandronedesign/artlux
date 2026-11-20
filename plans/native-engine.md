@@ -466,7 +466,62 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > - Not proven yet: main's "client gone" notice from a real second window. The harness simulates the
 >   notice, because its client is the editor itself; W5's panel windows exercise the real path.
 >
-> **Next: W5** (panel windows).
+> ✅ **W5a done 2026-11-21 (a panel in its own window).** What was built:
+> - **`panel.html` + `renderer/panel.tsx`** mount one panel from `contexts/detachable.tsx`. That is the
+>   single list of detachable panels; the editor registers the same entries.
+> - **The import graph decides what may detach.** `verify:invariants` bundles `panel.tsx` with esbuild
+>   and fails if the graph reaches the transport, the frame engine, a runtime service, GPU code, the 3D
+>   view, three.js, the peaks decoder, the live broker, App, plugin activation or a plugin. Of the
+>   seven core panel files, only `contexts/panels/browser.tsx` is clean today, so four panels detach:
+>   Surfaces, Fixtures, Groups and Global Params.
+> - **Document:** a read-only Show Host replica (`hostLink` role `'panel'`). It sends nothing; the host
+>   sends it the whole document, then `historyState` to mark the end of the snapshot, and refuses a raw
+>   `set` from it. The panel renders only after that mark, so it never shows the built-in defaults.
+> - **Everything else App holds** comes as the `editor.extras` live stream: resolved fixture profiles,
+>   settings, displays, model sizes, the scene-saved flag, the project path and the selection's fixture
+>   kinds. The bound timeline, selection and project references are derived from the replica, the way
+>   App derives them.
+> - **Edits** are editor actions run in the editor (a live-channel `action` message), with arguments
+>   that can't be cloned (a click event) dropped. The render-free drags became actions
+>   (`pushMasterBrightness`) so that a window drives the editor's channel.
+> - **Windows:** `main/panelWindows.ts` keeps positions per machine in the prefs and matches the screen
+>   by id, then by label and size. Every placement is clamped on-screen. Windows close on the editor's
+>   `closed` and reopen with it, and only in the editor (never headless or broadcast). Bounds are
+>   tracked as they change, because a page-closed window never emits `close` (found by the harness).
+> - **Ways in:** an "Open in new window" button in a detachable panel's section header (stacked
+>   sections have no tabs), and the dock tab menu. The menu shows a disabled entry, with the reason,
+>   for viewports and other panels. The docked copy stays.
+> - **Usage docs:** `user-guide/01` § A panel in its own window.
+>
+> Proof:
+> - `test-panel-window`, 7 claims, all green, and the first real-window proof of W4's "client gone"
+>   path:
+>   - the project is shown, not the defaults;
+>   - none of the producer fingerprints are present, with the editor as the control;
+>   - nothing is sent from the replica;
+>   - Add Fixture in the window adds the fixture in the editor, and the replicas agree;
+>   - selection works both ways;
+>   - a live LED-brightness drag commits on release;
+>   - **a window crashed mid-drag** has its drag released by the editor;
+>   - on a second launch both windows reopen with the editor, one at its remembered bounds and one
+>     that was remembered off-screen pulled back onto a screen.
+> - The **packaged** build: `panel.html` loads from the asar, shows the project, an edit reaches the
+>   editor, and no producer is present.
+> - Three checks, mutation-tested 18/18.
+> - Regressions green: live-channel, show-host, panel-renders, undo, engine-output.
+>
+> **W5b — what is left of W5:**
+> - **Each window gets its own dock tree** (tabs and splits).
+> - **Docking a window's panel back in** with a gesture, instead of closing the window.
+> - **Untangling the inspector panels** (`inspector.tsx` reaches the engine, GPU code and media cache),
+>   then the rest, file by file.
+> - **Plugin panels** need a UI-only activation.
+> - **Shortcuts** in panel windows: transport keys and Undo routed to the editor and the host.
+> - **Running without a Show Host** (`ARTLUX_NO_SHOW_HOST=1`): a panel window waits on "Connecting…"
+>   forever.
+> - **A restarting host** may briefly hand a panel the fresh host's empty state before the editor's
+>   handover reaches it. This converges, because the editor's slices are relayed, but it is worth a
+>   guard.
 >
 > ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
 > Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on

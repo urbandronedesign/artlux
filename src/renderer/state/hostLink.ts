@@ -50,6 +50,20 @@ const connectListeners = new Set<() => void>();
 let autosaveEnabled = false;
 const autosaveWaiters = new Map<number, (found: { savedAt: string; slices: Slices } | null) => void>();
 let autosaveReq = 0;
+// WHO THIS WINDOW IS TO THE HOST (E5/W5). 'editor' (the default) owns the stores and hands the host its
+// whole state on every connect. 'panel' is a detached panel window: a READ-ONLY replica that sends
+// nothing — it arrives empty, and its emptiness must never reach the authority — and is sent the whole
+// document by the host instead. Set once, by panel.tsx, before the port can arrive.
+let role: 'editor' | 'panel' = 'editor';
+export function setHostLinkRole(r: 'editor' | 'panel'): void { role = r; }
+// A PANEL'S REPLICA IS USABLE ONLY ONCE THE HOST'S SNAPSHOT HAS LANDED: before it, this window's stores
+// hold the built-in defaults (a "Main Arch" fixture nobody created). The host sends the snapshot, then
+// historyState, in order on one port — so the first historyState after a connect marks the end of it.
+let replicaReady = false;
+const readyListeners = new Set<() => void>();
+/** True once this window's stores hold the host's document (always, for the editor: it IS the source). */
+export function hostReplicaReady(): boolean { return role === 'editor' || replicaReady; }
+export function subscribeReplicaReady(fn: () => void): () => void { readyListeners.add(fn); return () => { readyListeners.delete(fn); }; }
 
 function post(msg: ClientToHost): boolean {
   if (!port) return false;
@@ -82,7 +96,7 @@ export function flushToHost(): void {
 }
 
 function markWritten(store: StoreName, key: string): void {
-  if (applyingRemote || !connected) return;
+  if (applyingRemote || !connected || role === 'panel') return;
   pending.set(`${store}.${key}`, [store, key]);
   if (!flushQueued) { flushQueued = true; queueMicrotask(flushToHost); }
 }
@@ -117,6 +131,10 @@ function onHostMessage(m: HostToClient): void {
     }
     case 'historyState':
       history = { canUndo: m.canUndo, canRedo: m.canRedo, depth: m.depth };
+      if (role === 'panel' && !replicaReady) {
+        replicaReady = true;
+        for (const fn of [...readyListeners]) { try { fn(); } catch (e) { console.error('[hostLink] ready listener failed:', e); } }
+      }
       return;
     case 'dirty':
       hostDirty = m.dirty;
@@ -143,10 +161,14 @@ function attach(p: MessagePort): void {
   p.onmessage = (e: MessageEvent) => { try { onHostMessage(e.data as HostToClient); } catch (err) { console.error('[hostLink] host message failed:', err); } };
   p.start();
   connected = true;
-  post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES], projectFile: [...PROJECT_FILE_SLICES], autosave: autosaveEnabled });
   history = { canUndo: false, canRedo: false, depth: 0 };   // a new editor page starts a new history
   hostDirty = false;
-  sendAll();
+  if (role === 'panel') {
+    post({ t: 'hello', role: 'panel' });   // and nothing else: the host answers with the whole document
+  } else {
+    post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES], projectFile: [...PROJECT_FILE_SLICES], autosave: autosaveEnabled });
+    sendAll();
+  }
   console.log(`[hostLink] connected to the Show Host (connect #${connects})`);
   // After the handover, so a listener's baseline is processed against the state just sent (FIFO).
   for (const fn of [...connectListeners]) { try { fn(); } catch (e) { console.error('[hostLink] connect listener failed:', e); } }
@@ -185,6 +207,10 @@ if (typeof window !== 'undefined') {
       const id = (o: unknown) => (o && typeof o === 'object' ? idOf(o as object) : null);
       return { slice: id(v), items: Array.isArray(v) ? v.map(id) : [] };
     },
+    /** One slice of this window's replica, as a harness reads it (a structured-clone copy crosses CDP). */
+    get: (store: StoreName, key: string) => STORES[store].getSlice(key) as unknown,
+    role: () => role,
+    ready: () => hostReplicaReady(),
     resetStats: () => sentCount.clear(),
     unclonable: () => [...unclonable],
     /** Ask the host for its digests and compare with this replica's. Resolves to the mismatching slices. */

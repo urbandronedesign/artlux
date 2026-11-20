@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
 import { PanelBody } from './PanelBody';
 import { contextRegistry, panelRegistry, appliesToSelection } from '../../host/registries';
@@ -93,13 +93,27 @@ const PanelSection: React.FC<{ panel: PanelContribution; contextId: string; sele
   // every section stacked under it disappears.
   if (panel.bare) return <div className={panel.grow ? 'flex-1 min-h-0 overflow-hidden' : 'shrink-0'}>{body}</div>;
   const Actions = panel.HeaderActions;
+  // THE DOOR TO A PANEL WINDOW (E5/W5). In the section header, because that is where a browser or
+  // inspector panel's functions live — a stacked section has no tab, so a tab menu would never be
+  // reached for exactly the panels that can detach. Shared by the dock tree and the fallback shell,
+  // which both draw panels through this component. It opens a window; the docked copy stays (both show
+  // the same document), and closing the window is the way back.
+  const detach = panel.detachable && window.artlux?.openPanelWindow ? (
+    <button className="text-fg-2 hover:text-fg-1" title="Open in new window"
+      onClick={(e) => { e.stopPropagation(); window.artlux.openPanelWindow(panel.id); }}>
+      <ExternalLink size={12} />
+    </button>
+  ) : null;
+  const headerActions = Actions || detach
+    ? <span className="inline-flex items-center gap-1.5">{Actions && <Actions contextId={contextId} selection={selection} />}{detach}</span>
+    : undefined;
   return (
     <CollapsibleSection
       title={panel.title ?? panel.id}
       icon={panel.icon}
       defaultOpen={panel.defaultOpen ?? true}
       grow={panel.grow}
-      action={Actions ? <Actions contextId={contextId} selection={selection} /> : undefined}
+      action={headerActions}
       // Parameter sections get the inspector's padded, evenly-spaced body; browser sections manage
       // their own dense list padding.
       bodyClassName={panel.mount === 'inspector' ? 'p-3 bg-surface-1 space-y-3' : 'bg-surface-1'}

@@ -212,9 +212,23 @@ function onMessage(c: Client, raw: unknown): void {
       // (crash recovery, a dev reload) must not let Ctrl+Z restore a snapshot recorded against the
       // previous page's document. (A panel window joining, from W5, keeps the history.)
       if (m.role === 'editor') { past = []; future = []; historyState(); }
+      // A PANEL WINDOW (W5) arrives empty and must never hand the host its emptiness: it sends nothing,
+      // and is sent the whole document and session instead, then the same patches as everyone else.
+      // `acked` is its lastSeq (0): it has written nothing, so no patch is ever dropped on its side.
+      if (m.role === 'panel') {
+        for (const store of ['doc', 'session'] as StoreName[]) {
+          for (const key of Object.keys(stores[store].get())) send(c, { t: 'patch', store, key, value: stores[store].getSlice(key), acked: c.lastSeq });
+        }
+        send(c, { t: 'historyState', canUndo: past.length > 0, canRedo: future.length > 0, depth: past.length });
+        send(c, { t: 'dirty', dirty: lastDirty });
+      }
       return;
     case 'set': {
       if (m.store !== 'doc' && m.store !== 'session') return;
+      // A panel window edits through the EDITOR (live channel → App's handlers), never by writing the
+      // authority directly: a raw write would skip every rule App's handlers keep (repatch, undo, scene
+      // capture). hostLink never sends one in that role; this is the authority refusing it anyway.
+      if (c.role === 'panel') return;
       c.lastSeq = m.seq;
       // Folded into the previous value: the parts that did not change keep their identity, so undo
       // snapshots share structure, and a write that changed nothing is a no-op (and is not relayed).

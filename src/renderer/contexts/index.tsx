@@ -15,10 +15,7 @@ import {
 import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
-import {
-  SurfacesPanel, SurfacesHeaderActions, FixturesPanel, FixturesHeaderActions,
-  GroupsPanel, GroupsHeaderActions, GlobalParamsPanel,
-} from './panels/browser';
+import { DETACHABLE_PANELS } from './detachable';
 import {
   SurfaceContentPanel, SurfaceTransformPanel, FixturePatchPanel, FixtureMappingPanel, FixtureSegmentsPanel,
   FixtureOutputPanel, FixtureRoutingPanel, FixtureLayout3DPanel,
@@ -66,10 +63,8 @@ export function registerCoreWorkspace(): void {
   registered = true;
 
   // ── Browser panels ─────────────────────────────────────────────────────────────────────────
-  panelRegistry.register({ id: 'core.browser.surfaces', mount: 'browser', title: 'Surfaces', icon: <Layers size={12} />, grow: true, Component: SurfacesPanel, HeaderActions: SurfacesHeaderActions });
-  panelRegistry.register({ id: 'core.browser.fixtures', mount: 'browser', title: 'Fixtures', icon: <Box size={12} />, grow: true, Component: FixturesPanel, HeaderActions: FixturesHeaderActions });
-  panelRegistry.register({ id: 'core.browser.groups', mount: 'browser', title: 'Groups', icon: <Users size={12} />, Component: GroupsPanel, HeaderActions: GroupsHeaderActions });
-  panelRegistry.register({ id: 'core.browser.globals', mount: 'browser', title: 'Global Params', icon: <SlidersHorizontal size={12} />, Component: GlobalParamsPanel });
+  // The four that may also open in their own window are declared once, in ./detachable (E5/W5).
+  for (const p of DETACHABLE_PANELS) panelRegistry.register(p);
   // Browser-mounted flavours for contexts whose left column is a monitor rather than an outliner.
   panelRegistry.register({ id: 'core.browser.programPreview', mount: 'browser', title: 'Program', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
   panelRegistry.register({ id: 'core.browser.timing', mount: 'browser', title: 'Timing', icon: <Timer size={12} />, Component: TimingPanel, HeaderActions: TimingHeaderActions });

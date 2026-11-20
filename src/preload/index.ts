@@ -105,6 +105,7 @@ const api: ArtluxApi = {
     relaunchWithCalibration: (on: boolean, projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_PROFILE, on, projectPath),
     suiteOtherApp: () => ipcRenderer.invoke(IPC.SUITE_OTHER_APP),
     liveConnect: (label: string) => ipcRenderer.send(IPC.LIVE_CONNECT, label),
+    openPanelWindow: (panelId: string) => ipcRenderer.send(IPC.PANEL_WINDOW_OPEN, panelId),
     openInOtherApp: (projectPath: string, exeHint?: string) => ipcRenderer.send(IPC.SUITE_OPEN_IN_OTHER, projectPath, exeHint),
     suiteRecalibrate: (job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }, projectPath: string) => ipcRenderer.invoke(IPC.SUITE_RECALIBRATE, job, projectPath),
     suiteHandBack: (projectPath: string, outcome: string) => ipcRenderer.send(IPC.SUITE_HAND_BACK, projectPath, outcome),
