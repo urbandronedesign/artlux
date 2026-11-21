@@ -20,7 +20,6 @@ import type { AugmentaSnapshot } from './augmentaStore';
 import * as augmentaDrawable from './augmentaDrawable';
 import * as augmentaProjector from './augmentaProjector';
 import AugmentaViz from './AugmentaViz';
-import { AugmentaSettings } from './augmentaSettings';
 
 let oscUnsub: (() => void) | null = null;
 
@@ -35,7 +34,7 @@ export const plugin: RendererPlugin = {
 
     // Preferences section: OSC status + setup guidance (Augmenta has no plugin-local device settings —
     // it reuses the core OSC / Tracking receive settings).
-    ctx.settings.register({ id: 'augmenta', title: 'Augmenta Tracking', Component: AugmentaSettings });
+    // Its Preferences section is the UI half's (ui.ts).
 
     // AUGMENTA content: the host compositor dispatches unknown content types through the registry.
     ctx.contentSources.register({

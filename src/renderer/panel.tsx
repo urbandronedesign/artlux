@@ -30,6 +30,7 @@ import { installSceneRemote } from './live/sceneRemote';
 import { installOscRemote } from './live/oscRemote';
 import { installTakesRemote } from './live/takesRemote';
 import { layoutStore, disableLayoutPersistence, LAYOUT_PREF_KEY } from './services/layoutStore';
+import { markPanelWindow } from './services/windowRole';
 
 // A PANEL WINDOW (E5/W5) — `panel.html?panel=<id>`, opened by main/panelWindows.ts. It opens on that one
 // panel and is a dock tree of its own (W5b-2): more detachable panels can join it as tabs, stacks or splits.
@@ -45,6 +46,7 @@ import { layoutStore, disableLayoutPersistence, LAYOUT_PREF_KEY } from './servic
 // Before the Show Host port can arrive (it is relayed after this module's imports have all run): this
 // window's replica is read-only and must never hand the host its empty defaults.
 setHostLinkRole('panel');
+markPanelWindow();
 installGlobalNet('panel');
 // The editor's saved workbench is the EDITOR's to write (services/layoutStore): this window reads it
 // once, so a panel opens with the operator's choices (the media library's view…), and never writes it.

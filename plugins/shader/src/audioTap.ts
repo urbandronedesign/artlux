@@ -31,7 +31,8 @@ export const BAND_COUNT = 16;
  * they are sampled, and they are also the only way a damper expressed in seconds can be honest.
  */
 const ATTACK_SEC = 0.02;                 // rise: near-instant, so a hit is not softened
-export const DEFAULT_BAND_FALL_SEC = 0.25;
+import { DEFAULT_BAND_FALL_SEC } from './shaderDefaults';
+export { DEFAULT_BAND_FALL_SEC };
 let bandFallSec = DEFAULT_BAND_FALL_SEC;
 
 /** The dampers. Both are fall TIMES in seconds — bigger is smoother and slower to let go. */

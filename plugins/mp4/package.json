@@ -8,5 +8,9 @@
   "dependencies": {
     "@artlux/sdk": "*",
     "mp4box": "^0.5.2"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.ts"
   }
 }

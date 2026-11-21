@@ -55,8 +55,8 @@ export const plugin: RendererPlugin = {
     const host = ctx.host as RendererHostServices;
     setHost(host, ctx.ipc);
 
-    // Contributions (Preferences section + operator modal). Marker strings guarded by verify:plugins.
-    ctx.settings.register({ id: 'show-control', title: 'Show Control', Component: ShowControlSettings });
+    // Contributions (the operator panels). Marker strings guarded by verify:plugins. The Preferences
+    // section is the UI half's (ui.ts — Preferences may open in a window).
     // A DOCK tab on the host's `show` context: the connect URL/QR/PIN and the paired-device list are
     // things an operator keeps visible while running a show, not a dialog to dismiss.
     ctx.panels.register({ id: 'show-control', mount: 'dock', menuAction: 'show-control', title: 'Show Control', Component: ShowControlPanel });

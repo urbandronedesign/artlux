@@ -16,7 +16,7 @@
 // runtime code in a window that must not run any. Add a plugin here only through its `/ui` entry.
 
 import type { RendererPluginUi, RendererPluginUiContext, PluginLiveView, PluginUiHost, RendererHostServices } from '@artlux/sdk/renderer';
-import { contentSourceUiRegistry, panelRegistry } from './registries';
+import { contentSourceUiRegistry, panelRegistry, settingsSectionRegistry } from './registries';
 import { ui as augmenta } from '@artlux/plugin-augmenta/ui';
 import { ui as mediapipe } from '@artlux/plugin-mediapipe/ui';
 import { ui as lidarTracking } from '@artlux/plugin-lidar-tracking/ui';
@@ -25,13 +25,16 @@ import { ui as spout } from '@artlux/plugin-spout/ui';
 import { ui as syphon } from '@artlux/plugin-syphon/ui';
 import { ui as text } from '@artlux/plugin-text/ui';
 import { ui as shader } from '@artlux/plugin-shader/ui';
+import { ui as mp4 } from '@artlux/plugin-mp4/ui';
+import { ui as audio } from '@artlux/plugin-audio/ui';
+import { ui as showControl } from '@artlux/plugin-show-control/ui';
 
 // What only a RUNTIME knows (Spout's and Syphon's "cannot run here", an imported font's load state, a
 // shader's compile log and the GPU's limits) is published by that runtime in the editor and read by
 // the UI half through `live` — never from the runtime's module, which in a panel window is an idle copy.
 // The Calibrator carries only the shader plugin of these (its test cards are shader surfaces).
 const FIRST_PARTY_UI: RendererPluginUi[] =
-  __ARTLUX_APP__ === 'calibrator' ? [shader] : [augmenta, mediapipe, lidarTracking, ndi, spout, syphon, text, shader];
+  __ARTLUX_APP__ === 'calibrator' ? [shader, mp4] : [augmenta, mediapipe, lidarTracking, ndi, spout, syphon, text, shader, mp4, audio, showControl];
 
 let activated: RendererPluginUiContext['window'] | null = null;
 
@@ -69,7 +72,14 @@ export function uiHostOf(h: RendererHostServices): PluginUiHost {
 export function activatePluginUi(win: RendererPluginUiContext['window'], live: PluginLiveView = INERT, host: PluginUiHost = INERT_HOST): void {
   if (activated) return;
   activated = win;
-  const ctx = { window: win, contentSourceUi: contentSourceUiRegistry, live, panels: panelRegistry, host } as unknown as RendererPluginUiContext;
+  // The same bridge the runtime context hands out (host/plugins.ts): main is one process for every
+  // window, so a UI half talks to its main half the same way wherever it is drawn.
+  const ipc = {
+    invoke: (ch: string, ...a: unknown[]) => window.artlux!.pluginInvoke(ch, ...a),
+    send: (ch: string, ...a: unknown[]) => window.artlux!.pluginSend(ch, ...a),
+    on: (ch: string, cb: (...a: unknown[]) => void) => window.artlux!.pluginOn(ch, cb),
+  };
+  const ctx = { window: win, contentSourceUi: contentSourceUiRegistry, live, panels: panelRegistry, settings: settingsSectionRegistry, ipc, host } as unknown as RendererPluginUiContext;
   for (const p of FIRST_PARTY_UI) {
     try { p.activateUi(ctx); } catch (e) { console.error(`[plugins] ${p.id} activateUi failed`, e); }
   }

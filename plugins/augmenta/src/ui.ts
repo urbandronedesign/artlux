@@ -6,11 +6,13 @@ import type { RendererPluginUi, ContentSourceUiRegistry } from '@artlux/sdk/rend
 import { AugmentaContentEditor } from './augmentaContentEditor';
 import { AugmentaMonitor } from './AugmentaMonitor';
 import { setUiHost } from './uiLink';
+import { AugmentaSettings } from './augmentaSettings';
 
 export const ui: RendererPluginUi = {
   id: 'augmenta',
   activateUi(ctx) {
     setUiHost(ctx.host);
+    ctx.settings.register({ id: 'augmenta', title: 'Augmenta Tracking', Component: AugmentaSettings as never });
     ctx.panels.register({ id: 'augmenta-monitor', mount: 'dock', detachable: true, menuAction: 'augmenta-monitor', title: 'Augmenta Monitor', Component: AugmentaMonitor });
     (ctx.contentSourceUi as ContentSourceUiRegistry).register({
       type: 'AUGMENTA',

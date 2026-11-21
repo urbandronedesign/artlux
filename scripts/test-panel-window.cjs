@@ -47,6 +47,10 @@
 //      recorder (the window's button turns, its blob count is the tracker's), Stop lands a take in the
 //      editor's library with its sparkline drawn from the editor's file; and a Media Library view toggle
 //      in a window leaves the EDITOR's saved workbench in the prefs untouched.
+//  19. PREFERENCES in a window: every plugin section a UI half registers is there; an app setting
+//      changed there is the editor's (the window's control shows the editor's value back); the editor
+//      window's own settings are disabled with a pointer; a section only the editor has is named; Show
+//      Control's section reaches main (its LAN address).
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -924,6 +928,35 @@ const until = async (fn, ms = 8000, step = 200) => {
       `toggled ${toggled}; prefs layoutState ${layoutAfter === layoutBefore ? 'unchanged' : 'CHANGED'}`);
     note(!Object.values(await MD(prints)).some(Boolean), 'the Media Library window runs no thumbnail cache, transport or engine of its own', JSON.stringify(await MD(prints)));
     await MD(() => window.close());
+
+    console.log('\n19. Preferences in its own window');
+    const ppr = await openPanel('core.viewport.preferences');
+    const PR = (fn, ...a) => ppr.evaluate(fn, ...a);
+    const wantSections = ['Audio', 'Video', 'Shaders', 'Show Control', 'Augmenta Tracking', 'Pose Tracking (MediaPipe)'];
+    const titles = await until(() => PR((w) => { const t = document.body.innerText.toLowerCase(); const miss = w.filter((x) => !t.includes(x.toLowerCase())); return miss.length ? null : true; }, wantSections), 8000);
+    note(!!titles, "Preferences in a window has every plugin section a UI half registers", titles ? wantSections.join(', ') : `missing: ${await PR((w) => w.filter((x) => !document.body.innerText.toLowerCase().includes(x.toLowerCase())).join(', '), wantSections)}`);
+    // An app setting, through the editor: the select shows the EDITOR's value after the change (a panel
+    // window holds no settings of its own — it reads the editor's), and goes back after.
+    const protoSel = () => PR(() => { const s = [...document.querySelectorAll('select')].find((x) => [...x.options].some((o) => o.value === 'sacn')); return s ? s.value : null; });
+    const p0 = await until(protoSel, 5000);
+    const flip = p0 === 'sacn' ? 'artnet' : 'sacn';
+    await PR((v) => { const s = [...document.querySelectorAll('select')].find((x) => [...x.options].some((o) => o.value === 'sacn')); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, v); s.dispatchEvent(new Event('change', { bubbles: true })); }, flip);
+    const p1 = await until(async () => ((await protoSel()) === flip ? flip : null), 6000);
+    const savedProto = await until(async () => (readPrefsNow().appSettings?.protocol === flip ? flip : null), 6000);
+    note(!!p1 && !!savedProto, "an app setting changed in the window is the editor's (the control shows the editor's value back, and it is saved)", `${p0} → ${await protoSel()}; prefs protocol ${readPrefsNow().appSettings?.protocol}`);
+    await PR((v) => { const s = [...document.querySelectorAll('select')].find((x) => [...x.options].some((o) => o.value === 'sacn')); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, v); s.dispatchEvent(new Event('change', { bubbles: true })); }, p0);
+    await until(async () => ((await protoSel()) === p0 ? 1 : null), 6000);
+    const editorOnly = await PR(() => [...document.querySelectorAll('[data-editor-only]')].map((e) => (e.textContent || '').slice(0, 30)));
+    note(editorOnly.length === 3 && await PR(() => /set it in the editor's Preferences/.test(document.body.innerText)),
+      "the editor window's own settings (workbench, workspaces, 3D quality) are disabled there, saying where to change them", `${editorOnly.length} blocks`);
+    // Sections the editor has and this window does not: named, never silently missing.
+    const editorSections = await E(() => window.__liveBroker.streams().includes('prefs.sections'));
+    const elsewhere = await PR(() => document.querySelector('[data-prefs-elsewhere]')?.textContent || null);
+    note(editorSections, "the editor publishes its sections, so the window can name what it lacks", elsewhere || '(every editor section is here)');
+    const lan = await until(() => PR(() => /:\d{4,5}/.test((document.body.innerText.split(/show control/i)[1] || '').slice(0, 600)) || null), 8000);
+    note(!!lan, "Show Control's section reaches its main half from the window (the server's address and port)");
+    note(!Object.values(await PR(prints)).some(Boolean), 'the Preferences window runs no transport, engine or three.js of its own', JSON.stringify(await PR(prints)));
+    await PR(() => window.close());
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

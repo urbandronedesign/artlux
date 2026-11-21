@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getIpc, DEFAULTS } from './showControlHost';
+import { getIpc } from './uiLink';
+import { DEFAULTS } from './showControlDefaults';
 import type { ShowControlSettings as Cfg, LanInfo } from './types';
 
 // Preferences → Show Control. Owns the plugin-private { enabled, port } (persisted under

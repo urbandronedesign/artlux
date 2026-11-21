@@ -737,10 +737,23 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > layout byte-identical; no panel is registered twice); checks mutation-tested 10/10 + 2/2;
 > `test-lighting-take` green.
 >
+> ✅ **W5k done 2026-11-21 (Preferences detaches; every plugin Preferences section is a UI half's).**
+> - UI context gains `ctx.settings` and `ctx.ipc`. New UI halves: Audio, MP4, Show Control. Sections
+>   moved from runtimes to UI halves: Audio, Augmenta, MediaPipe (its camera list asked of the editor,
+>   `mediapipe.cameras`), MP4 (Video), Shader (constants to `shaderDefaults`), Show Control (DEFAULTS to
+>   `showControlDefaults`, IPC via `uiLink`). Calibration's Recalibration stays a runtime (authoring)
+>   section; a window names what it lacks from `prefs.sections`.
+> - The editor window's own settings (Dockable workspace, named Workspaces, 3D quality) are `EditorOnly`:
+>   disabled in a window, with the pointer.
+> - Checks: a plugin with a UI half may not register a section from its runtime; every UI half is in the
+>   list (mutation-found: a half left out vanishes from every window, the editor too); the UI-half
+>   regexes did not match a digit in a plugin name (`mp4` was skipped by every UI-half check).
+>
+> Proof: `test-panel-window` step 19 (all six plugin sections in a window; an app setting changed there
+> is the editor's and is saved; the three editor-window blocks disabled with the pointer; Show Control's
+> section reaches main); checks mutation-tested 11/11 + 1.
+>
 > **W5 — what is left:**
-> - **Panels that need more than a seam:**
->   - **Preferences** (a viewport): it hosts every plugin's settings section, which plugin RUNTIMES
->     register — they need UI halves first;
 > - `preview` (program monitor, output previews): GPU viewports, docked until the engine.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.

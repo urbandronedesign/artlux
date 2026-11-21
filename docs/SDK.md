@@ -133,10 +133,11 @@ Persistence is the caller's choice: the host wraps this as `useDraggableModal(id
 A detached **panel window** (E5/W5) runs no plugin runtime, but it still needs what a plugin contributes
 to the UI it shows. That is the plugin's **UI half**: a separate entry, exported from the plugin's
 `package.json` as `./ui`, whose `ui: RendererPluginUi` has an `activateUi(ctx: RendererPluginUiContext)`.
-`ctx.window` is `'main' | 'projector' | 'panel'`; the registries are `ctx.contentSourceUi` and
-`ctx.panels` (a `detachable: true` panel may open in its own window), with `ctx.live` for the runtime's
-state and `ctx.host` (`PluginUiHost`: `settings`, `scene3D` get/subscribe/patch, `ui.menuAction`) for the
-host's, the same in every window.
+`ctx.window` is `'main' | 'projector' | 'panel'`; the registries are `ctx.contentSourceUi`, `ctx.panels`
+(a `detachable: true` panel may open in its own window) and `ctx.settings` (Preferences sections —
+Preferences may open in a window, which shows only sections a UI half registered), with `ctx.live` for
+the runtime's state, `ctx.ipc` for the plugin's main half (the same bridge in every window), and
+`ctx.host` (`PluginUiHost`: `settings`, `scene3D` get/subscribe/patch, `ui.menuAction`) for the host's.
 The host lists UI halves in `src/renderer/host/pluginUi.ts` and activates them in **every** window,
 before the runtimes. Three rules, each checked by `verify:invariants`:
 

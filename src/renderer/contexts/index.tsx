@@ -18,7 +18,6 @@ import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
-import { PreferencesViewport } from './panels/adapters';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
 import * as takeRecorder from '../services/takeRecorder';
 
@@ -130,7 +129,7 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register(detachablePanel('core.dock.lightingTakes'));
   panelRegistry.register(detachablePanel('core.dock.trackingTakes'));
   panelRegistry.register(detachablePanel(VIEWPORT_MACHINE));
-  panelRegistry.register({ id: VIEWPORT_PREFERENCES, mount: 'viewport', menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport });
+  panelRegistry.register(detachablePanel(VIEWPORT_PREFERENCES));
 
   // ── Contexts ───────────────────────────────────────────────────────────────────────────────
   // Actions reuse App's menu dispatcher by id wherever the function already exists there, so no

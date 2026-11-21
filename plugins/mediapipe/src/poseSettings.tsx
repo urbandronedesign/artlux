@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Slider } from '@/components/ui'; // host UI primitive (pure presentational — no singleton)
-import * as poseCamera from './poseCamera';
+// The camera list is the EDITOR's (where the capture runs): asked through the live view — the same
+// device labels in a panel window, which may not have been granted the camera itself (E5/W5k).
+import { liveView } from './uiLink';
+type CameraDevice = { deviceId: string; label: string };
 import type { MediaPipeSettings } from './poseEngine';
 
 // The MediaPipe plugin's Preferences section. Registered into the host settingsSectionRegistry, which
@@ -16,10 +19,14 @@ const rowCls = 'flex items-center justify-between gap-2 text-xs';
 export const PoseSettings: React.FC<{ settings: unknown; onChange: (patch: Partial<HostSettings>) => void }> = ({ settings, onChange }) => {
   const host = settings as HostSettings;
   const cfg = (host.plugins?.mediapipe as MediaPipeSettings | undefined) ?? {};
-  const [devices, setDevices] = useState<poseCamera.CameraDevice[]>([]);
+  const [devices, setDevices] = useState<CameraDevice[]>([]);
 
   // Enumerate cameras (labels populate only after permission has been granted once).
-  useEffect(() => { let alive = true; void poseCamera.enumerate().then((d) => { if (alive) setDevices(d); }); return () => { alive = false; }; }, []);
+  useEffect(() => {
+    let alive = true;
+    void liveView()?.call('mediapipe.cameras', []).then((d) => { if (alive && Array.isArray(d)) setDevices(d as CameraDevice[]); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // Merge a patch into the plugin-local settings namespace, preserving other plugins' entries.
   const patch = (p: Partial<MediaPipeSettings>) =>

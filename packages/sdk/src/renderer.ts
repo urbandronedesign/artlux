@@ -1353,6 +1353,11 @@ export interface RendererPluginUiContext<C = unknown> {
    * the runtime fills (a receiver, a tracker) reads it through `live` instead, or it stays in `activate()`.
    */
   panels: PanelRegistry;
+  /** Preferences sections. Register yours here (not from `activate()`): Preferences may open in a panel
+   *  window, which shows only the sections a UI half registered. */
+  settings: SettingsSectionRegistry;
+  /** Your main half, from any window (main is one process for every window). */
+  ipc: PluginIpc;
   /** The host, as a UI half may use it from any window (see PluginUiHost). */
   host: PluginUiHost;
 }

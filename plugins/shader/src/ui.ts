@@ -15,6 +15,7 @@ import { ShaderEditorPanel } from './ShaderEditorPanel';
 import { ShaderNodePanel } from './ShaderNodePanel';
 import { ShaderLibraryPanel } from './ShaderLibraryPanel';
 import { setLiveView } from './uiLink';
+import { ShaderSettings } from './ShaderSettings';
 
 export const ui: RendererPluginUi = {
   id: 'shader',
@@ -29,6 +30,7 @@ export const ui: RendererPluginUi = {
     // panel (a place you pick content FROM). The runtime puts them on the mapping workbench.
     ctx.panels.register({ id: 'shader-editor', mount: 'dock', detachable: true, title: 'Shader', Component: ShaderEditorPanel });
     ctx.panels.register({ id: 'shader-nodes', mount: 'dock', detachable: true, title: 'Shader Nodes', Component: ShaderNodePanel });
+    ctx.settings.register({ id: 'shader', title: 'Shaders', Component: ShaderSettings } as never);
     ctx.panels.register({ id: 'shader-library', mount: 'browser', detachable: true, title: 'Effects', grow: true, Component: ShaderLibraryPanel });
   },
 };

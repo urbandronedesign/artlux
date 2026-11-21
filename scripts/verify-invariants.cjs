@@ -7919,9 +7919,9 @@ check(
   () => {
     const problems = [];
     const list = read('src/renderer/host/pluginUi.ts');
-    const halves = [...list.matchAll(/from '@artlux\/plugin-([a-z-]+)\/ui'/g)].map((m) => m[1]);
+    const halves = [...list.matchAll(/from '@artlux\/plugin-([a-z0-9-]+)\/ui'/g)].map((m) => m[1]);
     if (!halves.length) problems.push('host/pluginUi.ts lists no UI halves');
-    if (/from '@artlux\/plugin-[a-z-]+(?!\/ui)'|from '@artlux\/plugin-[a-z-]+\/(?!ui')/.test(list)) problems.push('host/pluginUi.ts imports a plugin entry other than /ui');
+    if (/from '@artlux\/plugin-[a-z0-9-]+(?!\/ui)'|from '@artlux\/plugin-[a-z0-9-]+\/(?!ui')/.test(list)) problems.push('host/pluginUi.ts imports a plugin entry other than /ui');
     for (const name of halves) {
       const dir = path.join(ROOT, 'plugins', name, 'src');
       if (!fs.existsSync(path.join(dir, 'ui.ts'))) { problems.push(`plugins/${name}/src/ui.ts is listed but missing`); continue; }
@@ -8071,6 +8071,32 @@ check(
     // one write from it (the media library's view toggle) replaced the operator's whole saved workbench.
     if (!/^disableLayoutPersistence\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer turns layout persistence off — a panel window would write its default layout over the editor\'s');
     if (!/function persistSoon\(\): void \{\s*\n\s*if \(!persist\) return;/.test(read('src/renderer/services/layoutStore.ts').replace(/\r\n/g, '\n'))) problems.push('layoutStore.persistSoon no longer honours disableLayoutPersistence()');
+    // PREFERENCES IN A WINDOW (W5k): a plugin with a UI half registers its section THERE (a window shows
+    // only what UI halves registered — a section left on the runtime silently vanishes from it); the
+    // settings of the editor's own window are disabled there with a pointer, never live-looking no-ops.
+    if (!det.includes("id: 'core.viewport.preferences'")) problems.push("'core.viewport.preferences' is no longer detachable");
+    // EVERY UI HALF IS ACTIVATED. One left out of the list is not an error anywhere — its sections, panels
+    // and content editors just vanish from every window, the editor included.
+    const uiList = read('src/renderer/host/pluginUi.ts');
+    const imported = [...uiList.matchAll(/import \{ ui as (\w+) \} from '@artlux\/plugin-([a-z0-9-]+)\/ui'/g)];
+    const editorList = (uiList.match(/:\s*\[([^\]]*)\];/) || [])[1] ?? '';
+    for (const [, v, plugin] of imported) if (!new RegExp(`\\b${v}\\b`).test(editorList)) problems.push(`host/pluginUi.ts imports the ${plugin} UI half but never activates it in the editor's list`);
+    for (const name of pluginDirs) if (uiOf(name) && !imported.some(([, , p]) => p === name)) problems.push(`plugins/${name} has a UI half (ui.ts) that host/pluginUi.ts does not list`);
+    for (const name of pluginDirs) {
+      const rt = path.join(ROOT, 'plugins', name, 'src', 'plugin.renderer.ts');
+      if (!uiOf(name) || !fs.existsSync(rt)) continue;
+      if (/ctx\.settings\.register\(/.test(fs.readFileSync(rt, 'utf8'))) problems.push(`plugins/${name}: its runtime registers a Preferences section, but it has a UI half — register it in ui.ts (a Preferences window would not have it)`);
+    }
+    const uiSections = new Set(pluginDirs.flatMap((n) => [...uiOf(n).matchAll(/ctx\.settings\.register\(\{ id: '([^']+)'/g)].map((m) => m[1])));
+    for (const id of ['audio', 'augmenta', 'mediapipe', 'video', 'shader', 'show-control']) {
+      if (!uiSections.has(id)) problems.push(`the '${id}' Preferences section is no longer registered from a UI half`);
+    }
+    if (!/^markPanelWindow\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer marks itself a panel window (services/windowRole) — Preferences would offer the editor window\'s settings as if it could change them');
+    const prefs = read('src/renderer/components/Preferences.tsx');
+    if (!/<EditorOnly>\s*<Toggle label="Dockable workspace"/.test(prefs)) problems.push('Preferences: "Dockable workspace" is no longer EditorOnly');
+    if (!/<EditorOnly><WorkspacesSection \/><\/EditorOnly>/.test(prefs)) problems.push('Preferences: the named-workspace manager is no longer EditorOnly');
+    if (!/<EditorOnly>\s*<Slider label="3D render scale"/.test(prefs)) problems.push("Preferences: the 3D view's quality settings are no longer EditorOnly");
+    if (!streams.includes("registerLiveStream('prefs.sections'")) problems.push("the editor no longer publishes 'prefs.sections' (Preferences in a window says which sections it lacks)");
     // ⚠ THE FIRST TAKE ON THE GLOBAL TIMELINE WAS LOST (found W5j, docked just the same): stopTracking's
     // library commit and its lane commit hit ONE document when no scene is bound, and the lane commit read
     // that document from a render ref — the timeline from before the take — and wrote it back.

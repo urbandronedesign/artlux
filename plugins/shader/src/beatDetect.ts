@@ -79,7 +79,8 @@ const REARM_RATIO = 1.05;
  * fading when the next one lands. It is a fall TIME rather than a coefficient because a coefficient
  * only means something at one frame rate, and this is fed from a render loop that stutters.
  */
-export const DEFAULT_BEAT_FALL_SEC = 0.25;
+import { DEFAULT_BEAT_FALL_SEC } from './shaderDefaults';
+export { DEFAULT_BEAT_FALL_SEC };
 let beatFallSec = DEFAULT_BEAT_FALL_SEC;
 export function setBeatFall(sec: number): void { beatFallSec = Math.max(0.02, Math.min(4, sec)); }
 

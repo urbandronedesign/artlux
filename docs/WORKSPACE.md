@@ -482,6 +482,11 @@ harmless.
     calls), a take's sparkline through `services/takeDensity` (`takes.density`), a video's still through
     `services/thumbView` (W4's thumbnail service). `services/mediaCache` is only URL helpers now and is let
     into the window while it stays that way.
+  - **Preferences** may detach. Its plugin sections are the UI halves' (`ctx.settings`); a section still
+    registered by a runtime (Calibration's Recalibration, authoring code) is named in a window from the
+    editor's `prefs.sections` stream. The settings of the editor's OWN window — its workbench layout,
+    named workspaces, 3D view quality — are wrapped in `EditorOnly` and disabled there
+    (`services/windowRole`, marked by `panel.tsx`).
   - **⚠ A panel window never writes the editor's layout.** `layoutStore` holds the editor's whole
     workbench as one prefs object and a window's copy starts from the defaults, so `panel.tsx` calls
     `disableLayoutPersistence()` before anything mounts; a window's layout tweaks stay in it.

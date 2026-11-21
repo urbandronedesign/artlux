@@ -35,6 +35,7 @@ import { RoutingDock } from './panels/routing';
 import { StateMachineViewport } from './panels/stateGraph';
 import { LightingTakesDock, TrackingTakesDock } from './panels/takes';
 import { MediaBrowserPanel } from './panels/media';
+import { PreferencesViewport } from './panels/adapters';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
@@ -98,6 +99,10 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   // sparklines come from the editor (services/thumbView, services/takeDensity).
   { id: 'core.browser.media', mount: 'browser', bare: true, grow: true, detachable: true, title: 'Media Library', icon: <ImageIcon size={12} />, Component: MediaBrowserPanel },
   { id: 'core.dock.media', mount: 'dock', detachable: true, title: 'Media Library', icon: <ImageIcon size={13} />, Component: MediaBrowserPanel },
+  // PREFERENCES — a viewport that draws no GPU. The app settings go through the editor; plugin sections
+  // are the UI halves'; the editor window's own settings show disabled with a pointer (EditorOnly). The
+  // id is contexts/index.tsx's VIEWPORT_PREFERENCES (not imported: that file imports this one).
+  { id: 'core.viewport.preferences', mount: 'viewport', detachable: true, menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport },
 ];
 
 /** One entry, for the editor's registration (contexts/index.tsx). Throws on an id that is not here. */

@@ -23,7 +23,6 @@ import PoseViz from './PoseViz';
 import * as poseCamera from './poseCamera';
 import { setPreviewSource } from './uiLink';
 import { PoseCalibration } from './PoseCalibration';
-import { PoseSettings } from './poseSettings';
 import { setHost } from './poseHost';
 import { poseSurface } from './poseArea';
 
@@ -83,7 +82,8 @@ export const plugin: RendererPlugin = {
     }
 
     // Preferences section: camera device / model / delegate / max-people / confidence.
-    ctx.settings.register({ id: 'mediapipe', title: 'Pose Tracking (MediaPipe)', Component: PoseSettings });
+    // Its Preferences section is the UI half's (ui.ts); the camera list it shows is asked of this window.
+    if (ctx.window === 'main') ctx.live.call('mediapipe.cameras', () => poseCamera.enumerate());
 
     // MEDIAPIPE content: the host compositor dispatches unknown content types through the registry.
     // acquire/release refcount the inference engine — it starts on the first MEDIAPIPE surface and

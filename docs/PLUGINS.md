@@ -162,9 +162,11 @@ window is fully generic.
     `renderSource()` (GPU) still run. `ctx.window` tells a plugin which side it's on. Idempotent per window.
 - **UI halves (E5/W5):** a plugin can ship a second renderer entry, `@artlux/plugin-x/ui` (`src/ui.ts`,
   exported in its `package.json`). It exports a `RendererPluginUi`, whose `activateUi(ctx)` registers
-  only contributions that draw: `ctx.contentSourceUi` (a source type's settings fragment) and
-  `ctx.panels` (panels; mark one `detachable: true` and it may open in its own window — Trigger Zones,
-  the OSC, Augmenta and Pose monitors). A detachable panel is registered from the UI half only.
+  only contributions that draw: `ctx.contentSourceUi` (a source type's settings fragment), `ctx.panels`
+  (panels; mark one `detachable: true` and it may open in its own window — Trigger Zones, the OSC,
+  Augmenta and Pose monitors) and `ctx.settings` (Preferences sections). A detachable panel, and the
+  Preferences section of a plugin that has a UI half, are registered from the UI half only. `ctx.ipc`
+  reaches the plugin's main half from any window (Audio's device setup, Show Control's LAN address).
   - **One list, every window.** `src/renderer/host/pluginUi.ts` lists the UI halves (Augmenta,
     MediaPipe, LiDAR, NDI, Spout, Syphon, Text, Shader). `activateRendererPlugins` runs that list
     first, and a **panel window** (`panel.tsx`) runs *only* that list. No plugin runtime activates

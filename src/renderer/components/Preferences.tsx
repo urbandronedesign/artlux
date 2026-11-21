@@ -6,6 +6,8 @@ import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
+import { isPanelWindow } from '../services/windowRole';
+import { liveClient } from '../live/client';
 import { ErrorBoundary } from './ErrorBoundary';
 import { layoutStore } from '../services/layoutStore';
 import {
@@ -47,6 +49,44 @@ const Tile: React.FC<{ children: React.ReactNode }> = ({ children }) => (
  * rescaled, when it opens on a laptop (see clampToViewport), and the only thing that makes that
  * legible rather than mysterious is saying where it came from.
  */
+/**
+ * A setting of THE EDITOR'S OWN WINDOW, drawn in a panel window (E5/W5k). Shown — so the operator finds
+ * it where they look — but disabled, saying where it is changed: a panel window cannot change the
+ * editor's workbench, named workspaces or 3D view, and a control that looked like it did would be worse
+ * than none. In the editor this is a plain wrapper.
+ */
+const EditorOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  if (!isPanelWindow()) return <>{children}</>;
+  return (
+    <div data-editor-only className="space-y-1">
+      <div className="opacity-45 pointer-events-none select-none" aria-disabled>{children}</div>
+      <div className="text-micro text-fg-3 italic">This changes the editor window — set it in the editor's Preferences.</div>
+    </div>
+  );
+};
+
+/**
+ * In a panel window: the editor's Preferences sections this window does not have. A plugin whose section
+ * is still registered by its RUNTIME (Calibration's Recalibration, part of the authoring code) has it in
+ * the editor only; saying so beats a Preferences that silently lacks it.
+ */
+const ElsewhereSections: React.FC = () => {
+  const [missing, setMissing] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isPanelWindow()) return;
+    return liveClient.subscribe('prefs.sections', null, (v) => {
+      const here = new Set(settingsSectionRegistry.all().map((s) => s.id));
+      setMissing(((v as { id: string; title: string }[]) ?? []).filter((s) => !here.has(s.id)).map((s) => s.title));
+    });
+  }, []);
+  if (!missing.length) return null;
+  return (
+    <div data-prefs-elsewhere className="text-micro text-fg-3 italic px-1 py-2">
+      Also in the editor's Preferences: {missing.join(', ')}.
+    </div>
+  );
+};
+
 const WorkspacesSection: React.FC = () => {
   const ws = useWorkspaceActions();
   return (
@@ -299,6 +339,8 @@ const GpuSection: React.FC = () => {
       <Toggle label="Force WebGL fallback" checked={forced} onChange={toggleForce}
               title="Force the WebGL fallback to test reduced-mode rendering on a machine that has WebGPU. Per-machine only (localStorage) — never travels with the project. Reload to apply." />
       <div className="text-micro text-fg-3 px-0.5">Force-WebGL applies on the next reload (Ctrl+R). The Stage shows a banner while the fallback is active.</div>
+      {/* The 3D view's quality is held in the EDITOR's memory (services/scene3dQuality, applied live). */}
+      <EditorOnly>
       <Slider label="3D render scale" value={renderScale} min={RENDER_SCALE_MIN} max={RENDER_SCALE_MAX} step={0.05}
               format={(v) => `${v.toFixed(2)}×`} onChange={setRenderScale} />
       <div className="text-micro text-fg-3 px-0.5">
@@ -325,6 +367,7 @@ const GpuSection: React.FC = () => {
         recomputes the dragged fixtures' LED positions every frame. A big selection already drops to
         moving the fixture <em>bodies</em> only, and the show file is written once on release either way.
       </div>
+      </EditorOnly>
       <Toggle label="3D Scene on WebGPU" checked={scene3dGpu} onChange={toggleScene3dGpu}
               title="Render the 3D Scene viewport with WebGPU instead of WebGL. ON by default — turning it off is a diagnostic. Per-machine (localStorage), reload to apply, and it falls back to WebGL by itself if WebGPU is unavailable." />
       <div className="text-micro text-fg-3 px-0.5">
@@ -409,13 +452,15 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               rather than a view option: the two paths are different renderers, so switching remounts the
               panels. Output is unaffected either way — the frame loop has not lived in the UI since
               Phase 1, which is the whole reason this feature could be built at all. */}
-          <Toggle label="Dockable workspace" checked={!layout.dockingOff}
-            onChange={(v) => layoutStore.set({ dockingOff: !v })}
-            title="Drag panels into tabs and splits, per workbench. Off restores the fixed browser / viewport / dock / parameters layout." />
+          <EditorOnly>
+            <Toggle label="Dockable workspace" checked={!layout.dockingOff}
+              onChange={(v) => layoutStore.set({ dockingOff: !v })}
+              title="Drag panels into tabs and splits, per workbench. Off restores the fixed browser / viewport / dock / parameters layout." />
+          </EditorOnly>
         </Section></Tile>
 
         <Tile><Section title="Workspaces" icon={<LayoutGrid size={12} />}>
-          <WorkspacesSection />
+          <EditorOnly><WorkspacesSection /></EditorOnly>
         </Section></Tile>
 
         <Tile><Section title="DMX Output" icon={<Cpu size={12} />}>
@@ -568,6 +613,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
           </Tile>
         ))}
       </div>
+      <ElsewhereSections />
     </div>
   );
 };

@@ -18,6 +18,7 @@ import type { OscMessage } from '../../../shared/protocol';
 import { revealEditorBottom } from '../services/editorShell';
 import { takesAccess, type TakeKind } from '../services/takesAccess';
 import { takeDensity } from '../services/takeDensity';
+import { settingsSectionRegistry } from '../host/registries';
 import { livePreview } from '../services/livePreview';
 import { docStore } from '../state/docStore';
 
@@ -151,6 +152,13 @@ export function installCoreLiveStreams(): void {
   registerLiveCall('takes.rename', (k, id, name) => takesAccess().rename(kindOf(k), String(id), String(name)));
   registerLiveCall('takes.remove', (k, id) => takesAccess().remove(kindOf(k), String(id)));
   registerLiveCall('takes.density', (p) => takeDensity().ensure(String(p)));
+
+  // WHICH PREFERENCES SECTIONS THE EDITOR HAS — so Preferences in a panel window can say which ones it
+  // does not (a section still registered by a plugin's RUNTIME). Registered at boot; no events.
+  registerLiveStream('prefs.sections', {
+    watch: () => () => {},
+    read: () => ({ value: settingsSectionRegistry.all().map((s) => ({ id: s.id, title: s.title })) }),
+  });
 
   // The editor's timeline drawer, for the state graph's "edit this state's timeline" from a window.
   registerLiveCall('shell.revealBottom', () => revealEditorBottom());

@@ -12,7 +12,7 @@
 // the venue. Said plainly in the panel rather than discovered.
 
 import React from 'react';
-import { DEFAULT_BAND_FALL_SEC, DEFAULT_BEAT_FALL_SEC } from './audioTap';
+import { DEFAULT_BAND_FALL_SEC, DEFAULT_BEAT_FALL_SEC } from './shaderDefaults';
 
 export interface ShaderCfg {
   bandFallSec?: number;

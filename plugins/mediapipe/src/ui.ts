@@ -5,11 +5,13 @@ import type { RendererPluginUi, ContentSourceUiRegistry } from '@artlux/sdk/rend
 import { PoseContentEditor } from './poseContentEditor';
 import { PosePanel } from './PosePanel';
 import { setLiveView } from './uiLink';
+import { PoseSettings } from './poseSettings';
 
 export const ui: RendererPluginUi = {
   id: 'mediapipe',
   activateUi(ctx) {
     setLiveView(ctx.live);
+    ctx.settings.register({ id: 'mediapipe', title: 'Pose Tracking (MediaPipe)', Component: PoseSettings as never });
     // The Pose Monitor: numbers from the runtime's stream, the picture only where the camera is open.
     ctx.panels.register({ id: 'pose-monitor', mount: 'dock', detachable: true, menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
     (ctx.contentSourceUi as ContentSourceUiRegistry).register({

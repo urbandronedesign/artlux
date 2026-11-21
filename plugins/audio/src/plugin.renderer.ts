@@ -232,7 +232,7 @@ export const plugin: RendererPlugin = {
   activate(ctx: RendererPluginContext): void {
     setIpc(ctx.ipc);
     setConformIpc(ctx.ipc);
-    ctx.settings.register({ id: 'audio', title: 'Audio', Component: AudioSettings });
+    // The "Audio" Preferences section is the UI half's (ui.ts — Preferences may open in a window).
     // Audio clips carry no visual — keep them off the video-sync path and out of the PROGRAM composite.
     // MUST register in every window (main + projector), like tracking/mediapipe/augmenta.
     ctx.clipKinds.register({ kind: 'audio', excludeFromProgram: true, skipVideoSync: true });

@@ -31,4 +31,5 @@ export function useShowControlSettings(): ShowControlSettings {
 }
 
 // Default config: on, on the plugin's dedicated port.
-export const DEFAULTS: Required<ShowControlSettings> = { enabled: true, port: 8788 };
+import { DEFAULTS } from './showControlDefaults';
+export { DEFAULTS };

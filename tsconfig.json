@@ -89,6 +89,9 @@
       "@artlux/plugin-mp4": [
         "./plugins/mp4/src/index.ts"
       ],
+      "@artlux/plugin-mp4/ui": [
+        "./plugins/mp4/src/ui.ts"
+      ],
       "@artlux/plugin-mediapipe": [
         "./plugins/mediapipe/src/index.ts"
       ],
@@ -122,11 +125,17 @@
       "@artlux/plugin-show-control/renderer": [
         "./plugins/show-control/src/renderer.ts"
       ],
+      "@artlux/plugin-show-control/ui": [
+        "./plugins/show-control/src/ui.ts"
+      ],
       "@artlux/plugin-audio/main": [
         "./plugins/audio/src/main.ts"
       ],
       "@artlux/plugin-audio/renderer": [
         "./plugins/audio/src/renderer.ts"
+      ],
+      "@artlux/plugin-audio/ui": [
+        "./plugins/audio/src/ui.ts"
       ]
     },
     "allowImportingTsExtensions": true,

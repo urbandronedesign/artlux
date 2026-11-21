@@ -157,7 +157,7 @@ export const plugin: RendererPlugin = {
     // because the host resolves an automation path by its HEAD and hands the rest to whoever owns it —
     // core never learns what a shader parameter is. The provider has to SEE the surfaces to enumerate
     // their parameters, which is what the subscription is for.
-    ctx.settings.register({ id: 'shader', title: 'Shaders', Component: ShaderSettings } as never);
+    // The Shaders preferences section is the UI half's (ui.ts — Preferences may open in a window).
 
     ctx.automationTargets.register(shaderAutomation);
     setSurfaces(ctx.host.surfaces.list() as Surface[]);

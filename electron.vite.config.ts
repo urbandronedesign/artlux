@@ -37,6 +37,8 @@ const sdkAliases = [
   { find: '@artlux/plugin-shader/main', replacement: resolve(__dirname, 'plugins/shader/src/main.ts') },
   { find: '@artlux/plugin-shader/renderer', replacement: resolve(__dirname, 'plugins/shader/src/renderer.ts') },
   { find: '@artlux/plugin-shader/ui', replacement: resolve(__dirname, 'plugins/shader/src/ui.ts') }, // E5/W5 UI half
+  { find: '@artlux/plugin-audio/ui', replacement: resolve(__dirname, 'plugins/audio/src/ui.ts') }, // E5/W5k UI half
+  { find: '@artlux/plugin-show-control/ui', replacement: resolve(__dirname, 'plugins/show-control/src/ui.ts') }, // E5/W5k UI half
   // Bake spans both processes (the render + muxer in the renderer, the file writer in main).
   { find: '@artlux/plugin-bake/main', replacement: resolve(__dirname, 'plugins/bake/src/main.ts') },
   { find: '@artlux/plugin-bake/renderer', replacement: resolve(__dirname, 'plugins/bake/src/renderer.ts') },
