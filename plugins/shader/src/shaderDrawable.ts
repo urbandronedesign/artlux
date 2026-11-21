@@ -21,8 +21,9 @@ import { generation as trackingGeneration, readsPeople } from './trackingTap';
  * `maxRenderHeight()`. The two rungs above 1080 exist for the machines that drive projectors, where a
  * 4K wash costs a discrete card nothing and a 1080p one shows its pixels on a 12 m wall.
  */
-export const RENDER_HEIGHTS = [360, 720, 1080, 1440, 2160] as const;
-export const DEFAULT_HEIGHT = 720;
+// In shaderDefaults.ts, so the content editor (the plugin's UI half, E5/W5) needs no drawable.
+import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDefaults';
+export { RENDER_HEIGHTS, DEFAULT_HEIGHT };
 
 interface Entry {
   bitmap: ImageBitmap | null;

@@ -22,9 +22,11 @@ const sdkAliases = [
   { find: '@artlux/plugin-calibration/authoring', replacement: resolve(__dirname, 'plugins/calibration/src/authoring.ts') },
   { find: '@artlux/plugin-spout/main', replacement: resolve(__dirname, 'plugins/spout/src/main.ts') },
   { find: '@artlux/plugin-spout/renderer', replacement: resolve(__dirname, 'plugins/spout/src/renderer.ts') },
+  { find: '@artlux/plugin-spout/ui', replacement: resolve(__dirname, 'plugins/spout/src/ui.ts') }, // E5/W5 UI half
   // Syphon is Spout's macOS sibling — same cross-process shape, so the same explicit subpaths.
   { find: '@artlux/plugin-syphon/main', replacement: resolve(__dirname, 'plugins/syphon/src/main.ts') },
   { find: '@artlux/plugin-syphon/renderer', replacement: resolve(__dirname, 'plugins/syphon/src/renderer.ts') },
+  { find: '@artlux/plugin-syphon/ui', replacement: resolve(__dirname, 'plugins/syphon/src/ui.ts') }, // E5/W5 UI half
   { find: '@artlux/plugin-hap/main', replacement: resolve(__dirname, 'plugins/hap/src/main.ts') },
   { find: '@artlux/plugin-hap/renderer', replacement: resolve(__dirname, 'plugins/hap/src/renderer.ts') },
   { find: '@artlux/plugin-mp4', replacement: resolve(__dirname, 'plugins/mp4/src') }, // renderer-only, single barrel
@@ -34,6 +36,7 @@ const sdkAliases = [
   // Shader spans both processes (the effect library is files, and only main has a filesystem).
   { find: '@artlux/plugin-shader/main', replacement: resolve(__dirname, 'plugins/shader/src/main.ts') },
   { find: '@artlux/plugin-shader/renderer', replacement: resolve(__dirname, 'plugins/shader/src/renderer.ts') },
+  { find: '@artlux/plugin-shader/ui', replacement: resolve(__dirname, 'plugins/shader/src/ui.ts') }, // E5/W5 UI half
   // Bake spans both processes (the render + muxer in the renderer, the file writer in main).
   { find: '@artlux/plugin-bake/main', replacement: resolve(__dirname, 'plugins/bake/src/main.ts') },
   { find: '@artlux/plugin-bake/renderer', replacement: resolve(__dirname, 'plugins/bake/src/renderer.ts') },

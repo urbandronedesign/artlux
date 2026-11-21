@@ -9,10 +9,17 @@ import React from 'react';
 import type { SurfaceContent } from '@/types';
 import { STARTERS } from './starters';
 import { UV_CHECKER_ID, UV_CHECKER_RES, type UvCheckerSize } from './uvChecker';
-import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDrawable';
-import { maxRenderHeight, rendererDescription } from './shaderContext';
-import { compileStatus } from './shaderDrawable';
+import { useLiveValue } from '@artlux/sdk/renderer';
+import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDefaults';
 import { inputsOf, headerProblems } from './shaderParams';
+import { liveView } from './uiLink';
+
+// Both answers belong to the editor's GL context (the compile cache, the GPU's name), which only the
+// runtime holds: published by plugin.renderer.ts, read here through the live view, so a panel window
+// shows the editor's verdict instead of compiling nothing. Before the first answer: no error claimed,
+// and the conservative 1080p ceiling (what maxRenderHeight answers before it knows the GPU).
+const NO_STATUS = { ok: true, log: '', usingFallback: false };
+const NO_GPU = { maxHeight: 1080, renderer: '' };
 import { ShaderParamControls } from './ShaderParamControls';
 import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 
@@ -27,7 +34,10 @@ export function ShaderContentEditor({
   onChange: (patch: Partial<SurfaceContent>) => void;
 }): React.ReactElement {
   const confirmDialog = useConfirm();
-  const status = compileStatus(content);
+  const status = useLiveValue(liveView(), 'shader.compile', content, NO_STATUS);
+  const gpu = useLiveValue(liveView(), 'shader.gpu', null, NO_GPU);
+  const maxRenderHeight = () => gpu.maxHeight;
+  const rendererDescription = () => gpu.renderer;
   const inputs = inputsOf(content);
   const problems = headerProblems(content);
   // Picking a shader. The UV checker carries a marker (and its Detail), because its code is GENERATED

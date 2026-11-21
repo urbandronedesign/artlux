@@ -4,6 +4,7 @@
 import type { RendererPlugin, RendererPluginContext, ContentSourceProvider } from '@artlux/sdk/renderer';
 import { syphonContentSource, reconcileSyphon } from './syphonContentSource';
 import { setHost, subscribeSettings } from './syphonHost';
+import { syphonIncompatibility, onSyphonStatus } from './syphonReceiver';
 
 let unsubSettings: (() => void) | null = null;
 
@@ -13,6 +14,9 @@ export const plugin: RendererPlugin = {
   activate(ctx: RendererPluginContext): void {
     setHost(ctx.host);
     ctx.contentSources.register(syphonContentSource as ContentSourceProvider);
+    // What the picker shows when Syphon cannot run here: the receiver's verdict, for the UI half in any
+    // window (ui.ts reads it through the live view). Only the receiver learns it, so only it publishes.
+    ctx.live.stream('syphon.status', { watch: onSyphonStatus, read: () => syphonIncompatibility() });
     // The native receiver's poll rate follows AppSettings.engineFps, so a change to it has to reach
     // main. Nothing else does this for us: the provider only reconciles when a CONSUMER changes, and
     // editing a preference changes no consumer. reconcile() compares the rate and no-ops otherwise,

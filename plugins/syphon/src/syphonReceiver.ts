@@ -106,9 +106,8 @@ export function stopSyphon(): void {
   releaseTexture();
 }
 
-export async function listSyphonServers(): Promise<import('./types').SyphonServerDesc[]> {
-  return ((await window.artlux?.pluginInvoke?.('syphon:list')) as import('./types').SyphonServerDesc[] | undefined) ?? [];
-}
+// Discovery ('syphon:list') is in syphonDiscovery.ts: it holds no stream, and the picker that uses it is the
+// plugin's UI half, which must not import this receiver (E5/W5).
 
 /** The active server's aspect ratio (w/h), or null until a frame arrives. */
 export function getSyphonAspect(): number | null {

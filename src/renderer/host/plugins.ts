@@ -17,7 +17,7 @@ import { coreAutomationProvider } from '../services/automationTargets.core';
 import { oscAutomationProvider } from '../services/oscOut';
 import { perfMonitor } from '../services/perfMonitor';
 import { activatePluginUi } from './pluginUi';
-import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices, PluginStatus } from '@artlux/sdk/renderer';
+import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices, PluginStatus, PluginLiveOwner, PluginLiveView } from '@artlux/sdk/renderer';
 import type { BootEntry } from '../../../shared/protocol';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
@@ -147,12 +147,34 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
   } as unknown as RendererPluginContext;
 }
 
-export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = NOOP_HOST): void {
+// Live state between a plugin's runtime and its UI (SDK PluginLiveOwner / PluginLiveView). Only the
+// editor has a broker, so App hands its adapters in (live/pluginLive.ts); a projector window, which owns
+// nothing, publishes nowhere and reads nothing.
+const NOOP_LIVE: { owner: PluginLiveOwner; view: PluginLiveView } = {
+  owner: { stream: () => () => {}, call: () => () => {} },
+  view: { subscribe: () => () => {}, call: async () => undefined },
+};
+
+/** `<plugin id>.` on every name, so two plugins cannot publish over each other. */
+export function scopedLiveOwner(owner: PluginLiveOwner, id: string): PluginLiveOwner {
+  const check = (name: string) => {
+    if (!name.startsWith(`${id}.`)) throw new Error(`[plugins] ${id}: live name '${name}' must start with '${id}.'`);
+  };
+  return {
+    stream: (name, s) => { check(name); return owner.stream(name, s); },
+    call: (name, fn) => { check(name); return owner.call(name, fn); },
+  };
+}
+
+export function activateRendererPlugins(
+  win: 'main' | 'projector', host: RendererHostServices = NOOP_HOST,
+  live: { owner: PluginLiveOwner; view: PluginLiveView } = NOOP_LIVE,
+): void {
   if (activated) return;
   activated = true;
   // The UI halves first, from the one list a panel window activates too (host/pluginUi.ts): what the
   // content editor shows for a plugin's source is registered there, never again from `activate()`.
-  activatePluginUi(win);
+  activatePluginUi(win, live.view);
   // Core's own automation namespaces (surfaces / fixtures / globalBrightness) register alongside the
   // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
   automationTargetRegistry.register(coreAutomationProvider);
@@ -164,7 +186,7 @@ export function activateRendererPlugins(win: 'main' | 'projector', host: Rendere
   for (const p of FIRST_PARTY.filter(enabled)) {
     const t0 = performance.now();
     try {
-      p.activate(ctx);
+      p.activate({ ...ctx, live: scopedLiveOwner(live.owner, p.manifest.id) } as RendererPluginContext);
       // No status() = 'ok'. A status() that throws leaves the plugin 'ok' with a warning in the log:
       // the contributions ARE registered, only the self-report is broken.
       let st: PluginStatus = { state: 'ok' };

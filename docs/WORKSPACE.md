@@ -454,6 +454,11 @@ harmless.
     real service, and a panel window installs a remote that asks over the live channel: a stream for
     state, `registerLiveCall` calls (`camera.list`, `camera.retry`, `camera.preview`) for questions and
     nudges. Never import the service from the panel.
+  - **A plugin's equivalent** is `ctx.live` (SDK `PluginLiveOwner` / `PluginLiveView`,
+    [`live/pluginLive.ts`](../src/renderer/live/pluginLive.ts) in the editor,
+    [`live/pluginLiveRemote.ts`](../src/renderer/live/pluginLiveRemote.ts) in a panel window). The
+    editor's own fragment reads the same stream with a local subscription (`subscribeLiveLocal`), so
+    the fragment has one code path.
 - **Persist any other workspace state** (not project content): add a top-level `Prefs` field in
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.

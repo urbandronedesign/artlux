@@ -6,6 +6,11 @@
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts",
+    "./ui": "./src/ui.ts"
+  },
   "dependencies": {
     "@artlux/sdk": "*"
   }

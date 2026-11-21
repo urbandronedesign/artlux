@@ -2,7 +2,6 @@ import type { ContentSourceProvider } from '@artlux/sdk/renderer';
 import type { SurfaceContent } from '@/types';
 import { startSyphon, stopSyphon, getSyphonCanvas } from './syphonReceiver';
 import { pollFps } from './syphonHost';
-import { SyphonEditor } from './SyphonEditor';
 
 // The Syphon content source: a single live receiver shared by every consumer (surface/clip),
 // refcounted by consumer key — runs while ANY consumer wants it, stops the instant none do; the
@@ -51,5 +50,5 @@ export const syphonContentSource: ContentSourceProvider<SurfaceContent> = {
   getDrawable() { return getSyphonCanvas(); }, // single receiver — the consumer key is irrelevant
   // No getAspect → matches Spout's behaviour (GPU-share surfaces report null aspect).
   // getSyphonAspect exists in syphonReceiver if we ever want to wire it.
-  editor: SyphonEditor,
+  // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
 };

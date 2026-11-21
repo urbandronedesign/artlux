@@ -15,7 +15,7 @@ import * as trackingTap from './trackingTap';
 import { sourceOf } from './shaderSource';
 import * as shaderDrawable from './shaderDrawable';
 import { isAvailable } from './shaderContext';
-import { ShaderContentEditor } from './ShaderContentEditor';
+import { maxRenderHeight, rendererDescription } from './shaderContext';
 import { ShaderEditorPanel } from './ShaderEditorPanel';
 import { ShaderNodePanel } from './ShaderNodePanel';
 import { shaderAutomation, setSurfaces } from './shaderParams';
@@ -70,11 +70,21 @@ export const plugin: RendererPlugin = {
       // pixels did not change — which, because timeSec is SHOW time, is every frame of a paused show.
       getDrawableGeneration: (key) => shaderDrawable.generationOf(key),
       release: (key) => shaderDrawable.release(key),
-      editor: ShaderContentEditor,
-      // Declared, and consumed by nothing — the host's content-type picker hand-writes a button per
-      // type in components/ContentEditor.tsx (NDI, Spout, Tracking, MediaPipe and Augmenta all do).
-      // Left here because it is the contract the SDK publishes; see docs/ROADMAP.md.
-      pickerButton: { label: 'Shader', title: 'Operator-authored GLSL generative content' },
+      // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
+    });
+
+    // What the content editor fragment needs from THIS window's GL context, for whichever window it
+    // is drawn in (ui.ts reads them through the live view). The compile is the drawable's own cached
+    // one, so asking costs nothing the surface had not already paid. The GPU's name is learned when the
+    // context is first made, which is not an event, so it is polled once a second while watched.
+    ctx.live.stream('shader.compile', { watch: () => () => {}, read: (p) => shaderDrawable.compileStatus(p as SurfaceContent) });
+    ctx.live.stream('shader.gpu', {
+      watch: (onNew) => {
+        let last = rendererDescription();
+        const t = setInterval(() => { const n = rendererDescription(); if (n !== last) { last = n; onNew(); } }, 1000);
+        return () => clearInterval(t);
+      },
+      read: () => ({ maxHeight: maxRenderHeight(), renderer: rendererDescription() }),
     });
 
     // People, for shaders that react to them (the Tracking nodes). The MAIN window reads the LiDAR

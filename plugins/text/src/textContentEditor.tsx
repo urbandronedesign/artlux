@@ -1,9 +1,13 @@
 import React, { useId, useState } from 'react';
 import { Slider, Toggle, Select, ColorField } from '@/components/ui'; // host UI primitives (pure presentational)
 import type { SurfaceContent } from '@/types';
-import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textRaster';
+import { useLiveValue } from '@artlux/sdk/renderer';
+import { DEFAULTS, RENDER_HEIGHTS, DEFAULT_RES } from './textDefaults';
+// The font LIST and "can this window draw that family" are this window's own answers, and the right
+// ones: queryLocalFonts asks the OS, and the app's bundled faces are in every window's document. An
+// imported face's LOAD STATE is not: the editor's rasterizer loads it, so it is read from the editor.
 import { families, lastError, refresh, canRender } from './fontList';
-import { stateOf } from './fontAssets';
+import { liveView } from './uiLink';
 import { useEditorPick, useEditorActions } from '@/state/EditorStore'; // shell store, as the shader panels use
 
 // The per-surface inspector fragment for TEXT content, rendered by the host ContentEditor through the
@@ -63,6 +67,7 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
   const asset = c.textFontAsset ?? '';
   const named = c.textFont ?? DEFAULTS.font;
   const missing = !asset && named.trim() !== '' && !canRender(named);
+  const assetState = useLiveValue<string>(liveView(), 'text.fontState', asset, 'unknown');
   const shown = filter.trim()
     ? list.filter((f) => f.toLowerCase().includes(filter.trim().toLowerCase()))
     : list;
@@ -122,7 +127,7 @@ const FontRow: React.FC<{ content: SurfaceContent; onChange: (p: Partial<Surface
               not installed on this machine — drawn in a fallback face
             </div>
           )}
-          {asset && stateOf(asset) === 'failed' && (
+          {asset && assetState === 'failed' && (
             <div className="mt-0.5 text-micro text-warn">the font file could not be read — drawn in a fallback face</div>
           )}
         </div>

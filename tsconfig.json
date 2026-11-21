@@ -68,11 +68,17 @@
       "@artlux/plugin-spout/renderer": [
         "./plugins/spout/src/renderer.ts"
       ],
+      "@artlux/plugin-spout/ui": [
+        "./plugins/spout/src/ui.ts"
+      ],
       "@artlux/plugin-syphon/main": [
         "./plugins/syphon/src/main.ts"
       ],
       "@artlux/plugin-syphon/renderer": [
         "./plugins/syphon/src/renderer.ts"
+      ],
+      "@artlux/plugin-syphon/ui": [
+        "./plugins/syphon/src/ui.ts"
       ],
       "@artlux/plugin-hap/main": [
         "./plugins/hap/src/main.ts"
@@ -106,6 +112,9 @@
       ],
       "@artlux/plugin-shader/renderer": [
         "./plugins/shader/src/renderer.ts"
+      ],
+      "@artlux/plugin-shader/ui": [
+        "./plugins/shader/src/ui.ts"
       ],
       "@artlux/plugin-show-control/main": [
         "./plugins/show-control/src/main.ts"

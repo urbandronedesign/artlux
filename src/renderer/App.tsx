@@ -92,6 +92,7 @@ import { keymap } from './shortcuts/keymapStore';
 import { openHelp } from './services/helpNav';
 import { openShortcuts } from './services/shortcutsNav';
 import { activateRendererPlugins } from './host/plugins';
+import { ownerPluginLive, localPluginLive } from './live/pluginLive';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
 import { nextNumberedName, nameStem } from '@artlux/sdk/renderer';
@@ -4277,7 +4278,7 @@ const App: React.FC = () => {
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
   // plugin's TRACKING content source + blob ingestion and the calibration back-channel tap.
   useEffect(() => {
-    activateRendererPlugins('main', pluginHost);
+    activateRendererPlugins('main', pluginHost, { owner: ownerPluginLive, view: localPluginLive });
     timelineEngine.recompileAutomation(); // providers only exist now — anything compiled before this saw no namespaces
   }, [pluginHost]);
   // Tell the calibration plugin which output its board-pose pairing targets (the one being calibrated).

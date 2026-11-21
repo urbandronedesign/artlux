@@ -35,6 +35,7 @@ talks to its own main-process half). All are handed to the plugin in its `activa
 | Registry (`ctx.…`) | Contribution | What it does | Example plugin |
 |---|---|---|---|
 | `contentSources` | `ContentSourceProvider` | A new surface/clip content type: `getDrawable`/`release` (+ optional `getAspect`). Its `editor` / `pickerButton` here are **transitional**: put the settings fragment in the UI half instead (next row). | lidar (`TRACKING`), ndi, spout |
+| `live` *(both halves)* | `PluginLiveOwner` / `PluginLiveView` | **What only the runtime knows, for the UI half in any window.** The runtime publishes in `activate()`: `ctx.live.stream(name, { watch, read })` / `ctx.live.call(name, fn)`, inert outside the editor. The UI half reads in `activateUi()`: `ctx.live.subscribe` / `call` (+ `peek` in the editor), or the `useLiveValue(view, name, params, initial)` hook. Local in the editor, the live channel in a panel window. Names `<plugin id>.<name>`, refused otherwise. | spout, syphon, text, shader |
 | `contentSourceUi` *(UI half only)* | `ContentSourceUi` | The **drawing** half of a content type: `{ type, editor?, pickerButton? }`, registered from `RendererPluginUi.activateUi(ctx)` (the plugin's `/ui` entry). Every window with a content editor activates it, a detached panel window included, and that window has no runtime. Register an entry for every type you own: one with no `editor` means "nothing to set up". | augmenta, mediapipe, lidar, ndi |
 | `clipKinds` | `ClipKindContribution` | Teach the timeline engine how to treat a lane kind (`skipVideoSync`, `excludeFromProgram`, `preWarm`). | lidar (`tracking`) |
 | `projectorChannels` | `ProjectorChannel` | Stream data to projector windows (`subscribe`/`build`/`apply`) **and/or** render into the projector's source FBO (`projectorSourceSize`/`renderSource`/`onConfig`). | lidar |
@@ -137,8 +138,9 @@ The host lists UI halves in `src/renderer/host/pluginUi.ts` and activates them i
 before the runtimes. Three rules, each checked by `verify:invariants`:
 
 1. **Import nothing that runs.** No store, receiver, drawable, engine or host seam, and never your own
-   `plugin.renderer.ts` or barrel. Talk to your main half (`pluginInvoke`) or read the content you are
-   handed.
+   `plugin.renderer.ts` or barrel. Talk to your main half (`pluginInvoke`), read the content you are
+   handed, or read what your runtime publishes through `ctx.live` (keep the view in a module of your
+   own, set from `activateUi`; the check fails a UI that reads it without setting it).
 2. **Register a UI contribution once,** in the UI half, and never again from `activate()`.
 3. **Ship it as `./ui` in `exports`**, so the bundler resolves it the same way in every window.
 

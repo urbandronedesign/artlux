@@ -46,7 +46,10 @@ export interface LiveDragTarget<D extends LiveDrag = LiveDrag> {
   abandon(d: D): void;
 }
 
-const streams = new Map<string, { s: LiveStream; gen: number; stop: (() => void) | null; subs: Set<Sub> }>();
+// `locals`: subscribers IN THIS WINDOW (a plugin's UI half drawn in the editor, PluginLiveView). Same
+// stream, same producer hook, no port and no pull — the editor draws at its own pace already.
+interface Local { params: unknown; cb: (value: unknown) => void }
+const streams = new Map<string, { s: LiveStream; gen: number; stop: (() => void) | null; subs: Set<Sub>; locals: Set<Local> }>();
 // The editor's actions, set by App (E5/W5): a panel in another window edits by naming one of these.
 type ActionRunner = (name: string, args: unknown[]) => unknown;
 let runAction: ActionRunner | null = null;
@@ -66,7 +69,17 @@ const dragTargets = new Map<LiveDrag['target'], LiveDragTarget>();
 
 export function registerLiveStream(name: string, s: LiveStream): () => void {
   if (streams.has(name)) throw new Error(`[live] stream '${name}' registered twice`);
-  streams.set(name, { s, gen: 0, stop: null, subs: new Set() });
+  streams.set(name, { s, gen: 0, stop: null, subs: new Set(), locals: new Set() });
+  // Local subscribers that arrived first (an effect runs child-first: a fragment can subscribe before
+  // App's effect has activated the runtime that publishes) are served now.
+  const early = waitingLocals.get(name);
+  if (early) {
+    waitingLocals.delete(name);
+    const e = streams.get(name)!;
+    for (const l of early) e.locals.add(l);
+    attach(name);
+    for (const l of early) deliverLocal(name, l);
+  }
   return () => {
     const e = streams.get(name);
     if (!e) return;
@@ -74,6 +87,43 @@ export function registerLiveStream(name: string, s: LiveStream): () => void {
     e.stop?.();
     streams.delete(name);
   };
+}
+
+/**
+ * Subscribe IN THIS WINDOW (the editor) — how a plugin's UI half reads its runtime when it is drawn
+ * here rather than in a panel window. Attaches the producer like a remote subscriber would, and answers
+ * at once with the current value.
+ */
+const waitingLocals = new Map<string, Set<Local>>();
+export function subscribeLiveLocal(name: string, params: unknown, cb: (value: unknown) => void): () => void {
+  const e = streams.get(name);
+  const l: Local = { params, cb };
+  if (!e) {
+    // Not published (yet): wait for it rather than drop it. A name nobody ever registers just waits.
+    let w = waitingLocals.get(name);
+    if (!w) waitingLocals.set(name, (w = new Set()));
+    w.add(l);
+    return () => {
+      const cur = streams.get(name);
+      if (cur?.locals.delete(l)) detachIfIdle(name);
+      else waitingLocals.get(name)?.delete(l);
+    };
+  }
+  e.locals.add(l);
+  attach(name);
+  deliverLocal(name, l);
+  return () => { if (e.locals.delete(l)) detachIfIdle(name); };
+}
+/** The stream's value now, read synchronously in this window (PluginLiveView.peek). */
+export function peekLiveLocal(name: string, params: unknown): unknown {
+  const e = streams.get(name);
+  try { return e?.s.read(params)?.value; } catch { return undefined; }
+}
+/** An owner call made from this window (PluginLiveView.call in the editor). */
+export async function callLiveLocal(name: string, args: unknown[]): Promise<unknown> {
+  const fn = calls.get(name);
+  if (!fn) throw new Error(`[live] no call '${name}'`);
+  return fn(...args);
 }
 
 export function registerLiveDragTarget<T extends LiveDrag['target']>(
@@ -121,11 +171,19 @@ function attach(name: string): void {
   e.stop = e.s.watch(() => {
     e.gen++;
     for (const sub of e.subs) deliver(sub);
+    for (const l of e.locals) deliverLocal(name, l);
   });
+}
+function deliverLocal(name: string, l: Local): void {
+  const e = streams.get(name);
+  if (!e) return;
+  let sample: LiveSample | undefined;
+  try { sample = e.s.read(l.params); } catch (err) { console.warn(`[live] ${name} read failed`, err); return; }
+  if (sample) { try { l.cb(sample.value); } catch (err) { console.warn(`[live] ${name} subscriber threw`, err); } }
 }
 function detachIfIdle(name: string): void {
   const e = streams.get(name);
-  if (!e || e.subs.size || !e.stop) return; // rule 2: the producer hook lives exactly as long as a sub
+  if (!e || e.subs.size || e.locals.size || !e.stop) return; // rule 2: the producer hook lives exactly as long as a sub
   e.stop();
   e.stop = null;
 }

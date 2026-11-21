@@ -614,10 +614,36 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 >     answering for itself would have said "Opening the camera…".
 > - Checks mutation-tested 12/12.
 >
+> ✅ **W5d done 2026-11-21 (every content source has a UI half; plugin live state).**
+> - **`ctx.live`, both halves.** The runtime publishes what only it knows:
+>   `PluginLiveOwner.stream / call`, registered on the editor's broker and inert in a projector
+>   window. The UI half reads it: `PluginLiveView.subscribe / call / peek`, or the SDK's `useLiveValue`
+>   hook.
+>   - In the editor that is a **local** subscription to the same stream (`subscribeLiveLocal`, which
+>     waits for a stream that is not registered yet, because effects run child-first). In a panel
+>     window it is the live channel.
+>   - The fragment has one code path. Names are `<plugin id>.<name>`, enforced per plugin.
+> - **Spout and Syphon:** discovery left the receivers; `spout.status` / `syphon.status` carry the
+>   receiver's verdict.
+> - **Text:** constants moved to `textDefaults.ts`; `text.fontState` reports an imported face's load
+>   state (`fontAssets` gained a change listener).
+> - **Shader:** constants moved to `shaderDefaults.ts`; `shader.compile` (the editor's cached compile)
+>   and `shader.gpu` (the GL context's name and ceiling, polled only while watched).
+> - **A real bug, found by the harness:** panel windows had no `<FeedbackProvider>`, so the first
+>   panel to call `useConfirm()` (the Shader settings) threw and the whole window fell to its error
+>   boundary. Fixed, and guarded.
+>
+> Proof:
+> - `test-panel-window` step 12 now checks:
+>   - Spout's picker and the editor receiver's verdict;
+>   - the Shader settings, showing **the editor's GPU name** (a window answering for itself says "no
+>     name");
+>   - the Text settings;
+>   - no source falling back to "set up in the editor";
+>   - plus the camera and NDI claims from W5c.
+> - Checks mutation-tested 11/11.
+>
 > **W5 — what is left:**
-> - **The four remaining UI halves:** Spout and Syphon (the incompatibility status the receiver
->   learns), Text (the rasterizer reaches `surfaceMedia`, and font load state is per window), and
->   Shader (compile status, GL limits). Each needs an owner stream, the camera pattern.
 > - **Plugin dock panels** (OSC monitor, trigger zones, the pose and Augmenta monitors, shader panels)
 >   read stores their runtime fills. They need the same streams, and then `panels` in the UI context.
 > - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.

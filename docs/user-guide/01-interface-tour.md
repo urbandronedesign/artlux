@@ -167,10 +167,10 @@ on a second screen, next to the rig, is the classic use.
   keyframes** works from there too.
 - **A parameter section follows the selection.** When what is selected is not its kind, the window says
   what to select instead of going blank.
-- **Content in a window** picks a surface's source and sets it up, as in the editor. A **Camera**
-  surface shows the camera the editor has open: the same device list, and whether it is live. Four
-  sources (**Spout**, **Syphon**, **Text** and **Shader**) are set up in the editor for now. Picking one
-  in a window works, and the window then says where its settings are.
+- **Content in a window** picks a surface's source and sets it up, every source type, as in the
+  editor. What it reports is the editor's: a **Camera** surface shows the camera the editor has open
+  (the same device list, and whether it is live), a **Shader** shows the editor's compile errors and
+  graphics card, and **Spout** / **Syphon** show why a sender cannot be received here.
 - **A window is a small workbench of its own.** Its panel is a tab: **+** on the tab strip adds another
   panel to the same window, dragging a tab or **right-click ▸ Split** arranges them side by side, and
   closing the last tab closes the window. Asking for a panel that is already out (from the editor)

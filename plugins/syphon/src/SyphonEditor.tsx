@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import type { SurfaceContent } from '@/types';
-import { listSyphonServers, syphonIncompatibility, onSyphonStatus } from './syphonReceiver';
+import { useLiveValue } from '@artlux/sdk/renderer';
+import { listSyphonServers } from './syphonDiscovery';
+import { liveView } from './uiLink';
 import type { SyphonIncompatibility, SyphonServerDesc } from './types';
 
 // Why Syphon is not running, in the operator's terms. Syphon is GPU-only — the server's texture is
@@ -25,7 +27,9 @@ export const SyphonEditor: React.FC<{ content: SurfaceContent; onChange: (patch:
   const refresh = async () => setServers(await listSyphonServers());
   useEffect(() => { void refresh(); }, []);
   // Live, because the verdict only arrives once main has tried — the panel is usually already open.
-  const why = useSyncExternalStore(onSyphonStatus, syphonIncompatibility);
+  // The RECEIVER's verdict (it runs in the editor), published as 'syphon.status' — read through the live
+  // view so a panel window shows the editor's answer rather than its own idle receiver's.
+  const why = useLiveValue<SyphonIncompatibility | null>(liveView(), 'syphon.status', null, null);
 
   // ⚠ THE VALUE IS THE PAIR, NOT THE NAME. A Syphon server's own name is frequently empty and is not
   // unique, so a <select> keyed on the name alone would collapse distinct servers onto one option

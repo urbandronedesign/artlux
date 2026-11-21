@@ -1320,6 +1320,8 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   // Subscribe to renderer frame-time stats (~1 Hz poll of perfMonitor) — fps + p99 frame/work interval
   // + long (dropped) frames. For a plugin surfacing render health (e.g. a metrics remote). Returns unsub.
   onRenderStats(cb: (stats: { fps: number; frameP99: number; workP99: number; longFrames: number }) => void): () => void;
+  // Publish what your UI half needs to know (see PluginLiveOwner). Inert outside the editor window.
+  live: PluginLiveOwner;
   // Host capabilities for feature plugins (read/patch outputs + scene, projector I/O). In projector
   // windows the read/patch services are no-ops (no editor state there); `projectors.onMessage` only
   // fires in the main window (it owns the bridge ports). Replaces the former `getScene3D()`.
@@ -1343,6 +1345,62 @@ export interface RendererPluginUiContext<C = unknown> {
   /** 'panel' = a detached panel window: no runtime, no document of its own (a read-only replica). */
   window: 'main' | 'projector' | 'panel';
   contentSourceUi: ContentSourceUiRegistry<C>;
+  /** What your runtime publishes, from whichever window this is (see PluginLiveView). */
+  live: PluginLiveView;
+}
+
+// ─── Live state between a plugin's runtime and its UI (E5/W5) ───────────────────────────────
+// A UI half is drawn in the editor AND in a panel window, but some of what it shows is known only to
+// the plugin's RUNTIME, which runs in the editor alone: a receiver's "this GPU cannot share textures",
+// a shader's compile log, whether an imported font face loaded. Reading that from a module in the UI
+// half would, in a panel window, read that window's idle copy, which never learned anything.
+//
+// So the runtime PUBLISHES it (`ctx.live.stream` / `ctx.live.call` in `activate()`) and the UI half
+// READS it (`ctx.live.subscribe` / `ctx.live.call` in `activateUi()`, or `useLiveValue`). In the editor
+// that is a same-process subscription; in a panel window it crosses the live channel to the editor. The
+// fragment has one code path either way. Names are `<plugin id>.<name>`: the host refuses others.
+
+/** A value the runtime can be asked for. `read` must return something structured-cloneable. */
+export interface PluginLiveStream {
+  /** Call `onNew` whenever `read` would answer differently. Return the unsubscribe. Called once. */
+  watch(onNew: () => void): () => void;
+  /** The current value for these params (a font path, a shader's content…). */
+  read(params: unknown): unknown;
+}
+
+/** The runtime's side (`RendererPluginContext.live`). Inert in a projector window, which owns nothing. */
+export interface PluginLiveOwner {
+  stream(name: string, s: PluginLiveStream): () => void;
+  /** A question or a nudge (not an edit of the show — edits go through the host's document). */
+  call(name: string, fn: (...args: unknown[]) => unknown): () => void;
+}
+
+/** The UI's side (`RendererPluginUiContext.live`). */
+export interface PluginLiveView {
+  /** `cb` gets the current value as soon as it is known, then every change. Returns the unsubscribe. */
+  subscribe(name: string, params: unknown, cb: (value: unknown) => void): () => void;
+  call(name: string, args: unknown[]): Promise<unknown>;
+  /** The value NOW, where that can be known synchronously (the editor). Absent in a panel window. */
+  peek?(name: string, params: unknown): unknown;
+}
+
+/**
+ * A live value as React state — the usual way a UI half reads its runtime. `initial` is shown until the
+ * first answer (a panel window waits one round trip; the editor answers at once through `peek`).
+ * `params` is compared by its JSON, so pass plain data.
+ */
+export function useLiveValue<T>(view: PluginLiveView | null | undefined, name: string, params: unknown, initial: T): T {
+  const key = JSON.stringify(params ?? null);
+  const peek = (): T | undefined => (view?.peek ? (view.peek(name, params) as T | undefined) : undefined);
+  const [state, setState] = useState<{ key: string; v: T }>(() => ({ key, v: peek() ?? initial }));
+  useEffect(() => {
+    if (!view) return;
+    return view.subscribe(name, params, (x) => setState({ key, v: x as T }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for `params`
+  }, [view, name, key]);
+  // Params just changed and the new answer is not in yet: the editor can still answer at once.
+  if (state.key !== key) { const p = peek(); if (p !== undefined) return p; }
+  return state.v;
 }
 
 export interface RendererPlugin {

@@ -103,9 +103,8 @@ export function stopSpout(): void {
   releaseTexture();
 }
 
-export async function listSpoutSenders(): Promise<string[]> {
-  return ((await window.artlux?.pluginInvoke?.('spout:list')) as string[] | undefined) ?? [];
-}
+// Discovery ('spout:list') is in spoutDiscovery.ts: it holds no stream, and the picker that uses it is the
+// plugin's UI half, which must not import this receiver (E5/W5).
 
 /** The active sender's aspect ratio (w/h), or null until a frame arrives. */
 export function getSpoutAspect(): number | null {

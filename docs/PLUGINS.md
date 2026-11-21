@@ -164,17 +164,24 @@ window is fully generic.
   exported in its `package.json`). It exports a `RendererPluginUi`, whose `activateUi(ctx)` registers
   only contributions that draw. Today that is `ctx.contentSourceUi`: a source type's settings fragment.
   - **One list, every window.** `src/renderer/host/pluginUi.ts` lists the UI halves (Augmenta,
-    MediaPipe, LiDAR, NDI). `activateRendererPlugins` runs that list first, and a **panel window**
-    (`panel.tsx`) runs *only* that list. No plugin runtime activates there: a panel window has no
-    receivers, engines or drawables of its own.
+    MediaPipe, LiDAR, NDI, Spout, Syphon, Text, Shader). `activateRendererPlugins` runs that list
+    first, and a **panel window** (`panel.tsx`) runs *only* that list. No plugin runtime activates
+    there: a panel window has no receivers, engines or drawables of its own.
+  - **What only the runtime knows travels through `live`.** The runtime publishes it in `activate()`
+    (`ctx.live.stream('spout.status', …)`); the UI half keeps `ctx.live` (a plugin-local `uiLink.ts`)
+    and reads it with the SDK's `useLiveValue`. In the editor that is a local subscription to the same
+    stream; in a panel window it crosses the live channel. Names are `<plugin id>.<name>`, enforced.
+    Examples: `spout.status` / `syphon.status` (the receiver's verdict), `text.fontState` (an imported
+    face's load state), `shader.compile` and `shader.gpu` (the editor's GL context).
   - **So the UI half must reach nothing that runs.** It reads the content it is handed and talks to its
     main half (`pluginInvoke`); NDI's discovery was moved out of `ndiReceiver.ts` into
     `ndiDiscovery.ts` for exactly this. `verify:invariants` bundles the panel window and refuses a UI
     half that reaches the plugin's activation, a barrel, or a module named for runtime work.
   - **Register the fragment once**, in the UI half. A plugin with a UI half may not also put `editor:`
-    on its runtime provider; the check fails if it does. Plugins without one yet (Spout, Syphon, Text,
-    Shader) keep the transitional `editor` on the provider. The editor still draws it, and a panel
-    window says those sources are set up in the editor.
+    on its runtime provider; the check fails if it does. (The provider's `editor` is still read, after
+    the UI registry, for a plugin that has none; a panel window then says the source is set up in the
+    editor.) Constants the fragment shares with the runtime go in a file of their own
+    (`textDefaults.ts`, `shaderDefaults.ts`), never imported from the drawable.
 - **Main:** `src/main/host/plugins.ts` holds `FIRST_PARTY = [ndi, calibration, spout, hap, showControl,
   audio]` (**6** — the plugins with a native/main half) and `activateMainPlugins(getWindow)`, called from
   `registerIpc()` in `ipc.ts`. It builds `MainPluginContext` (the `ipc` handle bound to the active window)

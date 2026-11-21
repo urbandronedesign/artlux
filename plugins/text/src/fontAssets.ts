@@ -25,6 +25,12 @@ let rev = 0;
 /** Bumped whenever a face finishes loading (or fails), so cached rasters know to redraw. */
 export function revision(): number { return rev; }
 
+// Who to tell when a face settles (E5/W5): the 'text.fontState' live stream, so the editor fragment in
+// a panel window learns what THIS window loaded.
+const changed = new Set<() => void>();
+export function onFontStateChange(cb: () => void): () => void { changed.add(cb); return () => { changed.delete(cb); }; }
+const bump = () => { rev++; changed.forEach((cb) => cb()); };
+
 // A family name of our own, so an imported file can never collide with a system family — and so two
 // projects that both ship "Titling.otf" from different folders stay distinct.
 function familyName(absPath: string): string {
@@ -53,12 +59,12 @@ export function familyFor(absPath: string): string | null {
   // the same door images and video use, so no per-file grant is needed.
   const face = new FontFace(family, `url("${mediaUrl(absPath)}")`);
   face.load()
-    .then((f) => { document.fonts.add(f); entry.state = 'ready'; rev++; })
+    .then((f) => { document.fonts.add(f); entry.state = 'ready'; bump(); })
     .catch(() => {
       // A missing or corrupt file must not take the surface down: the type keeps drawing in the
       // fallback face, and the asset library's own missing badge is what reports it.
       entry.state = 'failed';
-      rev++;
+      bump();
     });
   return family;
 }

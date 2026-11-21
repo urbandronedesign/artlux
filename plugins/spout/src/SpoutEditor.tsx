@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import type { SurfaceContent } from '@/types';
-import { listSpoutSenders, spoutIncompatibility, onSpoutStatus } from './spoutReceiver';
+import { useLiveValue } from '@artlux/sdk/renderer';
+import { listSpoutSenders } from './spoutDiscovery';
+import { liveView } from './uiLink';
 import type { SpoutIncompatibility } from './types';
 
 // Why Spout is not running, in the operator's terms. Spout is GPU-only — the sender's texture is
@@ -21,7 +23,9 @@ export const SpoutEditor: React.FC<{ content: SurfaceContent; onChange: (patch: 
   const refresh = async () => setSenders(await listSpoutSenders());
   useEffect(() => { void refresh(); }, []);
   // Live, because the verdict only arrives once main has tried — the panel is usually already open.
-  const why = useSyncExternalStore(onSpoutStatus, spoutIncompatibility);
+  // The RECEIVER's verdict (it runs in the editor), published as 'spout.status' — read through the live
+  // view so a panel window shows the editor's answer rather than its own idle receiver's.
+  const why = useLiveValue<SpoutIncompatibility | null>(liveView(), 'spout.status', null, null);
 
   return (
     <div className="flex flex-col gap-1 pt-1">

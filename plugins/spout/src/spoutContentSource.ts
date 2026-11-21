@@ -2,7 +2,6 @@ import type { ContentSourceProvider } from '@artlux/sdk/renderer';
 import type { SurfaceContent } from '@/types';
 import { startSpout, stopSpout, getSpoutCanvas } from './spoutReceiver';
 import { pollFps } from './spoutHost';
-import { SpoutEditor } from './SpoutEditor';
 
 // The Spout content source: a single live receiver shared by every consumer (surface/clip), refcounted
 // by consumer key — runs while ANY consumer wants it, stops the instant none do; the most-recently-
@@ -46,5 +45,5 @@ export const spoutContentSource: ContentSourceProvider<SurfaceContent> = {
   getDrawable() { return getSpoutCanvas(); }, // single receiver — the consumer key is irrelevant
   // No getAspect → matches the host's prior behavior (Spout surfaces reported null aspect).
   // getSpoutAspect exists in spoutReceiver if we ever want to wire it.
-  editor: SpoutEditor,
+  // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
 };

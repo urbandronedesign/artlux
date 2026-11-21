@@ -444,15 +444,36 @@ const until = async (fn, ms = 8000, step = 200) => {
     const ndiEditor = await E(() => [...document.querySelectorAll('option')].some((o) => o.textContent === 'First source'));
     note(pickedNdi && !!isNdi && !!ndiHere, "picking NDI in the window sets the editor's surface, and the window draws NDI's own source picker",
       `content ${await contentType()}; NDI picker in the window ${!!ndiHere}, in the editor ${ndiEditor}`);
-    // SPOUT: a plugin whose UI half is not split out yet. The window says where it is set up; the editor
-    // still draws its picker from the runtime provider (the transitional path).
+    // SPOUT: its picker is the UI half's, and its "cannot run here" verdict is the editor RECEIVER's
+    // (published as spout.status). The window's must match the editor's, whatever this PC answers.
     const pickedSpout = await pick('Spout');
     const isSpout = await until(async () => ((await contentType()) === 'SPOUT' ? 1 : null), 5000);
-    const elsewhere = await until(() => K(() => document.querySelector('[data-content-elsewhere="SPOUT"]')?.textContent || null), 5000);
-    const spoutEditor = await E(() => ({ picker: [...document.querySelectorAll('option')].some((o) => o.textContent === 'Active sender'), note: !!document.querySelector('[data-content-elsewhere]') }));
-    note(pickedSpout && !!isSpout && !!elsewhere && !spoutEditor.note,
-      'a source without a UI half says, in the window, that it is set up in the editor — and the editor is unchanged',
-      `window: "${elsewhere}"; editor: Spout picker ${spoutEditor.picker}, note ${spoutEditor.note}`);
+    const spoutHere = await until(() => K(() => [...document.querySelectorAll('option')].some((o) => o.textContent === 'Active sender')), 5000);
+    await sleep(1500); // the editor's receiver starts and main gives its verdict
+    const spoutWhy = (fn) => fn(() => { const m = document.body.innerText.match(/Spout not compatible\.[^\n]*/); return m ? m[0] : 'compatible'; });
+    const whyHere = await spoutWhy(K);
+    const whyEditor = await spoutWhy(E);
+    note(pickedSpout && !!isSpout && !!spoutHere && whyHere === whyEditor,
+      "Spout's picker is drawn in the window, with the editor receiver's verdict",
+      `window "${whyHere}"; editor "${whyEditor}"`);
+    // SHADER: the strongest probe — the GPU's name belongs to the editor's GL context, which a panel
+    // window does not have. A window answering for itself would say "no name".
+    await pick('Shader');
+    const isShader = await until(async () => ((await contentType()) === 'SHADER' ? 1 : null), 5000);
+    const gpuLine = (fn) => fn(() => { const m = document.body.innerText.match(/this one reports “([^”]*)”/); return m ? m[1] : null; });
+    const gpuEditor = await until(() => gpuLine(E), 8000);
+    const gpuHere = await until(async () => { const g = await gpuLine(K); return g && g !== 'no name' ? g : null; }, 8000);
+    const detailHere = await K(() => [...document.querySelectorAll('label')].some((l) => (l.textContent || '').trim() === 'Detail'));
+    note(!!isShader && detailHere && (gpuEditor == null ? gpuHere == null : gpuHere === gpuEditor),
+      "the Shader settings are drawn in the window, with the editor's GPU (its GL context, not the window's)",
+      `window "${gpuHere}", editor "${gpuEditor ?? '(discrete GPU: no ceiling line)'}"`);
+    // TEXT: its settings, drawn without the rasterizer.
+    await pick('Text');
+    const isText = await until(async () => ((await contentType()) === 'TEXT' ? 1 : null), 5000);
+    const fontRow = await until(() => K(() => /Font/.test(document.body.innerText) && /Line height/.test(document.body.innerText)), 5000);
+    note(!!isText && !!fontRow, "the Text settings are drawn in the window (font, size, line height…)");
+    const elsewhereAny = await K(() => document.querySelector('[data-content-elsewhere]')?.textContent || null);
+    note(!elsewhereAny, 'no source in the window falls back to "set up in the editor" — every plugin has its UI half', elsewhereAny || '');
     // CAMERA: the inspector in the window asks the editor (services/cameraAccess → live/cameraRemote).
     await pick('Camera');
     const isCam = await until(async () => ((await contentType()) === 'CAMERA' ? 1 : null), 5000);

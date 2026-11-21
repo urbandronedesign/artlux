@@ -14,7 +14,7 @@
 import type { RendererPlugin, RendererPluginContext, ContentSourceProvider } from '@artlux/sdk/renderer';
 import type { SurfaceContent } from '@/types';
 import * as textRaster from './textRaster';
-import { TextContentEditor } from './textContentEditor';
+import { stateOf, onFontStateChange } from './fontAssets';
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'text', name: 'Text', version: '0.0.0' },
@@ -40,8 +40,10 @@ export const plugin: RendererPlugin = {
       // and what MOVES it is automation writing content.textX/textScale/... before compositing. So a
       // non-realtime render steps it exactly, and the same range renders identically every time.
       offlineSafe: true,
-      editor: TextContentEditor,
-      pickerButton: { label: 'Text', title: 'Typed copy on this surface' },
+      // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
     } as ContentSourceProvider);
+    // Whether an imported face loaded, for the editor fragment in any window: only the window that
+    // rasterizes (the editor) loads the face, so only it can say.
+    ctx.live.stream('text.fontState', { watch: onFontStateChange, read: (p) => stateOf(String(p ?? '')) });
   },
 };

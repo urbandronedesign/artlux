@@ -7,6 +7,7 @@ import { PanelEditorStore } from './live/panelStore';
 import { DETACHABLE_PANELS } from './contexts/detachable';
 import { PanelBody } from './components/shell/PanelBody';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { FeedbackProvider } from './components/ui/feedback';
 import { installGlobalNet } from './services/faultReporter';
 import { useEditorPick } from './state/EditorStore';
 import { appliesToSelection, panelRegistry } from './host/registries';
@@ -19,6 +20,7 @@ import { keymap } from './shortcuts/keymapStore';
 import { activatePluginUi } from './host/pluginUi';
 import { setCameraAccess } from './services/cameraAccess';
 import { remoteCameraAccess } from './live/cameraRemote';
+import { remotePluginLive } from './live/pluginLiveRemote';
 
 // A PANEL WINDOW (E5/W5) — `panel.html?panel=<id>`, opened by main/panelWindows.ts. It opens on that one
 // panel and is a dock tree of its own (W5b-2): more detachable panels can join it as tabs, stacks or splits.
@@ -44,7 +46,7 @@ liveClient.connect(`panel:${panelId}`);
 for (const p of DETACHABLE_PANELS) panelRegistry.register(p);
 // The plugins' UI halves — what the content editor shows for their source types — and nothing of their
 // runtimes (host/pluginUi.ts). And the camera inspector asks the editor, which runs the capture.
-activatePluginUi('panel');
+activatePluginUi('panel', remotePluginLive);
 setCameraAccess(remoteCameraAccess);
 const titleFor = (ids: string[]) =>
   `${ids.map((id) => panelRegistry.get(id)?.title ?? id).join(' · ') || 'Panel'} — ARTLux`;
@@ -244,9 +246,14 @@ const root = document.getElementById('root');
 if (root) {
   ReactDOM.createRoot(root).render(
     <ErrorBoundary scope="panel-root" faultWindow="panel" label="Panel window">
-      {panel
-        ? <PanelEditorStore fallback={<Connecting />}><Workbench /></PanelEditorStore>
-        : <Waiting text={`"${panelId}" cannot open in its own window.`} />}
+      {/* The editor's toasts and in-app confirm/prompt dialogs, in THIS window: a panel that asks "replace
+          this shader?" asks where the operator is looking. Without it, useConfirm() throws and the
+          whole window falls to its error boundary (found by test-panel-window step 12, Shader). */}
+      <FeedbackProvider>
+        {panel
+          ? <PanelEditorStore fallback={<Connecting />}><Workbench /></PanelEditorStore>
+          : <Waiting text={`"${panelId}" cannot open in its own window.`} />}
+      </FeedbackProvider>
     </ErrorBoundary>,
   );
 }

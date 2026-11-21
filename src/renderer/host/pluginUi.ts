@@ -15,29 +15,41 @@
 // entry that reaches the plugin's activation, a receiver, a drawable, an engine or a store would put
 // runtime code in a window that must not run any. Add a plugin here only through its `/ui` entry.
 
-import type { RendererPluginUi, RendererPluginUiContext } from '@artlux/sdk/renderer';
+import type { RendererPluginUi, RendererPluginUiContext, PluginLiveView } from '@artlux/sdk/renderer';
 import { contentSourceUiRegistry } from './registries';
 import { ui as augmenta } from '@artlux/plugin-augmenta/ui';
 import { ui as mediapipe } from '@artlux/plugin-mediapipe/ui';
 import { ui as lidarTracking } from '@artlux/plugin-lidar-tracking/ui';
 import { ui as ndi } from '@artlux/plugin-ndi/ui';
+import { ui as spout } from '@artlux/plugin-spout/ui';
+import { ui as syphon } from '@artlux/plugin-syphon/ui';
+import { ui as text } from '@artlux/plugin-text/ui';
+import { ui as shader } from '@artlux/plugin-shader/ui';
 
-// Not here yet, and why (each needs state only the editor's runtime holds, which a panel window would
-// read from its own idle copy): Spout and Syphon (the sender's "incompatible GPU" status is learned by
-// the receiver), Text (the rasterizer reaches the surface media service; font load state is
-// per-window), Shader (compile status, GL limits). In a panel window their surfaces say so plainly.
+// What only a RUNTIME knows (Spout's and Syphon's "cannot run here", an imported font's load state, a
+// shader's compile log and the GPU's limits) is published by that runtime in the editor and read by
+// the UI half through `live` — never from the runtime's module, which in a panel window is an idle copy.
+// The Calibrator carries only the shader plugin of these (its test cards are shader surfaces).
 const FIRST_PARTY_UI: RendererPluginUi[] =
-  __ARTLUX_APP__ === 'calibrator' ? [] : [augmenta, mediapipe, lidarTracking, ndi];
+  __ARTLUX_APP__ === 'calibrator' ? [shader] : [augmenta, mediapipe, lidarTracking, ndi, spout, syphon, text, shader];
 
 let activated: RendererPluginUiContext['window'] | null = null;
 
 /** Which kind of window activated the UI halves — 'panel' means no plugin runtime runs here. */
 export function pluginUiWindow(): RendererPluginUiContext['window'] | null { return activated; }
 
-export function activatePluginUi(win: RendererPluginUiContext['window']): void {
+// A window with no editor to ask (a projector) reads nothing: every subscription stays at its initial.
+const INERT: PluginLiveView = { subscribe: () => () => {}, call: async () => undefined };
+
+/**
+ * `live` is how a UI half reads what its runtime publishes: a local subscription in the editor
+ * (live/pluginLive.ts, via activateRendererPlugins), the live channel in a panel window
+ * (live/pluginLiveRemote.ts, from panel.tsx).
+ */
+export function activatePluginUi(win: RendererPluginUiContext['window'], live: PluginLiveView = INERT): void {
   if (activated) return;
   activated = win;
-  const ctx = { window: win, contentSourceUi: contentSourceUiRegistry } as unknown as RendererPluginUiContext;
+  const ctx = { window: win, contentSourceUi: contentSourceUiRegistry, live } as unknown as RendererPluginUiContext;
   for (const p of FIRST_PARTY_UI) {
     try { p.activateUi(ctx); } catch (e) { console.error(`[plugins] ${p.id} activateUi failed`, e); }
   }

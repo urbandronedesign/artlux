@@ -7747,7 +7747,7 @@ check(
       if (clear < 0 || send < 0 || clear > send) problems.push('deliver() must clear `waiting` before it posts the sample');
     }
     if ((b.match(/t: 'data'/g) || []).length !== 1) problems.push("broker.ts posts `t: 'data'` outside deliver() — every sample must pass the waiting gate");
-    if (!/function detachIfIdle\(name: string\): void \{\s*\n\s*const e = streams\.get\(name\);\s*\n\s*if \(!e \|\| e\.subs\.size \|\| !e\.stop\) return;/.test(b)) problems.push('detachIfIdle() no longer detaches exactly when the last subscription goes');
+    if (!/function detachIfIdle\(name: string\): void \{\s*\n\s*const e = streams\.get\(name\);\s*\n\s*if \(!e \|\| e\.subs\.size \|\| e\.locals\.size \|\| !e\.stop\) return;/.test(b)) problems.push('detachIfIdle() no longer detaches exactly when the last subscription goes');
     const unsub = b.match(/case 'unsub': \{([\s\S]*?)\n    \}/);
     if (!unsub || !/detachIfIdle\(sub\.stream\)/.test(unsub[1])) problems.push("'unsub' no longer detaches an idle producer");
     if (/\b(setInterval|requestAnimationFrame)\(/.test(b)) problems.push('broker.ts runs its own timer or rAF — the owner side is driven by producers and pulls only');
@@ -7917,13 +7917,28 @@ check(
       }
     }
     const plugins = read('src/renderer/host/plugins.ts');
-    if (!/activated = true;[\s\S]{0,400}?activatePluginUi\(win\);[\s\S]*?for \(const p of FIRST_PARTY/.test(plugins)) problems.push('activateRendererPlugins no longer activates the UI halves (host/pluginUi.ts) before the runtimes');
-    if (!/^activatePluginUi\('panel'\);/m.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer activates the plugins' UI halves");
+    if (!/activated = true;[\s\S]{0,400}?activatePluginUi\(win, live\.view\);[\s\S]*?for \(const p of FIRST_PARTY/.test(plugins)) problems.push('activateRendererPlugins no longer activates the UI halves (host/pluginUi.ts) before the runtimes');
+    if (!/^activatePluginUi\('panel', remotePluginLive\);/m.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer activates the plugins' UI halves with the live channel (remotePluginLive)");
     const ce = read('src/renderer/components/ContentEditor.tsx');
     if (!/contentSourceUiRegistry\.get\(c\.type\)/.test(ce)) problems.push('ContentEditor no longer reads the UI registry (a panel window would show no plugin settings)');
     if (/services\/contentSource'/.test(read('src/renderer/components/CameraSettings.tsx'))) problems.push('CameraSettings imports services/contentSource — it must ask services/cameraAccess');
     if (!/^setCameraAccess\(\{ list: listCameras, info: getCameraInfo, retry: retryCamera, preview: previewCameraControl \}\);/m.test(read('src/renderer/services/contentSource.ts'))) problems.push('services/contentSource no longer installs itself as the camera access');
     if (!/^setCameraAccess\(remoteCameraAccess\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer sends its camera questions to the editor');
+    // What only a runtime knows reaches a UI half through `live`: published on the editor's broker, read
+    // locally there and over the live channel in a panel window. Wired wrong, a panel window's fragment
+    // waits forever on an answer nobody sends — or the editor's own fragment does.
+    if (!/<FeedbackProvider>[\s\S]*<PanelEditorStore/.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer mounts its panels inside <FeedbackProvider> — a panel calling useConfirm()/useToast() throws and takes the window down");
+    if (!/activateRendererPlugins\('main', pluginHost, \{ owner: ownerPluginLive, view: localPluginLive \}\)/.test(read('src/renderer/App.tsx'))) problems.push("App no longer hands the plugins the editor's live owner and local view");
+    if (!/activatePluginUi\(win, live\.view\);/.test(plugins)) problems.push('activateRendererPlugins no longer hands the UI halves its live view');
+    if (!/p\.activate\(\{ \.\.\.ctx, live: scopedLiveOwner\(live\.owner, p\.manifest\.id\) \}/.test(plugins)) problems.push("a plugin's runtime is no longer handed a live owner scoped to its own id");
+    // A UI half reads its runtime only through the live view: never by importing a receiver, drawable or
+    // context (the panel-graph check bans those by name) — and never the SDK hook on anything but it.
+    for (const name of halves) {
+      const dir = path.join(ROOT, 'plugins', name, 'src');
+      const uiSrc = fs.existsSync(path.join(dir, 'ui.ts')) ? fs.readFileSync(path.join(dir, 'ui.ts'), 'utf8') : '';
+      const usesLive = fs.readdirSync(dir).some((f) => /\.tsx?$/.test(f) && /useLiveValue(<[^(]*>)?\(liveView\(\)/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+      if (usesLive && !/setLiveView\(ctx\.live\);/.test(uiSrc)) problems.push(`plugins/${name}: its UI reads the live view, but ui.ts never sets it (setLiveView(ctx.live)) — every value would stay at its initial`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );
