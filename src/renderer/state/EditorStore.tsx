@@ -77,6 +77,8 @@ export interface EditorData {
   globalBrightness: number;
   projectorBrightness: number;
   isVideoPlaying: boolean;
+  /** services/autoKey's arm (a fader release writes keyframes). Read here so a panel window sees the editor's. */
+  autoKeyArmed: boolean;
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────────────────────────
@@ -174,9 +176,17 @@ export interface EditorActions {
    * (E5/W5) drives the EDITOR's channel — its own livePreview drives nothing.
    */
   pushMasterBrightness(v: number): void;
+  /** Fixture-channel faders under a hand: services/livePreview's top layer, render-free (see there). */
+  pushFixtureChannels(writes: Array<{ fixtureId: string; key: string; value: number }>): void;
+  /** The hand let go: the live layer settles onto the committed value. */
+  releaseFixtureChannels(writes: Array<{ fixtureId: string; key: string }>): void;
+  /** Arm or disarm auto-key (services/autoKey). */
+  setAutoKeyArmed(v: boolean): void;
   setProjectorBrightness(v: number): void;
   pushProjectorBrightness(v: number): void;   // render-free live channel (drag)
   setVideoPlaying(v: boolean): void;
+  /** Play / pause, decided against the editor's CURRENT state (a panel window's copy may be a beat old). */
+  togglePlay(): void;
   updateSettings(patch: Partial<AppSettings>): void;
   updatePatchPolicy(patch: Partial<PatchPolicy>): void;
   /**

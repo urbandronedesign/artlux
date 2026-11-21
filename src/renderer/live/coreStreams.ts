@@ -27,6 +27,7 @@ export interface EditorExtras {
   sceneSaved: boolean;
   currentProjectPath: string | null;
   selectedFixtureKinds: string;
+  autoKeyArmed: boolean;
 }
 let extras: EditorExtras | null = null;
 let extrasChanged: (() => void) | null = null;

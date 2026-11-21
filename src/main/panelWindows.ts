@@ -102,7 +102,11 @@ export function openPanelWindow(panelId: string): void {
       backgroundThrottling: false,
     },
   });
-  win.setMenuBarVisibility(false);
+  // NO APPLICATION MENU in a panel window. On Windows the app menu is attached to every window, hidden
+  // or not, and its REGISTERED accelerators fire there: Ctrl+R would reload the panel, and Ctrl+S would
+  // save through a path that may or may not also see the panel's own key handling. The panel window
+  // forwards the keys that mean something there itself (renderer/panel.tsx), so there is one owner.
+  win.removeMenu();
   windows.set(panelId, win);
   setOpenList((ids) => (ids.includes(panelId) ? ids : [...ids, panelId]));
 

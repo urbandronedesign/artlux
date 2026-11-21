@@ -150,16 +150,23 @@ have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable w
 ### A panel in its own window
 
 Some panels can leave the editor and open in a window of their own, which you can put on any screen:
-**Surfaces**, **Fixtures**, **Groups** and **Global Params** for now.
+**Surfaces**, **Fixtures**, **Groups**, **Global Params**, and the parameter sections for a fixture
+(**DMX Profile**, **Channels**, **Patch**, **Mapping**, **Segments**, **2D / Output**, **Routing**,
+**3D Layout**, **Position**) and a surface's **Transform**. A light's **Channels** faders on a second
+screen, next to the rig, is the classic use.
 
 - **Open one:** click **Open in new window** (the arrow-out-of-a-box button) in the panel's header, or
   right-click its tab and choose **Open in new window**.
 - **It is the same panel, live.** It shows the open project and follows every change, whichever window
   you make it in: select a fixture in either and both show it selected, add one in either and both list it.
-  An edit made in a window is undone from the editor, like any other edit: a panel window does not take
-  keyboard shortcuts (Undo, Space, …) yet.
-- **Sliders drag live.** Dragging **LED Brightness** in a window moves the rig as you drag, as it does in
-  the editor; the value is kept when you let go.
+  **Undo** (Ctrl+Z), **Redo** (Ctrl+Shift+Z / Ctrl+Y), **Play / pause** (Space) and **Save** (Ctrl+S)
+  work in a panel window too, and do exactly what they do in the editor, including your own rebindings.
+  The editor's other shortcuts stay in the editor.
+- **Sliders drag live.** Dragging **LED Brightness** or a light's channel fader in a window moves the rig
+  as you drag, as it does in the editor; the value is kept when you let go, and **Record fader moves as
+  keyframes** works from there too.
+- **A parameter section follows the selection.** When what is selected is not its kind, the window says
+  what to select instead of going blank.
 - **It remembers where it was** on this machine, screen included, and opens there next time. If that
   screen is not connected any more, the window comes back on the editor's screen, never off-screen.
 - **It closes with the editor, and comes back with it.** A window you close yourself stays closed.
@@ -167,7 +174,13 @@ Some panels can leave the editor and open in a window of their own, which you ca
 
 **Viewports stay in the editor for now:** the stage, the 3D view and the output previews draw on the
 graphics card inside the editor window. Their **Open in new window** entry is greyed out and says so.
-Other panels will be able to detach as they are moved over.
+A surface's **Content** section stays too for now (it lists the content types plugins add, such as NDI
+and Spout, which a panel window does not load yet). Other panels will be able to detach as they are
+moved over.
+
+If a panel window says it **cannot show the project right now**, the background service that holds the
+open project for every window is not running (it can be switched off for troubleshooting). Use the panel
+in the editor; the window recovers on its own when the service starts again.
 
 > A crashed panel window does not touch the show, and does not leave a slider stuck: if it goes while
 > you are dragging, the value goes back to what was set.

@@ -3243,8 +3243,10 @@ check(
   'button that reads like an explanation and in fact pins ledCount to 1, drops the surface link and ' +
   'repatches the rig. Do not widen it back; the kind is chosen where the fixture is created.',
   () => {
-    const F = 'src/renderer/contexts/index.tsx';
-    const src = read(F);
+    // The sections are registered from two files since E5/W5: the ones that can open in a panel window
+    // are DECLARED in contexts/detachable.tsx (index.tsx registers them by id), the rest in index.tsx.
+    const F = 'src/renderer/contexts/index.tsx + contexts/detachable.tsx';
+    const src = read('src/renderer/contexts/index.tsx') + '\n' + read('src/renderer/contexts/detachable.tsx');
     const BOTH = new Set(['patch', 'routing', 'arrange']);
     const problems = [];
     const re = /id:\s*'core\.inspector\.fixture\.(\w+)'[^\n]*?appliesTo:\s*\[([^\]]*)\]/g;
@@ -3492,7 +3494,13 @@ check(
     if (!/resolveFixture\([^)]*liveOverride\)/.test(eng)) problems.push(F + ' does not pass the live layer to resolveFixture — the 3D scene and the TAKE RECORDER would see the committed value only');
     const insp = read(I);
     if (!/onInput=\{\(v\) => live\(channel, v\)\}/.test(insp)) problems.push(I + ': the channel strip fader no longer drives the live layer while dragging');
-    if (!/livePreview\.releaseFixtureChannel\(/.test(insp)) problems.push(I + ': nothing releases the live layer on commit — an entry sitting above a lighting clip would pin the channel');
+    // Since E5/W5 the strip reaches the live layer through two editor ACTIONS (so a fader in a panel
+    // window drives the editor's layer); App's implementation of them is the livePreview call.
+    if (!/a\.releaseFixtureChannels\(/.test(insp)) problems.push(I + ': nothing releases the live layer on commit — an entry sitting above a lighting clip would pin the channel');
+    if (!/const live = \(channel: ProfileChannel, v: number\) => \{[\s\S]*?a\.pushFixtureChannels\(/.test(insp)) problems.push(I + ': the fader tick no longer drives the live layer (a.pushFixtureChannels)');
+    const appSrc = read('src/renderer/App.tsx');
+    if (!/releaseFixtureChannels: \(writes\) => \{ for \(const w of writes\) livePreview\.releaseFixtureChannel\(w\.fixtureId, w\.key\); \}/.test(appSrc)) problems.push('App.releaseFixtureChannels no longer releases the live layer');
+    if (!/pushFixtureChannels: \(writes\) => \{ for \(const w of writes\) livePreview\.setFixtureChannel\(w\.fixtureId, w\.key, w\.value\); \}/.test(appSrc)) problems.push('App.pushFixtureChannels no longer writes the live layer');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -7839,6 +7847,11 @@ check(
       [/Simulator3D\//, 'the 3D view'],
       [/node_modules\/(three|@react-three)\//, 'three.js'],
       [/audioPeaks\.ts$/, 'the peaks decoder'],
+      // Per-window state that only means something in the EDITOR: livePreview is the render-free layer
+      // the frame engine reads, autoKey the arm the editor's commit path reads. A detachable panel that
+      // called either directly would drive its own idle copy — a fader that moves nothing, an arm that
+      // records nothing. Panels go through editor actions (pushFixtureChannels, setAutoKeyArmed, …).
+      [/^src\/renderer\/services\/(livePreview|autoKey)\.ts$/, 'a per-window editor service (use the editor action instead)'],
       [/^src\/renderer\/live\/(broker|coreStreams)\.ts$/, 'the live broker (the editor is the one owner)'],
       [/^src\/renderer\/App\.tsx$/, 'App'],
       [/^src\/renderer\/host\/plugins\.ts$/, 'plugin activation'],
@@ -7896,12 +7909,45 @@ check(
     if (!/editor\.on\('closed', \(\) => \{\s*\n\s*editorClosing = true;/.test(pw)) problems.push("panel windows must close on the editor's 'closed', not 'close' (the close guard can cancel a 'close')");
     if (!/win\.on\('closed', \(\) => \{\s*\n\s*if \(t\) clearTimeout\(t\);\s*\n\s*remember\(last\);/.test(pw)) problems.push("a panel window's place must be written from its TRACKED bounds on 'closed' (a page-closed window never emits 'close')");
     if (!/win\.webContents\.on\('did-finish-load', \(\) => \{ if \(!win\.isDestroyed\(\)\) connectShowHost\(win\); \}\);/.test(pw)) problems.push('a panel window is no longer given a Show Host port on every load');
+    // Keys: a panel window has NO application menu (so no stray Ctrl+R reload, and one owner of Ctrl+S),
+    // and forwards the shared ones to the editor's own actions.
+    if (!/win\.removeMenu\(\);/.test(pw)) problems.push('a panel window keeps the application menu — its registered accelerators (Ctrl+R reload, Ctrl+S) would fire there');
+    const pt = read('src/renderer/panel.tsx');
+    for (const [re, what] of [
+      [/keymap\.matches\(e, 'global\.undo'\)\) run\('menuAction', \['undo'\]\)/, 'Undo'],
+      [/keymap\.matches\(e, 'global\.redo'\)\) run\('menuAction', \['redo'\]\)/, 'Redo'],
+      [/keymap\.matches\(e, 'timeline\.togglePlay'\)\) run\('togglePlay'\)/, 'Play / pause'],
+      [/e\.key\.toLowerCase\(\) === 's'\) \{ run\('menuAction', \['save'\]\)/, 'Save'],
+    ]) if (!re.test(pt)) problems.push(`panel.tsx no longer forwards ${what} to the editor`);
+    if (!/keymap\.hydrate\(/.test(pt)) problems.push("panel.tsx no longer loads the operator's rebindings (keymap.hydrate)");
+    // No host = no document: say so instead of "Connecting…" forever.
+    if (!/fallback=\{<Connecting \/>\}/.test(pt) || !/const NO_HOST_AFTER_MS = /.test(pt)) problems.push('a panel window with no Show Host no longer explains itself (it would say "Connecting…" forever)');
     if (!/if \(!HEADLESS && !BROADCAST\) registerPanelWindows\(mainWindow, \(\) => mainWindow\);/.test(read('src/main/index.ts'))) problems.push('panel windows must be registered in the editor only (never headless / broadcast)');
     // The operator's door: a detachable panel's SECTION HEADER (a stacked section has no tab, so a tab
     // menu alone would never be reached for exactly the panels that can detach).
     if (!/panel\.detachable && window\.artlux\?\.openPanelWindow/.test(read('src/renderer/components/shell/WorkspaceShell.tsx'))) problems.push('the section header no longer offers "Open in new window" for a detachable panel');
     if (!/panel: resolve\(__dirname, 'src\/renderer\/panel\.html'\)/.test(read('electron.vite.config.ts'))) problems.push('electron.vite.config.ts no longer builds panel.html — main would open a window onto nothing');
     return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Every field App hands the panels is in the memo's dependency list (E5/W5) ────────────────────────
+check(
+  "every value in App's editorData is in its useMemo deps",
+  'editorData is memoized on its fields so that panels re-render only when one of them moves (see the ' +
+  'comment above it). A field added to the object but not to the deps is FROZEN at its first value for ' +
+  'every panel: it compiles, it boots, and the control simply stops reflecting the state. It happened ' +
+  'with autoKeyArmed (E5/W5b): arming auto-key in the channel strip did nothing visible, and the release ' +
+  'recorded no key, in the editor only — a panel window read the same value through another path.',
+  () => {
+    const app = read('src/renderer/App.tsx').replace(/\r\n/g, '\n');
+    const m = app.match(/const editorData: EditorData = useMemo\(\(\) => \(\{([\s\S]*?)\}\), \[([\s\S]*?)\]\);/);
+    if (!m) return "App.tsx: `const editorData: EditorData = useMemo(() => ({ … }), [ … ]);` not found";
+    const values = m[1].split(',').map((p) => p.trim()).filter(Boolean).map((p) => (p.includes(':') ? p.split(':')[1].trim() : p));
+    const deps = new Set(m[2].split(',').map((d) => d.trim()).filter(Boolean));
+    if (values.length < 20) return `only ${values.length} editorData fields parsed — the scan has stopped seeing them`;
+    const missing = values.filter((v) => /^[A-Za-z_$][\w$]*$/.test(v) && !deps.has(v));
+    return missing.length ? `editorData reads ${missing.join(', ')} but its useMemo does not depend on ${missing.length > 1 ? 'them' : 'it'} — panels would see the first value forever` : null;
   },
 );
 

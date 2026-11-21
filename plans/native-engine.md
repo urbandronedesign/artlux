@@ -510,15 +510,43 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > - Three checks, mutation-tested 18/18.
 > - Regressions green: live-channel, show-host, panel-renders, undo, engine-output.
 >
+> ✅ **W5b-1 done 2026-11-21 (parameter sections, keys, no-host).**
+> - **The parameter sections detach.** The surface Transform section and all nine fixture sections in
+>   `inspector.tsx` (DMX Profile, Channels, Patch, Mapping, Segments, 2D / Output, Routing, 3D Layout,
+>   Position). The taint was one panel: surface **Content** (`ContentEditor` → `CameraSettings` →
+>   `contentSource`, plus the plugin content-source registry). It moved to `panels/surfaceContent.tsx`
+>   and stays docked until plugins activate in panel windows.
+> - **Fader and arm paths are editor actions.** The channel strip's live layer and the auto-key arm
+>   became `pushFixtureChannels`, `releaseFixtureChannels`, `setAutoKeyArmed` and the
+>   `EditorData.autoKeyArmed` field. `livePreview` and `autoKey` are now **banned from the panel
+>   graph**, so a detachable panel that called them directly (and drove its own idle copy) fails
+>   verify, with the module named.
+> - **A section that doesn't apply** to the selection says what to select.
+> - **Keys:** a panel window has **no application menu** (`removeMenu`), so Ctrl+R can't reload it and
+>   Ctrl+S has one owner. It forwards Undo, Redo, Play / pause (the new `togglePlay` action, decided
+>   against the editor's state) and Save to the editor's own actions, and honours rebindings.
+> - **No Show Host:** after 8 s the window says it cannot show the project, and why.
+> - **A real bug found by the harness:** App's `editorData` memo didn't list `autoKeyArmed`, so the arm
+>   froze in the editor only (`test-auto-key` failed 3 claims). Fixed, and a new check requires every
+>   `editorData` value in the memo's deps.
+>
+> Proof:
+> - `test-panel-window` steps 8–9:
+>   - a light's Channels fader in a window holds the channel live in the editor, then commits;
+>   - auto-key armed from the window keys the editor's timeline;
+>   - Ctrl+Z, Ctrl+Shift+Z, Space and Ctrl+S from the window, the save checked on disk;
+>   - the "select a surface" message.
+> - The `ARTLUX_NO_SHOW_HOST=1` mode shows the explanation.
+> - Checks mutation-tested 11/11, plus 1/1 for the memo-deps check.
+> - Regressions green: lighting-take, auto-key, panel-renders, undo, live-channel, show-host,
+>   engine-output.
+>
 > **W5b — what is left of W5:**
 > - **Each window gets its own dock tree** (tabs and splits).
 > - **Docking a window's panel back in** with a gesture, instead of closing the window.
-> - **Untangling the inspector panels** (`inspector.tsx` reaches the engine, GPU code and media cache),
->   then the rest, file by file.
-> - **Plugin panels** need a UI-only activation.
-> - **Shortcuts** in panel windows: transport keys and Undo routed to the editor and the host.
-> - **Running without a Show Host** (`ARTLUX_NO_SHOW_HOST=1`): a panel window waits on "Connecting…"
->   forever.
+> - **Plugin panels** need a UI-only activation. That also unblocks Content, whose source list is
+>   plugin-fed, and the camera settings need the same owner-side indirection.
+> - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.
 > - **A restarting host** may briefly hand a panel the fresh host's empty state before the editor's
 >   handover reaches it. This converges, because the editor's slices are relayed, but it is worth a
 >   guard.

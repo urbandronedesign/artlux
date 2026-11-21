@@ -48,6 +48,9 @@ function makeRemoteActions(): EditorActions {
     // Render-free drags: the editor's own channel, released by the editor if this window dies.
     pushMasterBrightness: (v) => liveClient.drag({ target: 'ledBrightness', value: Number(v) }),
     pushProjectorBrightness: (v) => liveClient.drag({ target: 'projectorBrightness', value: Number(v) }),
+    // Fixture faders: one live drag per channel, so the editor releases each if this window dies.
+    pushFixtureChannels: (writes) => { for (const w of writes as Array<{ fixtureId: string; key: string; value: number }>) liveClient.drag({ target: 'fixtureChannel', fixtureId: w.fixtureId, key: w.key, value: w.value }); },
+    releaseFixtureChannels: (writes) => { for (const w of writes as Array<{ fixtureId: string; key: string }>) liveClient.drag({ target: 'fixtureChannel', fixtureId: w.fixtureId, key: w.key, value: 0, end: true }); },
     // The release: end the drag, then commit — the same order the docked slider's onInput/onChange has.
     setMasterBrightness: (v) => { liveClient.drag({ target: 'ledBrightness', value: Number(v), end: true }); return call('setMasterBrightness', [v]).catch(fail('setMasterBrightness')); },
     setProjectorBrightness: (v) => { liveClient.drag({ target: 'projectorBrightness', value: Number(v), end: true }); return call('setProjectorBrightness', [v]).catch(fail('setProjectorBrightness')); },
@@ -103,6 +106,7 @@ export const PanelEditorStore: React.FC<{ children: React.ReactNode; fallback: R
       settings: extras.settings as EditorData['settings'], patchPolicy: doc.patchPolicy,
       globalBrightness: doc.globalBrightness, projectorBrightness: doc.projectorBrightness,
       isVideoPlaying: session.isVideoPlaying,
+      autoKeyArmed: extras.autoKeyArmed,
     };
   }, [doc, session, extras, ready]);
 

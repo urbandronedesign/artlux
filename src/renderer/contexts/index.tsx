@@ -15,12 +15,9 @@ import {
 import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
-import { DETACHABLE_PANELS } from './detachable';
-import {
-  SurfaceContentPanel, SurfaceTransformPanel, FixturePatchPanel, FixtureMappingPanel, FixtureSegmentsPanel,
-  FixtureOutputPanel, FixtureRoutingPanel, FixtureLayout3DPanel,
-  FixtureProfilePanel, FixtureChannelsPanel, FixturePositionPanel,
-} from './panels/inspector';
+import { DETACHABLE_PANELS, detachablePanel } from './detachable';
+// Content is in its own file: it reaches plugin content sources and the cameras (see the file).
+import { SurfaceContentPanel } from './panels/surfaceContent';
 import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
@@ -64,7 +61,7 @@ export function registerCoreWorkspace(): void {
 
   // ── Browser panels ─────────────────────────────────────────────────────────────────────────
   // The four that may also open in their own window are declared once, in ./detachable (E5/W5).
-  for (const p of DETACHABLE_PANELS) panelRegistry.register(p);
+  for (const p of DETACHABLE_PANELS) if (p.mount === 'browser') panelRegistry.register(p);
   // Browser-mounted flavours for contexts whose left column is a monitor rather than an outliner.
   panelRegistry.register({ id: 'core.browser.programPreview', mount: 'browser', title: 'Program', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
   panelRegistry.register({ id: 'core.browser.timing', mount: 'browser', title: 'Timing', icon: <Timer size={12} />, Component: TimingPanel, HeaderActions: TimingHeaderActions });
@@ -74,7 +71,7 @@ export function registerCoreWorkspace(): void {
 
   // ── Parameter panels ───────────────────────────────────────────────────────────────────────
   panelRegistry.register({ id: 'core.inspector.surface.content', mount: 'inspector', title: 'Content', icon: <Layers size={12} />, appliesTo: ['surface'], Component: SurfaceContentPanel });
-  panelRegistry.register({ id: 'core.inspector.surface.transform', mount: 'inspector', title: 'Transform', icon: <Box size={12} />, appliesTo: ['surface'], Component: SurfaceTransformPanel });
+  panelRegistry.register(detachablePanel('core.inspector.surface.transform'));
   // The DMX profile comes FIRST in the fixture column: it is the light's identity, and it decides
   // what every section below it means.
   //
@@ -84,7 +81,7 @@ export function registerCoreWorkspace(): void {
   // strip in place: ledCount pinned to 1, the surface link dropped, the whole rig repatched around the
   // new footprint. A section that destroys the thing it is describing is not a section. The kind is now
   // chosen where the fixture is CREATED (Library ▸ Light Fixtures vs Add Fixture / LED Templates).
-  panelRegistry.register({ id: 'core.inspector.fixture.profile', mount: 'inspector', title: 'DMX Profile', icon: <Lightbulb size={12} />, appliesTo: ['fixture.light'], Component: FixtureProfilePanel });
+  panelRegistry.register(detachablePanel('core.inspector.fixture.profile'));
   // ── EVERY FIXTURE SECTION DECLARES ITS KIND ───────────────────────────────────────────────
   // An LED strip and a moving head are two different devices, and this is where the shell is told
   // so. Before this, exactly ONE of these gated on kind, so selecting a moving head offered you
@@ -93,17 +90,17 @@ export function registerCoreWorkspace(): void {
   //
   // `fixture` (both kinds) is now only: patch/routing — every fixture is on a wire; arrange —
   // rig-building is kind-agnostic. Everything else names one kind, `profile` included.
-  panelRegistry.register({ id: 'core.inspector.fixture.channels', mount: 'inspector', title: 'Channels', icon: <SlidersHorizontal size={12} />, appliesTo: ['fixture.light'], Component: FixtureChannelsPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.patch', mount: 'inspector', title: 'Patch', icon: <Hash size={12} />, appliesTo: ['fixture'], Component: FixturePatchPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.mapping', mount: 'inspector', title: 'Mapping', icon: <Grid3x3 size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureMappingPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.segments', mount: 'inspector', title: 'Segments', icon: <Cable size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureSegmentsPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.output', mount: 'inspector', title: '2D / Output', icon: <Grid3x3 size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureOutputPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.routing', mount: 'inspector', title: 'Routing', icon: <Network size={12} />, appliesTo: ['fixture'], Component: FixtureRoutingPanel });
+  panelRegistry.register(detachablePanel('core.inspector.fixture.channels'));
+  panelRegistry.register(detachablePanel('core.inspector.fixture.patch'));
+  panelRegistry.register(detachablePanel('core.inspector.fixture.mapping'));
+  panelRegistry.register(detachablePanel('core.inspector.fixture.segments'));
+  panelRegistry.register(detachablePanel('core.inspector.fixture.output'));
+  panelRegistry.register(detachablePanel('core.inspector.fixture.routing'));
   // Pixel-only: it authors LED spacing and arc sweep for a RUN of LEDs, which a one-emitter head
   // does not have. A light gets `position` instead — the same numbers without the layout half, so it
   // is not left reachable only by dragging the gizmo.
-  panelRegistry.register({ id: 'core.inspector.fixture.layout3d', mount: 'inspector', title: '3D Layout', icon: <Box size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureLayout3DPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.position', mount: 'inspector', title: 'Position', icon: <Move3d size={12} />, appliesTo: ['fixture.light'], Component: FixturePositionPanel });
+  panelRegistry.register(detachablePanel('core.inspector.fixture.layout3d'));
+  panelRegistry.register(detachablePanel('core.inspector.fixture.position'));
   panelRegistry.register({ id: 'core.inspector.model.transform', mount: 'inspector', title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel });
   // Rig-building for a multi-selection. Lives in the fixture column so it sits beside the 3D layout
   // it rearranges.

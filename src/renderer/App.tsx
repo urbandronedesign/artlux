@@ -5338,6 +5338,8 @@ const App: React.FC = () => {
     return `${pixel ? 'p' : ''}${light ? 'l' : ''}` as SelectedKinds;
   }, [fixtures, selectedFixtureId, selectedFixtureIds]);
 
+  // The auto-key arm, as editor data (panels read it through the store; see EditorData.autoKeyArmed).
+  const autoKeyArmed = React.useSyncExternalStore(autoKey.subscribe, autoKey.isArmed, autoKey.isArmed);
   const editorSelection = useMemo(
     () => buildSelection(selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, selectedFixtureKinds),
     [selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, selectedFixtureKinds]);
@@ -5361,8 +5363,8 @@ const App: React.FC = () => {
       return () => setLiveActionRunner(null);
   }, []);
   useEffect(() => {
-      publishEditorExtras({ fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds });
-  }, [fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds]);
+      publishEditorExtras({ fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds, autoKeyArmed });
+  }, [fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds, autoKeyArmed]);
 
   // MEMOIZED ON ITS FIELDS, NOT REBUILT PER RENDER — this is load-bearing, not tidiness.
   //
@@ -5379,14 +5381,14 @@ const App: React.FC = () => {
     projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
     assets, currentProjectPath, projectRefs,
     timeline: activeTimeline, globalTimeline: timeline, scenes, cueBanks, stateMachine, activeSceneId,
-    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying,
+    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed,
   }), [
     surfaces, fixtures, groups, controllers, templates, fixtureProfiles,
     selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, editorSelection,
     projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
     assets, currentProjectPath, projectRefs,
     activeTimeline, timeline, scenes, cueBanks, stateMachine, activeSceneId,
-    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying,
+    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed,
   ]);
 
   // ── Stable props for the 2D stage ─────────────────────────────────────────────────────────────
@@ -5512,9 +5514,13 @@ const App: React.FC = () => {
     collectAssets: handleCollectAssets,
     setMasterBrightness: handleMasterBrightness,
     pushMasterBrightness: (v) => livePreview.setBrightness(v),
+    pushFixtureChannels: (writes) => { for (const w of writes) livePreview.setFixtureChannel(w.fixtureId, w.key, w.value); },
+    releaseFixtureChannels: (writes) => { for (const w of writes) livePreview.releaseFixtureChannel(w.fixtureId, w.key); },
+    setAutoKeyArmed: (v) => autoKey.setArmed(v),
     setProjectorBrightness,
     pushProjectorBrightness: (v) => pushProjectorBrightnessRef.current(v),
     setVideoPlaying: setIsVideoPlaying,
+    togglePlay: () => setIsVideoPlaying((p) => !p),
     updateSettings,
     updatePatchPolicy: (p) => setPatchPolicy(prev => ({ ...prev, ...p })),
     setStateMachine,

@@ -7,7 +7,6 @@ import { AlertTriangle, RefreshCw, Circle, CircleDot, RectangleHorizontal, Recta
 import { ASPECT_PRESETS, hasOrientation, isLocked, reshape, sizeKeeping } from '../../services/surfaceAspect';
 import { NumberField } from '../../components/ui/NumberField';
 import { VectorField } from '../../components/ui/VectorField';
-import { ContentEditor } from '../../components/ContentEditor';
 import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
 import { Button, Field, Segmented, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
@@ -15,8 +14,6 @@ import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveDest, resolveMode } from '../../services/addressing';
 import { isLight, isPixel, profileOf } from '../../services/fixtureKind';
 import { channelValue, matchChannel, modeChannels, modeOf, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
-import { livePreview } from '../../services/livePreview';
-import * as autoKey from '../../services/autoKey';
 import { effectivePosObj, effectiveRotObj, effectiveLayout, effectiveScale3 } from '../../services/led3dDefaults';
 import { useEditorPick, useEditorActions } from '../../state/EditorStore';
 
@@ -175,7 +172,9 @@ export const FixtureChannelsPanel: React.FC = () => {
   // whose channels are on screen; the rest follow by role.
   // The arm, read from the service rather than held here: the timeline shows the same state, and two
   // booleans for one mode drift the first time a third surface wants it.
-  const armed = React.useSyncExternalStore(autoKey.subscribe, autoKey.isArmed, autoKey.isArmed);
+  // An editor field + action rather than the autoKey service itself (E5/W5): in a panel window the
+  // service is that window's own, so arming there armed nothing the editor would read.
+  const { autoKeyArmed: armed } = useEditorPick('autoKeyArmed');
 
   const targets: Fixture[] = [f, ...selectedFixtureIds
     .filter((id) => id !== f.id)
@@ -226,12 +225,14 @@ export const FixtureChannelsPanel: React.FC = () => {
     if (armed) a.writeAutomationKeys(writes.map((w) => ({ path: `fixtures.${w.fixture.id}.dmx.${w.key}`, value: w.v })));
     // Hand the live layer back to the document. It keeps driving until the commit lands, so there is
     // no frame in which the rig snaps to the old value — see services/livePreview.
-    for (const w of writes) livePreview.releaseFixtureChannel(w.fixture.id, w.key);
+    a.releaseFixtureChannels(writes.map((w) => ({ fixtureId: w.fixture.id, key: w.key })));
   };
 
   /** A fader TICK. Render-free by construction: nothing here touches React or the undo stack. */
   const live = (channel: ProfileChannel, v: number) => {
-    for (const w of fanOut(channel, v)) livePreview.setFixtureChannel(w.fixture.id, w.key, w.v);
+    // An action, not services/livePreview directly, so a fader in a panel window drives the EDITOR's
+    // live layer (the editor's own panel calls the same action, which is that same livePreview call).
+    a.pushFixtureChannels(fanOut(channel, v).map((w) => ({ fixtureId: w.fixture.id, key: w.key, value: w.v })));
   };
 
   return (
@@ -241,7 +242,7 @@ export const FixtureChannelsPanel: React.FC = () => {
           hidden in another panel is one an operator discovers by finding keys they did not mean to
           write. It says what it does in full, because "auto-key" alone tells nobody. */}
       <button
-        onClick={() => autoKey.toggle()}
+        onClick={() => a.setAutoKeyArmed(!armed)}
         title={armed
           ? 'Armed — releasing a fader writes a keyframe at the playhead, on every selected light. Click to stop.'
           : 'Off — moving a fader changes the fixture but records nothing. Click to arm.'}
@@ -297,24 +298,6 @@ export const FixtureChannelsPanel: React.FC = () => {
         </div>
       )}
     </>
-  );
-};
-
-// ── Surface ▸ Content ───────────────────────────────────────────────────────────────────────
-export const SurfaceContentPanel: React.FC = () => {
-  const { surfaces, timeline } = useEditorPick('surfaces', 'timeline');
-  const a = useEditorActions();
-  const surface = useSelectedSurface();
-  if (!surface) return null;
-  const setContent = (patch: Partial<SurfaceContent>) =>
-    a.updateSurface(surface.id, { content: { ...surface.content, ...patch } });
-  const setContentType = (type: SurfaceContent['type']) =>
-    a.updateSurface(surface.id, { content: { type } });
-  return (
-    <ContentEditor
-      content={surface.content} onChange={setContent} onTypeChange={setContentType}
-      layers={timeline.layers} surfaces={surfaces} selfId={surface.id}
-    />
   );
 };
 

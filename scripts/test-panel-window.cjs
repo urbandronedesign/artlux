@@ -15,6 +15,10 @@
 //      on release — in the editor's document, the host's and the panel's.
 //   6. A panel window that CRASHES mid-drag has its drag released by the editor (main's 'drop' notice
 //      from a real second window — the path W4 could only simulate).
+//   8. A PARAMETER SECTION in a window: a light's Channels fader holds the channel live in the editor
+//      while dragged and commits on release; a section that does not apply says what to select.
+//   9. Keys in a panel window: Ctrl+Z / Ctrl+Shift+Z undo and redo in the editor, Space plays and
+//      pauses its transport, Ctrl+S saves the project.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -36,6 +40,9 @@ function restorePrefs() {
 const ROOT = path.resolve(__dirname, '..');
 const CDP_PORT = process.env.ARTLUX_CDP_PORT || '9388';
 const KEEP = process.argv.includes('--keep');
+// `ARTLUX_NO_SHOW_HOST=1 node scripts/test-panel-window.cjs` runs ONE claim instead: with the Show Host
+// off, a panel window says it cannot show the project (instead of "Connecting…" forever).
+const NOHOST = process.env.ARTLUX_NO_SHOW_HOST === '1';
 const WORK = path.join(os.tmpdir(), 'artlux-panel-window-test');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const get = (u) => new Promise((res, rej) => {
@@ -54,7 +61,11 @@ function buildProject() {
   fs.writeFileSync(file, JSON.stringify({
     version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
     surfaces: [{ id: 'sf_wall', name: 'Wall 1', x: 0.05, y: 0.05, width: 0.9, height: 0.9, rotation: 0, zIndex: 0, content: { type: 'NONE' } }],
-    fixtures: [strip('fx_a', 'Strip Alpha', 0.2, 1), strip('fx_b', 'Strip Bravo', 0.4, 91)],
+    fixtures: [strip('fx_a', 'Strip Alpha', 0.2, 1), strip('fx_b', 'Strip Bravo', 0.4, 91),
+      // A LIGHT (step 8): a bundled profile, its Channels section is the faders.
+      { id: 'fx_wash', name: 'Wash Q4', x: 0, y: 0, width: 0.02, height: 0.02, rotation: 0, universe: 0, startAddress: 300, ledCount: 1, reverse: false, colorData: [],
+        profileId: 'american-dj/inno-pocket-beam-q4', profileMode: '13ch', controllerId: 'ctl', position3D: { x: 0, y: 4, z: 0 },
+        dmx: { 'shutter-strobe': 12 / 255, dimmer: 1, pan: 0.5, tilt: 0.5, red: 1, green: 0, blue: 0, white: 0 } }],
     controllers: [{ id: 'ctl', name: 'Main', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, startUniverse: 0 }],
     globalBrightness: 1, groups: [], scenes: [], cueBanks: [],
     scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false },
@@ -108,13 +119,26 @@ const until = async (fn, ms = 8000, step = 200) => {
     }
     if (!ed) throw new Error('no editor page');
     const E = (fn, ...a) => ed.evaluate(fn, ...a);
-    for (let i = 0; i < 90; i++) { if (await E(() => document.querySelectorAll('button').length > 3 && !!window.__showHost && window.__showHost.connected()).catch(() => false)) break; await sleep(1000); }
+    if (NOHOST) await ed.evaluateOnNewDocument(() => { window.__nohostRun = true; }).catch(() => {});
+    if (NOHOST) await E(() => { window.__nohostRun = true; }).catch(() => {});
+    for (let i = 0; i < 90; i++) { if (await E(() => document.querySelectorAll('button').length > 3 && !!window.__showHost && (window.__nohostRun || window.__showHost.connected())).catch(() => false)) break; await sleep(1000); }
     await sleep(2500);
     // The Map workbench docks the Fixtures outliner in the editor too (step 4 clicks a row there).
     await E(() => { const b = [...document.querySelectorAll('[role="tablist"] button')].find((x) => (x.textContent || '').trim() === 'Map'); if (b) b.click(); });
     await sleep(1200);
     const edNames = () => E(() => window.__showHost.get('doc', 'fixtures').map((f) => f.name));
     if (!(await edNames()).includes('Strip Alpha')) throw new Error('the project did not load in the editor');
+
+    if (NOHOST) {
+      console.log('\n0. with no Show Host, a panel window says so');
+      await E(() => window.artlux.openPanelWindow('core.browser.fixtures'));
+      const t = await browser.waitForTarget((x) => x.url().includes('panel.html?panel='), { timeout: 20000 });
+      const p = await t.page();
+      await sleep(10000);   // past the 8 s grace period
+      const txt = await p.evaluate(() => document.body.innerText);
+      note(/cannot show the project right now/.test(txt) && /Show Host/.test(txt), 'the window explains instead of waiting forever', txt.replace(/\s+/g, ' ').slice(0, 160));
+      throw Object.assign(new Error('done'), { done: true });
+    }
 
     const openPanel = async (id, viaHeader) => {
       if (viaHeader) {
@@ -218,6 +242,95 @@ const until = async (fn, ms = 8000, step = 200) => {
     note(heldBefore === 1 && !!released, 'the editor dropped the client and put the master back to the committed value',
       `held before ${heldBefore}; live now ${await live()} (committed 0.4)`);
 
+    console.log('\n8. a parameter section in its own window: a light\'s Channels faders drive the editor live');
+    await E(() => {
+      const leaf = [...document.querySelectorAll('div[role="button"] *')].find((e) => e.children.length === 0 && (e.textContent || '').trim() === 'Wash Q4');
+      const row = leaf && leaf.closest('div[role="button"]');
+      if (row) row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
+    await until(() => E(() => window.__showHost.get('session', 'selectedFixtureId') === 'fx_wash'));
+    const pc = await openPanel('core.inspector.fixture.channels');
+    const C = (fn, ...a) => pc.evaluate(fn, ...a);
+    const hasDimmer = await until(() => C(() => [...document.querySelectorAll('label')].some((l) => /^dimmer$/i.test((l.textContent || '').trim()) && l.htmlFor)), 10000);
+    note(!!hasDimmer, 'the Channels window shows the selected light\'s faders', (await C(() => document.body.innerText)).split('\n').slice(0, 6).join(' | '));
+    const dim = () => E(() => (window.__showHost.get('doc', 'fixtures').find((f) => f.id === 'fx_wash') || {}).dmx?.dimmer);
+    const dim0 = await dim();
+    const fader = (frac, release) => C((fr, rel) => {
+      const lab = [...document.querySelectorAll('label')].find((l) => /^dimmer$/i.test((l.textContent || '').trim()) && l.htmlFor);
+      const r = lab && document.getElementById(lab.htmlFor);
+      if (!r) return null;
+      const min = Number(r.min || 0), max = Number(r.max || 1);
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(r, String(min + (max - min) * fr));
+      r.dispatchEvent(new Event('input', { bubbles: true }));
+      if (rel) r.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      return true;
+    }, frac, release);
+    await fader(0.25, false);
+    const heldKeys = () => E(() => window.__liveBroker.clients().flatMap((c) => c.held).map((k) => k.split('\u0000').join('/')));
+    const held = await until(async () => { const h = await heldKeys(); return h.includes('fixtureChannel/fx_wash/dimmer') ? h : null; }, 3000);
+    note(!!held && (await dim()) === dim0, 'while dragged: the editor holds the channel live, the document is untouched', `held ${JSON.stringify(held)}, document dimmer ${await dim()}`);
+    await fader(0.25, true);
+    const committedDim = await until(async () => { const d = await dim(); return d !== dim0 && Math.abs(d - 0.25) < 0.02 ? d : null; }, 4000);
+    const unheld = await until(async () => ((await heldKeys()).length === 0 ? 1 : null), 3000);
+    note(!!committedDim && !!unheld, 'on release it is committed and the live hold is released', `document dimmer ${dim0} → ${await dim()}`);
+    // Auto-key from the window: the arm is the EDITOR's (its button text comes back from the editor), and
+    // a fader release then lands a keyframe on the editor's timeline.
+    const arm = (want) => C((w) => {
+      const b = [...document.querySelectorAll('button')].find((x) => /Record fader moves as keyframes|Recording — a fader writes a keyframe/.test(x.textContent || ''));
+      if (!b) return null;
+      const armed = /Recording/.test(b.textContent || '');
+      if (armed !== w) b.click();
+      return true;
+    }, want);
+    await arm(true);
+    const armedBack = await until(() => C(() => /Recording — a fader writes a keyframe/.test(document.body.innerText)), 4000);
+    await fader(0.6, false);
+    await fader(0.6, true);
+    const laneKey = await until(() => E(() => {
+      const lanes = window.__showHost.get('doc', 'timeline').automation || [];
+      const lane = lanes.find((l) => l.targetPath === 'fixtures.fx_wash.dmx.dimmer');
+      return lane && lane.keyframes && lane.keyframes.length ? lane.keyframes.length : null;
+    }), 4000);
+    await arm(false);
+    const disarmed = await until(() => C(() => /Record fader moves as keyframes/.test(document.body.innerText)), 4000);
+    note(!!armedBack && !!laneKey && !!disarmed, 'arming auto-key in the window arms the editor, and a release keys its timeline',
+      `armed ${!!armedBack}; keys on fixtures.fx_wash.dmx.dimmer: ${laneKey}; disarmed ${!!disarmed}`);
+    const pt = await openPanel('core.inspector.surface.transform');
+    const tText = await pt.evaluate(() => document.body.innerText);
+    note(/Select a surface to see Transform/.test(tText), 'a section that does not apply to the selection says what to select', tText.trim().split('\n').pop());
+    await pt.evaluate(() => window.close());
+
+    console.log('\n9. keys in a panel window do what they do in the editor');
+    const key = async (combo) => {
+      const parts = combo.split('+');
+      const k = parts.pop();
+      for (const m of parts) await pc.keyboard.down(m);
+      await pc.keyboard.press(k);
+      for (const m of parts.reverse()) await pc.keyboard.up(m);
+    };
+    await C(() => document.body.focus());
+    await key('Control+z');
+    // The last edit is the auto-keyed release to 0.6 (fixtures AND its key, one undo step): undo lands on 0.25.
+    const undone = await until(async () => (Math.abs((await dim()) - 0.25) < 0.02 ? 1 : null), 4000);
+    note(!!undone, 'Ctrl+Z in the window undoes in the editor', `dimmer ${await dim()} (0.25 before the last release)`);
+    await key('Control+Shift+Z');
+    const redone = await until(async () => (Math.abs((await dim()) - 0.6) < 0.02 ? 1 : null), 4000);
+    note(!!redone, 'Ctrl+Shift+Z redoes', `dimmer ${await dim()}`);
+    const playing0 = await E(() => window.__showHost.get('session', 'isVideoPlaying'));
+    await key('Space');
+    const flipped = await until(async () => ((await E(() => window.__showHost.get('session', 'isVideoPlaying'))) !== playing0 ? 1 : null), 3000);
+    await key('Space');
+    const back = await until(async () => ((await E(() => window.__showHost.get('session', 'isVideoPlaying'))) === playing0 ? 1 : null), 3000);
+    note(!!flipped && !!back, 'Space plays / pauses the editor\'s transport', `isVideoPlaying ${playing0} → ${!playing0} → ${playing0}`);
+    const mtime0 = fs.statSync(project).mtimeMs;
+    await key('Control+s');
+    const saved1 = await until(async () => (fs.statSync(project).mtimeMs > mtime0 ? 1 : null), 6000);
+    const onDisk = JSON.parse(fs.readFileSync(project, 'utf8'));
+    const diskDim = (onDisk.fixtures.find((f) => f.id === 'fx_wash') || {}).dmx?.dimmer;
+    note(!!saved1 && Math.abs(diskDim - 0.6) < 0.02, 'Ctrl+S in the window saves the project', `file rewritten: ${!!saved1}; dimmer on disk ${diskDim}`);
+    await pc.evaluate(() => window.close());
+    await sleep(800);
+
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));
     note(['core.browser.fixtures', 'core.browser.globals'].every((id) => (readPrefs().openPanelWindows || []).includes(id)),
@@ -260,8 +373,10 @@ const until = async (fn, ms = 8000, step = 200) => {
     const inside = (b) => b.x >= b.ax && b.y >= b.ay && b.x + b.w <= b.ax + b.aw && b.y + b.h <= b.ay + b.ah;
     note(!!bg && inside(bg), 'a window remembered off every screen comes back ON one', JSON.stringify(bg));
   } catch (e) {
-    failures++;
-    console.log(`\n\x1b[31mABORTED\x1b[0m ${e.message}`);
+    if (!e.done) {
+      failures++;
+      console.log(`\n\x1b[31mABORTED\x1b[0m ${e.message}`);
+    }
   } finally {
     try { await browser?.disconnect(); } catch { /* gone */ }
     if (!KEEP) await stop(child);
