@@ -11,7 +11,7 @@ import { STARTERS } from './starters';
 import { UV_CHECKER_ID, UV_CHECKER_RES, type UvCheckerSize } from './uvChecker';
 import { useLiveValue } from '@artlux/sdk/renderer';
 import { RENDER_HEIGHTS, DEFAULT_HEIGHT } from './shaderDefaults';
-import { inputsOf, headerProblems } from './shaderParams';
+import { inputsOf, headerProblems } from './shaderInputs';
 import { liveView } from './uiLink';
 
 // Both answers belong to the editor's GL context (the compile cache, the GPU's name), which only the

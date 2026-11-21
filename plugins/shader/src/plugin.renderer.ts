@@ -16,10 +16,7 @@ import { sourceOf } from './shaderSource';
 import * as shaderDrawable from './shaderDrawable';
 import { isAvailable } from './shaderContext';
 import { maxRenderHeight, rendererDescription } from './shaderContext';
-import { ShaderEditorPanel } from './ShaderEditorPanel';
-import { ShaderNodePanel } from './ShaderNodePanel';
-import { shaderAutomation, setSurfaces } from './shaderParams';
-import { ShaderLibraryPanel } from './ShaderLibraryPanel';
+import { shaderAutomation, setSurfaces, resolve as resolveParams } from './shaderParams';
 import * as libraryClient from './libraryClient';
 import * as audioTap from './audioTap';
 import { ShaderSettings, readCfg } from './ShaderSettings';
@@ -122,20 +119,39 @@ export const plugin: RendererPlugin = {
     // keep when the thing that compiles is not there. Shaders still RENDER: the outputs are the point.
     if (new URLSearchParams(location.search).get('broadcast') === '1') return;
 
-    // The editor: a DOCK TAB on the mapping workbench, beside the media library and the monitor —
-    // not a workspace context of its own.
-    ctx.panels.register({ id: 'shader-editor', mount: 'dock', title: 'Shader', Component: ShaderEditorPanel });
-    ctx.panels.register({ id: 'shader-nodes', mount: 'dock', title: 'Shader Nodes', Component: ShaderNodePanel });
-
-    // The library goes in the BROWSER column, beside Surfaces and the Media Library — it is a place you
-    // pick content FROM, which is what that column is for. The editor is a dock tab because it is a
-    // place you work IN.
-    ctx.panels.register({ id: 'shader-library', mount: 'browser', title: 'Effects', grow: true, Component: ShaderLibraryPanel });
+    // The editor and the node editor: DOCK TABS on the mapping workbench, beside the media library and
+    // the monitor. The library goes in the BROWSER column, beside Surfaces and the Media Library — a
+    // place you pick content FROM. The panels themselves are the UI half's (ui.ts — they may open in a
+    // window of their own); this places them, and answers what they ask of THIS window below.
     ctx.contexts.extend('mapping', { dock: ['shader-editor', 'shader-nodes'], browser: ['shader-library'] });
 
     // The library lives in files, and only main has a filesystem.
     libraryClient.setIpc(ctx.ipc);
     void libraryClient.refresh();
+
+    // WHAT THE PANELS ASK OF THE EDITOR (libraryView.ts), wherever they are drawn. Only here, past the
+    // broadcast gate: a show launch has no authoring, and nothing in it compiles on request.
+    //   · the compile is the drawable's own (cached) one, answered as a verdict — the program stays here;
+    //   · the libraries are this window's one store, so a save in a panel window is the list the editor
+    //     shows, and its thumbnail is rendered on this GL context;
+    //   · a save names the SURFACE, and its content and live parameter values are read here, now.
+    ctx.live.call('shader.check', (source) => { const r = shaderDrawable.compile(String(source ?? '')); return { ok: r.ok, log: r.log }; });
+    ctx.live.call('shader.rearm', (id) => shaderDrawable.rearmKey(String(id)));
+    ctx.live.stream('shader.library', { watch: (onNew) => libraryClient.subscribe(onNew), read: () => libraryClient.all() });
+    // The subpatch list is read from disk the first time somebody shows it (it used to be on panel mount).
+    ctx.live.stream('shader.subpatches', {
+      watch: (onNew) => { const off = libraryClient.subscribeSubpatches(onNew); void libraryClient.refreshSubpatches(); return off; },
+      read: () => libraryClient.allSubpatches(),
+    });
+    ctx.live.call('shader.librarySave', (name, surfaceId) => {
+      const s = ctx.host.surfaces.get(String(surfaceId)) as Surface | undefined;
+      if (!s || (s.content as SurfaceContent).type !== 'SHADER') return { ok: false, name: String(name), error: 'that surface has no shader' };
+      const c = s.content as SurfaceContent;
+      return libraryClient.saveFromContent(String(name), c, resolveParams(s.id, c));
+    });
+    ctx.live.call('shader.libraryRemove', (name) => libraryClient.remove(String(name)));
+    ctx.live.call('shader.libraryReveal', () => libraryClient.reveal());
+    ctx.live.call('shader.subpatchSave', (name, def) => libraryClient.saveSubpatch(String(name), def));
 
     // Every declared input becomes a timeline lane, an OSC address and a state-machine value at once,
     // because the host resolves an automation path by its HEAD and hands the rest to whoever owns it —

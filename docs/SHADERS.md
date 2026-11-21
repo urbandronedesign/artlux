@@ -57,7 +57,9 @@ Effects library first.
 ## Write your own
 
 Open the **Shader** tab in the dock (Mapping workbench) with a shader surface selected. It shows that
-surface's code.
+surface's code. It can also open in a window of its own, on another screen (**Open in new window** in
+its header), and so can **Shader Nodes** and **Effects**: they work the same there, and compile on the
+editor's graphics card.
 
 **Press `Ctrl+Enter` to compile.** Nothing compiles while you type — deliberately, because a shader
 that is half-written can hang the graphics card, and an editor that built every keystroke would

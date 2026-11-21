@@ -27,11 +27,10 @@ import { Button, Select } from '@/components/ui'; // host UI primitives (pure pr
 import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
 import { NODE_LIST, NODES, type NodeDef, type PortType } from './nodeCatalog';
 import { generateGlsl, canConnect, emptyGraph, type ShaderGraph } from './nodeGraph';
-import { compile } from './shaderDrawable';
 import { layoutGraph, type NodeSize } from './nodeLayout';
 import { suggestFor, type LooseEnd, type Suggestion } from './nodeSuggest';
 import { EXAMPLES } from './nodeExamples';
-import * as library from './libraryClient';
+import * as library from './libraryView';
 import {
   boundaryDefs, collapse, defsFor, expand, foldInto, isBoundary, isSubpatchType, viewOf,
   type SubpatchDef,
@@ -531,12 +530,8 @@ export const ShaderNodePanel: React.FC = () => {
    */
   const [path, setPath] = useState<string[]>([]);
   /** Subpatches saved on this machine — a palette to pick from, never read while a show runs. */
-  const [saved, setSaved] = useState<library.StoredSubpatch[]>(() => library.allSubpatches());
-  useEffect(() => {
-    const off = library.subscribeSubpatches(() => setSaved(library.allSubpatches()));
-    void library.refreshSubpatches();
-    return off;
-  }, []);
+  // The editor's list (libraryView.ts): this panel may be in a window of its own.
+  const saved = library.useSubpatches();
 
   const graph = useMemo(() => viewOf(root, path), [root, path]);
   /** Write an edited view back where it came from. Every mutation below goes through this. */
@@ -631,10 +626,19 @@ export const ShaderNodePanel: React.FC = () => {
 
   /**
    * Generate, compile, and write to the surface — but only when the result actually builds.
-   * Returns whether it did, so a caller with something of its own to report (an example's lesson)
+   * Resolves to whether it did, so a caller with something of its own to report (an example's lesson)
    * can hold its tongue when the news is bad.
+   *
+   * THE COMPILE IS THE EDITOR'S (libraryView.checkShader — its GL context; this panel may be in a
+   * window of its own). The graph on screen updates at once; the write waits for the verdict, uses the
+   * surface as it is THEN, and a verdict older than one already written is dropped — so a fast run of
+   * slider moves lands in order, the last one last.
    */
-  const commit = useCallback((next: ShaderGraph): boolean => {
+  const surfaceRef = useRef(surface);
+  surfaceRef.current = surface;
+  const commitSeq = useRef(0);
+  const landedSeq = useRef(0);
+  const commit = useCallback(async (next: ShaderGraph): Promise<boolean> => {
     setGraph(next);
     // INSIDE A SUBPATCH, WHAT IS COMPILED IS STILL THE WHOLE SURFACE. The view has no Output node of
     // its own and never could: it is a fragment of a shader, not a shader.
@@ -642,12 +646,17 @@ export const ShaderNodePanel: React.FC = () => {
     if (!surfaceId || !surface) return false;
     const gen = generateGlsl(whole);
     if (gen.errors.length) { setStatus({ ok: false, message: gen.errors[0] }); return false; }
-    const built = compile(gen.source);
+    const seq = ++commitSeq.current;
+    const built = await library.checkShader(gen.source);
+    if (seq < landedSeq.current) return built.ok;
+    const now = surfaceRef.current;
+    if (!now || now.id !== surfaceId) return false;
     if (!built.ok) { setStatus({ ok: false, message: built.log.split('\n')[0] || 'the generated shader did not compile' }); return false; }
+    landedSeq.current = seq;
     setStatus({ ok: true, message: `${next.nodes.length} nodes` });
     const json = JSON.stringify(whole);
     wrote.current = json;
-    updateSurface(surfaceId, { content: { ...surface.content, shaderGraph: json, shaderSource: gen.source } });
+    updateSurface(surfaceId, { content: { ...now.content, shaderGraph: json, shaderSource: gen.source } });
     return true;
   }, [surfaceId, surface, updateSurface, root, path, setGraph]);
 
@@ -898,7 +907,7 @@ export const ShaderNodePanel: React.FC = () => {
     // every surface and every later "open" reads from.
     // Say what it teaches ONLY if it actually built. Overwriting the reason a patch failed with a
     // cheerful lesson would hide our own bug behind the operator's confusion.
-    if (commit(JSON.parse(JSON.stringify(ex.graph)) as ShaderGraph)) setStatus({ ok: true, message: ex.teach });
+    void commit(JSON.parse(JSON.stringify(ex.graph)) as ShaderGraph).then((ok) => { if (ok) setStatus({ ok: true, message: ex.teach }); });
     requestAnimationFrame(() => flow.current?.fitView({ duration: 250, maxZoom: 1, padding: 0.2 }));
   }, [graph.nodes.length, commit, confirmDialog]);
 
@@ -927,7 +936,7 @@ export const ShaderNodePanel: React.FC = () => {
       });
       if (!yes) return;
     }
-    if (commit(probe.graph)) {
+    if (await commit(probe.graph)) {
       setStatus({ ok: true, message: `${ids.length} nodes → “${name}”. Rename it in the inspector; it is in the node menu under Subpatch.` });
     }
   }, [graph, commit, confirmDialog]);
@@ -953,7 +962,7 @@ export const ShaderNodePanel: React.FC = () => {
   const expandSelection = useCallback(() => {
     const inst = graph.nodes.find((n) => selectedIds.current.includes(n.id) && isSubpatchType(n.type));
     if (!inst) { setStatus({ ok: false, message: 'select a subpatch node to expand it' }); return; }
-    if (commit(expand(graph, inst.id))) setStatus({ ok: true, message: `expanded “${defs[inst.type]?.label ?? inst.type}”` });
+    void commit(expand(graph, inst.id)).then((ok) => { if (ok) setStatus({ ok: true, message: `expanded “${defs[inst.type]?.label ?? inst.type}”` }); });
   }, [graph, commit, defs]);
 
   /**
@@ -1000,7 +1009,7 @@ export const ShaderNodePanel: React.FC = () => {
       subpatches,
       nodes: [...graph.nodes, { id, type: def.id, x: Math.round(pos.x), y: Math.round(pos.y), params: {}, label: def.name }],
     };
-    if (commit(next)) setStatus({ ok: true, message: `added “${def.name}”` });
+    void commit(next).then((ok) => { if (ok) setStatus({ ok: true, message: `added “${def.name}”` }); });
   }, [graph, root.subpatches, commit]);
 
   /** Rename a subpatch — the definition, so every instance of it in this graph follows. */

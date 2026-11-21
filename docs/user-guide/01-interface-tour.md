@@ -153,9 +153,11 @@ Some panels can leave the editor and open in a window of their own, which you ca
 **Surfaces**, **Fixtures**, **Groups**, **Global Params**, and the parameter sections for a fixture
 (**DMX Profile**, **Channels**, **Patch**, **Mapping**, **Segments**, **2D / Output**, **Routing**,
 **3D Layout**, **Position**) and a surface's **Content** and **Transform**, and the tracking panels:
-**Trigger Zones**, **OSC Monitor**, **Augmenta Monitor** and **Pose Monitor**. A light's **Channels**
-faders on a second screen, next to the rig, is the classic use; **Trigger Zones** on a screen beside the
-sensor, while someone walks the room, is the other.
+**Trigger Zones**, **OSC Monitor**, **Augmenta Monitor** and **Pose Monitor**, and the shader panels:
+**Shader** (the code editor), **Shader Nodes** and **Effects**. A light's **Channels** faders on a second
+screen, next to the rig, is the classic use; **Trigger Zones** on a screen beside the sensor, while
+someone walks the room, is another; the **Shader** code on a screen of its own, with the stage beside
+it, is a third.
 
 - **Open one:** click **Open in new window** (the arrow-out-of-a-box button) in the panel's header, or
   right-click its tab and choose **Open in new window**.
@@ -179,6 +181,9 @@ sensor, while someone walks the room, is the other.
   arriving on the OSC port. The **Pose Monitor** shows the pose tracker's status, speed and people
   count; the **camera picture** itself stays in the editor's Pose Monitor, because the camera is open
   there, and the window says so.
+- **Shader panels in a window** work exactly as docked. **Ctrl+Enter** compiles on the editor's
+  graphics card, so the errors you see are the ones the show would hit, and only a shader that builds
+  is saved. **Effects** saves and applies the same library the editor lists, with the same pictures.
 - **A window is a small workbench of its own.** Its panel is a tab: **+** on the tab strip adds another
   panel to the same window, dragging a tab or **right-click ▸ Split** arranges them side by side, and
   closing the last tab closes the window. Asking for a panel that is already out (from the editor)

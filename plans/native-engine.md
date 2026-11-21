@@ -664,9 +664,23 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > Augmenta monitors seeing UDP sent to the port, the Pose Monitor's status from the editor with no video
 > element, each stream detaching on close); checks mutation-tested 17/17.
 >
+> ✅ **W5f done 2026-11-21 (the shader panels: Shader, Shader Nodes, Effects detach).**
+> - The compile is a live CALL (`shader.check` → `{ok, log}`; the program stays on the editor's GL
+>   context). Both panels' commits became async: the graph/text updates at once, the write waits for the
+>   verdict, uses the surface as it is then, and an older verdict never lands after a newer one.
+> - The libraries are the editor's one store, streamed (`shader.library`, `shader.subpatches`); a save
+>   names the SURFACE (`shader.librarySave`) and the editor reads its content and live parameter values,
+>   so the thumbnail is rendered on the editor's GPU. Pure parts split out: `libraryTypes.ts`,
+>   `shaderInputs.ts` (the Content editor had been importing `shaderParams.ts`, which holds the live
+>   overrides — found by the new by-path ban, harmless today, banned now).
+> - New check: every live name a UI half asks for is one its runtime publishes.
+>
+> Proof: `test-panel-window` step 14 (a broken shader typed in a window shows the editor GL context's
+> error and writes nothing; a good one is written; a help patch opened in Shader Nodes compiles and
+> lands; Effects saves with a PNG thumbnail, lists it and deletes it by its exact name; the window's
+> subscriptions go with it); checks mutation-tested 11/11.
+>
 > **W5 — what is left:**
-> - **Shader panels** (Shader, Shader Nodes, Effects): they call the GL compile directly and the library
->   client; they need the compile as a live call and the library through main or `live`.
 > - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.

@@ -7870,6 +7870,11 @@ check(
       // audioTap, PoseViz, poseCamera …); a UI half that needs one of them is not a UI half.
       [/^plugins\/[^/]+\/src\/(plugin\.renderer|plugin\.main|index|renderer|main|playback|authoring)\.tsx?$/, "a plugin's activation or barrel"],
       [/^plugins\/[^/]+\/src\/.*(Receiver|Drawable|Engine|Projector|Raster|Store|Manager|Context|Host|Tap|Viz|Camera|Recorder|Playback)\.tsx?$/i, "a plugin's runtime module"],
+      // …and the runtime modules whose names do not say so. Each holds state only the editor fills: the
+      // shader library store + its GL thumbnails, the live parameter overrides, the zone engine and the
+      // people counter. A UI half asks for them through `live` (libraryView.ts, zoneView.ts).
+      [/^plugins\/shader\/src\/(libraryClient|shaderParams)\.ts$/, "the shader runtime's library store or live parameters (use libraryView.ts)"],
+      [/^plugins\/lidar-tracking\/src\/(zones|people|zoneViewSource)\.ts$/, "the zone engine or the people counter (use the zoneView stream)"],
     ];
     const problems = [];
     for (const [re, what] of BANNED) {
@@ -7979,8 +7984,27 @@ check(
         }
       }
     }
-    for (const id of ['osc-monitor', 'zone-editor', 'augmenta-monitor', 'pose-monitor']) {
+    for (const id of ['osc-monitor', 'zone-editor', 'augmenta-monitor', 'pose-monitor', 'shader-editor', 'shader-nodes', 'shader-library']) {
       if (!uiIds.has(id)) problems.push(`the '${id}' panel is no longer registered from a UI half`);
+    }
+    // EVERY LIVE NAME A UI HALF ASKS FOR IS ONE ITS RUNTIME PUBLISHES. A name nobody registered is not an
+    // error anywhere at run time: a subscription waits on its initial value forever, a call is refused
+    // and the panel shows its fallback ("the editor did not answer") — a compile that never compiles.
+    for (const name of pluginDirs) {
+      const dir = path.join(ROOT, 'plugins', name, 'src');
+      const id = (uiOf(name).match(/id: '([^']+)'/) || [])[1];
+      const rtFile = path.join(dir, 'plugin.renderer.ts');
+      if (!id || !fs.existsSync(rtFile)) continue;
+      const rt = fs.readFileSync(rtFile, 'utf8');
+      const published = new Set([...rt.matchAll(/ctx\.live\.(?:stream|call)\('([^']+)'/g)].map((m) => m[1]));
+      const esc = id.replace(/[-]/g, '\\-');
+      const ask = new RegExp(`(?:\\b(?:ask|call|subscribe|peek)\\(|liveView\\(\\), )'(${esc}\\.[A-Za-z]+)'`, 'g');
+      for (const f of fs.readdirSync(dir)) {
+        if (f === 'plugin.renderer.ts' || !/\.tsx?$/.test(f)) continue;
+        for (const m of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(ask)) {
+          if (!published.has(m[1])) problems.push(`plugins/${name}/src/${f} asks the runtime for '${m[1]}', which plugin.renderer.ts never publishes`);
+        }
+      }
     }
     // The panel window resolves its panel from the registry the UI halves filled, and only a detachable one.
     const panel = read('src/renderer/panel.tsx');

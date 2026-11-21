@@ -8,16 +8,12 @@ import type { SurfaceContent } from '@/types';
 import type { PluginIpc } from '@artlux/sdk/renderer';
 import { getProgram, renderToBitmap } from './shaderContext';
 import { sourceOf } from './shaderSource';
+import type { LibraryEntry, StoredSubpatch } from './libraryTypes';
 
-export interface LibraryEntry {
-  name: string;
-  source: string;
-  params: Record<string, number | boolean | number[]>;
-  shaderId?: string;
-  graph?: string;
-  thumbnail: string | null;
-  savedAt: number;
-}
+// RUNTIME ONLY (E5/W5): this store, the IPC and the thumbnails live in the editor. The panels reach it
+// through libraryView.ts, which plugin.renderer.ts answers from here.
+export type { LibraryEntry, StoredSubpatch } from './libraryTypes';
+export { contentPatch } from './libraryTypes';
 
 let ipc: PluginIpc | null = null;
 let entries: LibraryEntry[] = [];
@@ -98,32 +94,10 @@ export async function reveal(): Promise<void> {
   await ipc?.invoke('shader:library:reveal');
 }
 
-/**
- * What applying a library effect writes onto a surface.
- *
- * The TEXT is copied in, not referenced. That is the whole safety property: a project carries its own
- * shaders, so it opens correctly on a venue machine whose userData holds a different library — or no
- * library at all. The cost is the honest one: editing a library entry does not retro-change shows that
- * already used it, which is correct, because a show that worked last night must work tonight.
- */
-export function contentPatch(entry: LibraryEntry): Partial<SurfaceContent> {
-  return {
-    type: 'SHADER',
-    shaderSource: entry.source,
-    shaderParams: entry.params,
-    shaderId: entry.shaderId,
-    // undefined, not omitted: this patch is spread over the existing content, so leaving the key out
-    // would keep the surface's previous graph next to the new effect's code — the node editor would
-    // then show, and on the next edit re-generate, a shader nobody asked for.
-    shaderGraph: entry.graph,
-  };
-}
 
 // ── The subpatch library ─────────────────────────────────────────────────────────────────────────
 // Separate from the effect library above because they are different things: an effect REPLACES a
 // surface's shader, a subpatch is one node you add to a graph you are already building.
-
-export interface StoredSubpatch { name: string; def: unknown; savedAt: number }
 
 let subpatchEntries: StoredSubpatch[] = [];
 const subpatchSubs = new Set<() => void>();

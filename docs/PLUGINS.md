@@ -176,7 +176,15 @@ window is fully generic.
     Examples: `spout.status` / `syphon.status` (the receiver's verdict), `text.fontState` (an imported
     face's load state), `shader.compile` and `shader.gpu` (the editor's GL context),
     `lidar-tracking.zoneView` (occupancy, blobs and people, one frame per frame while a map is on
-    screen), `mediapipe.monitor` (the pose engine's status).
+    screen), `mediapipe.monitor` (the pose engine's status), and the shader panels' `shader.check`
+    (a compile verdict — never the program), `shader.library` / `shader.subpatches` and
+    `shader.librarySave` (named by SURFACE: the editor reads its content and live values itself).
+  - **Every name a UI half asks for must be one its runtime publishes** (`verify:invariants` reads
+    both sides): a name nobody registered fails silently at run time — a subscription that never
+    answers, a compile that never compiles.
+  - **A runtime module whose name does not say "runtime"** (`shaderParams.ts` with its live overrides,
+    `libraryClient.ts`, LiDAR's `zones.ts` / `people.ts`) is banned from the panel window by path. Split
+    the pure part out (`shaderInputs.ts`, `libraryTypes.ts`) rather than import it.
   - **What the host knows travels through `ctx.host`** (`PluginUiHost`: `settings`, `scene3D` read and
     patch, `ui.menuAction`). In the editor it is the host's own services; in a panel window it reads the
     replica and sends every write to the editor (`live/uiHostRemote.ts` → the `host.scene3DPatch` /

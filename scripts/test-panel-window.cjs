@@ -29,6 +29,10 @@
 //      occupancy and blobs live and its edits land in the editor; the OSC and Augmenta monitors see the
 //      wire (main sends OSC to a window that listens) with the editor's settings; the Pose Monitor shows
 //      the editor's engine status and says the picture is in the editor. Each stream detaches on close.
+//  14. THE SHADER PANELS in a window, with the compile and the library the editor's: Ctrl+Enter on a
+//      broken shader shows the editor GL context's error and writes nothing, on a good one writes the
+//      surface; a help patch opened in Shader Nodes compiles (in the editor) and lands; Effects saves
+//      the surface with a thumbnail rendered on the editor's GPU, lists it, and deletes it again.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -612,6 +616,87 @@ const until = async (fn, ms = 8000, step = 200) => {
       `status "${stHere}"; mediapipe.monitor attached in the editor: ${pAttached}; video element here: ${!noVideo}`);
     await Q(() => window.close());
     note(!!(await until(async () => !(await attachedNow()).includes('mediapipe.monitor'), 5000)), "closing it stops the editor's pose status for it");
+
+    console.log('\n14. the shader panels in their own window: the compile and the library are the editor\'s');
+    // Wall 1 becomes a shader surface (the editor's own updateSurface, asked from a window's live client).
+    const surfaceIn = () => E(() => (window.__showHost.get('doc', 'surfaces') || []).find((x) => x.id === 'sf_wall'));
+    const psE = await openPanel('shader-editor');
+    const SE = (fn, ...a) => psE.evaluate(fn, ...a);
+    await SE(() => window.__liveClient.action('updateSurface', ['sf_wall', { content: { type: 'SHADER' } }]));
+    await until(async () => (await surfaceIn())?.content?.type === 'SHADER', 5000);
+    // Driven like an operator: click into the code, go to the end, type, Ctrl+Enter.
+    const docText = () => SE(() => document.querySelector('.cm-content')?.textContent ?? null);
+    const loaded = await until(async () => { const t = await docText(); return t && t.length > 20 ? t : null; }, 8000);
+    note(!!loaded, 'the Shader editor opens in a window with the selected surface\'s code', loaded ? `${loaded.length} chars` : (await SE(() => document.body.innerText.slice(0, 160))));
+    const chord = async (key) => { await psE.keyboard.down('Control'); await psE.keyboard.press(key); await psE.keyboard.up('Control'); };
+    const ctrlEnter = () => chord('Enter');
+    const typeAtEnd = async (text) => { await psE.click('.cm-content'); await chord('End'); await psE.keyboard.press('Enter'); await psE.keyboard.type(text); };
+    const statusLine = () => SE(() => { const t = document.body.innerText; return /compiled — the surface is running this/.test(t) ? 'ok' : (t.match(/ERROR[^\n]*/) || [null])[0]; });
+    if (loaded) {
+      const srcBefore = (await surfaceIn()).content.shaderSource ?? null;
+      await typeAtEnd('this is not glsl;');
+      await ctrlEnter();
+      const err = await until(async () => { const s = await statusLine(); return s && s !== 'ok' ? s : null; }, 8000);
+      const unchanged = ((await surfaceIn()).content.shaderSource ?? null) === srcBefore;
+      note(!!err && unchanged, "a broken shader shows the editor's compile error in the window, and nothing is written", err || '(no error shown)');
+      // Undo the broken line in the editor's own history, then add a harmless one.
+      for (let i = 0; i < 4 && /this is not glsl/.test((await docText()) || ''); i++) await chord('z');
+      await typeAtEnd('// edited in a panel window');
+      await ctrlEnter();
+      const wrote = await until(async () => ((await surfaceIn()).content.shaderSource || '').includes('// edited in a panel window'), 8000);
+      note(!!wrote && (await statusLine()) === 'ok', 'a good one compiles in the editor and is written to the surface');
+    }
+    note(!Object.values(await SE(prints)).some(Boolean), 'the window still runs nothing of its own: no transport, thumbnail cache, broker or three.js (no GL context is the import-graph check)', JSON.stringify(await SE(prints)));
+    await SE(() => window.close());
+
+    // SHADER NODES: a help patch, compiled by the editor, lands on the surface.
+    const psN = await openPanel('shader-nodes');
+    const SN = (fn, ...a) => psN.evaluate(fn, ...a);
+    await until(() => SN(() => !!document.querySelector('.react-flow')), 8000);
+    await SN(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Examples'); if (b) b.click(); });
+    await sleep(300);
+    const picked = await SN(() => { const b = [...document.querySelectorAll('button')].find((x) => /^1 · Coordinates are colour/.test((x.textContent || '').trim())); if (b) b.click(); return !!b; });
+    // A non-empty graph asks first (the surface now has code): answer in the window's own dialog.
+    await sleep(500);
+    await SN(() => { const b = [...document.querySelectorAll('[role="dialog"] button, [role="alertdialog"] button')].find((x) => /^(Replace|Open|Continue|OK)$/i.test((x.textContent || '').trim())); if (b) b.click(); });
+    const graphLanded = await until(async () => { const g = (await surfaceIn()).content.shaderGraph; return g && /uv/i.test(g) ? 1 : null; }, 8000);
+    const taught = await until(() => SN(() => /Every shader starts with UV/.test(document.body.innerText)), 5000);
+    note(picked && !!graphLanded && !!taught, "a help patch opened in Shader Nodes in a window compiles in the editor and lands on the surface",
+      `graph on the surface: ${!!graphLanded}; lesson shown: ${!!taught}`);
+    await SN(() => window.close());
+
+    // EFFECTS: save (thumbnail on the editor's GPU), listed in the window, then deleted — by its exact name.
+    const psL = await openPanel('shader-library');
+    const SL = (fn, ...a) => psL.evaluate(fn, ...a);
+    await SL(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Save current'); if (b) b.click(); });
+    const savedAs = await until(() => SL(() => (document.body.innerText.match(/Saved as “([^”]+)”/) || [null, null])[1]), 10000);
+    const card = savedAs && await until(() => SL((n) => {
+      const label = [...document.querySelectorAll('span[title]')].find((s) => s.getAttribute('title') === n);
+      const img = label && label.closest('.group')?.querySelector('img');
+      return img ? { thumb: (img.getAttribute('src') || '').startsWith('data:image/png') } : null;
+    }, savedAs), 8000);
+    note(!!savedAs && !!card && card.thumb, "Effects in a window saves the surface with a thumbnail from the editor's GPU, and lists it",
+      `saved as ${savedAs}; card ${JSON.stringify(card)}`);
+    if (savedAs) {
+      await SL((n) => {
+        const label = [...document.querySelectorAll('span[title]')].find((s) => s.getAttribute('title') === n);
+        const x = label && label.parentElement.querySelector('button[title="Delete from the library"]');
+        if (x) x.click();
+      }, savedAs);
+      await sleep(400);
+      await SL((n) => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Delete'); if (b) b.click(); }, savedAs);
+      const gone = await until(() => SL((n) => ![...document.querySelectorAll('span[title]')].some((s) => s.getAttribute('title') === n), savedAs), 8000);
+      note(!!gone, '…and deletes it again (the editor\'s library, so this machine\'s library is as it was)', savedAs);
+    }
+    // The WINDOW's subscriptions (the editor's own docked Effects panel reads the same stream locally, so
+    // the stream itself rightly stays attached): the window's client is there while open, gone after.
+    const libClient = () => E(() => window.__liveBroker.clients().find((c) => /shader-library/.test(c.label)) || null);
+    const libOpen = await libClient();
+    await SL(() => window.close());
+    const libGone = await until(async () => !(await libClient()), 5000);
+    note(!!libOpen && libOpen.subs > 0 && !!libGone, "the window reads the editor's library over its own subscriptions, which go with the window",
+      JSON.stringify({ open: libOpen, editorPanelsReading: await E(() => window.__liveBroker.locals()) }));
+    await E(() => {}); // (Wall 1 stays a shader; nothing later depends on its content)
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

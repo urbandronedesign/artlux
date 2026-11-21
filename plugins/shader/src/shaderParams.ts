@@ -58,14 +58,9 @@ export function resolve(key: string, content: SurfaceContent): Map<string, numbe
   return out;
 }
 
-/** Which inputs a surface declares — the inspector's control list. */
-export function inputsOf(content: SurfaceContent): ShaderInput[] {
-  return parseHeader(sourceOf(content)).inputs;
-}
-
-export function headerProblems(content: SurfaceContent): string[] {
-  return parseHeader(sourceOf(content)).problems;
-}
+// The declarations are pure and live in shaderInputs.ts, which the UI half imports instead of this file.
+import { inputsOf } from './shaderInputs';
+export { inputsOf, headerProblems } from './shaderInputs';
 
 /**
  * The automation provider.

@@ -2,27 +2,23 @@
 //
 // An effect written for one show is a building block in the next, and this is where that happens.
 // Cards, because a shader is recognised by its picture and not by its name.
+//
+// The plugin's UI half (E5/W5): it may open in its own window. The list, the save (whose thumbnail is
+// rendered on the editor's GL context) and the delete are the editor's, through libraryView.ts.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useEditorPick, useEditorActions } from '@/state/EditorStore';
 import { useConfirm } from '@/components/ui/feedback'; // never a native dialog — see the invariant
-import * as library from './libraryClient';
-import { resolve as resolveParams } from './shaderParams';
+import * as library from './libraryView';
 
 export const ShaderLibraryPanel: React.FC = () => {
   const { surfaces, selectedSurfaceId } = useEditorPick('surfaces', 'selectedSurfaceId');
   const { updateSurface } = useEditorActions();
-  const [entries, setEntries] = useState(library.all());
+  const entries = library.useLibrary();
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const confirmDialog = useConfirm();
-
-  useEffect(() => {
-    const un = library.subscribe(() => setEntries(library.all()));
-    void library.refresh();
-    return un;
-  }, []);
 
   const surface = surfaces.find((s) => s.id === selectedSurfaceId) ?? null;
   const isShader = surface?.content.type === 'SHADER';
@@ -33,7 +29,7 @@ export const ShaderLibraryPanel: React.FC = () => {
     // is a rename on the folder afterwards, which is one place rather than a dialog every time.
     const name = surface.name?.trim() || 'Untitled effect';
     setBusy(true);
-    const res = await library.saveFromContent(name, surface.content, resolveParams(surface.id, surface.content));
+    const res = await library.saveEffect(name, surface.id);
     setBusy(false);
     setNote(res.ok ? `Saved as “${res.name}”` : `Could not save: ${res.error ?? 'unknown error'}`);
   }, [surface, isShader]);
@@ -57,7 +53,7 @@ export const ShaderLibraryPanel: React.FC = () => {
           value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search effects"
           className="min-w-0 flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-fg-1 text-micro focus:border-accent focus:outline-none"
         />
-        <button onClick={() => void library.reveal()} title="Open the library folder"
+        <button onClick={() => void library.revealLibrary()} title="Open the library folder"
           className="px-1.5 py-0.5 rounded border border-line-1 text-fg-2 text-micro">Folder</button>
         <button onClick={() => void save()} disabled={!isShader || busy}
           title={isShader ? 'Save this surface’s shader as a reusable effect' : 'Select a shader surface first'}
@@ -104,7 +100,7 @@ export const ShaderLibraryPanel: React.FC = () => {
                       confirmLabel: 'Delete',
                       danger: true,
                     });
-                    if (ok) await library.remove(e.name);
+                    if (ok) await library.removeEffect(e.name);
                   })()}
                   title="Delete from the library"
                   className="text-micro text-fg-3 opacity-0 group-hover:opacity-100"

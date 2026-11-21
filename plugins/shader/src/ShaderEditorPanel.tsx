@@ -23,7 +23,7 @@ import { bracketMatching, indentUnit, syntaxHighlighting, defaultHighlightStyle 
 import { cpp } from '@codemirror/lang-cpp';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
 import { useEditorPick, useEditorActions } from '@/state/EditorStore'; // shell store (panels read state, App owns it)
-import { compile, rearmKey } from './shaderDrawable';
+import { checkShader, rearm } from './libraryView';
 import { sourceOf } from './shaderSource';
 import { STARTERS } from './starters';
 import { UNIFORMS } from './wrapper';
@@ -89,11 +89,28 @@ export const ShaderEditorPanel: React.FC = () => {
   // COMPILE ON COMMAND, NEVER ON KEYSTROKE. Compile-as-you-type is not a convenience here: a
   // half-typed `for (;;)` is a driver reset, and an editor that compiles what you have typed SO FAR
   // will eventually find one. Ctrl+Enter is the whole contract.
+  //
+  // The compile is the EDITOR's (its GL context, libraryView.checkShader): this panel may be in a window
+  // of its own, which has none. So the verdict arrives a moment later; the write uses the surface as it
+  // is THEN, and an older verdict never lands after a newer one.
+  const surfaceRef = useRef(surface);
+  surfaceRef.current = surface;
+  const runSeq = useRef(0);
   const run = useCallback(() => {
     const v = view.current;
     if (!v || !surfaceId) return false;
     const text = v.state.doc.toString();
-    const res = compile(text);
+    const seq = ++runSeq.current;
+    void checkShader(text).then((res) => {
+      if (seq !== runSeq.current || view.current !== v) return;
+      land(v, text, res);
+    });
+    return true;
+  }, [surfaceId]);
+
+  const land = (v: EditorView, text: string, res: { ok: boolean; log: string }): void => {
+    const surface = surfaceRef.current;
+    if (!surface || surface.id !== surfaceId) return;
     diagnostics.current = res.ok ? [] : parseLog(res.log, v.state.doc);
     v.dispatch({ effects: lintComp.current.reconfigure(linter(() => diagnostics.current)) });
     setStatus({ ok: res.ok, log: res.log, at: Date.now() });
@@ -107,10 +124,9 @@ export const ShaderEditorPanel: React.FC = () => {
       // because the node editor reloads from the surface and shows the graph gone.
       updateSurface(surfaceId, { content: { ...surface!.content, shaderSource: text, shaderGraph: undefined } });
       loadedSource.current = text; // this IS the loaded source now, so the reload guard stays quiet
-      rearmKey(surfaceId); // a fixed shader deserves another go at the frame budget
+      rearm(surfaceId); // a fixed shader deserves another go at the frame budget
     }
-    return true;
-  }, [surfaceId, surface, updateSurface]);
+  };
 
   const runRef = useRef(run);
   runRef.current = run;
