@@ -2,6 +2,7 @@ import { app, MessageChannelMain, utilityProcess, type BrowserWindow, type Utili
 import os from 'node:os';
 import path from 'node:path';
 import { IPC } from '../../shared/protocol';
+import { postToPage } from './postToPage';
 
 /**
  * Where autosaves go (W3c). `<userData>/autosave` for an operator. A run with `ARTLUX_CDP_PORT` set is a
@@ -84,13 +85,16 @@ function spawn(): UtilityProcess | null {
 
 function connect(win: BrowserWindow): void {
   if (win.isDestroyed()) { windows.delete(win); return; }
+  // A crashed page is skipped BEFORE the host is told about it (see postToPage: posting a port to it
+  // froze main). It stays registered, and its reload's did-finish-load connects it again.
+  if (win.webContents.isCrashed()) return;
   if (!child) child = spawn();
   if (!child) return;
   let id = windows.get(win);
   if (id == null) { id = nextClientId++; windows.set(win, id); }
   const { port1, port2 } = new MessageChannelMain();
   child.postMessage({ t: 'connect', clientId: id }, [port1]);
-  win.webContents.postMessage(IPC.SHOW_HOST_PORT, null, [port2]);
+  postToPage(win.webContents, IPC.SHOW_HOST_PORT, null, [port2]);
 }
 
 /**

@@ -187,6 +187,8 @@ export interface EditorActions {
   setVideoPlaying(v: boolean): void;
   /** Play / pause, decided against the editor's CURRENT state (a panel window's copy may be a beat old). */
   togglePlay(): void;
+  /** Put a panel (back) into the active workbench — "Back to the editor" from a panel window. */
+  dockPanel(panelId: string): boolean;
   updateSettings(patch: Partial<AppSettings>): void;
   updatePatchPolicy(patch: Partial<PatchPolicy>): void;
   /**

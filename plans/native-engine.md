@@ -541,15 +541,47 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > - Regressions green: lighting-take, auto-key, panel-renders, undo, live-channel, show-host,
 >   engine-output.
 >
-> **W5b — what is left of W5:**
-> - **Each window gets its own dock tree** (tabs and splits).
-> - **Docking a window's panel back in** with a gesture, instead of closing the window.
+> ✅ **W5b-2 done 2026-11-21 (a window is a workbench; dock back; host restart).**
+> - **A panel window is a dock tree of its own**, rendered by the editor's `DockRenderer` through three
+>   opt-in hooks: `keepInapplicable`, `renderTabBody` and `onDockBack`.
+>   - Windows open as tabs, because a stack has no "+" or tab menu. A tab body carries the panel's
+>     header buttons and "Back to the editor".
+>   - "+" adds any detachable panel, and the tab menu splits.
+>   - The tree is saved per window anchor in the prefs (`panelWindowTrees`), and main tracks each
+>     window's members. Asking for a panel that is already out focuses its window on that tab
+>     (`PANEL_WINDOW_REVEAL`) instead of opening a second one.
+> - **"Back to the editor"** is the `dockPanel` editor action (`services/dockBack.ts`). It adds the
+>   panel to the active workbench, in the group of its kind, through `ensureTree`.
+> - **Restarting host:** the editor sends `synced` after its handover. Until then the host queues a
+>   joining panel instead of serving it a partial document.
+> - **A real main-process freeze, found by the harness and fixed:**
+>   - `webContents.postMessage` to a **crashed** page blocks main for good. A crashed panel page plus
+>     a host restart froze CDP, IPC and every window.
+>   - Reproduced with a control (`repro-hang`: crash → frozen, no crash → responsive).
+>   - Fixed with `src/main/postToPage.ts`, which skips crashed and destroyed pages. It is now used
+>     for every port main hands out (Show Host, live channel, engine port, projector bridge), and a
+>     check forbids a raw page `postMessage` in `src/main`.
+>
+> Proof:
+> - `test-panel-window` step 10:
+>   - "+" adds a tab;
+>   - an editor request for a panel that is already out focuses that window, opening nothing;
+>   - "Split right";
+>   - the tree is saved;
+>   - "Back to the editor" lands the panel in Proj's tree and takes it out of the window.
+> - Step 11:
+>   - the host is killed with a panel window open;
+>   - the panel reconnects, and never shows an empty or default document (sampled at 50 Hz);
+>   - an edit afterwards lands, and the new host agrees on 28 slices.
+> - Step 7: the reopened window comes back with its own tabs and split.
+> - Checks mutation-tested 7/7.
+>
+> **W5 — what is left:**
 > - **Plugin panels** need a UI-only activation. That also unblocks Content, whose source list is
 >   plugin-fed, and the camera settings need the same owner-side indirection.
 > - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.
-> - **A restarting host** may briefly hand a panel the fresh host's empty state before the editor's
->   handover reaches it. This converges, because the editor's slices are relayed, but it is worth a
->   guard.
+> - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
+>   the editor's own drag code, which has no window-level test yet.
 >
 > ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
 > Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on

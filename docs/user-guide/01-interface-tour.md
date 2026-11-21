@@ -167,10 +167,17 @@ screen, next to the rig, is the classic use.
   keyframes** works from there too.
 - **A parameter section follows the selection.** When what is selected is not its kind, the window says
   what to select instead of going blank.
-- **It remembers where it was** on this machine, screen included, and opens there next time. If that
-  screen is not connected any more, the window comes back on the editor's screen, never off-screen.
+- **A window is a small workbench of its own.** Its panel is a tab: **+** on the tab strip adds another
+  panel to the same window, dragging a tab or **right-click ▸ Split** arranges them side by side, and
+  closing the last tab closes the window. Asking for a panel that is already out (from the editor)
+  brings its window to the front, on that tab, instead of opening a second one.
+- **Back to the editor:** the arrow button above the panel, or **right-click its tab ▸ Back to the
+  editor**, takes it out of the window and makes sure the editor's current workbench shows it.
+- **It remembers where it was** on this machine, screen included, with its tabs and splits, and opens
+  there next time. If that screen is not connected any more, the window comes back on the editor's
+  screen, never off-screen.
 - **It closes with the editor, and comes back with it.** A window you close yourself stays closed.
-- The editor keeps its own copy of the panel; close the window when you are done with it.
+- The editor keeps its own copy of the panel; close the window, or send it back, when you are done.
 
 **Viewports stay in the editor for now:** the stage, the 3D view and the output previews draw on the
 graphics card inside the editor window. Their **Open in new window** entry is greyed out and says so.

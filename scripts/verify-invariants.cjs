@@ -6391,7 +6391,7 @@ check(
     // bridge() runs from did-finish-load, often while the OTHER window is reloading or closing: a
     // disposed frame makes postMessage throw, and uncaught in main that is a modal error box (2026-10-26).
     const br = braceBody(read(P), 'function bridge(');
-    if (!br || !/try\s*\{[\s\S]*postMessage[\s\S]*\}\s*catch/.test(br))
+    if (!br || !/try\s*\{[\s\S]*(?:postMessage|postToPage)[\s\S]*\}\s*catch/.test(br))
       bad.push(P + ': bridge() posts its ports outside a try/catch — a window frame disposed mid-reload throws an uncaught error in main');
     // A DEAD editor renderer (not a reload — the process gone) is never followed by a load on its own,
     // so the re-bridge above never runs and every output waits forever. 2026-10-26: a GPU reset left
@@ -7885,7 +7885,12 @@ check(
     if (!/if \(!extras \|\| !ready\) return null;/.test(store)) problems.push('PanelEditorStore no longer waits for the host snapshot (and the editor extras) before rendering');
     const host = read('src/showhost/index.ts');
     if (!/if \(c\.role === 'panel'\) return;/.test(host)) problems.push("the Show Host no longer refuses a raw 'set' from a panel window");
-    if (!/if \(m\.role === 'panel'\) \{[\s\S]*?send\(c, \{ t: 'patch', store, key, value: stores\[store\]\.getSlice\(key\), acked: c\.lastSeq \}\)[\s\S]*?send\(c, \{ t: 'historyState'/.test(host)) problems.push('the Show Host no longer sends a joining panel the whole document, then historyState (the end-of-snapshot mark)');
+    if (!/function servePanel\(c: Client\): void \{[\s\S]*?send\(c, \{ t: 'patch', store, key, value: stores\[store\]\.getSlice\(key\), acked: c\.lastSeq \}\)[\s\S]*?send\(c, \{ t: 'historyState'/.test(host)) problems.push('the Show Host no longer sends a joining panel the whole document, then historyState (the end-of-snapshot mark)');
+    // A host that has (re)started holds only part of the document until the editor's handover ends:
+    // a panel joining then is QUEUED and served on `synced`, never sent a half-filled snapshot.
+    if (!/if \(m\.role === 'panel'\) \{\s*\n\s*if \(editorSynced\) servePanel\(c\); else waitingPanels\.add\(c\);/.test(host.replace(/\r\n/g, '\n'))) problems.push('the Show Host serves a joining panel before the editor\'s handover is complete');
+    if (!/case 'synced':[\s\S]*?editorSynced = true;[\s\S]*?servePanel\(w\)/.test(host)) problems.push("the Show Host no longer serves waiting panels when the editor says 'synced'");
+    if (!/sendAll\(\);\s*\n\s*post\(\{ t: 'synced' \}\);/.test(read('src/renderer/state/hostLink.ts').replace(/\r\n/g, '\n'))) problems.push("the editor no longer tells the host its handover is complete ('synced' after sendAll)");
     // Edits leave the window as actions, with arguments that can cross (a click event cannot).
     if (!/const call = \(name: string, args: unknown\[\]\) => liveClient\.action\(name, args\.map\(sendable\)\);/.test(store)) problems.push('remote actions no longer drop unsendable arguments — `onClick={a.addFixture}` would lose the whole edit');
     return problems.length ? problems.join('; ') : null;
@@ -7948,6 +7953,31 @@ check(
     if (values.length < 20) return `only ${values.length} editorData fields parsed — the scan has stopped seeing them`;
     const missing = values.filter((v) => /^[A-Za-z_$][\w$]*$/.test(v) && !deps.has(v));
     return missing.length ? `editorData reads ${missing.join(', ')} but its useMemo does not depend on ${missing.length > 1 ? 'them' : 'it'} — panels would see the first value forever` : null;
+  },
+);
+
+// ── Main never posts a port to a crashed page (E5/W5b-2) ─────────────────────────────────────────────
+check(
+  'main hands pages ports only through postToPage (never to a crashed page)',
+  '`webContents.postMessage` to a page whose renderer has crashed BLOCKS the main process. Found by ' +
+  'test-panel-window: a panel window\'s page crashed, the Show Host was killed, main\'s restart path ' +
+  'reconnected every window, and main froze for good (CDP, IPC, every window — the show). Reproduced ' +
+  'with a control: same steps without the crash stayed responsive. Every port post goes through ' +
+  'src/main/postToPage.ts, which skips a crashed or destroyed page and closes its ports.',
+  () => {
+    const problems = [];
+    for (const f of walk('src/main').filter((x) => /\.ts$/.test(x) && !/postToPage\.ts$/.test(x))) {
+      const src = read(f);
+      for (const m of src.matchAll(/(\w+(?:\.webContents)?)\.postMessage\(/g)) {
+        // child.postMessage (the utility process) and port.postMessage (a MessagePortMain) are not pages.
+        if (/^(child|proc|port|port1|port2|p|c)$/.test(m[1])) continue;
+        if (/webContents$|^wc$|^sender$/.test(m[1])) problems.push(`${f.replace(ROOT, '').replace(/\\/g, '/')}: ${m[1]}.postMessage( — use postToPage()`);
+      }
+    }
+    const pp = read('src/main/postToPage.ts');
+    if (!/if \(wc\.isDestroyed\(\) \|\| wc\.isCrashed\(\)\)/.test(pp)) problems.push('postToPage no longer refuses a crashed or destroyed page');
+    if (!/if \(win\.webContents\.isCrashed\(\)\) return;/.test(read('src/main/showHost.ts'))) problems.push('showHost.connect no longer skips a crashed page before telling the host about it');
+    return problems.length ? problems.join('; ') : null;
   },
 );
 

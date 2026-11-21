@@ -168,6 +168,7 @@ function attach(p: MessagePort): void {
   } else {
     post({ t: 'hello', role: 'editor', undoable: [...UNDOABLE_SLICES], projectFile: [...PROJECT_FILE_SLICES], autosave: autosaveEnabled });
     sendAll();
+    post({ t: 'synced' });   // the whole state is in the host now: panels waiting on it may be served
   }
   console.log(`[hostLink] connected to the Show Host (connect #${connects})`);
   // After the handover, so a listener's baseline is processed against the state just sent (FIFO).

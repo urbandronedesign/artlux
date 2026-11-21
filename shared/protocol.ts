@@ -160,6 +160,12 @@ export const IPC = {
   DOCS_OPEN_WINDOW: 'docs:open-window',
   /** Renderer → main: open (or focus) a detachable panel in its own window (E5/W5, main/panelWindows.ts). */
   PANEL_WINDOW_OPEN: 'panel-window:open',
+  /** Panel window → main (invoke): this window's anchor panel and its saved dock tree (W5b-2). */
+  PANEL_WINDOW_STATE: 'panel-window:state',
+  /** Panel window → main: its dock tree changed (persisted per anchor; tells main which panels it holds). */
+  PANEL_WINDOW_TREE: 'panel-window:tree',
+  /** Main → panel window: bring this panel's tab to the front (it was asked for while already here). */
+  PANEL_WINDOW_REVEAL: 'panel-window:reveal',
   /** Renderer (docs window) → main: load an example project into the MAIN editor window. */
   DOCS_OPEN_EXAMPLE: 'docs:open-example',
   /**
@@ -1564,6 +1570,8 @@ export interface Prefs {
   panelWindows?: SavedPanelWindow[];
   /** The panel windows that were open when the editor last closed — reopened with it. */
   openPanelWindows?: string[];
+  /** Each panel window's own dock tree (tabs and splits), by anchor panel (W5b-2). */
+  panelWindowTrees?: Record<string, unknown>;
   globalBrightness?: number;
   recentFiles: string[];
   lastProjectPath?: string;
@@ -1993,6 +2001,12 @@ export interface ArtluxApi {
   suiteOtherApp(): Promise<SuiteOtherApp | null>;
   /** Open a detachable panel in its own window, or focus it if it is open (E5/W5). */
   openPanelWindow(panelId: string): void;
+  /** In a panel window: its anchor panel and its saved dock tree, or null outside one. */
+  panelWindowState(): Promise<{ anchor: string; tree: unknown } | null>;
+  /** In a panel window: report its dock tree (persisted; tells main which panels it holds). */
+  panelWindowTree(tree: unknown): void;
+  /** In a panel window: main asks to show one of its panels. Returns the unsubscribe. */
+  onPanelWindowReveal(cb: (panelId: string) => void): () => void;
   /** Ask main to pair this window with the engine owner (E5/W4). The port arrives as 'artlux:live-port'. */
   liveConnect(label: string): void;
   /** Hand the saved project to the other app: start it on `projectPath`, free the outputs, exit. */

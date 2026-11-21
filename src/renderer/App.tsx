@@ -39,6 +39,7 @@ import { docStore, useDocSlice, sliceSetter, useSessionSlice, sessionSetter, typ
 // works the same with no host; see state/hostLink.ts.
 import { startLiveBroker, registerLiveDragTarget, setLiveActionRunner } from './live/broker';
 import { installCoreLiveStreams, publishEditorExtras } from './live/coreStreams';
+import { dockIntoActiveContext } from './services/dockBack';
 import './live/client';
 import { historyOp, hostConnected, hostDirtyNow, markSaved, subscribeHostDirty, subscribeHostConnect, setAutosaveEnabled, projectLoading, queryAutosave, discardAutosave } from './state/hostLink';
 import { shareEqual } from '../../shared/shareEqual';
@@ -5521,6 +5522,7 @@ const App: React.FC = () => {
     pushProjectorBrightness: (v) => pushProjectorBrightnessRef.current(v),
     setVideoPlaying: setIsVideoPlaying,
     togglePlay: () => setIsVideoPlaying((p) => !p),
+    dockPanel: (panelId) => dockIntoActiveContext(panelId),
     updateSettings,
     updatePatchPolicy: (p) => setPatchPolicy(prev => ({ ...prev, ...p })),
     setStateMachine,

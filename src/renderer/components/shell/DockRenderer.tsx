@@ -47,6 +47,14 @@ interface Ctx {
    * then the viewport group honours it, so both render paths put the same thing on screen.
    */
   splitWith?: { id: string; ratio: number; onRatio: (r: number) => void };
+  // ── A PANEL WINDOW'S TREE (E5/W5) ─ renderer/panel.tsx renders its own tree through this same
+  // component. Three differences, each opt-in so the editor's path is untouched:
+  /** Keep a section whose `appliesTo` does not match: alone in a window it must say what to select. */
+  keepInapplicable?: boolean;
+  /** The body of a tabbed group's active panel (the window adds its own gating and padding). */
+  renderTabBody?: (panel: PanelContribution) => React.ReactNode;
+  /** Present in a panel window: the tab menu offers "Back to the editor" instead of a new window. */
+  onDockBack?: (panelId: string) => void;
 }
 
 /**
@@ -228,7 +236,11 @@ const TabMenu: React.FC<{ ctx: Ctx; node: Extract<DockNode, { kind: 'group' }>; 
       {others.length > 0 && <div className="h-px bg-line-1 my-1" />}
       {others.map((g) => <Item key={g} onClick={() => send(moveTab(ctx.tree, at.panelId, g, 'center'))}>Move to group {g}</Item>)}
       <div className="h-px bg-line-1 my-1" />
-      <WindowItem ctx={ctx} panelId={at.panelId} onDone={send} />
+      {ctx.onDockBack
+        ? <Item onClick={() => { onClose(); ctx.onDockBack!(at.panelId); }}>
+            <span className="inline-flex items-center gap-1.5"><ExternalLink size={11} className="rotate-180" /> Back to the editor</span>
+          </Item>
+        : <WindowItem ctx={ctx} panelId={at.panelId} onDone={send} />}
       {at.panelId !== ctx.tree.meta.viewport && (
         <>
           <div className="h-px bg-line-1 my-1" />
@@ -305,7 +317,7 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
     // the hand-built column has always applied, which this path was missing entirely. It is a RENDER
     // filter only: the panel stays in the tree, so the operator's placement survives a selection
     // change and comes back when they select that kind again.
-    .filter((p) => !p.panel || appliesToSelection(p.panel, ctx.selection));
+    .filter((p) => !p.panel || ctx.keepInapplicable || appliesToSelection(p.panel, ctx.selection));
 
   if (node.render === 'stack') {
     // ⚠ A STACK OF PANELS MUST SCROLL, AND UNDER DOCKING IT DID NOT.
@@ -395,9 +407,11 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
           <div className="relative min-w-0 min-h-0 overflow-hidden" style={{ flex: split ? `${split.ratio} 1 0%` : '1 1 0%' }}>
             {active.panel
               ? <div className="absolute inset-0 overflow-auto">
-                  <ErrorBoundary variant="panel" label={active.panel.title ?? active.panel.id}>
-                    <PanelBody Component={active.panel.Component} contextId={ctx.contextId} selection={ctx.selection} />
-                  </ErrorBoundary>
+                  {ctx.renderTabBody ? ctx.renderTabBody(active.panel) : (
+                    <ErrorBoundary variant="panel" label={active.panel.title ?? active.panel.id}>
+                      <PanelBody Component={active.panel.Component} contextId={ctx.contextId} selection={ctx.selection} />
+                    </ErrorBoundary>
+                  )}
                 </div>
               : <ViewportSlot id={active.id} />}
           </div>

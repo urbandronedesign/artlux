@@ -19,6 +19,11 @@
 //      while dragged and commits on release; a section that does not apply says what to select.
 //   9. Keys in a panel window: Ctrl+Z / Ctrl+Shift+Z undo and redo in the editor, Space plays and
 //      pauses its transport, Ctrl+S saves the project.
+//  10. A WINDOW IS A WORKBENCH OF ITS OWN: "+" adds a panel as a tab; asking the editor for a panel
+//      that is already out focuses that window on that tab; the tab menu splits; the arrangement is
+//      saved; "Back to the editor" docks the panel into the editor's current workbench.
+//  11. THE HOST DIES with a panel window open: it reconnects, never shows an empty or default
+//      document in between, and edits from it still land (the new host agrees).
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -31,6 +36,7 @@ const path = require('node:path');
 
 const PREFS_FILE = path.join(process.env.APPDATA || os.homedir(), 'ArtLux', 'artlux-prefs.json');
 const PREFS_BACKUP = (() => { try { return fs.readFileSync(PREFS_FILE); } catch { return null; } })();
+const readPrefsNow = () => { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8')); } catch { return {}; } };
 function restorePrefs() {
   if (!PREFS_BACKUP) return;
   try { fs.writeFileSync(PREFS_FILE, PREFS_BACKUP); console.log('prefs restored'); }
@@ -331,6 +337,91 @@ const until = async (fn, ms = 8000, step = 200) => {
     await pc.evaluate(() => window.close());
     await sleep(800);
 
+    console.log('\n10. a panel window is a workbench of its own: tabs, splits, and the way back');
+    const pw2 = await openPanel('core.browser.groups');
+    const W = (fn, ...a) => pw2.evaluate(fn, ...a);
+    const tabs = () => W(() => [...document.querySelectorAll('[data-dock-tab]')].map((e) => e.getAttribute('data-dock-tab')));
+    const activeTab = () => W(() => document.querySelector('[data-dock-tab][aria-selected="true"]')?.getAttribute('data-dock-tab') ?? null);
+    const addVia = async (title) => {
+      await W(() => { const b = [...document.querySelectorAll('button')].find((x) => x.getAttribute('title') === 'Add a panel here'); if (b) b.click(); });
+      await sleep(300);
+      return W((t) => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === t); if (b) b.click(); return !!b; }, title);
+    };
+    note(await addVia('Surfaces') && !!(await until(async () => ((await tabs()).includes('core.browser.surfaces') ? 1 : null), 3000)),
+      'the "+" menu adds another detachable panel to the window, as a tab', JSON.stringify(await tabs()));
+    // Back to the first tab, then ask the EDITOR for Surfaces: this window comes up on it, no new window.
+    await W(() => document.querySelector('[data-dock-tab="core.browser.groups"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await sleep(300);
+    const panelTargets = async () => (await browser.targets()).filter((t) => t.url().includes('panel.html')).length;
+    const n0 = await panelTargets();
+    await E(() => window.artlux.openPanelWindow('core.browser.surfaces'));
+    const revealed = await until(async () => ((await activeTab()) === 'core.browser.surfaces' ? 1 : null), 4000);
+    note(!!revealed && (await panelTargets()) === n0, 'asking for a panel that is already out brings its window up on that tab, and opens nothing new',
+      `active tab ${await activeTab()}; panel windows ${n0} → ${await panelTargets()}`);
+    // Split: the tab menu's "Split right".
+    await W(() => document.querySelector('[data-dock-tab="core.browser.surfaces"]')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 20 })));
+    await sleep(300);
+    await W(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Split right'); if (b) b.click(); });
+    const split = await until(() => W(() => document.querySelectorAll('[data-dock-group]').length === 2), 3000);
+    note(!!split, 'the tab menu splits the window', `${await W(() => document.querySelectorAll('[data-dock-group]').length)} groups`);
+    const savedTrees = await until(async () => {
+      const tr = (readPrefsNow().panelWindowTrees || {})['core.browser.groups'];
+      return tr && JSON.stringify(tr).includes('core.browser.surfaces') && /"kind":"split"/.test(JSON.stringify(tr)) ? tr : null;
+    }, 3000);
+    note(!!savedTrees, "the window's arrangement is saved with it (per machine)");
+    // Back to the editor: switch the editor to a workbench WITHOUT Global Params (Proj), add Global Params
+    // to the window, then send it back. The editor's workbench must now hold it; the window must not.
+    await E(() => { const b = [...document.querySelectorAll('[role="tablist"] button')].find((x) => (x.textContent || '').trim() === 'Proj'); if (b) b.click(); });
+    await sleep(1200);
+    const inProj = () => E(() => {
+      const L = window.__artluxWorkspaces.layout.get();
+      return JSON.stringify((L.dockTrees || {})[L.activeContext] || null).includes('core.browser.globals');
+    });
+    const projBefore = await inProj();
+    await addVia('Global Params');
+    await until(async () => ((await activeTab()) === 'core.browser.globals' ? 1 : null), 3000);
+    await W(() => {
+      const t = document.querySelector('[data-dock-tab="core.browser.globals"]');
+      t?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 20 }));
+    });
+    await sleep(300);
+    await W(() => { const b = [...document.querySelectorAll('button')].find((x) => /Back to the editor/.test(x.textContent || '')); if (b) b.click(); });
+    const docked = await until(async () => ((await inProj()) ? 1 : null), 4000);
+    const gone = await until(async () => (!(await tabs()).includes('core.browser.globals') ? 1 : null), 3000);
+    note(!projBefore && !!docked && !!gone, '"Back to the editor" puts the panel into the editor\'s current workbench and takes it out of the window',
+      `in Proj before ${projBefore}, after ${await inProj()}; window tabs ${JSON.stringify(await tabs())}`);
+    await E(() => { const b = [...document.querySelectorAll('[role="tablist"] button')].find((x) => (x.textContent || '').trim() === 'Map'); if (b) b.click(); });
+    await sleep(800);
+
+    console.log('\n11. the Show Host dies with a panel window open');
+    // Watch the panel's replica at 50 Hz through the outage: it must never show an empty or default rig.
+    await W(() => {
+      window.__watch = { min: Infinity, sawDefault: false };
+      window.__watchT = setInterval(() => {
+        const f = window.__showHost.get('doc', 'fixtures') || [];
+        window.__watch.min = Math.min(window.__watch.min, f.length);
+        if (f.some((x) => x.name === 'Main Arch')) window.__watch.sawDefault = true;
+      }, 20);
+    });
+    const oldPid = await E(() => window.__showHost.pid());
+    try { execSync(`taskkill /PID ${oldPid} /F`, { stdio: 'ignore' }); } catch { /* already gone */ }
+    const newPid = await until(async () => { const p = await E(() => window.__showHost.pid()); return p && p !== oldPid ? p : null; }, 15000);
+    const reconn = await until(() => W(() => window.__showHost.connected() && window.__showHost.pid() != null), 15000);
+    await sleep(1500);
+    const watch = await W(() => { clearInterval(window.__watchT); return window.__watch; });
+    const edCount = (await edNames()).length;
+    note(!!newPid && !!reconn, 'main forks a new host and the panel window reconnects to it', `host pid ${oldPid} → ${newPid}`);
+    note(watch.min >= edCount && !watch.sawDefault, 'through the outage the panel never showed an empty or default document',
+      `fewest fixtures seen ${watch.min} (the rig has ${edCount}); default rig seen: ${watch.sawDefault}`);
+    await W(() => document.querySelector('[data-dock-tab="core.browser.groups"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    const n1 = (await edNames()).length;
+    // An edit after the restart, from the window, still runs in the editor and reaches the new host.
+    await openPanel('core.browser.fixtures').then((p) => p.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => x.getAttribute('title') === 'Add Fixture'); if (b) b.click(); }));
+    const grew2 = await until(async () => ((await edNames()).length === n1 + 1 ? 1 : null), 5000);
+    const v2 = await E(() => window.__showHost.verify());
+    note(!!grew2 && !!v2 && v2.mismatched.length === 0, 'after the restart an edit from a panel window still lands, and the new host agrees on every slice',
+      `fixtures ${n1} → ${(await edNames()).length}; ${v2 ? `${v2.compared} slices compared` : 'no answer'}`);
+
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));
     note(['core.browser.fixtures', 'core.browser.globals'].every((id) => (readPrefs().openPanelWindows || []).includes(id)),
@@ -372,6 +463,16 @@ const until = async (fn, ms = 8000, step = 200) => {
       'reopened with the editor, at its remembered bounds on its remembered screen', `${JSON.stringify(want)} → ${JSON.stringify(bf)}`);
     const inside = (b) => b.x >= b.ax && b.y >= b.ay && b.x + b.w <= b.ax + b.aw && b.y + b.h <= b.ay + b.ah;
     note(!!bg && inside(bg), 'a window remembered off every screen comes back ON one', JSON.stringify(bg));
+    // Its ARRANGEMENT came back too: step 10 left the Groups window split, with Surfaces beside Groups.
+    const gt = await browser.waitForTarget((x) => x.url().includes('panel.html?panel=core.browser.groups'), { timeout: 30000 }).catch(() => null);
+    const gp = gt && await gt.page();
+    const arr = gp && await until(() => gp.evaluate(() => {
+      const ids = [...document.querySelectorAll('[data-dock-tab]')].map((e) => e.getAttribute('data-dock-tab'));
+      const groups = document.querySelectorAll('[data-dock-group]').length;
+      return ids.length ? { ids, groups } : null;
+    }), 30000);
+    note(!!arr && arr.groups === 2 && arr.ids.includes('core.browser.groups') && arr.ids.includes('core.browser.surfaces'),
+      'it reopens with its own tabs and split', JSON.stringify(arr));
   } catch (e) {
     if (!e.done) {
       failures++;

@@ -28,7 +28,29 @@ const DEFAULT_SIZE = { width: 380, height: 620 };
 const MIN_SIZE = { width: 240, height: 160 };
 const ID_RE = /^[A-Za-z0-9_.:-]{1,120}$/;
 
+// A window is keyed by its ANCHOR: the panel it was first opened for. Since a window holds a dock tree
+// of its own (W5b-2), it may hold more panels than that; `members` is what it reported last, so a
+// panel already out in a window is FOCUSED there instead of opened twice.
 const windows = new Map<string, BrowserWindow>();
+const members = new Map<string, string[]>();
+
+/** The panel ids in a saved/reported tree (structural walk: main does not import the renderer's model). */
+function treePanels(tree: unknown): string[] {
+  const out: string[] = [];
+  const go = (n: unknown, depth: number): void => {
+    if (!n || typeof n !== 'object' || depth > 10) return;
+    const node = n as { kind?: string; panelIds?: unknown; children?: unknown };
+    if (node.kind === 'group' && Array.isArray(node.panelIds)) for (const id of node.panelIds) if (typeof id === 'string') out.push(id);
+    if (node.kind === 'split' && Array.isArray(node.children)) for (const c of node.children) go(c, depth + 1);
+  };
+  go((tree as { root?: unknown } | null)?.root, 0);
+  return out;
+}
+const savedTree = (anchor: string): unknown => getPrefs().panelWindowTrees?.[anchor] ?? null;
+function anchorOf(wc: Electron.WebContents): string | null {
+  for (const [a, w] of windows) if (!w.isDestroyed() && w.webContents === wc) return a;
+  return null;
+}
 let getEditor: () => BrowserWindow | null = () => null;
 /** Set while the editor is closing: its panel windows close with it but STAY on the reopen list. */
 let editorClosing = false;
@@ -84,8 +106,16 @@ function placement(panelId: string): Rectangle {
 
 export function openPanelWindow(panelId: string): void {
   if (!ID_RE.test(panelId)) return;
-  const existing = windows.get(panelId);
-  if (existing && !existing.isDestroyed()) { if (existing.isMinimized()) existing.restore(); existing.focus(); return; }
+  // Already out — as a window of its own, or as a tab in another one: bring THAT window up, on that tab.
+  for (const [anchor, w] of windows) {
+    if (w.isDestroyed()) continue;
+    if (anchor === panelId || (members.get(anchor) ?? []).includes(panelId)) {
+      if (w.isMinimized()) w.restore();
+      w.focus();
+      w.webContents.send(IPC.PANEL_WINDOW_REVEAL, panelId);
+      return;
+    }
+  }
   const b = placement(panelId);
   const win = new BrowserWindow({
     ...b, minWidth: MIN_SIZE.width, minHeight: MIN_SIZE.height,
@@ -108,6 +138,7 @@ export function openPanelWindow(panelId: string): void {
   // forwards the keys that mean something there itself (renderer/panel.tsx), so there is one owner.
   win.removeMenu();
   windows.set(panelId, win);
+  members.set(panelId, treePanels(savedTree(panelId)).length ? treePanels(savedTree(panelId)) : [panelId]);
   setOpenList((ids) => (ids.includes(panelId) ? ids : [...ids, panelId]));
 
   // Its document comes from the Show Host, like the editor's (a reload needs a fresh port: every load).
@@ -127,7 +158,7 @@ export function openPanelWindow(panelId: string): void {
   win.on('closed', () => {
     if (t) clearTimeout(t);
     remember(last);
-    if (windows.get(panelId) === win) windows.delete(panelId);
+    if (windows.get(panelId) === win) { windows.delete(panelId); members.delete(panelId); }
     // Closed by the operator: it should not come back next time. Closed with the editor: it should.
     if (!editorClosing) setOpenList((ids) => ids.filter((x) => x !== panelId));
   });
@@ -142,6 +173,21 @@ export function openPanelWindow(panelId: string): void {
 export function registerPanelWindows(editor: BrowserWindow, getEditorWindow: () => BrowserWindow | null): void {
   getEditor = getEditorWindow;
   ipcMain.on(IPC.PANEL_WINDOW_OPEN, (_e, panelId: unknown) => { if (typeof panelId === 'string') openPanelWindow(panelId); });
+  // A panel window's own arrangement (W5b-2): asked for on load, reported on every change. Kept per
+  // anchor in the prefs, so reopening the window brings back its tabs and splits, not just its place.
+  ipcMain.handle(IPC.PANEL_WINDOW_STATE, (e) => {
+    const anchor = anchorOf(e.sender);
+    return anchor ? { anchor, tree: savedTree(anchor) } : null;
+  });
+  ipcMain.on(IPC.PANEL_WINDOW_TREE, (e, tree: unknown) => {
+    const anchor = anchorOf(e.sender);
+    if (!anchor || !tree || typeof tree !== 'object') return;
+    const ids = treePanels(tree).filter((id) => ID_RE.test(id));
+    members.set(anchor, ids);
+    // A tree is a few hundred bytes; a corrupt or hostile one is capped rather than trusted.
+    if (JSON.stringify(tree).length > 32_000) return;
+    setPrefs({ panelWindowTrees: { ...(getPrefs().panelWindowTrees ?? {}), [anchor]: tree } });
+  });
   // The editor closing takes its panel windows with it — they are clients of it and of nothing else —
   // but leaves them on the list, so they come back where they were when it opens again. On 'closed',
   // not 'close': the editor's unsaved-changes guard can still cancel a 'close'. A quit closes windows

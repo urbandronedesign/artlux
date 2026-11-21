@@ -106,6 +106,13 @@ const api: ArtluxApi = {
     suiteOtherApp: () => ipcRenderer.invoke(IPC.SUITE_OTHER_APP),
     liveConnect: (label: string) => ipcRenderer.send(IPC.LIVE_CONNECT, label),
     openPanelWindow: (panelId: string) => ipcRenderer.send(IPC.PANEL_WINDOW_OPEN, panelId),
+    panelWindowState: () => ipcRenderer.invoke(IPC.PANEL_WINDOW_STATE),
+    panelWindowTree: (tree: unknown) => ipcRenderer.send(IPC.PANEL_WINDOW_TREE, tree),
+    onPanelWindowReveal: (cb: (panelId: string) => void) => {
+        const listener = (_e: unknown, id: string) => cb(id);
+        ipcRenderer.on(IPC.PANEL_WINDOW_REVEAL, listener);
+        return () => { ipcRenderer.removeListener(IPC.PANEL_WINDOW_REVEAL, listener); };
+    },
     openInOtherApp: (projectPath: string, exeHint?: string) => ipcRenderer.send(IPC.SUITE_OPEN_IN_OTHER, projectPath, exeHint),
     suiteRecalibrate: (job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }, projectPath: string) => ipcRenderer.invoke(IPC.SUITE_RECALIBRATE, job, projectPath),
     suiteHandBack: (projectPath: string, outcome: string) => ipcRenderer.send(IPC.SUITE_HAND_BACK, projectPath, outcome),

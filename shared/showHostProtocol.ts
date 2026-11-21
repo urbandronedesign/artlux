@@ -51,6 +51,12 @@ export type ClientToHost =
   // AUTOSAVE (W3c). `loading`: a project is about to be applied — autosave stops until its settling
   // baseline, so a half-loaded show is never written under the PREVIOUS project's name.
   | { t: 'loading' }
+  /**
+   * The editor's handover after `hello` is complete: every slice has been sent (E5/W5b-2). Until it
+   * arrives, a fresh host holds only part of the document, so a panel window joining then is not sent
+   * a snapshot yet — it would render the built-in defaults for whatever had not arrived.
+   */
+  | { t: 'synced' }
   // Is there an autosave for this project that is newer than its file? (null = untitled.)
   | { t: 'autosaveQuery'; req: number; path: string | null }
   // The operator chose not to keep it ("Discard", or "Close without saving").

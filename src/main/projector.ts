@@ -5,6 +5,7 @@ import { IPC, WINDOWED_DISPLAY, type DisplayInfo } from '../../shared/protocol';
 import { profileQuery, rendererDevUrl } from './runProfile';
 import { quitRequested } from './quitState';
 import { APP_ICON } from './appIcon';
+import { postToPage } from './postToPage';
 
 // Per-Surface fullscreen projector outputs. Each enabled output gets its own frameless,
 // fullscreen BrowserWindow positioned on a chosen physical display; the surface's content
@@ -155,8 +156,12 @@ function bridge(getMain: () => BrowserWindow | null, projWin: BrowserWindow, sur
   // did-finish-load is in flight. Dropping the pair is safe: whichever end went away bridges again
   // on its next load (the projector's did-finish-load below; the editor's rebridgeAllProjectors).
   try {
-    main.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port1]);
-    projWin.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port2]);
+    // Both ends or neither: a port whose other end never arrived is a bridge to nothing (postToPage).
+    if (main.webContents.isCrashed() || projWin.webContents.isCrashed()) { try { port1.close(); port2.close(); } catch { /* */ } }
+    else {
+      postToPage(main.webContents, IPC.PROJECTOR_PORT, { surfaceId }, [port1]);
+      postToPage(projWin.webContents, IPC.PROJECTOR_PORT, { surfaceId }, [port2]);
+    }
   } catch (err) {
     port1.close(); port2.close();
     console.warn(`[projector] bridge for ${surfaceId} skipped — a window frame was gone:`, (err as Error).message);

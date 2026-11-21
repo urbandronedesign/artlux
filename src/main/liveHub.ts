@@ -1,5 +1,6 @@
 import { ipcMain, MessageChannelMain, type BrowserWindow, type WebContents } from 'electron';
 import { IPC } from '../../shared/protocol';
+import { postToPage } from './postToPage';
 
 // MAIN'S HALF OF THE LIVE CHANNEL (E5/W4, shared/liveProtocol.ts): pair a client window with the
 // ENGINE OWNER, then get out of the way.
@@ -24,16 +25,17 @@ const clients = new Map<WebContents, { clientId: number; label: string }>();
 
 function pair(wc: WebContents, entry: { clientId: number; label: string }): void {
   if (!owner || owner.isDestroyed() || wc.isDestroyed()) return;
+  if (wc.isCrashed() || owner.webContents.isCrashed()) return;   // see postToPage; a reload re-pairs
   const { port1, port2 } = new MessageChannelMain();
   // The owner first: a client's first message (`hello`) must find a port listening at the other end.
   // Messages posted to an unstarted port queue, so the order is belt-and-braces rather than required.
-  owner.webContents.postMessage(IPC.LIVE_PORT, { role: 'owner', clientId: entry.clientId, label: entry.label }, [port1]);
-  wc.postMessage(IPC.LIVE_PORT, { role: 'client', clientId: entry.clientId }, [port2]);
+  postToPage(owner.webContents, IPC.LIVE_PORT, { role: 'owner', clientId: entry.clientId, label: entry.label }, [port1]);
+  postToPage(wc, IPC.LIVE_PORT, { role: 'client', clientId: entry.clientId }, [port2]);
 }
 
 function drop(clientId: number): void {
   if (!owner || owner.isDestroyed()) return;
-  owner.webContents.postMessage(IPC.LIVE_PORT, { role: 'drop', clientId });
+  postToPage(owner.webContents, IPC.LIVE_PORT, { role: 'drop', clientId });
 }
 
 /** Register the engine owner. Call once with the editor window, before it loads. */

@@ -1,6 +1,7 @@
 import { MessageChannelMain, type BrowserWindow, type MessagePortMain } from 'electron';
 import { IPC } from '../../shared/protocol';
 import * as output from './transport/outputManager';
+import { postToPage } from './postToPage';
 
 // A DIRECT ROAD FROM THE FRAME ENGINE TO THE WIRE.
 //
@@ -44,7 +45,7 @@ export function openEnginePort(win: BrowserWindow): void {
   // One line, once: which road output is taking is the first thing anyone debugging a silent venue
   // wants to know, and it costs nothing.
   console.log('[enginePort] output port open — frames may bypass the main thread');
-  win.webContents.postMessage(IPC.ENGINE_PORT, null, [port2]);
+  postToPage(win.webContents, IPC.ENGINE_PORT, null, [port2]);
 }
 
 export function closeEnginePort(): void {

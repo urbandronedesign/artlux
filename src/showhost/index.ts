@@ -191,6 +191,19 @@ function relay(from: Client, store: StoreName, key: string, value: unknown): voi
   }
 }
 
+// THE EDITOR'S HANDOVER (W5b-2). A host that has just started (or restarted) holds nothing until the
+// editor's hello + full handover + `synced`. A panel window that says hello before that is QUEUED, and
+// served its snapshot the moment the editor is synced — never a half-filled document.
+let editorSynced = false;
+const waitingPanels = new Set<Client>();
+function servePanel(c: Client): void {
+  for (const store of ['doc', 'session'] as StoreName[]) {
+    for (const key of Object.keys(stores[store].get())) send(c, { t: 'patch', store, key, value: stores[store].getSlice(key), acked: c.lastSeq });
+  }
+  send(c, { t: 'historyState', canUndo: past.length > 0, canRedo: future.length > 0, depth: past.length });
+  send(c, { t: 'dirty', dirty: lastDirty });
+}
+
 function onMessage(c: Client, raw: unknown): void {
   const m = raw as ClientToHost;
   switch (m?.t) {
@@ -215,13 +228,16 @@ function onMessage(c: Client, raw: unknown): void {
       // A PANEL WINDOW (W5) arrives empty and must never hand the host its emptiness: it sends nothing,
       // and is sent the whole document and session instead, then the same patches as everyone else.
       // `acked` is its lastSeq (0): it has written nothing, so no patch is ever dropped on its side.
+      if (m.role === 'editor') editorSynced = false;    // its handover starts now
       if (m.role === 'panel') {
-        for (const store of ['doc', 'session'] as StoreName[]) {
-          for (const key of Object.keys(stores[store].get())) send(c, { t: 'patch', store, key, value: stores[store].getSlice(key), acked: c.lastSeq });
-        }
-        send(c, { t: 'historyState', canUndo: past.length > 0, canRedo: future.length > 0, depth: past.length });
-        send(c, { t: 'dirty', dirty: lastDirty });
+        if (editorSynced) servePanel(c); else waitingPanels.add(c);
       }
+      return;
+    case 'synced':
+      if (c.role !== 'editor') return;
+      editorSynced = true;
+      for (const w of waitingPanels) if (clients.get(w.id) === w) servePanel(w);
+      waitingPanels.clear();
       return;
     case 'set': {
       if (m.store !== 'doc' && m.store !== 'session') return;
