@@ -454,6 +454,14 @@ harmless.
     real service, and a panel window installs a remote that asks over the live channel: a stream for
     state, `registerLiveCall` calls (`camera.list`, `camera.retry`, `camera.preview`) for questions and
     nudges. Never import the service from the panel.
+  - **The monitors** use the same pattern: [`services/dmxFeed.ts`](../src/renderer/services/dmxFeed.ts)
+    (the DMX Monitor) and [`services/editorHealth.ts`](../src/renderer/services/editorHealth.ts)
+    (Performance, Timing). The editor installs the services themselves (`live/editorAccess.ts`), so the
+    docked monitor stays zero-copy; a panel window installs one shared subscription per kind
+    (`dmx.pixels`, `dmx.universes`, `perf`, `sm.state`, and the clock anchor). `dmxSignal`, `perfMonitor`
+    and `uiPerfMonitor` are banned from the panel window: there they are an idle copy. A panel that may
+    detach lives in a file that imports only what it needs (`panels/monitors.tsx`) — the window's
+    import graph is its file's.
   - **A plugin's equivalent** is `ctx.live` (SDK `PluginLiveOwner` / `PluginLiveView`,
     [`live/pluginLive.ts`](../src/renderer/live/pluginLive.ts) in the editor,
     [`live/pluginLiveRemote.ts`](../src/renderer/live/pluginLiveRemote.ts) in a panel window). The

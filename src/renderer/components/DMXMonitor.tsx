@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { Fixture, FixtureProfile } from '../types';
-import { dmxSignal } from '../services/dmxSignal';
+// The output frames come through a seam (E5/W5): the editor's bus itself when docked, the live channel
+// in a panel window — never services/dmxSignal, whose copy in a window is an idle bus.
+import { dmxFeed } from '../services/dmxFeed';
 import { fixtureFootprint, resolveMode } from '../services/addressing';
 import { profileOf } from '../services/fixtureKind';
 
@@ -36,7 +38,7 @@ const FixtureStrip: React.FC<{ fixture: Fixture; offset: number }> = ({ fixture,
     const imgData = ctx.createImageData(fixture.ledCount, 1);
     const data = imgData.data;
 
-    const unsubscribe = dmxSignal.subscribe((packet) => {
+    const unsubscribe = dmxFeed().subscribe('pixels', (packet) => {
       const allPixels = packet.pixels;
       const startIdx = offsetRef.current * 4;
       const endIdx = startIdx + fixture.ledCount * 4;
@@ -110,15 +112,11 @@ const ProfileChannels: React.FC<{ fixture: Fixture; profile: FixtureProfile }> =
 
   // Written imperatively, like the pixel canvas above: this repaints at frame rate and must not
   // re-render React while it does.
-  useEffect(() => dmxSignal.subscribe(({ destinations }) => {
+  useEffect(() => dmxFeed().subscribe('universes', (frame) => {
     for (let i = 0; i < rows.length; i++) {
       const el = cellsRef.current[i];
       if (!el) continue;
-      let value: number | undefined;
-      for (const dest of Object.values(destinations)) {
-        const arr = dest.universes[rows[i].universe];
-        if (arr) { value = arr[rows[i].address - 1]; break; }
-      }
+      const value: number | undefined = frame.universe(rows[i].universe)?.[rows[i].address - 1];
       const text = value === undefined ? '–' : String(value);
       if (el.textContent !== text) el.textContent = text;
       el.style.opacity = value ? String(0.45 + (value / 255) * 0.55) : '0.35';

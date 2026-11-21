@@ -10,16 +10,15 @@
 
 import React from 'react';
 import {
-  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route, FolderInput,
+  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route, FolderInput,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
-import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
+import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
-import { TimingPanel, TimingHeaderActions } from './panels/timing';
 import { PreferencesViewport } from './panels/adapters';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
 import * as takeRecorder from '../services/takeRecorder';
@@ -63,7 +62,7 @@ export function registerCoreWorkspace(): void {
   for (const p of DETACHABLE_PANELS) if (p.mount === 'browser') panelRegistry.register(p);
   // Browser-mounted flavours for contexts whose left column is a monitor rather than an outliner.
   panelRegistry.register({ id: 'core.browser.programPreview', mount: 'browser', title: 'Program', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
-  panelRegistry.register({ id: 'core.browser.timing', mount: 'browser', title: 'Timing', icon: <Timer size={12} />, Component: TimingPanel, HeaderActions: TimingHeaderActions });
+  panelRegistry.register(detachablePanel('core.browser.timing'));
   panelRegistry.register({ id: 'core.browser.media', mount: 'browser', bare: true, grow: true, title: 'Media Library', icon: <ImageIcon size={12} />, Component: MediaBrowserPanel });
   panelRegistry.register({ id: 'core.browser.models', mount: 'browser', title: 'Objects', icon: <Box size={12} />, grow: true, Component: ModelsPanel, HeaderActions: ModelsHeaderActions });
   panelRegistry.register({ id: 'core.browser.scene3dFixtures', mount: 'browser', title: 'Fixtures', icon: <Lightbulb size={12} />, grow: true, Component: Scene3DFixturesPanel });
@@ -117,8 +116,8 @@ export function registerCoreWorkspace(): void {
   // Pixel-only, and gated in its REGISTRATION like every fixture section — a moving head has named
   // channels, not a pixel order, so the tab is simply absent when one is selected.
   panelRegistry.register({ id: 'core.dock.fixtureWiring', mount: 'dock', title: 'Wiring & Ledmap', icon: <Route size={13} />, appliesTo: ['fixture.pixel'], Component: FixtureWiringDock });
-  panelRegistry.register({ id: 'core.dock.monitor', mount: 'dock', title: 'DMX Monitor', icon: <Activity size={13} />, Component: MonitorDock });
-  panelRegistry.register({ id: 'core.dock.perf', mount: 'dock', title: 'Performance', icon: <Gauge size={13} />, Component: PerfDock });
+  panelRegistry.register(detachablePanel('core.dock.monitor'));
+  panelRegistry.register(detachablePanel('core.dock.perf'));
   panelRegistry.register({ id: 'core.dock.routing', mount: 'dock', title: 'Routing', icon: <Network size={13} />, Component: RoutingDock });
   // Live monitors. Both blit machinery that already runs each frame — see panels/preview.tsx.
   panelRegistry.register({ id: 'core.dock.outputsPreview', mount: 'dock', title: 'Output Preview', icon: <MonitorPlay size={13} />, Component: OutputsPreviewPanel });

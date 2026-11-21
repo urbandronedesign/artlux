@@ -7861,6 +7861,10 @@ check(
       // called either directly would drive its own idle copy — a fader that moves nothing, an arm that
       // records nothing. Panels go through editor actions (pushFixtureChannels, setAutoKeyArmed, …).
       [/^src\/renderer\/services\/(livePreview|autoKey)\.ts$/, 'a per-window editor service (use the editor action instead)'],
+      // The output bus and the health monitors are per window too: in a panel window they are an idle
+      // copy — a DMX monitor gone black over a lit rig, a performance panel describing a window that
+      // renders nothing. The monitors read through services/dmxFeed and services/editorHealth.
+      [/^src\/renderer\/services\/(dmxSignal|perfMonitor|uiPerfMonitor)\.ts$/, 'a per-window output bus or health monitor (use services/dmxFeed / services/editorHealth)'],
       [/^src\/renderer\/live\/(broker|coreStreams)\.ts$/, 'the live broker (the editor is the one owner)'],
       [/^src\/renderer\/App\.tsx$/, 'App'],
       [/^src\/renderer\/host\/plugins\.ts$/, 'plugin activation'],
@@ -8006,6 +8010,17 @@ check(
         }
       }
     }
+    // THE CORE MONITORS' SEAMS, both sides: the editor installs the services, a panel window the live
+    // channel. Either missing and the monitor reads the inert default — a blank, silent panel.
+    const streams = read('src/renderer/live/coreStreams.ts');
+    if (!/installed = true;\s*\n[\s\S]{0,300}?installEditorAccess\(\);/.test(streams.replace(/\r\n/g, '\n'))) problems.push('installCoreLiveStreams no longer installs the editor side of the monitor seams (installEditorAccess)');
+    for (const s of ['dmx.universes', 'sm.state']) if (!streams.includes(`registerLiveStream('${s}'`)) problems.push(`the editor no longer publishes '${s}' (a monitor in a window reads it)`);
+    const access = read('src/renderer/live/editorAccess.ts');
+    if (!/setDmxFeed\(\{ subscribe: \(_needs, cb\) => dmxSignal\.subscribe\(\(d\) => cb\(viewOf\(d\)\)\) \}\);/.test(access) || !/\n\s*pixels: d\.pixels,\n/.test(access.replace(/\r\n/g, '\n'))) problems.push("the editor's DMX feed is no longer the bus itself (the docked monitor must stay zero-copy)");
+    const panelSrc = read('src/renderer/panel.tsx');
+    if (!/^setDmxFeed\(remoteDmxFeed\);/m.test(panelSrc) || !/^setEditorHealth\(remoteEditorHealth\);/m.test(panelSrc)) problems.push('panel.tsx no longer installs the remote DMX feed and editor health');
+    const det = read('src/renderer/contexts/detachable.tsx');
+    for (const id of ['core.browser.timing', 'core.dock.monitor', 'core.dock.perf']) if (!det.includes(`id: '${id}'`)) problems.push(`'${id}' is no longer detachable`);
     // The panel window resolves its panel from the registry the UI halves filled, and only a detachable one.
     const panel = read('src/renderer/panel.tsx');
     if (!/activatePluginUi\('panel'[\s\S]*?const panel = \(\(p\) => \(p\?\.detachable \? p : undefined\)\)\(panelRegistry\.get\(panelId\)\);/.test(panel)) problems.push('panel.tsx no longer resolves its panel from the registry AFTER the UI halves registered theirs (a plugin panel would say it cannot open in a window)');

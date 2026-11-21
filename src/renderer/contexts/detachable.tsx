@@ -15,10 +15,11 @@
 // Every panel here reads ONLY useEditor()/useEditorPick() and dispatches ONLY useEditorActions() — in a
 // panel window those are the replica and the editor's actions over the live channel (live/panelStore).
 // Today: the four outliner/browser panels of contexts/panels/browser.tsx, the parameter sections of
-// contexts/panels/inspector.tsx, and the surface Content section (contexts/panels/surfaceContent.tsx).
+// contexts/panels/inspector.tsx, the surface Content section (contexts/panels/surfaceContent.tsx), and
+// the monitors — Timing, DMX Monitor, Performance — whose live readings come through seams.
 
 import React from 'react';
-import { Box, Cable, Grid3x3, Hash, Layers, Lightbulb, Move3d, Network, SlidersHorizontal, Users } from 'lucide-react';
+import { Activity, Box, Cable, Gauge, Grid3x3, Hash, Layers, Lightbulb, Move3d, Network, SlidersHorizontal, Timer, Users } from 'lucide-react';
 import type { PanelContribution } from '@artlux/sdk/renderer';
 import {
   SurfacesPanel, SurfacesHeaderActions, FixturesPanel, FixturesHeaderActions,
@@ -28,6 +29,8 @@ import {
   FixtureChannelsPanel, FixtureLayout3DPanel, FixtureMappingPanel, FixtureOutputPanel, FixturePatchPanel, FixturePositionPanel, FixtureProfilePanel, FixtureRoutingPanel, FixtureSegmentsPanel, SurfaceTransformPanel,
 } from './panels/inspector';
 import { SurfaceContentPanel } from './panels/surfaceContent';
+import { MonitorDock, PerfDock } from './panels/monitors';
+import { TimingPanel, TimingHeaderActions } from './panels/timing';
 
 export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.browser.surfaces', mount: 'browser', detachable: true, title: 'Surfaces', icon: <Layers size={12} />, grow: true, Component: SurfacesPanel, HeaderActions: SurfacesHeaderActions },
@@ -51,6 +54,12 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.inspector.fixture.routing', detachable: true, mount: 'inspector', title: 'Routing', icon: <Network size={12} />, appliesTo: ['fixture'], Component: FixtureRoutingPanel },
   { id: 'core.inspector.fixture.layout3d', detachable: true, mount: 'inspector', title: '3D Layout', icon: <Box size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureLayout3DPanel },
   { id: 'core.inspector.fixture.position', detachable: true, mount: 'inspector', title: 'Position', icon: <Move3d size={12} />, appliesTo: ['fixture.light'], Component: FixturePositionPanel },
+  // THE MONITORS. What they show is the editor's — its output frames, its render loop, its clocks — so
+  // each reads through a seam (services/dmxFeed, services/editorHealth): the services when docked, the
+  // live channel here. On a second screen beside the rig is where they are most wanted.
+  { id: 'core.browser.timing', mount: 'browser', detachable: true, title: 'Timing', icon: <Timer size={12} />, Component: TimingPanel, HeaderActions: TimingHeaderActions },
+  { id: 'core.dock.monitor', mount: 'dock', detachable: true, title: 'DMX Monitor', icon: <Activity size={13} />, Component: MonitorDock },
+  { id: 'core.dock.perf', mount: 'dock', detachable: true, title: 'Performance', icon: <Gauge size={13} />, Component: PerfDock },
 ];
 
 /** One entry, for the editor's registration (contexts/index.tsx). Throws on an id that is not here. */

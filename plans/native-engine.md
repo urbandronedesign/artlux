@@ -680,8 +680,25 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > lands; Effects saves with a PNG thumbnail, lists it and deletes it by its exact name; the window's
 > subscriptions go with it); checks mutation-tested 11/11.
 >
+> ✅ **W5g done 2026-11-21 (the monitors: Timing, DMX Monitor, Performance detach).**
+> - Seams, the camera's pattern: `services/dmxFeed` and `services/editorHealth`. The editor installs the
+>   services (`live/editorAccess.ts`, from installCoreLiveStreams): the docked DMX Monitor still reads
+>   the bus with zero copies. A window installs one shared subscription per kind: `dmx.pixels`, the new
+>   `dmx.universes` (a light's channel table), `perf` (now with the editor's UI thread), the clock anchor
+>   (extrapolated), the new `sm.state` (sent on a change of state or of the displayed second).
+> - `MonitorDock` / `PerfDock` moved to `panels/monitors.tsx`: `adapters.tsx` carries the media library
+>   and the state graph, whose graph reaches the transport (the guard said so the first time).
+> - `dmxSignal`, `perfMonitor`, `uiPerfMonitor` banned from the panel window by path.
+>
+> Proof: `test-panel-window` step 15 (strips lit from the editor's output; the Wash's channel table
+> shows the byte its document value makes; Performance at the editor's fps; Timing following the
+> editor's show clock while playing and holding when stopped; each stream detaching); checks
+> mutation-tested 11/11.
+>
 > **W5 — what is left:**
-> - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.
+> - **The other panel files**, file by file. `preview` (program monitor, output previews) are GPU
+>   viewports: docked until the engine. Left: `adapters` (media library, fixture library/wiring, routing,
+>   state graph, preferences), `scene3d` (the 3D scene's side panels), `takes`.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.
 >

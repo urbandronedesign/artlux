@@ -2000,6 +2000,9 @@ export const timeline = {
   subscribeSmFired(cb: (transitionId: string) => void): () => void { return fsm.subscribeFired(cb); },
   // Seconds spent in the current state on the standalone wall clock (for the main-UI status chip).
   getSmElapsedSec(): number { return fsm.getStateElapsedSec(); },
+  // The current state's id (null = none / the machine is off), for a reader that samples rather than
+  // subscribes (the 'sm.state' live stream).
+  getSmStateId(): string | null { return fsm.getCurrentStateId(); },
   // Register the project-level state machine to drive each frame. App calls this whenever it changes.
   setStateMachine(sm: StateMachine | undefined): void { projectSm = sm; },
   getStateMachine(): StateMachine | undefined { return projectSm; },

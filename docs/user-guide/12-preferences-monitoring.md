@@ -116,6 +116,10 @@ wire.
 Use it to confirm output is flowing, channel counts are what you expect, and color order is right
 (the strip should show the colors you intend). In the demo: 2 fixtures, 1264 channels, 3 universes.
 
+It can open in a window of its own (**Open in new window** in its header) — beside the rig, on another
+screen. There it still shows exactly what the editor sends. So can **Performance** (the editor's numbers,
+wherever it is drawn) and **Timing**.
+
 ---
 
 ## OSC Monitor

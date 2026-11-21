@@ -154,8 +154,9 @@ Some panels can leave the editor and open in a window of their own, which you ca
 (**DMX Profile**, **Channels**, **Patch**, **Mapping**, **Segments**, **2D / Output**, **Routing**,
 **3D Layout**, **Position**) and a surface's **Content** and **Transform**, and the tracking panels:
 **Trigger Zones**, **OSC Monitor**, **Augmenta Monitor** and **Pose Monitor**, and the shader panels:
-**Shader** (the code editor), **Shader Nodes** and **Effects**. A light's **Channels** faders on a second
-screen, next to the rig, is the classic use; **Trigger Zones** on a screen beside the sensor, while
+**Shader** (the code editor), **Shader Nodes** and **Effects**, and the monitors: **Timing**, **DMX
+Monitor** and **Performance**. A light's **Channels** faders on a second screen, next to the rig, is the
+classic use; **Trigger Zones** on a screen beside the sensor, while
 someone walks the room, is another; the **Shader** code on a screen of its own, with the stage beside
 it, is a third.
 
@@ -181,6 +182,10 @@ it, is a third.
   arriving on the OSC port. The **Pose Monitor** shows the pose tracker's status, speed and people
   count; the **camera picture** itself stays in the editor's Pose Monitor, because the camera is open
   there, and the window says so.
+- **Monitors in a window** watch the editor: the **DMX Monitor** shows what the editor is sending, a
+  light's channel table included; **Performance** shows the editor's frame rate and how busy its screen
+  is, not the window's; **Timing** shows the show clock, the playhead and the current state as the
+  editor runs them.
 - **Shader panels in a window** work exactly as docked. **Ctrl+Enter** compiles on the editor's
   graphics card, so the errors you see are the ones the show would hit, and only a shader that builds
   is saved. **Effects** saves and applies the same library the editor lists, with the same pictures.

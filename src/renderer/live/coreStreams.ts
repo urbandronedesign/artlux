@@ -7,7 +7,10 @@ import { registerLiveCall, registerLiveDragTarget, registerLiveStream } from './
 import { listCameras, getCameraInfo, retryCamera, previewCameraControl } from '../services/contentSource';
 import { dmxSignal } from '../services/dmxSignal';
 import { perfMonitor } from '../services/perfMonitor';
+import { uiPerfMonitor } from '../services/uiPerfMonitor';
+import { timeline } from '../services/timeline';
 import { telemetry } from '../services/telemetry';
+import { installEditorAccess } from './editorAccess';
 import { livePreview } from '../services/livePreview';
 import { docStore } from '../state/docStore';
 
@@ -41,6 +44,9 @@ export function publishEditorExtras(x: EditorExtras): void {
 export function installCoreLiveStreams(): void {
   if (installed) return;
   installed = true;
+  // The editor's own side of the DMX Monitor / Performance / Timing seams (services/dmxFeed,
+  // services/editorHealth): the services themselves, as those panels always read them.
+  installEditorAccess();
 
   // THE CANONICAL PIXEL BUFFER — what the DMX monitor draws. `params` = { start, count } in bytes, so a
   // monitor showing one universe is sent that universe, not the rig. The engine's buffer is its own and
@@ -56,6 +62,35 @@ export function installCoreLiveStreams(): void {
       const copy = pixels.slice(start, end);
       return { value: { start, total: pixels.length, bytes: copy }, transfer: [copy.buffer] };
     },
+  });
+
+  // THE PACKED UNIVERSES — what a light's channel table in the DMX monitor reads: the byte that actually
+  // left the machine, per universe, the first destination that carries it (as the docked table does).
+  // The whole set in one sample: a monitor's tables share it, and a universe is 512 bytes.
+  let dests: Parameters<Parameters<typeof dmxSignal.subscribe>[0]>[0]['destinations'] | null = null;
+  registerLiveStream('dmx.universes', {
+    watch(onNew) { return dmxSignal.subscribe((d) => { dests = d.destinations; onNew(); }); },
+    read() {
+      if (!dests) return undefined;
+      const out: Record<number, Uint8Array> = {};
+      for (const dest of Object.values(dests)) {
+        for (const [k, arr] of Object.entries(dest.universes)) if (!(Number(k) in out)) out[Number(k)] = Uint8Array.from(arr);
+      }
+      return { value: out, transfer: Object.values(out).map((a) => a.buffer) };
+    },
+  });
+
+  // THE STATE MACHINE, for the Timing panel in a window: which state, and how long in it. Shown as mm:ss,
+  // so it is sampled at 4 Hz and SENT only when the state or the displayed second changes.
+  registerLiveStream('sm.state', {
+    watch(onNew) {
+      let sig = '';
+      const check = () => { const s = `${timeline.getSmStateId()}:${Math.floor(timeline.getSmElapsedSec())}`; if (s !== sig) { sig = s; onNew(); } };
+      const off = timeline.subscribeSmState(check);   // a state change at once, not at the next sample
+      const t = setInterval(check, 250);
+      return () => { off(); clearInterval(t); };
+    },
+    read() { return { value: { id: timeline.getSmStateId(), elapsedSec: timeline.getSmElapsedSec() } }; },
   });
 
   // THE CAMERA INSPECTOR in a panel window (services/cameraAccess.ts, live/cameraRemote.ts). The capture
@@ -89,7 +124,8 @@ export function installCoreLiveStreams(): void {
   // the producer hook is a 1 Hz timer — running only while someone watches (broker rule 2).
   registerLiveStream('perf', {
     watch(onNew) { const t = setInterval(onNew, 1000); return () => clearInterval(t); },
-    read() { return { value: { render: perfMonitor.stats(), telemetry: telemetry.get() } }; },
+    // `ui` is the EDITOR's UI thread: a Performance panel in a window reports the editor's health.
+    read() { return { value: { render: perfMonitor.stats(), ui: uiPerfMonitor.stats(), telemetry: telemetry.get() } }; },
   });
 
   // THE LED MASTER, dragged from another window: the same render-free channel the editor's own slider

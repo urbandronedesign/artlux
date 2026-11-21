@@ -33,6 +33,9 @@
 //      broken shader shows the editor GL context's error and writes nothing, on a good one writes the
 //      surface; a help patch opened in Shader Nodes compiles (in the editor) and lands; Effects saves
 //      the surface with a thumbnail rendered on the editor's GPU, lists it, and deletes it again.
+//  15. THE MONITORS in a window read the editor: the DMX Monitor's strips light from the editor's output
+//      and a light's channel table shows the bytes it sends; Performance shows the editor's render loop;
+//      Timing's show clock follows the editor's transport while it plays. Each stream goes on close.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -697,6 +700,78 @@ const until = async (fn, ms = 8000, step = 200) => {
     note(!!libOpen && libOpen.subs > 0 && !!libGone, "the window reads the editor's library over its own subscriptions, which go with the window",
       JSON.stringify({ open: libOpen, editorPanelsReading: await E(() => window.__liveBroker.locals()) }));
     await E(() => {}); // (Wall 1 stays a shader; nothing later depends on its content)
+
+    console.log('\n15. the monitors in their own window: the editor\'s output, render loop and clocks');
+    // DMX MONITOR. Wall 1 is a shader surface now (step 14), so the strips have colour; the Wash's
+    // authored dimmer is 1 → 255 on the wire.
+    const pm = await openPanel('core.dock.monitor');
+    const MW = (fn, ...a) => pm.evaluate(fn, ...a);
+    const lit = await until(() => MW(() => {
+      const cs = [...document.querySelectorAll('canvas')];
+      for (const c of cs) {
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 30) return { strips: cs.length, w: c.width };
+      }
+      return null;
+    }), 8000);
+    note(!!lit, "the DMX Monitor's pixel strips light up in a window, from the editor's output frames", JSON.stringify(lit));
+    const dimmer = await until(() => MW(() => {
+      const label = [...document.querySelectorAll('span[title]')].find((s) => /^dimmer$/i.test((s.getAttribute('title') || '').trim()));
+      const v = label && label.nextElementSibling ? (label.nextElementSibling.textContent || '').trim() : null;
+      return v && v !== '–' ? v : null;
+    }), 8000);
+    // What the editor sends for it: the Wash's dimmer as the document holds it now (steps 5 and 8 move it).
+    const docDimmer = await E(() => ((window.__showHost.get('doc', 'fixtures') || []).find((f) => f.id === 'fx_wash') || {}).dmx?.dimmer);
+    const wantByte = docDimmer == null ? null : String(Math.round(docDimmer * 255));
+    note(dimmer != null && dimmer === wantByte, "a light's channel table shows the byte the editor sends for it", `Dimmer reads ${dimmer}; the editor's document says ${docDimmer} → ${wantByte}`);
+    const dmxOn = await attachedNow();
+    note(dmxOn.includes('dmx.pixels') && dmxOn.includes('dmx.universes'), 'the window reads the output over one pixel and one universe stream', dmxOn.join(', '));
+    note(!Object.values(await MW(prints)).some(Boolean), 'the window still runs no frame engine, transport or three.js of its own', JSON.stringify(await MW(prints)));
+    await MW(() => window.close());
+    const dmxOff = await until(async () => { const a = await attachedNow(); return !a.includes('dmx.pixels') && !a.includes('dmx.universes'); }, 5000);
+    note(!!dmxOff, "closing it stops the editor's output streams for it");
+
+    // PERFORMANCE: the editor's render loop (a panel window has none — its own would read 0 frames).
+    const pf2 = await openPanel('core.dock.perf');
+    const PF = (fn, ...a) => pf2.evaluate(fn, ...a);
+    const fps = await until(() => PF(() => {
+      const row = [...document.querySelectorAll('span')].find((s) => (s.textContent || '').trim().toLowerCase() === 'fps');
+      const v = row && row.nextElementSibling ? Number((row.nextElementSibling.textContent || '').trim()) : NaN;
+      return v > 0 ? v : null;
+    }), 8000);
+    const perfOn = (await attachedNow()).includes('perf');
+    note(!!fps && perfOn && await PF(() => /blocked \/ s/i.test(document.body.innerText)),
+      "Performance in a window shows the editor's render loop and UI thread", `fps ${fps}; perf stream attached: ${perfOn}`);
+    await PF(() => window.close());
+    note(!!(await until(async () => !(await attachedNow()).includes('perf'), 5000)), "closing it stops the editor's perf stream for it");
+
+    // TIMING: play, and the window's show clock follows the editor's transport.
+    const ptm = await openPanel('core.browser.timing');
+    const TW = (fn, ...a) => ptm.evaluate(fn, ...a);
+    const showHere = () => TW(() => {
+      const row = [...document.querySelectorAll('span')].find((s) => (s.textContent || '').trim().toLowerCase() === 'show clock');
+      const t = row && row.parentElement ? (row.parentElement.querySelector('.num')?.textContent || '').trim() : '';
+      const m = t.match(/(\d+):(\d+)/);
+      return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    });
+    const playing = () => E(() => window.__liveBroker.truth().playing);
+    if (!(await playing())) await TW(() => window.__liveClient.action('togglePlay', []));
+    await until(playing, 5000);
+    const t0 = await until(showHere, 5000);
+    await sleep(3200);
+    const t1 = await showHere();
+    const truth = await E(() => window.__liveBroker.truth().showTime);
+    note(t0 != null && t1 != null && t1 >= t0 + 2 && Math.abs(t1 - Math.floor(truth)) <= 1,
+      "Timing in a window follows the editor's show clock while it plays (the clock anchor, extrapolated)",
+      `window ${t0} → ${t1} s; editor ${truth.toFixed(2)} s`);
+    if (await playing()) await TW(() => window.__liveClient.action('togglePlay', []));
+    await until(async () => !(await playing()), 5000);
+    await sleep(1500);
+    const held1 = await showHere();
+    await sleep(1500);
+    const held2 = await showHere();
+    note(held1 != null && held1 === held2, '…and holds when it stops', `${held1} → ${held2}`);
+    await TW(() => window.close());
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

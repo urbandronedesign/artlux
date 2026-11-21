@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { RenderStats } from '../../../shared/protocol';
-import { perfMonitor } from '../services/perfMonitor';
-import { uiPerfMonitor, type UiPerfStats } from '../services/uiPerfMonitor';
+import type { UiPerfStats } from '../services/uiPerfMonitor';
+// The EDITOR's numbers, wherever this is drawn (E5/W5): the services themselves when docked, the live
+// channel in a panel window — whose own render loop and UI thread are not what is being asked about.
+import { editorHealth } from '../services/editorHealth';
 
 // Docked Performance pane (bottom-dock "Performance" tab) — the proper home for the renderer
 // frame-time signal from services/perfMonitor, replacing the old floating PerfHud overlay. Polls
@@ -53,20 +55,13 @@ export const PerfPanel: React.FC = () => {
   const workHist = useRef<number[]>([]);
   const blockHist = useRef<number[]>([]);
 
-  useEffect(() => {
-    const tick = () => {
-      const next = perfMonitor.stats();
-      const nextUi = uiPerfMonitor.stats();
-      frameHist.current = [...frameHist.current, next.frameP50].slice(-HISTORY);
-      workHist.current = [...workHist.current, next.workP50].slice(-HISTORY);
-      blockHist.current = [...blockHist.current, nextUi.longTaskMs].slice(-HISTORY);
-      setS(next);
-      setUi(nextUi);
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  useEffect(() => editorHealth().subscribePerf(({ render: next, ui: nextUi }) => {
+    frameHist.current = [...frameHist.current, next.frameP50].slice(-HISTORY);
+    workHist.current = [...workHist.current, next.workP50].slice(-HISTORY);
+    blockHist.current = [...blockHist.current, nextUi.longTaskMs].slice(-HISTORY);
+    setS(next);
+    setUi(nextUi);
+  }), []);
 
   if (!s) return <div className="p-4 text-mini text-fg-3 italic">Collecting frame samples…</div>;
 

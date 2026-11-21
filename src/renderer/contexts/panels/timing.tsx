@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { timeline as engine } from '../../services/timeline';
+// The clocks and the state come through a seam (E5/W5): the transport itself when docked, the live
+// channel in a panel window (the clock anchor, extrapolated there; the transport may not run there).
+import { editorHealth } from '../../services/editorHealth';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { useEditorPick } from '../../state/EditorStore';
@@ -37,18 +39,21 @@ export const TimingPanel: React.FC = () => {
   const headRef = useRef<HTMLSpanElement>(null);
   const stateRef = useRef<HTMLSpanElement>(null);
 
-  useEffect(() => engine.subscribeSmState(setStateId), []);
+  useEffect(() => editorHealth().subscribeState(setStateId), []);
 
   useEffect(() => {
+    const h = editorHealth();
+    const release = h.watchClocks();
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      if (showRef.current) showRef.current.textContent = mmss(engine.getShowTime());
-      if (headRef.current) headRef.current.textContent = mmss(engine.getPlayhead());
-      if (stateRef.current) stateRef.current.textContent = mmss(engine.getSmElapsedSec());
+      const c = h.clocks();
+      if (c && showRef.current) showRef.current.textContent = mmss(c.showTime);
+      if (c && headRef.current) headRef.current.textContent = mmss(c.playhead);
+      if (stateRef.current) stateRef.current.textContent = mmss(h.stateElapsedSec());
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); release(); };
   }, []);
 
   const state = stateMachine.states.find((s) => s.id === stateId) ?? null;

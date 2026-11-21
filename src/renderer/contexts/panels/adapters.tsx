@@ -1,8 +1,6 @@
 import React from 'react';
 import { MediaPanel } from '../../components/MediaPanel';
 import { FixtureLibrary, FixtureWiring } from '../../components/FixtureEditor';
-import { DMXMonitor } from '../../components/DMXMonitor';
-import { PerfPanel } from '../../components/PerfPanel';
 import { RoutingModal } from '../../components/RoutingModal';
 import { Preferences } from '../../components/Preferences';
 import { StateGraphEditor } from '../../components/timeline/StateGraphEditor';
@@ -62,12 +60,7 @@ export const FixtureWiringDock: React.FC = () => {
   );
 };
 
-export const MonitorDock: React.FC = () => {
-  const { fixtures, fixtureProfiles } = useEditorPick('fixtures', 'fixtureProfiles');
-  return <DMXMonitor fixtures={fixtures} fixtureProfiles={fixtureProfiles} />;
-};
-
-export const PerfDock: React.FC = () => <PerfPanel />;
+// MonitorDock and PerfDock moved to ./monitors.tsx: they may open in a panel window (see there).
 
 // Was the Routing MODAL. Patching belongs beside the fixture list and the DMX monitor, so it is a dock
 // panel in the `led` context now.
