@@ -197,22 +197,23 @@ export const OscMonitor: React.FC<PanelProps> = () => {
           ))}
         </div>
 
-        {/* Controls */}
-        <div className="px-3 py-2 flex items-center gap-2 border-b border-line-1 shrink-0">
+        {/* Controls — WRAP in a narrow window (a panel window opens 380 px wide): the filter used to run
+            off the right edge, a fixed 12rem after the buttons. */}
+        <div className="px-3 py-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line-1 shrink-0">
           <Button variant="tonal" size="sm" onClick={() => setPaused((p) => !p)}>
             {paused ? <><Play size={13} /> Resume</> : <><Pause size={13} /> Pause</>}
           </Button>
           <Button variant="tonal" size="sm" onClick={clear}><Trash2 size={13} /> Clear</Button>
-          <label className="flex items-center gap-1.5 text-mini text-fg-2 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-mini text-fg-2 cursor-pointer select-none whitespace-nowrap">
             <input type="checkbox" checked={logging} onChange={(e) => setLogging(e.target.checked)} /> Raw log
           </label>
-          <div className="ml-auto relative">
+          <div className="ml-auto relative flex-1 min-w-[8rem] max-w-[12rem]">
             <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-3" />
             <input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="filter address…"
-              className="num text-mini pl-6 pr-2 py-1 w-48 bg-surface-2 border border-line-1 rounded-sm text-fg-1 placeholder:text-fg-3 focus:border-accent outline-none"
+              className="num text-mini pl-6 pr-2 py-1 w-full bg-surface-2 border border-line-1 rounded-sm text-fg-1 placeholder:text-fg-3 focus:border-accent outline-none"
             />
           </div>
         </div>

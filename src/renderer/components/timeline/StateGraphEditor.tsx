@@ -438,6 +438,15 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [sel, sm]); // the handlers close over the selection and the graph — no dep array meant a re-bind every render
+  // NARROW (a panel window opens 380 px wide): the inspector goes UNDER the graph. Beside it, its fixed
+  // 18rem left the graph ~90 px — not a canvas anyone can draw states on.
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = rootRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => setNarrow(el.clientWidth > 0 && el.clientWidth < 560));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
 
   // --- the radial link nub ---
@@ -506,8 +515,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     // `data-owns-delete`: this editor binds Del/Backspace to its OWN selection, so the global
     // "delete the selected fixture" shortcut steps aside while the pointer or focus is in here.
     <div ref={rootRef} data-owns-delete className="w-full h-full bg-surface-0 flex flex-col overflow-hidden">
-        <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
-          <span className="text-xs text-fg-1 font-medium">Show machine — states &amp; scenes</span>
+        {/* WRAPS: in a narrow window the buttons flow onto a second row instead of running off the edge. */}
+        <div className="min-h-9 shrink-0 flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1 border-b border-line-1 bg-surface-1 [&_button]:whitespace-nowrap">
+          <span className="text-xs text-fg-1 font-medium whitespace-nowrap">Show machine — states &amp; scenes</span>
           <Tooltip id="timeline.sm-add-state">
             {/* Drops at the CURRENT view centre — the old hard-coded document centre could be
                 anywhere off screen once the canvas became unbounded. */}
@@ -547,10 +557,11 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"><ZoomIn size={13} /></button>
           </Tooltip>
           {linkFrom && <span className="text-micro text-accent">drag onto a target state to connect…</span>}
-          <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · drag: pan · wheel: zoom · F: fit</span>
+          <span title="dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · drag: pan · wheel: zoom · F: fit"
+            className="ml-auto min-w-0 max-w-full truncate text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · drag: pan · wheel: zoom · F: fit</span>
         </div>
 
-        <div className="flex-1 min-h-0 flex">
+        <div className={`flex-1 min-h-0 flex ${narrow ? 'flex-col' : ''}`}>
           {/* canvas — an open workspace: overflow-hidden viewport + translate/scale content layer
               (the Stage.tsx camera), unbounded in every direction, negative coordinates included. */}
           <div ref={viewportRef} className="relative flex-1 overflow-hidden bg-surface-0"
@@ -696,7 +707,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
           </div>
 
           {/* inspector */}
-          <div className="w-72 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-3 text-mini">
+          <div className={`${narrow ? 'h-[45%] border-t' : 'w-72 border-l'} shrink-0 border-line-1 bg-surface-1 overflow-auto p-3 text-mini`}>
             {/* MACHINE-WIDE POLICY — shown regardless of selection because it belongs to no node/edge.
                 The unattended "reached its end, nobody came, go home" safety net (StateMachine.idleResetSec).
                 Presented in MINUTES (the way a venue thinks about it) but stored as seconds. */}

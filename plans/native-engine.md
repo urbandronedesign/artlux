@@ -770,6 +770,26 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > PACKAGED `ArtLux.exe` (a window that must appear is not verifiable in dev — CLAUDE.md), on the RTX venue
 > machine, and on macOS / Linux (CI builds them; nothing here has run there).
 >
+> ✅ **Packaged check done 2026-11-22 (Windows, dev PC).** `npm run package:dir`, then `ArtLux.exe` launched
+> with NO CDP port and four panel windows on the reopen list (Surfaces, DMX Monitor, Trigger Zones,
+> Preferences): all four came up visible with the editor, titled after their panel, and drew their
+> content — read from the real screen (Win32: each window raised, copied from the desktop), not from a
+> page. Three launches, two of them a fresh exe's first. Once, on the very first launch, Preferences was
+> still black 13 s in; it did not happen again in two later runs (one a fresh exe's first launch) and is
+> noted, not explained. **Found by eye: panels did not fit a narrow window** (Trigger Zones printed its
+> header over its zone list at the window's default 380 px). The owner asked for responsive panels, so:
+> `scripts/test-panel-narrow.cjs` opens EVERY detachable panel in a window at 380 and 280 px and flags a
+> leaf that spills past what clips it or text printed over text. It found the Show Machine (graph ~90 px
+> wide, toolbar cut off), the OSC / Augmenta monitors (filter off the edge) and Routing (fields crushed to
+> slivers). Fixed: a side column goes under below a width, toolbars wrap, data grids get a floor width and
+> scroll. All 40 panels fit at both widths; a check holds the fixes (mutation-tested 7/7). Still open
+> for "shipped": the RTX venue machine, and macOS / Linux.
+>
+> ⚠ **Intermittent, not explained:** one `test-panel-window` run of two failed step 7's first claim — the
+> reopen list held fixtures + groups but NOT globals, the window step 6 deliberately CRASHES. The rerun
+> passed 104/104. Nothing in this change touches that path. Worth a look: can a crashed panel window fall
+> off the reopen list (its 'closed' would run with `editorClosing` false)?
+>
 > ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
 > Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on
 > "Save before closing?" and the remote `/shutdown` never completes. It fails identically when built

@@ -102,6 +102,17 @@ export const ZonePanel: React.FC<PanelProps> = () => {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // NARROW: the list goes UNDER the map. Side by side, the list's fixed 16rem left a 380 px panel window
+  // (its default width) a map column ~110 px wide, and the header row — which does not shrink — spilled
+  // over the list ("Zones 1" printed on top of the surface picker; seen in the packaged app, E5).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = rootRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => setNarrow(el.clientWidth > 0 && el.clientWidth < 520));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [selId, setSelId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -405,10 +416,10 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           : 'drag on the map to draw a zone · click one to select it';
 
   return (
-    <div className="h-full flex text-mini">
+    <div ref={rootRef} className={`h-full flex ${narrow ? 'flex-col' : ''} text-mini`}>
       {/* the map */}
-      <div className="flex-1 min-w-0 flex flex-col p-2 gap-2">
-        <div className="flex items-center gap-2">
+      <div className={`flex-1 min-w-0 ${narrow ? 'min-h-[240px]' : ''} flex flex-col p-2 gap-2`}>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-fg-3 text-micro">Surface</span>
           <select value={surface} onChange={(e) => setSurface(e.target.value)}
             className="bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-fg-1 focus:border-accent outline-none">
@@ -472,7 +483,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
       </div>
 
       {/* the list + the selected zone's rules */}
-      <div className="w-64 shrink-0 border-l border-line-1 p-2 space-y-2 overflow-auto">
+      <div className={`${narrow ? 'max-h-[45%] border-t' : 'w-64 border-l'} shrink-0 border-line-1 p-2 space-y-2 overflow-auto`}>
         <div className="flex items-center gap-1">
           <span className="text-fg-2 font-medium">Zones</span>
           <span className="text-fg-3 text-micro">{list.length}</span>

@@ -8259,6 +8259,34 @@ check(
   },
 );
 
+check(
+  'a panel fits a narrow panel window (no fixed side column, no toolbar that runs off the edge)',
+  'A panel window opens 380 px wide and goes down to 240, and panels laid out for the editor\'s docks did ' +
+  'not fit: Trigger Zones printed "Zones 1" on top of its surface picker (seen in the PACKAGED app), the ' +
+  'Show Machine left its graph ~90 px with its toolbar cut off, the OSC/Augmenta monitors\' filter ran ' +
+  'off the edge, and Routing crushed its name and IP fields to slivers. The rule is measured by ' +
+  'scripts/test-panel-narrow.cjs (every detachable panel at 380 and 280 px); these are the fixes it ' +
+  'found, held in place: a side column goes UNDER below a width, a toolbar wraps, a data grid gets a ' +
+  'floor width and scrolls.',
+  () => {
+    const problems = [];
+    const zp = read('plugins/lidar-tracking/src/ZonePanel.tsx');
+    if (!/setNarrow\(el\.clientWidth > 0 && el\.clientWidth < \d+\)/.test(zp) || !/narrow \? 'max-h-\[45%\] border-t' : 'w-64 border-l'/.test(zp)) problems.push('Trigger Zones: the zone list no longer goes under the map when narrow');
+    if (!/<div className="flex flex-wrap items-center gap-x-2 gap-y-1">\s*<span className="text-fg-3 text-micro">Surface<\/span>/.test(zp)) problems.push('Trigger Zones: the map header row no longer wraps');
+    const sg = read('src/renderer/components/timeline/StateGraphEditor.tsx');
+    if (!/setNarrow\(el\.clientWidth > 0 && el\.clientWidth < \d+\)/.test(sg) || !/narrow \? 'h-\[45%\] border-t' : 'w-72 border-l'/.test(sg)) problems.push('Show Machine: the inspector no longer goes under the graph when narrow');
+    if (!/className="min-h-9 shrink-0 flex flex-wrap items-center/.test(sg)) problems.push('Show Machine: the toolbar no longer wraps');
+    for (const f of ['plugins/lidar-tracking/src/OscMonitor.tsx', 'plugins/augmenta/src/AugmentaMonitor.tsx']) {
+      const s = read(f);
+      if (!/<div className="px-3 py-2 flex flex-wrap items-center[^"]*">\s*<Button variant="tonal" size="sm" onClick=\{\(\) => setPaused/.test(s)) problems.push(`${f}: the controls row no longer wraps`);
+      if (/placeholder="filter address…"\s*className="[^"]*\bw-48\b/.test(s)) problems.push(`${f}: the filter is a fixed width again`);
+    }
+    const rt = read('src/renderer/components/RoutingModal.tsx');
+    if ((rt.match(/className="(?:mt-1\.5 )?min-w-\[\d+px\] border border-line-1 rounded-md divide-y divide-line-1"/g) || []).length !== 2) problems.push('Routing: the controller and fixture grids lost their floor width (they crush instead of scrolling)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

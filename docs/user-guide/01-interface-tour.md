@@ -218,6 +218,9 @@ it, is a third.
   and letting go moves the panel there. It works from the editor into a panel window too. A panel that
   cannot open in a window (a viewport, for instance) stays where it is, and a tab let go over nothing
   stays put. A window whose last tab you drag away closes.
+- **Make it as narrow as you like.** A panel rearranges to fit its window: a side list moves under its
+  map or graph, toolbars wrap onto a second row, and a wide table (Routing) scrolls sideways instead of
+  squeezing its fields.
 - **It remembers where it was** on this machine, screen included, with its tabs and splits, and opens
   there next time. If that screen is not connected any more, the window comes back on the editor's
   screen, never off-screen.

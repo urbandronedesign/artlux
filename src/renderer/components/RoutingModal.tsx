@@ -153,7 +153,9 @@ export const RoutingModal: React.FC<Props> = ({
                 <Button variant="tonal" size="sm" onClick={onAddController} {...help('routing.add-controller')}><Plus size={13} /> Controller</Button>
               </div>
             </div>
-            <div className="border border-line-1 rounded-md divide-y divide-line-1">
+            {/* A FLOOR WIDTH on both grids: narrower than this (a panel window opens 380 px wide) the fr
+                columns crushed the name and IP fields to a sliver; now the panel scrolls sideways. */}
+            <div className="min-w-[560px] border border-line-1 rounded-md divide-y divide-line-1">
               <div className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3">
                 <span>Name</span><span>Protocol</span><span>Drives</span><span>IP</span><span>Bcast</span><span>Start U</span><span>Prio</span><span></span>
               </div>
@@ -243,7 +245,7 @@ export const RoutingModal: React.FC<Props> = ({
           {/* Fixtures patch grid */}
           <div>
             <span className="text-mini font-semibold text-fg-2 uppercase tracking-wider">Fixtures</span>
-            <div className="mt-1.5 border border-line-1 rounded-md divide-y divide-line-1">
+            <div className="mt-1.5 min-w-[680px] border border-line-1 rounded-md divide-y divide-line-1">
               <div className={`grid ${COLS} gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3`}>
                 <span>Name</span><span>Surface</span><span>Controller</span><span>Univ</span><span>Start</span><span>Channels</span><span>LEDs</span><span>Span</span><span></span>
               </div>

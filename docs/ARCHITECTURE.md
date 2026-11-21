@@ -115,7 +115,9 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   (`live/panelStore.tsx`). `verify:invariants` bundles `panel.tsx` and refuses any producer in its
   graph. Positions are kept per machine in the prefs, screens are matched by id and then by label and
   size, windows are clamped on-screen, and the windows open at quit reopen with the editor.
-  `scripts/test-panel-window.cjs` proves all of it, including a crash mid-drag. A window is a dock tree
+  `scripts/test-panel-window.cjs` proves all of it, including a crash mid-drag, and
+  `scripts/test-panel-narrow.cjs` holds every detachable panel to a 380 / 280 px window (nothing spills,
+  no text over text). A window is a dock tree
   of its own (the editor's `DockRenderer`), saved per window. "Back to the editor" is the `dockPanel`
   action (`services/dockBack.ts`). **Every port main hands a page goes through `src/main/postToPage.ts`:**
   `webContents.postMessage` to a crashed page blocks the main process (found and reproduced in W5b-2).
