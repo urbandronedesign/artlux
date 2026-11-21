@@ -51,6 +51,10 @@
 //      changed there is the editor's (the window's control shows the editor's value back); the editor
 //      window's own settings are disabled with a pointer; a section only the editor has is named; Show
 //      Control's section reaches main (its LAN address).
+//  20. A TAB DRAGGED BETWEEN WINDOWS: from a panel window onto the editor's workbench (it lands there, the
+//      window lets go), from the editor into a panel window (likewise), and a non-detachable tab dragged
+//      out goes nowhere. Main reads the REAL cursor, so this step moves it (Windows: Forms.Cursor) while
+//      the page under test is driven by CDP — it runs only on win32, and moves the operator's pointer.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -229,7 +233,8 @@ const until = async (fn, ms = 8000, step = 200) => {
     console.log('\n1. a detachable panel opens in its own window, showing the open project');
     const pf = await openPanel('core.browser.fixtures', 'Fixtures');
     const P = (fn, ...a) => pf.evaluate(fn, ...a);
-    const text = await P(() => document.body.innerText);
+    // The panel renders a moment after the replica is ready: wait for its content, not just the window.
+    const text = (await until(() => P(() => (/Strip Alpha/.test(document.body.innerText) ? document.body.innerText : null)), 8000)) ?? await P(() => document.body.innerText);
     note(/Strip Alpha/.test(text) && /Strip Bravo/.test(text) && !/Main Arch/.test(text),
       'the panel window lists the project\'s fixtures (not the built-in default)', text.split('\n').slice(0, 6).join(' | '));
     note((await P(() => document.title)).startsWith('Fixtures'), 'the window is titled after its panel', await P(() => document.title));
@@ -565,7 +570,7 @@ const until = async (fn, ms = 8000, step = 200) => {
     // editor's zone engine's, over 'lidar-tracking.zoneView'.
     const pz = await openPanel('zone-editor');
     const Z = (fn, ...a) => pz.evaluate(fn, ...a);
-    note(await Z(() => /Entrance/.test(document.body.innerText)), "Trigger Zones opens in a window and lists the project's zone", (await Z(() => document.title)));
+    note(!!(await until(() => Z(() => /Entrance/.test(document.body.innerText)), 6000)), "Trigger Zones opens in a window and lists the project's zone", (await Z(() => document.title)));
     note(!Object.values(await Z(prints)).some(Boolean), 'the window runs no tracker, transport or engine of its own', JSON.stringify(await Z(prints)));
     const occupiedIcon = () => Z(() => {
       const row = [...document.querySelectorAll('button')].find((b) => /Entrance/.test(b.textContent || '') && /SOL/.test(b.textContent || ''));
@@ -957,6 +962,80 @@ const until = async (fn, ms = 8000, step = 200) => {
     note(!!lan, "Show Control's section reaches its main half from the window (the server's address and port)");
     note(!Object.values(await PR(prints)).some(Boolean), 'the Preferences window runs no transport, engine or three.js of its own', JSON.stringify(await PR(prints)));
     await PR(() => window.close());
+
+    console.log('\n20. dragging a tab between windows');
+    if (process.platform !== 'win32') { console.log('   (skipped: the real-cursor move is Windows-only here)'); } else {
+      const setCursor = (x, y) => execSync(`powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${Math.round(x)},${Math.round(y)})"`, { stdio: 'ignore' });
+      // The screen point at the centre of the largest dock group of a page (its content origin + the box).
+      const groupCentre = (page) => page.evaluate(() => {
+        const g = [...document.querySelectorAll('[data-dock-group]')].map((e) => e.getBoundingClientRect()).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+        if (!g) return null;
+        const left = window.screenX + (window.outerWidth - window.innerWidth) / 2;
+        const top = window.screenY + (window.outerHeight - window.innerHeight) - (window.outerWidth - window.innerWidth) / 2;
+        return { x: left + g.left + g.width / 2, y: top + g.top + g.height / 2, dpr: window.devicePixelRatio };
+      });
+      const tabCentre = (page, id) => page.evaluate((pid) => { const t = document.querySelector(`[data-dock-tab="${pid}"]`); if (!t) return null; const r = t.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: window.innerWidth }; }, id);
+      // Press on a tab, pass the drag threshold, then go OUT of that window (client x past its right edge)
+      // in a few steps — each one a 'move' main routes by the real cursor — and release out there.
+      const dragOut = async (page, id) => {
+        const t = await tabCentre(page, id);
+        if (!t) return false;
+        await page.mouse.move(t.x, t.y); await page.mouse.down();
+        await page.mouse.move(t.x + 12, t.y + 4, { steps: 3 });
+        for (const dx of [40, 80, 120]) { await page.mouse.move(t.w + dx, t.y, { steps: 2 }); await sleep(120); }
+        await page.mouse.up();
+        return true;
+      };
+      const editorTabs = () => E(() => [...document.querySelectorAll('[data-dock-tab]')].map((e) => e.getAttribute('data-dock-tab')));
+
+      // WINDOW → EDITOR: Performance, alone in its own window, dropped on the editor's workbench.
+      const pw1 = await openPanel('core.dock.perf');
+      const before1 = await editorTabs();
+      const dpr = (await groupCentre(ed))?.dpr ?? 1;
+      const onEditor = await groupCentre(ed);
+      // Away from the panel window (panel windows win where they overlap): the editor's far-left third.
+      const edBox = await E(() => ({ x: window.screenX, y: window.screenY, w: window.innerWidth, h: window.innerHeight }));
+      setCursor(edBox.x + edBox.w * 0.15, edBox.y + edBox.h * 0.55);
+      const draggedIn = await dragOut(pw1, 'core.dock.perf');
+      const landed = await until(async () => ((await editorTabs()).includes('core.dock.perf') ? 1 : null), 6000);
+      const w1Gone = await until(async () => !(await browser.targets()).some((t) => t.url().includes('panel.html?panel=core.dock.perf')), 6000);
+      note(draggedIn && !!landed && !!w1Gone, 'a tab dragged out of a panel window onto the editor lands in the editor, and the window lets it go',
+        `editor tabs ${before1.includes('core.dock.perf') ? 'already had it' : 'gained it'}; window closed: ${!!w1Gone}; screen scale ${dpr}`);
+      void onEditor;
+
+      // EDITOR → WINDOW: the editor's DMX Monitor (detachable) dropped into a Groups window.
+      const pw2 = await openPanel('core.browser.groups');
+      await sleep(800);
+      const winCentre = await groupCentre(pw2);
+      const hasMonitor = (await editorTabs()).includes('core.dock.monitor') ? 'core.dock.monitor' : (await editorTabs()).find((id) => /^core\.dock\.(monitor|routing|fixtureLibrary|perf)$/.test(id));
+      if (winCentre && hasMonitor) {
+        setCursor(winCentre.x, winCentre.y);
+        await pw2.bringToFront().catch(() => {});
+        await pw2.evaluate(() => window.focus()).catch(() => {});   // raised in main's stacking order
+        await sleep(300);
+        const draggedOut = await dragOut(ed, hasMonitor);
+        const inWindow = await until(() => pw2.evaluate((id) => !!document.querySelector(`[data-dock-tab="${id}"]`), hasMonitor), 6000);
+        const leftEditor = await until(async () => (!(await editorTabs()).includes(hasMonitor) ? 1 : null), 4000);
+        const holder = inWindow ? 'the Groups window' : (await Promise.all((await browser.pages()).filter((pg) => /panel\.html/.test(pg.url())).map(async (pg) => ((await pg.evaluate((id) => !!document.querySelector(`[data-dock-tab="${id}"]`), hasMonitor).catch(() => false)) ? pg.url().split('panel=')[1] : null)))).filter(Boolean).join(', ') || 'no window';
+        note(draggedOut && !!inWindow && !!leftEditor, 'a tab dragged out of the editor into a panel window lands in that window, and the editor lets it go', `${hasMonitor} → ${holder}; editor still has it: ${!leftEditor}`);
+        // …and back: the same tab, from the window onto the editor, so the editor ends as it began.
+        setCursor(edBox.x + edBox.w * 0.15, edBox.y + edBox.h * 0.55);
+        await dragOut(pw2, hasMonitor);
+        await until(async () => ((await editorTabs()).includes(hasMonitor) ? 1 : null), 6000);
+      } else note(false, 'a tab dragged out of the editor into a panel window lands in that window', `no target: window centre ${JSON.stringify(winCentre)}, editor tab ${hasMonitor}`);
+
+      // A NON-detachable tab dragged out goes nowhere: the editor keeps it, the window does not get it.
+      const fixedTab = (await editorTabs()).find((id) => !/^core\.(dock\.(monitor|perf|routing|fixtureLibrary|fixtureWiring|media|lightingTakes|trackingTakes)|browser\.|inspector\.)/.test(id) && !/^(osc-monitor|zone-editor|augmenta-monitor|pose-monitor|shader-)/.test(id));
+      if (fixedTab && winCentre) {
+        setCursor(winCentre.x, winCentre.y);
+        await dragOut(ed, fixedTab);
+        await sleep(1200);
+        const stillHere = (await editorTabs()).includes(fixedTab);
+        const notThere = !(await pw2.evaluate((id) => !!document.querySelector(`[data-dock-tab="${id}"]`), fixedTab));
+        note(stillHere && notThere, 'a tab that cannot open in a window, dragged out, stays in the editor', fixedTab);
+      }
+      await pw2.evaluate(() => window.close()).catch(() => {});
+    }
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

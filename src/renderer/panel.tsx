@@ -226,7 +226,14 @@ const Workbench: React.FC = () => {
 
   const commit = React.useCallback((next: DockTree) => {
     const ids = panelIds(next);
-    if (!ids.length) { window.close(); return; }    // nothing left to show: the window goes
+    // ⚠ A WINDOW'S LAST PANEL. A dock tree is never empty — closePanel on the last panel keeps the old
+    // root and only records the panel as closed (services/dockTree finish()) — so "nothing left" shows
+    // up as every remaining panel being one that was just closed. That is how a window's last tab goes:
+    // its close button, Back to the editor, or dragged into another window. Without this, all three
+    // left the window open on a panel the operator had just sent away (found by test-panel-window
+    // step 20, E5/W5l — the earlier steps only ever removed a tab from a window that had two).
+    const closedYetShown = ids.filter((id) => next.removed.includes(id));
+    if (!ids.length || closedYetShown.length === ids.length) { window.close(); return; }
     setTree(next);
     document.title = titleFor(ids);
     window.artlux?.panelWindowTree?.(next);

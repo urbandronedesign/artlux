@@ -487,6 +487,15 @@ harmless.
     editor's `prefs.sections` stream. The settings of the editor's OWN window — its workbench layout,
     named workspaces, 3D view quality — are wrapped in `EditorOnly` and disabled there
     (`services/windowRole`, marked by `panel.tsx`).
+  - **A tab dragged between windows** (`DockDrag.tsx` + `main/panelWindows.ts`). The drag is pointer
+    events inside a page, captured so it keeps receiving moves once it leaves its window; outside, the
+    source reports `move` / `drop` / `end` (`IPC.DOCK_DRAG`) and MAIN routes it — it reads the cursor
+    itself (a page's screen coordinates are in its own zoomed CSS pixels), finds the window under it
+    topmost first (focus order: Electron has no z-order query), converts to that window's client pixels
+    with its zoom factor, and asks it to take the panel (`DOCK_DRAG_DROP` → `DOCK_DRAG_DONE`). The source
+    lets go only on yes. Only detachable panels cross; one dock tree per window answers. A panel window
+    whose last tab goes closes: `closePanel` keeps a tree's last panel (a tree is never empty), so the
+    window closes when every panel left is one just closed.
   - **⚠ A panel window never writes the editor's layout.** `layoutStore` holds the editor's whole
     workbench as one prefs object and a window's copy starts from the defaults, so `panel.tsx` calls
     `disableLayoutPersistence()` before anything mounts; a window's layout tweaks stay in it.

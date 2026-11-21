@@ -7966,7 +7966,8 @@ check(
 );
 
 check(
-  "a plugin's detachable panels come from its UI half, and reach the runtime only through the editor",
+  "a panel in its own window gets everything it shows from the editor — UI halves, one seam per editor service, OSC, drags",
+  'Every rule below is a panel window that LOOKS right and is quietly wrong, the shape that ships. ' +
   'A panel registered from a runtime cannot be in a panel window (the runtime never runs there), and one ' +
   'registered from both halves is two copies that drift. A UI panel that read the host captured by ' +
   'activate() would, in a window, read nothing and drop every edit; an OSC monitor in a window that main ' +
@@ -8097,6 +8098,20 @@ check(
     if (!/<EditorOnly><WorkspacesSection \/><\/EditorOnly>/.test(prefs)) problems.push('Preferences: the named-workspace manager is no longer EditorOnly');
     if (!/<EditorOnly>\s*<Slider label="3D render scale"/.test(prefs)) problems.push("Preferences: the 3D view's quality settings are no longer EditorOnly");
     if (!streams.includes("registerLiveStream('prefs.sections'")) problems.push("the editor no longer publishes 'prefs.sections' (Preferences in a window says which sections it lacks)");
+    // A TAB DRAGGED BETWEEN WINDOWS (W5l). Each rule is a way the drag silently loses or duplicates a
+    // panel: the source letting go before the target took it, a non-detachable panel landing in a window
+    // that cannot run it, a drop routed to the window UNDER the one the operator sees, a page's own
+    // screen coordinates (scaled per window by the UI zoom) used as the cursor, a window kept open on a
+    // last tab it just sent away.
+    const dd = read('src/renderer/components/shell/DockDrag.tsx');
+    if (!/dockDrag\('drop', panelId\)\.then\(\(r\) => \{\s*\n?\s*if \(!r\?\.ok\) return;\s*\n?\s*const next = closePanel\(/.test(dd.replace(/\r\n/g, '\n'))) problems.push('DockDrag no longer removes a dragged-out tab ONLY after the other window took it');
+    if (!/const crossable = \(panelId: string\): boolean => !!panelRegistry\.get\(panelId\)\?\.detachable/.test(dd)) problems.push('DockDrag no longer lets only detachable panels leave a window');
+    if (!/if \(!p \|\| \(isPanelWindow\(\) && !p\.detachable\)\) return false;/.test(dd)) problems.push('a panel window no longer refuses a non-detachable panel dropped from the editor');
+    const pwm = read('src/main/panelWindows.ts');
+    if (!/function windowUnderCursor[\s\S]{0,200}?screen\.getCursorScreenPoint\(\)/.test(pwm)) problems.push('main no longer reads the cursor itself for a cross-window drag');
+    if (!/const candidates = \[\.\.\.focusOrder, \.\.\.rest\];/.test(pwm)) problems.push('main no longer tries windows topmost first (focus order) for a cross-window drop');
+    if (!/getZoomFactor\(\)/.test(pwm.match(/function windowUnderCursor[\s\S]*?\n\}/)?.[0] ?? '')) problems.push("main no longer converts the cursor with the target window's zoom factor");
+    if (!/const closedYetShown = ids\.filter\(\(id\) => next\.removed\.includes\(id\)\);\s*\n\s*if \(!ids\.length \|\| closedYetShown\.length === ids\.length\) \{ window\.close\(\); return; \}/.test(read('src/renderer/panel.tsx').replace(/\r\n/g, '\n'))) problems.push("a panel window no longer closes when its last tab goes (closePanel keeps a tree's last panel)");
     // ⚠ THE FIRST TAKE ON THE GLOBAL TIMELINE WAS LOST (found W5j, docked just the same): stopTracking's
     // library commit and its lane commit hit ONE document when no scene is bound, and the lane commit read
     // that document from a render ref — the timeline from before the take — and wrote it back.

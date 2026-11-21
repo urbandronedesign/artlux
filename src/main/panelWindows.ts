@@ -132,6 +132,7 @@ export function openPanelWindow(panelId: string): void {
       backgroundThrottling: false,
     },
   });
+  trackStacking(win);
   // NO APPLICATION MENU in a panel window. On Windows the app menu is attached to every window, hidden
   // or not, and its REGISTERED accelerators fire there: Ctrl+R would reload the panel, and Ctrl+S would
   // save through a path that may or may not also see the panel's own key handling. The panel window
@@ -172,6 +173,8 @@ export function openPanelWindow(panelId: string): void {
 /** The editor window only (never in a show mode). */
 export function registerPanelWindows(editor: BrowserWindow, getEditorWindow: () => BrowserWindow | null): void {
   getEditor = getEditorWindow;
+  trackStacking(editor);
+  registerDockDrag();
   ipcMain.on(IPC.PANEL_WINDOW_OPEN, (_e, panelId: unknown) => { if (typeof panelId === 'string') openPanelWindow(panelId); });
   // A panel window's own arrangement (W5b-2): asked for on load, reported on every change. Kept per
   // anchor in the prefs, so reopening the window brings back its tabs and splits, not just its place.
@@ -205,3 +208,83 @@ export function registerPanelWindows(editor: BrowserWindow, getEditorWindow: () 
 
 /** For the harness and the logs. */
 export function panelWindowIds(): string[] { return [...windows.keys()]; }
+
+// ── A TAB DRAGGED BETWEEN WINDOWS (E5/W5l) ───────────────────────────────────────────────────────────
+// A tab drag is pointer events inside one page (components/shell/DockDrag.tsx), and a page never sees the
+// pointer over ANOTHER window. So once a drag leaves its window, the source reports 'move' / 'drop' /
+// 'end' here and main does the part only main can: which window is under the cursor, and where.
+//
+//   · The CURSOR IS READ HERE (screen.getCursorScreenPoint, DIP), never taken from the page: a page's
+//     screenX is in its own CSS pixels, which the UI scale (the zoom factor) makes differ per window.
+//     Converted into the target's client px with the target's content bounds and its own zoom factor.
+//   · Windows are tried TOPMOST FIRST (focus order, see trackStacking): where windows overlap, the one
+//     the operator sees under the cursor is the one that takes the drop.
+//   · A drop is a question to the target ("take it?"), answered with DOCK_DRAG_DONE; the source removes
+//     its tab only on yes, so a drop nobody accepts loses nothing. No answer in 2 s counts as no.
+// WHICH WINDOW IS ON TOP. Electron has no z-order query, and windows overlap (several panel windows
+// opened at the same remembered place, all over the editor). Focusing a window raises it, so the order
+// of focus — most recent first — is the stacking order an operator sees. Every window this file knows
+// (the panel windows and the editor) is touched on 'focus', and on creation (a new window opens on top).
+const focusOrder: BrowserWindow[] = [];
+function raise(win: BrowserWindow): void {
+  const i = focusOrder.indexOf(win);
+  if (i >= 0) focusOrder.splice(i, 1);
+  focusOrder.unshift(win);
+}
+export function trackStacking(win: BrowserWindow): void {
+  raise(win);
+  win.on('focus', () => raise(win));
+  win.on('closed', () => { const i = focusOrder.indexOf(win); if (i >= 0) focusOrder.splice(i, 1); });
+}
+
+let hoverWc: Electron.WebContents | null = null;
+let dropSeq = 0;
+const drops = new Map<number, (ok: boolean) => void>();
+
+function windowUnderCursor(exclude: Electron.WebContents): { win: BrowserWindow; x: number; y: number } | null {
+  const p = screen.getCursorScreenPoint();
+  const editor = getEditor();
+  // Topmost first (focus order); anything not tracked yet after it, panel windows before the editor.
+  const rest = [...windows.values(), ...(editor ? [editor] : [])].filter((w) => !focusOrder.includes(w));
+  const candidates = [...focusOrder, ...rest];
+  for (const win of candidates) {
+    if (win.isDestroyed() || win.webContents === exclude || !win.isVisible() || win.isMinimized()) continue;
+    if (win.webContents.isCrashed()) continue;
+    const b = win.getContentBounds();
+    if (p.x < b.x || p.y < b.y || p.x >= b.x + b.width || p.y >= b.y + b.height) continue;
+    const z = win.webContents.getZoomFactor() || 1;
+    return { win, x: (p.x - b.x) / z, y: (p.y - b.y) / z };
+  }
+  return null;
+}
+function hoverTo(wc: Electron.WebContents | null, msg: { panelId: string; x: number; y: number } | null): void {
+  if (hoverWc && hoverWc !== wc && !hoverWc.isDestroyed()) hoverWc.send(IPC.DOCK_DRAG_HOVER, null);
+  hoverWc = wc;
+  if (wc && !wc.isDestroyed()) wc.send(IPC.DOCK_DRAG_HOVER, msg);
+}
+
+/** The cross-window half of the tab drag. Registered once, with the editor (see registerPanelWindows). */
+function registerDockDrag(): void {
+  ipcMain.handle(IPC.DOCK_DRAG, async (e, phase: unknown, panelId: unknown) => {
+    if (typeof panelId !== 'string' || !ID_RE.test(panelId)) return { ok: false };
+    if (phase === 'end') { hoverTo(null, null); return { ok: false }; }
+    const at = windowUnderCursor(e.sender);
+    if (phase === 'move') { hoverTo(at?.win.webContents ?? null, at ? { panelId, x: at.x, y: at.y } : null); return { ok: false }; }
+    if (phase !== 'drop') return { ok: false };
+    hoverTo(null, null);
+    if (!at) return { ok: false };
+    const req = ++dropSeq;
+    const answer = new Promise<boolean>((resolve) => {
+      drops.set(req, resolve);
+      setTimeout(() => { if (drops.delete(req)) resolve(false); }, 2000);
+    });
+    at.win.webContents.send(IPC.DOCK_DRAG_DROP, { req, panelId, x: at.x, y: at.y });
+    const ok = await answer;
+    if (ok) at.win.focus();
+    return { ok };
+  });
+  ipcMain.on(IPC.DOCK_DRAG_DONE, (_e, req: unknown, ok: unknown) => {
+    const r = typeof req === 'number' ? drops.get(req) : undefined;
+    if (r) { drops.delete(req as number); r(ok === true); }
+  });
+}

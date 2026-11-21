@@ -753,10 +753,22 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > is the editor's and is saved; the three editor-window blocks disabled with the pointer; Show Control's
 > section reaches main); checks mutation-tested 11/11 + 1.
 >
-> **W5 — what is left:**
-> - `preview` (program monitor, output previews): GPU viewports, docked until the engine.
-> - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
->   the editor's own drag code, which has no window-level test yet.
+> ✅ **W5l done 2026-11-21 (a tab dragged between windows).** The source captures the pointer and, once
+> outside, reports to main; main reads the real cursor, picks the window under it TOPMOST FIRST (focus
+> order — the first version tried windows in creation order and dropped into a window beneath the one
+> on screen), converts with that window's zoom factor and asks it to take the panel; the source lets go
+> on yes. **A bug found, older than this step:** a panel window never closed when its LAST tab went (its
+> close button, Back to the editor, or a drag) — `closePanel` keeps a tree's last panel — fixed in the
+> window's commit.
+>
+> Proof: `test-panel-window` step 20 moves the REAL cursor (Windows) and drives the drag by CDP: window
+> → editor (lands, the window closes), editor → window (lands, the editor lets go, then back), a
+> non-detachable tab dragged out goes nowhere; checks mutation-tested 6/6. Two full runs green.
+>
+> **W5 is done** except what was always out of scope: `preview` (program monitor, output previews) are
+> GPU viewports, docked until the engine. **Before E5 can be called shipped:** verify panel windows in the
+> PACKAGED `ArtLux.exe` (a window that must appear is not verifiable in dev — CLAUDE.md), on the RTX venue
+> machine, and on macOS / Linux (CI builds them; nothing here has run there).
 >
 > ⚠ **Pre-existing, not E5:** `test-show-control` fails its quit checks once `out/renderer` is fresh.
 > Its project leaves the active scene's look "not stored", so the editor-mode close guard waits on

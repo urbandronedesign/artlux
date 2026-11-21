@@ -213,6 +213,11 @@ it, is a third.
   brings its window to the front, on that tab, instead of opening a second one.
 - **Back to the editor:** the arrow button above the panel, or **right-click its tab ▸ Back to the
   editor**, takes it out of the window and makes sure the editor's current workbench shows it.
+- **Drag a tab from one window to another.** Drag a panel's tab out of a window and over the editor or
+  another panel window: the same blue drop area shows where it will go (a tab, or one side of a split),
+  and letting go moves the panel there. It works from the editor into a panel window too. A panel that
+  cannot open in a window (a viewport, for instance) stays where it is, and a tab let go over nothing
+  stays put. A window whose last tab you drag away closes.
 - **It remembers where it was** on this machine, screen included, with its tabs and splits, and opens
   there next time. If that screen is not connected any more, the window comes back on the editor's
   screen, never off-screen.

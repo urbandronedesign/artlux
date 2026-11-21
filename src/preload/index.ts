@@ -122,6 +122,19 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.PANEL_WINDOW_REVEAL, listener);
         return () => { ipcRenderer.removeListener(IPC.PANEL_WINDOW_REVEAL, listener); };
     },
+    // A TAB DRAGGED BETWEEN WINDOWS (E5/W5l, main/panelWindows.ts): the source reports, main routes.
+    dockDrag: (phase: 'move' | 'drop' | 'end', panelId: string) => ipcRenderer.invoke(IPC.DOCK_DRAG, phase, panelId),
+    onDockDragHover: (cb: (h: { panelId: string; x: number; y: number } | null) => void) => {
+        const listener = (_e: unknown, h: { panelId: string; x: number; y: number } | null) => cb(h);
+        ipcRenderer.on(IPC.DOCK_DRAG_HOVER, listener);
+        return () => { ipcRenderer.removeListener(IPC.DOCK_DRAG_HOVER, listener); };
+    },
+    onDockDragDrop: (cb: (d: { req: number; panelId: string; x: number; y: number }) => void) => {
+        const listener = (_e: unknown, d: { req: number; panelId: string; x: number; y: number }) => cb(d);
+        ipcRenderer.on(IPC.DOCK_DRAG_DROP, listener);
+        return () => { ipcRenderer.removeListener(IPC.DOCK_DRAG_DROP, listener); };
+    },
+    dockDragDone: (req: number, ok: boolean) => ipcRenderer.send(IPC.DOCK_DRAG_DONE, req, ok),
     openInOtherApp: (projectPath: string, exeHint?: string) => ipcRenderer.send(IPC.SUITE_OPEN_IN_OTHER, projectPath, exeHint),
     suiteRecalibrate: (job: { mode: 'check' | 'full' | 'revert'; surfaceId?: string }, projectPath: string) => ipcRenderer.invoke(IPC.SUITE_RECALIBRATE, job, projectPath),
     suiteHandBack: (projectPath: string, outcome: string) => ipcRenderer.send(IPC.SUITE_HAND_BACK, projectPath, outcome),

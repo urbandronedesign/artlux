@@ -169,6 +169,15 @@ export const IPC = {
   PANEL_WINDOW_TREE: 'panel-window:tree',
   /** Main → panel window: bring this panel's tab to the front (it was asked for while already here). */
   PANEL_WINDOW_REVEAL: 'panel-window:reveal',
+  /** Window → main (invoke): a tab drag is OUTSIDE this window — 'move' / 'drop' / 'end' (E5/W5l). Main
+   *  reads the cursor itself and routes to the window under it. 'drop' resolves to { ok }. */
+  DOCK_DRAG: 'dock-drag:at',
+  /** Main → window: a tab from another window is over you at (x, y) client px; null = it left. */
+  DOCK_DRAG_HOVER: 'dock-drag:hover',
+  /** Main → window: take this panel at (x, y) — answer with DOCK_DRAG_DONE { req, ok }. */
+  DOCK_DRAG_DROP: 'dock-drag:drop',
+  /** Window → main: the answer to a DOCK_DRAG_DROP. */
+  DOCK_DRAG_DONE: 'dock-drag:done',
   /** Renderer (docs window) → main: load an example project into the MAIN editor window. */
   DOCS_OPEN_EXAMPLE: 'docs:open-example',
   /**
@@ -2010,6 +2019,13 @@ export interface ArtluxApi {
   panelWindowTree(tree: unknown): void;
   /** In a panel window: main asks to show one of its panels. Returns the unsubscribe. */
   onPanelWindowReveal(cb: (panelId: string) => void): () => void;
+  /** A tab dragged out of this window (E5/W5l): main routes it to the window under the cursor. */
+  dockDrag(phase: 'move' | 'drop' | 'end', panelId: string): Promise<{ ok: boolean }>;
+  /** A tab from another window is over this one (client px), or left it (null). */
+  onDockDragHover(cb: (h: { panelId: string; x: number; y: number } | null) => void): () => void;
+  /** Take a tab from another window at (x, y); answer with dockDragDone(req, ok). */
+  onDockDragDrop(cb: (d: { req: number; panelId: string; x: number; y: number }) => void): () => void;
+  dockDragDone(req: number, ok: boolean): void;
   /** Ask main to pair this window with the engine owner (E5/W4). The port arrives as 'artlux:live-port'. */
   liveConnect(label: string): void;
   /** Hand the saved project to the other app: start it on `projectPath`, free the outputs, exit. */
