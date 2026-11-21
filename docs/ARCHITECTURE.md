@@ -119,6 +119,9 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   of its own (the editor's `DockRenderer`), saved per window. "Back to the editor" is the `dockPanel`
   action (`services/dockBack.ts`). **Every port main hands a page goes through `src/main/postToPage.ts`:**
   `webContents.postMessage` to a crashed page blocks the main process (found and reproduced in W5b-2).
+  A panel window activates only the plugins' **UI halves** (`host/pluginUi.ts`, `@artlux/plugin-x/ui`),
+  never a plugin runtime. An editor-only service is reached through a seam, as the camera inspector does
+  through `services/cameraAccess.ts`: a stream plus `registerLiveCall` calls.
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
 - **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),

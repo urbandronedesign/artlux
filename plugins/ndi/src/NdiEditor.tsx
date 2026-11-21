@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { SurfaceContent } from '@/types';
-import { listNdiSources, ndiAvailable } from './ndiReceiver';
+import { listNdiSources, ndiAvailable } from './ndiDiscovery';
 
 // The NDI source picker shown in the content inspector when the content type is NDI. Discovery runs
 // over the plugin IPC bridge (listNdiSources / ndiAvailable → pluginInvoke). Contributed to the host

@@ -422,6 +422,63 @@ const until = async (fn, ms = 8000, step = 200) => {
     note(!!grew2 && !!v2 && v2.mismatched.length === 0, 'after the restart an edit from a panel window still lands, and the new host agrees on every slice',
       `fixtures ${n1} → ${(await edNames()).length}; ${v2 ? `${v2.compared} slices compared` : 'no answer'}`);
 
+    console.log('\n12. the surface Content section in its own window: plugin sources from their UI halves, the camera from the editor');
+    await E(() => {
+      const leaf = [...document.querySelectorAll('div[role="button"] *')].find((e) => e.children.length === 0 && (e.textContent || '').trim() === 'Wall 1');
+      const row = leaf && leaf.closest('div[role="button"]');
+      if (row) row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
+    await until(() => E(() => window.__showHost.get('session', 'selectedSurfaceId') === 'sf_wall'));
+    const pcn = await openPanel('core.inspector.surface.content');
+    const K = (fn, ...a) => pcn.evaluate(fn, ...a);
+    const contentType = () => E(() => ((window.__showHost.get('doc', 'surfaces') || []).find((x) => x.id === 'sf_wall') || {}).content?.type);
+    const pick = (label) => K((l) => {
+      const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === l);
+      if (b) b.click();
+      return !!b;
+    }, label);
+    // NDI: a plugin with a UI half. Its picker is drawn in the window, from the plugin's ui.ts alone.
+    const pickedNdi = await pick('NDI');
+    const isNdi = await until(async () => ((await contentType()) === 'NDI' ? 1 : null), 5000);
+    const ndiHere = await until(() => K(() => [...document.querySelectorAll('option')].some((o) => o.textContent === 'First source')), 5000);
+    const ndiEditor = await E(() => [...document.querySelectorAll('option')].some((o) => o.textContent === 'First source'));
+    note(pickedNdi && !!isNdi && !!ndiHere, "picking NDI in the window sets the editor's surface, and the window draws NDI's own source picker",
+      `content ${await contentType()}; NDI picker in the window ${!!ndiHere}, in the editor ${ndiEditor}`);
+    // SPOUT: a plugin whose UI half is not split out yet. The window says where it is set up; the editor
+    // still draws its picker from the runtime provider (the transitional path).
+    const pickedSpout = await pick('Spout');
+    const isSpout = await until(async () => ((await contentType()) === 'SPOUT' ? 1 : null), 5000);
+    const elsewhere = await until(() => K(() => document.querySelector('[data-content-elsewhere="SPOUT"]')?.textContent || null), 5000);
+    const spoutEditor = await E(() => ({ picker: [...document.querySelectorAll('option')].some((o) => o.textContent === 'Active sender'), note: !!document.querySelector('[data-content-elsewhere]') }));
+    note(pickedSpout && !!isSpout && !!elsewhere && !spoutEditor.note,
+      'a source without a UI half says, in the window, that it is set up in the editor — and the editor is unchanged',
+      `window: "${elsewhere}"; editor: Spout picker ${spoutEditor.picker}, note ${spoutEditor.note}`);
+    // CAMERA: the inspector in the window asks the editor (services/cameraAccess → live/cameraRemote).
+    await pick('Camera');
+    const isCam = await until(async () => ((await contentType()) === 'CAMERA' ? 1 : null), 5000);
+    const camLine = (fn) => fn(() => {
+      const t = document.body.innerText;
+      return /Live\./.test(t) ? 'live' : /Opening the camera/.test(t) ? 'opening' : /Retry/.test(t) ? 'error' : null;
+    });
+    const camHere = await until(() => K(() => [...document.querySelectorAll('label')].some((l) => (l.textContent || '').trim() === 'Device')), 5000);
+    await sleep(2500); // the editor opens the capture; both inspectors poll at 500 ms
+    const attachedCam = await E(() => window.__liveBroker.attached().includes('camera.info'));
+    const stateHere = await camLine(K);
+    const stateEditor = await camLine(E);
+    const labelsHere = await K(() => [...document.querySelectorAll('select')][0] ? [...[...document.querySelectorAll('select')][0].options].slice(1).map((o) => o.textContent) : null);
+    const labelsEditor = await E(async () => (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput').map((d, i) => d.label || `Camera ${i + 1}`));
+    note(!!isCam && !!camHere && attachedCam && stateHere != null && (stateEditor == null || stateHere === stateEditor),
+      "the camera inspector in the window shows the editor's capture state, over the live channel",
+      `window "${stateHere}", editor "${stateEditor ?? '(Content not docked in the editor)'}"; camera.info attached in the editor: ${attachedCam}`);
+    note(JSON.stringify(labelsHere) === JSON.stringify(labelsEditor), "the device list is the editor's (labels and all)", `window ${JSON.stringify(labelsHere)}; editor ${JSON.stringify(labelsEditor)}`);
+    const printsCam = await K(prints);
+    note(!Object.values(printsCam).some(Boolean), 'the window still runs nothing: no transport, thumbnail cache, broker or three.js (the capture is the import-graph check)', JSON.stringify(printsCam));
+    await pick('None');
+    await until(async () => ((await contentType()) === 'NONE' ? 1 : null), 5000);
+    await K(() => window.close());
+    const detached = await until(() => E(() => !window.__liveBroker.attached().includes('camera.info')), 5000);
+    note(!!detached, "closing the window stops the editor's camera poll for it (the stream detaches)");
+
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));
     note(['core.browser.fixtures', 'core.browser.globals'].every((id) => (readPrefs().openPanelWindows || []).includes(id)),

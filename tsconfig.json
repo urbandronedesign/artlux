@@ -50,6 +50,9 @@
       "@artlux/plugin-ndi/renderer": [
         "./plugins/ndi/src/renderer.ts"
       ],
+      "@artlux/plugin-ndi/ui": [
+        "./plugins/ndi/src/ui.ts"
+      ],
       "@artlux/plugin-calibration/main": [
         "./plugins/calibration/src/main.ts"
       ],
@@ -82,6 +85,9 @@
       ],
       "@artlux/plugin-mediapipe": [
         "./plugins/mediapipe/src/index.ts"
+      ],
+      "@artlux/plugin-mediapipe/ui": [
+        "./plugins/mediapipe/src/ui.ts"
       ],
       "@artlux/plugin-augmenta": [
         "./plugins/augmenta/src/index.ts"

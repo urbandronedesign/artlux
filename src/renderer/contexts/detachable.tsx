@@ -14,8 +14,8 @@
 //
 // Every panel here reads ONLY useEditor()/useEditorPick() and dispatches ONLY useEditorActions() — in a
 // panel window those are the replica and the editor's actions over the live channel (live/panelStore).
-// Today: the four outliner/browser panels of contexts/panels/browser.tsx and the parameter sections of
-// contexts/panels/inspector.tsx (all but Content).
+// Today: the four outliner/browser panels of contexts/panels/browser.tsx, the parameter sections of
+// contexts/panels/inspector.tsx, and the surface Content section (contexts/panels/surfaceContent.tsx).
 
 import React from 'react';
 import { Box, Cable, Grid3x3, Hash, Layers, Lightbulb, Move3d, Network, SlidersHorizontal, Users } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
 import {
   FixtureChannelsPanel, FixtureLayout3DPanel, FixtureMappingPanel, FixtureOutputPanel, FixturePatchPanel, FixturePositionPanel, FixtureProfilePanel, FixtureRoutingPanel, FixtureSegmentsPanel, SurfaceTransformPanel,
 } from './panels/inspector';
+import { SurfaceContentPanel } from './panels/surfaceContent';
 
 export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.browser.surfaces', mount: 'browser', detachable: true, title: 'Surfaces', icon: <Layers size={12} />, grow: true, Component: SurfacesPanel, HeaderActions: SurfacesHeaderActions },
@@ -34,9 +35,12 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.browser.groups', mount: 'browser', detachable: true, title: 'Groups', icon: <Users size={12} />, Component: GroupsPanel, HeaderActions: GroupsHeaderActions },
   { id: 'core.browser.globals', mount: 'browser', detachable: true, title: 'Global Params', icon: <SlidersHorizontal size={12} />, Component: GlobalParamsPanel },
   // The parameter sections of contexts/panels/inspector.tsx. Each one in a window shows what it shows
-  // docked, for the current selection (a fixture's Channels faders on a second screen, say). NOT the
-  // surface Content section: it lists PLUGIN content sources (NDI, Spout, text, shaders), and plugins do
-  // not activate in a panel window yet, so it would offer a smaller menu than the editor's.
+  // docked, for the current selection (a fixture's Channels faders on a second screen, say).
+  //
+  // CONTENT shows plugin sources' settings too. A panel window activates only the plugins' UI halves
+  // (host/pluginUi.ts), and the camera inspector asks the editor (services/cameraAccess.ts); a plugin
+  // whose UI half is not split out yet says, in the window, that it is set up in the editor.
+  { id: 'core.inspector.surface.content', detachable: true, mount: 'inspector', title: 'Content', icon: <Layers size={12} />, appliesTo: ['surface'], Component: SurfaceContentPanel },
   { id: 'core.inspector.surface.transform', detachable: true, mount: 'inspector', title: 'Transform', icon: <Box size={12} />, appliesTo: ['surface'], Component: SurfaceTransformPanel },
   { id: 'core.inspector.fixture.profile', detachable: true, mount: 'inspector', title: 'DMX Profile', icon: <Lightbulb size={12} />, appliesTo: ['fixture.light'], Component: FixtureProfilePanel },
   { id: 'core.inspector.fixture.channels', detachable: true, mount: 'inspector', title: 'Channels', icon: <SlidersHorizontal size={12} />, appliesTo: ['fixture.light'], Component: FixtureChannelsPanel },

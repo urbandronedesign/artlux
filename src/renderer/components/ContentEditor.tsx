@@ -8,7 +8,8 @@ import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
-import { contentSourceRegistry } from '../host/registries';
+import { contentSourceRegistry, contentSourceUiRegistry } from '../host/registries';
+import { pluginUiWindow } from '../host/pluginUi';
 import { CameraSettings } from './CameraSettings';
 
 // Which local GPU-share button to offer — see the picker below. Same idiom as MenuBar's shortcut
@@ -42,6 +43,12 @@ interface ContentEditorProps {
    */
   collapsePicker?: boolean;
 }
+
+// The types this file draws itself. Anything else belongs to a plugin (see the registry lookups below).
+const CORE_TYPES = new Set<string>([
+  SourceType.VIDEO, SourceType.IMAGE, SourceType.CAMERA, SourceType.DMX_IN, SourceType.LAYER,
+  SourceType.PROGRAM, SourceType.SLICE, SourceType.NONE, 'EFFECT',
+]);
 
 /** What to call a content type in one word, for the collapsed header. */
 function typeLabelOf(t: SurfaceContent['type']): string {
@@ -299,10 +306,24 @@ const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange,
         <LayerPick content={c} layers={layers} onChange={onChange} />
       )}
 
-      {/* Plugin-contributed content types (Spout, NDI, …) render their own inspector + discovery here. */}
+      {/* Plugin-contributed content types (Spout, NDI, …) render their own inspector + discovery here.
+          The UI half's fragment first (host/pluginUi.ts — it is the only one a panel window has), then
+          the transitional one a plugin still keeps on its runtime provider (the editor only). */}
       {(() => {
-        const Editor = contentSourceRegistry.get(c.type)?.editor;
-        return Editor ? <Editor content={c} onChange={onChange} /> : null;
+        const ui = contentSourceUiRegistry.get(c.type);
+        const Editor = ui?.editor ?? contentSourceRegistry.get(c.type)?.editor;
+        if (Editor) return <Editor content={c} onChange={onChange} />;
+        // A PANEL WINDOW carries no plugin runtime, so a plugin that has not split out its UI half has
+        // nothing to draw here. Say where it is set up rather than show a source with no settings,
+        // which reads as "this source has none".
+        if (!ui && !CORE_TYPES.has(String(c.type)) && pluginUiWindow() === 'panel') {
+          return (
+            <div className="text-micro text-fg-3 italic" data-content-elsewhere={String(c.type)}>
+              {typeLabelOf(c.type)} settings are set up in the editor window.
+            </div>
+          );
+        }
+        return null;
       })()}
 
       {c.type === 'EFFECT' && (

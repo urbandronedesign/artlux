@@ -5,6 +5,7 @@ import { resolveMediaUrl, mimeForPath } from './mediaCache';
 import { contentSourceRegistry, videoCodecRegistry } from '../host/registries';
 import * as codecResidency from './codecResidency';
 import * as renderClock from '../engine/renderClock';
+import { setCameraAccess, type CameraDevice, type CameraInfo } from './cameraAccess';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
@@ -344,7 +345,7 @@ function stopCamera(deviceId: string, keepEntry = false): void {
 // The video inputs this machine can offer, for the content inspector's picker. Labels are only
 // populated once camera permission has been granted (the main process grants it, but Chromium still
 // withholds labels until a capture has succeeded at least once), hence the numbered fallback.
-export interface CameraDevice { deviceId: string; label: string }
+export type { CameraDevice, CameraInfo } from './cameraAccess';
 export async function listCameras(): Promise<CameraDevice[]> {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -360,12 +361,6 @@ export async function listCameras(): Promise<CameraDevice[]> {
 // `settings` is read LIVE rather than cached: it is the only honest answer to "what resolution am I
 // actually getting", which routinely differs from what was asked (the format is requested as
 // `ideal`, so a camera that cannot do 1080p60 quietly gives 1080p30 and nothing else would say so).
-export interface CameraInfo {
-  state: 'off' | 'starting' | 'live' | 'error';
-  error: string | null;
-  capabilities: Record<string, unknown> | null;
-  settings: Record<string, unknown> | null;
-}
 export function getCameraInfo(deviceId: string): CameraInfo {
   const cam = cams.get(deviceId);
   if (!cam) return { state: 'off', error: null, capabilities: null, settings: null };
@@ -375,6 +370,10 @@ export function getCameraInfo(deviceId: string): CameraInfo {
   if (cam.starting) return { state: 'starting', error: null, capabilities, settings };
   return { state: cam.error ? 'error' : 'starting', error: cam.error, capabilities, settings };
 }
+
+// The camera inspector asks services/cameraAccess.ts, never this module (E5/W5: a panel window has no
+// content source and asks the editor instead). In every window that runs the capture, it is these.
+setCameraAccess({ list: listCameras, info: getCameraInfo, retry: retryCamera, preview: previewCameraControl });
 
 function dropMedia(key: string): void {
   const e = media.get(key);

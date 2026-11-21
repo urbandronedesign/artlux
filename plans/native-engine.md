@@ -576,9 +576,50 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > - Step 7: the reopened window comes back with its own tabs and split.
 > - Checks mutation-tested 7/7.
 >
+> ✅ **W5c done 2026-11-21 (plugin UI halves; Content in its own window).**
+> - **A plugin's UI half** is a second renderer entry, `@artlux/plugin-x/ui` (`src/ui.ts`, in the
+>   package's `exports`). Its `RendererPluginUi.activateUi(ctx)` registers only what draws:
+>   `ctx.contentSourceUi` (`ContentSourceUi { type, editor?, pickerButton? }`).
+>   - `host/pluginUi.ts` is the one list (Augmenta, MediaPipe, LiDAR, NDI).
+>   - The editor runs it first in `activateRendererPlugins`; a panel window runs only it.
+>   - NDI discovery left the receiver (`ndiDiscovery.ts`), so its picker needs no receiver.
+> - **Content detaches.** `ContentEditor` reads the UI registry, then the transitional `editor` on a
+>   runtime provider. In a panel window, a plugin type with no UI half says it is set up in the editor
+>   (Spout, Syphon, Text, Shader: each needs state that only the editor's runtime holds).
+> - **Editor-only services through a seam.** The camera inspector asks `services/cameraAccess.ts`:
+>   - in the editor, `contentSource` installs itself there;
+>   - a panel window installs `live/cameraRemote.ts`, which uses a `camera.info` stream (polled only
+>     while subscribed, announced only on change) and **owner calls**, a new broker facility
+>     (`registerLiveCall('camera.list' | 'camera.retry' | 'camera.preview')`, named `<area>.<verb>`,
+>     looked up before App's editor actions).
+>   - The list is the editor's, because Chromium withholds device labels in a page that never
+>     captured.
+> - **Guard:**
+>   - The panel graph lets the two pure catalogs (`gpu/effects`, `gpu/palettes`) in only while they
+>     import nothing.
+>   - Plugin code may enter only through `host/pluginUi.ts`, and only as a plugin's `ui.ts`. Never an
+>     activation file, a barrel, or a module named for runtime work.
+>   - A second check holds the single registration site, the editor's activation of the same list,
+>     the `./ui` export and both camera installs.
+>
+> Proof:
+> - `test-panel-window` step 12:
+>   - picking NDI in the window sets the editor's surface, and the window draws NDI's own picker;
+>   - Spout shows "set up in the editor window" there, while the editor still draws its picker;
+>   - the camera inspector shows the editor's state;
+>   - the device list matches the editor's;
+>   - the window still has no producer fingerprints;
+>   - closing it detaches the editor's camera poll.
+>   - Caveat: on the dev PC the camera failed to open, so the state agreement was on `error`. A panel
+>     answering for itself would have said "Opening the camera…".
+> - Checks mutation-tested 12/12.
+>
 > **W5 — what is left:**
-> - **Plugin panels** need a UI-only activation. That also unblocks Content, whose source list is
->   plugin-fed, and the camera settings need the same owner-side indirection.
+> - **The four remaining UI halves:** Spout and Syphon (the incompatibility status the receiver
+>   learns), Text (the rasterizer reaches `surfaceMedia`, and font load state is per window), and
+>   Shader (compile status, GL limits). Each needs an owner stream, the camera pattern.
+> - **Plugin dock panels** (OSC monitor, trigger zones, the pose and Augmenta monitors, shader panels)
+>   read stores their runtime fills. They need the same streams, and then `panels` in the UI context.
 > - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.

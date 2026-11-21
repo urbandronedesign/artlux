@@ -52,6 +52,16 @@ type ActionRunner = (name: string, args: unknown[]) => unknown;
 let runAction: ActionRunner | null = null;
 /** App hands the broker its action facade. A name it does not have is refused, never guessed. */
 export function setLiveActionRunner(fn: ActionRunner | null): void { runAction = fn; }
+// OWNER CALLS (E5/W5): a question or a nudge for a service only the editor runs — "which cameras",
+// "retry this one" — that is not an edit of the show, so it is not one of App's editor actions. Named
+// `<area>.<verb>` (an editor action never has a dot), and looked up BEFORE the action facade.
+const calls = new Map<string, (...args: unknown[]) => unknown>();
+export function registerLiveCall(name: string, fn: (...args: unknown[]) => unknown): () => void {
+  if (!name.includes('.')) throw new Error(`[live] call '${name}' must be named <area>.<verb>`);
+  if (calls.has(name)) throw new Error(`[live] call '${name}' registered twice`);
+  calls.set(name, fn);
+  return () => { calls.delete(name); };
+}
 const dragTargets = new Map<LiveDrag['target'], LiveDragTarget>();
 
 export function registerLiveStream(name: string, s: LiveStream): () => void {
@@ -173,8 +183,10 @@ async function onAction(c: Client, req: number, name: string, args: unknown[]): 
   let value: unknown;
   let error: string | undefined;
   try {
-    if (!runAction) throw new Error('the editor is not ready');
-    value = await runAction(name, args);
+    const call = calls.get(name);
+    if (call) value = await call(...args);
+    else if (!runAction) throw new Error('the editor is not ready');
+    else value = await runAction(name, args);
   } catch (e) { error = (e as Error)?.message ?? String(e); }
   if (!clients.has(c.clientId)) return;
   // A return value that does not clone (a function, a DOM node) is dropped, not an error: the action ran.

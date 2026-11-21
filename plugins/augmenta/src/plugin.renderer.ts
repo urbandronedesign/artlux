@@ -22,7 +22,6 @@ import * as augmentaProjector from './augmentaProjector';
 import AugmentaViz from './AugmentaViz';
 import { AugmentaMonitor } from './AugmentaMonitor';
 import { AugmentaSettings } from './augmentaSettings';
-import { AugmentaContentEditor } from './augmentaContentEditor';
 import { setHost } from './augmentaHost';
 
 let oscUnsub: (() => void) | null = null;
@@ -49,8 +48,7 @@ export const plugin: RendererPlugin = {
       type: 'AUGMENTA', // SourceType.AUGMENTA — kept as a core enum value; only behavior lives here
       getDrawable: (key, content) => augmentaDrawable.getFor(key, content as SurfaceContent),
       release: (key) => augmentaDrawable.release(key),
-      editor: AugmentaContentEditor,
-      pickerButton: { label: 'Augmenta', title: 'Augmenta box optical tracking (OSC)' },
+      // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
     });
 
     // The 'augmenta' timeline lane kind: a live tracking source, not video — skip it on the video sync

@@ -3,7 +3,10 @@ import type { SurfaceContent } from '../types';
 import { Slider } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
-import { listCameras, getCameraInfo, retryCamera, previewCameraControl, type CameraDevice, type CameraInfo } from '../services/contentSource';
+// Through the seam, never services/contentSource: in a panel window (E5/W5) the capture runs in the
+// editor, and this window's answers are the editor's (services/cameraAccess.ts).
+import { cameraAccess, type CameraDevice, type CameraInfo } from '../services/cameraAccess';
+const { list: listCameras, info: getCameraInfo, retry: retryCamera, preview: previewCameraControl } = cameraAccess;
 
 // The CAMERA content inspector: which device, at what format, with which picture controls.
 //

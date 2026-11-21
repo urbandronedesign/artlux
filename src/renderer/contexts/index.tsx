@@ -17,7 +17,6 @@ import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
-import { SurfaceContentPanel } from './panels/surfaceContent';
 import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
@@ -70,7 +69,7 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.browser.scene3dFixtures', mount: 'browser', title: 'Fixtures', icon: <Lightbulb size={12} />, grow: true, Component: Scene3DFixturesPanel });
 
   // ── Parameter panels ───────────────────────────────────────────────────────────────────────
-  panelRegistry.register({ id: 'core.inspector.surface.content', mount: 'inspector', title: 'Content', icon: <Layers size={12} />, appliesTo: ['surface'], Component: SurfaceContentPanel });
+  panelRegistry.register(detachablePanel('core.inspector.surface.content'));
   panelRegistry.register(detachablePanel('core.inspector.surface.transform'));
   // The DMX profile comes FIRST in the fixture column: it is the light's identity, and it decides
   // what every section below it means.

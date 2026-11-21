@@ -23,7 +23,6 @@ import PoseViz from './PoseViz';
 import { PosePanel } from './PosePanel';
 import { PoseCalibration } from './PoseCalibration';
 import { PoseSettings } from './poseSettings';
-import { PoseContentEditor } from './poseContentEditor';
 import { setHost } from './poseHost';
 import { poseSurface } from './poseArea';
 
@@ -76,8 +75,7 @@ export const plugin: RendererPlugin = {
       acquire: (key) => poseEngine.acquire(key),
       getDrawable: (key, content) => poseDrawable.getFor(key, content as SurfaceContent),
       release: (key) => { poseEngine.release(key); poseDrawable.release(key); },
-      editor: PoseContentEditor,
-      pickerButton: { label: 'MediaPipe', title: 'Camera pose tracking (BlazePose)' },
+      // Its editor fragment is the UI half's (ui.ts), activated by the host in every window.
     });
 
     // Timeline lane kind: MEDIAPIPE content is a live camera source, not video — skip it on the video

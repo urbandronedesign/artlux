@@ -16,6 +16,9 @@ import { DOCK_TREE_VERSION, closePanel, findGroupOf, panelIds, sanitizeDockTree,
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
 import { ExternalLink } from 'lucide-react';
 import { keymap } from './shortcuts/keymapStore';
+import { activatePluginUi } from './host/pluginUi';
+import { setCameraAccess } from './services/cameraAccess';
+import { remoteCameraAccess } from './live/cameraRemote';
 
 // A PANEL WINDOW (E5/W5) — `panel.html?panel=<id>`, opened by main/panelWindows.ts. It opens on that one
 // panel and is a dock tree of its own (W5b-2): more detachable panels can join it as tabs, stacks or splits.
@@ -39,6 +42,10 @@ liveClient.connect(`panel:${panelId}`);
 // THIS WINDOW'S REGISTRY holds exactly the panels allowed out, so the dock tree's "+" menu offers those
 // and nothing else (W5b-2: a window is a dock tree of its own — tabs, stacks and splits).
 for (const p of DETACHABLE_PANELS) panelRegistry.register(p);
+// The plugins' UI halves — what the content editor shows for their source types — and nothing of their
+// runtimes (host/pluginUi.ts). And the camera inspector asks the editor, which runs the capture.
+activatePluginUi('panel');
+setCameraAccess(remoteCameraAccess);
 const titleFor = (ids: string[]) =>
   `${ids.map((id) => panelRegistry.get(id)?.title ?? id).join(' · ') || 'Panel'} — ARTLux`;
 if (panel) document.title = titleFor([panel.id]);

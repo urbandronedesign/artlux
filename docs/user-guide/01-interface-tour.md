@@ -152,8 +152,8 @@ have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable w
 Some panels can leave the editor and open in a window of their own, which you can put on any screen:
 **Surfaces**, **Fixtures**, **Groups**, **Global Params**, and the parameter sections for a fixture
 (**DMX Profile**, **Channels**, **Patch**, **Mapping**, **Segments**, **2D / Output**, **Routing**,
-**3D Layout**, **Position**) and a surface's **Transform**. A light's **Channels** faders on a second
-screen, next to the rig, is the classic use.
+**3D Layout**, **Position**) and a surface's **Content** and **Transform**. A light's **Channels** faders
+on a second screen, next to the rig, is the classic use.
 
 - **Open one:** click **Open in new window** (the arrow-out-of-a-box button) in the panel's header, or
   right-click its tab and choose **Open in new window**.
@@ -167,6 +167,10 @@ screen, next to the rig, is the classic use.
   keyframes** works from there too.
 - **A parameter section follows the selection.** When what is selected is not its kind, the window says
   what to select instead of going blank.
+- **Content in a window** picks a surface's source and sets it up, as in the editor. A **Camera**
+  surface shows the camera the editor has open: the same device list, and whether it is live. Four
+  sources (**Spout**, **Syphon**, **Text** and **Shader**) are set up in the editor for now. Picking one
+  in a window works, and the window then says where its settings are.
 - **A window is a small workbench of its own.** Its panel is a tab: **+** on the tab strip adds another
   panel to the same window, dragging a tab or **right-click ▸ Split** arranges them side by side, and
   closing the last tab closes the window. Asking for a panel that is already out (from the editor)
@@ -181,9 +185,7 @@ screen, next to the rig, is the classic use.
 
 **Viewports stay in the editor for now:** the stage, the 3D view and the output previews draw on the
 graphics card inside the editor window. Their **Open in new window** entry is greyed out and says so.
-A surface's **Content** section stays too for now (it lists the content types plugins add, such as NDI
-and Spout, which a panel window does not load yet). Other panels will be able to detach as they are
-moved over.
+Other panels will be able to detach as they are moved over.
 
 If a panel window says it **cannot show the project right now**, the background service that holds the
 open project for every window is not running (it can be switched off for troubleshooting). Use the panel

@@ -10,7 +10,7 @@
 // the LiDAR feature onto them.
 
 import type {
-  ContentSourceProvider, ContentSourceRegistry,
+  ContentSourceProvider, ContentSourceRegistry, ContentSourceUi, ContentSourceUiRegistry,
   ClipKindContribution, ClipKindRegistry,
   ProjectorChannel, ProjectorChannelRegistry,
   SettingsSection, SettingsSectionRegistry,
@@ -35,6 +35,17 @@ export const contentSourceRegistry: ContentSourceRegistry<SurfaceContent> = {
   register(p) { contentProviders.set(p.type, p); },
   get(type) { return contentProviders.get(type); },
   all() { return [...contentProviders.values()]; },
+};
+
+// ── Content source UI (E5/W5) ─────────────────────────────────────────────────────────────
+// The DRAWING half of a content source, registered from a plugin's UI half (host/pluginUi.ts) in every
+// window with a content editor — including a panel window, where `contentSourceRegistry` above stays
+// empty because no runtime activates there. Separate on purpose: one map holding both would make a
+// panel window's lookup succeed on half an object.
+const contentUis = new Map<string, ContentSourceUi<SurfaceContent>>();
+export const contentSourceUiRegistry: ContentSourceUiRegistry<SurfaceContent> = {
+  register(u) { contentUis.set(u.type, u); },
+  get(type) { return contentUis.get(type); },
 };
 
 // ── Timeline clip kinds ───────────────────────────────────────────────────────────────────

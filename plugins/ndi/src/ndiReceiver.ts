@@ -2,7 +2,7 @@ import type { NdiFrame } from './types';
 
 // Receives NDI frames (downscaled RGBA) from the plugin's main entry over the generic plugin IPC
 // bridge and assembles them into a canvas usable as surface content — mirrors spoutReceiver.ts.
-// Channels: 'ndi:configure' (send), 'ndi:frame' (on), 'ndi:list' / 'ndi:available' (invoke).
+// Channels: 'ndi:configure' (send), 'ndi:frame' (on). Discovery: ndiDiscovery.ts.
 
 let unsub: (() => void) | null = null;
 // OffscreenCanvas, not a DOM element: this is never displayed — it exists to be sampled — and an
@@ -35,13 +35,8 @@ export function stopNdi(): void {
   painted = -1;
 }
 
-export async function listNdiSources(): Promise<string[]> {
-  return ((await window.artlux?.pluginInvoke?.('ndi:list')) as string[] | undefined) ?? [];
-}
-
-export async function ndiAvailable(): Promise<boolean> {
-  return ((await window.artlux?.pluginInvoke?.('ndi:available')) as boolean | undefined) ?? false;
-}
+// Discovery ('ndi:list' / 'ndi:available') moved to ndiDiscovery.ts: it holds no stream, and the
+// editor fragment that uses it must be importable without this receiver (the plugin's UI half, E5/W5).
 
 // The active source's true aspect ratio (w/h), or null until a frame arrives.
 export function getNdiAspect(): number | null {

@@ -34,7 +34,8 @@ talks to its own main-process half). All are handed to the plugin in its `activa
 
 | Registry (`ctx.…`) | Contribution | What it does | Example plugin |
 |---|---|---|---|
-| `contentSources` | `ContentSourceProvider` | A new surface/clip content type: `getDrawable`/`release` (+ optional `editor`, `pickerButton`, `getAspect`). | lidar (`TRACKING`), ndi, spout |
+| `contentSources` | `ContentSourceProvider` | A new surface/clip content type: `getDrawable`/`release` (+ optional `getAspect`). Its `editor` / `pickerButton` here are **transitional**: put the settings fragment in the UI half instead (next row). | lidar (`TRACKING`), ndi, spout |
+| `contentSourceUi` *(UI half only)* | `ContentSourceUi` | The **drawing** half of a content type: `{ type, editor?, pickerButton? }`, registered from `RendererPluginUi.activateUi(ctx)` (the plugin's `/ui` entry). Every window with a content editor activates it, a detached panel window included, and that window has no runtime. Register an entry for every type you own: one with no `editor` means "nothing to set up". | augmenta, mediapipe, lidar, ndi |
 | `clipKinds` | `ClipKindContribution` | Teach the timeline engine how to treat a lane kind (`skipVideoSync`, `excludeFromProgram`, `preWarm`). | lidar (`tracking`) |
 | `projectorChannels` | `ProjectorChannel` | Stream data to projector windows (`subscribe`/`build`/`apply`) **and/or** render into the projector's source FBO (`projectorSourceSize`/`renderSource`/`onConfig`). | lidar |
 | `sceneViz` | `SceneVizContribution` | A react-three-fiber overlay mounted inside the editor's 3D `<Canvas>`. | lidar (blob markers) |
@@ -125,6 +126,21 @@ ignored (controls still work); **double-clicking the handle recenters** (rescues
 Persistence is the caller's choice: the host wraps this as `useDraggableModal(id)` → app **prefs**
 (`Prefs.modalPositions`, keyed by modal id); a plugin (which can't reach host prefs) wraps it with
 **localStorage** — see `plugins/lidar-tracking/src/OscMonitor.tsx`.
+
+### The UI half — `RendererPluginUi` (`@artlux/plugin-x/ui`)
+
+A detached **panel window** (E5/W5) runs no plugin runtime, but it still needs what a plugin contributes
+to the UI it shows. That is the plugin's **UI half**: a separate entry, exported from the plugin's
+`package.json` as `./ui`, whose `ui: RendererPluginUi` has an `activateUi(ctx: RendererPluginUiContext)`.
+`ctx.window` is `'main' | 'projector' | 'panel'`, and `ctx.contentSourceUi` is the one registry so far.
+The host lists UI halves in `src/renderer/host/pluginUi.ts` and activates them in **every** window,
+before the runtimes. Three rules, each checked by `verify:invariants`:
+
+1. **Import nothing that runs.** No store, receiver, drawable, engine or host seam, and never your own
+   `plugin.renderer.ts` or barrel. Talk to your main half (`pluginInvoke`) or read the content you are
+   handed.
+2. **Register a UI contribution once,** in the UI half, and never again from `activate()`.
+3. **Ship it as `./ui` in `exports`**, so the bundler resolves it the same way in every window.
 
 ## Invariants a plugin MUST uphold
 

@@ -444,6 +444,16 @@ harmless.
   mutation path. A render-free drag must be an action (`pushMasterBrightness`), not a direct
   `livePreview` call, or it moves the panel window's own idle channel. Windows are placed, remembered
   and reopened by [`main/panelWindows.ts`](../src/main/panelWindows.ts).
+  - **A plugin's contribution** reaches a panel window only through the plugin's **UI half**
+    (`@artlux/plugin-x/ui`, listed in [`host/pluginUi.ts`](../src/renderer/host/pluginUi.ts)). A panel
+    window never activates a plugin's runtime. The guard lets plugin code in only behind that one
+    door, and refuses an activation file, a barrel or any module named for runtime work (`*Receiver`,
+    `*Engine`, `*Store`, `*Host`…).
+  - **A service only the editor runs** (the camera capture) is reached through a seam
+    ([`services/cameraAccess.ts`](../src/renderer/services/cameraAccess.ts)). The editor installs the
+    real service, and a panel window installs a remote that asks over the live channel: a stream for
+    state, `registerLiveCall` calls (`camera.list`, `camera.retry`, `camera.preview`) for questions and
+    nudges. Never import the service from the panel.
 - **Persist any other workspace state** (not project content): add a top-level `Prefs` field in
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.

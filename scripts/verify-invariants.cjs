@@ -3096,7 +3096,10 @@ check(
   'about this since it was written, and nothing enforced it — which mattered more the moment ' +
   'services/takeRecorder became a fourth host consumer.',
   () => {
-    const DEEP = /from ['"]@artlux\/plugin-lidar-tracking\/[^'"]+['"]/;
+    // Except `/ui` — the plugin's declared UI HALF (package.json "exports", E5/W5), a second ENTRY and
+    // not a way into the barrel's modules: it imports none of the plugin's singletons (the panel-window
+    // graph check bans every store, receiver and host seam behind it), so there is nothing to duplicate.
+    const DEEP = /from ['"]@artlux\/plugin-lidar-tracking\/(?!ui['"])[^'"]+['"]/;
     const problems = [];
     for (const f of [...walk('src'), ...walk('shared')]) {
       const m = read(f).match(DEEP);
@@ -7838,12 +7841,18 @@ check(
         alias: { '@artlux/sdk/renderer': './packages/sdk/src/renderer.ts', '@artlux/sdk': './packages/sdk/src/index.ts' },
       }).metafile;
     } catch (e) { return `bundling src/renderer/panel.tsx failed: ${(e.errors || []).slice(0, 2).map((x) => x.text).join(' | ') || e.message}`; }
-    const inputs = Object.keys(meta.inputs).map((i) => i.replace(/\\/g, '/'));
+    const norm = (i) => i.replace(/\\/g, '/');
+    const inputs = Object.keys(meta.inputs).map(norm);
+    const importsOf = new Map(Object.entries(meta.inputs).map(([k, v]) => [norm(k), v.imports.map((x) => norm(x.path))]));
+    // Two files under gpu/ are NAME CATALOGS the content editor lists (effect and palette names), with
+    // no GPU code. They pass only while they import nothing at all, so neither can grow a device into
+    // the panel window's graph.
+    const CATALOGS = ['src/renderer/gpu/effects.ts', 'src/renderer/gpu/palettes.ts'];
     const BANNED = [
       [/^src\/renderer\/engine\//, 'the frame engine'],
       [/^src\/renderer\/services\/timeline\.ts$/, 'the transport (services/timeline)'],
       [/^src\/renderer\/services\/(stateMachine|cueBus|surfaceMedia|contentSource|mediaCache|thumbnailCache|timelinePreloader|lightingPlayback|lightingRecorder|takeRecorder|oscController)\.ts$/, 'a runtime service'],
-      [/^src\/renderer\/gpu\//, 'GPU code'],
+      [/^src\/renderer\/gpu\/(?!(effects|palettes)\.ts$)/, 'GPU code'],
       [/Simulator3D\//, 'the 3D view'],
       [/node_modules\/(three|@react-three)\//, 'three.js'],
       [/audioPeaks\.ts$/, 'the peaks decoder'],
@@ -7855,14 +7864,66 @@ check(
       [/^src\/renderer\/live\/(broker|coreStreams)\.ts$/, 'the live broker (the editor is the one owner)'],
       [/^src\/renderer\/App\.tsx$/, 'App'],
       [/^src\/renderer\/host\/plugins\.ts$/, 'plugin activation'],
-      [/^plugins\//, 'a plugin'],
+      // A PLUGIN only through its UI half (host/pluginUi.ts → `@artlux/plugin-x/ui`), and never a module
+      // that runs: its activation or barrels, or a file named for runtime work. The names are the
+      // plugins' own convention (ndiReceiver, poseEngine, trackingStore, augmentaHost, shaderContext,
+      // audioTap, PoseViz, poseCamera …); a UI half that needs one of them is not a UI half.
+      [/^plugins\/[^/]+\/src\/(plugin\.renderer|plugin\.main|index|renderer|main|playback|authoring)\.tsx?$/, "a plugin's activation or barrel"],
+      [/^plugins\/[^/]+\/src\/.*(Receiver|Drawable|Engine|Projector|Raster|Store|Manager|Context|Host|Tap|Viz|Camera|Recorder|Playback)\.tsx?$/i, "a plugin's runtime module"],
     ];
     const problems = [];
     for (const [re, what] of BANNED) {
       const hit = inputs.find((i) => re.test(i));
       if (hit) problems.push(`panel.tsx reaches ${what}: ${hit}`);
     }
+    for (const c of CATALOGS) {
+      if ((importsOf.get(c) ?? []).length) problems.push(`${c} is let into the panel window as a pure name catalog, and it now imports ${importsOf.get(c).join(', ')}`);
+    }
+    // The door into a plugin: only src/renderer/host/pluginUi.ts, and only a plugin's ui.ts behind it.
+    for (const [from, to] of importsOf) {
+      if (from.startsWith('plugins/')) continue;
+      for (const t of to) {
+        if (!t.startsWith('plugins/')) continue;
+        if (from !== 'src/renderer/host/pluginUi.ts') problems.push(`${from} imports plugin code (${t}) — a panel window reaches a plugin only through host/pluginUi.ts`);
+        else if (!/^plugins\/[^/]+\/src\/ui\.ts$/.test(t)) problems.push(`host/pluginUi.ts imports ${t} — only a plugin's UI half (src/ui.ts) may be listed there`);
+      }
+    }
     if (!inputs.includes('src/renderer/contexts/detachable.tsx')) problems.push('panel.tsx no longer mounts its panels from contexts/detachable.tsx — the one list the editor registers too');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  "a plugin's UI half is activated in every window from one list, and registered nowhere else",
+  'A content-source fragment registered from the UI half AND kept on the runtime provider is two copies ' +
+  'that drift; a UI list the editor did not activate would show the panel window settings the editor ' +
+  'lacks; a camera inspector that imported the content source directly would, in a panel window, read ' +
+  'that window\'s idle copy and call a live camera "off".',
+  () => {
+    const problems = [];
+    const list = read('src/renderer/host/pluginUi.ts');
+    const halves = [...list.matchAll(/from '@artlux\/plugin-([a-z-]+)\/ui'/g)].map((m) => m[1]);
+    if (!halves.length) problems.push('host/pluginUi.ts lists no UI halves');
+    if (/from '@artlux\/plugin-[a-z-]+(?!\/ui)'|from '@artlux\/plugin-[a-z-]+\/(?!ui')/.test(list)) problems.push('host/pluginUi.ts imports a plugin entry other than /ui');
+    for (const name of halves) {
+      const dir = path.join(ROOT, 'plugins', name, 'src');
+      if (!fs.existsSync(path.join(dir, 'ui.ts'))) { problems.push(`plugins/${name}/src/ui.ts is listed but missing`); continue; }
+      const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', name, 'package.json'), 'utf8'));
+      if (pkg.exports?.['./ui'] !== './src/ui.ts') problems.push(`plugins/${name}/package.json does not export ./ui (the panel window's bundler would not find it)`);
+      for (const f of fs.readdirSync(dir)) {
+        if (f === 'ui.ts' || !/\.tsx?$/.test(f)) continue;
+        const src = fs.readFileSync(path.join(dir, f), 'utf8');
+        if (/^\s*editor\s*:/m.test(src) && /contentSources\.register|ContentSourceProvider/.test(src)) problems.push(`plugins/${name}/src/${f} still puts an editor on the runtime provider — the UI half (ui.ts) owns it`);
+      }
+    }
+    const plugins = read('src/renderer/host/plugins.ts');
+    if (!/activated = true;[\s\S]{0,400}?activatePluginUi\(win\);[\s\S]*?for \(const p of FIRST_PARTY/.test(plugins)) problems.push('activateRendererPlugins no longer activates the UI halves (host/pluginUi.ts) before the runtimes');
+    if (!/^activatePluginUi\('panel'\);/m.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer activates the plugins' UI halves");
+    const ce = read('src/renderer/components/ContentEditor.tsx');
+    if (!/contentSourceUiRegistry\.get\(c\.type\)/.test(ce)) problems.push('ContentEditor no longer reads the UI registry (a panel window would show no plugin settings)');
+    if (/services\/contentSource'/.test(read('src/renderer/components/CameraSettings.tsx'))) problems.push('CameraSettings imports services/contentSource — it must ask services/cameraAccess');
+    if (!/^setCameraAccess\(\{ list: listCameras, info: getCameraInfo, retry: retryCamera, preview: previewCameraControl \}\);/m.test(read('src/renderer/services/contentSource.ts'))) problems.push('services/contentSource no longer installs itself as the camera access');
+    if (!/^setCameraAccess\(remoteCameraAccess\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer sends its camera questions to the editor');
     return problems.length ? problems.join('; ') : null;
   },
 );

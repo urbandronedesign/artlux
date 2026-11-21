@@ -79,10 +79,40 @@ export interface ContentSourceProvider<C = unknown, D = Drawable> {
    * counter, a feedback buffer seeded by draw order, `Math.random()`).
    */
   offlineSafe?: boolean;
-  // UI fragment shown in the content editor when this type is selected.
+  /**
+   * TRANSITIONAL — the settings fragment, on the RUNTIME object. Put it in your plugin's UI half
+   * instead (`ContentSourceUi`, registered from `activateUi`): a fragment here is reachable only by
+   * importing the whole source, so it cannot be shown in a panel window, which carries no runtime.
+   * The host still reads it, after the UI registry, for plugins that have not moved yet.
+   */
   editor?: ComponentType<{ content: C; onChange: (patch: Partial<C>) => void }>;
-  // Optional button shown in the content-type picker.
+  /** TRANSITIONAL, like `editor` — and never read by the host; see `ContentSourceUi.pickerButton`. */
   pickerButton?: { label: string; title?: string; icon?: ReactNode };
+}
+
+/**
+ * The UI of a content source (E5/W5): what the content editor shows for it, with nothing that runs.
+ *
+ * Registered from a plugin's UI half (`RendererPluginUi.activateUi`), which every window that shows
+ * the content editor activates — the editor AND a panel window. A panel window has no runtime: the
+ * provider above is not registered there, no frame is drawn and nothing decodes. So `editor` must read
+ * only the content it is handed and talk only to main (`window.artlux.pluginInvoke`) or the editor
+ * window (its owner) — never to a receiver, a drawable or a store the runtime fills. The host checks
+ * that by import graph.
+ *
+ * Register one for EVERY type the plugin owns, settings or not: an entry with no `editor` says "nothing
+ * to set up here", while a type with no entry tells a panel window "this is set up in the editor".
+ */
+export interface ContentSourceUi<C = unknown> {
+  type: string;
+  editor?: ComponentType<{ content: C; onChange: (patch: Partial<C>) => void }>;
+  // Reserved: the content picker's buttons are still hand-written in the host.
+  pickerButton?: { label: string; title?: string; icon?: ReactNode };
+}
+
+export interface ContentSourceUiRegistry<C = unknown> {
+  register(ui: ContentSourceUi<C>): void;
+  get(type: string): ContentSourceUi<C> | undefined;
 }
 
 export interface ContentSourceRegistry<C = unknown, D = Drawable> {
@@ -1294,6 +1324,25 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   // windows the read/patch services are no-ops (no editor state there); `projectors.onMessage` only
   // fires in the main window (it owns the bridge ports). Replaces the former `getScene3D()`.
   host: RendererHostServices;
+}
+
+/**
+ * A plugin's UI HALF (E5/W5) — the contributions that only DRAW, activated without starting anything.
+ *
+ * Shipped as its own entry (`@artlux/plugin-x/ui`), never re-exported from the plugin's main barrel:
+ * a panel window imports this entry and nothing else of the plugin, so whatever this module reaches is
+ * what that window carries. Every window that has a content editor activates it, the editor included —
+ * `activate()` must NOT register the same contributions again (one source, or the two drift).
+ */
+export interface RendererPluginUi {
+  id: string;
+  activateUi(ctx: RendererPluginUiContext): void;
+}
+
+export interface RendererPluginUiContext<C = unknown> {
+  /** 'panel' = a detached panel window: no runtime, no document of its own (a read-only replica). */
+  window: 'main' | 'projector' | 'panel';
+  contentSourceUi: ContentSourceUiRegistry<C>;
 }
 
 export interface RendererPlugin {

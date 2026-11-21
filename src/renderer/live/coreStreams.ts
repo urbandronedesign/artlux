@@ -3,7 +3,8 @@
 // file is only the part that belongs to core. The editor's projector-brightness target needs App's
 // projector ports, so App registers that one itself.
 
-import { registerLiveDragTarget, registerLiveStream } from './broker';
+import { registerLiveCall, registerLiveDragTarget, registerLiveStream } from './broker';
+import { listCameras, getCameraInfo, retryCamera, previewCameraControl } from '../services/contentSource';
 import { dmxSignal } from '../services/dmxSignal';
 import { perfMonitor } from '../services/perfMonitor';
 import { telemetry } from '../services/telemetry';
@@ -56,6 +57,28 @@ export function installCoreLiveStreams(): void {
       return { value: { start, total: pixels.length, bytes: copy }, transfer: [copy.buffer] };
     },
   });
+
+  // THE CAMERA INSPECTOR in a panel window (services/cameraAccess.ts, live/cameraRemote.ts). The capture
+  // is not observable, so this polls at the inspector's own rate (500 ms) — but only while a window is
+  // subscribed, and it announces a sample only when what it would say has CHANGED: an idle camera
+  // panel costs one getSettings() per open device per half second and no messages.
+  const camAsked = new Set<string>();
+  let camSig = '';
+  const camSignature = () => [...camAsked].map((id) => { const i = getCameraInfo(id); return `${id}:${i.state}:${i.error}:${JSON.stringify(i.settings)}:${i.capabilities ? 1 : 0}`; }).join('|');
+  registerLiveStream('camera.info', {
+    watch(onNew) {
+      const t = setInterval(() => { const s = camSignature(); if (s !== camSig) { camSig = s; onNew(); } }, 500);
+      return () => { clearInterval(t); camAsked.clear(); camSig = ''; };
+    },
+    read(params) {
+      const id = typeof params === 'string' ? params : '';
+      if (!camAsked.has(id)) { camAsked.add(id); camSig = camSignature(); }
+      return { value: getCameraInfo(id) };
+    },
+  });
+  registerLiveCall('camera.list', () => listCameras());
+  registerLiveCall('camera.retry', (id) => retryCamera(String(id)));
+  registerLiveCall('camera.preview', (id, name, value) => previewCameraControl(String(id), String(name), value as number | string));
 
   registerLiveStream('editor.extras', {
     watch(onNew) { extrasChanged = onNew; return () => { extrasChanged = null; }; },

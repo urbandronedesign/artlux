@@ -16,6 +16,7 @@ import { timeline } from '../services/timeline';
 import { coreAutomationProvider } from '../services/automationTargets.core';
 import { oscAutomationProvider } from '../services/oscOut';
 import { perfMonitor } from '../services/perfMonitor';
+import { activatePluginUi } from './pluginUi';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices, PluginStatus } from '@artlux/sdk/renderer';
 import type { BootEntry } from '../../../shared/protocol';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
@@ -149,6 +150,9 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
 export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = NOOP_HOST): void {
   if (activated) return;
   activated = true;
+  // The UI halves first, from the one list a panel window activates too (host/pluginUi.ts): what the
+  // content editor shows for a plugin's source is registered there, never again from `activate()`.
+  activatePluginUi(win);
   // Core's own automation namespaces (surfaces / fixtures / globalBrightness) register alongside the
   // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
   automationTargetRegistry.register(coreAutomationProvider);
