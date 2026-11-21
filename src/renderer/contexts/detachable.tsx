@@ -32,6 +32,7 @@ import { SurfaceContentPanel } from './panels/surfaceContent';
 import { MonitorDock, PerfDock } from './panels/monitors';
 import { FixtureLibraryDock, FixtureWiringDock } from './panels/fixtureDocks';
 import { RoutingDock } from './panels/routing';
+import { StateMachineViewport } from './panels/stateGraph';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
@@ -82,6 +83,11 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.inspector.fixture.arrange', mount: 'inspector', detachable: true, title: 'Arrange', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureArrangePanel },
   { id: 'core.inspector.scene.lighting', mount: 'inspector', detachable: true, title: 'Lighting', icon: <Lightbulb size={12} />, defaultOpen: false, Component: SceneLightingPanel },
   { id: 'core.inspector.scene.tracking', mount: 'inspector', detachable: true, title: 'Tracking', icon: <Radar size={12} />, defaultOpen: false, Component: SceneTrackingPanel },
+  // THE SHOW MACHINE — a viewport, but not a GPU one: an authoring surface for the state graph, which
+  // on a second screen beside the stage is exactly where it is wanted. Its OSC learn and sender list
+  // and its "edit this state's timeline" are the editor's (services/smOscInbox, services/editorShell).
+  // The id is contexts/index.tsx's VIEWPORT_MACHINE (not imported: that file imports this one).
+  { id: 'core.viewport.machine', mount: 'viewport', detachable: true, title: 'Show Machine', Component: StateMachineViewport },
 ];
 
 /** One entry, for the editor's registration (contexts/index.tsx). Throws on an id that is not here. */

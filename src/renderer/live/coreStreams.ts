@@ -13,6 +13,9 @@ import { telemetry } from '../services/telemetry';
 import { installEditorAccess } from './editorAccess';
 import { captureViewProj } from '../services/viewerView';
 import { screensSnapshot, subscribeScreens, focusScreen } from '../services/modelScreenNames';
+import * as oscInbox from '../services/smOscInbox';
+import type { OscMessage } from '../../../shared/protocol';
+import { revealEditorBottom } from '../services/editorShell';
 import { livePreview } from '../services/livePreview';
 import { docStore } from '../state/docStore';
 
@@ -104,6 +107,28 @@ export function installCoreLiveStreams(): void {
   });
   registerLiveCall('scene3d.captureView', () => captureViewProj());
   registerLiveCall('scene3d.focusScreen', (modelId, name) => focusScreen(String(modelId), name == null ? null : String(name)));
+
+  // OSC LEARN, for a state-graph binding in a panel window: armed here, where OSC arrives, while the
+  // window watches; the next press is its one sample (and nothing is sent before it). A window gets the
+  // sender list from the editor's settings, so only the press itself crosses.
+  let learned: OscMessage | null = null;
+  registerLiveStream('osc.learn', {
+    watch(onNew) { learned = null; return oscInbox.learn((m) => { learned = m; onNew(); }); },
+    read: () => (learned ? { value: learned } : undefined),
+  });
+  // THE RUNNING MACHINE for the state graph in a window: which edge just fired (the pulse — 'sm.state'
+  // above carries the current state), and the two nudges the graph offers. A fire is an event, so the
+  // stream starts empty for its first watcher: a window must not pulse an edge that fired before it.
+  let fired: { id: string; seq: number } | null = null;
+  let firedSeq = 0;
+  registerLiveStream('sm.fired', {
+    watch(onNew) { fired = null; return timeline.subscribeSmFired((id) => { fired = { id, seq: ++firedSeq }; onNew(); }); },
+    read: () => (fired ? { value: fired } : undefined),
+  });
+  registerLiveCall('sm.trigger', (id) => timeline.triggerSmTransition(String(id)));
+  registerLiveCall('sm.enter', (id) => timeline.enterSmState(String(id)));
+  // The editor's timeline drawer, for the state graph's "edit this state's timeline" from a window.
+  registerLiveCall('shell.revealBottom', () => revealEditorBottom());
 
   // THE CAMERA INSPECTOR in a panel window (services/cameraAccess.ts, live/cameraRemote.ts). The capture
   // is not observable, so this polls at the inspector's own rate (500 ms) — but only while a window is

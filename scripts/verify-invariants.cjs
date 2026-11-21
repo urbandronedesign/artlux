@@ -569,10 +569,11 @@ check(
   'the machine viewport passed a bare setStateMachine for months (adapters.tsx, found 2026-08-07).',
   () => {
     const problems = [];
-    const adapters = read('src/renderer/contexts/panels/adapters.tsx');
+    // The adapter moved to contexts/panels/stateGraph.tsx (E5/W5i — it may open in a panel window).
+    const adapters = read('src/renderer/contexts/panels/stateGraph.tsx');
     // The PROP WIRING, not just the identifier: the adapter must hand recordHistory to the editor.
     if (!/onRecordHistory=\{a\.recordHistory\}/.test(adapters))
-      problems.push('adapters.tsx does not pass onRecordHistory={a.recordHistory} to StateGraphEditor');
+      problems.push('stateGraph.tsx does not pass onRecordHistory={a.recordHistory} to StateGraphEditor');
     const sge = read('src/renderer/components/timeline/StateGraphEditor.tsx');
     const patchBody = sge.match(/const patch = [\s\S]*?onChange\(\{ \.\.\.sm, \.\.\.next \}\);/)?.[0] ?? '';
     if (!patchBody.includes('onRecordHistory'))
@@ -8035,6 +8036,18 @@ check(
     }
     if (!/setViewerCapture\(async \(\) => captureViewerViewProj\(\)\);/.test(access)) problems.push("the editor no longer installs its 3D viewer camera as the capture (services/viewerView)");
     if (!/^installSceneRemote\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer mirrors the 3D view (installSceneRemote)');
+    // THE SHOW MACHINE in a window (W5i): its running state, fired edges and two nudges, its OSC learn and
+    // sender list, and the editor's timeline drawer. Each missing half leaves a graph that looks fine and
+    // does nothing — a ring that never moves, a Learn button that waits forever.
+    if (!det.includes("id: 'core.viewport.machine'")) problems.push("'core.viewport.machine' is no longer detachable");
+    for (const s of ["registerLiveStream('osc.learn'", "registerLiveStream('sm.fired'", "registerLiveCall('sm.trigger'", "registerLiveCall('sm.enter'", "registerLiveCall('shell.revealBottom'"]) {
+      if (!streams.includes(s)) problems.push(`the editor no longer has ${s.split("'")[1]} (the Show Machine in a window reads it)`);
+    }
+    if (!/setShowMachineLive\(\{\s*subscribeState: \(cb\) => timeline\.subscribeSmState\(cb\)/.test(access)) problems.push('the editor no longer installs the transport as the running show machine (services/showMachineLive)');
+    if (!/setRevealBottom\(\(\) => revealBottom\(\)\);/.test(access)) problems.push("the editor no longer installs its timeline drawer (services/editorShell)");
+    if (!/^installOscRemote\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer wires the Show Machine to the editor (installOscRemote)');
+    if (!/export function learn\(cb[^\n]*\n\s*if \(remoteLearn\) return remoteLearn\(cb\);/.test(read('src/renderer/services/smOscInbox.ts').replace(/\r\n/g, '\n'))) problems.push('smOscInbox.learn no longer hands a panel window\'s learn to the editor');
+    if (/services\/timeline'/.test(read('src/renderer/components/timeline/StateGraphEditor.tsx'))) problems.push('StateGraphEditor imports the transport — the running machine comes through services/showMachineLive');
     if (/from '\.\.\/\.\.\/components\/Simulator3D\//.test(read('src/renderer/contexts/panels/scene3d.tsx'))) problems.push('contexts/panels/scene3d.tsx imports the 3D view directly — use services/modelScreenNames / services/viewerView');
     // The panel window resolves its panel from the registry the UI halves filled, and only a detachable one.
     const panel = read('src/renderer/panel.tsx');

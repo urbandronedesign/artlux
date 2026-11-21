@@ -706,13 +706,23 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > Library lists main's profiles; Wiring follows the editor's selection; a Lighting toggle writes the
 > editor's scene; the viewer camera asked from a window is the editor's 4×4); checks mutation-tested 10/10.
 >
+> ✅ **W5i done 2026-11-21 (the Show Machine — the state graph, a non-GPU viewport — detaches).**
+> - `services/showMachineLive` (current state, fired edges, Ctrl+click / double-click), the OSC learn
+>   armed in the editor (`osc.learn`), the senders from the editor's settings, the control prefix by one
+>   rule (`services/oscPrefix`), and the editor's timeline drawer (`services/editorShell`).
+> - Found by bundling the panel alone: the graph imported the transport directly, besides the OSC
+>   controller the first probe showed.
+>
+> Proof: `test-panel-window` step 17 (a state added in the window lands in the editor; a double-click
+> there enters it in the editor's machine and the window's ring is the editor's; an OSC learn armed from
+> the window is answered by a UDP packet at the editor, and disarmed on release); checks
+> mutation-tested 10/10.
+>
 > **W5 — what is left:**
 > - **Panels that need more than a seam:**
 >   - the **media library** (`MediaPanel`): the thumbnail cache (W4's thumbnail service covers it) and
 >     `BlobSparkline`, which imports the LiDAR plugin's barrel for a take's sparkline;
->   - the **state graph** (a viewport): the OSC learn inbox and control prefix (`OscBindingFields` →
->     `oscController`), and "edit this state's timeline" opening the editor's drawer;
->   - **Preferences** (a viewport): it hosts every plugin's settings section, which plugin RUNTIMES
+> >   - **Preferences** (a viewport): it hosts every plugin's settings section, which plugin RUNTIMES
 >     register — they need UI halves first;
 >   - the **takes** docks: `takeRecorder` (recording is the editor's).
 > - `preview` (program monitor, output previews): GPU viewports, docked until the engine.

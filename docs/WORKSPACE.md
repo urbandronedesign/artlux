@@ -471,6 +471,12 @@ harmless.
     (`services/programLayer.ts`, `services/projectedDefaults.ts`). To find what keeps a panel in, bundle
     it alone and walk the chain to the first banned module — the guard's report names the module, not
     the file that pulled it in.
+  - **The Show Machine** (`panels/stateGraph.tsx`) is a viewport that may detach (it draws no GPU):
+    the running machine through [`services/showMachineLive.ts`](../src/renderer/services/showMachineLive.ts)
+    (`sm.state`, `sm.fired`, `sm.trigger`, `sm.enter`), OSC learn and the sender list through
+    `services/smOscInbox` (`osc.learn`, the senders from the editor's settings), the control prefix by
+    `services/oscPrefix`'s rule from the settings, and "edit this state's timeline" through
+    [`services/editorShell.ts`](../src/renderer/services/editorShell.ts) (`shell.revealBottom`).
   - **A plugin's equivalent** is `ctx.live` (SDK `PluginLiveOwner` / `PluginLiveView`,
     [`live/pluginLive.ts`](../src/renderer/live/pluginLive.ts) in the editor,
     [`live/pluginLiveRemote.ts`](../src/renderer/live/pluginLiveRemote.ts) in a panel window). The

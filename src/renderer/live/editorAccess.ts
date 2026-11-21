@@ -10,6 +10,9 @@ import { uiPerfMonitor } from '../services/uiPerfMonitor';
 import { timeline } from '../services/timeline';
 import { setViewerCapture } from '../services/viewerView';
 import { captureViewerViewProj } from '../components/Simulator3D/viewerCamera';
+import { setRevealBottom } from '../services/editorShell';
+import { setShowMachineLive } from '../services/showMachineLive';
+import { revealBottom } from '../contexts/nav';
 
 type Packet = Parameters<Parameters<typeof dmxSignal.subscribe>[0]>[0];
 
@@ -45,4 +48,13 @@ export function installEditorAccess(): void {
   });
   // The 3D viewer camera, for "Projected from view" (the screens' store is the 3D view's own here).
   setViewerCapture(async () => captureViewerViewProj());
+  // The timeline drawer, for the state graph's "edit this state's timeline".
+  setRevealBottom(() => revealBottom());
+  // The running show machine, for the state graph.
+  setShowMachineLive({
+    subscribeState: (cb) => timeline.subscribeSmState(cb),
+    subscribeFired: (cb) => timeline.subscribeSmFired(cb),
+    triggerTransition: (id) => timeline.triggerSmTransition(id),
+    enterState: (id) => timeline.enterSmState(id),
+  });
 }

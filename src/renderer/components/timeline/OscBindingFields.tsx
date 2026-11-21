@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { Radio } from 'lucide-react';
 import * as oscInbox from '../../services/smOscInbox';
-import { getControlPrefix } from '../../services/oscController';
+// The prefix from the SETTINGS (the replica's, in a panel window), by the controller's own rule — never
+// from services/oscController, which runs only in the editor (E5/W5i).
+import { controlPrefixOf } from '../../services/oscPrefix';
+import { useEditorPick } from '../../state/EditorStore';
 
 // The (sender, address) pair a state-machine OSC binding is made of — shared by the transition's
 // `osc` trigger and the state's OSC jump, so both read and warn identically.
@@ -24,6 +27,8 @@ interface Props {
 
 export const OscBindingFields: React.FC<Props> = ({ address, sender, onChange }) => {
   const senders = useOscSenders();
+  const { settings } = useEditorPick('settings');
+  const prefix = controlPrefixOf((settings as { oscControlPrefix?: string }).oscControlPrefix);
   const [learning, setLearning] = useState(false);
   const [learnedFrom, setLearnedFrom] = useState<string | null>(null);
 
@@ -43,7 +48,7 @@ export const OscBindingFields: React.FC<Props> = ({ address, sender, onChange })
 
   const missing = !!sender && oscInbox.resolveSender(sender) === 'missing';
   const norm = oscInbox.normalizeAddress(address);
-  const collides = !!norm && norm.startsWith(getControlPrefix() + '/state/');
+  const collides = !!norm && norm.startsWith(prefix + '/state/');
 
   return (
     <div className="space-y-1.5">
@@ -83,7 +88,7 @@ export const OscBindingFields: React.FC<Props> = ({ address, sender, onChange })
       )}
       {collides && (
         <div className="text-warn italic text-micro">
-          ⚠ This address is under {getControlPrefix()}/state/, which ArtLux also reads as “fire transition by id”. Use a different address.
+          ⚠ This address is under {prefix}/state/, which ArtLux also reads as “fire transition by id”. Use a different address.
         </div>
       )}
       <div className="text-fg-3 italic text-micro">

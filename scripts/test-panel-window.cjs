@@ -40,6 +40,9 @@
 //      editor; the fixture Library lists main's profile library; Wiring follows the selection; the
 //      scene's Lighting toggles write the editor's scene; the viewer camera a UV bake freezes is the
 //      editor's 3D view's (a 4×4 from its viewer, asked from the window).
+//  17. THE SHOW MACHINE in a window: a state added there lands in the editor; double-clicking it enters
+//      it in the EDITOR's machine, and the window's current-state ring is the editor's; an OSC learn
+//      armed from the window is answered by a real packet arriving at the editor.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -823,6 +826,34 @@ const until = async (fn, ms = 8000, step = 200) => {
     note((await attachedNow()).includes('scene3d.screens'), "the window mirrors the editor's 3D models' named screens (the stream is attached)");
     await railTo('Map');
     await GW(() => window.close());
+
+    console.log('\n17. the Show Machine (state graph) in its own window');
+    const smStates = () => E(() => ((window.__showHost.get('doc', 'stateMachine') || {}).states || []).map((s) => s.id));
+    const psm = await openPanel('core.viewport.machine');
+    const SM = (fn, ...a) => psm.evaluate(fn, ...a);
+    const s0 = await smStates();
+    const addedState = await SM(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'State'); if (b) b.click(); return !!b; });
+    const s1 = await until(async () => { const s = await smStates(); return s.length === s0.length + 1 ? s : null; }, 6000);
+    const newId = s1 ? s1.find((id) => !s0.includes(id)) : null;
+    const nodeHere = newId && await until(() => SM((id) => !!document.querySelector(`[data-node="${id}"]`), newId), 6000);
+    note(addedState && !!newId && !!nodeHere, 'a state added in the Show Machine window lands in the editor and is drawn in the window', `states ${s0.length} → ${(await smStates()).length}`);
+    if (newId) {
+      await SM((id) => document.querySelector(`[data-node="${id}"]`).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window })), newId);
+      const ring = await until(() => SM((id) => document.querySelector(`[data-node="${id}"]`)?.className.includes('ring-state-active') || null, newId), 8000);
+      note(!!ring, "double-clicking it enters it in the EDITOR's machine, and the window's current-state ring is the editor's");
+    }
+    // OSC LEARN armed from the window, answered by a packet that arrives at the editor (the window
+    // receives no OSC of its own for this: the binding fields read the 'osc.learn' stream).
+    await SM(() => { window.__learned = null; window.__stopLearn = window.__liveClient.subscribe('osc.learn', null, (m) => { window.__learned = m; }); });
+    await until(async () => (await attachedNow()).includes('osc.learn'), 5000);
+    let firing = true;
+    const fireLoop = (async () => { while (firing) { fire('/w5i/learn/me', 'i', 1); await sleep(100); } })();
+    const learned = await until(() => SM(() => window.__learned), 6000);
+    firing = false; await fireLoop;
+    note(!!learned && learned.address === '/w5i/learn/me', "an OSC learn armed in the window is answered by the next press at the editor", learned ? `${learned.address} from ${learned.from?.host}:${learned.from?.port}` : '(nothing learned)');
+    await SM(() => window.__stopLearn && window.__stopLearn());
+    note(!!(await until(async () => !(await attachedNow()).includes('osc.learn'), 5000)), "…and the editor's learn is disarmed when the window lets go");
+    await SM(() => window.close());
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

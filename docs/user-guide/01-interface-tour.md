@@ -157,7 +157,8 @@ Some panels can leave the editor and open in a window of their own, which you ca
 **Shader** (the code editor), **Shader Nodes** and **Effects**, the monitors: **Timing**, **DMX
 Monitor** and **Performance**, the patching docks: **Routing**, the fixture **Library** and **Wiring &
 Ledmap**, and the 3D scene's side panels: **Objects**, its **Fixtures** list, a model's and a fixture's
-placement (**Model**, **Arrange**), and the scene's **Lighting** and **Tracking** settings. A light's **Channels** faders on a second screen, next to the rig, is the
+placement (**Model**, **Arrange**), and the scene's **Lighting** and **Tracking** settings, and the
+**Show Machine** (the state graph). A light's **Channels** faders on a second screen, next to the rig, is the
 classic use; **Trigger Zones** on a screen beside the sensor, while
 someone walks the room, is another; the **Shader** code on a screen of its own, with the stage beside
 it, is a third.
@@ -191,6 +192,9 @@ it, is a third.
 - **The 3D scene's panels in a window** edit the scene the editor shows: **Projected from view** on a
   model freezes the editor's 3D camera, and a model's named screens are the ones the editor loaded. The
   3D view itself stays in the editor.
+- **The Show Machine in a window** is the editor's running show: the ring marks the state the show is
+  in, double-clicking a state enters it, **Learn** catches the next press on the network, and **Edit
+  timeline** opens that state's timeline in the editor, under the graph you left there.
 - **Shader panels in a window** work exactly as docked. **Ctrl+Enter** compiles on the editor's
   graphics card, so the errors you see are the ones the show would hit, and only a shader that builds
   is saved. **Effects** saves and applies the same library the editor lists, with the same pictures.

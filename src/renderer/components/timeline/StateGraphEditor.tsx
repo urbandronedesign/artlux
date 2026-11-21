@@ -1,6 +1,14 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTrigger, SmTriggerKind, Marker, VideoLayer } from '../../types';
-import { timeline as engine } from '../../services/timeline';
+// The RUNNING machine (current state, fired edges, Ctrl+click / double-click) through a seam (E5/W5i):
+// the transport itself in the editor, the live channel when the graph is in a panel window.
+import { showMachineLive } from '../../services/showMachineLive';
+const engine = {
+  subscribeSmState: (cb: (id: string | null) => void) => showMachineLive().subscribeState(cb),
+  subscribeSmFired: (cb: (id: string) => void) => showMachineLive().subscribeFired(cb),
+  triggerSmTransition: (id: string) => showMachineLive().triggerTransition(id),
+  enterSmState: (id: string) => showMachineLive().enterState(id),
+};
 import { smTriggerRegistry } from '../../host/registries';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap, Maximize2, ZoomIn, Network } from 'lucide-react';

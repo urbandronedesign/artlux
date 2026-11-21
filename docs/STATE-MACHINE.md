@@ -325,6 +325,9 @@ legible. See [template 3](../examples/state-machine/03-interactive-installation.
 ## Authoring — the state-graph editor
 
 Open it from the **Show Machine** context, or from the timeline drawer's **state lane** ("Edit logic").
+It can also open in a window of its own (**Open in new window** on its tab) — on a second screen beside
+the stage. There it is still the editor's running show: the current-state ring, a double-click to enter a
+state, **Learn** and **Edit timeline** all act on the editor (the timeline opens in the editor's drawer).
 The editor
 ([`components/timeline/StateGraphEditor.tsx`](../src/renderer/components/timeline/StateGraphEditor.tsx))
 is an AutomataUI-style node canvas + an inspector.

@@ -17,7 +17,7 @@ import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
-import { MediaBrowserPanel, StateMachineViewport } from './panels/adapters';
+import { MediaBrowserPanel } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { PreferencesViewport } from './panels/adapters';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
@@ -134,7 +134,7 @@ export function registerCoreWorkspace(): void {
   // fixtures and their order is the show, a tracking take has no target at all. See panels/takes.tsx.
   panelRegistry.register({ id: 'core.dock.lightingTakes', mount: 'dock', title: 'Lighting Takes', icon: <Lightbulb size={13} />, Component: LightingTakesDock });
   panelRegistry.register({ id: 'core.dock.trackingTakes', mount: 'dock', title: 'Tracking Takes', icon: <Radar size={13} />, Component: TrackingTakesDock });
-  panelRegistry.register({ id: VIEWPORT_MACHINE, mount: 'viewport', title: 'Show Machine', Component: StateMachineViewport });
+  panelRegistry.register(detachablePanel(VIEWPORT_MACHINE));
   panelRegistry.register({ id: VIEWPORT_PREFERENCES, mount: 'viewport', menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport });
 
   // ── Contexts ───────────────────────────────────────────────────────────────────────────────

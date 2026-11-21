@@ -11,11 +11,12 @@ import * as oscInbox from './smOscInbox';
 // subscribeIntent, so App stays the single writer of `playing`; named state transitions go through
 // timeline.triggerSmTransition.
 
-let controlPrefix = '/artlux';
+import { controlPrefixOf, DEFAULT_CONTROL_PREFIX } from './oscPrefix';
+let controlPrefix = DEFAULT_CONTROL_PREFIX;
 let unsub: (() => void) | null = null;
 
 export function setControlPrefix(prefix: string): void {
-  controlPrefix = prefix || '/artlux';
+  controlPrefix = controlPrefixOf(prefix);
 }
 export function getControlPrefix(): string { return controlPrefix; }
 

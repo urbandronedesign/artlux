@@ -130,8 +130,14 @@ function streamingAt(address: string, armedAt: number): boolean {
   return t != null && t < armedAt && armedAt - t < 1000;
 }
 
+// A PANEL WINDOW receives no OSC, so its learn is armed in the EDITOR (live/oscRemote.ts → the
+// 'osc.learn' stream): the next press on the network there is sent here.
+let remoteLearn: ((cb: (msg: OscMessage) => void) => () => void) | null = null;
+export function setRemoteLearn(fn: typeof remoteLearn): void { remoteLearn = fn; }
+
 /** Arm a one-shot learn. Returns a cancel. Arming again replaces the previous learner. */
 export function learn(cb: (msg: OscMessage) => void): () => void {
+  if (remoteLearn) return remoteLearn(cb);
   learnArmedAt = performance.now();
   learner = cb;
   return () => { if (learner === cb) learner = null; };
