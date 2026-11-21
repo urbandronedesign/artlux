@@ -4245,7 +4245,8 @@ check(
     const ctx = read(CTX);
     if (/core\.dock\.fixtureEditor/.test(ctx))
       return `${CTX} still registers core.dock.fixtureEditor — it was replaced by fixtureLibrary + fixtureWiring`;
-    if (!/id: 'core\.dock\.fixtureWiring'[^\n]*appliesTo: \['fixture\.pixel'\]/.test(ctx))
+    // Declared in contexts/detachable.tsx since it may open in a panel window (E5/W5h); either file counts.
+    if (!/id: 'core\.dock\.fixtureWiring'[^\n]*appliesTo: \['fixture\.pixel'\]/.test(ctx + read('src/renderer/contexts/detachable.tsx')))
       return 'the wiring/ledmap dock no longer declares appliesTo fixture.pixel — it would show for a moving head';
     return problems.length ? problems.join('; ') : null;
   },
@@ -8020,7 +8021,21 @@ check(
     const panelSrc = read('src/renderer/panel.tsx');
     if (!/^setDmxFeed\(remoteDmxFeed\);/m.test(panelSrc) || !/^setEditorHealth\(remoteEditorHealth\);/m.test(panelSrc)) problems.push('panel.tsx no longer installs the remote DMX feed and editor health');
     const det = read('src/renderer/contexts/detachable.tsx');
-    for (const id of ['core.browser.timing', 'core.dock.monitor', 'core.dock.perf']) if (!det.includes(`id: '${id}'`)) problems.push(`'${id}' is no longer detachable`);
+    for (const id of ['core.browser.timing', 'core.dock.monitor', 'core.dock.perf',
+      'core.dock.fixtureLibrary', 'core.dock.fixtureWiring', 'core.dock.routing',
+      'core.browser.models', 'core.browser.scene3dFixtures', 'core.inspector.model.transform',
+      'core.inspector.fixture.arrange', 'core.inspector.scene.lighting', 'core.inspector.scene.tracking']) {
+      if (!det.includes(`id: '${id}'`)) problems.push(`'${id}' is no longer detachable`);
+    }
+    // The 3D VIEW's part of the scene panels (W5h): a model's named screens and the viewer camera. The
+    // editor publishes them; a window mirrors the screens and asks for the camera. Missing, a window's
+    // Model card lists no screens for a model that has them, and its UV bake does nothing.
+    for (const s of ["registerLiveStream('scene3d.screens'", "registerLiveCall('scene3d.captureView'", "registerLiveCall('scene3d.focusScreen'"]) {
+      if (!streams.includes(s)) problems.push(`the editor no longer has ${s.split("'")[1]} (the scene panels in a window read it)`);
+    }
+    if (!/setViewerCapture\(async \(\) => captureViewerViewProj\(\)\);/.test(access)) problems.push("the editor no longer installs its 3D viewer camera as the capture (services/viewerView)");
+    if (!/^installSceneRemote\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer mirrors the 3D view (installSceneRemote)');
+    if (/from '\.\.\/\.\.\/components\/Simulator3D\//.test(read('src/renderer/contexts/panels/scene3d.tsx'))) problems.push('contexts/panels/scene3d.tsx imports the 3D view directly — use services/modelScreenNames / services/viewerView');
     // The panel window resolves its panel from the registry the UI halves filled, and only a detachable one.
     const panel = read('src/renderer/panel.tsx');
     if (!/activatePluginUi\('panel'[\s\S]*?const panel = \(\(p\) => \(p\?\.detachable \? p : undefined\)\)\(panelRegistry\.get\(panelId\)\);/.test(panel)) problems.push('panel.tsx no longer resolves its panel from the registry AFTER the UI halves registered theirs (a plugin panel would say it cannot open in a window)');

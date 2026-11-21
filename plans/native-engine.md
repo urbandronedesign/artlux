@@ -695,10 +695,27 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > editor's show clock while playing and holding when stopped; each stream detaching); checks
 > mutation-tested 11/11.
 >
+> ✅ **W5h done 2026-11-21 (the patching docks + the 3D scene's side panels detach — nine panels).**
+> - Routing, the fixture Library and Wiring & Ledmap: clean once out of `adapters.tsx` (own files).
+> - Objects, the 3D Fixtures list, Model, Arrange, Lighting, Tracking (`scene3d.tsx`): the 3D view's
+>   part through seams — `services/modelScreenNames` (store moved out of Simulator3D; a window mirrors
+>   `scene3d.screens`, clicks go back as `scene3d.focusScreen`) and `services/viewerView`
+>   (`scene3d.captureView`). `PROGRAM_LAYER_ID` and `DEFAULT_BIAS_M` moved to pure modules.
+>
+> Proof: `test-panel-window` step 16 (a controller added in a window's Routing lands in the editor; the
+> Library lists main's profiles; Wiring follows the editor's selection; a Lighting toggle writes the
+> editor's scene; the viewer camera asked from a window is the editor's 4×4); checks mutation-tested 10/10.
+>
 > **W5 — what is left:**
-> - **The other panel files**, file by file. `preview` (program monitor, output previews) are GPU
->   viewports: docked until the engine. Left: `adapters` (media library, fixture library/wiring, routing,
->   state graph, preferences), `scene3d` (the 3D scene's side panels), `takes`.
+> - **Panels that need more than a seam:**
+>   - the **media library** (`MediaPanel`): the thumbnail cache (W4's thumbnail service covers it) and
+>     `BlobSparkline`, which imports the LiDAR plugin's barrel for a take's sparkline;
+>   - the **state graph** (a viewport): the OSC learn inbox and control prefix (`OscBindingFields` →
+>     `oscController`), and "edit this state's timeline" opening the editor's drawer;
+>   - **Preferences** (a viewport): it hosts every plugin's settings section, which plugin RUNTIMES
+>     register — they need UI halves first;
+>   - the **takes** docks: `takeRecorder` (recording is the editor's).
+> - `preview` (program monitor, output previews): GPU viewports, docked until the engine.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.
 >

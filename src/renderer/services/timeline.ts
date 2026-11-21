@@ -73,7 +73,8 @@ const layerBitmaps = new Map<string, ImageBitmap>();
 // Mirror windows receive the composited frame over the bridge like any other surface drawable.
 // Sentinel layerId: a 3D plane/mesh (SceneModel.layerId) set to this shows the whole timeline
 // program instead of a single layer — see useLayerTexture.
-export const PROGRAM_LAYER_ID = '__program__';
+export { PROGRAM_LAYER_ID } from './programLayer';
+import { PROGRAM_LAYER_ID } from './programLayer';
 // The composite is sized to its biggest contributing source (see buildProgram), between these bounds.
 // The floor is the historic fixed size, so a show that never had a source bigger than 720p renders
 // byte-identically to before. The ceiling is a cost bound, not a quality one: every drawImage in the

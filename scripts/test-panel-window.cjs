@@ -36,6 +36,10 @@
 //  15. THE MONITORS in a window read the editor: the DMX Monitor's strips light from the editor's output
 //      and a light's channel table shows the bytes it sends; Performance shows the editor's render loop;
 //      Timing's show clock follows the editor's transport while it plays. Each stream goes on close.
+//  16. THE PATCHING DOCKS AND THE 3D SCENE'S SIDE PANELS in a window: Routing adds a controller in the
+//      editor; the fixture Library lists main's profile library; Wiring follows the selection; the
+//      scene's Lighting toggles write the editor's scene; the viewer camera a UV bake freezes is the
+//      editor's 3D view's (a 4×4 from its viewer, asked from the window).
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -772,6 +776,53 @@ const until = async (fn, ms = 8000, step = 200) => {
     const held2 = await showHere();
     note(held1 != null && held1 === held2, '…and holds when it stops', `${held1} → ${held2}`);
     await TW(() => window.close());
+
+    console.log('\n16. the patching docks and the 3D scene\'s side panels in their own window');
+    // ROUTING: + Controller in the window → one more controller in the editor's document.
+    const ctlCount = () => E(() => (window.__showHost.get('doc', 'controllers') || []).length);
+    const pr = await openPanel('core.dock.routing');
+    const RW = (fn, ...a) => pr.evaluate(fn, ...a);
+    const c0 = await ctlCount();
+    const addedCtl = await RW(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Controller'); if (b) b.click(); return !!b; });
+    const c1 = await until(async () => { const n = await ctlCount(); return n === c0 + 1 ? n : null; }, 6000);
+    note(addedCtl && !!c1, "Routing in a window adds a controller — in the editor's document", `controllers ${c0} → ${await ctlCount()}`);
+    await RW(() => window.close());
+    // LIBRARY: the profile library is main's, so a window lists the same profiles.
+    const pl = await openPanel('core.dock.fixtureLibrary');
+    const LW = (fn, ...a) => pl.evaluate(fn, ...a);
+    const profilesShown = await until(() => LW(() => /American DJ|Chauvet|Martin|Robe|Clay Paky/i.test(document.body.innerText)), 10000);
+    note(!!profilesShown, "the fixture Library in a window lists the DMX profile library (main's)");
+    await LW(() => window.close());
+    // WIRING follows the editor's selection (a pixel fixture).
+    await E(() => {
+      const leaf = [...document.querySelectorAll('div[role="button"] *')].find((e) => e.children.length === 0 && (e.textContent || '').trim() === 'Strip Alpha');
+      const row = leaf && leaf.closest('div[role="button"]');
+      if (row) row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
+    await until(() => E(() => window.__showHost.get('session', 'selectedFixtureId') === 'fx_a'), 5000);
+    const pwire = await openPanel('core.dock.fixtureWiring');
+    const WW = (fn, ...a) => pwire.evaluate(fn, ...a);
+    const wired = await until(() => WW(() => !/Select an LED fixture/i.test(document.body.innerText) && /Strip Alpha|ledmap|Wiring/i.test(document.body.innerText)), 6000);
+    note(!!wired, "Wiring & Ledmap in a window shows the editor's selected LED fixture", (await WW(() => document.body.innerText.slice(0, 120))).replace(/\s+/g, ' '));
+    await WW(() => window.close());
+
+    // LIGHTING: a toggle in the window writes the editor's scene.
+    const gridIn = () => E(() => (window.__showHost.get('doc', 'scene3D') || {}).gridVisible);
+    const plt = await openPanel('core.inspector.scene.lighting');
+    const GW = (fn, ...a) => plt.evaluate(fn, ...a);
+    const g0 = await gridIn();
+    await GW(() => { const l = [...document.querySelectorAll('label')].find((x) => (x.querySelector('span')?.textContent || '').trim() === 'Grid'); l?.querySelector('input')?.click(); });
+    const g1 = await until(async () => { const v = await gridIn(); return v !== g0 ? String(v) : null; }, 6000);
+    note(g1 != null, "the scene's Lighting section in a window writes the editor's 3D scene (Grid)", `gridVisible ${g0} → ${await gridIn()}`);
+    // THE VIEWER CAMERA: the editor's 3D view's — none while it is not open, a 4×4 once it is.
+    const capNone = await GW(() => window.__liveClient.action('scene3d.captureView', []));
+    await railTo('3D');
+    const capOpen = await until(async () => { const c = await GW(() => window.__liveClient.action('scene3d.captureView', [])); return c && c.view && c.view.length === 16 ? c : null; }, 10000);
+    note(!!capOpen, "the viewer camera a UV bake freezes is the editor's 3D view's (asked from the window)",
+      `before the 3D view: ${capNone ? 'a matrix' : 'none'}; with it: ${capOpen ? `16 values, eye ${capOpen.eye.map((x) => x.toFixed(1)).join(',')}` : 'none'}`);
+    note((await attachedNow()).includes('scene3d.screens'), "the window mirrors the editor's 3D models' named screens (the stream is attached)");
+    await railTo('Map');
+    await GW(() => window.close());
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

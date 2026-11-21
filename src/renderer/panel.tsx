@@ -26,6 +26,7 @@ import { setDmxFeed } from './services/dmxFeed';
 import { remoteDmxFeed } from './live/dmxRemote';
 import { setEditorHealth } from './services/editorHealth';
 import { remoteEditorHealth } from './live/healthRemote';
+import { installSceneRemote } from './live/sceneRemote';
 
 // A PANEL WINDOW (E5/W5) — `panel.html?panel=<id>`, opened by main/panelWindows.ts. It opens on that one
 // panel and is a dock tree of its own (W5b-2): more detachable panels can join it as tabs, stacks or splits.
@@ -58,6 +59,8 @@ setCameraAccess(remoteCameraAccess);
 // The monitors read the editor's output, render loop and clocks (services/dmxFeed, services/editorHealth).
 setDmxFeed(remoteDmxFeed);
 setEditorHealth(remoteEditorHealth);
+// …and the 3D scene's side panels read the editor's 3D view (its models' named screens, its camera).
+installSceneRemote();
 // Looked up AFTER the UI halves registered theirs. Only a detachable one: the registry is the whole list.
 const panel = ((p) => (p?.detachable ? p : undefined))(panelRegistry.get(panelId));
 const titleFor = (ids: string[]) =>

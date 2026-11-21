@@ -190,34 +190,14 @@ export const useFileProjectors = (): FileProjector[] => useSyncExternalStore(sub
 //
 // `focus` is the screen the operator last clicked in the viewport, so the card can point at its row.
 
-type Focus = { modelId: string; name: string } | null;
-const names = new Map<string, string[]>();
-let focus: Focus = null;
+// The file projectors' listeners (the screens' store, and its own listeners, moved — see below).
 const listeners = new Set<() => void>();
 const emit = () => { for (const l of listeners) l(); };
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
-const NONE: string[] = [];
 
-export function publishModelScreens(modelId: string, list: string[] | null): void {
-  const prev = names.get(modelId);
-  if (!list) { if (prev) { names.delete(modelId); emit(); } return; }
-  if (prev && prev.length === list.length && prev.every((n, i) => n === list[i])) return;
-  names.set(modelId, list);
-  emit();
-}
-
-export function focusScreen(modelId: string, name: string | null): void {
-  const next = name ? { modelId, name } : null;
-  if (focus?.modelId === next?.modelId && focus?.name === next?.name) return;
-  focus = next;
-  emit();
-}
-
-/** Screen names found in a model's loaded file — empty until it loads (or with none). */
-export const useModelScreens = (modelId: string | null | undefined): string[] =>
-  useSyncExternalStore(subscribe, () => (modelId && names.get(modelId)) || NONE);
-
-export const useFocusedScreen = (): Focus => useSyncExternalStore(subscribe, () => focus);
+// The store itself lives in services/modelScreenNames.ts (E5/W5h): the Model card may open in a panel
+// window, which carries no three.js. Re-exported here for the 3D view's own callers.
+export { publishModelScreens, focusScreen, useModelScreens, useFocusedScreen } from '../../services/modelScreenNames';
 
 // The screen a 3D click landed on: walk up from the hit object to the first `screen…` ancestor below
 // the model's own root. Null when the click hit ordinary venue geometry.

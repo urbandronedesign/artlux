@@ -1,5 +1,5 @@
-// The EDITOR's side of the core panels' seams (E5/W5): what the DMX Monitor, Performance and Timing
-// panels read, straight from the services that produce it — exactly what those panels read before they
+// The EDITOR's side of the core panels' seams (E5/W5): what the DMX Monitor, Performance, Timing and
+// the 3D scene's Model card read, straight from the services that produce it — exactly what those panels read before they
 // could leave the editor, with nothing added per frame. A panel window installs the live-channel side
 // instead (live/dmxRemote.ts, live/healthRemote.ts). Installed by installCoreLiveStreams (App, at load).
 import { dmxSignal } from '../services/dmxSignal';
@@ -8,6 +8,8 @@ import { setEditorHealth } from '../services/editorHealth';
 import { perfMonitor } from '../services/perfMonitor';
 import { uiPerfMonitor } from '../services/uiPerfMonitor';
 import { timeline } from '../services/timeline';
+import { setViewerCapture } from '../services/viewerView';
+import { captureViewerViewProj } from '../components/Simulator3D/viewerCamera';
 
 type Packet = Parameters<Parameters<typeof dmxSignal.subscribe>[0]>[0];
 
@@ -41,4 +43,6 @@ export function installEditorAccess(): void {
     stateElapsedSec: () => timeline.getSmElapsedSec(),
     subscribeState: (cb) => timeline.subscribeSmState(cb),
   });
+  // The 3D viewer camera, for "Projected from view" (the screens' store is the 3D view's own here).
+  setViewerCapture(async () => captureViewerViewProj());
 }

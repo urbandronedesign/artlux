@@ -10,23 +10,19 @@
 
 import React from 'react';
 import {
-  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route, FolderInput,
+  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Cable, Play, Move3d, Diamond, Bookmark, Library, FolderInput,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
-import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, RoutingDock, StateMachineViewport } from './panels/adapters';
+import { MediaBrowserPanel, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { PreferencesViewport } from './panels/adapters';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
 import * as takeRecorder from '../services/takeRecorder';
 import { LightingTakesDock, TrackingTakesDock } from './panels/takes';
-import {
-  ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
-  SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
-} from './panels/scene3d';
 
 // ── Viewport ids ─────────────────────────────────────────────────────────────────────────────
 // These four are PERSISTENT: App mounts them once and hands them to the shell as elements, which is
@@ -64,8 +60,8 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.browser.programPreview', mount: 'browser', title: 'Program', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
   panelRegistry.register(detachablePanel('core.browser.timing'));
   panelRegistry.register({ id: 'core.browser.media', mount: 'browser', bare: true, grow: true, title: 'Media Library', icon: <ImageIcon size={12} />, Component: MediaBrowserPanel });
-  panelRegistry.register({ id: 'core.browser.models', mount: 'browser', title: 'Objects', icon: <Box size={12} />, grow: true, Component: ModelsPanel, HeaderActions: ModelsHeaderActions });
-  panelRegistry.register({ id: 'core.browser.scene3dFixtures', mount: 'browser', title: 'Fixtures', icon: <Lightbulb size={12} />, grow: true, Component: Scene3DFixturesPanel });
+  panelRegistry.register(detachablePanel('core.browser.models'));
+  panelRegistry.register(detachablePanel('core.browser.scene3dFixtures'));
 
   // ── Parameter panels ───────────────────────────────────────────────────────────────────────
   panelRegistry.register(detachablePanel('core.inspector.surface.content'));
@@ -99,26 +95,26 @@ export function registerCoreWorkspace(): void {
   // is not left reachable only by dragging the gizmo.
   panelRegistry.register(detachablePanel('core.inspector.fixture.layout3d'));
   panelRegistry.register(detachablePanel('core.inspector.fixture.position'));
-  panelRegistry.register({ id: 'core.inspector.model.transform', mount: 'inspector', title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel });
+  panelRegistry.register(detachablePanel('core.inspector.model.transform'));
   // Rig-building for a multi-selection. Lives in the fixture column so it sits beside the 3D layout
   // it rearranges.
-  panelRegistry.register({ id: 'core.inspector.fixture.arrange', mount: 'inspector', title: 'Arrange', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureArrangePanel });
+  panelRegistry.register(detachablePanel('core.inspector.fixture.arrange'));
   // No appliesTo — scene lighting is a property of the SCENE, not of whatever is selected.
-  panelRegistry.register({ id: 'core.inspector.scene.lighting', mount: 'inspector', title: 'Lighting', icon: <Lightbulb size={12} />, defaultOpen: false, Component: SceneLightingPanel });
+  panelRegistry.register(detachablePanel('core.inspector.scene.lighting'));
   // Also no appliesTo — the tracking overlays are a property of the SCENE, not of a selection.
-  panelRegistry.register({ id: 'core.inspector.scene.tracking', mount: 'inspector', title: 'Tracking', icon: <Radar size={12} />, defaultOpen: false, Component: SceneTrackingPanel });
+  panelRegistry.register(detachablePanel('core.inspector.scene.tracking'));
 
   // ── Dock panels ────────────────────────────────────────────────────────────────────────────
   // The seven-card Fixture Editor is gone: five of its cards were a second rendering of controls
   // the kind-gated inspector already owns, and the same field could be edited in two places with
   // only one of them explaining itself. What is left is the two things that exist nowhere else.
-  panelRegistry.register({ id: 'core.dock.fixtureLibrary', mount: 'dock', title: 'Library', icon: <Library size={13} />, Component: FixtureLibraryDock });
+  panelRegistry.register(detachablePanel('core.dock.fixtureLibrary'));
   // Pixel-only, and gated in its REGISTRATION like every fixture section — a moving head has named
   // channels, not a pixel order, so the tab is simply absent when one is selected.
-  panelRegistry.register({ id: 'core.dock.fixtureWiring', mount: 'dock', title: 'Wiring & Ledmap', icon: <Route size={13} />, appliesTo: ['fixture.pixel'], Component: FixtureWiringDock });
+  panelRegistry.register(detachablePanel('core.dock.fixtureWiring'));
   panelRegistry.register(detachablePanel('core.dock.monitor'));
   panelRegistry.register(detachablePanel('core.dock.perf'));
-  panelRegistry.register({ id: 'core.dock.routing', mount: 'dock', title: 'Routing', icon: <Network size={13} />, Component: RoutingDock });
+  panelRegistry.register(detachablePanel('core.dock.routing'));
   // Live monitors. Both blit machinery that already runs each frame — see panels/preview.tsx.
   panelRegistry.register({ id: 'core.dock.outputsPreview', mount: 'dock', title: 'Output Preview', icon: <MonitorPlay size={13} />, Component: OutputsPreviewPanel });
   panelRegistry.register({ id: 'core.inspector.programPreview', mount: 'inspector', title: 'Program Preview', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });

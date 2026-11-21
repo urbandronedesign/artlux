@@ -460,8 +460,17 @@ harmless.
     docked monitor stays zero-copy; a panel window installs one shared subscription per kind
     (`dmx.pixels`, `dmx.universes`, `perf`, `sm.state`, and the clock anchor). `dmxSignal`, `perfMonitor`
     and `uiPerfMonitor` are banned from the panel window: there they are an idle copy. A panel that may
-    detach lives in a file that imports only what it needs (`panels/monitors.tsx`) — the window's
-    import graph is its file's.
+    detach lives in a file that imports only what it needs (`panels/monitors.tsx`, `fixtureDocks.tsx`,
+    `routing.tsx`) — the window's import graph is its file's.
+  - **The 3D scene's side panels** (`panels/scene3d.tsx`) reach the 3D VIEW through two more seams:
+    [`services/modelScreenNames.ts`](../src/renderer/services/modelScreenNames.ts) (a loaded model's
+    named screens and the clicked one — published by the 3D view, mirrored by a window from
+    `scene3d.screens`, a window's click sent back with `scene3d.focusScreen`) and
+    [`services/viewerView.ts`](../src/renderer/services/viewerView.ts) (the viewer camera for a UV bake,
+    `scene3d.captureView`). Constants that lived in runtime modules moved to pure ones
+    (`services/programLayer.ts`, `services/projectedDefaults.ts`). To find what keeps a panel in, bundle
+    it alone and walk the chain to the first banned module — the guard's report names the module, not
+    the file that pulled it in.
   - **A plugin's equivalent** is `ctx.live` (SDK `PluginLiveOwner` / `PluginLiveView`,
     [`live/pluginLive.ts`](../src/renderer/live/pluginLive.ts) in the editor,
     [`live/pluginLiveRemote.ts`](../src/renderer/live/pluginLiveRemote.ts) in a panel window). The

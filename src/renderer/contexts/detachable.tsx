@@ -19,7 +19,7 @@
 // the monitors — Timing, DMX Monitor, Performance — whose live readings come through seams.
 
 import React from 'react';
-import { Activity, Box, Cable, Gauge, Grid3x3, Hash, Layers, Lightbulb, Move3d, Network, SlidersHorizontal, Timer, Users } from 'lucide-react';
+import { Activity, Box, Cable, Gauge, Grid3x3, Hash, Layers, Library, Lightbulb, Move3d, Network, Radar, Route, SlidersHorizontal, Timer, Users } from 'lucide-react';
 import type { PanelContribution } from '@artlux/sdk/renderer';
 import {
   SurfacesPanel, SurfacesHeaderActions, FixturesPanel, FixturesHeaderActions,
@@ -30,6 +30,12 @@ import {
 } from './panels/inspector';
 import { SurfaceContentPanel } from './panels/surfaceContent';
 import { MonitorDock, PerfDock } from './panels/monitors';
+import { FixtureLibraryDock, FixtureWiringDock } from './panels/fixtureDocks';
+import { RoutingDock } from './panels/routing';
+import {
+  ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
+  SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
+} from './panels/scene3d';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
 
 export const DETACHABLE_PANELS: PanelContribution[] = [
@@ -60,6 +66,22 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.browser.timing', mount: 'browser', detachable: true, title: 'Timing', icon: <Timer size={12} />, Component: TimingPanel, HeaderActions: TimingHeaderActions },
   { id: 'core.dock.monitor', mount: 'dock', detachable: true, title: 'DMX Monitor', icon: <Activity size={13} />, Component: MonitorDock },
   { id: 'core.dock.perf', mount: 'dock', detachable: true, title: 'Performance', icon: <Gauge size={13} />, Component: PerfDock },
+  // THE PATCHING DOCKS. The fixture library (templates, and the profile library — main answers, so it is
+  // the same in any window), a pixel fixture's wiring and ledmap, and Routing: all document edits.
+  { id: 'core.dock.fixtureLibrary', mount: 'dock', detachable: true, title: 'Library', icon: <Library size={13} />, Component: FixtureLibraryDock },
+  { id: 'core.dock.fixtureWiring', mount: 'dock', detachable: true, title: 'Wiring & Ledmap', icon: <Route size={13} />, appliesTo: ['fixture.pixel'], Component: FixtureWiringDock },
+  { id: 'core.dock.routing', mount: 'dock', detachable: true, title: 'Routing', icon: <Network size={13} />, Component: RoutingDock },
+  // THE 3D SCENE'S SIDE PANELS — the venue's objects and fixtures, a model's and a fixture's placement,
+  // the scene's lighting and tracking settings. Document edits, plus two things that are the 3D VIEW's
+  // (a model's named screens, the viewer camera for a UV bake), which come through seams
+  // (services/modelScreenNames, services/viewerView) — the editor's 3D view, over the live channel. The
+  // 3D view itself stays in the editor (a GPU viewport, docked until the engine).
+  { id: 'core.browser.models', mount: 'browser', detachable: true, title: 'Objects', icon: <Box size={12} />, grow: true, Component: ModelsPanel, HeaderActions: ModelsHeaderActions },
+  { id: 'core.browser.scene3dFixtures', mount: 'browser', detachable: true, title: 'Fixtures', icon: <Lightbulb size={12} />, grow: true, Component: Scene3DFixturesPanel },
+  { id: 'core.inspector.model.transform', mount: 'inspector', detachable: true, title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel },
+  { id: 'core.inspector.fixture.arrange', mount: 'inspector', detachable: true, title: 'Arrange', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureArrangePanel },
+  { id: 'core.inspector.scene.lighting', mount: 'inspector', detachable: true, title: 'Lighting', icon: <Lightbulb size={12} />, defaultOpen: false, Component: SceneLightingPanel },
+  { id: 'core.inspector.scene.tracking', mount: 'inspector', detachable: true, title: 'Tracking', icon: <Radar size={12} />, defaultOpen: false, Component: SceneTrackingPanel },
 ];
 
 /** One entry, for the editor's registration (contexts/index.tsx). Throws on an id that is not here. */

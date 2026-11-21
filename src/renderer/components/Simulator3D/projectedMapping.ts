@@ -142,12 +142,8 @@ export interface ProjectedMaterial {
   dispose(): void;
 }
 
-/**
- * Self-shadow bias in metres, when a model does not carry its own. 2 cm holds on venue-scale geometry
- * (the world is metres by convention — see SceneModel.scale) without letting content leak past a
- * silhouette by anything an audience can see.
- */
-export const DEFAULT_BIAS_M = 0.02;
+export { DEFAULT_BIAS_M } from '../../services/projectedDefaults';
+import { DEFAULT_BIAS_M } from '../../services/projectedDefaults';
 
 // One shared 1×1 "infinitely far" texel, for materials with no depth map bound. White, because that
 // is what an empty texel of a real map is — see DEPTH_PACK_GLSL. Lazy + shared: this is a placeholder

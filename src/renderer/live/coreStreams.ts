@@ -11,6 +11,8 @@ import { uiPerfMonitor } from '../services/uiPerfMonitor';
 import { timeline } from '../services/timeline';
 import { telemetry } from '../services/telemetry';
 import { installEditorAccess } from './editorAccess';
+import { captureViewProj } from '../services/viewerView';
+import { screensSnapshot, subscribeScreens, focusScreen } from '../services/modelScreenNames';
 import { livePreview } from '../services/livePreview';
 import { docStore } from '../state/docStore';
 
@@ -92,6 +94,16 @@ export function installCoreLiveStreams(): void {
     },
     read() { return { value: { id: timeline.getSmStateId(), elapsedSec: timeline.getSmElapsedSec() } }; },
   });
+
+  // THE 3D VIEW, for the scene's side panels in a panel window: the named screens each loaded model
+  // carries and the one clicked (sent on change only — a file loads, a screen is clicked), the viewer
+  // camera for "Projected from view", and a click on a screen row put back into this 3D view.
+  registerLiveStream('scene3d.screens', {
+    watch: (onNew) => subscribeScreens(onNew),
+    read: () => ({ value: screensSnapshot() }),
+  });
+  registerLiveCall('scene3d.captureView', () => captureViewProj());
+  registerLiveCall('scene3d.focusScreen', (modelId, name) => focusScreen(String(modelId), name == null ? null : String(name)));
 
   // THE CAMERA INSPECTOR in a panel window (services/cameraAccess.ts, live/cameraRemote.ts). The capture
   // is not observable, so this polls at the inspector's own rate (500 ms) — but only while a window is

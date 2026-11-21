@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, Radar } from 'lucide-react';
 import { panelRegistry } from '../../host/registries';
-import { PROGRAM_LAYER_ID } from '../../services/timeline';
+import { PROGRAM_LAYER_ID } from '../../services/programLayer';
 import { modelScaleXYZ } from '../../../../shared/protocol';
 import type { SceneModel, ScreenBinding } from '../../../../shared/protocol';
 import type { Surface, Timeline } from '../../types';
@@ -13,9 +13,12 @@ import { VectorField } from '../../components/ui/VectorField';
 import { NumInput } from '../../components/ui/NumberField';
 import * as layout from '../../services/fixtureLayout';
 import { isLight } from '../../services/fixtureKind';
-import { captureViewerViewProj } from '../../components/Simulator3D/viewerCamera';
-import { DEFAULT_BIAS_M } from '../../components/Simulator3D/projectedMapping';
-import { useModelScreens, useFocusedScreen, focusScreen } from '../../components/Simulator3D/modelScreens';
+// What these panels need of the 3D VIEW comes through seams (E5/W5h): the viewer camera
+// (services/viewerView) and a model's named screens (services/modelScreenNames). The 3D view runs in the
+// editor only; in a panel window both are the editor's, over the live channel.
+import { captureViewProj } from '../../services/viewerView';
+import { DEFAULT_BIAS_M } from '../../services/projectedDefaults';
+import { useModelScreens, useFocusedScreen, focusScreen } from '../../services/modelScreenNames';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -478,8 +481,7 @@ export const ModelTransformPanel: React.FC = () => {
                   if (m.uvProjView?.length === 16) {
                     a.updateModel(m.id, { uvMode: 'projected', uvProjFrom: undefined });
                   } else {
-                    const cap = captureViewerViewProj();
-                    if (cap) a.updateModel(m.id, { uvMode: 'projected', uvProjView: cap.view, uvProjEye: cap.eye, uvProjFrom: undefined });
+                    void captureViewProj().then((cap) => { if (cap) a.updateModel(m.id, { uvMode: 'projected', uvProjView: cap.view, uvProjEye: cap.eye, uvProjFrom: undefined }); });
                   }
                 } else {
                   a.updateModel(m.id, { uvMode: undefined, uvProjFrom: undefined });
@@ -501,7 +503,7 @@ export const ModelTransformPanel: React.FC = () => {
             <button
               // Captures the eye as well as the matrix: the back-face test and the occlusion bias
               // both need to know where the projector IS, and a bake used to store only the matrix.
-              onClick={() => { const cap = captureViewerViewProj(); if (cap) a.updateModel(m.id, { uvMode: 'projected', uvProjView: cap.view, uvProjEye: cap.eye, uvProjFrom: undefined }); }}
+              onClick={() => { void captureViewProj().then((cap) => { if (cap) a.updateModel(m.id, { uvMode: 'projected', uvProjView: cap.view, uvProjEye: cap.eye, uvProjFrom: undefined }); }); }}
               title="Freeze projected UVs from the current 3D viewpoint"
               className="shrink-0 px-1.5 py-1 rounded text-micro border bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1"
               {...help('scene3d.model-uv-bake')}
