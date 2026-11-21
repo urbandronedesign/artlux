@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Circle, Square, Plus, X, Lightbulb, Trash2, GripVertical } from 'lucide-react';
-import { trackingStore } from '@artlux/plugin-lidar-tracking';
-import * as takeRecorder from '../../services/takeRecorder';
+// The recorder, the live blob count and the orphan takes through a seam (E5/W5j): the editor's own
+// services when docked, the live channel in a panel window (recording is the editor's).
+import { takesAccess } from '../../services/takesAccess';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { useEditorPick, useEditorActions } from '../../state/EditorStore';
-import * as orphanTakes from '../../services/orphanTakes';
 import { isLight } from '../../services/fixtureKind';
 import type { ChannelRole, LightingTake, TrackingTakeRef } from '../../types';
 import { BlobSparkline } from '../../components/timeline/BlobSparkline';
@@ -24,6 +24,11 @@ import { BlobSparkline } from '../../components/timeline/BlobSparkline';
 //
 // Placement stays in the timeline: both libraries are drag sources for the lane drop handler, and the
 // dock sits directly above the drawer, so a chip travels a short vertical distance to its lane.
+
+const subscribeTakes = (cb: () => void) => takesAccess().subscribe(cb);
+const getRec = () => takesAccess().getRec();
+const elapsedLighting = () => takesAccess().elapsed('lighting');
+const elapsedTracking = () => takesAccess().elapsed('tracking');
 
 const fmtClock = (s: number): string => {
   const t = Math.max(0, Math.floor(s));
@@ -157,7 +162,7 @@ export const LightingTakesDock: React.FC = () => {
   // Resolved out of `scenes`, never off a pre-collapsed name — the rule Timeline's audioOwnerName
   // documents: a bound-but-unresolvable scene must read "Scene", never the literal "Global".
   const owner = activeSceneId ? (scenes.find((s) => s.id === activeSceneId)?.name || 'Scene') : 'the global timeline';
-  const rec = useSyncExternalStore(takeRecorder.subscribe, takeRecorder.getRec);
+  const rec = useSyncExternalStore(subscribeTakes, getRec);
   const takes = timeline.lightingTakes ?? [];
   const hasLane = timeline.layers.some((l) => l.kind === 'lighting');
   const n = selectedFixtureIds.length;
@@ -195,11 +200,11 @@ export const LightingTakesDock: React.FC = () => {
           title={lights === 0 && !rec.lighting
             ? 'Select light fixtures to record — their selection order becomes the take'
             : `Record the movement of ${lights} selected light(s)`}
-          elapsed={() => takeRecorder.elapsed('lighting')}
-          onClick={takeRecorder.toggleLighting}
+          elapsed={elapsedLighting}
+          onClick={() => takesAccess().toggle('lighting')}
         />
-        {rec.lighting && <CancelButton onClick={takeRecorder.cancelLighting} />}
-        {!hasLane && <LaneButton onClick={takeRecorder.addLightingLane} label="Lighting lane" helpId="timeline.lighting-add-lane" />}
+        {rec.lighting && <CancelButton onClick={() => takesAccess().cancel('lighting')} />}
+        {!hasLane && <LaneButton onClick={() => takesAccess().addLane('lighting')} label="Lighting lane" helpId="timeline.lighting-add-lane" />}
       </div>
 
       {/* WHOSE LIBRARY THIS IS. Lighting takes are scene-local BY DESIGN and tracking takes are not, so
@@ -221,8 +226,8 @@ export const LightingTakesDock: React.FC = () => {
                 <Lightbulb size={9} className="inline text-accent mr-1" />
                 {fmtClock(t.duration)} · {t.parts.length}p · {rolesOf(t).join('·') || '—'}
               </>}
-              onRename={(name) => takeRecorder.renameLightingTake(t.id, name)}
-              onRemove={() => takeRecorder.removeLightingTake(t.id)}
+              onRename={(name) => takesAccess().rename('lighting', t.id, name)}
+              onRemove={() => takesAccess().remove('lighting', t.id)}
             />
           ))}
       </div>
@@ -235,11 +240,7 @@ export const LightingTakesDock: React.FC = () => {
 // The live feed, so you can see the tracker is actually talking before you commit to a take. Subscribes
 // to the store's own coalesced notification (one per rAF) but only re-renders when the COUNT changes.
 const LiveBlobs: React.FC = () => {
-  const [n, setN] = useState(() => trackingStore.getActiveBlobs().length);
-  useEffect(() => trackingStore.subscribe(() => setN((prev) => {
-    const next = trackingStore.getActiveBlobs().length;
-    return next === prev ? prev : next;
-  })), []);
+  const n = useSyncExternalStore(subscribeTakes, () => takesAccess().liveBlobs());
   return (
     <span className={`text-mini ${n ? 'text-ok' : 'text-fg-3'}`}>
       {n ? `live: ${n} blob${n > 1 ? 's' : ''}` : 'no live blobs'}
@@ -265,7 +266,7 @@ const TrackingSignature: React.FC<{ t: TrackingTakeRef }> = ({ t }) => (
 // so a silent adopt would resurrect four of them on every launch. One button, and it says how many.
 const OrphanTakes: React.FC = () => {
   const a = useEditorActions();
-  const paths = useSyncExternalStore(orphanTakes.subscribe, orphanTakes.get);
+  const paths = useSyncExternalStore(subscribeTakes, () => takesAccess().orphans());
   const [busy, setBusy] = useState(false);
   if (!paths.length) return null;
   const n = paths.length;
@@ -295,7 +296,7 @@ export const TrackingTakesDock: React.FC = () => {
   // the venue did — so it belongs to the project and every scene can draw on it. `globalTimeline` is
   // the same list the Media panel renders (services/assetLibrary.libraryItems).
   const { globalTimeline, timeline } = useEditorPick('globalTimeline', 'timeline');
-  const rec = useSyncExternalStore(takeRecorder.subscribe, takeRecorder.getRec);
+  const rec = useSyncExternalStore(subscribeTakes, getRec);
   const takes = globalTimeline.trackingTakes ?? [];
   // …but the LANE is a property of the document you are editing, so it is read from the bound one.
   const hasLane = timeline.layers.some((l) => l.kind === 'tracking');
@@ -308,12 +309,12 @@ export const TrackingTakesDock: React.FC = () => {
           label="Record"
           helpId="timeline.take-record"
           title="Record the live tracker feed into a take — independent of the transport"
-          elapsed={() => takeRecorder.elapsed('tracking')}
-          onClick={takeRecorder.toggleTracking}
+          elapsed={elapsedTracking}
+          onClick={() => takesAccess().toggle('tracking')}
         />
-        {rec.tracking && <CancelButton onClick={takeRecorder.cancelTracking} />}
+        {rec.tracking && <CancelButton onClick={() => takesAccess().cancel('tracking')} />}
         <LiveBlobs />
-        {!hasLane && <LaneButton onClick={takeRecorder.addTrackingLane} label="Tracking lane" helpId="timeline.take-add-lane" />}
+        {!hasLane && <LaneButton onClick={() => takesAccess().addLane('tracking')} label="Tracking lane" helpId="timeline.take-add-lane" />}
       </div>
 
       <OrphanTakes />
@@ -330,8 +331,8 @@ export const TrackingTakesDock: React.FC = () => {
               payload={{ id: t.id, name: t.name, path: t.path, duration: t.duration, fps: t.fps }}
               signature={<TrackingSignature t={t} />}
               meta={fmtClock(t.duration)}
-              onRename={(name) => takeRecorder.renameTrackingTake(t.id, name)}
-              onRemove={() => takeRecorder.removeTrackingTake(t.id)}
+              onRename={(name) => takesAccess().rename('tracking', t.id, name)}
+              onRemove={() => takesAccess().remove('tracking', t.id)}
             />
           ))}
       </div>

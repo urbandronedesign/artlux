@@ -1,7 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Box, Film, Image as ImageIcon, Radio, Music, AlertTriangle } from 'lucide-react';
 import { AssetEntry, MediaView } from '../types';
-import { getThumb, onThumb } from '../services/thumbnailCache';
+// Stills through a seam (E5/W5j): the editor's thumbnail cache when docked, W4's thumbnail service in a
+// panel window — never services/thumbnailCache itself, which reaches the media pipeline.
+import { thumbView } from '../services/thumbView';
+const getThumb = (path: string, time: number) => thumbView().getThumb(path, time);
+const onThumb = (cb: (path: string) => void) => thumbView().onThumb(cb);
 import { resolveMediaUrl } from '../services/mediaCache';
 import { BlobSparkline } from './timeline/BlobSparkline';
 import { Tooltip } from './ui/Tooltip';

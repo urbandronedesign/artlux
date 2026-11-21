@@ -28,6 +28,8 @@ import { setEditorHealth } from './services/editorHealth';
 import { remoteEditorHealth } from './live/healthRemote';
 import { installSceneRemote } from './live/sceneRemote';
 import { installOscRemote } from './live/oscRemote';
+import { installTakesRemote } from './live/takesRemote';
+import { layoutStore, disableLayoutPersistence, LAYOUT_PREF_KEY } from './services/layoutStore';
 
 // A PANEL WINDOW (E5/W5) — `panel.html?panel=<id>`, opened by main/panelWindows.ts. It opens on that one
 // panel and is a dock tree of its own (W5b-2): more detachable panels can join it as tabs, stacks or splits.
@@ -44,6 +46,10 @@ import { installOscRemote } from './live/oscRemote';
 // window's replica is read-only and must never hand the host its empty defaults.
 setHostLinkRole('panel');
 installGlobalNet('panel');
+// The editor's saved workbench is the EDITOR's to write (services/layoutStore): this window reads it
+// once, so a panel opens with the operator's choices (the media library's view…), and never writes it.
+disableLayoutPersistence();
+window.artlux?.getPrefs?.().then((p) => layoutStore.hydrate((p as unknown as Record<string, never> | null)?.[LAYOUT_PREF_KEY])).catch(() => {});
 
 const panelId = new URLSearchParams(location.search).get('panel') ?? '';
 liveClient.connect(`panel:${panelId}`);
@@ -64,6 +70,8 @@ setEditorHealth(remoteEditorHealth);
 installSceneRemote();
 // …and the state graph's OSC learn, sender list and "edit this state's timeline" go to the editor.
 installOscRemote();
+// …and the takes docks drive the editor's recorder (and read their sparklines from it).
+installTakesRemote();
 // Looked up AFTER the UI halves registered theirs. Only a detachable one: the registry is the whole list.
 const panel = ((p) => (p?.detachable ? p : undefined))(panelRegistry.get(panelId));
 const titleFor = (ids: string[]) =>

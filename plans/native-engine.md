@@ -718,13 +718,29 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 > the window is answered by a UDP packet at the editor, and disarmed on release); checks
 > mutation-tested 10/10.
 >
+> ✅ **W5j done 2026-11-21 (the takes docks and the Media Library detach).**
+> - Seams `services/takesAccess` (the recorder: `takes.state`, `takes.*`), `services/takeDensity`
+>   (`takes.density` — BlobSparkline no longer imports the LiDAR barrel), `services/thumbView` (W4's
+>   thumbnail service). `mediaCache` is pure URL helpers now: let in by an "imports only the URL table"
+>   rule rather than banned by name.
+> - **Two bugs found, both fixed and guarded:**
+>   - a panel window's `layoutStore` would have written the DEFAULT layout over the editor's saved
+>     workbench at its first `set()` (the Media Library's view toggle) — persistence is off in a window;
+>   - **the first tracking take on the global timeline was lost, docked as well**: `stopTracking` commits
+>     the take to the library, then a lane to the bound document — the same document when no scene is
+>     bound — and the lane commit read it from a render ref, from before the take. App's take host reads
+>     the store. (Pre-existing; for the release notes.)
+> - Four browser panels were registered twice (warned in the console); removed.
+>
+> Proof: `test-panel-window` step 18 (Record in a window starts the editor's recorder and its clock runs
+> there; the first take lands with its lane; its sparkline is drawn; a media view toggle leaves the prefs'
+> layout byte-identical; no panel is registered twice); checks mutation-tested 10/10 + 2/2;
+> `test-lighting-take` green.
+>
 > **W5 — what is left:**
 > - **Panels that need more than a seam:**
->   - the **media library** (`MediaPanel`): the thumbnail cache (W4's thumbnail service covers it) and
->     `BlobSparkline`, which imports the LiDAR plugin's barrel for a take's sparkline;
-> >   - **Preferences** (a viewport): it hosts every plugin's settings section, which plugin RUNTIMES
+>   - **Preferences** (a viewport): it hosts every plugin's settings section, which plugin RUNTIMES
 >     register — they need UI halves first;
->   - the **takes** docks: `takeRecorder` (recording is the editor's).
 > - `preview` (program monitor, output previews): GPU viewports, docked until the engine.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.

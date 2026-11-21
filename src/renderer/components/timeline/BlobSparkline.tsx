@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { trackingTake as take } from '@artlux/plugin-lidar-tracking';
+// The take's density by path through a seam (E5/W5j): the LiDAR plugin's own loader in the editor, the
+// editor's answer in a panel window — never the plugin's barrel, which is its runtime.
+import { takeDensity } from '../../services/takeDensity';
+const take = { getCached: (p: string) => takeDensity().getCached(p), ensureLoaded: (p: string) => takeDensity().ensure(p) };
 
 interface Props {
   path: string;        // the take's .lblob sidecar

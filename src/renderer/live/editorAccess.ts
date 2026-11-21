@@ -12,6 +12,13 @@ import { setViewerCapture } from '../services/viewerView';
 import { captureViewerViewProj } from '../components/Simulator3D/viewerCamera';
 import { setRevealBottom } from '../services/editorShell';
 import { setShowMachineLive } from '../services/showMachineLive';
+import { setTakesAccess, type TakeKind } from '../services/takesAccess';
+import { setTakeDensitySource } from '../services/takeDensity';
+import { setThumbView } from '../services/thumbView';
+import { getThumb, onThumb } from '../services/thumbnailCache';
+import * as takeRecorder from '../services/takeRecorder';
+import * as orphanTakes from '../services/orphanTakes';
+import { trackingStore, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { revealBottom } from '../contexts/nav';
 
 type Packet = Parameters<Parameters<typeof dmxSignal.subscribe>[0]>[0];
@@ -50,6 +57,34 @@ export function installEditorAccess(): void {
   setViewerCapture(async () => captureViewerViewProj());
   // The timeline drawer, for the state graph's "edit this state's timeline".
   setRevealBottom(() => revealBottom());
+  // The take recorder, for the takes docks — the recorder itself, as they always read it.
+  const by = <T,>(kind: TakeKind, l: T, t: T): T => (kind === 'lighting' ? l : t);
+  setTakesAccess({
+    subscribe: (cb) => {
+      const a = takeRecorder.subscribe(cb), b = orphanTakes.subscribe(cb);
+      // The blob count changes far less often than the tracker sends (it sends at ~60 fps).
+      let n = trackingStore.getActiveBlobs().length;
+      const c = trackingStore.subscribe(() => { const m = trackingStore.getActiveBlobs().length; if (m !== n) { n = m; cb(); } });
+      return () => { a(); b(); c(); };
+    },
+    getRec: () => takeRecorder.getRec(),
+    elapsed: (k) => takeRecorder.elapsed(k),
+    liveBlobs: () => trackingStore.getActiveBlobs().length,
+    orphans: () => orphanTakes.get(),
+    toggle: (k) => by(k, takeRecorder.toggleLighting, takeRecorder.toggleTracking)(),
+    cancel: (k) => by(k, takeRecorder.cancelLighting, takeRecorder.cancelTracking)(),
+    addLane: (k) => by(k, takeRecorder.addLightingLane, takeRecorder.addTrackingLane)(),
+    rename: (k, id, name) => by(k, takeRecorder.renameLightingTake, takeRecorder.renameTrackingTake)(id, name),
+    remove: (k, id) => by(k, takeRecorder.removeLightingTake, takeRecorder.removeTrackingTake)(id),
+  });
+  // Video stills for the media library's chips: the cache itself.
+  setThumbView({ getThumb, onThumb });
+  // A tracking take's density, for its sparkline: the plugin's own cache and loader.
+  const densityOf = (t: { density?: number[]; duration: number } | null | undefined) => (t && t.density ? { density: t.density, duration: t.duration } : null);
+  setTakeDensitySource({
+    getCached: (p) => densityOf(trackingTake.getCached(p)),
+    ensure: async (p) => densityOf(await trackingTake.ensureLoaded(p)),
+  });
   // The running show machine, for the state graph.
   setShowMachineLive({
     subscribeState: (cb) => timeline.subscribeSmState(cb),

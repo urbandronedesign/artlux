@@ -43,6 +43,10 @@
 //  17. THE SHOW MACHINE in a window: a state added there lands in the editor; double-clicking it enters
 //      it in the EDITOR's machine, and the window's current-state ring is the editor's; an OSC learn
 //      armed from the window is answered by a real packet arriving at the editor.
+//  18. THE TAKES DOCKS AND THE MEDIA LIBRARY in a window: Record there starts the EDITOR's tracking
+//      recorder (the window's button turns, its blob count is the tracker's), Stop lands a take in the
+//      editor's library with its sparkline drawn from the editor's file; and a Media Library view toggle
+//      in a window leaves the EDITOR's saved workbench in the prefs untouched.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -172,6 +176,10 @@ const until = async (fn, ms = 8000, step = 200) => {
     }
     if (!ed) throw new Error('no editor page');
     const E = (fn, ...a) => ed.evaluate(fn, ...a);
+    // The editor's warnings and errors, for a check that needs to say WHY it failed.
+    const edLog = [];
+    ed.on('console', (m) => { if (['error', 'warn', 'warning'].includes(m.type())) edLog.push(m.text()); });
+    ed.on('pageerror', (e) => edLog.push(`pageerror ${e.message}`));
     if (NOHOST) await ed.evaluateOnNewDocument(() => { window.__nohostRun = true; }).catch(() => {});
     if (NOHOST) await E(() => { window.__nohostRun = true; }).catch(() => {});
     for (let i = 0; i < 90; i++) { if (await E(() => document.querySelectorAll('button').length > 3 && !!window.__showHost && (window.__nohostRun || window.__showHost.connected())).catch(() => false)) break; await sleep(1000); }
@@ -854,6 +862,68 @@ const until = async (fn, ms = 8000, step = 200) => {
     await SM(() => window.__stopLearn && window.__stopLearn());
     note(!!(await until(async () => !(await attachedNow()).includes('osc.learn'), 5000)), "…and the editor's learn is disarmed when the window lets go");
     await SM(() => window.close());
+
+    console.log('\n18. the takes docks and the media library in their own window');
+    const takesIn = () => E(() => ((window.__showHost.get('doc', 'timeline') || {}).trackingTakes || []).map((t) => t.id));
+    const ptk = await openPanel('core.dock.trackingTakes');
+    const TK = (fn, ...a) => ptk.evaluate(fn, ...a);
+    const tk0 = await takesIn();
+    const clickText = (t) => TK((label) => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim().startsWith(label)); if (b) b.click(); return !!b; }, t);
+    let feedingTk = true;
+    const tkLoop = (async () => { while (feedingTk) { sendBlob({ u: 0.4, v: 0.6 }); await sleep(33); } })();
+    const blobsHere = await until(() => TK(() => (document.body.innerText.match(/live: (\d+) blob/) || [])[1] || null), 8000);
+    note(blobsHere === '1', "the Tracking Takes window shows the tracker's live blobs (the editor's)", `live: ${blobsHere}`);
+    const started = await clickText('Record');
+    const recHere = await until(() => TK(() => [...document.querySelectorAll('button')].some((b) => /^Stop/.test((b.textContent || '').trim()))), 6000);
+    await sleep(2200);
+    const clockHere = await TK(() => { const b = [...document.querySelectorAll('button')].find((x) => /^Stop/.test((x.textContent || '').trim())); return b ? (b.textContent || '').replace('Stop', '').trim() : null; });
+    note(started && !!recHere && /^00:0[1-9]$/.test(clockHere || ''), "Record in the window starts the EDITOR's recorder, and its clock runs in the window", `button reads Stop ${clockHere}`);
+    await clickText('Stop');
+    feedingTk = false; await tkLoop;
+    const tk1 = await until(async () => { const t = await takesIn(); return t.length === tk0.length + 1 ? t : null; }, 10000);
+    const newTake = tk1 ? tk1.find((id) => !tk0.includes(id)) : null;
+    // The FIRST take on the global timeline, with no tracking lane yet — the case that used to lose it
+    // (the lane commit wrote back the timeline from before the take; App's take host now reads the store).
+    const notice = newTake ? null : await E(() => (document.body.innerText.match(/(Nothing was captured|Take not saved|Cannot record now)[^\n]*/) || [null])[0]);
+    note(!!newTake, "Stop lands the take in the editor's library — the first one, with no tracking lane yet", `takes ${tk0.length} → ${(await takesIn()).length}${notice ? `; editor says: ${notice}` : ''}`);
+    const laneAdded = await E(() => ((window.__showHost.get('doc', 'timeline') || {}).layers || []).some((l) => l.kind === 'tracking'));
+    note(laneAdded, '…and its tracking lane is added beside it (both commits land)');
+    const sparkInk = newTake && await until(() => TK(() => {
+      for (const c of document.querySelectorAll('canvas')) {
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true;
+      }
+      return null;
+    }), 8000);
+    note(!!sparkInk, "its sparkline is drawn in the window from the editor's take file");
+    if (newTake) {
+      await TK(() => { const b = [...document.querySelectorAll('button[title="Delete take"]')].pop(); if (b) b.click(); });
+      await until(async () => (await takesIn()).length === tk0.length, 6000);
+      // The recorder writes the raw take into this MACHINE's take folder before copying it into the
+      // project; a test must not leave it there.
+      try { fs.rmSync(path.join(process.env.APPDATA || os.homedir(), 'ArtLux', 'tracking-takes', `${newTake}.lblob`), { force: true }); } catch { /* not there */ }
+    }
+    // No panel is registered twice (a doubled registration replaced the earlier one, with a warning).
+    const doubled = edLog.filter((l) => /re-registered/.test(l));
+    note(!doubled.length, 'no panel is registered twice in the editor', doubled.slice(0, 3).join(' | '));
+    await TK(() => window.close());
+
+    // MEDIA LIBRARY: a view toggle in a window must not touch the editor's saved workbench.
+    const layoutBefore = JSON.stringify(readPrefsNow().layoutState ?? null);
+    const pmd = await openPanel('core.dock.media');
+    const MD = (fn, ...a) => pmd.evaluate(fn, ...a);
+    const toggled = await MD(() => {
+      const b = [...document.querySelectorAll('button[title$=" view"]')].find((x) => x.getAttribute('aria-pressed') === 'false');
+      if (b) b.click();
+      return b ? b.getAttribute('title') : null;
+    });
+    const pressedHere = toggled && await until(() => MD((t) => document.querySelector(`button[title="${t}"]`)?.getAttribute('aria-pressed') === 'true' || null, toggled), 4000);
+    await sleep(1500);   // past layoutStore's 300 ms save debounce
+    const layoutAfter = JSON.stringify(readPrefsNow().layoutState ?? null);
+    note(!!pressedHere && layoutAfter === layoutBefore, "a Media Library view toggled in a window stays in that window: the editor's saved workbench is untouched",
+      `toggled ${toggled}; prefs layoutState ${layoutAfter === layoutBefore ? 'unchanged' : 'CHANGED'}`);
+    note(!Object.values(await MD(prints)).some(Boolean), 'the Media Library window runs no thumbnail cache, transport or engine of its own', JSON.stringify(await MD(prints)));
+    await MD(() => window.close());
 
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));

@@ -477,6 +477,14 @@ harmless.
     `services/smOscInbox` (`osc.learn`, the senders from the editor's settings), the control prefix by
     `services/oscPrefix`'s rule from the settings, and "edit this state's timeline" through
     [`services/editorShell.ts`](../src/renderer/services/editorShell.ts) (`shell.revealBottom`).
+  - **The takes docks and the Media Library**: the recorder through
+    [`services/takesAccess.ts`](../src/renderer/services/takesAccess.ts) (`takes.state` + `takes.*`
+    calls), a take's sparkline through `services/takeDensity` (`takes.density`), a video's still through
+    `services/thumbView` (W4's thumbnail service). `services/mediaCache` is only URL helpers now and is let
+    into the window while it stays that way.
+  - **⚠ A panel window never writes the editor's layout.** `layoutStore` holds the editor's whole
+    workbench as one prefs object and a window's copy starts from the defaults, so `panel.tsx` calls
+    `disableLayoutPersistence()` before anything mounts; a window's layout tweaks stay in it.
   - **A plugin's equivalent** is `ctx.live` (SDK `PluginLiveOwner` / `PluginLiveView`,
     [`live/pluginLive.ts`](../src/renderer/live/pluginLive.ts) in the editor,
     [`live/pluginLiveRemote.ts`](../src/renderer/live/pluginLiveRemote.ts) in a panel window). The

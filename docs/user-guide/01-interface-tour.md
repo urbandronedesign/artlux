@@ -157,8 +157,9 @@ Some panels can leave the editor and open in a window of their own, which you ca
 **Shader** (the code editor), **Shader Nodes** and **Effects**, the monitors: **Timing**, **DMX
 Monitor** and **Performance**, the patching docks: **Routing**, the fixture **Library** and **Wiring &
 Ledmap**, and the 3D scene's side panels: **Objects**, its **Fixtures** list, a model's and a fixture's
-placement (**Model**, **Arrange**), and the scene's **Lighting** and **Tracking** settings, and the
-**Show Machine** (the state graph). A light's **Channels** faders on a second screen, next to the rig, is the
+placement (**Model**, **Arrange**), and the scene's **Lighting** and **Tracking** settings, the
+**Show Machine** (the state graph), the **Lighting Takes** and **Tracking Takes** docks, and the **Media
+Library**. A light's **Channels** faders on a second screen, next to the rig, is the
 classic use; **Trigger Zones** on a screen beside the sensor, while
 someone walks the room, is another; the **Shader** code on a screen of its own, with the stage beside
 it, is a third.
@@ -195,6 +196,10 @@ it, is a third.
 - **The Show Machine in a window** is the editor's running show: the ring marks the state the show is
   in, double-clicking a state enters it, **Learn** catches the next press on the network, and **Edit
   timeline** opens that state's timeline in the editor, under the graph you left there.
+- **Takes in a window** record in the editor: **Record** there starts the editor recording (the button
+  and its clock follow it), and the take appears in the project's library with its activity graph.
+- **The Media Library in a window** shows the same files, stills and take graphs. Its view (list, small
+  or large icons) is the window's own; changing it there does not change the editor's.
 - **Shader panels in a window** work exactly as docked. **Ctrl+Enter** compiles on the editor's
   graphics card, so the errors you see are the ones the show would hit, and only a shader that builds
   is saved. **Effects** saves and applies the same library the editor lists, with the same pictures.

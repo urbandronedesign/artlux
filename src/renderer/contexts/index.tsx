@@ -10,19 +10,17 @@
 
 import React from 'react';
 import {
-  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Cable, Play, Move3d, Diamond, Bookmark, Library, FolderInput,
+  Layers, Box, Boxes, Users, SlidersHorizontal, Film, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Cable, Play, Move3d, Diamond, Bookmark, Library, FolderInput,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
-import { MediaBrowserPanel } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { PreferencesViewport } from './panels/adapters';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
 import * as takeRecorder from '../services/takeRecorder';
-import { LightingTakesDock, TrackingTakesDock } from './panels/takes';
 
 // ── Viewport ids ─────────────────────────────────────────────────────────────────────────────
 // These four are PERSISTENT: App mounts them once and hands them to the shell as elements, which is
@@ -54,14 +52,11 @@ export function registerCoreWorkspace(): void {
   registered = true;
 
   // ── Browser panels ─────────────────────────────────────────────────────────────────────────
-  // The four that may also open in their own window are declared once, in ./detachable (E5/W5).
+  // Every browser panel that may also open in its own window is declared once, in ./detachable (E5/W5)
+  // — and registered here by this loop, so it must not be registered again below.
   for (const p of DETACHABLE_PANELS) if (p.mount === 'browser') panelRegistry.register(p);
   // Browser-mounted flavours for contexts whose left column is a monitor rather than an outliner.
   panelRegistry.register({ id: 'core.browser.programPreview', mount: 'browser', title: 'Program', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
-  panelRegistry.register(detachablePanel('core.browser.timing'));
-  panelRegistry.register({ id: 'core.browser.media', mount: 'browser', bare: true, grow: true, title: 'Media Library', icon: <ImageIcon size={12} />, Component: MediaBrowserPanel });
-  panelRegistry.register(detachablePanel('core.browser.models'));
-  panelRegistry.register(detachablePanel('core.browser.scene3dFixtures'));
 
   // ── Parameter panels ───────────────────────────────────────────────────────────────────────
   panelRegistry.register(detachablePanel('core.inspector.surface.content'));
@@ -126,14 +121,14 @@ export function registerCoreWorkspace(): void {
   // The media library, in the DOCK as well as the browser column. A thumbnail grid wants width, and in
   // a 288px browser column it is a `bare`+`grow` panel that eats every section stacked under it — which
   // is why Mapping takes it as a dock tab and Audio keeps the column flavour.
-  panelRegistry.register({ id: 'core.dock.media', mount: 'dock', title: 'Media Library', icon: <ImageIcon size={13} />, Component: MediaBrowserPanel });
+  panelRegistry.register(detachablePanel('core.dock.media'));
   // ── The two take panels ────────────────────────────────────────────────────────────────────
   // Recording left the timeline drawer: capture is transport-independent, so the controls had no
   // business being reachable only by pulling up a clock you are not using. TWO panels rather than one,
   // because the recorders are different instruments — a lighting take is scoped to the SELECTED
   // fixtures and their order is the show, a tracking take has no target at all. See panels/takes.tsx.
-  panelRegistry.register({ id: 'core.dock.lightingTakes', mount: 'dock', title: 'Lighting Takes', icon: <Lightbulb size={13} />, Component: LightingTakesDock });
-  panelRegistry.register({ id: 'core.dock.trackingTakes', mount: 'dock', title: 'Tracking Takes', icon: <Radar size={13} />, Component: TrackingTakesDock });
+  panelRegistry.register(detachablePanel('core.dock.lightingTakes'));
+  panelRegistry.register(detachablePanel('core.dock.trackingTakes'));
   panelRegistry.register(detachablePanel(VIEWPORT_MACHINE));
   panelRegistry.register({ id: VIEWPORT_PREFERENCES, mount: 'viewport', menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport });
 

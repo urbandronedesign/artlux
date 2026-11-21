@@ -19,7 +19,7 @@
 // the monitors — Timing, DMX Monitor, Performance — whose live readings come through seams.
 
 import React from 'react';
-import { Activity, Box, Cable, Gauge, Grid3x3, Hash, Layers, Library, Lightbulb, Move3d, Network, Radar, Route, SlidersHorizontal, Timer, Users } from 'lucide-react';
+import { Activity, Box, Cable, Gauge, Grid3x3, Hash, Image as ImageIcon, Layers, Library, Lightbulb, Move3d, Network, Radar, Route, SlidersHorizontal, Timer, Users } from 'lucide-react';
 import type { PanelContribution } from '@artlux/sdk/renderer';
 import {
   SurfacesPanel, SurfacesHeaderActions, FixturesPanel, FixturesHeaderActions,
@@ -33,6 +33,8 @@ import { MonitorDock, PerfDock } from './panels/monitors';
 import { FixtureLibraryDock, FixtureWiringDock } from './panels/fixtureDocks';
 import { RoutingDock } from './panels/routing';
 import { StateMachineViewport } from './panels/stateGraph';
+import { LightingTakesDock, TrackingTakesDock } from './panels/takes';
+import { MediaBrowserPanel } from './panels/media';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
@@ -88,6 +90,14 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   // and its "edit this state's timeline" are the editor's (services/smOscInbox, services/editorShell).
   // The id is contexts/index.tsx's VIEWPORT_MACHINE (not imported: that file imports this one).
   { id: 'core.viewport.machine', mount: 'viewport', detachable: true, title: 'Show Machine', Component: StateMachineViewport },
+  // THE TAKES DOCKS. Recording is the editor's (services/takesAccess): a window shows the editor's
+  // recorder and drives it — Record in a window starts the editor recording what the editor sees.
+  { id: 'core.dock.lightingTakes', mount: 'dock', detachable: true, title: 'Lighting Takes', icon: <Lightbulb size={13} />, Component: LightingTakesDock },
+  { id: 'core.dock.trackingTakes', mount: 'dock', detachable: true, title: 'Tracking Takes', icon: <Radar size={13} />, Component: TrackingTakesDock },
+  // THE MEDIA LIBRARY, in both of its places (the browser column and the dock). Its stills and take
+  // sparklines come from the editor (services/thumbView, services/takeDensity).
+  { id: 'core.browser.media', mount: 'browser', bare: true, grow: true, detachable: true, title: 'Media Library', icon: <ImageIcon size={12} />, Component: MediaBrowserPanel },
+  { id: 'core.dock.media', mount: 'dock', detachable: true, title: 'Media Library', icon: <ImageIcon size={13} />, Component: MediaBrowserPanel },
 ];
 
 /** One entry, for the editor's registration (contexts/index.tsx). Throws on an id that is not here. */

@@ -2217,7 +2217,14 @@ const App: React.FC = () => {
   // <EditorStore>, and the shortcut fires from a window keydown listener. Neither can call a hook.
   useEffect(() => {
     takeRecorder.setHost({
-      timeline: () => activeTimelineRef.current,
+      // ⚠ THE GLOBAL TIMELINE IS READ FROM THE STORE, NOT A RENDER REF. stopTracking commits the take to
+      // the library (commitGlobal) and then, if there is no tracking lane yet, commits a lane to the BOUND
+      // document. With no scene bound those are the SAME document, and a ref is only refreshed by the
+      // next render — so the lane commit wrote back the timeline from before the take, and the first
+      // take recorded on the global timeline was lost, silently (found by test-panel-window step 18,
+      // E5/W5j; it lost the take docked just the same). The store's slice is current the moment a
+      // setter returns.
+      timeline: () => (activeSceneIdRef.current ? activeTimelineRef.current : docStore.getSlice('timeline')),
       // The same string handleTimelineChange routes on, so the async tracking commit's guard is keyed on
       // where the write will actually LAND. Identity, not value — see Timeline.tsx's docKey note.
       docKey: () => activeSceneIdRef.current ?? '__global__',
@@ -2225,7 +2232,7 @@ const App: React.FC = () => {
       // The PROJECT's own document. `setTimeline` directly, NOT handleTimelineChange: that routes to
       // the bound scene (which is the bug this fixes) and records an undo entry. Recording a take is an
       // import — it takes the same door handleRemoveAsset already uses to delete one.
-      globalTimeline: () => timelineRef.current,
+      globalTimeline: () => docStore.getSlice('timeline'),
       commitGlobal: (next) => setTimeline(next),
       projectPath: () => currentProjectPathRef.current,
       // THE LIGHTS IN THE SELECTION, IN SELECTION ORDER — not the raw selection.

@@ -16,6 +16,8 @@ import { screensSnapshot, subscribeScreens, focusScreen } from '../services/mode
 import * as oscInbox from '../services/smOscInbox';
 import type { OscMessage } from '../../../shared/protocol';
 import { revealEditorBottom } from '../services/editorShell';
+import { takesAccess, type TakeKind } from '../services/takesAccess';
+import { takeDensity } from '../services/takeDensity';
 import { livePreview } from '../services/livePreview';
 import { docStore } from '../state/docStore';
 
@@ -127,6 +129,29 @@ export function installCoreLiveStreams(): void {
   });
   registerLiveCall('sm.trigger', (id) => timeline.triggerSmTransition(String(id)));
   registerLiveCall('sm.enter', (id) => timeline.enterSmState(String(id)));
+  // THE TAKE RECORDER for the takes docks in a window: sent on a change (a recording starts or stops, a
+  // take file turns up, the live blob count moves) and once a second while recording, so the window's
+  // clock re-anchors; between samples the window counts the seconds itself.
+  registerLiveStream('takes.state', {
+    watch(onNew) {
+      const t = takesAccess();
+      const off = t.subscribe(onNew);
+      const tick = setInterval(() => { const r = t.getRec(); if (r.lighting || r.tracking) onNew(); }, 1000);
+      return () => { off(); clearInterval(tick); };
+    },
+    read() {
+      const t = takesAccess();
+      return { value: { rec: t.getRec(), elapsed: { lighting: t.elapsed('lighting'), tracking: t.elapsed('tracking') }, blobs: t.liveBlobs(), orphans: t.orphans() } };
+    },
+  });
+  const kindOf = (k: unknown): TakeKind => (k === 'tracking' ? 'tracking' : 'lighting');
+  registerLiveCall('takes.toggle', (k) => takesAccess().toggle(kindOf(k)));
+  registerLiveCall('takes.cancel', (k) => takesAccess().cancel(kindOf(k)));
+  registerLiveCall('takes.addLane', (k) => takesAccess().addLane(kindOf(k)));
+  registerLiveCall('takes.rename', (k, id, name) => takesAccess().rename(kindOf(k), String(id), String(name)));
+  registerLiveCall('takes.remove', (k, id) => takesAccess().remove(kindOf(k), String(id)));
+  registerLiveCall('takes.density', (p) => takeDensity().ensure(String(p)));
+
   // The editor's timeline drawer, for the state graph's "edit this state's timeline" from a window.
   registerLiveCall('shell.revealBottom', () => revealEditorBottom());
 

@@ -118,9 +118,19 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 /** Which prefs key holds THIS app's layout — the Calibrator keeps its own (see Prefs.layoutStateCalibrator). */
 export const LAYOUT_PREF_KEY = __ARTLUX_APP__ === 'calibrator' ? 'layoutStateCalibrator' : 'layoutState';
 
+// ⚠ A PANEL WINDOW NEVER WRITES THE LAYOUT (E5/W5j). The prefs key holds the EDITOR's whole workbench
+// (every context, every dock tree) as one object, and a panel window's copy of this store starts from the
+// defaults. Its first set() — a media-view toggle in a detached Media Library — would have written those
+// defaults over the editor's saved arrangement. panel.tsx turns persistence off before anything mounts;
+// a window's layout tweaks stay in that window. (The window's own arrangement is saved separately, per
+// window, by main/panelWindows.ts.)
+let persist = true;
+export function disableLayoutPersistence(): void { persist = false; if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } }
+
 // Coalesce persistence: layout changes fire on every pointer tick during a resize; debounce the
 // single-object write so we hit disk at most a few times, not per-frame.
 function persistSoon(): void {
+  if (!persist) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { void window.artlux?.setPrefs?.({ [LAYOUT_PREF_KEY]: state }); }, 300);
 }

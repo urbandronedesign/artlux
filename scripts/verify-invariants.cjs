@@ -7853,7 +7853,7 @@ check(
     const BANNED = [
       [/^src\/renderer\/engine\//, 'the frame engine'],
       [/^src\/renderer\/services\/timeline\.ts$/, 'the transport (services/timeline)'],
-      [/^src\/renderer\/services\/(stateMachine|cueBus|surfaceMedia|contentSource|mediaCache|thumbnailCache|timelinePreloader|lightingPlayback|lightingRecorder|takeRecorder|oscController)\.ts$/, 'a runtime service'],
+      [/^src\/renderer\/services\/(stateMachine|cueBus|surfaceMedia|contentSource|thumbnailCache|timelinePreloader|lightingPlayback|lightingRecorder|takeRecorder|oscController)\.ts$/, 'a runtime service'],
       [/^src\/renderer\/gpu\/(?!(effects|palettes)\.ts$)/, 'GPU code'],
       [/Simulator3D\//, 'the 3D view'],
       [/node_modules\/(three|@react-three)\//, 'three.js'],
@@ -7890,6 +7890,12 @@ check(
     for (const c of CATALOGS) {
       if ((importsOf.get(c) ?? []).length) problems.push(`${c} is let into the panel window as a pure name catalog, and it now imports ${importsOf.get(c).join(', ')}`);
     }
+    // services/mediaCache is, despite its name, only the media URL helpers now (its blob cache was
+    // deleted — see its header). It is let in ONLY while that stays true: it may import nothing but the
+    // shared URL table. A cache, a decoder or an IPC read growing back into it is caught here (E5/W5j).
+    const mc = 'src/renderer/services/mediaCache.ts';
+    const mcImports = (importsOf.get(mc) ?? []).filter((i) => i !== 'shared/mediaUrl.ts');
+    if (mcImports.length) problems.push(`${mc} is let into the panel window as pure URL helpers, and it now imports ${mcImports.join(', ')}`);
     // The door into a plugin: only src/renderer/host/pluginUi.ts, and only a plugin's ui.ts behind it.
     for (const [from, to] of importsOf) {
       if (from.startsWith('plugins/')) continue;
@@ -8048,6 +8054,30 @@ check(
     if (!/^installOscRemote\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer wires the Show Machine to the editor (installOscRemote)');
     if (!/export function learn\(cb[^\n]*\n\s*if \(remoteLearn\) return remoteLearn\(cb\);/.test(read('src/renderer/services/smOscInbox.ts').replace(/\r\n/g, '\n'))) problems.push('smOscInbox.learn no longer hands a panel window\'s learn to the editor');
     if (/services\/timeline'/.test(read('src/renderer/components/timeline/StateGraphEditor.tsx'))) problems.push('StateGraphEditor imports the transport — the running machine comes through services/showMachineLive');
+    // THE TAKES DOCKS AND THE MEDIA LIBRARY (W5j): the recorder, a take's density and a video's still
+    // are the editor's. Either half missing, a window shows a Record button that never turns red, empty
+    // sparklines, grey tiles — all silently.
+    for (const id of ['core.dock.lightingTakes', 'core.dock.trackingTakes', 'core.browser.media', 'core.dock.media']) {
+      if (!det.includes(`id: '${id}'`)) problems.push(`'${id}' is no longer detachable`);
+    }
+    for (const s of ["registerLiveStream('takes.state'", "registerLiveCall('takes.toggle'", "registerLiveCall('takes.density'"]) {
+      if (!streams.includes(s)) problems.push(`the editor no longer has ${s.split("'")[1]} (the takes docks in a window use it)`);
+    }
+    for (const [fn, what] of [['setTakesAccess(', 'the take recorder'], ['setTakeDensitySource(', "a take's density"], ['setThumbView({ getThumb, onThumb })', 'the thumbnail cache']]) {
+      if (!access.includes(fn)) problems.push(`the editor no longer installs ${what} (live/editorAccess.ts)`);
+    }
+    if (!/^installTakesRemote\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer wires the takes docks and the media stills to the editor (installTakesRemote)');
+    // ⚠ THE EDITOR'S LAYOUT IS THE EDITOR'S TO WRITE. A window's layoutStore starts from the defaults, and
+    // one write from it (the media library's view toggle) replaced the operator's whole saved workbench.
+    if (!/^disableLayoutPersistence\(\);/m.test(read('src/renderer/panel.tsx'))) problems.push('panel.tsx no longer turns layout persistence off — a panel window would write its default layout over the editor\'s');
+    if (!/function persistSoon\(\): void \{\s*\n\s*if \(!persist\) return;/.test(read('src/renderer/services/layoutStore.ts').replace(/\r\n/g, '\n'))) problems.push('layoutStore.persistSoon no longer honours disableLayoutPersistence()');
+    // ⚠ THE FIRST TAKE ON THE GLOBAL TIMELINE WAS LOST (found W5j, docked just the same): stopTracking's
+    // library commit and its lane commit hit ONE document when no scene is bound, and the lane commit read
+    // that document from a render ref — the timeline from before the take — and wrote it back.
+    const app = read('src/renderer/App.tsx');
+    const hostBlock = app.match(/takeRecorder\.setHost\(\{([\s\S]*?)\n\s*selectedFixtureIds:/)?.[1] ?? '';
+    if (!/globalTimeline: \(\) => docStore\.getSlice\('timeline'\)/.test(hostBlock)) problems.push("App's take host no longer reads the global timeline from the store (a render ref there loses the take the lane commit overwrites)");
+    if (!/timeline: \(\) => \(activeSceneIdRef\.current \? activeTimelineRef\.current : docStore\.getSlice\('timeline'\)\)/.test(hostBlock)) problems.push("App's take host no longer reads the UNBOUND timeline from the store");
     if (/from '\.\.\/\.\.\/components\/Simulator3D\//.test(read('src/renderer/contexts/panels/scene3d.tsx'))) problems.push('contexts/panels/scene3d.tsx imports the 3D view directly — use services/modelScreenNames / services/viewerView');
     // The panel window resolves its panel from the registry the UI halves filled, and only a detachable one.
     const panel = read('src/renderer/panel.tsx');
