@@ -3,10 +3,15 @@
 // it must reach no pose engine, store or drawable — the WASM model and the camera stay in the editor.
 import type { RendererPluginUi, ContentSourceUiRegistry } from '@artlux/sdk/renderer';
 import { PoseContentEditor } from './poseContentEditor';
+import { PosePanel } from './PosePanel';
+import { setLiveView } from './uiLink';
 
 export const ui: RendererPluginUi = {
   id: 'mediapipe',
   activateUi(ctx) {
+    setLiveView(ctx.live);
+    // The Pose Monitor: numbers from the runtime's stream, the picture only where the camera is open.
+    ctx.panels.register({ id: 'pose-monitor', mount: 'dock', detachable: true, menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
     (ctx.contentSourceUi as ContentSourceUiRegistry).register({
       type: 'MEDIAPIPE',
       editor: PoseContentEditor as never,

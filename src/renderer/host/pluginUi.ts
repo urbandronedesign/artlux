@@ -15,8 +15,8 @@
 // entry that reaches the plugin's activation, a receiver, a drawable, an engine or a store would put
 // runtime code in a window that must not run any. Add a plugin here only through its `/ui` entry.
 
-import type { RendererPluginUi, RendererPluginUiContext, PluginLiveView } from '@artlux/sdk/renderer';
-import { contentSourceUiRegistry } from './registries';
+import type { RendererPluginUi, RendererPluginUiContext, PluginLiveView, PluginUiHost, RendererHostServices } from '@artlux/sdk/renderer';
+import { contentSourceUiRegistry, panelRegistry } from './registries';
 import { ui as augmenta } from '@artlux/plugin-augmenta/ui';
 import { ui as mediapipe } from '@artlux/plugin-mediapipe/ui';
 import { ui as lidarTracking } from '@artlux/plugin-lidar-tracking/ui';
@@ -40,16 +40,36 @@ export function pluginUiWindow(): RendererPluginUiContext['window'] | null { ret
 
 // A window with no editor to ask (a projector) reads nothing: every subscription stays at its initial.
 const INERT: PluginLiveView = { subscribe: () => () => {}, call: async () => undefined };
+// …and has no host either. Stable empty snapshots: a useSyncExternalStore over a fresh `{}` spins.
+const NONE = Object.freeze({});
+const INERT_HOST: PluginUiHost = {
+  settings: { get: () => NONE, subscribe: () => () => {} },
+  scene3D: { get: () => NONE, subscribe: () => () => {}, patch: () => {} },
+  ui: { menuAction: () => {} },
+};
+
+/** The editor's UI host: the host's own services, narrowed to what a UI half may use (PluginUiHost). */
+export function uiHostOf(h: RendererHostServices): PluginUiHost {
+  return {
+    settings: h.settings,
+    scene3D: { get: () => h.scene3D.get(), subscribe: (cb) => h.scene3D.subscribe(cb), patch: (p) => h.scene3D.patch(p) },
+    ui: { menuAction: (a) => h.ui?.menuAction?.(a) },
+  };
+}
 
 /**
  * `live` is how a UI half reads what its runtime publishes: a local subscription in the editor
  * (live/pluginLive.ts, via activateRendererPlugins), the live channel in a panel window
- * (live/pluginLiveRemote.ts, from panel.tsx).
+ * (live/pluginLiveRemote.ts, from panel.tsx). `host` likewise: the editor's own services (uiHostOf),
+ * or the panel window's replica with every write sent to the editor (live/uiHostRemote.ts).
+ *
+ * Panels registered here land in the window's one panelRegistry: docked by the editor's contexts and,
+ * when `detachable`, offered by a panel window's "+" and openable in a window of their own.
  */
-export function activatePluginUi(win: RendererPluginUiContext['window'], live: PluginLiveView = INERT): void {
+export function activatePluginUi(win: RendererPluginUiContext['window'], live: PluginLiveView = INERT, host: PluginUiHost = INERT_HOST): void {
   if (activated) return;
   activated = win;
-  const ctx = { window: win, contentSourceUi: contentSourceUiRegistry, live } as unknown as RendererPluginUiContext;
+  const ctx = { window: win, contentSourceUi: contentSourceUiRegistry, live, panels: panelRegistry, host } as unknown as RendererPluginUiContext;
   for (const p of FIRST_PARTY_UI) {
     try { p.activateUi(ctx); } catch (e) { console.error(`[plugins] ${p.id} activateUi failed`, e); }
   }

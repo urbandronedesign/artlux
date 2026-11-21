@@ -136,7 +136,11 @@ const clickTitle = (page, re) => page.evaluate((src) => {
     note(offered.includes('dmx.pixels') && offered.includes('perf'), 'the owner offers the core streams', offered.join(', '));
 
     console.log('\n2. nothing runs for nobody');
-    note((await ev(() => window.__liveBroker.attached())).length === 0, 'no producer hook attached before a subscription');
+    // "Nobody" = no client AND no editor panel. A plugin panel on screen in the editor (Trigger Zones on
+    // the 3D workbench) reads its runtime through the same broker, locally — it is somebody.
+    const forNobody = () => ev(() => { const l = window.__liveBroker.locals(); return window.__liveBroker.attached().filter((k) => !l.includes(k)); });
+    const before = await forNobody();
+    note(before.length === 0, 'no producer hook attached before a subscription (other than an on-screen editor panel)', before.length ? `attached for nobody: ${before.join(', ')}` : `editor panels reading: ${(await ev(() => window.__liveBroker.locals())).join(', ') || 'none'}`);
     note(!(await ev(() => window.__liveBroker.clockWatching())), 'the clock check is off before a client asks for the clock');
 
     console.log('\n3. pull, never push');
@@ -173,7 +177,8 @@ const clickTitle = (page, re) => page.evaluate((src) => {
     console.log('\n4. unsubscribing detaches the producer');
     await ev(() => { window.__lt.offDmx(); window.__lt.offPerf(); });
     await sleep(300);
-    note((await ev(() => window.__liveBroker.attached())).length === 0, 'no producer hook left attached');
+    const after = await forNobody();
+    note(after.length === 0, 'no producer hook left attached (other than an on-screen editor panel)', after.length ? `attached for nobody: ${after.join(', ')}` : '');
 
     console.log('\n5. the clock is an anchor');
     await ev(() => { window.__lt.anchors = []; window.__lt.offClock = window.__liveClient.watchClock((a) => window.__lt.anchors.push(a)); });

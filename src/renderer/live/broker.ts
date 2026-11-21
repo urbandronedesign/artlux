@@ -407,6 +407,8 @@ export function startLiveBroker(): void {
       clientId: c.clientId, label: c.label, clock: c.clock, subs: c.subs.size, held: [...c.held.keys()], sent: { ...c.sent },
     })),
     attached: () => [...streams.entries()].filter(([, e]) => e.stop).map(([k]) => k),
+    // Streams an EDITOR panel is reading (a plugin's UI half, on screen here): attached for somebody.
+    locals: () => [...streams.entries()].filter(([, e]) => e.locals.size).map(([k]) => k),
     streams: () => [...streams.keys()],
     clockWatching: () => !!clockStop,
     anchor: () => anchor,

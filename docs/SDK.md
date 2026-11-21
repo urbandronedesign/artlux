@@ -133,7 +133,10 @@ Persistence is the caller's choice: the host wraps this as `useDraggableModal(id
 A detached **panel window** (E5/W5) runs no plugin runtime, but it still needs what a plugin contributes
 to the UI it shows. That is the plugin's **UI half**: a separate entry, exported from the plugin's
 `package.json` as `./ui`, whose `ui: RendererPluginUi` has an `activateUi(ctx: RendererPluginUiContext)`.
-`ctx.window` is `'main' | 'projector' | 'panel'`, and `ctx.contentSourceUi` is the one registry so far.
+`ctx.window` is `'main' | 'projector' | 'panel'`; the registries are `ctx.contentSourceUi` and
+`ctx.panels` (a `detachable: true` panel may open in its own window), with `ctx.live` for the runtime's
+state and `ctx.host` (`PluginUiHost`: `settings`, `scene3D` get/subscribe/patch, `ui.menuAction`) for the
+host's, the same in every window.
 The host lists UI halves in `src/renderer/host/pluginUi.ts` and activates them in **every** window,
 before the runtimes. Three rules, each checked by `verify:invariants`:
 
@@ -141,7 +144,9 @@ before the runtimes. Three rules, each checked by `verify:invariants`:
    `plugin.renderer.ts` or barrel. Talk to your main half (`pluginInvoke`), read the content you are
    handed, or read what your runtime publishes through `ctx.live` (keep the view in a module of your
    own, set from `activateUi`; the check fails a UI that reads it without setting it).
-2. **Register a UI contribution once,** in the UI half, and never again from `activate()`.
+2. **Register a UI contribution once,** in the UI half, and never again from `activate()`. A
+   detachable panel may only be registered there. Read the host through `ctx.host`, never through the
+   host `activate()` captured (in a panel window that one does not exist).
 3. **Ship it as `./ui` in `exports`**, so the bundler resolves it the same way in every window.
 
 ## Invariants a plugin MUST uphold

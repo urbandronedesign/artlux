@@ -24,9 +24,8 @@ import * as trackingProjector from './trackingProjector';
 import * as take from './trackingTake';
 
 import TrackingViz, { ProviderZonesViz, LIDAR_SURFACES } from './TrackingViz';
-import { OscMonitor } from './OscMonitor';
-import { ZonePanel } from './ZonePanel';
-import { setHost, setSurfaceRegistry } from './trackingHost';
+import { setSurfaceRegistry } from './trackingHost';
+import { buildZoneView } from './zoneViewSource';
 
 let oscUnsub: (() => void) | null = null;
 let sceneUnsub: (() => void) | null = null;   // Scene3D → zones.configure
@@ -36,24 +35,19 @@ export const plugin: RendererPlugin = {
   manifest: { id: 'lidar-tracking', name: 'LiDAR Tracking', version: '0.0.0' },
 
   activate(ctx: RendererPluginContext): void {
-    // Stash host services so the OSC Monitor panel (below) can read live OSC settings for its status strip.
-    setHost(ctx.host);
     setSurfaceRegistry(ctx.trackingSurfaces);
 
-    // OSC Monitor: a diagnostic modal that sniffs the raw OSC stream (LiDAR blob addresses). Registered
-    // as a DOCK panel on the `3d` workspace context: the host declares that context, this plugin
-    // appends its own tab to it, and the 'osc-monitor' menu action still reaches it (the host resolves
-    // the action to the owning context + tab). App imports neither the panel nor its open state.
-    ctx.panels.register({ id: 'osc-monitor', mount: 'dock', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
-    // Trigger Zones: where the venue's interactive areas are drawn. Same seam as the monitor above —
-    // the host declares the `3d` context, the plugin appends its own tab to it.
-    //
-    // `menuAction` is not decoration. This is the AUTHORING surface for zones — the thing an operator
-    // goes looking for by name — and being the fourth unlabelled text tab in a six-tab dock strip is
-    // not being findable: the feature reads as missing. Every other panel that a person hunts for
-    // (OSC Monitor, Pose Monitor, Augmenta Monitor) declares one; the host resolves it to "go to the
-    // owning context and select that tab", so this one entry serves the View menu AND the action below.
-    ctx.panels.register({ id: 'zone-editor', mount: 'dock', menuAction: 'zone-editor', title: 'Trigger Zones', Component: ZonePanel });
+    // The OSC Monitor and Trigger Zones panels are the UI HALF's (ui.ts), registered in every window
+    // that shows them and detachable into a window of their own. What Trigger Zones shows of THIS side
+    // — occupancy, blobs, the people the zones count — is published here, one frame per editor frame
+    // while some panel watches (the broker sends a window at most one per frame it draws).
+    ctx.live.stream('lidar-tracking.zoneView', {
+      watch(onNew) {
+        let raf = requestAnimationFrame(function tick() { onNew(); raf = requestAnimationFrame(tick); });
+        return () => cancelAnimationFrame(raf);
+      },
+      read: (params) => buildZoneView(String((params as { surface?: string } | null)?.surface ?? 'SOL')),
+    });
     // '3d', not the old 'tracking' context: that one merged into the 3D scene, which is where these
     // monitors' blobs are actually drawn. An extend() against an unknown id queues forever in silence,
     // so verify:invariants checks every target resolves.

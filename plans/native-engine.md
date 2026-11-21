@@ -643,9 +643,30 @@ Detaching a viewport tab is simply not offered before E4; its tab menu says why.
 >   - plus the camera and NDI claims from W5c.
 > - Checks mutation-tested 11/11.
 >
+> ✅ **W5e done 2026-11-21 (plugin dock panels: the four tracking monitors).**
+> - **`ctx.panels` and `ctx.host` in the UI context.** `PluginUiHost` (settings, scene3D read/patch,
+>   menuAction): the host's own services in the editor (`uiHostOf`), the replica plus editor-side writes
+>   in a panel window (`live/uiHostRemote.ts` → `host.scene3DPatch` / `host.menuAction`). `panel.tsx`
+>   resolves its panel from the registry after the UI halves register.
+> - **Trigger Zones**: zones are project data through the UI host; occupancy, blobs and people are one
+>   `lidar-tracking.zoneView` frame per editor frame (`zoneViewSource.ts`), subscribed only while the
+>   map has a size.
+> - **OSC / Augmenta monitors**: main sends OSC to the editor and to any window that taps it
+>   (`IPC.OSC_TAP`, per listener, dropped with the window) — the window sees the wire itself.
+> - **Pose Monitor**: `mediapipe.monitor` for the numbers; the camera picture is a same-window handle the
+>   runtime hands its UI half, so a window says the picture is in the editor (no second capture).
+> - **Two real bugs, found by the harness:** a panel window's `Body` gave dock panels no height (the zone
+>   map drew at 0 tall), and a dock tab behind the front one kept the editor producing zone frames for
+>   nobody (test-live-channel). Both fixed and guarded.
+>
+> Proof: `test-panel-window` step 13 (zones occupied and emptied live in a window, the window's tally
+> equal to the editor's own docked map, a zone added in the window landing in the editor, the OSC and
+> Augmenta monitors seeing UDP sent to the port, the Pose Monitor's status from the editor with no video
+> element, each stream detaching on close); checks mutation-tested 17/17.
+>
 > **W5 — what is left:**
-> - **Plugin dock panels** (OSC monitor, trigger zones, the pose and Augmenta monitors, shader panels)
->   read stores their runtime fills. They need the same streams, and then `panels` in the UI context.
+> - **Shader panels** (Shader, Shader Nodes, Effects): they call the GL compile directly and the library
+>   client; they need the compile as a live call and the library through main or `live`.
 > - **The other panel files** (`adapters`, `preview`, `scene3d`, `takes`, `timing`), file by file.
 > - **Dragging a tab between two windows**, or from the editor into a window. Inside a window it is
 >   the editor's own drag code, which has no window-level test yet.

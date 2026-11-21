@@ -3,7 +3,7 @@ import { X, Pause, Play, Trash2, Radio, Search } from 'lucide-react';
 import type { OscMessage } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
 import { Button } from '@/components/ui'; // host UI primitive (pure presentational — no singleton)
-import { useHostSettings } from './augmentaHost';
+import { useHostSettings } from './uiLink';
 
 // Augmenta Monitor — a diagnostic view of the raw incoming OSC stream, for validating the Augmenta box
 // on real hardware (is the box actually sending /au/… messages to this machine, and what exact address

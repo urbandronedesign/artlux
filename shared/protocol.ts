@@ -61,6 +61,9 @@ export const IPC = {
   OSC_CONFIGURE: 'osc:configure',
   /** Main → renderer: a batch of received OSC messages (one UDP packet → 1+ messages). */
   OSC_MESSAGE: 'osc:message',
+  /** Renderer → main: this window has started (true) / stopped (false) listening to OSC_MESSAGE. The
+   *  editor always receives it; another window (a panel window's OSC monitor) only while it listens. */
+  OSC_TAP: 'osc:tap',
   /** Renderer → main: send one OSC message to a target host:port (send scaffold). */
   OSC_SEND: 'osc:send',
   /** Renderer → main: one frame's OSC-track output — typed messages, each to 1+ host:port (OscOutPacket[]). */

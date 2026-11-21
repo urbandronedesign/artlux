@@ -3,7 +3,7 @@ import { X, Pause, Play, Trash2, Radio, Search } from 'lucide-react';
 import type { OscMessage } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
 import { Button } from '@/components/ui'; // host UI primitive (pure presentational — no singleton)
-import { useHostSettings } from './trackingHost';
+import { useHostSettings } from './uiLink';
 
 // OSC sniffer / monitor — a diagnostic view of the raw incoming OSC stream, for testing the
 // LiDAR tracking system (is the venue server actually sending blobs to this machine?).

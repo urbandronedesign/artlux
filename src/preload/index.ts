@@ -56,10 +56,19 @@ const api: ArtluxApi = {
     // pluginInvoke/Send/On bridge below.
     // OSC (external control + LiDAR tracking)
     configureOsc: (cfg: OscConfig) => ipcRenderer.send(IPC.OSC_CONFIGURE, cfg),
+    // Each listener TAPS the stream in main (IPC.OSC_TAP), so main sends OSC to a window other than the
+    // editor — a monitor in a panel window — only while something there listens (main/ipc.ts).
     onOscMessage: (cb: (msgs: OscMessage[]) => void) => {
         const listener = (_e: unknown, msgs: OscMessage[]) => cb(msgs);
         ipcRenderer.on(IPC.OSC_MESSAGE, listener);
-        return () => { ipcRenderer.removeListener(IPC.OSC_MESSAGE, listener); };
+        ipcRenderer.send(IPC.OSC_TAP, true);
+        let on = true;
+        return () => {
+            if (!on) return;
+            on = false;
+            ipcRenderer.removeListener(IPC.OSC_MESSAGE, listener);
+            ipcRenderer.send(IPC.OSC_TAP, false);
+        };
     },
     sendOsc: (host: string, port: number, address: string, args: (number | string)[]) =>
         ipcRenderer.send(IPC.OSC_SEND, host, port, address, args),

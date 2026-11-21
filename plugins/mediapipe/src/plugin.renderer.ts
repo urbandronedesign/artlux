@@ -20,7 +20,8 @@ import * as poseDrawable from './poseDrawable';
 import * as poseProjector from './poseProjector';
 import * as poseEngine from './poseEngine';
 import PoseViz from './PoseViz';
-import { PosePanel } from './PosePanel';
+import * as poseCamera from './poseCamera';
+import { setPreviewSource } from './uiLink';
 import { PoseCalibration } from './PoseCalibration';
 import { PoseSettings } from './poseSettings';
 import { setHost } from './poseHost';
@@ -35,10 +36,27 @@ export const plugin: RendererPlugin = {
 
     // Pose Monitor: a diagnostic panel (camera preview + fps + tracked count), a DOCK tab on the host's
     // `3d` context (the old `tracking` context merged into it — the 3D scene is where tracked people are
-    // drawn). The floor-calibration wizard below stays a MODAL: it is a modal step-by-step flow over the
-    // camera image, not something you leave open beside your work.
-    ctx.panels.register({ id: 'pose-monitor', mount: 'dock', menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
+    // drawn). The panel is the UI half's (ui.ts — it may open in its own window); what it shows of the
+    // engine is published here, the picture handed over only in this window (uiLink.ts). The floor-
+    // calibration wizard below stays a MODAL here: a step-by-step flow over the camera image itself.
     ctx.contexts.extend('3d', { dock: ['pose-monitor'] });
+    if (ctx.window === 'main') {
+      setPreviewSource(() => poseCamera.getStream());
+      ctx.live.stream('mediapipe.monitor', {
+        // The engine's numbers move at its own pace: polled at the panel's old 300 ms, plus every pose
+        // frame for the people count — and only while a monitor watches.
+        watch(onNew) {
+          const t = window.setInterval(onNew, 300);
+          const off = poseStore.subscribe(onNew);
+          return () => { window.clearInterval(t); off(); };
+        },
+        read: () => {
+          const s = poseEngine.status();
+          return { running: s.running, disabled: s.disabled, error: s.error, fps: s.fps, consumers: s.consumers,
+            people: poseStore.getDetections().length, hasCamera: !!poseCamera.getStream() };
+        },
+      });
+    }
 
     // Pose Calibration: one modal, two quads marked on the live camera picture —
     //   · the INTERACTION AREA (Scene3D.mediapipeArea) that trigger zones on 'POSE' are drawn in;

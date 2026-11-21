@@ -20,9 +20,7 @@ import type { AugmentaSnapshot } from './augmentaStore';
 import * as augmentaDrawable from './augmentaDrawable';
 import * as augmentaProjector from './augmentaProjector';
 import AugmentaViz from './AugmentaViz';
-import { AugmentaMonitor } from './AugmentaMonitor';
 import { AugmentaSettings } from './augmentaSettings';
-import { setHost } from './augmentaHost';
 
 let oscUnsub: (() => void) | null = null;
 
@@ -30,13 +28,9 @@ export const plugin: RendererPlugin = {
   manifest: { id: 'augmenta', name: 'Augmenta Tracking', version: '0.0.0' },
 
   activate(ctx: RendererPluginContext): void {
-    // Stash host services so the Monitor panel + settings section can read live OSC settings.
-    setHost(ctx.host);
-
-    // Augmenta Monitor: a diagnostic panel that sniffs the raw OSC stream (/au/ addresses). A DOCK tab
-    // appended to the host's `3d` context (the old `tracking` context merged into it), beside the other
-    // tracking sources' monitors.
-    ctx.panels.register({ id: 'augmenta-monitor', mount: 'dock', menuAction: 'augmenta-monitor', title: 'Augmenta Monitor', Component: AugmentaMonitor });
+    // Augmenta Monitor: a diagnostic panel that sniffs the raw OSC stream (/au/ addresses). The panel is
+    // the UI half's (ui.ts — it may open in its own window); this puts its DOCK tab on the host's `3d`
+    // context (the old `tracking` context merged into it), beside the other tracking sources' monitors.
     ctx.contexts.extend('3d', { dock: ['augmenta-monitor'] });
 
     // Preferences section: OSC status + setup guidance (Augmenta has no plugin-local device settings —

@@ -152,8 +152,10 @@ have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable w
 Some panels can leave the editor and open in a window of their own, which you can put on any screen:
 **Surfaces**, **Fixtures**, **Groups**, **Global Params**, and the parameter sections for a fixture
 (**DMX Profile**, **Channels**, **Patch**, **Mapping**, **Segments**, **2D / Output**, **Routing**,
-**3D Layout**, **Position**) and a surface's **Content** and **Transform**. A light's **Channels** faders
-on a second screen, next to the rig, is the classic use.
+**3D Layout**, **Position**) and a surface's **Content** and **Transform**, and the tracking panels:
+**Trigger Zones**, **OSC Monitor**, **Augmenta Monitor** and **Pose Monitor**. A light's **Channels**
+faders on a second screen, next to the rig, is the classic use; **Trigger Zones** on a screen beside the
+sensor, while someone walks the room, is the other.
 
 - **Open one:** click **Open in new window** (the arrow-out-of-a-box button) in the panel's header, or
   right-click its tab and choose **Open in new window**.
@@ -171,6 +173,12 @@ on a second screen, next to the rig, is the classic use.
   editor. What it reports is the editor's: a **Camera** surface shows the camera the editor has open
   (the same device list, and whether it is live), a **Shader** shows the editor's compile errors and
   graphics card, and **Spout** / **Syphon** show why a sender cannot be received here.
+- **Tracking panels in a window** show the room live, exactly as in the editor. **Trigger Zones** shows
+  who is in which zone and the blobs and people the tracker reports, and a zone you draw, move or delete
+  there is in the project at once. The **OSC Monitor** and **Augmenta Monitor** show the messages
+  arriving on the OSC port. The **Pose Monitor** shows the pose tracker's status, speed and people
+  count; the **camera picture** itself stays in the editor's Pose Monitor, because the camera is open
+  there, and the window says so.
 - **A window is a small workbench of its own.** Its panel is a tab: **+** on the tab strip adds another
   panel to the same window, dragging a tab or **right-click ▸ Split** arranges them side by side, and
   closing the last tab closes the window. Asking for a panel that is already out (from the editor)

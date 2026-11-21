@@ -7866,7 +7866,7 @@ check(
       [/^src\/renderer\/host\/plugins\.ts$/, 'plugin activation'],
       // A PLUGIN only through its UI half (host/pluginUi.ts → `@artlux/plugin-x/ui`), and never a module
       // that runs: its activation or barrels, or a file named for runtime work. The names are the
-      // plugins' own convention (ndiReceiver, poseEngine, trackingStore, augmentaHost, shaderContext,
+      // plugins' own convention (ndiReceiver, poseEngine, trackingStore, trackingHost, shaderContext,
       // audioTap, PoseViz, poseCamera …); a UI half that needs one of them is not a UI half.
       [/^plugins\/[^/]+\/src\/(plugin\.renderer|plugin\.main|index|renderer|main|playback|authoring)\.tsx?$/, "a plugin's activation or barrel"],
       [/^plugins\/[^/]+\/src\/.*(Receiver|Drawable|Engine|Projector|Raster|Store|Manager|Context|Host|Tap|Viz|Camera|Recorder|Playback)\.tsx?$/i, "a plugin's runtime module"],
@@ -7917,8 +7917,8 @@ check(
       }
     }
     const plugins = read('src/renderer/host/plugins.ts');
-    if (!/activated = true;[\s\S]{0,400}?activatePluginUi\(win, live\.view\);[\s\S]*?for \(const p of FIRST_PARTY/.test(plugins)) problems.push('activateRendererPlugins no longer activates the UI halves (host/pluginUi.ts) before the runtimes');
-    if (!/^activatePluginUi\('panel', remotePluginLive\);/m.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer activates the plugins' UI halves with the live channel (remotePluginLive)");
+    if (!/activated = true;[\s\S]{0,400}?activatePluginUi\(win, live\.view, uiHostOf\(host\)\);[\s\S]*?for \(const p of FIRST_PARTY/.test(plugins)) problems.push('activateRendererPlugins no longer activates the UI halves (host/pluginUi.ts) before the runtimes');
+    if (!/^activatePluginUi\('panel', remotePluginLive, remoteUiHost\);/m.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer activates the plugins' UI halves with the live channel and the remote UI host (remotePluginLive, remoteUiHost)");
     const ce = read('src/renderer/components/ContentEditor.tsx');
     if (!/contentSourceUiRegistry\.get\(c\.type\)/.test(ce)) problems.push('ContentEditor no longer reads the UI registry (a panel window would show no plugin settings)');
     if (/services\/contentSource'/.test(read('src/renderer/components/CameraSettings.tsx'))) problems.push('CameraSettings imports services/contentSource — it must ask services/cameraAccess');
@@ -7929,16 +7929,80 @@ check(
     // waits forever on an answer nobody sends — or the editor's own fragment does.
     if (!/<FeedbackProvider>[\s\S]*<PanelEditorStore/.test(read('src/renderer/panel.tsx'))) problems.push("panel.tsx no longer mounts its panels inside <FeedbackProvider> — a panel calling useConfirm()/useToast() throws and takes the window down");
     if (!/activateRendererPlugins\('main', pluginHost, \{ owner: ownerPluginLive, view: localPluginLive \}\)/.test(read('src/renderer/App.tsx'))) problems.push("App no longer hands the plugins the editor's live owner and local view");
-    if (!/activatePluginUi\(win, live\.view\);/.test(plugins)) problems.push('activateRendererPlugins no longer hands the UI halves its live view');
+    if (!/activatePluginUi\(win, live\.view, uiHostOf\(host\)\);/.test(plugins)) problems.push('activateRendererPlugins no longer hands the UI halves its live view and its host');
     if (!/p\.activate\(\{ \.\.\.ctx, live: scopedLiveOwner\(live\.owner, p\.manifest\.id\) \}/.test(plugins)) problems.push("a plugin's runtime is no longer handed a live owner scoped to its own id");
     // A UI half reads its runtime only through the live view: never by importing a receiver, drawable or
     // context (the panel-graph check bans those by name) — and never the SDK hook on anything but it.
     for (const name of halves) {
       const dir = path.join(ROOT, 'plugins', name, 'src');
       const uiSrc = fs.existsSync(path.join(dir, 'ui.ts')) ? fs.readFileSync(path.join(dir, 'ui.ts'), 'utf8') : '';
-      const usesLive = fs.readdirSync(dir).some((f) => /\.tsx?$/.test(f) && /useLiveValue(<[^(]*>)?\(liveView\(\)/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+      const others = fs.readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && f !== 'ui.ts' && f !== 'uiLink.ts').map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
+      const usesLive = others.some((s) => /\bliveView\(\)/.test(s));
       if (usesLive && !/setLiveView\(ctx\.live\);/.test(uiSrc)) problems.push(`plugins/${name}: its UI reads the live view, but ui.ts never sets it (setLiveView(ctx.live)) — every value would stay at its initial`);
+      // …and the UI host the same way: a panel that reads settings or the scene through uiLink, from a
+      // ui.ts that never handed it the host, shows empty settings and drops every edit — silently.
+      const link = fs.existsSync(path.join(dir, 'uiLink.ts')) ? fs.readFileSync(path.join(dir, 'uiLink.ts'), 'utf8') : '';
+      if (/export function setUiHost\(/.test(link) && !/setUiHost\(ctx\.host\);/.test(uiSrc)) problems.push(`plugins/${name}: uiLink.ts reads the UI host, but ui.ts never sets it (setUiHost(ctx.host))`);
     }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  "a plugin's detachable panels come from its UI half, and reach the runtime only through the editor",
+  'A panel registered from a runtime cannot be in a panel window (the runtime never runs there), and one ' +
+  'registered from both halves is two copies that drift. A UI panel that read the host captured by ' +
+  'activate() would, in a window, read nothing and drop every edit; an OSC monitor in a window that main ' +
+  'never sent OSC to would show a silent wire that is in fact busy — the most misleading thing a ' +
+  'diagnostic can say.',
+  () => {
+    const problems = [];
+    const pluginDirs = fs.readdirSync(path.join(ROOT, 'plugins')).filter((d) => fs.existsSync(path.join(ROOT, 'plugins', d, 'src')));
+    const uiOf = (name) => { const f = path.join(ROOT, 'plugins', name, 'src', 'ui.ts'); return fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : ''; };
+    const uiIds = new Set();
+    for (const name of pluginDirs) for (const m of uiOf(name).matchAll(/ctx\.panels\.register\(\{ id: '([^']+)'/g)) uiIds.add(m[1]);
+    for (const name of pluginDirs) {
+      const dir = path.join(ROOT, 'plugins', name, 'src');
+      const ui = uiOf(name);
+      for (const f of fs.readdirSync(dir)) {
+        if (f === 'ui.ts' || !/\.tsx?$/.test(f)) continue;
+        const src = fs.readFileSync(path.join(dir, f), 'utf8');
+        for (const m of src.matchAll(/panels\.register\(\{([^}]*)/g)) {
+          const id = (m[1].match(/id: '([^']+)'/) || [])[1];
+          if (/detachable:\s*true/.test(m[1])) problems.push(`plugins/${name}/src/${f} registers a DETACHABLE panel '${id}' from the runtime — only a UI half's panel can open in a window`);
+          if (id && uiIds.has(id)) problems.push(`plugins/${name}/src/${f} registers '${id}', which a UI half registers too`);
+        }
+        // A UI half's panel reaches the host through uiLink's UI host, never the runtime's captured one.
+        const comp = f.replace(/\.tsx?$/, '');
+        if (/\.tsx$/.test(f) && new RegExp(`Component: ${comp}\\b`).test(ui) && /from '\.\/[a-zA-Z]*Host'/.test(src)) {
+          problems.push(`plugins/${name}/src/${f} is a UI half's panel but imports the runtime's host module — it must use uiLink's UI host`);
+        }
+      }
+    }
+    for (const id of ['osc-monitor', 'zone-editor', 'augmenta-monitor', 'pose-monitor']) {
+      if (!uiIds.has(id)) problems.push(`the '${id}' panel is no longer registered from a UI half`);
+    }
+    // The panel window resolves its panel from the registry the UI halves filled, and only a detachable one.
+    const panel = read('src/renderer/panel.tsx');
+    if (!/activatePluginUi\('panel'[\s\S]*?const panel = \(\(p\) => \(p\?\.detachable \? p : undefined\)\)\(panelRegistry\.get\(panelId\)\);/.test(panel)) problems.push('panel.tsx no longer resolves its panel from the registry AFTER the UI halves registered theirs (a plugin panel would say it cannot open in a window)');
+    // A dock panel is sized h-full against its tab body. In the editor that body is absolute inset-0; in
+    // a window the panel sits in Body's wrapper, which must be full height too or the panel is 0 tall
+    // (the Trigger Zones map drew nothing at all in a window until this).
+    if (!/<div className=\{p\.mount === 'inspector' \? 'p-3 space-y-3' : 'h-full'\}>/.test(panel)) problems.push("panel.tsx's Body wrapper no longer gives a non-inspector panel full height — a dock panel sized h-full draws at 0 height in a window");
+    // The UI host: the editor's own services, and in a window the replica with writes sent to the editor.
+    const plugins = read('src/renderer/host/plugins.ts');
+    if (!/registerLiveCall\('host\.scene3DPatch', \(partial\) => host\.scene3D\.patch\(/.test(plugins)) problems.push("the editor no longer answers 'host.scene3DPatch' on the host's own scene service");
+    if (!/registerLiveCall\('host\.menuAction',/.test(plugins)) problems.push("the editor no longer answers 'host.menuAction'");
+    const remote = read('src/renderer/live/uiHostRemote.ts');
+    if (!/liveClient\.action\('host\.scene3DPatch'/.test(remote)) problems.push('live/uiHostRemote.ts no longer sends a scene patch to the editor');
+    if (/docStore\.(set|patch|replace)/.test(remote)) problems.push('live/uiHostRemote.ts writes the replica directly — a panel window edits only through the editor');
+    // OSC to the windows that listen: the editor always, any other window while it taps.
+    const pre = read('src/preload/index.ts');
+    if (!/onOscMessage: \(cb[\s\S]{0,300}?ipcRenderer\.send\(IPC\.OSC_TAP, true\)[\s\S]{0,300}?ipcRenderer\.send\(IPC\.OSC_TAP, false\)/.test(pre)) problems.push('the preload no longer taps OSC per listener (IPC.OSC_TAP on and off)');
+    const ipc = read('src/main/ipc.ts');
+    if (!/osc\.start\(cfg\.listenPort, sendOsc,/.test(ipc)) problems.push('main no longer receives OSC through sendOsc (the editor + tapped windows)');
+    if (!/const sendOsc = [\s\S]{0,200}?getWindow\(\)\?\.webContents\.send\(IPC\.OSC_MESSAGE[\s\S]{0,200}?for \(const \{ wc \} of oscTaps\.values\(\)\) if \(!wc\.isDestroyed\(\)\)/.test(ipc)) problems.push('main.sendOsc no longer sends to the editor AND every live tapped window');
+    if (!/wc\.once\('destroyed', \(\) => oscTaps\.delete\(wc\.id\)\)/.test(ipc)) problems.push('a closed window is no longer dropped from the OSC taps');
     return problems.length ? problems.join('; ') : null;
   },
 );

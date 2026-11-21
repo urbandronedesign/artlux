@@ -162,7 +162,9 @@ window is fully generic.
     `renderSource()` (GPU) still run. `ctx.window` tells a plugin which side it's on. Idempotent per window.
 - **UI halves (E5/W5):** a plugin can ship a second renderer entry, `@artlux/plugin-x/ui` (`src/ui.ts`,
   exported in its `package.json`). It exports a `RendererPluginUi`, whose `activateUi(ctx)` registers
-  only contributions that draw. Today that is `ctx.contentSourceUi`: a source type's settings fragment.
+  only contributions that draw: `ctx.contentSourceUi` (a source type's settings fragment) and
+  `ctx.panels` (panels; mark one `detachable: true` and it may open in its own window — Trigger Zones,
+  the OSC, Augmenta and Pose monitors). A detachable panel is registered from the UI half only.
   - **One list, every window.** `src/renderer/host/pluginUi.ts` lists the UI halves (Augmenta,
     MediaPipe, LiDAR, NDI, Spout, Syphon, Text, Shader). `activateRendererPlugins` runs that list
     first, and a **panel window** (`panel.tsx`) runs *only* that list. No plugin runtime activates
@@ -172,7 +174,18 @@ window is fully generic.
     and reads it with the SDK's `useLiveValue`. In the editor that is a local subscription to the same
     stream; in a panel window it crosses the live channel. Names are `<plugin id>.<name>`, enforced.
     Examples: `spout.status` / `syphon.status` (the receiver's verdict), `text.fontState` (an imported
-    face's load state), `shader.compile` and `shader.gpu` (the editor's GL context).
+    face's load state), `shader.compile` and `shader.gpu` (the editor's GL context),
+    `lidar-tracking.zoneView` (occupancy, blobs and people, one frame per frame while a map is on
+    screen), `mediapipe.monitor` (the pose engine's status).
+  - **What the host knows travels through `ctx.host`** (`PluginUiHost`: `settings`, `scene3D` read and
+    patch, `ui.menuAction`). In the editor it is the host's own services; in a panel window it reads the
+    replica and sends every write to the editor (`live/uiHostRemote.ts` → the `host.scene3DPatch` /
+    `host.menuAction` calls). A UI panel never uses the host its runtime captured in `activate()`.
+  - **A same-window handle** (a `MediaStream`) cannot cross windows. The runtime may hand its UI half a
+    getter through `uiLink.ts` (the Pose Monitor's picture); in a panel window nothing sets it, and the
+    panel says where the thing is instead of opening a second one.
+  - **OSC** reaches any window that listens: each `onOscMessage` listener taps main (`IPC.OSC_TAP`), so
+    a monitor in a panel window sees the wire itself, and costs nothing once closed.
   - **So the UI half must reach nothing that runs.** It reads the content it is handed and talks to its
     main half (`pluginInvoke`); NDI's discovery was moved out of `ndiReceiver.ts` into
     `ndiDiscovery.ts` for exactly this. `verify:invariants` bundles the panel window and refuses a UI

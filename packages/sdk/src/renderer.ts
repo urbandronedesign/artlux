@@ -1347,6 +1347,28 @@ export interface RendererPluginUiContext<C = unknown> {
   contentSourceUi: ContentSourceUiRegistry<C>;
   /** What your runtime publishes, from whichever window this is (see PluginLiveView). */
   live: PluginLiveView;
+  /**
+   * Panels. Register here the panels that only DRAW, and mark them `detachable` to let them open in
+   * their own window. `activate()` must not register the same id again. A panel that reaches a store
+   * the runtime fills (a receiver, a tracker) reads it through `live` instead, or it stays in `activate()`.
+   */
+  panels: PanelRegistry;
+  /** The host, as a UI half may use it from any window (see PluginUiHost). */
+  host: PluginUiHost;
+}
+
+/**
+ * THE HOST, FROM A UI HALF (E5/W5). The subset of RendererHostServices that means the same thing in
+ * every window: in the editor it IS the host's own service; in a panel window it reads that window's
+ * replica of the project (the editor's settings, the Show Host's document) and every write is sent to
+ * the editor, which runs it through the same service. A UI half never captures `activate()`'s host.
+ */
+export interface PluginUiHost<Settings = unknown, Scene = unknown> {
+  settings: SettingsService<Settings>;
+  /** The 3D scene: read it, and patch it (the editor applies the patch, exactly as `scene3D.patch`). */
+  scene3D: { get(): Scene; subscribe(cb: () => void): () => void; patch(partial: Partial<Scene>): void };
+  /** Run a host menu action in the editor — opens (toggles) the panel that declares it. */
+  ui: { menuAction(action: string): void };
 }
 
 // ─── Live state between a plugin's runtime and its UI (E5/W5) ───────────────────────────────

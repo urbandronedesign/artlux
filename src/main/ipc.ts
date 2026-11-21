@@ -329,9 +329,26 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     activateMainPlugins(getWindow);
 
     // ---- OSC (external control + LiDAR blob tracking): receive onto the renderer ----
+    // TO THE EDITOR, ALWAYS — its router, the tracking stores and the zones run there — AND TO ANY OTHER
+    // WINDOW WHILE IT TAPS (E5/W5): an OSC or Augmenta monitor in a panel window shows the wire itself,
+    // not a copy relayed by the editor. Counted per window (each preload listener taps once) and dropped
+    // with the window, so a closed monitor costs nothing and a crashed one is never sent to.
+    const oscTaps = new Map<number, { wc: Electron.WebContents; n: number }>();
+    ipcMain.on(IPC.OSC_TAP, (e, on: boolean) => {
+        const wc = e.sender;
+        if (wc === getWindow()?.webContents) return;        // the editor is sent everything anyway
+        const t = oscTaps.get(wc.id) ?? { wc, n: 0 };
+        if (!oscTaps.has(wc.id)) { oscTaps.set(wc.id, t); wc.once('destroyed', () => oscTaps.delete(wc.id)); }
+        t.n = Math.max(0, t.n + (on ? 1 : -1));
+        if (!t.n) oscTaps.delete(wc.id);
+    });
+    const sendOsc = (msgs: unknown): void => {
+        getWindow()?.webContents.send(IPC.OSC_MESSAGE, msgs);
+        for (const { wc } of oscTaps.values()) if (!wc.isDestroyed()) wc.send(IPC.OSC_MESSAGE, msgs);
+    };
     ipcMain.on(IPC.OSC_CONFIGURE, (_e, cfg: OscConfig) => {
         if (cfg.enabled) {
-            osc.start(cfg.listenPort, (msgs) => getWindow()?.webContents.send(IPC.OSC_MESSAGE, msgs), cfg.listenAddress || undefined);
+            osc.start(cfg.listenPort, sendOsc, cfg.listenAddress || undefined);
         } else {
             osc.stop();
         }

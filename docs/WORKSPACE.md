@@ -459,6 +459,13 @@ harmless.
     [`live/pluginLiveRemote.ts`](../src/renderer/live/pluginLiveRemote.ts) in a panel window). The
     editor's own fragment reads the same stream with a local subscription (`subscribeLiveLocal`), so
     the fragment has one code path.
+  - **A plugin's panel** is registered from its UI half (`ctx.panels`, `detachable: true`) and reads
+    the host through `ctx.host` ([`live/uiHostRemote.ts`](../src/renderer/live/uiHostRemote.ts) in a
+    panel window: the replica for reads, the editor for writes). `panel.tsx` resolves its panel from
+    the registry after the UI halves activate. A panel that subscribes to a per-frame stream does so
+    only while it has a size: a dock tab behind the front one stays mounted, and must not keep the
+    editor producing for nobody. A panel window's `Body` is full height for every non-inspector panel,
+    as the editor's tab body is, or a panel sized `h-full` draws at 0 (W5e found it).
 - **Persist any other workspace state** (not project content): add a top-level `Prefs` field in
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.

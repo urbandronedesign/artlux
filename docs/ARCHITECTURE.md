@@ -123,7 +123,9 @@ outputs and, later, LED sampling, with the editor shell staying in Electron perm
   never a plugin runtime. An editor-only service is reached through a seam, as the camera inspector does
   through `services/cameraAccess.ts`: a stream plus `registerLiveCall` calls. A plugin does the same
   through `ctx.live`: its runtime publishes, and its UI half reads, locally in the editor and over the
-  live channel in a panel window.
+  live channel in a panel window. A UI half's panels read the host through `ctx.host`: the host's own
+  services in the editor, the replica plus editor-side writes in a panel window. OSC is sent to the
+  editor and to any other window that taps it (`IPC.OSC_TAP`).
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
 - **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),

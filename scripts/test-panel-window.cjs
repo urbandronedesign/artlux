@@ -24,11 +24,17 @@
 //      saved; "Back to the editor" docks the panel into the editor's current workbench.
 //  11. THE HOST DIES with a panel window open: it reconnects, never shows an empty or default
 //      document in between, and edits from it still land (the new host agrees).
+//  12. The surface Content section in a window: every plugin source's settings from its UI half.
+//  13. PLUGIN PANELS in a window (UI halves, runtime in the editor): Trigger Zones shows the editor's
+//      occupancy and blobs live and its edits land in the editor; the OSC and Augmenta monitors see the
+//      wire (main sends OSC to a window that listens) with the editor's settings; the Pose Monitor shows
+//      the editor's engine status and says the picture is in the editor. Each stream detaches on close.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
 
 const { spawn, execSync } = require('node:child_process');
+const dgram = require('node:dgram');
 const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
@@ -54,6 +60,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const get = (u) => new Promise((res, rej) => {
   http.get(u, (r) => { let b = ''; r.on('data', (d) => (b += d)); r.on('end', () => res(b)); }).on('error', rej);
 });
+// OSC for step 13, on a port of its own (a venue emitter on 10000 must not feed the test, nor the reverse).
+// The listener is a MACHINE setting, so it goes into the prefs before launch — restored with the rest.
+const OSC_PORT = 10477;
+function enableOscInPrefs() {
+  const p = readPrefsNow();
+  p.appSettings = { ...(p.appSettings || {}), oscEnabled: true, oscListenPort: OSC_PORT, oscListenAddress: '' };
+  fs.mkdirSync(path.dirname(PREFS_FILE), { recursive: true });
+  fs.writeFileSync(PREFS_FILE, JSON.stringify(p, null, 2));
+}
+const sock = dgram.createSocket('udp4');
+const padString = (str) => { const raw = Buffer.from(str, 'utf8'); const b = Buffer.alloc((Math.floor(raw.length / 4) + 1) * 4); raw.copy(b); return b; };
+const oscPacket = (address, type, value) => {
+  const arg = Buffer.alloc(4);
+  if (type === 'i') arg.writeInt32BE(value | 0); else arg.writeFloatBE(value);
+  return Buffer.concat([padString(address), padString(',' + type), arg]);
+};
+const fire = (address, type, value) => sock.send(oscPacket(address, type, value), OSC_PORT, '127.0.0.1');
+// One person on SOL at (u,v) — the venue protocol (scripts/lidar-emitter.cjs); null empties the slot.
+function sendBlob(p) {
+  fire('/SOL/specs/Scalex', 'f', 5.825); fire('/SOL/specs/Scaley', 'f', 3.125);
+  if (!p) { fire('/SOL/blobs/blob0/id', 'i', 0); return; }
+  fire('/SOL/blobs/blob0/id', 'i', 1);
+  fire('/SOL/blobs/blob0/tx', 'f', (p.u - 0.5) * 5.825); fire('/SOL/blobs/blob0/ty', 'f', (p.v - 0.5) * 3.125);
+  fire('/SOL/blobs/blob0/u', 'f', p.u); fire('/SOL/blobs/blob0/v', 'f', p.v);
+}
+const ZONE = { id: 'zEntrance', name: 'Entrance', surface: 'SOL', u0: 0.05, v0: 0.55, u1: 0.32, v1: 0.95, color: '#f5a623', minBlobs: 1, enterSec: 0.2, exitSec: 0.4 };
 let puppeteer = null;
 try { puppeteer = require(path.join(ROOT, 'node_modules', 'puppeteer-core')); } catch { /* checked below */ }
 
@@ -74,7 +106,7 @@ function buildProject() {
         dmx: { 'shutter-strobe': 12 / 255, dimmer: 1, pan: 0.5, tilt: 0.5, red: 1, green: 0, blue: 0, white: 0 } }],
     controllers: [{ id: 'ctl', name: 'Main', protocol: 'artnet', ip: '127.0.0.1', broadcast: false, startUniverse: 0 }],
     globalBrightness: 1, groups: [], scenes: [], cueBanks: [],
-    scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false },
+    scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, trackingZones: [ZONE] },
     timeline: { layers: [], clips: [], duration: 30, fps: 30, markers: [], inPoint: null, outPoint: null, loop: false, trackingTakes: [], lightingTakes: [], lightingSequences: [], automation: [] },
     schedule: [], assets: [], projectorOutputs: [], projectorFpsCap: 0, projectorBrightness: 1,
   }, null, 2));
@@ -108,6 +140,7 @@ const until = async (fn, ms = 8000, step = 200) => {
 (async () => {
   if (!puppeteer) { console.error('puppeteer-core not installed — run npm install'); process.exit(1); }
   const project = buildProject();
+  enableOscInPrefs();
   let child = launch(project);
   let browser = null;
   const connect = async () => {
@@ -500,6 +533,86 @@ const until = async (fn, ms = 8000, step = 200) => {
     const detached = await until(() => E(() => !window.__liveBroker.attached().includes('camera.info')), 5000);
     note(!!detached, "closing the window stops the editor's camera poll for it (the stream detaches)");
 
+    console.log('\n13. plugin panels in their own window: the runtime stays in the editor');
+    const attachedNow = () => E(() => window.__liveBroker.attached());
+    // TRIGGER ZONES. The zones are project data (the replica); occupancy, blobs and people are the
+    // editor's zone engine's, over 'lidar-tracking.zoneView'.
+    const pz = await openPanel('zone-editor');
+    const Z = (fn, ...a) => pz.evaluate(fn, ...a);
+    note(await Z(() => /Entrance/.test(document.body.innerText)), "Trigger Zones opens in a window and lists the project's zone", (await Z(() => document.title)));
+    note(!Object.values(await Z(prints)).some(Boolean), 'the window runs no tracker, transport or engine of its own', JSON.stringify(await Z(prints)));
+    const occupiedIcon = () => Z(() => {
+      const row = [...document.querySelectorAll('button')].find((b) => /Entrance/.test(b.textContent || '') && /SOL/.test(b.textContent || ''));
+      return !!row && !!row.parentElement && !!row.parentElement.querySelector('svg.text-warn');
+    });
+    // The editor shows its OWN Trigger Zones too (the 3D workbench, that dock tab in front): the same
+    // panel, reading the same runtime through a local subscription — the docked half of one code path.
+    const railTo = (label) => E((l) => { const b = [...document.querySelectorAll('[role="tablist"] button')].find((x) => (x.textContent || '').trim() === l); if (b) b.click(); return !!b; }, label);
+    await railTo('3D');
+    await sleep(800);
+    await E(() => { const t = document.querySelector('[data-dock-tab="zone-editor"]'); if (t) t.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    await sleep(600);
+    const edTally = () => E(() => { const b = [...document.querySelectorAll('button')].find((x) => /Zone in the centre/.test(x.textContent || '')); const c = b && b.closest('.h-full')?.querySelector('canvas'); return c ? (c.dataset.tally || null) : 'no zone map on screen'; });
+    let holding = true;
+    const holdLoop = (async () => { while (holding) { sendBlob({ u: 0.18, v: 0.75 }); await sleep(33); } })();
+    const occ = await until(occupiedIcon, 8000);
+    const tally = await until(() => Z(() => { const t = document.querySelector('canvas')?.dataset.tally; return t && /1 blobs/.test(t) ? t : null; }), 8000);
+    const tallyEd = await until(async () => { const t = await edTally(); return t && /1 blobs/.test(t) ? t : null; }, 8000);
+    holding = false; await holdLoop;
+    note(!!tallyEd && tallyEd === tally, "…and the editor's own docked Trigger Zones shows the same tally (its local subscription)", `editor "${tallyEd ?? await edTally()}", window "${tally}"`);
+    await railTo('Map');
+    note(!!occ, "a person standing in the zone shows it OCCUPIED in the window (the editor's zone engine, live)");
+    note(!!tally, "the map's tally is the editor's: the blob the tracker reported", tally || '(no tally)');
+    const zAttached = (await attachedNow()).includes('lidar-tracking.zoneView');
+    for (let i = 0; i < 20; i++) { sendBlob(null); await sleep(33); }
+    const cleared = await until(async () => !(await occupiedIcon()), 8000);
+    note(zAttached && !!cleared, '…and EMPTY again when they leave — the stream follows the room', `zoneView attached in the editor: ${zAttached}`);
+    // An edit from the window: "+" adds a zone — in the editor, through the host's scene service.
+    const zonesInEditor = () => E(() => ((window.__showHost.get('doc', 'scene3D') || {}).trackingZones || []).map((z) => z.name));
+    const zBefore = (await zonesInEditor()).length;
+    const added = await Z(() => { const b = [...document.querySelectorAll('button')].find((x) => /Zone in the centre/.test(x.textContent || '')); if (b) b.click(); return !!b; });
+    const zAfter = await until(async () => { const n = await zonesInEditor(); return n.length === zBefore + 1 ? n : null; }, 6000);
+    const zHere = zAfter && await until(() => Z((name) => document.body.innerText.includes(name), zAfter[zAfter.length - 1]), 6000);
+    note(added && !!zAfter && !!zHere, 'a zone added in the window lands in the editor\'s project and comes back to the window', zAfter ? zAfter.join(', ') : `editor zones ${(await zonesInEditor()).join(', ')}`);
+    await Z(() => window.close());
+    note(!!(await until(async () => !(await attachedNow()).includes('lidar-tracking.zoneView'), 5000)), "closing it stops the editor's zone view for it (the stream detaches)");
+
+    // OSC MONITOR: the wire itself — main sends OSC to a window that listens — and the editor's settings.
+    const po = await openPanel('osc-monitor');
+    const O = (fn, ...a) => po.evaluate(fn, ...a);
+    const listening = await until(() => O((port) => document.body.innerText.includes(`:${port}`) && /listening/.test(document.body.innerText), OSC_PORT), 8000);
+    note(!!listening, "the OSC Monitor in a window shows the editor's listener settings (listening on the test port)");
+    let feeding = true;
+    const feedLoop = (async () => { while (feeding) { sendBlob({ u: 0.6, v: 0.3 }); await sleep(40); } })();
+    const seen = await until(() => O(() => /\/SOL\/blobs\/blob0\/u/.test(document.body.innerText)), 8000);
+    feeding = false; await feedLoop;
+    note(!!seen, 'it sees the OSC wire: the blob addresses arrive in the window');
+    await O(() => window.close());
+
+    // AUGMENTA MONITOR: the same wire, its own addresses.
+    const pa = await openPanel('augmenta-monitor');
+    const A = (fn, ...a) => pa.evaluate(fn, ...a);
+    let auOn = true;
+    const auLoop = (async () => { while (auOn) { fire('/au/scene/numPeople', 'i', 1); await sleep(40); } })();
+    const au = await until(() => A(() => /\/au\/scene/.test(document.body.innerText) && /listening/.test(document.body.innerText)), 8000);
+    auOn = false; await auLoop;
+    note(!!au, 'the Augmenta Monitor in a window sees /au/ messages, with the listener settings');
+    await A(() => window.close());
+
+    // POSE MONITOR: the engine's status from the editor; the picture stays where the camera is.
+    const pp = await openPanel('pose-monitor');
+    const Q = (fn, ...a) => pp.evaluate(fn, ...a);
+    const poseState = (fn) => fn(() => { const m = document.body.innerText.match(/status\s*\n\s*(idle|running|starting…|disabled)/i); return m ? m[1] : null; });
+    const stHere = await until(() => poseState(Q), 8000);
+    const pAttached = !!(await until(async () => (await attachedNow()).includes('mediapipe.monitor'), 5000));
+    const noCam = await Q(() => /No camera/.test(document.body.innerText) || !!document.querySelector('[data-pose-picture-elsewhere]'));
+    const noVideo = await Q(() => !document.querySelector('video'));
+    note(!!stHere && pAttached && noCam && noVideo,
+      "the Pose Monitor in a window shows the editor's engine status, and opens no camera of its own",
+      `status "${stHere}"; mediapipe.monitor attached in the editor: ${pAttached}; video element here: ${!noVideo}`);
+    await Q(() => window.close());
+    note(!!(await until(async () => !(await attachedNow()).includes('mediapipe.monitor'), 5000)), "closing it stops the editor's pose status for it");
+
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));
     note(['core.browser.fixtures', 'core.browser.globals'].every((id) => (readPrefs().openPanelWindows || []).includes(id)),
@@ -557,6 +670,7 @@ const until = async (fn, ms = 8000, step = 200) => {
       console.log(`\n\x1b[31mABORTED\x1b[0m ${e.message}`);
     }
   } finally {
+    try { sock.close(); } catch { /* closed */ }
     try { await browser?.disconnect(); } catch { /* gone */ }
     if (!KEEP) await stop(child);
     restorePrefs();

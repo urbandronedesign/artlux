@@ -21,6 +21,7 @@ import { activatePluginUi } from './host/pluginUi';
 import { setCameraAccess } from './services/cameraAccess';
 import { remoteCameraAccess } from './live/cameraRemote';
 import { remotePluginLive } from './live/pluginLiveRemote';
+import { remoteUiHost } from './live/uiHostRemote';
 
 // A PANEL WINDOW (E5/W5) — `panel.html?panel=<id>`, opened by main/panelWindows.ts. It opens on that one
 // panel and is a dock tree of its own (W5b-2): more detachable panels can join it as tabs, stacks or splits.
@@ -39,15 +40,19 @@ setHostLinkRole('panel');
 installGlobalNet('panel');
 
 const panelId = new URLSearchParams(location.search).get('panel') ?? '';
-const panel = DETACHABLE_PANELS.find((p) => p.id === panelId);
 liveClient.connect(`panel:${panelId}`);
 // THIS WINDOW'S REGISTRY holds exactly the panels allowed out, so the dock tree's "+" menu offers those
 // and nothing else (W5b-2: a window is a dock tree of its own — tabs, stacks and splits).
 for (const p of DETACHABLE_PANELS) panelRegistry.register(p);
-// The plugins' UI halves — what the content editor shows for their source types — and nothing of their
-// runtimes (host/pluginUi.ts). And the camera inspector asks the editor, which runs the capture.
-activatePluginUi('panel', remotePluginLive);
+// The plugins' UI halves — what the content editor shows for their source types, and the plugins'
+// detachable panels (the OSC, Augmenta and Pose monitors, Trigger Zones) — and nothing of their runtimes
+// (host/pluginUi.ts). What those panels show of a runtime comes from the editor (`live`), their host
+// reads and writes go through this window's replica and the editor (live/uiHostRemote.ts). And the
+// camera inspector asks the editor, which runs the capture.
+activatePluginUi('panel', remotePluginLive, remoteUiHost);
 setCameraAccess(remoteCameraAccess);
+// Looked up AFTER the UI halves registered theirs. Only a detachable one: the registry is the whole list.
+const panel = ((p) => (p?.detachable ? p : undefined))(panelRegistry.get(panelId));
 const titleFor = (ids: string[]) =>
   `${ids.map((id) => panelRegistry.get(id)?.title ?? id).join(' · ') || 'Panel'} — ARTLux`;
 if (panel) document.title = titleFor([panel.id]);
@@ -112,7 +117,10 @@ const Body: React.FC<{ panel: PanelContribution; selection: SelectionSnapshot }>
   }
   return (
     <ErrorBoundary variant="panel" label={p.title ?? p.id} faultWindow="panel">
-      <div className={p.mount === 'inspector' ? 'p-3 space-y-3' : undefined}>
+      {/* Full height for everything but a parameter section, as the editor's tab body gives it: a dock
+          panel sized `h-full` (the Trigger Zones map, a monitor) otherwise resolves to 0 here and draws
+          nothing — found by test-panel-window step 13, where the zone map's canvas never painted. */}
+      <div className={p.mount === 'inspector' ? 'p-3 space-y-3' : 'h-full'}>
         <PanelBody Component={p.Component} contextId="window" selection={selection} />
       </div>
     </ErrorBoundary>

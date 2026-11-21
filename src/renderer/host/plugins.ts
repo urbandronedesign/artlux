@@ -16,7 +16,8 @@ import { timeline } from '../services/timeline';
 import { coreAutomationProvider } from '../services/automationTargets.core';
 import { oscAutomationProvider } from '../services/oscOut';
 import { perfMonitor } from '../services/perfMonitor';
-import { activatePluginUi } from './pluginUi';
+import { activatePluginUi, uiHostOf } from './pluginUi';
+import { registerLiveCall } from '../live/broker';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices, PluginStatus, PluginLiveOwner, PluginLiveView } from '@artlux/sdk/renderer';
 import type { BootEntry } from '../../../shared/protocol';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
@@ -174,7 +175,14 @@ export function activateRendererPlugins(
   activated = true;
   // The UI halves first, from the one list a panel window activates too (host/pluginUi.ts): what the
   // content editor shows for a plugin's source is registered there, never again from `activate()`.
-  activatePluginUi(win, live.view);
+  activatePluginUi(win, live.view, uiHostOf(host));
+  // A UI half's writes from a PANEL WINDOW (live/uiHostRemote.ts) land here, on the same service the
+  // editor's own UI halves call: one path for an edit, whichever window the hand was in. Editor only —
+  // a projector window owns no document.
+  if (win === 'main' && host !== NOOP_HOST) {
+    registerLiveCall('host.scene3DPatch', (partial) => host.scene3D.patch((partial ?? {}) as never));
+    registerLiveCall('host.menuAction', (action) => host.ui?.menuAction?.(String(action)));
+  }
   // Core's own automation namespaces (surfaces / fixtures / globalBrightness) register alongside the
   // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
   automationTargetRegistry.register(coreAutomationProvider);

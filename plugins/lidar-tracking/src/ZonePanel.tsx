@@ -1,12 +1,10 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Trash2, Plus, Users, Eye, EyeOff } from 'lucide-react';
 import type { TrackingZone } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
 import { nextNumberedName } from '@artlux/sdk/renderer';
-import * as trackingStore from './trackingStore';
-import * as zones from './zones';
-import * as people from './people';
-import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge, providerSurfaces, providerSurface, runMenuAction } from './trackingHost';
+import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge, runMenuAction, liveView } from './uiLink';
+import { EMPTY_ZONE_VIEW, zoneViewKey, type ZoneView } from './zoneView';
 
 // TRIGGER ZONES — the authoring surface. A dock tab on the `tracking` workspace context (registered
 // by the plugin; the host declares that context and knows nothing about zones).
@@ -28,8 +26,15 @@ import { useHostScene3D, setZones, setActiveZoneIds, setSurfaceMerge, providerSu
 //                    toggle. Absent ⇒ all live, which is what every existing project has.
 //
 // Perf: blob positions, occupancy and the live drag are HIGH-RATE. They are drawn to a <canvas> from a
-// requestAnimationFrame loop reading the stores and a ref — never React state, so a person walking
-// across the room (or a rectangle being dragged) re-renders nothing. Only the zone LIST is React.
+// requestAnimationFrame loop reading a ref — never React state, so a person walking across the room (or
+// a rectangle being dragged) re-renders nothing. Only the zone LIST is React.
+//
+// WHERE THE LIVE PART COMES FROM (E5/W5). The panel is the plugin's UI half: drawn in the editor and in a
+// panel window. Occupancy, blobs and people are the RUNTIME's (it evaluates the zones, in the editor), so
+// they arrive as one ZoneView frame on the 'lidar-tracking.zoneView' stream — a local subscription in the
+// editor, the live channel in a window — into `viewRef` for the canvas. React re-renders only when what
+// the list shows changes (zoneViewKey). The zones themselves are project data, read and written through
+// the UI host (uiLink.ts).
 
 const SURFACES = ['SOL', 'MUR', 'SOL_MUR'];
 // A part's tag on the map — letters, not hues: colour on this map already means "which zone".
@@ -62,16 +67,35 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   const active = scene.activeZoneIds;                    // undefined ⇒ every zone is live
   // Open on the surface the project's zones are on (a camera-only show has none on SOL).
   const [surface, setSurface] = useState(() => scene.trackingZones?.[0]?.surface ?? 'SOL');
-  // A surface ANOTHER plugin provides (the camera area): its own points, aspect, parts and calibration.
-  const prov = providerSurface(surface);
-  // RE-RENDER WHEN OCCUPANCY CHANGES. The list's person icon reads zones.getState() during render, and
-  // until the shell put a memo boundary around registry panels (plans/native-engine.md §9a, W2) it was
-  // only fresh because App happened to re-render the whole tree. zones.subscribe() fires on an actual
-  // enter/exit (not per frame), so this costs one small render per change and nothing while it holds.
-  const [, bumpZones] = useReducer((n: number) => n + 1, 0);
-  useEffect(() => zones.subscribe(bumpZones), []);
-  const frameRef = useRef<HTMLDivElement>(null);
+  // THE RUNTIME'S FRAME. `viewRef` is painted every frame; `view` is React state, replaced only when what
+  // the list and toolbar show changes (occupancy, the surface list, providers…) — so a person walking
+  // across the room re-renders nothing, and an enter or exit costs one small render.
+  const viewRef = useRef<ZoneView>(EMPTY_ZONE_VIEW);
+  const [view, setView] = useState<ZoneView>(EMPTY_ZONE_VIEW);
+  // ONLY WHILE THE MAP IS ON SCREEN. A dock tab that is not the front one stays MOUNTED (the shell
+  // hides it with CSS, 0×0), and a subscription held there would keep the editor building a zone frame
+  // every frame for nobody — the broker's "nothing runs for nobody" rule, and test-live-channel says so.
   const [frame, setFrame] = useState({ w: 0, h: 0 });
+  const onScreen = frame.w > 0 && frame.h > 0;
+  useEffect(() => {
+    const lv = liveView();
+    viewRef.current = EMPTY_ZONE_VIEW;          // a frame for the previous surface is not this one's
+    if (!lv || !onScreen) return;
+    let key = '';
+    const take = (x: unknown): void => {
+      if (!x) return;
+      const v = x as ZoneView;
+      viewRef.current = v;
+      const k = zoneViewKey(v);
+      if (k !== key) { key = k; setView(v); }
+    };
+    take(lv.peek?.('lidar-tracking.zoneView', { surface }));
+    return lv.subscribe('lidar-tracking.zoneView', { surface }, take);
+  }, [surface, onScreen]);
+  // A surface ANOTHER plugin provides (the camera area): its own points, aspect, parts and calibration.
+  const providerOf = (key: string) => view.providers.find((p) => p.key === key);
+  const prov = providerOf(surface);
+  const frameRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = frameRef.current; if (!el) return;
     const ro = new ResizeObserver(() => setFrame({ w: el.clientWidth, h: el.clientHeight }));
@@ -159,7 +183,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
         if (z.surface !== surfaceRef.current) continue;
         // While this zone is being dragged, paint the DRAFT — the committed value is still the old one.
         const live = d && d.kind !== 'draw' && d.id === z.id ? norm(d.rect) : norm(z);
-        const st = zones.getState(z.id);
+        const st = viewRef.current.states[z.id];
         const sel = z.id === selRef.current;
         const inScene = !activeRef.current || activeRef.current.includes(z.id);
         const x0 = X(live.u0), x1 = X(live.u1), y0 = Y(live.v1), y1 = Y(live.v0);
@@ -193,9 +217,10 @@ export const ZonePanel: React.FC<PanelProps> = () => {
 
       // A PROVIDER SURFACE (the camera area): draw exactly what the zones count — every tagged body part,
       // lettered (L/R hand, l/r foot, H head, B body). No blob/merge diagnostics: those are LiDAR's.
-      if (providerSurface(surfaceRef.current)) {
+      const fv = viewRef.current;
+      if (fv.providers.some((p) => p.key === surfaceRef.current)) {
         g.font = 'bold 9px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-        for (const p of zones.surfacePoints(surfaceRef.current)) {
+        for (const p of fv.points) {
           const x = X(p.u), y = Y(p.v);
           g.fillStyle = '#e8e8e8'; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
           g.fillStyle = '#0d0d0d'; g.fillText(PART_TAG[p.part ?? ''] ?? '•', x, y + 0.5);
@@ -207,13 +232,9 @@ export const ZonePanel: React.FC<PanelProps> = () => {
       // Live blobs, raw (NOT people-merged): this is a diagnostic view, and an operator drawing a zone
       // needs to see what the tracker actually reports — including the venue's two-blobs-per-person, so
       // "why does minBlobs 2 fire for one visitor" is visible rather than mysterious.
-      const track = trackingStore.getSurfaceTrack(surfaceRef.current);
-      if (track) {
-        g.fillStyle = '#22d3ee';
-        for (const b of track.blobs.values()) {
-          if (b.id === 0) continue;
-          g.beginPath(); g.arc(X(b.u), Y(b.v), 4, 0, Math.PI * 2); g.fill();
-        }
+      g.fillStyle = '#22d3ee';
+      for (const b of fv.blobs) {
+        g.beginPath(); g.arc(X(b.u), Y(b.v), 4, 0, Math.PI * 2); g.fill();
       }
 
       // ⚠ AND THE PEOPLE THE ZONES ACTUALLY COUNT, DRAWN OVER THEM. Raw blobs alone answer "what does
@@ -222,11 +243,11 @@ export const ZonePanel: React.FC<PanelProps> = () => {
       // person plus the tally below turns a doubled count into something visible in one glance —
       // no manual, no arithmetic. Drawn from the same people.ts the zones read, so it cannot drift
       // from the number that drives the show.
-      const tally = people.tally(surfaceRef.current);
-      const merging = people.isMerging(surfaceRef.current);
+      const tally = fv.tally;
+      const merging = fv.merging;
       if (merging) {
         g.strokeStyle = '#f59e0b'; g.lineWidth = 2;
-        for (const p of people.get(surfaceRef.current)) {
+        for (const p of fv.people) {
           g.beginPath(); g.arc(X(p.u), Y(p.v), 9, 0, Math.PI * 2); g.stroke();
         }
       }
@@ -237,13 +258,13 @@ export const ZonePanel: React.FC<PanelProps> = () => {
         // visible symptom is a threshold meaning half what was typed. Stand ONE person on the sensor:
         // if the gap reads larger than the radius, raise the radius past it. That was previously
         // unmeasurable from inside the app, so the radius could only be guessed at.
-        const gap = people.closestPairM(surfaceRef.current);
+        const gap = fv.gap;
         // Only meaningful where blobs are SUPPOSED to merge. On a hand surface the closest pair is two
         // different people's hands, and calling that gap a problem would be advice to break the wall.
-        const tooFar = merging && gap != null && gap > people.radius();
+        const tooFar = merging && gap != null && gap > fv.radius;
         const txt = merging
-          ? `${tally.blobs} blobs → ${tally.people} people  ·  closest pair ${gap != null ? gap.toFixed(2) : '—'}m / merge ${people.radius().toFixed(2)}m`
-          : `${tally.blobs} blobs → ${tally.people} ${people.isMerging() ? 'hands (never merged here)' : 'counted raw · merge off'}`;
+          ? `${tally.blobs} blobs → ${tally.people} people  ·  closest pair ${gap != null ? gap.toFixed(2) : '—'}m / merge ${fv.radius.toFixed(2)}m`
+          : `${tally.blobs} blobs → ${tally.people} ${fv.mergingAny ? 'hands (never merged here)' : 'counted raw · merge off'}`;
         g.font = '10px ui-monospace, monospace';
         g.textBaseline = 'top';
         const tw = g.measureText(txt).width;
@@ -252,7 +273,10 @@ export const ZonePanel: React.FC<PanelProps> = () => {
         // count stays doubled and the radius is the thing to raise.
         g.fillStyle = tooFar ? '#f87171' : merging ? '#f59e0b' : '#94a3b8';
         g.fillText(txt, 8, 7);
-      }
+        // The same line, readable off the page (a harness, an accessibility tool) — written only when it
+        // changes, so a person walking costs nothing more than the paint.
+        if (cvs.dataset.tally !== txt) cvs.dataset.tally = txt;
+      } else if (cvs.dataset.tally) cvs.dataset.tally = '';
     };
     raf = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(raf);
@@ -370,8 +394,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
   };
 
   const sel = list.find((z) => z.id === selId) ?? null;
-  const track = trackingStore.getSurfaceTrack(surface);
-  const dims = track && track.scaleX && track.scaleY ? `${track.scaleX.toFixed(2)} × ${track.scaleY.toFixed(2)} m` : 'size unknown';
+  const dims = view.dims ? `${view.dims.scaleX.toFixed(2)} × ${view.dims.scaleY.toFixed(2)} m` : 'size unknown';
   // The hint carries the one rule that is not visible in the pixels: an eye-off zone cannot be grabbed.
   // Without saying so, "I clicked my zone and it drew a new one on top" is the report we would get.
   const anyHidden = list.some((z) => z.surface === surface && !isLive(z.id));
@@ -389,10 +412,10 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           <span className="text-fg-3 text-micro">Surface</span>
           <select value={surface} onChange={(e) => setSurface(e.target.value)}
             className="bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-fg-1 focus:border-accent outline-none">
-            {[...new Set([...SURFACES, ...trackingStore.getSurfaces()])].map((s) => <option key={s} value={s}>{s}</option>)}
-            {providerSurfaces().map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+            {[...new Set([...SURFACES, ...view.surfaces])].map((s) => <option key={s} value={s}>{s}</option>)}
+            {view.providers.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
-          <span className="text-fg-3 text-micro whitespace-nowrap">{prov ? (prov.available() ? `shape ${(prov.aspect?.() ?? 1).toFixed(2)} : 1` : 'not calibrated') : dims}</span>
+          <span className="text-fg-3 text-micro whitespace-nowrap">{prov ? (prov.available ? `shape ${prov.aspect.toFixed(2)} : 1` : 'not calibrated') : dims}</span>
           {prov?.calibrateAction && (
             <button onClick={() => runMenuAction(prov.calibrateAction!)} className="text-accent text-micro hover:underline">Calibrate…</button>
           )}
@@ -420,16 +443,16 @@ export const ZonePanel: React.FC<PanelProps> = () => {
           )}
           <span className="ml-auto text-fg-3 text-micro truncate">{hint}</span>
         </div>
-        {prov?.warning?.() && <div className="text-warn text-micro">⚠ {prov.warning()}</div>}
+        {prov?.warning && <div className="text-warn text-micro">⚠ {prov.warning}</div>}
         {/* A provider surface is drawn at its REAL proportions (the camera area's W÷H), so a square
             zone on the map is a square on the wall. LiDAR surfaces keep filling the column as before. */}
         <div ref={frameRef} className="flex-1 min-h-0 relative flex items-center justify-center">
           <div ref={boxRef} tabIndex={0} onKeyDown={onKeyDown}
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-            style={prov ? fitAspect(frame, prov.aspect?.() ?? 1) : undefined}
+            style={prov ? fitAspect(frame, prov.aspect) : undefined}
             className={`${prov ? 'relative' : 'absolute inset-0'} rounded border border-line-1 overflow-hidden cursor-crosshair outline-none focus-visible:border-accent`}>
             <canvas ref={canvasRef} className="absolute inset-0" />
-            {prov && !prov.available() && (
+            {prov && !prov.available && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
                 <span className="text-fg-2 text-micro">{prov.label} is not calibrated yet — zones drawn here cannot see anyone until it is.</span>
                 {prov.calibrateAction && (
@@ -456,7 +479,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
         </div>
         {!list.length && <div className="text-fg-3 italic text-micro">None yet — drag a rectangle on the map.</div>}
         {list.map((z) => {
-          const st = zones.getState(z.id);
+          const st = view.states[z.id];
           const live = isLive(z.id);
           return (
             <div key={z.id} className={`flex items-center gap-1.5 px-1.5 py-1 rounded border ${z.id === selId ? 'border-accent bg-surface-2' : 'border-line-1 bg-surface-1'}`}>
@@ -500,7 +523,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
             {/* WHICH BODY PARTS COUNT — only on a surface that tags them (the camera area). None selected
                 = any part. Still counts PEOPLE: a visitor with both hands on the pad is one. */}
             {(() => {
-              const parts = providerSurface(sel.surface)?.parts;
+              const parts = providerOf(sel.surface)?.parts;
               if (!parts?.length) return null;
               const cur = sel.parts ?? [];
               const set = (next: string[]) => patchZone(sel.id, { parts: next.length ? next : undefined });
@@ -533,7 +556,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
               <input type="number" min={1} step={1} value={sel.minBlobs ?? 1}
                 onChange={(e) => patchZone(sel.id, { minBlobs: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
                 className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
-              {!people.isMerging() && !providerSurface(sel.surface) && (
+              {!view.mergingAny && !providerOf(sel.surface) && (
                 <span className="block mt-0.5 text-warn text-micro">
                   Merge people is off, so this counts raw blobs — and a LiDAR that reports two per
                   person makes this mean half what you type. Turn on <span className="text-fg-2">Merge
@@ -548,7 +571,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
                 value (so it is a starting point, not a jump); toggling OFF clears both back to inherit. */}
             {(() => {
               const overriding = sel.enterSec != null || sel.exitSec != null;
-              const venue = zones.getVenueDwell();
+              const venue = view.venue;
               return (
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 cursor-pointer">

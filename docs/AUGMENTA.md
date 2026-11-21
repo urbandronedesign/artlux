@@ -49,7 +49,7 @@ OSC listen port; the `/au/…` messages fall through the host control router (wh
 | `AugmentaViz.tsx` | r3f scene overlay: the field rectangle (real metres) + a marker per object (gated on `scene.augmentaViz`). |
 | `AugmentaMonitor.tsx` | Augmenta Monitor modal — live `/au/` OSC sniffer: msg/s, address table, object count, field size, raw log. |
 | `augmentaSettings.tsx` / `augmentaContentEditor.tsx` | Preferences section (OSC status + guidance) / per-surface inspector fragment. |
-| `augmentaHost.ts` | Stashes `ctx.host` for the panel's settings reads + a reactive settings hook. |
+| `ui.ts` / `uiLink.ts` | The UI half: registers the Augmenta Monitor (detachable, so it may open in its own window) and the content editor; `uiLink.ts` keeps the UI host for the monitor's settings reads (a reactive hook). |
 
 Core edits are minimal (persisted enum/fields stay core, behavior lives in the plugin):
 `SourceType.AUGMENTA` (`renderer/types.ts`), `Scene3D.augmentaViz` (`shared/protocol.ts`), a picker
