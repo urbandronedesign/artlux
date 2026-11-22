@@ -21,6 +21,7 @@ pub mod pack;
 pub mod wire;
 pub mod layout;
 pub mod sample;
+pub mod compose;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;

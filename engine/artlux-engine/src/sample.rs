@@ -72,11 +72,11 @@ fn storage(gpu: &Gpu, label: &str, data: &[f32]) -> wgpu::Buffer {
     b
 }
 
-/// One sampling pass; returns the canonical buffer (4 bytes per LED: R, G, B, W).
+/// One sampling pass over atlas BYTES (the parity harness hands WebGPUMapper's exact atlas); returns the
+/// canonical buffer (4 bytes per LED: R, G, B, W).
 pub fn sample(gpu: &Gpu, s: &SampleInput) -> Result<Vec<u8>, EngineError> {
     let d = &gpu.device;
-    let count = (s.led.len() / 4) as u32;
-    if count == 0 { return Ok(Vec::new()); }
+    if s.led.is_empty() { return Ok(Vec::new()); }
     let size = wgpu::Extent3d { width: s.atlas_w, height: s.atlas_h, depth_or_array_layers: 1 };
     let tex = d.create_texture(&wgpu::TextureDescriptor {
         label: Some("atlas"), size, mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
@@ -84,6 +84,15 @@ pub fn sample(gpu: &Gpu, s: &SampleInput) -> Result<Vec<u8>, EngineError> {
     });
     gpu.queue.write_texture(tex.as_image_copy(), s.atlas_rgba,
         wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(s.atlas_w * 4), rows_per_image: Some(s.atlas_h) }, size);
+    sample_texture(gpu, &tex, s.led, s.meta, s.seg_params, s.rects, s.brightness, s.surfaces)
+}
+
+/// One sampling pass over an atlas already ON THE GPU (the engine's own, E1d: no readback, no upload).
+#[allow(clippy::too_many_arguments)]
+pub fn sample_texture(gpu: &Gpu, tex: &wgpu::Texture, led_data: &[f32], meta_data: &[f32], seg_data: &[f32], rect_data: &[f32], brightness: f32, surfaces: u32) -> Result<Vec<u8>, EngineError> {
+    let d = &gpu.device;
+    let count = (led_data.len() / 4) as u32;
+    if count == 0 { return Ok(Vec::new()); }
     // The app's sampler: linear, clamp-to-edge (WebGPUMapper's constructor).
     let sampler = d.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("atlas"),
@@ -92,15 +101,15 @@ pub fn sample(gpu: &Gpu, s: &SampleInput) -> Result<Vec<u8>, EngineError> {
         ..Default::default()
     });
     let mut p = [0u8; 16];
-    p[0..4].copy_from_slice(&s.brightness.to_le_bytes());
+    p[0..4].copy_from_slice(&brightness.to_le_bytes());
     p[4..8].copy_from_slice(&count.to_le_bytes());
-    p[8..12].copy_from_slice(&s.surfaces.to_le_bytes());
+    p[8..12].copy_from_slice(&surfaces.to_le_bytes());
     let params = d.create_buffer(&wgpu::BufferDescriptor { label: Some("params"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
     gpu.queue.write_buffer(&params, 0, &p);
-    let led = storage(gpu, "led", s.led);
-    let seg = storage(gpu, "segParams", s.seg_params);
-    let meta = storage(gpu, "meta", s.meta);
-    let rects = storage(gpu, "rects", s.rects);
+    let led = storage(gpu, "led", led_data);
+    let seg = storage(gpu, "segParams", seg_data);
+    let meta = storage(gpu, "meta", meta_data);
+    let rects = storage(gpu, "rects", rect_data);
     let out_len = count as u64 * 4;
     let out = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out"), size: out_len, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
     let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("out readback"), size: out_len, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });

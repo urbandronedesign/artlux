@@ -1041,6 +1041,37 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   atlas from the sources, E1d); until then the app's addon keeps the wire. USB widgets: covered at frame
 >   level, never on hardware (as before). `verify:invariants`: one sender, napi the default (5/5); the USB
 >   health check now reads the core, where the code moved.
+>
+> **E1d is per source.** Each one: the engine draws it into its OWN atlas (no Canvas2D), then the proven
+> sampling and packing. First the still image, because it is what every other source needs too: a decoded
+> picture → the engine's atlas cell → LEDs. (`artlux-engine --frame-once <project>` renders one whole frame.)
+>
+> ✅ **E1d-1 done 2026-11-22 (IMAGE in the engine — and what "parity" means for a picture).**
+> `src/compose.rs`: PNG / JPEG decoded by the `image` crate; each surface's picture drawn into its cell by a
+> render pass that does what `drawImage` does (pixel-centre mapping, clamp, source-over onto black with
+> `globalAlpha`, non-linear 8-bit blending), plus two things found by measurement:
+> - **Premultiply at decode** (Skia's 8-bit rounding), as Chromium's ImageBitmap holds pixels — the alpha
+>   picture went from ±2 to identical.
+> - **Mip levels.** Plain bilinear from full resolution aliased: a 1-px line landed on an LED or missed it,
+>   up to 60 levels off on an 8× downscale. A Skia-style mip chain fixed it — but WHICH level Skia reads
+>   could not be reproduced at every size (5 rules tried; each matched some sizes and not others; the
+>   decoders were ruled out: Chromium's JPEG and the engine's agree within ±3 per pixel, and feeding the
+>   engine Chromium's own decoded pixels left the same gap).
+>
+> **So the gate is FAITHFULNESS, not identity** (`npm run test:image-parity`): per picture, the engine's LEDs
+> must be byte-identical to the browser's, OR at least as close as the browser's to an ALIAS-FREE reference
+> (the picture area-averaged exactly into its cell, read at the LEDs as the shader reads). Result: identical
+> on 5 pictures (sharp lines 1920, noise, photo at 60% opacity, upscale, alpha); on the 4 where they differ
+> (the sharp pattern at 2048 and 4096, two real 3840×2400 JPEGs) the engine is MORE faithful (2.76 → 1.16,
+> 4.28 → 1.25, 0.51 → 0.41, 0.41 → 0.33 mean levels from the reference). The level rule chosen — floor of the
+> least-shrunk axis — is the one that was never worse than the browser. Mutation-tested 3/3 (no premultiply,
+> no mips, opacity ignored); the first version MISSED "no premultiply" because the reference decoded with the
+> engine's own decoder — PNG references are now decoded independently (pngjs).
+>
+> ⚠ **For the owner:** when the engine owns the output, a heavily downscaled image will put slightly
+> different values on some LEDs than today — closer to the picture, not further. The gate guarantees "never
+> less faithful", not "identical". Not handled yet: ICC profiles and EXIF orientation (Chromium applies both),
+> formats beyond PNG / JPEG.
 
 ## 10. Open questions
 

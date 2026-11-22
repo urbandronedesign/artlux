@@ -3,6 +3,7 @@
 //!
 //!   artlux-engine --pack-batch <in> <out>  universe packing for the parity harness (E1b)
 //!   artlux-engine --wire-replay <in.json>  pack, encode and SEND frames via the output core (E1c)
+//!   artlux-engine --frame-once <project> <out>  one whole frame from a project (E1d)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -74,6 +75,53 @@ fn main() -> ExitCode {
         std::thread::sleep(std::time::Duration::from_millis(300));
         out.close();
         return ExitCode::SUCCESS;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--decode") {
+        // Diagnostic: a picture as the engine decodes it (premultiplied RGBA8, raw) — to compare decoders.
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --decode <image> <out.raw>"); return ExitCode::from(2); };
+        return match artlux_engine::compose::load_image(std::path::Path::new(inp)) {
+            Ok(p) => { println!("{}x{}", p.w, p.h); std::fs::write(outp, &p.rgba).map(|_| ExitCode::SUCCESS).unwrap_or(ExitCode::from(2)) }
+            Err(e) => { eprintln!("{e}"); ExitCode::from(1) }
+        };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--frame-once") {
+        // E1d: one whole frame from a project — its IMAGE surfaces decoded, the engine's own atlas, the
+        // LEDs sampled — for scripts/test-image-parity.cjs. Writes {"rgbw": base64, "adapter": …}.
+        use base64::Engine as _;
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --frame-once <project.artlux> <out.json> [--brightness b]"); return ExitCode::from(2); };
+        let brightness = args.iter().position(|a| a == "--brightness").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.0);
+        let doc: serde_json::Value = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
+            Ok(v) => v, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
+        };
+        let fixtures: Vec<artlux_engine::layout::Fixture> = serde_json::from_value(doc["fixtures"].clone()).unwrap_or_default();
+        let surfaces: Vec<artlux_engine::layout::Surface> = serde_json::from_value(doc["surfaces"].clone()).unwrap_or_default();
+        let base = std::path::Path::new(inp).parent().unwrap_or(std::path::Path::new("."));
+        let mut pictures = std::collections::HashMap::new();
+        let mut opacity = std::collections::HashMap::new();
+        for s in doc["surfaces"].as_array().into_iter().flatten() {
+            let id = s["id"].as_str().unwrap_or_default().to_string();
+            let c = &s["content"];
+            if let Some(o) = c["opacity"].as_f64() { opacity.insert(id.clone(), o as f32); }
+            if c["type"].as_str() == Some("IMAGE") {
+                if let Some(url) = c["url"].as_str() {
+                    let p = std::path::Path::new(url.trim_start_matches("file:///"));
+                    let p = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
+                    match artlux_engine::compose::load_image(&p) {
+                        Ok(pic) => { pictures.insert(id, pic); }
+                        Err(e) => eprintln!("artlux-engine: image: {e}"),
+                    }
+                }
+            }
+        }
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
+        let fd = artlux_engine::compose::FrameDoc { fixtures: &fixtures, surfaces: &surfaces, pictures: &pictures, opacity: &opacity, brightness };
+        return match artlux_engine::compose::frame(&gpu, &fd) {
+            Ok(rgbw) => {
+                let out = serde_json::json!({ "adapter": describe(&gpu.info), "rgbw": base64::engine::general_purpose::STANDARD.encode(rgbw) });
+                match std::fs::write(outp, out.to_string()) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } }
+            }
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
+        };
     }
     if let Some(i) = args.iter().position(|a| a == "--layout-batch") {
         // E1b-2 parity: the LED layout + atlas plan for scripts/test-sampling-parity.cjs.

@@ -23,6 +23,8 @@ serde_json = "1"
 libm = "0.2"
 # Atlas / buffer payloads in the parity batches.
 base64 = "0.22"
+# E1d: still images (PNG / JPEG) decoded in the engine.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # E1c: the app's own Art-Net / sACN / USB send thread, linked without Node (its "napi" feature off).
 artlux-output-engine = { path = "../../native/output-engine", default-features = false }
 
