@@ -970,6 +970,30 @@ fallback until a source/output is proven byte-identical — risk 2):
 > (~0.5 s until the new process is seen); closing ArtLux takes it along; the log records enabled / up ×3 /
 > hung / exited. And a forced refusal (`ARTLUX_ENGINE_BACKEND=metal` on Windows): `refused` logged once, no
 > restart. `verify:invariants` holds the supervisor's rules (mutation-tested 9/9).
+>
+> **E1b is two steps:** **E1b-1 packing** (the canonical LED buffer + the patch → universes) and **E1b-2
+> sampling** (LED geometry → UVs, effects, white extraction, brightness: today's `WebGPUMapper`). Packing
+> first: it is pure logic with a clean seam, and it is what puts bytes on the wire.
+>
+> ✅ **E1b-1 done 2026-11-22 (universe packing, byte parity).** The pixel half of
+> `frameEngine.packAndPublish` moved VERBATIM into `src/renderer/engine/packUniverses.ts`, a pure function
+> the frame engine now calls (the light fixtures' precedence stack stays in the frame engine, handed in as
+> `packLight`). Its Rust port, `engine/artlux-engine/src/pack.rs`, takes light fixtures' channels as bytes
+> the host computed — "the host evaluates, the engine draws". **Project files hold what the app tolerated,
+> not what its types say** (a generated rig stores a controller protocol as the number 0), so the port reads
+> the routing fields as raw JSON with JavaScript's `||` / `??` / truthiness rules.
+>
+> Proof: `npm run test:pack-parity` bundles the REAL TypeScript module (esbuild) and runs the Rust one
+> (`artlux-engine --pack-batch`) on every example project + any rig named on the command line + 400
+> synthetic rigs (spill past 512, 3/4 channels, all colour orders, Art-Net / sACN / USB, overrides with "",
+> loose types, lights, short and ragged buffers): **472 cases, 1,851,392 DMX bytes identical**, including
+> this PC's `venue-rig.artlux` (1296 LEDs) and `gallery-night.artlux`; **the gamma LUT identical for 394
+> gammas** (JavaScript's `Math.pow` and Rust's `powf` agree to the rounding). The harness was mutation-tested
+> 8/8 against the Rust port (two of the eight were first MISSED — the fuzzer generated no loose `sparse`
+> values and no buffer whose length is not a multiple of 4; both added). A stale benchmark rig with a
+> numeric `colorOrder` makes the TypeScript packer THROW (the generator was fixed long ago); reported and
+> excluded, and the Rust port reads it as RGB. `test-engine-output` unchanged (and "0 lit" was the same
+> before the move). `verify:invariants`: one TypeScript packer, called by the frame engine (4/4).
 
 ## 10. Open questions
 

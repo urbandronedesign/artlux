@@ -8317,6 +8317,26 @@ check(
   },
 );
 
+check(
+  'universe packing has ONE TypeScript implementation (engine/packUniverses.ts), the one the native engine is held to',
+  'plans/native-engine.md E1b: the engine\'s Rust packer (engine/artlux-engine/src/pack.rs) is proven byte ' +
+  'for byte against packUniverses.ts by scripts/test-pack-parity.cjs. That proof is worth nothing the day ' +
+  'the frame engine grows a second packing loop of its own — the wire would follow the copy, the parity ' +
+  'harness the original. So the frame engine packs ONLY by calling packUniverses, and the light fixtures\' ' +
+  'half (the precedence stack) stays a callback into it.',
+  () => {
+    const problems = [];
+    const fe = read('src/renderer/engine/frameEngine.ts');
+    if (!/const destinations = packUniverses\(rawBytes, currentFixtures, \{/.test(fe)) problems.push('frameEngine no longer packs through packUniverses()');
+    if (/const writeCh = \(val: number\)/.test(fe) || /COLOR_ORDER\[/.test(fe) || /function buildGammaLut/.test(fe)) problems.push('frameEngine has its own packing code again (writeCh / COLOR_ORDER / buildGammaLut) — pack only in engine/packUniverses.ts');
+    if (!/packLight: \(f, writeCh\) => \{[\s\S]{0,900}?profilePack\.packProfiled\(f, profile, mode, writeCh, roleOverride, liveOverride\);/.test(fe)) problems.push('the light fixtures no longer pack through the packLight callback with their overrides');
+    const pu = read('src/renderer/engine/packUniverses.ts');
+    if (!/export function packUniverses\(/.test(pu) || !/if \(isLight\(f\)\) \{\s*ctx\.packLight\(f, writeCh\);/.test(pu)) problems.push('packUniverses.ts lost its entry point or its light hand-off');
+    if (!fs.existsSync(path.join(ROOT, 'engine/artlux-engine/src/pack.rs'))) problems.push('the Rust packer engine/artlux-engine/src/pack.rs is gone');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

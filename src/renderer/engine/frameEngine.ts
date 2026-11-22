@@ -1,4 +1,4 @@
-import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type ChannelRole, type OutputProtocol } from '../types';
+import { Fixture, Surface, Controller, FixtureProfile, type ChannelRole, type OutputProtocol } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
@@ -13,7 +13,7 @@ import { isLocked } from '../services/surfaceAspect';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
 import * as automationOverlay from '../services/automationOverlay';
-import { resolveDest, destKey, fixtureFootprint } from '../services/addressing';
+import { fixtureFootprint } from '../services/addressing';
 import * as profilePack from '../services/profilePack';
 import * as fixtureSignal from '../services/fixtureSignal';
 import * as lightingOverlay from '../services/lightingOverlay';
@@ -22,6 +22,7 @@ import * as colorOverlay from '../services/colorOverlay';
 import * as colorEngine from '../services/colorEngine';
 import { perfMonitor } from '../services/perfMonitor';
 import * as renderClock from './renderClock';
+import { packUniverses, buildGammaLut } from './packUniverses';
 
 
 // THE RENDER/OUTPUT ENGINE — composite, sample, pack, publish.
@@ -128,19 +129,10 @@ const PREVIEW_MS = 1000 / 30;
 // FrameEngine.recoverFromDeviceLoss.
 const RECOVER_BACKOFF_MS = [250, 1000, 2000, 5000];
 
-// Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
 // A subtractive flag and the primary it takes out. Used by the lighting overlay's role lookup so a
 // colour recorded in RGB can drive a CMY head — see the comment at its call site in packAndPublish.
 const CMY_FROM_RGB: Partial<Record<ChannelRole, ChannelRole>> = { cyan: 'red', magenta: 'green', yellow: 'blue' };
 
-const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
-  [ColorOrder.RGB]: [0, 1, 2],
-  [ColorOrder.RBG]: [0, 2, 1],
-  [ColorOrder.GRB]: [1, 0, 2],
-  [ColorOrder.GBR]: [1, 2, 0],
-  [ColorOrder.BRG]: [2, 0, 1],
-  [ColorOrder.BGR]: [2, 1, 0],
-};
 
 const DEFAULT_INPUTS: FrameInputs = {
   surfaces: [], fixtures: [], controllers: [], fixtureProfiles: EMPTY_PROFILES,
@@ -694,15 +686,10 @@ class FrameEngine {
    * line of work, and it allocates nothing per frame beyond the destination bookkeeping.
    */
   private packAndPublish(rawBytes: Uint8Array, currentFixtures: Fixture[]): void {
-    let offset = 0;
     const pool = this.universeBuffers;
 
     // Zero all pooled arrays (prevents ghosting when config changes).
     for (const k in pool) pool[k].fill(0);
-
-    const defaultIp = this.inputs.targetIp;
-    const defaultBroadcast = this.inputs.broadcast;
-    const defaultProtocol = this.inputs.protocol;
 
     // Resolved role values for every profiled fixture this frame (pan/tilt in degrees, colour,
     // intensity) — published after the loop for the 3D scene and the beams.
@@ -802,73 +789,15 @@ class FrameEngine {
       ? (fx, channel) => livePreview.readFixtureChannel(fx.id, channel.key, fx.dmx?.[channel.key])
       : undefined;
 
-    // Per-destination universe maps, keyed by `${protocol}|${ip}|${broadcast}`.
-    const destinations: Record<string, {
-      ip: string; protocol: OutputProtocol; broadcast: boolean; sparse: boolean;
-      priority?: number; universes: Record<number, number[]>;
-    }> = {};
-
-    for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
-      const f = currentFixtures[fIdx];
-
-      // Destination resolves from the per-fixture output override → controller → global settings.
-      // Shared with the Routing collision detector via resolveDest/destKey so the UI's overlap check
-      // and this real output never drift.
-      const ctrl = f.controllerId ? this.controllerMap.get(f.controllerId) : undefined;
-      const wire = resolveDest(f, ctrl, { protocol: defaultProtocol, ip: defaultIp, broadcast: defaultBroadcast });
-      const proto = wire.protocol;
-      // For a USB widget the COM path IS the address — it travels in the same `ip` slot the network
-      // protocols use, so the frame codec and the Rust engine needed no new field.
-      const ip = wire.protocol === 'enttec' ? (wire.port ?? '') : wire.ip;
-      const bcast = wire.broadcast;
-      const priority = f.output?.priority ?? ctrl?.priority;
-      const sparse = f.output?.sparse ?? false;
-      const dk = destKey(wire);
-      let dest = destinations[dk];
-      if (!dest) {
-        dest = { ip, protocol: proto, broadcast: bcast, sparse: false, priority, universes: {} };
-        destinations[dk] = dest;
-      }
-      dest.sparse = dest.sparse || sparse;
-
-      // Fetch (or lazily create) a pooled 512-array for a universe in this dest.
-      const getArr = (u: number): number[] => {
-        const pk = `${dk}#${u}`;
-        let arr = pool[pk];
-        if (!arr) { arr = new Array(512).fill(0); pool[pk] = arr; }
-        if (!dest!.universes[u]) dest!.universes[u] = arr;
-        return arr;
-      };
-
-      let currentUniverse = f.universe;
-      let currentChannel = f.startAddress - 1; // 0-based
-
-      const order = COLOR_ORDER[f.colorOrder ?? ColorOrder.RGB];
-      const o0 = order[0], o1 = order[1], o2 = order[2];
-      const cpp = f.channelsPerPixel ?? 4;
-      const lut = this.gammaLut;
-
-      // Fetch the destination universe array lazily and re-fetch only when a write spills past
-      // channel 512. The lazy fetch preserves the original registration semantics exactly: a universe
-      // appears in `dest.universes` only if a channel is actually written into it (no trailing/empty
-      // universe when a fixture ends on a 512 boundary, none for a 0-LED fixture).
-      let arr: number[] | null = null;
-      const writeCh = (val: number) => {
-        if (currentChannel >= 512) { currentUniverse++; currentChannel = 0; arr = null; }
-        if (!arr) arr = getArr(currentUniverse);
-        arr[currentChannel] = val;
-        currentChannel++;
-      };
-
-      // ── PROFILED FIXTURE (a moving head / wash / beam) ────────────────────────────
-      // Its channels are named parameters at fixed offsets in the mode, not colour components, so it
-      // packs from its authored values rather than from sampled pixels — and NOT through the gamma
-      // LUT, which would move the head to the wrong angle. See services/profilePack.ts.
-      //
-      // It still consumes ONE pixel of the canonical buffer (ledCount is pinned to 1 for a profiled
-      // fixture), so `offset` stays in step with the monitor and the 3D scene, both of which index
-      // that buffer by cumulative ledCount.
-      if (isLight(f)) {
+    // THE PACKING ITSELF lives in engine/packUniverses.ts (E1b): a pure function the native engine's Rust
+    // port is held to byte for byte. What stays HERE is the light fixtures' half — the precedence stack
+    // above, evaluated per channel — handed in as packLight.
+    const destinations = packUniverses(rawBytes, currentFixtures, {
+      controllerMap: this.controllerMap,
+      defaults: { protocol: this.inputs.protocol, ip: this.inputs.targetIp, broadcast: this.inputs.broadcast },
+      gammaLut: this.gammaLut,
+      pool,
+      packLight: (f, writeCh) => {
         const profile = this.inputs.fixtureProfiles.get(f.profileId!);
         const mode = profile ? profilePack.modeOf(profile, f.profileMode) : undefined;
         // An UNRESOLVED profile writes nothing at all. That matches fixtureFootprint() returning 0 for
@@ -885,24 +814,8 @@ class FrameEngine {
           // step; and it is what the 3D scene draws, so the head would not follow your hand.
           fixtureStates.set(f.id, fixtureSignal.resolveFixture(f, profile, roleOverride, liveOverride));
         }
-        offset += f.ledCount;
-        continue;
-      }
-
-      for (let i = 0; i < f.ledCount; i++) {
-        const idx = offset * 4;
-        if (idx + 3 >= rawBytes.length) break;
-
-        // rawBytes is linear RGBW; remap RGB to the fixture's color order + gamma-correct.
-        const r = rawBytes[idx], g = rawBytes[idx + 1], b = rawBytes[idx + 2];
-        writeCh(lut[o0 === 0 ? r : o0 === 1 ? g : b]);
-        writeCh(lut[o1 === 0 ? r : o1 === 1 ? g : b]);
-        writeCh(lut[o2 === 0 ? r : o2 === 1 ? g : b]);
-        if (cpp === 4) writeCh(lut[rawBytes[idx + 3]]);
-
-        offset++;
-      }
-    }
+      },
+    });
 
     // Broadcast canonical pixels (monitor/3D) + routing destinations (output).
     dmxSignal.publish(rawBytes, destinations);
@@ -918,13 +831,6 @@ class FrameEngine {
   }
 }
 
-/** Output gamma LUT (applied during universe packing). Identity when gamma = 1. */
-function buildGammaLut(gamma: number): Uint8Array {
-  const lut = new Uint8Array(256);
-  const g = gamma && gamma > 0 ? gamma : 1;
-  for (let i = 0; i < 256; i++) lut[i] = Math.round(Math.pow(i / 255, g) * 255);
-  return lut;
-}
 
 /** Anything that changes a per-LED surface-local UV or the GPU buffer layout. */
 function fixtureLayoutSignature(fixtures: Fixture[]): string {

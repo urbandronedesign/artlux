@@ -1,6 +1,7 @@
 //! `artlux-engine` — E0 skeleton. Nothing renders a show yet; this proves the device, the software
 //! rule and the two exact GPU jobs on every OS (plans/native-engine.md §6b).
 //!
+//!   artlux-engine --pack-batch <in> <out>  universe packing for the parity harness (E1b)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -24,6 +25,20 @@ fn main() -> ExitCode {
             println!("  {}{}", describe(&info), if is_software(&info) { "  [software]" } else { "" });
         }
         return ExitCode::SUCCESS;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--pack-batch") {
+        // E1b parity: scripts/test-pack-parity.cjs writes a batch of cases, this packs each.
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else {
+            eprintln!("usage: --pack-batch <in.json> <out.json>");
+            return ExitCode::from(2);
+        };
+        let text = match std::fs::read_to_string(inp) { Ok(t) => t, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); } };
+        let batch: artlux_engine::pack::Batch = match serde_json::from_str(&text) { Ok(b) => b, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); } };
+        let out = artlux_engine::pack::run_batch(&batch);
+        return match std::fs::write(outp, serde_json::to_string(&out).expect("serialise")) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) }
+        };
     }
     if has("--serve") {
         // E1a: ArtLux main's child (src/main/engineHost.ts) — hello / ping / pong / quit on stdio.

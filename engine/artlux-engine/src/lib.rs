@@ -17,6 +17,7 @@ use std::fmt;
 pub mod card;
 pub mod hapimport;
 pub mod serve;
+pub mod pack;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;
