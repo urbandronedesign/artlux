@@ -1297,6 +1297,19 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   (HAP works through the same path, untested on a projector); a presenter that stalls while the engine
 >   lives (an exit is caught, a stall is not yet); a presenter panic still ends the whole engine; the RTX
 >   PC.
+>
+> ✅ **E1f proven on the PACKAGED app 2026-11-22** (a local `npm run package:dir` — nothing pushed, no CI;
+> `release/win-unpacked/ArtLux.exe`, engine at `resources/engine/`, the rebuilt audio engine beside it):
+> - `test:native-takeover --packaged`: the engine takes the LED wire — four universes (pixels, two washes,
+>   a dimmer) byte-identical to the app's own; a kill moments after start-up is handed back in **49 ms**;
+>   the restarted engine owns it again in 487 ms.
+> - `test:native-projectors --packaged`: the engine's projector window = the app's, **2,073,600 of
+>   2,073,600** pixels, before and after a restart; the app's window is uncovered 138 ms after a kill.
+> - `engine/scripts/probe-engine-host.ps1` (E1a, processes + machine log, no CDP): child of main, a hang
+>   killed and replaced, a kill restarted (~440 ms), quitting takes it along, all logged.
+> - A forced refusal (`ARTLUX_ENGINE_BACKEND=metal`): logged once, not restarted, no engine left.
+> - The audio engine loads and configures its device in the packaged app, and the 49 ms handback at
+>   start-up is itself the proof that main is no longer stalled by it.
 
 ## 10. Open questions
 

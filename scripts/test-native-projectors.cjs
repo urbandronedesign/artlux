@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // E1f-3 THE NATIVE ENGINE TAKES THE PROJECTOR OUTPUTS — in the REAL app (Windows), read from the SCREEN.
 //
-//   node scripts/test-native-projectors.cjs
+//   node scripts/test-native-projectors.cjs [--packaged <ArtLux.exe>]
 //
 // ⚠ IT COVERS DISPLAY 0 (the primary) with a fullscreen projector output, three times, for ~15 s each.
 //
@@ -30,6 +30,8 @@ const PREFS_BAK = path.join(WORK, 'prefs.backup.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const { PNG } = require(path.join(ROOT, 'node_modules', 'pngjs'));
 const env0 = { ...process.env }; delete env0.ELECTRON_RUN_AS_NODE;
+const pk = process.argv.indexOf('--packaged');
+const PACKAGED = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
 
 // The primary display, as Electron names it (the project's output points at it).
 const disp = JSON.parse(execSync(`"${path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')}" "${path.join(WORK, 'disp.cjs')}"`, {
@@ -77,7 +79,9 @@ const lit = (a) => { let n = 0; for (let i = 0; i < a.data.length; i += 4) if (a
 
 function launch(native) {
   const args = ['--broadcast', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
-  const child = spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env: env0, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
+  const child = PACKAGED
+    ? spawn(PACKAGED, args, { env: env0, stdio: ['ignore', 'pipe', 'pipe'] })
+    : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env: env0, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
   child.lines = [];
   const take = (d) => { for (const l of String(d).split(/\r?\n/)) if (l.trim()) child.lines.push({ at: Date.now(), l: l.trim() }); };
   child.stdout.on('data', take); child.stderr.on('data', take);
@@ -88,6 +92,7 @@ async function waitFor(pred, ms) { const t0 = Date.now(); while (Date.now() - t0
 const run = (cmd, args) => new Promise((res) => execFile(cmd, args, { windowsHide: true, encoding: 'utf8' }, (e, out) => res(out || '')));
 async function stopAll() {
   await run('taskkill', ['/IM', 'electron.exe', '/F', '/T']);
+  await run('taskkill', ['/IM', 'ArtLux.exe', '/F', '/T']);
   await run('taskkill', ['/IM', 'artlux-engine.exe', '/F', '/T']);
   await sleep(2500);
 }
@@ -98,7 +103,7 @@ async function stopAll() {
   const hadPrefs = fs.existsSync(PREFS);
   if (hadPrefs) fs.copyFileSync(PREFS, PREFS_BAK);
   try {
-    console.log(`display ${disp.id} ${disp.b.width}x${disp.b.height} at (${disp.b.x}, ${disp.b.y}) · ${project}`);
+    console.log(`display ${disp.id} ${disp.b.width}x${disp.b.height} at (${disp.b.x}, ${disp.b.y}) · ${project} · ${PACKAGED ? `packaged ${PACKAGED}` : 'dev (npm run dev)'}`);
     // ── A. the app's own projector window ───────────────────────────────────────────────────────────
     let app = launch(false);
     await waitFor(() => said(app, /\[open\]/), 120000);
