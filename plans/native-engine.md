@@ -1572,6 +1572,20 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Mutation-tested (with the fixed harness):** the shifted copy now fails (649,191 pixels, max 229);
 >   skipping the copy (a black window) fails. Guarded, including the harness's rule.
 
+> ✅ **MP4 proven on the PACKAGED app 2026-11-22** (local `npm run package:dir`; the packaged
+> `resources/engine/artlux-engine.exe` is the current build, same hash).
+> - **`test:native-takeover --packaged`:** the MP4 surface's 8 frames come from the engine, each within 1
+>   of the app's (7 identical). Universes 0–5 are identical, a single sender, handback 60 ms. No software
+>   fallback was logged: the packaged engine decodes on the GPU.
+>   - The hand-off rule seen working: the app first kept the wire ("an MP4 with no decoded frame yet"), and
+>     the engine took over at the next document.
+> - **`test:native-projectors --packaged`, re-run with the corrected reference** (the earlier packaged
+>   proofs had the same flaw):
+>   - MP4: within 1 on 1,322 pixels;
+>   - baked map: IDENTICAL;
+>   - plain warp: 11 pixels by 1 (the soft-edge band, as in dev);
+>   - the app equals itself across launches every time.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).
