@@ -1623,6 +1623,38 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   (another driver). The plain warp stays held to "within 1 on at most 0.01%"; worth re-measuring on
 >   NVIDIA rather than chasing further here.
 
+> **2d CAMERA — step 1 done 2026-11-22: the engine reads cameras, and the plan changes on a measurement.**
+> - **The owner's brief:** several cameras may be plugged at once. My first recommendation was that the
+>   engine opens every camera itself and hands the frames to the app, assuming a webcam takes one process
+>   at a time.
+> - **Built (`cam.rs`, `artlux-engine --cameras / --camera-grab`):**
+>   - Media Foundation's device list: each camera's name, its SYMBOLIC LINK (stable per USB port — two
+>     cameras of the same model share a name) and its native formats;
+>   - a reader per camera on its own thread, in a native format, no converter;
+>   - a CPU preview, for looking only.
+>
+>   On this PC's Logitech C270: MJPEG, YUY2 and NV12 (NV12 most likely the frame server decoding MJPEG),
+>   1280×720 down to 160×120, 5–30 fps. Frames arrive in all three formats. The PS3 Eye (DirectShow) and
+>   the NDI virtual cameras are not listed: Media Foundation does not see them.
+> - **Measured: a plain Media Foundation open IS exclusive.** A second process fails with 0xC00D3704 ("lack
+>   of hardware resources"), with the same format or a different one.
+> - **Measured: Windows' SharedReadOnly mode is NOT** (`camshared.rs`, `--camera-shared`, WinRT MediaCapture
+>   through the Camera Frame Server). While Chromium held the camera exactly as the app does
+>   (`getUserMedia`, 1280×720 MJPEG), the engine read the SAME stream: 59 frames in 4 s, against
+>   Chromium's 179 in 12 s — both ~15 fps in this light, so every frame. Chromium was undisturbed. Same with
+>   another engine process as the holder.
+> - **So the recommendation changes (proposed to the owner): the APP KEEPS ITS CAMERAS, the engine READS
+>   THEM SHARED.**
+>   - Nothing in the app is rewired: camera surfaces, MediaPipe and calibration stay as they are.
+>   - No hand-over, and no camera gap when the engine dies.
+>   - Multi-camera works the same: one shared reader per device.
+>   - The cost: the format is the app's choice (the controller's), and an MJPEG stream is decoded twice
+>     (once in each process). Pictures will not be byte-identical, since JPEG decoders differ: the gate
+>     becomes a tolerance, measured.
+> - **Not yet:** shared reading as the runtime path, the GPU conversion (camera frames are usually BT.601;
+>   yuv.rs draws BT.709 only), the camera's identity (Chromium's hashed deviceId → the engine's symbolic
+>   link), several cameras at once (only one here).
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

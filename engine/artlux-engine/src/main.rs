@@ -204,6 +204,63 @@ fn main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     }
+    #[cfg(windows)]
+    if has("--cameras") {
+        // Item 2d step 1: every camera Media Foundation sees — name, symbolic link (stable per USB port), formats.
+        return match artlux_engine::cam::list() {
+            Ok(cams) => {
+                for (k, c) in cams.iter().enumerate() {
+                    println!("[{k}] {}  {}", c.name, c.link);
+                    if let Some(b) = &c.busy { println!("      busy: {b}"); }
+                    // One line per format and size, its frame rates after it.
+                    let mut groups: std::collections::BTreeMap<(&str, std::cmp::Reverse<u32>, u32, u32), std::collections::BTreeSet<u32>> = Default::default();
+                    for x in &c.formats { groups.entry((x.subtype, std::cmp::Reverse(x.w * x.h), x.w, x.h)).or_default().insert(((x.fps.0 as f64 / x.fps.1 as f64) * 10.0).round() as u32); }
+                    for ((sub, _, w, h), rates) in groups { println!("      {sub} {w}x{h} @ {}", rates.iter().map(|r| format!("{}", *r as f64 / 10.0)).collect::<Vec<_>>().join(", ")); }
+                }
+                if cams.is_empty() { println!("no camera Media Foundation can see"); }
+                ExitCode::SUCCESS
+            }
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
+        };
+    }
+    #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--camera-shared") {
+        // Item 2d PROBE: read camera <index> in WinRT SharedReadOnly mode for <seconds> (another process holds it).
+        let (Some(idx), Some(secs)) = (args.get(i + 1).and_then(|s| s.parse::<usize>().ok()), args.get(i + 2).and_then(|s| s.parse::<f64>().ok())) else { eprintln!("usage: --camera-shared <index> <seconds>"); return ExitCode::from(2) };
+        let cams = artlux_engine::cam::list().unwrap_or_default();
+        let Some(c) = cams.get(idx) else { eprintln!("no camera {idx}"); return ExitCode::from(2) };
+        return match artlux_engine::camshared::probe(&c.link, secs) {
+            Ok((n, fmt)) => { println!("SHARED: {n} frames in {secs} s from {} (the controller's format: {fmt})", c.name); ExitCode::SUCCESS }
+            Err(e) => { eprintln!("SHARED: refused — {e}"); ExitCode::from(1) }
+        };
+    }
+    #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--camera-grab") {
+        // Item 2d step 1: read a camera for N seconds in a native format; report what arrived; write the last
+        // frame raw + a CPU preview PNG.  --camera-grab <index> <seconds> <out-prefix> [WxH]
+        let (Some(idx), Some(secs), Some(out)) = (args.get(i + 1).and_then(|s| s.parse::<usize>().ok()), args.get(i + 2).and_then(|s| s.parse::<f64>().ok()), args.get(i + 3)) else {
+            eprintln!("usage: --camera-grab <index> <seconds> <out-prefix> [WxH]"); return ExitCode::from(2) };
+        let want = args.get(i + 4).and_then(|s| { let (a, b) = s.split_once('x')?; Some((a.parse().ok()?, b.parse().ok()?)) });
+        let cams = match artlux_engine::cam::list() { Ok(c) => c, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1) } };
+        let Some(c) = cams.get(idx) else { eprintln!("no camera {idx}"); return ExitCode::from(2) };
+        // An optional format name after the size: NV12 / YUY2 / MJPG.
+        let sub = args.get(i + 5).cloned();
+        let offered: Vec<artlux_engine::cam::Format> = c.formats.iter().filter(|f| sub.as_deref().is_none_or(|s| f.subtype == s)).cloned().collect();
+        let Some(fmt) = artlux_engine::cam::pick(&offered, want) else { eprintln!("camera {idx}: no format the engine reads ({})", c.busy.as_deref().unwrap_or("none offered")); return ExitCode::from(1) };
+        println!("{}: {} {}x{} at {}/{} fps", c.name, fmt.subtype, fmt.w, fmt.h, fmt.fps.0, fmt.fps.1);
+        let cam = match artlux_engine::cam::CamIn::open(&c.link, fmt) { Ok(x) => x, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1) } };
+        std::thread::sleep(std::time::Duration::from_secs_f64(secs));
+        if let Some(e) = cam.error.lock().unwrap().clone() { eprintln!("artlux-engine: camera: {e}"); }
+        let Some((seq, g)) = cam.latest() else { eprintln!("artlux-engine: no frame in {secs} s"); return ExitCode::from(1) };
+        let r = g.as_ref().unwrap();
+        println!("{seq} frames in {secs} s; the last: {} bytes, timestamp {} µs", r.data.len(), r.ts100 / 10);
+        let _ = std::fs::write(format!("{out}.raw"), &r.data);
+        match artlux_engine::cam::preview_rgba(r) {
+            Ok((w, h, rgba)) => { let _ = image::save_buffer(format!("{out}.png"), &rgba, w, h, image::ColorType::Rgba8); println!("wrote {out}.png ({w}x{h})"); }
+            Err(e) => eprintln!("preview: {e}"),
+        }
+        return ExitCode::SUCCESS;
+    }
     if let Some(i) = args.iter().position(|a| a == "--dump-geometry") {
         // The plain warp's vertex data for an output (JSON) — f32 values and the f64 qs, full precision.
         let Some(inp) = args.get(i + 1) else { eprintln!("usage: --dump-geometry <output.json>"); return ExitCode::from(2); };

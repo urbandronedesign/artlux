@@ -26,6 +26,10 @@ pub mod yuv;
 pub mod mp4demux;
 #[cfg(windows)]
 pub mod mf;
+#[cfg(windows)]
+pub mod cam;
+#[cfg(windows)]
+pub mod camshared;
 pub mod effects;
 pub mod projector;
 pub mod runtime;

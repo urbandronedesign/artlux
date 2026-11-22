@@ -55,6 +55,13 @@ windows = { version = "0.62", features = [
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_Variant",
+  "Foundation",
+  "Foundation_Collections",
+  "Media_Capture",
+  "Media_Capture_Frames",
+  "Media_MediaProperties",
+  "Media_Devices",
+  "Graphics_Imaging",
 ] }
 # E0d: Spout's own library (the same crate the app's receiver uses), for a REAL sender and the sender
 # registry. Not the receive path's pixels: those come from the sender's texture on the GPU.
