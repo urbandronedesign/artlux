@@ -1142,6 +1142,30 @@ fallback until a source/output is proven byte-identical — risk 2):
 > The rest — `<video>` / MP4 (WebCodecs), camera, NDI, DMX-in, text, shaders, plugin sources — are
 > browser-side decoders or renderers; each comes when the engine has its own decoder or the host streams
 > the source's texture in. Next: **E1e native projector windows**.
+>
+> **E1e is two steps:** **E1e-1** the projector RENDERER (what a projector shows, offscreen, held to the app's
+> pixels) and **E1e-2** the WINDOWS (on their display, at its refresh, proven on a real output).
+>
+> ✅ **E1e-1 done 2026-11-22 (the projector renderer — IDENTICAL, pixel for pixel).** `src/projector.rs` ports
+> ProjectorGL's uncalibrated 2D warp path: the corner-pin quad with Heckbert's (u·q, v·q, q) or the Bézier
+> patch tessellated 24×24 (homography.ts / warp.ts, f64 → f32), trilinear + 8× anisotropic with the chain
+> capped at level 4, the shader line for line (blendGlsl.ts soft edge with its 1/g signal, colour gain,
+> black lift, brightness, output gamma), 4× MSAA resolved.
+> - **The finding: the app's canvas is rasterised BOTTOM-UP** (a GL framebuffer; ANGLE draws it that way and
+>   the compositor shows it upright). Top-down, the engine was already ≥ 99.85% within 1 — but one MSAA
+>   sample of four flipped on the warped picture's outline (64 levels, ~0.05% of pixels), and inside a strong
+>   perspective the anisotropic footprint differed (±4 on up to 8%). Rasterised mirrored and flipped back:
+>   **every pixel identical.** The window step flips with a copy pass.
+> - **Proof** (`npm run test:projector-parity`): the app's REAL ProjectorGL (captureRGBA) vs `artlux-engine
+>   --project-once`, three pictures (sharp 1920×1080, a photo, noise) × ten settings (identity with and
+>   without MSAA, keystone, strong perspective, shrunk 1/5 into the mips, shrunk 1/80 past the level cap, a
+>   curved Bézier, soft edges, gamma 2.2 + brightness 0.7, gain + black lift + an edge) on a 960×540 raster:
+>   **30 cases × 518,400 pixels, all identical**; the gate is identity. Mutation-tested 9/9 (no flip, the
+>   soft-edge exponent, no anisotropy, the level cap, an affine pin, tessellation 16, no MSAA, no black lift,
+>   point-sampled mips). `verify:invariants` fingerprints the three ported files and holds the sampling
+>   constants on both sides + the bottom-up raster (tested).
+> - Not covered: calibrated outputs (the baked `.mpcdi` map, render-from-projector), masks, hwWarp (NVAPI),
+>   the alignment-aid overlay, NDI send; another GPU's MSAA / anisotropy (the RTX PC runs the same test).
 
 ## 10. Open questions
 
