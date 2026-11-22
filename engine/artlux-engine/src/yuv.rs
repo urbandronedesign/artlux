@@ -41,6 +41,28 @@ pub fn accepts(matrix: Option<&str>, full_range: Option<bool>, primaries: Option
     }
 }
 
+/// A YUV colour space the GPU conversion draws: the matrix and the range.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Space { pub bt709: bool, pub full_range: bool }
+
+impl Space {
+    /// MP4 (2c): what Chromium draws an H.264/H.265 frame in (and all `accepts` lets through).
+    pub const BT709_LIMITED: Space = Space { bt709: true, full_range: false };
+    /// A camera with no colour attributes: BT.601 limited — what Chromium labels its camera frames
+    /// (smpte170m, limited), and the convention for YUV video from a UVC camera.
+    pub const BT601_LIMITED: Space = Space { bt709: false, full_range: false };
+
+    /// The shader source for this space: CONVERT_WGSL with its constants written in as LITERALS. Not a uniform,
+    /// MEASURED: with the coefficients passed in (f32 at run time, or folded in f64 or in f32 on the CPU) the
+    /// MP4 picture moved by 1–90 channels per test file against the engine's own previous output — the
+    /// compiler folds literal constants its own way. As text, BT.709 limited is the former shader to the byte.
+    pub fn wgsl(self) -> String {
+        let (kr, kb) = if self.bt709 { ("0.2126", "0.0722") } else { ("0.299", "0.114") };
+        let (yoff, ys, cs) = if self.full_range { ("0.0", "1.0", "1.0") } else { ("16.0", "255.0 / 219.0", "255.0 / 224.0") };
+        CONVERT_WGSL.replace("__KR__", kr).replace("__KB__", kb).replace("__YOFF__", yoff).replace("__YS__", ys).replace("__CS__", cs)
+    }
+}
+
 /// BT.709 → RGB, limited range, in 8-bit units.
 const KR: f64 = 0.2126;
 const KB: f64 = 0.0722;
@@ -118,9 +140,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
           + chroma(vec2<i32>(x0, y0 + 1), cs) * (4 - fx) * fy + chroma(vec2<i32>(x0 + 1, y0 + 1), cs) * fx * fy;
     let c = vec2<f32>(a) / 16.0;
     let luma = floor(textureLoad(ytex, vec2<i32>(x, y), 0).r * 255.0 + 0.5);
-    let kr = 0.2126; let kb = 0.0722; let kg = 1.0 - kr - kb;
-    let ys = 255.0 / 219.0; let cscale = 255.0 / 224.0;
-    let l = (luma - 16.0) * ys;
+    let kr = __KR__; let kb = __KB__; let kg = 1.0 - kr - kb;
+    let ys = __YS__; let cscale = __CS__;
+    let l = (luma - __YOFF__) * ys;
     let u = c.x - 128.0; let v = c.y - 128.0;
     let rgb = vec3<f32>(l + 2.0 * (1.0 - kr) * cscale * v,
                         l - 2.0 * (1.0 - kb) * kb / kg * cscale * u - 2.0 * (1.0 - kr) * kr / kg * cscale * v,
@@ -130,20 +152,36 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 "#;
 
-pub struct GpuConvert { pipeline: wgpu::ComputePipeline }
+/// The conversion pipelines, one per colour space (BT.709 limited made up front: MP4).
+pub struct GpuConvert { pipelines: std::sync::Mutex<Vec<(Space, wgpu::ComputePipeline)>> }
+
+fn pipeline_for(gpu: &crate::Gpu, space: Space) -> wgpu::ComputePipeline {
+    let m = gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("nv12 convert"), source: wgpu::ShaderSource::Wgsl(space.wgsl().into()) });
+    gpu.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("nv12 convert"), layout: None, module: &m, entry_point: Some("main"), compilation_options: Default::default(), cache: None,
+    })
+}
 
 impl GpuConvert {
     pub fn new(gpu: &crate::Gpu) -> Self {
-        let m = gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("nv12 convert"), source: wgpu::ShaderSource::Wgsl(CONVERT_WGSL.into()) });
-        let pipeline = gpu.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("nv12 convert"), layout: None, module: &m, entry_point: Some("main"), compilation_options: Default::default(), cache: None,
-        });
-        GpuConvert { pipeline }
+        GpuConvert { pipelines: std::sync::Mutex::new(vec![(Space::BT709_LIMITED, pipeline_for(gpu, Space::BT709_LIMITED))]) }
     }
 
     /// The Y and UV plane views (coded size, and half of it) → an RGBA8 texture of the coded size.
     pub fn convert(&self, gpu: &crate::Gpu, y: &wgpu::TextureView, uv: &wgpu::TextureView, coded: (u32, u32)) -> wgpu::Texture {
+        self.convert_in(gpu, y, uv, coded, Space::BT709_LIMITED)
+    }
+
+    /// `convert` in a given colour space (a camera: BT.601, or full range).
+    pub fn convert_in(&self, gpu: &crate::Gpu, y: &wgpu::TextureView, uv: &wgpu::TextureView, coded: (u32, u32), space: Space) -> wgpu::Texture {
         let d = &gpu.device;
+        let pipeline = {
+            let mut ps = self.pipelines.lock().unwrap();
+            match ps.iter().find(|(s, _)| *s == space) {
+                Some((_, p)) => p.clone(),
+                None => { let p = pipeline_for(gpu, space); ps.push((space, p.clone())); p }
+            }
+        };
         let out = d.create_texture(&wgpu::TextureDescriptor {
             label: Some("nv12 rgba"), size: wgpu::Extent3d { width: coded.0, height: coded.1, depth_or_array_layers: 1 },
             mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
@@ -151,7 +189,7 @@ impl GpuConvert {
         });
         let ov = out.create_view(&Default::default());
         let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("nv12 convert"), layout: &self.pipeline.get_bind_group_layout(0),
+            label: Some("nv12 convert"), layout: &pipeline.get_bind_group_layout(0),
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(y) },
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(uv) },
@@ -161,7 +199,7 @@ impl GpuConvert {
         let mut enc = d.create_command_encoder(&Default::default());
         {
             let mut pass = enc.begin_compute_pass(&Default::default());
-            pass.set_pipeline(&self.pipeline);
+            pass.set_pipeline(&pipeline);
             pass.set_bind_group(0, &bind, &[]);
             pass.dispatch_workgroups(coded.0.div_ceil(8), coded.1.div_ceil(8), 1);
         }
@@ -170,7 +208,10 @@ impl GpuConvert {
     }
 
     /// A CPU-decoded frame (the software decoder's planes): upload the two planes, convert on the GPU.
-    pub fn picture(&self, gpu: &crate::Gpu, f: &Nv12) -> Picture {
+    pub fn picture(&self, gpu: &crate::Gpu, f: &Nv12) -> Picture { self.picture_in(gpu, f, Space::BT709_LIMITED) }
+
+    /// `picture` in a given colour space (a camera frame).
+    pub fn picture_in(&self, gpu: &crate::Gpu, f: &Nv12, space: Space) -> Picture {
         let (w, h) = f.coded;
         let plane = |label, pw: u32, ph: u32, format, bpp: u32, src: &[u8], stride: usize| {
             let t = gpu.device.create_texture(&wgpu::TextureDescriptor {
@@ -187,7 +228,7 @@ impl GpuConvert {
         };
         let yt = plane("nv12 y", w, h, wgpu::TextureFormat::R8Unorm, 1, f.y, f.y_stride);
         let uvt = plane("nv12 uv", w / 2, h / 2, wgpu::TextureFormat::Rg8Unorm, 2, f.uv, f.uv_stride);
-        let out = self.convert(gpu, &yt.create_view(&Default::default()), &uvt.create_view(&Default::default()), (w, h));
+        let out = self.convert_in(gpu, &yt.create_view(&Default::default()), &uvt.create_view(&Default::default()), (w, h), space);
         Picture::gpu_frame(w, h, out, f.visible)
     }
 }
@@ -206,3 +247,14 @@ pub fn read_rgba(gpu: &crate::Gpu, tex: &wgpu::Texture, w: u32, h: u32) -> Resul
     Ok(out)
 }
 
+
+#[cfg(test)]
+mod tests {
+    /// BT.709 limited is the former MP4 shader, to the byte (its constants are literals again; see Space::wgsl).
+    #[test]
+    fn bt709_limited_is_the_mp4_shader() {
+        let s = super::Space::BT709_LIMITED.wgsl();
+        assert!(s.contains("let kr = 0.2126; let kb = 0.0722; let kg = 1.0 - kr - kb;\n    let ys = 255.0 / 219.0; let cscale = 255.0 / 224.0;\n    let l = (luma - 16.0) * ys;"));
+        assert!(!s.contains("__"));
+    }
+}

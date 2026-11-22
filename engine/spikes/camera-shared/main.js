@@ -31,7 +31,28 @@ app.whenReady().then(async () => {
       const track = stream.getVideoTracks()[0];
       st.settings = track.getSettings(); st.holding = true;
       const reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
-      (async () => { for (;;) { const { value, done } = await reader.read(); if (done) break; st.frames++; st.times.push(Math.round(performance.now() - t0)); value.close(); } })();
+      // DUMP_FRAMES=n: after the first second, the next n frames as the app has them — the VideoFrame's planes
+      // (copyTo), its format + colour space + timestamp, and the picture drawn 1:1 into a 2D canvas (the
+      // atlas's kind of draw) — f<k>.json / .planes.bin / .rgba.bin.
+      const dumpN = ${Number(process.env.DUMP_FRAMES || 0)};
+      let dumped = 0;
+      const draw = (vf, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(vf, 0, 0, w, h); return new Uint8Array(x.getImageData(0, 0, w, h).data.buffer); };
+      (async () => { for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        st.frames++; st.times.push(Math.round(performance.now() - t0));
+        if (dumped < dumpN && performance.now() - t0 > ${Number(process.env.DUMP_AFTER_MS || 1000)}) {
+          const k = dumped++;
+          const rect = { x: 0, y: 0, width: value.codedWidth, height: value.codedHeight };
+          const buf = new Uint8Array(value.allocationSize({ rect }));
+          const layout = await value.copyTo(buf, { rect });
+          const v = value.visibleRect;
+          fs.writeFileSync(path.join(${JSON.stringify(OUT)}, 'f' + k + '.planes.bin'), buf);
+          fs.writeFileSync(path.join(${JSON.stringify(OUT)}, 'f' + k + '.rgba.bin'), draw(value, value.displayWidth, value.displayHeight));
+          fs.writeFileSync(path.join(${JSON.stringify(OUT)}, 'f' + k + '.json'), JSON.stringify({ coded: [value.codedWidth, value.codedHeight], visible: [v.x, v.y, v.width, v.height],
+            display: [value.displayWidth, value.displayHeight], format: value.format, colorSpace: value.colorSpace.toJSON(), layout, timestamp: value.timestamp, at: performance.now() - t0 }));
+        }
+        value.close();
+      } })();
       const tick = setInterval(write, 250);
       setTimeout(() => { track.stop(); st.holding = false; st.stoppedAt = Math.round(performance.now() - t0); write(); }, ${HOLD * 1000});
       setTimeout(() => { clearInterval(tick); write(); window.close(); }, ${(HOLD + POST) * 1000});

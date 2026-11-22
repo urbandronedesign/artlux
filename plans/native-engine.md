@@ -1680,6 +1680,35 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   against the app's own camera VideoFrames; then step 4, the camera's identity (Chromium's deviceId → the
 >   symbolic link), and step 5, the takeover test with a camera surface.
 
+> **2d CAMERA — step 3 done 2026-11-22: the engine draws a camera frame as the app does (99.99% identical, max 1).**
+> - **The app's frame (measured):** Chromium's camera VideoFrame is I420, labelled BT.601 (smpte170m) LIMITED,
+>   primaries BT.709. Drawn 1:1 into a 2D canvas it is the standard BT.601 limited conversion.
+> - **The engine's frame of the same image is NOT the same bytes:** beside Chromium the shared reader's NV12
+>   says NOMINAL_RANGE 0–255 (FULL) and YUV_MATRIX BT.601 in its attributes; alone (YUY2 → NV12) it says
+>   nothing. The app's I420 is EXACTLY the full frame compressed to limited range — every one of the 256 Y
+>   values: Y' = ((Y × 3517 + b) >> 12) + 16 (a 12-bit fixed-point scale; b in 2035..2054; plain
+>   round(16 + Y × 219/255) misses 7 values), and C' = round(128 + (C − 128) × 224/255) for every chroma
+>   sample. Which side does the compression (Windows for Chromium's request, or Chromium) is not known.
+> - **Pairing trap:** Chromium stamps an image ONE FRAME LATER than Windows (~64–70 ms at 15 fps, same clock),
+>   so the nearest timestamp is the wrong frame (mean |ΔY| 1.76 vs 0.25). Frames are paired by content.
+> - **Built:** `cam::picture(gpu, conv, raw, app_space)` — a full-range frame for a limited-range app is
+>   requantised as measured, then converted on the GPU (`yuv::GpuConvert::picture_in`, BT.601 now too);
+>   `camshared` reads each frame's range and matrix from its attributes (none = BT.601 limited).
+>   `--camera-dump` / `--camera-convert` for the harness.
+> - **The MP4 shader did NOT move — and nearly did.** Passing the colour space as a uniform (f32 at run time,
+>   or coefficients folded in f64, or in f32) changed the MP4 picture by 1–90 channels per test file against
+>   the previous engine (a baseline engine built from the last commit, same harness). The colour space is now
+>   written into the WGSL as literals; BT.709 limited is the former shader text exactly (unit test), and the
+>   MP4 numbers are the baseline's to the channel.
+> - **`test:camera-shared` gate F:** 12 frames paired, worst 99.992% of channels identical, max 1. Mutations:
+>   no requantisation → max 8; BT.709 → max 11. Guarded in verify:invariants.
+> - **Not measured: MJPEG.** Beside an MJPEG holder the engine decodes the JPEG itself (`image` crate); Chromium
+>   picked NV12 on every run today, so there was no MJPEG app frame to hold it against. Also only this C270, in
+>   one (mostly grey) scene.
+> - **Next (step 4):** the camera's identity — the app's camera (Chromium's salted deviceId + label) → the
+>   engine's symbolic link; then step 5, the runtime: a camera surface on the engine's LEDs and projectors
+>   (the host sends the app frame's colour space, as it does for MP4), and the takeover test.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

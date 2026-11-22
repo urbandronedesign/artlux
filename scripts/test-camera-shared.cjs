@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Item 2d step 2 (plans/native-engine.md) — the engine's RUNTIME camera reader (camshared::SharedIn) beside a
+// Item 2d steps 2–3 (plans/native-engine.md) — the engine's RUNTIME camera reader (camshared::SharedIn) beside a
 // real Chromium holder. Owner's decision 2026-11-22: the app keeps its cameras, the engine reads them shared.
 // The holder is engine/spikes/camera-shared: getUserMedia exactly as services/contentSource.ts opens a camera.
 //
@@ -8,6 +8,8 @@
 //   B  holder goes: holder stops its track mid-read.         REPORTED: what the engine's stream does after.
 //   D  engine first: the engine reads, then the holder opens. GATE: the holder still gets its own format (1280×720).
 //   E  MJPEG holder: cam.rs's exclusive reader holds MJPEG.   GATE: the engine reads the compressed frames, ≥ 90%.
+//   F  the picture: paired frames, the engine's conversion vs the app's 1:1 draw.
+//                                                            GATE: within 1 on at most 0.1% of channels.
 //   C  no holder:   the engine alone.                        REPORTED: does Windows open a shared read at all.
 //
 //   node scripts/test-camera-shared.cjs [--camera <index>]     (index from `artlux-engine --cameras`)
@@ -30,9 +32,9 @@ const list = execFileSync(ENGINE, ['--cameras'], { encoding: 'utf8' });
 console.log(list.trim());
 if (!new RegExp(`^\\[${IDX}\\] `, 'm').test(list)) { console.log(`FAIL: no camera ${IDX} — plug a UVC webcam in`); process.exit(1); }
 
-function holder(dir, hold, post) {
+function holder(dir, hold, post, extra = {}) {
   fs.mkdirSync(dir, { recursive: true });
-  const env = { ...process.env, SPIKE_OUT: dir, HOLD_SECS: String(hold), POST_SECS: String(post) };
+  const env = { ...process.env, SPIKE_OUT: dir, HOLD_SECS: String(hold), POST_SECS: String(post), ...extra };
   delete env.ELECTRON_RUN_AS_NODE;
   const p = spawn(ELECTRON, [path.join(ROOT, 'engine', 'spikes', 'camera-shared')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
   p.stdout.on('data', (d) => process.stdout.write(String(d)));
@@ -45,9 +47,9 @@ async function untilHolding(h) {
   throw new Error('the holder never got frames');
 }
 // The engine's run, timed against the holder's clock: returns its per-second counts and its own report.
-function engine(secs, prefix) {
+function engine(secs, prefix, custom) {
   return new Promise((resolve) => {
-    const args = ['--camera-shared', IDX, String(secs)]; if (prefix) args.push(prefix);
+    const args = custom ?? ['--camera-shared', IDX, String(secs)]; if (prefix) args.push(prefix);
     const p = spawn(ENGINE, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
@@ -130,6 +132,47 @@ const inWindow = (times, a, b) => times.filter((t) => t >= a && t < b).length;
     console.log(`E controller ${fmt}; engine ${n} frames in 4 s (holder ${hn} in 10 s); frame ${meta ? `${meta.format} ${meta.w}x${meta.h}` : 'none'}`);
     if (fmt !== 'MJPG' || !meta || meta.format !== 'MJPG' || n < 0.9 * (hn / 10) * 4) { console.log('FAIL E: no MJPEG frames beside an MJPEG controller'); fail++; }
     else console.log('PASS E: MJPEG frames beside an MJPEG controller');
+  }
+  // ── F: the PICTURE — the engine's frame drawn as the app draws the same frame ────────────────────────────
+  // Both sides dump frames over the same second; each engine frame is paired with the app frame of the SAME
+  // image, by content (Chromium stamps an image one frame later than Windows does, measured ~64–70 ms at
+  // 15 fps, so the nearest timestamp is the wrong frame). The engine's is converted by artlux-engine
+  // --camera-convert (cam::picture: requantised to the app's limited range when it is full, then the GPU
+  // conversion); the app's is its VideoFrame drawn 1:1 into a 2D canvas (the atlas's kind of draw).
+  {
+    const dir = path.join(WORK, 'f');
+    const h = holder(dir, 9, 0, { DUMP_FRAMES: '20', DUMP_AFTER_MS: '3000' });
+    await untilHolding(h);
+    // The app dumps 20 frames from its 3rd second (~1.3 s); the engine's 12 (~0.8 s) start inside that.
+    while ((h.read()?.t ?? 0) < 3200) await sleep(50);
+    const r = await engine(0, null, ['--camera-dump', IDX, '12', path.join(dir, 'eng')]);
+    await h.done;
+    const app = [], eng = [];
+    for (const f of fs.readdirSync(dir)) {
+      let m;
+      if ((m = /^f(\d+)\.json$/.exec(f))) app.push({ k: +m[1], ...JSON.parse(fs.readFileSync(path.join(dir, f))) });
+      if ((m = /^eng\.f(\d+)\.json$/.exec(f))) eng.push({ k: +m[1], ...JSON.parse(fs.readFileSync(path.join(dir, f))) });
+    }
+    let pairs = 0, worst = 0, maxd = 0;
+    for (const e of eng) {
+      const er = fs.readFileSync(path.join(dir, `eng.f${e.k}.raw`));
+      if (e.format !== 'NV12') continue;
+      const yd = (x) => { const ap = fs.readFileSync(path.join(dir, `f${x.k}.planes.bin`)); let s = 0, n = 0;
+        for (let y = 0; y < e.h; y += 4) for (let xx = 0; xx < e.w; xx += 4) { const ev = er[y * e.pitch + xx]; s += Math.abs(ap[y * x.layout[0].stride + xx] - (e.fullRange ? 16 + ev * 219 / 255 : ev)); n++; } return s / n; };
+      const near = app.filter((x) => Math.abs(x.timestamp - e.ts100 / 10) < 150000 && x.display[0] === e.w && x.display[1] === e.h);
+      if (!near.length) continue;
+      const a = near.map((x) => ({ x, yd: yd(x) })).sort((p, q) => p.yd - q.yd)[0].x;
+      const out = path.join(dir, `eng.f${e.k}.rgba`);
+      execFileSync(ENGINE, ['--camera-convert', path.join(dir, `eng.f${e.k}.json`), out]);
+      const E = fs.readFileSync(out), A = fs.readFileSync(path.join(dir, `f${a.k}.rgba.bin`));
+      let diff = 0, n = 0;
+      for (let i = 0; i < E.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(E[i + c] - A[i + c]); if (d) diff++; maxd = Math.max(maxd, d); n++; }
+      worst = Math.max(worst, diff / n); pairs++;
+      if (pairs === 1) console.log(`F engine ${e.format} ${e.w}x${e.h} ${e.bt709 ? 'BT.709' : 'BT.601'} ${e.fullRange ? 'FULL' : 'limited'} · app ${a.format} ${a.colorSpace.matrix} ${a.colorSpace.fullRange ? 'full' : 'limited'}`);
+    }
+    console.log(`F ${pairs} frames paired; worst ${(100 * (1 - worst)).toFixed(3)}% of channels identical, max ${maxd}${/missed/.test(r.out) ? ' (the dump missed frames)' : ''}`);
+    if (pairs < 8 || maxd > 1 || worst > 0.001) { console.log('FAIL F: the engine does not draw the camera as the app does (within 1 on at most 0.1%)'); fail++; }
+    else console.log('PASS F: the camera picture is the app\'s, within 1 on at most 0.1% of channels');
   }
   // ── C: nobody holds the camera ────────────────────────────────────────────────────────────────────────
   {

@@ -8834,7 +8834,7 @@ check(
 );
 
 check(
-  'the native engine reads a camera SHARED beside the app, and reads it whatever format the app chose',
+  'the native engine reads a camera SHARED beside the app, whatever its format, and draws it as the app does',
   'plans/native-engine.md "2d", owner decision 2026-11-22: the app keeps its cameras, the engine reads them ' +
   'shared (scripts/test-camera-shared.cjs). Two ways it breaks silently. (1) a plain Media Foundation open is ' +
   'EXCLUSIVE: an engine that opened the camera that way would take it from the app, or fail beside it with ' +
@@ -8847,7 +8847,16 @@ check(
     if (!/SetSharingMode\(MediaCaptureSharingMode::SharedReadOnly\)/.test(c)) problems.push('camshared.rs no longer opens the camera SharedReadOnly (it would take it from the app)');
     if (!/for mjpg in \[false, true\]/.test(c) || !/OutputFormatNotSupported/.test(c) || !/fn copy_mjpg\(/.test(c)) problems.push('camshared.rs no longer falls back to the MJPEG frames beside an MJPEG holder');
     const t = raw('scripts/test-camera-shared.cjs');
-    for (const g of ['PASS A', 'PASS D', 'PASS E']) if (!t.includes(g)) problems.push(`test-camera-shared lost gate ${g.slice(5)}`);
+    for (const g of ['PASS A', 'PASS D', 'PASS E', 'PASS F']) if (!t.includes(g)) problems.push(`test-camera-shared lost gate ${g.slice(5)}`);
+    // Step 3: the picture. A full-range frame drawn for a limited-range app is requantised EXACTLY as the app's
+    // frame was made (measured: Y' = ((Y*3517 + b) >> 12) + 16, C' = round(128 + (C-128)*224/255)); without it
+    // the camera differs from the app by up to 8 (mutation), with BT.709 by up to 11 (mutation).
+    const cam = raw('engine/artlux-engine/src/cam.rs');
+    if (!/let requant = r\.space\.full_range && !app\.full_range;/.test(cam) || !/\(v as u32 \* 3517 \+ 2048\) >> 12\) \+ 16/.test(cam)) problems.push('cam.rs no longer requantises a full-range camera frame the way the app frame was made');
+    if (!/fn space_of\(/.test(c) || !/Space \{ bt709: get\(&MATRIX\) == Some\(1\), full_range: get\(&RANGE\) == Some\(1\) \}/.test(c)) problems.push('camshared.rs no longer reads the colour space of each frame from its attributes (the C270 sends FULL range beside Chromium)');
+    // The MP4 shader keeps its constants as LITERALS: passed as a uniform they moved the MP4 picture (measured).
+    const y = raw('engine/artlux-engine/src/yuv.rs');
+    if (!/CONVERT_WGSL\.replace\("__KR__", kr\)/.test(y) || /var<uniform>/.test(y)) problems.push('yuv.rs no longer writes the colour space into the shader as literals (a uniform moved MP4 pictures by 1-90 channels)');
     return problems.length ? problems.join('; ') : null;
   },
 );

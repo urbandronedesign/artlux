@@ -107,7 +107,8 @@ pub fn pick(formats: &[Format], want: Option<(u32, u32)>) -> Option<Format> {
 }
 
 /// One frame as the camera sent it: its format, size, the buffer's row pitch, the bytes, a sequence number.
-pub struct Raw { pub format: Format, pub pitch: usize, pub data: Vec<u8>, pub seq: u64, pub ts100: i64 }
+/// `space`: the YUV colour space of an NV12 / YUY2 frame, as the media type says (none said: BT.601 limited).
+pub struct Raw { pub format: Format, pub pitch: usize, pub data: Vec<u8>, pub seq: u64, pub ts100: i64, pub space: crate::yuv::Space }
 
 /// A camera being read on its own thread; the latest frame is kept.
 pub struct CamIn { latest: Arc<Mutex<Option<Raw>>>, stop: Arc<AtomicBool>, pub link: String, pub format: Format, pub error: Arc<Mutex<Option<String>>> }
@@ -155,7 +156,7 @@ impl CamIn {
                 let _ = buf.Unlock();
                 let pitch = match fmt.subtype { "YUY2" => fmt.w as usize * 2, "NV12" => fmt.w as usize, _ => 0 };
                 seq += 1;
-                *l.lock().unwrap() = Some(Raw { format: fmt.clone(), pitch, data, seq, ts100: ts });
+                *l.lock().unwrap() = Some(Raw { format: fmt.clone(), pitch, data, seq, ts100: ts, space: crate::yuv::Space::BT601_LIMITED });
             }
             drop(reader);
             let _ = source.Shutdown();
@@ -205,4 +206,47 @@ pub fn preview_rgba(r: &Raw) -> Result<(u32, u32, Vec<u8>), String> {
         }
     }
     Ok((w as u32, h as u32, out))
+}
+
+/// A frame → the picture the engine draws (item 2d step 3), held to the APP's picture of the same frame:
+/// `app` is the colour space of the app's own camera VideoFrame (Chromium labels the C270 BT.601 limited).
+///
+/// MEASURED (scripts/test-camera-shared.cjs, frames paired by content — Chromium stamps an image one frame
+/// later than Windows does): beside Chromium the shared reader gets FULL-range NV12 while the app's I420 of
+/// the same frame is LIMITED, and that I420 is EXACTLY the full frame compressed to limited range:
+///   - Y' = ((Y × 3517 + b) >> 12) + 16, a 12-bit fixed-point scale (b anywhere in 2035..2054 fits all 256
+///     values; plain round(16 + Y × 219/255) misses 7 of them);
+///   - C' = round(128 + (C − 128) × 224/255), every value.
+/// So a full-range frame drawn for a limited-range app is requantised that way first, then converted like the
+/// app's: 99.99% of channels identical, max 1 (the float residue MP4 has too). Converted directly from full
+/// range instead: ~60% identical, max 2 on one run and max 8 on another — not the app's picture.
+///
+/// NV12 is converted on the GPU; MJPEG (beside an MJPEG holder) is decoded on the CPU — JPEG is full-range
+/// BT.601 by definition — and NOT yet measured against Chromium's MJPEG decode.
+pub fn picture(gpu: &crate::Gpu, conv: &crate::yuv::GpuConvert, r: &Raw, app: crate::yuv::Space) -> Result<crate::compose::Picture, String> {
+    let (w, h) = (r.format.w, r.format.h);
+    match r.format.subtype {
+        "NV12" => {
+            let (p, hh) = (r.pitch, h as usize);
+            if p < w as usize || r.data.len() < p * hh + p * hh.div_ceil(2) { return Err("a short NV12 frame".into()); }
+            let requant = r.space.full_range && !app.full_range;
+            let data: std::borrow::Cow<[u8]> = if requant { std::borrow::Cow::Owned(to_limited(&r.data, p * hh)) } else { std::borrow::Cow::Borrowed(&r.data) };
+            let space = if requant { crate::yuv::Space { bt709: r.space.bt709, full_range: false } } else { r.space };
+            let f = crate::yuv::Nv12 { coded: (w, h), visible: [0, 0, w, h], y: &data[..p * hh], y_stride: p, uv: &data[p * hh..], uv_stride: p };
+            Ok(conv.picture_in(gpu, &f, space))
+        }
+        "MJPG" => {
+            let img = image::load_from_memory_with_format(&r.data, image::ImageFormat::Jpeg).map_err(|e| format!("MJPEG: {e}"))?.to_rgba8();
+            let (iw, ih) = (img.width(), img.height());
+            Ok(crate::compose::Picture::coded_frame(iw, ih, img.into_raw(), [0, 0, iw, ih]))
+        }
+        other => Err(format!("a {other} camera frame (the shared reader gives NV12 or MJPEG)")),
+    }
+}
+
+/// Full-range NV12 → limited, as the app's frame was made (see `picture`): `luma` bytes of Y, then chroma.
+pub fn to_limited(data: &[u8], luma: usize) -> Vec<u8> {
+    let ly: [u8; 256] = std::array::from_fn(|v| (((v as u32 * 3517 + 2048) >> 12) + 16) as u8);
+    let lc: [u8; 256] = std::array::from_fn(|v| (128.0 + (v as f64 - 128.0) * 224.0 / 255.0).round() as u8);
+    data.iter().enumerate().map(|(i, &v)| if i < luma { ly[v as usize] } else { lc[v as usize] }).collect()
 }

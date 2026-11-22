@@ -12,6 +12,7 @@
 //! byte-identical (two JPEG decoders).
 
 use crate::cam::{Format, Raw};
+use crate::yuv::Space;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use windows::core::{Interface, HSTRING};
@@ -121,6 +122,22 @@ impl SharedIn {
     }
 }
 
+/// The frame's YUV colour space from its media-type attributes. MEASURED on the C270: beside Chromium (an
+/// NV12 holder) the frames say NOMINAL_RANGE 0–255 and YUV_MATRIX BT.601 — FULL range, while Chromium's own
+/// I420 of the same frame is LIMITED (engine Y = 1.164 × (app Y − 16)); alone (YUY2 → NV12) they say
+/// nothing, and nothing means BT.601 limited. So the range is read per frame, never assumed.
+fn space_of(f: &windows::Media::Capture::Frames::MediaFrameReference) -> Space {
+    // MF_MT_VIDEO_NOMINAL_RANGE (1 = 0–255, 2 = 16–235) and MF_MT_YUV_MATRIX (1 = BT.709, 2 = BT.601).
+    const RANGE: windows::core::GUID = windows::core::GUID::from_u128(0xc21b8ee5_b956_4071_8daf_325edf5cab11);
+    const MATRIX: windows::core::GUID = windows::core::GUID::from_u128(0x3e23d450_2c75_4d25_a00e_b91670d12327);
+    let props = f.Format().and_then(|x| x.Properties()).ok();
+    let get = |g: &windows::core::GUID| -> Option<u32> {
+        let v = props.as_ref()?.Lookup(*g).ok()?;
+        v.cast::<windows::Foundation::IPropertyValue>().ok()?.GetUInt32().ok()
+    };
+    Space { bt709: get(&MATRIX) == Some(1), full_range: get(&RANGE) == Some(1) }
+}
+
 /// One MJPEG frame, compressed, as the controller's camera sent it (decoded later, like `cam.rs`'s own MJPEG).
 fn copy_mjpg(f: &windows::Media::Capture::Frames::MediaFrameReference, fps: (u32, u32)) -> Result<Raw, String> {
     let fmt = f.Format().map_err(e("format"))?;
@@ -131,7 +148,7 @@ fn copy_mjpg(f: &windows::Media::Capture::Frames::MediaFrameReference, fps: (u32
     let access: IBufferByteAccess = b.cast().map_err(e("byte access"))?;
     let p = unsafe { access.Buffer().map_err(e("bytes"))? };
     let data = unsafe { std::slice::from_raw_parts(p, n) }.to_vec();
-    Ok(Raw { format: Format { subtype: "MJPG", w, h, fps }, pitch: 0, data, seq: 0, ts100: 0 })
+    Ok(Raw { format: Format { subtype: "MJPG", w, h, fps }, pitch: 0, data, seq: 0, ts100: 0, space: Space::BT601_LIMITED })
 }
 
 /// One frame's NV12 planes, copied out of its SoftwareBitmap into `cam::Raw`'s layout: Y rows at `pitch`,
@@ -158,5 +175,5 @@ fn copy_nv12(f: &windows::Media::Capture::Frames::MediaFrameReference, fps: (u32
     let uvw = w.div_ceil(2) * 2;
     for y in 0..ch { let o = pitch * h + y * pitch; data[o..o + uvw].copy_from_slice(row(puv.StartIndex, uvp, y, uvw)?); }
     drop(r);
-    Ok(Raw { format: Format { subtype: "NV12", w: w as u32, h: h as u32, fps }, pitch, data, seq: 0, ts100: 0 })
+    Ok(Raw { format: Format { subtype: "NV12", w: w as u32, h: h as u32, fps }, pitch, data, seq: 0, ts100: 0, space: space_of(f) })
 }

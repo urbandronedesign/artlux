@@ -257,6 +257,49 @@ fn main() -> ExitCode {
         return if n > 0 { ExitCode::SUCCESS } else { ExitCode::from(1) };
     }
     #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--camera-convert") {
+        // Item 2d step 3: a dumped camera frame (--camera-dump's .json + .raw) → the picture the engine draws,
+        // read back as RGBA (NV12 through the GPU conversion in the frame's own colour space; MJPEG decoded).
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --camera-convert <frame.json> <out.rgba>"); return ExitCode::from(2) };
+        let j: serde_json::Value = match std::fs::read_to_string(inp).ok().and_then(|t| serde_json::from_str(&t).ok()) { Some(j) => j, None => { eprintln!("{inp}: not a frame"); return ExitCode::from(2) } };
+        let data = match std::fs::read(inp.trim_end_matches(".json").to_string() + ".raw") { Ok(d) => d, Err(e) => { eprintln!("raw: {e}"); return ExitCode::from(2) } };
+        let n = |k: &str| j[k].as_u64().unwrap_or(0);
+        let subtype: &'static str = match j["format"].as_str() { Some("NV12") => "NV12", Some("MJPG") => "MJPG", _ => { eprintln!("unknown format"); return ExitCode::from(2) } };
+        let raw = artlux_engine::cam::Raw { format: artlux_engine::cam::Format { subtype, w: n("w") as u32, h: n("h") as u32, fps: (0, 1) }, pitch: n("pitch") as usize, data, seq: n("seq"), ts100: j["ts100"].as_i64().unwrap_or(0),
+            space: artlux_engine::yuv::Space { bt709: j["bt709"].as_bool().unwrap_or(false), full_range: j["fullRange"].as_bool().unwrap_or(false) } };
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: false, force_software: false }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2) } };
+        let conv = artlux_engine::yuv::GpuConvert::new(&gpu);
+        // The app's camera frames are BT.601 limited (Chromium's label on this camera); --app-full: full range.
+        let app = artlux_engine::yuv::Space { bt709: false, full_range: has("--app-full") };
+        let rgba = artlux_engine::cam::picture(&gpu, &conv, &raw, app).and_then(|p| match &p.tex { Some(t) => artlux_engine::yuv::read_rgba(&gpu, t, p.w, p.h), None => Ok(p.rgba) });
+        return match rgba.and_then(|px| std::fs::write(outp, px).map_err(|e| e.to_string())) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) } };
+    }
+    #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--camera-dump") {
+        // Item 2d step 3: N CONSECUTIVE frames of camera <index>, read shared — <prefix>.f<k>.raw + .json each
+        // (format, size, pitch, the frame's SystemRelativeTime) — to hold against the app's own frames.
+        let (Some(idx), Some(n), Some(out)) = (args.get(i + 1).and_then(|s| s.parse::<usize>().ok()), args.get(i + 2).and_then(|s| s.parse::<u64>().ok()), args.get(i + 3)) else {
+            eprintln!("usage: --camera-dump <index> <frames> <out-prefix>"); return ExitCode::from(2) };
+        let cams = artlux_engine::cam::list().unwrap_or_default();
+        let Some(c) = cams.get(idx) else { eprintln!("no camera {idx}"); return ExitCode::from(2) };
+        let cam = match artlux_engine::camshared::SharedIn::open(&c.link) { Ok(x) => x, Err(e) => { eprintln!("SHARED: refused — {e}"); return ExitCode::from(1) } };
+        println!("SHARED: the controller's format: {}", cam.controller);
+        let (mut last, mut k, t0) = (0u64, 0u64, std::time::Instant::now());
+        while k < n && t0.elapsed().as_secs() < 20 {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            let Some((seq, g)) = cam.latest() else { continue };
+            if seq == last { continue; }
+            if last != 0 && seq != last + 1 { println!("SHARED: missed {} frame(s) before {seq}", seq - last - 1); }
+            last = seq;
+            let r = g.as_ref().unwrap();
+            let meta = serde_json::json!({ "format": r.format.subtype, "w": r.format.w, "h": r.format.h, "pitch": r.pitch, "seq": r.seq, "ts100": r.ts100, "bt709": r.space.bt709, "fullRange": r.space.full_range });
+            let _ = std::fs::write(format!("{out}.f{k}.raw"), &r.data).and_then(|_| std::fs::write(format!("{out}.f{k}.json"), meta.to_string()));
+            k += 1;
+        }
+        println!("SHARED: wrote {k} frames");
+        return if k == n { ExitCode::SUCCESS } else { ExitCode::from(1) };
+    }
+    #[cfg(windows)]
     if let Some(i) = args.iter().position(|a| a == "--camera-grab") {
         // Item 2d step 1: read a camera for N seconds in a native format; report what arrived; write the last
         // frame raw + a CPU preview PNG.  --camera-grab <index> <seconds> <out-prefix> [WxH]
