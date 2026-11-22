@@ -1,8 +1,10 @@
 import { app } from 'electron';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as logger from './logger';
+import * as output from './transport/outputManager';
+import type { OutputConfig } from '../../shared/protocol';
 
 // THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). Behind a flag until it carries
 // output: `--native-engine` on the command line, or ARTLUX_NATIVE_ENGINE=1. Without it nothing here runs
@@ -19,6 +21,14 @@ import * as logger from './logger';
 //     it would only refuse again);
 //   - logs every transition to the machine log (category `engine`), which is how a venue tech finds out.
 // The engine never outlives the app: its stdin is our pipe, and it exits when that closes.
+//
+// E1f — THE LIVE LINK. The renderer's frame engine keeps evaluating the show and sends the EFFECTIVE
+// document (when it changes) and one tick per frame (src/renderer/engine/nativeLink.ts); main relays both,
+// plus the output settings, to the engine. The engine answers each document with whether it OWNS the wire
+// for it (runtime.rs: all or nothing). While it does, the app's own frames are recorded but NOT sent
+// (outputManager.setWireOwner) — one sender, never two. The moment the engine dies, hangs or refuses a
+// document, ownership is false again and the app's next frame goes out: the app's path IS the fallback.
+// A restarted engine is handed the last output settings and document at once.
 
 const FLAG = process.argv.includes('--native-engine') || process.env.ARTLUX_NATIVE_ENGINE === '1';
 const RESTART_DELAY_MS = 200;
@@ -44,6 +54,58 @@ let stopping = false;
 const deaths: number[] = [];
 let pingTimer: NodeJS.Timeout | null = null;
 let helloTimer: NodeJS.Timeout | null = null;
+// The live link (E1f). `owns` is for ONE document revision and ONE engine process.
+let lastDoc: string | null = null;      // the renderer's JSON, as sent
+let lastDocRev = -1;
+let lastOutput: string | null = null;
+let owns: { rev: number; pid: number | null } | null = null;
+let lastWhy = '';
+// ⚠ LIVENESS IS "IT IS SENDING", NOT "IT IS ALIVE". The engine reports each frame it put on the wire; the
+// app is muted only while those reports are fresh. A killed engine is seen by its exit (23 ms measured),
+// but a render thread that stalls or fails while the stdin reader still answers pings never exits and
+// never misses a pong — only the missing frames reveal it.
+// (A first measurement blamed a 2.5 s handback on Windows' exit signal; it was MAIN blocked by the audio
+// engine's synchronous start-up — see plans/native-engine.md E1f-1.)
+const SENT_FRESH_MS = 250;
+let lastSentAt = 0;
+
+function setOwns(next: { rev: number; pid: number | null } | null, why: string): void {
+  const was = !!owns;
+  owns = next;
+  if (was !== !!next || why !== lastWhy) {
+    logger.log('info', 'engine', next ? 'owns-wire' : 'app-has-wire', next ? { rev: next.rev } : { why });
+    console.log(next ? `[engine] owns the wire (document ${next.rev})` : `[engine] the app keeps the wire: ${why}`);
+  }
+  lastWhy = why;
+}
+/** Does the engine drive the wire right now? (False whenever in doubt: the app's frames then go out.) */
+export function engineOwnsWire(): boolean {
+  return !!owns && owns.rev === lastDocRev && !!child && owns.pid === (child.pid ?? null) && status.state === 'up'
+    && Date.now() - lastSentAt < SENT_FRESH_MS;
+}
+
+function write(line: string): void { try { child?.stdin?.write(line + '\n'); } catch { /* the exit handler takes it */ } }
+
+/** The output engine's settings (IPC.CONFIGURE) — the engine sends with the same ones. */
+export function noteOutputConfig(cfg: OutputConfig): void {
+  if (!FLAG) return;
+  lastOutput = JSON.stringify({ type: 'output', broadcast: !!cfg.broadcast, fps: cfg.fps ?? 44, keepAlive: cfg.keepAlive ?? true, sync: cfg.sync ?? false });
+  if (status.state === 'up') write(lastOutput);
+}
+/** The effective document, as the renderer serialised it (it carries its own `rev`). */
+export function noteDoc(json: string, rev: number): void {
+  if (!FLAG) return;
+  lastDoc = json; lastDocRev = rev;
+  // TEST HOOK (scripts/test-native-takeover.cjs): the document as relayed, so a failure can be replayed
+  // through the proven offscreen path. Off unless the variable names a file.
+  if (process.env.ARTLUX_ENGINE_DOC_DUMP) { try { writeFileSync(process.env.ARTLUX_ENGINE_DOC_DUMP, json); } catch { /* a test aid */ } }
+  if (status.state === 'up') write(`{"type":"doc","doc":${json}}`);
+}
+/** One frame. Sent only while the engine is up; a tick is never queued for a future engine. */
+export function noteTick(json: string): void {
+  if (!FLAG || status.state !== 'up') return;
+  write(`{"type":"tick",${json.slice(1)}`);
+}
 
 export function engineEnabled(): boolean { return FLAG; }
 export function engineStatus(): EngineStatus { return { ...status }; }
@@ -91,7 +153,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; rev?: number; owns?: boolean; why?: string };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -101,6 +163,9 @@ function spawnEngine(): void {
         lastPong = Date.now();
         logger.log('info', 'engine', 'up', { pid: proc.pid, adapter: m.adapter, backend: m.backend, version: m.version, starts: status.starts });
         console.log(`[engine] up (pid ${proc.pid}, ${m.adapter}, start ${status.starts})`);
+        // A (re)started engine knows nothing: the settings, then the document, before any tick.
+        if (lastOutput) write(lastOutput);
+        if (lastDoc) write(`{"type":"doc","doc":${lastDoc}}`);
         let lastTick = Date.now();
         pingTimer = setInterval(() => {
           // A LATE TICK MEANS MAIN WAS STALLED, NOT THE ENGINE. Main's event loop is busy for seconds at
@@ -115,6 +180,7 @@ function spawnEngine(): void {
             logger.log('warn', 'engine', 'hung', { pid: proc.pid, silentMs: Date.now() - lastPong });
             console.warn(`[engine] hung (no answer for ${Date.now() - lastPong} ms) — killing pid ${proc.pid}`);
             clearTimers();
+            if (owns) setOwns(null, 'the engine hung');
             proc.kill();
             return;
           }
@@ -122,6 +188,11 @@ function spawnEngine(): void {
         }, PING_MS);
       } else if (m.type === 'pong') {
         lastPong = Date.now();
+      } else if (m.type === 'sent') {
+        lastSentAt = Date.now();
+      } else if (m.type === 'owns') {
+        if (m.rev !== lastDocRev) continue;   // an answer about a document already replaced
+        setOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
       }
     }
   });
@@ -142,6 +213,8 @@ function spawnEngine(): void {
   proc.on('exit', (code, signal) => {
     if (child === proc) child = null;
     clearTimers();
+    // THE WIRE GOES BACK TO THE APP FIRST — before anything else is decided about this death.
+    if (owns && owns.pid === (proc.pid ?? null)) setOwns(null, 'the engine exited');
     const what = signal ? `signal ${signal}` : `code ${code}`;
     if (stopping) { status.state = 'off'; status.pid = null; return; }
     if (code === EXIT_REFUSED) {
@@ -177,6 +250,7 @@ function onDeath(pid: number | null, what: string): void {
 /** Start the engine if the flag asks for it. Safe to call once at startup in any mode. */
 export function startEngine(): void {
   if (!FLAG) return;
+  output.setWireOwner(engineOwnsWire);
   logger.log('info', 'engine', 'enabled', { path: enginePath() });
   spawnEngine();
 }

@@ -6,6 +6,9 @@
 //!   engine → main   {"type":"pong","n":N}  the answer — an engine that stops answering is HUNG, and main
 //!                                          kills and restarts it
 //!   main → engine   {"quit":true}          a clean stop
+//!   main → engine   {"type":"output"|"doc"|"tick", …}   E1f: the live document and its frames (runtime.rs)
+//!   engine → main   {"type":"owns","rev":r,"owns":b,"why":"…"}   whether the engine drives the wire
+//!   engine → main   {"type":"sent","n":N}  a frame went to the wire (the liveness main mutes the app on)
 //! stdin closing (main gone, crashed or quit) also ends it: the engine never outlives the app.
 //!
 //! Exit codes main acts on: 0 clean, 2 REFUSED (no usable hardware adapter — restarting would refuse
@@ -51,18 +54,73 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
         std::process::id()
     );
     if writeln!(out, "{hello}").and_then(|_| out.flush()).is_err() { return ExitCode::SUCCESS; }
+    drop(out);
     if hang.is_some() { eprintln!("artlux-engine: TEST HOOK — will stop answering pings in 2 s"); }
+    // E1f: TWO THREADS. This one reads stdin and answers pings AT ONCE — a slow frame must never look like a
+    // hang to main's watchdog. The render thread does the frames; ticks are COALESCED there (only the
+    // newest is drawn), so a frame that takes longer than the host's interval drops ticks instead of
+    // queueing them.
+    let gpu = std::sync::Arc::new(gpu);
+    let (tx, rx) = std::sync::mpsc::channel::<serde_json::Value>();
+    let render = {
+        let gpu = gpu.clone();
+        std::thread::Builder::new().name("render".into()).spawn(move || {
+            let mut rt = crate::runtime::Runtime::new(gpu);
+            let mut warned = false;
+            while let Ok(first) = rx.recv() {
+                let mut tick: Option<serde_json::Value> = None;
+                let handle = |rt: &mut crate::runtime::Runtime, m: serde_json::Value, tick: &mut Option<serde_json::Value>| match m["type"].as_str() {
+                    Some("tick") => *tick = Some(m),
+                    Some("doc") => {
+                        let (rev, owns, why) = rt.doc(&m["doc"]);
+                        let line = format!(r#"{{"type":"owns","rev":{rev},"owns":{owns},"why":{}}}"#, json_str(&why));
+                        let mut o = std::io::stdout().lock();
+                        let _ = writeln!(o, "{line}").and_then(|_| o.flush());
+                        *tick = None;   // a tick for the old document is not this document's frame
+                    }
+                    Some("output") => rt.output(&m),
+                    _ => {}
+                };
+                handle(&mut rt, first, &mut tick);
+                while let Ok(m) = rx.try_recv() { handle(&mut rt, m, &mut tick); }
+                if let Some(t) = tick {
+                    let before = rt.frames;
+                    match rt.tick(&t) {
+                        // "I PUT A FRAME ON THE WIRE" — from the RENDER thread, per frame. Main mutes the app
+                        // only while these keep coming, so a render thread that STALLS or FAILS while the stdin
+                        // reader still answers pings (which an exit or a ping can never reveal) hands the wire
+                        // back within ~250 ms. (A killed engine is seen sooner, by its exit: 23 ms measured.)
+                        Ok(()) if rt.frames != before => {
+                            let mut o = std::io::stdout().lock();
+                            let _ = writeln!(o, r#"{{"type":"sent","n":{}}}"#, rt.frames).and_then(|_| o.flush());
+                        }
+                        Ok(()) => {}
+                        Err(e) => { if !warned { eprintln!("artlux-engine: frame failed: {e}"); warned = true; } }
+                    }
+                }
+            }
+            rt.close();
+        }).expect("render thread")
+    };
     for line in std::io::stdin().lock().lines() {
         let Ok(line) = line else { break };
-        if line.contains("\"quit\"") { break; }
+        // The quit MESSAGE, not the word: a document can carry "quit" anywhere (a surface called so).
+        if line.starts_with("{\"quit\"") { break; }
+        if line.starts_with("{\"type\":") {
+            match serde_json::from_str::<serde_json::Value>(&line) { Ok(v) => { let _ = tx.send(v); } Err(e) => eprintln!("artlux-engine: bad message: {e}") }
+            continue;
+        }
         if let Some(n) = field_u64(&line, "ping") {
             if hang.is_some_and(|t| std::time::Instant::now() >= t) {
                 // A hang, as main sees one: alive, reading, never answering.
                 loop { std::thread::sleep(Duration::from_secs(3600)); }
             }
-            if writeln!(out, r#"{{"type":"pong","n":{n}}}"#).and_then(|_| out.flush()).is_err() { break; }
+            let mut o = std::io::stdout().lock();
+            if writeln!(o, r#"{{"type":"pong","n":{n}}}"#).and_then(|_| o.flush()).is_err() { break; }
         }
     }
+    drop(tx);
+    let _ = render.join();
     drop(gpu);
     ExitCode::SUCCESS
 }

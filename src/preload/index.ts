@@ -21,6 +21,9 @@ const api: ArtluxApi = {
         return () => { ipcRenderer.removeListener(IPC.STATS, listener); };
     },
     reportRenderStats: (stats: RenderStats) => ipcRenderer.send(IPC.RENDER_STATS, stats),
+    nativeEngineEnabled: () => ipcRenderer.invoke(IPC.NATIVE_ENGINE_ENABLED) as Promise<boolean>,
+    nativeEngineDoc: (json: string, rev: number) => ipcRenderer.send(IPC.NATIVE_ENGINE_DOC, json, rev),
+    nativeEngineTick: (json: string) => ipcRenderer.send(IPC.NATIVE_ENGINE_TICK, json),
     // The white-screen channel. Deliberately `send` and not `invoke`: the reporter is called from a
     // React error boundary and from window.onerror, i.e. from a tree that is already failing — an
     // awaited round-trip there is one more thing that can throw.

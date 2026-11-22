@@ -24,6 +24,7 @@ pub mod sample;
 pub mod compose;
 pub mod effects;
 pub mod projector;
+pub mod runtime;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;

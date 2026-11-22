@@ -731,6 +731,30 @@ export function releaseExact(keys?: readonly string[]): void {
 // A value that changes only when `key`'s drawable holds NEW pixels, or undefined when that can't be
 // known (live receivers, effects, plugin sources) — undefined means "assume it changed". Lets a
 // consumer that pays per frame skip repeats; see VideoCodecContribution.surfaceGeneration.
+// ── E1f: WHAT THE NATIVE ENGINE IS TO DRAW for this content — decided HERE, by the code that draws it ──
+// The engine draws stills, HAP and effects itself (proven against this file's drawables, E1d). Anything
+// else is "unsupported" with a reason, and then the app keeps the wire (engine/runtime.rs: all or nothing).
+// A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
+export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+export function filePathOf(url: string): string {
+  // The renderer sees absolute paths (main translates project assets); a file:// URL is undone here.
+  if (!/^file:\/\//i.test(url)) return url;
+  return decodeURIComponent(url.replace(/^file:\/\//i, '')).replace(/^\/([A-Za-z]:)/, '$1');
+}
+export function nativeSource(key: string, content: SurfaceContent): NativeSource {
+  switch (content.type) {
+    case SourceType.NONE: return { kind: 'none' };
+    case SourceType.IMAGE: return content.url ? { kind: 'image', path: filePathOf(content.url) } : { kind: 'none' };
+    case 'EFFECT': return { kind: 'effect' };
+    case SourceType.VIDEO: {
+      const e = media.get(key);
+      if (e?.type === 'CODEC' && e.codecId === 'hap') return { kind: 'hap', path: filePathOf(e.path) };
+      return { kind: 'unsupported', why: e?.type === 'CODEC' ? `a ${e.codecId} video is decoded in the browser` : 'a video that is not HAP is decoded in the browser' };
+    }
+    default: return { kind: 'unsupported', why: `${content.type} is not drawn by the native engine yet` };
+  }
+}
+
 export function getDrawableGeneration(key: string, content: SurfaceContent): number | undefined {
   // PLUGIN TYPES GET TO ANSWER. Without this branch the function had no default case at all, so every
   // non-VIDEO source answered `undefined` — "assume it changed" — and the three consumers that pay per

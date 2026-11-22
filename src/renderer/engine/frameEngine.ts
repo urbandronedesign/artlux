@@ -23,6 +23,7 @@ import * as colorEngine from '../services/colorEngine';
 import { perfMonitor } from '../services/perfMonitor';
 import * as renderClock from './renderClock';
 import { packUniverses, buildGammaLut } from './packUniverses';
+import * as nativeLink from './nativeLink';
 
 
 // THE RENDER/OUTPUT ENGINE — composite, sample, pack, publish.
@@ -465,6 +466,7 @@ class FrameEngine {
     // Fit each surface's rect to its content's aspect ratio once the media is loaded (once per
     // source). Keeps width + top-left, derives height (the canvas is square, so a normalized w/h
     // ratio equals the displayed pixel ratio). User scale stays uniform.
+    let fitted = false;
     {
       let fitUpdate: Surface[] | null = null;
       for (const s of this.inputs.surfaces) {
@@ -491,6 +493,7 @@ class FrameEngine {
       if (fitUpdate) {
         this.inputs = { ...this.inputs, surfaces: fitUpdate };
         this.host.onSurfacesAutoFitted?.(fitUpdate);
+        fitted = true;
       }
     }
 
@@ -507,7 +510,12 @@ class FrameEngine {
     // Read the dirty flags BEFORE the isActive() check, not inside it: releasing the last lane empties
     // the overlay, so isActive() is already false on the frame the authored value must be re-uploaded.
     // Guarding the read on it would leave the GPU holding the last automated value for good.
-    let geomDirty = automationOverlay.geometryAnimating();
+    // ⚠ AN AUTO-FIT IS A GEOMETRY CHANGE. The fit above replaces this.inputs.surfaces HERE, so when App
+    // commits the same array back, setInputs sees `next.surfaces === prev.surfaces` and never rebuilds the
+    // LED mapping — the LEDs kept sampling the surface's PRE-FIT rectangle (an area the operator no longer
+    // sees) until something else moved. Found by the native engine's takeover test (E1f-1): the engine
+    // sampled the fitted surface, the app's own LEDs the stale one, 389 of 512 channels apart.
+    let geomDirty = automationOverlay.geometryAnimating() || fitted;
     const paramsDirty = automationOverlay.paramsAnimating();
     automationOverlay.consumeDirty();
     if (automationOverlay.isActive()) {
@@ -592,6 +600,8 @@ class FrameEngine {
       }
       // WebGPU samples each fixture strictly from its linked surface; the WebGL fallback samples the
       // engine's own composite — which is why that composite is no longer the visible canvas.
+      // E1f: the native engine (when on) gets this frame's EFFECTIVE document and a tick — see nativeLink.
+      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness);
       if (mapper.perSurface && mapper.renderSurfaces) {
         mapper.renderSurfaces((id) => {
           const s = effSurfaces.find((x) => x.id === id);

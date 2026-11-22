@@ -271,6 +271,14 @@ export const IPC = {
    */
   ENGINE_PORT: 'engine:port',
   /**
+   * E1f — the NATIVE engine's live link (plans/native-engine.md). Renderer → main: is the native engine on
+   * (`--native-engine`; invoke, once)? Then the effective document as JSON whenever it changes, and one small
+   * tick per frame; main relays both to the engine (src/main/engineHost.ts). Nothing is sent when it is off.
+   */
+  NATIVE_ENGINE_ENABLED: 'native-engine:enabled',
+  NATIVE_ENGINE_DOC: 'native-engine:doc',
+  NATIVE_ENGINE_TICK: 'native-engine:tick',
+  /**
    * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
    * process that holds the authoritative project document. Sent on every load; the preload relays it
    * into the page (state/hostLink.ts) exactly as it relays ENGINE_PORT.
@@ -1903,6 +1911,12 @@ export interface ArtluxApi {
   onDmxStats(cb: (stats: OutputStats) => void): () => void;
   /** Renderer → main: push ~1 Hz renderer frame-time stats for the Prometheus endpoint. */
   reportRenderStats(stats: RenderStats): void;
+  /** E1f: is the native engine running behind `--native-engine`? (Resolves false when it is off.) */
+  nativeEngineEnabled?(): Promise<boolean>;
+  /** E1f: the effective document for the native engine — its JSON (which carries `rev`) and that rev. */
+  nativeEngineDoc?(json: string, rev: number): void;
+  /** E1f: one frame for the native engine — `{"rev":…,"t":…,"brightness":…,"hap":{…}}` as JSON. */
+  nativeEngineTick?(json: string): void;
   /**
    * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
    * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-

@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord, type BlendWatchEntry } from '../../shared/protocol';
 import * as output from './transport/outputManager';
+import { noteOutputConfig, noteDoc, noteTick, engineEnabled } from './engineHost';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as osc from './transport/oscManager';
@@ -38,12 +39,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.CONFIGURE, (_e, cfg: OutputConfig) => {
         try {
             output.configure(cfg);
+            noteOutputConfig(cfg);   // E1f: the native engine sends with the same settings
             sendStatus(true);
         } catch (err) {
             console.error('[ipc] configure failed', err);
             sendStatus(false);
         }
     });
+
+    // E1f: the native engine's live link — relayed as-is (engineHost.ts); a no-op when the engine is off.
+    ipcMain.handle(IPC.NATIVE_ENGINE_ENABLED, () => engineEnabled());
+    ipcMain.on(IPC.NATIVE_ENGINE_DOC, (_e, json: string, rev: number) => { if (typeof json === 'string') noteDoc(json, Number(rev)); });
+    ipcMain.on(IPC.NATIVE_ENGINE_TICK, (_e, json: string) => { if (typeof json === 'string') noteTick(json); });
 
     ipcMain.on(IPC.FRAME, (_e, frame: ArrayBuffer | Uint8Array) => {
         if (!output.isReady()) return;

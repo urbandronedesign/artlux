@@ -231,6 +231,17 @@ export function getDrawableGeneration(s: Surface): number | undefined {
   return contentSource.getDrawableGeneration(s.id, s.content);
 }
 
+// E1f: what the NATIVE engine is to draw for this surface — the same branches as getDrawable below, in the
+// same order, so the engine is never told to draw something this surface is not showing.
+export function nativeSource(s: Surface): contentSource.NativeSource {
+  const t = s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM ? timeline.getPlayhead() : timeline.getShowTime();
+  if (bakeStore.statusFor(s, t, timeline.activePoolKey()).state === 'live') return { kind: 'unsupported', why: 'a baked surface plays its video in the browser' };
+  if (s.content.type === SourceType.SLICE || s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) {
+    return { kind: 'unsupported', why: `a ${s.content.type} surface is composed in the browser` };
+  }
+  return contentSource.nativeSource(s.id, s.content);
+}
+
 // Drawable for a surface this frame, or null if not ready / no content.
 export function getDrawable(s: Surface): Drawable | null {
   // ── A PRE-RENDERED SURFACE PLAYS ITS FILE ────────────────────────────────────────────────────

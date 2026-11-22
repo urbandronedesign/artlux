@@ -8493,6 +8493,46 @@ check(
   },
 );
 
+check(
+  'the native engine takes the wire with ONE sender and gives it back at once (E1f)',
+  'plans/native-engine.md E1f-1, proven in the real app by scripts/test-native-takeover.cjs (who sends each ' +
+  'packet, and the bytes). Each rule here was a measured failure: muting the app\'s pushes left its send ' +
+  'thread\'s KEEP-ALIVE repeating the last frame beside the engine\'s (two senders) — it must be handed an ' +
+  'empty frame on the way into muting, as the engine is when it hands the wire back; the app is muted only ' +
+  'while the engine\'s per-frame "sent" reports are fresh (a stalled render thread still answers pings); and ' +
+  'the engine must quit on the quit MESSAGE, not on the word "quit" inside a document.',
+  () => {
+    const problems = [];
+    const om = read('src/main/transport/outputManager.ts');
+    if (!/if \(wireOwner\?\.\(\)\) \{/.test(om)) problems.push('outputManager.sendFrame no longer asks who owns the wire');
+    if (!/if \(!muted\) \{[\s\S]{0,400}native\.pushFrame\(toBuffer\(empty\)\)/.test(om)) problems.push('muting no longer empties the app\'s send thread (its keep-alive would repeat the last frame)');
+    if (!/lastFrame = toArrayBuffer\(frame\);\s*\n\s*if \(wireOwner/.test(om)) problems.push('a muted frame is no longer RECORDED first (blackout() needs the last frame\'s shape)');
+    const eh = read('src/main/engineHost.ts');
+    if (!/Date\.now\(\) - lastSentAt < SENT_FRESH_MS/.test(eh)) problems.push('engineOwnsWire no longer requires fresh "sent" reports');
+    if (!/output\.setWireOwner\(engineOwnsWire\)/.test(eh)) problems.push('engineHost no longer registers the wire owner');
+    if (!/proc\.on\('exit'[\s\S]{0,300}setOwns\(null, 'the engine exited'\)/.test(eh)) problems.push('an engine exit no longer hands the wire back first');
+    const rt = raw('engine/artlux-engine/src/runtime.rs');
+    if (!/if was_owning && !owns \{[\s\S]{0,300}self\.send\(&0u32\.to_le_bytes\(\)\)/.test(rt)) problems.push('the engine no longer empties its send thread when it loses the wire');
+    const sv = raw('engine/artlux-engine/src/serve.rs');
+    if (!/line\.starts_with\("\{\\"quit\\""\)/.test(sv) || /line\.contains\("\\"quit\\""\)/.test(sv)) problems.push('serve.rs quits on the word "quit" anywhere in a line again');
+    if (!/"type":"sent"/.test(sv)) problems.push('the render thread no longer reports the frames it sent');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'an auto-fit of a surface to its picture rebuilds the LED mapping',
+  'Found by the native engine\'s takeover test (E1f-1): frameEngine fits a surface to its content\'s aspect by ' +
+  'replacing this.inputs.surfaces itself, so when App commits the same array back the setInputs diff sees no ' +
+  'change — and the LEDs kept sampling the PRE-FIT rectangle (389 of 512 channels off) while the preview showed ' +
+  'the fitted surface. The fit must count as a geometry change.',
+  () => {
+    const fe = read('src/renderer/engine/frameEngine.ts');
+    if (!/fitted = true;/.test(fe) || !/let geomDirty = automationOverlay\.geometryAnimating\(\) \|\| fitted;/.test(fe)) return 'frameEngine no longer marks an auto-fit as a geometry change';
+    return null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

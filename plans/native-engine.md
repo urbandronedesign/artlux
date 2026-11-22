@@ -1192,6 +1192,54 @@ fallback until a source/output is proven byte-identical — risk 2):
 > **E1f, the document channel** — the host sends the engine the surfaces, fixtures, controllers, outputs,
 > the show clock and the sources' state over the E1a stdio link; the engine renders and outputs at runtime
 > behind `--native-engine`, the app's path the fallback.
+>
+> **E1f is per output kind:** **E1f-1 the LED wire** (pixel fixtures; this step), **E1f-2 light fixtures**
+> (the host's precedence stack sends each light's channel bytes — pack.rs already takes them), **E1f-3
+> projectors** (the engine's windows from E1e fed by the same link), then the remaining sources.
+>
+> ✅ **E1f-1 done 2026-11-22 (the engine DRIVES THE LED WIRE in the real app).**
+> - **The link.** "The host evaluates, the engine draws": `renderer/engine/nativeLink.ts` sends the frame
+>   engine's EFFECTIVE surfaces and fixtures (after automation and fades) whenever they or a surface's
+>   resolved source change, plus one tick per frame — show time, brightness, and for each HAP surface the
+>   frame INDEX the app is showing, so both draw the same frame. The source per surface is decided beside
+>   `getDrawable` (`surfaceMedia.nativeSource` / `contentSource.nativeSource`: bakes, slices, layers, the
+>   codec). Main relays (`engineHost.ts`, re-sending output settings + the document to a restarted engine);
+>   the engine's `runtime.rs` keeps the pictures' GPU textures between frames (a still is mipped once) and
+>   composes → samples → packs → sends through the shared output core.
+> - **Ownership is all or nothing**, per document: a light fixture, a source it cannot draw, or output off →
+>   `owns: false` with the reason, logged (`app-has-wire`), the engine silent. While it owns, main RECORDS
+>   the app's frames (blackout needs their shape) but does not send them.
+> - **Proof in the real app** (`npm run test:native-takeover`; who sent each packet = its UDP source port's
+>   process): without the flag the app sends; with it **only artlux-engine sends after the handover, and
+>   both universes are BYTE-IDENTICAL to the app's own**; killing the engine puts the app's frames back on the
+>   wire **38 ms** later (main sees the exit at 23 ms), the restarted engine owns it again at 466 ms; longest
+>   silence 38 ms; main logs both. `npm run test:engine-runtime` (the engine alone over stdio): every universe
+>   = `--frame-once` + the app's packer, the three refusals silent with keep-alive on, a cached still not
+>   frozen, pings answered during frames, ticks for an old document ignored.
+> - **Found and fixed on the way:**
+>   1. **An app bug — LEDs sampled a surface's PRE-FIT outline.** When media loads onto a surface of another
+>      shape the frame engine fits the surface itself; App then commits the same array and the mapping diff
+>      saw "no change", so the LEDs kept sampling the old rectangle until something else moved (389 of 512
+>      channels off here). An auto-fit is now a geometry change (guarded; CHANGELOG).
+>   2. **Two senders:** muting the app's pushes left its send thread's KEEP-ALIVE repeating the last frame
+>      beside the engine's. Muting now hands it an empty frame (the engine does the same on handback).
+>   3. **Liveness is "it is sending"**, per frame from the render thread: a render thread that stalls while
+>      the reader answers pings would otherwise hold the wire dark forever.
+>   4. **The engine quit on the WORD "quit"** anywhere in a line — a surface named so would have stopped it.
+>   5. **Measurement traps, not product bugs:** a synchronous lookup in the harness delayed packet timestamps;
+>      in dev, ArtLux's stdout is piped to the harness and a blocked harness BLOCKS main (Windows pipes); and
+>      the first "2.5 s handback" was **main blocked ~7 s by the audio engine's synchronous start-up** (its
+>      "Getting first order cube"). ⚠ That last one is real and pre-existing: **for several seconds after
+>      start-up main forwards no frame to the wire** (app or engine handback alike). Not fixed here — it is
+>      the audio engine's start-up, to move off main.
+> - Heavily shrunk stills are where the engine is not byte-identical by design (E1d-1, the pending owner
+>   decision); the takeover test uses enlarged stills, where it is.
+> - `test-engine-output` (the no-flag path): 2 of 2 clean runs pass with these changes and 2 of 2 without;
+>   2 earlier runs WITH them each failed a different check while a cargo build or another app run was
+>   competing — recorded as flaky under load, not proven either way.
+> - Not covered: lights, projectors, Spout at runtime (the engine's grab opens a receiver per frame — fine
+>   for a test, not for a show), the packaged exe (`--packaged` is ready), sACN handover (both senders share
+>   no sequence), the RTX PC.
 
 ## 10. Open questions
 

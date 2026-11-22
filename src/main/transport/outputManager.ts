@@ -89,8 +89,30 @@ let warnedNoSerial = false;
 // universes, how many channels each — because main does not otherwise know the patch.
 let lastFrame: ArrayBuffer | null = null;
 
+// E1f: WHO DRIVES THE WIRE. While the native engine owns it (main/engineHost.ts), the app's frames are
+// still RECORDED — blackout() puts the rig out over the last frame's shape on the way down — but not sent:
+// one sender, never two. The predicate is false the instant the engine dies or refuses a document, so the
+// next app frame goes out (the app's path is the fallback). Null (no engine) = always the app.
+let wireOwner: (() => boolean) | null = null;
+let muted = false;
+export function setWireOwner(fn: (() => boolean) | null): void { wireOwner = fn; }
+
 export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
   lastFrame = toArrayBuffer(frame);
+  if (wireOwner?.()) {
+    // ⚠ STOPPING THE PUSHES IS NOT ENOUGH. The send thread's KEEP-ALIVE repeats the last frame it was given,
+    // forever — measured: after the handover the app's addon kept sending its last frame beside the
+    // engine's (scripts/test-native-takeover.cjs). On the way into muting it is handed an EMPTY frame (no
+    // targets), so there is nothing left to repeat. The engine does the same when it hands the wire back.
+    if (!muted) {
+      muted = true;
+      const empty = new Uint8Array(4);   // shared/frameCodec: a u32 target count of 0
+      if (native) native.pushFrame(toBuffer(empty));
+      else { artnet.sendFrame({ targets: [] }); sacn.sendFrame({ targets: [] }); }
+    }
+    return;
+  }
+  muted = false;
   if (native) {
     native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread
     return;

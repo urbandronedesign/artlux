@@ -62,8 +62,18 @@ binary, not an addon: **`npm run build:engine`** (cargo, `engine/target/release/
 **required to PACKAGE on Windows** — it is declared in `build.win.extraResources`, so `verify:resources` fails
 a Windows package without it, and CI builds it — but it runs only behind **`--native-engine`** (or
 `ARTLUX_NATIVE_ENGINE=1`): main then spawns it, pings it every second, restarts it after a crash or a hang,
-leaves it stopped if it refuses (no hardware adapter), and logs all of it under the `engine` category. It
-carries no output yet. Its packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
+leaves it stopped if it refuses (no hardware adapter), and logs all of it under the `engine` category. Its
+packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
+
+**With the flag the engine DRIVES THE LED WIRE** (E1f-1) — for a show it can draw entirely: stills, HAP and
+effects on pixel fixtures. The renderer sends it the effective document and a tick per frame
+(`renderer/engine/nativeLink.ts`); main mutes the app's own frames only while the engine reports frames
+sent; anything it cannot draw yet (light fixtures, MP4, camera, NDI, Spout, slices, layers, bakes) keeps the
+wire with the app, and the log says why (`[engine] the app keeps the wire: …`, machine log `app-has-wire`).
+A dead or stalled engine hands the wire back within a frame or two. Projectors stay the app's for now.
+Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
+`node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
+the bytes).
 
 Each piece the engine will take over is held to today's app by a comparison test that runs the app's REAL
 code beside it — `npm run test:pack-parity`, `test:sampling-parity -- --gpu`, `test:wire-parity`,

@@ -7,6 +7,12 @@
 A HAP clip whose width or height is not a multiple of 4 (a 1080×1350 portrait, a 1366×768) showed
 **black**, with no error. It now plays like any other. See [Video codecs](docs/CODECS.md).
 
+### LEDs follow a surface that fitted itself to its picture
+
+When a picture or video loads onto a surface of another shape, the surface fits itself to the picture.
+The LEDs on it kept sampling the surface's **old** outline until something else moved, so they showed a
+different part of the picture than the preview. They now follow the fitted surface at once.
+
 ## v0.37.0
 
 ### More keyframe curves

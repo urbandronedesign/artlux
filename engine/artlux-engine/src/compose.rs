@@ -100,8 +100,23 @@ pub struct FrameDoc<'a> {
     pub brightness: f32,
 }
 
+/// The GPU copies of the pictures, kept between frames (E1f): a picture is uploaded — and its mip chain
+/// built — only when its GENERATION changes. A still is uploaded once; an effect or a HAP frame each time
+/// it moves. Without it a 1080p still would be re-mipped on the CPU 44 times a second.
+#[derive(Default)]
+pub struct TexCache { entries: HashMap<String, (u64, wgpu::Texture, usize)> }
+
+impl TexCache {
+    /// Forget surfaces that are no longer drawn.
+    pub fn retain(&mut self, keep: &dyn Fn(&str) -> bool) { self.entries.retain(|k, _| keep(k)); }
+}
+
 /// One frame: the atlas, then the LEDs. Returns the canonical buffer (R, G, B, W per LED).
-pub fn frame(gpu: &Gpu, doc: &FrameDoc) -> Result<Vec<u8>, EngineError> {
+pub fn frame(gpu: &Gpu, doc: &FrameDoc) -> Result<Vec<u8>, EngineError> { frame_cached(gpu, doc, None) }
+
+/// `frame`, reusing a picture's texture while `gens[surface]` is unchanged (a missing generation always
+/// re-uploads).
+pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache, &HashMap<String, u64>)>) -> Result<Vec<u8>, EngineError> {
     let d = &gpu.device;
     let order = layout::surface_order(doc.fixtures, doc.surfaces);
     let seg_count = layout::count_segments(doc.fixtures);
@@ -137,17 +152,26 @@ pub fn frame(gpu: &Gpu, doc: &FrameDoc) -> Result<Vec<u8>, EngineError> {
         let (Some(rect), Some(pic)) = (packed.rects.get(k), doc.pictures.get(sid)) else { continue };
         let opacity = doc.opacity.get(sid).copied().unwrap_or(1.0);
         if opacity <= 0.0 { continue; }
-        let chain = if pic.mips { mip_chain(pic) } else { vec![(pic.w, pic.h, pic.rgba.clone())] };
-        let size = wgpu::Extent3d { width: pic.w, height: pic.h, depth_or_array_layers: 1 };
-        let tex = d.create_texture(&wgpu::TextureDescriptor {
-            label: Some("picture"), size, mip_level_count: chain.len() as u32, sample_count: 1, dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[],
-        });
-        for (lvl, (w, h, px)) in chain.iter().enumerate() {
-            gpu.queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &tex, mip_level: lvl as u32, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All }, px,
-                wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(*h) }, wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 });
-        }
-        let level = mip_level(pic.w as f64 / rect.w, pic.h as f64 / rect.h, chain.len());
+        let gen = cache.as_ref().and_then(|(_, g)| g.get(sid).copied());
+        let hit = match (&cache, gen) { (Some((c, _)), Some(g)) => c.entries.get(sid).filter(|e| e.0 == g).map(|e| (e.1.clone(), e.2)), _ => None };
+        let (tex, levels) = match hit {
+            Some(t) => t,
+            None => {
+                let chain = if pic.mips { mip_chain(pic) } else { vec![(pic.w, pic.h, pic.rgba.clone())] };
+                let size = wgpu::Extent3d { width: pic.w, height: pic.h, depth_or_array_layers: 1 };
+                let tex = d.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("picture"), size, mip_level_count: chain.len() as u32, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, view_formats: &[],
+                });
+                for (lvl, (w, h, px)) in chain.iter().enumerate() {
+                    gpu.queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &tex, mip_level: lvl as u32, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All }, px,
+                        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(*h) }, wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 });
+                }
+                if let (Some((c, _)), Some(g)) = (cache.as_mut(), gen) { c.entries.insert(sid.clone(), (g, tex.clone(), chain.len())); }
+                (tex, chain.len())
+            }
+        };
+        let level = mip_level(pic.w as f64 / rect.w, pic.h as f64 / rect.h, levels);
         let mut u = [0u8; 32];
         for (i, v) in [rect.x as f32, rect.y as f32, rect.w as f32, rect.h as f32, opacity.min(1.0), level].iter().enumerate() {
             u[i * 4..i * 4 + 4].copy_from_slice(&v.to_le_bytes());
