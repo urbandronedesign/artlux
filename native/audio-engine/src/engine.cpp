@@ -29,7 +29,19 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <deque>
+#include <functional>
+#include <future>
+#include <mutex>
+#include <thread>
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <objbase.h>
+#endif
 #include "effects.h"
 #include "spectrum.h"
 
@@ -1387,13 +1399,128 @@ Engine& ensureEngine() { if (!gEngine) gEngine = new Engine(); return *gEngine; 
 } // namespace
 
 // ── N-API surface ───────────────────────────────────────────────────────────────────────────────
+//
+// ⚠ THE ENGINE DOES NOT RUN ON THE JS THREAD (Windows). Every call that touches the Engine is POSTED, in
+// call order, to ONE dedicated "audio control" thread, and the JS side gets a promise. That thread is
+// also JUCE's MESSAGE THREAD: it creates the MessageManager and pumps window messages (an STA, like
+// Electron's main thread), so whatever a driver or a JUCE device type posts to the message thread is
+// dispatched there — serialised with every engine call, exactly as it was when everything ran on main.
+//
+// WHY. configure() opens the device, and a cold open of the default endpoint in WASAPI shared mode costs
+// SECONDS (5.5 s measured on this rig's Realtek). It used to run synchronously on Electron main's JS
+// thread, so for those seconds after every start-up main served NOTHING — no frame reached the DMX
+// wire, no prefs read, no media byte, no tablet request (found by the native engine's handover test:
+// main's event loop blocked ~7 s; plans/native-engine.md E1f-1). The same goes for a device scan, an
+// offline render's detach/reattach, and a reconnect.
+//
+// Elsewhere (macOS, Linux) the calls run INLINE on the JS thread as before — same semantics, a promise
+// that is already settled: on macOS JUCE's message thread must be the process's main thread, and the
+// stall was measured on Windows.
+//
+// The pure-DSP helpers (juceVersion, analyseSamples, spatialProbe) touch no engine and stay synchronous.
+#if defined(_WIN32)
+#define ARTLUX_AUDIO_CONTROL_THREAD 1
+#endif
+
+namespace control {
+#ifdef ARTLUX_AUDIO_CONTROL_THREAD
+std::mutex m;
+std::deque<std::function<void()>> q;
+bool stopping = false;
+HANDLE wake = nullptr;      // auto-reset: a task was posted
+std::thread th;
+
+void post(std::function<void()> f) {
+  { std::lock_guard<std::mutex> lk(m); q.push_back(std::move(f)); }
+  SetEvent(wake);
+}
+
+void loop(std::promise<void>* ready) {
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);   // an STA, as Electron's main thread is
+  juce::MessageManager::getInstance();                  // THIS thread is JUCE's message thread
+  ready->set_value();
+  for (;;) {
+    std::deque<std::function<void()>> batch;
+    { std::lock_guard<std::mutex> lk(m); batch.swap(q); if (stopping && batch.empty()) break; }
+    for (auto& f : batch) {
+      try { f(); } catch (...) { /* a task's own finisher reports; never let one take the thread down */ }
+    }
+    // Pump whatever is waiting for the message thread, then sleep until a task or a message arrives.
+    MSG msg;
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&msg); DispatchMessage(&msg); }
+    if (!batch.empty()) continue;
+    MsgWaitForMultipleObjectsEx(1, &wake, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+  }
+  CoUninitialize();
+}
+
+void start() {
+  wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+  std::promise<void> ready;
+  auto f = ready.get_future();
+  th = std::thread(loop, &ready);
+  f.wait();   // the message manager exists before any engine call is posted
+}
+#endif
+} // namespace control
+
+static Napi::ThreadSafeFunction gTsfn;
+// Calls awaiting an answer. The thread-safe function holds the event loop open ONLY while there are
+// some: unref'd it could let Node exit under a pending configure; ref'd for good, it would keep a
+// quitting process alive. Touched only on the JS thread.
+static int gPending = 0;
+
+// What a task hands back to the JS thread: build the JS value, settle the promise.
+using Finish = std::function<void(Napi::Env, Napi::Promise::Deferred&)>;
+struct Job { Napi::Promise::Deferred d; Finish finish; };
+
+static Finish rejectWith(std::string msg) {
+  return [msg = std::move(msg)](Napi::Env env, Napi::Promise::Deferred& d) { d.Reject(Napi::Error::New(env, msg).Value()); };
+}
+
+// Run `work` against the engine (on the control thread) and settle a promise with what it returns.
+static Napi::Value runAsync(Napi::Env env, std::function<Finish()> work) {
+  auto* job = new Job{ Napi::Promise::Deferred::New(env), nullptr };
+  Napi::Promise p = job->d.Promise();
+  auto run = [job, work = std::move(work)]() {
+    try { job->finish = work(); }
+    catch (const std::exception& e) { job->finish = rejectWith(std::string("audio engine: ") + e.what()); }
+    catch (...) { job->finish = rejectWith("audio engine: unknown failure"); }
+  };
+#ifdef ARTLUX_AUDIO_CONTROL_THREAD
+  if (gPending++ == 0) gTsfn.Ref(env);
+  control::post([job, run]() {
+    run();
+    gTsfn.BlockingCall(job, [](Napi::Env env, Napi::Function, Job* j) {
+      j->finish(env, j->d); delete j;
+      if (--gPending == 0) gTsfn.Unref(env);
+    });
+  });
+#else
+  run();
+  job->finish(env, job->d);
+  delete job;
+#endif
+  return p;
+}
+
+// A fire-and-forget engine call (no answer), in order with every other call.
+static void runVoid(std::function<void()> work) {
+#ifdef ARTLUX_AUDIO_CONTROL_THREAD
+  control::post(std::move(work));
+#else
+  work();
+#endif
+}
+
 static Napi::String JuceVersion(const Napi::CallbackInfo& info) {
   return Napi::String::New(info.Env(), juce::SystemStats::getJUCEVersion().toStdString());
 }
 
-// configure(cfg) — cfg: { deviceType?, deviceName?, channels?, sampleRate?, bufferSize?, mode?, layout? }
-// Returns the setup ACTUALLY OPENED: { deviceName, deviceType, sampleRate, bufferSize, channels }. It can
-// differ from what was asked (a stereo card asked for 8ch reports 2 back) and the UI must show what it GOT.
+// configure(cfg) → Promise<{ deviceName, deviceType, sampleRate, bufferSize, channels }> — the setup
+// ACTUALLY OPENED, which can differ from what was asked (a stereo card asked for 8ch reports 2 back) and
+// the UI must show what it GOT. Rejects with "audio configure failed: …".
+// cfg: { deviceType?, deviceName?, channels?, sampleRate?, bufferSize?, mode?, layout?, patch? }
 static Napi::Value Configure(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   Napi::Object o = info.Length() > 0 && info[0].IsObject() ? info[0].As<Napi::Object>() : Napi::Object::New(env);
@@ -1416,36 +1543,42 @@ static Napi::Value Configure(const Napi::CallbackInfo& info) {
     for (uint32_t i = 0; i < a.Length(); ++i)
       cfg.patch.push_back(a.Get(i).IsNumber() ? a.Get(i).As<Napi::Number>().Int32Value() : (int) i);
   }
-
-  Engine::OpenedCfg got;
-  juce::String err = ensureEngine().configure(cfg, got);
-  if (err.isNotEmpty()) { Napi::Error::New(env, ("audio configure failed: " + err).toStdString()).ThrowAsJavaScriptException(); return env.Null(); }
-
-  auto r = Napi::Object::New(env);
-  r.Set("deviceName", Napi::String::New(env, got.deviceName.toStdString()));
-  r.Set("deviceType", Napi::String::New(env, got.deviceType.toStdString()));
-  r.Set("sampleRate", Napi::Number::New(env, got.sampleRate));
-  r.Set("bufferSize", Napi::Number::New(env, got.bufferSize));
-  r.Set("channels", Napi::Number::New(env, got.channels));
-  return r;
+  return runAsync(env, [cfg]() -> Finish {
+    Engine::OpenedCfg got;
+    const juce::String err = ensureEngine().configure(cfg, got);
+    if (err.isNotEmpty()) return rejectWith(("audio configure failed: " + err).toStdString());
+    return [got](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto r = Napi::Object::New(env);
+      r.Set("deviceName", Napi::String::New(env, got.deviceName.toStdString()));
+      r.Set("deviceType", Napi::String::New(env, got.deviceType.toStdString()));
+      r.Set("sampleRate", Napi::Number::New(env, got.sampleRate));
+      r.Set("bufferSize", Napi::Number::New(env, got.bufferSize));
+      r.Set("channels", Napi::Number::New(env, got.channels));
+      d.Resolve(r);
+    };
+  });
 }
 
-// getDevices() → [{ type, name, isDefault }]. One physical device appears once PER DRIVER TYPE — that is
-// the point, not a bug: the type is what decides whether you get discrete multichannel.
+// getDevices() → Promise<[{ type, name, isDefault }]>. One physical device appears once PER DRIVER TYPE —
+// that is the point, not a bug: the type is what decides whether you get discrete multichannel.
 static Napi::Value GetDevices(const Napi::CallbackInfo& info) {
-  auto env = info.Env();
-  const auto devs = ensureEngine().listOutputDevices();
-  auto arr = Napi::Array::New(env, devs.size());
-  for (size_t i = 0; i < devs.size(); ++i) {
-    auto d = Napi::Object::New(env);
-    d.Set("type", Napi::String::New(env, devs[i].type.toStdString()));
-    d.Set("name", Napi::String::New(env, devs[i].name.toStdString()));
-    d.Set("isDefault", Napi::Boolean::New(env, devs[i].isDefault));
-    arr.Set((uint32_t) i, d);
-  }
-  return arr;
+  return runAsync(info.Env(), []() -> Finish {
+    auto devs = ensureEngine().listOutputDevices();
+    return [devs](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto arr = Napi::Array::New(env, devs.size());
+      for (size_t i = 0; i < devs.size(); ++i) {
+        auto o = Napi::Object::New(env);
+        o.Set("type", Napi::String::New(env, devs[i].type.toStdString()));
+        o.Set("name", Napi::String::New(env, devs[i].name.toStdString()));
+        o.Set("isDefault", Napi::Boolean::New(env, devs[i].isDefault));
+        arr.Set((uint32_t) i, o);
+      }
+      d.Resolve(arr);
+    };
+  });
 }
 
+// loadClip(id, path) → Promise<{ durationSec, channels, sampleRate }>; rejects when the file cannot be opened.
 static Napi::Value LoadClip(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   if (info.Length() < 2 || !info[0].IsString() || !info[1].IsString()) {
@@ -1453,19 +1586,23 @@ static Napi::Value LoadClip(const Napi::CallbackInfo& info) {
   }
   const std::string id = info[0].As<Napi::String>().Utf8Value();
   const juce::String path = info[1].As<Napi::String>().Utf8Value();
-  Clip* clip = nullptr; juce::String err;
-  if (!ensureEngine().loadClip(id, path, clip, err)) {
-    Napi::Error::New(env, err.toStdString()).ThrowAsJavaScriptException(); return env.Null();
-  }
-  auto obj = Napi::Object::New(env);
-  obj.Set("durationSec", Napi::Number::New(env, clip->lengthSec));
-  obj.Set("channels", Napi::Number::New(env, clip->channels));
-  obj.Set("sampleRate", Napi::Number::New(env, clip->sampleRate));
-  return obj;
+  return runAsync(env, [id, path]() -> Finish {
+    Clip* clip = nullptr; juce::String err;
+    if (!ensureEngine().loadClip(id, path, clip, err)) return rejectWith(err.toStdString());
+    // Copied NOW, on the control thread: the clip may be replaced by a later call before the JS side runs.
+    const double len = clip->lengthSec; const int ch = clip->channels; const double sr = clip->sampleRate;
+    return [len, ch, sr](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto obj = Napi::Object::New(env);
+      obj.Set("durationSec", Napi::Number::New(env, len));
+      obj.Set("channels", Napi::Number::New(env, ch));
+      obj.Set("sampleRate", Napi::Number::New(env, sr));
+      d.Resolve(obj);
+    };
+  });
 }
 
 static Napi::Value UnloadClip(const Napi::CallbackInfo& info) {
-  if (info.Length() > 0 && info[0].IsString()) ensureEngine().unloadClip(info[0].As<Napi::String>().Utf8Value());
+  if (info.Length() > 0 && info[0].IsString()) { std::string id = info[0].As<Napi::String>().Utf8Value(); runVoid([id] { ensureEngine().unloadClip(id); }); }
   return info.Env().Undefined();
 }
 
@@ -1474,49 +1611,49 @@ static Napi::Value PlayClip(const Napi::CallbackInfo& info) {
     const std::string id = info[0].As<Napi::String>().Utf8Value();
     const double seek = info.Length() > 1 && info[1].IsNumber() ? info[1].As<Napi::Number>().DoubleValue() : 0.0;
     const float gain = info.Length() > 2 && info[2].IsNumber() ? (float) info[2].As<Napi::Number>().DoubleValue() : 1.0f;
-    ensureEngine().playClip(id, seek, gain);
+    runVoid([id, seek, gain] { ensureEngine().playClip(id, seek, gain); });
   }
   return info.Env().Undefined();
 }
 
 static Napi::Value StopClip(const Napi::CallbackInfo& info) {
-  if (info.Length() > 0 && info[0].IsString()) ensureEngine().stopClip(info[0].As<Napi::String>().Utf8Value());
+  if (info.Length() > 0 && info[0].IsString()) { std::string id = info[0].As<Napi::String>().Utf8Value(); runVoid([id] { ensureEngine().stopClip(id); }); }
   return info.Env().Undefined();
 }
 
 static Napi::Value SetClipGain(const Napi::CallbackInfo& info) {
-  if (info.Length() > 1 && info[0].IsString() && info[1].IsNumber())
-    ensureEngine().setClipGain(info[0].As<Napi::String>().Utf8Value(), (float) info[1].As<Napi::Number>().DoubleValue());
+  if (info.Length() > 1 && info[0].IsString() && info[1].IsNumber()) {
+    std::string id = info[0].As<Napi::String>().Utf8Value(); const float g = (float) info[1].As<Napi::Number>().DoubleValue();
+    runVoid([id, g] { ensureEngine().setClipGain(id, g); });
+  }
   return info.Env().Undefined();
 }
 
-// setClipSpatial(id, x, y, z) — listener at origin, +x right, +y up, +z forward (metres).
+// setClipSpatial(id, x, y, z, omni?) — listener at origin, +x right, +y up, +z forward (metres).
 static Napi::Value SetClipSpatial(const Napi::CallbackInfo& info) {
   if (info.Length() > 3 && info[0].IsString() && info[1].IsNumber() && info[2].IsNumber() && info[3].IsNumber()) {
     // The 4th argument is OPTIONAL and defaults to false, so an older renderer calling this with three
     // numbers keeps working unchanged. `ToBoolean` rather than IsBoolean+As: the renderer may send a
     // number, and a truthy 1 meaning "everywhere" should not be silently ignored.
     const bool omni = info.Length() > 4 && info[4].ToBoolean().Value();
-    ensureEngine().setClipSpatial(
-      info[0].As<Napi::String>().Utf8Value(),
-      (float) info[1].As<Napi::Number>().DoubleValue(),
-      (float) info[2].As<Napi::Number>().DoubleValue(),
-      (float) info[3].As<Napi::Number>().DoubleValue(),
-      omni);
+    std::string id = info[0].As<Napi::String>().Utf8Value();
+    const float x = (float) info[1].As<Napi::Number>().DoubleValue(), y = (float) info[2].As<Napi::Number>().DoubleValue(),
+                z = (float) info[3].As<Napi::Number>().DoubleValue();
+    runVoid([id, x, y, z, omni] { ensureEngine().setClipSpatial(id, x, y, z, omni); });
   }
   return info.Env().Undefined();
 }
 
 static Napi::Value ClearClipSpatial(const Napi::CallbackInfo& info) {
-  if (info.Length() > 0 && info[0].IsString()) ensureEngine().clearClipSpatial(info[0].As<Napi::String>().Utf8Value());
+  if (info.Length() > 0 && info[0].IsString()) { std::string id = info[0].As<Napi::String>().Utf8Value(); runVoid([id] { ensureEngine().clearClipSpatial(id); }); }
   return info.Env().Undefined();
 }
 
 // [{ id, type, bypass?, params?: {k: number}, opts?: {k: string} }] → std::vector<EffectSpec>.
-// Runs on the JS thread, so allocating is fine. Deliberately TOLERANT: these arrive over a
-// fire-and-forget IPC send, which has nobody to reject to — a malformed node is skipped, a malformed
-// param is dropped, and the effect's own setParams() clamps whatever survives. Throwing here would
-// take down an audio edit; being lenient just means a bad effect does nothing.
+// Runs on the JS thread (it reads JS values), BEFORE the call is posted. Deliberately TOLERANT: these
+// arrive over a fire-and-forget IPC send, which has nobody to reject to — a malformed node is skipped, a
+// malformed param is dropped, and the effect's own setParams() clamps whatever survives. Throwing here
+// would take down an audio edit; being lenient just means a bad effect does nothing.
 static std::vector<EffectSpec> parseEffects(const Napi::Value& v) {
   std::vector<EffectSpec> out;
   if (!v.IsArray()) return out;
@@ -1560,53 +1697,59 @@ static std::vector<EffectSpec> parseEffects(const Napi::Value& v) {
 
 // setClipEffects(id, effects[]) — the insert chain on one source, applied before it is spatialised.
 static Napi::Value SetClipEffects(const Napi::CallbackInfo& info) {
-  if (info.Length() > 1 && info[0].IsString())
-    ensureEngine().setClipEffects(info[0].As<Napi::String>().Utf8Value(), parseEffects(info[1]));
+  if (info.Length() > 1 && info[0].IsString()) {
+    std::string id = info[0].As<Napi::String>().Utf8Value();
+    auto specs = std::make_shared<std::vector<EffectSpec>>(parseEffects(info[1]));
+    runVoid([id, specs] { ensureEngine().setClipEffects(id, std::move(*specs)); });
+  }
   return info.Env().Undefined();
 }
 
 // setMasterEffects(effects[]) — on the decoded N-channel output. 'reverb' nodes are DROPPED here:
 // juce::dsp::Reverb is a <=2 channel processor and would silently pass dry on a multichannel decode.
 static Napi::Value SetMasterEffects(const Napi::CallbackInfo& info) {
-  if (info.Length() > 0) ensureEngine().setMasterEffects(parseEffects(info[0]));
+  if (info.Length() > 0) {
+    auto specs = std::make_shared<std::vector<EffectSpec>>(parseEffects(info[0]));
+    runVoid([specs] { ensureEngine().setMasterEffects(std::move(*specs)); });
+  }
   return info.Env().Undefined();
 }
 
 static Napi::Value SetMasterGain(const Napi::CallbackInfo& info) {
-  if (info.Length() > 0 && info[0].IsNumber())
-    ensureEngine().setMasterGain((float) info[0].As<Napi::Number>().DoubleValue());
+  if (info.Length() > 0 && info[0].IsNumber()) { const float g = (float) info[0].As<Napi::Number>().DoubleValue(); runVoid([g] { ensureEngine().setMasterGain(g); }); }
   return info.Env().Undefined();
 }
 
 // setTestTone(deviceChannel, gain) — deviceChannel < 0 turns it off. Pink noise, straight onto a DEVICE
 // CHANNEL, bypassing the decoder and the master fader (see Bus::setTestTone).
 static Napi::Value SetTestTone(const Napi::CallbackInfo& info) {
-  auto env = info.Env();
   const int ch = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : -1;
-  const double g = info.Length() > 1 && info[1].IsNumber() ? info[1].As<Napi::Number>().DoubleValue() : 0.5;
-  ensureEngine().setTestTone(ch, (float) g);
-  return env.Undefined();
+  const float g = (float) (info.Length() > 1 && info[1].IsNumber() ? info[1].As<Napi::Number>().DoubleValue() : 0.5);
+  runVoid([ch, g] { ensureEngine().setTestTone(ch, g); });
+  return info.Env().Undefined();
 }
 
-static Napi::Value StopAll(const Napi::CallbackInfo& info) { ensureEngine().stopAll(); return info.Env().Undefined(); }
+static Napi::Value StopAll(const Napi::CallbackInfo& info) { runVoid([] { ensureEngine().stopAll(); }); return info.Env().Undefined(); }
 
-// The spectrum, as  values in 0..1. A separate call from GetMeters because it is polled at a
-// DIFFERENT RATE: meters are a 10 Hz readout for a human eye, while a visual reacting to sound needs
-// every frame it can get. Bundling them would force one of the two to be wrong.
+// getSpectrum() → Promise<Float32Array>: the spectrum, as  values in 0..1. A separate call from
+// GetMeters because it is polled at a DIFFERENT RATE: meters are a 10 Hz readout for a human eye, while a
+// visual reacting to sound needs every frame it can get. Bundling them would force one of the two to be wrong.
 static Napi::Value GetSpectrum(const Napi::CallbackInfo& info) {
-  auto env = info.Env();
-  auto& e = ensureEngine();
-  float bands[SpectrumAnalyser::kBands];
-  e.spectrum(bands);
-  auto arr = Napi::Float32Array::New(env, (size_t) SpectrumAnalyser::kBands);
-  for (int i = 0; i < SpectrumAnalyser::kBands; ++i) arr[(size_t) i] = bands[i];
-  return arr;
+  return runAsync(info.Env(), []() -> Finish {
+    std::array<float, SpectrumAnalyser::kBands> bands {};
+    ensureEngine().spectrum(bands.data());
+    return [bands](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto arr = Napi::Float32Array::New(env, (size_t) SpectrumAnalyser::kBands);
+      for (int i = 0; i < SpectrumAnalyser::kBands; ++i) arr[(size_t) i] = bands[(size_t) i];
+      d.Resolve(arr);
+    };
+  });
 }
 
 // Analyse a caller-supplied mono buffer with the SAME window, scaling and band layout as the live
 // tap. Two uses, and the second is why it exists at all: analysing a file offline, and proving the
 // analyser is CORRECT on a machine with no audio device — where the live path can only ever return
-// silence, so a tone test through it would pass by being empty.
+// silence, so a tone test through it would pass by being empty. Pure DSP: synchronous.
 static Napi::Value AnalyseSamples(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   if (info.Length() < 2 || !info[0].IsTypedArray()) {
@@ -1624,43 +1767,62 @@ static Napi::Value AnalyseSamples(const Napi::CallbackInfo& info) {
   return arr;
 }
 
+// getMeters() → Promise<{ peak, rms, peakL, peakR, peaks[], speakers, masterFxChannels, deviceChannels,
+// clipped, deviceLive }>.
 static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
-  auto env = info.Env();
-  auto& e = ensureEngine();
-  auto obj = Napi::Object::New(env);
-  obj.Set("peak", Napi::Number::New(env, e.peak()));
-  obj.Set("rms", Napi::Number::New(env, e.rms()));
-  obj.Set("peakL", Napi::Number::New(env, e.chPeak(0)));
-  obj.Set("peakR", Napi::Number::New(env, e.chPeak(1)));
-  auto arr = Napi::Array::New(env, (size_t) kMaxMeterCh);
-  for (int i = 0; i < kMaxMeterCh; ++i) arr.Set((uint32_t) i, Napi::Number::New(env, e.chPeak(i)));
-  obj.Set("peaks", arr);                                              // per-channel (speaker) peaks
-  obj.Set("speakers", Napi::Number::New(env, e.speakerCount()));      // 0 unless decoding to speakers
-  // Diagnostics: an effect chain built for a different channel count than the audio thread actually sees
-  // passes DRY — the worst kind of failure, since it looks wired and meters normally. Expose both numbers
-  // so a mismatch is measurable (masterFxChannels is 0 when there is no master chain).
-  obj.Set("masterFxChannels", Napi::Number::New(env, e.masterFxChannels()));
-  obj.Set("deviceChannels", Napi::Number::New(env, e.deviceChannels()));
-  obj.Set("clipped", Napi::Boolean::New(env, e.takeClipped())); // latched since the last poll, then cleared
-  // IS THERE STILL A DEVICE. Rides this poll (already 10 Hz, already across IPC) rather than opening a new
-  // channel — and it is a DIFFERENT QUESTION from `audio:available`, which reports only that the .node
-  // loaded. The addon stays loaded when the interface is unplugged; the sound does not. See Engine::deviceLive.
-  obj.Set("deviceLive", Napi::Boolean::New(env, e.deviceLive()));
-  return obj;
+  struct M { float peak, rms, l, r; std::array<float, kMaxMeterCh> ch; int speakers, fx, dev; bool clipped, live; };
+  return runAsync(info.Env(), []() -> Finish {
+    auto& e = ensureEngine();
+    M m {};
+    m.peak = e.peak(); m.rms = e.rms(); m.l = e.chPeak(0); m.r = e.chPeak(1);
+    for (int i = 0; i < kMaxMeterCh; ++i) m.ch[(size_t) i] = e.chPeak(i);
+    m.speakers = e.speakerCount(); m.fx = e.masterFxChannels(); m.dev = e.deviceChannels();
+    m.clipped = e.takeClipped();   // latched since the last poll, then cleared
+    m.live = e.deviceLive();
+    return [m](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto obj = Napi::Object::New(env);
+      obj.Set("peak", Napi::Number::New(env, m.peak));
+      obj.Set("rms", Napi::Number::New(env, m.rms));
+      obj.Set("peakL", Napi::Number::New(env, m.l));
+      obj.Set("peakR", Napi::Number::New(env, m.r));
+      auto arr = Napi::Array::New(env, (size_t) kMaxMeterCh);
+      for (int i = 0; i < kMaxMeterCh; ++i) arr.Set((uint32_t) i, Napi::Number::New(env, m.ch[(size_t) i]));
+      obj.Set("peaks", arr);                                         // per-channel (speaker) peaks
+      obj.Set("speakers", Napi::Number::New(env, m.speakers));       // 0 unless decoding to speakers
+      // Diagnostics: an effect chain built for a different channel count than the audio thread actually
+      // sees passes DRY — the worst kind of failure, since it looks wired and meters normally. Expose both
+      // numbers so a mismatch is measurable (masterFxChannels is 0 when there is no master chain).
+      obj.Set("masterFxChannels", Napi::Number::New(env, m.fx));
+      obj.Set("deviceChannels", Napi::Number::New(env, m.dev));
+      obj.Set("clipped", Napi::Boolean::New(env, m.clipped));
+      // IS THERE STILL A DEVICE — a DIFFERENT QUESTION from `audio:available`, which reports only that the
+      // .node loaded. The addon stays loaded when the interface is unplugged; the sound does not.
+      obj.Set("deviceLive", Napi::Boolean::New(env, m.live));
+      d.Resolve(obj);
+    };
+  });
 }
 
+// close() — SYNCHRONOUS on purpose: it is the quit path, and the device must be closed before the process
+// goes. It waits for every call posted before it (a configure still opening a device included).
 static Napi::Value Close(const Napi::CallbackInfo& info) {
   // Destroyed HERE, on a live process with JUCE's statics still standing — the one place where
   // ~AudioDeviceManager is safe. See the note on gEngine.
-  if (gEngine) { gEngine->closeDevice(); delete gEngine; gEngine = nullptr; }
+  auto doClose = [] { if (gEngine) { gEngine->closeDevice(); delete gEngine; gEngine = nullptr; } };
+#ifdef ARTLUX_AUDIO_CONTROL_THREAD
+  std::promise<void> done;
+  auto f = done.get_future();
+  control::post([&done, doClose] { doClose(); done.set_value(); });
+  f.wait();
+#else
+  doClose();
+#endif
   return info.Env().Undefined();
 }
 
-// Diagnostic: libspatialaudio links and its chain runs (encode → B-format → binaural, MIT HRTF).
 // ---- NON-REALTIME RENDERING ---------------------------------------------------------------------
-// offlineBegin({sampleRate, blockSize, channels}) -> { ok, error? }
+// offlineBegin({sampleRate, blockSize, channels}) -> Promise<{ ok, error? }>
 static Napi::Value OfflineBegin(const Napi::CallbackInfo& info) {
-  auto env = info.Env();
   double sr = 48000.0;
   int block = 512, channels = 2;
   if (info.Length() > 0 && info[0].IsObject()) {
@@ -1669,40 +1831,52 @@ static Napi::Value OfflineBegin(const Napi::CallbackInfo& info) {
     if (o.Has("blockSize") && o.Get("blockSize").IsNumber()) block = o.Get("blockSize").As<Napi::Number>().Int32Value();
     if (o.Has("channels") && o.Get("channels").IsNumber()) channels = o.Get("channels").As<Napi::Number>().Int32Value();
   }
-  juce::String err;
-  const bool ok = ensureEngine().offlineBegin(sr, block, channels, err);
-  auto out = Napi::Object::New(env);
-  out.Set("ok", Napi::Boolean::New(env, ok));
-  if (!ok) out.Set("error", Napi::String::New(env, err.toStdString()));
-  return out;
+  return runAsync(info.Env(), [sr, block, channels]() -> Finish {
+    juce::String err;
+    const bool ok = ensureEngine().offlineBegin(sr, block, channels, err);
+    const std::string e = err.toStdString();
+    return [ok, e](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto out = Napi::Object::New(env);
+      out.Set("ok", Napi::Boolean::New(env, ok));
+      if (!ok) out.Set("error", Napi::String::New(env, e));
+      d.Resolve(out);
+    };
+  });
 }
 
-// offlinePull(frames) -> Float32Array, INTERLEAVED (frames * channels). Empty when not rendering.
-//
-// Allocated per call rather than into a reused buffer handed in from JS: the caller passes each block
-// straight to an AudioEncoder, which takes ownership of the timing, and a shared buffer would be
-// rewritten under an encode that had not finished with it.
+// offlinePull(frames) -> Promise<Float32Array>, INTERLEAVED (frames * channels). Empty when not rendering.
+// A fresh array per call: the caller passes each block straight to an AudioEncoder, which takes ownership
+// of the timing, and a shared buffer would be rewritten under an encode that had not finished with it.
 static Napi::Value OfflinePull(const Napi::CallbackInfo& info) {
-  auto env = info.Env();
   const int frames = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : 0;
-  auto& eng = ensureEngine();
-  if (frames <= 0 || !eng.isOffline()) return Napi::Float32Array::New(env, 0);
-  const int ch = eng.offlineChannelCount();
-  auto arr = Napi::Float32Array::New(env, (size_t) frames * (size_t) ch);
-  const int got = eng.offlinePull(arr.Data(), frames);
-  if (got == frames) return arr;
-  // Short read: hand back only what is real rather than a tail of zeros an encoder would treat as
-  // silence that was actually rendered.
-  auto trimmed = Napi::Float32Array::New(env, (size_t) got * (size_t) ch);
-  std::memcpy(trimmed.Data(), arr.Data(), (size_t) got * (size_t) ch * sizeof(float));
-  return trimmed;
+  return runAsync(info.Env(), [frames]() -> Finish {
+    auto& eng = ensureEngine();
+    auto buf = std::make_shared<std::vector<float>>();
+    if (frames > 0 && eng.isOffline()) {
+      const int ch = eng.offlineChannelCount();
+      buf->assign((size_t) frames * (size_t) ch, 0.0f);
+      const int got = eng.offlinePull(buf->data(), frames);
+      // Short read: hand back only what is real rather than a tail of zeros an encoder would treat as
+      // silence that was actually rendered.
+      buf->resize((size_t) got * (size_t) ch);
+    }
+    return [buf](Napi::Env env, Napi::Promise::Deferred& d) {
+      auto arr = Napi::Float32Array::New(env, buf->size());
+      if (!buf->empty()) std::memcpy(arr.Data(), buf->data(), buf->size() * sizeof(float));
+      d.Resolve(arr);
+    };
+  });
 }
 
 static Napi::Value OfflineEnd(const Napi::CallbackInfo& info) {
-  ensureEngine().offlineEnd();
-  return info.Env().Undefined();
+  return runAsync(info.Env(), []() -> Finish {
+    ensureEngine().offlineEnd();
+    return [](Napi::Env env, Napi::Promise::Deferred& d) { d.Resolve(env.Undefined()); };
+  });
 }
 
+// Diagnostic: libspatialaudio links and its chain runs (encode → B-format → binaural, MIT HRTF). Pure DSP
+// on local objects — no engine — so synchronous.
 static Napi::Value SpatialProbe(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   const unsigned sampleRate = 48000, block = 512;
@@ -1739,7 +1913,16 @@ static Napi::Value SpatialProbe(const Napi::CallbackInfo& info) {
 }
 
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
-  juce::MessageManager::getInstance(); // Windows device backends expect a message manager to exist
+#ifdef ARTLUX_AUDIO_CONTROL_THREAD
+  // The control thread creates the message manager (Windows device backends expect one to exist) and
+  // runs every engine call — see the note above the N-API surface. The thread-safe function brings the
+  // answers back to this thread; Unref'd, so it never keeps a quitting process alive.
+  control::start();
+  gTsfn = Napi::ThreadSafeFunction::New(env, Napi::Function::New(env, [](const Napi::CallbackInfo&) {}), "artlux-audio-control", 0, 1);
+  gTsfn.Unref(env);
+#else
+  juce::MessageManager::getInstance(); // device backends expect a message manager to exist
+#endif
   exports.Set("juceVersion", Napi::Function::New(env, JuceVersion));
   exports.Set("configure", Napi::Function::New(env, Configure));
   exports.Set("getDevices", Napi::Function::New(env, GetDevices));

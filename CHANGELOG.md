@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### No more frozen seconds at start-up
+
+Opening the sound card could take several seconds (over five on some onboard audio), and during that
+time the whole app waited: LEDs held their last frame, the tablet did not answer, nothing loaded. The
+sound card now opens in the background, and output starts straight away.
+
 ### HAP clips of any size play
 
 A HAP clip whose width or height is not a multiple of 4 (a 1080×1350 portrait, a 1366×768) showed

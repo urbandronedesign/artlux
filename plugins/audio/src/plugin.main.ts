@@ -3,6 +3,9 @@
 //   renderer → main : audio:configure/getDevices/getMeters/loadClip (invoke, need a reply)
 //                     audio:unloadClip/playClip/stopClip/setClipGain/setTestTone/stopAll (send, fire-and-forget)
 // The engine graceful-degrades: if the .node is missing every handler is a harmless no-op.
+// ⚠ NO HANDLER HERE MAY BLOCK MAIN. The engine's calls run on the addon's own audio control thread and the
+// answering ones are PROMISES (engine.cpp): a device open is seconds, and it used to stall main — and with
+// it the DMX wire — for every one of them. A handler returns the promise; ipcMain awaits it.
 
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
 import * as engine from './audioManager';
@@ -47,7 +50,7 @@ export const plugin: MainPlugin = {
       channels: Number((cfg as { channels?: number })?.channels) || 2,
     }));
     ipc.handle('audio:offlinePull', (frames) => engine.offlinePull(Math.max(0, Number(frames) || 0)));
-    ipc.handle('audio:offlineEnd', () => { engine.offlineEnd(); return true; });
+    ipc.handle('audio:offlineEnd', async () => { await engine.offlineEnd(); return true; });
     // The pink-noise file the Speaker check PLACES through the decoder (as opposed to setTestTone,
     // which writes a channel directly and so cannot see the decode at all). Generated on first ask.
     ipc.handle('audio:testSource', () => testSourcePath());

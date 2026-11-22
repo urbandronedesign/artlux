@@ -8533,6 +8533,39 @@ check(
   },
 );
 
+check(
+  'the audio engine never runs on main\'s JS thread (Windows): its calls go to the addon\'s control thread',
+  'Measured 2026-11-22: configure() opened the audio device SYNCHRONOUSLY on Electron main\'s JS thread — a ' +
+  'cold WASAPI-shared open of this rig\'s Realtek is 5.5 s — so for seconds after every start-up main served ' +
+  'nothing: no frame reached the DMX wire (an event-loop probe: main blocked 7.4 s), no prefs, no media, no ' +
+  'tablet request. native/audio-engine/src/engine.cpp now posts every engine call to ONE audio control thread ' +
+  '(also JUCE\'s message thread, pumping like an STA) and answers with promises; main\'s worst start-up gap ' +
+  'became 397 ms and a handback during start-up 59 ms (scripts/test-native-takeover.cjs). A call that slips ' +
+  'back onto the JS thread compiles, runs and stalls the show again.',
+  () => {
+    const problems = [];
+    const c = raw('native/audio-engine/src/engine.cpp');
+    if (!/#if defined\(_WIN32\)\s*\n#define ARTLUX_AUDIO_CONTROL_THREAD 1/.test(c)) problems.push('engine.cpp no longer enables the audio control thread on Windows');
+    if (!/control::start\(\);/.test(c)) problems.push('Init no longer starts the control thread');
+    if (!/juce::MessageManager::getInstance\(\);\s+\/\/ THIS thread is JUCE's message thread/.test(c)) problems.push('the control thread is no longer JUCE\'s message thread (driver messages would race the engine)');
+    for (const fn of ['Configure', 'GetDevices', 'LoadClip', 'GetMeters', 'GetSpectrum', 'OfflineBegin', 'OfflinePull', 'OfflineEnd']) {
+      const i = c.indexOf(`static Napi::Value ${fn}(`);
+      const body = i < 0 ? '' : c.slice(i, c.indexOf('\nstatic ', i + 10));
+      if (!/runAsync\(/.test(body)) problems.push(`${fn} no longer runs on the control thread`);
+      if (/ensureEngine\(\)/.test(body.slice(0, body.indexOf('runAsync(')))) problems.push(`${fn} touches the engine on the JS thread before posting`);
+    }
+    for (const fn of ['PlayClip', 'StopClip', 'UnloadClip', 'SetClipGain', 'SetMasterGain', 'SetTestTone', 'SetClipEffects', 'SetMasterEffects']) {
+      const i = c.indexOf(`static Napi::Value ${fn}(`);
+      const body = i < 0 ? '' : c.slice(i, c.indexOf('\nstatic ', i + 10));
+      if (!/runVoid\(/.test(body)) problems.push(`${fn} no longer posts to the control thread`);
+    }
+    if (!/if \(gPending\+\+ == 0\) gTsfn\.Ref\(env\);/.test(c)) problems.push('a pending call no longer holds the event loop open (Node could exit under it)');
+    const am = read('plugins/audio/src/audioManager.ts');
+    if (!/export function configure\(cfg: DeviceCfg\): Promise<OpenedCfg>/.test(am)) problems.push('audioManager.configure is synchronous again');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

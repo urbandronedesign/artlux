@@ -10,6 +10,10 @@
 // blocking -- correct for a show, and for a render it would pepper the output with gaps that differ
 // every run. Offline builds them with readAheadSize 0 and no thread instead, and this is what says so.
 //
+// The engine's calls answer with PROMISES (engine.cpp: they run on the addon's audio control thread, not
+// on the JS thread), so every one is awaited; the fire-and-forget ones (playClip) still return at once and
+// run IN ORDER with the rest.
+//
 // Runs under Electron as Node because the addon is built against Electron ABI.
 const path = require('path');
 const REPO = process.argv[2];
@@ -19,44 +23,46 @@ const wav = path.join(REPO, 'native/audio-engine/tone-100.wav');
 let fails = 0;
 const ok = (n, c, extra = '') => { console.log((c ? '  ok   ' : '  FAIL ') + n + (extra ? ' - ' + extra : '')); if (!c) fails++; };
 
-ok('addon exports the offline trio',
-  typeof eng.offlineBegin === 'function' && typeof eng.offlinePull === 'function' && typeof eng.offlineEnd === 'function');
+(async () => {
+  ok('addon exports the offline trio',
+    typeof eng.offlineBegin === 'function' && typeof eng.offlinePull === 'function' && typeof eng.offlineEnd === 'function');
 
-const SR = 48000, CH = 2, BLOCK = 512;
-const began = eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH });
-ok('offlineBegin succeeds with NO audio device', began && began.ok === true, JSON.stringify(began));
+  const SR = 48000, CH = 2, BLOCK = 512;
+  const began = await eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH });
+  ok('offlineBegin succeeds with NO audio device', began && began.ok === true, JSON.stringify(began));
 
-ok('offlineBegin refuses to start twice', eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH }).ok === false);
+  ok('offlineBegin refuses to start twice', (await eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH })).ok === false);
 
-// Silence first: a graph with nothing loaded must render zeros, not garbage.
-const quiet = eng.offlinePull(SR / 10);
-ok('pull returns interleaved frames', quiet.length === (SR / 10) * CH, quiet.length + ' floats');
-ok('an empty graph renders silence', quiet.every((v) => v === 0));
+  // Silence first: a graph with nothing loaded must render zeros, not garbage.
+  const quiet = await eng.offlinePull(SR / 10);
+  ok('pull returns interleaved frames', quiet.length === (SR / 10) * CH, quiet.length + ' floats');
+  ok('an empty graph renders silence', quiet.every((v) => v === 0));
 
-// Now load a tone and play it: the render must actually contain signal.
-eng.loadClip('t', wav);
-eng.playClip('t', 0, 1);
-const pcm = eng.offlinePull(SR / 2);            // half a second
-let peak = 0, nonzero = 0;
-for (const v of pcm) { const a = Math.abs(v); if (a > peak) peak = a; if (a > 1e-4) nonzero++; }
-ok('a playing clip renders audible signal', peak > 0.01, 'peak ' + peak.toFixed(4));
-ok('most of the block is non-silent', nonzero > pcm.length * 0.5, nonzero + '/' + pcm.length);
+  // Now load a tone and play it: the render must actually contain signal.
+  await eng.loadClip('t', wav);
+  eng.playClip('t', 0, 1);
+  const pcm = await eng.offlinePull(SR / 2);            // half a second
+  let peak = 0, nonzero = 0;
+  for (const v of pcm) { const a = Math.abs(v); if (a > peak) peak = a; if (a > 1e-4) nonzero++; }
+  ok('a playing clip renders audible signal', peak > 0.01, 'peak ' + peak.toFixed(4));
+  ok('most of the block is non-silent', nonzero > pcm.length * 0.5, nonzero + '/' + pcm.length);
 
-// Determinism: the whole point. Same range, twice, byte-identical.
-eng.offlineEnd();
-eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH });
-eng.playClip('t', 0, 1);
-const a2 = eng.offlinePull(SR / 2);
-eng.offlineEnd();
-eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH });
-eng.playClip('t', 0, 1);
-const b2 = eng.offlinePull(SR / 2);
-let diff = 0;
-for (let i = 0; i < a2.length; i++) if (a2[i] !== b2[i]) diff++;
-ok('two renders of the same range are IDENTICAL', diff === 0, diff + ' differing samples');
+  // Determinism: the whole point. Same range, twice, byte-identical.
+  await eng.offlineEnd();
+  await eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH });
+  eng.playClip('t', 0, 1);
+  const a2 = await eng.offlinePull(SR / 2);
+  await eng.offlineEnd();
+  await eng.offlineBegin({ sampleRate: SR, blockSize: BLOCK, channels: CH });
+  eng.playClip('t', 0, 1);
+  const b2 = await eng.offlinePull(SR / 2);
+  let diff = 0;
+  for (let i = 0; i < a2.length; i++) if (a2[i] !== b2[i]) diff++;
+  ok('two renders of the same range are IDENTICAL', diff === 0, diff + ' differing samples');
 
-eng.offlineEnd();
-ok('pull after end returns nothing', eng.offlinePull(128).length === 0);
+  await eng.offlineEnd();
+  ok('pull after end returns nothing', (await eng.offlinePull(128)).length === 0);
 
-console.log(fails ? '\n' + fails + ' FAILED\n' : '\nall passed\n');
-process.exit(fails ? 1 : 0);
+  console.log(fails ? '\n' + fails + ' FAILED\n' : '\nall passed\n');
+  process.exit(fails ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });

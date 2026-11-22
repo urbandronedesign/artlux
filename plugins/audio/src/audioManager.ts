@@ -66,6 +66,10 @@ export interface OpenedCfg {
 // you get discrete multichannel (WASAPI *exclusive*) or a shared mix (WASAPI shared).
 export interface DeviceEntry { type: string; name: string; isDefault: boolean }
 
+type MaybeAsync<T> = T | Promise<T>;
+// A synchronous throw from an older build becomes a rejection, so callers see ONE failure shape.
+function settle<T>(f: () => MaybeAsync<T>): Promise<T> { try { return Promise.resolve(f()); } catch (e) { return Promise.reject(e); } }
+
 interface NativeAudio {
   /**
    * NON-REALTIME RENDERING. Detaches the device, prepares the graph at an arbitrary rate, and lets the
@@ -73,14 +77,18 @@ interface NativeAudio {
    * driver has to evaluate automation, fades and recalls BETWEEN blocks, exactly as it does per frame
    * live. `offlinePull` returns INTERLEAVED frames (frames * channels).
    */
-  offlineBegin?(cfg: { sampleRate: number; blockSize: number; channels: number }): { ok: boolean; error?: string };
-  offlinePull?(frames: number): Float32Array;
-  offlineEnd?(): void;
+  // ⚠ ASYNC IN A CURRENT BUILD: every call that touches the engine runs on the addon's own audio control
+  // thread (engine.cpp, "THE ENGINE DOES NOT RUN ON THE JS THREAD"), and the answering ones return a
+  // PROMISE — a cold device open is seconds, and it used to stall main for all of them. An engine built
+  // before that returns the value itself; the wrappers below take either (Promise.resolve).
+  offlineBegin?(cfg: { sampleRate: number; blockSize: number; channels: number }): MaybeAsync<{ ok: boolean; error?: string }>;
+  offlinePull?(frames: number): MaybeAsync<Float32Array>;
+  offlineEnd?(): MaybeAsync<void>;
 
   juceVersion(): string;
-  configure(cfg: DeviceCfg): OpenedCfg; // throws on failure
-  getDevices(): DeviceEntry[];
-  loadClip(id: string, path: string): ClipMeta; // throws if no decoder / file missing
+  configure(cfg: DeviceCfg): MaybeAsync<OpenedCfg>; // rejects (an older build: throws) on failure
+  getDevices(): MaybeAsync<DeviceEntry[]>;
+  loadClip(id: string, path: string): MaybeAsync<ClipMeta>; // rejects if no decoder / file missing
   unloadClip(id: string): void;
   playClip(id: string, seekSec: number, gain: number): void;
   stopClip(id: string): void;
@@ -98,7 +106,7 @@ interface NativeAudio {
   // fader (engine.cpp Bus::setTestTone). deviceChannel < 0 turns it off.
   setTestTone(deviceChannel: number, gain: number): void;
   stopAll(): void;
-  getMeters(): Meters;
+  getMeters(): MaybeAsync<Meters>;
   /**
    * 16 log-spaced bands of the mixed output, 0..1 each.
    *
@@ -106,7 +114,7 @@ interface NativeAudio {
    * loads, still plays, and reports silence to anything reacting to sound — which is the graceful
    * degradation every other native feature here follows, rather than a crash on the first frame.
    */
-  getSpectrum?(): Float32Array;
+  getSpectrum?(): MaybeAsync<Float32Array>;
   close(): void;
 }
 
@@ -138,8 +146,8 @@ console.log(
 
 // Thin, null-safe wrappers. Every call is a no-op (sensible default) when the engine is absent.
 const NO_DEVICE: OpenedCfg = { deviceName: '', deviceType: '', sampleRate: 0, bufferSize: 0, channels: 0 };
-export function configure(cfg: DeviceCfg): OpenedCfg { return native ? native.configure(cfg) : NO_DEVICE; }
-export function getDevices(): DeviceEntry[] { return native ? native.getDevices() : []; }
+export function configure(cfg: DeviceCfg): Promise<OpenedCfg> { return native ? settle(() => native.configure(cfg)) : Promise.resolve(NO_DEVICE); }
+export function getDevices(): Promise<DeviceEntry[]> { return native ? settle(() => native.getDevices()) : Promise.resolve([]); }
 
 // ---- NON-REALTIME RENDERING ----------------------------------------------------------------------
 // Detaches the device, prepares the graph at an arbitrary rate, and lets the caller pull blocks as fast
@@ -150,15 +158,17 @@ export function getDevices(): DeviceEntry[] { return native ? native.getDevices(
 // `offlinePull` hands back INTERLEAVED frames (frames * channels) — what an AudioEncoder and every WAV
 // writer want. An engine built before this existed simply has no such export, which is why each is
 // optional on the binding and answers a harmless nothing when absent.
-export function offlineBegin(cfg: { sampleRate: number; blockSize: number; channels: number }): { ok: boolean; error?: string } {
-  if (!native?.offlineBegin) return { ok: false, error: 'this audio engine build has no offline render' };
-  return native.offlineBegin(cfg);
+export function offlineBegin(cfg: { sampleRate: number; blockSize: number; channels: number }): Promise<{ ok: boolean; error?: string }> {
+  const n = native;
+  if (!n?.offlineBegin) return Promise.resolve({ ok: false, error: 'this audio engine build has no offline render' });
+  return settle(() => n.offlineBegin!(cfg));
 }
-export function offlinePull(frames: number): Float32Array {
-  return native?.offlinePull ? native.offlinePull(frames) : new Float32Array(0);
+export function offlinePull(frames: number): Promise<Float32Array> {
+  const n = native;
+  return n?.offlinePull ? settle(() => n.offlinePull!(frames)) : Promise.resolve(new Float32Array(0));
 }
-export function offlineEnd(): void { native?.offlineEnd?.(); }
-export function loadClip(id: string, path: string): ClipMeta | null { return native ? native.loadClip(id, path) : null; }
+export function offlineEnd(): Promise<void> { const n = native; return n?.offlineEnd ? settle(() => n.offlineEnd!()) : Promise.resolve(); }
+export function loadClip(id: string, path: string): Promise<ClipMeta | null> { const n = native; return n ? settle(() => n.loadClip(id, path)) : Promise.resolve(null); }
 export function unloadClip(id: string): void { native?.unloadClip(id); }
 export function playClip(id: string, seekSec: number, gain: number): void { native?.playClip(id, seekSec, gain); }
 export function stopClip(id: string): void { native?.stopClip(id); }
@@ -173,15 +183,16 @@ export function setMasterEffects(effects: AudioEffectSpec[]): void { native?.set
 export function setMasterGain(gain: number): void { native?.setMasterGain(gain); }
 export function setTestTone(deviceChannel: number, gain: number): void { native?.setTestTone(deviceChannel, gain); }
 export function stopAll(): void { native?.stopAll(); }
-export function getMeters(): Meters {
-  return native
-    ? native.getMeters()
+export function getMeters(): Promise<Meters> {
+  const n = native;
+  return n
+    ? settle(() => n.getMeters())
     // ⚠ `deviceLive: true` WITH NO ADDON AT ALL, AND THAT IS DELIBERATE. There is obviously no device here —
     // but "the addon did not load" is a DIFFERENT failure with its OWN badge (`no audio engine`, and a
     // startup modal). Reporting `false` too would light BOTH, telling the operator two things are broken
     // when one is, and pointing them at a USB cable when the actual problem is a missing build. Each badge
     // answers exactly one question. See Meters.deviceLive.
-    : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false, deviceLive: true };
+    : Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false, deviceLive: true });
 }
 /**
   * The mixed output as 16 log-spaced bands, 0..1 each. Empty when there is no engine.
@@ -190,7 +201,7 @@ export function getMeters(): Meters {
   * readout for a human eye, while a visual reacting to sound wants one per rendered frame. Bundling
   * them would force one of the two to be wrong.
   */
-export function getSpectrum(): Float32Array { return native?.getSpectrum?.() ?? EMPTY_SPECTRUM; }
+export function getSpectrum(): Promise<Float32Array> { const n = native; return n?.getSpectrum ? settle(() => n.getSpectrum!()) : Promise.resolve(EMPTY_SPECTRUM); }
 const EMPTY_SPECTRUM = new Float32Array(16);
 
 export function close(): void { native?.close(); }

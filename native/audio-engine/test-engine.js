@@ -12,16 +12,18 @@ if (!p) { console.error('no .node'); process.exit(2); }
 const wav = path.join(__dirname, 'test.wav');
 if (!fs.existsSync(wav)) { console.error('run gen-wav.js first'); process.exit(2); }
 
+// The engine's answering calls return PROMISES (engine.cpp: the audio control thread) — awaited here.
 const a = require(p);
+(async () => {
 console.log('juce    :', a.juceVersion());
-console.log('device  :', a.configure(2));
-const devs = a.getDevices();
+console.log('device  :', await a.configure({ channels: 2 }));
+const devs = await a.getDevices();
 console.log('outputs :', devs.length, '→', devs.slice(0, 4));
-console.log('loaded  :', a.loadClip('c1', wav));
+console.log('loaded  :', await a.loadClip('c1', wav));
 a.playClip('c1', 0, 0.8);
 
 let peak = 0;
-const iv = setInterval(() => { const m = a.getMeters(); if (m.peak > peak) peak = m.peak; }, 50);
+const iv = setInterval(() => { a.getMeters().then((m) => { if (m.peak > peak) peak = m.peak; }); }, 50);
 setTimeout(() => {
   clearInterval(iv);
   a.stopClip('c1');
@@ -30,3 +32,4 @@ setTimeout(() => {
   console.log(peak > 0.01 ? 'C3a OK — audio flowed through the chain' : 'C3a WARN — no signal on meters');
   process.exit(0);
 }, 1800);
+})();

@@ -23,18 +23,19 @@ console.log(ok
 
 // Regression: the P1 engine must still open a device and play a file.
 const wav = path.join(__dirname, 'test.wav');
-if (fs.existsSync(wav)) {
-  console.log('device    :', a.configure(2));
-  console.log('loaded    :', a.loadClip('c1', wav));
+if (fs.existsSync(wav)) (async () => {
+  // The engine's answering calls return PROMISES (engine.cpp: the audio control thread) — awaited here.
+  console.log('device    :', await a.configure({ channels: 2 }));
+  console.log('loaded    :', await a.loadClip('c1', wav));
   a.playClip('c1', 0, 0.8);
   let peak = 0;
-  const iv = setInterval(() => { const m = a.getMeters(); if (m.peak > peak) peak = m.peak; }, 50);
+  const iv = setInterval(() => { a.getMeters().then((m) => { if (m.peak > peak) peak = m.peak; }); }, 50);
   setTimeout(() => {
     clearInterval(iv);
     a.stopClip('c1'); a.close();
     console.log('P1 regression: max meter peak', peak.toFixed(3), peak > 0.01 ? '— still plays OK' : '— NO SIGNAL');
     process.exit(ok && peak > 0.01 ? 0 : 1);
   }, 1800);
-} else {
+})(); else {
   process.exit(ok ? 0 : 1);
 }

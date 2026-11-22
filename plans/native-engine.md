@@ -1229,9 +1229,12 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   5. **Measurement traps, not product bugs:** a synchronous lookup in the harness delayed packet timestamps;
 >      in dev, ArtLux's stdout is piped to the harness and a blocked harness BLOCKS main (Windows pipes); and
 >      the first "2.5 s handback" was **main blocked ~7 s by the audio engine's synchronous start-up** (its
->      "Getting first order cube"). ⚠ That last one is real and pre-existing: **for several seconds after
->      start-up main forwards no frame to the wire** (app or engine handback alike). Not fixed here — it is
->      the audio engine's start-up, to move off main.
+>      "Getting first order cube"). That last one was real and pre-existing — **for several seconds after
+>      start-up main forwarded no frame to the wire** — and is FIXED (2026-11-22, on the owner's ask): the
+>      audio addon runs every engine call on its own control thread (also JUCE's message thread), answering
+>      with promises. The device open (5.5 s, WASAPI shared, Realtek) no longer touches main: main's worst
+>      start-up gap 7.4 s → 397 ms; a kill moments after start-up is handed back in 59 ms; all seven addon
+>      tests pass on the real device (ASIO, DirectSound, WASAPI shared and exclusive all open); guarded.
 > - Heavily shrunk stills are where the engine is not byte-identical by design (E1d-1, the pending owner
 >   decision); the takeover test uses enlarged stills, where it is.
 > - `test-engine-output` (the no-flag path): 2 of 2 clean runs pass with these changes and 2 of 2 without;

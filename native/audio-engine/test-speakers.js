@@ -17,6 +17,7 @@ const wav = path.join(__dirname, 'test.wav');
 if (!fs.existsSync(wav)) { console.error('run gen-wav.js first'); process.exit(2); }
 
 const a = require(p);
+// The engine's answering calls return PROMISES (engine.cpp: the audio control thread) — awaited here.
 
 function play(label, x, ms = 1100) {
   return new Promise((resolve) => {
@@ -24,8 +25,7 @@ function play(label, x, ms = 1100) {
     a.playClip('c1', 0, 0.9);
     const pk = [0, 0];
     const iv = setInterval(() => {
-      const m = a.getMeters();
-      for (let i = 0; i < 2; i++) if (m.peaks[i] > pk[i]) pk[i] = m.peaks[i];
+      a.getMeters().then((m) => { for (let i = 0; i < 2; i++) if (m.peaks[i] > pk[i]) pk[i] = m.peaks[i]; });
     }, 20);
     setTimeout(() => {
       clearInterval(iv);
@@ -38,9 +38,9 @@ function play(label, x, ms = 1100) {
 
 (async () => {
   // ── 1. Speaker decode pans correctly (stereo layout, on the real device) ─────────────────────
-  console.log('device    :', a.configure(2, 'speakers', 'stereo'));
-  console.log('loaded    :', a.loadClip('c1', wav));
-  console.log('speakers  :', a.getMeters().speakers, '(stereo layout)');
+  console.log('device    :', await a.configure({ channels: 2, mode: 'speakers', layout: 'stereo' }));
+  console.log('loaded    :', await a.loadClip('c1', wav));
+  console.log('speakers  :', (await a.getMeters()).speakers, '(stereo layout)');
   console.log('\n[speaker decode — layout=stereo]');
   const left = await play('source LEFT', -1);
   const right = await play('source RIGHT', 1);
@@ -50,15 +50,15 @@ function play(label, x, ms = 1100) {
   console.log('\n[layout configuration]');
   const counts = {};
   for (const layout of ['quad', '5.1', '7.1', 'hexagon', 'octagon', 'cube']) {
-    a.configure(2, 'speakers', layout);      // live decoder swap — no device reopen
-    counts[layout] = a.getMeters().speakers;
+    await a.configure({ channels: 2, mode: 'speakers', layout });      // live decoder swap — no device reopen
+    counts[layout] = (await a.getMeters()).speakers;
     console.log(`  ${layout.padEnd(10)} → ${counts[layout]} speakers`);
   }
   const layoutsOk = counts.quad === 4 && counts.octagon === 8 && counts.cube === 8 && counts.hexagon === 6;
 
   // ── 3. Binaural still works (regression) ─────────────────────────────────────────────────────
   console.log('\n[binaural regression]');
-  a.configure(2, 'binaural', 'stereo');
+  await a.configure({ channels: 2, mode: 'binaural', layout: 'stereo' });
   const bin = await play('binaural LEFT', -1);
   const binOk = bin[0] > bin[1] * 1.1;
 

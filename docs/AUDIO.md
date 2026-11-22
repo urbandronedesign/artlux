@@ -43,11 +43,17 @@ native/audio-engine/
                         Clip (transport + encoder + chain), the master fader, metering, device
                         management, and the N-API surface
   src/effects.h         the DSP: GainFx / FilterFx / ReverbFx / DelayFx / CompFx, and EffectChain.
-                        build() ALLOCATES (JS thread, never under the lock); setParams()/process() are
+                        build() ALLOCATES (the control thread, never under the lock); setParams()/process() are
                         allocation-free and run under it. `buildable()` is where a master reverb is
                         refused — read its header comment before touching anything in here.
   CMakeLists.txt        JUCE 8 + libspatialaudio, fetched at configure time
                         → build with `npm run build:audio`  ⚠ THE DEV APP MUST BE CLOSED
+
+                        ⚠ NO ENGINE CALL RUNS ON MAIN'S JS THREAD (Windows): the N-API surface posts each one,
+                        in order, to ONE audio control thread — also JUCE's message thread — and the
+                        answering ones return PROMISES. A cold device open is seconds (5.5 s, WASAPI shared,
+                        measured), and on main it stalled everything, the DMX wire included. macOS / Linux
+                        run the calls inline as before (a settled promise).
 
 plugins/audio/src/      the audio subsystem is A PLUGIN. Core knows nothing about sound.
   plugin.main.ts        main-process side: the IPC handlers (audio:configure/getMeters/loadClip/…)

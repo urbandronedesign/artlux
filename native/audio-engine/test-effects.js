@@ -23,6 +23,7 @@ for (const w of ['tone-8k.wav', 'tone-100.wav', 'tone-loud.wav', 'burst.wav']) {
   if (!fs.existsSync(path.join(__dirname, w))) { console.error(`missing ${w} — run: node gen-tones.js`); process.exit(2); }
 }
 const a = require(p);
+// The engine's answering calls return PROMISES (engine.cpp: the audio control thread) — awaited here.
 const wav = (n) => path.join(__dirname, n);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,7 +32,7 @@ let id = 0;
 // the signal first crossed a threshold (used to verify the delay's TIME, not just that something rang).
 async function measure(file, effects, { from = 300, to = 1200, thresh = 0.05 } = {}) {
   const clip = `c${++id}`;
-  a.loadClip(clip, wav(file));
+  await a.loadClip(clip, wav(file));
   a.setClipEffects(clip, effects);
   const t0 = Date.now();
   a.playClip(clip, 0, 1.0);
@@ -39,7 +40,7 @@ async function measure(file, effects, { from = 300, to = 1200, thresh = 0.05 } =
   while (Date.now() - t0 < to) {
     const dt = Date.now() - t0;
     if (dt >= from) {
-      const m = a.getMeters();
+      const m = await a.getMeters();
       if (m.peak > peak) peak = m.peak;
       if (firstAboveMs < 0 && m.peak > thresh) firstAboveMs = dt;
     }
@@ -58,7 +59,7 @@ function check(name, ok, detail) {
 }
 
 (async () => {
-  console.log('device    :', a.configure(2, 'binaural', 'stereo'));
+  console.log('device    :', await a.configure({ channels: 2, mode: 'binaural', layout: 'stereo' }));
   console.log('juce      :', a.juceVersion());
 
   // ── clip inserts ────────────────────────────────────────────────────────────────────────────
@@ -122,7 +123,7 @@ function check(name, ok, detail) {
   check('master gain -12 dB → 0.251x', mr > 0.20 && mr < 0.31, `ratio=${mr.toFixed(3)}`);
 
   // The chain must be built for the channel count the audio thread actually sees, or it passes dry.
-  const mm = a.getMeters();
+  const mm = await a.getMeters();
   check('master fx channels = device', mm.masterFxChannels === mm.deviceChannels && mm.deviceChannels > 0,
     `fx=${mm.masterFxChannels} device=${mm.deviceChannels}`);
 
@@ -151,13 +152,16 @@ function check(name, ok, detail) {
   // audio callback is starved on every pause. Nothing else here would catch it: every other assertion
   // measures LEVEL, and a starved callback still produces correct levels either side of the gap.
   console.log('\n[stop latency]  (the driver calls stopAll on every pause)');
-  a.loadClip('s1', wav('tone-loud.wav'));
-  a.loadClip('s2', wav('tone-loud.wav'));
-  a.loadClip('s3', wav('tone-loud.wav'));
+  await a.loadClip('s1', wav('tone-loud.wav'));
+  await a.loadClip('s2', wav('tone-loud.wav'));
+  await a.loadClip('s3', wav('tone-loud.wav'));
   for (const id of ['s1', 's2', 's3']) a.playClip(id, 0, 0.3);
   await sleep(400);
+  // stopAll() is POSTED to the audio control thread and returns at once, so timing the call alone would
+  // always pass. Calls run in order: the next ANSWERED call returns only once stopAll has finished.
   const tStop = Date.now();
   a.stopAll();
+  await a.getMeters();
   const stopMs = Date.now() - tStop;
   check('stopAll(3 playing) is prompt', stopMs < 150, `${stopMs}ms (was ~3750ms — a 1s stall per clip)`);
   for (const id of ['s1', 's2', 's3']) a.unloadClip(id);

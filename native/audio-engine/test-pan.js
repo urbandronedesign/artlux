@@ -14,8 +14,7 @@ const wav = path.join(__dirname, 'test.wav');
 if (!fs.existsSync(wav)) { console.error('run gen-wav.js first'); process.exit(2); }
 
 const a = require(p);
-console.log('device :', a.configure(2));
-console.log('loaded :', a.loadClip('c1', wav));
+// The engine's answering calls return PROMISES (engine.cpp: the audio control thread) — awaited here.
 
 // Measure peak L/R while the clip plays at a given position.
 function measure(label, x, y, z) {
@@ -24,9 +23,10 @@ function measure(label, x, y, z) {
     a.playClip('c1', 0, 0.9);
     let pL = 0, pR = 0;
     const iv = setInterval(() => {
-      const m = a.getMeters();
-      if (m.peakL > pL) pL = m.peakL;
-      if (m.peakR > pR) pR = m.peakR;
+      a.getMeters().then((m) => {
+        if (m.peakL > pL) pL = m.peakL;
+        if (m.peakR > pR) pR = m.peakR;
+      });
     }, 20);
     setTimeout(() => {
       clearInterval(iv);
@@ -38,6 +38,8 @@ function measure(label, x, y, z) {
 }
 
 (async () => {
+  console.log('device :', await a.configure({ channels: 2 }));
+  console.log('loaded :', await a.loadClip('c1', wav));
   const left = await measure('hard LEFT (x=-1)', -1, 0, 0);
   const right = await measure('hard RIGHT (x=+1)', 1, 0, 0);
   a.close();

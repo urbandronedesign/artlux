@@ -160,11 +160,11 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     }
 
     // ── C. the engine dies → the app has the wire again → the engine comes back and takes it ─────────────
-    // AFTER BOOT. The audio engine initialises in main, SYNCHRONOUSLY, for several seconds after start-up
-    // (its "Getting first order cube" line) — measured with an event-loop probe: main blocked ~7.4 s, and a
-    // kill inside that window was handed back only when main woke. That stall is the app's (pre-existing,
-    // noted in the plan), not the handover's; the handback is measured once main is running.
-    await sleep(10000);
+    // RIGHT AFTER START-UP, on purpose. The audio engine used to open its device SYNCHRONOUSLY on main's JS
+    // thread (~5.5 s on this rig's Realtek, WASAPI shared): main served nothing for those seconds — an
+    // event-loop probe measured 7.4 s — and a kill inside that window was handed back only when main woke
+    // (~2.5 s of a dark rig). The audio engine now runs on its own control thread (engine.cpp), so the
+    // handback is held to the same bound here, at the worst moment, as at any other.
     packets.length = 0;
     // The PID first, then a NON-BLOCKING kill (TerminateProcess): a synchronous taskkill froze this script
     // while packets queued, and their late timestamps read as a slow handback.
@@ -178,7 +178,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     try { process.kill(enginePid, 'SIGKILL'); } catch (e) { console.log(`     kill: ${e.message}`); }
     const back = await waitUntil(() => packets.some((p) => p.at > killedAt && who(p) === 'app'), 5000);
     const firstApp = packets.find((p) => p.at > killedAt && who(p) === 'app');
-    ok(back, `C. engine killed: the app's frames reach the wire again${firstApp ? ` (${firstApp.at - killedAt} ms after the kill)` : ''}`);
+    ok(back && firstApp && firstApp.at - killedAt < 500, `C. engine killed (moments after start-up): the app's frames reach the wire again${firstApp ? ` ${firstApp.at - killedAt} ms after the kill` : ''}`);
     const retook = await waitUntil(() => packets.some((p) => p.at > (firstApp?.at ?? killedAt) && who(p) === 'engine'), 10000);
     ok(retook, 'C. the restarted engine takes the wire back');
     await sleep(2500);
