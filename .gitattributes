@@ -12,3 +12,5 @@ graphify-out/graph.json filter=lfs diff=lfs merge=lfs -text
 graphify-out/graph.html filter=lfs diff=lfs merge=lfs -text
 graphify-plugins/graph.json filter=lfs diff=lfs merge=lfs -text
 graphify-plugins/graph.html filter=lfs diff=lfs merge=lfs -text
+# Engine goldens are raw GPU bytes: never line-ending converted or diffed as text.
+engine/**/golden/* binary
