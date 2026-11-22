@@ -71,6 +71,7 @@
     "test:sampling-parity": "node scripts/test-sampling-parity.cjs --gpu",
     "test:wire-parity": "node scripts/test-wire-parity.cjs",
     "test:image-parity": "node scripts/test-image-parity.cjs",
+    "test:projector-parity": "node scripts/test-projector-parity.cjs",
     "test:showctl": "node scripts/test-show-control.cjs",
     "test:showctl:ui": "node scripts/test-show-control-ui.cjs"
   },

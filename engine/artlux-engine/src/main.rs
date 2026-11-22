@@ -4,6 +4,7 @@
 //!   artlux-engine --pack-batch <in> <out>  universe packing for the parity harness (E1b)
 //!   artlux-engine --wire-replay <in.json>  pack, encode and SEND frames via the output core (E1c)
 //!   artlux-engine --frame-once <project> <out>  one whole frame from a project (E1d)
+//!   artlux-engine --project-once <in> <out>   a picture through projector settings, offscreen (E1e-1)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -155,6 +156,29 @@ fn main() -> ExitCode {
             }
             Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
         };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--project-once") {
+        // E1e-1: a picture through each case's projector settings, offscreen, for
+        // scripts/test-projector-parity.cjs. In: {width, height, picture, cases: [{name, output, brightness, aa}]}.
+        use base64::Engine as _;
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --project-once <in.json> <out.json>"); return ExitCode::from(2); };
+        let job: serde_json::Value = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
+            Ok(v) => v, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
+        };
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
+        let img = match image::open(job["picture"].as_str().unwrap_or_default()) { Ok(i) => i.to_rgba8(), Err(e) => { eprintln!("picture: {e}"); return ExitCode::from(2); } };
+        let content = artlux_engine::projector::content_texture(&gpu, img.width(), img.height(), img.as_raw());
+        let (w, h) = (job["width"].as_u64().unwrap_or(640) as u32, job["height"].as_u64().unwrap_or(360) as u32);
+        let mut out = Vec::new();
+        for c in job["cases"].as_array().into_iter().flatten() {
+            let o = artlux_engine::projector::Opts::from_json(&c["output"], c["brightness"].as_f64().unwrap_or(1.0), c["aa"].as_u64().unwrap_or(4) as u32);
+            match artlux_engine::projector::render(&gpu, &content, &o, w, h) {
+                Ok(px) => out.push(serde_json::json!({ "name": c["name"], "rgba": base64::engine::general_purpose::STANDARD.encode(px) })),
+                Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1); }
+            }
+        }
+        let res = serde_json::json!({ "adapter": describe(&gpu.info), "cases": out });
+        return match std::fs::write(outp, res.to_string()) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } };
     }
     if let Some(i) = args.iter().position(|a| a == "--layout-batch") {
         // E1b-2 parity: the LED layout + atlas plan for scripts/test-sampling-parity.cjs.

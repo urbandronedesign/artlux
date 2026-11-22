@@ -8445,6 +8445,34 @@ check(
   },
 );
 
+check(
+  'the engine\'s projector renderer (projector.rs) matches the app\'s uncalibrated warp path it was proven against',
+  'plans/native-engine.md E1e-1: engine/artlux-engine/src/projector.rs ports ProjectorGL\'s 2D warp path and is ' +
+  'IDENTICAL pixel for pixel by scripts/test-projector-parity.cjs. It is a copy, so: (1) the geometry and blend ' +
+  'files it ports are fingerprinted — when one changes, re-port, re-run the test, then update the fingerprint; ' +
+  '(2) the sampling constants ProjectorGL sets (TEXTURE_MAX_LEVEL 4, anisotropy 8, trilinear, 4× MSAA, the Bézier ' +
+  'tessellation 24) must still be the engine\'s; (3) the engine keeps rasterising BOTTOM-UP like the app\'s GL ' +
+  'canvas — top-down, an MSAA sample flips on every warped outline (measured: 64 levels on ~0.05% of pixels).',
+  () => {
+    const problems = [];
+    const crypto = require('node:crypto');
+    const fp = ['src/renderer/projector/homography.ts', 'src/renderer/projector/warp.ts', 'src/renderer/projector/blendGlsl.ts']
+      .map((f) => crypto.createHash('sha256').update(raw(f).replace(/\r\n/g, '\n')).digest('hex').slice(0, 16)).join(' ');
+    const pr = raw('engine/artlux-engine/src/projector.rs');
+    const m = /proven against: ([0-9a-f]{16} [0-9a-f]{16} [0-9a-f]{16})/.exec(pr);
+    if (!m) problems.push('projector.rs records no "proven against:" fingerprint');
+    else if (m[1] !== fp) problems.push(`homography.ts / warp.ts / blendGlsl.ts changed since the engine port was proven (recorded ${m[1]}, now ${fp})`);
+    const gl = read('src/renderer/projector/ProjectorGL.ts'), pa = read('src/renderer/projector/ProjectorApp.tsx');
+    if (!/TEXTURE_MAX_LEVEL, 4\)/.test(gl) || !/lod_max_clamp: 4\.0/.test(pr)) problems.push('the mip-level cap is no longer 4 on both sides');
+    if (!/Math\.min\(8, gl\.getParameter\(aniso\.MAX_TEXTURE_MAX_ANISOTROPY_EXT\)/.test(gl) || !/anisotropy_clamp: 8/.test(pr)) problems.push('the anisotropy is no longer 8 on both sides');
+    if (!/LINEAR_MIPMAP_LINEAR/.test(gl) || !/mipmap_filter: wgpu::MipmapFilterMode::Linear/.test(pr)) problems.push('trilinear filtering is no longer on both sides');
+    if (!/const AA_SAMPLES = 4;/.test(pa) || !/let samples = if o\.aa > 1 \{ 4 \} else \{ 1 \};/.test(pr)) problems.push('the MSAA sample count is no longer 4 on both sides');
+    if (!/const RENDER_TESS = 24;/.test(pa) || !/pub const RENDER_TESS: usize = 24;/.test(pr)) problems.push('the Bézier tessellation is no longer 24 on both sides');
+    if (!/vec4<f32>\(pos\.x, -pos\.y, 0\.0, 1\.0\)/.test(pr)) problems.push('projector.rs no longer rasterises bottom-up like the app\'s GL canvas');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

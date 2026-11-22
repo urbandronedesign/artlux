@@ -23,6 +23,7 @@ pub mod layout;
 pub mod sample;
 pub mod compose;
 pub mod effects;
+pub mod projector;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;
