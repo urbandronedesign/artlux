@@ -225,14 +225,36 @@ fn main() -> ExitCode {
     }
     #[cfg(windows)]
     if let Some(i) = args.iter().position(|a| a == "--camera-shared") {
-        // Item 2d PROBE: read camera <index> in WinRT SharedReadOnly mode for <seconds> (another process holds it).
-        let (Some(idx), Some(secs)) = (args.get(i + 1).and_then(|s| s.parse::<usize>().ok()), args.get(i + 2).and_then(|s| s.parse::<f64>().ok())) else { eprintln!("usage: --camera-shared <index> <seconds>"); return ExitCode::from(2) };
+        // Item 2d: read camera <index> SHARED (camshared::SharedIn, the runtime path) for <seconds> while another
+        // process holds it; report what arrived; with <out-prefix>, write the last frame (.raw NV12 + .json + a
+        // CPU preview .png).  --camera-shared <index> <seconds> [out-prefix]
+        let (Some(idx), Some(secs)) = (args.get(i + 1).and_then(|s| s.parse::<usize>().ok()), args.get(i + 2).and_then(|s| s.parse::<f64>().ok())) else { eprintln!("usage: --camera-shared <index> <seconds> [out-prefix]"); return ExitCode::from(2) };
+        let out = args.get(i + 3).filter(|s| !s.starts_with("--"));
         let cams = artlux_engine::cam::list().unwrap_or_default();
         let Some(c) = cams.get(idx) else { eprintln!("no camera {idx}"); return ExitCode::from(2) };
-        return match artlux_engine::camshared::probe(&c.link, secs) {
-            Ok((n, fmt)) => { println!("SHARED: {n} frames in {secs} s from {} (the controller's format: {fmt})", c.name); ExitCode::SUCCESS }
-            Err(e) => { eprintln!("SHARED: refused — {e}"); ExitCode::from(1) }
-        };
+        let t0 = std::time::Instant::now();
+        let cam = match artlux_engine::camshared::SharedIn::open(&c.link) { Ok(x) => x, Err(e) => { eprintln!("SHARED: refused — {e}"); return ExitCode::from(1) } };
+        println!("SHARED: open in {} ms; the controller's format: {}", t0.elapsed().as_millis(), cam.controller);
+        // One line per second, so a harness can see the stream over time (the holder leaving, say).
+        let t1 = std::time::Instant::now();
+        let mut next = 1.0;
+        while t1.elapsed().as_secs_f64() < secs {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            if t1.elapsed().as_secs_f64() >= next { println!("SHARED t={next} frames={}", cam.arrived.load(std::sync::atomic::Ordering::SeqCst)); next += 1.0; }
+        }
+        let n = cam.arrived.load(std::sync::atomic::Ordering::SeqCst);
+        println!("SHARED: {n} frames in {secs} s from {}", c.name);
+        if let Some(e) = cam.error.lock().unwrap().clone() { println!("SHARED: stopped — {e}"); }
+        if let (Some(out), Some((_, g))) = (out, cam.latest()) {
+            let r = g.as_ref().unwrap();
+            let meta = serde_json::json!({ "format": r.format.subtype, "w": r.format.w, "h": r.format.h, "pitch": r.pitch, "seq": r.seq, "ts100": r.ts100 });
+            let _ = std::fs::write(format!("{out}.raw"), &r.data).and_then(|_| std::fs::write(format!("{out}.json"), meta.to_string()));
+            match artlux_engine::cam::preview_rgba(r) {
+                Ok((w, h, rgba)) => { let _ = image::save_buffer(format!("{out}.png"), &rgba, w, h, image::ColorType::Rgba8); println!("wrote {out}.png ({w}x{h}, pitch {})", r.pitch); }
+                Err(e) => eprintln!("preview: {e}"),
+            }
+        }
+        return if n > 0 { ExitCode::SUCCESS } else { ExitCode::from(1) };
     }
     #[cfg(windows)]
     if let Some(i) = args.iter().position(|a| a == "--camera-grab") {

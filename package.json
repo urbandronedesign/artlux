@@ -72,6 +72,7 @@
     "test:wire-parity": "node scripts/test-wire-parity.cjs",
     "test:image-parity": "node scripts/test-image-parity.cjs",
     "test:mp4-parity": "node scripts/test-mp4-parity.cjs",
+    "test:camera-shared": "node scripts/test-camera-shared.cjs",
     "test:projector-parity": "node scripts/test-projector-parity.cjs",
     "test:projector-windows": "node scripts/test-projector-windows.cjs",
     "test:engine-runtime": "node scripts/test-engine-runtime.cjs",

@@ -8833,6 +8833,25 @@ check(
   },
 );
 
+check(
+  'the native engine reads a camera SHARED beside the app, and reads it whatever format the app chose',
+  'plans/native-engine.md "2d", owner decision 2026-11-22: the app keeps its cameras, the engine reads them ' +
+  'shared (scripts/test-camera-shared.cjs). Two ways it breaks silently. (1) a plain Media Foundation open is ' +
+  'EXCLUSIVE: an engine that opened the camera that way would take it from the app, or fail beside it with ' +
+  '0xC00D3704 (measured). (2) beside an MJPEG holder - Chromium picks MJPEG on some opens - Windows refuses ' +
+  'every conversion to a shared reader (OutputFormatNotSupported, measured for NV12/YUY2/BGRA8/ARGB32/RGB32): ' +
+  'without the MJPEG fallback the camera is black in the engine only on those opens (the mutation failed A and E).',
+  () => {
+    const problems = [];
+    const c = raw('engine/artlux-engine/src/camshared.rs');
+    if (!/SetSharingMode\(MediaCaptureSharingMode::SharedReadOnly\)/.test(c)) problems.push('camshared.rs no longer opens the camera SharedReadOnly (it would take it from the app)');
+    if (!/for mjpg in \[false, true\]/.test(c) || !/OutputFormatNotSupported/.test(c) || !/fn copy_mjpg\(/.test(c)) problems.push('camshared.rs no longer falls back to the MJPEG frames beside an MJPEG holder');
+    const t = raw('scripts/test-camera-shared.cjs');
+    for (const g of ['PASS A', 'PASS D', 'PASS E']) if (!t.includes(g)) problems.push(`test-camera-shared lost gate ${g.slice(5)}`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

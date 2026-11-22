@@ -1655,6 +1655,31 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   yuv.rs draws BT.709 only), the camera's identity (Chromium's hashed deviceId → the engine's symbolic
 >   link), several cameras at once (only one here).
 
+> **2d CAMERA — step 2 done 2026-11-22: the shared reader is the engine's camera path (owner: "the app keeps
+> its cameras, the engine reads them shared").**
+> - **Built:** `camshared::SharedIn` — WinRT MediaCapture, SharedReadOnly, a frame reader whose FrameArrived
+>   keeps the latest frame as `cam::Raw` (as `CamIn` and the NDI reader do). `artlux-engine --camera-shared
+>   <index> <seconds> [out-prefix]` reads it and writes the last frame.
+> - **Measured — the format is the holder's, and it changes what Windows gives a shared reader:**
+>   - a YUY2 or NV12 holder: Windows converts to NV12 for the engine (one GPU conversion path later);
+>   - an MJPEG holder: Windows REFUSES every conversion (OutputFormatNotSupported, tried NV12, YUY2, BGRA8,
+>     ARGB32, RGB32); only the MJPEG itself can be read. So the engine falls back to the compressed frames
+>     and will decode them itself. Chromium picks NV12 on most opens of the C270 here, MJPEG on some (the
+>     first open after plugging in, and one harness run) — the fallback is not a corner case.
+> - **`test:camera-shared`** (holder = `engine/spikes/camera-shared`, getUserMedia exactly as contentSource.ts):
+>   - A beside the holder: the engine 89 frames in 6 s, the holder 89 in the same 6 s, its rate 15.0 → 14.8 fps;
+>   - B the holder stops its track: the engine KEEPS receiving (15 fps on) — the frame server keeps the device
+>     streaming for the remaining reader, no error;
+>   - D the engine first, then the holder: Chromium still opens in ITS format (1280×720); the engine's stream
+>     dips for one second during the switch and continues;
+>   - E an MJPEG holder (cam.rs's exclusive reader, forced MJPEG): MJPEG frames, every one;
+>   - C alone: opens (Windows picks YUY2 640×480 → NV12).
+>   - Mutation-tested: dropping every other frame fails A and E; removing the MJPEG fallback fails E (and A on a
+>     run where Chromium chose MJPEG). Guarded in verify:invariants.
+> - **Next (step 3):** the GPU conversion of camera frames (NV12 at BT.601, and an MJPEG decode), measured
+>   against the app's own camera VideoFrames; then step 4, the camera's identity (Chromium's deviceId → the
+>   symbolic link), and step 5, the takeover test with a camera surface.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

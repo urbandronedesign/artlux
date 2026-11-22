@@ -192,10 +192,11 @@ pub fn preview_rgba(r: &Raw) -> Result<(u32, u32, Vec<u8>), String> {
             } }
         }
         "NV12" => {
-            if r.data.len() < w * h * 3 / 2 { return Err("a short NV12 frame".into()); }
+            let pp = r.pitch.max(w);
+            if r.data.len() < pp * h * 3 / 2 { return Err("a short NV12 frame".into()); }
             for y in 0..h { for x in 0..w {
-                let c = w * h + (y / 2) * w + (x & !1);
-                out[(y * w + x) * 4..(y * w + x) * 4 + 4].copy_from_slice(&px(r.data[y * w + x] as f64, r.data[c] as f64, r.data[c + 1] as f64));
+                let c = pp * h + (y / 2) * pp + (x & !1);
+                out[(y * w + x) * 4..(y * w + x) * 4 + 4].copy_from_slice(&px(r.data[y * pp + x] as f64, r.data[c] as f64, r.data[c + 1] as f64));
             } }
         }
         _ => {
