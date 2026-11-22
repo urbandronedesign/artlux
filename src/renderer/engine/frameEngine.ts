@@ -149,6 +149,8 @@ class FrameEngine {
 
   // ── Derived from the inputs, rebuilt only when their source actually changes ──
   private gammaLut = buildGammaLut(1);
+  /** E1f-2: the light fixtures' channel values from the LAST pack (fixture id → values, as written). */
+  private lightBytes: Record<string, number[]> = {};
   /** Controller lookup, so the per-frame packing loop does an O(1) get() instead of an O(n) find(). */
   private controllerMap = new Map<string, Controller>();
   /** Change detection that used to be three useMemo signature strings + two effects. */
@@ -600,8 +602,6 @@ class FrameEngine {
       }
       // WebGPU samples each fixture strictly from its linked surface; the WebGL fallback samples the
       // engine's own composite — which is why that composite is no longer the visible canvas.
-      // E1f: the native engine (when on) gets this frame's EFFECTIVE document and a tick — see nativeLink.
-      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness);
       if (mapper.perSurface && mapper.renderSurfaces) {
         mapper.renderSurfaces((id) => {
           const s = effSurfaces.find((x) => x.id === id);
@@ -621,6 +621,9 @@ class FrameEngine {
       if (rawBytes) {
         this.packAndPublish(rawBytes, effFixtures);
       }
+      // E1f: the native engine (when on) gets this frame's EFFECTIVE document and a tick — AFTER packing,
+      // so the tick carries the light fixtures' channels THIS frame's precedence stack resolved (E1f-2).
+      nativeLink.frame(this.inputs, effSurfaces, effFixtures, effBrightness, this.lightBytes);
     }
 
     perfMonitor.endFrame();
@@ -704,6 +707,9 @@ class FrameEngine {
     // Resolved role values for every profiled fixture this frame (pan/tilt in degrees, colour,
     // intensity) — published after the loop for the 3D scene and the beams.
     const fixtureStates = new Map<string, fixtureSignal.FixtureState>();
+    // E1f-2: each light's channel values as written this frame, for the native engine (nativeLink).
+    const lightBytes: Record<string, number[]> = {};
+    this.lightBytes = lightBytes;
 
     // THE PRECEDENCE STACK, ENFORCED IN ONE PLACE:
     //   profile default < authored dmx < LIGHTING CLIP < POSE CUE < automation lane < live override
@@ -807,7 +813,12 @@ class FrameEngine {
       defaults: { protocol: this.inputs.protocol, ip: this.inputs.targetIp, broadcast: this.inputs.broadcast },
       gammaLut: this.gammaLut,
       pool,
-      packLight: (f, writeCh) => {
+      packLight: (f, writeChRaw) => {
+        // E1f-2: every value written for a light is RECORDED too — the native engine places exactly these
+        // bytes (pack.rs light_channels), so the precedence stack below stays the one and only evaluator.
+        const rec: number[] = [];
+        lightBytes[f.id] = rec;
+        const writeCh = (v: number) => { rec.push(v); writeChRaw(v); };
         const profile = this.inputs.fixtureProfiles.get(f.profileId!);
         const mode = profile ? profilePack.modeOf(profile, f.profileMode) : undefined;
         // An UNRESOLVED profile writes nothing at all. That matches fixtureFootprint() returning 0 for

@@ -7,7 +7,7 @@
 //! and sends — every step already proven against the app (E1b–E1d).
 //!
 //! OWNERSHIP IS ALL OR NOTHING, per document. There is one wire: the engine sends only when it can draw
-//! EVERY sampled surface and every fixture; otherwise it says why and stays silent, and the app keeps the
+//! EVERY sampled surface (and places every light's bytes, which the host evaluates — E1f-2); otherwise it says why and stays silent, and the app keeps the
 //! wire (main mutes the app's frames only while the engine owns it — src/main/engineHost.ts). Losing
 //! ownership empties the send thread, so its keep-alive cannot repeat a stale frame over the app's.
 //!
@@ -15,7 +15,8 @@
 //!   {"type":"output","broadcast":b,"fps":n,"keepAlive":b,"sync":b}        the output engine's settings
 //!   {"type":"doc","doc":{rev, fixtures, surfaces, controllers, defaults, gamma, port, outputEnabled,
 //!                        sources: {surfaceId: {kind: image|effect|hap|none|unsupported, path?, why?}}}}
-//!   {"type":"tick","rev":r,"t":showTime,"brightness":b,"hap":{surfaceId: frameIndex}}   one frame
+//!   {"type":"tick","rev":r,"t":showTime,"brightness":b,"hap":{surfaceId: frameIndex},
+//!    "lights":{fixtureId: [byte, …]}}   one frame; `doc.lights` lists the fixtures the host says are lights
 //! engine → main: {"type":"owns","rev":r,"owns":bool,"why":"…"} once per document.
 
 use crate::compose::{self, Picture, TexCache};
@@ -41,6 +42,8 @@ struct Doc {
     sources: HashMap<String, Source>,
     opacity: HashMap<String, f32>,
     owns: bool,
+    /// E1f-2: the fixtures the HOST says are lights (indices into pfix).
+    lights: Vec<usize>,
 }
 
 pub struct Runtime {
@@ -123,7 +126,10 @@ impl Runtime {
             sources.insert(id, source);
         }
         let mut doc = Doc { rev, lfix, surfaces, pfix, controllers, defaults, lut: pack::gamma_lut(d["gamma"].as_f64().unwrap_or(1.0)),
-            port: d["port"].as_u64().unwrap_or(6454) as u16, sources, opacity, owns: false };
+            port: d["port"].as_u64().unwrap_or(6454) as u16, sources, opacity, owns: false, lights: Vec::new() };
+        let light_ids: Vec<&str> = d["lights"].as_array().into_iter().flatten().filter_map(|v| v.as_str()).collect();
+        doc.lights = doc.pfix.iter().enumerate().filter(|(_, f)| light_ids.contains(&f.id.as_str())).map(|(i, _)| i).collect();
+        for &i in &doc.lights { doc.pfix[i].light = true; }
         // A surface whose SOURCE changed (another file, another kind) starts from nothing: its picture and
         // generation belong to the old source.
         if let Some(old) = &self.doc {
@@ -147,9 +153,8 @@ impl Runtime {
     /// fixtures (a light's channels are the host's precedence stack — not sent yet, E1f-2).
     fn verdict(&mut self, d: &Value, doc: &mut Doc) -> Result<(), String> {
         if !d["outputEnabled"].as_bool().unwrap_or(false) { return Err("output is off".into()); }
-        if let Some(f) = d["fixtures"].as_array().into_iter().flatten().find(|f| !f["profileId"].is_null() && f["profileId"] != "") {
-            return Err(format!("fixture '{}' is a light — the engine does not drive lights yet", f["name"].as_str().unwrap_or("?")));
-        }
+        // E1f-2: lights are DRIVEN — their bytes come in each tick. Which fixtures are lights is the host's
+        // call (services/fixtureKind.ts), sent as `lights`; the engine never infers it from a profileId.
         let sampled: Vec<String> = layout::surface_order(&doc.lfix, &doc.surfaces);
         for sid in &sampled {
             let src = &d["sources"][sid];
@@ -172,13 +177,13 @@ impl Runtime {
 
     /// One frame at show time `t`. Nothing is sent unless the engine owns the wire for document `rev`.
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
-        let Some(doc) = self.doc.take() else { return Ok(()) };
-        let r = self.tick_with(&doc, v);
+        let Some(mut doc) = self.doc.take() else { return Ok(()) };
+        let r = self.tick_with(&mut doc, v);
         self.doc = Some(doc);
         r
     }
 
-    fn tick_with(&mut self, doc: &Doc, v: &Value) -> Result<(), String> {
+    fn tick_with(&mut self, doc: &mut Doc, v: &Value) -> Result<(), String> {
         if !doc.owns || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
         let t = v["t"].as_f64().unwrap_or(0.0);
         let brightness = v["brightness"].as_f64().unwrap_or(1.0) as f32;
@@ -213,6 +218,13 @@ impl Runtime {
                 }
                 Source::None => { self.pictures.remove(sid); }
             }
+        }
+        // E1f-2: each light's channels as THIS frame's precedence stack wrote them on the host (none sent = a
+        // light the host could not describe, which writes nothing — exactly as packUniverses does).
+        for &i in &doc.lights {
+            let id = doc.pfix[i].id.clone();
+            doc.pfix[i].light_channels = v["lights"][&id].as_array()
+                .map(|a| a.iter().map(|x| x.as_u64().unwrap_or(0).min(255) as u8).collect()).unwrap_or_default();
         }
         let fd = compose::FrameDoc { fixtures: &doc.lfix, surfaces: &doc.surfaces, pictures: &self.pictures, opacity: &doc.opacity, brightness };
         let raw = compose::frame_cached(&self.gpu, &fd, Some((&mut self.cache, &self.gens))).map_err(|e| e.to_string())?;

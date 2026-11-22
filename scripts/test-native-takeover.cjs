@@ -56,6 +56,20 @@ fs.writeFileSync(project, JSON.stringify({
   ],
   controllers: [], groups: [], scenes: [], cueBanks: [],
 }, null, 2));
+// E1f-2: LIGHT fixtures beside the pixels — generic profiles from the app's own library, authored values
+// in `dmx` (normalised), one SPILLING past channel 512. Their bytes are the app's precedence stack's; the
+// engine only places them.
+{
+  const pj = JSON.parse(fs.readFileSync(project, 'utf8'));
+  const head = (id, name, universe, startAddress, profileId, profileMode, dmx) => ({ id, name, x: 0.5, y: 0.8, width: 0.02, height: 0.02, rotation: 0,
+    ledCount: 1, universe, startAddress, colorOrder: 'RGB', channelsPerPixel: 3, profileId, profileMode, dmx });
+  pj.fixtures.push(
+    head('L1', 'Wash 1', 2, 1, 'generic/rgbw-fader', '8bit', { red: 1, green: 0.5, blue: 0.25, white: 0.333 }),
+    head('L2', 'Wash 2', 2, 510, 'generic/rgbw-fader', '8bit', { red: 0.2, green: 0.4, blue: 0.6, white: 0.8 }),
+    head('L3', 'Dimmer', 3, 200, 'generic/dimmer-1ch', undefined, { dimmer: 0.75 }),
+  );
+  fs.writeFileSync(project, JSON.stringify(pj, null, 2));
+}
 
 // ── the wire, with WHO sent each packet ────────────────────────────────────────────────────────────────
 // WHO SENT IT: every UDP endpoint's owning process, refreshed in the BACKGROUND (an async PowerShell
@@ -126,7 +140,8 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     await sleep(3000);
     await settle();
     const A = packets.splice(0);
-    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1) };
+    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3) };
+    ok(ref[2] && ref[2][0] === 255 && ref[2][1] === 128 && ref[3] && ref[3].some((b) => b > 0), `A. the lights are on it too (wash 1 red ${ref[2]?.[0]}, green ${ref[2]?.[1]}; universe 3 lit: ${!!ref[3]?.some((b) => b > 0)})`);
     for (const u of [0, 1]) { const tailA = A.filter((p) => p.u === u).slice(-60); console.log(`     run A universe ${u}: ${new Set(tailA.map((p) => p.data.toString('hex'))).size} distinct payloads in its last ${tailA.length} packets`); }
     const sendersA = new Set(A.map(who));
     ok(sendersA.size === 1 && sendersA.has('app'), `A. sender: ${[...sendersA].join(', ')}`);
@@ -151,7 +166,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     const sendersB = new Set(after.map(who));
     for (const u of [0, 1]) { const t = after.filter((p) => p.u === u).slice(-60); console.log(`     run B universe ${u}: ${new Set(t.map((p) => p.data.toString('hex'))).size} distinct payloads in the engine's last ${t.length} packets`); }
     ok(after.length > 50 && sendersB.size === 1 && sendersB.has('engine'), `B. after the handover only the engine sends (${after.length} packets: ${[...sendersB].join(', ')})`);
-    for (const u of [0, 1]) {
+    for (const u of [0, 1, 2, 3]) {
       const got = lastOf(after, u);
       if (got) fs.writeFileSync(path.join(WORK, `engine-u${u}.bin`), got);
       if (ref[u]) fs.writeFileSync(path.join(WORK, `app-u${u}.bin`), ref[u]);

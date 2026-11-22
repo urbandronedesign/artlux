@@ -65,10 +65,11 @@ a Windows package without it, and CI builds it — but it runs only behind **`--
 leaves it stopped if it refuses (no hardware adapter), and logs all of it under the `engine` category. Its
 packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
 
-**With the flag the engine DRIVES THE LED WIRE** (E1f-1) — for a show it can draw entirely: stills, HAP and
-effects on pixel fixtures. The renderer sends it the effective document and a tick per frame
+**With the flag the engine DRIVES THE LED WIRE** (E1f-1/2) — for a show it can draw entirely: stills, HAP
+and effects on pixel fixtures, plus LIGHT fixtures (their channel bytes are evaluated by the app's precedence
+stack and sent each frame; the engine only places them). The renderer sends it the effective document and a tick per frame
 (`renderer/engine/nativeLink.ts`); main mutes the app's own frames only while the engine reports frames
-sent; anything it cannot draw yet (light fixtures, MP4, camera, NDI, Spout, slices, layers, bakes) keeps the
+sent; anything it cannot draw yet (MP4, camera, NDI, Spout, slices, layers, bakes) keeps the
 wire with the app, and the log says why (`[engine] the app keeps the wire: …`, machine log `app-has-wire`).
 A dead or stalled engine hands the wire back within a frame or two. Projectors stay the app's for now.
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and

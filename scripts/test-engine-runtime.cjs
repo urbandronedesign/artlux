@@ -7,7 +7,8 @@
 // Held to the proven pieces: for the same document at the same show time, every Art-Net universe the
 // running engine sends must carry the bytes of `--frame-once` (E1d, held to the app) packed by the app's
 // REAL TypeScript packer (packUniverses.ts, E1b). And the runtime's own rules:
-//   - OWNERSHIP: a light fixture, a surface the engine cannot draw, or output switched off → "owns": false
+//   - LIGHTS (E1f-2): their channel bytes arrive in each tick and are placed as the app's packer places them;
+//   - OWNERSHIP: a surface the engine cannot draw, or output switched off → "owns": false
 //     with the reason, and NOTHING on the wire; a drawable document → owns, and sends.
 //   - HANDBACK: after losing ownership the send thread is emptied — keep-alive ON, and still silence.
 //   - CACHING does not freeze a picture: a new document with another opacity changes the bytes.
@@ -55,15 +56,23 @@ const controllers = [];
 const defaults = { protocol: 'artnet', ip: '127.0.0.1', broadcast: false };
 const sources = { sA: { kind: 'image', path: imgA }, sB: { kind: 'image', path: imgB }, sW: { kind: 'effect' } };
 const T = 1.25, GAMMA = 2.2;
-const doc = (rev, over = {}) => ({ rev, fixtures, surfaces, controllers, defaults, gamma: GAMMA, port: PORT, outputEnabled: true, sources, ...over });
+const doc = (rev, over = {}) => ({ rev, fixtures, surfaces, controllers, defaults, gamma: GAMMA, port: PORT, outputEnabled: true, sources, lights: [], ...over });
+// E1f-2 LIGHTS: a head patched mid-universe, one that SPILLS past channel 512 into the next universe, and one
+// the host could not describe (no bytes sent: it must write nothing). The host sends their bytes per tick.
+const lightFix = [
+  { ...{ rotation: 0, reverse: false, colorData: [] }, id: 'L1', name: 'Head 1', ledCount: 1, universe: 5, startAddress: 101, profileId: 'generic/rgbw-fader' },
+  { ...{ rotation: 0, reverse: false, colorData: [] }, id: 'L2', name: 'Head 2', ledCount: 1, universe: 5, startAddress: 509, profileId: 'generic/generic-5ch' },
+  { ...{ rotation: 0, reverse: false, colorData: [] }, id: 'L3', name: 'Unknown', ledCount: 1, universe: 5, startAddress: 300, profileId: 'nobody/unknown' },
+];
+const lightBytesAt = (k) => ({ L1: [k * 7 % 256, 255, 0, 128, 64], L2: [1, 2, 3, 4, (k * 31) % 256] });
 
 // What the wire must carry: --frame-once at T, packed by the app's own packer.
-function expectedUniverses(d) {
+function expectedUniverses(d, lights = {}) {
   const proj = path.join(WORK, `exp-${d.rev}.artlux`), out = path.join(WORK, `exp-${d.rev}.json`);
   fs.writeFileSync(proj, JSON.stringify({ surfaces: d.surfaces, fixtures: d.fixtures }));
   execFileSync(ENGINE, ['--frame-once', proj, out, '--effect-times', String(T)]);
   const raw = Buffer.from(JSON.parse(fs.readFileSync(out, 'utf8')).rgbw, 'base64');
-  const dests = TS.packUniverses(Uint8Array.from(raw), d.fixtures, { controllerMap: new Map(), defaults, gammaLut: TS.buildGammaLut(GAMMA), pool: {}, packLight: () => {} });
+  const dests = TS.packUniverses(Uint8Array.from(raw), d.fixtures, { controllerMap: new Map(), defaults, gammaLut: TS.buildGammaLut(GAMMA), pool: {}, packLight: (f, w) => { for (const v of lights[f.id] || []) w(v); } });
   const u = {}; for (const dd of Object.values(dests)) for (const [k, v] of Object.entries(dd.universes)) u[k] = Buffer.from(v);
   return u;
 }
@@ -117,7 +126,6 @@ function expectedUniverses(d) {
 
   // ── 3. ownership refused: and nothing more on the wire — even with keep-alive ON ────────────────────────
   const refusals = [
-    ['a light fixture', doc(3, { fixtures: [...fixtures, { ...base, id: 'L', name: 'Spot', ledCount: 1, universe: 5, profileId: 'generic-3ch' }] }), /is a light/],
     ['an unsupported source', doc(4, { sources: { ...sources, sB: { kind: 'unsupported', why: 'MP4 is decoded in the browser' } } }), /surface 'B': MP4 is decoded in the browser/],
     ['output off', doc(5, { outputEnabled: false }), /output is off/],
   ];
@@ -134,6 +142,28 @@ function expectedUniverses(d) {
     send({ type: 'doc', doc: doc(d.rev + 100) });
     await waitFor((l) => l.type === 'owns' && l.rev === d.rev + 100);
     for (let k = 0; k < 4; k++) { send({ type: 'tick', rev: d.rev + 100, t: T, brightness: 1 }); await sleep(25); }
+  }
+
+  // ── 3b. LIGHTS (E1f-2): driven, not refused — each tick's bytes placed exactly as the app's packer does ──
+  {
+    const dl = doc(20, { fixtures: [...fixtures, ...lightFix], lights: lightFix.map((f) => f.id) });
+    send({ type: 'doc', doc: dl });
+    const o = await waitFor((l) => l.type === 'owns' && l.rev === 20);
+    ok(o?.owns === true, `a rig with light fixtures: the engine OWNS the wire${o?.why ? ` — ${o.why}` : ''}`);
+    for (const k of [1, 2]) {
+      await sleep(100); packets = [];
+      for (let n = 0; n < 6; n++) { send({ type: 'tick', rev: 20, t: T, brightness: 1, lights: lightBytesAt(k) }); await sleep(25); }
+      await sleep(250);
+      const exp = expectedUniverses(dl, lightBytesAt(k));
+      for (const u of [5, 6]) {
+        const got = packets.filter((p) => p.u === u).pop();
+        ok(got && exp[u] && Buffer.compare(got.data, exp[u]) === 0, `lights, tick set ${k}: universe ${u} ${got && exp[u] ? (Buffer.compare(got.data, exp[u]) === 0 ? 'IDENTICAL to the app packer' : 'DIFFERENT') : 'missing'}${u === 6 ? ' (Head 2 spills into it)' : ''}`);
+      }
+      const pix = packets.filter((p) => p.u === 0).pop();
+      ok(pix && Buffer.compare(pix.data, exp[0]) === 0, `lights, tick set ${k}: the pixel universe 0 is unchanged by the lights`);
+    }
+    const u5 = expectedUniverses(dl, lightBytesAt(1))[5];
+    ok(u5.subarray(299, 304).every((b) => b === 0), 'the light with no bytes (an unknown profile) writes nothing');
   }
 
   // ── 4. a tick for an OLD document draws nothing ───────────────────────────────────────────────────────

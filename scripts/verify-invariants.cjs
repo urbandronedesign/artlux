@@ -8334,7 +8334,8 @@ check(
     const fe = read('src/renderer/engine/frameEngine.ts');
     if (!/const destinations = packUniverses\(rawBytes, currentFixtures, \{/.test(fe)) problems.push('frameEngine no longer packs through packUniverses()');
     if (/const writeCh = \(val: number\)/.test(fe) || /COLOR_ORDER\[/.test(fe) || /function buildGammaLut/.test(fe)) problems.push('frameEngine has its own packing code again (writeCh / COLOR_ORDER / buildGammaLut) — pack only in engine/packUniverses.ts');
-    if (!/packLight: \(f, writeCh\) => \{[\s\S]{0,900}?profilePack\.packProfiled\(f, profile, mode, writeCh, roleOverride, liveOverride\);/.test(fe)) problems.push('the light fixtures no longer pack through the packLight callback with their overrides');
+    // (writeChRaw since E1f-2: the callback records what it writes for the native engine, then writes it.)
+    if (!/packLight: \(f, writeCh(?:Raw)?\) => \{[\s\S]{0,1400}?profilePack\.packProfiled\(f, profile, mode, writeCh, roleOverride, liveOverride\);/.test(fe)) problems.push('the light fixtures no longer pack through the packLight callback with their overrides');
     const pu = read('src/renderer/engine/packUniverses.ts');
     if (!/export function packUniverses\(/.test(pu) || !/if \(isLight\(f\)\) \{\s*ctx\.packLight\(f, writeCh\);/.test(pu)) problems.push('packUniverses.ts lost its entry point or its light hand-off');
     if (!fs.existsSync(path.join(ROOT, 'engine/artlux-engine/src/pack.rs'))) problems.push('the Rust packer engine/artlux-engine/src/pack.rs is gone');
@@ -8516,6 +8517,29 @@ check(
     const sv = raw('engine/artlux-engine/src/serve.rs');
     if (!/line\.starts_with\("\{\\"quit\\""\)/.test(sv) || /line\.contains\("\\"quit\\""\)/.test(sv)) problems.push('serve.rs quits on the word "quit" anywhere in a line again');
     if (!/"type":"sent"/.test(sv)) problems.push('the render thread no longer reports the frames it sent');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine places light fixtures\' bytes from THIS frame\'s precedence stack, never its own (E1f-2)',
+  'plans/native-engine.md E1f-2, proven in the real app by scripts/test-native-takeover.cjs (two washes — one ' +
+  'spilling past channel 512 — and a dimmer, byte-identical). The host evaluates a light (profile default < ' +
+  'authored < lighting clip < pose cue < automation < live override — frameEngine.packAndPublish); the engine ' +
+  'only places the bytes. So the tick must be sent AFTER packing (else it carries the previous frame\'s values), ' +
+  'every value packLight writes must be recorded, and the engine must take the host\'s list of lights.',
+  () => {
+    const problems = [];
+    const fe = read('src/renderer/engine/frameEngine.ts');
+    const pack = fe.indexOf('this.packAndPublish(rawBytes, effFixtures);'), link = fe.indexOf('nativeLink.frame(');
+    if (pack < 0 || link < 0 || link < pack) problems.push('nativeLink.frame is no longer called AFTER packAndPublish (the tick would carry the previous frame\'s lights)');
+    if (!/nativeLink\.frame\(this\.inputs, effSurfaces, effFixtures, effBrightness, this\.lightBytes\)/.test(fe)) problems.push('the tick no longer carries the recorded light bytes');
+    if (!/const writeCh = \(v: number\) => \{ rec\.push\(v\); writeChRaw\(v\); \};/.test(fe)) problems.push('packLight no longer records every value it writes');
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (!/lights: fixtures\.filter\(\(f\) => isLight\(f\)\)/.test(nl)) problems.push('the document no longer lists the lights by services/fixtureKind');
+    const rt = raw('engine/artlux-engine/src/runtime.rs');
+    if (!/doc\.pfix\[i\]\.light_channels = v\["lights"\]/.test(rt)) problems.push('the engine no longer takes each light\'s bytes from the tick');
+    if (/is a light — the engine does not drive lights/.test(rt)) problems.push('the engine refuses lights again');
     return problems.length ? problems.join('; ') : null;
   },
 );

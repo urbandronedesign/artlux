@@ -1243,6 +1243,24 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - Not covered: lights, projectors, Spout at runtime (the engine's grab opens a receiver per frame — fine
 >   for a test, not for a show), the packaged exe (`--packaged` is ready), sACN handover (both senders share
 >   no sequence), the RTX PC.
+>
+> ✅ **E1f-2 done 2026-11-22 (LIGHT fixtures on the engine's wire — the host's bytes, placed identically).**
+> A light is still evaluated where it always was: `frameEngine.packAndPublish`'s precedence stack (profile
+> default < authored < lighting clip < pose cue < automation < live override), which now also RECORDS every
+> value it writes per light. The tick moved to AFTER packing, so it carries THIS frame's values (as ToUint8
+> bytes, what the frame codec stores); the document lists the lights by `services/fixtureKind`; the engine
+> sets them as `light_channels` and `pack.rs` places them (already byte-identical in `test:pack-parity`). The
+> "a light → the app keeps the wire" refusal is gone.
+> - **Proof.** `test:engine-runtime`: lights mid-universe, one SPILLING into the next universe, one the host
+>   could not describe (no bytes → writes nothing), two different byte sets per tick — every universe equal
+>   to the app's packer, the pixel universe untouched. `test:native-takeover` in the real app: two
+>   `generic/rgbw-fader` washes (one across the 512 boundary) and a `generic/dimmer-1ch`, authored values →
+>   **universes 2 and 3 byte-identical** with the engine owning the wire, pixels still identical, handback
+>   55 ms. Mutation: the engine ignoring the tick's bytes, or treating lights as pixels — each 4 checks
+>   fail; guarded (`verify:invariants`).
+> - Not covered: a lighting CLIP, pose cue or live fader moving a light while the engine owns the wire (the
+>   same recorded path, but no test drives one yet), USB-DMX (enttec) targets on hardware, the RTX PC.
+>   Next: **E1f-3 projectors** over the link.
 
 ## 10. Open questions
 
