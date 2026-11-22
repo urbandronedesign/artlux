@@ -845,7 +845,7 @@ every step says where it is proven:
 | **E0a** ✅ | Engine skeleton: Cargo workspace `engine/`, one wgpu device on the native API (D3D12 / Metal / Vulkan), the software-adapter rule, an offscreen render and LED sampling byte-compared to goldens | here (D3D12 hardware, WARP, Vulkan); CI on all three runners (`.github/workflows/engine.yml`) once pushed |
 | **E0b** ✅ | Engine windows: one winit window per display, borderless/fullscreen, presenting at that display's refresh; the reveal never depends on a "ready" event | here for one display + windowed; multi-display/mixed refresh on the RTX PC |
 | **E0c** ✅ | Engine → Electron page: the engine renders into a shared texture, main imports it with `sharedTexture` (Electron 42 has it), a page draws it — Windows NT-handle path | here |
-| **E0d** | Zero-copy imports: Spout (D3D11 shared handle) and HAP BC upload, via `create_texture_from_hal` on the pinned wgpu, with the CPU-upload fallback | here (Spout sender needed) |
+| **E0d** ✅ | Zero-copy imports: Spout (D3D11 shared handle) and HAP BC upload, via `create_texture_from_hal` on the pinned wgpu, with the CPU-upload fallback | here (Spout sender needed) |
 | **E0e** | macOS (IOSurface mach port, Syphon, VideoToolbox) and Linux (dmabuf over `SCM_RIGHTS`, VA-API, Wayland window placement) | a Mac and a Linux box; CI builds only |
 
 > ✅ **E0a done 2026-11-22.** `engine/artlux-engine` (wgpu **=30.0.2**, pinned). `artlux-engine --info` lists
@@ -899,6 +899,31 @@ every step says where it is proven:
 > **Not covered:** latency (no measurements, owner); a WARP engine (a software adapter cannot share with
 > Chromium's hardware device — irrelevant on a venue PC); macOS IOSurface + Linux dmabuf (E0e); the page
 > drawing via 2D canvas here — a real view would use WebGPU `importExternalTexture` (E4).
+>
+> ✅ **E0d done 2026-11-22 (HAP and Spout into the engine).**
+>
+> **HAP** (`src/hapimport.rs`): a frame goes container → bytes → un-Snappy → its BC blocks, **uploaded as a
+> BC texture** — the GPU decodes the blocks as it samples, no RGBA frame on the CPU (today's app decodes HAP
+> to RGBA on the CPU). The parsers are **the app's own** `native/hap/src/{mov,hap}.rs`, compiled in by
+> `#[path]` — one parser, not two. The device asks for `TEXTURE_COMPRESSION_BC` where the adapter has it;
+> where not, the **CPU-decode fallback** uploads RGBA (plan risk 4). Proof: a real **Hap1 1920×1080 clip**
+> (`--hap <file> --frame N`, 1296 points per frame): GPU BC sampling within **1 level** of the CPU decode at
+> every point on the Iris Xe D3D12, Vulkan and WARP (BC1 interpolation may round differently in hardware —
+> the spec allows it); the fallback **identical** to the CPU decode. The self-test gained a synthetic HAP
+> frame (four solid BC1 blocks through `hap.rs`) with an exact golden, so CI covers it on every runner.
+> Not covered: Hap5/HapY/HapM/Hap7 files (none on this PC; same code path, other BC formats); HapQ's YCoCg
+> transform (a shader's job, as today).
+>
+> **Spout** (`src/spout.rs`): the answer to "zero-copy?" is **yes, on this PC**. A REAL Spout sender
+> (Spout's own library via `spout2-rs`, `--spout-send`) publishes the test card with the frame number in the
+> bar; `--spout-receive` found that **D3D12 `OpenSharedHandle` ACCEPTS the sender's legacy (non-NT)
+> handle**, and the engine sampled **the sender's own texture, wrapped for wgpu, with no copy** — quadrants
+> exact and the bar moving in every read (182/182, 188/188, 190/190 over three runs). The fallback, **one
+> GPU→GPU copy** (a D3D11 device on the engine's adapter by LUID → the engine's E0c shared texture, an
+> event query before the engine reads), matched on every read too. **Not proven:** that NVIDIA's D3D12
+> driver accepts a legacy handle the same way (the RTX PC decides; the copy path stays for that); reading
+> under Spout's own frame lock (neither path waits on the sender's access mutex yet — the app's receiver
+> does not either; E2 should); formats other than BGRA8/RGBA8.
 
 ## 10. Open questions
 

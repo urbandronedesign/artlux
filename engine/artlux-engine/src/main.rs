@@ -8,6 +8,8 @@
 //!   artlux-engine --write-goldens <dir>       write the CPU references as the goldens
 //!   artlux-engine --windows [--fullscreen] [--seconds N]   a window on every display (E0b)
 //!   artlux-engine --share <pid> [--seconds N]              shared textures for Electron main (E0c, Windows)
+//!   artlux-engine --hap <file.mov> [--frame N]             a HAP frame as a BC texture vs the CPU decode (E0d)
+//!   artlux-engine --spout-send <name> / --spout-receive <name>   a real Spout sender, and the engine receiving it (E0d)
 
 use artlux_engine::*;
 use std::process::ExitCode;
@@ -37,6 +39,59 @@ fn main() -> ExitCode {
         let policy = AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") };
         return match artlux_engine::share::run(pid, 640, 360, secs.map(std::time::Duration::from_secs_f64), policy) {
             Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(2) }
+        };
+    }
+    if let Some(path) = args.iter().position(|a| a == "--hap").and_then(|i| args.get(i + 1)) {
+        // E0d: a real HAP file's frame as a BC texture, held to the CPU decode; and the fallback.
+        let frame = args.iter().position(|a| a == "--frame").and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(0);
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) {
+            Ok(g) => g,
+            Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); }
+        };
+        println!("adapter: {}", describe(&gpu.info));
+        return match artlux_engine::hapimport::check_file(&gpu, path, frame) {
+            Ok(r) => {
+                println!("file: {path}
+  codec {} ({:?}), {}x{}, frame {} of {}", r.codec, r.format, r.size.0, r.size.1, r.frame, r.frames);
+                println!("  GPU path: {}", r.gpu_path);
+                println!("  {} sample points: {} exact vs the CPU decode, largest channel difference {}", r.points, r.exact, r.max_diff);
+                println!("  CPU-upload fallback identical to the CPU decode: {}", r.fallback_exact);
+                if r.fallback_exact { ExitCode::SUCCESS } else { ExitCode::from(1) }
+            }
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
+        };
+    }
+    #[cfg(windows)]
+    if let Some(name) = args.iter().position(|a| a == "--spout-send").and_then(|i| args.get(i + 1)) {
+        let secs = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<f64>().ok());
+        return match artlux_engine::spout::send(name, secs.map(std::time::Duration::from_secs_f64)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(2) }
+        };
+    }
+    #[cfg(windows)]
+    if let Some(name) = args.iter().position(|a| a == "--spout-receive").and_then(|i| args.get(i + 1)) {
+        let secs = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<f64>().ok()).unwrap_or(3.0);
+        let policy = AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") };
+        return match artlux_engine::spout::receive(name, std::time::Duration::from_secs_f64(secs), policy) {
+            Ok(r) => {
+                let moved = r.bar_positions.windows(2).filter(|w| w[0] >= 0 && w[1] >= 0 && w[0] != w[1]).count();
+                let seen = r.bar_positions.iter().filter(|&&x| x >= 0).count();
+                println!("zero-copy: {}", r.direct_open);
+                println!("path used: {}", r.path);
+                println!("frames read: {}; test-card quadrants exact in {}; bar found in {}, moved between reads {} times",
+                    r.frames_read, r.quads_exact, seen, moved);
+                let mut ok = r.frames_read > 10 && r.quads_exact == r.frames_read && seen as u32 == r.frames_read && moved > 5;
+                if let Some((exact, bars)) = &r.direct {
+                    let dseen = bars.iter().filter(|&&x| x >= 0).count();
+                    let dmoved = bars.windows(2).filter(|w| w[0] >= 0 && w[1] >= 0 && w[0] != w[1]).count();
+                    println!("ZERO-COPY read (the sender's own texture, sampled in D3D12): quadrants exact in {exact}/{}; bar found in {dseen}, moved {dmoved} times", bars.len());
+                    ok &= *exact as usize == bars.len() && dseen == bars.len() && dmoved > 5;
+                }
+                println!("{}", if ok { "spout receive OK" } else { "spout receive FAILED" });
+                if ok { ExitCode::SUCCESS } else { ExitCode::from(1) }
+            }
             Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(2) }
         };
     }

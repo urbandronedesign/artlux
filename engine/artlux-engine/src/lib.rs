@@ -15,9 +15,12 @@
 use std::fmt;
 
 pub mod card;
+pub mod hapimport;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;
+#[cfg(windows)]
+pub mod spout;
 
 /// Which native API this platform renders with (§6 table, "GPU backend").
 pub fn native_backends() -> wgpu::Backends {
@@ -153,8 +156,12 @@ impl Gpu {
             first
         };
         let info = pick.get_info();
+        // BC (DXT) textures: HAP's frames ARE BC blocks, uploaded as they are (E0d). Every desktop GPU
+        // and both software adapters have it; where one does not, HAP takes the CPU-decode fallback.
+        let wanted = wgpu::Features::TEXTURE_COMPRESSION_BC & pick.features();
         let (device, queue) = pollster::block_on(pick.request_device(&wgpu::DeviceDescriptor {
             label: Some("artlux-engine"),
+            required_features: wanted,
             ..Default::default()
         }))
         .map_err(|e| EngineError::Device(e.to_string()))?;
@@ -378,7 +385,13 @@ pub fn sample_leds(gpu: &Gpu) -> Result<Vec<u8>, EngineError> {
         wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(LED_TEX * 4), rows_per_image: Some(LED_TEX) },
         size,
     );
-    let uvs = led_uvs();
+    sample_points(gpu, &tex, &led_uvs())
+}
+
+/// Point-sample `tex` at `uvs` by compute: RGB per point, in order. Any sampleable float format —
+/// RGBA8, BGRA8, a BC texture (the GPU decodes the blocks as it reads).
+pub fn sample_points(gpu: &Gpu, tex: &wgpu::Texture, uvs: &[[f32; 2]]) -> Result<Vec<u8>, EngineError> {
+    let d = &gpu.device;
     let uv_bytes: Vec<u8> = uvs.iter().flat_map(|p| p.iter().flat_map(|f| f.to_le_bytes())).collect();
     let uv_buf = d.create_buffer(&wgpu::BufferDescriptor {
         label: Some("uvs"),
@@ -458,5 +471,10 @@ pub fn selftest(gpu: &Gpu) -> Result<Vec<String>, Vec<String>> {
     };
     check("offscreen render, read back", render_frame(gpu), GOLDEN_FRAME);
     check("LED sampling by compute", sample_leds(gpu), GOLDEN_LEDS);
+    // HAP's blocks as a BC texture (or the CPU fallback where the adapter has no BC) — E0d.
+    match hapimport::bc_selftest(gpu) {
+        Ok((px, path)) => check(&format!("a HAP frame (BC1) through hap.rs, as a {path}"), Ok(px), &hapimport::BC1_GOLDEN),
+        Err(e) => check("a HAP frame (BC1) through hap.rs", Err(e), &hapimport::BC1_GOLDEN),
+    }
     if ok { Ok(lines) } else { Err(lines) }
 }

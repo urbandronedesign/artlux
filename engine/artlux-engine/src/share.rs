@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{CloseHandle, DuplicateHandle, DUPLICATE_SAME_ACCESS, GENERIC_ALL, HANDLE};
 use windows::Win32::Graphics::Direct3D12::*;
-use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC};
+use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC};
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcess, PROCESS_DUP_HANDLE};
 
 pub const SLOTS: usize = 3;
@@ -34,7 +34,7 @@ pub struct Slot {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     /// The handle in OUR process (closed when the slot goes).
-    local: HANDLE,
+    pub local: HANDLE,
 }
 impl Drop for Slot {
     fn drop(&mut self) {
@@ -44,6 +44,11 @@ impl Drop for Slot {
 
 /// A BGRA8 texture of `w`×`h` that another process can open, wrapped as a wgpu texture.
 pub fn create_slot(gpu: &Gpu, w: u32, h: u32) -> Result<Slot, String> {
+    create_slot_as(gpu, w, h, DXGI_FORMAT_B8G8R8A8_UNORM, wgpu::TextureFormat::Bgra8Unorm, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC)
+}
+
+/// The same in any format (E0d: a Spout sender's own format, so a D3D11 CopyResource into it is legal).
+pub fn create_slot_as(gpu: &Gpu, w: u32, h: u32, dxgi: DXGI_FORMAT, format: wgpu::TextureFormat, usage: wgpu::TextureUsages) -> Result<Slot, String> {
     let hal = unsafe { gpu.device.as_hal::<wgpu::hal::api::Dx12>() }.ok_or("the engine device is not D3D12")?;
     let d3d: &ID3D12Device = hal.raw_device();
     let desc = D3D12_RESOURCE_DESC {
@@ -53,7 +58,7 @@ pub fn create_slot(gpu: &Gpu, w: u32, h: u32) -> Result<Slot, String> {
         Height: h,
         DepthOrArraySize: 1,
         MipLevels: 1,
-        Format: DXGI_FORMAT_B8G8R8A8_UNORM,
+        Format: dxgi,
         SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
         Layout: D3D12_TEXTURE_LAYOUT_UNKNOWN,
         Flags: D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS,
@@ -69,7 +74,7 @@ pub fn create_slot(gpu: &Gpu, w: u32, h: u32) -> Result<Slot, String> {
         .map_err(|e| format!("CreateSharedHandle: {e}"))?;
     let size = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
     let hal_tex = unsafe {
-        wgpu::hal::dx12::Device::texture_from_raw(res, wgpu::TextureFormat::Bgra8Unorm, wgpu::TextureDimension::D2, size, 1, 1)
+        wgpu::hal::dx12::Device::texture_from_raw(res, format, wgpu::TextureDimension::D2, size, 1, 1)
     };
     drop(hal);
     let texture = unsafe {
@@ -81,8 +86,8 @@ pub fn create_slot(gpu: &Gpu, w: u32, h: u32) -> Result<Slot, String> {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Bgra8Unorm,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                format,
+                usage,
                 view_formats: &[],
             },
             wgpu::wgt::TextureUses::UNINITIALIZED,   // created in D3D12 COMMON
