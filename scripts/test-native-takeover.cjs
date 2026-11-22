@@ -89,6 +89,21 @@ const MP4_CLIP = path.join(ROOT, 'engine', 'testdata', 'loop-avc-640x360.mp4');
   pj.fixtures.push({ id: 'fMp4', name: 'MP4 strip', surfaceId: 'sMp4', x: 0.03, y: 0.89, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 6, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
   fs.writeFileSync(project, JSON.stringify(pj, null, 2));
 }
+// Item 2d step 5 (--camera): a CAMERA surface — the machine's default camera (needs one Media Foundation lists,
+// e.g. the C270), held by the APP (getUserMedia, as always) and read SHARED by the engine (camshared.rs). A live
+// camera is never the same twice (sensor noise), so universe 7 is held to the app's OWN frame-to-frame noise:
+// each engine payload must be as close to one of the app's as the app's payloads are to each other.
+const CAMERA = process.argv.includes('--camera');
+if (CAMERA) {
+  const pj = JSON.parse(fs.readFileSync(project, 'utf8'));
+  pj.surfaces.push({ id: 'sCam', name: 'Camera', x: 0.52, y: 0.8, width: 0.46, height: 0.18, rotation: 0, zIndex: 5, content: { type: 'CAMERA', opacity: 1 } });
+  pj.fixtures.push({ id: 'fCam', name: 'Camera strip', surfaceId: 'sCam', x: 0.53, y: 0.89, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 7, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
+  fs.writeFileSync(project, JSON.stringify(pj, null, 2));
+}
+const LIVE = CAMERA ? [4, 5, 6, 7] : [4, 5, 6];
+// The mean absolute difference of two payloads (levels per channel).
+const mad = (x, y) => { let s = 0; for (let i = 0; i < x.length; i++) s += Math.abs(x[i] - y[i]); return s / x.length; };
+
 // E1f-2: LIGHT fixtures beside the pixels — generic profiles from the app's own library, authored values
 // in `dmx` (normalised), one SPILLING past channel 512. Their bytes are the app's precedence stack's; the
 // engine only places them.
@@ -190,7 +205,7 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     let app = launch(false);
     ok(await waitUntil(() => packets.some((p) => p.u === 0) && packets.some((p) => p.u === 1), 120000), 'A. without the flag: the app puts both universes on the wire');
     // The live sources (Spout, NDI) arrive later than the stills — NDI discovery alone can take a retry.
-    await waitUntil(() => [4, 5, 6].every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 30000);
+    await waitUntil(() => LIVE.every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 30000);
     // Several loops of the MP4 clip, so every one of its frames is in run A's set.
     await sleep(6000);
     await settle();
@@ -199,6 +214,8 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     ok(ref[5] && ref[5].some((b) => b > 0), `A. the NDI surface is on it (universe 5 lit: ${!!ref[5]?.some((b) => b > 0)})`);
     const appMp4 = [...new Map(A.filter((p) => p.u === 6).map((p) => [p.data.toString('hex'), p.data])).values()];
     ok(appMp4.length >= 4 && appMp4.some((d) => d.some((b) => b > 0)), `A. the MP4 surface is on it and MOVES (universe 6: ${appMp4.length} distinct payloads)`);
+    const appCam = CAMERA ? A.filter((p) => p.u === 7).map((p) => p.data) : [];
+    if (CAMERA) ok(appCam.length > 20 && appCam.some((d) => d.some((b) => b > 0)), `A. the CAMERA surface is on it (universe 7: ${appCam.length} payloads, lit: ${appCam.some((d) => d.some((b) => b > 0))})`);
     ok(ref[4] && ref[4].some((b) => b > 0), `A. the Spout surface is on it (universe 4 lit: ${!!ref[4]?.some((b) => b > 0)})`);
     ok(ref[2] && ref[2][0] === 255 && ref[2][1] === 128 && ref[3] && ref[3].some((b) => b > 0), `A. the lights are on it too (wash 1 red ${ref[2]?.[0]}, green ${ref[2]?.[1]}; universe 3 lit: ${!!ref[3]?.some((b) => b > 0)})`);
     for (const u of [0, 1]) { const tailA = A.filter((p) => p.u === u).slice(-60); console.log(`     run A universe ${u}: ${new Set(tailA.map((p) => p.data.toString('hex'))).size} distinct payloads in its last ${tailA.length} packets`); }
@@ -211,7 +228,8 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     app = launch(true);
     const took = await waitUntil(() => packets.some((p) => who(p) === 'engine'), 120000);
     // ...and their frames reach the ENGINE too before the comparison (its own receivers connect afresh).
-    await waitUntil(() => [4, 5, 6].every((u) => packets.some((p) => who(p) === 'engine' && p.u === u && p.data.some((b) => b > 0))), 30000);
+    await waitUntil(() => LIVE.every((u) => packets.some((p) => who(p) === 'engine' && p.u === u && p.data.some((b) => b > 0))), 30000);
+    if (!took) { const why = app.lines.filter((x) => /app keeps the wire/.test(x.l)).map((x) => x.l).slice(-1)[0]; if (why) console.log(`     ${why.trim()}`); }
     ok(took, 'B. with --native-engine: the ENGINE starts sending');
     // Long enough for TWO loops of the MP4 clip after the handover (2 s each): it must show all its frames.
     await sleep(5500); await settle();
@@ -245,6 +263,24 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
       // ALL EIGHT frames of the clip: a decoder stuck past the first loop (the loop count not folded back into
       // the file) still moves for a while and then freezes — 6 of 8, measured.
       ok(eng.length >= 8 && worst <= 1, `B. universe 6 (MP4): ${eng.length} distinct engine payloads (the clip has 8 frames), each within ${worst} of one of the app's ${appMp4.length} (${exact} identical)`);
+    }
+
+    if (CAMERA) {
+      // The camera: the app's frame-to-frame noise in run B before the handover AND run A (the floor), and each
+      // engine payload's distance to its nearest app payload.
+      // DISTINCT payloads: the wire repeats a camera frame (44 Hz out, ~15 fps in), and a repeat is distance 0.
+      const distinct = (ds) => [...new Map(ds.map((d) => [d.toString('hex'), d])).values()];
+      const appPre = pre.filter((p) => p.u === 7).map((p) => p.data);
+      const appAll = distinct([...appCam, ...appPre]);
+      const eng = distinct(after.filter((p) => p.u === 7 && who(p) === 'engine').map((p) => p.data));
+      const near = (d, pool) => Math.min(...pool.filter((a) => a !== d).map((a) => mad(a, d)));
+      const med = (xs) => { const v = [...xs].sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : NaN; };
+      const floor = med(appAll.slice(-40).map((d) => near(d, appAll)));
+      const engNear = eng.slice(-40).map((d) => near(d, appAll));
+      const lit = eng.some((d) => d.some((b) => b > 0));
+      const moving = new Set(eng.slice(-40).map((d) => d.toString('hex'))).size;
+      console.log(`     universe 7 (camera): the app's own frame-to-frame noise ${floor.toFixed(2)} levels (median); engine payloads to the nearest app payload: median ${med(engNear).toFixed(2)}, worst ${Math.max(...engNear).toFixed(2)}; ${moving} distinct of the engine's last ${Math.min(40, eng.length)}`);
+      ok(eng.length > 5 && lit && moving > 5 && med(engNear) <= floor + 1, `B. universe 7 (CAMERA): the engine draws the live camera, as close to the app's frames as they are to each other (median ${med(engNear).toFixed(2)} vs the app's noise ${floor.toFixed(2)})`);
     }
 
     // ── C. the engine dies → the app has the wire again → the engine comes back and takes it ─────────────

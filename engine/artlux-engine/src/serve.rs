@@ -112,6 +112,12 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                 };
                 handle(&mut rt, first, &mut tick);
                 while let Ok(m) = rx.try_recv() { handle(&mut rt, m, &mut tick); }
+                // Item 2d step 5: a twin camera was resolved by picture during the last tick — answer the SAME
+                // document again (main takes a later answer for the current revision), as if it had just come.
+                if rt.redo {
+                    rt.redo = false;
+                    if let Some(d) = rt.last_doc.clone() { handle(&mut rt, serde_json::json!({ "type": "doc", "doc": d }), &mut tick); }
+                }
                 if let Some(t) = tick {
                     let before = rt.frames;
                     match rt.tick(&t) {

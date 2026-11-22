@@ -28,7 +28,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), Camera(CamSpec), None }
+
+/// Item 2d step 5: a camera surface as the host describes it — the app's track label (which camera), the
+/// colour space of the app's own VideoFrames (what the engine's picture is held to — cam::picture), and
+/// whether the app sees another camera with the SAME label (then the picture decides — cam::resolve).
+#[derive(PartialEq, Clone, Debug)]
+struct CamSpec { label: String, app: crate::yuv::Space, twins: bool }
 
 struct Doc {
     rev: u64,
@@ -79,6 +85,17 @@ pub struct Runtime {
     #[cfg(windows)]
     mp4s: HashMap<String, (String, crate::mf::Mp4In)>,
     conv: Option<crate::yuv::GpuConvert>,
+    /// Item 2d step 5: one SHARED camera reader per surface (camshared.rs — the app keeps the camera), the
+    /// label it was resolved from, and the last frame drawn.
+    #[cfg(windows)]
+    cams: HashMap<String, (String, crate::camshared::SharedIn, u64)>,
+    /// Twin cameras (one model twice) resolved BY PICTURE: (surface, label) → link. Kept across documents.
+    resolved: HashMap<(String, String), String>,
+    /// Twin cameras waiting for the app's fingerprint (it comes with the ticks): surface → label.
+    pending_cams: HashMap<String, String>,
+    /// The last document, to answer it AGAIN once a pending camera is resolved (`redo`).
+    pub last_doc: Option<Value>,
+    pub redo: bool,
 }
 
 impl Runtime {
@@ -88,7 +105,8 @@ impl Runtime {
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
-            #[cfg(windows)] mp4s: HashMap::new(), conv: None }
+            #[cfg(windows)] mp4s: HashMap::new(), conv: None,
+            #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false }
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -208,6 +226,11 @@ impl Runtime {
                 "spout" => Source::Spout(src["name"].as_str().unwrap_or_default().to_string()),
                 "ndi" => Source::Ndi(src["name"].as_str().unwrap_or_default().to_string()),
                 "mp4" => Source::Mp4(src["path"].as_str().unwrap_or_default().to_string(), src["durUs"].as_f64().unwrap_or(0.0).round() as i64),
+                "camera" => Source::Camera(CamSpec {
+                    label: src["label"].as_str().unwrap_or_default().to_string(),
+                    app: crate::yuv::Space { bt709: src["bt709"].as_bool().unwrap_or(false), full_range: src["fullRange"].as_bool().unwrap_or(false) },
+                    twins: src["twins"].as_bool().unwrap_or(false),
+                }),
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -233,6 +256,9 @@ impl Runtime {
         self.ndis.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Ndi(_))));
         #[cfg(windows)]
         self.mp4s.retain(|k, (p, _)| matches!(doc.sources.get(k), Some(Source::Mp4(q, _)) if q == p));
+        #[cfg(windows)]
+        self.cams.retain(|k, (l, _, _)| matches!(doc.sources.get(k), Some(Source::Camera(c)) if &c.label == l));
+        self.pending_cams.retain(|k, l| matches!(doc.sources.get(k), Some(Source::Camera(c)) if &c.label == l));
         // Keep the effects' state (Fire's heat) across documents for surfaces that are still effects.
         self.effects.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Effect(_))));
         let ids: Vec<String> = doc.sources.keys().cloned().collect();
@@ -240,6 +266,7 @@ impl Runtime {
         self.pictures.retain(|k, _| ids.iter().any(|i| i == k));
         let verdict = self.verdict(d, &mut doc);
         self.doc = Some(doc);
+        self.last_doc = Some(d.clone());
         verdict
     }
 
@@ -254,6 +281,12 @@ impl Runtime {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
                 Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") => {}
+                Some("camera") => {
+                    #[cfg(windows)]
+                    { let Some(Source::Camera(c)) = doc.sources.get(sid) else { unreachable!() }; let c = c.clone(); self.ensure_camera(sid, &c).map_err(|e| format!("surface '{}': {e}", name_of(d, sid)))?; }
+                    #[cfg(not(windows))]
+                    return Err(format!("surface '{}': the engine reads cameras on Windows only so far", name_of(d, sid)));
+                }
                 // Item 2b: only an engine BUILT with NDI (the `ndi` feature links the SDK) can take it.
                 Some("ndi") if cfg!(feature = "ndi") => {
                     // The runtime is delay-loaded: no NDI install here = the app keeps the show, with this reason.
@@ -402,7 +435,42 @@ impl Runtime {
                     #[cfg(not(windows))]
                     { let _ = dur_us; self.pictures.remove(sid); }
                 }
+                Source::Camera(c) => {
+                    // A live source: the NEWEST frame the shared reader has (as the app draws its newest), drawn
+                    // when it is a new one. A surface only a projector shows is opened here on first use.
+                    #[cfg(windows)]
+                    {
+                        if !self.cams.contains_key(sid) {
+                            if let Some(fp) = v["camfp"][sid].as_array() { self.try_resolve(sid, c, fp); }
+                            if self.ensure_camera(sid, c).is_err() { self.pictures.remove(sid); continue; }
+                        }
+                        let (_, rx, last) = self.cams.get_mut(sid).unwrap();
+                        if let Some((seq, g)) = rx.latest() {
+                            if seq != *last || !self.pictures.contains_key(sid) {
+                                *last = seq;
+                                let conv = self.conv.get_or_insert_with(|| crate::yuv::GpuConvert::new(&self.gpu));
+                                let pic = crate::cam::picture(&self.gpu, conv, g.as_ref().unwrap(), c.app).map_err(|e| format!("surface {sid}: camera {e}"))?;
+                                drop(g);
+                                self.pictures.insert(sid.clone(), pic);
+                                self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
+                            }
+                        }
+                        // No frame yet: nothing drawn (black), as the app before its first frame.
+                    }
+                    #[cfg(not(windows))]
+                    { let _ = c; self.pictures.remove(sid); }
+                }
                 Source::None => { self.pictures.remove(sid); }
+            }
+        }
+        // Twin cameras waiting for the app's picture: resolve with the fingerprint this tick carries, then the
+        // document is answered AGAIN (serve.rs) — the engine may own it now.
+        #[cfg(windows)]
+        {
+            let waiting: Vec<(String, String)> = self.pending_cams.iter().map(|(k, l)| (k.clone(), l.clone())).collect();
+            for (sid, _) in waiting {
+                let Some(Source::Camera(c)) = doc.sources.get(&sid) else { continue }; let c = c.clone();
+                if let Some(fp) = v["camfp"][&sid].as_array() { if self.try_resolve(&sid, &c, fp) { self.pending_cams.remove(&sid); self.redo = true; } }
             }
         }
         self.publish_projectors(doc, v);
@@ -426,6 +494,45 @@ impl Runtime {
     pub fn close(&mut self) {
         if let Some(o) = self.out.take() { o.close(); }
         if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Quit); }
+    }
+}
+
+#[cfg(windows)]
+impl Runtime {
+    /// The surface's camera, read SHARED: resolved by label (one camera of that name and vid:pid), or — twins —
+    /// by the picture resolution already made (`resolved`). Refused, with the reason, when the engine cannot
+    /// draw it as the app does: not a camera Media Foundation lists, twins not identified yet, or a holder
+    /// streaming MJPEG (the engine's own MJPEG decode is not measured against Chromium's yet — step 3).
+    fn ensure_camera(&mut self, sid: &str, c: &CamSpec) -> Result<(), String> {
+        if self.cams.get(sid).is_some_and(|(l, _, _)| l == &c.label) { return Self::mjpeg_check(&self.cams[sid].1); }
+        let link = match self.resolved.get(&(sid.to_string(), c.label.clone())) {
+            Some(l) => l.clone(),
+            None => match crate::cam::resolve(&c.label, None, c.app) {
+                Ok((l, _)) => l,
+                Err(e) if c.twins || e.contains("picture is needed") => {
+                    self.pending_cams.insert(sid.to_string(), c.label.clone());
+                    return Err(format!("identifying which \"{}\" by its picture ({e})", c.label));
+                }
+                Err(e) => return Err(e),
+            },
+        };
+        let rx = crate::camshared::SharedIn::open(&link).map_err(|e| format!("camera \"{}\": {e}", c.label))?;
+        Self::mjpeg_check(&rx)?;
+        self.cams.insert(sid.to_string(), (c.label.clone(), rx, 0));
+        Ok(())
+    }
+
+    fn mjpeg_check(rx: &crate::camshared::SharedIn) -> Result<(), String> {
+        if rx.controller.starts_with("MJPG") { Err(format!("the app's camera streams MJPEG ({}) — the engine's MJPEG decode is not yet measured against the app's", rx.controller)) } else { Ok(()) }
+    }
+
+    /// Twins: resolve by the app's fingerprint `fp`. True once resolved (kept for this surface and label).
+    fn try_resolve(&mut self, sid: &str, c: &CamSpec, fp: &[Value]) -> bool {
+        let fp: Vec<u8> = fp.iter().map(|x| x.as_u64().unwrap_or(0).min(255) as u8).collect();
+        match crate::cam::resolve(&c.label, Some(&fp), c.app) {
+            Ok((link, why)) => { eprintln!("artlux-engine: camera \"{}\" for surface {sid}: {why}", c.label); self.resolved.insert((sid.to_string(), c.label.clone()), link); true }
+            Err(e) => { eprintln!("artlux-engine: camera \"{}\" for surface {sid}: {e}", c.label); false }
+        }
     }
 }
 

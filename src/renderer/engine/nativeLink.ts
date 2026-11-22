@@ -149,9 +149,18 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const c = surfaceMedia.getDrawable(s) as { width?: number; height?: number } | null;
     if (c && c.width && c.height) ndi[s.id] = [c.width, c.height];
   }
+  // Item 2d step 5: each TWIN camera surface's picture fingerprint (two cameras of one model: the engine needs
+  // the picture to know which is this one — cam.rs resolve). Sent only while there is one; tiny (144 numbers).
+  const camfp: Record<string, number[]> = {};
+  for (const s of surfaces) {
+    const src = sources[s.id];
+    if (src.kind !== 'camera' || !src.twins) continue;
+    const fp = contentSource.cameraFingerprintFor(s.content);
+    if (fp) camfp[s.id] = fp;
+  }
   // A light's values as the wire will carry them: the frame codec stores each into a Uint8Array, i.e.
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, camfp, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

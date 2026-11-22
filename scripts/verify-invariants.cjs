@@ -8799,7 +8799,7 @@ check(
     if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('contentSource no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
-    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
+    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, (camfp, )?lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
     if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
     if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');
@@ -8857,6 +8857,12 @@ check(
     const tsGrid = [/FP_COLS = (\d+)/.exec(fpTs)?.[1], /FP_ROWS = (\d+)/.exec(fpTs)?.[1]].join('x');
     const rsGrid = [/pub const FP_COLS: usize = (\d+)/.exec(cam4)?.[1], /pub const FP_ROWS: usize = (\d+)/.exec(cam4)?.[1]].join('x');
     if (tsGrid !== rsGrid) problems.push(`the camera fingerprint grid differs: app ${tsGrid}, engine ${rsGrid}`);
+    // Step 5: the runtime. The engine takes only what was MEASURED: the host sends a camera only with an
+    // I420/NV12 BT.601 limited frame, and the engine refuses a holder streaming MJPEG (its MJPEG decode is
+    // not measured against Chromium's - and the real app opens the C270 as MJPEG, measured 3/3).
+    const cs = raw('src/renderer/services/contentSource.ts');
+    if (!/case SourceType\.CAMERA: return cameraNativeSource\(content\);/.test(cs) || !/the engine is measured on BT\.601 limited/.test(cs)) problems.push('contentSource no longer describes a camera surface to the engine only when its frames are what was measured');
+    if (!/fn mjpeg_check\(/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer refuses a camera whose holder streams MJPEG (unmeasured)');
     // Step 3: the picture. A full-range frame drawn for a limited-range app is requantised EXACTLY as the app's
     // frame was made (measured: Y' = ((Y*3517 + b) >> 12) + 16, C' = round(128 + (C-128)*224/255)); without it
     // the camera differs from the app by up to 8 (mutation), with BT.709 by up to 11 (mutation).

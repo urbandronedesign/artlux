@@ -29,7 +29,7 @@ app.whenReady().then(async () => {
     const t0 = performance.now();
     const write = () => { st.t = performance.now() - t0; fs.writeFileSync(path.join(${JSON.stringify(OUT)}, 'holder.json'), JSON.stringify(st)); };
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: ${process.env.GUM_VIDEO || '{"width":{"ideal":1280},"height":{"ideal":720}}'}, audio: false });
       const track = stream.getVideoTracks()[0];
       st.settings = track.getSettings(); st.holding = true;
       // What the app knows of the camera it holds: the track's label, and every video input as Chromium lists it.

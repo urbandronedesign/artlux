@@ -6,6 +6,7 @@ import { contentSourceRegistry, videoCodecRegistry } from '../host/registries';
 import * as codecResidency from './codecResidency';
 import * as renderClock from '../engine/renderClock';
 import { setCameraAccess, type CameraDevice, type CameraInfo } from './cameraAccess';
+import { frameFingerprint } from '../engine/cameraFingerprint';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
@@ -277,7 +278,7 @@ async function startCamera(deviceId: string): Promise<void> {
       // Don't spend the final default-device rung on a request that had no device pinned — rungs 1-3
       // already were the default, and retrying it a fourth time only delays the error.
       if (i === attempts.length - 1 && !deviceId) break;
-      try { stream = await navigator.mediaDevices.getUserMedia({ video: attempts[i], audio: false }); lastErr = null; if (i === attempts.length - 1) cam.error = 'That camera was not found — showing the default camera instead.'; break; }
+      try { stream = await navigator.mediaDevices.getUserMedia({ video: attempts[i], audio: false }); lastErr = null; refreshVideoLabels(); if (i === attempts.length - 1) cam.error = 'That camera was not found — showing the default camera instead.'; break; }
       catch (e) {
         lastErr = e;
         const name = (e as DOMException)?.name;
@@ -735,7 +736,56 @@ export function releaseExact(keys?: readonly string[]): void {
 // The engine draws stills, HAP and effects itself (proven against this file's drawables, E1d). Anything
 // else is "unsupported" with a reason, and then the app keeps the wire (engine/runtime.rs: all or nothing).
 // A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
-export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp4'; path: string; durUs: number } | { kind: 'spout' | 'ndi'; name: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp4'; path: string; durUs: number } | { kind: 'spout' | 'ndi'; name: string }
+  | { kind: 'camera'; label: string; bt709: boolean; fullRange: boolean; twins: boolean }
+  | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+
+// Item 2d step 5 (plans/native-engine.md): a CAMERA surface. The app keeps its camera (owner's decision); the
+// engine reads the same device SHARED and draws it as this app does (engine cam.rs — proven by
+// test:camera-shared). Decided on the app's OWN live VideoFrame, as an MP4 is: which camera (its track label,
+// "<name> (<vid>:<pid>)", is what the engine can match — the deviceId is a salted hash), and the colour space
+// the engine's picture is held to. Only what was MEASURED goes: an I420 / NV12 frame, BT.601 limited range.
+// `twins`: another video input of this machine has the same label — then the engine needs the picture to tell
+// them apart, and the link sends this camera's fingerprint (cameraFingerprintFor) with the ticks.
+let videoLabels: string[] = [];
+function refreshVideoLabels(): void {
+  void navigator.mediaDevices?.enumerateDevices?.().then((ds) => { videoLabels = ds.filter((d) => d.kind === 'videoinput').map((d) => d.label); }, () => { /* keep the last */ });
+}
+try { navigator.mediaDevices?.addEventListener?.('devicechange', refreshVideoLabels); } catch { /* no media devices: a test page */ }
+
+function cameraNativeSource(content: SurfaceContent): NativeSource {
+  const cam = cams.get(content.cameraDeviceId ?? '');
+  const vf = cam?.frame;
+  if (!cam || !cam.track) return { kind: 'unsupported', why: 'a camera that is not open yet' };
+  if (!vf) return { kind: 'unsupported', why: cam.el ? 'a camera played through a <video> (no VideoFrames to judge)' : 'a camera with no frame yet' };
+  if (vf.format !== 'I420' && vf.format !== 'NV12') return { kind: 'unsupported', why: `a camera whose frames are ${vf.format} (the engine is measured on I420 / NV12)` };
+  const cs = vf.colorSpace;
+  if (!(cs?.matrix === 'smpte170m' || cs?.matrix === 'bt470bg') || cs?.fullRange !== false) {
+    return { kind: 'unsupported', why: `a camera in colour space ${cs?.matrix}/${cs?.fullRange ? 'full' : 'limited'} (the engine is measured on BT.601 limited)` };
+  }
+  const label = cam.track.label;
+  if (!label) return { kind: 'unsupported', why: 'a camera with no label (permission not granted yet)' };
+  return { kind: 'camera', label, bt709: false, fullRange: false, twins: videoLabels.filter((l) => l === label).length > 1 };
+}
+
+// The app's fingerprint of a camera's picture (engine/cameraFingerprint.ts), refreshed about once a second in
+// the background from a CLONE of the newest frame (the pump closes its own as the next lands). Only asked
+// for twin cameras — the one case where the engine needs the picture to know which camera is this one.
+const camFps = new Map<string, { fp: number[] | null; at: number; busy: boolean }>();
+export function cameraFingerprintFor(content: SurfaceContent): number[] | null {
+  const id = content.cameraDeviceId ?? '';
+  let e = camFps.get(id);
+  if (!e) camFps.set(id, (e = { fp: null, at: 0, busy: false }));
+  const vf = cams.get(id)?.frame;
+  if (vf && !e.busy && performance.now() - e.at > 1000) {
+    const entry = e;
+    entry.busy = true;
+    let copy: VideoFrame | null = null;
+    try { copy = vf.clone(); } catch { entry.busy = false; return entry.fp; }
+    void frameFingerprint(copy).then((fp) => { if (fp) entry.fp = fp; }, () => { /* keep the last */ }).finally(() => { copy?.close(); entry.at = performance.now(); entry.busy = false; });
+  }
+  return e.fp;
+}
 export function filePathOf(url: string): string {
   // The renderer sees absolute paths (main translates project assets); a file:// URL is undone here.
   if (!/^file:\/\//i.test(url)) return url;
@@ -771,6 +821,7 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
     // Item 2b: the engine receives the NDI source itself (its own receiver, the app's arithmetic — ndi.rs);
     // '' = the first source found, as the app does.
     case SourceType.NDI: return { kind: 'ndi', name: content.ndiName ?? '' };
+    case SourceType.CAMERA: return cameraNativeSource(content);
     // Syphon is Spout's macOS sibling; the engine runs on Windows first and receives no Syphon yet.
     case 'SYPHON': return { kind: 'unsupported', why: `Syphon ('${content.syphonName ?? ''}') is not drawn by the native engine yet` };
     case SourceType.VIDEO: {

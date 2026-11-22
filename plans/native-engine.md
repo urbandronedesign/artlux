@@ -1737,6 +1737,27 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   surface's label, fingerprint and colour space; the engine resolves, reads shared, draws; then the takeover
 >   test with a camera surface.
 
+> **2d CAMERA — step 5 (runtime) built 2026-11-22; the engine takes a camera only in the measured case.**
+> - **Built:** the host describes a camera surface from the app's OWN live VideoFrame (`contentSource.ts
+>   cameraNativeSource`): its track label, the frame's colour space, and `twins` (another video input with the
+>   same label). Only I420/NV12 BT.601 limited goes; anything else stays the app's with the reason. For twins the
+>   tick carries the app's fingerprint (`camfp`, refreshed ~1 s). The engine (`runtime.rs` Source::Camera)
+>   resolves the camera (cam::resolve), reads it SHARED, draws the newest frame through cam::picture; twins wait
+>   for the picture, and once resolved the engine answers the SAME document again (serve.rs `redo`; main takes
+>   a later answer for the current revision).
+> - **Measured — the real app opens the C270 as MJPEG** (1280×720 at 30, 3 launches of 3), while a bare Electron
+>   page with the same request gets NV12 every time (sandboxed or not, with or without the app's switches — the
+>   cause is not found). The engine REFUSES a holder streaming MJPEG: its MJPEG decode is not measured against
+>   Chromium's. So in the real app today the camera surface stays the app's, with that reason, and the engine
+>   keeps nothing else from it (all or nothing: the whole wire stays the app's while a sampled camera is refused).
+>   A first attempt to dump the app's own MJPEG-derived frames over CDP (a second getUserMedia in its page) hung.
+> - **`test:native-takeover --camera`** adds a camera surface (universe 7): run A the app lights it; run B the
+>   engine refuses it (MJPEG) — the test FAILS honestly until MJPEG is measured. Without `--camera` the test is
+>   unchanged and passes (stills/lights/Spout/NDI identical, MP4 within 1, handback 56 ms).
+> - **Not tried:** a camera when the app captures through DirectShow (`ARTLUX_DSHOW_CAPTURE=1`).
+> - **Next:** a dev-only hook in the app that writes its own camera frames, to measure the engine's MJPEG decode
+>   against them; then the camera takeover.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).
