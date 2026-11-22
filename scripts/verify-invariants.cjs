@@ -8390,6 +8390,26 @@ check(
   },
 );
 
+check(
+  'a HAP frame uploads as WHOLE 4×4 blocks (a size that is not a multiple of 4 is not black)',
+  'Found by the native engine\'s parity test (plans/native-engine.md E1d-2): WebGL refuses an S3TC upload ' +
+  'whose width or height is not a multiple of 4 (INVALID_OPERATION, no exception), so plugins/hap/src/hapGL.ts ' +
+  'uploaded a 1002×562 — or a 1080×1350 portrait — clip NOWHERE and the surface drew black, silently. The ' +
+  'texture is the block-padded size and the canvas reads only the picture\'s share (uScale). The engine ' +
+  '(compose.rs hap_picture) is held byte for byte to this path by scripts/test-image-parity.cjs.',
+  () => {
+    const problems = [];
+    const gl = read('plugins/hap/src/hapGL.ts');
+    if (!/const pw = Math\.ceil\(f\.width \/ 4\) \* 4, ph = Math\.ceil\(f\.height \/ 4\) \* 4;/.test(gl)) problems.push('hapGL no longer rounds the texture size up to whole blocks');
+    if (!/compressedTexImage2D\(gl\.TEXTURE_2D, 0, fmt, pw, ph, 0, f\.data\)/.test(gl) || !/compressedTexSubImage2D\(gl\.TEXTURE_2D, 0, 0, 0, pw, ph, fmt, f\.data\)/.test(gl)) problems.push('hapGL uploads at the picture size again — WebGL rejects it for a size that is not a multiple of 4');
+    if (!/gl\.uniform2f\(this\.uScale, f\.width \/ pw, f\.height \/ ph\)/.test(gl) || !/\* uScale;/.test(gl)) problems.push('hapGL no longer reads only the picture\'s share of the padded texture');
+    const cp = read('engine/artlux-engine/src/compose.rs');
+    if (!/pub fn hap_picture\(/.test(cp)) problems.push('the engine\'s HAP source (compose.rs hap_picture) is gone');
+    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

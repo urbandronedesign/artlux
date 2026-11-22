@@ -88,7 +88,7 @@ fn main() -> ExitCode {
         // E1d: one whole frame from a project — its IMAGE surfaces decoded, the engine's own atlas, the
         // LEDs sampled — for scripts/test-image-parity.cjs. Writes {"rgbw": base64, "adapter": …}.
         use base64::Engine as _;
-        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --frame-once <project.artlux> <out.json> [--brightness b]"); return ExitCode::from(2); };
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --frame-once <project.artlux> <out.json> [--brightness b] [--video-frame N]"); return ExitCode::from(2); };
         let brightness = args.iter().position(|a| a == "--brightness").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.0);
         let doc: serde_json::Value = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
             Ok(v) => v, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
@@ -96,24 +96,35 @@ fn main() -> ExitCode {
         let fixtures: Vec<artlux_engine::layout::Fixture> = serde_json::from_value(doc["fixtures"].clone()).unwrap_or_default();
         let surfaces: Vec<artlux_engine::layout::Surface> = serde_json::from_value(doc["surfaces"].clone()).unwrap_or_default();
         let base = std::path::Path::new(inp).parent().unwrap_or(std::path::Path::new("."));
+        // E1d-2: a VIDEO surface whose file is HAP draws frame `--video-frame N` (the app picks it from the
+        // show clock). A `.hapframe.json` ({width, height, format, data: base64 blocks}, the app's HapFrame) is
+        // a TEST input: synthetic blocks for the formats and sizes no file on hand has.
+        let video_frame = args.iter().position(|a| a == "--video-frame").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
         let mut pictures = std::collections::HashMap::new();
         let mut opacity = std::collections::HashMap::new();
         for s in doc["surfaces"].as_array().into_iter().flatten() {
             let id = s["id"].as_str().unwrap_or_default().to_string();
             let c = &s["content"];
             if let Some(o) = c["opacity"].as_f64() { opacity.insert(id.clone(), o as f32); }
-            if c["type"].as_str() == Some("IMAGE") {
-                if let Some(url) = c["url"].as_str() {
-                    let p = std::path::Path::new(url.trim_start_matches("file:///"));
-                    let p = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
-                    match artlux_engine::compose::load_image(&p) {
-                        Ok(pic) => { pictures.insert(id, pic); }
-                        Err(e) => eprintln!("artlux-engine: image: {e}"),
-                    }
-                }
-            }
+            let Some(url) = c["url"].as_str() else { continue };
+            let p = std::path::Path::new(url.trim_start_matches("file:///"));
+            let p = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
+            let pic = match c["type"].as_str() {
+                Some("IMAGE") => artlux_engine::compose::load_image(&p).map_err(|e| format!("image: {e}")),
+                Some("VIDEO") if url.ends_with(".hapframe.json") => (|| {
+                    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+                    let fmt = artlux_engine::hapimport::format_from_str(j["format"].as_str().unwrap_or_default()).ok_or("unknown format")?;
+                    let blocks = base64::engine::general_purpose::STANDARD.decode(j["data"].as_str().unwrap_or_default()).map_err(|e| e.to_string())?;
+                    artlux_engine::compose::hap_picture(&gpu, fmt, j["width"].as_u64().unwrap_or(0) as u32, j["height"].as_u64().unwrap_or(0) as u32, &blocks)
+                })().map_err(|e| format!("hap frame {}: {e}", p.display())),
+                Some("VIDEO") => artlux_engine::hapimport::read_frame(&p.to_string_lossy(), video_frame)
+                    .and_then(|(w, h, fmt, blocks, _)| artlux_engine::compose::hap_picture(&gpu, fmt, w, h, &blocks))
+                    .map_err(|e| format!("video {}: {e} (only HAP is drawn by the engine so far)", p.display())),
+                _ => continue,
+            };
+            match pic { Ok(pic) => { pictures.insert(id, pic); } Err(e) => eprintln!("artlux-engine: {e}") }
         }
-        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
         let fd = artlux_engine::compose::FrameDoc { fixtures: &fixtures, surfaces: &surfaces, pictures: &pictures, opacity: &opacity, brightness };
         return match artlux_engine::compose::frame(&gpu, &fd) {
             Ok(rgbw) => {

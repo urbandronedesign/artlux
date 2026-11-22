@@ -215,3 +215,30 @@ pub fn check_file(gpu: &Gpu, path: &str, frame: usize) -> Result<FileReport, Str
     let fallback_exact = sample_points(gpu, &fb, &uvs).map_err(|e| e.to_string())? == want;
     Ok(FileReport { codec, size: (v.width, v.height), format: d.format, frame: frame.min(n - 1), frames: n, points: uvs.len(), gpu_path, exact, max_diff, fallback_exact })
 }
+
+// ── A FRAME AS A SOURCE (E1d-2) ─────────────────────────────────────────────────────────────────────
+
+/// Frame `frame` of a HAP file (clamped to the last), as blocks: (width, height, format, blocks, frame count).
+pub fn read_frame(path: &str, frame: usize) -> Result<(u32, u32, HapFormat, Vec<u8>, usize), String> {
+    let v = mov::parse(path)?;
+    let n = v.frames.len();
+    let s = *v.frames.get(frame.min(n.saturating_sub(1))).ok_or("the file has no video frames")?;
+    let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    f.seek(SeekFrom::Start(s.offset)).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; s.size as usize];
+    f.read_exact(&mut buf).map_err(|e| e.to_string())?;
+    let d = hap::decode_frame(&buf)?;
+    Ok((v.width, v.height, d.format, d.data, n))
+}
+
+/// The app's names for the formats (native/hap/src/lib.rs's HapFrame.format).
+pub fn format_from_str(s: &str) -> Option<HapFormat> {
+    Some(match s {
+        "dxt1" => HapFormat::Dxt1,
+        "dxt5" => HapFormat::Dxt5,
+        "ycocg" => HapFormat::ScaledYCoCg,
+        "rgtc1" => HapFormat::Rgtc1,
+        "bptc" => HapFormat::Bptc,
+        _ => return None,
+    })
+}

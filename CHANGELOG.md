@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### HAP clips of any size play
+
+A HAP clip whose width or height is not a multiple of 4 (a 1080×1350 portrait, a 1366×768) showed
+**black**, with no error. It now plays like any other. See [Video codecs](docs/CODECS.md).
+
 ## v0.37.0
 
 ### More keyframe curves

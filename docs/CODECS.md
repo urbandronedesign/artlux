@@ -48,9 +48,13 @@ both correctly, but the renderer's upload (`plugins/hap/src/hapGL.ts`, `glFormat
 DXT5 and labels every other block format as DXT5. A Hap R (BC7) frame is the same size as DXT5, so it
 uploads and is read in the wrong format — noise, on the LEDs as well as the projectors. A HapA (BC4) frame
 is half the size, so the upload is rejected silently and the surface stays black. This table marked
-HapA ✅ until 2026-10-22; it had never been played. **Only `Hap1` has been tested on a real file** — `Hap5`
-and `HapY` share its upload path but have not been. Until the upload is fixed, **export Hap, Hap Alpha or
-Hap Q**.
+HapA ✅ until 2026-10-22; it had never been played. `Hap1` and `Hap5` have been played from real files
+(`Hap5` since 2026-11-22, through the plugin's own upload path in a test page); `HapY` from synthetic frames
+only. Until the upload is fixed, **export Hap, Hap Alpha or Hap Q**.
+
+**Any picture size plays.** A clip whose width or height is not a multiple of 4 — a 1080×1350 portrait, a
+1366×768 — used to stay **black** with no error (WebGL refused the upload). Fixed 2026-11-22: the frame is
+uploaded at its size rounded up to whole 4×4 blocks and only the picture's own part is drawn.
 
 `HapM` is a **multi-image** format: one frame carries two textures, and the decoder reads one. It is
 **refused at open** (`native/hap`: `hap::probe_frame` validates sample 0's section header, so the

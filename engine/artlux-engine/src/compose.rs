@@ -20,7 +20,8 @@
 //! agrees at some scales and not others — see the gate below. Not handled yet: ICC profiles and EXIF
 //! orientation (Chromium applies both), and formats beyond PNG / JPEG (a WebP/GIF/AVIF surface is black).
 //!
-//! Sources so far: IMAGE. Everything else (VIDEO/HAP, SPOUT, EFFECT, …) leaves its cell black here.
+//! Sources so far: IMAGE, and a HAP frame (hap_picture, below). Everything else (other video, SPOUT,
+//! EFFECT, …) leaves its cell black here.
 
 use crate::layout::{self, Fixture, Surface};
 use crate::{EngineError, Gpu};
@@ -51,9 +52,21 @@ fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// A decoded picture, RGBA8, PREMULTIPLIED alpha — as Chromium's ImageBitmap holds it (premultiplyAlpha
-/// 'default'), so the mip averaging and the bilinear stretch run on the same numbers Skia's do.
-pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8> }
+/// A picture to stretch into a cell, RGBA8, and HOW today's `drawImage` stretches that kind of source —
+/// which is not the same for every source (measured, scripts/test-image-parity.cjs):
+///   - a decoded IMAGE is an ImageBitmap: PREMULTIPLIED at decode (8-bit, Skia's rounding) and drawn from
+///     a MIP CHAIN — `Picture::still`;
+///   - a CANVAS (the HAP plugin's WebGL canvas, `premultipliedAlpha: false`) is premultiplied the same way
+///     but drawn from the texture itself, NO mips — `Picture::canvas`. With mips the three real HAP clips
+///     here were 9–97% exact; without, all three byte-identical. (Multiplying the straight alpha in AFTER
+///     the filter was tried and is wrong: 46% exact on an alpha frame. Truncating, shift-by-8 and f32
+///     premultiplies were each worse than Skia's rounding.)
+pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool }
+
+impl Picture {
+    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true } }
+    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false } }
+}
 
 /// `round(c × a / 255)` in integers — Skia's SkMulDiv255Round.
 fn mul_div_255_round(c: u8, a: u8) -> u8 {
@@ -64,12 +77,15 @@ fn mul_div_255_round(c: u8, a: u8) -> u8 {
 pub fn load_image(path: &Path) -> Result<Picture, String> {
     let img = image::open(path).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8();
     let (w, h) = (img.width(), img.height());
-    let mut rgba = img.into_raw();
+    Ok(Picture::still(w, h, img.into_raw()))
+}
+
+/// RGBA8 in place → premultiplied, Skia's 8-bit rounding.
+pub fn premultiply(rgba: &mut [u8]) {
     for px in rgba.chunks_exact_mut(4) {
         let a = px[3];
         if a != 255 { for c in &mut px[..3] { *c = mul_div_255_round(*c, a); } }
     }
-    Ok(Picture { w, h, rgba })
 }
 
 /// What one frame needs from the document.
@@ -119,7 +135,7 @@ pub fn frame(gpu: &Gpu, doc: &FrameDoc) -> Result<Vec<u8>, EngineError> {
         let (Some(rect), Some(pic)) = (packed.rects.get(k), doc.pictures.get(sid)) else { continue };
         let opacity = doc.opacity.get(sid).copied().unwrap_or(1.0);
         if opacity <= 0.0 { continue; }
-        let chain = mip_chain(pic);
+        let chain = if pic.mips { mip_chain(pic) } else { vec![(pic.w, pic.h, pic.rgba.clone())] };
         let size = wgpu::Extent3d { width: pic.w, height: pic.h, depth_or_array_layers: 1 };
         let tex = d.create_texture(&wgpu::TextureDescriptor {
             label: Some("picture"), size, mip_level_count: chain.len() as u32, sample_count: 1, dimension: wgpu::TextureDimension::D2,
@@ -216,4 +232,111 @@ pub fn mip_level(sx: f64, sy: f64, levels: usize) -> f32 {
     let scale = sx.min(sy);
     if scale <= 1.0 || levels <= 1 { return 0.0; }
     scale.log2().floor().clamp(0.0, (levels - 1) as f64) as f32
+}
+
+// ── HAP (E1d-2): a frame's blocks → the picture the app would stretch ──────────────────────────────────
+// Today (plugins/hap/src/hapGL.ts) the blocks go into a WebGL2 compressed texture the size of the video
+// and are drawn ONCE onto a canvas the same size — pixel centre onto texel centre, so the LINEAR filter
+// there reads exactly one texel — with HapQ's scaled-YCoCg → RGB in that shader. The canvas is
+// `premultipliedAlpha: false`, and `drawImage` then stretches it into the atlas like any picture. So the
+// engine does the same: the GPU decodes the blocks (a BC texture; the CPU decode where the adapter has no
+// BC), one pass applies the app's shader per texel, and the result enters the proven picture path
+// (premultiply, mips, stretch). Two of the app's choices are kept ON PURPOSE, because they are what is on
+// the LEDs today:
+//   - DXT1 is `COMPRESSED_RGB_S3TC_DXT1_EXT` there: alpha is ALWAYS 1, even on a punch-through texel
+//     (whose colour is black). wgpu's BC1 is the RGBA variant, so the shader forces alpha to 1.
+//   - HapQ's maths is the app's float shader, line for line (not an integer YCoCg).
+// The frame is read back to the CPU here, which a live engine would not do (the picture stays on the GPU);
+// this step is about WHAT is drawn, and the readback is what lets the same stretch be reused and judged.
+const HAP_WGSL: &str = r#"
+@group(0) @binding(0) var blocks: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> mode: vec4<u32>;   // x: 0 direct (alpha kept), 1 scaled YCoCg, 2 direct (alpha 1)
+
+@vertex
+fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    let x = f32((i << 1u) & 2u) * 2.0 - 1.0;
+    let y = f32(i & 2u) * 2.0 - 1.0;
+    return vec4<f32>(x, y, 0.0, 1.0);
+}
+
+@fragment
+fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    let c = textureLoad(blocks, vec2<i32>(pos.xy), 0);
+    if (mode.x == 1u) {
+        // plugins/hap/src/hapGL.ts FRAG, verbatim.
+        let scale = c.b * 31.875 + 1.0;
+        let co = (c.r * 255.0 - 128.0) / scale;
+        let cg = (c.g * 255.0 - 128.0) / scale;
+        let y = c.a * 255.0;
+        return vec4<f32>((y + co - cg) / 255.0, (y + cg) / 255.0, (y - co - cg) / 255.0, 1.0);
+    }
+    if (mode.x == 2u) { return vec4<f32>(c.rgb, 1.0); }
+    return c;
+}
+"#;
+
+/// A HAP frame's blocks as the picture today's GL path paints — a CANVAS (no mips). BC4 / BC7 (HapA, Hap7) are REFUSED: the app's GL path uploads them as DXT5
+/// and shows garbage (docs/CODECS.md), and the engine will not copy a picture that is known to be wrong.
+pub fn hap_picture(gpu: &Gpu, format: crate::hapimport::hap::HapFormat, w: u32, h: u32, blocks: &[u8]) -> Result<Picture, String> {
+    use crate::hapimport::{self, hap::HapFormat};
+    let mode: u32 = match format {
+        HapFormat::Dxt1 => 2,
+        HapFormat::Dxt5 => 0,
+        HapFormat::ScaledYCoCg => 1,
+        f => return Err(format!("{f:?} is not drawn by the engine (the app shows it wrongly too — docs/CODECS.md)")),
+    };
+    let d = &gpu.device;
+    let tex = if hapimport::has_bc(gpu) {
+        hapimport::upload_bc(gpu, format, w, h, blocks).map_err(|e| e.to_string())?
+    } else {
+        let rgba = hapimport::cpu_rgba(format, w, h, blocks)?;
+        hapimport::upload_rgba(gpu, w.div_ceil(4) * 4, h.div_ceil(4) * 4, &rgba)
+    };
+    let target = d.create_texture(&wgpu::TextureDescriptor {
+        label: Some("hap picture"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC, view_formats: &[],
+    });
+    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("hap"), source: wgpu::ShaderSource::Wgsl(HAP_WGSL.into()) });
+    let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("hap"), layout: None,
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
+        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())], compilation_options: Default::default() }),
+        primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview_mask: None, cache: None,
+    });
+    let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("hap mode"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    gpu.queue.write_buffer(&ubuf, 0, &[mode.to_le_bytes(), [0; 4], [0; 4], [0; 4]].concat());
+    let view = tex.create_view(&Default::default());
+    let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("hap"), layout: &pipeline.get_bind_group_layout(0),
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+            wgpu::BindGroupEntry { binding: 1, resource: ubuf.as_entire_binding() },
+        ],
+    });
+    let row = (w * 4).div_ceil(256) * 256;
+    let readback = d.create_buffer(&wgpu::BufferDescriptor { label: Some("hap readback"), size: (row * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+    let target_view = target.create_view(&Default::default());
+    let mut enc = d.create_command_encoder(&Default::default());
+    {
+        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("hap"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target_view, depth_slice: None, resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+            })],
+            ..Default::default()
+        });
+        pass.set_pipeline(&pipeline);
+        pass.set_bind_group(0, &bind, &[]);
+        pass.draw(0..3, 0..1);
+    }
+    enc.copy_texture_to_buffer(target.as_image_copy(),
+        wgpu::TexelCopyBufferInfo { buffer: &readback, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: Some(h) } },
+        wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
+    gpu.queue.submit([enc.finish()]);
+    let raw = gpu.read_buffer(&readback, (row * h) as usize).map_err(|e| e.to_string())?;
+    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h as usize { rgba.extend_from_slice(&raw[y * row as usize..y * row as usize + w as usize * 4]); }
+    Ok(Picture::canvas(w, h, rgba))
 }

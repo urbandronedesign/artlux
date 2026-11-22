@@ -1072,6 +1072,30 @@ fallback until a source/output is proven byte-identical — risk 2):
 > different values on some LEDs than today — closer to the picture, not further. The gate guarantees "never
 > less faithful", not "identical". Not handled yet: ICC profiles and EXIF orientation (Chromium applies both),
 > formats beyond PNG / JPEG.
+>
+> ✅ **E1d-2 done 2026-11-22 (HAP in the engine — byte-identical, and an app bug found on the way).**
+> `compose.rs hap_picture`: the frame's blocks (the app's own mov.rs + hap.rs) → a BC texture (CPU decode
+> where the adapter has no BC) → one pass doing what `plugins/hap/src/hapGL.ts` does per texel (HapQ's float
+> YCoCg line for line; DXT1 opaque, as the app's RGB DXT1) → the stretch. Measured, not assumed: **`drawImage`
+> treats a canvas differently from an ImageBitmap** — premultiplied the same way, but NO mips. With mips the
+> real clips were 9–97% exact; without, identical. So a `Picture` now says which kind it is (`still` /
+> `canvas`). The frame is read back to the CPU in this step (the live engine keeps it on the GPU).
+> - **Proof** (`npm run test:image-parity [clips.mov…]`, the app's REAL `hapGL.uploadFrame` + WebGPUMapper vs
+>   `--frame-once --video-frame N`): **4 real clips (Hap1 ×2, Hap5 alpha, a mostly-black Hap5) and synthetic
+>   DXT1 (with punch-through blocks, 1002×562) and HapQ (960×541) byte-identical**; synthetic DXT5 at 60%
+>   opacity identical but 3 of 692 LEDs off by 1 (four premultiply roundings tried; Skia's is the closest).
+>   HAP is gated TIGHTER than stills: max 1 where not identical — the faithfulness rule alone would pass a
+>   browser drawing black. Mutation-tested: 4/6 caught (no YCoCg, mips on a canvas, no premultiply, the app
+>   fix reverted); the 2 survivors do not reach an LED byte (31.875 → 32 in the YCoCg scale moves colour by
+>   < 0.1 level at the scale codes encoders write; DXT1's forced alpha — a punch-through texel is black
+>   premultiplied either way). The previous pictures are unchanged.
+> - **The app bug: a HAP clip whose width or height is not a multiple of 4 showed BLACK** (WebGL rejects such
+>   an S3TC upload, INVALID_OPERATION, no exception — a 1080×1350 portrait would do it). Fixed in `hapGL.ts`
+>   (texture at the block-padded size, the canvas reads its share; whole-block sizes draw exactly as before),
+>   guarded by `verify:invariants` (2/2), CHANGELOG + CODECS.md.
+> - Not covered: HapA / Hap7 (the app shows them wrongly — the engine refuses them rather than copy that),
+>   HapM (refused by the app), other video codecs (MP4 via WebCodecs — next to the camera/NDI kind of
+>   source), and the NVIDIA PC. Next: **E1d-3 Spout**, then effects.
 
 ## 10. Open questions
 

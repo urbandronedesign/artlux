@@ -63,7 +63,50 @@ const PICS = {
   sharp2k: writePng('sharp-2048x1280.png', 2048, 1280, (x, y) => (x % 97 === 0 || y % 89 === 0 ? [255, 255, 255] : [Math.round((x / 2047) * 255), Math.round((y / 1279) * 255), ((x >> 5) + (y >> 5)) % 2 ? 230 : 20])),
   sharp4k: writePng('sharp-4096x2560.png', 4096, 2560, (x, y) => (x % 97 === 0 || y % 89 === 0 ? [255, 255, 255] : [Math.round((x / 4095) * 255), Math.round((y / 2559) * 255), ((x >> 5) + (y >> 5)) % 2 ? 230 : 20])),
 };
-// Extra pictures named on the command line (a JPEG, a show's real artwork), each on a surface of its own.
+// ── HAP (E1d-2): video frames as the app's HAP plugin gets them — BLOCKS ────────────────────────────────
+// Synthetic frames (`.hapframe.json` = the app's HapFrame: {width, height, format, data}) cover what no file
+// on hand has: HapQ (scaled YCoCg), DXT1 punch-through blocks (the app's RGB DXT1 shows them OPAQUE black),
+// and sizes that are not whole 4×4 blocks. Endpoints vary smoothly across the frame, indices at random — a
+// texture with structure AND per-texel detail. Real HAP files (.mov) can be named on the command line.
+const VIDEO_FRAME = 37;
+function writeHap(name, format, w, h, seed) {
+  const rr = rng(seed), bw = Math.ceil(w / 4), bh = Math.ceil(h / 4), out = [];
+  const c565 = (r, g, b) => ((Math.max(0, Math.min(31, Math.round(r))) << 11) | (Math.max(0, Math.min(63, Math.round(g))) << 5) | Math.max(0, Math.min(31, Math.round(b))));
+  const u16 = (v) => [v & 255, v >> 8];
+  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
+    const u = bx / bw, v = by / bh;
+    if (format !== 'dxt1') {
+      // The alpha (or, in HapQ, the Y) block: smooth endpoints, 3-bit indices at random; some 6-value blocks.
+      const a0 = Math.round(255 * (format === 'ycocg' ? 0.15 + 0.7 * u * (1 - v * 0.5) : Math.min(1, Math.hypot(u - 0.5, v - 0.5) * 2)));
+      const a1 = Math.max(0, Math.min(255, a0 + Math.round((rr() - 0.5) * 120)));
+      const ab = rr() < 0.2 ? [Math.min(a0, a1), Math.max(a0, a1)] : [Math.max(a0, a1), Math.min(a0, a1)];
+      out.push(...ab); for (let k = 0; k < 6; k++) out.push(Math.floor(rr() * 256));
+    }
+    let e0, e1;
+    if (format === 'ycocg') {
+      // Co / Cg near 128, a small scale code in blue — what a HapQ encoder writes.
+      e0 = c565(16 + 8 * Math.sin(u * 6), 32 + 14 * Math.cos(v * 5), Math.floor(rr() * 3));
+      e1 = c565(16 + 8 * Math.sin(u * 6 + 1) + (rr() - 0.5) * 6, 32 + 14 * Math.cos(v * 5 + 1), Math.floor(rr() * 3));
+    } else {
+      e0 = c565(31 * u, 63 * v, 31 * (1 - u)); e1 = c565(31 * u + (rr() - 0.5) * 12, 63 * (1 - v), 31 * v);
+    }
+    // DXT1: ~15% three-colour blocks (c0 <= c1) — index 3 is the punch-through texel.
+    const three = format === 'dxt1' && rr() < 0.15;
+    if (e0 !== e1 && (e0 > e1) === three) [e0, e1] = [e1, e0];
+    out.push(...u16(e0), ...u16(e1)); for (let k = 0; k < 4; k++) out.push(Math.floor(rr() * 256));
+  }
+  const f = path.join(WORK, name);
+  fs.writeFileSync(f, JSON.stringify({ width: w, height: h, format, data: Buffer.from(out).toString('base64') }));
+  return f;
+}
+Object.assign(PICS, {
+  hapDxt1: writeHap('hap-dxt1-1002x562.hapframe.json', 'dxt1', 1002, 562, 11),
+  hapDxt5: writeHap('hap-dxt5-512x300.hapframe.json', 'dxt5', 512, 300, 12),
+  hapQ: writeHap('hap-ycocg-960x541.hapframe.json', 'ycocg', 960, 541, 13),
+});
+const isVideo = (f) => /\.(mov|hapframe\.json)$/i.test(f);
+// Extra pictures named on the command line (a JPEG, a show's real artwork, a HAP .mov), each on a surface
+// of its own.
 process.argv.slice(2).forEach((f, i) => { PICS[`extra${i}`] = path.resolve(f); });
 
 // ── the project ────────────────────────────────────────────────────────────────────────────────────────
@@ -72,21 +115,21 @@ Object.entries(PICS).forEach(([key, file], k) => {
   const sx = 0.05 + (k % 3) * 0.32, sy = 0.05 + Math.floor(k / 3) * 0.48;
   const sid = `s_${key}`;
   surfaces.push({ id: sid, name: key, x: sx, y: sy, width: 0.28, height: 0.4, rotation: 0, zIndex: k,
-    content: { type: 'IMAGE', url: file, ...(key === 'photo' ? { opacity: 0.6 } : {}) } });
+    content: { type: isVideo(file) ? 'VIDEO' : 'IMAGE', url: file, ...(key === 'photo' || key === 'hapDxt5' ? { opacity: 0.6 } : {}) } });
   const base = { rotation: 0, reverse: false, colorData: [], universe: 0, startAddress: 1, surfaceId: sid };
   fixtures.push({ ...base, id: `${sid}_h`, name: `${key} H`, x: sx + 0.01, y: sy + 0.1, width: 0.26, height: 0.004, ledCount: 120 });
   fixtures.push({ ...base, id: `${sid}_v`, name: `${key} V`, x: sx + 0.2, y: sy + 0.01, width: 0.004, height: 0.38, ledCount: 60 });
   fixtures.push({ ...base, id: `${sid}_m`, name: `${key} M`, x: sx + 0.02, y: sy + 0.2, width: 0.2, height: 0.15, ledCount: 32 * 16,
     shape: 'MATRIX', matrixWidth: 32, matrixHeight: 16, serpentine: true });
 });
-const jobs = [1, 0.8].map((b) => ({ name: `brightness ${b}`, brightness: b, surfaces, fixtures }));
+const jobs = [1, 0.8].map((b) => ({ name: `brightness ${b}`, brightness: b, surfaces, fixtures, videoFrame: VIDEO_FRAME }));
 
 // ── the browser side (the app's WebGPUMapper) ───────────────────────────────────────────────────────────
 const esbuild = require(path.join(ROOT, 'node_modules', 'esbuild'));
 const pageBundle = path.join(WORK, 'page.js');
 esbuild.buildSync({ entryPoints: [path.join(ROOT, 'engine', 'spikes', 'image-parity', 'page.ts')], bundle: true, platform: 'browser', format: 'iife', outfile: pageBundle, logLevel: 'error' });
 fs.writeFileSync(path.join(WORK, 'cases.json'), JSON.stringify(jobs));
-const env = { ...process.env, SPIKE_OUT: WORK, SPIKE_PAGE: pageBundle };
+const env = { ...process.env, SPIKE_OUT: WORK, SPIKE_PAGE: pageBundle, SPIKE_ROOT: ROOT };
 delete env.ELECTRON_RUN_AS_NODE;
 try { fs.unlinkSync(path.join(WORK, 'gpu-cases.json')); } catch { /* fresh */ }
 spawnSync(path.join(ROOT, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron'),
@@ -103,7 +146,44 @@ if (browser.error) { console.log(`the WebGPU page failed: ${browser.error}`); pr
 const layoutBundle = path.join(WORK, 'layout-ts.cjs');
 esbuild.buildSync({ stdin: { contents: `export * from './src/renderer/gpu/ledLayout';`, resolveDir: ROOT, loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', outfile: layoutBundle, logLevel: 'error' });
 const L = require(layoutBundle);
+// An INDEPENDENT BC1 / BC3 decoder (the spec's arithmetic, in float — no GPU, not the engine's CPU
+// fallback), then the app's per-format rules: DXT1 opaque (RGB DXT1), HapQ's float YCoCg, DXT5 premultiplied.
+function decodeHap({ width: w, height: h, format, data }) {
+  const px = new Float64Array(w * h * 4), bw = Math.ceil(w / 4);
+  const rgb = (c) => [((c >> 11) & 31) * 255 / 31, ((c >> 5) & 63) * 255 / 63, (c & 31) * 255 / 31];
+  const stride = format === 'dxt1' ? 8 : 16;
+  for (let b = 0; b * stride < data.length && b < bw * Math.ceil(h / 4); b++) {
+    const o = b * stride, bx = (b % bw) * 4, by = Math.floor(b / bw) * 4;
+    let alpha = null;
+    if (format !== 'dxt1') {
+      const a0 = data[o], a1 = data[o + 1];
+      const pal = a0 > a1 ? [a0, a1, ...[1, 2, 3, 4, 5, 6].map((i) => ((7 - i) * a0 + i * a1) / 7)] : [a0, a1, ...[1, 2, 3, 4].map((i) => ((5 - i) * a0 + i * a1) / 5), 0, 255];
+      let bits = 0n; for (let k = 0; k < 6; k++) bits |= BigInt(data[o + 2 + k]) << BigInt(8 * k);
+      alpha = Array.from({ length: 16 }, (_, i) => pal[Number((bits >> BigInt(3 * i)) & 7n)]);
+    }
+    const co = o + stride - 8, c0 = data[co] | (data[co + 1] << 8), c1 = data[co + 2] | (data[co + 3] << 8);
+    const e0 = rgb(c0), e1 = rgb(c1);
+    const four = format !== 'dxt1' || c0 > c1;
+    const pal = four ? [e0, e1, e0.map((v, q) => (2 * v + e1[q]) / 3), e0.map((v, q) => (v + 2 * e1[q]) / 3)] : [e0, e1, e0.map((v, q) => (v + e1[q]) / 2), [0, 0, 0]];
+    const idx = data[co + 4] | (data[co + 5] << 8) | (data[co + 6] << 16) | (data[co + 7] << 24);
+    for (let i = 0; i < 16; i++) {
+      const x = bx + (i & 3), y = by + (i >> 2);
+      if (x >= w || y >= h) continue;
+      let [r, g, bb] = pal[(idx >>> (2 * i)) & 3], a = alpha ? alpha[i] : 255;
+      if (format === 'ycocg') {
+        const scale = (bb / 255) * 31.875 + 1, Co = (r - 128) / scale, Cg = (g - 128) / scale, Y = a;
+        [r, g, bb, a] = [Y + Co - Cg, Y + Cg, Y - Co - Cg, 255].map((v) => Math.min(255, Math.max(0, v)));
+      } else if (format === 'dxt1') a = 255;
+      const k = (y * w + x) * 4;
+      px[k] = (r * a) / 255; px[k + 1] = (g * a) / 255; px[k + 2] = (bb * a) / 255; px[k + 3] = a;
+    }
+  }
+  return { w, h, px };
+}
+const hapBlocks = new Map();   // .mov → its frame's blocks (filled before the engine side runs)
 function decoded(file) {
+  if (/\.hapframe\.json$/i.test(file)) { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return decodeHap({ ...j, data: Buffer.from(j.data, 'base64') }); }
+  if (/\.mov$/i.test(file)) return decodeHap(hapBlocks.get(file));
   // ⚠ THE REFERENCE MUST NOT SHARE THE ENGINE'S DECODE, or a decoder bug moves the reference with the
   // engine and the gate cannot see it (a first version did exactly that: an engine that skipped
   // premultiplication passed). PNG: decoded here with pngjs and premultiplied with Skia's rounding.
@@ -161,6 +241,9 @@ function reference(job) {
 }
 const meanTo = (X, R, from, n) => { let s = 0; for (let i = from * 4; i < (from + n) * 4; i++) s += Math.abs(X[i] - R[i]); return s / (n * 4); };
 
+(async () => {
+const hapAddon = require(path.join(ROOT, 'native', 'hap', 'hap.node'));
+for (const f of Object.values(PICS)) if (/\.mov$/i.test(f)) { hapAddon.open(f); hapBlocks.set(f, await hapAddon.decodeFrameBlocks(f, VIDEO_FRAME)); }
 // ── the engine side ─────────────────────────────────────────────────────────────────────────────────────
 let fails = 0;
 let engineAdapter = '';
@@ -169,7 +252,7 @@ for (const [ji, job] of jobs.entries()) {
   const proj = path.join(WORK, `project-${ji}.artlux`);
   fs.writeFileSync(proj, JSON.stringify({ surfaces, fixtures }));
   const out = path.join(WORK, `engine-${ji}.json`);
-  execFileSync(ENGINE, ['--frame-once', proj, out, '--brightness', String(job.brightness)], { stdio: 'inherit' });
+  execFileSync(ENGINE, ['--frame-once', proj, out, '--brightness', String(job.brightness), '--video-frame', String(VIDEO_FRAME)], { stdio: 'inherit' });
   const e = JSON.parse(fs.readFileSync(out, 'utf8'));
   engineAdapter = e.adapter;
   const A = Buffer.from(browser.cases[ji].rgbw, 'base64'), B = Buffer.from(e.rgbw, 'base64');
@@ -194,11 +277,16 @@ for (const [ji, job] of jobs.entries()) {
     const mean = st.diffs.reduce((a, b) => a + b, 0) / st.n;
     const toB = meanTo(A, REF, st.from, st.n), toE = meanTo(B, REF, st.from, st.n);
     const identical = st.diffs[st.n - 1] === 0;
-    // Never less faithful than today (0.02: rounding noise on a mean over hundreds of LEDs).
-    const ok = identical || toE <= toB + 0.02;
+    // Never less faithful than today (0.02: rounding noise on a mean over hundreds of LEDs). A HAP frame is
+    // held TIGHTER, because there the engine CAN reproduce today: off by at most 1 where not identical. (The
+    // faithfulness rule alone would PASS a browser that draws a frame black — the engine is then "more
+    // faithful" — and that is exactly the app bug this test found.)
+    const video = isVideo(PICS[key]);
+    const ok = identical || ((!video || st.diffs[st.n - 1] <= 1) && toE <= toB + 0.02);
     if (!ok) fails++;
     console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${key.padEnd(6)} ${String(st.n).padStart(4)} LEDs: ${(100 * st.exact / st.n).toFixed(1).padStart(5)}% exact · median ${p(0.5)} · p99 ${p(0.99)} · max ${st.diffs[st.n - 1]} · mean ${mean.toFixed(2)} | to the alias-free reference: browser ${toB.toFixed(2)}, engine ${toE.toFixed(2)}${identical ? '' : toE < toB ? ' (engine more faithful)' : ''}`);
   }
 }
 console.log(fails ? `\nIMAGE PARITY FAILED: ${fails} picture(s) where the engine is LESS faithful than the browser` : '\nIMAGE PARITY OK: every picture identical to the browser, or more faithful to the reference');
 process.exit(fails ? 1 : 0);
+})();

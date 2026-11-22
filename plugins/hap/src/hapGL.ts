@@ -8,10 +8,11 @@ import type { HapFrame } from './types';
 
 const VERT = `#version 300 es
 layout(location=0) in vec2 aPos;
+uniform vec2 uScale; // the picture's share of the block-padded texture (1,1 when the size is whole blocks)
 out vec2 vUv;
 void main() {
   // clip space → uv, flipping V so the texture's top row lands at the top of the canvas
-  vUv = vec2((aPos.x + 1.0) * 0.5, 1.0 - (aPos.y + 1.0) * 0.5);
+  vUv = vec2((aPos.x + 1.0) * 0.5, 1.0 - (aPos.y + 1.0) * 0.5) * uScale;
   gl_Position = vec4(aPos, 0.0, 1.0);
 }`;
 
@@ -60,6 +61,7 @@ class GLRenderer {
   private prog: WebGLProgram;
   private tex: WebGLTexture;
   private uMode: WebGLUniformLocation | null;
+  private uScale: WebGLUniformLocation | null;
   private texW = 0; private texH = 0; private texFmt = -1; // current texture storage (for in-place reuse)
   ok = false;
 
@@ -91,6 +93,7 @@ class GLRenderer {
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('hapGL link: ' + gl.getProgramInfoLog(prog));
     this.prog = prog;
     this.uMode = gl.getUniformLocation(prog, 'uMode');
+    this.uScale = gl.getUniformLocation(prog, 'uScale');
 
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -126,17 +129,25 @@ class GLRenderer {
     gl.viewport(0, 0, f.width, f.height);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     const fmt = this.glFormat(f.format);
+    // ⚠ THE TEXTURE IS WHOLE 4×4 BLOCKS, the picture need not be. A HAP frame's blocks cover the size
+    // rounded UP to 4 — and WebGL refuses an S3TC upload whose size is not a multiple of 4
+    // (INVALID_OPERATION), so a 1002×562 (or 1080×1350) clip was uploaded nowhere and drew BLACK, with no
+    // error anywhere. Found by the native engine's parity test (scripts/test-image-parity.cjs, E1d-2).
+    // The texture is the padded size; the canvas stays the picture's size and reads only its share, so a
+    // canvas pixel centre still lands on a texel centre and a whole-block size draws exactly as before.
+    const pw = Math.ceil(f.width / 4) * 4, ph = Math.ceil(f.height / 4) * 4;
     // Update the texture in place once its storage is allocated — compressedTexSubImage2D reuses
     // the existing GPU allocation, whereas compressedTexImage2D reallocates it every frame (per-
     // frame allocation churn the driver can hitch on). Reallocate only when size/format changes.
-    if (this.texW === f.width && this.texH === f.height && this.texFmt === fmt) {
-      gl.compressedTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, f.width, f.height, fmt, f.data);
+    if (this.texW === pw && this.texH === ph && this.texFmt === fmt) {
+      gl.compressedTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, pw, ph, fmt, f.data);
     } else {
-      gl.compressedTexImage2D(gl.TEXTURE_2D, 0, fmt, f.width, f.height, 0, f.data);
-      this.texW = f.width; this.texH = f.height; this.texFmt = fmt;
+      gl.compressedTexImage2D(gl.TEXTURE_2D, 0, fmt, pw, ph, 0, f.data);
+      this.texW = pw; this.texH = ph; this.texFmt = fmt;
     }
     gl.useProgram(this.prog);
     gl.uniform1i(this.uMode, f.format === 'ycocg' ? 1 : 0);
+    gl.uniform2f(this.uScale, f.width / pw, f.height / ph);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
