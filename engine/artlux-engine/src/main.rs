@@ -1,6 +1,7 @@
 //! `artlux-engine` — E0 skeleton. Nothing renders a show yet; this proves the device, the software
 //! rule and the two exact GPU jobs on every OS (plans/native-engine.md §6b).
 //!
+//!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
 //!   artlux-engine --selftest --allow-software the same, falling back to WARP / lavapipe (CI)
@@ -23,6 +24,10 @@ fn main() -> ExitCode {
             println!("  {}{}", describe(&info), if is_software(&info) { "  [software]" } else { "" });
         }
         return ExitCode::SUCCESS;
+    }
+    if has("--serve") {
+        // E1a: ArtLux main's child (src/main/engineHost.ts) — hello / ping / pong / quit on stdio.
+        return artlux_engine::serve::run(AdapterPolicy { allow_software: has("--allow-software"), force_software: false });
     }
     if let Some(i) = args.iter().position(|a| a == "--write-goldens") {
         let dir = std::path::PathBuf::from(args.get(i + 1).map(String::as_str).unwrap_or("tests/golden"));

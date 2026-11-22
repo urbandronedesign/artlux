@@ -29,6 +29,7 @@
     "fetch:redist": "node scripts/fetch-redist.cjs",
     "fetch:opencv": "node scripts/fetch-opencv-dll.cjs",
     "prepack:assets": "npm run fetch:redist && npm run fetch:opencv && npm run assets:mediapipe",
+    "build:engine": "cargo build --release --manifest-path engine/Cargo.toml -p artlux-engine",
     "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/hap/Cargo.toml && node scripts/copy-native.cjs && node scripts/build-audio.cjs --optional",
     "build:audio": "node scripts/build-audio.cjs",
     "build:fixtures": "node scripts/build-fixture-library.mjs",
@@ -178,6 +179,10 @@
         "nsis"
       ],
       "extraResources": [
+        {
+          "from": "engine/target/release/artlux-engine.exe",
+          "to": "engine/artlux-engine.exe"
+        },
         {
           "from": "native/ndi/ndi.node",
           "to": "ndi.node"

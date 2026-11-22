@@ -944,11 +944,32 @@ fallback until a source/output is proven byte-identical — risk 2):
 
 | Step | What | Proven by |
 |---|---|---|
-| **E1a** | The engine as ArtLux's child process: main spawns it, a handshake, a watchdog rung (crash → restart within a second, the document untouched because it lives in the Show Host), packaged in `extraResources` | a packaged-exe run: engine killed → back, logged |
+| **E1a** ✅ | The engine as ArtLux's child process: main spawns it, a handshake, a watchdog rung (crash → restart within a second, the document untouched because it lives in the Show Host), packaged in `extraResources` | a packaged-exe run: engine killed → back, logged |
 | **E1b** | The document → the engine: the surfaces / fixtures / controllers it needs, and LED sampling + universe packing ported from TS | byte parity with today's packing on recorded projects (extends `test-engine-output.cjs`) |
 | **E1c** | Art-Net / sACN sent BY the engine, reusing `native/output-engine`'s Rust as a library | wire capture: the same bytes as today's path, per universe |
 | **E1d** | Sources in the engine: image, HAP (BC), Spout (zero-copy, one-copy fallback), effect | per source, parity vs the browser engine, then flip its default |
 | **E1e** | Native projector windows (uncalibrated), on their display, at its refresh | the E0b screen probe on a real output |
+
+> ✅ **E1a done 2026-11-22 (the engine as ArtLux's child).** `src/main/engineHost.ts` + `artlux-engine
+> --serve` (`src/serve.rs`), behind `--native-engine` / `ARTLUX_NATIVE_ENGINE=1`. JSON lines: `hello` (with the
+> adapter), `ping`/`pong` every second, `quit`; stdin closing ends the engine, so it never outlives the app.
+> The watchdog rung: restart 200 ms after a crash or a kill; **a HUNG engine (no pong for 3 s) is killed and
+> restarted**; an engine that **REFUSES** (exit 2, no usable adapter) is logged once and left stopped; five
+> deaths in a minute → give up. Every transition is in the machine log (category `engine`). Packaged:
+> `build.win.extraResources` → `resources/engine/artlux-engine.exe`; `npm run build:engine`; CI's Windows
+> package job builds it, and `verify:resources` fails a Windows package without it.
+>
+> **A bug the probe found, fixed:** main's event loop is busy for SECONDS at boot, so the ping timer fired
+> ~3 s late while the engine's pongs sat unread in the pipe — the first version judged that silence and
+> would have killed a healthy engine after any main-thread stall. A tick more than two periods late now
+> restarts the clock instead of judging (guarded). After the fix the test hang is caught at 3.0 s silence.
+>
+> Proof, on the PACKAGED `ArtLux.exe`, no CDP (`engine/scripts/probe-engine-host.ps1`, processes + machine
+> log only), two runs green: no engine without the flag; with it, the engine is the main process's child; a
+> hung engine (one-shot test hook) is killed and replaced; the replacement stays up; a killed engine is back
+> (~0.5 s until the new process is seen); closing ArtLux takes it along; the log records enabled / up ×3 /
+> hung / exited. And a forced refusal (`ARTLUX_ENGINE_BACKEND=metal` on Windows): `refused` logged once, no
+> restart. `verify:invariants` holds the supervisor's rules (mutation-tested 9/9).
 
 ## 10. Open questions
 

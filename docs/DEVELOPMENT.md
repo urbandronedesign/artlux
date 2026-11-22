@@ -57,6 +57,14 @@ The other three native crates have their own opt-in scripts (not run by `build:n
 and **`build:nvwarp`** (NVIDIA NVAPI warp/blend — Windows + the NVAPI SDK). All degrade gracefully when
 absent (see [INSTALL.md](INSTALL.md) for the packaged-resources list).
 
+**The native render engine** (`engine/`, [plans/native-engine.md](../plans/native-engine.md)) is a separate
+binary, not an addon: **`npm run build:engine`** (cargo, `engine/target/release/artlux-engine.exe`). It is
+**required to PACKAGE on Windows** — it is declared in `build.win.extraResources`, so `verify:resources` fails
+a Windows package without it, and CI builds it — but it runs only behind **`--native-engine`** (or
+`ARTLUX_NATIVE_ENGINE=1`): main then spawns it, pings it every second, restarts it after a crash or a hang,
+leaves it stopped if it refuses (no hardware adapter), and logs all of it under the `engine` category. It
+carries no output yet. Its packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
+
 ### Audio engine (`native/audio-engine`) — mandatory to ship, optional to develop
 JUCE + libspatialaudio, built with **cmake-js**, not cargo. `plugins/audio` **graceful-degrades**: if
 `audio_engine.node` is absent the app still starts and the whole audio UI still renders — with **no

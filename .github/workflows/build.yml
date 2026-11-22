@@ -39,12 +39,13 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             native/output-engine/target
+            engine/target
             native/spout-receiver/target
             native/ndi/target
             native/syphon-receiver/target
             native/syphon-receiver/.syphon-src
             native/syphon-receiver/Syphon.framework
-          key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock', 'native/ndi/Cargo.lock', 'native/syphon-receiver/Cargo.lock', 'scripts/build-syphon.sh') }}
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('engine/Cargo.lock', 'native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock', 'native/ndi/Cargo.lock', 'native/syphon-receiver/Cargo.lock', 'scripts/build-syphon.sh') }}
 
       # JUCE's Linux build needs ALSA (juce_audio_devices) and the X11 dev headers that juce_core /
       # juce_events reference. CMake (3.31) and GCC are already on the ubuntu image; Windows
@@ -90,6 +91,13 @@ jobs:
       # so CI doesn't build it on Windows — build:native covers output-engine + spout + hap only.
       - name: Build native engine
         run: npm run build:native
+
+      # THE NATIVE RENDER ENGINE (plans/native-engine.md, E1a) — a separate binary, not the output-engine
+      # addon above. Windows first (§9c): it is declared only in build.win.extraResources, so the
+      # resource check below fails a Windows package that lacks it, and macOS / Linux do not ship it yet.
+      - name: Build the native render engine (Windows)
+        if: runner.os == 'Windows'
+        run: npm run build:engine
 
       # NDI ON macOS — built here, because nothing else ever built it: until v0.35.0 the only ndi.node was
       # the Windows prebuilt, packaged for Windows only, so NDI was silently "unavailable" on every Mac.

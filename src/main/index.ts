@@ -8,6 +8,7 @@ import * as logger from './logger';
 import * as machineInfo from './machineInfo';
 import { openEnginePort, closeEnginePort } from './enginePort';
 import { connectShowHost, stopShowHost } from './showHost';
+import { startEngine, stopEngine } from './engineHost';
 import { initLiveHub } from './liveHub';
 import { registerPanelWindows } from './panelWindows';
 import { buildAppMenu } from './menu';
@@ -468,6 +469,9 @@ app.whenReady().then(() => {
     // Before the first window loads, so a renderer can never race it with a media request.
     registerMediaProtocol();
     registerIpc(() => mainWindow);
+    // The native engine (plans/native-engine.md E1a): only with --native-engine / ARTLUX_NATIVE_ENGINE=1;
+    // otherwise this does nothing. It carries no output yet — it is the process, its restart and its log.
+    startEngine();
     // The machine snapshot + the diff against the last boot. AFTER registerIpc so the main-process
     // plugin halves have already reported into bootReport, and deliberately NOT awaited — a sick GPU
     // driver can make the probe slow, and that is exactly the machine that must still open a window.
@@ -599,6 +603,7 @@ function shutdownSubsystems(reason: 'quit' | 'relaunch', extra?: Record<string, 
     cleanedUp = true;
     blendImport.stopAll(); // directory watchers on the scene's .blend files
     stopShowHost(); // the document authority (E5/W3) — no restart once we are going down
+    stopEngine(); // the native engine (E1a), likewise for good
     logger.shutdown(reason, extra);
     // A QUIT IS NOT A CRASH, and the Tier-2 Scheduled Task cannot tell the difference by itself —
     // it only sees "ArtLux.exe is not running" and starts it again within the minute. Mark the exit

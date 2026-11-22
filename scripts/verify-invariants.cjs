@@ -8287,6 +8287,36 @@ check(
   },
 );
 
+check(
+  'the native engine is a supervised child: flag-gated, restarted after a crash or a hang, never after a refusal, shipped in the Windows package',
+  'plans/native-engine.md E1a. A child process with no supervisor is a show that goes dark and stays dark; ' +
+  'a supervisor that restarts a REFUSING engine (no hardware adapter: exit 2) forks it in a loop for ' +
+  'nothing; a hung engine looks alive, so silence on the ping must kill it; and an engine that is not in ' +
+  'the package is a feature that works in dev only (electron-builder skips a missing extraResources file ' +
+  'silently — verify:resources catches it only if it is DECLARED). Until it carries output it runs only ' +
+  'behind --native-engine / ARTLUX_NATIVE_ENGINE=1.',
+  () => {
+    const problems = [];
+    const eh = read('src/main/engineHost.ts');
+    if (!/const FLAG = process\.argv\.includes\('--native-engine'\) \|\| process\.env\.ARTLUX_NATIVE_ENGINE === '1';/.test(eh)) problems.push('engineHost: the flag gate changed');
+    if (!/export function startEngine\(\): void \{\s*if \(!FLAG\) return;/.test(eh)) problems.push('engineHost: startEngine no longer returns early without the flag');
+    if (!/if \(code === EXIT_REFUSED\) \{[\s\S]{0,400}?return;\s*\}\s*onDeath\(/.test(eh)) problems.push('engineHost: a refusing engine (exit 2) is no longer left stopped');
+    if (!/if \(now - lastPong > PONG_TIMEOUT_MS\) \{[\s\S]{0,400}?proc\.kill\(\);/.test(eh)) problems.push('engineHost: a hung engine (no pong) is no longer killed');
+    if (!/const late = now - lastTick > 2 \* PING_MS;\s*lastTick = now;\s*if \(late\) lastPong = now;/.test(eh)) problems.push('engineHost: a late ping tick (main stalled) would judge the engine hung — it must restart the clock instead');
+    if (!/if \(deaths\.length > RESTART_LIMIT\) \{[\s\S]{0,300}?return;/.test(eh)) problems.push('engineHost: no give-up after RESTART_LIMIT deaths in a minute');
+    if (!/setTimeout\(\(\) => \{ if \(!stopping && !child\) spawnEngine\(\); \}, RESTART_DELAY_MS\);/.test(eh)) problems.push('engineHost: a dead engine is no longer restarted');
+    const idx = read('src/main/index.ts');
+    if (!/\n\s*startEngine\(\);/.test(idx)) problems.push('index.ts no longer starts the engine host');
+    if (!/stopShowHost\(\);[^\n]*\n\s*stopEngine\(\);/.test(idx)) problems.push('index.ts no longer stops the engine with the Show Host at shutdown');
+    const pkg = JSON.parse(raw('package.json'));   // raw: read() strips `//` comments, and URLs have them
+    if (!(pkg.build?.win?.extraResources || []).some((r) => r.from === 'engine/target/release/artlux-engine.exe' && r.to === 'engine/artlux-engine.exe')) problems.push('package.json: the engine is not in build.win.extraResources');
+    if (!/- name: Build the native render engine \(Windows\)\s*\n\s*if: runner\.os == 'Windows'\s*\n\s*run: npm run build:engine/.test(raw('.github/workflows/build.yml'))) problems.push('build.yml: the Windows package job no longer builds the engine');
+    const sv = read('engine/artlux-engine/src/serve.rs');
+    if (!/Err\(e\) => \{\s*eprintln!\("artlux-engine: \{e\}"\);\s*return ExitCode::from\(2\);/.test(sv)) problems.push('serve.rs: a refused device no longer exits 2');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
