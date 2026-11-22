@@ -735,12 +735,31 @@ export function releaseExact(keys?: readonly string[]): void {
 // The engine draws stills, HAP and effects itself (proven against this file's drawables, E1d). Anything
 // else is "unsupported" with a reason, and then the app keeps the wire (engine/runtime.rs: all or nothing).
 // A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
-export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'spout' | 'ndi'; name: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'mp4'; path: string; durUs: number } | { kind: 'spout' | 'ndi'; name: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
 export function filePathOf(url: string): string {
   // The renderer sees absolute paths (main translates project assets); a file:// URL is undone here.
   if (!/^file:\/\//i.test(url)) return url;
   return decodeURIComponent(url.replace(/^file:\/\//i, '')).replace(/^\/([A-Za-z]:)/, '$1');
 }
+// Item 2c-4: an MP4 the app plays through plugins/mp4 (WebCodecs). The engine decodes the file itself (mf.rs —
+// the same pictures, proven by test:mp4-parity) and converts it as Chromium does — for what was MEASURED: an
+// 8-bit NV12 frame, BT.709 matrix and primaries, limited range, the BT.709 or sRGB transfer (yuv.rs accepts).
+// Decided on THE APP'S OWN current VideoFrame, which knows the stream's colour (the decoder's VUI), so
+// anything else — 10-bit, BT.601, full range, HDR — stays the app's with the reason. Before the app has a
+// frame there is nothing to judge: the app keeps it, and the next document (once a frame exists) asks again.
+function mp4NativeSource(path: string): NativeSource {
+  const codec = videoCodecRegistry.get('mp4-webcodecs');
+  const vf = codec?.surfaceFrame(path) as VideoFrame | null | undefined;
+  if (!vf || typeof (vf as VideoFrame).format === 'undefined') return { kind: 'unsupported', why: 'an MP4 with no decoded frame yet' };
+  if (vf.format !== 'NV12') return { kind: 'unsupported', why: `an MP4 decoded as ${vf.format} (the engine draws 8-bit NV12 only)` };
+  const cs = vf.colorSpace;
+  const ok = cs?.matrix === 'bt709' && cs?.fullRange === false && cs?.primaries === 'bt709' && (cs?.transfer === 'bt709' || cs?.transfer === 'iec61966-2-1');
+  if (!ok) return { kind: 'unsupported', why: `an MP4 in colour space ${cs?.matrix}/${cs?.primaries}/${cs?.transfer}/${cs?.fullRange ? 'full' : 'limited'} (the engine draws BT.709 limited range only)` };
+  const info = codec?.sourceInfo?.(path);
+  if (!info || !(info.durationSec > 0)) return { kind: 'unsupported', why: 'an MP4 whose duration is not known yet' };
+  return { kind: 'mp4', path: filePathOf(path), durUs: info.durationSec * 1e6 };
+}
+
 export function nativeSource(key: string, content: SurfaceContent): NativeSource {
   switch (content.type) {
     case SourceType.NONE: return { kind: 'none' };
@@ -757,6 +776,7 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
     case SourceType.VIDEO: {
       const e = media.get(key);
       if (e?.type === 'CODEC' && e.codecId === 'hap') return { kind: 'hap', path: filePathOf(e.path) };
+      if (e?.type === 'CODEC' && e.codecId === 'mp4-webcodecs') return mp4NativeSource(e.path);
       return { kind: 'unsupported', why: e?.type === 'CODEC' ? `a ${e.codecId} video is decoded in the browser` : 'a video that is not HAP is decoded in the browser' };
     }
     default: return { kind: 'unsupported', why: `${content.type} is not drawn by the native engine yet` };

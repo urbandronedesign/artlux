@@ -52,6 +52,8 @@ const FILES = [
   { name: 'sharp-hevc-854x480', kind: 'sharp', w: 854, h: 480, codec: 'hevc', frames: 2, frame: 0, dump: [1, 0] },
   { name: 'gop-avc-640x360', kind: 'photo', w: 640, h: 360, codec: 'avc', frames: 75, frame: 40, dump: [70, 5, 31, 30, 74, 0, 29, 60] },
   { name: 'gop-hevc-640x360', kind: 'sharp', w: 640, h: 360, codec: 'hevc', frames: 45, frame: 10, dump: [40, 2, 31, 44, 30] },
+  // 4 fps, 8 distinct frames: a 2-second loop. Also the clip test:native-takeover plays (engine/testdata).
+  { name: 'loop-avc-640x360', kind: 'photo', w: 640, h: 360, codec: 'avc', frames: 8, fps: 4, frame: 5, dump: [7, 0, 3, 6, 1] },
   ...process.argv.slice(2).map((f, i) => ({ name: `extra${i}`, file: path.resolve(f), frame: 0, dump: [3, 0, 1] })),
 ];
 

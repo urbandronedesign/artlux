@@ -8785,6 +8785,31 @@ check(
   },
 );
 
+check(
+  'the native engine plays MP4 at runtime ON THE FRAME THE APP SHOWS, and only what was proven',
+  'plans/native-engine.md E1f "2c-4", proven in the real app by scripts/test-native-takeover.cjs (a looping ' +
+  'clip on universe 6: all 8 frames from the engine, each within 1 of the app). The host decides on the ' +
+  'APP OWN VideoFrame - 8-bit NV12, BT.709 limited, the BT.709 or sRGB transfer - because that is all ' +
+  'test:mp4-parity measured; the tick carries the app frame timestamp (absolute: a looping surface adds ' +
+  'the file duration per loop) and the engine folds it back into the file - without the fold the engine ' +
+  'froze after the first loop (6 of 8 frames). An MP4 on a projector stays the app: its picture lives on ' +
+  'the engine LED device, and the projector windows run on another.',
+  () => {
+    const problems = [];
+    const c = raw('src/renderer/services/contentSource.ts');
+    if (!/if \(vf\.format !== 'NV12'\)/.test(c) || !/cs\?\.matrix === 'bt709' && cs\?\.fullRange === false && cs\?\.primaries === 'bt709'/.test(c)) problems.push('contentSource no longer limits the engine to the proven MP4 frames (8-bit NV12, BT.709 limited)');
+    if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
+    const n = raw('src/renderer/engine/nativeLink.ts');
+    if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
+    if (!/src\.kind === 'mp4' \? 'an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is no longer left to the app (the engine has no picture on that device)');
+    const r = raw('engine/artlux-engine/src/runtime.rs');
+    if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');
+    if (!/Mp4In::open_with\(p, Some\(&self\.gpu\)\)/.test(r)) problems.push('the runtime no longer decodes MP4 on the GPU');
+    if (!/eng\.length >= 8 && worst <= 1/.test(raw('scripts/test-native-takeover.cjs'))) problems.push('test-native-takeover no longer requires every frame of the MP4 clip from the engine');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

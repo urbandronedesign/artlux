@@ -88,6 +88,9 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     : o.ndiSend ? 'an NDI send'
     : o.blend ? 'a blend map'
     : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
+    // Item 2c-4: an MP4 picture lives on the engine's GPU, and its projector windows run on ANOTHER device
+    // (outputs.rs) — not wired yet, so an output showing one stays the app's.
+    : src.kind === 'mp4' ? 'an MP4 on a projector (the engine draws MP4 for the LEDs only so far)'
     : undefined;
   return {
     id: o.surfaceId, surfaceId: o.surfaceId, name: o.name ?? s?.name ?? o.surfaceId, displayId: o.displayId,
@@ -134,6 +137,14 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const g = contentSource.getDrawableGeneration(s.id, s.content);
     if (g !== undefined) hap[s.id] = g;
   }
+  // Item 2c-4: each MP4 surface's frame ON SCREEN — the VideoFrame.timestamp the app is drawing (the codec's
+  // generation: absolute, a looping surface adds the file's duration per loop; the engine folds it back).
+  const mp4: Record<string, number> = {};
+  for (const s of surfaces) {
+    if (sources[s.id].kind !== 'mp4') continue;
+    const g = contentSource.getDrawableGeneration(s.id, s.content);
+    if (g !== undefined) mp4[s.id] = g;
+  }
   // Item 2b: each NDI surface's canvas size in the APP — the engine scales its frame to exactly that.
   const ndi: Record<string, [number, number]> = {};
   for (const s of surfaces) {
@@ -145,5 +156,5 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, ndi, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, mp4, ndi, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

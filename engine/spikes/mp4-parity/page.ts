@@ -38,16 +38,16 @@ function paint(ctx: CanvasRenderingContext2D, kind: string, w: number, h: number
   ctx.putImageData(img, 0, 0);
 }
 
-async function makeMp4(kind: string, w: number, h: number, codec: 'avc' | 'hevc', frames: number): Promise<ArrayBuffer> {
+async function makeMp4(kind: string, w: number, h: number, codec: 'avc' | 'hevc', frames: number, fps = 30): Promise<ArrayBuffer> {
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d', { willReadFrequently: true })!;
   const target = new BufferTarget();
   const output = new Output({ format: new Mp4OutputFormat(), target });
   const source = new CanvasSource(cv, { codec, bitrate: 20_000_000, keyFrameInterval: 1 });
-  output.addVideoTrack(source, { frameRate: 30 });
+  output.addVideoTrack(source, { frameRate: fps });
   await output.start();
-  for (let i = 0; i < frames; i++) { paint(ctx, kind, w, h, i); await source.add(i / 30, 1 / 30); }
+  for (let i = 0; i < frames; i++) { paint(ctx, kind, w, h, i); await source.add(i / fps, 1 / fps); }
   await output.finalize();
   return target.buffer!;
 }
@@ -76,7 +76,7 @@ function draw1to1(src: CanvasImageSource, w: number, h: number): Uint8Array {
           const codec = c.codec === 'hevc' ? 'hvc1.1.6.L120.B0' : 'avc1.640034';
           if (!(await VideoEncoder.isConfigSupported({ codec, width: c.w, height: c.h })).supported) { entry.skipped = `no ${c.codec} encoder here`; continue; }
           src = path.join(OUT, c.name + '.mp4');
-          fs.writeFileSync(src, new Uint8Array(await makeMp4(c.kind, c.w, c.h, c.codec, c.frames)));
+          fs.writeFileSync(src, new Uint8Array(await makeMp4(c.kind, c.w, c.h, c.codec, c.frames, c.fps)));
         }
         entry.file = src;
         urls[src] = URL.createObjectURL(new Blob([fs.readFileSync(src)]));

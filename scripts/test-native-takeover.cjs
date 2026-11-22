@@ -77,6 +77,18 @@ const NDI_W = 64, NDI_H = 36;
   pj.fixtures.push({ id: 'fNdi', name: 'NDI strip', surfaceId: 'sNdi', x: 0.53, y: 0.6, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 5, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
   fs.writeFileSync(project, JSON.stringify(pj, null, 2));
 }
+// Item 2c-4: an MP4 surface — a 2-second loop of 8 DISTINCT frames at 4 fps (engine/testdata, made by
+// test:mp4-parity's encoder), played by the app's plugins/mp4 and decoded by the engine on the GPU (mf.rs).
+// It MOVES, so the engine's bytes cannot be compared to one frame of the app's: run A collects every
+// payload the app put on the wire across several loops, and every payload the engine sends must be one of
+// them (within 1 — the GPU conversion is within 1 of Chromium, test:mp4-parity), and it must move too.
+const MP4_CLIP = path.join(ROOT, 'engine', 'testdata', 'loop-avc-640x360.mp4');
+{
+  const pj = JSON.parse(fs.readFileSync(project, 'utf8'));
+  pj.surfaces.push({ id: 'sMp4', name: 'MP4', x: 0.02, y: 0.8, width: 0.46, height: 0.18, rotation: 0, zIndex: 4, content: { type: 'VIDEO', url: MP4_CLIP, opacity: 1 } });
+  pj.fixtures.push({ id: 'fMp4', name: 'MP4 strip', surfaceId: 'sMp4', x: 0.03, y: 0.89, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 6, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
+  fs.writeFileSync(project, JSON.stringify(pj, null, 2));
+}
 // E1f-2: LIGHT fixtures beside the pixels — generic profiles from the app's own library, authored values
 // in `dmx` (normalised), one SPILLING past channel 512. Their bytes are the app's precedence stack's; the
 // engine only places them.
@@ -178,12 +190,15 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     let app = launch(false);
     ok(await waitUntil(() => packets.some((p) => p.u === 0) && packets.some((p) => p.u === 1), 120000), 'A. without the flag: the app puts both universes on the wire');
     // The live sources (Spout, NDI) arrive later than the stills — NDI discovery alone can take a retry.
-    await waitUntil(() => [4, 5].every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 30000);
-    await sleep(3000);
+    await waitUntil(() => [4, 5, 6].every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 30000);
+    // Several loops of the MP4 clip, so every one of its frames is in run A's set.
+    await sleep(6000);
     await settle();
     const A = packets.splice(0);
     const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3), 4: lastOf(A, 4), 5: lastOf(A, 5) };
     ok(ref[5] && ref[5].some((b) => b > 0), `A. the NDI surface is on it (universe 5 lit: ${!!ref[5]?.some((b) => b > 0)})`);
+    const appMp4 = [...new Map(A.filter((p) => p.u === 6).map((p) => [p.data.toString('hex'), p.data])).values()];
+    ok(appMp4.length >= 4 && appMp4.some((d) => d.some((b) => b > 0)), `A. the MP4 surface is on it and MOVES (universe 6: ${appMp4.length} distinct payloads)`);
     ok(ref[4] && ref[4].some((b) => b > 0), `A. the Spout surface is on it (universe 4 lit: ${!!ref[4]?.some((b) => b > 0)})`);
     ok(ref[2] && ref[2][0] === 255 && ref[2][1] === 128 && ref[3] && ref[3].some((b) => b > 0), `A. the lights are on it too (wash 1 red ${ref[2]?.[0]}, green ${ref[2]?.[1]}; universe 3 lit: ${!!ref[3]?.some((b) => b > 0)})`);
     for (const u of [0, 1]) { const tailA = A.filter((p) => p.u === u).slice(-60); console.log(`     run A universe ${u}: ${new Set(tailA.map((p) => p.data.toString('hex'))).size} distinct payloads in its last ${tailA.length} packets`); }
@@ -196,9 +211,10 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     app = launch(true);
     const took = await waitUntil(() => packets.some((p) => who(p) === 'engine'), 120000);
     // ...and their frames reach the ENGINE too before the comparison (its own receivers connect afresh).
-    await waitUntil(() => [4, 5].every((u) => packets.some((p) => who(p) === 'engine' && p.u === u && p.data.some((b) => b > 0))), 30000);
+    await waitUntil(() => [4, 5, 6].every((u) => packets.some((p) => who(p) === 'engine' && p.u === u && p.data.some((b) => b > 0))), 30000);
     ok(took, 'B. with --native-engine: the ENGINE starts sending');
-    await sleep(3000); await settle();
+    // Long enough for TWO loops of the MP4 clip after the handover (2 s each): it must show all its frames.
+    await sleep(5500); await settle();
     const handover = packets.findIndex((p) => who(p) === 'engine');
     // The app's own frames in THIS run, before the engine took over — the same launch, the same moment.
     const pre = packets.slice(0, handover).filter((p) => who(p) === 'app');
@@ -218,6 +234,17 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
       if (ref[u]) fs.writeFileSync(path.join(WORK, `app-u${u}.bin`), ref[u]);
       if (got && ref[u]) { let nd = 0, mx = 0; for (let i = 0; i < got.length; i++) { const d = Math.abs(got[i] - ref[u][i]); if (d) nd++; mx = Math.max(mx, d); } console.log(`     universe ${u}: ${nd} of ${got.length} channels differ, max ${mx}`); }
       ok(got && ref[u] && Buffer.compare(got, ref[u]) === 0, `B. universe ${u}: the engine's bytes ${got && ref[u] && Buffer.compare(got, ref[u]) === 0 ? 'are IDENTICAL to the app\'s' : 'DIFFER from the app\'s'} (${got?.length} channels)`);
+    }
+
+    {
+      // The MP4 surface: every payload the engine sent is one the app sent (within 1), and it moves.
+      const eng = [...new Map(after.filter((p) => p.u === 6).map((p) => [p.data.toString('hex'), p.data])).values()];
+      const dist = (x, y) => { let m = 0; for (let i = 0; i < x.length; i++) m = Math.max(m, Math.abs(x[i] - y[i])); return m; };
+      const worst = eng.reduce((w, d) => Math.max(w, Math.min(...appMp4.map((a) => (a.length === d.length ? dist(a, d) : 255)))), 0);
+      const exact = eng.filter((d) => appMp4.some((a) => Buffer.compare(a, d) === 0)).length;
+      // ALL EIGHT frames of the clip: a decoder stuck past the first loop (the loop count not folded back into
+      // the file) still moves for a while and then freezes — 6 of 8, measured.
+      ok(eng.length >= 8 && worst <= 1, `B. universe 6 (MP4): ${eng.length} distinct engine payloads (the clip has 8 frames), each within ${worst} of one of the app's ${appMp4.length} (${exact} identical)`);
     }
 
     // ── C. the engine dies → the app has the wire again → the engine comes back and takes it ─────────────

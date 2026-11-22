@@ -1513,6 +1513,32 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   - the converted picture is a new texture per frame.
 > - **Not yet:** projector windows (another wgpu device: 2c-4), 10-bit, fragmented MP4, the RTX PC.
 
+> ✅ **2c-4 done 2026-11-22 (MP4 at runtime in the real app — the LEDs, on the GPU path).**
+> - **The host (`contentSource.mp4NativeSource`).** A surface playing an MP4 through `plugins/mp4` is
+>   `{kind:'mp4', path, durUs}`. It is decided on the APP'S OWN current `VideoFrame`: only an 8-bit NV12
+>   frame in BT.709 limited range with the BT.709 or sRGB transfer — what `test:mp4-parity` measured.
+>   Anything else, or no frame yet, stays the app's with the reason.
+> - **The tick** carries each MP4 surface's `VideoFrame.timestamp`, the codec's generation, as HAP sends
+>   its index.
+> - **The engine (`runtime.rs`).** It opens one decoder per surface when it checks the document, so a file
+>   it cannot read leaves the show to the app with that reason. It folds the app's absolute timestamp back
+>   into the file: a looping surface adds the file's duration per loop. Then it decodes and converts that
+>   exact frame on the GPU (2c-3b).
+> - **Proof (`test:native-takeover`, dev).** An MP4 surface (universe 6) plays `engine/testdata/
+>   loop-avc-640x360.mp4`: 8 distinct frames at 4 fps, a 2-second loop, made by the parity harness's
+>   encoder.
+>   - It moves, so run A collects every payload the app sent.
+>   - With the engine owning the wire, the engine sends **all 8 frames**, each within 1 of one of the
+>     app's payloads (7 of 8 byte-identical).
+>   - Every other universe stays identical, a single sender after the handover, handback 85 ms after a kill.
+> - **Mutation-tested:** without the loop fold the engine froze after the first loop (6 of 8 frames), and
+>   the check, first written as "it moves", let that pass. It now requires every frame.
+> - **An MP4 on a PROJECTOR stays the app's**, with the reason. The picture lives on the engine's LED
+>   device, and its projector windows run on another (`outputs.rs`). Sharing the converted texture across
+>   the two devices is the next piece of this item.
+> - **Not covered:** a packaged run with MP4, several MP4 surfaces at once, a timeline-driven (LAYER) MP4
+>   (refused as before), a seek or scrub while the engine owns the wire, and the RTX PC.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

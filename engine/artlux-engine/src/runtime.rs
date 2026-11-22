@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), Mp4(String, i64), None }
 
 struct Doc {
     rev: u64,
@@ -74,6 +74,11 @@ pub struct Runtime {
     /// Item 2b: one NDI receiver (its own thread) per surface, and the last frame number drawn.
     #[cfg(feature = "ndi")]
     ndis: HashMap<String, (crate::ndi::NdiIn, u64)>,
+    /// Item 2c-4: one MP4 decoder per surface (mf.rs — on the GPU where the decoder takes the device), and
+    /// the GPU conversion they share (yuv.rs).
+    #[cfg(windows)]
+    mp4s: HashMap<String, (String, crate::mf::Mp4In)>,
+    conv: Option<crate::yuv::GpuConvert>,
 }
 
 impl Runtime {
@@ -82,7 +87,8 @@ impl Runtime {
             images: HashMap::new(), effects: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
             #[cfg(windows)] spouts: HashMap::new(),
-            #[cfg(feature = "ndi")] ndis: HashMap::new() }
+            #[cfg(feature = "ndi")] ndis: HashMap::new(),
+            #[cfg(windows)] mp4s: HashMap::new(), conv: None }
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -201,6 +207,7 @@ impl Runtime {
                 "hap" => Source::Hap(src["path"].as_str().unwrap_or_default().to_string()),
                 "spout" => Source::Spout(src["name"].as_str().unwrap_or_default().to_string()),
                 "ndi" => Source::Ndi(src["name"].as_str().unwrap_or_default().to_string()),
+                "mp4" => Source::Mp4(src["path"].as_str().unwrap_or_default().to_string(), src["durUs"].as_f64().unwrap_or(0.0).round() as i64),
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -224,6 +231,8 @@ impl Runtime {
         self.spouts.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Spout(_))));
         #[cfg(feature = "ndi")]
         self.ndis.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Ndi(_))));
+        #[cfg(windows)]
+        self.mp4s.retain(|k, (p, _)| matches!(doc.sources.get(k), Some(Source::Mp4(q, _)) if q == p));
         // Keep the effects' state (Fire's heat) across documents for surfaces that are still effects.
         self.effects.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Effect(_))));
         let ids: Vec<String> = doc.sources.keys().cloned().collect();
@@ -252,6 +261,21 @@ impl Runtime {
                     crate::ndi::runtime().map_err(|e| format!("surface '{}': {e}", name_of(d, sid)))?;
                 }
                 Some("ndi") => return Err(format!("surface '{}': this engine build has no NDI (built without the NDI SDK)", name_of(d, sid))),
+                // Item 2c-4: the decoder is opened HERE, so a file the engine cannot read (fragmented MP4, a
+                // codec this machine lacks) leaves the show to the app with that reason.
+                Some("mp4") => {
+                    #[cfg(windows)]
+                    {
+                        let Some(Source::Mp4(p, _)) = doc.sources.get(sid) else { unreachable!() };
+                        if self.mp4s.get(sid).is_none_or(|(q, _)| q != p) {
+                            let rx = crate::mf::Mp4In::open_with(p, Some(&self.gpu)).map_err(|e| format!("surface '{}': MP4 {e}", name_of(d, sid)))?;
+                            if let Some(why) = &rx.software_why { eprintln!("artlux-engine: surface '{}': MP4 decoded in software ({why})", name_of(d, sid)); }
+                            self.mp4s.insert(sid.clone(), (p.clone(), rx));
+                        }
+                    }
+                    #[cfg(not(windows))]
+                    return Err(format!("surface '{}': the engine decodes MP4 on Windows only so far", name_of(d, sid)));
+                }
                 _ => return Err(format!("surface '{}': {}", name_of(d, sid), src["why"].as_str().unwrap_or("not a source the engine draws"))),
             }
             if let Some(Source::Image(p)) = doc.sources.get(sid) {
@@ -351,6 +375,26 @@ impl Runtime {
                     }
                     #[cfg(not(feature = "ndi"))]
                     { let _ = name; self.pictures.remove(sid); }
+                }
+                Source::Mp4(_path, dur_us) => {
+                    // THE FRAME THE APP IS SHOWING: its VideoFrame.timestamp, sent by the host. A looping surface's
+                    // decoder runs in ABSOLUTE time (each loop adds the file's duration — mp4Decoder tsOfAbs), so
+                    // it is folded back into the file here.
+                    #[cfg(windows)]
+                    if let Some(abs) = v["mp4"][sid].as_i64() {
+                        let key = ((abs.max(0) as u64) << 2) | 1;
+                        if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
+                            let local = if *dur_us > 0 { abs - abs.div_euclid(*dur_us) * dur_us } else { abs };
+                            let conv = self.conv.get_or_insert_with(|| crate::yuv::GpuConvert::new(&self.gpu));
+                            if let Some((_, rx)) = self.mp4s.get_mut(sid) {
+                                let pic = rx.picture(&self.gpu, conv, local).map_err(|e| format!("surface {sid}: {e}"))?;
+                                self.pictures.insert(sid.clone(), pic);
+                                self.gens.insert(sid.clone(), key);
+                            }
+                        }
+                    }
+                    #[cfg(not(windows))]
+                    { let _ = dur_us; self.pictures.remove(sid); }
                 }
                 Source::None => { self.pictures.remove(sid); }
             }
