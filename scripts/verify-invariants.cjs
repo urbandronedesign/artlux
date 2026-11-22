@@ -8422,7 +8422,8 @@ check(
   () => {
     const problems = [];
     const sp = read('engine/artlux-engine/src/spout.rs');
-    if ((sp.match(/crate::compose::texels\(gpu, &(tex|slot\.texture), w, h, 2\)\?;/g) || []).length !== 2) problems.push('spout.rs grab no longer reads BOTH paths opaque (texels mode 2)');
+    // (SpoutIn since "2a": the direct texture and the copy slot, each read with texels mode 2.)
+    if ((sp.match(/crate::compose::texels\(gpu, &?(tex|slot\.texture), o\.w, o\.h, 2\)\?/g) || []).length !== 2) problems.push('spout.rs SpoutIn no longer reads BOTH paths opaque (texels mode 2)');
     if (!/ARTLUX_SPOUT_COPY/.test(sp)) problems.push('the switch that lets the parity test force the copy path is gone');
     if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
     if (!/ARTLUX_SPOUT_COPY: '1'/.test(read('scripts/test-image-parity.cjs'))) problems.push('test-image-parity no longer runs the Spout copy path');
@@ -8577,13 +8578,13 @@ check(
   'plans/native-engine.md E1f "2a", proven in the real app by scripts/test-native-takeover.cjs (a real Spout ' +
   'sender, universe byte-identical). A receiver per FRAME (the old one-shot grab) reconnects 44 times a second; ' +
   'and the app has ONE Spout receiver for every Spout surface — the latest sender wins on all of them — so a show ' +
-  'naming two senders must stay the app's, or the engine would show a different picture than today.',
+  'naming two senders must stay with the app, or the engine would show a different picture than today.',
   () => {
     const problems = [];
     const sp = raw('engine/artlux-engine/src/spout.rs');
     if (!/pub struct SpoutIn/.test(sp) || !/pub fn grab\([\s\S]{0,200}SpoutIn::new\(name\)/.test(sp)) problems.push('spout.rs: grab is no longer the SpoutIn the runtime uses (the parity test would prove other code)');
     if (!/spouts: HashMap<String, \(String, crate::spout::SpoutIn\)>/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer keeps one Spout receiver per surface');
-    if (!/spoutNames\.size > 1/.test(read('src/renderer/engine/nativeLink.ts'))) problems.push('nativeLink no longer keeps a two-sender show with the app');
+    if (!/spoutSenders\.size > 1/.test(read('src/renderer/engine/nativeLink.ts'))) problems.push('nativeLink no longer keeps a two-sender show with the app');
     return problems.length ? problems.join('; ') : null;
   },
 );

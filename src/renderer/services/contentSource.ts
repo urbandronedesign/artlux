@@ -749,6 +749,8 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
     // E1f "2a": the engine receives the sender itself (one receiver per surface, spout.rs SpoutIn) and draws
     // it as the app does — alpha ignored, no mips (E1d-3). '' = follow the active sender, as the app does.
     case 'SPOUT': return { kind: 'spout', name: content.spoutName ?? '' };
+    // Syphon is Spout's macOS sibling; the engine runs on Windows first and receives no Syphon yet.
+    case 'SYPHON': return { kind: 'unsupported', why: `Syphon ('${content.syphonName ?? ''}') is not drawn by the native engine yet` };
     case SourceType.VIDEO: {
       const e = media.get(key);
       if (e?.type === 'CODEC' && e.codecId === 'hap') return { kind: 'hap', path: filePathOf(e.path) };

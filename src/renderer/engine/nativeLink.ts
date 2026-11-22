@@ -85,8 +85,8 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // ⚠ THE APP HAS ONE SPOUT RECEIVER for every Spout surface, and the most recently attached sender wins
   // (plugins/spout spoutContentSource): two surfaces naming DIFFERENT senders both show the same one today.
   // The engine would show each its own — a different picture — so that case stays the app's.
-  const spoutNames = new Set(Object.values(sources).flatMap((x) => (x.kind === 'spout' ? [x.name] : [])));
-  if (spoutNames.size > 1) {
+  const spoutSenders = new Set(Object.values(sources).flatMap((x) => (x.kind === 'spout' ? [x.name] : [])));
+  if (spoutSenders.size > 1) {
     for (const id in sources) if (sources[id].kind === 'spout') sources[id] = { kind: 'unsupported', why: 'two Spout senders at once (the app shows one of them on every Spout surface)' };
   }
   const sourcesKey = JSON.stringify(sources);
