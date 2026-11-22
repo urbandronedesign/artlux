@@ -1325,6 +1325,35 @@ fallback until a source/output is proven byte-identical — risk 2):
 > (`test:native-takeover`): a real sender (Spout's library) on a Spout surface — **universe 4 byte-identical**
 > with the engine owning the wire, beside pixels and lights; handback 49 ms. Not covered: a MOVING sender
 > (the same per-frame path; a still is what makes the two sides comparable), a sender on another GPU.
+>
+> ✅ **3 done 2026-11-22 (CALIBRATED outputs that play an imported .mpcdi — identical).**
+> - **A gap in E1f-3, closed first.** The imported map lives in the calibration plugin's `bakedStore` and
+>   reaches each window directly. It is not `ProjectorOutput.calibration`, so the engine's eligibility could
+>   not see it: an output playing a map would have been taken and drawn as a plain warp. Now App records the
+>   map at THE ONE DOOR it reaches a window through (`sendToProjector`).
+> - **The engine.** `projector.rs` gains ProjectorGL's baked path line for line: `pack_baked` (setBakedMap's
+>   repack and dilation, f32 stores of JS doubles), `baked_upload` (RGBA32F map, optional R8 rig blend), and
+>   `draw_baked` (FRAG_BAKED: coverage or the 3×3 tent, content at (u, 1−v), soft edge × rig blend in raster
+>   space, gain / lift / brightness / gamma, coverage last; no MSAA; bottom-up). The map goes renderer →
+>   main ONCE per map (main writes it to a file); the document names it by key; the presenter uploads it
+>   once and draws through it. A map supersedes the venue render (as in the window); calibration WITHOUT a
+>   map — the live render-from-projector — stays the app's, with its reason.
+> - **Found:** the map must be read through the HARDWARE POINT SAMPLER, not `floor(uv × size)`. On a map
+>   smaller than the raster, texel boundaries land on pixel centres and the exact floor picked the other
+>   texel on 2–5% of pixels; the point sampler picks the app's (an explicit bind group layout: unfilterable
+>   float + a non-filtering sampler — wgpu's automatic one cannot say it). Interpolating vRaster as GL's
+>   varying was tried first and changed nothing (kept: it matches by construction).
+> - **Proof.**
+>   - `test:projector-parity`, against the app's real `setBakedMap` → `setBakedAlpha` → `drawBaked`: a curved
+>     map with coverage, the tent fallback, a rig blend, a 640×360 map on a 960×540 raster, and a keystone
+>     with soft edge, gain, lift and gamma — **15 cases (3 pictures), every pixel identical**. The mesh path
+>     is unchanged.
+>   - `test:native-projectors --baked` in the real app: a REAL `.mpcdi` written by the app's own
+>     `buildMpcdi` (1920×1080 region with holes, partial coverage and a rig alpha), loaded as a show machine
+>     loads one (`Prefs.calibrationFile`) — **the engine's window = the app's, 2,073,600 of 2,073,600**,
+>     before and after a restart; uncovered 155 ms after a kill. Guarded.
+> - Not covered: `world`-profile (3D) maps (the app cannot replay them either), several regions on several
+>   displays, a map hot-swapped mid-show (the window reopens — a blink), the RTX PC.
 
 ## 10. Open questions
 
