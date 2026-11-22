@@ -6,6 +6,7 @@
 //!   artlux-engine --selftest --allow-software the same, falling back to WARP / lavapipe (CI)
 //!   artlux-engine --selftest --software       on the software adapter even when hardware exists
 //!   artlux-engine --write-goldens <dir>       write the CPU references as the goldens
+//!   artlux-engine --windows [--fullscreen] [--seconds N]   a window on every display (E0b)
 
 use artlux_engine::*;
 use std::process::ExitCode;
@@ -27,6 +28,19 @@ fn main() -> ExitCode {
         std::fs::write(dir.join("leds96.rgb"), leds_reference()).expect("write leds golden");
         println!("goldens written to {}", dir.display());
         return ExitCode::SUCCESS;
+    }
+    if has("--windows") {
+        // E0b: a window on every display (--fullscreen: borderless on each), presenting the test card.
+        let secs = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<f64>().ok());
+        let options = artlux_engine::windows::WindowOptions {
+            fullscreen: has("--fullscreen"),
+            run_for: secs.map(std::time::Duration::from_secs_f64),
+            policy: AdapterPolicy { allow_software: has("--allow-software"), force_software: false },
+        };
+        return match artlux_engine::windows::run(options) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(2) }
+        };
     }
     let policy = AdapterPolicy { allow_software: has("--allow-software") || has("--software"), force_software: has("--software") };
     let gpu = match Gpu::open(policy) {

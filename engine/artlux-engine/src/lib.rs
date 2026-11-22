@@ -14,6 +14,8 @@
 
 use std::fmt;
 
+pub mod windows;
+
 /// Which native API this platform renders with (§6 table, "GPU backend").
 pub fn native_backends() -> wgpu::Backends {
     match std::env::var("ARTLUX_ENGINE_BACKEND").ok().as_deref() {
@@ -97,7 +99,17 @@ fn rank(info: &wgpu::AdapterInfo) -> u8 {
 }
 
 fn new_instance(backends: wgpu::Backends) -> wgpu::Instance {
-    let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
+    new_instance_with(backends, None)
+}
+
+/// A window system's display (X11 / Wayland need it to make surfaces; Windows and macOS do not).
+pub type Display = Box<dyn wgpu::wgt::WgpuHasDisplayHandle>;
+
+fn new_instance_with(backends: wgpu::Backends, display: Option<Display>) -> wgpu::Instance {
+    let mut desc = match display {
+        Some(d) => wgpu::InstanceDescriptor::new_with_display_handle(d),
+        None => wgpu::InstanceDescriptor::new_without_display_handle(),
+    };
     desc.backends = backends;
     wgpu::Instance::new(desc)
 }
@@ -113,8 +125,13 @@ pub struct Gpu {
 
 impl Gpu {
     pub fn open(policy: AdapterPolicy) -> Result<Gpu, EngineError> {
+        Self::open_with(policy, None)
+    }
+
+    /// The same, for an engine that will present to windows of this display.
+    pub fn open_with(policy: AdapterPolicy, display: Option<Display>) -> Result<Gpu, EngineError> {
         let backends = native_backends();
-        let instance = new_instance(backends);
+        let instance = new_instance_with(backends, display);
         let mut adapters = pollster::block_on(instance.enumerate_adapters(backends));
         if adapters.is_empty() {
             return Err(EngineError::NoAdapter(format!("{backends:?} offers none")));

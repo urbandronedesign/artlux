@@ -843,7 +843,7 @@ every step says where it is proven:
 | Step | What | Proven where |
 |---|---|---|
 | **E0a** ✅ | Engine skeleton: Cargo workspace `engine/`, one wgpu device on the native API (D3D12 / Metal / Vulkan), the software-adapter rule, an offscreen render and LED sampling byte-compared to goldens | here (D3D12 hardware, WARP, Vulkan); CI on all three runners (`.github/workflows/engine.yml`) once pushed |
-| **E0b** | Engine windows: one winit window per display, borderless/fullscreen, presenting at that display's refresh; the reveal never depends on a "ready" event | here for one display + windowed; multi-display/mixed refresh on the RTX PC |
+| **E0b** ✅ | Engine windows: one winit window per display, borderless/fullscreen, presenting at that display's refresh; the reveal never depends on a "ready" event | here for one display + windowed; multi-display/mixed refresh on the RTX PC |
 | **E0c** | Engine → Electron page: the engine renders into a shared texture, main imports it with `sharedTexture` (Electron 42 has it), a page draws it — Windows NT-handle path | here |
 | **E0d** | Zero-copy imports: Spout (D3D11 shared handle) and HAP BC upload, via `create_texture_from_hal` on the pinned wgpu, with the CPU-upload fallback | here (Spout sender needed) |
 | **E0e** | macOS (IOSurface mach port, Syphon, VideoToolbox) and Linux (dmabuf over `SCM_RIGHTS`, VA-API, Wayland window placement) | a Mac and a Linux box; CI builds only |
@@ -861,6 +861,24 @@ every step says where it is proven:
 > tests. NOT yet proven: the three CI runners (the workflow exists; it runs when the branch is pushed,
 > which is the owner's call), lavapipe, and whether the hosted macOS runner exposes a usable Metal device
 > (§6b asks E0 to find out — the workflow's macOS job will say).
+>
+> ✅ **E0b done 2026-11-22 (engine windows).** `artlux-engine --windows [--fullscreen] [--seconds N]`: winit
+> 0.30.13 owns the main thread; one window per display (windowed on it, or borderless fullscreen ON it);
+> **each window presents on its own thread with a FIFO swapchain**, so a display's vblank blocks only its
+> own presenter — the code shape of "each output at its own refresh, no cap". **The reveal is gated on
+> nothing**: created visible, drawn by its thread as soon as its surface exists. The main thread never
+> waits on a GPU and never joins a presenter (it hides the window, signals stop, keeps pumping, reaps the
+> finished thread) — a precaution against DXGI's documented present/window-thread deadlock, NOT a bug seen:
+> the joining version exited 4/4 too. The first close test said otherwise only because it posted WM_CLOSE
+> to `Process.MainWindowHandle`, which can be winit's hidden helper window; the probe now finds the window
+> by title.
+>
+> Proof: `engine/scripts/probe-windows.ps1`, which reads the SCREEN, not the engine — window visible, the
+> four test-card quadrants exact (255,0,0 / 0,255,0 / 0,0,255 / 255,255,255), the live bar moved between
+> two captures, exit at the deadline, a WM_CLOSE ends it — green on **D3D12 windowed, D3D12 borderless
+> fullscreen, and Vulkan**. **Not proven here (one 60 Hz display):** two or more displays, and mixed
+> refresh rates presenting independently. That needs the RTX PC with its outputs; the code path is the
+> one it will run.
 
 ## 10. Open questions
 

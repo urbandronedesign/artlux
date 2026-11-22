@@ -47,12 +47,13 @@ jobs:
             engine/target
           key: ${{ matrix.os }}-engine-${{ hashFiles('engine/Cargo.lock') }}
 
-      # lavapipe: Mesa's software Vulkan driver, the Linux runner's only adapter.
-      - name: Install Vulkan (lavapipe)
+      # lavapipe: Mesa's software Vulkan driver, the Linux runner's only adapter. The X11 / Wayland /
+      # xkbcommon headers are for the engine's windows (winit, E0b), per plan §6b.
+      - name: Install Vulkan (lavapipe) + window-system headers
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 vulkan-tools
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 vulkan-tools             libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev pkg-config
 
       - name: Build
         run: cargo build --release --locked --manifest-path engine/Cargo.toml -p artlux-engine
