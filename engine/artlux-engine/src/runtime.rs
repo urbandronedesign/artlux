@@ -385,6 +385,12 @@ impl Runtime {
                         let key = ((abs.max(0) as u64) << 2) | 1;
                         if self.gens.get(sid) != Some(&key) || !self.pictures.contains_key(sid) {
                             let local = if *dur_us > 0 { abs - abs.div_euclid(*dur_us) * dur_us } else { abs };
+                            // The verdict opens the decoders of the surfaces the LEDS sample; a surface only a
+                            // PROJECTOR shows is opened on first use (as stills are loaded on first use above).
+                            if self.mp4s.get(sid).is_none_or(|(q, _)| q != _path) {
+                                let rx = crate::mf::Mp4In::open_with(_path, Some(&self.gpu)).map_err(|e| format!("surface {sid}: MP4 {e}"))?;
+                                self.mp4s.insert(sid.clone(), (_path.clone(), rx));
+                            }
                             let conv = self.conv.get_or_insert_with(|| crate::yuv::GpuConvert::new(&self.gpu));
                             if let Some((_, rx)) = self.mp4s.get_mut(sid) {
                                 let pic = rx.picture(&self.gpu, conv, local).map_err(|e| format!("surface {sid}: {e}"))?;

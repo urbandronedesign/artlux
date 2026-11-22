@@ -8792,8 +8792,7 @@ check(
   'APP OWN VideoFrame - 8-bit NV12, BT.709 limited, the BT.709 or sRGB transfer - because that is all ' +
   'test:mp4-parity measured; the tick carries the app frame timestamp (absolute: a looping surface adds ' +
   'the file duration per loop) and the engine folds it back into the file - without the fold the engine ' +
-  'froze after the first loop (6 of 8 frames). An MP4 on a projector stays the app: its picture lives on ' +
-  'the engine LED device, and the projector windows run on another.',
+  'froze after the first loop (6 of 8 frames).',
   () => {
     const problems = [];
     const c = raw('src/renderer/services/contentSource.ts');
@@ -8801,11 +8800,35 @@ check(
     if (!/durUs: info\.durationSec \* 1e6/.test(c)) problems.push('the MP4 source no longer carries the file duration the engine folds the loop with');
     const n = raw('src/renderer/engine/nativeLink.ts');
     if (!/mp4\[s\.id\] = g;/.test(n) || !/hap, mp4, ndi, lights/.test(n)) problems.push('the tick no longer carries each MP4 surface frame timestamp');
-    if (!/src\.kind === 'mp4' \? 'an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is no longer left to the app (the engine has no picture on that device)');
+    if (/an MP4 on a projector/.test(n)) problems.push('an MP4 on a projector is refused again (the engine draws it: one device, outputs.rs content_texture_from)');
     const r = raw('engine/artlux-engine/src/runtime.rs');
     if (!/let local = if \*dur_us > 0 \{ abs - abs\.div_euclid\(\*dur_us\) \* dur_us \} else \{ abs \};/.test(r)) problems.push('runtime.rs no longer folds a looping surface timestamp back into the file');
     if (!/Mp4In::open_with\(p, Some\(&self\.gpu\)\)/.test(r)) problems.push('the runtime no longer decodes MP4 on the GPU');
     if (!/eng\.length >= 8 && worst <= 1/.test(raw('scripts/test-native-takeover.cjs'))) problems.push('test-native-takeover no longer requires every frame of the MP4 clip from the engine');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'an MP4 reaches the engine projector windows on the GPU, and the projector test judges against the APP window',
+  'plans/native-engine.md E1f "2c-4 projectors", proven by scripts/test-native-projectors.cjs --mp4 (the engine ' +
+  'window within 1 of the app on 0.064% of pixels). The render thread and the presenters share ONE device ' +
+  '(serve.rs), so the frame is copied GPU to GPU, its visible rect - what createImageBitmap(VideoFrame) gives ' +
+  'the app window (test:mp4-parity gate 1b). AND the harness: it once judged the engine against a capture ' +
+  'taken just after killing it, which was the RESTARTED engine window (a capture takes ~1 s to start) - so ' +
+  '"the engine = the app" compared the engine with itself, and a copy shifted by a pixel passed. The engine ' +
+  'is judged against run A (the app alone), and A2 shows the app equals itself across launches.',
+  () => {
+    const problems = [];
+    const o = raw('engine/artlux-engine/src/outputs.rs');
+    if (!/Some\(t\) => projector::content_texture_from\(&gpu, t, p\.crop/.test(o)) problems.push('outputs.rs no longer draws a GPU picture (an MP4) on a projector');
+    const pr = raw('engine/artlux-engine/src/projector.rs');
+    if (!/pub fn content_texture_from\(gpu: &Gpu, src: &wgpu::Texture, crop: \[u32; 4\]\)/.test(pr) || !/enc\.copy_texture_to_texture\(/.test(pr)) problems.push('projector.rs no longer copies an MP4 frame visible rect on the GPU');
+    if (!/a surface only a\s+\/\/ PROJECTOR shows is opened on first use/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer opens the decoder of a surface only a projector shows (its window would be black)');
+    const t = raw('scripts/test-native-projectors.cjs');
+    if (!/const dAB = diff\(A, B\);/.test(t) || !/const dD = diff\(A, D\);/.test(t)) problems.push('test-native-projectors no longer judges the engine window against the APP window (run A)');
+    if (!/capture\('A2-app'\)/.test(t)) problems.push('test-native-projectors no longer shows that its reference (run A) is stable across launches');
+    if (/capture\('C-app-again'\)/.test(t)) problems.push('test-native-projectors captures the screen just after the kill again - that is the restarted ENGINE window, not the app');
     return problems.length ? problems.join('; ') : null;
   },
 );

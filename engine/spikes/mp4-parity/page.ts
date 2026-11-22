@@ -31,6 +31,8 @@ function paint(ctx: CanvasRenderingContext2D, kind: string, w: number, h: number
     const i = (y * w + x) * 4;
     let c: number[];
     if (kind === 'noise') c = [r() * 256, r() * 256, r() * 256];
+    // A STILL that plays: every frame the same sharp picture (test:native-projectors --mp4 compares screens).
+    else if (kind === 'still') c = (x % 61 === 0 || y % 47 === 0) ? [255, 255, 255] : [(x / (w - 1)) * 255, (y / (h - 1)) * 255, ((x >> 6) + (y >> 6)) % 2 ? 210 : 30];
     else if (kind === 'sharp') c = (x % 97 === frame || y % 89 === 0) ? [255, 255, 255] : [(x / (w - 1)) * 255, (y / (h - 1)) * 255, ((x >> 5) + (y >> 5)) % 2 ? 230 : 20];
     else c = [128 + 120 * Math.sin(x / 40 + frame), 128 + 120 * Math.cos(y / 30), 128 + 100 * Math.sin((x + y) / 55)];
     img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255;
@@ -38,13 +40,15 @@ function paint(ctx: CanvasRenderingContext2D, kind: string, w: number, h: number
   ctx.putImageData(img, 0, 0);
 }
 
-async function makeMp4(kind: string, w: number, h: number, codec: 'avc' | 'hevc', frames: number, fps = 30): Promise<ArrayBuffer> {
+async function makeMp4(kind: string, w: number, h: number, codec: 'avc' | 'hevc', frames: number, fps = 30, allIntra = false): Promise<ArrayBuffer> {
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d', { willReadFrequently: true })!;
   const target = new BufferTarget();
   const output = new Output({ format: new Mp4OutputFormat(), target });
-  const source = new CanvasSource(cv, { codec, bitrate: 20_000_000, keyFrameInterval: 1 });
+  // allIntra: every frame a key frame — a "still" clip whose frames then decode to the SAME picture (with
+  // P-frames each frame carries its own compression noise, up to 3 levels: two screens differ by frame).
+  const source = new CanvasSource(cv, { codec, bitrate: 20_000_000, keyFrameInterval: allIntra ? 0 : 1 });
   output.addVideoTrack(source, { frameRate: fps });
   await output.start();
   for (let i = 0; i < frames; i++) { paint(ctx, kind, w, h, i); await source.add(i / fps, 1 / fps); }
@@ -76,7 +80,7 @@ function draw1to1(src: CanvasImageSource, w: number, h: number): Uint8Array {
           const codec = c.codec === 'hevc' ? 'hvc1.1.6.L120.B0' : 'avc1.640034';
           if (!(await VideoEncoder.isConfigSupported({ codec, width: c.w, height: c.h })).supported) { entry.skipped = `no ${c.codec} encoder here`; continue; }
           src = path.join(OUT, c.name + '.mp4');
-          fs.writeFileSync(src, new Uint8Array(await makeMp4(c.kind, c.w, c.h, c.codec, c.frames, c.fps)));
+          fs.writeFileSync(src, new Uint8Array(await makeMp4(c.kind, c.w, c.h, c.codec, c.frames, c.fps, !!c.allIntra)));
         }
         entry.file = src;
         urls[src] = URL.createObjectURL(new Blob([fs.readFileSync(src)]));
@@ -95,6 +99,12 @@ function draw1to1(src: CanvasImageSource, w: number, h: number): Uint8Array {
         fs.writeFileSync(path.join(OUT, c.name + '.planes.bin'), buf);
         fs.writeFileSync(path.join(OUT, c.name + '.nv12.json'), JSON.stringify(meta));
         fs.writeFileSync(path.join(OUT, c.name + '.rgba-1to1.bin'), draw1to1(vf, vf.displayWidth, vf.displayHeight));
+        // The PROJECTOR path (2c-4): the app ships a video surface to its windows as createImageBitmap(frame) —
+        // App.tsx's pump — and ProjectorGL uploads that bitmap. Its pixels, read through a 1:1 canvas draw.
+        const bm = await createImageBitmap(vf);
+        fs.writeFileSync(path.join(OUT, c.name + '.rgba-bitmap.bin'), draw1to1(bm, bm.width, bm.height));
+        entry.bitmap = [bm.width, bm.height];
+        bm.close();
         Object.assign(entry, meta);
         frames.set(path.join(OUT, c.name + '.nv12.json'), vf);
         // Item 2c-2: more frames, IN THE ORDER GIVEN (a backward one makes the decoder seek), for the

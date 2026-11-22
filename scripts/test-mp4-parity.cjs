@@ -54,6 +54,8 @@ const FILES = [
   { name: 'gop-hevc-640x360', kind: 'sharp', w: 640, h: 360, codec: 'hevc', frames: 45, frame: 10, dump: [40, 2, 31, 44, 30] },
   // 4 fps, 8 distinct frames: a 2-second loop. Also the clip test:native-takeover plays (engine/testdata).
   { name: 'loop-avc-640x360', kind: 'photo', w: 640, h: 360, codec: 'avc', frames: 8, fps: 4, frame: 5, dump: [7, 0, 3, 6, 1] },
+  // Every frame the same picture: the clip test:native-projectors --mp4 shows on a projector (engine/testdata).
+  { name: 'still-avc-1280x720', kind: 'still', w: 1280, h: 720, codec: 'avc', frames: 4, fps: 4, frame: 2, dump: [3, 1], allIntra: true },
   ...process.argv.slice(2).map((f, i) => ({ name: `extra${i}`, file: path.resolve(f), frame: 0, dump: [3, 0, 1] })),
 ];
 
@@ -117,6 +119,22 @@ for (const f of browser.files) {
   const ok = cpu.max <= 1 && cpu.pct <= 0.5 && gpu.max <= 1 && gpu.pct <= 0.05 && gc.max <= 1;
   if (!ok) fails++;
   console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${f.name.padEnd(22)} ${f.format} ${f.coded.join('x')} coded, ${f.visible.slice(2).join('x')} visible, ${f.colorSpace.matrix}${f.colorSpace.fullRange ? ' full' : ' limited'}: CPU ${(100 - cpu.pct).toFixed(2)}% identical, max ${cpu.max} · GPU ${(100 - gpu.pct).toFixed(3)}% (${gpu.differ} differ), max ${gpu.max} · GPU vs CPU: ${gc.differ} channels differ, max ${gc.max}`);
+}
+
+// ── 1b. the PROJECTOR's picture ─────────────────────────────────────────────────────────────────────────
+// The app's projector windows get a video surface as createImageBitmap(VideoFrame) (App.tsx's pump), not
+// through drawImage — another Chromium conversion. The engine's projector content is its GPU conversion's
+// VISIBLE rect (outputs.rs): held to the bitmap by the same rule as the GPU conversion to drawImage.
+console.log('\n1b. THE PROJECTOR PICTURE (the engine\'s GPU conversion, visible rect, against Chromium\'s createImageBitmap)');
+for (const f of browser.files) {
+  if (!decoded.has(f.name) || !f.bitmap) continue;
+  const bmp = fs.readFileSync(path.join(WORK, `${f.name}.rgba-bitmap.bin`)), G = fs.readFileSync(path.join(WORK, `${f.name}.engine-gpu-1to1.bin`));
+  if (f.bitmap.join() !== f.visible.slice(2).join() || bmp.length !== G.length) { fails++; console.log(`  FAIL ${f.name}: the bitmap is ${f.bitmap.join('x')}, the visible rect ${f.visible.slice(2).join('x')}`); continue; }
+  let differ = 0, max = 0, n = 0;
+  for (let i = 0; i < bmp.length; i++) { if ((i & 3) === 3) continue; n++; const d = Math.abs(bmp[i] - G[i]); if (d) { differ++; if (d > max) max = d; } }
+  const pct = (100 * differ) / n, ok = max <= 1 && pct <= 0.05;
+  if (!ok) fails++;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${f.name.padEnd(22)} ${f.bitmap.join('x')}: ${(100 - pct).toFixed(3)}% identical (${differ} differ), max ${max}`);
 }
 
 // Experiments on the conversion alone: stop after gate 1.

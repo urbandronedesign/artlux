@@ -1539,6 +1539,39 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Not covered:** a packaged run with MP4, several MP4 surfaces at once, a timeline-driven (LAYER) MP4
 >   (refused as before), a seek or scrub while the engine owns the wire, and the RTX PC.
 
+> ✅ **2c-4 projectors done 2026-11-22 (an MP4 on a projector, from the engine) — and a correction.**
+> - **I was wrong that the projector windows run on another GPU device.** `serve.rs` opens ONE device on the
+>   windows thread, and the render thread shares it. So an MP4 frame (a texture) reaches the presenters as
+>   it is: `projector.rs content_texture_from` copies its VISIBLE rect GPU to GPU, then mips it as
+>   ProjectorGL does.
+> - **Measured first:** the app's window gets the frame as `createImageBitmap(VideoFrame)`, and that
+>   converts exactly as `drawImage` does (`test:mp4-parity` gate 1b: the same channels within 1).
+> - **Fixed:** a surface that only a projector shows never had its decoder opened (the verdict opens the
+>   LED surfaces'), so the engine's window was black. It is now opened on first use.
+> - **Test clip:** `engine/testdata/still-avc-1280x720.mp4`, every frame a KEY frame of the same picture.
+>   With P-frames each frame carries its own compression noise (up to 3 levels), and two captures caught
+>   different frames.
+> - **⚠ CORRECTION — the projector identity claims of E1f-3 and item 3 were measured against the wrong
+>   window.** `test:native-projectors` judged the engine against a capture taken ~0.4 s after killing it,
+>   meant to show the app's uncovered window. A capture takes PowerShell about a second to start, and by
+>   then main had RESTARTED the engine, topmost again. So "the engine's window = the app's" compared the
+>   engine with itself.
+>   - Found by a mutation that still passed: a copy shifted by one pixel. The capture 3 s later was the
+>     same shifted picture.
+>   - Now the engine is judged against run A (the app alone). A new run A2 shows the app equals itself
+>     across launches (0 pixels), so A is a sound reference.
+>   - The old "the app is not bit-stable across launches" note was this same mistake.
+> - **The honest numbers, on this rig, same harness:**
+>   - **baked map (item 3): IDENTICAL**, 2,073,600 of 2,073,600 — the claim stands.
+>   - **plain warp, a still (E1f-3): NOT identical.** 11 pixels off by 1, all in the bottom soft-edge
+>     band: the soft-edge share is read off the mesh-interpolated coordinate, under 4× MSAA, while the map
+>     path reads raster space without MSAA and is identical. Gate: within 1 on at most 0.01%. Not chased.
+>   - **MP4: within 1 on 1,322 pixels (0.064%).** Gate: within 1 on at most 0.1%.
+>   - Handback (main uncovers the app's windows) 108–217 ms after a kill. The restarted engine's window
+>     matches A again.
+> - **Mutation-tested (with the fixed harness):** the shifted copy now fails (649,191 pixels, max 229);
+>   skipping the copy (a black window) fails. Guarded, including the harness's rule.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

@@ -10,9 +10,12 @@
 // colour gain + black lift and a projector brightness — everything the plain warp path does. Then:
 //   A. without --native-engine: the app's projector window — the screen is the reference;
 //   B. with it: the engine's TOPMOST window shows the output (main logs `owns the projector outputs`);
-//   C. kill the engine: the app's window — open underneath, COVERED — is uncovered and draws; the screen
-//      then must equal B pixel for pixel (the engine's window and the app's, in ONE session), and the
-//      restarted engine takes the outputs back (identical again).
+//      Its window must equal A's pixel for pixel (an MP4: within 1);
+//   C. kill the engine: main uncovers the app's windows (its log), and the restarted engine takes the
+//      outputs back — its window = A again;
+//   A2. the app alone again: it must equal A, which is what makes A the reference.
+// (Until 2026-11-22 the engine was judged against a capture taken just after the kill — which was the
+// RESTARTED engine's window. See C below.)
 // Nothing synchronous runs while ArtLux does: in dev its stdout is piped here, and on Windows a blocked
 // reader blocks the writer (E1f-1). Prefs are backed up and restored.
 
@@ -35,6 +38,12 @@ const PACKAGED = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
 // --baked: the output plays an imported CALIBRATION MAP (item 3) — a real .mpcdi, written by the app's own
 // encoder (src/main/mpcdi.ts buildMpcdi), loaded the way a show machine loads one: Prefs.calibrationFile.
 const BAKED = process.argv.includes('--baked');
+// --mp4 [clip]: the output shows an MP4 surface (item 2c-4) — a clip whose frames are all the same picture
+// (engine/testdata/still-avc-1280x720.mp4, made by test:mp4-parity's encoder), so two screens can be
+// compared. The app ships it to its window as createImageBitmap(frame); the engine copies its own decoded,
+// converted frame (GPU) — within 1 of Chromium's conversion, so the windows are held to "within 1".
+const mk = process.argv.indexOf('--mp4');
+const MP4 = mk > 0 ? path.resolve(process.argv[mk + 1] && !process.argv[mk + 1].startsWith('--') ? process.argv[mk + 1] : path.join(ROOT, 'engine', 'testdata', 'still-avc-1280x720.mp4')) : null;
 
 // The primary display, as Electron names it (the project's output points at it).
 const disp = JSON.parse(execSync(`"${path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')}" "${path.join(WORK, 'disp.cjs')}"`, {
@@ -53,7 +62,7 @@ fs.writeFileSync(picture, PNG.sync.write(png));
 const project = path.join(WORK, 'projectors.artlux');
 fs.writeFileSync(project, JSON.stringify({
   version: '1.2', timestamp: '2026-01-01T00:00:00.000Z',
-  surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: { type: 'IMAGE', url: picture, opacity: 1 } }],
+  surfaces: [{ id: 'sP', name: 'Projected', x: 0.1, y: 0.1, width: 0.5, height: 0.28125, rotation: 0, zIndex: 0, content: MP4 ? { type: 'VIDEO', url: MP4, opacity: 1 } : { type: 'IMAGE', url: picture, opacity: 1 } }],
   fixtures: [], controllers: [], groups: [], scenes: [], cueBanks: [],
   projectorBrightness: 0.9,
   projectorOutputs: [{
@@ -148,6 +157,17 @@ async function stopAll() {
     await sleep(6000);
     const B = await capture('B-engine');
     ok(lit(B) > 0.3, `B. the engine's window shows the output (${(100 * lit(B)).toFixed(0)}% of the screen lit)`);
+    // THE ENGINE'S WINDOW AGAINST THE APP'S OWN (run A — the app alone, nothing else on the screen). A2 at
+    // the end shows that reference is sound: the app equals itself across launches.
+    // The bar, per path, as MEASURED once the comparison was honest (2026-11-22):
+    //   - a baked map: IDENTICAL;
+    //   - the plain warp (a still): within 1 on at most 0.01% — 11 pixels by 1 on this rig, all in the
+    //     bottom soft-edge band (the share is read off the mesh-interpolated coordinate, under 4x MSAA;
+    //     the map path reads raster space without MSAA and is identical). Not chased yet;
+    //   - an MP4: within 1 on at most 0.1% — the conversion is Chromium's within 1 (test:mp4-parity).
+    const bar = (d) => BAKED && !MP4 ? d.n === 0 : d.max <= 1 && d.n <= d.of * (MP4 ? 0.001 : 0.0001);
+    const dAB = diff(A, B);
+    ok(bar(dAB), `THE ENGINE'S WINDOW = THE APP'S: ${dAB.of - dAB.n} of ${dAB.of} pixels identical (max difference ${dAB.max})${BAKED && !MP4 ? '' : ' — within 1 allowed'}`);
 
     // ── C. the engine dies → the app's window, uncovered ──────────────────────────────────────────────
     const pidOut = await run('powershell', ['-NoProfile', '-Command', '(Get-Process artlux-engine | Select-Object -First 1).Id']);
@@ -157,24 +177,29 @@ async function stopAll() {
     await waitFor(() => app.lines.some((x) => x.at > killedAt && /the app keeps the projector outputs: the engine exited/.test(x.l)), 5000);
     const back = app.lines.find((x) => x.at > killedAt && /the app keeps the projector outputs/.test(x.l));
     ok(!!back, `C. engine killed: main uncovered the app's windows${back ? ` (${back.at - killedAt} ms after the kill)` : ''}`);
-    await sleep(400);
-    const C = await capture('C-app-again');
-    // THE IDENTITY IS JUDGED IN ONE SESSION: the engine's window (B) against the app's own window in the
-    // same run (C, uncovered). Two LAUNCHES of the app itself differ (A vs C below: measured 11 pixels by 1
-    // level, all inside the soft-edge band) — the app is not bit-stable across launches there, so a
-    // reference from another launch cannot hold the engine to "identical".
-    const dBC = diff(B, C);
-    ok(lit(C) > 0.3, `C. ~0.4 s after the kill the app's own window is on the screen again (${(100 * lit(C)).toFixed(0)}% lit)`);
-    ok(dBC.n === 0, `THE ENGINE'S WINDOW = THE APP'S, same session: ${dBC.of - dBC.n} of ${dBC.of} pixels identical (max difference ${dBC.max})`);
-    const dAC = diff(A, C);
-    console.log(`     (for the record: the app against ITSELF across two launches — ${dAC.n} pixels differ, max ${dAC.max})`);
+    // ⚠ NO CAPTURE OF "THE APP'S WINDOW AGAIN" HERE. One used to be taken ~0.4 s after the kill and held up as
+    // the app's uncovered window — and the engine was judged against it. A capture takes PowerShell about a
+    // second to start, and by then main has RESTARTED the engine, topmost again: that capture was the
+    // ENGINE'S window, so "the engine = the app" compared the engine with ITSELF (found 2026-11-22: a copy
+    // shifted by one pixel still passed, and the shot 3 s later was the same picture). What it can say is
+    // main's log, above. The app's window is judged where nothing else can be on the screen: run A, and A2.
     const retook = await waitFor(() => app.lines.some((x) => x.at > killedAt && /\[engine\] owns the projector outputs/.test(x.l)), 15000);
     ok(retook, 'C. the restarted engine takes the projector outputs back');
     await sleep(3000);
     const D = await capture('D-engine-again');
-    const dD = diff(C, D);
-    ok(dD.n === 0, `C. ...and the restarted engine's window = the app's again (${dD.of - dD.n} of ${dD.of}, max ${dD.max})`);
+    const dD = diff(A, D);
+    // MP4: within 1 (the conversion is Chromium's within 1 — test:mp4-parity).
+    ok(bar(dD), `C. ...and the restarted engine's window = the app's (A) again (${dD.of - dD.n} of ${dD.of}, max ${dD.max})`);
     fs.writeFileSync(path.join(WORK, 'last-run.log'), app.lines.map((x) => x.l).join('\n'));
+    await stopAll();
+
+    // ── A2. the app alone AGAIN — is run A a sound reference? ─────────────────────────────────────────
+    app = launch(false);
+    await waitFor(() => said(app, /\[open\]/), 120000);
+    await sleep(12000);
+    const A2 = await capture('A2-app');
+    const dAA = diff(A, A2);
+    ok(dAA.n === 0, `A2. the app's window equals itself across two launches (${dAA.n} pixels differ, max ${dAA.max}) — so A is the reference`);
     await stopAll();
   } catch (e) {
     fails++; console.log(`FAIL ${e.stack || e}`);

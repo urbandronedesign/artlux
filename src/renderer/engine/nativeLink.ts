@@ -88,9 +88,6 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
     : o.ndiSend ? 'an NDI send'
     : o.blend ? 'a blend map'
     : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
-    // Item 2c-4: an MP4 picture lives on the engine's GPU, and its projector windows run on ANOTHER device
-    // (outputs.rs) — not wired yet, so an output showing one stays the app's.
-    : src.kind === 'mp4' ? 'an MP4 on a projector (the engine draws MP4 for the LEDs only so far)'
     : undefined;
   return {
     id: o.surfaceId, surfaceId: o.surfaceId, name: o.name ?? s?.name ?? o.surfaceId, displayId: o.displayId,

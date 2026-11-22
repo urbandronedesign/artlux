@@ -234,7 +234,12 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                 match (&pic, booting) {
                     (Some((g, p)), false) => {
                         if content.as_ref().map(|c| c.0) != Some(*g) {
-                            content = Some((*g, projector::content_texture(&gpu, p.w, p.h, &p.rgba)));
+                            // Item 2c-4: a picture already on the GPU (an MP4 frame — the render thread and these
+                            // presenters share ONE device, serve.rs) is copied there, its visible rect only.
+                            content = Some((*g, match &p.tex {
+                                Some(t) => projector::content_texture_from(&gpu, t, p.crop.unwrap_or([0, 0, p.w, p.h])),
+                                None => projector::content_texture(&gpu, p.w, p.h, &p.rgba),
+                            }));
                         }
                         if let Some((_, ct)) = &content {
                             match &baked {

@@ -183,6 +183,34 @@ pub fn content_texture(gpu: &Gpu, w: u32, h: u32, rgba: &[u8]) -> wgpu::Texture 
     });
     gpu.queue.write_texture(tex.as_image_copy(), rgba, wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
         wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
+    mip_down(gpu, &tex, levels);
+    tex
+}
+
+/// Item 2c-4: the same content texture, level 0 COPIED ON THE GPU from a picture already there — an MP4
+/// frame's RGBA (yuv.rs GpuConvert, the coded size), its VISIBLE rect. That is exactly what the app's window
+/// gets: createImageBitmap(VideoFrame) is the visible picture, converted as drawImage converts it
+/// (test:mp4-parity gate 1b), uploaded and mipped by ProjectorGL. No frame crosses to the CPU.
+pub fn content_texture_from(gpu: &Gpu, src: &wgpu::Texture, crop: [u32; 4]) -> wgpu::Texture {
+    let [x, y, w, h] = crop;
+    let levels = (32 - w.max(h).leading_zeros()).min(5);
+    let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("projector content (gpu)"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        mip_level_count: levels, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::RENDER_ATTACHMENT, view_formats: &[],
+    });
+    let mut enc = gpu.device.create_command_encoder(&Default::default());
+    enc.copy_texture_to_texture(
+        wgpu::TexelCopyTextureInfo { texture: src, mip_level: 0, origin: wgpu::Origin3d { x, y, z: 0 }, aspect: wgpu::TextureAspect::All },
+        tex.as_image_copy(), wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
+    gpu.queue.submit([enc.finish()]);
+    mip_down(gpu, &tex, levels);
+    tex
+}
+
+/// Levels 1.. of a content texture, each from the one above — ProjectorGL's generateMipmap (box, linear).
+fn mip_down(gpu: &Gpu, tex: &wgpu::Texture, levels: u32) {
+    let d = &gpu.device;
     let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("mip"), source: wgpu::ShaderSource::Wgsl(MIP_WGSL.into()) });
     let pipe = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("mip"), layout: None,
@@ -204,7 +232,6 @@ pub fn content_texture(gpu: &Gpu, w: u32, h: u32, rgba: &[u8]) -> wgpu::Texture 
         pass.set_pipeline(&pipe); pass.set_bind_group(0, &bind, &[]); pass.draw(0..3, 0..1);
     }
     gpu.queue.submit([enc.finish()]);
-    tex
 }
 
 /// Draw `content` through `o` onto a `w`×`h` target in `format`. `target` must be RENDER_ATTACHMENT.
