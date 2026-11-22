@@ -193,6 +193,12 @@ export const ProjectorApp: React.FC = () => {
   // The main window's cold-start hold, mirrored here (see bridge.ts 'boot'). The REF is what the frame
   // loop reads — it must not wait for a React commit to stop drawing — and the state drives the sign.
   const bootingRef = useRef(false);
+  // E1f-3: COVERED by the native engine's own output window on this display (main/projector.ts). The window
+  // stays open and keeps its last frame but does not DRAW — the engine's window is on top, and two renderers
+  // for one projector would double the GPU work. Uncovered (the engine gave the output back, or died), the
+  // next frame draws as usual: the fallback is this window, already on the display.
+  const coveredRef = useRef(false);
+  useEffect(() => window.artlux?.onProjectorCovered?.((c) => { coveredRef.current = c; }), []);
   const [boot, setBoot] = useState<{ booting: boolean; ready: number; total: number; phase?: BootPhase }>({ booting: false, ready: 0, total: 0 });
 
   // Re-register this window's surfaces with surfaceMedia. Media is only ACQUIRED for content this
@@ -604,6 +610,7 @@ export const ProjectorApp: React.FC = () => {
     let raf = 0; let lastDraw = -1e9;
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
+      if (coveredRef.current) return;   // E1f-3: the native engine's window shows this output
       const cap = fpsCapRef.current;
       if (cap > 0 && now - lastDraw < 1000 / cap - 0.5) return;
       lastDraw = now;

@@ -6706,7 +6706,8 @@ check(
     if (!rec || !/this\.initMapper\(/.test(rec)) bad.push(E + ': recoverFromDeviceLoss no longer rebuilds through initMapper');
     if (!/app\.disableDomainBlockingFor3DAPIs\(\)/.test(stripComments(read('src/main/index.ts')))) bad.push('src/main/index.ts: app.disableDomainBlockingFor3DAPIs() is gone — the second GPU crash blocks WebGPU/WebGL for the page');
     const pj = stripComments(read('src/main/projector.ts'));
-    if (/webContents\.once\(\s*'did-finish-load',\s*\(\)\s*=>\s*bridge\(/.test(pj) || !/webContents\.on\(\s*'did-finish-load',\s*\(\)\s*=>\s*bridge\(/.test(pj)) bad.push('src/main/projector.ts: a projector must be bridged on EVERY load (.on), or a reloaded output stays dark');
+    // (`=> {` too: since E1f-3 the handler also re-sends the native engine's "covered" state.)
+    if (/webContents\.once\(\s*'did-finish-load',\s*\(\)\s*=>\s*(?:\{\s*)?bridge\(/.test(pj) || !/webContents\.on\(\s*'did-finish-load',\s*\(\)\s*=>\s*(?:\{\s*)?bridge\(/.test(pj)) bad.push('src/main/projector.ts: a projector must be bridged on EVERY load (.on), or a reloaded output stays dark');
     const pa = stripComments(read('src/renderer/projector/ProjectorApp.tsx'));
     if (!/addEventListener\(\s*'webglcontextlost'/.test(pa) || !/location\.reload\(\)/.test(pa)) bad.push('src/renderer/projector/ProjectorApp.tsx: a lost WebGL context no longer reloads the output');
     const rp = braceBody(read('src/main/runProfile.ts'), 'export function relaunchArgs(');
@@ -8540,6 +8541,33 @@ check(
     const rt = raw('engine/artlux-engine/src/runtime.rs');
     if (!/doc\.pfix\[i\]\.light_channels = v\["lights"\]/.test(rt)) problems.push('the engine no longer takes each light\'s bytes from the tick');
     if (/is a light — the engine does not drive lights/.test(rt)) problems.push('the engine refuses lights again');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine takes the projector outputs on top of the app\'s, and gives them back at once (E1f-3)',
+  'plans/native-engine.md E1f-3, proven from the SCREEN by scripts/test-native-projectors.cjs (the engine\'s ' +
+  'window = the app\'s, pixel for pixel, in one session; a kill uncovers the app\'s window in ~55 ms). Rules ' +
+  'learned the hard way: a window created ALWAYS-ON-TOP and borderless-fullscreen could not configure its ' +
+  'swapchain ("Invalid surface") and the presenter panicked — so the level is raised AFTER the first configure; ' +
+  'the app\'s windows stay open underneath and are only COVERED (they stop drawing), which is what makes the ' +
+  'fallback instant; and an output the engine cannot draw exactly must be listed with its reason, never ' +
+  'silently drawn the engine\'s way.',
+  () => {
+    const problems = [];
+    const o = raw('engine/artlux-engine/src/outputs.rs');
+    if (/\.with_window_level\(WindowLevel::AlwaysOnTop\)/.test(o)) problems.push('outputs.rs creates the window always-on-top again (its surface then cannot be configured)');
+    if (!/configured = Some\(size\);[\s\S]{0,600}window\.set_window_level\(WindowLevel::AlwaysOnTop\)/.test(o)) problems.push('outputs.rs no longer raises the window to topmost after configuring it');
+    const pa = read('src/renderer/projector/ProjectorApp.tsx');
+    if (!/raf = requestAnimationFrame\(frame\);\s*\n\s*if \(coveredRef\.current\) return;/.test(pa)) problems.push('a covered projector window draws again (twice the GPU work for a hidden picture)');
+    const eh = read('src/main/engineHost.ts');
+    if (!/proc\.on\('exit'[\s\S]{0,500}setProjOwns\(null, 'the engine exited'\)/.test(eh)) problems.push('an engine exit no longer uncovers the app\'s projector windows');
+    if (!/p\.bounds = process\.platform === 'win32' \? screen\.dipToScreenRect\(null, d\.bounds\)/.test(eh)) problems.push('main no longer gives the engine PHYSICAL display bounds');
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    for (const w of ['calibrated', 'NVIDIA hardware warp', 'a projection mask', 'an NDI send', 'a blend map', 'a windowed output']) {
+      if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

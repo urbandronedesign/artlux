@@ -61,12 +61,77 @@ pub struct Runtime {
     gen: u64,
     path_gens: HashMap<String, u64>,
     pub frames: u64,
+    // ── E1f-3: projector outputs (outputs.rs) ──
+    outputs: Option<(winit::event_loop::EventLoopProxy<crate::outputs::Cmd>, Arc<std::sync::Mutex<crate::outputs::Shared>>)>,
+    /// The outputs of the current document the engine is to drive: (output id, surface id, the output's JSON).
+    projectors: Vec<(String, String, Value)>,
+    proj_published: HashMap<String, u64>,
+    proj_opts: HashMap<String, f64>,
+    opts_ver: u64,
 }
 
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
-            images: HashMap::new(), effects: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0 }
+            images: HashMap::new(), effects: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
+            outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0 }
+    }
+
+    /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
+    pub fn set_outputs(&mut self, proxy: winit::event_loop::EventLoopProxy<crate::outputs::Cmd>, shared: Arc<std::sync::Mutex<crate::outputs::Shared>>) {
+        self.outputs = Some((proxy, shared));
+    }
+
+    /// E1f-3: the document's projector outputs. ALL OR NOTHING, like the wire: when any enabled output is
+    /// one the engine cannot draw (the host says why: calibrated, masked, hardware-warped, NDI-sent, a source
+    /// the engine lacks...) it opens NONE and the app keeps every output. Err(why) when it will not drive
+    /// them; Ok(n) when it asked the windows thread for n outputs (whose report answers main).
+    pub fn projectors(&mut self, d: &Value) -> Result<usize, String> {
+        let list = d["projectors"].as_array().cloned().unwrap_or_default();
+        let why = if self.outputs.is_none() { Some("the engine has no window system here".to_string()) }
+            else if list.is_empty() { Some("no projector output is enabled".to_string()) }
+            else { list.iter().find_map(|p| p["why"].as_str().map(|w| format!("output '{}': {w}", p["name"].as_str().unwrap_or(p["id"].as_str().unwrap_or("?"))))) };
+        let specs: Vec<crate::outputs::Spec> = if why.is_some() { Vec::new() } else { list.iter().map(|p| crate::outputs::Spec {
+            id: p["id"].as_str().unwrap_or_default().to_string(),
+            surface_id: p["surfaceId"].as_str().unwrap_or_default().to_string(),
+            display: crate::windows::DisplayMatch {
+                bounds: (|| Some((p["bounds"]["x"].as_i64()? as i32, p["bounds"]["y"].as_i64()? as i32, p["bounds"]["width"].as_u64()? as u32, p["bounds"]["height"].as_u64()? as u32)))(),
+                index: None,
+            },
+            opts: crate::projector::Opts::from_json(&p["output"], 1.0, 4),
+        }).collect() };
+        self.projectors = if why.is_some() { Vec::new() } else {
+            list.iter().map(|p| (p["id"].as_str().unwrap_or_default().to_string(), p["surfaceId"].as_str().unwrap_or_default().to_string(), p["output"].clone())).collect()
+        };
+        self.proj_opts.clear();
+        if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Set(specs.clone())); }
+        match why { Some(w) => Err(w), None => Ok(specs.len()) }
+    }
+
+    /// E1f-3: publish the projected surfaces' pictures and each output's settings for this tick.
+    fn publish_projectors(&mut self, doc: &Doc, v: &Value) {
+        let Some((_, shared)) = &self.outputs else { return };
+        if self.projectors.is_empty() { return; }
+        let pb = v["proj"]["brightness"].as_f64().unwrap_or(1.0);
+        let mut sh = shared.lock().unwrap();
+        sh.booting = v["proj"]["booting"].as_bool().unwrap_or(false);
+        for (id, sid, out) in &self.projectors {
+            if let (Some(&g), Some(p)) = (self.gens.get(sid), self.pictures.get(sid)) {
+                if self.proj_published.get(sid) != Some(&g) {
+                    sh.pictures.insert(sid.clone(), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips })));
+                    self.proj_published.insert(sid.clone(), g);
+                }
+            } else if !self.pictures.contains_key(sid) {
+                sh.pictures.remove(sid); self.proj_published.remove(sid);
+            }
+            // The app draws a projector at projectorBrightness x the surface's own opacity (ProjectorApp).
+            let b = pb * doc.opacity.get(sid).copied().unwrap_or(1.0) as f64;
+            if self.proj_opts.get(id) != Some(&b) {
+                self.proj_opts.insert(id.clone(), b);
+                self.opts_ver += 1;
+                sh.opts.insert(id.clone(), (self.opts_ver, crate::projector::Opts::from_json(out, b, 4)));
+            }
+        }
     }
 
     pub fn output(&mut self, v: &Value) {
@@ -184,7 +249,8 @@ impl Runtime {
     }
 
     fn tick_with(&mut self, doc: &mut Doc, v: &Value) -> Result<(), String> {
-        if !doc.owns || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
+        // The pictures are needed by the wire AND by the projectors, each owned on its own (E1f-3).
+        if (!doc.owns && self.projectors.is_empty()) || v["rev"].as_u64() != Some(doc.rev) { return Ok(()); }
         let t = v["t"].as_f64().unwrap_or(0.0);
         let brightness = v["brightness"].as_f64().unwrap_or(1.0) as f32;
         for (sid, src) in &doc.sources {
@@ -195,6 +261,12 @@ impl Runtime {
                     let next = self.path_gens.len() as u64;
                     let g = *self.path_gens.entry(p.clone()).or_insert(next) << 2;
                     if self.gens.get(sid) != Some(&g) || !self.pictures.contains_key(sid) {
+                        // Loaded on first use: the LED verdict loads only the stills fixtures SAMPLE, and a
+                        // surface shown only by a projector (E1f-3) is drawn too.
+                        if !self.images.contains_key(p) {
+                            let pic = compose::load_image(std::path::Path::new(p)).map_err(|e| format!("surface {sid}: {e}"))?;
+                            self.images.insert(p.clone(), Arc::new(pic));
+                        }
                         let pic = self.images[p].clone();
                         self.pictures.insert(sid.clone(), Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips });
                         self.gens.insert(sid.clone(), g);
@@ -219,6 +291,8 @@ impl Runtime {
                 Source::None => { self.pictures.remove(sid); }
             }
         }
+        self.publish_projectors(doc, v);
+        if !doc.owns { return Ok(()); }
         // E1f-2: each light's channels as THIS frame's precedence stack wrote them on the host (none sent = a
         // light the host could not describe, which writes nothing — exactly as packUniverses does).
         for &i in &doc.lights {
@@ -235,7 +309,10 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn close(&mut self) { if let Some(o) = self.out.take() { o.close(); } }
+    pub fn close(&mut self) {
+        if let Some(o) = self.out.take() { o.close(); }
+        if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Quit); }
+    }
 }
 
 fn name_of(d: &Value, sid: &str) -> String {

@@ -221,7 +221,11 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
   // a GPU crash (ProjectorApp: webglcontextlost → location.reload — measured 2026-10-24: without it
   // every output went black for the rest of the show), and the renderer-fault ladder reloads them too.
   // The editor accepts a replacement port for an output it already knows (see rebridgeAllProjectors).
-  win.webContents.on('did-finish-load', () => bridge(getMain, win, surfaceId));
+  win.webContents.on('did-finish-load', () => {
+    bridge(getMain, win, surfaceId);
+    // A window that (re)loads while the native engine shows the outputs starts COVERED (E1f-3).
+    if (covered) win.webContents.send(IPC.PROJECTOR_COVERED, true);
+  });
 
   const devUrl = rendererDevUrl();
   // THE PROFILE MUST MATCH THE WINDOW THAT SPAWNED THIS ONE. A projector activates the same renderer
@@ -274,6 +278,16 @@ function closeProjector(surfaceId: string): void {
     entry.win.close();
   }
   windows.delete(surfaceId);
+}
+
+// E1f-3: COVERED by the native engine's own output windows (topmost, on the same displays). A covered
+// window stays open and keeps its last frame but stops DRAWING — two windows rendering one projector would
+// double the GPU work for a picture nobody sees. Uncovered (the engine gave the outputs back, or died) it
+// draws on its next frame: the fallback is a window that is already on the display.
+let covered = false;
+export function setProjectorsCovered(c: boolean): void {
+  covered = c;
+  for (const { win } of windows.values()) if (!win.isDestroyed()) win.webContents.send(IPC.PROJECTOR_COVERED, c);
 }
 
 export function closeAllProjectors(): void {

@@ -305,6 +305,9 @@ export const IPC = {
    * someone toggled it off and on again, while the frame pump kept posting to the dead port.
    */
   PROJECTOR_CLOSED: 'projector:closed',
+  /** Main → a projector window: covered (true) by the native engine's own output window — stop drawing — or
+   *  uncovered (false) — draw again. E1f-3, src/main/projector.ts setProjectorsCovered. */
+  PROJECTOR_COVERED: 'projector:covered',
   /** Main → splash window: the whole boot report, re-sent on every change (see BootReport). */
   SPLASH_REPORT: 'splash:report',
   /** Splash window → main: mounted and listening — send the report now (it may already be complete). */
@@ -1911,6 +1914,8 @@ export interface ArtluxApi {
   onDmxStats(cb: (stats: OutputStats) => void): () => void;
   /** Renderer → main: push ~1 Hz renderer frame-time stats for the Prometheus endpoint. */
   reportRenderStats(stats: RenderStats): void;
+  /** E1f-3 (projector windows): covered by the native engine's own output window (stop drawing), or not. */
+  onProjectorCovered?(cb: (covered: boolean) => void): () => void;
   /** E1f: is the native engine running behind `--native-engine`? (Resolves false when it is off.) */
   nativeEngineEnabled?(): Promise<boolean>;
   /** E1f: the effective document for the native engine — its JSON (which carries `rev`) and that rev. */

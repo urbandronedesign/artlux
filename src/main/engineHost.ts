@@ -4,6 +4,8 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as logger from './logger';
 import * as output from './transport/outputManager';
+import { screen } from 'electron';
+import { setProjectorsCovered } from './projector';
 import type { OutputConfig } from '../../shared/protocol';
 
 // THE NATIVE ENGINE AS ARTLUX'S CHILD (plans/native-engine.md §9c, E1a). Behind a flag until it carries
@@ -84,6 +86,39 @@ export function engineOwnsWire(): boolean {
     && Date.now() - lastSentAt < SENT_FRESH_MS;
 }
 
+// E1f-3: THE DISPLAYS ARE MAIN'S. The renderer names an output's display by Electron id; the engine places
+// windows by PHYSICAL bounds (winit monitors), so each projector entry gets its display's bounds in screen
+// pixels here — or a reason when that display is not connected (the engine then opens nothing anywhere).
+function withDisplayBounds(json: string): string {
+  let doc: { projectors?: { displayId?: number | null; bounds?: unknown; why?: string }[] };
+  try { doc = JSON.parse(json); } catch { return json; }
+  if (!doc.projectors?.length) return json;
+  const displays = screen.getAllDisplays();
+  for (const p of doc.projectors) {
+    const d = displays.find((x) => x.id === p.displayId);
+    if (!d) { if (!p.why) p.why = 'its display is not connected'; continue; }
+    p.bounds = process.platform === 'win32' ? screen.dipToScreenRect(null, d.bounds) : { x: Math.round(d.bounds.x * d.scaleFactor), y: Math.round(d.bounds.y * d.scaleFactor), width: Math.round(d.bounds.width * d.scaleFactor), height: Math.round(d.bounds.height * d.scaleFactor) };
+  }
+  return JSON.stringify(doc);
+}
+
+// E1f-3: whether the engine's windows show the projector outputs (the app's are then COVERED: told to stop
+// drawing, kept open underneath — the engine's are topmost — so an engine that dies uncovers them at once).
+let projOwns: { rev: number; pid: number | null } | null = null;
+let lastProjWhy = '';
+function setProjOwns(next: { rev: number; pid: number | null } | null, why: string): void {
+  const was = !!projOwns;
+  projOwns = next;
+  // Logged on a change of owner OR of reason, like the wire: "the app keeps the outputs: output 'Wall':
+  // calibrated" is the line a venue tech needs, and it is not a transition.
+  if (was !== !!next || (!next && why !== lastProjWhy)) {
+    logger.log('info', 'engine', next ? 'owns-projectors' : 'app-has-projectors', next ? { rev: next.rev } : { why });
+    console.log(next ? `[engine] owns the projector outputs (document ${next.rev})` : `[engine] the app keeps the projector outputs: ${why}`);
+  }
+  lastProjWhy = next ? '' : why;
+  if (was !== !!next) setProjectorsCovered(!!next);
+}
+
 function write(line: string): void { try { child?.stdin?.write(line + '\n'); } catch { /* the exit handler takes it */ } }
 
 /** The output engine's settings (IPC.CONFIGURE) — the engine sends with the same ones. */
@@ -95,7 +130,8 @@ export function noteOutputConfig(cfg: OutputConfig): void {
 /** The effective document, as the renderer serialised it (it carries its own `rev`). */
 export function noteDoc(json: string, rev: number): void {
   if (!FLAG) return;
-  lastDoc = json; lastDocRev = rev;
+  lastDoc = withDisplayBounds(json); lastDocRev = rev;
+  json = lastDoc;
   // TEST HOOK (scripts/test-native-takeover.cjs): the document as relayed, so a failure can be replayed
   // through the proven offscreen path. Off unless the variable names a file.
   if (process.env.ARTLUX_ENGINE_DOC_DUMP) { try { writeFileSync(process.env.ARTLUX_ENGINE_DOC_DUMP, json); } catch { /* a test aid */ } }
@@ -181,6 +217,7 @@ function spawnEngine(): void {
             console.warn(`[engine] hung (no answer for ${Date.now() - lastPong} ms) — killing pid ${proc.pid}`);
             clearTimers();
             if (owns) setOwns(null, 'the engine hung');
+            if (projOwns) setProjOwns(null, 'the engine hung');
             proc.kill();
             return;
           }
@@ -190,6 +227,9 @@ function spawnEngine(): void {
         lastPong = Date.now();
       } else if (m.type === 'sent') {
         lastSentAt = Date.now();
+      } else if (m.type === 'projOwns') {
+        if (m.rev !== lastDocRev) continue;
+        setProjOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
       } else if (m.type === 'owns') {
         if (m.rev !== lastDocRev) continue;   // an answer about a document already replaced
         setOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
@@ -215,6 +255,7 @@ function spawnEngine(): void {
     clearTimers();
     // THE WIRE GOES BACK TO THE APP FIRST — before anything else is decided about this death.
     if (owns && owns.pid === (proc.pid ?? null)) setOwns(null, 'the engine exited');
+    if (projOwns && projOwns.pid === (proc.pid ?? null)) setProjOwns(null, 'the engine exited');
     const what = signal ? `signal ${signal}` : `code ${code}`;
     if (stopping) { status.state = 'off'; status.pid = null; return; }
     if (code === EXIT_REFUSED) {

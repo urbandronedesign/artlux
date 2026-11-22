@@ -324,7 +324,7 @@ fn present_loop(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stat
     }
 }
 
-const FLIP_WGSL: &str = r#"
+pub(crate) const FLIP_WGSL: &str = r#"
 @group(0) @binding(0) var raster: texture_2d<f32>;
 @vertex
 fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {

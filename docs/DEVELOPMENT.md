@@ -71,10 +71,16 @@ stack and sent each frame; the engine only places them). The renderer sends it t
 (`renderer/engine/nativeLink.ts`); main mutes the app's own frames only while the engine reports frames
 sent; anything it cannot draw yet (MP4, camera, NDI, Spout, slices, layers, bakes) keeps the
 wire with the app, and the log says why (`[engine] the app keeps the wire: …`, machine log `app-has-wire`).
-A dead or stalled engine hands the wire back within a frame or two. Projectors stay the app's for now.
+A dead or stalled engine hands the wire back within a frame or two.
+**It also takes the PROJECTOR OUTPUTS** (E1f-3) when every enabled one is a plain warp (corner pin or
+Bézier, soft edge, gamma, gain, lift) on a source it draws: its own topmost windows on the same displays,
+while the app's projector windows stay open underneath, *covered* (not drawing). Anything else —
+calibration, a mask, NVIDIA hardware warp, an NDI send, a blend map, a windowed output — keeps every output
+with the app, and the log says which and why (`[engine] the app keeps the projector outputs: …`).
 Proof: `node scripts/test-engine-runtime.cjs` (the engine alone, over stdio) and
 `node scripts/test-native-takeover.cjs [--packaged <ArtLux.exe>]` (the real app: who sends each packet, and
-the bytes).
+the bytes) and `node scripts/test-native-projectors.cjs` (the real app in broadcast mode, read from the SCREEN
+— ⚠ it covers display 0 for ~15 s at a time).
 
 Each piece the engine will take over is held to today's app by a comparison test that runs the app's REAL
 code beside it — `npm run test:pack-parity`, `test:sampling-parity -- --gpu`, `test:wire-parity`,

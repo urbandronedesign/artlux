@@ -9,6 +9,8 @@
 //!   main → engine   {"type":"output"|"doc"|"tick", …}   E1f: the live document and its frames (runtime.rs)
 //!   engine → main   {"type":"owns","rev":r,"owns":b,"why":"…"}   whether the engine drives the wire
 //!   engine → main   {"type":"sent","n":N}  a frame went to the wire (the liveness main mutes the app on)
+//!   engine → main   {"type":"projOwns","rev":r,"owns":b,"why":"...","open":n}   E1f-3: whether the engine's
+//!                                          own windows now show the projector outputs (main covers the app's)
 //! stdin closing (main gone, crashed or quit) also ends it: the engine never outlives the app.
 //!
 //! Exit codes main acts on: 0 clean, 2 REFUSED (no usable hardware adapter — restarting would refuse
@@ -34,12 +36,15 @@ fn json_str(s: &str) -> String {
 }
 
 pub fn run(policy: AdapterPolicy) -> ExitCode {
-    let gpu = match Gpu::open(policy) {
-        Ok(g) => g,
-        Err(e) => {
-            eprintln!("artlux-engine: {e}");
-            return ExitCode::from(2);
-        }
+    // E1f-3: the GPU is opened ON THE WINDOWS THREAD (outputs.rs prepare — a device from another thread made
+    // surfaces the presenter could not configure). No window system: opened here, without outputs.
+    let (gpu, windows) = match crate::outputs::prepare(policy) {
+        Ok(w) => (w.gpu.clone(), Some(w)),
+        Err(Some(e)) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); }
+        Err(None) => match Gpu::open(policy) {
+            Ok(g) => (std::sync::Arc::new(g), None),
+            Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); }
+        },
     };
     let hang = std::env::var_os("ARTLUX_ENGINE_TEST_HANG_FILE")
         .map(std::path::PathBuf::from)
@@ -60,12 +65,27 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
     // hang to main's watchdog. The render thread does the frames; ticks are COALESCED there (only the
     // newest is drawn), so a frame that takes longer than the host's interval drops ticks instead of
     // queueing them.
-    let gpu = std::sync::Arc::new(gpu);
+    // (already an Arc: the windows thread opened it — see above)
     let (tx, rx) = std::sync::mpsc::channel::<serde_json::Value>();
     let render = {
         let gpu = gpu.clone();
         std::thread::Builder::new().name("render".into()).spawn(move || {
-            let mut rt = crate::runtime::Runtime::new(gpu);
+            let mut rt = crate::runtime::Runtime::new(gpu.clone());
+            // E1f-3: the projector outputs' windows thread. Its report (which outputs actually opened) is
+            // the answer main waits for: {"type":"projOwns",...} for the document that asked.
+            let proj_rev = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let shared = std::sync::Arc::new(std::sync::Mutex::new(crate::outputs::Shared::default()));
+            {
+                let pr = proj_rev.clone();
+                let report = Box::new(move |open: Vec<String>, refused: Vec<(String, String)>| {
+                    let rev = pr.load(std::sync::atomic::Ordering::SeqCst);
+                    let owns = refused.is_empty() && !open.is_empty();
+                    let why = refused.iter().map(|(id, w)| format!("output '{id}': {w}")).collect::<Vec<_>>().join("; ");
+                    let mut o = std::io::stdout().lock();
+                    let _ = writeln!(o, r#"{{"type":"projOwns","rev":{rev},"owns":{owns},"why":{},"open":{}}}"#, json_str(&why), open.len()).and_then(|_| o.flush());
+                });
+                if let Some(proxy) = windows.and_then(|w| w.attach(shared.clone(), report)) { rt.set_outputs(proxy, shared); }
+            }
             let mut warned = false;
             while let Ok(first) = rx.recv() {
                 let mut tick: Option<serde_json::Value> = None;
@@ -76,6 +96,12 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                         let line = format!(r#"{{"type":"owns","rev":{rev},"owns":{owns},"why":{}}}"#, json_str(&why));
                         let mut o = std::io::stdout().lock();
                         let _ = writeln!(o, "{line}").and_then(|_| o.flush());
+                        drop(o);
+                        proj_rev.store(rev, std::sync::atomic::Ordering::SeqCst);
+                        if let Err(w) = rt.projectors(&m["doc"]) {
+                            let mut o = std::io::stdout().lock();
+                            let _ = writeln!(o, r#"{{"type":"projOwns","rev":{rev},"owns":false,"why":{},"open":0}}"#, json_str(&w)).and_then(|_| o.flush());
+                        }
                         *tick = None;   // a tick for the old document is not this document's frame
                     }
                     Some("output") => rt.output(&m),

@@ -1,4 +1,5 @@
 import type { Fixture, Surface, Controller, OutputProtocol } from '../types';
+import { WINDOWED_DISPLAY, type ProjectorOutput } from '../../../shared/protocol';
 import * as surfaceMedia from '../services/surfaceMedia';
 import { isLight } from '../services/fixtureKind';
 import * as contentSource from '../services/contentSource';
@@ -42,13 +43,47 @@ let rev = 0;
 let lastRefs: unknown[] = [];
 let lastSources = '';
 
+// ── E1f-3: PROJECTOR OUTPUTS ────────────────────────────────────────────────────────────────────────
+// App hands these in (they are not frame-engine inputs): the outputs, the projector master brightness
+// (committed and live drags) and the cold-start hold. The engine draws an output only when it can draw
+// it EXACTLY as ProjectorApp's plain warp path does (projector.rs, identical to ProjectorGL — E1e-1), so an
+// output with anything else on it — calibration (render-from-projector or a baked map), a mask, NVIDIA
+// hardware warp, an NDI send, a blend map, a windowed display — is listed WITH THE REASON and the app keeps
+// every output (all or nothing, runtime.rs).
+let projOutputs: ProjectorOutput[] = [];
+let projBrightness = 1;
+let projBooting = false;
+export function setProjectors(outputs: ProjectorOutput[], brightness: number): void { projOutputs = outputs; projBrightness = brightness; }
+export function setProjectorBrightness(brightness: number): void { projBrightness = brightness; }
+export function setBooting(booting: boolean): void { projBooting = booting; }
+
+function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record<string, contentSource.NativeSource>) {
+  const s = surfaces.find((x) => x.id === o.surfaceId);
+  const src = sources[o.surfaceId];
+  const why =
+    !s ? 'its surface is gone'
+    : o.displayId === null || o.displayId === WINDOWED_DISPLAY ? 'a windowed output'
+    : o.calibration || o.useCalibration ? 'calibrated'
+    : o.hwWarp ? 'NVIDIA hardware warp'
+    : o.projMask?.polys?.length ? 'a projection mask'
+    : o.ndiSend ? 'an NDI send'
+    : o.blend ? 'a blend map'
+    : !src || src.kind === 'unsupported' ? (src && 'why' in src ? src.why : 'a source the engine does not draw')
+    : undefined;
+  return {
+    id: o.surfaceId, surfaceId: o.surfaceId, name: o.name ?? s?.name ?? o.surfaceId, displayId: o.displayId,
+    output: { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
+    ...(why ? { why } : {}),
+  };
+}
+
 /** One frame. Cheap when nothing changed: a reference compare, one small string, one IPC send. */
 export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture[], brightness: number, lightBytes: Record<string, number[]> = {}): void {
   if (!enabled) return;
   const sources: Record<string, contentSource.NativeSource> = {};
   for (const s of surfaces) sources[s.id] = surfaceMedia.nativeSource(s);
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled];
+  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs];
   if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; rev++;
     const doc = {
@@ -56,6 +91,8 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
       defaults: { protocol: inputs.protocol, ip: inputs.targetIp, broadcast: inputs.broadcast },
       gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources,
       lights: fixtures.filter((f) => isLight(f)).map((f) => f.id),
+      // E1f-3: main adds each output's display as PHYSICAL bounds (engineHost.ts) — it owns the screen.
+      projectors: projOutputs.filter((o) => o.enabled).map((o) => projectorEntry(o, surfaces, sources)),
     };
     window.artlux?.nativeEngineDoc?.(JSON.stringify(doc), rev);
   }
@@ -69,5 +106,5 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, lights }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

@@ -73,6 +73,7 @@ import { usageForPath, normPath, libraryItems, type ProjectRefs } from './servic
 import * as orphanTakes from './services/orphanTakes';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
+import * as nativeLink from './engine/nativeLink';
 import * as timelinePreloader from './services/timelinePreloader';
 import { reachableNext } from './services/smLookahead';
 import * as bootGate from './services/bootGate';
@@ -4980,7 +4981,12 @@ const App: React.FC = () => {
   const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
   pushProjectorBrightnessRef.current = (v: number) => {
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'brightness', value: v });
+      nativeLink.setProjectorBrightness(v);   // E1f-3: the native engine's outputs follow the same drag
   };
+  // E1f-3: the native engine's projector outputs read the same outputs, brightness and cold-start hold as
+  // the app's own windows (engine/nativeLink.ts; a no-op unless --native-engine).
+  useEffect(() => { nativeLink.setProjectors(projectorOutputs, projectorBrightness ?? 1); }, [projectorOutputs, projectorBrightness]);
+  useEffect(() => bootGate.subscribe((p) => nativeLink.setBooting(p.booting)), []);
   // The same push, driven by a slider in ANOTHER window (E5/W4, live/broker.ts). A client that vanishes
   // mid-drag leaves the projectors at the committed value, not at wherever its hand was.
   useEffect(() => registerLiveDragTarget('projectorBrightness', {

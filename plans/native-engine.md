@@ -1261,6 +1261,42 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - Not covered: a lighting CLIP, pose cue or live fader moving a light while the engine owns the wire (the
 >   same recorded path, but no test drives one yet), USB-DMX (enttec) targets on hardware, the RTX PC.
 >   Next: **E1f-3 projectors** over the link.
+>
+> ✅ **E1f-3 done 2026-11-22 (the PROJECTOR OUTPUTS from the engine's own windows — identical on screen).**
+> - **Engine.** `--serve` runs a winit event loop on a WINDOWS THREAD (`outputs.rs`) which also opens the GPU.
+>   It keeps one borderless fullscreen window per output on the display the document names, each with its
+>   own FIFO presenter. The presenter redraws through `projector.rs` when the surface's picture (published
+>   by the render thread with a generation) or the settings (`projectorBrightness` × the surface's opacity,
+>   per tick) move, then flips. The cold-start hold shows black, as the app's does.
+> - **All or nothing, like the wire.** The renderer lists every enabled output with a reason when it is not
+>   the plain warp path the engine draws: calibrated, mask, NVIDIA hardware warp, NDI send, blend map,
+>   windowed, or a source the engine lacks. Main adds each display's PHYSICAL bounds (or "not
+>   connected"). The engine answers `projOwns`.
+> - **The fallback is a window already there.** While the engine owns the outputs, its windows are
+>   TOPMOST and the app's stay open underneath, COVERED: they stop drawing, so the GPU does not render a
+>   hidden picture. When the engine exits or hangs, main uncovers them first, and they draw on their next
+>   frame.
+> - **Proof, from the SCREEN, in the real app** (`npm run test:native-projectors`, broadcast mode: a still on
+>   a keystone with a soft edge, gamma, gain and lift at projector brightness 0.9 on display 0):
+>   - **the engine's window = the app's window in the same session: 2,073,600 of 2,073,600 pixels identical**,
+>     and again after an engine restart;
+>   - a kill uncovers the app's window in **~55 ms**, and it is drawing 0.4 s later (it had been covered since
+>     it opened);
+>   - the restarted engine takes the outputs back.
+>   - Regressions re-run green: `test:engine-runtime`, `test:native-takeover` (53 ms handback), and E1a's
+>     refusal (exit 2).
+> - **Found on the way:**
+>   1. **A window created ALWAYS-ON-TOP and borderless-fullscreen cannot configure its swapchain** ("Invalid
+>      surface"; the presenter panicked and took the engine — LEDs included — down). Ruled out first: the
+>      display handle and the thread that opened the device. The level is now raised after the first
+>      configure (guarded).
+>   2. **The app is not bit-stable across LAUNCHES**: two runs of its own projector window differed on 11
+>      pixels by 1 level, all inside the soft-edge band. So identity is judged within one session.
+> - Not covered: a covered window not drawing is enforced by code, not measured; more than one display; a
+>   calibrated / masked / hw-warped / NDI-sent output (refused by design); video sources on a projector
+>   (HAP works through the same path, untested on a projector); a presenter that stalls while the engine
+>   lives (an exit is caught, a stall is not yet); a presenter panic still ends the whole engine; the RTX
+>   PC.
 
 ## 10. Open questions
 
