@@ -66,6 +66,8 @@ pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool }
 impl Picture {
     pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true } }
     pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false } }
+    /// A VideoFrame (Spout's shared texture, imported by Electron). MEASURED like the others — see E1d-3.
+    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false } }
 }
 
 /// `round(c × a / 255)` in integers — Skia's SkMulDiv255Round.
@@ -285,15 +287,21 @@ pub fn hap_picture(gpu: &Gpu, format: crate::hapimport::hap::HapFormat, w: u32, 
         HapFormat::ScaledYCoCg => 1,
         f => return Err(format!("{f:?} is not drawn by the engine (the app shows it wrongly too — docs/CODECS.md)")),
     };
-    let d = &gpu.device;
     let tex = if hapimport::has_bc(gpu) {
         hapimport::upload_bc(gpu, format, w, h, blocks).map_err(|e| e.to_string())?
     } else {
         let rgba = hapimport::cpu_rgba(format, w, h, blocks)?;
         hapimport::upload_rgba(gpu, w.div_ceil(4) * 4, h.div_ceil(4) * 4, &rgba)
     };
+    Ok(Picture::canvas(w, h, texels(gpu, &tex, w, h, mode)?))
+}
+
+/// The top-left `w`×`h` texels of `tex` (any colour format, BC included) as RGBA8, through the per-texel
+/// pass above (`mode` as there: 0 as stored, 1 HapQ, 2 opaque). BGRA storage reads back as RGBA.
+pub fn texels(gpu: &Gpu, tex: &wgpu::Texture, w: u32, h: u32, mode: u32) -> Result<Vec<u8>, String> {
+    let d = &gpu.device;
     let target = d.create_texture(&wgpu::TextureDescriptor {
-        label: Some("hap picture"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        label: Some("texels"), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC, view_formats: &[],
     });
@@ -338,5 +346,5 @@ pub fn hap_picture(gpu: &Gpu, format: crate::hapimport::hap::HapFormat, w: u32, 
     let raw = gpu.read_buffer(&readback, (row * h) as usize).map_err(|e| e.to_string())?;
     let mut rgba = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h as usize { rgba.extend_from_slice(&raw[y * row as usize..y * row as usize + w as usize * 4]); }
-    Ok(Picture::canvas(w, h, rgba))
+    Ok(rgba)
 }

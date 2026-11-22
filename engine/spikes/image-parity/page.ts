@@ -1,7 +1,7 @@
 // E1d image parity, browser side: the app's REAL WebGPUMapper with surfaces whose drawables are
 // ImageBitmaps decoded exactly as services/contentSource does it (createImageBitmap of the file's blob),
 // opacity as frameEngine passes it (content.opacity ?? 1); HAP video frames through the HAP plugin's own GL
-// path (E1d-2). Writes the canonical RGBW buffer per job.
+// path (E1d-2); Spout VideoFrames from the shared-texture relay (E1d-3, engine/spikes/spout-parity). Writes the canonical RGBW buffer per job.
 // Run by scripts/test-image-parity.cjs through engine/spikes/sampling-parity/main.js.
 import { WebGPUMapper } from '../../../src/renderer/gpu/WebGPUMapper';
 import { uploadFrame } from '../../../plugins/hap/src/hapGL';
@@ -27,6 +27,20 @@ const b64 = (u8: Uint8Array): string => { let s = ''; for (let i = 0; i < u8.len
     const m = mapper as any;
     const device: GPUDevice = m.getDevice();
     const bitmaps = new Map<string, ImageBitmap>();
+    // SPOUT (E1d-3): the newest VideoFrame from the shared-texture relay, kept and closed as the plugin's
+    // spoutReceiver.ts does. Wait for a few before drawing, so the drawn one is a settled frame.
+    let spoutFrame: VideoFrame | null = null;
+    result.frames = 0;
+    if (jobs.some((j: any) => j.surfaces.some((s: any) => s.content?.type === 'SPOUT'))) {
+      window.addEventListener('message', (e: MessageEvent) => {
+        const d = e.data;
+        if (d?.kind !== 'artlux:shared-texture' || d.channel !== 'spout' || !d.frame) return;
+        try { spoutFrame?.close(); } catch { /* closed */ }
+        spoutFrame = d.frame; result.frames++;
+      });
+      for (let t = 0; t < 200 && result.frames < 10; t++) await new Promise((r) => setTimeout(r, 50));
+      if (!spoutFrame) throw new Error('no Spout frame arrived');
+    }
     for (const job of jobs) {
       for (const s of job.surfaces) {
         const url = s.content?.type === 'IMAGE' ? s.content.url : null;
@@ -50,7 +64,7 @@ const b64 = (u8: Uint8Array): string => { let s = ''; for (let i = 0; i < u8.len
       const canvases = new Map<string, any>();
       for (const [id, f] of hapFrames) canvases.set(id, uploadFrame(id, f));
       mapper.renderSurfaces(
-        (id) => { const s: any = byId.get(id); return s?.content?.type === 'IMAGE' ? bitmaps.get(s.content.url) ?? null : canvases.get(id) ?? null; },
+        (id) => { const s: any = byId.get(id); return s?.content?.type === 'IMAGE' ? bitmaps.get(s.content.url) ?? null : s?.content?.type === 'SPOUT' ? spoutFrame : canvases.get(id) ?? null; },
         (id) => (byId.get(id) as any)?.content?.opacity ?? 1);
       await device.queue.onSubmittedWorkDone();
       for (let t = 0; t < 100 && m.stagingBusy.some(Boolean); t++) await new Promise((r) => setTimeout(r, 10));

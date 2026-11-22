@@ -29,6 +29,8 @@ const ENGINE = path.join(ROOT, 'engine', 'target', 'release', process.platform =
 const WORK = path.join(os.tmpdir(), 'artlux-image-parity');
 fs.mkdirSync(WORK, { recursive: true });
 const { PNG } = require(path.join(ROOT, 'node_modules', 'pngjs'));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const SPOUT_TIGHT = true;
 
 
 function rng(seed) {
@@ -110,18 +112,25 @@ const isVideo = (f) => /\.(mov|hapframe\.json)$/i.test(f);
 process.argv.slice(2).forEach((f, i) => { PICS[`extra${i}`] = path.resolve(f); });
 
 // ── the project ────────────────────────────────────────────────────────────────────────────────────────
-const surfaces = [], fixtures = [];
-Object.entries(PICS).forEach(([key, file], k) => {
+// One surface per picture, each with a horizontal strip, a vertical strip and a serpentine matrix.
+// `contentOf(key, file)` says what the surface shows; `content.url` always names the picture's FILE, which
+// is what the reference decodes (a SPOUT surface ignores it — the picture arrives from the sender).
+function rig(entries, contentOf) {
+  const surfaces = [], fixtures = [];
+  entries.forEach(([key, file], k) => {
   const sx = 0.05 + (k % 3) * 0.32, sy = 0.05 + Math.floor(k / 3) * 0.48;
   const sid = `s_${key}`;
-  surfaces.push({ id: sid, name: key, x: sx, y: sy, width: 0.28, height: 0.4, rotation: 0, zIndex: k,
-    content: { type: isVideo(file) ? 'VIDEO' : 'IMAGE', url: file, ...(key === 'photo' || key === 'hapDxt5' ? { opacity: 0.6 } : {}) } });
+  surfaces.push({ id: sid, name: key, x: sx, y: sy, width: 0.28, height: 0.4, rotation: 0, zIndex: k, content: contentOf(key, file) });
   const base = { rotation: 0, reverse: false, colorData: [], universe: 0, startAddress: 1, surfaceId: sid };
   fixtures.push({ ...base, id: `${sid}_h`, name: `${key} H`, x: sx + 0.01, y: sy + 0.1, width: 0.26, height: 0.004, ledCount: 120 });
   fixtures.push({ ...base, id: `${sid}_v`, name: `${key} V`, x: sx + 0.2, y: sy + 0.01, width: 0.004, height: 0.38, ledCount: 60 });
   fixtures.push({ ...base, id: `${sid}_m`, name: `${key} M`, x: sx + 0.02, y: sy + 0.2, width: 0.2, height: 0.15, ledCount: 32 * 16,
     shape: 'MATRIX', matrixWidth: 32, matrixHeight: 16, serpentine: true });
-});
+  });
+  return { surfaces, fixtures };
+}
+const { surfaces, fixtures } = rig(Object.entries(PICS), (key, file) =>
+  ({ type: isVideo(file) ? 'VIDEO' : 'IMAGE', url: file, ...(key === 'photo' || key === 'hapDxt5' ? { opacity: 0.6 } : {}) }));
 const jobs = [1, 0.8].map((b) => ({ name: `brightness ${b}`, brightness: b, surfaces, fixtures, videoFrame: VIDEO_FRAME }));
 
 // ── the browser side (the app's WebGPUMapper) ───────────────────────────────────────────────────────────
@@ -217,6 +226,7 @@ function areaAverage(pic, cw, ch) {
   return out;
 }
 function reference(job) {
+  const { fixtures, surfaces } = job;
   const order = L.surfaceOrderOf(fixtures, surfaces);
   const d = L.buildLedData(fixtures, surfaces, order, L.countSegments(fixtures));
   const plan = L.planAtlas(order, fixtures, surfaces, 8192);
@@ -246,23 +256,23 @@ const hapAddon = require(path.join(ROOT, 'native', 'hap', 'hap.node'));
 for (const f of Object.values(PICS)) if (/\.mov$/i.test(f)) { hapAddon.open(f); hapBlocks.set(f, await hapAddon.decodeFrameBlocks(f, VIDEO_FRAME)); }
 // ── the engine side ─────────────────────────────────────────────────────────────────────────────────────
 let fails = 0;
-let engineAdapter = '';
-const ledsOf = (sid) => fixtures.filter((f) => f.surfaceId === sid);
-for (const [ji, job] of jobs.entries()) {
-  const proj = path.join(WORK, `project-${ji}.artlux`);
-  fs.writeFileSync(proj, JSON.stringify({ surfaces, fixtures }));
-  const out = path.join(WORK, `engine-${ji}.json`);
-  execFileSync(ENGINE, ['--frame-once', proj, out, '--brightness', String(job.brightness), '--video-frame', String(VIDEO_FRAME)], { stdio: 'inherit' });
-  const e = JSON.parse(fs.readFileSync(out, 'utf8'));
-  engineAdapter = e.adapter;
-  const A = Buffer.from(browser.cases[ji].rgbw, 'base64'), B = Buffer.from(e.rgbw, 'base64');
+function engineFrame(job, tag, extraEnv = {}) {
+  const proj = path.join(WORK, `project-${tag}.artlux`);
+  fs.writeFileSync(proj, JSON.stringify({ surfaces: job.surfaces, fixtures: job.fixtures }));
+  const out = path.join(WORK, `engine-${tag}.json`);
+  execFileSync(ENGINE, ['--frame-once', proj, out, '--brightness', String(job.brightness), '--video-frame', String(VIDEO_FRAME)], { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
+  return JSON.parse(fs.readFileSync(out, 'utf8'));
+}
+// `tight(key)`: a source the engine CAN reproduce exactly — held to max 1 where not identical.
+function compare(job, browserCase, browserAdapter, e, tight) {
+  const A = Buffer.from(browserCase.rgbw, 'base64'), B = Buffer.from(e.rgbw, 'base64');
   const REF = reference(job);
-  if (A.length !== B.length) { fails++; console.log(`FAIL ${job.name}: ${A.length} vs ${B.length} bytes`); continue; }
-  console.log(`\n${job.name} — ${A.length / 4} LEDs (browser: ${browser.adapter}; engine: ${engineAdapter})`);
+  if (A.length !== B.length) { fails++; console.log(`FAIL ${job.name}: ${A.length} vs ${B.length} bytes`); return; }
+  console.log(`\n${job.name} — ${A.length / 4} LEDs (browser: ${browserAdapter}; engine: ${e.adapter})`);
   // Per picture: the LEDs of its surface's fixtures, in canonical order.
   let offset = 0;
   const per = {};
-  for (const f of fixtures) {
+  for (const f of job.fixtures) {
     const key = f.surfaceId.slice(2);
     const st = (per[key] ??= { n: 0, exact: 0, diffs: [], from: offset });
     for (let i = 0; i < f.ledCount; i++, offset++) {
@@ -281,10 +291,51 @@ for (const [ji, job] of jobs.entries()) {
     // held TIGHTER, because there the engine CAN reproduce today: off by at most 1 where not identical. (The
     // faithfulness rule alone would PASS a browser that draws a frame black — the engine is then "more
     // faithful" — and that is exactly the app bug this test found.)
-    const video = isVideo(PICS[key]);
-    const ok = identical || ((!video || st.diffs[st.n - 1] <= 1) && toE <= toB + 0.02);
+    const ok = identical || ((!tight(key) || st.diffs[st.n - 1] <= 1) && toE <= toB + 0.02);
     if (!ok) fails++;
     console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${key.padEnd(6)} ${String(st.n).padStart(4)} LEDs: ${(100 * st.exact / st.n).toFixed(1).padStart(5)}% exact · median ${p(0.5)} · p99 ${p(0.99)} · max ${st.diffs[st.n - 1]} · mean ${mean.toFixed(2)} | to the alias-free reference: browser ${toB.toFixed(2)}, engine ${toE.toFixed(2)}${identical ? '' : toE < toB ? ' (engine more faithful)' : ''}`);
+  }
+}
+for (const [ji, job] of jobs.entries()) compare(job, browser.cases[ji], browser.adapter, engineFrame(job, ji), (key) => isVideo(PICS[key]));
+
+// ── SPOUT (E1d-3, Windows): a REAL Spout sender publishing a picture ───────────────────────────────────
+// `artlux-engine --spout-send <name> --image <png>` (Spout's own library) sends the picture; the app's REAL
+// path receives it — main: the spout-receiver addon + the plugin's `deliver` (sharedTexture.main.ts); the
+// preload's VideoFrame relay; the page: WebGPUMapper with that VideoFrame as the drawable — and the engine
+// receives the SAME sender (spout.rs grab). The app has ONE Spout receiver, so one sender per run, on two
+// surfaces (one at 60% opacity). The reference is the PNG, straight from the file.
+if (process.platform === 'win32' && !process.env.IMAGE_PARITY_NO_SPOUT) {
+  const { spawn } = require('node:child_process');
+  const deliverBundle = path.join(WORK, 'spout-deliver.cjs');
+  esbuild.buildSync({ entryPoints: [path.join(ROOT, 'plugins', 'spout', 'src', 'sharedTexture.main.ts')], bundle: true, platform: 'node', format: 'cjs', external: ['electron'], outfile: deliverBundle, logLevel: 'error' });
+  const SPOUT_PICS = { spSharp: PICS.sharp, spAlpha: PICS.alpha, spNoise: PICS.noise, spSmall: PICS.small };
+  for (const [key, file] of Object.entries(SPOUT_PICS)) {
+    const name = `artlux-parity-${key}`;
+    const sender = spawn(ENGINE, ['--spout-send', name, '--image', file, '--seconds', '120'], { stdio: 'ignore' });
+    try {
+      await sleep(1500);
+      const r = rig([[key, file], [`${key}60`, file]], (k) => ({ type: 'SPOUT', spoutName: name, url: file, ...(k.endsWith('60') ? { opacity: 0.6 } : {}) }));
+      const sjobs = [1, 0.8].map((b) => ({ name: `Spout ${key} · brightness ${b}`, brightness: b, ...r, videoFrame: 0 }));
+      fs.writeFileSync(path.join(WORK, 'cases.json'), JSON.stringify(sjobs));
+      // ONE retry when no frame arrived at all: seen once in ~40 runs, a sender not yet published when the
+      // receiver connected. A wrong picture is never retried — only "nothing to compare".
+      let sb;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { fs.unlinkSync(path.join(WORK, 'gpu-cases.json')); } catch { /* fresh */ }
+        spawnSync(path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe'), [path.join(ROOT, 'engine', 'spikes', 'spout-parity')],
+          { env: { ...env, SPIKE_DELIVER: deliverBundle, SPIKE_SPOUT: name }, stdio: 'ignore', timeout: 120000 });
+        sb = JSON.parse(fs.readFileSync(path.join(WORK, 'gpu-cases.json'), 'utf8'));
+        if (!/no Spout frame arrived/.test(sb.error ?? '')) break;
+        console.log(`(Spout ${key}: no frame reached the app side — retrying once)`);
+        await sleep(1000);
+      }
+      if (sb.error) { fails++; console.log(`\nFAIL Spout ${key}: the app side failed: ${sb.error}`); continue; }
+      // Both of the engine's paths: the sender's own texture opened in D3D12 (zero copy, where the driver
+      // accepts the handle) and the one-GPU-copy fallback, forced.
+      for (const [how, extraEnv] of [['zero copy', {}], ['GPU copy', { ARTLUX_SPOUT_COPY: '1' }]]) {
+        for (const [ji, job] of sjobs.entries()) compare({ ...job, name: `${job.name} · engine ${how}` }, sb.cases[ji], `${sb.adapter}, ${sb.frames} Spout frames received`, engineFrame(job, `${key}-${ji}`, extraEnv), () => SPOUT_TIGHT);
+      }
+    } finally { sender.kill(); await sleep(300); }
   }
 }
 console.log(fails ? `\nIMAGE PARITY FAILED: ${fails} picture(s) where the engine is LESS faithful than the browser` : '\nIMAGE PARITY OK: every picture identical to the browser, or more faithful to the reference');

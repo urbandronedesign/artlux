@@ -1096,6 +1096,27 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - Not covered: HapA / Hap7 (the app shows them wrongly — the engine refuses them rather than copy that),
 >   HapM (refused by the app), other video codecs (MP4 via WebCodecs — next to the camera/NDI kind of
 >   source), and the NVIDIA PC. Next: **E1d-3 Spout**, then effects.
+>
+> ✅ **E1d-3 done 2026-11-22 (Spout in the engine — byte-identical on both paths).** `spout.rs grab`: the
+> sender's own texture opened in D3D12 (**zero copy** — accepted by this Intel driver) or, where a driver
+> refuses that, the one GPU→GPU copy (D3D11 on the engine's adapter); then the same per-texel pass as HAP
+> and the stretch. Two measured facts about today's app, both now copied:
+> - **The app IGNORES a Spout sender's alpha** — a transparent picture reaches the LEDs as if alpha were 1
+>   (18.7 levels apart while the engine honoured it; identical once it did not). Kept: senders that leave
+>   alpha at 0 are common, and honouring it would black them out. Now said in docs/SPOUT.md.
+> - **A VideoFrame is drawn without mips**, like a canvas (`Picture::video_frame`).
+> - **Proof** (`npm run test:image-parity`, Spout phase, Windows): `artlux-engine --spout-send <name> --image
+>   <png>` is a REAL sender (Spout's library); the app side is the real path — the spout-receiver addon, the
+>   plugin's own `deliver` (sharedTexture.main.ts, bundled), the preload's VideoFrame relay (mirrored in
+>   `engine/spikes/spout-parity/preload.js` — it is inline in the app's preload), WebGPUMapper. Four pictures
+>   (sharp 1920×1080 downscaled, alpha, noise, a 48×27 upscaled), each on two surfaces (one at 60% opacity),
+>   two brightnesses, the engine's **zero-copy AND forced copy path** (`ARTLUX_SPOUT_COPY=1`): **all
+>   byte-identical**. Mutation-tested 4/4 (alpha honoured, mips, BGRA read as RGBA, the fallback reading a
+>   blank slot); the guard 2/2. One run in ~40 saw no frame reach the app side (a sender not yet published):
+>   retried once, never on a wrong picture.
+> - Not covered: senders in formats other than BGRA8 / RGBA8 (the app refuses them too), a sender on ANOTHER
+>   GPU (the app shows "not compatible"; the engine's copy path needs the same adapter too), the NVIDIA PC,
+>   and a moving picture (a still is what makes the two sides comparable). Next: **E1d-4 effects**.
 
 ## 10. Open questions
 

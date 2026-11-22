@@ -33,6 +33,10 @@ nothing is resampled. Whatever resolution the sender publishes is what gets mapp
    changes.
 4. Map fixtures onto that surface as usual — Spout frames sample per-LED like any other content.
 
+**A sender's transparency is ignored.** A Spout picture is drawn fully opaque: where the sender leaves
+alpha at 0 you still get its colours, not black. To fade a Spout surface, use the surface's own
+**opacity**. (Measured 2026-11-22 with a sender publishing a transparent picture.)
+
 There is nothing to tune. No resolution cap, no frame-rate setting, no quality trade-off: the texture
 is shared as-is, and the receiver follows the sender's own frame rate rather than the engine's.
 

@@ -13,7 +13,7 @@
 //!   artlux-engine --windows [--fullscreen] [--seconds N]   a window on every display (E0b)
 //!   artlux-engine --share <pid> [--seconds N]              shared textures for Electron main (E0c, Windows)
 //!   artlux-engine --hap <file.mov> [--frame N]             a HAP frame as a BC texture vs the CPU decode (E0d)
-//!   artlux-engine --spout-send <name> / --spout-receive <name>   a real Spout sender, and the engine receiving it (E0d)
+//!   artlux-engine --spout-send <name> [--image f] / --spout-receive <name>   a real Spout sender (test card or a picture), and the engine receiving it (E0d, E1d-3)
 
 use artlux_engine::*;
 use std::process::ExitCode;
@@ -107,7 +107,7 @@ fn main() -> ExitCode {
             let id = s["id"].as_str().unwrap_or_default().to_string();
             let c = &s["content"];
             if let Some(o) = c["opacity"].as_f64() { opacity.insert(id.clone(), o as f32); }
-            let Some(url) = c["url"].as_str() else { continue };
+            let url = c["url"].as_str().unwrap_or_default();
             let p = std::path::Path::new(url.trim_start_matches("file:///"));
             let p = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
             let pic = match c["type"].as_str() {
@@ -118,6 +118,10 @@ fn main() -> ExitCode {
                     let blocks = base64::engine::general_purpose::STANDARD.decode(j["data"].as_str().unwrap_or_default()).map_err(|e| e.to_string())?;
                     artlux_engine::compose::hap_picture(&gpu, fmt, j["width"].as_u64().unwrap_or(0) as u32, j["height"].as_u64().unwrap_or(0) as u32, &blocks)
                 })().map_err(|e| format!("hap frame {}: {e}", p.display())),
+                #[cfg(windows)]
+                Some("SPOUT") => artlux_engine::spout::grab(&gpu, c["spoutName"].as_str().unwrap_or_default())
+                    .map(|(pic, how)| { eprintln!("artlux-engine: spout '{}': {how}", c["spoutName"].as_str().unwrap_or_default()); pic })
+                    .map_err(|e| format!("spout: {e}")),
                 Some("VIDEO") => artlux_engine::hapimport::read_frame(&p.to_string_lossy(), video_frame)
                     .and_then(|(w, h, fmt, blocks, _)| artlux_engine::compose::hap_picture(&gpu, fmt, w, h, &blocks))
                     .map_err(|e| format!("video {}: {e} (only HAP is drawn by the engine so far)", p.display())),
@@ -204,7 +208,12 @@ fn main() -> ExitCode {
     #[cfg(windows)]
     if let Some(name) = args.iter().position(|a| a == "--spout-send").and_then(|i| args.get(i + 1)) {
         let secs = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<f64>().ok());
-        return match artlux_engine::spout::send(name, secs.map(std::time::Duration::from_secs_f64)) {
+        let image = args.iter().position(|a| a == "--image").and_then(|i| args.get(i + 1));
+        let sent = match image {
+            Some(f) => artlux_engine::spout::send_image(name, f, secs.map(std::time::Duration::from_secs_f64)),
+            None => artlux_engine::spout::send(name, secs.map(std::time::Duration::from_secs_f64)),
+        };
+        return match sent {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(2) }
         };

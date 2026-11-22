@@ -8410,6 +8410,24 @@ check(
   },
 );
 
+check(
+  'the engine reads a Spout frame as today\'s app draws it: opaque, no mips, both paths (zero copy + GPU copy)',
+  'plans/native-engine.md E1d-3, measured by scripts/test-image-parity.cjs against the app\'s real Spout path ' +
+  '(addon → the plugin\'s deliver → the preload\'s VideoFrame → WebGPUMapper): the app IGNORES a sender\'s ' +
+  'alpha (18.7 levels apart when the engine honoured it, identical once it did not) and draws the frame ' +
+  'without mips. The fallback copy is what a driver that refuses the zero-copy open runs — the test forces it ' +
+  'with ARTLUX_SPOUT_COPY, so losing that switch would leave the fallback unproven.',
+  () => {
+    const problems = [];
+    const sp = read('engine/artlux-engine/src/spout.rs');
+    if ((sp.match(/crate::compose::texels\(gpu, &(tex|slot\.texture), w, h, 2\)\?;/g) || []).length !== 2) problems.push('spout.rs grab no longer reads BOTH paths opaque (texels mode 2)');
+    if (!/ARTLUX_SPOUT_COPY/.test(sp)) problems.push('the switch that lets the parity test force the copy path is gone');
+    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
+    if (!/ARTLUX_SPOUT_COPY: '1'/.test(read('scripts/test-image-parity.cjs'))) problems.push('test-image-parity no longer runs the Spout copy path');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
