@@ -8761,6 +8761,30 @@ check(
   },
 );
 
+check(
+  'the native engine decodes MP4 on the GPU one frame at a time, into a D3D11-made shared NV12 texture',
+  'plans/native-engine.md E1f "2c-3b", proven by scripts/test-mp4-parity.cjs (the hardware decode identical ' +
+  'to the app including the padding; the LEDs of the GPU path within 1, mostly identical). Three rules found ' +
+  'by running it: (1) ONE frame at a time - a hardware decoder writes into a small texture pool, and ' +
+  'collecting every ready frame exhausted it while draining the end of a file: ProcessOutput then WAITED ' +
+  'FOREVER (the engine hung; no test catches that but a timeout). (2) The shared NV12 texture is made by ' +
+  'D3D11 and opened by D3D12 - the other way round D3D11 refused it (E_INVALIDARG). (3) A software frame ' +
+  'padding is filled with the edge - Media Foundation software decoder leaves it unwritten on some frames, ' +
+  'and the conversion reads it at the last row.',
+  () => {
+    const problems = [];
+    const m = raw('engine/artlux-engine/src/mf.rs');
+    if (!/fn pull_one\(&mut self\)/.test(m) || /fn pull\(&mut self\)/.test(m)) problems.push('mf.rs collects more than one frame at a time again (a hardware decoder pool runs dry: the engine hangs)');
+    if (!/if self\.pull_one\(\)\? \{ return Ok\(true\); \}/.test(m)) problems.push('mf.rs step no longer takes a ready frame before feeding');
+    if (!/D3D11_RESOURCE_MISC_SHARED_NTHANDLE/.test(m) || !/OpenSharedHandle\(handle, &mut res\)/.test(m)) problems.push('the NV12 slot is no longer made by D3D11 and opened by D3D12');
+    if (!/hw\.ctx\.End\(&hw\.query\)/.test(m) || !/gpu\.device\.poll\(wgpu::PollType::Wait/.test(m)) problems.push('the slot copy or its read is no longer waited for (two devices share one texture)');
+    if (!/replicate_padding\(&mut data, self\.coded, self\.visible\);/.test(m)) problems.push('a software frame padding is no longer made deterministic');
+    if (!/Mp4In::open_with\(&p\.to_string_lossy\(\), \(!has\("--sw-decode"\)\)\.then_some\(&gpu\)\)/.test(raw('engine/artlux-engine/src/main.rs'))) problems.push('--frame-once no longer decodes on the GPU by default');
+    if (!/decoding ON THE GPU/.test(raw('scripts/test-mp4-parity.cjs'))) problems.push('test-mp4-parity no longer checks that the hardware pass decoded on the GPU');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

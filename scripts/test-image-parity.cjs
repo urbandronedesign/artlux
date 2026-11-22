@@ -26,7 +26,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const ENGINE = path.join(ROOT, 'engine', 'target', 'release', process.platform === 'win32' ? 'artlux-engine.exe' : 'artlux-engine');
+// ARTLUX_ENGINE_EXE: another build of the engine (e.g. while the default one is locked by a running copy).
+const ENGINE = process.env.ARTLUX_ENGINE_EXE || path.join(ROOT, 'engine', 'target', 'release', process.platform === 'win32' ? 'artlux-engine.exe' : 'artlux-engine');
 const WORK = path.join(os.tmpdir(), 'artlux-image-parity');
 fs.mkdirSync(WORK, { recursive: true });
 const { PNG } = require(path.join(ROOT, 'node_modules', 'pngjs'));

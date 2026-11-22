@@ -1480,6 +1480,39 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   offset each fail. Guarded.
 > - **Not yet:** the hardware decoder (2c-3b); projector windows (a different GPU device: 2c-4).
 
+> ✅ **2c-3b done 2026-11-22 (hardware decode into the engine's GPU — the app's own pictures).**
+> - **The decoder on the GPU (`mf.rs`).** The same Media Foundation transform is given a D3D11 device on
+>   the engine's adapter (`MFT_MESSAGE_SET_D3D_MANAGER`). It decodes on the GPU's video block and hands
+>   back D3D11 textures.
+> - **Into the engine's device, GPU to GPU.** The frame shown is copied into ONE shared NV12 texture: made
+>   by D3D11 with an NT handle, opened by D3D12, and wrapped as wgpu's NV12 texture (`TEXTURE_FORMAT_NV12`).
+>   2c-3a's shader reads its two planes. No frame crosses to the CPU.
+> - **The fallback.** A decoder that refuses the device decodes in software, with the reason
+>   (`software_why`).
+> - **Found: the pictures are the APP'S, byte for byte, padding included.** The hardware decode runs on the
+>   same video block as Chromium's, so the padding past the visible edge matches too. The software decoder's
+>   padding never did.
+> - **Found: a hardware decoder's texture pool runs dry.** Collecting every ready frame (fine in software)
+>   exhausted it while draining the end of a file, and `ProcessOutput` then waited FOREVER: the engine hung.
+>   The decoder is now fed and emptied ONE frame at a time, each consumed before the next is asked for.
+>   (This hang left a stuck test process on this machine; see the report.)
+> - **Found: the shared NV12 texture must be made by D3D11.** Created in a D3D12 shared heap — how the
+>   Spout slot works for BGRA — D3D11 refused to open it (E_INVALIDARG).
+> - **Found: the software decoder leaves the padding UNWRITTEN on some frames.** The same frame on three
+>   runs: all eight padding rows differed on one. The software path now fills the padding with the edge,
+>   so it is deterministic.
+> - **Proof (`test:mp4-parity`).**
+>   - Gate 3b, the hardware decode: every frame identical in full, and it must say it decoded on the GPU.
+>   - Gate 4a, the GPU path: the LEDs are identical on 26 of 28 surface checks, within 1 on the other two.
+>   - Gate 4b, the software fallback: the same LED figures.
+> - **Mutation-tested:** copying the wrong slice of the decoder's texture array, and a silent fallback to
+>   software, each fail. The pool rule is guarded at source: only a timeout could catch a hang.
+> - **Costs left, knowingly:**
+>   - each shown frame waits on the CPU twice: for the D3D11 copy (an event query), and for the conversion
+>     to read the slot before the next copy (`poll`). Two slots plus GPU fences would remove both;
+>   - the converted picture is a new texture per frame.
+> - **Not yet:** projector windows (another wgpu device: 2c-4), 10-bit, fragmented MP4, the RTX PC.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

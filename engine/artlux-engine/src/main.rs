@@ -142,9 +142,14 @@ fn main() -> ExitCode {
                 // Item 2c-2: an MP4 decoded by the engine itself (mf.rs) at `content.frameTs` (µs, the app's
                 // VideoFrame.timestamp — what the host will send), converted and drawn.
                 #[cfg(windows)]
-                Some("VIDEO") if url.to_ascii_lowercase().ends_with(".mp4") => artlux_engine::mf::Mp4In::open(&p.to_string_lossy())
-                    .and_then(|mut rx| rx.frame_at(c["frameTs"].as_i64().unwrap_or(0)).map(|f| to_pic(&f.nv12())))
-                    .map_err(|e| format!("mp4: {e}")),
+                // Decoded ON THE GPU and converted there (2c-3b), as the runtime does; `--sw-decode` keeps
+                // the software decoder (and `--cpu-convert` the CPU conversion).
+                Some("VIDEO") if url.to_ascii_lowercase().ends_with(".mp4") => (|| {
+                    let ts = c["frameTs"].as_i64().unwrap_or(0);
+                    let mut rx = artlux_engine::mf::Mp4In::open_with(&p.to_string_lossy(), (!has("--sw-decode")).then_some(&gpu))?;
+                    if let Some(why) = &rx.software_why { eprintln!("artlux-engine: {}: decoding in software ({why})", p.display()); }
+                    match &conv { Some(c) => rx.picture(&gpu, c, ts), None => rx.planes_at(ts).map(|f| artlux_engine::yuv::to_picture(&f.nv12())) }
+                })().map_err(|e| format!("mp4: {e}")),
                 Some("VIDEO") if url.ends_with(".hapframe.json") => (|| {
                     let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
                     let fmt = artlux_engine::hapimport::format_from_str(j["format"].as_str().unwrap_or_default()).ok_or("unknown format")?;
@@ -177,11 +182,17 @@ fn main() -> ExitCode {
         // ORDER GIVEN — so a backward one exercises the seek. Each lands as `<out>.f<k>.nv12.json` + planes,
         // the layout the app's VideoFrame.copyTo dump has, for scripts/test-mp4-parity.cjs to compare.
         let (Some(file), Some(list), Some(out)) = (args.get(i + 1), args.get(i + 2), args.get(i + 3)) else { eprintln!("usage: --mp4-frames <file.mp4> <ts,ts,…> <out-prefix>"); return ExitCode::from(2); };
-        let mut rx = match artlux_engine::mf::Mp4In::open(file) { Ok(r) => r, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1); } };
+        // `--hw`: decode on the GPU (2c-3b) and read the planes back; else the software decoder.
+        let gpu = if has("--hw") {
+            match Gpu::open(AdapterPolicy { allow_software: false, force_software: false }) { Ok(g) => Some(g), Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } }
+        } else { None };
+        let mut rx = match artlux_engine::mf::Mp4In::open_with(file, gpu.as_ref()) { Ok(r) => r, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1); } };
+        eprintln!("artlux-engine: decoding {} ({})", if gpu.is_some() && rx.software_why.is_none() { "ON THE GPU" } else { "in software" }, rx.software_why.as_deref().unwrap_or("as asked"));
         let c = rx.colour();
         let colour = serde_json::json!({ "matrix": c.matrix, "fullRange": c.full_range, "primaries": c.primaries, "transfer": c.transfer });
         for (k, ts) in list.split(',').filter_map(|t| t.trim().parse::<i64>().ok()).enumerate() {
-            let f = match rx.frame_at(ts) { Ok(f) => f, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1); } };
+            let f = match rx.planes_at(ts) { Ok(f) => f, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1); } };
+            let f = &f;
             let (w, h) = (f.coded.0 as u64, f.coded.1 as u64);
             let planes = format!("{}.f{k}.planes.bin", std::path::Path::new(out).file_name().unwrap_or_default().to_string_lossy());
             let meta = serde_json::json!({ "coded": [w, h], "visible": f.visible, "timestamp": f.ts_us, "format": "NV12", "colorSpace": colour,

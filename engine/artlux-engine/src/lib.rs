@@ -174,7 +174,8 @@ impl Gpu {
         let info = pick.get_info();
         // BC (DXT) textures: HAP's frames ARE BC blocks, uploaded as they are (E0d). Every desktop GPU
         // and both software adapters have it; where one does not, HAP takes the CPU-decode fallback.
-        let wanted = wgpu::Features::TEXTURE_COMPRESSION_BC & pick.features();
+        // NV12 (item 2c-3b): a hardware decoder's frames are NV12 textures, read as their two planes.
+        let wanted = (wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::TEXTURE_FORMAT_NV12) & pick.features();
         let (device, queue) = pollster::block_on(pick.request_device(&wgpu::DeviceDescriptor {
             label: Some("artlux-engine"),
             required_features: wanted,

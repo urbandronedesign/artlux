@@ -14,12 +14,15 @@
 //   2. THE LEDS — the app's real WebGPUMapper with the VideoFrames as drawables, against the engine's
 //      --frame-once on the same rig (strips + a serpentine matrix per picture, one at 60% opacity,
 //      brightness 1 and 0.8): within 1 on every LED channel.
-//   3. THE DECODER (2c-2) — the engine's own decode (mp4demux.rs + Media Foundation's decoder, mf.rs) on the
-//      app's timestamps in the app's order (backward, across key frames): the coded size, visible rect,
-//      timestamp and VISIBLE picture byte-identical. The padding past the visible edge is counted, not
-//      gated: H.264 conformance is defined on the cropped picture, and the app's own padding differs from
-//      GPU to GPU (measured here: 1–3 on most bytes that differ, 28 at worst on noise).
+//   3. THE DECODER — the engine's own decode (mp4demux.rs + Media Foundation's decoder, mf.rs) on the app's
+//      timestamps in the app's order (backward, across key frames): the coded size, visible rect, timestamp
+//      and VISIBLE picture byte-identical. Twice: 3a software (2c-2, the fallback) and 3b HARDWARE (2c-3b,
+//      what the engine runs — it must say it decoded on the GPU). The padding past the visible edge is
+//      counted, not gated: H.264 conformance is defined on the cropped picture. On the GPU it is the app's
+//      byte for byte (the same video block); in software the engine fills it with the edge (yuv.rs reads
+//      it, and Media Foundation's software decoder leaves it unwritten on some frames).
 //   4. THE LEDS FROM THE ENGINE'S OWN DECODE — the whole engine path against the app's LEDs: within 1.
+//      4a the GPU path (hardware decode + GPU conversion), 4b the software fallback.
 //
 // The synthetic files have no B-frames (WebCodecs' encoder writes none), so frame REORDERING (ctts) is
 // exercised only by a real file named on the command line — pass one when touching mp4demux.rs.
@@ -31,7 +34,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const ENGINE = path.join(ROOT, 'engine', 'target', 'release', process.platform === 'win32' ? 'artlux-engine.exe' : 'artlux-engine');
+// ARTLUX_ENGINE_EXE: another build of the engine (e.g. while the default one is locked by a running copy).
+const ENGINE = process.env.ARTLUX_ENGINE_EXE || path.join(ROOT, 'engine', 'target', 'release', process.platform === 'win32' ? 'artlux-engine.exe' : 'artlux-engine');
 const WORK = path.join(os.tmpdir(), 'artlux-mp4-parity');
 fs.rmSync(WORK, { recursive: true, force: true });
 fs.mkdirSync(WORK, { recursive: true });
@@ -150,7 +154,10 @@ for (const [ji, job] of jobs.entries()) {
 // Media Foundation (mf.rs) against the app's WebCodecs, on the same timestamps in the same order: the coded
 // size, the visible rect, the timestamp and EVERY byte of both planes — the codec standards make decoding
 // bit-exact, so nothing less than identical is right here.
-console.log('\n3. THE DECODER (the engine\'s Media Foundation decode against the app\'s WebCodecs, byte for byte)');
+// Run TWICE: the software decoder (2c-2, the fallback) and the hardware one (2c-3b, what the engine runs) —
+// the latest on the same GPU's video block as the app's, so its padding is reported apart.
+for (const mode of ['software', 'hardware']) {
+console.log(`\n3${mode === 'hardware' ? 'b' : 'a'}. THE DECODER, ${mode.toUpperCase()} (the engine\'s Media Foundation decode against the app\'s WebCodecs, byte for byte)`);
 for (const f of browser.files) {
   if (!f.dumped?.length) continue;
   // A frame the APP's decoder did not give (layerFrameExact null) is the app's, not the engine's: named, and
@@ -158,9 +165,11 @@ for (const f of browser.files) {
   // GOP file, on one run in three.)
   const asked = f.dumped.map((ts, k) => [k, ts]).filter(([, ts]) => ts !== null);
   for (const [k, ts] of f.dumped.entries()) if (ts === null) console.log(`  note ${f.name}: the APP gave no frame for dump ${k} (${(FILES.find((x) => x.name === f.name)?.dump ?? [])[k]})`);
-  const prefix = path.join(WORK, `${f.name}.engine`);
-  try { execFileSync(ENGINE, ['--mp4-frames', f.file, asked.map(([, ts]) => ts).join(','), prefix], { stdio: ['ignore', 'ignore', 'pipe'] }); }
-  catch (e) { fails++; console.log(`  FAIL ${f.name}: ${String(e.stderr || e).trim()}`); continue; }
+  const prefix = path.join(WORK, `${f.name}.engine-${mode}`);
+  const run = spawnSync(ENGINE, ['--mp4-frames', f.file, asked.map(([, ts]) => ts).join(','), prefix, ...(mode === 'hardware' ? ['--hw'] : [])], { encoding: 'utf8' });
+  if (run.status !== 0) { fails++; console.log(`  FAIL ${f.name}: ${String(run.stderr).trim()}`); continue; }
+  // The hardware pass must BE hardware: a silent fall back to software would prove the wrong decoder.
+  if (mode === 'hardware' && !/decoding ON THE GPU/.test(run.stderr)) { fails++; console.log(`  FAIL ${f.name}: the engine did not decode on the GPU — ${String(run.stderr).trim()}`); continue; }
   const lines = [];
   let bad = 0, padTotal = 0, padWorst = 0;
   for (const [q, [k, ts]] of asked.entries()) {
@@ -192,19 +201,25 @@ for (const f of browser.files) {
   }
   if (bad) fails++;
   const e0 = JSON.parse(fs.readFileSync(`${prefix}.f0.nv12.json`, 'utf8'));
-  console.log(`  ${bad ? 'FAIL' : 'ok  '} ${f.name.padEnd(22)} ${asked.length - bad}/${asked.length} visible pictures identical [${lines.join(', ')}]${padTotal ? ` · padding: ${padTotal} bytes differ, max ${padWorst}` : ''} · colour MF ${Object.values(e0.colorSpace).join('/')} vs app ${Object.values(f.colorSpace).join('/')}`);
+  console.log(`  ${bad ? 'FAIL' : 'ok  '} ${f.name.padEnd(22)} ${asked.length - bad}/${asked.length} visible pictures identical [${lines.join(', ')}]${padTotal ? ` · padding: ${padTotal} bytes differ, max ${padWorst}` : ' · padding identical too'}`);
+}
 }
 // ── 4. the LEDs from the engine's OWN decode ────────────────────────────────────────────────────────────
 // The whole engine path — demux, decode, convert, stretch — against the app's LEDs. Where it differs from
 // gate 2 it is the padding (gate 3): Chromium reads it at the last visible row and column.
-console.log('\n4. THE LEDS FROM THE ENGINE\'S OWN DECODE (the file, at the app\'s frame timestamp)');
+// Twice: the GPU path (hardware decode + GPU conversion — what the engine runs) and the software fallback.
+for (const decode of ['hardware', 'software']) {
+console.log(`\n4${decode === 'hardware' ? 'a' : 'b'}. THE LEDS FROM THE ENGINE\'S OWN DECODE, ${decode.toUpperCase()} (the file, at the app\'s frame timestamp)`);
 for (const [ji, job] of jobs.entries()) {
   const byName = new Map(browser.files.map((f) => [f.name, f]));
   const surfaces = job.surfaces.map((s) => { const f = byName.get(s.name); return f?.file && decoded.has(s.name) ? { ...s, content: { ...s.content, url: f.file, frameTs: f.timestamp } } : s; });
   const proj = path.join(WORK, `project-own-${ji}.artlux`);
   fs.writeFileSync(proj, JSON.stringify({ surfaces, fixtures: job.fixtures }));
-  const outp = path.join(WORK, `engine-own-${ji}.json`);
-  execFileSync(ENGINE, ['--frame-once', proj, outp, '--brightness', String(job.brightness)], { stdio: 'inherit' });
+  const outp = path.join(WORK, `engine-own-${decode}-${ji}.json`);
+  const run = spawnSync(ENGINE, ['--frame-once', proj, outp, '--brightness', String(job.brightness), ...(decode === 'software' ? ['--sw-decode'] : [])], { encoding: 'utf8' });
+  if (run.status !== 0) { fails++; console.log(`  FAIL ${job.name}: ${String(run.stderr).trim()}`); continue; }
+  // The hardware pass must BE hardware (the engine says when a file falls back to software).
+  if (decode === 'hardware' && /decoding in software/.test(run.stderr)) { fails++; console.log(`  FAIL ${job.name}: a file fell back to software — ${String(run.stderr).trim()}`); }
   const e = JSON.parse(fs.readFileSync(outp, 'utf8'));
   const A = Buffer.from(browser.cases[ji].rgbw, 'base64'), B = Buffer.from(e.rgbw, 'base64');
   if (A.length !== B.length) { fails++; console.log(`FAIL ${job.name}: ${A.length} vs ${B.length} bytes`); continue; }
@@ -225,6 +240,7 @@ for (const [ji, job] of jobs.entries()) {
     if (!ok) fails++;
     console.log(`    ${ok ? 'ok  ' : 'FAIL'} ${sid.slice(2).padEnd(22)} ${String(st.n).padStart(4)} LEDs: ${(100 * st.exact / st.n).toFixed(1).padStart(5)}% identical, max ${st.max}`);
   }
+}
 }
 console.log(fails ? `\nMP4 PARITY: ${fails} failure(s)` : '\nMP4 PARITY OK');
 process.exit(fails ? 1 : 0);
