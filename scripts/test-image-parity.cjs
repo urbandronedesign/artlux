@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// E1d — STILL IMAGES: the engine's LEDs against the app's, on the same project. Chromium decodes the file
+// E1d — SOURCES: still images, HAP frames (E1d-2), generative effects (E1d-4) and Spout (E1d-3, Windows):
+// the engine's LEDs against the app's, on the same project. Chromium decodes the file
 // and Skia stretches it into the atlas cell; the engine decodes with the `image` crate and stretches with
 // the GPU (engine/artlux-engine/src/compose.rs).
 //
@@ -190,7 +191,9 @@ function decodeHap({ width: w, height: h, format, data }) {
   return { w, h, px };
 }
 const hapBlocks = new Map();   // .mov → its frame's blocks (filled before the engine side runs)
+const effectFields = new Map();   // 'effect:<surface id>' → the app's own 96×96 field (from the page)
 function decoded(file) {
+  if (effectFields.has(file)) return { w: 96, h: 96, px: effectFields.get(file) };
   if (/\.hapframe\.json$/i.test(file)) { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return decodeHap({ ...j, data: Buffer.from(j.data, 'base64') }); }
   if (/\.mov$/i.test(file)) return decodeHap(hapBlocks.get(file));
   // ⚠ THE REFERENCE MUST NOT SHARE THE ENGINE'S DECODE, or a decoder bug moves the reference with the
@@ -256,11 +259,11 @@ const hapAddon = require(path.join(ROOT, 'native', 'hap', 'hap.node'));
 for (const f of Object.values(PICS)) if (/\.mov$/i.test(f)) { hapAddon.open(f); hapBlocks.set(f, await hapAddon.decodeFrameBlocks(f, VIDEO_FRAME)); }
 // ── the engine side ─────────────────────────────────────────────────────────────────────────────────────
 let fails = 0;
-function engineFrame(job, tag, extraEnv = {}) {
+function engineFrame(job, tag, extraEnv = {}, extraArgs = []) {
   const proj = path.join(WORK, `project-${tag}.artlux`);
   fs.writeFileSync(proj, JSON.stringify({ surfaces: job.surfaces, fixtures: job.fixtures }));
   const out = path.join(WORK, `engine-${tag}.json`);
-  execFileSync(ENGINE, ['--frame-once', proj, out, '--brightness', String(job.brightness), '--video-frame', String(VIDEO_FRAME)], { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
+  execFileSync(ENGINE, ['--frame-once', proj, out, '--brightness', String(job.brightness), '--video-frame', String(VIDEO_FRAME), ...extraArgs], { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
   return JSON.parse(fs.readFileSync(out, 'utf8'));
 }
 // `tight(key)`: a source the engine CAN reproduce exactly — held to max 1 where not identical.
@@ -297,6 +300,34 @@ function compare(job, browserCase, browserAdapter, e, tight) {
   }
 }
 for (const [ji, job] of jobs.entries()) compare(job, browser.cases[ji], browser.adapter, engineFrame(job, ji), (key) => isVideo(PICS[key]));
+
+// ── EFFECTS (E1d-4): the app's generative effects ─────────────────────────────────────────────────────
+// The app's REAL SurfaceEffect (surfaceFx.ts) in the page vs the engine's port (effects.rs), rendered at the
+// same times in the same order — Fire's Math.random fed the same seeded stream on both sides — then the
+// same stretch. Every effect, every palette, odd parameters (a fractional effect id falls to Solid, palette
+// ids that wrap negative / past the end, missing fields → their `??` defaults), one at 60% opacity. Five
+// times, so Fire's heat has propagated and Wave / Flow have moved. The reference is the app's own field.
+{
+  const FX = [];
+  for (let e = 0; e <= 4; e++) for (let p = 0; p < 7; p += e === 4 ? 1 : 3) FX.push([`fx${e}p${p}`, { effectId: e, paletteId: p, speed: 0.15 + 0.2 * p, intensity: 0.1 + 0.13 * p }]);
+  FX.push(['fxOdd', { effectId: 1.5, paletteId: -1.5, speed: 3, intensity: 0.9 }], ['fxWrap', { effectId: 3, paletteId: 9, speed: -0.7, intensity: 2.5 }],
+    ['fxDefaults', {}], ['fxFire60', { effectId: 4, paletteId: 1, intensity: 0.8, opacity: 0.6 }], ['fxWave60', { effectId: 3, paletteId: 2, opacity: 0.6 }]);
+  const effectTimes = [0, 0.4, 1.37, 2.5, 7.3];
+  const effectSeed = 99;
+  const fxp = Object.fromEntries(FX);
+  const r = rig(FX.map(([k]) => [k, `effect:s_${k}`]), (k, file) => ({ type: 'EFFECT', url: file, ...fxp[k] }));
+  const fjobs = [1, 0.8].map((b) => ({ name: `effects · brightness ${b}`, brightness: b, ...r, effectTimes, effectSeed, videoFrame: 0 }));
+  fs.writeFileSync(path.join(WORK, 'cases.json'), JSON.stringify(fjobs));
+  try { fs.unlinkSync(path.join(WORK, 'gpu-cases.json')); } catch { /* fresh */ }
+  spawnSync(path.join(ROOT, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron'),
+    [path.join(ROOT, 'engine', 'spikes', 'sampling-parity')], { env, stdio: 'ignore', timeout: 120000 });
+  const fb = JSON.parse(fs.readFileSync(path.join(WORK, 'gpu-cases.json'), 'utf8'));
+  if (fb.error) { fails++; console.log(`\nFAIL effects: the app side failed: ${fb.error}`); }
+  else {
+    for (const [id, f] of Object.entries(fb.fields ?? {})) effectFields.set(`effect:${id}`, Buffer.from(f, 'base64'));
+    for (const [ji, job] of fjobs.entries()) compare(job, fb.cases[ji], fb.adapter, engineFrame(job, `fx-${ji}`, {}, ['--effect-times', effectTimes.join(','), '--seed', String(effectSeed)]), () => true);
+  }
+}
 
 // ── SPOUT (E1d-3, Windows): a REAL Spout sender publishing a picture ───────────────────────────────────
 // `artlux-engine --spout-send <name> --image <png>` (Spout's own library) sends the picture; the app's REAL

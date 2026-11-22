@@ -88,7 +88,7 @@ fn main() -> ExitCode {
         // E1d: one whole frame from a project — its IMAGE surfaces decoded, the engine's own atlas, the
         // LEDs sampled — for scripts/test-image-parity.cjs. Writes {"rgbw": base64, "adapter": …}.
         use base64::Engine as _;
-        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --frame-once <project.artlux> <out.json> [--brightness b] [--video-frame N]"); return ExitCode::from(2); };
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --frame-once <project.artlux> <out.json> [--brightness b] [--video-frame N] [--effect-times a,b,…] [--seed N]"); return ExitCode::from(2); };
         let brightness = args.iter().position(|a| a == "--brightness").and_then(|k| args.get(k + 1)).and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.0);
         let doc: serde_json::Value = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
             Ok(v) => v, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
@@ -103,6 +103,24 @@ fn main() -> ExitCode {
         let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
         let mut pictures = std::collections::HashMap::new();
         let mut opacity = std::collections::HashMap::new();
+        // E1d-4: EFFECT surfaces are rendered at each time of `--effect-times a,b,…` IN ORDER (surfaces in
+        // document order within a time — the order the app's frame engine asks), the last field drawn; Fire
+        // steps on each, from the mulberry32 stream `--seed N` (default 1).
+        let effect_times: Vec<f64> = args.iter().position(|a| a == "--effect-times").and_then(|k| args.get(k + 1))
+            .map(|s| s.split(',').filter_map(|x| x.trim().parse().ok()).collect()).unwrap_or_else(|| vec![0.0]);
+        let mut rng = artlux_engine::effects::Rng::new(args.iter().position(|a| a == "--seed").and_then(|k| args.get(k + 1)).and_then(|s| s.parse().ok()).unwrap_or(1));
+        {
+            let fx: Vec<(String, artlux_engine::effects::Params)> = doc["surfaces"].as_array().into_iter().flatten()
+                .filter(|s| s["content"]["type"].as_str() == Some("EFFECT"))
+                .map(|s| (s["id"].as_str().unwrap_or_default().to_string(), artlux_engine::effects::Params::from_json(&s["content"]))).collect();
+            let mut state: Vec<artlux_engine::effects::SurfaceEffect> = fx.iter().map(|_| Default::default()).collect();
+            for &t in &effect_times { for (k, (_, p)) in fx.iter().enumerate() { state[k].render(*p, t, &mut rng); } }
+            let last = *effect_times.last().unwrap_or(&0.0);
+            for (k, (id, p)) in fx.iter().enumerate() {
+                let rgba = state[k].render(*p, last, &mut rng).to_vec();   // cached: no extra step
+                pictures.insert(id.clone(), artlux_engine::compose::Picture::canvas(artlux_engine::effects::FW as u32, artlux_engine::effects::FH as u32, rgba));
+            }
+        }
         for s in doc["surfaces"].as_array().into_iter().flatten() {
             let id = s["id"].as_str().unwrap_or_default().to_string();
             let c = &s["content"];

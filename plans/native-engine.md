@@ -1117,6 +1117,31 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - Not covered: senders in formats other than BGRA8 / RGBA8 (the app refuses them too), a sender on ANOTHER
 >   GPU (the app shows "not compatible"; the engine's copy path needs the same adapter too), the NVIDIA PC,
 >   and a moving picture (a still is what makes the two sides comparable). Next: **E1d-4 effects**.
+>
+> ✅ **E1d-4 done 2026-11-22 (EFFECT surfaces — byte-identical, every effect).** The app renders an effect on
+> the CPU into a 96×96 canvas (`gpu/surfaceFx.ts`), so the engine's `src/effects.rs` is a line-for-line
+> port with JavaScript's arithmetic: f64 in the TS's order, fdlibm `sin`, the LUT's `Math.round`, the
+> Uint8ClampedArray store (clamp, round half to even), Fire's Float32Array heat, the `??` defaults, the
+> same-time cache (which is what keeps Fire from stepping twice). Fire's `Math.random` is a mulberry32
+> stream in the engine; the test feeds the page's `Math.random` the same stream, only around the effect
+> calls. Then `Picture::canvas` and the proven stretch.
+> - **Proof** (`npm run test:image-parity`, EFFECT phase): the app's REAL `SurfaceEffect` vs the port, 24
+>   surfaces — Solid / Rainbow / Palette Flow / Wave over three palettes each, Fire over all seven, a
+>   fractional effect id (falls to Solid), palette ids that wrap negative and past the end, all fields
+>   missing, Fire and Wave at 60% opacity — rendered at five times in order, two brightnesses: **16,608 LEDs
+>   × 2, all byte-identical**. Mutation-tested 6/8: caught truncation, Wave's phase, Fire's cooling and
+>   ignition, the cache, the LUT's rounding; survived: half-up vs half-even in the field store (a tie needs
+>   Wave's w = 0.5 exactly — one column at t = 0, read by no LED here; the port keeps the right rule) and
+>   std `sin` vs fdlibm (equal here, as in E1b-2; a precaution).
+> - **A port is a copy**, so `verify:invariants` holds a fingerprint of `surfaceFx.ts` + `palettes.ts` in
+>   effects.rs and fails the moment either changes (tested). Re-port, re-run the test, then update it.
+> - Not covered: the engine's effect clock (the host's show time will arrive over the document channel —
+>   not built), and the RTX PC.
+>
+> **E1d status: image (faithful), HAP, Spout, effects (identical) — every source the engine can own today.**
+> The rest — `<video>` / MP4 (WebCodecs), camera, NDI, DMX-in, text, shaders, plugin sources — are
+> browser-side decoders or renderers; each comes when the engine has its own decoder or the host streams
+> the source's texture in. Next: **E1e native projector windows**.
 
 ## 10. Open questions
 

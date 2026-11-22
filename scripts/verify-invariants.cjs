@@ -8428,6 +8428,23 @@ check(
   },
 );
 
+check(
+  'the engine\'s effects port (effects.rs) was proven against the app\'s CURRENT surfaceFx.ts + palettes.ts',
+  'plans/native-engine.md E1d-4: engine/artlux-engine/src/effects.rs is a line-for-line port of the app\'s ' +
+  'generative effects, byte-identical by scripts/test-image-parity.cjs. A port is a COPY, and a copy drifts the ' +
+  'first time the original changes — silently, because nothing runs the parity test on every commit. So the ' +
+  'port records a fingerprint of the two files it was proven against. When this fails: change effects.rs to ' +
+  'match, run `npm run test:image-parity`, and only then update the fingerprint it prints.',
+  () => {
+    const crypto = require('node:crypto');
+    const fp = ['src/renderer/gpu/surfaceFx.ts', 'src/renderer/gpu/palettes.ts']
+      .map((f) => crypto.createHash('sha256').update(raw(f).replace(/\r\n/g, '\n')).digest('hex').slice(0, 16)).join(' ');
+    const m = /proven against: ([0-9a-f]{16} [0-9a-f]{16})/.exec(raw('engine/artlux-engine/src/effects.rs'));
+    if (!m) return 'effects.rs records no "proven against:" fingerprint';
+    return m[1] === fp ? null : `surfaceFx.ts / palettes.ts changed since the engine port was proven (recorded ${m[1]}, now ${fp})`;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 
