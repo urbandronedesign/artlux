@@ -846,7 +846,7 @@ every step says where it is proven:
 | **E0b** ✅ | Engine windows: one winit window per display, borderless/fullscreen, presenting at that display's refresh; the reveal never depends on a "ready" event | here for one display + windowed; multi-display/mixed refresh on the RTX PC |
 | **E0c** ✅ | Engine → Electron page: the engine renders into a shared texture, main imports it with `sharedTexture` (Electron 42 has it), a page draws it — Windows NT-handle path | here |
 | **E0d** ✅ | Zero-copy imports: Spout (D3D11 shared handle) and HAP BC upload, via `create_texture_from_hal` on the pinned wgpu, with the CPU-upload fallback | here (Spout sender needed) |
-| **E0e** | macOS (IOSurface mach port, Syphon, VideoToolbox) and Linux (dmabuf over `SCM_RIGHTS`, VA-API, Wayland window placement) | a Mac and a Linux box; CI builds only |
+| **E0e** ⏸ | macOS (IOSurface mach port, Syphon, VideoToolbox) and Linux (dmabuf over `SCM_RIGHTS`, VA-API, Wayland window placement) | a Mac and a Linux box; CI builds only — **deferred: Windows first (owner, 2026-11-22)** |
 
 > ✅ **E0a done 2026-11-22.** `engine/artlux-engine` (wgpu **=30.0.2**, pinned). `artlux-engine --info` lists
 > the adapters best first; `--selftest` opens the best HARDWARE adapter and refuses a software one (exit
@@ -924,6 +924,31 @@ every step says where it is proven:
 > driver accepts a legacy handle the same way (the RTX PC decides; the copy path stays for that); reading
 > under Spout's own frame lock (neither path waits on the sender's access mutex yet — the app's receiver
 > does not either; E2 should); formats other than BGRA8/RGBA8.
+
+## 9c. Windows first (owner, 2026-11-22)
+
+**The engine is built on Windows first, to the point where it runs a show there; macOS and Linux follow.**
+Linux stays IN scope (§6) — this is an order, not a cut. What it means in practice:
+
+- **E0e (macOS / Linux spikes) waits** until the Windows engine runs the output path end to end. Its
+  questions (IOSurface, dmabuf, Wayland placement, VideoToolbox / VA-API) do not block anything on Windows.
+- **The engine keeps compiling everywhere.** Platform code stays behind `cfg(windows)` (as `share.rs`,
+  `spout.rs` already are) and the portable core (device, sampling, HAP-as-BC, windows) stays portable, so
+  picking macOS / Linux up later is adding back-ends, not untangling Windows assumptions.
+  `.github/workflows/engine.yml` stays as it is; it runs only when the branch is pushed.
+- **Windows open questions still needing the RTX PC:** several displays at mixed refresh (E0b), NVIDIA's
+  D3D12 accepting a Spout legacy handle (E0d), NVIDIA under the shared-texture path (E0c).
+
+**E1 on Windows, in steps** (each ships behind a flag, the browser engine stays the default and the
+fallback until a source/output is proven byte-identical — risk 2):
+
+| Step | What | Proven by |
+|---|---|---|
+| **E1a** | The engine as ArtLux's child process: main spawns it, a handshake, a watchdog rung (crash → restart within a second, the document untouched because it lives in the Show Host), packaged in `extraResources` | a packaged-exe run: engine killed → back, logged |
+| **E1b** | The document → the engine: the surfaces / fixtures / controllers it needs, and LED sampling + universe packing ported from TS | byte parity with today's packing on recorded projects (extends `test-engine-output.cjs`) |
+| **E1c** | Art-Net / sACN sent BY the engine, reusing `native/output-engine`'s Rust as a library | wire capture: the same bytes as today's path, per universe |
+| **E1d** | Sources in the engine: image, HAP (BC), Spout (zero-copy, one-copy fallback), effect | per source, parity vs the browser engine, then flip its default |
+| **E1e** | Native projector windows (uncalibrated), on their display, at its refresh | the E0b screen probe on a real output |
 
 ## 10. Open questions
 
