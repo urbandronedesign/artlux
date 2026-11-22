@@ -21,6 +21,8 @@ app.whenReady().then(async () => {
   fs.writeFileSync(html, '<!doctype html><meta charset="utf-8"><title>camera holder</title>');
   await win.loadFile(html);
   win.webContents.on('console-message', (_e, _lvl, msg) => console.log(`[holder] ${msg}`));
+  // FP_LIB: the app's cameraFingerprint.ts, bundled (global camFp) — the fingerprint is the app's own code.
+  if (process.env.FP_LIB) await win.webContents.executeJavaScript(fs.readFileSync(process.env.FP_LIB, 'utf8'));
   await win.webContents.executeJavaScript(`(async () => {
     const fs = require('fs'), path = require('path');
     const st = { frames: 0, holding: false, settings: null, error: null, t: 0, times: [] };
@@ -30,6 +32,9 @@ app.whenReady().then(async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
       const track = stream.getVideoTracks()[0];
       st.settings = track.getSettings(); st.holding = true;
+      // What the app knows of the camera it holds: the track's label, and every video input as Chromium lists it.
+      st.label = track.label;
+      st.devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput').map((d) => ({ label: d.label, deviceId: d.deviceId, groupId: d.groupId }));
       const reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
       // DUMP_FRAMES=n: after the first second, the next n frames as the app has them — the VideoFrame's planes
       // (copyTo), its format + colour space + timestamp, and the picture drawn 1:1 into a 2D canvas (the
@@ -40,6 +45,8 @@ app.whenReady().then(async () => {
       (async () => { for (;;) {
         const { value, done } = await reader.read(); if (done) break;
         st.frames++; st.times.push(Math.round(performance.now() - t0));
+        // The app's fingerprint, kept FRESH (every ~0.5 s): a resolve compares it with what the engine reads now.
+        if (window.camFp && performance.now() - t0 > 2000 && performance.now() - (st.fpAt ?? 0) > 500) { st.fp = await camFp.frameFingerprint(value); st.fpAt = performance.now(); }
         if (dumped < dumpN && performance.now() - t0 > ${Number(process.env.DUMP_AFTER_MS || 1000)}) {
           const k = dumped++;
           const rect = { x: 0, y: 0, width: value.codedWidth, height: value.codedHeight };

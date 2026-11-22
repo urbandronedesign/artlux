@@ -1709,6 +1709,34 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   engine's symbolic link; then step 5, the runtime: a camera surface on the engine's LEDs and projectors
 >   (the host sends the app frame's colour space, as it does for MP4), and the takeover test.
 
+> **2d CAMERA — step 4 done 2026-11-22: WHICH camera (the app's camera → the engine's).**
+> - **Measured:** Chromium's track label is "<Windows friendly name> (<vid>:<pid>)" ("Logi C270 HD WebCam
+>   (046d:0825)"); its deviceId is an HMAC salted per profile (nothing Windows knows). The engine's symbolic
+>   link carries the same vid/pid. The PS3 Eye is listed by Chromium ("PS3 Eye Universal", no ids) and not by
+>   Media Foundation.
+> - **Built:** `cam::resolve(label, app fingerprint)` (`--camera-resolve`):
+>   - one camera with that name and vid:pid → it (different models: the usual case);
+>   - none → REFUSED (DirectShow-only; the app keeps that surface);
+>   - several (the same model twice) → by PICTURE: each candidate is read shared, its fingerprint compared
+>     with the app's, and the most alike wins only when alike (correlation ≥ 0.8) and clearly more than the
+>     next (by ≥ 0.2); otherwise REFUSED — never a guess. Without the app's fingerprint: REFUSED.
+>   - The fingerprint is the app's own code, `src/renderer/engine/cameraFingerprint.ts` (16 × 9 mean luma of
+>     the VideoFrame's Y plane); `cam::fingerprint` computes it from an engine frame (requantised to the app's
+>     range). Correlation, not distance: auto exposure moved the same camera's mean distance to 1.7–4 levels
+>     between the app's fingerprint and the engine's read; a correlation ignores gain and offset, and a flat
+>     picture (a black stage) scores 0, so it can never decide.
+> - **`test:camera-shared` gate G** (one camera here, so a TEST-ONLY decoy, `ARTLUX_CAM_TWIN`, reads the real
+>   camera as a second one of the same model — its picture as is, or rotated 180°): label → the C270; twin with
+>   the same picture → REFUSED (1.000 vs 1.000); twin looking elsewhere → the real one (1.000 vs −0.36); the
+>   app's picture flipped → the twin; no picture → REFUSED; PS3 Eye → REFUSED. Mutations (no margin; least
+>   alike first) fail it. Motion in front of the camera between the two fingerprints lowered the true
+>   likeness to 0.73–0.86 on one run: refused, then right on a retry — the runtime will retry too.
+> - **F made robust:** an engine frame whose twin fell outside the app's dump window was mis-paired (max 34–55,
+>   a wrong frame, not a wrong conversion); only exact twins count now (mean |dY| ≤ 0.6, measured 0.24).
+> - **Not tried:** two REAL cameras of one model. **Next (step 5):** the runtime — the host sends each camera
+>   surface's label, fingerprint and colour space; the engine resolves, reads shared, draws; then the takeover
+>   test with a camera surface.
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

@@ -10,6 +10,8 @@
 //   E  MJPEG holder: cam.rs's exclusive reader holds MJPEG.   GATE: the engine reads the compressed frames, ≥ 90%.
 //   F  the picture: paired frames, the engine's conversion vs the app's 1:1 draw.
 //                                                            GATE: within 1 on at most 0.1% of channels.
+//   G  identity: the app's label (+ its picture fingerprint) → the engine's camera; a decoy twin (test-only
+//                ARTLUX_CAM_TWIN) shows the picture decides between identical models, or refuses. GATE.
 //   C  no holder:   the engine alone.                        REPORTED: does Windows open a shared read at all.
 //
 //   node scripts/test-camera-shared.cjs [--camera <index>]     (index from `artlux-engine --cameras`)
@@ -161,7 +163,11 @@ const inWindow = (times, a, b) => times.filter((t) => t >= a && t < b).length;
         for (let y = 0; y < e.h; y += 4) for (let xx = 0; xx < e.w; xx += 4) { const ev = er[y * e.pitch + xx]; s += Math.abs(ap[y * x.layout[0].stride + xx] - (e.fullRange ? 16 + ev * 219 / 255 : ev)); n++; } return s / n; };
       const near = app.filter((x) => Math.abs(x.timestamp - e.ts100 / 10) < 150000 && x.display[0] === e.w && x.display[1] === e.h);
       if (!near.length) continue;
-      const a = near.map((x) => ({ x, yd: yd(x) })).sort((p, q) => p.yd - q.yd)[0].x;
+      // Only the app frame of the SAME image counts (mean |dY| ~0.24 measured; the neighbouring frames ~2): an
+      // engine frame whose twin fell outside the app's dump window is skipped, not mis-paired.
+      const best = near.map((x) => ({ x, yd: yd(x) })).sort((p, q) => p.yd - q.yd)[0];
+      if (best.yd > 0.6) continue;
+      const a = best.x;
       const out = path.join(dir, `eng.f${e.k}.rgba`);
       execFileSync(ENGINE, ['--camera-convert', path.join(dir, `eng.f${e.k}.json`), out]);
       const E = fs.readFileSync(out), A = fs.readFileSync(path.join(dir, `f${a.k}.rgba.bin`));
@@ -170,9 +176,50 @@ const inWindow = (times, a, b) => times.filter((t) => t >= a && t < b).length;
       worst = Math.max(worst, diff / n); pairs++;
       if (pairs === 1) console.log(`F engine ${e.format} ${e.w}x${e.h} ${e.bt709 ? 'BT.709' : 'BT.601'} ${e.fullRange ? 'FULL' : 'limited'} · app ${a.format} ${a.colorSpace.matrix} ${a.colorSpace.fullRange ? 'full' : 'limited'}`);
     }
+    if (pairs < 8) {
+      const at = app.map((x) => x.timestamp).sort((p, q) => p - q), et = eng.map((x) => x.ts100 / 10).sort((p, q) => p - q);
+      console.log(`F diagnostics: app ${app.length} frames ${at.length ? `${(at[0] / 1e3).toFixed(0)}..${(at[at.length - 1] / 1e3).toFixed(0)} ms` : ''} ${app[0] ? `${app[0].display[0]}x${app[0].display[1]}` : ''}; engine ${eng.length} frames ${et.length ? `${(et[0] / 1e3).toFixed(0)}..${(et[et.length - 1] / 1e3).toFixed(0)} ms` : ''} ${eng[0] ? `${eng[0].format} ${eng[0].w}x${eng[0].h}` : ''}; ${r.out.trim().replace(/\r?\n/g, ' | ')}`);
+    }
     console.log(`F ${pairs} frames paired; worst ${(100 * (1 - worst)).toFixed(3)}% of channels identical, max ${maxd}${/missed/.test(r.out) ? ' (the dump missed frames)' : ''}`);
     if (pairs < 8 || maxd > 1 || worst > 0.001) { console.log('FAIL F: the engine does not draw the camera as the app does (within 1 on at most 0.1%)'); fail++; }
     else console.log('PASS F: the camera picture is the app\'s, within 1 on at most 0.1% of channels');
+  }
+  // ── G: WHICH camera — the app's label (and picture) → the engine's camera ─────────────────────────────────
+  // The fingerprint is the app's own code (src/renderer/engine/cameraFingerprint.ts, bundled into the page).
+  {
+    const dir = path.join(WORK, 'g');
+    fs.mkdirSync(dir, { recursive: true });
+    const lib = path.join(dir, 'fp.js');
+    require(path.join(ROOT, 'node_modules', 'esbuild')).buildSync({ entryPoints: [path.join(ROOT, 'src', 'renderer', 'engine', 'cameraFingerprint.ts')], bundle: true, format: 'iife', globalName: 'camFp', platform: 'browser', outfile: lib, logLevel: 'error' });
+    const h = holder(dir, 14, 0, { FP_LIB: lib });
+    await untilHolding(h);
+    while (!h.read()?.fp) await sleep(100);
+    const st = h.read();
+    const fpFile = path.join(dir, 'app-fp.json'), flipFile = path.join(dir, 'app-fp-flipped.json');
+    // Each resolve gets the app's CURRENT fingerprint (the runtime will send a fresh one too).
+    const fresh = () => { const f = h.read()?.fp ?? st.fp; fs.writeFileSync(fpFile, JSON.stringify(f)); fs.writeFileSync(flipFile, JSON.stringify([...f].reverse())); };
+    const want = new RegExp(`^\\[${IDX}\\] .*  (\\S+)\\r?$`, 'm').exec(list)[1];
+    const once = (args, env) => { fresh(); try { return execFileSync(ENGINE, ['--camera-resolve', ...args], { encoding: 'utf8', env: { ...process.env, ...env } }).trim(); } catch (e) { return String(e.stdout || '').trim(); } };
+    // A picture that does not settle it is REFUSED, not guessed (motion between the app's fingerprint and the
+    // engine's read lowers the likeness): a case that should resolve tries up to 3 times, as the runtime will
+    // retry. What must NEVER happen is resolving to the wrong camera.
+    const resolve = (args, env = {}, tries = 1) => { let o = ''; for (let k = 0; k < tries; k++) { o = once(args, env); if (!/does not settle it/.test(o)) break; } return o; };
+    const g = [
+      ['label', resolve([st.label, fpFile]), (o) => o.startsWith(`RESOLVED ${want} `)],
+      ['twin, same picture', resolve([st.label, fpFile], { ARTLUX_CAM_TWIN: 'same' }), (o) => o.startsWith('REFUSED') && /does not settle it/.test(o)],
+      ['twin, other picture', resolve([st.label, fpFile], { ARTLUX_CAM_TWIN: 'flip' }, 3), (o) => o.startsWith(`RESOLVED ${want} `) && /by picture/.test(o)],
+      ['twin, app picture flipped', resolve([st.label, flipFile], { ARTLUX_CAM_TWIN: 'flip' }, 3), (o) => o.startsWith(`RESOLVED twin:${want} `)],
+      ['twin, no picture', resolve([st.label], { ARTLUX_CAM_TWIN: 'same' }), (o) => o.startsWith('REFUSED') && /picture is needed/.test(o)],
+    ];
+    // Every other camera Chromium lists that the engine cannot see (the PS3 Eye here: DirectShow only) is refused.
+    for (const d of st.devices.filter((d) => d.label !== st.label)) {
+      const o = resolve([d.label]);
+      g.push([`"${d.label}"`, o, (x) => x.startsWith('REFUSED') || x.startsWith('RESOLVED')]);
+    }
+    await h.done;
+    let bad = 0;
+    for (const [what, out, ok] of g) { const pass = ok(out); if (!pass) bad++; console.log(`G ${pass ? 'ok  ' : 'BAD '} ${what}: ${out.replace(/\\\?\usb#/, 'usb#')}`); }
+    if (bad) { console.log(`FAIL G: ${bad} identity case(s) wrong`); fail++; } else console.log('PASS G: the app camera is found by label, and by picture among identical ones (or refused)');
   }
   // ── C: nobody holds the camera ────────────────────────────────────────────────────────────────────────
   {

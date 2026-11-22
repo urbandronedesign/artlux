@@ -257,6 +257,18 @@ fn main() -> ExitCode {
         return if n > 0 { ExitCode::SUCCESS } else { ExitCode::from(1) };
     }
     #[cfg(windows)]
+    if let Some(i) = args.iter().position(|a| a == "--camera-resolve") {
+        // Item 2d step 4: which engine camera is the app's camera <label> (its track label), with the app's
+        // picture fingerprint (a JSON array, cameraFingerprint.ts) when one is given.
+        let Some(label) = args.get(i + 1) else { eprintln!("usage: --camera-resolve <label> [fingerprint.json]"); return ExitCode::from(2) };
+        let fp: Option<Vec<u8>> = args.get(i + 2).filter(|s| !s.starts_with("--")).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str(&t).ok());
+        let app = artlux_engine::yuv::Space { bt709: false, full_range: false };
+        return match artlux_engine::cam::resolve(label, fp.as_deref(), app) {
+            Ok((link, why)) => { println!("RESOLVED {link} ({why})"); ExitCode::SUCCESS }
+            Err(e) => { println!("REFUSED {e}"); ExitCode::from(1) }
+        };
+    }
+    #[cfg(windows)]
     if let Some(i) = args.iter().position(|a| a == "--camera-convert") {
         // Item 2d step 3: a dumped camera frame (--camera-dump's .json + .raw) → the picture the engine draws,
         // read back as RGBA (NV12 through the GPU conversion in the frame's own colour space; MJPEG decoded).

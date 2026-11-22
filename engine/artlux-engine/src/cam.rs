@@ -250,3 +250,112 @@ pub fn to_limited(data: &[u8], luma: usize) -> Vec<u8> {
     let lc: [u8; 256] = std::array::from_fn(|v| (128.0 + (v as f64 - 128.0) * 224.0 / 255.0).round() as u8);
     data.iter().enumerate().map(|(i, &v)| if i < luma { ly[v as usize] } else { lc[v as usize] }).collect()
 }
+
+/// Item 2d step 4 — the app's fingerprint of a frame (src/renderer/engine/cameraFingerprint.ts), computed
+/// from an engine frame: the mean Y of a 16 × 9 grid over the picture, in the APP's range (a full-range frame
+/// is requantised exactly as the app's frame was made — see `picture`). For MJPEG, from the decoded RGB in
+/// BT.601 limited (close, not exact: only used to tell cameras apart).
+pub const FP_COLS: usize = 16;
+pub const FP_ROWS: usize = 9;
+pub fn fingerprint(r: &Raw, app: crate::yuv::Space) -> Option<Vec<u8>> {
+    let (w, h) = (r.format.w as usize, r.format.h as usize);
+    let (y, stride): (std::borrow::Cow<[u8]>, usize) = match r.format.subtype {
+        "NV12" if r.data.len() >= r.pitch * h => {
+            let luma = &r.data[..r.pitch * h];
+            if r.space.full_range && !app.full_range { (std::borrow::Cow::Owned(to_limited(luma, luma.len())), r.pitch) } else { (std::borrow::Cow::Borrowed(luma), r.pitch) }
+        }
+        "MJPG" => {
+            let img = image::load_from_memory_with_format(&r.data, image::ImageFormat::Jpeg).ok()?.to_rgb8();
+            let px: Vec<u8> = img.pixels().map(|p| (16.0 + (65.481 * p[0] as f64 + 128.553 * p[1] as f64 + 24.966 * p[2] as f64) / 255.0).round() as u8).collect();
+            (std::borrow::Cow::Owned(px), img.width() as usize)
+        }
+        _ => return None,
+    };
+    let mut out = Vec::with_capacity(FP_COLS * FP_ROWS);
+    for row in 0..FP_ROWS {
+        let (y0, y1) = (row * h / FP_ROWS, (row + 1) * h / FP_ROWS);
+        for col in 0..FP_COLS {
+            let (x0, x1) = (col * w / FP_COLS, (col + 1) * w / FP_COLS);
+            let mut sum = 0u64;
+            for yy in y0..y1 { for xx in x0..x1 { sum += y[yy * stride + xx] as u64; } }
+            // JS Math.round: half up.
+            out.push(((sum as f64 / ((y1 - y0) * (x1 - x0)).max(1) as f64) + 0.5).floor() as u8);
+        }
+    }
+    Some(out)
+}
+
+/// How alike two fingerprints are: their correlation (Pearson), 1 = the same picture. A correlation, not a
+/// distance: the app's fingerprint is taken moments before the engine reads, and a camera's auto exposure
+/// moves the whole picture meanwhile (MEASURED: a mean distance of 1.7–4.0 levels for the same camera,
+/// against a limit that had to stay small to tell cameras apart). Gain and offset do not move a correlation.
+/// A flat picture (a black stage) has none to give: 0, so it can never decide between cameras.
+pub fn fp_likeness(a: &[u8], b: &[u8]) -> f64 {
+    let n = a.len().min(b.len()) as f64;
+    if n == 0.0 { return 0.0; }
+    let (ma, mb) = (a.iter().map(|&v| v as f64).sum::<f64>() / n, b.iter().map(|&v| v as f64).sum::<f64>() / n);
+    let (mut sab, mut saa, mut sbb) = (0.0, 0.0, 0.0);
+    for (x, y) in a.iter().zip(b) { let (dx, dy) = (*x as f64 - ma, *y as f64 - mb); sab += dx * dy; saa += dx * dx; sbb += dy * dy; }
+    if saa < 1.0 || sbb < 1.0 { 0.0 } else { sab / (saa * sbb).sqrt() }
+}
+
+/// "<name> (<vid>:<pid>)" → its parts (the app's track label; cameraFingerprint.ts splitCameraLabel).
+pub fn split_label(label: &str) -> (String, Option<(String, String)>) {
+    let t = label.trim();
+    if let Some(open) = t.rfind(" (") {
+        let ids = &t[open + 2..];
+        if ids.len() == 10 && ids.ends_with(')') && ids.as_bytes()[4] == b':' && ids[..4].chars().chain(ids[5..9].chars()).all(|c| c.is_ascii_hexdigit()) {
+            return (t[..open].to_string(), Some((ids[..4].to_ascii_lowercase(), ids[5..9].to_ascii_lowercase())));
+        }
+    }
+    (t.to_string(), None)
+}
+
+/// Which of the engine's cameras is the app's camera `label`, its picture `fp` (the app's fingerprint) when
+/// there is one. Name + vid:pid decide when one camera matches; several identical ones are told apart by
+/// picture: each is read SHARED, and the most alike wins only if it is alike (correlation ≥ FP_ALIKE) and
+/// clearly more so than the next (by ≥ FP_MARGIN). Returns the link and how it was decided, or why not.
+/// MEASURED on the C270 (a low-texture scene: a wall and two plugs): the same camera 0.86–0.97 with the
+/// app's fingerprint up to ~8 s old, the same camera rotated 180° −0.7 to −0.8.
+pub const FP_ALIKE: f64 = 0.8;
+pub const FP_MARGIN: f64 = 0.2;
+pub fn resolve(label: &str, fp: Option<&[u8]>, app: crate::yuv::Space) -> Result<(String, String), String> {
+    let (name, ids) = split_label(label);
+    let mut cams = list()?;
+    // TEST ONLY (scripts/test-camera-shared.cjs, one camera on the bench): ARTLUX_CAM_TWIN=same|flip adds a
+    // decoy of the same model, "twin:<link>", that reads the real camera — its picture as is (`same`: two
+    // cameras that cannot be told apart) or rotated 180° (`flip`: one looking elsewhere). It exercises the
+    // picture rule on real frames; two real identical cameras are still to be tried.
+    let twin = std::env::var("ARTLUX_CAM_TWIN").ok();
+    if twin.is_some() { if let Some(c) = cams.iter().find(|c| c.name == name).cloned() { cams.push(Camera { link: format!("twin:{}", c.link), ..c }); } }
+    let matches: Vec<&Camera> = cams.iter().filter(|c| c.name == name && ids.as_ref().is_none_or(|(v, p)| c.link.to_ascii_lowercase().contains(&format!("vid_{v}&pid_{p}")))).collect();
+    // The picture of one candidate, read shared (the app holds the camera), as a fingerprint.
+    let read_fp = |link: &str| -> Option<Vec<u8>> {
+        let (link, flip) = match link.strip_prefix("twin:") { Some(l) => (l, twin.as_deref() == Some("flip")), None => (link, false) };
+        let s = crate::camshared::SharedIn::open(link).ok()?;
+        let t0 = std::time::Instant::now();
+        while t0.elapsed().as_secs_f64() < 3.0 {
+            if let Some((seq, g)) = s.latest() { if seq >= 2 { return fingerprint(g.as_ref()?, app).map(|mut f| { if flip { f.reverse(); } f }); } }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        None
+    };
+    match (matches.len(), fp) {
+        (0, _) => Err(format!("\"{label}\" is not a camera the engine can read (Media Foundation does not list it — a DirectShow-only device?)")),
+        (1, None) => Ok((matches[0].link.clone(), "the only camera with that name and vid:pid".into())),
+        (1, Some(f)) => {
+            let d = read_fp(&matches[0].link).map(|e| format!("; picture likeness {:.3}", fp_likeness(f, &e))).unwrap_or_default();
+            Ok((matches[0].link.clone(), format!("the only camera with that name and vid:pid{d}")))
+        }
+        (n, None) => Err(format!("{n} cameras are \"{label}\": the app's picture is needed to tell them apart")),
+        (n, Some(f)) => {
+            let mut scored: Vec<(f64, &Camera)> = matches.iter().filter_map(|c| read_fp(&c.link).map(|e| (fp_likeness(f, &e), *c))).collect();
+            scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+            let list = scored.iter().map(|(d, c)| format!("{:.3} {}", d, c.link)).collect::<Vec<_>>().join(", ");
+            match scored.as_slice() {
+                [(d, c), rest @ ..] if *d >= FP_ALIKE && rest.first().is_none_or(|(d2, _)| d - d2 >= FP_MARGIN) => Ok((c.link.clone(), format!("by picture among {n} \"{name}\": {list}"))),
+                _ => Err(format!("{n} cameras are \"{label}\" and the picture does not settle it: {list}")),
+            }
+        }
+    }
+}

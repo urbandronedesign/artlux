@@ -8834,7 +8834,7 @@ check(
 );
 
 check(
-  'the native engine reads a camera SHARED beside the app, whatever its format, and draws it as the app does',
+  'the native engine reads a camera SHARED beside the app, whatever its format, draws it as the app does, and finds WHICH camera',
   'plans/native-engine.md "2d", owner decision 2026-11-22: the app keeps its cameras, the engine reads them ' +
   'shared (scripts/test-camera-shared.cjs). Two ways it breaks silently. (1) a plain Media Foundation open is ' +
   'EXCLUSIVE: an engine that opened the camera that way would take it from the app, or fail beside it with ' +
@@ -8847,7 +8847,16 @@ check(
     if (!/SetSharingMode\(MediaCaptureSharingMode::SharedReadOnly\)/.test(c)) problems.push('camshared.rs no longer opens the camera SharedReadOnly (it would take it from the app)');
     if (!/for mjpg in \[false, true\]/.test(c) || !/OutputFormatNotSupported/.test(c) || !/fn copy_mjpg\(/.test(c)) problems.push('camshared.rs no longer falls back to the MJPEG frames beside an MJPEG holder');
     const t = raw('scripts/test-camera-shared.cjs');
-    for (const g of ['PASS A', 'PASS D', 'PASS E', 'PASS F']) if (!t.includes(g)) problems.push(`test-camera-shared lost gate ${g.slice(5)}`);
+    for (const g of ['PASS A', 'PASS D', 'PASS E', 'PASS F', 'PASS G']) if (!t.includes(g)) problems.push(`test-camera-shared lost gate ${g.slice(5)}`);
+    // Step 4: WHICH camera. Two cameras of one model share name and vid:pid; the picture decides, and only
+    // when it is clearly one of them - else REFUSED (the mutation without the margin picked a camera that
+    // could not be told apart). The fingerprint grid is the SAME on both sides (app TS, engine Rust).
+    const cam4 = raw('engine/artlux-engine/src/cam.rs');
+    if (!/\*d >= FP_ALIKE && rest\.first\(\)\.is_none_or\(\|\(d2, _\)\| d - d2 >= FP_MARGIN\)/.test(cam4)) problems.push('cam.rs resolve no longer refuses identical cameras whose pictures do not settle which is which');
+    const fpTs = raw('src/renderer/engine/cameraFingerprint.ts');
+    const tsGrid = [/FP_COLS = (\d+)/.exec(fpTs)?.[1], /FP_ROWS = (\d+)/.exec(fpTs)?.[1]].join('x');
+    const rsGrid = [/pub const FP_COLS: usize = (\d+)/.exec(cam4)?.[1], /pub const FP_ROWS: usize = (\d+)/.exec(cam4)?.[1]].join('x');
+    if (tsGrid !== rsGrid) problems.push(`the camera fingerprint grid differs: app ${tsGrid}, engine ${rsGrid}`);
     // Step 3: the picture. A full-range frame drawn for a limited-range app is requantised EXACTLY as the app's
     // frame was made (measured: Y' = ((Y*3517 + b) >> 12) + 16, C' = round(128 + (C-128)*224/255)); without it
     // the camera differs from the app by up to 8 (mutation), with BT.709 by up to 11 (mutation).
