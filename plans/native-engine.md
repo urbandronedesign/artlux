@@ -1354,6 +1354,34 @@ fallback until a source/output is proven byte-identical — risk 2):
 >     before and after a restart; uncovered 155 ms after a kill. Guarded.
 > - Not covered: `world`-profile (3D) maps (the app cannot replay them either), several regions on several
 >   displays, a map hot-swapped mid-show (the window reopens — a blink), the RTX PC.
+>
+> ✅ **2b done 2026-11-22 (NDI at runtime).**
+> - **The engine receives NDI itself** (`ndi.rs NdiIn`). It uses the app's NDI crate, options and capture
+>   call, on its own thread per source, so discovery never stalls the render thread.
+> - **Same arithmetic as the app.** The frame is scaled to the size of the app's own NDI canvas (the host
+>   sends it) with a VERBATIM copy of the addon's `fit` + `downscale_rgba`. The addon ships prebuilt, so
+>   the two copies cannot be shared; `verify:invariants` holds them equal.
+> - **Copied, not "fixed":** the app has ONE NDI receiver for every NDI surface, exactly as with Spout. Two
+>   NDI sources stay the app's, with the reason.
+> - **A build-time feature.** NDI is the cargo feature `ndi`, and `build:engine` (`scripts/build-engine.cjs`)
+>   turns it on where `NDI_SDK_DIR` exists. An engine built without it refuses an NDI show.
+> - **Found:** linked normally, the NDI build does not START (0xC0000135) on a machine without the NDI
+>   runtime on its PATH. That would take the LED wire and the projectors down with it. The fix:
+>   - the DLL is **delay-loaded** (`build.rs`);
+>   - `ndi::runtime()` loads it by full path from the places the app's plugin uses;
+>   - without a runtime, the show stays the app's with that reason.
+>
+>   Checked: the NDI build starts with a bare `System32` PATH.
+> - **Proof.** `test:native-takeover` puts a real NDI sender (the app's own `ndi.node`) on an NDI surface.
+>   **Universe 5 is byte-identical** with the engine owning the wire, beside Spout, pixels and lights. After
+>   the handover only the engine sends; the handback took 64 ms.
+> - **A main fix on the way (`answeredRev`): a new document is not a handback.** An NDI frame arriving
+>   auto-fits its surface, which makes a new document. Main used to unmute the app the moment the revision
+>   changed, while the engine was still sending, so both sent for a moment. Now the engine that owned the
+>   previous revision keeps the wire until it answers the new one. "Sent" freshness still guards it, and a
+>   refusal hands the wire back at once.
+> - **Not covered:** a MOVING NDI picture, a source on another machine (network loss and reconnect), and a
+>   machine with no NDI runtime at all (the refusal is guarded, not run).
 
 ## 10. Open questions
 

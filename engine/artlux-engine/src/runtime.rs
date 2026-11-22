@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), Spout(String), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), Ndi(String), None }
 
 struct Doc {
     rev: u64,
@@ -71,6 +71,9 @@ pub struct Runtime {
     /// E1f "2a": one Spout receiver per surface, kept while its source is that sender (spout.rs SpoutIn).
     #[cfg(windows)]
     spouts: HashMap<String, (String, crate::spout::SpoutIn)>,
+    /// Item 2b: one NDI receiver (its own thread) per surface, and the last frame number drawn.
+    #[cfg(feature = "ndi")]
+    ndis: HashMap<String, (crate::ndi::NdiIn, u64)>,
 }
 
 impl Runtime {
@@ -78,7 +81,8 @@ impl Runtime {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
             images: HashMap::new(), effects: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
             outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
-            #[cfg(windows)] spouts: HashMap::new() }
+            #[cfg(windows)] spouts: HashMap::new(),
+            #[cfg(feature = "ndi")] ndis: HashMap::new() }
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -196,6 +200,7 @@ impl Runtime {
                 "effect" => Source::Effect(Params::from_json(&s["content"])),
                 "hap" => Source::Hap(src["path"].as_str().unwrap_or_default().to_string()),
                 "spout" => Source::Spout(src["name"].as_str().unwrap_or_default().to_string()),
+                "ndi" => Source::Ndi(src["name"].as_str().unwrap_or_default().to_string()),
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -217,6 +222,8 @@ impl Runtime {
         }
         #[cfg(windows)]
         self.spouts.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Spout(_))));
+        #[cfg(feature = "ndi")]
+        self.ndis.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Ndi(_))));
         // Keep the effects' state (Fire's heat) across documents for surfaces that are still effects.
         self.effects.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Effect(_))));
         let ids: Vec<String> = doc.sources.keys().cloned().collect();
@@ -238,6 +245,13 @@ impl Runtime {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
                 Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") => {}
+                // Item 2b: only an engine BUILT with NDI (the `ndi` feature links the SDK) can take it.
+                Some("ndi") if cfg!(feature = "ndi") => {
+                    // The runtime is delay-loaded: no NDI install here = the app keeps the show, with this reason.
+                    #[cfg(feature = "ndi")]
+                    crate::ndi::runtime().map_err(|e| format!("surface '{}': {e}", name_of(d, sid)))?;
+                }
+                Some("ndi") => return Err(format!("surface '{}': this engine build has no NDI (built without the NDI SDK)", name_of(d, sid))),
                 _ => return Err(format!("surface '{}': {}", name_of(d, sid), src["why"].as_str().unwrap_or("not a source the engine draws"))),
             }
             if let Some(Source::Image(p)) = doc.sources.get(sid) {
@@ -315,6 +329,27 @@ impl Runtime {
                         }
                     }
                     #[cfg(not(windows))]
+                    { let _ = name; self.pictures.remove(sid); }
+                }
+                Source::Ndi(name) => {
+                    #[cfg(feature = "ndi")]
+                    {
+                        if self.ndis.get(sid).is_none_or(|(n, _)| &n.name != name) {
+                            self.ndis.insert(sid.clone(), (crate::ndi::NdiIn::new(name), 0));
+                        }
+                        // The size of the app's own NDI canvas (the host sends it): scaled by the app's arithmetic.
+                        let size = v["ndi"][sid].as_array().and_then(|a| Some((a.first()?.as_u64()? as u32, a.get(1)?.as_u64()? as u32)));
+                        let (rx, last) = self.ndis.get_mut(sid).unwrap();
+                        if let Some((w, h, rgba, seq)) = rx.frame(size) {
+                            if *last != seq || self.gens.get(sid).is_none() || !self.pictures.contains_key(sid) {
+                                *last = seq;
+                                self.pictures.insert(sid.clone(), Picture::canvas(w, h, rgba));
+                                self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 2);
+                            }
+                        }
+                        // No frame yet: the app's canvas shows nothing either — black.
+                    }
+                    #[cfg(not(feature = "ndi"))]
                     { let _ = name; self.pictures.remove(sid); }
                 }
                 Source::None => { self.pictures.remove(sid); }

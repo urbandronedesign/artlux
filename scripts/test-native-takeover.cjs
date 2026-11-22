@@ -66,6 +66,17 @@ const spoutPic = writePng('spout-48x27.png', 48, 27, (x, y) => [(x * 37 + y * 11
   pj.fixtures.push({ id: 'fSp', name: 'Spout strip', surfaceId: 'sSp', x: 0.03, y: 0.6, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 4, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
   fs.writeFileSync(project, JSON.stringify(pj, null, 2));
 }
+// Item 2b: an NDI surface, fed by a REAL NDI sender for the whole test — the app's own NDI addon
+// (native/ndi ndi.node: sendCreate / sendFrame, Node-loadable) in a child process. The app receives it through
+// its NDI plugin, the engine through ndi.rs.
+const NDI_NAME = 'ArtLux takeover NDI';
+const NDI_W = 64, NDI_H = 36;
+{
+  const pj = JSON.parse(fs.readFileSync(project, 'utf8'));
+  pj.surfaces.push({ id: 'sNdi', name: 'NDI', x: 0.52, y: 0.52, width: 0.46, height: 0.26, rotation: 0, zIndex: 3, content: { type: 'NDI', ndiName: '', opacity: 1 } });
+  pj.fixtures.push({ id: 'fNdi', name: 'NDI strip', surfaceId: 'sNdi', x: 0.53, y: 0.6, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 5, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
+  fs.writeFileSync(project, JSON.stringify(pj, null, 2));
+}
 // E1f-2: LIGHT fixtures beside the pixels — generic profiles from the app's own library, authored values
 // in `dmx` (normalised), one SPILLING past channel 512. Their bytes are the app's precedence stack's; the
 // engine only places them.
@@ -141,6 +152,21 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
   // The sender runs from a COPY under another name: the clean-up between runs kills artlux-engine.exe by name.
   const SENDER_EXE = path.join(WORK, 'spout-sender.exe');
   fs.copyFileSync(path.join(ROOT, 'engine', 'target', 'release', 'artlux-engine.exe'), SENDER_EXE);
+  // The NDI sender: a static picture, ~30 fps, through the app's own addon.
+  const ndiScript = path.join(WORK, 'ndi-sender.cjs');
+  fs.writeFileSync(ndiScript, `const a = require(${JSON.stringify(path.join(ROOT, 'native', 'ndi', 'ndi.node'))});
+a.sendCreate('t', ${JSON.stringify(NDI_NAME)});
+const w = ${NDI_W}, h = ${NDI_H}, px = Buffer.alloc(w * h * 4);
+for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; px[i] = (x * 41 + y * 7) % 256; px[i + 1] = (x * 3 + y * 53) % 256; px[i + 2] = (x * y * 5) % 256; px[i + 3] = 255; }
+setInterval(() => a.sendFrame('t', w, h, px), 33);`);
+  // ndi.node links the NDI runtime: give the sender the PATH the app's NDI plugin builds (ndiManager), or it
+  // cannot load at all — and say so, rather than fail section A for a reason that is not the app's.
+  const BS = String.fromCharCode(92);
+  const ndiDirs = [process.env.NDI_RUNTIME_DIR_V6, process.env.NDI_RUNTIME_DIR_V5, ['C:', 'Program Files', 'NDI', 'NDI 6 Runtime', 'v6'].join(BS),
+    process.env.NDI_SDK_DIR ? path.join(process.env.NDI_SDK_DIR, 'Bin', 'x64') : null].filter((d) => d && fs.existsSync(d));
+  const ndiSender = spawn(process.execPath, [ndiScript], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, PATH: [...ndiDirs, process.env.PATH].join(';') } });
+  let ndiErr = ''; ndiSender.stderr.on('data', (d) => { ndiErr += d; });
+  ndiSender.on('exit', (c) => { if (c) console.log(`NDI SENDER DIED (${c}): ${ndiErr.trim().slice(0, 300)}`); });
   const sender = spawn(SENDER_EXE, ['--spout-send', SPOUT_NAME, '--image', spoutPic, '--seconds', '600'], { stdio: 'ignore' });
   try {
     const prefs = hadPrefs ? JSON.parse(fs.readFileSync(PREFS, 'utf8')) : {};
@@ -151,10 +177,13 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     // ── A. the app alone ───────────────────────────────────────────────────────────────────────────────
     let app = launch(false);
     ok(await waitUntil(() => packets.some((p) => p.u === 0) && packets.some((p) => p.u === 1), 120000), 'A. without the flag: the app puts both universes on the wire');
+    // The live sources (Spout, NDI) arrive later than the stills — NDI discovery alone can take a retry.
+    await waitUntil(() => [4, 5].every((u) => packets.some((p) => p.u === u && p.data.some((b) => b > 0))), 30000);
     await sleep(3000);
     await settle();
     const A = packets.splice(0);
-    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3), 4: lastOf(A, 4) };
+    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3), 4: lastOf(A, 4), 5: lastOf(A, 5) };
+    ok(ref[5] && ref[5].some((b) => b > 0), `A. the NDI surface is on it (universe 5 lit: ${!!ref[5]?.some((b) => b > 0)})`);
     ok(ref[4] && ref[4].some((b) => b > 0), `A. the Spout surface is on it (universe 4 lit: ${!!ref[4]?.some((b) => b > 0)})`);
     ok(ref[2] && ref[2][0] === 255 && ref[2][1] === 128 && ref[3] && ref[3].some((b) => b > 0), `A. the lights are on it too (wash 1 red ${ref[2]?.[0]}, green ${ref[2]?.[1]}; universe 3 lit: ${!!ref[3]?.some((b) => b > 0)})`);
     for (const u of [0, 1]) { const tailA = A.filter((p) => p.u === u).slice(-60); console.log(`     run A universe ${u}: ${new Set(tailA.map((p) => p.data.toString('hex'))).size} distinct payloads in its last ${tailA.length} packets`); }
@@ -166,6 +195,8 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     // ── B. with the native engine ────────────────────────────────────────────────────────────────────
     app = launch(true);
     const took = await waitUntil(() => packets.some((p) => who(p) === 'engine'), 120000);
+    // ...and their frames reach the ENGINE too before the comparison (its own receivers connect afresh).
+    await waitUntil(() => [4, 5].every((u) => packets.some((p) => who(p) === 'engine' && p.u === u && p.data.some((b) => b > 0))), 30000);
     ok(took, 'B. with --native-engine: the ENGINE starts sending');
     await sleep(3000); await settle();
     const handover = packets.findIndex((p) => who(p) === 'engine');
@@ -181,7 +212,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     const sendersB = new Set(after.map(who));
     for (const u of [0, 1]) { const t = after.filter((p) => p.u === u).slice(-60); console.log(`     run B universe ${u}: ${new Set(t.map((p) => p.data.toString('hex'))).size} distinct payloads in the engine's last ${t.length} packets`); }
     ok(after.length > 50 && sendersB.size === 1 && sendersB.has('engine'), `B. after the handover only the engine sends (${after.length} packets: ${[...sendersB].join(', ')})`);
-    for (const u of [0, 1, 2, 3, 4]) {
+    for (const u of [0, 1, 2, 3, 4, 5]) {
       const got = lastOf(after, u);
       if (got) fs.writeFileSync(path.join(WORK, `engine-u${u}.bin`), got);
       if (ref[u]) fs.writeFileSync(path.join(WORK, `app-u${u}.bin`), ref[u]);
@@ -244,6 +275,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     sock.close();
     polling = false;
     try { sender.kill(); } catch { /* gone */ }
+    try { ndiSender.kill(); } catch { /* gone */ }
   }
   console.log(fails ? `\nNATIVE TAKEOVER FAILED: ${fails}` : '\nNATIVE TAKEOVER OK');
   process.exit(fails ? 1 : 0);

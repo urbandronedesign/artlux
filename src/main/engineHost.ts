@@ -82,9 +82,16 @@ function setOwns(next: { rev: number; pid: number | null } | null, why: string):
 }
 /** Does the engine drive the wire right now? (False whenever in doubt: the app's frames then go out.) */
 export function engineOwnsWire(): boolean {
-  return !!owns && owns.rev === lastDocRev && !!child && owns.pid === (child.pid ?? null) && status.state === 'up'
+  // ⚠ A NEW DOCUMENT IS NOT A HANDBACK. Requiring the answer for the LATEST revision unmuted the app in the
+  // gap between a document change and the engine's answer — and the engine was still sending, so both did
+  // (measured: an NDI frame arriving auto-fits its surface, a new document, two senders for a moment). While
+  // that answer is pending, an engine that owned the previous revision keeps the wire; "sent" freshness still
+  // guards it, and a refusal hands it back at once.
+  const current = !!owns && (owns.rev === lastDocRev || answeredRev !== lastDocRev);
+  return current && !!child && owns!.pid === (child.pid ?? null) && status.state === 'up'
     && Date.now() - lastSentAt < SENT_FRESH_MS;
 }
+let answeredRev = -1;
 
 // Item 3: CALIBRATION MAPS as files. The renderer sends each map once (~10 MB); main writes it where the engine
 // can read it and the document names it by key — so a document change never re-ships a map.
@@ -259,6 +266,7 @@ function spawnEngine(): void {
         setProjOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
       } else if (m.type === 'owns') {
         if (m.rev !== lastDocRev) continue;   // an answer about a document already replaced
+        answeredRev = m.rev;
         setOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
       }
     }

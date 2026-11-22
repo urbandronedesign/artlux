@@ -109,6 +109,11 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   if (spoutSenders.size > 1) {
     for (const id in sources) if (sources[id].kind === 'spout') sources[id] = { kind: 'unsupported', why: 'two Spout senders at once (the app shows one of them on every Spout surface)' };
   }
+  // The same for NDI: one receiver in the app, the latest source wins on every NDI surface (plugins/ndi).
+  const ndiSources = new Set(Object.values(sources).flatMap((x) => (x.kind === 'ndi' ? [x.name] : [])));
+  if (ndiSources.size > 1) {
+    for (const id in sources) if (sources[id].kind === 'ndi') sources[id] = { kind: 'unsupported', why: 'two NDI sources at once (the app shows one of them on every NDI surface)' };
+  }
   const sourcesKey = JSON.stringify(sources);
   const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq];
   if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
@@ -129,9 +134,16 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const g = contentSource.getDrawableGeneration(s.id, s.content);
     if (g !== undefined) hap[s.id] = g;
   }
+  // Item 2b: each NDI surface's canvas size in the APP — the engine scales its frame to exactly that.
+  const ndi: Record<string, [number, number]> = {};
+  for (const s of surfaces) {
+    if (sources[s.id].kind !== 'ndi') continue;
+    const c = surfaceMedia.getDrawable(s) as { width?: number; height?: number } | null;
+    if (c && c.width && c.height) ndi[s.id] = [c.width, c.height];
+  }
   // A light's values as the wire will carry them: the frame codec stores each into a Uint8Array, i.e.
   // JavaScript's ToUint8 (truncate, then modulo 256; NaN → 0). Done HERE so the engine gets bytes.
   const lights: Record<string, number[]> = {};
   for (const id in lightBytes) lights[id] = lightBytes[id].map((v) => { const t = Math.trunc(Number(v)); return Number.isFinite(t) ? ((t % 256) + 256) % 256 : 0; });
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), brightness, hap, ndi, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

@@ -26,6 +26,8 @@ pub mod effects;
 pub mod projector;
 pub mod runtime;
 pub mod outputs;
+#[cfg(feature = "ndi")]
+pub mod ndi;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;

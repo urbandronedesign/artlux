@@ -8655,6 +8655,46 @@ check(
   },
 );
 
+check(
+  'the native engine receives NDI with the APP arithmetic, and an NDI build still starts on a machine without NDI',
+  'plans/native-engine.md E1f "2b", proven in the real app by scripts/test-native-takeover.cjs (a real NDI ' +
+  'sender, universe 5 byte-identical). Two ways it breaks silently. (1) ndi.rs carries a VERBATIM copy of ' +
+  'fit + downscale_rgba from native/ndi/src/lib.rs (that addon ships prebuilt, so it cannot share them): if ' +
+  'one copy changes alone, the engine scales NDI pictures differently and the LEDs differ with no error. ' +
+  '(2) the ndi feature links Processing.NDI.Lib.x64.dll; linked normally, the engine EXE does not start at ' +
+  'all (0xC0000135) on a machine without the NDI runtime on PATH, taking the LED wire and the projectors ' +
+  'with it (measured on the first NDI build). It is delay-loaded and loaded by full path before any NDI call.',
+  () => {
+    const problems = [];
+    const fnText = (src, name) => {
+      const i = src.indexOf(`fn ${name}(`);
+      if (i < 0) return null;
+      const open = src.indexOf('{', i);
+      let depth = 0;
+      for (let j = open; j < src.length; j++) {
+        if (src[j] === '{') depth++;
+        else if (src[j] === '}' && --depth === 0) return src.slice(i, j + 1).replace(/\s+/g, ' ');
+      }
+      return null;
+    };
+    const eng = raw('engine/artlux-engine/src/ndi.rs');
+    const app = raw('native/ndi/src/lib.rs');
+    for (const f of ['fit', 'downscale_rgba']) {
+      const a = fnText(eng, f), b = fnText(app, f);
+      if (!a || !b) problems.push(`${f} is missing from ${a ? 'native/ndi/src/lib.rs' : 'ndi.rs'}`);
+      else if (a !== b) problems.push(`ndi.rs ${f} is no longer the copy of native/ndi/src/lib.rs`);
+    }
+    const build = raw('engine/artlux-engine/build.rs');
+    if (!/\/DELAYLOAD:Processing\.NDI\.Lib\.x64\.dll/.test(build) || !/delayimp\.lib/.test(build)) problems.push('build.rs no longer delay-loads the NDI runtime (the engine would not start without it)');
+    if (!/if runtime\(\)\.is_err\(\) \{ return; \}/.test(eng)) problems.push('the NDI receive thread no longer checks the runtime before its first NDI call');
+    if (!/crate::ndi::runtime\(\)\.map_err/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('the runtime no longer refuses an NDI show when the NDI runtime is missing');
+    if (!/NDI_SDK_DIR/.test(raw('scripts/build-engine.cjs'))) problems.push('build:engine no longer turns NDI on where the SDK is installed');
+    const nl = raw('src/renderer/engine/nativeLink.ts');
+    if (!/two NDI sources at once/.test(nl)) problems.push('nativeLink no longer refuses two NDI sources (the app shows one of them on every NDI surface)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

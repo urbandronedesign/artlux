@@ -735,7 +735,7 @@ export function releaseExact(keys?: readonly string[]): void {
 // The engine draws stills, HAP and effects itself (proven against this file's drawables, E1d). Anything
 // else is "unsupported" with a reason, and then the app keeps the wire (engine/runtime.rs: all or nothing).
 // A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
-export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'spout'; name: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'spout' | 'ndi'; name: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
 export function filePathOf(url: string): string {
   // The renderer sees absolute paths (main translates project assets); a file:// URL is undone here.
   if (!/^file:\/\//i.test(url)) return url;
@@ -749,6 +749,9 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
     // E1f "2a": the engine receives the sender itself (one receiver per surface, spout.rs SpoutIn) and draws
     // it as the app does — alpha ignored, no mips (E1d-3). '' = follow the active sender, as the app does.
     case 'SPOUT': return { kind: 'spout', name: content.spoutName ?? '' };
+    // Item 2b: the engine receives the NDI source itself (its own receiver, the app's arithmetic — ndi.rs);
+    // '' = the first source found, as the app does.
+    case SourceType.NDI: return { kind: 'ndi', name: content.ndiName ?? '' };
     // Syphon is Spout's macOS sibling; the engine runs on Windows first and receives no Syphon yet.
     case 'SYPHON': return { kind: 'unsupported', why: `Syphon ('${content.syphonName ?? ''}') is not drawn by the native engine yet` };
     case SourceType.VIDEO: {

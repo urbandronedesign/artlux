@@ -27,6 +27,13 @@ base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # E1c: the app's own Art-Net / sACN / USB send thread, linked without Node (its "napi" feature off).
 artlux-output-engine = { path = "../../native/output-engine", default-features = false }
+# Item 2b: NDI receive — the SAME crate and version as the app's addon (native/ndi), optional because it
+# links the NDI 6 SDK at build time (NDI_SDK_DIR). A build without it simply has no NDI: the engine then
+# refuses an NDI show and the app keeps it (runtime.rs).
+grafton-ndi = { version = "=1.0.0", optional = true }
+
+[features]
+ndi = ["grafton-ndi"]
 
 # E0c: D3D12 shared textures + handle duplication. The SAME `windows` line wgpu-hal 30 uses (0.62), so
 # its ID3D12Device and ours are one type.
@@ -40,6 +47,7 @@ windows = { version = "0.62", features = [
   "Win32_Graphics_Dxgi",
   "Win32_Graphics_Dxgi_Common",
   "Win32_System_Threading",
+  "Win32_System_LibraryLoader",
 ] }
 # E0d: Spout's own library (the same crate the app's receiver uses), for a REAL sender and the sender
 # registry. Not the receive path's pixels: those come from the sender's texture on the GPU.
