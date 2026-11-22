@@ -8407,7 +8407,7 @@ check(
     if (!/gl\.uniform2f\(this\.uScale, f\.width \/ pw, f\.height \/ ph\)/.test(gl) || !/\* uScale;/.test(gl)) problems.push('hapGL no longer reads only the picture\'s share of the padded texture');
     const cp = read('engine/artlux-engine/src/compose.rs');
     if (!/pub fn hap_picture\(/.test(cp)) problems.push('the engine\'s HAP source (compose.rs hap_picture) is gone');
-    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
+    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -8425,7 +8425,7 @@ check(
     // (SpoutIn since "2a": the direct texture and the copy slot, each read with texels mode 2.)
     if ((sp.match(/crate::compose::texels\(gpu, &?(tex|slot\.texture), o\.w, o\.h, 2\)\?/g) || []).length !== 2) problems.push('spout.rs SpoutIn no longer reads BOTH paths opaque (texels mode 2)');
     if (!/ARTLUX_SPOUT_COPY/.test(sp)) problems.push('the switch that lets the parity test force the copy path is gone');
-    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
+    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
     if (!/ARTLUX_SPOUT_COPY: '1'/.test(read('scripts/test-image-parity.cjs'))) problems.push('test-image-parity no longer runs the Spout copy path');
     return problems.length ? problems.join('; ') : null;
   },
@@ -8691,6 +8691,29 @@ check(
     if (!/NDI_SDK_DIR/.test(raw('scripts/build-engine.cjs'))) problems.push('build:engine no longer turns NDI on where the SDK is installed');
     const nl = raw('src/renderer/engine/nativeLink.ts');
     if (!/two NDI sources at once/.test(nl)) problems.push('nativeLink no longer refuses two NDI sources (the app shows one of them on every NDI surface)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine converts an MP4 frame as Chromium does: coded planes, centre-sited chroma, the visible rect drawn',
+  'plans/native-engine.md E1f "2c-1", proven by scripts/test-mp4-parity.cjs on the app own decoded frames ' +
+  '(the conversion within 1 of Chromium, the LEDs within 1). Each rule below was found by measurement and ' +
+  'each one, lost, still compiles and still draws a picture: chroma clamped at the VISIBLE edge (Chromium ' +
+  'reads the encoder padding: the last row and an odd last column were off by up to 106); the visible rect ' +
+  'stretched as a picture of its own instead of out of the coded frame (the sampler reads past its edge); ' +
+  'left-sited chroma (off by up to 171). And a colour space nobody measured must stay with the app.',
+  () => {
+    const problems = [];
+    const y = raw('engine/artlux-engine/src/yuv.rs');
+    if (!/let \(w, h\) = f\.coded;/.test(y) || !/let \(cw, ch\) = \(\(w \/ 2\) as i64, \(h \/ 2\) as i64\);/.test(y)) problems.push('yuv.rs no longer clamps chroma at the CODED edge');
+    if (!/if x % 2 == 0 \{ \(x \/ 2 - 1, 3u32\) \} else \{ \(\(x - 1\) \/ 2, 1u32\) \}/.test(y) || !/if y % 2 == 0 \{ \(y \/ 2 - 1, 3u32\) \} else \{ \(\(y - 1\) \/ 2, 1u32\) \}/.test(y)) problems.push('yuv.rs chroma is no longer centre-sited');
+    if (!/Picture::coded_frame\(w, h, out, f\.visible\)/.test(y)) problems.push('yuv.rs no longer hands the WHOLE coded frame with its visible rect');
+    if (!/matrix == Some\("bt709"\) && full_range == Some\(false\) && primaries == Some\("bt709"\)/.test(y)) problems.push('yuv.rs accepts colour spaces beyond the measured BT.709 limited range');
+    const c = raw('engine/artlux-engine/src/compose.rs');
+    if (!/let uv = cell\.src\.xy \+ \(pos\.xy - cell\.rect\.xy\) \/ cell\.rect\.zw \* cell\.src\.zw;/.test(c) || !/let src = pic\.crop\.map_or\(/.test(c)) problems.push('compose.rs no longer draws a coded frame from its visible rect');
+    const page = raw('engine/spikes/mp4-parity/page.ts');
+    if (!/const rect = \{ x: 0, y: 0, width: vf\.codedWidth, height: vf\.codedHeight \};/.test(page)) problems.push('the mp4 parity page no longer dumps the CODED planes (the gate would test a different input)');
     return problems.length ? problems.join('; ') : null;
   },
 );

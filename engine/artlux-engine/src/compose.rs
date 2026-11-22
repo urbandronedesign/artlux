@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 const STRETCH_WGSL: &str = r#"
-struct Cell { rect: vec4<f32>, opacity: f32, level: f32, _p1: f32, _p2: f32 };
+struct Cell { rect: vec4<f32>, opacity: f32, level: f32, _p1: f32, _p2: f32, src: vec4<f32> };
 @group(0) @binding(0) var img: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var<uniform> cell: Cell;
@@ -44,7 +44,9 @@ fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
 @fragment
 fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     // pos.xy is the ATLAS pixel centre; the cell's own coordinate is (pos - rect.xy) / rect.wh.
-    let uv = (pos.xy - cell.rect.xy) / cell.rect.zw;
+    // src = the part of the texture drawn (offset, size; normalised): all of it, or a coded frame's
+    // visible rect — the sampler still reads past that rect's edge, as Chromium's does.
+    let uv = cell.src.xy + (pos.xy - cell.rect.xy) / cell.rect.zw * cell.src.zw;
     let c = textureSampleLevel(img, samp, uv, cell.level);
     // The picture is PREMULTIPLIED: its rgb already carries its alpha. Source-over onto opaque black with
     // globalAlpha = opacity is then rgb × opacity.
@@ -61,13 +63,21 @@ fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 ///     here were 9–97% exact; without, all three byte-identical. (Multiplying the straight alpha in AFTER
 ///     the filter was tried and is wrong: 46% exact on an alpha frame. Truncating, shift-by-8 and f32
 ///     premultiplies were each worse than Skia's rounding.)
-pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool }
+///   - an MP4 frame (item 2c) is a VideoFrame too — but the WHOLE CODED frame (the encoder's padding rows
+///     and columns included) with `crop` = its visible rect. Chromium's bilinear stretch reads past the
+///     visible edge into that padding, so the engine draws the visible rect out of the coded picture rather
+///     than a picture cut to it (measured: the last row and an odd last column differ otherwise).
+pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool, pub crop: Option<[u32; 4]> }
 
 impl Picture {
-    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true } }
-    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false } }
+    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true, crop: None } }
+    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None } }
     /// A VideoFrame (Spout's shared texture, imported by Electron). MEASURED like the others — see E1d-3.
-    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false } }
+    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None } }
+    /// A decoded MP4 frame: the coded picture (opaque — no premultiply to do), drawn from its visible rect.
+    pub fn coded_frame(w: u32, h: u32, rgba: Vec<u8>, visible: [u32; 4]) -> Self { Picture { w, h, rgba, mips: false, crop: Some(visible) } }
+    /// The size it is drawn at: the visible rect's, or the whole picture's.
+    pub fn shown(&self) -> (u32, u32) { self.crop.map_or((self.w, self.h), |c| (c[2], c[3])) }
 }
 
 /// `round(c × a / 255)` in integers — Skia's SkMulDiv255Round.
@@ -171,12 +181,14 @@ pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache,
                 (tex, chain.len())
             }
         };
-        let level = mip_level(pic.w as f64 / rect.w, pic.h as f64 / rect.h, levels);
-        let mut u = [0u8; 32];
-        for (i, v) in [rect.x as f32, rect.y as f32, rect.w as f32, rect.h as f32, opacity.min(1.0), level].iter().enumerate() {
+        let (sw, sh) = pic.shown();
+        let level = mip_level(sw as f64 / rect.w, sh as f64 / rect.h, levels);
+        let src = pic.crop.map_or([0.0, 0.0, 1.0, 1.0], |c| [c[0] as f32 / pic.w as f32, c[1] as f32 / pic.h as f32, c[2] as f32 / pic.w as f32, c[3] as f32 / pic.h as f32]);
+        let mut u = [0u8; 48];
+        for (i, v) in [rect.x as f32, rect.y as f32, rect.w as f32, rect.h as f32, opacity.min(1.0), level, 0.0, 0.0, src[0], src[1], src[2], src[3]].iter().enumerate() {
             u[i * 4..i * 4 + 4].copy_from_slice(&v.to_le_bytes());
         }
-        let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("cell"), size: 32, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let ubuf = d.create_buffer(&wgpu::BufferDescriptor { label: Some("cell"), size: 48, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         gpu.queue.write_buffer(&ubuf, 0, &u);
         let view = tex.create_view(&Default::default());
         let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {

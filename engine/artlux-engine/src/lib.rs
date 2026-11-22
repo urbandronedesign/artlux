@@ -22,6 +22,7 @@ pub mod wire;
 pub mod layout;
 pub mod sample;
 pub mod compose;
+pub mod yuv;
 pub mod effects;
 pub mod projector;
 pub mod runtime;

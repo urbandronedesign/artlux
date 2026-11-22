@@ -132,6 +132,9 @@ fn main() -> ExitCode {
             let p = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
             let pic = match c["type"].as_str() {
                 Some("IMAGE") => artlux_engine::compose::load_image(&p).map_err(|e| format!("image: {e}")),
+                // Item 2c: a decoded MP4 frame's planes (`.nv12.json`, written by test:mp4-parity from the app's
+                // own VideoFrame.copyTo) — the conversion and the stretch, without the decoder.
+                Some("VIDEO") if url.ends_with(".nv12.json") => nv12_picture(&p),
                 Some("VIDEO") if url.ends_with(".hapframe.json") => (|| {
                     let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
                     let fmt = artlux_engine::hapimport::format_from_str(j["format"].as_str().unwrap_or_default()).ok_or("unknown format")?;
@@ -154,6 +157,19 @@ fn main() -> ExitCode {
             Ok(rgbw) => {
                 let out = serde_json::json!({ "adapter": describe(&gpu.info), "rgbw": base64::engine::general_purpose::STANDARD.encode(rgbw) });
                 match std::fs::write(outp, out.to_string()) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } }
+            }
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
+        };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--nv12-convert") {
+        // Item 2c: one `.nv12.json` frame → its VISIBLE rect as RGBA, 1:1 — for the conversion gate.
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --nv12-convert <frame.nv12.json> <out.rgba>"); return ExitCode::from(2); };
+        return match nv12_picture(std::path::Path::new(inp)) {
+            Ok(pic) => {
+                let [vx, vy, vw, vh] = pic.crop.unwrap_or([0, 0, pic.w, pic.h]);
+                let mut out = Vec::with_capacity((vw * vh * 4) as usize);
+                for y in vy..vy + vh { let o = ((y * pic.w + vx) * 4) as usize; out.extend_from_slice(&pic.rgba[o..o + (vw * 4) as usize]); }
+                match std::fs::write(outp, out) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } }
             }
             Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
         };
@@ -364,4 +380,18 @@ fn main() -> ExitCode {
     }
     println!("artlux-engine (E0 skeleton) on {}: nothing to run yet — try --selftest", describe(&gpu.info));
     ExitCode::SUCCESS
+}
+
+/// A `.nv12.json` test frame: {coded: [w, h], visible: [x, y, w, h], layout: [{offset, stride} ×2],
+/// colorSpace: {matrix, fullRange, primaries, transfer}, planes: "<file>"} — VideoFrame.copyTo's own layout.
+fn nv12_picture(p: &std::path::Path) -> Result<artlux_engine::compose::Picture, String> {
+    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?).map_err(|e| e.to_string())?;
+    let cs = &j["colorSpace"];
+    artlux_engine::yuv::accepts(cs["matrix"].as_str(), cs["fullRange"].as_bool(), cs["primaries"].as_str(), cs["transfer"].as_str())?;
+    let planes = std::fs::read(p.parent().unwrap_or(std::path::Path::new(".")).join(j["planes"].as_str().unwrap_or_default())).map_err(|e| format!("planes: {e}"))?;
+    let n = |v: &serde_json::Value| v.as_u64().unwrap_or(0);
+    let (yo, ys, uo, us) = (n(&j["layout"][0]["offset"]) as usize, n(&j["layout"][0]["stride"]) as usize, n(&j["layout"][1]["offset"]) as usize, n(&j["layout"][1]["stride"]) as usize);
+    let vis = [n(&j["visible"][0]) as u32, n(&j["visible"][1]) as u32, n(&j["visible"][2]) as u32, n(&j["visible"][3]) as u32];
+    let f = artlux_engine::yuv::Nv12 { coded: (n(&j["coded"][0]) as u32, n(&j["coded"][1]) as u32), visible: vis, y: &planes[yo..], y_stride: ys, uv: &planes[uo..], uv_stride: us };
+    Ok(artlux_engine::yuv::to_picture(&f))
 }

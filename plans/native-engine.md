@@ -1382,6 +1382,41 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   refusal hands the wire back at once.
 > - **Not covered:** a MOVING NDI picture, a source on another machine (network loss and reconnect), and a
 >   machine with no NDI runtime at all (the refusal is guarded, not run).
+>
+> **2c MP4, in three steps.** H.264 / H.265 decoding is bit-exact by the standard, so the engine is held
+> to the app separately on each half: **2c-1** the conversion + stretch, on the app's own decoded frames;
+> **2c-2** the engine's own decoder (Media Foundation), held byte for byte to the planes WebCodecs gives;
+> **2c-3** the runtime (the host sends the frame on screen, as for HAP) in the real app.
+>
+> ✅ **2c-1 done 2026-11-22 (an MP4 frame converted and drawn as the app draws it).**
+> - **The harness (`test:mp4-parity`).**
+>   - It encodes synthetic MP4s with WebCodecs + mediabunny: H.264 and H.265; sharp, noise and smooth content.
+>   - The sizes carry encoder padding: 1080 → 1088 coded, and 1002×562 → 1008×576, an odd chroma width.
+>   - It decodes them with the app's REAL `mp4Decoder` and dumps each `VideoFrame`'s coded NV12 planes.
+>   - The engine converts those planes (`yuv.rs`) and draws them (`compose.rs`), so the decoder is not
+>     in this test.
+> - **What Chromium does, measured:**
+>   - BT.709 limited range, with the standard's coefficients;
+>   - chroma upsampled bilinear, CENTRE-sited, and clamped at the **coded** edge. Chromium reads the
+>     encoder's padding past the visible edge; with the visible edge as the clamp, the last row and an
+>     odd last column were off by up to 106;
+>   - rounding to nearest;
+>   - the stretch also reads past the visible edge. So the engine converts the WHOLE coded frame and
+>     draws its visible rect out of it (`Picture::coded_frame` + a source rect in the stretch shader).
+> - **Not byte-identical, and why.** The conversion is within 1 of Chromium everywhere, with 99.7–99.8% of
+>   channels identical. The rest are values within about 0.0075 of a rounding boundary, which Chromium's
+>   float arithmetic rounds the other way. That residue has no structure to copy: a least-squares fit, a
+>   constant or proportional offset, and 8/16-bit chroma quantisation were each tried and none fits.
+> - **Gate.**
+>   - The conversion: within 1, and at most 0.5% of channels differing.
+>   - The LEDs, through the app's real `WebGPUMapper` with the `VideoFrame`s: within 1 (98.3–99.7%
+>     identical, brightness 1 and 0.8).
+>   - Two real clips with the sRGB transfer pass the same way, so that transfer is accepted.
+> - **Mutation-tested:** swapped chroma weights, the visible-edge clamp, full-range luma, truncation, and
+>   the crop ignored each fail the gate. Guarded in `verify:invariants`.
+> - **Refused (the app keeps the surface):** BT.601, BT.2020, full range and HDR transfers. Chromium may
+>   convert those colours, and that is unmeasured.
+> - **Not covered:** another GPU's Chromium (the RTX PC), and 10-bit (P010) frames.
 
 ## 10. Open questions
 
