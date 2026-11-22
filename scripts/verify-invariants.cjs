@@ -8718,6 +8718,28 @@ check(
   },
 );
 
+check(
+  'the native engine decodes an MP4 by the APP timestamps: its own demux, the decoder fed by hand',
+  'plans/native-engine.md E1f "2c-2", proven by scripts/test-mp4-parity.cjs (every visible picture byte-' +
+  'identical to the app WebCodecs decode, seeks included). Media Foundation source reader was tried first ' +
+  'and is WRONG here: its clock named the wrong frames (frames 0 and 1 both at 0 us on WebCodecs H.264) and ' +
+  'it blanked the padding rows yuv.rs reads. A sample time is the app own: (cts / timescale) x 1e6, cts = ' +
+  'dts + the ctts offset, TRUNCATED as an EncodedVideoChunk long long is (rounding gave 66667 for 66666). ' +
+  'The synthetic files have no B-frames, so the ctts rule is proven only with a real clip - hence this check.',
+  () => {
+    const problems = [];
+    const d = raw('engine/artlux-engine/src/mp4demux.rs');
+    if (!/pub fn ts_us\(&self, s: &Sample\) -> i64 \{ \(\(s\.cts as f64 \/ self\.timescale as f64\) \* 1e6\) as i64 \}/.test(d)) problems.push('mp4demux.rs no longer times a sample as the app does (cts / timescale x 1e6, truncated)');
+    if (!/cts: dts\[k\]\.0 \+ ctts\[k\]/.test(d)) problems.push('mp4demux.rs no longer adds the composition offset (B-frame files would show the wrong frames)');
+    if (!/if s\.key \{ for p in &self\.params/.test(d)) problems.push('mp4demux.rs no longer sends the parameter sets with a key frame');
+    const m = raw('engine/artlux-engine/src/mf.rs');
+    if (/MFCreateSourceReaderFromURL/.test(m)) problems.push('mf.rs uses the source reader again (its clock names the wrong frames)');
+    if (!/sample\.SetSampleTime\(ts \* 10\)/.test(m) || !/const EPS_US: i64 = 2;/.test(m)) problems.push('mf.rs no longer carries the app timestamps through the decoder, matched within 2 us');
+    if (!/visible pictures identical/.test(raw('scripts/test-mp4-parity.cjs'))) problems.push('test-mp4-parity no longer holds the engine decode to the app');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

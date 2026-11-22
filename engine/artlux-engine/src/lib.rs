@@ -23,6 +23,9 @@ pub mod layout;
 pub mod sample;
 pub mod compose;
 pub mod yuv;
+pub mod mp4demux;
+#[cfg(windows)]
+pub mod mf;
 pub mod effects;
 pub mod projector;
 pub mod runtime;

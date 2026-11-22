@@ -97,6 +97,22 @@ function draw1to1(src: CanvasImageSource, w: number, h: number): Uint8Array {
         fs.writeFileSync(path.join(OUT, c.name + '.rgba-1to1.bin'), draw1to1(vf, vf.displayWidth, vf.displayHeight));
         Object.assign(entry, meta);
         frames.set(path.join(OUT, c.name + '.nv12.json'), vf);
+        // Item 2c-2: more frames, IN THE ORDER GIVEN (a backward one makes the decoder seek), for the
+        // engine's own decoder to be held to: `<name>.app.f<k>` — the same layout as above.
+        entry.dumped = [];
+        for (const [k, idx] of (c.dump ?? []).entries()) {
+          const g = await dec.layerFrameExact(`mp4parity:${c.name}:dump`, src, (idx + 0.5) / info.fps) as VideoFrame | null;
+          if (!g) { entry.dumped.push(null); continue; }
+          const r2 = { x: 0, y: 0, width: g.codedWidth, height: g.codedHeight };
+          const b2 = new Uint8Array(g.allocationSize({ rect: r2 }));
+          const l2 = await g.copyTo(b2, { rect: r2 });
+          const v2 = g.visibleRect!;
+          fs.writeFileSync(path.join(OUT, `${c.name}.app.f${k}.planes.bin`), b2);
+          const m2 = { coded: [g.codedWidth, g.codedHeight], visible: [v2.x, v2.y, v2.width, v2.height], format: g.format, colorSpace: g.colorSpace.toJSON(), layout: l2, timestamp: g.timestamp, planes: `${c.name}.app.f${k}.planes.bin` };
+          fs.writeFileSync(path.join(OUT, `${c.name}.app.f${k}.nv12.json`), JSON.stringify(m2));
+          entry.dumped.push(g.timestamp);
+        }
+        dec.releaseLayer(`mp4parity:${c.name}:dump`);
       } catch (e: any) { entry.error = String(e && e.stack || e); }
     }
     // The LED jobs: the app's real mapper, the VideoFrames as drawables.

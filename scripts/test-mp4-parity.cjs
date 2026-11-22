@@ -14,6 +14,15 @@
 //   2. THE LEDS — the app's real WebGPUMapper with the VideoFrames as drawables, against the engine's
 //      --frame-once on the same rig (strips + a serpentine matrix per picture, one at 60% opacity,
 //      brightness 1 and 0.8): within 1 on every LED channel.
+//   3. THE DECODER (2c-2) — the engine's own decode (mp4demux.rs + Media Foundation's decoder, mf.rs) on the
+//      app's timestamps in the app's order (backward, across key frames): the coded size, visible rect,
+//      timestamp and VISIBLE picture byte-identical. The padding past the visible edge is counted, not
+//      gated: H.264 conformance is defined on the cropped picture, and the app's own padding differs from
+//      GPU to GPU (measured here: 1–3 on most bytes that differ, 28 at worst on noise).
+//   4. THE LEDS FROM THE ENGINE'S OWN DECODE — the whole engine path against the app's LEDs: within 1.
+//
+// The synthetic files have no B-frames (WebCodecs' encoder writes none), so frame REORDERING (ctts) is
+// exercised only by a real file named on the command line — pass one when touching mp4demux.rs.
 //
 //   node scripts/test-mp4-parity.cjs [real.mp4 …]      (real files: each on a surface of its own, frame 0)
 const { execFileSync, spawnSync } = require('node:child_process');
@@ -29,13 +38,17 @@ fs.mkdirSync(WORK, { recursive: true });
 
 // Sizes that are not a multiple of the codec's block (1080 → 1088 coded; 1002×562 → 1008×576 — an odd
 // visible width in chroma), H.264 and H.265, sharp / noise / smooth content.
+// `dump`: the frames (presentation index) both decoders are asked for, IN THAT ORDER — backward and across
+// key frames (one per second at 30 fps: 0, 30, 60), so the engine's seek is exercised as the app's is.
 const FILES = [
-  { name: 'sharp-avc-1920x1080', kind: 'sharp', w: 1920, h: 1080, codec: 'avc', frames: 3, frame: 1 },
-  { name: 'noise-avc-640x360', kind: 'noise', w: 640, h: 360, codec: 'avc', frames: 3, frame: 1 },
-  { name: 'photo-avc-1002x562', kind: 'photo', w: 1002, h: 562, codec: 'avc', frames: 3, frame: 2 },
-  { name: 'photo-hevc-1280x720', kind: 'photo', w: 1280, h: 720, codec: 'hevc', frames: 3, frame: 1 },
-  { name: 'sharp-hevc-854x480', kind: 'sharp', w: 854, h: 480, codec: 'hevc', frames: 2, frame: 0 },
-  ...process.argv.slice(2).map((f, i) => ({ name: `extra${i}`, file: path.resolve(f), frame: 0 })),
+  { name: 'sharp-avc-1920x1080', kind: 'sharp', w: 1920, h: 1080, codec: 'avc', frames: 3, frame: 1, dump: [2, 0, 1] },
+  { name: 'noise-avc-640x360', kind: 'noise', w: 640, h: 360, codec: 'avc', frames: 3, frame: 1, dump: [2, 0, 1] },
+  { name: 'photo-avc-1002x562', kind: 'photo', w: 1002, h: 562, codec: 'avc', frames: 3, frame: 2, dump: [2, 0, 1] },
+  { name: 'photo-hevc-1280x720', kind: 'photo', w: 1280, h: 720, codec: 'hevc', frames: 3, frame: 1, dump: [2, 0, 1] },
+  { name: 'sharp-hevc-854x480', kind: 'sharp', w: 854, h: 480, codec: 'hevc', frames: 2, frame: 0, dump: [1, 0] },
+  { name: 'gop-avc-640x360', kind: 'photo', w: 640, h: 360, codec: 'avc', frames: 75, frame: 40, dump: [70, 5, 31, 30, 74, 0, 29, 60] },
+  { name: 'gop-hevc-640x360', kind: 'sharp', w: 640, h: 360, codec: 'hevc', frames: 45, frame: 10, dump: [40, 2, 31, 44, 30] },
+  ...process.argv.slice(2).map((f, i) => ({ name: `extra${i}`, file: path.resolve(f), frame: 0, dump: [3, 0, 1] })),
 ];
 
 // One surface per file: a horizontal strip, a vertical strip and a serpentine matrix (as test:image-parity).
@@ -119,6 +132,86 @@ for (const [ji, job] of jobs.entries()) {
   }
   for (const [sid, st] of Object.entries(per)) {
     if (!keep.includes(sid)) continue;
+    const ok = st.max <= 1;
+    if (!ok) fails++;
+    console.log(`    ${ok ? 'ok  ' : 'FAIL'} ${sid.slice(2).padEnd(22)} ${String(st.n).padStart(4)} LEDs: ${(100 * st.exact / st.n).toFixed(1).padStart(5)}% identical, max ${st.max}`);
+  }
+}
+// ── 3. the engine's OWN decoder (2c-2) ──────────────────────────────────────────────────────────────────
+// Media Foundation (mf.rs) against the app's WebCodecs, on the same timestamps in the same order: the coded
+// size, the visible rect, the timestamp and EVERY byte of both planes — the codec standards make decoding
+// bit-exact, so nothing less than identical is right here.
+console.log('\n3. THE DECODER (the engine\'s Media Foundation decode against the app\'s WebCodecs, byte for byte)');
+for (const f of browser.files) {
+  if (!f.dumped?.length) continue;
+  // A frame the APP's decoder did not give (layerFrameExact null) is the app's, not the engine's: named, and
+  // left out — the engine is asked for the others, in the same order. (Seen once: the last frame of the H.265
+  // GOP file, on one run in three.)
+  const asked = f.dumped.map((ts, k) => [k, ts]).filter(([, ts]) => ts !== null);
+  for (const [k, ts] of f.dumped.entries()) if (ts === null) console.log(`  note ${f.name}: the APP gave no frame for dump ${k} (${(FILES.find((x) => x.name === f.name)?.dump ?? [])[k]})`);
+  const prefix = path.join(WORK, `${f.name}.engine`);
+  try { execFileSync(ENGINE, ['--mp4-frames', f.file, asked.map(([, ts]) => ts).join(','), prefix], { stdio: ['ignore', 'ignore', 'pipe'] }); }
+  catch (e) { fails++; console.log(`  FAIL ${f.name}: ${String(e.stderr || e).trim()}`); continue; }
+  const lines = [];
+  let bad = 0, padTotal = 0, padWorst = 0;
+  for (const [q, [k, ts]] of asked.entries()) {
+    const a = JSON.parse(fs.readFileSync(path.join(WORK, `${f.name}.app.f${k}.nv12.json`), 'utf8'));
+    const e = JSON.parse(fs.readFileSync(`${prefix}.f${q}.nv12.json`, 'utf8'));
+    const pa = fs.readFileSync(path.join(WORK, a.planes)), pe = fs.readFileSync(path.join(WORK, e.planes));
+    const why = [];
+    if (a.coded.join() !== e.coded.join()) why.push(`coded ${a.coded.join('x')} vs ${e.coded.join('x')}`);
+    if (a.visible.join() !== e.visible.join()) why.push(`visible ${a.visible.join(',')} vs ${e.visible.join(',')}`);
+    if (a.timestamp !== e.timestamp) why.push(`timestamp ${a.timestamp} vs ${e.timestamp}`);
+    let pad = 0, padMax = 0;
+    if (!why.length) {
+      // The VISIBLE picture is what the standard defines (conformance is on the cropped output): it must be
+      // identical. The PADDING past it is the decoder's own business — the app's differs from GPU to GPU —
+      // so it is counted, not gated; what it does to the LEDs is gate 4.
+      const [w, h] = a.coded, [, , vw, vh] = a.visible;
+      let differ = 0;
+      for (const [pi, rows] of [[0, h], [1, h / 2]]) for (let y = 0; y < rows; y++) for (let x = 0; x < w; x++) {
+        const va = pa[a.layout[pi].offset + y * a.layout[pi].stride + x], ve = pe[e.layout[pi].offset + y * e.layout[pi].stride + x];
+        if (va === ve) continue;
+        const visible = pi === 0 ? y < vh && x < vw : y < Math.ceil(vh / 2) && x < Math.ceil(vw / 2) * 2;
+        if (visible) differ++; else { pad++; padMax = Math.max(padMax, Math.abs(va - ve)); }
+      }
+      if (differ) why.push(`${differ} visible bytes differ`);
+    }
+    if (why.length) bad++;
+    padTotal += pad; padWorst = Math.max(padWorst, padMax);
+    lines.push(`${ts}µs${why.length ? ` (${why.join('; ')})` : ''}`);
+  }
+  if (bad) fails++;
+  const e0 = JSON.parse(fs.readFileSync(`${prefix}.f0.nv12.json`, 'utf8'));
+  console.log(`  ${bad ? 'FAIL' : 'ok  '} ${f.name.padEnd(22)} ${asked.length - bad}/${asked.length} visible pictures identical [${lines.join(', ')}]${padTotal ? ` · padding: ${padTotal} bytes differ, max ${padWorst}` : ''} · colour MF ${Object.values(e0.colorSpace).join('/')} vs app ${Object.values(f.colorSpace).join('/')}`);
+}
+// ── 4. the LEDs from the engine's OWN decode ────────────────────────────────────────────────────────────
+// The whole engine path — demux, decode, convert, stretch — against the app's LEDs. Where it differs from
+// gate 2 it is the padding (gate 3): Chromium reads it at the last visible row and column.
+console.log('\n4. THE LEDS FROM THE ENGINE\'S OWN DECODE (the file, at the app\'s frame timestamp)');
+for (const [ji, job] of jobs.entries()) {
+  const byName = new Map(browser.files.map((f) => [f.name, f]));
+  const surfaces = job.surfaces.map((s) => { const f = byName.get(s.name); return f?.file && decoded.has(s.name) ? { ...s, content: { ...s.content, url: f.file, frameTs: f.timestamp } } : s; });
+  const proj = path.join(WORK, `project-own-${ji}.artlux`);
+  fs.writeFileSync(proj, JSON.stringify({ surfaces, fixtures: job.fixtures }));
+  const outp = path.join(WORK, `engine-own-${ji}.json`);
+  execFileSync(ENGINE, ['--frame-once', proj, outp, '--brightness', String(job.brightness)], { stdio: 'inherit' });
+  const e = JSON.parse(fs.readFileSync(outp, 'utf8'));
+  const A = Buffer.from(browser.cases[ji].rgbw, 'base64'), B = Buffer.from(e.rgbw, 'base64');
+  if (A.length !== B.length) { fails++; console.log(`FAIL ${job.name}: ${A.length} vs ${B.length} bytes`); continue; }
+  console.log(`  ${job.name}`);
+  let offset = 0;
+  const per = {};
+  for (const f of job.fixtures) {
+    const st = (per[f.surfaceId] ??= { n: 0, exact: 0, max: 0 });
+    for (let i = 0; i < f.ledCount; i++, offset++) {
+      let worst = 0;
+      for (let c = 0; c < 4; c++) worst = Math.max(worst, Math.abs(A[offset * 4 + c] - B[offset * 4 + c]));
+      st.n++; if (!worst) st.exact++; st.max = Math.max(st.max, worst);
+    }
+  }
+  for (const [sid, st] of Object.entries(per)) {
+    if (!decoded.has(sid.slice(2))) continue;
     const ok = st.max <= 1;
     if (!ok) fails++;
     console.log(`    ${ok ? 'ok  ' : 'FAIL'} ${sid.slice(2).padEnd(22)} ${String(st.n).padStart(4)} LEDs: ${(100 * st.exact / st.n).toFixed(1).padStart(5)}% identical, max ${st.max}`);

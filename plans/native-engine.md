@@ -1417,6 +1417,41 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Refused (the app keeps the surface):** BT.601, BT.2020, full range and HDR transfers. Chromium may
 >   convert those colours, and that is unmeasured.
 > - **Not covered:** another GPU's Chromium (the RTX PC), and 10-bit (P010) frames.
+>
+> ✅ **2c-2 done 2026-11-22 (the engine decodes the MP4 itself — the same pictures as the app).**
+> - **A demuxer of its own, `mp4demux.rs`.** It is plain Rust, so the macOS and Linux decoders can take
+>   the same samples. Each sample is timed exactly as the app times it: `(cts / timescale) × 1e6`, with
+>   cts = dts + the ctts offset, truncated as an `EncodedVideoChunk`'s `long long` is. That is the
+>   `VideoFrame.timestamp` the host will send.
+> - **The decoder fed by hand, `mf.rs`.** Media Foundation's H.264 / H.265 decoder transform takes Annex B
+>   samples (parameter sets in front of each key frame) carrying the app's timestamps, and gives NV12
+>   back. A frame is asked for by timestamp; the decoder is flushed and restarted at the key frame
+>   before only for a frame it has passed, or one a GOP ahead.
+> - **Found: Media Foundation's source reader is wrong here** (it was tried first).
+>   - Its clock names the wrong frames: on WebCodecs-encoded H.264 it labelled frames 0 and 1 both 0 µs.
+>   - It blanks the encoder's padding rows, which the conversion reads.
+> - **Proof (`test:mp4-parity` gates 3 and 4).**
+>   - Gate 3, the decoder: on the app's timestamps in the app's order (backward and across key frames,
+>     H.264 and H.265), the coded size, visible rect, timestamp and **every visible byte** are identical.
+>     So are two real B-frame clips.
+>   - Gate 4, the whole engine path (demux, decode, convert, stretch): the LEDs are within 1 of the
+>     app's, the same figures as on the app's own frames.
+> - **The padding is counted, not gated.** H.264 conformance is defined on the cropped picture, so what a
+>   decoder leaves past the visible edge is its own; the app's differs from GPU to GPU. Here it differed
+>   by 1–3 on most of the bytes that differ, and by 28 at worst on the noise file. It did not move the
+>   LEDs past 1.
+> - **Mutation-tested:**
+>   - rounded timestamps, no seek back, and no parameter sets each fail the gates;
+>   - ignoring ctts fails only with a real B-frame clip (WebCodecs writes no B-frames), so a source
+>     guard holds that rule too.
+> - **Seen once, app-side:** on one run in three, the app's own `layerFrameExact` returned nothing for the
+>   last frame of the H.265 GOP file. The harness names it and moves on. Not chased yet.
+> - **Not yet:**
+>   - hardware decode (a D3D11 device): this is software decode in system memory, which the CPU
+>     conversion reads anyway;
+>   - fragmented MP4 (refused);
+>   - 10-bit;
+>   - the runtime (2c-3).
 
 ## 10. Open questions
 
