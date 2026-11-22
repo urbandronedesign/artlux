@@ -78,6 +78,9 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
             {
                 let pr = proj_rev.clone();
                 let report = Box::new(move |open: Vec<String>, refused: Vec<(String, String)>| {
+                    // Nothing asked, nothing refused: closing every window is not news — the document's own
+                    // answer (rt.projectors) already said why the app keeps the outputs.
+                    if open.is_empty() && refused.is_empty() { return; }
                     let rev = pr.load(std::sync::atomic::Ordering::SeqCst);
                     let owns = refused.is_empty() && !open.is_empty();
                     let why = refused.iter().map(|(id, w)| format!("output '{id}': {w}")).collect::<Vec<_>>().join("; ");

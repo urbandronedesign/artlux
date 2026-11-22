@@ -1161,8 +1161,13 @@ const App: React.FC = () => {
   // wizard once the host element exists, so its createPortal target is reliable.
   const [measuringGammaId, setMeasuringGammaId] = useState<string | null>(null); // output whose gamma is being camera-measured
   const [gammaMsg, setGammaMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
-  const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
+  const sendToProjector = (surfaceId: string, msg: MainToProjector) => {
+    // THE ONE DOOR a calibration map reaches a window through (the calibration plugin's bakedStore sends it
+    // here). Recorded for the native engine (item 3): it plays the same map — and an output with a map must
+    // never be drawn as a plain warp, which is what it would have been before this line existed.
+    if (msg.t === 'bakedMap') nativeLink.setProjectorBaked(surfaceId, msg.map);
     projectorPortsRef.current.get(surfaceId)?.postMessage(msg);
+  };
   // Pose-pairing orchestration (crosshair↔model-pick → solvePnP), the pose refs, and the markerless
   // pick/select registration all live in the calibration plugin now (calibWorkspace); App only tells it
   // which output is the board-pose target and forwards embedded-3D picks to it (see the Simulator3D

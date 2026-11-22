@@ -103,6 +103,12 @@ impl Runtime {
                 index: None,
             },
             opts: crate::projector::Opts::from_json(&p["output"], 1.0, 4),
+            baked: p["baked"].as_object().and_then(|b| Some(crate::outputs::BakedFiles {
+                key: b.get("key")?.as_str()?.to_string(),
+                w: b.get("w")?.as_u64()? as u32, h: b.get("h")?.as_u64()? as u32,
+                uv: b.get("uv")?.as_str()?.to_string(),
+                alpha: b.get("alpha").and_then(|a| Some((a["w"].as_u64()? as u32, a["h"].as_u64()? as u32, a["file"].as_str()?.to_string()))),
+            })),
         }).collect() };
         self.projectors = if why.is_some() { Vec::new() } else {
             list.iter().map(|p| (p["id"].as_str().unwrap_or_default().to_string(), p["surfaceId"].as_str().unwrap_or_default().to_string(), p["output"].clone())).collect()

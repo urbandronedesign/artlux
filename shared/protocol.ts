@@ -278,6 +278,9 @@ export const IPC = {
   NATIVE_ENGINE_ENABLED: 'native-engine:enabled',
   NATIVE_ENGINE_DOC: 'native-engine:doc',
   NATIVE_ENGINE_TICK: 'native-engine:tick',
+  /** Renderer → main: an output's calibration map for the native engine, once per map (main writes it to a
+   *  file the engine reads; the document names it by key). Item 3, engine/nativeLink.ts. */
+  NATIVE_ENGINE_BAKED_MAP: 'native-engine:baked-map',
   /**
    * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
    * process that holds the authoritative project document. Sent on every load; the preload relays it
@@ -1922,6 +1925,8 @@ export interface ArtluxApi {
   nativeEngineDoc?(json: string, rev: number): void;
   /** E1f: one frame for the native engine — `{"rev":…,"t":…,"brightness":…,"hap":{…}}` as JSON. */
   nativeEngineTick?(json: string): void;
+  /** Item 3: an output's calibration map for the native engine (once per map). */
+  nativeEngineBakedMap?(key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null): void;
   /**
    * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
    * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-

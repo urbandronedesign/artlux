@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord, type BlendWatchEntry } from '../../shared/protocol';
 import * as output from './transport/outputManager';
-import { noteOutputConfig, noteDoc, noteTick, engineEnabled } from './engineHost';
+import { noteOutputConfig, noteDoc, noteTick, engineEnabled, noteBakedMap } from './engineHost';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as osc from './transport/oscManager';
@@ -51,6 +51,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.NATIVE_ENGINE_ENABLED, () => engineEnabled());
     ipcMain.on(IPC.NATIVE_ENGINE_DOC, (_e, json: string, rev: number) => { if (typeof json === 'string') noteDoc(json, Number(rev)); });
     ipcMain.on(IPC.NATIVE_ENGINE_TICK, (_e, json: string) => { if (typeof json === 'string') noteTick(json); });
+    ipcMain.on(IPC.NATIVE_ENGINE_BAKED_MAP, (_e, key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null) => {
+        if (typeof key === 'string' && uv instanceof Float32Array) noteBakedMap(key, Number(w), Number(h), uv, alpha);
+    });
 
     ipcMain.on(IPC.FRAME, (_e, frame: ArrayBuffer | Uint8Array) => {
         if (!output.isReady()) return;

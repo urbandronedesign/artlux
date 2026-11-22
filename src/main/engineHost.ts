@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import * as logger from './logger';
 import * as output from './transport/outputManager';
@@ -86,11 +86,32 @@ export function engineOwnsWire(): boolean {
     && Date.now() - lastSentAt < SENT_FRESH_MS;
 }
 
+// Item 3: CALIBRATION MAPS as files. The renderer sends each map once (~10 MB); main writes it where the engine
+// can read it and the document names it by key — so a document change never re-ships a map.
+const bakedFiles = new Map<string, { w: number; h: number; uv: string; alpha?: { w: number; h: number; file: string } }>();
+export function noteBakedMap(key: string, w: number, h: number, uv: Float32Array, alpha: { w: number; h: number; data: Uint8Array } | null): void {
+  if (!FLAG) return;
+  const dir = join(app.getPath('temp'), 'artlux-native-engine');
+  try {
+    mkdirSync(dir, { recursive: true });
+    const surface = key.replace(/-\d+$/, '');
+    for (const [k, f] of bakedFiles) if (k.replace(/-\d+$/, '') === surface) { try { unlinkSync(f.uv); if (f.alpha) unlinkSync(f.alpha.file); } catch { /* gone */ } bakedFiles.delete(k); }
+    const safe = key.replace(/[^\w.-]/g, '_');
+    const uvFile = join(dir, `${safe}.uv`);
+    writeFileSync(uvFile, Buffer.from(uv.buffer, uv.byteOffset, uv.byteLength));
+    let a: { w: number; h: number; file: string } | undefined;
+    if (alpha?.data) { const af = join(dir, `${safe}.alpha`); writeFileSync(af, Buffer.from(alpha.data.buffer, alpha.data.byteOffset, alpha.data.byteLength)); a = { w: alpha.w, h: alpha.h, file: af }; }
+    bakedFiles.set(key, { w, h, uv: uvFile, ...(a ? { alpha: a } : {}) });
+    // A document already sent with this key was waiting for the file: send it again, now complete.
+    if (lastDoc && lastDoc.includes(`"key":"${key}"`)) noteDoc(lastDoc, lastDocRev);
+  } catch (e) { logger.log('warn', 'engine', 'baked-map-write-failed', { key }, e); }
+}
+
 // E1f-3: THE DISPLAYS ARE MAIN'S. The renderer names an output's display by Electron id; the engine places
 // windows by PHYSICAL bounds (winit monitors), so each projector entry gets its display's bounds in screen
 // pixels here — or a reason when that display is not connected (the engine then opens nothing anywhere).
 function withDisplayBounds(json: string): string {
-  let doc: { projectors?: { displayId?: number | null; bounds?: unknown; why?: string }[] };
+  let doc: { projectors?: { displayId?: number | null; bounds?: unknown; why?: string; baked?: { key: string } & Record<string, unknown> }[] };
   try { doc = JSON.parse(json); } catch { return json; }
   if (!doc.projectors?.length) return json;
   const displays = screen.getAllDisplays();
@@ -98,6 +119,12 @@ function withDisplayBounds(json: string): string {
     const d = displays.find((x) => x.id === p.displayId);
     if (!d) { if (!p.why) p.why = 'its display is not connected'; continue; }
     p.bounds = process.platform === 'win32' ? screen.dipToScreenRect(null, d.bounds) : { x: Math.round(d.bounds.x * d.scaleFactor), y: Math.round(d.bounds.y * d.scaleFactor), width: Math.round(d.bounds.width * d.scaleFactor), height: Math.round(d.bounds.height * d.scaleFactor) };
+    // Item 3: the calibration map's files. Not written yet → not drawable yet (the engine would warp it flat).
+    if (p.baked) {
+      const f = bakedFiles.get(p.baked.key);
+      if (f) Object.assign(p.baked, f);
+      else if (!p.why) p.why = 'its calibration map is still being handed over';
+    }
   }
   return JSON.stringify(doc);
 }

@@ -173,7 +173,17 @@ fn main() -> ExitCode {
         let mut out = Vec::new();
         for c in job["cases"].as_array().into_iter().flatten() {
             let o = artlux_engine::projector::Opts::from_json(&c["output"], c["brightness"].as_f64().unwrap_or(1.0), c["aa"].as_u64().unwrap_or(4) as u32);
-            match artlux_engine::projector::render(&gpu, &content, &o, w, h) {
+            // A BAKED case: {baked: {w, h, uv: file of f32 (u, v, spare) with NaN misses, alpha?: {w, h, file}}}.
+            let r = if let Some(b) = c["baked"].as_object() {
+                let bw = b["w"].as_u64().unwrap_or(0) as u32; let bh = b["h"].as_u64().unwrap_or(0) as u32;
+                let raw = std::fs::read(b["uv"].as_str().unwrap_or_default()).unwrap_or_default();
+                let uv: Vec<f32> = raw.chunks_exact(4).map(|q| f32::from_le_bytes([q[0], q[1], q[2], q[3]])).collect();
+                let adata = b.get("alpha").and_then(|a| a["file"].as_str()).and_then(|f| std::fs::read(f).ok());
+                let alpha = b.get("alpha").and_then(|a| Some((a["w"].as_u64()? as u32, a["h"].as_u64()? as u32)));
+                let baked = artlux_engine::projector::baked_upload(&gpu, bw, bh, &uv, match (alpha, &adata) { (Some((aw, ah)), Some(d)) => Some((aw, ah, d.as_slice())), _ => None });
+                artlux_engine::projector::render_baked(&gpu, &content, &baked, &o, w, h)
+            } else { artlux_engine::projector::render(&gpu, &content, &o, w, h) };
+            match r {
                 Ok(px) => out.push(serde_json::json!({ "name": c["name"], "rgba": base64::engine::general_purpose::STANDARD.encode(px) })),
                 Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(1); }
             }

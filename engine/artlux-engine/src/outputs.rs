@@ -38,7 +38,14 @@ pub struct Spec {
     pub surface_id: String,
     pub display: DisplayMatch,
     pub opts: Opts,
+    /// Item 3: the output's imported calibration map (the files main wrote), drawn instead of the warp.
+    pub baked: Option<BakedFiles>,
 }
+
+/// A baked map as files: `uv` (f32 u, v, spare per projector pixel, NaN = no content) and an optional 8-bit
+/// rig blend. `key` changes when the map does (the window is then reopened with the new one).
+#[derive(Clone, PartialEq)]
+pub struct BakedFiles { pub key: String, pub w: u32, pub h: u32, pub uv: String, pub alpha: Option<(u32, u32, String)> }
 
 /// What the presenters read, shared with the render thread.
 #[derive(Default)]
@@ -71,7 +78,7 @@ impl App {
         for id in self.outs.keys().cloned().collect::<Vec<_>>() {
             let moved = specs.iter().find(|s| s.id == id).is_some_and(|s| {
                 let o = &self.outs[&id].spec;
-                s.display.bounds != o.display.bounds || s.display.index != o.display.index || s.surface_id != o.surface_id
+                s.display.bounds != o.display.bounds || s.display.index != o.display.index || s.surface_id != o.surface_id || s.baked != o.baked
             });
             if !keep.contains(&id) || moved { self.close(&id); }
         }
@@ -181,6 +188,14 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
     let mut configured: Option<PhysicalSize<u32>> = None;
     let mut raster: Option<(wgpu::Texture, wgpu::BindGroup)> = None;
     let mut content: Option<(u64, wgpu::Texture)> = None;
+    // Item 3: the calibration map, uploaded ONCE (a map is ~10 MB; the app also uploads it once).
+    let baked: Option<projector::Baked> = spec.baked.as_ref().and_then(|b| {
+        let raw = std::fs::read(&b.uv).map_err(|e| eprintln!("artlux-engine: output '{}': map {}: {e}", spec.id, b.uv)).ok()?;
+        let uv: Vec<f32> = raw.chunks_exact(4).map(|q| f32::from_le_bytes([q[0], q[1], q[2], q[3]])).collect();
+        if uv.len() < (b.w * b.h * 3) as usize { eprintln!("artlux-engine: output '{}': the map is short", spec.id); return None; }
+        let alpha = b.alpha.as_ref().and_then(|(aw, ah, f)| std::fs::read(f).ok().map(|d| (*aw, *ah, d)));
+        Some(projector::baked_upload(&gpu, b.w, b.h, &uv, alpha.as_ref().map(|(aw, ah, d)| (*aw, *ah, d.as_slice()))))
+    });
     let mut drawn: Option<(u64, u64, bool, PhysicalSize<u32>)> = None;   // (picture gen, opts version, booting, size)
     while !stop.load(Ordering::SeqCst) {
         let size = window.inner_size();
@@ -221,7 +236,12 @@ fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'static>, 
                         if content.as_ref().map(|c| c.0) != Some(*g) {
                             content = Some((*g, projector::content_texture(&gpu, p.w, p.h, &p.rgba)));
                         }
-                        if let Some((_, ct)) = &content { projector::draw(&gpu, ct, &o, &target, wgpu::TextureFormat::Rgba8Unorm, size.width, size.height); }
+                        if let Some((_, ct)) = &content {
+                            match &baked {
+                                Some(b) => projector::draw_baked(&gpu, ct, b, &o, &target, wgpu::TextureFormat::Rgba8Unorm, size.width, size.height),
+                                None => projector::draw(&gpu, ct, &o, &target, wgpu::TextureFormat::Rgba8Unorm, size.width, size.height),
+                            }
+                        }
                     }
                     // Booting, or no picture: BLACK — the app's output draws black there too.
                     _ => {

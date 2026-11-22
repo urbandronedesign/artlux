@@ -36,7 +36,11 @@ export interface LinkInputs {
 
 let enabled = false;
 try {
-  void window.artlux?.nativeEngineEnabled?.().then((v) => { enabled = !!v; }, () => { /* an older main: off */ });
+  void window.artlux?.nativeEngineEnabled?.().then((v) => {
+    enabled = !!v;
+    // A calibration map handed over BEFORE this answer came back would otherwise never reach main.
+    if (enabled) for (const { map, key } of baked.values()) window.artlux?.nativeEngineBakedMap?.(key, map.w, map.h, map.uv, map.alpha ?? null);
+  }, () => { /* an older main: off */ });
 } catch { /* no bridge (a test page): off */ }
 
 let rev = 0;
@@ -57,13 +61,28 @@ export function setProjectors(outputs: ProjectorOutput[], brightness: number): v
 export function setProjectorBrightness(brightness: number): void { projBrightness = brightness; }
 export function setBooting(booting: boolean): void { projBooting = booting; }
 
+// Item 3: each output's imported CALIBRATION MAP (an .mpcdi region, as the calibration plugin hands it to
+// the window — App.sendToProjector records it here). Sent to main ONCE per map (it writes the file the
+// engine reads; ~10 MB is not a per-document payload); the document then names it by key.
+type BakedMap = { w: number; h: number; uv: Float32Array; alpha?: { w: number; h: number; data: Uint8Array } };
+const baked = new Map<string, { map: BakedMap; key: string }>();
+let bakedSeq = 0;
+export function setProjectorBaked(surfaceId: string, map: BakedMap | null): void {
+  if (!map) { baked.delete(surfaceId); bakedSeq++; return; }
+  const key = `${surfaceId}-${++bakedSeq}`;
+  baked.set(surfaceId, { map, key });
+  if (enabled) window.artlux?.nativeEngineBakedMap?.(key, map.w, map.h, map.uv, map.alpha ?? null);
+}
+
 function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record<string, contentSource.NativeSource>) {
   const s = surfaces.find((x) => x.id === o.surfaceId);
   const src = sources[o.surfaceId];
   const why =
     !s ? 'its surface is gone'
     : o.displayId === null || o.displayId === WINDOWED_DISPLAY ? 'a windowed output'
-    : o.calibration || o.useCalibration ? 'calibrated'
+    // A calibration MAP is played (item 3) — it supersedes the venue render inside the window too. Calibration
+    // WITHOUT a map is the live render-from-projector, which stays the app's.
+    : !baked.has(o.surfaceId) && (o.calibration || o.useCalibration) ? 'calibrated (render-from-projector)'
     : o.hwWarp ? 'NVIDIA hardware warp'
     : o.projMask?.polys?.length ? 'a projection mask'
     : o.ndiSend ? 'an NDI send'
@@ -73,6 +92,7 @@ function projectorEntry(o: ProjectorOutput, surfaces: Surface[], sources: Record
   return {
     id: o.surfaceId, surfaceId: o.surfaceId, name: o.name ?? s?.name ?? o.surfaceId, displayId: o.displayId,
     output: { cornerPin: o.cornerPin, warp: o.warp ?? null, softEdge: o.softEdge, gamma: o.gamma, colorGain: o.colorGain, blackLift: o.blackLift },
+    ...(baked.has(o.surfaceId) ? { baked: { key: baked.get(o.surfaceId)!.key } } : {}),
     ...(why ? { why } : {}),
   };
 }
@@ -90,7 +110,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     for (const id in sources) if (sources[id].kind === 'spout') sources[id] = { kind: 'unsupported', why: 'two Spout senders at once (the app shows one of them on every Spout surface)' };
   }
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs];
+  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq];
   if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; rev++;
     const doc = {

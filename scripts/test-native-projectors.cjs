@@ -32,6 +32,9 @@ const { PNG } = require(path.join(ROOT, 'node_modules', 'pngjs'));
 const env0 = { ...process.env }; delete env0.ELECTRON_RUN_AS_NODE;
 const pk = process.argv.indexOf('--packaged');
 const PACKAGED = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
+// --baked: the output plays an imported CALIBRATION MAP (item 3) — a real .mpcdi, written by the app's own
+// encoder (src/main/mpcdi.ts buildMpcdi), loaded the way a show machine loads one: Prefs.calibrationFile.
+const BAKED = process.argv.includes('--baked');
 
 // The primary display, as Electron names it (the project's output points at it).
 const disp = JSON.parse(execSync(`"${path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')}" "${path.join(WORK, 'disp.cjs')}"`, {
@@ -59,6 +62,26 @@ fs.writeFileSync(project, JSON.stringify({
     softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02],
   }],
 }, null, 2));
+
+let calibFile = null;
+if (BAKED) {
+  const esbuild = require(path.join(ROOT, 'node_modules', 'esbuild'));
+  const mb = path.join(WORK, 'mpcdi.cjs');
+  esbuild.buildSync({ entryPoints: [path.join(ROOT, 'src', 'main', 'mpcdi.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: mb, logLevel: 'error', external: ['electron'] });
+  const { buildMpcdi } = require(mb);
+  const mw = disp.b.width, mh = disp.b.height, xyz = new Float32Array(mw * mh * 3);
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+    const i = (y * mw + x) * 3, nx = (x + 0.5) / mw, ny = (y + 0.5) / mh;
+    const ex = (nx - 0.5) / 0.46, ey = (ny - 0.5) / 0.44, r = Math.hypot(ex, ey);
+    if (r > 1) { xyz[i] = NaN; xyz[i + 1] = NaN; xyz[i + 2] = NaN; continue; }
+    const k = 1 - 0.25 * (1 - r * r);
+    xyz[i] = 0.5 + ex * 0.5 * k; xyz[i + 1] = 0.5 - ey * 0.5 * k; xyz[i + 2] = r > 0.97 ? Math.max(0.05, (1 - r) / 0.03) : 1;
+  }
+  const aw = 480, ah = 270, a = new Uint8Array(aw * ah);
+  for (let y = 0; y < ah; y++) for (let x = 0; x < aw; x++) a[y * aw + x] = Math.round(255 * Math.min(1, Math.max(0, (x / aw - 0.6) / -0.3 + 1)));
+  calibFile = path.join(WORK, 'rig.mpcdi');
+  fs.writeFileSync(calibFile, buildMpcdi([{ id: 'sP', projW: mw, projH: mh, geo: { w: mw, h: mh, xyz, kind: 'uv' }, alpha: { w: aw, h: ah, data: a } }]));
+}
 
 // ── the screen, captured asynchronously ───────────────────────────────────────────────────────────────
 const CAP = path.join(WORK, 'cap.ps1');
@@ -103,6 +126,12 @@ async function stopAll() {
   const hadPrefs = fs.existsSync(PREFS);
   if (hadPrefs) fs.copyFileSync(PREFS, PREFS_BAK);
   try {
+    {
+      const prefs = hadPrefs ? JSON.parse(fs.readFileSync(PREFS, 'utf8')) : {};
+      if (calibFile) prefs.calibrationFile = calibFile; else delete prefs.calibrationFile;
+      fs.writeFileSync(PREFS, JSON.stringify(prefs, null, 2));
+    }
+    if (BAKED) console.log(`BAKED: the output plays ${calibFile}`);
     console.log(`display ${disp.id} ${disp.b.width}x${disp.b.height} at (${disp.b.x}, ${disp.b.y}) · ${project} · ${PACKAGED ? `packaged ${PACKAGED}` : 'dev (npm run dev)'}`);
     // ── A. the app's own projector window ───────────────────────────────────────────────────────────
     let app = launch(false);
@@ -151,7 +180,7 @@ async function stopAll() {
     fails++; console.log(`FAIL ${e.stack || e}`);
     await stopAll();
   } finally {
-    if (hadPrefs) fs.copyFileSync(PREFS_BAK, PREFS);
+    if (hadPrefs) fs.copyFileSync(PREFS_BAK, PREFS); else { try { fs.unlinkSync(PREFS); } catch { /* */ } }
     console.log('prefs restored');
   }
   console.log(fails ? `\nNATIVE PROJECTORS FAILED: ${fails}` : '\nNATIVE PROJECTORS OK');

@@ -24,7 +24,17 @@ const b64 = (u8: Uint8Array): string => { let s = ''; for (let i = 0; i < u8.len
       for (const c of job.cases) {
         const o = c.output;
         const mesh = o.warp ? tessellateBezier(o.warp, 24) : null;
-        gl.draw(bmp, { cornerPin: o.cornerPin, warp: mesh, softEdge: o.softEdge, gamma: o.gamma, brightness: c.brightness, colorGain: o.colorGain, blackLift: o.blackLift, aa: c.aa });
+        const opts = { cornerPin: o.cornerPin, warp: mesh, softEdge: o.softEdge, gamma: o.gamma, brightness: c.brightness, colorGain: o.colorGain, blackLift: o.blackLift, aa: c.aa };
+        if (c.baked) {
+          // The calibration plugin's hand-off, as ProjectorApp applies it: setBakedMap, then the rig blend.
+          const buf = fs.readFileSync(c.baked.uv);
+          const uv = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+          if (!(gl.setBakedMap(c.baked.w, c.baked.h, uv) && gl.canDrawBaked())) throw new Error('baked map unusable here');
+          gl.setBakedAlpha(c.baked.alpha ? { w: c.baked.alpha.w, h: c.baked.alpha.h, data: new Uint8Array(fs.readFileSync(c.baked.alpha.file)) } : null);
+          if (!gl.drawBaked(bmp, opts)) throw new Error('drawBaked refused');
+        } else {
+          gl.draw(bmp, opts);
+        }
         const cap = gl.captureRGBA(job.width, job.height)!;
         cases.push({ name: c.name, rgba: b64(cap.data) });
       }

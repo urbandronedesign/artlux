@@ -67,6 +67,42 @@ const cases = [
   { name: 'gain + black lift + top edge', output: out({ cornerPin: KEY, softEdge: { left: 0, right: 0, top: 0.1, bottom: 0, gamma: 1.8 }, colorGain: [1, 0.9, 0.8], blackLift: [0.02, 0.03, 0.01] }), brightness: 1, aa: 4 },
 ];
 const W = 960, Hh = 540;
+
+// ── BAKED MAPS (item 3: a calibrated output playing an imported .mpcdi) ─────────────────────────────────
+// What the calibration plugin hands a projector window: per projector pixel (u, v, spare) — NaN where there
+// is no content — and optionally the rig's 8-bit blend. Written as files both sides read.
+function bakedMap(name, mw, mh, { coverage, warp }) {
+  const uv = new Float32Array(mw * mh * 3);
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+    const i = (y * mw + x) * 3, nx = (x + 0.5) / mw, ny = (y + 0.5) / mh;
+    const ex = (nx - 0.5) / 0.46, ey = (ny - 0.5) / 0.44, r = Math.hypot(ex, ey);
+    if (r > 1) { uv[i] = NaN; uv[i + 1] = NaN; uv[i + 2] = NaN; continue; }
+    // A bulge (a curved screen) or a keystone; v counts UP from the bottom, as the bake writes it.
+    const u = warp === 'bulge' ? 0.5 + ex * 0.5 * (1 - 0.25 * (1 - r * r)) : (nx - 0.1) / (0.8 + 0.3 * ny);
+    const v = warp === 'bulge' ? 0.5 - ey * 0.5 * (1 - 0.25 * (1 - r * r)) : 1 - ny * 1.05;
+    uv[i] = u; uv[i + 1] = v;
+    uv[i + 2] = coverage ? (r > 0.97 ? Math.max(0.05, (1 - r) / 0.03) : 1) : NaN;
+  }
+  const f = path.join(WORK, `${name}.uv`); fs.writeFileSync(f, Buffer.from(uv.buffer)); return { w: mw, h: mh, uv: f };
+}
+function alphaMap(name, aw, ah) {
+  const a = Buffer.alloc(aw * ah);
+  for (let y = 0; y < ah; y++) for (let x = 0; x < aw; x++) a[y * aw + x] = Math.round(255 * Math.min(1, Math.max(0, (x / aw - 0.6) / -0.3 + 1)) * (0.7 + 0.3 * (y / ah)));
+  const f = path.join(WORK, `${name}.alpha`); fs.writeFileSync(f, a); return { w: aw, h: ah, file: f };
+}
+const bulgeCov = bakedMap('bulge-cov', 960, 540, { coverage: true, warp: 'bulge' });
+const bulgeTent = bakedMap('bulge-tent', 960, 540, { coverage: false, warp: 'bulge' });
+const small = bakedMap('bulge-640', 640, 360, { coverage: true, warp: 'bulge' });
+const keyst = bakedMap('keystone', 960, 540, { coverage: true, warp: 'keystone' });
+const rig = alphaMap('rig', 480, 270);
+const bOut = (o) => ({ cornerPin: ID, softEdge: soft0, gamma: 1, ...o });
+cases.push(
+  { name: 'BAKED map + coverage', output: bOut({}), brightness: 1, aa: 4, baked: bulgeCov },
+  { name: 'BAKED map, tent (no coverage)', output: bOut({}), brightness: 1, aa: 4, baked: bulgeTent },
+  { name: 'BAKED + rig alpha map', output: bOut({}), brightness: 1, aa: 4, baked: { ...bulgeCov, alpha: rig } },
+  { name: 'BAKED 640×360 on 960×540', output: bOut({}), brightness: 1, aa: 4, baked: small },
+  { name: 'BAKED keystone + edge/gain/γ', output: bOut({ softEdge: { left: 0.2, right: 0, top: 0, bottom: 0.15, gamma: 2.2 }, gamma: 2.2, colorGain: [1, 0.9, 0.8], blackLift: [0.02, 0.01, 0.03] }), brightness: 0.8, aa: 4, baked: { ...keyst, alpha: rig } },
+);
 const job = { width: W, height: Hh, pictures, cases };
 
 // ── the app side ───────────────────────────────────────────────────────────────────────────────────────

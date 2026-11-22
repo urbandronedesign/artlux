@@ -8566,7 +8566,7 @@ check(
     if (!/proc\.on\('exit'[\s\S]{0,500}setProjOwns\(null, 'the engine exited'\)/.test(eh)) problems.push('an engine exit no longer uncovers the app\'s projector windows');
     if (!/p\.bounds = process\.platform === 'win32' \? screen\.dipToScreenRect\(null, d\.bounds\)/.test(eh)) problems.push('main no longer gives the engine PHYSICAL display bounds');
     const nl = read('src/renderer/engine/nativeLink.ts');
-    for (const w of ['calibrated', 'NVIDIA hardware warp', 'a projection mask', 'an NDI send', 'a blend map', 'a windowed output']) {
+    for (const w of ['calibrated (render-from-projector)', 'NVIDIA hardware warp', 'a projection mask', 'an NDI send', 'a blend map', 'a windowed output']) {
       if (!nl.includes(`'${w}'`)) problems.push(`nativeLink no longer refuses an output with ${w}`);
     }
     return problems.length ? problems.join('; ') : null;
@@ -8585,6 +8585,26 @@ check(
     if (!/pub struct SpoutIn/.test(sp) || !/pub fn grab\([\s\S]{0,200}SpoutIn::new\(name\)/.test(sp)) problems.push('spout.rs: grab is no longer the SpoutIn the runtime uses (the parity test would prove other code)');
     if (!/spouts: HashMap<String, \(String, crate::spout::SpoutIn\)>/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer keeps one Spout receiver per surface');
     if (!/spoutSenders\.size > 1/.test(read('src/renderer/engine/nativeLink.ts'))) problems.push('nativeLink no longer keeps a two-sender show with the app');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a calibrated output that plays an imported map is drawn through THAT map by the engine, never flat (item 3)',
+  'plans/native-engine.md item 3, proven by scripts/test-projector-parity.cjs (15 baked cases, pixel-identical ' +
+  'to ProjectorGL.drawBaked) and scripts/test-native-projectors.cjs --baked (a real .mpcdi from Prefs, screen ' +
+  'identical). Before this, an imported map was invisible to what the engine may take — the output would have ' +
+  'been taken and drawn as a plain warp. The map is recorded at THE ONE DOOR it reaches a window through ' +
+  '(App.sendToProjector); and the map texture is read through a hardware POINT sampler — an exact floor() ' +
+  'picked the other texel on boundaries (2–5% of pixels on a smaller map).',
+  () => {
+    const problems = [];
+    if (!/if \(msg\.t === 'bakedMap'\) nativeLink\.setProjectorBaked\(surfaceId, msg\.map\);/.test(read('src/renderer/App.tsx'))) problems.push('App.sendToProjector no longer records the calibration maps it hands to windows');
+    const nl = read('src/renderer/engine/nativeLink.ts');
+    if (!/!baked\.has\(o\.surfaceId\) && \(o\.calibration \|\| o\.useCalibration\)/.test(nl)) problems.push('nativeLink no longer tells a mapped output from a live render-from-projector one');
+    const pr = raw('engine/artlux-engine/src/projector.rs');
+    if (!/textureSampleLevel\(bmap, msamp, p, 0\.0\)/.test(pr) || !/mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest/.test(pr)) problems.push('projector.rs no longer reads the baked map through a point sampler');
+    if (!/Some\(b\) => projector::draw_baked\(/.test(raw('engine/artlux-engine/src/outputs.rs'))) problems.push('an engine output with a map no longer draws through it');
     return problems.length ? problems.join('; ') : null;
   },
 );
