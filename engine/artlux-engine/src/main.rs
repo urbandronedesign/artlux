@@ -204,6 +204,27 @@ fn main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     }
+    if let Some(i) = args.iter().position(|a| a == "--dump-geometry") {
+        // The plain warp's vertex data for an output (JSON) — f32 values and the f64 qs, full precision.
+        let Some(inp) = args.get(i + 1) else { eprintln!("usage: --dump-geometry <output.json>"); return ExitCode::from(2); };
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(inp).unwrap_or_default()).unwrap_or_default();
+        let o = artlux_engine::projector::Opts::from_json(&v, 1.0, 1);
+        println!("qs {:?}", artlux_engine::projector::corner_qs(&o.pin));
+        println!("geometry {:?}", artlux_engine::projector::geometry(&o));
+        return ExitCode::SUCCESS;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--dump-hlsl") {
+        // The HLSL naga writes for the plain warp (shader model 5.1 — what wgpu hands FXC), to compare with
+        // what ANGLE writes for ProjectorGL (engine/spikes/hlsl-dump). Diagnostic only.
+        let Some(outp) = args.get(i + 1) else { eprintln!("usage: --dump-hlsl <out.hlsl>"); return ExitCode::from(2); };
+        let module = match naga::front::wgsl::parse_str(artlux_engine::projector::warp_wgsl()) { Ok(m) => m, Err(e) => { eprintln!("wgsl: {e:?}"); return ExitCode::from(1); } };
+        let info = match naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all()).validate(&module) { Ok(i) => i, Err(e) => { eprintln!("validate: {e:?}"); return ExitCode::from(1); } };
+        let options = naga::back::hlsl::Options { shader_model: naga::back::hlsl::ShaderModel::V5_1, ..Default::default() };
+        let mut out = String::new();
+        let pipeline = naga::back::hlsl::PipelineOptions { entry_point: None };
+        if let Err(e) = naga::back::hlsl::Writer::new(&mut out, &options, &pipeline).write(&module, &info, None) { eprintln!("hlsl: {e:?}"); return ExitCode::from(1); }
+        return match std::fs::write(outp, out) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } };
+    }
     if let Some(i) = args.iter().position(|a| a == "--nv12-convert") {
         // Item 2c: one `.nv12.json` frame → its VISIBLE rect as RGBA, 1:1 — for the conversion gate.
         let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --nv12-convert <frame.nv12.json> <out.rgba>"); return ExitCode::from(2); };

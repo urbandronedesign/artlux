@@ -3,6 +3,9 @@
 // when the page has written SPIKE_OUT/gpu-cases.json.
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
+// Extra Chromium switches for a diagnostic page (e.g. enable-privileged-webgl-extensions for the
+// WEBGL_debug_shaders extension — engine/spikes/hlsl-dump), comma-separated.
+for (const sw of (process.env.SPIKE_SWITCHES || '').split(',').filter(Boolean)) app.commandLine.appendSwitch(sw);
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 400, height: 300, show: false,
     webPreferences: { nodeIntegration: true, contextIsolation: false, sandbox: false, backgroundThrottling: false } });

@@ -121,6 +121,9 @@ pub fn geometry(o: &Opts) -> Vec<f32> {
     out
 }
 
+/// The plain warp's shader source (for `--dump-hlsl`).
+pub fn warp_wgsl() -> &'static str { WARP_WGSL }
+
 const WARP_WGSL: &str = r#"
 struct U { soft: vec4<f32>, gain: vec4<f32>, lift: vec4<f32>, blend_gamma: f32, gamma: f32, brightness: f32, _p: f32 };
 @group(0) @binding(0) var tex: texture_2d<f32>;

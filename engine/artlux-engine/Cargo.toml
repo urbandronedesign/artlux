@@ -31,6 +31,9 @@ artlux-output-engine = { path = "../../native/output-engine", default-features =
 # links the NDI 6 SDK at build time (NDI_SDK_DIR). A build without it simply has no NDI: the engine then
 # refuses an NDI show and the app keeps it (runtime.rs).
 grafton-ndi = { version = "=1.0.0", optional = true }
+# The plain warp's soft-edge residue (plans/native-engine.md): `--dump-hlsl` prints the HLSL naga writes for
+# the projector shader — the SAME naga wgpu 30 uses (no new crate; only its writer is called directly).
+naga = { version = "=30.0.2", features = ["wgsl-in", "hlsl-out"] }
 
 [features]
 ndi = ["grafton-ndi"]

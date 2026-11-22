@@ -107,6 +107,7 @@ dependencies = [
  "grafton-ndi",
  "image",
  "libm",
+ "naga",
  "pollster",
  "serde",
  "serde_json",

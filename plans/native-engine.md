@@ -1602,8 +1602,26 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   The difference most likely lies in the shader each side generates: ANGLE's HLSL from GLSL against
 >   naga's from WGSL, both probably compiled by FXC (wgpu's `Auto` without a DXC DLL). The app's shader
 >   also declares `precision mediump float`.
-> - **Next, if it is worth it:** dump the two generated HLSL shaders and diff the soft-edge lines. Until
->   then, the plain warp is held to "within 1 on at most 0.01%".
+> - **The generated code compared (owner: "1"), with `node scripts/dump-hlsl.cjs`.** It writes ANGLE's HLSL
+>   for the app's ProjectorGL (through `WEBGL_debug_shaders`) and naga's for the engine
+>   (`artlux-engine --dump-hlsl`). Ruled out, one by one:
+>   - **the HLSL:** the same operations in the same order (only `0.100000001` vs `0.1` — the same f32 —
+>     and a scalar vs `.xx`);
+>   - **the compiled bytecode:** both compiled with the SDK's fxc (ANGLE's at ps_5_0; naga's at ps_5_1, as
+>     wgpu does — FXC, since no `dxcompiler.dll` is on the PATH). The SAME instruction sequence: `div` for
+>     the perspective divide, `div_sat` for the feathers, `log`/`mul`/`exp` for the pow, the products in
+>     the same order. Two differences change no value: a `max(share, 0)` FXC dropped for ANGLE, and
+>     branches against selects;
+>   - **FXC's optimiser:** wgpu's DEBUG flag (skip optimisation) changes nothing — 11 again;
+>   - **the vertex data:** `artlux-engine --dump-geometry` against homography.ts + ProjectorGL's push. All
+>     30 floats are identical (the qs differ in the last f64 bit — libm::hypot vs Math.hypot — but agree as
+>     f32);
+>   - **the division:** a Newton-corrected division in the WGSL made it WORSE (668 px; 690 even without a
+>     soft edge). So the engine's plain `div` already matches the app's.
+> - **What is left:** Intel's D3D11 driver (ANGLE's) and D3D12 driver (wgpu's) turn the SAME bytecode into
+>   GPU code their own way. That cannot be seen or controlled from WGSL, and it may differ on the RTX PC
+>   (another driver). The plain warp stays held to "within 1 on at most 0.01%"; worth re-measuring on
+>   NVIDIA rather than chasing further here.
 
 ## 10. Open questions
 
