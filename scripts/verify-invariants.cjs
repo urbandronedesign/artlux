@@ -8573,6 +8573,22 @@ check(
 );
 
 check(
+  'the native engine reads Spout at runtime with ONE receiver per surface, and never two senders the app would merge',
+  'plans/native-engine.md E1f "2a", proven in the real app by scripts/test-native-takeover.cjs (a real Spout ' +
+  'sender, universe byte-identical). A receiver per FRAME (the old one-shot grab) reconnects 44 times a second; ' +
+  'and the app has ONE Spout receiver for every Spout surface — the latest sender wins on all of them — so a show ' +
+  'naming two senders must stay the app's, or the engine would show a different picture than today.',
+  () => {
+    const problems = [];
+    const sp = raw('engine/artlux-engine/src/spout.rs');
+    if (!/pub struct SpoutIn/.test(sp) || !/pub fn grab\([\s\S]{0,200}SpoutIn::new\(name\)/.test(sp)) problems.push('spout.rs: grab is no longer the SpoutIn the runtime uses (the parity test would prove other code)');
+    if (!/spouts: HashMap<String, \(String, crate::spout::SpoutIn\)>/.test(raw('engine/artlux-engine/src/runtime.rs'))) problems.push('runtime.rs no longer keeps one Spout receiver per surface');
+    if (!/spoutNames\.size > 1/.test(read('src/renderer/engine/nativeLink.ts'))) problems.push('nativeLink no longer keeps a two-sender show with the app');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'an auto-fit of a surface to its picture rebuilds the LED mapping',
   'Found by the native engine\'s takeover test (E1f-1): frameEngine fits a surface to its content\'s aspect by ' +
   'replacing this.inputs.surfaces itself, so when App commits the same array back the setInputs diff sees no ' +

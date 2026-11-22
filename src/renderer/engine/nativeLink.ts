@@ -82,6 +82,13 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   if (!enabled) return;
   const sources: Record<string, contentSource.NativeSource> = {};
   for (const s of surfaces) sources[s.id] = surfaceMedia.nativeSource(s);
+  // ⚠ THE APP HAS ONE SPOUT RECEIVER for every Spout surface, and the most recently attached sender wins
+  // (plugins/spout spoutContentSource): two surfaces naming DIFFERENT senders both show the same one today.
+  // The engine would show each its own — a different picture — so that case stays the app's.
+  const spoutNames = new Set(Object.values(sources).flatMap((x) => (x.kind === 'spout' ? [x.name] : [])));
+  if (spoutNames.size > 1) {
+    for (const id in sources) if (sources[id].kind === 'spout') sources[id] = { kind: 'unsupported', why: 'two Spout senders at once (the app shows one of them on every Spout surface)' };
+  }
   const sourcesKey = JSON.stringify(sources);
   const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs];
   if (sourcesKey !== lastSources || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {

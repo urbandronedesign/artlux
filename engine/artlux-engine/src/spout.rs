@@ -223,69 +223,115 @@ pub fn send_image(name: &str, file: &str, run_for: Option<Duration>) -> Result<(
     Ok(())
 }
 
-/// One frame of sender `name` as a picture, the way the engine will read a Spout source — OPAQUE (mode 2):
+/// One frame of sender `name` as a picture (the parity test's one-shot read): a SpoutIn, waited on until the
+/// sender has published, read once. Returns the path taken.
+pub fn grab(gpu: &Gpu, name: &str) -> Result<(crate::compose::Picture, &'static str), String> {
+    let mut sin = SpoutIn::new(name)?;
+    let t0 = Instant::now();
+    loop {
+        if let Some(pic) = sin.frame(gpu)? { return Ok((pic, sin.path())); }
+        if t0.elapsed() > Duration::from_secs(5) { return Err(format!("no Spout sender '{name}' within 5 s")); }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// A Spout source the way the engine reads one AT RUNTIME (E1f, plans/native-engine.md "2a"): ONE receiver,
+/// kept for the life of the surface — the sender's texture is reopened only when its share handle changes
+/// (the sender started, restarted, or resized: Spout republishes) — and read every frame OPAQUE (mode 2):
 /// today's app draws a Spout frame with its alpha IGNORED (measured, scripts/test-image-parity.cjs: a
 /// sender's straight-alpha picture reaches the LEDs as if alpha were 1 — byte-identical once the engine
 /// does the same, 18.7 levels apart when it honoured alpha). Kept on purpose: senders that leave alpha at 0
-/// are common, and honouring it would turn their picture black. The texture is read the sender's OWN
+/// are common, and honouring it would turn their picture black. The texture read is the sender's OWN
 /// texture opened in D3D12 (zero copy) when the driver accepts its handle, else the one GPU→GPU copy
-/// (D3D11 on the engine's adapter). Returns the path taken. The picture is read back here (the live engine
-/// samples the texture where it is).
-pub fn grab(gpu: &Gpu, name: &str) -> Result<(crate::compose::Picture, &'static str), String> {
-    let mut rx = Receiver::new(Some(name)).map_err(|e| format!("Spout receiver: {e}"))?;
-    let t0 = Instant::now();
-    let info = loop {
-        if rx.receive() {
-            if let Ok(i) = rx.sender_info(name) { if !i.share_handle.is_null() && i.width > 0 { break i; } }
+/// (D3D11 on the engine's adapter), every frame. An empty name follows the ACTIVE sender, as the app does.
+pub struct SpoutIn { rx: Receiver, name: Option<String>, open: Option<Opened> }
+
+enum Path { Direct(wgpu::Texture), Copy { slot: Slot, ctx: ID3D11DeviceContext, src: ID3D11Texture2D, dst: ID3D11Texture2D, query: ID3D11Query } }
+struct Opened { handle: usize, w: u32, h: u32, path: Path }
+
+impl SpoutIn {
+    pub fn new(name: &str) -> Result<Self, String> {
+        let name = (!name.is_empty()).then(|| name.to_string());
+        let rx = Receiver::new(name.as_deref()).map_err(|e| format!("Spout receiver: {e}"))?;
+        Ok(SpoutIn { rx, name, open: None })
+    }
+
+    pub fn path(&self) -> &'static str {
+        match self.open.as_ref().map(|o| &o.path) {
+            Some(Path::Direct(_)) => "zero copy (D3D12 opened the sender's texture)",
+            Some(Path::Copy { .. }) => "one GPU→GPU copy (D3D11 on the engine's adapter)",
+            None => "not connected",
         }
-        if t0.elapsed() > Duration::from_secs(5) { return Err(format!("no Spout sender '{name}' within 5 s")); }
-        std::thread::sleep(Duration::from_millis(20));
-    };
-    let fmt = wgpu_format(info.format).ok_or(format!("sender format {} is not drawn by the engine (the app takes BGRA8 / RGBA8 only)", info.format))?;
-    let handle = HANDLE(info.share_handle);
-    let (w, h) = (info.width, info.height);
-    let size = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
-    // ARTLUX_SPOUT_COPY=1 forces the copy path — the parity test runs both, because the driver here
-    // accepts the zero-copy open and the fallback would otherwise never be exercised.
-    let direct = if std::env::var_os("ARTLUX_SPOUT_COPY").is_some() { None } else {
-        let hal = unsafe { gpu.device.as_hal::<wgpu::hal::api::Dx12>() }.ok_or("not D3D12")?;
-        let mut res: Option<ID3D12Resource> = None;
-        match unsafe { hal.raw_device().OpenSharedHandle(handle, &mut res) } { Ok(()) => res, Err(_) => None }
-    };
-    if let Some(res) = direct {
-        let tex = unsafe {
-            let ht = wgpu::hal::dx12::Device::texture_from_raw(res, fmt, wgpu::TextureDimension::D2, size, 1, 1);
-            gpu.device.create_texture_from_hal::<wgpu::hal::api::Dx12>(ht, &wgpu::TextureDescriptor {
-                label: Some("spout sender (direct)"), size, mip_level_count: 1, sample_count: 1,
-                dimension: wgpu::TextureDimension::D2, format: fmt, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
-            }, wgpu::wgt::TextureUses::UNINITIALIZED)
+    }
+
+    /// The sender's current picture, or None while there is no sender (yet).
+    pub fn frame(&mut self, gpu: &Gpu) -> Result<Option<crate::compose::Picture>, String> {
+        self.rx.receive();
+        let name = self.name.clone().unwrap_or_else(|| self.rx.sender_name());
+        if name.is_empty() { self.open = None; return Ok(None); }
+        let Ok(info) = self.rx.sender_info(&name) else { self.open = None; return Ok(None) };
+        if info.share_handle.is_null() || info.width == 0 { self.open = None; return Ok(None); }
+        let handle = info.share_handle as usize;
+        if self.open.as_ref().is_none_or(|o| o.handle != handle || o.w != info.width || o.h != info.height) {
+            self.open = Some(Self::open(gpu, handle, info.width, info.height, info.format)?);
+        }
+        let o = self.open.as_ref().unwrap();
+        let rgba = match &o.path {
+            Path::Direct(tex) => crate::compose::texels(gpu, tex, o.w, o.h, 2)?,
+            Path::Copy { slot, ctx, src, dst, query } => {
+                unsafe {
+                    ctx.CopyResource(dst, src);
+                    ctx.End(query);
+                    ctx.Flush();
+                    // The copy must be COMPLETE before the engine's queue reads the texture (another device).
+                    loop {
+                        let mut done: i32 = 0;
+                        let _ = ctx.GetData(query, Some(&mut done as *mut _ as *mut core::ffi::c_void), std::mem::size_of_val(&done) as u32, 0);
+                        if done != 0 { break; }
+                        std::thread::yield_now();
+                    }
+                }
+                crate::compose::texels(gpu, &slot.texture, o.w, o.h, 2)?
+            }
         };
-        let rgba = crate::compose::texels(gpu, &tex, w, h, 2)?;
-        return Ok((crate::compose::Picture::video_frame(w, h, rgba), "zero copy (D3D12 opened the sender's texture)"));
+        Ok(Some(crate::compose::Picture::video_frame(o.w, o.h, rgba)))
     }
-    let (d11, ctx) = d3d11_on_engine_adapter(gpu)?;
-    let src: ID3D11Texture2D = unsafe {
-        let mut t: Option<ID3D11Texture2D> = None;
-        d11.OpenSharedResource(handle, &mut t).map_err(|e| format!("D3D11 OpenSharedResource (legacy): {e}"))?;
-        t.ok_or("no source texture")?
-    };
-    let slot: Slot = create_slot_as(gpu, w, h, DXGI_FORMAT(info.format as i32), fmt, wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC)?;
-    unsafe {
-        let d1: ID3D11Device1 = d11.cast().map_err(|e| e.to_string())?;
-        let dst: ID3D11Texture2D = d1.OpenSharedResource1(slot.local).map_err(|e| format!("D3D11 OpenSharedResource1: {e}"))?;
-        let mut q = None;
-        d11.CreateQuery(&D3D11_QUERY_DESC { Query: D3D11_QUERY_EVENT, MiscFlags: 0 }, Some(&mut q)).map_err(|e| e.to_string())?;
-        let query: ID3D11Query = q.ok_or("no query")?;
-        ctx.CopyResource(&dst, &src);
-        ctx.End(&query);
-        ctx.Flush();
-        loop {
-            let mut done: i32 = 0;
-            let _ = ctx.GetData(&query, Some(&mut done as *mut _ as *mut core::ffi::c_void), std::mem::size_of_val(&done) as u32, 0);
-            if done != 0 { break; }
-            std::thread::yield_now();
+
+    fn open(gpu: &Gpu, handle: usize, w: u32, h: u32, format: u32) -> Result<Opened, String> {
+        let fmt = wgpu_format(format).ok_or(format!("sender format {format} is not drawn by the engine (the app takes BGRA8 / RGBA8 only)"))?;
+        let raw = HANDLE(handle as *mut core::ffi::c_void);
+        let size = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
+        // ARTLUX_SPOUT_COPY=1 forces the copy path — the parity test runs both, because the driver here
+        // accepts the zero-copy open and the fallback would otherwise never be exercised.
+        let direct = if std::env::var_os("ARTLUX_SPOUT_COPY").is_some() { None } else {
+            let hal = unsafe { gpu.device.as_hal::<wgpu::hal::api::Dx12>() }.ok_or("not D3D12")?;
+            let mut res: Option<ID3D12Resource> = None;
+            match unsafe { hal.raw_device().OpenSharedHandle(raw, &mut res) } { Ok(()) => res, Err(_) => None }
+        };
+        if let Some(res) = direct {
+            let tex = unsafe {
+                let ht = wgpu::hal::dx12::Device::texture_from_raw(res, fmt, wgpu::TextureDimension::D2, size, 1, 1);
+                gpu.device.create_texture_from_hal::<wgpu::hal::api::Dx12>(ht, &wgpu::TextureDescriptor {
+                    label: Some("spout sender (direct)"), size, mip_level_count: 1, sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2, format: fmt, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[],
+                }, wgpu::wgt::TextureUses::UNINITIALIZED)
+            };
+            return Ok(Opened { handle, w, h, path: Path::Direct(tex) });
         }
+        let (d11, ctx) = d3d11_on_engine_adapter(gpu)?;
+        let src: ID3D11Texture2D = unsafe {
+            let mut t: Option<ID3D11Texture2D> = None;
+            d11.OpenSharedResource(raw, &mut t).map_err(|e| format!("D3D11 OpenSharedResource (legacy): {e}"))?;
+            t.ok_or("no source texture")?
+        };
+        let slot: Slot = create_slot_as(gpu, w, h, DXGI_FORMAT(format as i32), fmt, wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC)?;
+        let (dst, query) = unsafe {
+            let d1: ID3D11Device1 = d11.cast().map_err(|e| e.to_string())?;
+            let dst: ID3D11Texture2D = d1.OpenSharedResource1(slot.local).map_err(|e| format!("D3D11 OpenSharedResource1: {e}"))?;
+            let mut q = None;
+            d11.CreateQuery(&D3D11_QUERY_DESC { Query: D3D11_QUERY_EVENT, MiscFlags: 0 }, Some(&mut q)).map_err(|e| e.to_string())?;
+            (dst, q.ok_or("no query")?)
+        };
+        Ok(Opened { handle, w, h, path: Path::Copy { slot, ctx, src, dst, query } })
     }
-    let rgba = crate::compose::texels(gpu, &slot.texture, w, h, 2)?;
-    Ok((crate::compose::Picture::video_frame(w, h, rgba), "one GPU→GPU copy (D3D11 on the engine's adapter)"))
 }

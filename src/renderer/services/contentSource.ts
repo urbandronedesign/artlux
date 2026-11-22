@@ -735,7 +735,7 @@ export function releaseExact(keys?: readonly string[]): void {
 // The engine draws stills, HAP and effects itself (proven against this file's drawables, E1d). Anything
 // else is "unsupported" with a reason, and then the app keeps the wire (engine/runtime.rs: all or nothing).
 // A VIDEO is HAP only once its codec has claimed it — until then it is unsupported, i.e. the app's.
-export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
+export type NativeSource = { kind: 'image' | 'hap'; path: string } | { kind: 'spout'; name: string } | { kind: 'effect' | 'none' } | { kind: 'unsupported'; why: string };
 export function filePathOf(url: string): string {
   // The renderer sees absolute paths (main translates project assets); a file:// URL is undone here.
   if (!/^file:\/\//i.test(url)) return url;
@@ -746,6 +746,9 @@ export function nativeSource(key: string, content: SurfaceContent): NativeSource
     case SourceType.NONE: return { kind: 'none' };
     case SourceType.IMAGE: return content.url ? { kind: 'image', path: filePathOf(content.url) } : { kind: 'none' };
     case 'EFFECT': return { kind: 'effect' };
+    // E1f "2a": the engine receives the sender itself (one receiver per surface, spout.rs SpoutIn) and draws
+    // it as the app does — alpha ignored, no mips (E1d-3). '' = follow the active sender, as the app does.
+    case 'SPOUT': return { kind: 'spout', name: content.spoutName ?? '' };
     case SourceType.VIDEO: {
       const e = media.get(key);
       if (e?.type === 'CODEC' && e.codecId === 'hap') return { kind: 'hap', path: filePathOf(e.path) };

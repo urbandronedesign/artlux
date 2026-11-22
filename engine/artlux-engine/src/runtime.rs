@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
-enum Source { Image(String), Effect(Params), Hap(String), None }
+enum Source { Image(String), Effect(Params), Hap(String), Spout(String), None }
 
 struct Doc {
     rev: u64,
@@ -68,13 +68,17 @@ pub struct Runtime {
     proj_published: HashMap<String, u64>,
     proj_opts: HashMap<String, f64>,
     opts_ver: u64,
+    /// E1f "2a": one Spout receiver per surface, kept while its source is that sender (spout.rs SpoutIn).
+    #[cfg(windows)]
+    spouts: HashMap<String, (String, crate::spout::SpoutIn)>,
 }
 
 impl Runtime {
     pub fn new(gpu: Arc<Gpu>) -> Self {
         Runtime { gpu, out: None, broadcast: false, out_cfg: (44.0, true, false), doc: None, pictures: HashMap::new(), gens: HashMap::new(),
             images: HashMap::new(), effects: HashMap::new(), rng: Rng::new(0x5eed), cache: TexCache::default(), gen: 0, path_gens: HashMap::new(), frames: 0,
-            outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0 }
+            outputs: None, projectors: Vec::new(), proj_published: HashMap::new(), proj_opts: HashMap::new(), opts_ver: 0,
+            #[cfg(windows)] spouts: HashMap::new() }
     }
 
     /// E1f-3: the windows thread the projector outputs live on (serve.rs starts it).
@@ -185,6 +189,7 @@ impl Runtime {
                 "image" => Source::Image(src["path"].as_str().unwrap_or_default().to_string()),
                 "effect" => Source::Effect(Params::from_json(&s["content"])),
                 "hap" => Source::Hap(src["path"].as_str().unwrap_or_default().to_string()),
+                "spout" => Source::Spout(src["name"].as_str().unwrap_or_default().to_string()),
                 "none" => Source::None,
                 _ => Source::None,
             };
@@ -204,6 +209,8 @@ impl Runtime {
                 }
             }
         }
+        #[cfg(windows)]
+        self.spouts.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Spout(_))));
         // Keep the effects' state (Fire's heat) across documents for surfaces that are still effects.
         self.effects.retain(|k, _| matches!(doc.sources.get(k), Some(Source::Effect(_))));
         let ids: Vec<String> = doc.sources.keys().cloned().collect();
@@ -224,7 +231,7 @@ impl Runtime {
         for sid in &sampled {
             let src = &d["sources"][sid];
             match src["kind"].as_str() {
-                Some("image") | Some("effect") | Some("hap") | Some("none") => {}
+                Some("image") | Some("effect") | Some("hap") | Some("spout") | Some("none") => {}
                 _ => return Err(format!("surface '{}': {}", name_of(d, sid), src["why"].as_str().unwrap_or("not a source the engine draws"))),
             }
             if let Some(Source::Image(p)) = doc.sources.get(sid) {
@@ -287,6 +294,22 @@ impl Runtime {
                         self.pictures.insert(sid.clone(), compose::hap_picture(&self.gpu, fmt, w, h, &blocks)?);
                         self.gens.insert(sid.clone(), key);
                     }
+                }
+                Source::Spout(name) => {
+                    // A live source: a new picture every frame (Spout has no reliable frame counter — see
+                    // native/spout-receiver), so every frame is a new generation.
+                    #[cfg(windows)]
+                    {
+                        if self.spouts.get(sid).is_none_or(|(n, _)| n != name) {
+                            self.spouts.insert(sid.clone(), (name.clone(), crate::spout::SpoutIn::new(name)?));
+                        }
+                        match self.spouts.get_mut(sid).unwrap().1.frame(&self.gpu)? {
+                            Some(pic) => { self.pictures.insert(sid.clone(), pic); self.gen += 1; self.gens.insert(sid.clone(), self.gen << 2 | 3); }
+                            None => { self.pictures.remove(sid); }   // no sender (yet): black, as the app shows
+                        }
+                    }
+                    #[cfg(not(windows))]
+                    { let _ = name; self.pictures.remove(sid); }
                 }
                 Source::None => { self.pictures.remove(sid); }
             }

@@ -1310,6 +1310,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - A forced refusal (`ARTLUX_ENGINE_BACKEND=metal`): logged once, not restarted, no engine left.
 > - The audio engine loads and configures its device in the packaged app, and the 49 ms handback at
 >   start-up is itself the proof that main is no longer stalled by it.
+>
+> **The owner's next ask (2026-11-22): "2 and 3"** — the remaining SOURCES, and CALIBRATED outputs. Order,
+> smallest and safest first: **2a Spout at runtime**, **3 the baked `.mpcdi` map path**, **2b NDI**, **2c MP4**
+> (an engine-side decoder), **2d camera** (one process can hold most webcams — a design question first).
+> Render-from-projector (the live 3D venue) stays the app's.
+>
+> ✅ **2a done 2026-11-22 (Spout at runtime).** `spout.rs SpoutIn`: ONE receiver per surface, the sender's
+> texture reopened only when its share handle changes, read every frame on the proven paths (zero copy, or
+> the one GPU copy). `grab` is now a SpoutIn, so `test:image-parity` keeps proving the runtime's code (both
+> paths still identical). An empty name follows the active sender, as the app does. **Copied, not "fixed":**
+> the app has ONE Spout receiver for every Spout surface, so two surfaces naming different senders both show
+> one of them today — that show stays the app's, with the reason. Proof in the real app
+> (`test:native-takeover`): a real sender (Spout's library) on a Spout surface — **universe 4 byte-identical**
+> with the engine owning the wire, beside pixels and lights; handback 49 ms. Not covered: a MOVING sender
+> (the same per-frame path; a still is what makes the two sides comparable), a sender on another GPU.
 
 ## 10. Open questions
 

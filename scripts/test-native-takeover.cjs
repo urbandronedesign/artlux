@@ -56,6 +56,16 @@ fs.writeFileSync(project, JSON.stringify({
   ],
   controllers: [], groups: [], scenes: [], cueBanks: [],
 }, null, 2));
+// E1f "2a": a SPOUT surface, fed by a REAL Spout sender (artlux-engine --spout-send --image, Spout's own
+// library) for the whole test — the app reads it through its Spout plugin, the engine through spout.rs SpoutIn.
+const SPOUT_NAME = 'artlux-takeover-spout';
+const spoutPic = writePng('spout-48x27.png', 48, 27, (x, y) => [(x * 37 + y * 11) % 256, (x * 5 + y * 29) % 256, (x * y * 3) % 256]);
+{
+  const pj = JSON.parse(fs.readFileSync(project, 'utf8'));
+  pj.surfaces.push({ id: 'sSp', name: 'Spout', x: 0.02, y: 0.52, width: 0.46, height: 0.26, rotation: 0, zIndex: 2, content: { type: 'SPOUT', spoutName: SPOUT_NAME, opacity: 1 } });
+  pj.fixtures.push({ id: 'fSp', name: 'Spout strip', surfaceId: 'sSp', x: 0.03, y: 0.6, width: 0.44, height: 0.01, rotation: 0, ledCount: 150, universe: 4, startAddress: 1, colorOrder: 'RGB', channelsPerPixel: 3 });
+  fs.writeFileSync(project, JSON.stringify(pj, null, 2));
+}
 // E1f-2: LIGHT fixtures beside the pixels — generic profiles from the app's own library, authored values
 // in `dmx` (normalised), one SPILLING past channel 512. Their bytes are the app's precedence stack's; the
 // engine only places them.
@@ -128,6 +138,10 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
   const hadPrefs = fs.existsSync(PREFS);
   if (hadPrefs) fs.copyFileSync(PREFS, PREFS_BAK);
   await new Promise((r) => sock.bind(PORT, '127.0.0.1', r));
+  // The sender runs from a COPY under another name: the clean-up between runs kills artlux-engine.exe by name.
+  const SENDER_EXE = path.join(WORK, 'spout-sender.exe');
+  fs.copyFileSync(path.join(ROOT, 'engine', 'target', 'release', 'artlux-engine.exe'), SENDER_EXE);
+  const sender = spawn(SENDER_EXE, ['--spout-send', SPOUT_NAME, '--image', spoutPic, '--seconds', '600'], { stdio: 'ignore' });
   try {
     const prefs = hadPrefs ? JSON.parse(fs.readFileSync(PREFS, 'utf8')) : {};
     prefs.appSettings = { ...(prefs.appSettings || {}), outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: PORT, broadcast: false, protocol: 'artnet' };
@@ -140,7 +154,8 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     await sleep(3000);
     await settle();
     const A = packets.splice(0);
-    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3) };
+    const ref = { 0: lastOf(A, 0), 1: lastOf(A, 1), 2: lastOf(A, 2), 3: lastOf(A, 3), 4: lastOf(A, 4) };
+    ok(ref[4] && ref[4].some((b) => b > 0), `A. the Spout surface is on it (universe 4 lit: ${!!ref[4]?.some((b) => b > 0)})`);
     ok(ref[2] && ref[2][0] === 255 && ref[2][1] === 128 && ref[3] && ref[3].some((b) => b > 0), `A. the lights are on it too (wash 1 red ${ref[2]?.[0]}, green ${ref[2]?.[1]}; universe 3 lit: ${!!ref[3]?.some((b) => b > 0)})`);
     for (const u of [0, 1]) { const tailA = A.filter((p) => p.u === u).slice(-60); console.log(`     run A universe ${u}: ${new Set(tailA.map((p) => p.data.toString('hex'))).size} distinct payloads in its last ${tailA.length} packets`); }
     const sendersA = new Set(A.map(who));
@@ -166,7 +181,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     const sendersB = new Set(after.map(who));
     for (const u of [0, 1]) { const t = after.filter((p) => p.u === u).slice(-60); console.log(`     run B universe ${u}: ${new Set(t.map((p) => p.data.toString('hex'))).size} distinct payloads in the engine's last ${t.length} packets`); }
     ok(after.length > 50 && sendersB.size === 1 && sendersB.has('engine'), `B. after the handover only the engine sends (${after.length} packets: ${[...sendersB].join(', ')})`);
-    for (const u of [0, 1, 2, 3]) {
+    for (const u of [0, 1, 2, 3, 4]) {
       const got = lastOf(after, u);
       if (got) fs.writeFileSync(path.join(WORK, `engine-u${u}.bin`), got);
       if (ref[u]) fs.writeFileSync(path.join(WORK, `app-u${u}.bin`), ref[u]);
@@ -228,6 +243,7 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
     console.log('prefs restored');
     sock.close();
     polling = false;
+    try { sender.kill(); } catch { /* gone */ }
   }
   console.log(fails ? `\nNATIVE TAKEOVER FAILED: ${fails}` : '\nNATIVE TAKEOVER OK');
   process.exit(fails ? 1 : 0);
