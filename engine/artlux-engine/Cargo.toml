@@ -12,3 +12,14 @@ wgpu = "=30.0.2"
 pollster = "1.0.3"
 # Engine windows (E0b). 0.30 is the stable line; 0.31 is still in beta.
 winit = "0.30.13"
+
+# E0c: D3D12 shared textures + handle duplication. The SAME `windows` line wgpu-hal 30 uses (0.62), so
+# its ID3D12Device and ours are one type.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Graphics_Direct3D12",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_System_Threading",
+] }

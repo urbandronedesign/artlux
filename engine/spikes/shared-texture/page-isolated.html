@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>E0c shared texture spike</title>
+<style>body{margin:0;background:#202020;color:#ccc;font:12px system-ui} canvas{display:block;margin:8px}</style></head>
+<body>
+<canvas id="c" width="640" height="360"></canvas>
+<div id="s">waiting for the engine…</div>
+<script>
+// Isolated page: no require. Frames come from the preload over contextBridge (window.engineFrames).
+const c = document.getElementById('c');
+const ctx = c.getContext('2d', { willReadFrequently: true });
+let drawn = 0;
+const px = (fx, fy) => Array.from(ctx.getImageData(Math.floor(c.width * fx), Math.floor(c.height * fy), 1, 1).data.slice(0, 3));
+function barX() {
+  const row = ctx.getImageData(0, Math.floor(c.height * 0.06), c.width, 1).data;
+  for (let x = 0; x < c.width; x++) { const i = x * 4; if (row[i] > 200 && row[i + 1] < 50 && row[i + 2] > 200) return x; }
+  return -1;
+}
+document.getElementById('s').textContent = window.engineFrames ? `sharedTexture in the sandboxed preload: ${window.engineFrames.available}` : 'no bridge';
+window.engineFrames.onFrame((vf, meta) => {
+  let report = null, error = null;
+  try {
+    ctx.drawImage(vf, 0, 0, c.width, c.height);
+    drawn++;
+    if (drawn === 20 || drawn === 21 || drawn % 50 === 0) {
+      report = { n: meta.n, drawn, quads: { red: px(0.25, 0.34), green: px(0.75, 0.34), blue: px(0.25, 0.78), white: px(0.75, 0.78) }, barX: barX() };
+      document.getElementById('s').textContent = `isolated · frame ${meta.n} · drawn ${drawn} · bar at ${report.barX}`;
+    }
+  } catch (e) { error = 'page: ' + String(e && e.message || e); }
+  try { vf.close(); } catch { /* the bridge may hand a copy */ }
+  window.engineFrames.drawn(meta.slot, report, error);
+});
+</script>
+</body></html>

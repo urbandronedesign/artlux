@@ -844,7 +844,7 @@ every step says where it is proven:
 |---|---|---|
 | **E0a** ✅ | Engine skeleton: Cargo workspace `engine/`, one wgpu device on the native API (D3D12 / Metal / Vulkan), the software-adapter rule, an offscreen render and LED sampling byte-compared to goldens | here (D3D12 hardware, WARP, Vulkan); CI on all three runners (`.github/workflows/engine.yml`) once pushed |
 | **E0b** ✅ | Engine windows: one winit window per display, borderless/fullscreen, presenting at that display's refresh; the reveal never depends on a "ready" event | here for one display + windowed; multi-display/mixed refresh on the RTX PC |
-| **E0c** | Engine → Electron page: the engine renders into a shared texture, main imports it with `sharedTexture` (Electron 42 has it), a page draws it — Windows NT-handle path | here |
+| **E0c** ✅ | Engine → Electron page: the engine renders into a shared texture, main imports it with `sharedTexture` (Electron 42 has it), a page draws it — Windows NT-handle path | here |
 | **E0d** | Zero-copy imports: Spout (D3D11 shared handle) and HAP BC upload, via `create_texture_from_hal` on the pinned wgpu, with the CPU-upload fallback | here (Spout sender needed) |
 | **E0e** | macOS (IOSurface mach port, Syphon, VideoToolbox) and Linux (dmabuf over `SCM_RIGHTS`, VA-API, Wayland window placement) | a Mac and a Linux box; CI builds only |
 
@@ -879,6 +879,26 @@ every step says where it is proven:
 > fullscreen, and Vulkan**. **Not proven here (one 60 Hz display):** two or more displays, and mixed
 > refresh rates presenting independently. That needs the RTX PC with its outputs; the code path is the
 > one it will run.
+>
+> ✅ **E0c done 2026-11-22 (engine → Electron page, Windows).** `artlux-engine --share <pid>`
+> (`src/share.rs`): three BGRA8 D3D12 textures created SHARED (`D3D12_HEAP_FLAG_SHARED` +
+> `ALLOW_SIMULTANEOUS_ACCESS`, so they decay to COMMON after each command list — the state Chromium's D3D11
+> opens them in), wrapped for wgpu with `texture_from_raw` + `create_texture_from_hal` (the unstable API the
+> pin is for). An NT handle is process-local and Node has no DuplicateHandle, so **the engine duplicates each
+> handle INTO Electron main** (main passes its pid). Protocol: JSON lines — `slots` (handles), `frame` (slot,
+> GPU work complete) out; `free` (the page has drawn it) in. A slot is rendered again only once free: **the
+> ordering is the synchronisation** (no keyed mutex on a `bgra` import). Main imports each slot ONCE
+> (`importSharedTexture`) and sends it per frame (`sendSharedTexture`); the page draws the `VideoFrame`.
+>
+> Proof: `engine/spikes/shared-texture/check.cjs` (a throwaway Electron 42 app). Every announced frame
+> reached the page and was drawn (351/351, no send error, three runs); the four quadrants exact; and in
+> every report the live bar sits where THAT frame's number puts it — the page shows exactly the frame
+> announced, never a slot's stale contents. **Also with the page sandboxed + context-isolated like
+> ArtLux's** (`SPIKE_ISOLATED=1`): `sharedTexture` works in a sandboxed preload and the `VideoFrame` crosses
+> `contextBridge`. Electron killed mid-stream → the engine stops on its own (stdin EOF).
+> **Not covered:** latency (no measurements, owner); a WARP engine (a software adapter cannot share with
+> Chromium's hardware device — irrelevant on a venue PC); macOS IOSurface + Linux dmabuf (E0e); the page
+> drawing via 2D canvas here — a real view would use WebGPU `importExternalTexture` (E4).
 
 ## 10. Open questions
 

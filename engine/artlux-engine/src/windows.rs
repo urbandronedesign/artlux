@@ -38,34 +38,7 @@ pub struct WindowOptions {
     pub policy: AdapterPolicy,
 }
 
-const CARD_WGSL: &str = r#"
-struct Card { size: vec2<f32>, bar: f32, _pad: f32 };
-@group(0) @binding(0) var<uniform> card: Card;
-
-@vertex
-fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
-    let x = f32((i << 1u) & 2u) * 2.0 - 1.0;
-    let y = f32(i & 2u) * 2.0 - 1.0;
-    return vec4<f32>(x, y, 0.0, 1.0);
-}
-
-@fragment
-fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-    let uv = pos.xy / card.size;
-    if (uv.y < 0.125) {
-        // The live band: black, with a magenta bar 1/16 of the width wide.
-        let x = fract(uv.x - card.bar);
-        if (x < 0.0625) { return vec4<f32>(1.0, 0.0, 1.0, 1.0); }
-        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    }
-    let right = uv.x >= 0.5;
-    let low = uv.y >= 0.5625;           // the quadrants split the area under the band
-    if (!right && !low) { return vec4<f32>(1.0, 0.0, 0.0, 1.0); }   // red
-    if (right && !low)  { return vec4<f32>(0.0, 1.0, 0.0, 1.0); }   // green
-    if (!right && low)  { return vec4<f32>(0.0, 0.0, 1.0, 1.0); }   // blue
-    return vec4<f32>(1.0, 1.0, 1.0, 1.0);                           // white
-}
-"#;
+// The test card itself lives in card.rs (the shared-texture spike draws the same one).
 
 /// One output: its window, and the thread presenting to it.
 struct Output {
@@ -235,24 +208,7 @@ fn present_loop(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stat
     // Prefer a non-sRGB format (the engine composites in linear space and encodes itself, later);
     // the test card is exact either way.
     let format = caps.formats.iter().copied().find(|f| !f.is_srgb()).unwrap_or(caps.formats[0]);
-    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("card"), source: wgpu::ShaderSource::Wgsl(CARD_WGSL.into()) });
-    let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("card"),
-        layout: None,
-        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), buffers: &[], compilation_options: Default::default() },
-        fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some("fs"), targets: &[Some(format.into())], compilation_options: Default::default() }),
-        primitive: Default::default(),
-        depth_stencil: None,
-        multisample: Default::default(),
-        multiview_mask: None,
-        cache: None,
-    });
-    let uniform = d.create_buffer(&wgpu::BufferDescriptor { label: Some("card"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-    let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("card"),
-        layout: &pipeline.get_bind_group_layout(0),
-        entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniform.as_entire_binding() }],
-    });
+    let card = crate::card::Card::new(d, format);
     let mut configured: Option<PhysicalSize<u32>> = None;
     let mut frame: u64 = 0;
     while !stop.load(Ordering::SeqCst) {
@@ -291,30 +247,8 @@ fn present_loop(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stat
                 continue;
             }
         };
-        let bar = (frame % 240) as f32 / 240.0;
-        let mut u = [0u8; 16];
-        u[0..4].copy_from_slice(&(size.width as f32).to_le_bytes());
-        u[4..8].copy_from_slice(&(size.height as f32).to_le_bytes());
-        u[8..12].copy_from_slice(&bar.to_le_bytes());
-        gpu.queue.write_buffer(&uniform, 0, &u);
         let view = tex.texture.create_view(&Default::default());
-        let mut enc = d.create_command_encoder(&Default::default());
-        {
-            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("card"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
-                })],
-                ..Default::default()
-            });
-            pass.set_pipeline(&pipeline);
-            pass.set_bind_group(0, &bind, &[]);
-            pass.draw(0..3, 0..1);
-        }
-        gpu.queue.submit([enc.finish()]);
+        gpu.queue.submit([card.encode(&gpu, &view, size.width, size.height, frame)]);
         window.pre_present_notify();
         gpu.queue.present(tex);   // wgpu 30: presenting is the queue's, after the submit
         if frame == 0 { println!("first frame presented on {label} ({format:?}, FIFO)"); }

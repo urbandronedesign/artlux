@@ -14,7 +14,10 @@
 
 use std::fmt;
 
+pub mod card;
 pub mod windows;
+#[cfg(windows)]
+pub mod share;
 
 /// Which native API this platform renders with (§6 table, "GPU backend").
 pub fn native_backends() -> wgpu::Backends {
