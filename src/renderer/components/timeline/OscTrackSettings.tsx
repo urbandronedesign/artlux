@@ -18,7 +18,9 @@ import { sanitizeOscTrackConfig } from '../../types';
 import type { OscSendStatus } from '../../../../shared/protocol';
 import { NumInput } from '../ui/NumberField';
 import { Segmented } from '../ui/Segmented';
-import { sendTest } from '../../services/oscOut';
+// The OSC sender through a seam (the detached timeline): oscOut in the editor, the live channel in a window.
+import { oscTrackView } from '../../services/oscTrackView';
+const sendTest: typeof oscTrackView.sendTest = (c, v) => oscTrackView.sendTest(c, v);
 
 interface Props {
   config: OscTrackConfig;

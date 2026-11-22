@@ -31,7 +31,12 @@ import React from 'react';
 import { Trash2, Volume2, VolumeX, Headphones, Music } from 'lucide-react';
 import type { AudioClip, AudioTrack } from '../../types';
 import { AUDIO_LANE_H, GUTTER, fmtClock } from './geometry';
-import { peaksFor, sourceDurationFor, subscribePeaks } from './audioPeaks';
+// Waveforms through a seam (the detached timeline): the editor's decoder there, its decode over the live
+// channel in a panel window.
+import { peaksView } from '../../services/peaksView';
+const peaksFor = (p: string, b: number) => peaksView.peaksFor(p, b);
+const sourceDurationFor = (p: string) => peaksView.sourceDuration(p);
+const subscribePeaks = (cb: () => void) => peaksView.subscribe(cb);
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 

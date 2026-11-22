@@ -2,7 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { defaultOscTrackConfig, Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
-import { timeline as engine } from '../../services/timeline';
+// The transport through a seam (the detached timeline): services/timeline in the editor, the live channel
+// (the editor's clock anchors + its transport calls) when the timeline is in a panel window.
+import { transportView } from '../../services/transportView';
+import { showMachineLive } from '../../services/showMachineLive';
+const engine = {
+  getPlayhead: () => transportView.getPlayhead(),
+  getShowTime: () => transportView.getShowTime(),
+  subscribe: (cb: (playhead: number) => void) => transportView.subscribe(cb),
+  seek: (t: number) => transportView.seek(t),
+  stop: () => transportView.stop(),
+  triggerSmTransition: (id: string) => showMachineLive().triggerTransition(id),
+};
 import { goToContext } from '../../contexts/nav';
 import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
@@ -12,7 +23,11 @@ import { GUTTER, RULER_H, SM_LANE_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, 
 import { splitClipAt, bladeAt, rippleDelete, liftDelete, nearestFreeStart, freeSpanAt } from './operations';
 import { collectSnapPoints, snap, type SnapPoint } from './snapping';
 import { AudioLane, type AudioDragMode } from './AudioLane';
-import { ensurePeaks, probeAudioDuration, sourceDurationFor } from './audioPeaks';
+// Waveforms through a seam too: the editor's decoder there, the editor's decode over the live channel in a window.
+import { peaksView } from '../../services/peaksView';
+const ensurePeaks = (p: string) => peaksView.ensure(p);
+const probeAudioDuration = (p: string) => peaksView.probeDuration(p);
+const sourceDurationFor = (p: string) => peaksView.sourceDuration(p);
 import { TimelineToolbar } from './TimelineToolbar';
 import { LightingClipInspector } from './LightingClipInspector';
 import { TimelineRuler } from './TimelineRuler';
@@ -24,7 +39,7 @@ import { FixtureTrack } from './FixtureTrack';
 import { ColorRow } from './ColorRow';
 import { resolveMode } from '../../services/addressing';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
-import { oscLaneDef, oscTargetPath } from '../../services/oscOut';
+import { oscLaneDef, oscTargetPath } from '../../services/oscLanes';
 import { automationTargetRegistry } from '../../host/registries';
 import { groupKind, isLight } from '../../services/fixtureKind';
 import { groupCapability, seedColorFrom } from '../../services/colorEngine';
@@ -1449,7 +1464,7 @@ const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onSta
   const bandOn = hasTimelineRegion(draftTimeline);
   // Stop goes through the SAME TransportIntent funnel the FSM and OSC use, so App stays the single
   // writer of `playing`. (A 'stop' intent has existed since OSC landed; no UI ever emitted one.)
-  const stop = () => engine.dispatchTransportIntent({ kind: 'stop' });
+  const stop = () => engine.stop();
   // `selected` names an id in ONE OF THREE ARRAYS (the video clips, the bed's clips, this timeline's audio
   // clips), and this used to filter `timeline.clips` unconditionally. Selecting an audio clip and pressing
   // Delete would: leave the clip exactly where it is (liftDelete finds nothing to remove), CLEAR the

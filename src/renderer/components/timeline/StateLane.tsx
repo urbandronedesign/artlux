@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { StateMachine } from '../../types';
-import { timeline as engine } from '../../services/timeline';
+// The transport through a seam (the detached timeline): services/timeline in the editor, the live channel
+// (the editor's clock anchors + its transport calls) when the timeline is in a panel window.
+import { transportView } from '../../services/transportView';
+import { showMachineLive } from '../../services/showMachineLive';
+const engine = {
+  isBoundHeld: () => transportView.isBoundHeld(),
+  subscribeSmState: (cb: (id: string | null) => void) => showMachineLive().subscribeState(cb),
+};
 import { GUTTER, SM_LANE_H } from './geometry';
 import { Workflow, ChevronsRight, Zap } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';

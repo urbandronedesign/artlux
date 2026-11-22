@@ -1,5 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { getThumb, onThumb } from '../../services/thumbnailCache';
+// Stills through the thumbView seam (the detached timeline): the editor's cache there, W4's thumbnail
+// service in a panel window — decoded once, in the editor.
+import { thumbView } from '../../services/thumbView';
+const getThumb = (p: string, t: number) => thumbView().getThumb(p, t);
+const onThumb = (cb: (p: string) => void) => thumbView().onThumb(cb);
 
 interface Props {
   path: string;

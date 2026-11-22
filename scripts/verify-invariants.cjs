@@ -8876,6 +8876,24 @@ check(
   },
 );
 
+check(
+  'the timeline panel reaches the transport, waveforms, stills and the OSC sender ONLY through their seams',
+  'The detached timeline (plans/native-engine.md, E5): the timeline UI may be mounted in a panel window, where ' +
+  'services/timeline (the transport), audioPeaks (the decoder), thumbnailCache, oscOut (the sender) and ' +
+  'colorPlayback (the colour player) are an idle copy - a playhead stuck at 0, a sender that never sent. Each ' +
+  'is reached through services/transportView, peaksView, thumbView, oscTrackView (installed by the editor ' +
+  'with the real thing, by a window with the live channel); the pure helpers moved to services/colorSample ' +
+  'and services/oscLanes. One direct import puts a window back on its idle copy, silently.',
+  () => {
+    const dir = path.join(ROOT, 'src/renderer/components/timeline');
+    const bad = /from '(\.\.\/\.\.\/services\/(timeline|thumbnailCache|oscOut|colorPlayback)|\.\/audioPeaks)'/;
+    const problems = [];
+    const walk = (d) => { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(f) && f !== 'audioPeaks.ts') { const m = bad.exec(fs.readFileSync(p, 'utf8')); if (m) problems.push(`${path.relative(ROOT, p).split(path.sep).join('/')} imports ${m[1]}`); } } };
+    walk(dir);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

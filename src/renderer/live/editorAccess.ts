@@ -15,6 +15,11 @@ import { setShowMachineLive } from '../services/showMachineLive';
 import { setTakesAccess, type TakeKind } from '../services/takesAccess';
 import { setTakeDensitySource } from '../services/takeDensity';
 import { setThumbView } from '../services/thumbView';
+import { setTransportView } from '../services/transportView';
+import { setPeaksView } from '../services/peaksView';
+import { setOscTrackView } from '../services/oscTrackView';
+import { resend as oscResend, sendTest as oscSendTest, trackStats as oscTrackStats } from '../services/oscOut';
+import { ensurePeaks, peaksFor, probeAudioDuration, sourceDurationFor, subscribePeaks } from '../components/timeline/audioPeaks';
 import { getThumb, onThumb } from '../services/thumbnailCache';
 import * as takeRecorder from '../services/takeRecorder';
 import * as orphanTakes from '../services/orphanTakes';
@@ -77,8 +82,20 @@ export function installEditorAccess(): void {
     rename: (k, id, name) => by(k, takeRecorder.renameLightingTake, takeRecorder.renameTrackingTake)(id, name),
     remove: (k, id) => by(k, takeRecorder.removeLightingTake, takeRecorder.removeTrackingTake)(id),
   });
-  // Video stills for the media library's chips: the cache itself.
+  // Video stills for the media library's chips and the timeline's filmstrips: the cache itself.
   setThumbView({ getThumb, onThumb });
+  // The timeline panel's transport and waveforms (the detached timeline): the transport and the peaks
+  // decoder themselves — exactly what the panel read before it could leave the editor.
+  setTransportView({
+    getPlayhead: () => timeline.getPlayhead(),
+    getShowTime: () => timeline.getShowTime(),
+    subscribe: (cb) => timeline.subscribe(cb),
+    seek: (t) => timeline.seek(t),
+    stop: () => timeline.dispatchTransportIntent({ kind: 'stop' }),
+    isBoundHeld: () => timeline.isBoundHeld(),
+  });
+  setOscTrackView({ stats: oscTrackStats, resend: oscResend, sendTest: oscSendTest });
+  setPeaksView({ subscribe: subscribePeaks, ensure: ensurePeaks, peaksFor, sourceDuration: sourceDurationFor, probeDuration: probeAudioDuration });
   // A tracking take's density, for its sparkline: the plugin's own cache and loader.
   const densityOf = (t: { density?: number[]; duration: number } | null | undefined) => (t && t.density ? { density: t.density, duration: t.duration } : null);
   setTakeDensitySource({

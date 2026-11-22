@@ -21,11 +21,16 @@ import type { AutomationLane as Lane, Keyframe } from '../../types';
 import { type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane } from '../../services/automation';
 import { automationTargetRegistry } from '../../host/registries';
-import { timeline as engine } from '../../services/timeline';
+// The transport through a seam (the detached timeline): services/timeline in the editor, the live channel
+// (the editor's clock anchors + its transport calls) when the timeline is in a panel window.
+import { transportView as engine } from '../../services/transportView';
 import { GUTTER } from './geometry';
 import { Trash2, Zap, ZapOff, Diamond, AlertTriangle, Settings2, Send } from 'lucide-react';
 import { OscTrackSettings } from './OscTrackSettings';
-import { resend, trackStats } from '../../services/oscOut';
+// The OSC sender through a seam (the detached timeline): oscOut in the editor, the live channel in a window.
+import { oscTrackView } from '../../services/oscTrackView';
+const resend = (p: string) => oscTrackView.resend(p);
+const trackStats = (p: string) => oscTrackView.stats(p);
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { CurveEditor, fmtIn } from './CurveEditor';

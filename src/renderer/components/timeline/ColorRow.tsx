@@ -28,9 +28,11 @@ import {
   colorCapability, colorOf, hexToLinear, linearToHex, resolveColorValue, seedColorFrom, solveEmitters,
   temperatureColor, nearestSlot,
 } from '../../services/colorEngine';
-import { sampleColorLane } from '../../services/colorPlayback';
+import { sampleColorLane } from '../../services/colorSample';
 import * as fixtureSignal from '../../services/fixtureSignal';
-import { timeline as engine } from '../../services/timeline';
+// The transport through a seam (the detached timeline): services/timeline in the editor, the live channel
+// (the editor's clock anchors + its transport calls) when the timeline is in a panel window.
+import { transportView as engine } from '../../services/transportView';
 import { GUTTER } from './geometry';
 import { usePopoverAnchor } from './usePopoverAnchor';
 import { usePrompt } from '../ui';
@@ -159,7 +161,7 @@ export const ColorRow: React.FC<Props> = ({
     const step = Math.max(6, width / 260);         // ~260 stops max, whatever the zoom
     const out: Array<{ offset: number; hex: string }> = [];
     for (let x = 0; x <= width; x += step) {
-      const v = sampleColorLane({ ...lane, keys }, x / pxPerSec, cursor);
+      const v = sampleColorLane({ ...lane, keys }, x / pxPerSec, cursor, palette);
       out.push({ offset: (x / Math.max(1, width)) * 100, hex: v ? linearToHex(colorOf(v)) : '#000000' });
     }
     return out;
@@ -181,7 +183,7 @@ export const ColorRow: React.FC<Props> = ({
   const addKeyAt = (t: number) => {
     if (!lane) return;
     const at = onSnap(Math.max(0, t));
-    const held = sampleColorLane(lane, at) ?? keys[0]?.value ?? { kind: 'rgb', rgb: [1, 1, 1] };
+    const held = sampleColorLane(lane, at, undefined, palette) ?? keys[0]?.value ?? { kind: 'rgb', rgb: [1, 1, 1] };
     // A NEW KEY HOLDS WHAT WAS ALREADY THERE — adding one must not change the look, only give you
     // somewhere to change it from. Same contract as the `+` on an empty automation row.
     commit([...keys, { t: at, value: held, curve: 'linear' }]);
