@@ -1586,6 +1586,25 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   - plain warp: 11 pixels by 1 (the soft-edge band, as in dev);
 >   - the app equals itself across launches every time.
 
+> ◐ **The plain warp's 11 soft-edge pixels — located, not fixed (2026-11-22).**
+> - **Reproduced OFFSCREEN:** `test:projector-parity --screen-case` (the on-screen test's case at 1920×1080)
+>   gives the same 11 pixels as the screen. So it is the RENDERER, not the window or the compositor, and it
+>   can be worked on without a display.
+> - **Isolated by variants of that case:**
+>   - without MSAA: still 11;
+>   - **without the soft edge: 0**;
+>   - with the edge's blend gamma at 1: 7.
+>
+>   So the residue lives in the soft-edge arithmetic. It is not the anti-aliasing, the picture, the warp or
+>   the colour maths.
+> - **Three equivalent WGSL rewrites changed nothing:** the division as a reciprocal, the colour product
+>   regrouped, the lift as an fma (11 / 10 / 11). The formula is line for line ProjectorGL's (blendGlsl.ts).
+>   The difference most likely lies in the shader each side generates: ANGLE's HLSL from GLSL against
+>   naga's from WGSL, both probably compiled by FXC (wgpu's `Auto` without a DXC DLL). The app's shader
+>   also declares `precision mediump float`.
+> - **Next, if it is worth it:** dump the two generated HLSL shaders and diff the soft-edge lines. Until
+>   then, the plain warp is held to "within 1 on at most 0.01%".
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

@@ -41,7 +41,7 @@ const pictures = [
     return c.map((v) => Math.round(v));
   }),
   writePng('noise-640x360.png', 640, 360, (x, y) => { const i = (y * 640 + x) * 3; return [noise[i], noise[i + 1], noise[i + 2]]; }),
-  ...process.argv.slice(2).map((f) => path.resolve(f)),
+  ...process.argv.slice(2).filter((a) => !a.startsWith('--')).map((f) => path.resolve(f)),
 ];
 
 const pin = (tl, tr, br, bl) => ({ tl, tr, br, bl });
@@ -66,7 +66,11 @@ const cases = [
   { name: 'gamma 2.2 · brightness 0.7', output: out({ gamma: 2.2 }), brightness: 0.7, aa: 4 },
   { name: 'gain + black lift + top edge', output: out({ cornerPin: KEY, softEdge: { left: 0, right: 0, top: 0.1, bottom: 0, gamma: 1.8 }, colorGain: [1, 0.9, 0.8], blackLift: [0.02, 0.03, 0.01] }), brightness: 1, aa: 4 },
 ];
-const W = 960, Hh = 540;
+// --screen-case: ONLY the case test:native-projectors puts on the screen (its picture, its output, its
+// brightness, the window's MSAA), at the display's size — to tell a renderer difference (here, offscreen)
+// from a presentation one (only on the screen).
+const SCREEN = process.argv.includes('--screen-case');
+const W = SCREEN ? 1920 : 960, Hh = SCREEN ? 1080 : 540;
 
 // ── BAKED MAPS (item 3: a calibrated output playing an imported .mpcdi) ─────────────────────────────────
 // What the calibration plugin hands a projector window: per projector pixel (u, v, spare) — NaN where there
@@ -103,6 +107,20 @@ cases.push(
   { name: 'BAKED 640×360 on 960×540', output: bOut({}), brightness: 1, aa: 4, baked: small },
   { name: 'BAKED keystone + edge/gain/γ', output: bOut({ softEdge: { left: 0.2, right: 0, top: 0, bottom: 0.15, gamma: 2.2 }, gamma: 2.2, colorGain: [1, 0.9, 0.8], blackLift: [0.02, 0.01, 0.03] }), brightness: 0.8, aa: 4, baked: { ...keyst, alpha: rig } },
 );
+if (SCREEN) {
+  const W0 = 1280, H0 = 720;
+  pictures.length = 0;
+  pictures.push(writePng('projected-1280x720.png', W0, H0, (x, y) => { const line = x % 61 === 0 || y % 47 === 0;
+    return [line ? 255 : Math.round(x / (W0 - 1) * 255), line ? 255 : Math.round(y / (H0 - 1) * 255), line ? 255 : ((x >> 6) + (y >> 6)) % 2 ? 210 : 30]; }));
+  cases.length = 0;
+  const onScreen = { cornerPin: { tl: [0.05, 0.1], tr: [0.93, 0.02], br: [0.97, 0.95], bl: [0.02, 0.88] },
+    softEdge: { left: 0.15, right: 0, top: 0, bottom: 0.1, gamma: 2.2 }, gamma: 1, colorGain: [1, 0.95, 0.9], blackLift: [0.01, 0.01, 0.02] };
+  cases.push({ name: 'the on-screen case', brightness: 0.9, aa: 4, output: onScreen });
+  // The same without MSAA, and without the soft edge — which part the residue lives in.
+  cases.push({ name: 'on-screen, no MSAA', brightness: 0.9, aa: 1, output: onScreen });
+  cases.push({ name: 'on-screen, no soft edge', brightness: 0.9, aa: 4, output: { ...onScreen, softEdge: { left: 0, right: 0, top: 0, bottom: 0, gamma: 2.2 } } });
+  cases.push({ name: 'on-screen, edge gamma 1', brightness: 0.9, aa: 4, output: { ...onScreen, softEdge: { ...onScreen.softEdge, gamma: 1 } } });
+}
 const job = { width: W, height: Hh, pictures, cases };
 
 // ── the app side ───────────────────────────────────────────────────────────────────────────────────────
@@ -159,7 +177,7 @@ for (const [pi, picture] of pictures.entries()) {
     c.big = big; c.edge = edge;
     const ok = TOL.ok(hist, n, big, edge);
     if (!ok) fails++;
-    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${c.name.padEnd(30)} ${(100 * hist[0] / n).toFixed(2).padStart(6)}% exact · ≤1 ${(100 * (hist[0] + hist[1]) / n).toFixed(2).padStart(6)}% · p99 ${q(0.99)} · p99.9 ${q(0.999)} · max ${max} · mean ${mean.toFixed(3)} · ${(100 * lit / n).toFixed(0)}% lit${big ? ` · ${big} px > 8, ${edge} on the outline` : ''}`);
+    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${c.name.padEnd(30)} ${(100 * hist[0] / n).toFixed(2).padStart(6)}% exact (${n - hist[0]} px differ) · ≤1 ${(100 * (hist[0] + hist[1]) / n).toFixed(2).padStart(6)}% · p99 ${q(0.99)} · p99.9 ${q(0.999)} · max ${max} · mean ${mean.toFixed(3)} · ${(100 * lit / n).toFixed(0)}% lit${big ? ` · ${big} px > 8, ${edge} on the outline` : ''}`);
   }
 }
 console.log(fails ? `\nPROJECTOR PARITY FAILED: ${fails} case(s)` : '\nPROJECTOR PARITY OK');
