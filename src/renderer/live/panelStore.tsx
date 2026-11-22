@@ -106,6 +106,7 @@ export const PanelEditorStore: React.FC<{ children: React.ReactNode; fallback: R
       settings: extras.settings as EditorData['settings'], patchPolicy: doc.patchPolicy,
       globalBrightness: doc.globalBrightness, projectorBrightness: doc.projectorBrightness,
       isVideoPlaying: session.isVideoPlaying,
+      colorPalette: doc.colorPalette, audioMix: doc.audioMix,
       autoKeyArmed: extras.autoKeyArmed,
     };
   }, [doc, session, extras, ready]);

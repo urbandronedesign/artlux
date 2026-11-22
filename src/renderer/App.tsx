@@ -28,7 +28,7 @@ import { Stage } from './components/Stage';
 import Simulator3D from './components/Simulator3D/Simulator3D';
 import { useModelUrls } from './components/Simulator3D/useModelUrls';
 import type { ModelTransform } from './components/Simulator3D/ModelObject';
-import { Timeline as TimelinePanel } from './components/timeline/Timeline';
+import { TimelineDock } from './components/timeline/TimelineDock';
 import { MenuBar } from './components/MenuBar';
 import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
@@ -2459,77 +2459,6 @@ const App: React.FC = () => {
       return out;
     });
   };
-  // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
-  // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
-  //
-  // Memoized (E5/W2): the timeline is React.memo'd, and this object is one of its props, so a fresh one
-  // per App render would defeat the memo on every render. The data half is rebuilt only when the scenes
-  // or the bound scene change; the callbacks forward to today's closures through useStableHandlers.
-  const timelineAuthorHandlers = useStableHandlers({
-    onSelect: (sid: string | null) => { if (sid) enterAuthor(sid); else exitToGlobal(); },
-    onSave: handleSaveState,
-    onPrev: () => authorStep(-1),
-    onNext: () => authorStep(1),
-    onNew: handleCreateState,
-  });
-  const timelineAuthor = useMemo(() => ({
-    activeSceneId,
-    activeName: activeScene ? activeScene.name : 'Global',
-    activeAccent: activeScene?.accent ?? GLOBAL_ACCENT,
-    index: activeScene ? scenes.findIndex(s => s.id === activeScene.id) : -1,
-    total: scenes.length,
-    // `holdsAtEnd` mirrors the engine's own rule (LOOP WINS — a wrapping clock never reaches an end),
-    // so the graph never advertises a hold the transport will not perform.
-    scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop })),
-    onSelect: timelineAuthorHandlers.onSelect,
-    onSave: timelineAuthorHandlers.onSave,
-    onPrev: timelineAuthorHandlers.onPrev,
-    onNext: timelineAuthorHandlers.onNext,
-    onNew: timelineAuthorHandlers.onNew,
-  }), [activeSceneId, activeScene, scenes, timelineAuthorHandlers]);
-  // THE BED, handed to the timeline panel — and ONLY while Global is bound.
-  //
-  // `undefined` while a scene is bound is not a nicety: it is the single line that enforces "never draw
-  // the bed against a scene-relative ruler". The bed rides the SHOW clock; while Global is bound the two
-  // clocks are the same number (the engine maintains that identity), so the ruler under the bed's lanes is
-  // honest. The instant a scene is bound they diverge — the scene restarts, the bed rolls on — and a bed
-  // clip drawn at "0:30" on a scene ruler would be a lie about when it is heard. The panel shows the
-  // `♪ BED mm:ss` readout instead, and the mixer keeps the (time-independent) faders reachable.
-  //
-  // ⚠ THE GATE IS `activeSceneId`. DO NOT "FIX" IT into something that asks about the DOCUMENT.
-  //
-  // The bed rides the SHOW clock and the ruler shows the PLAYHEAD. Recalling any scene goes through
-  // swap(scene.id, tl, {transport:'restart'}), which does `mainSeek(timelineStart(t))` — resetting the
-  // playhead — while showClock defaults to 'preserve' and the bed rolls serenely on. So the instant a scene
-  // is recalled, playhead = 0:00 and showTime = 4:05: DIVERGED, deliberately. That divergence IS the show
-  // clock; it is the whole point of the wave.
-  //
-  // Draw the bed against the ruler there and a clip that is AUDIBLE RIGHT NOW is painted four minutes to the
-  // right of the playhead — the precise lie this `undefined` exists to prevent. `activeSceneId == null` (the
-  // Global pill) is the only state in which no restart-swap has pulled the two clocks apart. The mixer keeps
-  // the (time-independent) faders reachable meanwhile, and the ♪ BED readout says where the bed actually is.
-  //
-  // (This block used to argue at length against a SECOND predicate, isGlobalDocBound(), which was true under
-  // a scene with no timeline of its own. That state was deleted on 2026-07-14 and the predicate collapsed
-  // into clocksCoincident(). The conclusion is unchanged; the trap it warned about no longer has a door.)
-  //
-  // setAudioMix does NOT normalize (host.audio.setMix does); the lane's commits go through the same guard.
-  // THE BASE LAYER, FOR THE PANEL TO DRAW. The global timeline's lanes keep driving their parameters
-  // underneath every scene (setBaseAutomation, above) — but the panel only ever saw the BOUND document, so
-  // the instant a scene was recalled they vanished from the screen while they carried on moving the master.
-  // Until now that was masked by a bug: Capture Scene cloned the global lanes INTO the scene, so something
-  // was on screen — the wrong lane, on the wrong clock. Stripping that clone (the blocker) fixes the data
-  // and empties the panel, so this closes the gap our own fix opened.
-  //
-  // EMPTY ON THE GLOBAL PILL: there the bound doc IS the base, and drawing it would duplicate every lane.
-  const baseAutomationProp = useMemo(
-    () => (activeSceneId ? (timeline.automation ?? []) : []),
-    [activeSceneId, timeline.automation],
-  );
-  const timelineBedProp = useMemo(
-    () => (activeSceneId ? undefined : { mix: audioMix, onChangeMix: (m: AudioMix) => setAudioMix(normalizeAudioMix(m)) }),
-    [activeSceneId, audioMix],
-  );
   // Resolve a cueBus recall request (id then name) against current scenes. Held in a ref so the
   // once-subscribed cueBus listener always sees the latest scenes/handler closure.
   const recallByRefRef = useRef<(ref: string, fadeSec?: number) => void>(() => {});
@@ -3961,8 +3890,8 @@ const App: React.FC = () => {
    * Names are made unique the way every other library here does it (`nextNumberedName`), because two
    * swatches called "House red" is a palette you cannot use.
    */
-  const handleSaveColor = useCallback((value: ColorValue, name: string): string => {
-    const id = generateId();
+  const handleSaveColor = useCallback((value: ColorValue, name: string, given?: string): string => {
+    const id = given ?? generateId();
     setColorPalette((prev) => [...prev, { id, name: nextNumberedName(name.trim() || 'Colour', prev), value }]);
     return id;
   }, []);
@@ -5401,14 +5330,14 @@ const App: React.FC = () => {
     projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
     assets, currentProjectPath, projectRefs,
     timeline: activeTimeline, globalTimeline: timeline, scenes, cueBanks, stateMachine, activeSceneId,
-    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed,
+    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed, colorPalette, audioMix,
   }), [
     surfaces, fixtures, groups, controllers, templates, fixtureProfiles,
     selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, editorSelection,
     projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
     assets, currentProjectPath, projectRefs,
     activeTimeline, timeline, scenes, cueBanks, stateMachine, activeSceneId,
-    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed,
+    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed, colorPalette, audioMix,
   ]);
 
   // ── Stable props for the 2D stage ─────────────────────────────────────────────────────────────
@@ -5431,16 +5360,12 @@ const App: React.FC = () => {
   //
   // The optional calibration handlers stay CONDITIONAL at the call site: `undefined` is meaningful to
   // Simulator3D (it disables the gesture), so only the function identity is stabilised, never its presence.
+  // The timeline's other props come from the editor store (components/timeline/TimelineDock.tsx — the same
+  // adapter a panel window mounts); only the editor's own full-window toggle is App's.
   const timelineHandlers = useStableHandlers({
-    onChange: handleTimelineChange,
-    onRegisterAsset: handleRegisterAsset,
-    onTogglePlay: () => setIsVideoPlaying(!isVideoPlaying),
     onMaximize: () => setTimelineMax(true),
     onRestore: () => setTimelineMax(false),
   });
-  const timelineCues = useMemo(
-    () => cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name }))),
-    [cueBanks]);
   const sim3dHandlers = useStableHandlers({
     onSelectFixture: (id: string) => handleSelectFixture(id || null),
     onSelectFixtures: handleSelectFixtures,
@@ -5546,6 +5471,15 @@ const App: React.FC = () => {
     updatePatchPolicy: (p) => setPatchPolicy(prev => ({ ...prev, ...p })),
     setStateMachine,
     enterAuthorScene: (sid) => enterAuthor(sid),
+    // The timeline panel's (TimelineDock — docked here, or in a panel window over the live channel).
+    setTimeline: handleTimelineChange,
+    registerAsset: handleRegisterAsset,
+    saveColor: (value, name, id) => handleSaveColor(value, name, id),
+    setAudioMix: (m) => setAudioMix(normalizeAudioMix(m)),
+    authorSelect: (sid) => { if (sid) void enterAuthor(sid); else exitToGlobal(); },
+    saveState: handleSaveState,
+    authorStep: (dir) => authorStep(dir),
+    createState: handleCreateState,
     recordHistory,
     writeAutomationKeys,
     copySelection: handleCopySelection,
@@ -5681,7 +5615,7 @@ const App: React.FC = () => {
                     {timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={timelineHandlers.onChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={timelineHandlers.onTogglePlay} onToggleMax={timelineHandlers.onMaximize} projectPath={currentProjectPath} onRegisterAsset={timelineHandlers.onRegisterAsset} scenes={scenes} cues={timelineCues} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
+                        <TimelineDock onToggleMax={timelineHandlers.onMaximize} />
                     )}
                   </UiProfiler>
           ),
@@ -5767,6 +5701,13 @@ const App: React.FC = () => {
           ),
         }}
       />
+      {/* The editor's full-window timeline. Inside the store (TimelineDock reads it); a fixed overlay, so
+          where it sits in the tree changes nothing on screen. */}
+      {timelineMax && (
+        <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
+          <TimelineDock maximized onToggleMax={timelineHandlers.onRestore} />
+        </div>
+      )}
       </EditorStore>
 
       <StatusBar
@@ -5825,11 +5766,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {timelineMax && (
-        <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={timelineHandlers.onChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={timelineHandlers.onTogglePlay} maximized onToggleMax={timelineHandlers.onRestore} projectPath={currentProjectPath} onRegisterAsset={timelineHandlers.onRegisterAsset} scenes={scenes} cues={timelineCues} fixtureGroups={groups} rigFixtures={fixtures} rigProfiles={fixtureProfiles} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} colorPalette={colorPalette} onSaveColor={handleSaveColor} />
-        </div>
-      )}
 
     </div>
   );

@@ -24,7 +24,7 @@ import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, use
 import type { SelectionSnapshot } from '@artlux/sdk/renderer';
 import type {
   Surface, Fixture, FixtureGroup, Controller, FixtureTemplate, FixtureProfile, AppSettings, PatchPolicy,
-  Scene, CueBank, StateMachine, Timeline, AssetEntry, AssetType,
+  Scene, CueBank, StateMachine, Timeline, AssetEntry, AssetType, NamedColor, AudioMix, ColorValue,
 } from '../types';
 import type { Scene3D, SceneModel, DisplayInfo, ProjectorOutput } from '../../../shared/protocol';
 import type { ProjectRefs } from '../services/assetLibrary';
@@ -77,6 +77,10 @@ export interface EditorData {
   globalBrightness: number;
   projectorBrightness: number;
   isVideoPlaying: boolean;
+  /** The project's named colours (the timeline's colour keys point at them). */
+  colorPalette: readonly NamedColor[];
+  /** The global audio bed (the timeline draws its lanes while Global is bound). */
+  audioMix: AudioMix;
   /** services/autoKey's arm (a fader release writes keyframes). Read here so a panel window sees the editor's. */
   autoKeyArmed: boolean;
 }
@@ -207,6 +211,26 @@ export interface EditorActions {
   writeAutomationKeys(keys: Array<{ path: string; value: number }>): void;
   // show machine
   setStateMachine(sm: StateMachine): void;
+  // ── The timeline panel (the detached timeline: components/timeline/TimelineDock.tsx) ──
+  /** The BOUND timeline changed — an edit in the timeline panel (App.handleTimelineChange). */
+  setTimeline(next: Timeline): void;
+  /** A file dropped onto a lane was imported: add it to the library. */
+  registerAsset(entry: AssetEntry): void;
+  /**
+   * Add a named colour under the id the CALLER made, and return that id. The caller makes it because it
+   * points a key at the colour in the same edit, and a panel window's action result is a promise.
+   */
+  saveColor(value: ColorValue, name: string, id: string): string;
+  /** The bed's mix (normalized by the editor, as host.audio.setMix does). */
+  setAudioMix(m: AudioMix): void;
+  /** The author strip: bind a scene's timeline, or null = the Global timeline. */
+  authorSelect(sceneId: string | null): void;
+  /** Save to State: re-capture the bound scene's look. */
+  saveState(): void;
+  /** ◂ Prev / Next ▸ state. */
+  authorStep(dir: 1 | -1): void;
+  /** ＋ New state (an empty timeline). */
+  createState(): void;
   /** Bind a scene's own timeline for authoring (what the timeline's scene pill does). */
   enterAuthorScene(sceneId: string): void;
   // app

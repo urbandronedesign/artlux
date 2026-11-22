@@ -713,7 +713,7 @@ check(
 
 // ── Shell: the engine-critical viewports ──────────────────────────────────────────────────────
 check(
-  'TimelinePanel is mounted exactly once',
+  'the timeline is mounted exactly once (through its store adapter, TimelineDock)',
   'Two TimelinePanels double its keyboard hook and its engine subscription, so one keypress seeks twice ' +
   'and one engine event is handled twice. ' +
   'NOTE: this guard used to cover <Stage> as well, on the grounds that unmounting it stopped Art-Net ' +
@@ -722,8 +722,14 @@ check(
   'assertion was DELIBERATELY DROPPED rather than kept as decoration. Free-form docking may legitimately ' +
   'want to place the 2D stage in more than one pane — see plans/engine-decoupling.md.',
   () => {
-    const tl = walk('src/renderer').filter((f) => /<TimelinePanel[\s/>]/.test(read(f)));
-    return tl.length === 1 ? null : `<TimelinePanel> appears in ${tl.length} files: ${tl.join(', ')}`;
+    // The editor mounts the timeline through its store adapter (components/timeline/TimelineDock.tsx, the
+    // detached timeline); a panel window mounts the same adapter from contexts/detachable.tsx, in ITS
+    // process. In the editor's tree it is App's, in one file — and nothing renders the bare <Timeline> but
+    // the adapter.
+    const tl = walk('src/renderer').filter((f) => /<TimelineDock[\s/>]/.test(read(f)));
+    if (tl.length !== 1) return `<TimelineDock> appears in ${tl.length} files: ${tl.join(', ')}`;
+    const bare = walk('src/renderer').filter((f) => /\.tsx$/.test(f) && /<Timeline[\s/>]/.test(read(f)) && !/TimelineDock\.tsx$/.test(f));
+    return bare.length ? `the bare <Timeline> is rendered outside its adapter: ${bare.join(', ')}` : null;
   },
 );
 
@@ -7561,9 +7567,9 @@ check(
   () => {
     const problems = [];
     const app = read('src/renderer/App.tsx');
-    for (const tag of ['TimelinePanel', 'Simulator3D']) {
-      const els = app.match(new RegExp(`<${tag}\\b[\\s\\S]*?\\/>`, 'g')) || [];
-      if (!els.length) problems.push(`App.tsx renders no <${tag}> — this check is looking at the wrong file`);
+    for (const [tag, src, file] of [['TimelineDock', app, 'App.tsx'], ['Simulator3D', app, 'App.tsx'], ['Timeline', read('src/renderer/components/timeline/TimelineDock.tsx'), 'TimelineDock.tsx']]) {
+      const els = src.match(new RegExp(`<${tag}\\b[\\s\\S]*?\\/>`, 'g')) || [];
+      if (!els.length) problems.push(`${file} renders no <${tag}> — this check is looking at the wrong file`);
       for (const el of els) {
         const props = [...el.matchAll(/(\w+)=\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g)];
         for (const [, name, value] of props) {
