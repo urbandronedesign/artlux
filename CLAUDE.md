@@ -200,6 +200,7 @@ shared/              protocol.ts (IPC contract + `ArtluxApi` + shared types), fr
 native/              Rust/C++ napi crates: output-engine, spout-receiver, hap, calib, ndi, nvwarp
 packages/sdk/        @artlux/sdk — internal plugin SDK (subpaths /main, /renderer)
 plugins/             first-party plugins: lidar-tracking, ndi
+engine/              the NATIVE engine (plans/native-engine.md, E0+): Cargo workspace, wgpu pinned; not wired to the app yet
 docs/                topic docs (see index above)
 scripts/             build/copy helpers, doc capture, lidar emitter
 ```

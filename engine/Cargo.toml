@@ -1,0 +1,8 @@
+# THE NATIVE ENGINE (plans/native-engine.md). One Cargo workspace, so CI runs one
+# `cargo build --release -p artlux-engine` per runner (§6b).
+[workspace]
+resolver = "2"
+members = ["artlux-engine"]
+
+[profile.release]
+lto = "thin"

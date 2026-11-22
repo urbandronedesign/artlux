@@ -115,3 +115,6 @@ scripts/hap-exact/bundle.js
 
 # Blender writes x.blend1 (the previous save) next to every .blend it saves — a backup, never content.
 *.blend1
+
+# The native engine (plans/native-engine.md, E0+): its cargo build output.
+engine/target

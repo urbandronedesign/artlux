@@ -831,6 +831,37 @@ correctness tests that already exist or are planned (the CI byte-compare of the 
 and the TS-vs-Rust evaluator parity in §4). Those are **correctness** tests, not performance
 measurements. The one known cost is RAM: each extra window is a Chromium process (roughly 100–200 MB).
 
+## 9b. Phase E0 in detail — the spikes (started 2026-11-22, branch `feat/e0-engine`)
+
+E0 proves each risky mechanism once, on the real APIs, before E1 builds on it. "No measurements" stands
+(owner): a spike answers *does it work, and how*, never *how fast*. Each step ships with a check that
+fails if the mechanism breaks.
+
+What THIS PC can prove is limited — one 1920×1080 60 Hz display, an Intel Iris Xe, Windows only — so
+every step says where it is proven:
+
+| Step | What | Proven where |
+|---|---|---|
+| **E0a** ✅ | Engine skeleton: Cargo workspace `engine/`, one wgpu device on the native API (D3D12 / Metal / Vulkan), the software-adapter rule, an offscreen render and LED sampling byte-compared to goldens | here (D3D12 hardware, WARP, Vulkan); CI on all three runners (`.github/workflows/engine.yml`) once pushed |
+| **E0b** | Engine windows: one winit window per display, borderless/fullscreen, presenting at that display's refresh; the reveal never depends on a "ready" event | here for one display + windowed; multi-display/mixed refresh on the RTX PC |
+| **E0c** | Engine → Electron page: the engine renders into a shared texture, main imports it with `sharedTexture` (Electron 42 has it), a page draws it — Windows NT-handle path | here |
+| **E0d** | Zero-copy imports: Spout (D3D11 shared handle) and HAP BC upload, via `create_texture_from_hal` on the pinned wgpu, with the CPU-upload fallback | here (Spout sender needed) |
+| **E0e** | macOS (IOSurface mach port, Syphon, VideoToolbox) and Linux (dmabuf over `SCM_RIGHTS`, VA-API, Wayland window placement) | a Mac and a Linux box; CI builds only |
+
+> ✅ **E0a done 2026-11-22.** `engine/artlux-engine` (wgpu **=30.0.2**, pinned). `artlux-engine --info` lists
+> the adapters best first; `--selftest` opens the best HARDWARE adapter and refuses a software one (exit
+> 2) unless `--allow-software`; `--software` forces it. Two GPU jobs, each integer-exact by construction
+> so ONE set of goldens holds on every adapter: a 64×64 offscreen render read back (fragment colour is a
+> function of the integer pixel position, in 1/255 steps), and LED sampling by compute (96 pixel-centre
+> UVs on a 32×32 texture → packed RGB, the wire's byte order). The goldens are the CPU references
+> (`--write-goldens`), and `cargo test` checks they still are.
+>
+> Proof here: byte-identical on the Iris Xe through **D3D12** and through **Vulkan**, and on **WARP**
+> (D3D12's software rasterizer — the Windows runner's adapter); a golden with one flipped bit fails both
+> tests. NOT yet proven: the three CI runners (the workflow exists; it runs when the branch is pushed,
+> which is the owner's call), lavapipe, and whether the hosted macOS runner exposes a usable Metal device
+> (§6b asks E0 to find out — the workflow's macOS job will say).
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

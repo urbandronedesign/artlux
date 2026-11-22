@@ -1,0 +1,442 @@
+//! THE ARTLUX ENGINE — E0 skeleton (plans/native-engine.md §3, §6, §6b).
+//!
+//! What exists so far is the part every later phase stands on:
+//!   - ONE wgpu device on the platform's native API: D3D12 on Windows (Vulkan as the alternative),
+//!     Metal on macOS, Vulkan on Linux. `ARTLUX_ENGINE_BACKEND=vulkan|dx12|metal` overrides it.
+//!   - The SOFTWARE-ADAPTER RULE (§6): a CPU rasterizer (WARP, lavapipe, SwiftShader) never runs a
+//!     show by accident. It is refused unless the caller allows it — CI does, because the hosted
+//!     runners have no GPU; a venue machine never should.
+//!   - The two GPU jobs the engine exists for, in their smallest exact form, with a CPU reference:
+//!     an offscreen RENDER read back to bytes (what an output window / a view presents), and LED
+//!     SAMPLING by compute (what becomes Art-Net). Both are integer-exact by construction, so one
+//!     set of committed goldens holds on every adapter — a hardware GPU here, WARP on the Windows
+//!     runner, lavapipe on Linux, Metal on macOS.
+
+use std::fmt;
+
+/// Which native API this platform renders with (§6 table, "GPU backend").
+pub fn native_backends() -> wgpu::Backends {
+    match std::env::var("ARTLUX_ENGINE_BACKEND").ok().as_deref() {
+        Some("vulkan") => return wgpu::Backends::VULKAN,
+        Some("dx12") => return wgpu::Backends::DX12,
+        Some("metal") => return wgpu::Backends::METAL,
+        _ => {}
+    }
+    if cfg!(windows) {
+        wgpu::Backends::DX12
+    } else if cfg!(target_os = "macos") {
+        wgpu::Backends::METAL
+    } else {
+        wgpu::Backends::VULKAN
+    }
+}
+
+/// How an adapter may be chosen.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AdapterPolicy {
+    /// A software adapter may be used when no hardware one exists (CI only).
+    pub allow_software: bool,
+    /// Pick the software adapter even when hardware exists (to prove the CI path on a GPU machine).
+    pub force_software: bool,
+}
+
+#[derive(Debug)]
+pub enum EngineError {
+    NoAdapter(String),
+    SoftwareRefused(String),
+    Device(String),
+    Gpu(String),
+}
+impl fmt::Display for EngineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EngineError::NoAdapter(s) => write!(f, "no usable GPU adapter: {s}"),
+            EngineError::SoftwareRefused(s) => write!(
+                f,
+                "only a SOFTWARE adapter is available ({s}); it cannot run a show. \
+                 Pass --allow-software for tests only"
+            ),
+            EngineError::Device(s) => write!(f, "the GPU device could not be opened: {s}"),
+            EngineError::Gpu(s) => write!(f, "GPU error: {s}"),
+        }
+    }
+}
+impl std::error::Error for EngineError {}
+
+pub fn is_software(info: &wgpu::AdapterInfo) -> bool {
+    info.device_type == wgpu::DeviceType::Cpu
+}
+
+pub fn describe(info: &wgpu::AdapterInfo) -> String {
+    format!(
+        "{} ({:?}, {:?}, driver {} {})",
+        info.name, info.backend, info.device_type, info.driver, info.driver_info
+    )
+}
+
+/// Every adapter the native API offers, best first: discrete, integrated, other, software.
+pub fn list_adapters() -> Vec<wgpu::AdapterInfo> {
+    let backends = native_backends();
+    let instance = new_instance(backends);
+    let mut infos: Vec<_> = pollster::block_on(instance.enumerate_adapters(backends))
+        .iter()
+        .map(|a| a.get_info())
+        .collect();
+    infos.sort_by_key(rank);
+    infos
+}
+
+fn rank(info: &wgpu::AdapterInfo) -> u8 {
+    match info.device_type {
+        wgpu::DeviceType::DiscreteGpu => 0,
+        wgpu::DeviceType::IntegratedGpu => 1,
+        wgpu::DeviceType::VirtualGpu => 2,
+        wgpu::DeviceType::Other => 3,
+        wgpu::DeviceType::Cpu => 4,
+    }
+}
+
+fn new_instance(backends: wgpu::Backends) -> wgpu::Instance {
+    let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
+    desc.backends = backends;
+    wgpu::Instance::new(desc)
+}
+
+/// The engine's one device.
+pub struct Gpu {
+    pub instance: wgpu::Instance,
+    pub adapter: wgpu::Adapter,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub info: wgpu::AdapterInfo,
+}
+
+impl Gpu {
+    pub fn open(policy: AdapterPolicy) -> Result<Gpu, EngineError> {
+        let backends = native_backends();
+        let instance = new_instance(backends);
+        let mut adapters = pollster::block_on(instance.enumerate_adapters(backends));
+        if adapters.is_empty() {
+            return Err(EngineError::NoAdapter(format!("{backends:?} offers none")));
+        }
+        adapters.sort_by_key(|a| rank(&a.get_info()));
+        let pick = if policy.force_software {
+            adapters.into_iter().find(|a| is_software(&a.get_info())).ok_or_else(|| {
+                EngineError::NoAdapter(format!("{backends:?} offers no software adapter"))
+            })?
+        } else {
+            let first = adapters.into_iter().next().expect("checked non-empty");
+            let info = first.get_info();
+            if is_software(&info) && !policy.allow_software {
+                return Err(EngineError::SoftwareRefused(describe(&info)));
+            }
+            first
+        };
+        let info = pick.get_info();
+        let (device, queue) = pollster::block_on(pick.request_device(&wgpu::DeviceDescriptor {
+            label: Some("artlux-engine"),
+            ..Default::default()
+        }))
+        .map_err(|e| EngineError::Device(e.to_string()))?;
+        Ok(Gpu { instance, adapter: pick, device, queue, info })
+    }
+
+    fn wait(&self) -> Result<(), EngineError> {
+        self.device
+            .poll(wgpu::PollType::Wait { submission_index: None, timeout: None })
+            .map(|_| ())
+            .map_err(|e| EngineError::Gpu(e.to_string()))
+    }
+
+    /// Map a COPY_DST|MAP_READ buffer and return its first `len` bytes.
+    fn read_buffer(&self, buf: &wgpu::Buffer, len: usize) -> Result<Vec<u8>, EngineError> {
+        let slice = buf.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |r| {
+            let _ = tx.send(r);
+        });
+        self.wait()?;
+        rx.recv()
+            .map_err(|e| EngineError::Gpu(e.to_string()))?
+            .map_err(|e| EngineError::Gpu(e.to_string()))?;
+        let out = slice.get_mapped_range().map_err(|e| EngineError::Gpu(e.to_string()))?[..len].to_vec();
+        buf.unmap();
+        Ok(out)
+    }
+}
+
+// ── 1. AN OFFSCREEN RENDER, READ BACK ────────────────────────────────────────────────────────────────
+// A full-screen triangle whose fragment colour is a function of the INTEGER pixel position only, in
+// steps of 1/255: no interpolation, no filtering, no rounding ties — so every conformant rasterizer
+// writes the same bytes, and the golden is the CPU reference below.
+
+pub const FRAME: u32 = 64;
+
+const FRAME_WGSL: &str = r#"
+@vertex
+fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    // One triangle covering the target: (-1,-1) (3,-1) (-1,3).
+    let x = f32((i << 1u) & 2u) * 2.0 - 1.0;
+    let y = f32(i & 2u) * 2.0 - 1.0;
+    return vec4<f32>(x, y, 0.0, 1.0);
+}
+
+@fragment
+fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    let p = vec2<u32>(pos.xy);              // pixel centre (x + 0.5) -> its integer column
+    let quad = (p.x / 32u) + 2u * (p.y / 32u);
+    let r = f32(p.x * 4u) / 255.0;          // 0, 4, ... 252: a ramp across
+    let g = f32(p.y * 4u) / 255.0;          // and down
+    let b = f32(quad * 60u + 15u) / 255.0;  // 15, 75, 135, 195 per quadrant
+    return vec4<f32>(r, g, b, 1.0);
+}
+"#;
+
+/// What every adapter must produce for the frame: RGBA8, row-major, top row first.
+pub fn frame_reference() -> Vec<u8> {
+    let mut v = Vec::with_capacity((FRAME * FRAME * 4) as usize);
+    for y in 0..FRAME {
+        for x in 0..FRAME {
+            let quad = x / 32 + 2 * (y / 32);
+            v.extend_from_slice(&[(x * 4) as u8, (y * 4) as u8, (quad * 60 + 15) as u8, 255]);
+        }
+    }
+    v
+}
+
+pub fn render_frame(gpu: &Gpu) -> Result<Vec<u8>, EngineError> {
+    let d = &gpu.device;
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let target = d.create_texture(&wgpu::TextureDescriptor {
+        label: Some("frame"),
+        size: wgpu::Extent3d { width: FRAME, height: FRAME, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let view = target.create_view(&Default::default());
+    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("frame"),
+        source: wgpu::ShaderSource::Wgsl(FRAME_WGSL.into()),
+    });
+    let pipeline = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("frame"),
+        layout: None,
+        vertex: wgpu::VertexState {
+            module: &module,
+            entry_point: Some("vs"),
+            buffers: &[],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: Some("fs"),
+            targets: &[Some(format.into())],
+            compilation_options: Default::default(),
+        }),
+        primitive: Default::default(),
+        depth_stencil: None,
+        multisample: Default::default(),
+        multiview_mask: None,
+        cache: None,
+    });
+    // 64 px × 4 B = 256 B per row: already the copy alignment, so no row padding to strip.
+    let bytes = (FRAME * FRAME * 4) as u64;
+    let readback = d.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("frame readback"),
+        size: bytes,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut enc = d.create_command_encoder(&Default::default());
+    {
+        let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("frame"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+            })],
+            ..Default::default()
+        });
+        pass.set_pipeline(&pipeline);
+        pass.draw(0..3, 0..1);
+    }
+    enc.copy_texture_to_buffer(
+        target.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(FRAME * 4), rows_per_image: Some(FRAME) },
+        },
+        wgpu::Extent3d { width: FRAME, height: FRAME, depth_or_array_layers: 1 },
+    );
+    gpu.queue.submit([enc.finish()]);
+    gpu.read_buffer(&readback, bytes as usize)
+}
+
+// ── 2. LED SAMPLING BY COMPUTE ───────────────────────────────────────────────────────────────────────
+// The engine's reason to exist: a content texture in, one RGB triple per LED out, packed for the wire.
+// Point sampling at a UV (today's WebGPUMapper does the same in WGSL). Exactness: the UVs are pixel
+// centres of a power-of-two texture, (k + 0.5) / W, which f32 represents exactly, and a stored 8-bit
+// value read back as n/255 and multiplied by 255 rounds to n on any IEEE GPU.
+
+pub const LED_TEX: u32 = 32;
+
+const LED_WGSL: &str = r#"
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var<storage, read> uvs: array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read_write> rgb: array<u32>;
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+    let i = id.x;
+    if (i >= arrayLength(&uvs)) { return; }
+    let dim = textureDimensions(src);
+    let uv = clamp(uvs[i], vec2<f32>(0.0), vec2<f32>(1.0));
+    let p = min(vec2<u32>(uv * vec2<f32>(dim)), dim - vec2<u32>(1u));
+    let c = textureLoad(src, p, 0);
+    let b = vec3<u32>(round(c.rgb * 255.0));
+    rgb[i] = b.r | (b.g << 8u) | (b.b << 16u);
+}
+"#;
+
+/// The test content: a deterministic RGBA8 pattern (a cheap hash, so neighbours differ).
+pub fn led_texture() -> Vec<u8> {
+    let mut v = Vec::with_capacity((LED_TEX * LED_TEX * 4) as usize);
+    for y in 0..LED_TEX {
+        for x in 0..LED_TEX {
+            let h = (x.wrapping_mul(73) ^ y.wrapping_mul(151)).wrapping_mul(2654435761);
+            v.extend_from_slice(&[(h >> 24) as u8, (h >> 16) as u8, (h >> 8) as u8, 255]);
+        }
+    }
+    v
+}
+
+/// The LEDs: a strip across, a strip down and a diagonal — 3 × 32 pixel-centre UVs.
+pub fn led_uvs() -> Vec<[f32; 2]> {
+    let c = |k: u32| (k as f32 + 0.5) / LED_TEX as f32;
+    let mut v = Vec::new();
+    for k in 0..LED_TEX { v.push([c(k), c(7)]); }
+    for k in 0..LED_TEX { v.push([c(20), c(k)]); }
+    for k in 0..LED_TEX { v.push([c(k), c(LED_TEX - 1 - k)]); }
+    v
+}
+
+/// What every adapter must produce: RGB per LED, in LED order (the DMX byte order of an RGB strip).
+pub fn leds_reference() -> Vec<u8> {
+    let tex = led_texture();
+    let mut out = Vec::new();
+    for [u, v] in led_uvs() {
+        let x = ((u * LED_TEX as f32) as u32).min(LED_TEX - 1);
+        let y = ((v * LED_TEX as f32) as u32).min(LED_TEX - 1);
+        let i = ((y * LED_TEX + x) * 4) as usize;
+        out.extend_from_slice(&tex[i..i + 3]);
+    }
+    out
+}
+
+pub fn sample_leds(gpu: &Gpu) -> Result<Vec<u8>, EngineError> {
+    let d = &gpu.device;
+    let size = wgpu::Extent3d { width: LED_TEX, height: LED_TEX, depth_or_array_layers: 1 };
+    let tex = d.create_texture(&wgpu::TextureDescriptor {
+        label: Some("content"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    gpu.queue.write_texture(
+        tex.as_image_copy(),
+        &led_texture(),
+        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(LED_TEX * 4), rows_per_image: Some(LED_TEX) },
+        size,
+    );
+    let uvs = led_uvs();
+    let uv_bytes: Vec<u8> = uvs.iter().flat_map(|p| p.iter().flat_map(|f| f.to_le_bytes())).collect();
+    let uv_buf = d.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("uvs"),
+        size: uv_bytes.len() as u64,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    gpu.queue.write_buffer(&uv_buf, 0, &uv_bytes);
+    let out_len = (uvs.len() * 4) as u64;
+    let out = d.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("rgb"),
+        size: out_len,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        mapped_at_creation: false,
+    });
+    let readback = d.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("rgb readback"),
+        size: out_len,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let module = d.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("leds"),
+        source: wgpu::ShaderSource::Wgsl(LED_WGSL.into()),
+    });
+    let pipeline = d.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("leds"),
+        layout: None,
+        module: &module,
+        entry_point: Some("main"),
+        compilation_options: Default::default(),
+        cache: None,
+    });
+    let bind = d.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("leds"),
+        layout: &pipeline.get_bind_group_layout(0),
+        entries: &[
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&tex.create_view(&Default::default())) },
+            wgpu::BindGroupEntry { binding: 1, resource: uv_buf.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 2, resource: out.as_entire_binding() },
+        ],
+    });
+    let mut enc = d.create_command_encoder(&Default::default());
+    {
+        let mut pass = enc.begin_compute_pass(&Default::default());
+        pass.set_pipeline(&pipeline);
+        pass.set_bind_group(0, &bind, &[]);
+        pass.dispatch_workgroups((uvs.len() as u32).div_ceil(64), 1, 1);
+    }
+    enc.copy_buffer_to_buffer(&out, 0, &readback, 0, out_len);
+    gpu.queue.submit([enc.finish()]);
+    let packed = gpu.read_buffer(&readback, out_len as usize)?;
+    // u32 per LED (r | g<<8 | b<<16, little-endian) -> the wire's 3 bytes.
+    Ok(packed.chunks_exact(4).flat_map(|c| [c[0], c[1], c[2]]).collect())
+}
+
+// ── THE SELF-TEST ────────────────────────────────────────────────────────────────────────────────────
+
+pub const GOLDEN_FRAME: &[u8] = include_bytes!("../tests/golden/frame64.rgba");
+pub const GOLDEN_LEDS: &[u8] = include_bytes!("../tests/golden/leds96.rgb");
+
+/// Runs both jobs on `gpu` and compares them to the committed goldens. Returns one line per check.
+pub fn selftest(gpu: &Gpu) -> Result<Vec<String>, Vec<String>> {
+    let mut lines = vec![format!("adapter: {}", describe(&gpu.info))];
+    let mut ok = true;
+    let mut check = |what: &str, got: Result<Vec<u8>, EngineError>, want: &[u8]| match got {
+        Ok(g) if g == want => lines.push(format!("ok   {what}: {} bytes match the golden", g.len())),
+        Ok(g) => {
+            ok = false;
+            let first = g.iter().zip(want).position(|(a, b)| a != b).unwrap_or(g.len().min(want.len()));
+            lines.push(format!("FAIL {what}: {} bytes vs golden {}; first difference at byte {first}", g.len(), want.len()));
+        }
+        Err(e) => {
+            ok = false;
+            lines.push(format!("FAIL {what}: {e}"));
+        }
+    };
+    check("offscreen render, read back", render_frame(gpu), GOLDEN_FRAME);
+    check("LED sampling by compute", sample_leds(gpu), GOLDEN_LEDS);
+    if ok { Ok(lines) } else { Err(lines) }
+}

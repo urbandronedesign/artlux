@@ -1,0 +1,80 @@
+name: Engine
+
+# THE NATIVE ENGINE on all three OSes, from its first commit (plans/native-engine.md §6b).
+#
+# The hosted runners have NO GPU, so each one runs the engine on the software adapter it has:
+# WARP (Windows, D3D12), lavapipe (Linux, Vulkan via mesa-vulkan-drivers), and whatever Metal device
+# the macOS runner exposes. Two claims per runner:
+#   1. the engine REFUSES a software adapter by default — a venue machine must never run a show on a
+#      CPU rasterizer by accident (Windows + Linux; a macOS runner's Metal device is a paravirtual GPU,
+#      not a CPU adapter, so the claim does not apply there);
+#   2. with software allowed, the offscreen render and the LED sampling match the committed goldens
+#      BYTE FOR BYTE — the same goldens a hardware GPU matches.
+# Performance is never judged here; that stays on the RTX PC and a real Mac.
+#
+# Its own workflow, not a job in build.yml: build.yml packages installers on release tags only, and the
+# engine is tested on every push that touches it.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'engine/**'
+      - '.github/workflows/engine.yml'
+
+jobs:
+  engine:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            engine/target
+          key: ${{ matrix.os }}-engine-${{ hashFiles('engine/Cargo.lock') }}
+
+      # lavapipe: Mesa's software Vulkan driver, the Linux runner's only adapter.
+      - name: Install Vulkan (lavapipe)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+      - name: Build
+        run: cargo build --release --locked --manifest-path engine/Cargo.toml -p artlux-engine
+
+      - name: Adapters on this runner
+        run: engine/target/release/artlux-engine --info
+
+      - name: A software adapter is refused by default
+        if: runner.os != 'macOS'
+        run: |
+          set +e
+          engine/target/release/artlux-engine --selftest
+          code=$?
+          set -e
+          if [ "$code" -ne 2 ]; then
+            echo "::error::expected the engine to refuse the software adapter (exit 2), got exit $code"
+            exit 1
+          fi
+          echo "refused, as it must be"
+
+      - name: Self-test against the goldens (software allowed)
+        run: engine/target/release/artlux-engine --selftest --allow-software
+
+      - name: cargo test
+        run: cargo test --release --locked --manifest-path engine/Cargo.toml -p artlux-engine -- --nocapture
