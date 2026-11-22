@@ -1166,6 +1166,32 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   constants on both sides + the bottom-up raster (tested).
 > - Not covered: calibrated outputs (the baked `.mpcdi` map, render-from-projector), masks, hwWarp (NVAPI),
 >   the alignment-aid overlay, NDI send; another GPU's MSAA / anisotropy (the RTX PC runs the same test).
+>
+> ✅ **E1e-2 done 2026-11-22 (native projector WINDOWS — the screen shows exactly the raster).**
+> `artlux-engine --project-windows`: one window per output (`windows.rs` projection mode), E0b's shape kept —
+> a presenter thread per window, FIFO on its own display, visible from creation and gated on nothing,
+> closing never joins from the window thread. The raster is drawn through projector.rs (bottom-up) and a
+> flip pass copies it to a NON-sRGB swapchain at every vblank. **Placement: exact physical bounds, then an
+> index — and an output whose display is not there is REFUSED and said, never put on another screen.**
+> - **Proof, from the SCREEN** (`npm run test:projector-windows [--fullscreen]`, a PowerShell GDI capture,
+>   no hook into the engine): the window appears where and as large as asked (960×540 at (80, 80)); **the
+>   pixels on screen are byte-identical to `--project-once`** (518,400 of 518,400), still 1.5 s later; a
+>   display that does not exist opens nothing and is named in the log; every output refused → exit 1;
+>   ~400 frames presented over a 7 s run; exit at the deadline. **Borderless fullscreen on display 0:
+>   1920×1080 at (0, 0), 2,073,600 of 2,073,600 pixels identical.** Mutation-tested 4/4 (no flip, an sRGB
+>   swapchain, a missing display falling back to display 0, the position ignored); the guard 1/1.
+> - This PC has ONE display, so "the output's own display" was the primary, windowed for the main proof;
+>   a second output (HDMI monitor / projector) runs the same test with `display: {index: 1}`. Matching
+>   Electron's `display.id` to bounds (DIP × scale factor) is the host's job, with the document channel.
+> - Not covered: a second physical display, a refresh other than 60 Hz, mixed DPI, a display unplugged
+>   while showing (winit reports it; the output's recovery is the watchdog's, later), the RTX PC.
+>
+> **E1 status (Windows): the engine can do everything the app's output does today — packing, sampling, the
+> wire, image / HAP / Spout / effect sources, the projector renderer and its windows — each proven against
+> the app's real code. What it cannot do yet is RUN A SHOW: nothing feeds it the live document.** Next:
+> **E1f, the document channel** — the host sends the engine the surfaces, fixtures, controllers, outputs,
+> the show clock and the sources' state over the E1a stdio link; the engine renders and outputs at runtime
+> behind `--native-engine`, the app's path the fallback.
 
 ## 10. Open questions
 

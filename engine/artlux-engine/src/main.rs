@@ -5,6 +5,7 @@
 //!   artlux-engine --wire-replay <in.json>  pack, encode and SEND frames via the output core (E1c)
 //!   artlux-engine --frame-once <project> <out>  one whole frame from a project (E1d)
 //!   artlux-engine --project-once <in> <out>   a picture through projector settings, offscreen (E1e-1)
+//!   artlux-engine --project-windows <in> [--seconds N]   projector outputs as native windows (E1e-2)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -285,6 +286,36 @@ fn main() -> ExitCode {
             Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(2) }
         };
     }
+    if let Some(i) = args.iter().position(|a| a == "--project-windows") {
+        // E1e-2: projector OUTPUTS as native windows. In: {picture, outputs: [{name, display: {index} |
+        // {x, y, width, height}, window?: {x, y, width, height}, output, brightness, aa}]}.
+        let Some(inp) = args.get(i + 1) else { eprintln!("usage: --project-windows <in.json> [--seconds N]"); return ExitCode::from(2); };
+        let job: serde_json::Value = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
+            Ok(v) => v, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
+        };
+        let img = match image::open(job["picture"].as_str().unwrap_or_default()) { Ok(i) => i.to_rgba8(), Err(e) => { eprintln!("picture: {e}"); return ExitCode::from(2); } };
+        let picture = std::sync::Arc::new((img.width(), img.height(), img.into_raw()));
+        let rect = |v: &serde_json::Value| -> Option<(i32, i32, u32, u32)> {
+            Some((v["x"].as_i64()? as i32, v["y"].as_i64()? as i32, v["width"].as_u64()? as u32, v["height"].as_u64()? as u32))
+        };
+        let outputs = job["outputs"].as_array().into_iter().flatten().map(|o| artlux_engine::windows::ProjectorOut {
+            name: o["name"].as_str().unwrap_or("output").to_string(),
+            display: artlux_engine::windows::DisplayMatch { bounds: rect(&o["display"]), index: o["display"]["index"].as_u64().map(|x| x as usize) },
+            window: rect(&o["window"]),
+            opts: artlux_engine::projector::Opts::from_json(&o["output"], o["brightness"].as_f64().unwrap_or(1.0), o["aa"].as_u64().unwrap_or(4) as u32),
+            picture: picture.clone(),
+        }).collect();
+        let secs = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<f64>().ok());
+        let options = artlux_engine::windows::WindowOptions {
+            fullscreen: true, run_for: secs.map(std::time::Duration::from_secs_f64),
+            policy: AdapterPolicy { allow_software: has("--allow-software"), force_software: false },
+            projection: Some(artlux_engine::windows::Projection { outputs }),
+        };
+        return match artlux_engine::windows::run(options) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { eprintln!("artlux-engine: {e}"); ExitCode::from(1) }
+        };
+    }
     if has("--windows") {
         // E0b: a window on every display (--fullscreen: borderless on each), presenting the test card.
         let secs = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<f64>().ok());
@@ -292,6 +323,7 @@ fn main() -> ExitCode {
             fullscreen: has("--fullscreen"),
             run_for: secs.map(std::time::Duration::from_secs_f64),
             policy: AdapterPolicy { allow_software: has("--allow-software"), force_software: false },
+            projection: None,
         };
         return match artlux_engine::windows::run(options) {
             Ok(()) => ExitCode::SUCCESS,

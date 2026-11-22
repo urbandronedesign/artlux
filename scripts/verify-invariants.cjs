@@ -8473,6 +8473,26 @@ check(
   },
 );
 
+check(
+  'an engine projector window shows exactly the projector raster, on the display it names or on NONE',
+  'plans/native-engine.md E1e-2, proven from the SCREEN by scripts/test-projector-windows.cjs (the pixels on ' +
+  'screen = the offscreen render, windowed and fullscreen). Three ways to break it silently: an sRGB swapchain ' +
+  're-encodes the signal (every value shifts); a flip pass that does not undo the bottom-up raster shows the ' +
+  'picture upside down; and an output whose display is missing must be REFUSED — falling back to "some other ' +
+  'screen" would put a show on the operator\'s monitor.',
+  () => {
+    const problems = [];
+    const w = raw('engine/artlux-engine/src/windows.rs');
+    const loop = w.slice(w.indexOf('fn projector_loop('));
+    if (!/find\(\|f\| !f\.is_srgb\(\)\)/.test(loop)) problems.push('the projector window no longer asks for a non-sRGB swapchain');
+    if (!/i32\(d\.y\) - 1 - i32\(pos\.y\)/.test(w)) problems.push('the flip pass no longer undoes the bottom-up raster');
+    if (!/present_mode: wgpu::PresentMode::Fifo/.test(loop)) problems.push('the projector window no longer presents FIFO (its display\'s refresh)');
+    const md = w.slice(w.indexOf('pub fn match_display('), w.indexOf('pub fn match_display(') + 1200);
+    if (!/return Err\(format!\("no display at/.test(md) || /Ok\(0\)/.test(md)) problems.push('match_display no longer refuses an output whose display is missing');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

@@ -65,6 +65,14 @@ a Windows package without it, and CI builds it — but it runs only behind **`--
 leaves it stopped if it refuses (no hardware adapter), and logs all of it under the `engine` category. It
 carries no output yet. Its packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
 
+Each piece the engine will take over is held to today's app by a comparison test that runs the app's REAL
+code beside it — `npm run test:pack-parity`, `test:sampling-parity -- --gpu`, `test:wire-parity`,
+`test:image-parity [clips.mov…]` (stills, HAP, effects, Spout), `test:projector-parity` (the projector
+renderer) and `test:projector-windows [--fullscreen]` (the engine's output windows, read from the SCREEN;
+`--fullscreen` covers display 0 for ~5 s; run at 100% display scaling). They need `npm run build:engine`
+first and are not part of `npm run verify` (they open GPU windows). The engine's own test modes are listed at
+the top of `engine/artlux-engine/src/main.rs`.
+
 ### Audio engine (`native/audio-engine`) — mandatory to ship, optional to develop
 JUCE + libspatialaudio, built with **cmake-js**, not cargo. `plugins/audio` **graceful-degrades**: if
 `audio_engine.node` is absent the app still starts and the whole audio UI still renders — with **no
