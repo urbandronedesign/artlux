@@ -8337,6 +8337,24 @@ check(
   },
 );
 
+check(
+  'the LED layout has ONE TypeScript implementation (gpu/ledLayout.ts), the one the native engine is held to',
+  'plans/native-engine.md E1b-2: the engine\'s layout (engine/artlux-engine/src/layout.rs) is proven BIT FOR ' +
+  'BIT against ledLayout.ts, and its sampling shader byte for byte against WebGPUMapper on the same atlas, by ' +
+  'scripts/test-sampling-parity.cjs. A second copy of the UV / segment / atlas math growing back inside ' +
+  'WebGPUMapper would make that proof about code the wire no longer runs.',
+  () => {
+    const problems = [];
+    const wm = read('src/renderer/gpu/WebGPUMapper.ts');
+    for (const fn of ['buildLedData', 'buildSegParams', 'countSegments', 'surfaceOrderOf', 'planAtlas', 'atlasRectData']) {
+      if (!new RegExp(`\\b${fn}\\(`).test(wm)) problems.push(`WebGPUMapper no longer calls ledLayout.${fn}()`);
+    }
+    if (/private (buildSegParams|countSegments|cellSizes|packAtlas)\(/.test(wm) || /relX = \(col \+ 0\.5\)/.test(wm) || /function fixtureSegments/.test(wm)) problems.push('WebGPUMapper has its own layout code again — it belongs in gpu/ledLayout.ts');
+    if (!fs.existsSync(path.join(ROOT, 'engine/artlux-engine/src/layout.rs')) || !fs.existsSync(path.join(ROOT, 'engine/artlux-engine/src/sample.rs'))) problems.push('the Rust layout / sampling port is gone');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

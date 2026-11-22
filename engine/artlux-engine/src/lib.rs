@@ -18,6 +18,8 @@ pub mod card;
 pub mod hapimport;
 pub mod serve;
 pub mod pack;
+pub mod layout;
+pub mod sample;
 pub mod windows;
 #[cfg(windows)]
 pub mod share;

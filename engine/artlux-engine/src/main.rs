@@ -26,6 +26,43 @@ fn main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     }
+    if let Some(i) = args.iter().position(|a| a == "--sample-batch") {
+        // E1b-2 parity, GPU half: WebGPUMapper's atlas + layout in, the engine's sampled bytes out.
+        use base64::Engine as _;
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct C { name: String, atlas_w: u32, atlas_h: u32, atlas: String, led: String, meta: String, seg_params: String, rects: String, brightness: f32, surfaces: u32 }
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --sample-batch <in.json> <out.json>"); return ExitCode::from(2); };
+        let cases: Vec<C> = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
+            Ok(c) => c, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
+        };
+        let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
+        let b64 = base64::engine::general_purpose::STANDARD;
+        let f32s = |s: &str| -> Vec<f32> { b64.decode(s).unwrap_or_default().chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect() };
+        let mut outs = Vec::new();
+        for c in &cases {
+            let atlas = b64.decode(&c.atlas).unwrap_or_default();
+            let (led, meta, seg, rects) = (f32s(&c.led), f32s(&c.meta), f32s(&c.seg_params), f32s(&c.rects));
+            let input = artlux_engine::sample::SampleInput { atlas_w: c.atlas_w, atlas_h: c.atlas_h, atlas_rgba: &atlas, led: &led, meta: &meta, seg_params: &seg, rects: &rects, brightness: c.brightness, surfaces: c.surfaces };
+            match artlux_engine::sample::sample(&gpu, &input) {
+                Ok(v) => outs.push(serde_json::json!({ "name": c.name, "out": b64.encode(v) })),
+                Err(e) => { eprintln!("{}: {e}", c.name); return ExitCode::from(1); }
+            }
+        }
+        let doc = serde_json::json!({ "adapter": describe(&gpu.info), "cases": outs });
+        return match std::fs::write(outp, doc.to_string()) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--layout-batch") {
+        // E1b-2 parity: the LED layout + atlas plan for scripts/test-sampling-parity.cjs.
+        let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --layout-batch <in.json> <out.json>"); return ExitCode::from(2); };
+        let text = match std::fs::read_to_string(inp) { Ok(t) => t, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); } };
+        let cases: Vec<artlux_engine::layout::Case> = match serde_json::from_str(&text) { Ok(b) => b, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); } };
+        let out: Vec<_> = cases.iter().map(artlux_engine::layout::run_case).collect();
+        return match std::fs::write(outp, serde_json::to_string(&out).expect("serialise")) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) }
+        };
+    }
     if let Some(i) = args.iter().position(|a| a == "--pack-batch") {
         // E1b parity: scripts/test-pack-parity.cjs writes a batch of cases, this packs each.
         let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else {

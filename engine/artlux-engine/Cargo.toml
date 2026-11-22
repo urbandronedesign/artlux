@@ -19,6 +19,10 @@ texture2ddecoder = "0.1"
 # The document the host sends (E1b on): JSON, as the rest of ArtLux speaks it.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# fdlibm-derived cos/sin/log2: the LED layout must match V8's Math.cos/sin/log2 to the bit (E1b-2).
+libm = "0.2"
+# Atlas / buffer payloads in the parity batches.
+base64 = "0.22"
 
 # E0c: D3D12 shared textures + handle duplication. The SAME `windows` line wgpu-hal 30 uses (0.62), so
 # its ID3D12Device and ours are one type.

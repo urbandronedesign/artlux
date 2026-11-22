@@ -994,6 +994,30 @@ fallback until a source/output is proven byte-identical — risk 2):
 > numeric `colorOrder` makes the TypeScript packer THROW (the generator was fixed long ago); reported and
 > excluded, and the Rust port reads it as RGB. `test-engine-output` unchanged (and "0 lit" was the same
 > before the move). `verify:invariants`: one TypeScript packer, called by the frame engine (4/4).
+>
+> ✅ **E1b-2 done 2026-11-22 (LED sampling, parity at both halves).**
+> **Effects are not in the sampler any more.** `buildSegParams` has emitted only "media" or "off" since
+> effects moved to surfaces (S3), so WebGPUMapper's effect / palette / fire branches are unreachable and
+> were NOT ported; the live path is: read the LED's surface cell in the atlas (linear, clamp), RGB → RGBW
+> (or not, RGBW NONE), brightness, pack.
+> - **The CPU half** — per-LED UV / t / segment / surface, segment params, the atlas plan (cell sizes from
+>   LED density, the shelf packer, the oversample fallbacks) and the half-texel-inset rect UVs — moved
+>   VERBATIM from WebGPUMapper into `src/renderer/gpu/ledLayout.ts`; Rust port `src/layout.rs` (f64 math
+>   rounded to f32 where the TS stores, fdlibm cos/sin/log2 via `libm` — a precaution: Rust's own gave the
+>   same f32 on every case). **Bit for bit identical**: 336 cases (every example rig, venue-rig,
+>   gallery-night, 300 synthetic rigs: matrices + serpentine, LED maps with nulls, reverse, segments with gaps
+>   and off, rotated fixtures and surfaces, unlinked fixtures, texture limits down to 64 forcing the atlas to
+>   degrade) — **583,036 f32 values** compared as bit patterns. Mutation-tested 6/6 (+ the libm experiment).
+> - **The GPU half** — `src/sample.rs`, the live kernel in wgpu. `npm run test:sampling-parity` runs the
+>   app's REAL WebGPUMapper in an Electron 42 page (Chromium WebGPU, D3D12) on synthetic surfaces (odd sizes,
+>   gradients, one at 60% opacity, three brightnesses), takes the EXACT atlas it uploaded and the bytes it
+>   read back, and has the engine sample that atlas with that layout: **60 cases, 47,312 bytes identical**
+>   (255 distinct values, 7,326 lit LEDs — not a black screen agreeing with itself). Mutation-tested 5/5
+>   (nearest filtering, rounding, white extraction, brightness, the cell clamp).
+> - Not covered, deliberately: building the ATLAS (each surface scaled into its cell) — Canvas2D's scaler is
+>   not reproducible bit for bit; the engine's own atlas comes with the sources (E1d) and is judged there.
+>   And only Intel here: another GPU's sampler may filter differently — the RTX PC runs the same harness.
+> `test-engine-output` unchanged. `verify:invariants`: one TypeScript layout, called by WebGPUMapper (2/2).
 
 ## 10. Open questions
 
