@@ -8407,7 +8407,7 @@ check(
     if (!/gl\.uniform2f\(this\.uScale, f\.width \/ pw, f\.height \/ ph\)/.test(gl) || !/\* uScale;/.test(gl)) problems.push('hapGL no longer reads only the picture\'s share of the padded texture');
     const cp = read('engine/artlux-engine/src/compose.rs');
     if (!/pub fn hap_picture\(/.test(cp)) problems.push('the engine\'s HAP source (compose.rs hap_picture) is gone');
-    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
+    if (!/pub fn canvas\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None, tex: None \} \}/.test(cp)) problems.push('the engine draws a canvas source (HAP) with mips or without premultiplying — not what drawImage does, and no longer byte-identical');
     return problems.length ? problems.join('; ') : null;
   },
 );
@@ -8425,7 +8425,7 @@ check(
     // (SpoutIn since "2a": the direct texture and the copy slot, each read with texels mode 2.)
     if ((sp.match(/crate::compose::texels\(gpu, &?(tex|slot\.texture), o\.w, o\.h, 2\)\?/g) || []).length !== 2) problems.push('spout.rs SpoutIn no longer reads BOTH paths opaque (texels mode 2)');
     if (!/ARTLUX_SPOUT_COPY/.test(sp)) problems.push('the switch that lets the parity test force the copy path is gone');
-    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
+    if (!/pub fn video_frame\([^)]*\) -> Self \{ premultiply\(&mut rgba\); Picture \{ w, h, rgba, mips: false, crop: None, tex: None \} \}/.test(read('engine/artlux-engine/src/compose.rs'))) problems.push('compose.rs draws a VideoFrame (Spout) with mips — not what drawImage does');
     if (!/ARTLUX_SPOUT_COPY: '1'/.test(read('scripts/test-image-parity.cjs'))) problems.push('test-image-parity no longer runs the Spout copy path');
     return problems.length ? problems.join('; ') : null;
   },
@@ -8736,6 +8736,27 @@ check(
     if (/MFCreateSourceReaderFromURL/.test(m)) problems.push('mf.rs uses the source reader again (its clock names the wrong frames)');
     if (!/sample\.SetSampleTime\(ts \* 10\)/.test(m) || !/const EPS_US: i64 = 2;/.test(m)) problems.push('mf.rs no longer carries the app timestamps through the decoder, matched within 2 us');
     if (!/visible pictures identical/.test(raw('scripts/test-mp4-parity.cjs'))) problems.push('test-mp4-parity no longer holds the engine decode to the app');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the native engine converts MP4 frames ON THE GPU, rounding by the GPU store as Chromium does',
+  'plans/native-engine.md E1f "2c-3a", proven by scripts/test-mp4-parity.cjs: the GPU conversion within 1 of ' +
+  'Chromium on all but 0.009-0.015% of channels, and most LED surfaces byte-identical to the app. The one ' +
+  'rule nobody would guess: NO explicit rounding in the shader. The value / 255 goes to the RGBA8 store and ' +
+  'the GPU own float-to-UNORM conversion rounds it, as it does for Chromium shader on the same GPU; ' +
+  'rounding half up (the CPU rule, and what anyone tidying this would write) left 0.21-0.27% of channels ' +
+  'off by one. The chroma weights stay exact integers (sixteenths), clamped at the coded edge.',
+  () => {
+    const problems = [];
+    const y = raw('engine/artlux-engine/src/yuv.rs');
+    if (!/let q = clamp\(rgb \/ 255\.0, vec3<f32>\(0\.0\), vec3<f32>\(1\.0\)\);/.test(y)) problems.push('the GPU conversion no longer leaves the rounding to the store');
+    if (!/if \(x % 2 == 0\) \{ x0 = x \/ 2 - 1; fx = 3; \}/.test(y) || !/if \(y % 2 == 0\) \{ y0 = y \/ 2 - 1; fy = 3; \}/.test(y)) problems.push('the GPU conversion chroma is no longer centre-sited');
+    if (!/let q = clamp\(p, vec2<i32>\(0, 0\), cs - vec2<i32>\(1, 1\)\);/.test(y)) problems.push('the GPU conversion no longer clamps chroma at the coded edge');
+    const c = raw('engine/artlux-engine/src/compose.rs');
+    if (!/\(None, Some\(t\)\) => \{/.test(c)) problems.push('compose.rs no longer draws a GPU picture without re-uploading it');
+    if (!/let conv = \(!has\("--cpu-convert"\)\)\.then/.test(raw('engine/artlux-engine/src/main.rs'))) problems.push('--frame-once no longer converts on the GPU by default (the parity test would prove the CPU path only)');
     return problems.length ? problems.join('; ') : null;
   },
 );

@@ -67,15 +67,19 @@ fn fs(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 ///     and columns included) with `crop` = its visible rect. Chromium's bilinear stretch reads past the
 ///     visible edge into that padding, so the engine draws the visible rect out of the coded picture rather
 ///     than a picture cut to it (measured: the last row and an odd last column differ otherwise).
-pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool, pub crop: Option<[u32; 4]> }
+///   - item 2c-3: a frame converted ON THE GPU arrives as its texture (`tex`, RGBA8, opaque, the coded
+///     size; `rgba` empty) — drawn exactly like `coded_frame`, without the upload.
+pub struct Picture { pub w: u32, pub h: u32, pub rgba: Vec<u8>, pub mips: bool, pub crop: Option<[u32; 4]>, pub tex: Option<wgpu::Texture> }
 
 impl Picture {
-    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true, crop: None } }
-    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None } }
+    pub fn still(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: true, crop: None, tex: None } }
+    pub fn canvas(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None, tex: None } }
     /// A VideoFrame (Spout's shared texture, imported by Electron). MEASURED like the others — see E1d-3.
-    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None } }
+    pub fn video_frame(w: u32, h: u32, mut rgba: Vec<u8>) -> Self { premultiply(&mut rgba); Picture { w, h, rgba, mips: false, crop: None, tex: None } }
     /// A decoded MP4 frame: the coded picture (opaque — no premultiply to do), drawn from its visible rect.
-    pub fn coded_frame(w: u32, h: u32, rgba: Vec<u8>, visible: [u32; 4]) -> Self { Picture { w, h, rgba, mips: false, crop: Some(visible) } }
+    pub fn coded_frame(w: u32, h: u32, rgba: Vec<u8>, visible: [u32; 4]) -> Self { Picture { w, h, rgba, mips: false, crop: Some(visible), tex: None } }
+    /// The same, converted on the GPU: the texture IS the picture (yuv.rs GpuConvert).
+    pub fn gpu_frame(w: u32, h: u32, tex: wgpu::Texture, visible: [u32; 4]) -> Self { Picture { w, h, rgba: Vec::new(), mips: false, crop: Some(visible), tex: Some(tex) } }
     /// The size it is drawn at: the visible rect's, or the whole picture's.
     pub fn shown(&self) -> (u32, u32) { self.crop.map_or((self.w, self.h), |c| (c[2], c[3])) }
 }
@@ -164,9 +168,14 @@ pub fn frame_cached(gpu: &Gpu, doc: &FrameDoc, mut cache: Option<(&mut TexCache,
         if opacity <= 0.0 { continue; }
         let gen = cache.as_ref().and_then(|(_, g)| g.get(sid).copied());
         let hit = match (&cache, gen) { (Some((c, _)), Some(g)) => c.entries.get(sid).filter(|e| e.0 == g).map(|e| (e.1.clone(), e.2)), _ => None };
-        let (tex, levels) = match hit {
-            Some(t) => t,
-            None => {
+        let (tex, levels) = match (hit, &pic.tex) {
+            (Some(t), _) => t,
+            // Already on the GPU (2c-3): drawn as it is — no copy, one level.
+            (None, Some(t)) => {
+                if let (Some((c, _)), Some(g)) = (cache.as_mut(), gen) { c.entries.insert(sid.clone(), (g, t.clone(), 1)); }
+                (t.clone(), 1)
+            }
+            (None, None) => {
                 let chain = if pic.mips { mip_chain(pic) } else { vec![(pic.w, pic.h, pic.rgba.clone())] };
                 let size = wgpu::Extent3d { width: pic.w, height: pic.h, depth_or_array_layers: 1 };
                 let tex = d.create_texture(&wgpu::TextureDescriptor {

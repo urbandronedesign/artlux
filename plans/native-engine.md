@@ -1453,6 +1453,33 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   - 10-bit;
 >   - the runtime (2c-3).
 
+> **2c-3 reordered (owner, 2026-11-22: "why gpu decode is for later?").** The app decodes MP4 on the GPU
+> today, so an engine that took MP4 shows with a CPU decode would be a performance drop on a venue machine,
+> against the rule. So GPU work comes BEFORE the runtime: **2c-3a** the conversion on the GPU, **2c-3b** the
+> hardware decoder into the engine's GPU, then **2c-4** the runtime in the real app. The CPU decoder stays
+> as the fallback for a file a GPU will not decode.
+>
+> ✅ **2c-3a done 2026-11-22 (the conversion on the GPU — closer to the app than the CPU one).**
+> - **The shader (`yuv.rs GpuConvert`).** The planes are two textures (Y: R8, UV: RG8 — what a hardware
+>   decoder's NV12 texture gives as plane views). One compute pass writes the RGBA picture, with the CPU
+>   conversion's arithmetic: exact integer chroma weights, centre-sited, coded-edge clamp.
+> - **`Picture.tex`.** The atlas draws a GPU picture as it is, with no upload. `--frame-once` converts on
+>   the GPU by default, as the runtime will; `--cpu-convert` keeps the CPU reference.
+> - **Found: where 2c-1's "unstructured" residue comes from.** It is the GPU's own float→UNORM store
+>   rounding Chromium's result. With no explicit rounding in the shader (the value / 255 goes to the store,
+>   as in Chromium's shader on the same GPU), the conversion is within 1 of Chromium on all but
+>   **0.009–0.015%** of channels; rounding half up gave 0.21–0.27%. The store's rounding is the hardware's:
+>   a round-to-nearest emulation on the CPU did not reproduce it. Also tried, no better: the hardware's
+>   bilinear filter for the chroma, and Skia's matrix-and-bias form. What remains is float ordering.
+> - **The LEDs: most surfaces now BYTE-IDENTICAL to the app.** 5 of 7 files are identical at both
+>   brightnesses, the other two 99.6–99.9% identical, within 1. That holds both from the app's frames and
+>   from the engine's own decode. 2c-1 gave 98.3–99.7%.
+> - **Gates tightened.** GPU vs Chromium: within 1, at most 0.05%. CPU vs Chromium: within 1, at most
+>   0.5%, as before. GPU vs CPU: within 1.
+> - **Mutation-tested:** explicit rounding, wrong chroma weights, a clamp one texel short, and a wrong luma
+>   offset each fail. Guarded.
+> - **Not yet:** the hardware decoder (2c-3b); projector windows (a different GPU device: 2c-4).
+
 ## 10. Open questions
 
 1. ~~Which first?~~ **Decided: E5** (multi-window UI, no performance drop).

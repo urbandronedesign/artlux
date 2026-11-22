@@ -132,7 +132,7 @@ impl Runtime {
         for (id, sid, out) in &self.projectors {
             if let (Some(&g), Some(p)) = (self.gens.get(sid), self.pictures.get(sid)) {
                 if self.proj_published.get(sid) != Some(&g) {
-                    sh.pictures.insert(sid.clone(), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop })));
+                    sh.pictures.insert(sid.clone(), (g, Arc::new(Picture { w: p.w, h: p.h, rgba: p.rgba.clone(), mips: p.mips, crop: p.crop, tex: p.tex.clone() })));
                     self.proj_published.insert(sid.clone(), g);
                 }
             } else if !self.pictures.contains_key(sid) {
@@ -295,7 +295,7 @@ impl Runtime {
                             self.images.insert(p.clone(), Arc::new(pic));
                         }
                         let pic = self.images[p].clone();
-                        self.pictures.insert(sid.clone(), Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop });
+                        self.pictures.insert(sid.clone(), Picture { w: pic.w, h: pic.h, rgba: pic.rgba.clone(), mips: pic.mips, crop: pic.crop, tex: pic.tex.clone() });
                         self.gens.insert(sid.clone(), g);
                     }
                 }

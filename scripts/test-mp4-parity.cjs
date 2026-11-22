@@ -7,9 +7,9 @@
 //
 // Two gates:
 //   1. THE CONVERSION, 1:1 — the engine's RGB of each frame against Chromium's drawImage(VideoFrame) at its
-//      own size: within 1 everywhere, and identical on all but at most 0.5% of channels. Not "identical":
-//      Chromium's float arithmetic rounds values within ~0.0075 of a boundary the other way, with no
-//      structure to copy (measured — see yuv.rs). Off by more than 1 anywhere = a wrong formula, a wrong
+//      own size, both conversions: the CPU one (yuv.rs to_picture) within 1 and at most 0.5% of channels
+//      differing; the GPU one the engine runs (GpuConvert) within 1 and at most 0.05% — it rounds by the
+//      GPU's store, as Chromium does (see yuv.rs). Off by more than 1 anywhere = a wrong formula, a wrong
 //      chroma siting, or the coded-edge clamp lost.
 //   2. THE LEDS — the app's real WebGPUMapper with the VideoFrames as drawables, against the engine's
 //      --frame-once on the same rig (strips + a serpentine matrix per picture, one at 60% opacity,
@@ -99,13 +99,22 @@ for (const f of browser.files) {
   decoded.add(f.name);
   const A = fs.readFileSync(path.join(WORK, `${f.name}.rgba-1to1.bin`)), B = fs.readFileSync(out);
   if (A.length !== B.length) { fails++; console.log(`  FAIL ${f.name}: ${A.length} vs ${B.length} bytes`); continue; }
-  let differ = 0, max = 0, n = 0;
-  for (let i = 0; i < A.length; i++) { if ((i & 3) === 3) continue; n++; const d = Math.abs(A[i] - B[i]); if (d) { differ++; if (d > max) max = d; } }
-  const pct = (100 * differ) / n;
-  const ok = max <= 1 && pct <= 0.5;
+  const cmp = (X, Y) => { let differ = 0, max = 0, n = 0; for (let i = 0; i < X.length; i++) { if ((i & 3) === 3) continue; n++; const d = Math.abs(X[i] - Y[i]); if (d) { differ++; if (d > max) max = d; } } return { pct: (100 * differ) / n, differ, max }; };
+  const cpu = cmp(A, B);
+  // 2c-3: the GPU conversion (the one the engine runs). It rounds as Chromium does — by the GPU's own store —
+  // so it is held TIGHTER to Chromium than the CPU one: within 1, at most 0.05% of channels (measured
+  // 0.009–0.015%). Against the CPU one (which rounds half up): within 1.
+  const outG = path.join(WORK, `${f.name}.engine-gpu-1to1.bin`);
+  execFileSync(ENGINE, ['--nv12-convert', path.join(WORK, `${f.name}.nv12.json`), outG, '--gpu'], { stdio: ['ignore', 'ignore', 'inherit'] });
+  const G = fs.readFileSync(outG);
+  const gpu = cmp(A, G), gc = cmp(B, G);
+  const ok = cpu.max <= 1 && cpu.pct <= 0.5 && gpu.max <= 1 && gpu.pct <= 0.05 && gc.max <= 1;
   if (!ok) fails++;
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${f.name.padEnd(22)} ${f.format} ${f.coded.join('x')} coded, ${f.visible.slice(2).join('x')} visible, ${f.colorSpace.matrix}${f.colorSpace.fullRange ? ' full' : ' limited'}: ${(100 - pct).toFixed(2)}% identical, max ${max}`);
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${f.name.padEnd(22)} ${f.format} ${f.coded.join('x')} coded, ${f.visible.slice(2).join('x')} visible, ${f.colorSpace.matrix}${f.colorSpace.fullRange ? ' full' : ' limited'}: CPU ${(100 - cpu.pct).toFixed(2)}% identical, max ${cpu.max} · GPU ${(100 - gpu.pct).toFixed(3)}% (${gpu.differ} differ), max ${gpu.max} · GPU vs CPU: ${gc.differ} channels differ, max ${gc.max}`);
 }
+
+// Experiments on the conversion alone: stop after gate 1.
+if (process.env.ARTLUX_MP4_GATE1_ONLY) { console.log(fails ? `MP4 PARITY (gate 1 only): ${fails} failure(s)` : 'MP4 PARITY (gate 1 only) OK'); process.exit(fails ? 1 : 0); }
 
 // ── 2. the LEDs ─────────────────────────────────────────────────────────────────────────────────────────
 console.log('\n2. THE LEDS (the app\'s WebGPUMapper with the VideoFrames, against the engine\'s --frame-once)');

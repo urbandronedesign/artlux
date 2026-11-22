@@ -105,6 +105,10 @@ fn main() -> ExitCode {
         let gpu = match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => g, Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } };
         let mut pictures = std::collections::HashMap::new();
         let mut opacity = std::collections::HashMap::new();
+        // Item 2c-3: MP4 frames are converted ON THE GPU, as the runtime does; `--cpu-convert` keeps yuv.rs's
+        // CPU conversion (the reference the GPU one is held to).
+        let conv = (!has("--cpu-convert")).then(|| artlux_engine::yuv::GpuConvert::new(&gpu));
+        let to_pic = |f: &artlux_engine::yuv::Nv12| match &conv { Some(c) => c.picture(&gpu, f), None => artlux_engine::yuv::to_picture(f) };
         // E1d-4: EFFECT surfaces are rendered at each time of `--effect-times a,b,…` IN ORDER (surfaces in
         // document order within a time — the order the app's frame engine asks), the last field drawn; Fire
         // steps on each, from the mulberry32 stream `--seed N` (default 1).
@@ -134,12 +138,12 @@ fn main() -> ExitCode {
                 Some("IMAGE") => artlux_engine::compose::load_image(&p).map_err(|e| format!("image: {e}")),
                 // Item 2c: a decoded MP4 frame's planes (`.nv12.json`, written by test:mp4-parity from the app's
                 // own VideoFrame.copyTo) — the conversion and the stretch, without the decoder.
-                Some("VIDEO") if url.ends_with(".nv12.json") => nv12_picture(&p),
+                Some("VIDEO") if url.ends_with(".nv12.json") => nv12_frame(&p).map(|(meta, planes)| to_pic(&nv12_of(&meta, &planes))),
                 // Item 2c-2: an MP4 decoded by the engine itself (mf.rs) at `content.frameTs` (µs, the app's
                 // VideoFrame.timestamp — what the host will send), converted and drawn.
                 #[cfg(windows)]
                 Some("VIDEO") if url.to_ascii_lowercase().ends_with(".mp4") => artlux_engine::mf::Mp4In::open(&p.to_string_lossy())
-                    .and_then(|mut rx| rx.frame_at(c["frameTs"].as_i64().unwrap_or(0)).map(|f| artlux_engine::yuv::to_picture(&f.nv12())))
+                    .and_then(|mut rx| rx.frame_at(c["frameTs"].as_i64().unwrap_or(0)).map(|f| to_pic(&f.nv12())))
                     .map_err(|e| format!("mp4: {e}")),
                 Some("VIDEO") if url.ends_with(".hapframe.json") => (|| {
                     let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
@@ -192,7 +196,22 @@ fn main() -> ExitCode {
     if let Some(i) = args.iter().position(|a| a == "--nv12-convert") {
         // Item 2c: one `.nv12.json` frame → its VISIBLE rect as RGBA, 1:1 — for the conversion gate.
         let (Some(inp), Some(outp)) = (args.get(i + 1), args.get(i + 2)) else { eprintln!("usage: --nv12-convert <frame.nv12.json> <out.rgba>"); return ExitCode::from(2); };
-        return match nv12_picture(std::path::Path::new(inp)) {
+        // `--gpu`: through yuv.rs GpuConvert (the GPU's own conversion, read back) instead of the CPU one.
+        let gpu_conv = if has("--gpu") {
+            match Gpu::open(AdapterPolicy { allow_software: has("--allow-software"), force_software: has("--software") }) { Ok(g) => Some(g), Err(e) => { eprintln!("artlux-engine: {e}"); return ExitCode::from(2); } }
+        } else { None };
+        let pic = nv12_frame(std::path::Path::new(inp)).and_then(|(meta, planes)| {
+            let f = nv12_of(&meta, &planes);
+            match &gpu_conv {
+                Some(g) => {
+                    let p = artlux_engine::yuv::GpuConvert::new(g).picture(g, &f);
+                    let rgba = artlux_engine::yuv::read_rgba(g, p.tex.as_ref().unwrap(), p.w, p.h)?;
+                    Ok(artlux_engine::compose::Picture::coded_frame(p.w, p.h, rgba, f.visible))
+                }
+                None => Ok(artlux_engine::yuv::to_picture(&f)),
+            }
+        });
+        return match pic {
             Ok(pic) => {
                 let [vx, vy, vw, vh] = pic.crop.unwrap_or([0, 0, pic.w, pic.h]);
                 let mut out = Vec::with_capacity((vw * vh * 4) as usize);
@@ -412,14 +431,16 @@ fn main() -> ExitCode {
 
 /// A `.nv12.json` test frame: {coded: [w, h], visible: [x, y, w, h], layout: [{offset, stride} ×2],
 /// colorSpace: {matrix, fullRange, primaries, transfer}, planes: "<file>"} — VideoFrame.copyTo's own layout.
-fn nv12_picture(p: &std::path::Path) -> Result<artlux_engine::compose::Picture, String> {
+fn nv12_frame(p: &std::path::Path) -> Result<(serde_json::Value, Vec<u8>), String> {
     let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?).map_err(|e| e.to_string())?;
     let cs = &j["colorSpace"];
     artlux_engine::yuv::accepts(cs["matrix"].as_str(), cs["fullRange"].as_bool(), cs["primaries"].as_str(), cs["transfer"].as_str())?;
     let planes = std::fs::read(p.parent().unwrap_or(std::path::Path::new(".")).join(j["planes"].as_str().unwrap_or_default())).map_err(|e| format!("planes: {e}"))?;
+    Ok((j, planes))
+}
+fn nv12_of<'a>(j: &serde_json::Value, planes: &'a [u8]) -> artlux_engine::yuv::Nv12<'a> {
     let n = |v: &serde_json::Value| v.as_u64().unwrap_or(0);
     let (yo, ys, uo, us) = (n(&j["layout"][0]["offset"]) as usize, n(&j["layout"][0]["stride"]) as usize, n(&j["layout"][1]["offset"]) as usize, n(&j["layout"][1]["stride"]) as usize);
     let vis = [n(&j["visible"][0]) as u32, n(&j["visible"][1]) as u32, n(&j["visible"][2]) as u32, n(&j["visible"][3]) as u32];
-    let f = artlux_engine::yuv::Nv12 { coded: (n(&j["coded"][0]) as u32, n(&j["coded"][1]) as u32), visible: vis, y: &planes[yo..], y_stride: ys, uv: &planes[uo..], uv_stride: us };
-    Ok(artlux_engine::yuv::to_picture(&f))
+    artlux_engine::yuv::Nv12 { coded: (n(&j["coded"][0]) as u32, n(&j["coded"][1]) as u32), visible: vis, y: &planes[yo..], y_stride: ys, uv: &planes[uo..], uv_stride: us }
 }
