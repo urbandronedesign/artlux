@@ -2,6 +2,7 @@
 //! rule and the two exact GPU jobs on every OS (plans/native-engine.md §6b).
 //!
 //!   artlux-engine --pack-batch <in> <out>  universe packing for the parity harness (E1b)
+//!   artlux-engine --wire-replay <in.json>  pack, encode and SEND frames via the output core (E1c)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -51,6 +52,28 @@ fn main() -> ExitCode {
         }
         let doc = serde_json::json!({ "adapter": describe(&gpu.info), "cases": outs });
         return match std::fs::write(outp, doc.to_string()) { Ok(()) => ExitCode::SUCCESS, Err(e) => { eprintln!("{outp}: {e}"); ExitCode::from(2) } };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--wire-replay") {
+        // E1c: pack + encode + SEND a sequence of frames through the app's own output core (no Node), for
+        // scripts/test-wire-parity.cjs, which sends the same frames through the addon and compares the wire.
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Replay { sync: bool, gap_ms: u64, frames: Vec<artlux_engine::pack::Case> }
+        let Some(inp) = args.get(i + 1) else { eprintln!("usage: --wire-replay <in.json>"); return ExitCode::from(2); };
+        let r: Replay = match std::fs::read_to_string(inp).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())) {
+            Ok(r) => r, Err(e) => { eprintln!("{inp}: {e}"); return ExitCode::from(2); }
+        };
+        let out = artlux_output_engine::core::OutputEngine::start(false);
+        out.configure(44.0, false, r.sync);   // keep-alive OFF: only the frames pushed reach the wire
+        for c in &r.frames {
+            let lut = artlux_engine::pack::gamma_lut(c.gamma);
+            let dests = artlux_engine::pack::pack(&c.raw, &c.fixtures, &c.controllers, &c.defaults, &lut);
+            out.push_frame(&artlux_engine::wire::encode_frame(&dests, c.port));
+            std::thread::sleep(std::time::Duration::from_millis(r.gap_ms));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        out.close();
+        return ExitCode::SUCCESS;
     }
     if let Some(i) = args.iter().position(|a| a == "--layout-batch") {
         // E1b-2 parity: the LED layout + atlas plan for scripts/test-sampling-parity.cjs.

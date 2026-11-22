@@ -114,6 +114,9 @@ pub struct Destination {
     pub priority: Value,
     /// Universe → its 512 channels. BTreeMap: ordered, as the parity harness canonicalises both sides.
     pub universes: BTreeMap<i64, Vec<u8>>,
+    /// Universes in the order they were first written — `for…in` over the TS object needs it (wire.rs).
+    #[serde(skip)]
+    pub inserted: Vec<i64>,
 }
 
 /// `Math.round(Math.pow(i / 255, g) * 255)`, with JavaScript's rounding (half up) and its `gamma && gamma > 0`.
@@ -176,7 +179,7 @@ pub fn pack(raw: &[u8], fixtures: &[Fixture], controllers: &[Controller], def: &
         };
         if !dests.contains_key(&key) {
             order.push(key.clone());
-            dests.insert(key.clone(), Destination { key: key.clone(), ip, protocol, broadcast, sparse: Value::Bool(false), priority, universes: BTreeMap::new() });
+            dests.insert(key.clone(), Destination { key: key.clone(), ip, protocol, broadcast, sparse: Value::Bool(false), priority, universes: BTreeMap::new(), inserted: Vec::new() });
         }
         let dest = dests.get_mut(&key).expect("inserted above");
         // `dest.sparse || sparse` — JavaScript keeps the VALUE, not a bool.
@@ -187,6 +190,7 @@ pub fn pack(raw: &[u8], fixtures: &[Fixture], controllers: &[Controller], def: &
         // writeCh: spill into the next universe past channel 512; a universe exists only once written.
         let mut write = |val: u8, dest: &mut Destination| {
             if channel >= 512 { universe += 1; channel = 0; }
+            if !dest.universes.contains_key(&universe) { dest.inserted.push(universe); }
             let arr = dest.universes.entry(universe).or_insert_with(|| vec![0u8; 512]);
             if (0..512).contains(&channel) { arr[channel as usize] = val; }
             channel += 1;
@@ -226,7 +230,11 @@ pub struct Case {
     pub controllers: Vec<Controller>,
     pub fixtures: Vec<Fixture>,
     pub raw: Vec<u8>,
+    /// The Art-Net port setting the frame is encoded with (E1c).
+    #[serde(default = "default_port")]
+    pub port: u16,
 }
+fn default_port() -> u16 { 6454 }
 
 #[derive(Deserialize)]
 pub struct Batch {
@@ -239,6 +247,8 @@ pub struct Batch {
 pub struct CaseOut {
     pub name: String,
     pub destinations: Vec<Destination>,
+    /// wire.rs's frame for those destinations, base64.
+    pub frame: String,
 }
 
 #[derive(Serialize)]
@@ -250,7 +260,10 @@ pub struct BatchOut {
 pub fn run_batch(b: &Batch) -> BatchOut {
     let cases = b.cases.iter().map(|c| {
         let lut = gamma_lut(c.gamma);
-        CaseOut { name: c.name.clone(), destinations: pack(&c.raw, &c.fixtures, &c.controllers, &c.defaults, &lut) }
+        let destinations = pack(&c.raw, &c.fixtures, &c.controllers, &c.defaults, &lut);
+        use base64::Engine as _;
+        let frame = base64::engine::general_purpose::STANDARD.encode(crate::wire::encode_frame(&destinations, c.port));
+        CaseOut { name: c.name.clone(), destinations, frame }
     }).collect();
     BatchOut { cases, luts: b.gammas.iter().map(|&g| gamma_lut(g).to_vec()).collect() }
 }

@@ -18,6 +18,7 @@ pub mod card;
 pub mod hapimport;
 pub mod serve;
 pub mod pack;
+pub mod wire;
 pub mod layout;
 pub mod sample;
 pub mod windows;

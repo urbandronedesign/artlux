@@ -17,6 +17,7 @@
 //     must stop, not read past it).
 // Light fixtures' bytes are a fixed pattern of their real footprint, identical on both sides — the host
 // evaluates a light, the engine only places its bytes (§4).
+// And (E1c) the WIRE FRAME each case encodes to — shared/frameCodec.ts vs engine/.../wire.rs — byte for byte.
 // And the gamma LUT on its own, for a sweep of gammas: the one place where JavaScript's Math.pow and
 // Rust's powf could round differently.
 
@@ -37,6 +38,7 @@ const bundle = path.join(WORK, 'pack-ts.cjs');
 esbuild.buildSync({
   stdin: {
     contents: `export { packUniverses, buildGammaLut } from './src/renderer/engine/packUniverses';
+               export { encodeFrame } from './shared/frameCodec';
                export { fixtureFootprint } from './src/renderer/services/addressing';
                export { isLight } from './src/renderer/services/fixtureKind';`,
     resolveDir: ROOT, loader: 'ts',
@@ -71,7 +73,9 @@ function makeCase(name, fixtures, controllers, defaults, gamma, raw, profiles) {
     const n = TS.fixtureFootprint(f, profileMap);
     lightBytes.set(f.id, Array.from({ length: n }, (_, k) => (k * 37 + f.id.length * 11) & 255));
   }
-  return { name, fixtures, controllers, defaults, gamma, raw, lightBytes };
+  // The Art-Net port setting the frame is encoded with (E1c) — varied, it is one of the frame's fields.
+  const port = [6454, 6461, 6468][makeCase.n = ((makeCase.n || 0) + 1) % 3];
+  return { name, fixtures, controllers, defaults, gamma, raw, lightBytes, port };
 }
 
 function runTs(c) {
@@ -83,11 +87,14 @@ function runTs(c) {
     pool,
     packLight: (f, writeCh) => { for (const v of c.lightBytes.get(f.id) || []) writeCh(v); },
   });
-  return canon(Object.entries(dests).map(([key, d]) => ({
+  // E1c: the frame, exactly as services/mockSocketService builds its targets and shared/frameCodec encodes them.
+  const targets = Object.values(dests).map((d) => ({ ip: d.ip, port: c.port, protocol: d.protocol, broadcast: d.broadcast, sparse: d.sparse, priority: d.priority, universes: d.universes }));
+  const frame = Buffer.from(TS.encodeFrame(targets)).toString('base64');
+  return { frame, dests: canon(Object.entries(dests).map(([key, d]) => ({
     key, ip: d.ip, protocol: d.protocol, broadcast: d.broadcast, sparse: d.sparse,
     priority: d.priority === undefined ? null : d.priority,
     universes: Object.fromEntries(Object.entries(d.universes).map(([u, arr]) => [u, Array.from(arr)])),
-  })));
+  }))) };
 }
 // Both sides canonicalised: destinations in order, universes sorted numerically.
 function canon(dests) {
@@ -98,7 +105,7 @@ function canon(dests) {
 }
 function toRust(c) {
   return {
-    name: c.name, defaults: c.defaults, gamma: c.gamma, controllers: c.controllers, raw: Array.from(c.raw),
+    name: c.name, defaults: c.defaults, gamma: c.gamma, controllers: c.controllers, raw: Array.from(c.raw), port: c.port,
     fixtures: c.fixtures.map((f) => ({ ...f, light: TS.isLight(f), lightChannels: c.lightBytes.get(f.id) || [] })),
   };
 }
@@ -142,7 +149,7 @@ for (let k = 0; k < 400; k++) {
       ip: pick([undefined, '', `10.0.${c}.${Math.floor(r() * 250)}`]),
       broadcast: pick([undefined, true, false, 0, 'yes', null]),
       port: proto === 'enttec' ? pick(['COM3', 'COM4', '', undefined]) : pick([undefined, '']),
-      priority: pick([undefined, 0, 100, 150]),
+      priority: pick([undefined, 0, 100, 150, '50', true, 300, -5, 12.7, 'x', null]),
     });
   }
   const fixtures = [];
@@ -151,7 +158,9 @@ for (let k = 0; k < 400; k++) {
     const light = r() < 0.15;
     const f = {
       id: `f${k}_${i}`, name: `F${i}`, x: 0, y: 0, width: 0.1, height: 0.01, rotation: 0, reverse: false, colorData: [],
-      universe: Math.floor(r() * 6),
+      // Mostly 0..5; sometimes -1 (a non-index key: `for…in` puts it after the numbers) or past 65535
+      // (the frame's u16 wraps it).
+      universe: pick([0, 1, 2, 3, 4, 5, 0, 1, 2, -1, 65535, 70000]),
       startAddress: 1 + Math.floor(r() * 512),
       ledCount: light ? 1 : pick([0, 1, 30, 170, 171, 300, 512]),
       channelsPerPixel: pick([undefined, 3, 4, '4', null]),
@@ -196,12 +205,16 @@ const rust = JSON.parse(fs.readFileSync(outFile, 'utf8'));
 
 let fails = 0;
 let bytes = 0;
+let frameFails = 0, frameBytes = 0;
 const tsThrew = [];
 for (let i = 0; i < cases.length; i++) {
   // A case the TypeScript packer itself THROWS on (invalid input, e.g. a numeric colorOrder from a stale
   // generator) has no bytes to match: reported, excluded.
   let want;
-  try { want = runTs(cases[i]); } catch (e) { tsThrew.push(`${cases[i].name}: ${e.message}`); continue; }
+  let wantFrame;
+  try { ({ dests: want, frame: wantFrame } = runTs(cases[i])); } catch (e) { tsThrew.push(`${cases[i].name}: ${e.message}`); continue; }
+  frameBytes += Buffer.from(wantFrame, 'base64').length;
+  if (wantFrame !== rust.cases[i].frame) { frameFails++; if (frameFails <= 5) console.log(`FAIL frame ${cases[i].name}: TS ${Buffer.from(wantFrame, 'base64').length} bytes vs Rust ${Buffer.from(rust.cases[i].frame, 'base64').length}`); }
   const got = canon(rust.cases[i].destinations.map((d) => ({ ...d, universes: d.universes })));
   for (const d of want) for (const [, arr] of d.universes) bytes += arr.length;
   const a = JSON.stringify(want), b = JSON.stringify(got);
@@ -224,5 +237,6 @@ if (tsThrew.length) {
 }
 console.log(`${projectCount} projects, ${cases.length - tsThrew.length} cases, ${bytes} DMX bytes compared: ${fails ? `${fails} DIFFER` : 'identical'}`);
 console.log(`gamma LUT, ${gammas.length} gammas: ${lutFails ? `${lutFails} DIFFER` : 'identical'}`);
-console.log(fails || lutFails ? 'PARITY FAILED' : 'PARITY OK');
-process.exit(fails || lutFails ? 1 : 0);
+console.log(`wire frames (shared/frameCodec), ${frameBytes} bytes: ${frameFails ? `${frameFails} DIFFER` : 'identical'}`);
+console.log(fails || lutFails || frameFails ? 'PARITY FAILED' : 'PARITY OK');
+process.exit(fails || lutFails || frameFails ? 1 : 0);

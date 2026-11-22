@@ -5670,11 +5670,16 @@ check(
     }
     // The REPORT. Counting live/down writers is what tells a lit rig from an unplugged interface.
     if (!src.includes('pub fn status(')) bad.push('SerialPorts::status() is gone — writer health is unreportable');
+    // Since E1c the send thread lives in core.rs (shared with the native engine) and lib.rs is the Node
+    // front door: the health is READ in the core and must still REACH the addon's Stats.
     const lib = 'native/output-engine/src/lib.rs';
+    const core = 'native/output-engine/src/core.rs';
     if (!exists(lib)) return `${lib} is missing`;
-    const libsrc = read(lib);
+    if (!exists(core)) return `${core} is missing`;
+    const libsrc = read(lib), coresrc = read(core);
     if (!libsrc.includes('serial_down')) bad.push(`${lib} does not carry serial_down into Stats`);
-    if (!libsrc.includes('serial_ports.status()')) bad.push(`${lib} never reads serial writer health into stats`);
+    if (!coresrc.includes('serial_down')) bad.push(`${core} does not keep serial_down in its stats`);
+    if (!coresrc.includes('serial_ports.status()')) bad.push(`${core} never reads serial writer health into stats`);
     // And it has to survive the trip to Prometheus, or the alert nobody can write is the alert
     // nobody has: this is the ONLY series that separates a dead widget from a live one.
     const met = 'src/main/metrics.ts';
@@ -8352,6 +8357,36 @@ check(
     if (/private (buildSegParams|countSegments|cellSizes|packAtlas)\(/.test(wm) || /relX = \(col \+ 0\.5\)/.test(wm) || /function fixtureSegments/.test(wm)) problems.push('WebGPUMapper has its own layout code again — it belongs in gpu/ledLayout.ts');
     if (!fs.existsSync(path.join(ROOT, 'engine/artlux-engine/src/layout.rs')) || !fs.existsSync(path.join(ROOT, 'engine/artlux-engine/src/sample.rs'))) problems.push('the Rust layout / sampling port is gone');
     return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the wire has ONE sender: the output core is shared by the Node addon (napi, default) and the native engine (no Node)',
+  'plans/native-engine.md E1c. native/output-engine was split into core.rs (the send thread, packet builders, ' +
+  'USB writers) and a Node front door behind the "napi" feature, so the engine links the SAME packet code — ' +
+  'scripts/test-wire-parity.cjs proves the shipped addon, the rebuilt addon and the engine put identical ' +
+  'packets on the wire. Two ways to break it silently: the addon built WITHOUT its napi feature loads as ' +
+  '"Module did not self-register" (it happened during the split: a --no-default-features build overwrote ' +
+  'the same DLL) — so napi stays the DEFAULT; and a second packet builder appearing in the engine would make ' +
+  'the parity about code the engine no longer runs.',
+  () => {
+    const problems = [];
+    const ct = raw('native/output-engine/Cargo.toml');
+    if (!/\[features\]\s*\ndefault = \["napi"\]/.test(ct)) problems.push('output-engine: "napi" is no longer the default feature — the shipped addon would not register');
+    if (!/crate-type = \["cdylib", "rlib"\]/.test(ct)) problems.push('output-engine: no longer both the addon (cdylib) and a library (rlib)');
+    const lib = read('native/output-engine/src/lib.rs');
+    for (const fn of ['configure', 'get_stats', 'is_ready', 'push_frame', 'list_serial_devices', 'close']) {
+      if (!new RegExp(`#\\[napi\\]\\s*pub fn ${fn}\\(`).test(lib)) problems.push(`output-engine: the addon no longer exports ${fn}`);
+    }
+    if (/fn build_artnet|fn build_sacn|fn sender_loop/.test(lib)) problems.push('output-engine: packet code is back in lib.rs — it belongs in core.rs, shared');
+    if (!/napi_build::setup\(\)/.test(raw('native/output-engine/build.rs'))) problems.push('output-engine build.rs no longer sets napi up');
+    const ec = raw('engine/artlux-engine/Cargo.toml');
+    if (!/artlux-output-engine = \{ path = "\.\.\/\.\.\/native\/output-engine", default-features = false \}/.test(ec)) problems.push('the engine no longer links the output core without Node');
+    for (const x of fs.readdirSync(path.join(ROOT, 'engine/artlux-engine/src')).filter((n) => n.endsWith('.rs'))) {
+      const rel = `engine/artlux-engine/src/${x}`;
+      if (/fn build_artnet|fn build_sacn|ARTNET_HEADER/.test(raw(rel))) problems.push(`${rel}: a second Art-Net/sACN packet builder in the engine`);
+    }
+    return problems.length ? [...new Set(problems)].join('; ') : null;
   },
 );
 

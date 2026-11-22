@@ -5,11 +5,17 @@ edition = "2021"
 description = "Native Art-Net / sACN output engine for ArtLux (napi-rs)"
 
 [lib]
-crate-type = ["cdylib"]
+# cdylib: the Node addon (output-engine.node). rlib: the same core linked by the native render engine
+# (engine/artlux-engine, E1c) with `default-features = false`, i.e. without Node.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["napi"]
+napi = ["dep:napi", "dep:napi-derive"]
 
 [dependencies]
-napi = { version = "2", default-features = false, features = ["napi4"] }
-napi-derive = "2"
+napi = { version = "2", default-features = false, features = ["napi4"], optional = true }
+napi-derive = { version = "2", optional = true }
 serialport = "4.9.0"
 
 [build-dependencies]

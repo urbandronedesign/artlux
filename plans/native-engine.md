@@ -946,7 +946,7 @@ fallback until a source/output is proven byte-identical — risk 2):
 |---|---|---|
 | **E1a** ✅ | The engine as ArtLux's child process: main spawns it, a handshake, a watchdog rung (crash → restart within a second, the document untouched because it lives in the Show Host), packaged in `extraResources` | a packaged-exe run: engine killed → back, logged |
 | **E1b** | The document → the engine: the surfaces / fixtures / controllers it needs, and LED sampling + universe packing ported from TS | byte parity with today's packing on recorded projects (extends `test-engine-output.cjs`) |
-| **E1c** | Art-Net / sACN sent BY the engine, reusing `native/output-engine`'s Rust as a library | wire capture: the same bytes as today's path, per universe |
+| **E1c** ✅ | Art-Net / sACN sent BY the engine, reusing `native/output-engine`'s Rust as a library | wire capture: the same bytes as today's path, per universe |
 | **E1d** | Sources in the engine: image, HAP (BC), Spout (zero-copy, one-copy fallback), effect | per source, parity vs the browser engine, then flip its default |
 | **E1e** | Native projector windows (uncalibrated), on their display, at its refresh | the E0b screen probe on a real output |
 
@@ -1018,6 +1018,29 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   not reproducible bit for bit; the engine's own atlas comes with the sources (E1d) and is judged there.
 >   And only Intel here: another GPU's sampler may filter differently — the RTX PC runs the same harness.
 > `test-engine-output` unchanged. `verify:invariants`: one TypeScript layout, called by WebGPUMapper (2/2).
+>
+> ✅ **E1c done 2026-11-22 (Art-Net / sACN from the engine — the same sender, the same packets).**
+> - **One sender, two front doors.** `native/output-engine` split VERBATIM into `src/core.rs` (send thread,
+>   frame decode, Art-Net / sACN / ArtSync builders, USB writers, plus an `OutputEngine` handle) and `lib.rs`,
+>   the Node addon behind the default `napi` feature (exports unchanged: close, configure, getStats, isReady,
+>   listSerialDevices, pushFrame). The engine links the core with `default-features = false` — no Node.
+> - **The frame.** `src/wire.rs` ports `encodeFrame` + mockSocketService's targets, with JavaScript's coercions
+>   (`for…in` universe order, `priority ?? 100` clamped into a Uint8Array, u16 wrap, stringified ip).
+> - **Proof.** `test:pack-parity` now also compares every case's encoded frame: **2,040,946 frame bytes
+>   identical** (odd priorities, universes -1 / 65535 / 70000 included). `npm run test:wire-parity` sends 48
+>   frames (colours changing, every third repeated so sparse decides, ArtSync off and on, Art-Net + two sACN
+>   streams incl. a default priority) through **the shipped addon, the addon rebuilt from the split code, and
+>   the engine**, captured on loopback: **identical packets, in order** (140 + 76 + 36 without ArtSync, 188 +
+>   76 + 36 with). Mutation-tested: the frame encoder 4/4 (the wire test alone 2/4 — a broadcast flag on
+>   Art-Net is a socket option, not a byte; the frame comparison holds it); the guards 5/5.
+> - **Harness bugs found on the way, not engine bugs:** a synchronous `execFileSync` blocked the listener's
+>   event loop, the receive buffer filled and the tail of the run was "missing" — the first run blamed the
+>   engine; and two controllers on one address MERGE into one destination, so the default-priority stream
+>   needed its own loopback address (127.0.0.2) before the default could reach the wire at all.
+> - **Not yet: the engine on the venue wire at runtime.** It needs the engine to own the whole frame (its own
+>   atlas from the sources, E1d); until then the app's addon keeps the wire. USB widgets: covered at frame
+>   level, never on hardware (as before). `verify:invariants`: one sender, napi the default (5/5); the USB
+>   health check now reads the core, where the code moved.
 
 ## 10. Open questions
 
