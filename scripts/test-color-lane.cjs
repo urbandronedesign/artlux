@@ -189,8 +189,10 @@ const note = (pass, what, detail) => {
   child.stderr.on('data', echo);
 
   const restore = () => {
+    // ITS OWN TREE, never every electron.exe: the owner's own session may be open beside the test. The
+    // tree kill goes FIRST — killing the npm shell alone orphans the app, and the walk then finds nothing.
+    try { execSync(process.platform === 'win32' ? `taskkill /PID ${child.pid} /F /T` : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
     try { child.kill('SIGKILL'); } catch { /* gone */ }
-    try { execSync(process.platform === 'win32' ? 'taskkill /IM electron.exe /F /T' : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
     try { sock.close(); } catch { /* closed */ }
     if (fs.existsSync(PREFS_BAK)) { fs.copyFileSync(PREFS_BAK, PREFS); console.log('\nprefs restored'); }
     if (!KEEP) fs.rmSync(WORK, { recursive: true, force: true });

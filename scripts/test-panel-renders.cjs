@@ -78,8 +78,10 @@ function launch(project) {
     { cwd: ROOT, env, stdio: 'ignore', shell: process.platform === 'win32' });
 }
 async function stop(child) {
+  // ITS OWN TREE, never every electron.exe: the owner's own session may be open beside the test. The
+  // tree kill goes FIRST — killing the npm shell alone orphans the app, and the walk then finds nothing.
+  try { execSync(process.platform === 'win32' ? `taskkill /PID ${child.pid} /F /T` : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
   try { child.kill('SIGKILL'); } catch { /* gone */ }
-  try { execSync(process.platform === 'win32' ? 'taskkill /IM electron.exe /F /T' : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
   await sleep(2000);
 }
 

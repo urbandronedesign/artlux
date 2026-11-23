@@ -335,5 +335,16 @@ export function snapshot(): ReadonlyMap<string, FixtureState> { return latest; }
 
 export function subscribe(cb: Listener): () => void {
   listeners.add(cb);
-  return () => { listeners.delete(cb); };
+  if (listeners.size === 1) demand?.(true);
+  return () => { if (listeners.delete(cb) && listeners.size === 0) demand?.(false); };
+}
+
+// WHO PUBLISHES IN A PANEL WINDOW (E5 — the detached timeline). A window has no packer, so nothing ever
+// publishes there; its remote (live/transportRemote.ts) mirrors the editor's colours instead — and only
+// while something in the window listens, which is what this hook tells it. The editor installs none:
+// its packer publishes every frame regardless.
+let demand: ((watched: boolean) => void) | null = null;
+export function setDemandHook(fn: (watched: boolean) => void): void {
+  demand = fn;
+  if (listeners.size) fn(true);
 }

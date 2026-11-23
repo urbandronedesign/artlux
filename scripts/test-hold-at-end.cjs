@@ -354,7 +354,6 @@ async function main() {
         try { if (browser && orig !== undefined) { const pages = await browser.pages(); const page = pages.find((p) => p.url().includes(DEV_URL_HINT)); if (page) await page.evaluate((p) => window.artlux.setPrefs({ lastProjectPath: p }), orig); } } catch {}
         if (browser) { try { await browser.disconnect(); } catch {} }
         killTree(child.pid);
-        if (process.platform === 'win32') { try { execSync('taskkill /im electron.exe /T /F', { stdio: 'ignore' }); } catch {} }
         restorePrefs();   // after the app is dead, so nothing writes over it
     }
 }

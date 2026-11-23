@@ -1055,6 +1055,13 @@ const until = async (fn, ms = 8000, step = 200) => {
     {
       const drawerBtn = () => E(() => document.querySelector('button[aria-controls="workspace-bottom"]')?.getAttribute('aria-expanded'));
       const TOOLBAR = 'button[title="Play / Pause (Space)"]';
+      // The Wash selected in the editor, so the timeline draws its track and colour row (the swatch check).
+      await E(() => {
+        const leaf = [...document.querySelectorAll('div[role="button"] *')].find((e) => e.children.length === 0 && (e.textContent || '').trim() === 'Wash Q4');
+        const row = leaf && leaf.closest('div[role="button"]');
+        if (row) row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      });
+      await until(() => E(() => window.__showHost.get('session', 'selectedFixtureId') === 'fx_wash'));
       // The drawer open (Ctrl+T's state), so the docked timeline's toolbar is on screen.
       await E(() => { const b = document.querySelector('button[aria-controls="workspace-bottom"]'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click(); });
       await sleep(1200);
@@ -1077,6 +1084,15 @@ const until = async (fn, ms = 8000, step = 200) => {
       note(!!pointer && folded === 'false' && edTimelines === 0, 'the editor\'s drawer folds to a pointer, not a second timeline',
         `pointer ${!!pointer}, drawer expanded ${folded}, timelines in the editor ${edTimelines}`);
       note(!Object.values(await W(prints)).some(Boolean), 'the window produces nothing (no transport, thumbnail cache, broker, three.js)', JSON.stringify(await W(prints)));
+      // THE LIVE SWATCH. The Wash is red (its document colour); a window with nothing behind its
+      // fixtureSignal paints every swatch black.
+      const SWATCH = 'span[title="What this fixture is making right now"]';
+      const swatchColour = () => W((sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).backgroundColor : 'no swatch'; }, SWATCH);
+      const swatch = await until(async () => {
+        const m = /rgb\((\d+), (\d+), (\d+)\)/.exec(await swatchColour());
+        return m && Number(m[1]) > 200 && Number(m[2]) < 50 && Number(m[3]) < 50 ? m[0] : null;
+      }, 8000);
+      note(!!swatch, 'a light\'s colour swatch in the window shows what the editor\'s rig is making (red)', swatch || await swatchColour());
 
       // THE CLOCK. The broker's truth is the editor's transport; the window's readout is HH:MM:SS:FF.
       const truth = () => E(() => window.__liveBroker.truth());
@@ -1119,6 +1135,18 @@ const until = async (fn, ms = 8000, step = 200) => {
       note(!!m1, 'Add marker in the window: one more marker in the editor\'s document', `${m0} → ${m1 ?? await markers()}`);
       const peaks = await until(() => W(() => ((window.__liveClient.received().peaks || 0) > 0 ? window.__liveClient.received().peaks : null)), 20000);
       note(!!peaks, 'the bed\'s waveform is the editor\'s decode (asked over the live channel)', `${peaks} answers`);
+
+      // THE MIXER FOLLOWS A CLIP PICKED IN THE WINDOW: the editor on its Audio workbench, the bed clip
+      // clicked in the window, the editor's clip inspector names it.
+      await E(() => { const b = [...document.querySelectorAll('[role="tablist"] button')].find((x) => (x.textContent || '').trim() === 'Audio'); if (b) b.click(); });
+      const EMPTY = 'Select an audio clip on the timeline to shape it.';
+      const idle = await until(() => E((t) => (document.body.innerText.includes(t) ? 1 : null), EMPTY), 8000);
+      const clipEl = await pw.$('div[title^="bed-count \u2014"]');
+      const cb = clipEl && await clipEl.boundingBox();
+      if (cb) await pw.mouse.click(cb.x + Math.min(40, cb.width / 2), cb.y + cb.height / 2);
+      const shown = await until(() => E((t) => (!document.body.innerText.includes(t) && [...document.querySelectorAll('span')].some((x) => (x.textContent || '').trim() === 'bed-count') ? 1 : null), EMPTY), 6000);
+      note(!!idle && !!cb && !!shown, 'a clip picked in the window is the editor\'s selection: its mixer shows that clip',
+        `mixer idle before ${!!idle}; clip in the window ${!!cb}; mixer shows it ${!!shown}`);
 
       const ctx = () => E(() => document.querySelector('[role="tablist"] [aria-selected="true"]')?.textContent?.trim());
       const ctx0 = await ctx();

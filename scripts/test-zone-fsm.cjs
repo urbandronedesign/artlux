@@ -390,7 +390,6 @@ async function main() {
         try { sock.close(); } catch {}
         if (browser) { try { await browser.disconnect(); } catch {} }
         killTree(child.pid);
-        if (process.platform === 'win32') { try { execSync('taskkill /im electron.exe /T /F', { stdio: 'ignore' }); } catch {} }
         restorePrefs();   // after the app is dead, so nothing writes over it
     }
 }

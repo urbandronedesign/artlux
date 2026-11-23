@@ -8910,6 +8910,23 @@ check(
   },
 );
 
+check(
+  'a test harness stops ITS OWN process tree, never every electron.exe / ArtLux.exe by name',
+  'The harnesses run beside the owner\'s own dev session. `taskkill /IM electron.exe` closed that session ' +
+  'with every run (and with it any unsaved work); the panel-window harness also killed the npm shell ' +
+  'before the tree, which orphaned the app so the tree walk found nothing and a relaunch hit the ' +
+  'single-instance lock. Kill `taskkill /PID <child.pid> /T` first, then the child.',
+  () => {
+    const problems = [];
+    for (const f of fs.readdirSync(path.join(ROOT, 'scripts'))) {
+      if (!/^test-.*\.cjs$/.test(f)) continue;
+      const src = fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8');
+      if (/taskkill \/IM (electron|ArtLux|artlux-engine)\.exe/i.test(src)) problems.push(`${f} kills by image name`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

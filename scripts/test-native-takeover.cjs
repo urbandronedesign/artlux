@@ -159,12 +159,14 @@ function launch(native) {
   child.lines = [];
   const take = (d) => { child.log += d; for (const l of String(d).split(/\n/)) if (l.trim()) child.lines.push({ at: Date.now(), l: l.trim() }); };
   child.stdout.on('data', take); child.stderr.on('data', take);
+  running = child;
   return child;
 }
+// ITS OWN TREE, never every electron.exe / ArtLux.exe / artlux-engine.exe: the owner's own session may be
+// open beside the test. The engine is main's child (engineHost spawns it attached), so the tree has it.
+let running = null;
 async function stop() {
-  try { execSync('taskkill /IM electron.exe /F /T', { stdio: 'ignore' }); } catch { /* none */ }
-  try { execSync('taskkill /IM ArtLux.exe /F /T', { stdio: 'ignore' }); } catch { /* none */ }
-  try { execSync('taskkill /IM artlux-engine.exe /F /T', { stdio: 'ignore' }); } catch { /* none */ }
+  if (running) { try { execSync(`taskkill /PID ${running.pid} /F /T`, { stdio: 'ignore' }); } catch { /* gone */ } running = null; }
   await sleep(2500);
 }
 const lastOf = (list, u) => { for (let i = list.length - 1; i >= 0; i--) if (list[i].u === u) return list[i].data; return null; };

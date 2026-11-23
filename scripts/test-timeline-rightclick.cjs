@@ -358,8 +358,10 @@ const contentMenu = (page) => page.evaluate(() => {
     console.error('harness error:', e.message);
   } finally {
     try { if (browser) await browser.disconnect(); } catch { /* */ }
+    // ITS OWN TREE, never every electron.exe: the owner's own session may be open beside the test. The
+    // tree kill goes FIRST — killing the npm shell alone orphans the app, and the walk then finds nothing.
+    try { execSync(process.platform === 'win32' ? `taskkill /PID ${child.pid} /F /T` : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* */ }
     try { child.kill('SIGKILL'); } catch { /* */ }
-    try { execSync('taskkill /IM electron.exe /F /T', { stdio: 'ignore' }); } catch { /* */ }
   }
   console.log(failed ? `\n${failed} check(s) failed` : '\nright-click OK');
 })();

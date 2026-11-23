@@ -8,6 +8,15 @@
 //   WAVEFORMS — the editor's decode (`liveClient.peaks`): each file asked for once, at full resolution, and
 //               reduced here exactly as the editor reduces it (audioPeaks.peaksFor). Nothing decodes here.
 //   OSC       — an OSC track's counters ('osc.stats', sent on change) and its Resend / Test buttons.
+//   COLOURS   — what each fixture is making now ('fixture.colors', r/g/b, sent on change), mirrored into
+//               this window's fixtureSignal while something here listens: a colour lane's live swatch,
+//               and the colour a new lane is seeded from. Only r/g/b are real here — nothing in a panel
+//               window draws a beam.
+//   SELECTION — a clip picked here is the EDITOR's selection too ('timeline.select'), so its mixer
+//               follows it.
+//
+// The badge and counter streams are held while the timeline is mounted — the same span as the clock
+// watch — and let go with it; the next read starts them again.
 //
 // Stills for the filmstrips already come from the editor (live/takesRemote.ts installs services/thumbView).
 import { liveClient } from './client';
@@ -15,6 +24,8 @@ import { setTransportView } from '../services/transportView';
 import { setPeaksView } from '../services/peaksView';
 import { setOscTrackView } from '../services/oscTrackView';
 import { setShowContext } from '../services/editorShell';
+import * as fixtureSignal from '../services/fixtureSignal';
+import * as selection from '../services/selection';
 import type { OscTrackConfig } from '../types';
 
 const fail = (what: string) => (e: Error) => { console.warn(`[panel] ${what} failed:`, e.message); };
@@ -42,6 +53,10 @@ function startClock(): void {
 function stopClock(): void {
   cancelAnimationFrame(raf);
   unwatch?.(); unwatch = null;
+  // The timeline is gone (its playhead subscribers are its lanes and readouts): so are its badge and
+  // counter readers.
+  heldStop?.(); heldStop = null; held = false;
+  oscStop?.(); oscStop = null; oscStats = {};
 }
 
 let held = false;
@@ -87,6 +102,20 @@ function reduce(full: Float32Array, buckets: number): Float32Array {
 let oscStats: Record<string, { sent: number; count: number }> = {};
 let oscStop: (() => void) | null = null;
 
+// ── COLOURS ──────────────────────────────────────────────────────────────────────────────────────
+let colorsStop: (() => void) | null = null;
+function watchColors(on: boolean): void {
+  if (!on) { colorsStop?.(); colorsStop = null; return; }
+  if (colorsStop) return;
+  colorsStop = liveClient.subscribe('fixture.colors', null, (v) => {
+    const m = new Map<string, fixtureSignal.FixtureState>();
+    for (const [id, c] of Object.entries((v ?? {}) as Record<string, [number, number, number]>)) {
+      m.set(id, { id, intensity: 1, r: c[0], g: c[1], b: c[2], pan: 0, tilt: 0, blackout: false });
+    }
+    fixtureSignal.publish(m);
+  });
+}
+
 export function installTransportRemote(): void {
   setTransportView({
     getPlayhead: () => liveClient.now()?.playhead ?? 0,
@@ -121,4 +150,9 @@ export function installTransportRemote(): void {
   });
   // "Edit logic": the EDITOR goes to the Show Machine (this window has no workbench to switch).
   setShowContext((id) => call('shell.goToContext', [id]));
+  fixtureSignal.setDemandHook(watchColors);
+  // Only CHANGES cross: subscribe() answers at once with the current (null) selection, and forwarding
+  // that would clear the editor's pick every time any panel window opened.
+  let first = true;
+  selection.subscribe((s) => { if (first) { first = false; return; } call('timeline.select', [s]); });
 }

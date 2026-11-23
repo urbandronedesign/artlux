@@ -26,6 +26,9 @@ import { peaksView } from '../services/peaksView';
 import { oscTrackView } from '../services/oscTrackView';
 import { allTrackStats } from '../services/oscOut';
 import { showEditorContext } from '../services/editorShell';
+import * as fixtureSignal from '../services/fixtureSignal';
+import * as selection from '../services/selection';
+import type { TimelineSelection } from '../services/selection';
 import type { OscTrackConfig } from '../types';
 
 let installed = false;
@@ -198,6 +201,32 @@ export function installCoreLiveStreams(): void {
       return () => clearInterval(t);
     },
     read: () => ({ value: allTrackStats() }),
+  });
+  // A COLOUR LANE's live swatch, and the colour a new lane is seeded from: what each fixture is making
+  // now (fixtureSignal — the packer publishes it every frame). Only r/g/b cross, rounded to what a swatch
+  // can show, sampled at 10 Hz and sent only when one moved: a still rig costs no messages.
+  const colorsNow = () => {
+    const out: Record<string, [number, number, number]> = {};
+    const q = (v: number) => Math.round(v * 1000) / 1000;
+    for (const [id, st] of fixtureSignal.snapshot()) out[id] = [q(st.r), q(st.g), q(st.b)];
+    return out;
+  };
+  registerLiveStream('fixture.colors', {
+    watch(onNew) {
+      let sig = JSON.stringify(colorsNow());
+      const t = setInterval(() => { const s = JSON.stringify(colorsNow()); if (s !== sig) { sig = s; onNew(); } }, 100);
+      return () => clearInterval(t);
+    },
+    read: () => ({ value: colorsNow() }),
+  });
+  // The timeline's selection, so the editor's mixer follows a clip picked in a window (services/selection).
+  registerLiveCall('timeline.select', (s) => {
+    const v = s as TimelineSelection;
+    if (v === null) return selection.setSelection(null);
+    if (v && typeof v.id === 'string' && v.kind === 'clip') return selection.setSelection({ kind: 'clip', id: v.id });
+    if (v && typeof v.id === 'string' && v.kind === 'audioClip' && (v.source === 'bed' || v.source === 'timeline')) {
+      return selection.setSelection({ kind: 'audioClip', id: v.id, source: v.source });
+    }
   });
   registerLiveCall('osc.resend', (p) => oscTrackView.resend(String(p)));
   registerLiveCall('osc.test', (cfg, v) => oscTrackView.sendTest(cfg as OscTrackConfig, Number(v)));
