@@ -29,13 +29,13 @@ export const SnapCursor: React.FC = () => {
     const g = ref.current;
     if (!g) return;
     const h = getSnapHover();
-    const cam = camera as THREE.PerspectiveCamera;
-    if (!h || !cam.isPerspectiveCamera || !size.height) { g.visible = false; return; }
+    // Any camera: worldPerPixel answers for an orthographic view too (3d-workbench Phase 1).
+    if (!h || !size.height) { g.visible = false; return; }
     g.visible = true;
     g.position.copy(h.point);
-    const d = cam.position.distanceTo(g.position);
+    const d = camera.position.distanceTo(g.position);
     const px = h.armed ? ARMED_PX : PREVIEW_PX_SIZE;
-    g.scale.setScalar(Math.max(1e-6, px * worldPerPixel(cam, size.height, d)));
+    g.scale.setScalar(Math.max(1e-6, px * worldPerPixel(camera, size.height, d)));
     const m = matRef.current;
     if (m) { m.opacity = h.armed ? 1 : 0.45; m.wireframe = !h.armed; }
   });

@@ -210,6 +210,8 @@ function rebuild(geo: THREE.BufferGeometry, section: number, ox: number, oz: num
  * section, never last frame's. Priority stays 0: a positive priority hands r3f's whole render loop to
  * this subscriber and the viewport stops drawing (projectorDepth.ts records the same trap).
  */
+const _away = new THREE.Vector3();
+
 export const GridLabels: React.FC = () => {
   const geometry = useMemo(makeGeometry, []);
   // Born with its map — see the header.
@@ -228,8 +230,15 @@ export const GridLabels: React.FC = () => {
     const f = getGridFrame();
     if (!f) { mesh.visible = false; keyRef.current = ''; return; }   // grid drew nothing this tick
     mesh.visible = true;
-    const sideX = camera.position.z >= f.originZ ? 1 : -1;   // which side of the X line we look from
-    const sideZ = camera.position.x >= f.originX ? 1 : -1;   // which side of the Z line
+    // WHICH WAY IS "AWAY" FROM THE VIEWER, on the floor. From the direction the camera LOOKS, not from
+    // where it stands relative to the grid origin: the two agree for any view across the floor, but a
+    // Top view (3d-workbench Phase 1) stands exactly above its target, where "which side of the origin"
+    // is a coin toss — measured: the numbers came out upside down. Looking straight down there is no
+    // floor direction to look along, so the screen's up (the camera's Y column) says which way is away.
+    _away.set(0, 0, -1).transformDirection(camera.matrixWorld); _away.y = 0;
+    if (_away.lengthSq() < 0.0025) { _away.setFromMatrixColumn(camera.matrixWorld, 1); _away.y = 0; }
+    const sideX = _away.z <= 0 ? 1 : -1;   // which side of the X line we look from
+    const sideZ = _away.x <= 0 ? 1 : -1;   // which side of the Z line
     const key = `${f.section}|${f.originX}|${f.originZ}|${sideX}|${sideZ}`;
     if (key === keyRef.current) return;                      // the common case: nothing to do
     keyRef.current = key;

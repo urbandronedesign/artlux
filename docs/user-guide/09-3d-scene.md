@@ -18,6 +18,38 @@ split‑view button in the Stage's top‑right toolbar; drag the divider to resi
 | Wheel | Zoom |
 | Click empty space | Deselect |
 
+### Top, Front, Right — the flat views
+
+The **view picker** in the 3D header switches between **Perspective** and six flat (orthographic) views:
+**Top**, **Front**, **Right**, **Back**, **Left** and **Bottom**. A flat view has no perspective — a plan
+from Top, an elevation from Front — so a row of fixtures that should be straight *looks* straight, and two
+things at the same height line up on screen.
+
+- **Keys** (with the pointer over the 3D view): **1** Front, **3** Right, **7** Top — the numpad or the top
+  row; hold **Ctrl** for the opposite side (**Ctrl+7** Bottom). **5** or **0** goes back to Perspective,
+  exactly where you left it.
+- **A flat view pans and zooms; it does not rotate.** Left‑drag does nothing there — that keeps Top a true
+  plan. To look around, go back to Perspective.
+- The view you switch to keeps what you were looking at in the middle, at the same size on screen.
+- While you **look through a calibrated projector** the picker is greyed: the projector owns the camera.
+  Choose **Editor camera** first.
+
+### Frame what you are working on
+
+- **Zoom extents** (the frame button next to the view picker, or **Home**) fits every model and fixture in
+  the view.
+- **Zoom to selection** (**F**, or the numpad **.**) fits only what is selected — the selected fixtures, or
+  the selected model. With nothing selected it frames everything.
+
+Both keep the direction you are looking from; only the distance (or the zoom, in a flat view) changes.
+
+### The 3D view on its own screen
+
+The 3D view cannot leave the editor window yet (a window of its own arrives with the new rendering
+engine). Until then, put the **editor window** on the screen where you want the 3D view, open the **3D**
+workbench so the view fills it, and send the panels you need on the other screen there with **Open in new
+window** — the outliner's sections, the fixture panels, the Media Library and the timeline can all go.
+
 ---
 
 ## Read the scale

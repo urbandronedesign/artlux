@@ -56,10 +56,10 @@ export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect
     } else if (g.position.x !== world[0] || g.position.y !== world[1] || g.position.z !== world[2]) {
       g.position.set(world[0], world[1], world[2]); // back under the stored value once released
     }
-    const cam = camera as THREE.PerspectiveCamera;
-    if (!cam.isPerspectiveCamera || !size.height) return;
-    const d = cam.position.distanceTo(g.getWorldPosition(_p));
-    g.scale.setScalar(Math.max(1e-6, (selected ? MARKER_PX_SEL : MARKER_PX) * worldPerPixel(cam, size.height, d)));
+    // Any camera: worldPerPixel answers for an orthographic view too (Top, Front… — 3d-workbench Phase 1).
+    if (!size.height) return;
+    const d = camera.position.distanceTo(g.getWorldPosition(_p));
+    g.scale.setScalar(Math.max(1e-6, (selected ? MARKER_PX_SEL : MARKER_PX) * worldPerPixel(camera, size.height, d)));
   });
 
   return (

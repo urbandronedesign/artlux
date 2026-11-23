@@ -30,7 +30,8 @@ interface Props {
 // <video> the timeline engine currently drives for that layer (null when no clip is live).
 export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, onCommit, onRecordHistory, calibPickMode, onCalibPick }) => {
   const size = useThree((s) => s.size); // css pixels — the snap gate is a SCREEN distance
-  const group = useMemo(() => new THREE.Group(), []);
+  // Tagged with the model id so the view's "zoom to selected" can find it in the scene (FrameController).
+  const group = useMemo(() => { const g = new THREE.Group(); g.userData.modelId = model.id; return g; }, [model.id]);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const controls = useRef<any>(null);
 

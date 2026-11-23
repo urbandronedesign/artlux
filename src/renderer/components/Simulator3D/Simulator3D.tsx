@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useRef, use
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -34,6 +34,8 @@ import { PlaneObject } from './PlaneObject';
 import { ProjectorDepthPass } from './projectorDepth';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
+import { OrthoCamera, ViewController, FrameController } from './ViewControls';
+import { getView, setView, subscribeView, isOrtho, viewLabel, VIEW_ORDER, requestFrame, type ViewKind } from '../../services/view3d';
 import { OriginGnomon } from './OriginGnomon';
 import { GridLabels } from './GridLabels';
 import { Lighting } from './Lighting';
@@ -241,6 +243,14 @@ const ViewBridge: React.FC = () => {
   return null;
 };
 
+// The view keys (registry scope 'scene3d'). Module-level: the key listener attaches once.
+const VIEW_KEYS: Array<[string, ViewKind]> = [
+  ['scene3d.viewFront', 'front'], ['scene3d.viewBack', 'back'],
+  ['scene3d.viewRight', 'right'], ['scene3d.viewLeft', 'left'],
+  ['scene3d.viewTop', 'top'], ['scene3d.viewBottom', 'bottom'],
+  ['scene3d.viewPersp', 'persp'],
+];
+
 const AdaptiveClipping: React.FC<{ off?: boolean }> = ({ off }) => {
   useFrame(({ camera, controls }) => {
     if (off) return; // a projector view owns the projection matrix — see ProjectorView
@@ -313,6 +323,10 @@ const Simulator3D: React.FC<Props> = ({
       else if (keymap.matches(e, 'scene3d.modeSelect')) setMode('select');
       else if (keymap.matches(e, 'scene3d.gizmoSpace')) setGizmoSpace(getGizmoSpace() === 'world' ? 'local' : 'world');
       else if (keymap.matches(e, 'scene3d.toggleSnap')) setSnap({ on: !getSnap().on });
+      // VIEWS (3d-workbench Phase 1) — Blender's numpad layout; Ctrl gives the opposite side.
+      else if (VIEW_KEYS.some(([id, v]) => keymap.matches(e, id) && (setView(v), true))) e.preventDefault();
+      else if (keymap.matches(e, 'scene3d.zoomExtents')) { e.preventDefault(); requestFrame('extents'); }
+      else if (keymap.matches(e, 'scene3d.zoomSelected')) { e.preventDefault(); requestFrame('selected'); }
       else {
         // NUDGE. One press = one commit and one history entry, exactly like the projector's warp
         // nudge — holding a key repeats, and each repeat is its own undo step, which is the behaviour
@@ -454,6 +468,12 @@ const Simulator3D: React.FC<Props> = ({
   const viewFrom = useMemo(
     () => (scene3D.viewFrom ? projectorCalibs.find((p) => p.surfaceId === scene3D.viewFrom) ?? null : null),
     [scene3D.viewFrom, projectorCalibs]);
+  // THE VIEW (services/view3d — Top, Front…, plans/3d-workbench.md Phase 1). Looking through a calibrated
+  // projector drives the camera from the calibration, so it wins: an ortho choice waits underneath and
+  // comes back when the look-through ends.
+  const chosenView = useSyncExternalStore(subscribeView, getView);
+  const shownView: ViewKind = viewFrom ? 'persp' : chosenView;
+  const ortho = isOrtho(shownView);
   // Model gizmos only understand the three transform modes. 'select' is a fixture-marquee tool, so
   // models fall back to translate rather than the mode type leaking into their props.
   const transformMode = mode === 'select' ? 'translate' : mode;
@@ -535,6 +555,22 @@ const Simulator3D: React.FC<Props> = ({
         </select>
         <div className="w-px h-4 bg-line-1 mx-1" />
         <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
+        <div className="w-px h-4 bg-line-1 mx-1" />
+        {/* THE VIEW. One compact select rather than seven buttons — the header must not grow (36 px,
+            gizmo-precision constraint) — and the keys are the fast way (numpad 1/3/7, Ctrl = opposite). */}
+        <Tooltip id="scene3d.view">
+          <select
+            value={shownView}
+            disabled={!!viewFrom}
+            onChange={(e) => setView(e.target.value as ViewKind)}
+            title={viewFrom ? 'Looking through a projector — choose "Editor camera" to pick a view' : 'View — numpad 1 Front · 3 Right · 7 Top (Ctrl = opposite side) · 5 Perspective'}
+            className={`bg-surface-0 border rounded px-1 py-0.5 text-micro focus:outline-none disabled:opacity-40 ${ortho ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
+            {...help('scene3d.view')}
+          >
+            {VIEW_ORDER.map((v) => <option key={v} value={v}>{viewLabel(v)}</option>)}
+          </select>
+        </Tooltip>
+        <ToolBtn active={false} title={`Zoom extents${keyHint('scene3d.zoomExtents')} — frame every model and fixture (zoom to the selection: ${keymap.resolve('scene3d.zoomSelected').map(formatChord).join(' / ')})`} helpId="scene3d.zoom-extents" onClick={() => requestFrame('extents')}><Scan size={14} /></ToolBtn>
         {/* LOOK THROUGH A PROJECTOR. Only calibrated outputs can offer a viewpoint, so the control
             appears once one exists rather than sitting there empty. The choice is stored on the
             scene (Scene3D.viewFrom), so it is still the view you left when the project reopens. */}
@@ -629,6 +665,10 @@ const Simulator3D: React.FC<Props> = ({
         {maxFps > 0 && !paused && <FrameRateCap hz={maxFps} />}
         <AdaptiveClipping off={!!viewFrom} />
         {viewFrom && <ProjectorView calibration={viewFrom.calibration} />}
+        {/* Top / Front / …: an orthographic camera becomes the default while one is shown; the controller
+            places it (and hands the perspective target back on return). See ViewControls.tsx. */}
+        {ortho && <OrthoCamera />}
+        <ViewController view={shownView} />
         <ViewerCameraBridge />
         <Lighting env={scene3D.environment} />
         {/* No reflective floor (removed 2026-10-22). It was drei's MeshReflectorMaterial, whose useFrame
@@ -782,8 +822,10 @@ const Simulator3D: React.FC<Props> = ({
         {/* The marquee owns the left button while it is active, so orbit keeps only pan/zoom. */}
         {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit — and
             while looking through a projector, whose camera is driven from the calibration. */}
-        <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select'} />
+        {/* An orthographic view only pans and zooms — rotation locked, as in Rhino (owner, 2026-11-23). */}
+        <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select' && !ortho} />
         <ViewBridge />
+        <FrameController fixtures={fixtures} selectedFixtureIds={gizmoFixtures.map((f) => f.id)} selectedModelId={selectedModelId ?? null} view={shownView} />
         {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,
             which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that
             happens inside the Canvas it takes the whole viewport down rather than just the widget. The

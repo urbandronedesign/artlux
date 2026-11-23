@@ -79,6 +79,19 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'scene3d.gizmoSpace',    label: 'World / Object axes', category: 'Tools', scope: 'scene3d', defaultBinding: ['X'], description: 'Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way.' },
   { id: 'scene3d.toggleSnap',    label: 'Toggle snapping', category: 'Tools', scope: 'scene3d', defaultBinding: ['S'], description: 'Hold Ctrl during a drag to invert it for that drag only.' },
 
+  // VIEWS (plans/3d-workbench.md Phase 1) — Blender's numpad layout, Ctrl for the opposite side. The digits
+  // match the top row too (the keymap reads KeyboardEvent.key), so a laptop without a numpad still has them.
+  // Orthographic views pan and zoom only; rotation is for Perspective (Rhino's rule, owner 2026-11-23).
+  { id: 'scene3d.viewFront',  label: 'Front view',  category: 'View', scope: 'scene3d', defaultBinding: ['1'] },
+  { id: 'scene3d.viewBack',   label: 'Back view',   category: 'View', scope: 'scene3d', defaultBinding: ['Ctrl+1'] },
+  { id: 'scene3d.viewRight',  label: 'Right view',  category: 'View', scope: 'scene3d', defaultBinding: ['3'] },
+  { id: 'scene3d.viewLeft',   label: 'Left view',   category: 'View', scope: 'scene3d', defaultBinding: ['Ctrl+3'] },
+  { id: 'scene3d.viewTop',    label: 'Top view',    category: 'View', scope: 'scene3d', defaultBinding: ['7'] },
+  { id: 'scene3d.viewBottom', label: 'Bottom view', category: 'View', scope: 'scene3d', defaultBinding: ['Ctrl+7'] },
+  { id: 'scene3d.viewPersp',  label: 'Perspective view', category: 'View', scope: 'scene3d', defaultBinding: ['5', '0'], description: 'Back to the perspective camera, where you left it.' },
+  { id: 'scene3d.zoomExtents',  label: 'Zoom extents',      category: 'View', scope: 'scene3d', defaultBinding: ['Home'], description: 'Frames every model and fixture, in the current view.' },
+  { id: 'scene3d.zoomSelected', label: 'Zoom to selection', category: 'View', scope: 'scene3d', defaultBinding: ['.', 'F'], description: 'Frames the selected fixtures or model (everything when nothing is selected).' },
+
   // NUDGE — the precise half of placing a fixture. A rigger works in round numbers, and a 12mm LED on
   // a big venue is not a target you hit by eye; these move the whole selection by the snap step, so
   // "250 mm along the truss" is two keystrokes rather than a careful drag.

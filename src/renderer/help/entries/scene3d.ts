@@ -77,6 +77,23 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['glb', 'gltf', 'mesh', 'import', 'model'],
   },
 
+  {
+    id: 'scene3d.view',
+    title: 'View',
+    short: 'Perspective, or a flat Top / Front / Right / Back / Left / Bottom view.',
+    body: 'The orthographic views show the venue without perspective — a plan from Top, an elevation from Front — so a row of fixtures that should be straight reads as straight. They pan and zoom; rotating is for Perspective. Keys over the 3D view: numpad 1 Front, 3 Right, 7 Top, Ctrl for the opposite side, 5 or 0 back to Perspective where you left it.',
+    group: '3D Scene',
+    keywords: ['view', 'top', 'front', 'right', 'orthographic', 'ortho', 'plan', 'elevation', 'perspective', 'numpad'],
+  },
+  {
+    id: 'scene3d.zoom-extents',
+    title: 'Zoom extents',
+    short: 'Frame every model and fixture in the current view.',
+    body: 'Moves the camera so the whole venue and rig fit the viewport, keeping the direction you look from. Home does the same; F or the numpad . frames only what is selected.',
+    group: '3D Scene',
+    keywords: ['zoom', 'extents', 'frame', 'fit', 'home', 'focus', 'selected'],
+  },
+
   // ── Selected-model transform ────────────────────────────────────────────────────────────────
   {
     id: 'scene3d.model-layer',

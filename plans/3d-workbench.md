@@ -141,6 +141,22 @@ Each phase ships alone, is **off-by-default where it changes behaviour**, ships 
 commits (the documentation rule), and keeps the listed invariants green.
 
 ### Phase 1 — Views & navigation (one view, many cameras) · ~2–3 wk
+
+> **Progress 2026-11-23 — items 1–3 built** (orthographic views with rotation locked, the view keys, zoom
+> extents / zoom selected), checked in the packaged ArtLux Show on WebGPU and WebGL. The core is
+> `services/view3d.ts` (renderer-free); the r3f adapter is `Simulator3D/ViewControls.tsx`. What the run
+> found:
+> - **An ortho view must be ENFORCED every frame, not placed once.** Placing Top from an effect lost the
+>   first Perspective → Top switch: the camera kept the new up and zoom but ended at the perspective
+>   camera's position and direction (an oblique "Top"); ortho → ortho held. The view now re-derives the
+>   position from the orbit target along its axis each frame, after OrbitControls' update.
+> - **GridLabels chose its reading side from where the camera STANDS** relative to the grid origin — a coin
+>   toss for a camera straight above its target (the numbers came out upside down in Top). It now reads it
+>   from the direction the camera LOOKS, falling back to the screen's up when looking straight down.
+> - `screenScale.worldPerPixel` answers for an orthographic camera too, so the anchor markers and the snap
+>   cursor no longer skip one. `window.__artluxView3d()` reports the live camera (read-only diagnostic).
+> - Items 4–7 (clickable axis gizmo, named views, display modes, grid on the view plane — a side view shows
+>   the floor grid edge-on today) are next.
 1. **Orthographic views** Top / Bottom / Front / Back / Right / Left + Perspective, toggle ortho↔persp.
    - r3f: an `OrthographicCamera` swapped in as default; ortho zoom = half-height, not distance.
    - ⚠ `AdaptiveClipping` derives near/far from *orbit distance*, which means nothing in ortho — needs an

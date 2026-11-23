@@ -122,6 +122,20 @@ Live only while the pointer is over the 3D viewport.
 | `X` | World / Object axes — Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way |
 | `S` | Toggle snapping — Hold Ctrl during a drag to invert it for that drag only |
 
+**View**
+
+| Shortcut | Action |
+|---|---|
+| `1` | Front view |
+| `Ctrl+1` | Back view |
+| `3` | Right view |
+| `Ctrl+3` | Left view |
+| `7` | Top view |
+| `Ctrl+7` | Bottom view |
+| `5` or `0` | Perspective view — Back to the perspective camera, where you left it |
+| `Home` | Zoom extents — Frames every model and fixture, in the current view |
+| `.` or `F` | Zoom to selection — Frames the selected fixtures or model (everything when nothing is selected) |
+
 **Editing**
 
 | Shortcut | Action |

@@ -47,7 +47,8 @@ interface Props {
 export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSelect, onCommit, onRecordHistory, onNaturalSize, calibPickMode, onCalibPick }) => {
   const { scene } = useGLTF(url);
   const size = useThree((s) => s.size); // css pixels — the snap gate is a SCREEN distance
-  const group = useMemo(() => new THREE.Group(), []);
+  // Tagged with the model id so the view's "zoom to selected" can find it in the scene (FrameController).
+  const group = useMemo(() => { const g = new THREE.Group(); g.userData.modelId = model.id; return g; }, [model.id]);
   const controls = useRef<any>(null);
 
   // Recentred so the group origin (and thus the gizmo) sits at the mesh's bounding-box centre rather
