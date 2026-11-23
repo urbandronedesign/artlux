@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert, LayoutGrid, Lock, Box } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert, LayoutGrid, Lock, Box, Search } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
-import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm } from './ui';
+import { Field, NumberField, Toggle, Select, Slider, Button, useConfirm } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
@@ -17,6 +17,7 @@ import {
 } from '../services/scene3dQuality';
 import { useLayout } from '../hooks/useLayout';
 import { useWorkspaceActions } from '../hooks/useWorkspaceActions';
+import { useRovingTabindex } from '../hooks/useRovingTabindex';
 import { OscSendersBlock } from './OscSendersBlock';
 
 interface Props {
@@ -24,21 +25,206 @@ interface Props {
   onChange: (patch: Partial<AppSettings>) => void;
 }
 
-// One tile in the settings mosaic. `Section` is the shared collapsible used by every panel column in
-// the app, and it is built to STACK — it draws only a bottom rule and expects a bordered parent. Tiled,
-// each one has to become its own card, so the wrapper supplies the border/radius and suppresses that
-// rule (`[&>div]` is Section's root). `break-inside-avoid` is what keeps a section whole: without it the
-// column algorithm splits a card across two columns, chopping the Watchdog log or the device list in half.
 // Label column for this screen's rows. The shared default (`w-16`) is sized for the 260px inspector
 // column and truncates "Min relaunch gap (s)" to "Min relau…" — harmless when a tooltip is a hover away
-// in a dense inspector, wrong on the screen whose whole job is being read. A tile is twice that wide.
+// in a dense inspector, wrong on the screen whose whole job is being read.
 const LBL = 'w-36';
 
-const Tile: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="break-inside-avoid mb-3 rounded-md border border-line-1 bg-surface-1 overflow-hidden [&>div]:border-b-0">
-    {children}
-  </div>
-);
+// ── TWO COLUMNS: TOPICS ON THE LEFT, ONE TOPIC'S PARAMETERS ON THE RIGHT (owner, 2026-11-23) ───────
+// Preferences used to be a MOSAIC of cards packed by CSS multi-column. A wide screen showed everything
+// at once, but each card landed somewhere different at every width, and finding "the OSC bind address"
+// meant scanning a wall. Now a topic is picked from a fixed list and only its parameters show, which is
+// how an operator actually uses this screen: one question at a time.
+type GroupId = 'interface' | 'output' | 'media' | 'control' | 'system' | 'plugins';
+const GROUPS: { id: GroupId; label: string }[] = [
+  { id: 'interface', label: 'Interface' },
+  { id: 'output', label: 'Output' },
+  { id: 'media', label: 'Media' },
+  { id: 'control', label: 'Control & tracking' },
+  { id: 'system', label: 'System' },
+  { id: 'plugins', label: 'Plugins' },
+];
+// Where each FIRST-PARTY plugin's section is filed. A plugin not listed here (a new one, or one this
+// table has not caught up with) still shows — under "Plugins" — rather than being dropped.
+const PLUGIN_GROUP: Record<string, GroupId> = {
+  video: 'media', audio: 'media', shader: 'media',
+  augmenta: 'control', mediapipe: 'control', 'show-control': 'control',
+  recalibration: 'output',
+};
+interface Topic { id: string; title: string; group: GroupId; icon: React.ReactNode; body: React.ReactNode }
+
+// The topic last looked at, per machine — a convenience, so it lives in localStorage and every access
+// is guarded (a private window or a blocked origin simply starts on the first topic).
+const TOPIC_KEY = 'artlux.prefs.topic';
+const loadTopic = (): string | null => { try { return localStorage.getItem(TOPIC_KEY); } catch { return null; } };
+const saveTopic = (id: string): void => { try { localStorage.setItem(TOPIC_KEY, id); } catch { /* ignore */ } };
+
+// Below this width the two columns do not fit (a Preferences panel window can be 280px — the narrow-
+// window check holds every detachable panel to it), so the topic list folds into a picker above the
+// parameters instead of squeezing both columns into slivers.
+const NARROW_PX = 560;
+// The marker a search puts on the parameter it found. Written as literals so Tailwind generates them.
+const HIT_CLASSES = ['ring-1', 'ring-accent', 'rounded-sm'];
+
+/**
+ * Lowercased words of a query. A topic matches when EVERY word appears in its title, its group, or the
+ * text of its parameters (labels, notes) — "osc port" finds OSC / Tracking's Listen port. Not a ranker:
+ * topics keep their fixed order, the search only hides the ones that cannot be what you mean.
+ */
+const words = (q: string): string[] => q.toLowerCase().split(/\s+/).filter(Boolean);
+
+const TopicLayout: React.FC<{ topics: Topic[]; footer?: React.ReactNode }> = ({ topics, footer }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const bodyRefs = useRef(new Map<string, HTMLDivElement>());
+  const [width, setWidth] = useState(1000);
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<string>(() => loadTopic() ?? topics[0]?.id ?? '');
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    setWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  // EVERY topic stays mounted and only the selected one is visible — the same mount set as the old
+  // mosaic, so nothing a section holds (a device scan, the watchdog's status, a plugin's own state) is
+  // lost by looking at another topic, and the search can read every topic's text.
+  const q = words(query);
+  const groupLabel = (g: GroupId) => GROUPS.find((x) => x.id === g)?.label ?? '';
+  const matches = (t: Topic): boolean => {
+    if (!q.length) return true;
+    const hay = `${t.title} ${groupLabel(t.group)} ${bodyRefs.current.get(t.id)?.textContent ?? ''}`.toLowerCase();
+    return q.every((w) => hay.includes(w));
+  };
+  const visible = topics.filter(matches);
+  // A selection the list no longer shows (a plugin that went away, a search that hides it) falls to the
+  // first topic that IS shown, so the right column never describes a topic you cannot see on the left.
+  const current = visible.find((t) => t.id === selected) ?? visible[0] ?? null;
+
+  const pick = (id: string) => { setSelected(id); saveTopic(id); };
+
+  // Searching JUMPS TO THE PARAMETER: the first text in the shown topic containing the first word is
+  // scrolled into view and ringed for a moment.
+  const firstWord = q[0] ?? '';
+  const currentId = current?.id ?? '';
+  useEffect(() => {
+    if (!firstWord || !currentId) return;
+    const host = bodyRefs.current.get(currentId);
+    if (!host) return;
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    let hit: HTMLElement | null = null;
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if ((n.textContent ?? '').toLowerCase().includes(firstWord)) { hit = n.parentElement; break; }
+    }
+    if (!hit) return;
+    const el = hit;
+    el.scrollIntoView({ block: 'nearest' });
+    el.classList.add(...HIT_CLASSES);
+    const t = setTimeout(() => el.classList.remove(...HIT_CLASSES), 1200);
+    return () => { clearTimeout(t); el.classList.remove(...HIT_CLASSES); };
+  }, [firstWord, currentId]);
+
+  const roving = useRovingTabindex<HTMLDivElement>(visible.length);
+  const narrow = width < NARROW_PX;
+
+  const search = (
+    <div className="relative">
+      <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-3 pointer-events-none" aria-hidden />
+      <input
+        type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search settings…" aria-label="Search settings"
+        className="w-full bg-surface-0 border border-line-1 rounded-sm pl-7 pr-2 py-1 text-mini text-fg-1 focus:border-accent focus:outline-none"
+      />
+    </div>
+  );
+
+  const list = (
+    <div ref={roving.containerRef} onKeyDown={roving.onKeyDown} className="space-y-3">
+      {GROUPS.map((g) => {
+        const rows = visible.filter((t) => t.group === g.id);
+        if (!rows.length) return null;
+        return (
+          <div key={g.id}>
+            <div className="px-2 pb-1 text-micro font-semibold uppercase tracking-wider text-fg-3">{g.label}</div>
+            {rows.map((t) => {
+              const sel = t.id === current?.id;
+              return (
+                <div
+                  key={t.id}
+                  role="button"
+                  aria-pressed={sel}
+                  aria-current={sel ? 'page' : undefined}
+                  {...roving.getItemProps(visible.indexOf(t))}
+                  onClick={() => pick(t.id)}
+                  onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(t.id); } }}
+                  className={`pressable relative flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-sm cursor-pointer text-xs transition-colors ${
+                    sel ? 'bg-accent/10 text-fg-1 font-semibold' : 'text-fg-2 hover:bg-surface-2'}`}
+                >
+                  {/* The selection's SHAPE cue (a bar), not just its tint — DESIGN-SYSTEM §6. */}
+                  {sel && <span aria-hidden className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-accent" />}
+                  <span className={sel ? 'text-accent' : 'text-fg-3'}>{t.icon}</span>
+                  <span className="flex-1 truncate">{t.title}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      {!visible.length && <div className="px-2 text-mini text-fg-2 italic">No setting matches “{query}”.</div>}
+    </div>
+  );
+
+  const bodies = (
+    <>
+      {topics.map((t) => (
+        <div key={t.id} hidden={t.id !== current?.id}
+             ref={(el) => { if (el) bodyRefs.current.set(t.id, el); else bodyRefs.current.delete(t.id); }}>
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-fg-1 mb-2">
+            <span className="text-fg-3">{t.icon}</span>{t.title}
+          </h2>
+          <div className="rounded-md border border-line-1 bg-surface-1 p-3 space-y-3">{t.body}</div>
+        </div>
+      ))}
+    </>
+  );
+
+  return (
+    <div ref={rootRef} className="w-full h-full bg-surface-0 flex min-h-0" aria-label="Preferences">
+      {narrow ? (
+        <div className="flex-1 min-w-0 overflow-y-auto p-3 space-y-3">
+          {search}
+          <Select value={current?.id ?? ''} onChange={(e) => pick(e.target.value)} aria-label="Preferences topic">
+            {GROUPS.map((g) => {
+              const rows = visible.filter((t) => t.group === g.id);
+              return rows.length ? (
+                <optgroup key={g.id} label={g.label}>
+                  {rows.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+                </optgroup>
+              ) : null;
+            })}
+          </Select>
+          {bodies}
+          {footer}
+        </div>
+      ) : (
+        <>
+          <nav className="w-[220px] shrink-0 border-r border-line-1 overflow-y-auto p-2 space-y-3" aria-label="Preferences topics">
+            {search}
+            {list}
+            {footer}
+          </nav>
+          {/* Capped width: a row's label and its control stay within one glance on a 4K panel. */}
+          <div className="flex-1 min-w-0 overflow-y-auto p-4">
+            <div className="max-w-[720px]">{bodies}</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 /**
  * The named-workspace manager (plans/named-workspaces.md). The chip in the title bar is the switcher;
@@ -179,7 +365,7 @@ const WatchdogSection: React.FC = () => {
   };
 
   return (
-    <Section title="Unattended / Watchdog" icon={<ShieldAlert size={12} />}>
+    <>
       <Toggle label="Self-heal (watchdog)" checked={cfg.enabled} onChange={(v) => update({ enabled: v })}
               title="Auto-relaunch the show if the renderer/GPU crashes, the window hangs, the render loop freezes, or Art-Net output dies. Armed in broadcast mode." />
       <Toggle label="Crash + hang recovery" checked={cfg.crashRecovery} onChange={(v) => update({ crashRecovery: v })}
@@ -229,7 +415,7 @@ const WatchdogSection: React.FC = () => {
           ))}
         </div>
       )}
-    </Section>
+    </>
   );
 };
 
@@ -253,7 +439,7 @@ const BlenderSection: React.FC = () => {
     void window.artlux?.setPrefs?.({ blenderPath: next || undefined }).then(refresh);
   };
   return (
-    <Section title="Blender" icon={<Box size={12} />}>
+    <>
       <p className="text-mini text-fg-3 leading-relaxed">Native <b>.blend</b> venue files are imported by the Blender installed on this machine, and updated when you save them. A machine that only plays the show does not need it.</p>
       <Field label="Blender path">
         <input
@@ -270,7 +456,7 @@ const BlenderSection: React.FC = () => {
           : resolved ? <span className="text-fg-2 flex items-center gap-1"><Check size={11} className="text-ok shrink-0" /><span className="truncate" title={resolved}>{resolved}</span></span>
           : <span className="text-warn">Blender not found — .blend files cannot be imported or updated here.</span>}
       </div>
-    </Section>
+    </>
   );
 };
 
@@ -325,7 +511,7 @@ const GpuSection: React.FC = () => {
   };
 
   return (
-    <Section title="GPU rendering" icon={<Cpu size={12} />}>
+    <>
       <div className="flex items-center justify-between text-mini">
         <span className="text-fg-3">Active backend</span>
         <span className={`px-1.5 py-0.5 rounded-sm border num ${active === 'webgpu' ? 'bg-accent/15 border-accent text-accent' : active === 'webgl' ? 'bg-warn/15 border-warn text-warn' : 'bg-surface-2 border-line-1 text-fg-3'}`}>
@@ -376,7 +562,7 @@ const GpuSection: React.FC = () => {
         GPU process 99.8% saturated</strong>, against 60 fps on WebGPU. If this machine has no usable
         WebGPU adapter the viewport falls back on its own, so the worst case is the old behaviour.
       </div>
-    </Section>
+    </>
   );
 };
 
@@ -417,22 +603,15 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
   };
 
 
-  return (
-    // The `settings` context's viewport, laid out as a MOSAIC rather than one column. A settings screen
-    // is read and compared — you tune Engine FPS against the Watchdog's render-stall threshold, or the
-    // DMX target against the OSC bind address — and a 620px column made that scrolling instead of
-    // looking. Tiles let the whole surface be visible at once.
-    //
-    // The count is driven by `column-width`, not by viewport breakpoints: the shell can give this
-    // viewport any width (a browser/parameter column may be reopened over it, and the window itself is
-    // UI-scaled 80–200%), so the layout has to respond to the space it actually got. The `4` caps it —
-    // on a 4K panel an unbounded fill would produce a dozen columns and a header-only mosaic.
-    // Column flow is column-major and heights balance, which is what packs ragged sections tightly.
-    //
-    // No title bar: the ActionBar above already carries the context icon + "Preferences".
-    <div className="w-full h-full overflow-y-auto bg-surface-0 p-3" aria-label="Preferences">
-      <div style={{ columns: '19rem 5', columnGap: '0.75rem' }}>
-        <Tile><Section title="Appearance" icon={<Monitor size={12} />}>
+  // ── THE TOPICS ─────────────────────────────────────────────────────────────────────────────────
+  // One entry per Preferences topic: the left column lists them (grouped), the right column shows the
+  // selected one's parameters. Core topics are written out here; every plugin's SettingsSection joins
+  // them through the registry, filed under the group its id maps to (PLUGIN_GROUP), else "Plugins".
+  // The TITLES are load-bearing: the guide sends operators to "Preferences ▸ OSC / Tracking" and
+  // verify:docs checks that string still exists — rename a topic and update the guide with it.
+  const topics: Topic[] = [
+    { id: 'appearance', title: 'Appearance', group: 'interface', icon: <Monitor size={14} />, body: (
+        <>
           <Slider label="UI scale" value={uiScaleValue} min={0.8} max={2} step={0.05}
                   format={(v) => `${Math.round(v * 100)}%`} onChange={applyScale} />
           <div className="flex items-center justify-between">
@@ -457,13 +636,13 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               onChange={(v) => layoutStore.set({ dockingOff: !v })}
               title="Drag panels into tabs and splits, per workbench. Off restores the fixed browser / viewport / dock / parameters layout." />
           </EditorOnly>
-        </Section></Tile>
-
-        <Tile><Section title="Workspaces" icon={<LayoutGrid size={12} />}>
+        </>
+    ) },
+    { id: 'workspaces', title: 'Workspaces', group: 'interface', icon: <LayoutGrid size={14} />, body: (
           <EditorOnly><WorkspacesSection /></EditorOnly>
-        </Section></Tile>
-
-        <Tile><Section title="DMX Output" icon={<Cpu size={12} />}>
+    ) },
+    { id: 'dmx', title: 'DMX Output', group: 'output', icon: <Cpu size={14} />, body: (
+        <>
           <Field label="Protocol" labelWidth={LBL}>
             <Select value={settings.protocol} onChange={(e) => onChange({ protocol: e.target.value as AppSettings['protocol'] })}>
               <option value="artnet">Art-Net</option>
@@ -525,9 +704,10 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               <div className="text-micro text-fg-3 italic px-0.5">No Art-Net nodes replied.</div>
             )}
           </div>
-        </Section></Tile>
-
-        <Tile><Section title="Engine" icon={<Cpu size={12} />}>
+        </>
+    ) },
+    { id: 'engine', title: 'Engine', group: 'output', icon: <Cpu size={14} />, body: (
+        <>
           <NumberField label="FPS" labelWidth={LBL} value={settings.fps} step={1} min={1} max={1000} onChange={(v) => onChange({ fps: Math.max(1, Math.min(1000, Math.round(v))) })} />
           <Toggle label="Keep-alive" checked={settings.keepAlive} onChange={(v) => onChange({ keepAlive: v })} title="Re-send last frame at FPS so receivers never starve" />
           <Toggle label="Synchronous output (ArtSync)" checked={settings.artNetSync} onChange={(v) => onChange({ artNetSync: v })} title="Send ArtSync (0x5200) after each frame so nodes latch + output simultaneously (tear-free multi-universe)" />
@@ -544,11 +724,12 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               keep-alive). Lower this if the preview stutters on heavy video; raise it on a fast rig. */}
           <NumberField label="Engine rate (fps)" labelWidth={LBL} value={settings.engineFps ?? 30} step={1} min={1} max={120}
             onChange={(v) => onChange({ engineFps: Math.max(1, Math.min(120, Math.round(v))) })} />
-        </Section></Tile>
-
-        <Tile><GpuSection /></Tile>
-
-        <Tile><Section title="OSC / Tracking" icon={<Radio size={12} />}>
+        </>
+    ) },
+    { id: 'gpu', title: 'GPU rendering', group: 'output', icon: <Cpu size={14} />, body: <GpuSection /> },
+    { id: 'blender', title: 'Blender', group: 'media', icon: <Box size={14} />, body: <BlenderSection /> },
+    { id: 'osc', title: 'OSC / Tracking', group: 'control', icon: <Radio size={14} />, body: (
+        <>
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
           <NumberField label="Listen port" labelWidth={LBL} value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />
           <Field label="Bind address" labelWidth={LBL}>
@@ -591,29 +772,23 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
             </Tooltip>
           </Field>
           <OscSendersBlock settings={settings} onChange={onChange} />
-        </Section></Tile>
+        </>
+    ) },
+    { id: 'watchdog', title: 'Unattended / Watchdog', group: 'system', icon: <ShieldAlert size={14} />, body: <WatchdogSection /> },
+    // Plugin-contributed sections (e.g. the mp4 plugin's "Video"). Each owns its fields; the host passes
+    // the shared settings + onChange. Contained in its OWN ErrorBoundary, so a throwing plugin panel
+    // leaves the rest of Preferences usable — including Unattended / Watchdog, which is where an operator
+    // goes when things are already going wrong.
+    ...settingsSectionRegistry.all().map((sec): Topic => ({
+      id: sec.id, title: sec.title, group: PLUGIN_GROUP[sec.id] ?? 'plugins', icon: sec.icon ?? <Cpu size={14} />,
+      body: (
+        <ErrorBoundary variant="panel" scope={`plugin:${sec.id}`} pluginId={sec.id} label={sec.title}>
+          <sec.Component settings={settings} onChange={onChange} />
+        </ErrorBoundary>
+      ),
+    })),
+  ];
 
-        <Tile><WatchdogSection /></Tile>
-
-        <Tile><BlenderSection /></Tile>
-
-        {/* Plugin-contributed settings sections (e.g. the mp4 plugin's "Video"). Each owns its fields;
-            the host passes the shared settings + onChange. Keeps plugin settings out of core. They tile
-            with the core ones — a plugin's section is not a second-class citizen here. */}
-        {/* Contained INSIDE the section, so a throwing plugin settings panel leaves the rest of
-            Preferences usable — including the Unattended/Watchdog section, which is where an
-            operator goes when things are already going wrong. */}
-        {settingsSectionRegistry.all().map((s) => (
-          <Tile key={s.id}>
-            <Section title={s.title} icon={s.icon ?? <Cpu size={12} />}>
-              <ErrorBoundary variant="panel" scope={`plugin:${s.id}`} pluginId={s.id} label={s.title}>
-                <s.Component settings={settings} onChange={onChange} />
-              </ErrorBoundary>
-            </Section>
-          </Tile>
-        ))}
-      </div>
-      <ElsewhereSections />
-    </div>
-  );
+  // No title bar: the ActionBar above already carries the context icon + "Preferences".
+  return <TopicLayout topics={topics} footer={<ElsewhereSections />} />;
 };

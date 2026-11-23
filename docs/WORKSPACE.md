@@ -193,12 +193,17 @@ Seven of these are worth knowing the history of, because the shape was arrived a
   screen you *read and compare*, not one you acknowledge. It is still the single host for plugin
   settings sections; that did not move. `Ctrl+,` and the Context menu both land on it.
 
-  Its sections are a **mosaic**, not a column: each `Section` becomes a card and CSS multi-column packs
-  them (`columns: 19rem 5`). The count follows the width the shell actually gave the viewport rather
-  than a viewport breakpoint — 4 columns at 1392px, 3 at 1000, 2 at 700, 1 at 420 — because the window
-  is also UI-scaled 80–200%. The `5` is a cap: unbounded, a 4K panel gets a dozen header-only columns.
-  Each card needs `break-inside-avoid` or the column algorithm chops it in half. Eleven sections now
-  fit in roughly one screen (33px of scroll) instead of ~1300px of it.
+  It is **two columns: topics, then one topic's parameters** (owner, 2026-11-23). The left column
+  (`TopicLayout` in `Preferences.tsx`, 220px) lists every topic under five groups, plugin sections filed
+  by `PLUGIN_GROUP` (an unknown plugin id falls to "Plugins" rather than vanishing); the right column
+  shows only the selected topic, capped at 720px so a label and its control stay in one glance on a 4K
+  panel. It replaced a **mosaic** — every section a card, packed by CSS multi-column — which showed
+  everything at once but put each card somewhere different at every width. Three things hold it up:
+  every topic stays **mounted** and only the selected one is visible (the mosaic's mount set, so a device
+  scan or a plugin's own state survives looking elsewhere, and search can read every topic's text); the
+  search **filters, it does not rank** (topics keep their order — so it is not a second scorer next to
+  `services/docSearch`); and below 560px of width the list folds into a picker, because a Preferences
+  panel window can be 280px wide.
 - **`show` absorbed the tablet remote's feature set.** Schedule and Playlist were reachable *only* from
   the served PWA, so an operator at the machine could arm an unattended venue from a phone but not from
   the app in front of them. See [SHOW-CONTROL.md](SHOW-CONTROL.md) → the desktop Show context.

@@ -2,8 +2,18 @@
 
 ## Preferences
 
-Open from the title‑bar **Preferences** icon, **File ▸ Preferences…**, or **Ctrl/Cmd+,**. It's a single
-scrolling panel with collapsible sections.
+Open from the title‑bar **Preferences** icon, **File ▸ Preferences…**, or **Ctrl/Cmd+,**.
+
+Preferences has two columns. The **left column lists every topic**, grouped under Interface, Output,
+Media, Control & tracking and System — a plugin's own settings sit with the core ones, in the group they
+belong to. **Click a topic and the right column shows only its parameters.** Preferences reopens on the
+topic you last looked at.
+
+- **Search settings** (top of the left column) narrows the list to the topics that mention every word you
+  type — a parameter's name or its note counts, not just the topic's title — and jumps to the first
+  matching parameter, ringing it for a moment. Clear the field to see every topic again.
+- **In a narrow window** (Preferences opened in a window of its own, made small) the topic list becomes a
+  picker above the parameters.
 
 ![The Preferences panel](images/14-preferences.png)
 *Preferences: DMX Output, Engine, and OSC / Tracking sections.*
