@@ -10,6 +10,7 @@ import { useLayerTexture } from './useLayerTexture';
 import { useSurfaceTexture } from './useSurfaceTexture';
 import { registerDepthCaster, unregisterDepthCaster } from './projectorDepth';
 import { blankMap } from './blankMap';
+import { useModelDragTarget } from './ObjectDrag';
 
 const DEG = Math.PI / 180;
 
@@ -86,6 +87,14 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
     c.addEventListener('mouseUp', onUp);
     return () => { c.removeEventListener('mouseDown', onDown); c.removeEventListener('objectChange', onChange); c.removeEventListener('mouseUp', onUp); };
   }, [selected, group, model.id, onCommit, onRecordHistory]);
+
+  // Press-and-drag the selected object itself, with object snaps (ObjectDrag.tsx) — the same commit
+  // as the gizmo's release, so one undo step.
+  useModelDragTarget(!!selected && !calibPickMode, group, () => onCommit(model.id, {
+    position: { x: group.position.x, y: group.position.y, z: group.position.z },
+    rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
+    scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
+  }), onRecordHistory);
 
   if (!model.visible) return null;
 

@@ -3,6 +3,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Fixture } from '../../types';
 import { effectivePos } from '../../services/led3dLayout';
+import { objectDragPending } from './ObjectDrag';
 
 export interface MarqueeRect { x: number; y: number; w: number; h: number }
 
@@ -51,6 +52,7 @@ export const MarqueePicker: React.FC<Props> = ({ fixtures, onRect, onSelect, sel
 
     const down = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      if (objectDragPending()) return;   // a press on the selection is a drag (ObjectDrag.tsx), not a box
       start = local(e);
       additive = e.shiftKey || e.ctrlKey || e.metaKey;
       el.setPointerCapture(e.pointerId);

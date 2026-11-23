@@ -203,7 +203,7 @@ export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, 
           never moves. Same reasoning as FixtureBodies: pick the housing, not the light. */}
       <instancedMesh
         key={`base-${count}`} ref={baseRef} args={args(count) as never} geometry={UNIT_BOX}
-        onClick={onClick} userData={{ [LED_PICK]: true }}
+        onClick={onClick} userData={{ [LED_PICK]: true, fixtureIdAt: (i: number) => movers[i]?.id }}
       >
         <meshStandardMaterial roughness={0.7} metalness={0.15} toneMapped={false} />
       </instancedMesh>

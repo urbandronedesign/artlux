@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEf
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid, Crosshair, ChevronDown } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -37,6 +37,8 @@ import { GroundGrid } from './GroundGrid';
 import { OrthoCamera, ViewController, FrameController, DisplayModeController } from './ViewControls';
 import { setGridPlane, gridQuaternion, registerGridGroup } from './gridSpace';
 import { GizmoOrbitGuard } from './GizmoOrbitGuard';
+import { ObjectDrag, FixtureDragTarget } from './ObjectDrag';
+import { getOsnap, setOsnap, subscribeOsnap, toggleOsnapKind, OSNAP_KINDS, OSNAP_LABEL, OSNAP_HINT } from '../../services/snap3d';
 import { MultiView, multiViewEvents } from './MultiView';
 import { htmlPosition } from './htmlPosition';
 import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, getLayout, setLayout, subscribeLayout, maximisePane, QUAD_PANES, getActivePane, subscribeActivePane, type ViewKind } from '../../services/view3d';
@@ -287,6 +289,49 @@ const AdaptiveClipping: React.FC<{ off?: boolean }> = ({ off }) => {
 
 // `helpId` opts the tool into the rich help system: it spreads help() onto the host <button> and wraps
 // it in a Tooltip (the button is a real DOM element, which is what Tooltip needs to clone + ref).
+// OrbitControls button maps (see the OrbitControls mount), as three's MOUSE values — ROTATE 0, DOLLY 1,
+// PAN 2 — because THREE is a type-only import here. -1 = that button does nothing to the camera.
+const TOOL_MOUSE = { LEFT: 0 as THREE.MOUSE, MIDDLE: 1 as THREE.MOUSE, RIGHT: 2 as THREE.MOUSE };
+const SELECT_MOUSE = { LEFT: -1 as THREE.MOUSE, MIDDLE: 2 as THREE.MOUSE, RIGHT: 0 as THREE.MOUSE };
+const SELECT_MOUSE_FLAT = { LEFT: -1 as THREE.MOUSE, MIDDLE: 2 as THREE.MOUSE, RIGHT: 2 as THREE.MOUSE };   // a flat view never rotates
+
+/** Object snaps: the button turns them on/off (O); the chevron opens the list of kinds. */
+const OsnapControl: React.FC = () => {
+  const os = useSyncExternalStore(subscribeOsnap, getOsnap);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener('pointerdown', close, true);
+    return () => window.removeEventListener('pointerdown', close, true);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative flex items-center">
+      <ToolBtn active={os.on} title={`Object snaps ${os.on ? 'on' : 'off'}${keyHint('scene3d.toggleOsnap')} — drag a selected object onto corners, edges, surfaces, centres, fixture ends; hold Alt to ignore`} helpId="scene3d.osnap" onClick={() => setOsnap({ on: !os.on })}>
+        <Crosshair size={14} />
+      </ToolBtn>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Which object snaps are on"
+        aria-expanded={open}
+        className="ml-px px-0.5 py-1.5 rounded-sm text-fg-3 hover:text-fg-1"
+      ><ChevronDown size={12} /></button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-30 min-w-[13rem] p-1 rounded-sm bg-surface-1 border border-line-2 shadow-lg">
+          {OSNAP_KINDS.map((k) => (
+            <label key={k} title={OSNAP_HINT[k]} className="flex items-center gap-2 px-1.5 py-1 rounded-sm text-micro text-fg-1 hover:bg-surface-2 cursor-pointer">
+              <input type="checkbox" checked={os.kinds.includes(k)} onChange={() => toggleOsnapKind(k)} />
+              <span className="w-12">{OSNAP_LABEL[k]}</span>
+              <span className="text-fg-3 truncate">{OSNAP_HINT[k]}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ToolBtn: React.FC<{ active: boolean; title: string; helpId?: string; onClick: () => void; children: React.ReactNode }> = ({ active, title, helpId, onClick, children }) => {
   const btn = (
     <button
@@ -338,6 +383,7 @@ const Simulator3D: React.FC<Props> = ({
       else if (keymap.matches(e, 'scene3d.modeSelect')) setMode('select');
       else if (keymap.matches(e, 'scene3d.gizmoSpace')) setGizmoSpace(getGizmoSpace() === 'world' ? 'local' : 'world');
       else if (keymap.matches(e, 'scene3d.toggleSnap')) setSnap({ on: !getSnap().on });
+      else if (keymap.matches(e, 'scene3d.toggleOsnap')) setOsnap({ on: !getOsnap().on });
       // VIEWS (3d-workbench Phase 1) — Blender's numpad layout; Ctrl gives the opposite side.
       else if (VIEW_KEYS.some(([id, v]) => keymap.matches(e, id) && (setView(v), true))) e.preventDefault();
       else if (keymap.matches(e, 'scene3d.zoomExtents')) { e.preventDefault(); requestFrame('extents'); }
@@ -600,8 +646,11 @@ const Simulator3D: React.FC<Props> = ({
               ? SNAP_SCALE_CHOICES.map((v) => <option key={v} value={v}>{v}×</option>)
               : SNAP_MOVE_CHOICES.map((v) => <option key={v} value={v}>{v < 1 ? `${v * 1000} mm` : `${v} m`}</option>)}
         </select>
+        {/* OBJECT SNAPS (Phase 3) — on/off, and a menu of which ones. A popover, not a second strip:
+            the header must not grow. */}
+        <OsnapControl />
         <div className="w-px h-4 bg-line-1 mx-1" />
-        <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add; right-drag orbits`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
         <div className="w-px h-4 bg-line-1 mx-1" />
         {/* ONE VIEW ⇄ FOUR (Phase 2) — Rhino's Top / Perspective / Front / Right. Per machine. */}
         <ToolBtn active={quad} title={`${quad ? 'Back to one view' : 'Four views — Top, Perspective, Front, Right'}${keyHint('scene3d.toggleQuad')}`} helpId="scene3d.layout" onClick={() => setLayout(layout === 'quad' ? 'single' : 'quad')}><LayoutGrid size={14} /></ToolBtn>
@@ -886,8 +935,18 @@ const Simulator3D: React.FC<Props> = ({
         {/* Suspended (not unmounted) during a pick drag — the same gesture must not also orbit — and
             while looking through a projector, whose camera is driven from the calibration. */}
         {/* An orthographic view only pans and zooms — rotation locked, as in Rhino (owner, 2026-11-23). */}
-        <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select' && !ortho} />
+        {/* BOX SELECT keeps the camera turning, the Rhino way (owner, 2026-11-24: "I can't move in the
+            perspective view" — Box select left the mouse no way to rotate, and object drags made it the
+            tool people sit in). There the left button belongs to the box and to dragging the selection,
+            so RIGHT-drag orbits and MIDDLE-drag pans. Every other tool keeps left = orbit, right = pan. */}
+        <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={!ortho}
+          mouseButtons={mode === 'select' ? (ortho ? SELECT_MOUSE_FLAT : SELECT_MOUSE) : TOOL_MOUSE} />
         <GizmoOrbitGuard />
+        {/* Press-and-drag the selection itself, with object snaps — after the guard, whose window
+            listener must decide "gizmo handle?" first. Not while picking calibration anchors or looking
+            through a projector. */}
+        <ObjectDrag fixtures={fixtures} enabled={!calibPickMode && !viewFrom && dragPick == null} />
+        <FixtureDragTarget fixtures={gizmoFixtures} onRecordHistory={onRecordHistory} onCommit={onCommitFixture3D} />
         <ViewBridge />
         <DisplayModeController mode={displayMode} />
         {quad && <MultiView orbitEnabled={dragPick == null && !viewFrom} />}

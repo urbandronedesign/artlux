@@ -63,6 +63,16 @@ export function multiViewEvents(store: Parameters<typeof createPointerEvents>[0]
   };
 }
 
+/**
+ * The pane under a canvas-relative point and the camera it draws through — for code that raycasts on
+ * its own (ObjectDrag). `null` when four views are not up: then the whole canvas is one view.
+ */
+export function paneViewAt(x: number, y: number, w: number, h: number, def: THREE.Camera): { rect: { x: number; y: number; w: number; h: number }; cam: THREE.Camera } | null {
+  if (!flats.size) return null;
+  const p = paneAt(x, y, w, h);
+  return { rect: paneRect(p, w, h), cam: paneCamera(p, def) };
+}
+
 /** The camera a pane draws (and the gizmo raycasts) through. */
 function paneCamera(p: Pane, def: THREE.Camera): THREE.Camera { return flats.get(p.id)?.cam ?? def; }
 

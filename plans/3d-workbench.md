@@ -301,6 +301,28 @@ document state; a named view save **is**).
 `<Canvas>` under `Simulator3D/` besides the existing calibration exceptions).
 
 ### Phase 3 — Object snapping (Osnaps) · ~4–5 wk
+
+> **Owner decision 2026-11-24 — how a move is grabbed: "Drag the object".** The gizmo's handles sit at the
+> selection's centre, so with the gizmo alone a bar cannot be grabbed by its END — and chaining bars needs
+> exactly that. So objects are moved by pressing on an already-selected object and dragging it (Rhino's
+> drag): the pressed point, pulled onto the object's own end / corner / centre within the capture radius,
+> is the base point (§6.3 holds). The gizmo stays for single-axis moves, rotate and scale.
+>
+> **Step 1 built 2026-11-24** — `services/snap3d.ts` (core: kinds, per-machine settings, ranking, fixture
+> ends at half a pitch past the end LEDs), `Simulator3D/snapQuery.ts` (adapter: Face by raycast, End/Mid/
+> Edge from EdgesGeometry feature edges near the hit, Centre from bounds, fixtures; feature edges and a
+> `three-mesh-bvh` BVH built per geometry in an idle callback, never on the pointer path; nearest point
+> candidates occlusion-tested), `Simulator3D/ObjectDrag.tsx` (the drag: window capture listeners, a
+> registry of drag targets — selected fixtures through gizmoDelta + fixturePreview, selected models and
+> screens by their group — orbit held and the closing click swallowed through GizmoOrbitGuard, marker by
+> direct style writes). Header: crosshair (O) + a menu of kinds. A press: a fixture under the pointer wins
+> over a model nearer the camera (pickPriority's rule — the example's wall strip lies 34 mm under the floor
+> projection, and every press landed on the floor until this). Checked on WebGPU and WebGL in the packaged
+> Show: grab the wall strip 10 px inside its end → base "Fixture end", marker "End" over the wall's corner,
+> the bar's end lands on it to 0.0 mm; camera still, selection kept, one undo puts it back; a model drag
+> moves on the floor-level plane; empty-space drag still orbits; the per-pane gizmo tests still pass.
+> **Next:** Place on surface + align to the face normal (Face snaps already carry the normal), the Measure
+> tool, then perf on a heavy venue (budget < 1 ms per pointer move, production build).
 1. **The snap engine** generalises `vertexSnap.ts` into `services/snap3d/` (core) + a geometry provider
    (adapter):
    - **Modes (v1):** Grid · Vertex/End · Midpoint (of an edge) · Edge (nearest point on an edge) · Face (point

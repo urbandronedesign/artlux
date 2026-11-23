@@ -75,9 +75,10 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'scene3d.modeTranslate', label: 'Move tool',       category: 'Tools', scope: 'scene3d', defaultBinding: ['W'] },
   { id: 'scene3d.modeRotate',    label: 'Rotate tool',     category: 'Tools', scope: 'scene3d', defaultBinding: ['E'] },
   { id: 'scene3d.modeScale',     label: 'Scale tool',      category: 'Tools', scope: 'scene3d', defaultBinding: ['R'] },
-  { id: 'scene3d.modeSelect',    label: 'Box select tool', category: 'Tools', scope: 'scene3d', defaultBinding: ['Q'], description: 'Drag to select fixtures; hold Shift to add to the selection.' },
+  { id: 'scene3d.modeSelect',    label: 'Box select tool', category: 'Tools', scope: 'scene3d', defaultBinding: ['Q'], description: 'Drag to select fixtures; hold Shift to add to the selection. Right-drag orbits, middle-drag pans.' },
   { id: 'scene3d.gizmoSpace',    label: 'World / Object axes', category: 'Tools', scope: 'scene3d', defaultBinding: ['X'], description: 'Toggles. Object aligns the handles to the selected fixture; the pivot stays on the middle of the selection either way.' },
   { id: 'scene3d.toggleSnap',    label: 'Toggle snapping', category: 'Tools', scope: 'scene3d', defaultBinding: ['S'], description: 'Hold Ctrl during a drag to invert it for that drag only.' },
+  { id: 'scene3d.toggleOsnap',   label: 'Toggle object snaps', category: 'Tools', scope: 'scene3d', defaultBinding: ['O'], description: 'Snaps a dragged object onto corners, edges, surfaces, centres and fixture ends. Hold Alt during a drag to ignore them for that drag.' },
 
   // VIEWS (plans/3d-workbench.md Phase 1) — Blender's numpad layout, Ctrl for the opposite side. The digits
   // match the top row too (the keymap reads KeyboardEvent.key), so a laptop without a numpad still has them.

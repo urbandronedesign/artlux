@@ -18,6 +18,9 @@ split‑view button in the Stage's top‑right toolbar; drag the divider to resi
 | Wheel | Zoom |
 | Click empty space | Deselect |
 
+In **Box select** (**Q**) the left button draws the selection box and drags the selection, so the camera
+moves the Rhino way there: **right‑drag orbits**, **middle‑drag pans**, the wheel zooms.
+
 ### Top, Front, Right — the flat views
 
 The **view picker** in the 3D header switches between **Perspective** and six flat (orthographic) views:
@@ -169,6 +172,27 @@ the arrows fall back to a fine 10 mm / 1°. One press is one undo step.
 
 While you drag, the header shows what the gesture amounts to: the offset and total distance, the angle
 turned, or the scale factor — so a placement can be checked *before* you let go.
+
+### Drag onto a corner, an edge or a fixture end — object snaps
+
+**Press on something that is already selected and drag it** — a fixture, a model or a screen, in any
+tool and in any of the four views. The point you pressed is the point that lands:
+
+- **Grab it where you want it to meet the target.** Press near one of its own ends, corners or its
+  centre and it takes that exact point — so a LED bar taken **by its end** and dropped on the end of
+  another bar chains onto it with **one pixel pitch across the joint**.
+- **Drop it on a snap.** While you drag, a small marker sits on the point it will land on and names it:
+  **End** (a corner of a model or screen), **Mid** (the middle of an edge), **Edge**, **Face** (anywhere
+  on a surface), **Centre**, **Fixture end**, **Fixture centre**.
+- **Nothing to snap to?** It slides on the floor‑level plane (in a flat view, on that view's plane) and
+  lands on the grid step when the magnet is on.
+
+The **crosshair** button beside the magnet (or **O**) turns object snaps on and off; the small arrow next
+to it chooses which ones are on — End, Mid, Centre and Fixture to start with. Hold **Alt** to ignore them
+for one drag, **Ctrl** to invert the grid, **Esc** to put it back. One drag is one undo step, and the
+header shows the offset as you go, as it does for the gizmo.
+
+The gizmo stays as it was for moves along one axis, turning and scaling.
 
 ### Scale — each axis on its own
 

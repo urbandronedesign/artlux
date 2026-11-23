@@ -51,6 +51,16 @@ export const scene3dHelp: HelpEntry[] = [
     shortcut: 'S',
   },
 
+  {
+    id: 'scene3d.osnap',
+    title: 'Object snaps',
+    short: 'Drag an object onto a corner, an edge, a surface, a centre or a fixture end.',
+    body: 'Press on something that is already selected and drag it. The point you pressed is what lands — and when you press near one of its own ends, corners or centre, it grabs that point exactly, so a LED bar taken by its end chains onto the end of another with one pitch across the joint. While you drag, a marker names the snap under the cursor: End, Mid, Edge, Face, Centre, Fixture end, Fixture centre. The menu beside this button chooses which ones are on; the button (O) turns them all off and on. With nothing to snap to, the object slides on the floor-level plane (in a flat view, on that view’s plane) and lands on the grid step when the magnet is on. Hold Alt to ignore object snaps for one drag, Ctrl to invert the grid, Esc to put it back.',
+    group: '3D Scene',
+    keywords: ['osnap', 'object snap', 'snap', 'vertex', 'corner', 'end', 'midpoint', 'edge', 'face', 'centre', 'center', 'chain', 'drag', 'align', 'rhino'],
+    shortcut: 'O',
+  },
+
   // ── Objects browser + header actions ────────────────────────────────────────────────────────
   {
     id: 'scene3d.model-visibility',
@@ -115,7 +125,7 @@ export const scene3dHelp: HelpEntry[] = [
     id: 'scene3d.layout',
     title: 'Four views',
     short: 'Top, Perspective, Front and Right at once — or back to one view.',
-    body: 'Rhino’s four-view layout. Perspective (top right) is where you work: orbit, the gizmo and the view picker act there. The three flat views are live references: wheel to zoom about the pointer, right- or middle-drag to pan, click to select. Double-click a pane’s title to make it the only view. Ctrl+Alt+Q switches between one view and four; the choice is kept on this machine.',
+    body: 'Rhino’s four-view layout. Perspective (top right) is where you orbit. In the three flat views, wheel to zoom about the pointer and right- or middle-drag to pan. Select, move with the gizmo and drag objects in any of the four; the pane you clicked last has its title outlined. Double-click a pane’s title to make it the only view. Ctrl+Alt+Q switches between one view and four; the choice is kept on this machine.',
     group: '3D Scene',
     keywords: ['quad', 'four views', 'multi view', 'layout', 'split', 'viewports', 'rhino'],
   },

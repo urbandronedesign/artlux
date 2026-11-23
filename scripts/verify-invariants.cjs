@@ -4245,6 +4245,36 @@ check(
 );
 
 check(
+  'object snaps stay off the frame and off React',
+  'Object snaps run at pointer rate during a drag, against venue models that can be millions of ' +
+  'triangles. Two ways to make every drag stutter, neither of which throws: building a mesh BVH (or the ' +
+  'feature-edge list) inside the pointer handler — a one-second hitch the first time a big venue is ' +
+  'snapped to — and putting the drag in React state, which re-renders the whole 3D tree per pointer move ' +
+  '(the fixturePreview rule). So the per-geometry data is built in snapQuery.ts in an idle callback ' +
+  'only, nothing else builds a BVH, and ObjectDrag.tsx keeps no React state. A press also lets a fixture ' +
+  'under the pointer win over a model nearer the camera (pickPriority.ts) — without it a bar lying on a ' +
+  'screen or floor could never be grabbed.',
+  () => {
+    const S = 'src/renderer/components/Simulator3D/';
+    const problems = [];
+    const q = S + 'snapQuery.ts', d = S + 'ObjectDrag.tsx';
+    if (!exists(q) || !exists(d)) return 'snapQuery.ts / ObjectDrag.tsx is gone';
+    const qs = read(q);
+    const idleAt = qs.indexOf('idle(() => {');
+    const bvhAt = qs.indexOf('new MeshBVH(');
+    const edgesAt = qs.indexOf('new THREE.EdgesGeometry(');
+    if (idleAt < 0 || bvhAt < idleAt || edgesAt < idleAt) problems.push('snapQuery.ts builds the BVH / feature edges outside its idle callback');
+    if (!/return b \?\? a;/.test(qs)) problems.push('pressHit no longer lets a fixture under the pointer win over a model (pickPriority rule)');
+    for (const f of walk('src/renderer')) {
+      if (!/\.(ts|tsx)$/.test(f) || f.endsWith('snapQuery.ts')) continue;
+      if (/new MeshBVH\(|computeBoundsTree/.test(read(f))) problems.push(`${f} builds a BVH — only snapQuery.ts may, off the frame`);
+    }
+    if (/useState\(/.test(read(d))) problems.push('ObjectDrag.tsx keeps React state — a drag would re-render the 3D tree per pointer move');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the floor grid scales in X and Z only',
   'Every vertex of the grid sits at y = 0.001 — a 1 mm lift, because the beams draw their ' +
   'illumination boundary AT y = 0 and a coincident line pair z-fights into a dashed mess as the ' +

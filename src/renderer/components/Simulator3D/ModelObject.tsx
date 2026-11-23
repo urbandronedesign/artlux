@@ -14,6 +14,7 @@ import { recenterClone, applyModelTransform } from './venuePlacement';
 import { makeProjectedMaterial, usesProjectedUv, usesProjectedOcclusion, DEFAULT_BIAS_M, type ProjectedMaterial } from './projectedMapping';
 import { registerDepthCaster, unregisterDepthCaster, setDepthRequest } from './projectorDepth';
 import { registerVenueMesh, unregisterVenueMesh, calibSession } from '@artlux/plugin-calibration/playback';
+import { useModelDragTarget } from './ObjectDrag';
 
 const DEG = Math.PI / 180;
 
@@ -288,6 +289,14 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     c.addEventListener('mouseUp', onUp);
     return () => { c.removeEventListener('mouseDown', onDown); c.removeEventListener('objectChange', onChange); c.removeEventListener('mouseUp', onUp); };
   }, [selected, group, model.id, onCommit, onRecordHistory]);
+
+  // Press-and-drag the selected object itself, with object snaps (ObjectDrag.tsx) — the same commit
+  // as the gizmo's release, so one undo step.
+  useModelDragTarget(!!selected && !calibPickMode, group, () => onCommit(model.id, {
+    position: { x: group.position.x, y: group.position.y, z: group.position.z },
+    rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
+    scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
+  }), onRecordHistory);
 
   if (!model.visible) return null;
 

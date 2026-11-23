@@ -155,7 +155,8 @@ export const FixtureBodies: React.FC<Props> = ({ fixtures, selectedIds, onSelect
       geometry={UNIT_BAR}
       onClick={onClick}
       // Backdrop screens yield to this the same way they yield to the LEDs — see pickPriority.ts.
-      userData={{ [LED_PICK]: true }}
+      // fixtureIdAt: instance → fixture id, for code that raycasts on its own (ObjectDrag.tsx).
+      userData={{ [LED_PICK]: true, fixtureIdAt: (i: number) => fixtures[i]?.id }}
     >
       <meshStandardMaterial roughness={0.6} metalness={0.1} toneMapped={false} />
     </instancedMesh>

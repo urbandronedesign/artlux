@@ -24,14 +24,33 @@ import { htmlPosition } from './htmlPosition';
 type Gizmo = THREE.Object3D & { isTransformControls?: boolean; axis?: string | null; enabled?: boolean; dragging?: boolean };
 
 let held = false;
-/** True from a press on a gizmo handle until its release — nothing may turn the orbit back on meanwhile. */
+let saved: boolean | null = null;
+let swallowClick = false;
+/** True from a press on a gizmo handle (or on a selected object being dragged — ObjectDrag.tsx) until
+ *  its release — nothing may turn the orbit back on meanwhile. */
 export function gizmoHeld(): boolean { return held; }
+
+type Ctl = { enabled?: boolean } | null;
+/** Switch the orbit off until the button comes up (the guard's pointerup restores it). */
+export function holdOrbit(controls: unknown): void {
+  if (held) return;
+  held = true;
+  const k = controls as Ctl;
+  if (k && 'enabled' in k) { saved = k.enabled ?? true; k.enabled = false; }
+}
+function releaseOrbit(controls: unknown): void {
+  if (!held) return;
+  held = false;
+  const k = controls as Ctl;
+  if (k && 'enabled' in k && saved !== null) k.enabled = saved;
+  saved = null;
+}
+/** The click that follows this press is a gesture's end, not a pick — stop it before r3f sees it. */
+export function swallowNextClick(): void { swallowClick = true; }
 
 export function GizmoOrbitGuard(): null {
   const get = useThree((s) => s.get);
   useEffect(() => {
-    let saved: boolean | null = null;
-    let swallowClick = false;
     const onDown = (e: PointerEvent) => {
       const { scene, gl, events, controls } = get();
       const host = (events.connected as HTMLElement | undefined) ?? gl.domElement;
@@ -43,21 +62,13 @@ export function GizmoOrbitGuard(): null {
         if (!onHandle && g.isTransformControls && g.enabled !== false && g.axis) onHandle = true;
       });
       swallowClick = onHandle;   // set per press (cleared above for any other) — one press, one click
-      if (!onHandle) return;
-      held = true;
-      const k = controls as unknown as { enabled?: boolean } | null;
-      if (k && 'enabled' in k) { saved = k.enabled ?? true; k.enabled = false; }
+      if (onHandle) holdOrbit(controls);
     };
-    const onUp = () => {
-      if (!held) return;
-      held = false;
-      const k = get().controls as unknown as { enabled?: boolean } | null;
-      if (k && 'enabled' in k && saved !== null) k.enabled = saved;
-      saved = null;
-    };
+    const onUp = () => releaseOrbit(get().controls);
     // DIAGNOSTIC (read-only, window-guarded like __artluxView3d): where each gizmo's centre is on the
     // canvas (in four views, inside the Perspective pane), so a test can grab one and check the camera stayed put.
     const w = window as unknown as Record<string, unknown>;
+    w.__artluxOrbitState = () => ({ held, saved, enabled: (get().controls as unknown as { enabled?: boolean } | null)?.enabled ?? null, swallowClick });
     w.__artluxGizmos = () => {
       const { scene, camera, gl } = get();
       const r = gl.domElement.getBoundingClientRect();
@@ -80,8 +91,8 @@ export function GizmoOrbitGuard(): null {
       window.removeEventListener('click', onClick, true);
       window.removeEventListener('pointerup', onUp, true);
       window.removeEventListener('pointercancel', onUp, true);
-      held = false;
-      delete w.__artluxGizmos;
+      held = false; saved = null; swallowClick = false;
+      delete w.__artluxGizmos; delete w.__artluxOrbitState;
     };
   }, [get]);
   return null;
