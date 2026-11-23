@@ -3,8 +3,8 @@
 // while the layout is 'quad' (services/view3d), so a single view runs exactly the path it always did.
 //
 // THE MODEL, increment 1:
-//   - PERSPECTIVE (top-right) is the WORKING pane: r3f's default camera, OrbitControls, the transform
-//     gizmos, the corner widget's view — everything the single view had, in a quarter of the canvas.
+//   - PERSPECTIVE (top-right) holds r3f's default camera and OrbitControls — the orbit, in a quarter of
+//     the canvas. The gizmos work in any pane (below); the last pane clicked is the ACTIVE one.
 //   - THE THREE FLAT PANES are live references: each has its own orthographic camera (target + zoom),
 //     wheel zooms it about the cursor, right/middle-drag pans it, a click selects through it.
 //
@@ -17,15 +17,20 @@
 //   - THE GRID per pane: its plane and scale are re-solved for each pane's camera before drawing it
 //     (gridSpace + GroundGrid.applyGrid). The NUMBERS stay in the Perspective pane — their geometry is
 //     laid out for one camera.
-//   - THE GIZMOS: three-stdlib TransformControls maps the pointer over the WHOLE canvas (getPointer reads
-//     the element's rect); here it is re-pointed at the Perspective pane, and restored on the way out.
+//   - THE GIZMOS work in EVERY pane (increment 2). three-stdlib TransformControls maps the pointer over the
+//     WHOLE canvas (getPointer reads the element's rect) and raycasts/sizes itself through ONE `camera`.
+//     So: the gizmo's pane is the pane under the pointer (locked while a handle is held); its getPointer
+//     maps into that pane and its camera is that pane's. For drawing, each pane's pass hands the gizmo
+//     its own camera (so it is sized and oriented right in every pane), and after the passes the gizmo
+//     gets its pane's camera back AND its matrices re-solved — its drag plane is a child whose matrix
+//     the LAST pass computed, and a stale plane would drag along the wrong pane's axes.
 //   - ORBIT is held off while the pointer is over a flat pane, so a wheel there zooms that pane only.
 
 import React, { useEffect, useRef } from 'react';
 import { useFrame, useThree, events as createPointerEvents, type RootState } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
-  ORTHO_VIEWS, QUAD_PANES, paneAt, paneRect, orthoFitZoom, onFrameRequest, type OrthoView, type Pane,
+  ORTHO_VIEWS, QUAD_PANES, paneAt, paneRect, orthoFitZoom, onFrameRequest, setActivePane, type OrthoView, type Pane,
 } from '../../services/view3d';
 import { setGridPlane, syncGridGroups } from './gridSpace';
 import { applyGrid } from './GroundGrid';
@@ -41,7 +46,6 @@ const BG = new THREE.Color('#0d0d0d');
 // The flat panes' cameras, shared with the pointer computer. Module state: one Simulator3D (guarded).
 interface FlatPane { pane: Pane; cam: THREE.OrthographicCamera; target: THREE.Vector3; framed: boolean }
 const flats = new Map<string, FlatPane>();
-const PERSP = QUAD_PANES.find((p) => p.view === 'persp')!;
 
 /** r3f's pointer mapping, per pane: the pointer in the pane's own NDC, through that pane's camera. */
 export function multiViewEvents(store: Parameters<typeof createPointerEvents>[0]) {
@@ -59,6 +63,9 @@ export function multiViewEvents(store: Parameters<typeof createPointerEvents>[0]
   };
 }
 
+/** The camera a pane draws (and the gizmo raycasts) through. */
+function paneCamera(p: Pane, def: THREE.Camera): THREE.Camera { return flats.get(p.id)?.cam ?? def; }
+
 function placeFlat(f: FlatPane): void {
   const v = ORTHO_VIEWS[f.pane.view as OrthoView];
   f.cam.up.set(v.up[0], v.up[1], v.up[2]);
@@ -68,7 +75,10 @@ function placeFlat(f: FlatPane): void {
 }
 
 type Getter = (e: PointerEvent | MouseEvent) => { x: number; y: number; button: number };
-type Gizmo = THREE.Object3D & { isTransformControls?: boolean; getPointer: Getter };
+type Gizmo = THREE.Object3D & { isTransformControls?: boolean; getPointer: Getter; camera: THREE.Camera; dragging?: boolean };
+
+/** The pane the gizmos work in: the one under the pointer, held while a handle is dragged. */
+let gizmoPane: Pane = QUAD_PANES.find((p) => p.view === 'persp')!;
 
 export const MultiView: React.FC<{ orbitEnabled: boolean }> = ({ orbitEnabled }) => {
   const { gl, scene } = useThree();
@@ -101,6 +111,21 @@ export const MultiView: React.FC<{ orbitEnabled: boolean }> = ({ orbitEnabled })
       flats: [...flats.values()].map((f) => ({ id: f.pane.id, zoom: +f.cam.zoom.toFixed(3), target: f.target.toArray().map((n) => +n.toFixed(3)), framed: f.framed })),
       gizmos: patched.current.size,
       perspAspect: +((get().camera as THREE.PerspectiveCamera).aspect ?? 0).toFixed(3),
+      gizmoPane: gizmoPane.id,
+      // Where the first gizmo's object sits in each pane, client px — so a test can grab it in any pane.
+      gizmoAt: (() => {
+        const g = [...patched.current.keys()][0] as (Gizmo & { object?: THREE.Object3D }) | undefined;
+        if (!g?.object) return null;
+        const { camera, gl: r } = get();
+        const rect = r.domElement.getBoundingClientRect();
+        const out: Record<string, [number, number]> = {};
+        for (const p of QUAD_PANES) {
+          const pr = paneRect(p, rect.width, rect.height);
+          const v = new THREE.Vector3().setFromMatrixPosition(g.object.matrixWorld).project(paneCamera(p, camera));
+          out[p.id] = [rect.left + pr.x + ((v.x + 1) / 2) * pr.w, rect.top + pr.y + ((1 - v.y) / 2) * pr.h];
+        }
+        return out;
+      })(),
     });
     return () => { delete w.__artluxQuad; };
   }, [get]);
@@ -132,8 +157,18 @@ export const MultiView: React.FC<{ orbitEnabled: boolean }> = ({ orbitEnabled })
         return;
       }
       setOrbit(!flatUnder(e));
+      // The gizmos follow the pointer into its pane — unless a handle is held (the drag keeps its pane).
+      const l = local(e);
+      const p = paneAt(l.x, l.y, l.w, l.h);
+      if (p !== gizmoPane && ![...patched.current.keys()].some((g) => g.dragging)) {
+        gizmoPane = p;
+        const cam = paneCamera(p, get().camera);
+        for (const g of patched.current.keys()) { g.camera = cam; g.updateMatrixWorld(true); }
+      }
     };
     const onDown = (e: PointerEvent) => {
+      const l = local(e);
+      setActivePane(paneAt(l.x, l.y, l.w, l.h).id);   // Rhino: the active view is the one last clicked
       const f = flatUnder(e);
       setOrbit(!f);
       if (f && (e.button === 1 || e.button === 2)) { pan = { f, x: e.clientX, y: e.clientY }; e.preventDefault(); }
@@ -165,12 +200,18 @@ export const MultiView: React.FC<{ orbitEnabled: boolean }> = ({ orbitEnabled })
       el.removeEventListener('wheel', onWheel, true);
       el.removeEventListener('contextmenu', onMenu, true);
       setOrbit(true);
+      setActivePane('persp');
     };
   }, [gl, get]);
 
-  // ── The gizmos: map the pointer to the Perspective pane ──
+  // ── The gizmos: the pointer mapped into the gizmo's pane; restored (pointer AND camera) on the way out ──
   const patched = useRef(new Map<Gizmo, Getter>());
-  useEffect(() => () => { for (const [g, orig] of patched.current) g.getPointer = orig; patched.current.clear(); }, []);
+  useEffect(() => () => {
+    const def = get().camera;
+    for (const [g, orig] of patched.current) { g.getPointer = orig; g.camera = def; g.updateMatrixWorld(true); }
+    patched.current.clear();
+    gizmoPane = QUAD_PANES.find((p) => p.view === 'persp')!;
+  }, [get]);
 
   useFrame((state) => {
     const { width: w, height: h } = state.size;
@@ -185,12 +226,13 @@ export const MultiView: React.FC<{ orbitEnabled: boolean }> = ({ orbitEnabled })
       patched.current.set(g, orig);
       g.getPointer = (e) => {
         const r = gl.domElement.getBoundingClientRect();
-        const pr = paneRect(PERSP, r.width, r.height);
+        const pr = paneRect(gizmoPane, r.width, r.height);
+        // In the gizmo's pane's own NDC. Outside it (a drag that leaves the pane) the value runs past ±1,
+        // which is what a drag wants: the handle keeps following the pointer along its axis.
         const x = e.clientX - r.left - pr.x, y = e.clientY - r.top - pr.y;
-        // Outside the Perspective pane: a point no handle can be under.
-        if (x < 0 || y < 0 || x > pr.w || y > pr.h) return { x: 10, y: 10, button: e.button };
         return { x: (x / pr.w) * 2 - 1, y: -(y / pr.h) * 2 + 1, button: e.button };
       };
+      g.camera = paneCamera(gizmoPane, state.camera);
     });
 
     // Frame the flat panes once the scene's bounds hold still (models load over several frames).
@@ -245,8 +287,12 @@ export const MultiView: React.FC<{ orbitEnabled: boolean }> = ({ orbitEnabled })
       applyGrid(cam, r.h);
       applyGnomon(getGridFrame()?.pxPerMetre ?? null);   // the origin triad, same size on screen in every pane
       setGridLabelsVisible(pane.view === 'persp');
+      for (const g of patched.current.keys()) g.camera = cam;   // sized and oriented for THIS pane
       gl.render(scene, cam);
     }
+    // The gizmos back on their own pane's camera, matrices re-solved — see the header (the drag plane).
+    const gcam = paneCamera(gizmoPane, state.camera);
+    for (const g of patched.current.keys()) { g.camera = gcam; g.updateMatrixWorld(true); }
     gl.setScissorTest(false);
     gl.setViewport(0, 0, w, h);
     gl.autoClear = savedAutoClear;

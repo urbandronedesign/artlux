@@ -45,10 +45,13 @@ The **four-view button** in the 3D header (or **Ctrl+Alt+Q** over the 3D view) s
 **Top**, **Perspective**, **Front** and **Right** — the layout Rhino opens with — and back to one view. The
 choice is kept on this machine.
 
-- **Perspective** (top right, outlined) is where you work: orbit, move things with the gizmo, frame with
-  **Home** / **F**. Everything that works in one view works there.
-- **Top, Front and Right** are live references of the same scene: **wheel** to zoom about the pointer,
-  **right‑ or middle‑drag** to pan, **click** to select. Each has a ruler on its own plane.
+- **Perspective** (top right) is where you orbit; **Home** / **F** frame every pane.
+- **Top, Front and Right** show the same scene flat: **wheel** to zoom about the pointer, **right‑ or
+  middle‑drag** to pan, **click** to select. Each has a ruler on its own plane.
+- **Move, rotate and scale in any pane.** The gizmo of what you selected is drawn in all four; grab it
+  wherever it is easiest. Front is the natural place to set a height, Top to place something on the floor.
+  Grabbing a handle never moves a view, and releasing over another object does not select it.
+- **The pane you last clicked is the active one** — its title is outlined.
 - **Double‑click a pane's title** to make it the only view (Top as a plan, for instance); the four‑view
   button brings the four back.
 - While four views are up the view picker is greyed — the panes *are* the views. Looking through a

@@ -98,6 +98,18 @@ export function subscribeLayout(f: () => void): () => void { layoutSubs.add(f); 
 /** Maximise a pane: back to one view, showing that pane's view. */
 export function maximisePane(p: Pane): void { setView(p.view); setLayout('single'); }
 
+// The ACTIVE pane — the one last clicked, as in Rhino (Phase 2 increment 2). Its title is highlighted.
+// Not persisted: a session starts in Perspective.
+let activePane = 'persp';
+const activeSubs = new Set<() => void>();
+export const getActivePane = (): string => activePane;
+export function setActivePane(id: string): void {
+  if (id === activePane) return;
+  activePane = id;
+  activeSubs.forEach((f) => f());
+}
+export function subscribeActivePane(f: () => void): () => void { activeSubs.add(f); return () => { activeSubs.delete(f); }; }
+
 // Extra listeners for framing requests (the four-view renderer frames its flat panes too).
 const frameListeners = new Set<(t: FrameTarget) => void>();
 export function onFrameRequest(f: (t: FrameTarget) => void): () => void { frameListeners.add(f); return () => { frameListeners.delete(f); }; }

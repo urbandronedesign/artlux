@@ -39,7 +39,7 @@ import { setGridPlane, gridQuaternion, registerGridGroup } from './gridSpace';
 import { GizmoOrbitGuard } from './GizmoOrbitGuard';
 import { MultiView, multiViewEvents } from './MultiView';
 import { htmlPosition } from './htmlPosition';
-import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, getLayout, setLayout, subscribeLayout, maximisePane, QUAD_PANES, type ViewKind } from '../../services/view3d';
+import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, getLayout, setLayout, subscribeLayout, maximisePane, QUAD_PANES, getActivePane, subscribeActivePane, type ViewKind } from '../../services/view3d';
 import { usePrompt } from '../ui/feedback';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import { OriginGnomon } from './OriginGnomon';
@@ -493,6 +493,7 @@ const Simulator3D: React.FC<Props> = ({
   // A projector look-through owns the camera, so it keeps one view.
   const layout = useSyncExternalStore(subscribeLayout, getLayout);
   const quad = layout === 'quad' && !viewFrom;
+  const activePane = useSyncExternalStore(subscribeActivePane, getActivePane);
   const shownView: ViewKind = viewFrom || quad ? 'persp' : chosenView;
   const ortho = isOrtho(shownView);
   // The ruler lies on the plane the view looks at (Front → the XY wall plane…), before the grid solves.
@@ -928,7 +929,7 @@ const Simulator3D: React.FC<Props> = ({
               key={p.id}
               onDoubleClick={() => maximisePane(p)}
               title={`${viewLabel(p.view)} — double-click to make it the only view`}
-              className={`pointer-events-auto absolute px-1.5 py-0.5 rounded-sm text-micro bg-surface-1/80 border ${p.view === 'persp' ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
+              className={`pointer-events-auto absolute px-1.5 py-0.5 rounded-sm text-micro bg-surface-1/80 border ${p.id === activePane ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
               style={{ left: `calc(${p.col * 50}% + 6px)`, top: `calc(${p.row * 50}% + 6px)` }}
             >{viewLabel(p.view)}</button>
           ))}

@@ -4222,7 +4222,9 @@ check(
   'orbit on every pointermove to hold it off over the flat panes, which undid the switch-off for the ' +
   'whole drag (owner, 2026-11-23: "when I move, scale or rotate, the cam moves"). Nothing throws; the ' +
   'object AND the view move together. GizmoOrbitGuard turns the orbit off in a window CAPTURE listener ' +
-  'before the canvas sees the press, and anything else that writes controls.enabled must ask gizmoHeld().',
+  'before the canvas sees the press, and anything else that writes controls.enabled must ask gizmoHeld(). ' +
+  'It also swallows the click that ends such a press: r3f fires onClick on whatever is under both ends, ' +
+  'so a drag released over another object selected it (the floor, edge-on in the Front pane).',
   () => {
     const S = 'src/renderer/components/Simulator3D/';
     const problems = [];
@@ -4230,6 +4232,7 @@ check(
     if (!exists(g)) return `${g} is gone`;
     const gs = read(g);
     if (!/addEventListener\('pointerdown',\s*onDown,\s*true\)/.test(gs)) problems.push('GizmoOrbitGuard no longer listens to pointerdown in the CAPTURE phase — the orbit would hear the press first');
+    if (!/addEventListener\('click',\s*onClick,\s*true\)/.test(gs)) problems.push('GizmoOrbitGuard no longer swallows the click that ends a gizmo drag — releasing over another object would select it');
     if (!/<GizmoOrbitGuard\s*\/>/.test(read(S + 'Simulator3D.tsx'))) problems.push('Simulator3D no longer mounts <GizmoOrbitGuard />');
     for (const f of ['MultiView.tsx', 'ViewControls.tsx', 'Simulator3D.tsx']) {
       if (!exists(S + f)) continue;

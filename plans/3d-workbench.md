@@ -247,6 +247,23 @@ document state; a named view save **is**).
 > tests still pass. **Next (increment 2):** make ANY pane the working pane (spike item 3) and per-pane view
 > kind / display mode (item 4).
 >
+> **Increment 2, part 1 built 2026-11-24 — the gizmo works in every pane.** The gizmo's pane is the pane
+> under the pointer (held for the length of a drag): its `getPointer` maps into that pane and its `camera`
+> is that pane's. Each pane's pass hands it its own camera so it is drawn sized and oriented for that pane;
+> after the passes it gets its pane's camera back and `updateMatrixWorld(true)` — its drag plane is a child
+> whose matrix the LAST pass solved. The ACTIVE pane (last clicked, Rhino) is a `view3d` store and outlines
+> its title. Two fixes found on the way, both in `GizmoOrbitGuard.tsx` and guarded: the orbit is switched
+> off in a window capture listener before it hears a press on a handle (it used to orbit as the gizmo
+> moved — and in four views MultiView re-enabled it every pointermove), and the click that ends a handle
+> drag is swallowed (r3f fired onClick on whatever was under both ends: in Front the floor projection lies
+> along the floor line and stole the selection). Checked on WebGPU and WebGL: a drag in each of the four
+> panes moves the object, no camera moves, the title follows. 
+>
+> **Phase 2 closed here (owner, 2026-11-24): "I don't need switching pane by pane, and I only need the 4
+> views."** No per-pane display mode, no choosing what a pane shows, no two-pane layouts: the fixed Rhino
+> four (Top, Perspective, Front, Right) plus one view is the whole feature. Items 1 (other layouts) and 4
+> (per-view state) below are DROPPED, not deferred.
+>
 > **What the real Phase 2 must add (found by the spike):**
 > 1. **The grid per view** — `gridSpace` is set once per frame, so only Top/Perspective got a ruler; set the
 >    plane (and re-solve the frame) before each quarter's pass. GridLabels' geometry is per plane, so keep

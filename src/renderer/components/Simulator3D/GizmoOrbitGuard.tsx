@@ -15,6 +15,12 @@ import { htmlPosition } from './htmlPosition';
 // gizmo whether a handle is under the pointer (TransformControls keeps `axis` up to date on hover). If one
 // is, the orbit is off before it ever sees the press, and stays off until the button comes up; MultiView
 // reads gizmoHeld() and leaves it alone meanwhile.
+//
+// AND THE CLICK THAT ENDS IT IS SWALLOWED. The browser follows the release with a `click`, and r3f fires
+// onClick on whatever the pointer is over at both ends — so a drag that ended over another object
+// SELECTED that object (measured in the Front pane: dragging the wall screen's base picked the floor
+// projection, which lies edge-on along the whole floor line there). A press that grabbed a handle is a
+// gizmo gesture, never a pick: its click is stopped at the window before r3f can see it.
 type Gizmo = THREE.Object3D & { isTransformControls?: boolean; axis?: string | null; enabled?: boolean; dragging?: boolean };
 
 let held = false;
@@ -25,15 +31,18 @@ export function GizmoOrbitGuard(): null {
   const get = useThree((s) => s.get);
   useEffect(() => {
     let saved: boolean | null = null;
+    let swallowClick = false;
     const onDown = (e: PointerEvent) => {
       const { scene, gl, events, controls } = get();
       const host = (events.connected as HTMLElement | undefined) ?? gl.domElement;
+      swallowClick = false;
       if (!(e.target instanceof Node) || !(host === e.target || host.contains(e.target) || gl.domElement === e.target)) return;
       let onHandle = false;
       scene.traverse((o) => {
         const g = o as Gizmo;
         if (!onHandle && g.isTransformControls && g.enabled !== false && g.axis) onHandle = true;
       });
+      swallowClick = onHandle;   // set per press (cleared above for any other) — one press, one click
       if (!onHandle) return;
       held = true;
       const k = controls as unknown as { enabled?: boolean } | null;
@@ -61,11 +70,14 @@ export function GizmoOrbitGuard(): null {
       });
       return out;
     };
+    const onClick = (e: MouseEvent) => { if (swallowClick) { swallowClick = false; e.stopPropagation(); } };
     window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('click', onClick, true);
     window.addEventListener('pointerup', onUp, true);
     window.addEventListener('pointercancel', onUp, true);
     return () => {
       window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('click', onClick, true);
       window.removeEventListener('pointerup', onUp, true);
       window.removeEventListener('pointercancel', onUp, true);
       held = false;
