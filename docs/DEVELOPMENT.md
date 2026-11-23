@@ -69,8 +69,9 @@ packaged-app proof is `engine/scripts/probe-engine-host.ps1`.
 and effects on pixel fixtures, plus LIGHT fixtures (their channel bytes are evaluated by the app's precedence
 stack and sent each frame; the engine only places them). The renderer sends it the effective document and a tick per frame
 (`renderer/engine/nativeLink.ts`); main mutes the app's own frames only while the engine reports frames
-sent; anything it cannot draw yet (MP4, camera, NDI, Spout, slices, layers, bakes) keeps the
-wire with the app, and the log says why (`[engine] the app keeps the wire: …`, machine log `app-has-wire`).
+sent. Spout, MP4 and NDI are the engine's too (NDI only in an engine **built with the NDI SDK** — see the
+next section). Anything it cannot draw yet (a camera the app opened as MJPEG, slices, layers, bakes) keeps
+the wire with the app, and the log says why (`[engine] the app keeps the wire: …`, machine log `app-has-wire`).
 A dead or stalled engine hands the wire back within a frame or two.
 **It also takes the PROJECTOR OUTPUTS** (E1f-3) when every enabled one is a plain warp (corner pin or
 Bézier, soft edge, gamma, gain, lift) on a source it draws: its own topmost windows on the same displays,
@@ -89,6 +90,80 @@ renderer) and `test:projector-windows [--fullscreen]` (the engine's output windo
 `--fullscreen` covers display 0 for ~5 s; run at 100% display scaling). They need `npm run build:engine`
 first and are not part of `npm run verify` (they open GPU windows). The engine's own test modes are listed at
 the top of `engine/artlux-engine/src/main.rs`.
+
+### Building the engine WITH NDI on another machine (e.g. the RTX test PC)
+
+**Why this exists.** The CI dev build (`gh workflow run build.yml --ref feat/e0-engine`) ships an engine
+**without NDI**: `scripts/build-engine.cjs` turns the cargo `ndi` feature on only when `NDI_SDK_DIR` points at
+an installed NDI 6 SDK, and no CI runner has one. Such an engine refuses an NDI show and the app keeps the wire
+(`this engine build has no NDI (built without the NDI SDK)` in the log). To test the engine on NDI, build the
+installer on a machine that has the SDK — the result is an ordinary installer whose engine has NDI.
+
+**What a `git pull` does NOT bring.** Every compiled piece is gitignored: `artlux-engine.exe`
+(`engine/target`), the Rust addons (`native/*/*.node`, except the committed `native/ndi/ndi.node`), the JUCE
+audio engine, and the packaging inputs `prepack:assets` downloads. They are built on the machine, below.
+
+**1. Install once (Windows)** — each from its own installer, then **open a new terminal** so the PATH and
+`NDI_SDK_DIR` they set are seen:
+
+| Tool | Why | Get it |
+|---|---|---|
+| Git | the repo, and JUCE is cloned at configure time | `winget install Git.Git` |
+| Node.js ≥ 20 | npm, electron-vite, electron-builder | `winget install OpenJS.NodeJS.LTS` |
+| Visual Studio 2022 Build Tools, workload **Desktop development with C++** | MSVC for every Rust crate, Spout's C++ and JUCE | `winget install Microsoft.VisualStudio.2022.BuildTools` then add the workload in the Visual Studio Installer |
+| Rust (rustup, stable, MSVC target) | the engine and the addons | `winget install Rustlang.Rustup` |
+| CMake ≥ 3.23 | the JUCE audio engine | `winget install Kitware.CMake` |
+| **NDI 6 SDK** | links NDI into the engine; its installer sets `NDI_SDK_DIR` | <https://ndi.video/for-developers/ndi-sdk/> (free, short form) |
+| LLVM | libclang for `grafton-ndi`'s bindgen (the NDI crate) | `winget install LLVM.LLVM` |
+| NDI Runtime / Tools | to *run* NDI (sources to receive, and the runtime the engine loads) | `winget install NDI.NDITools` |
+
+Check: `echo %NDI_SDK_DIR%` prints the SDK folder (normally `C:\Program Files\NDI\NDI 6 SDK`).
+
+**2. Get the branch** — the engine is not on `main`:
+```bat
+git clone https://github.com/urbandronedesign/artlux.git   &:: or, in an existing clone:
+git fetch origin
+git checkout feat/e0-engine
+git pull
+```
+
+**3. Build** — close ArtLux first (a running app locks the `.node` files: `EBUSY` / `LNK1104`). In
+`cmd.exe`, from the repo folder:
+```bat
+set LIBCLANG_PATH=C:\Program Files\LLVM\bin
+npm install
+npm run build:native      &:: output-engine + spout + hap addons, then the audio engine
+npm run build:audio       &:: the audio engine again, STRICT (build:native only warns) — no sound without it
+npm run build:engine      &:: the native engine; must print  [build-engine] NDI ON
+```
+If `build:engine` prints `NDI off`, `NDI_SDK_DIR` is not set in this terminal: fix that (new terminal after
+the SDK install, or `set NDI_SDK_DIR=C:\Program Files\NDI\NDI 6 SDK`) and run it again. `set
+ARTLUX_ENGINE_NDI=1` forces it on, and then a missing SDK fails the build loudly instead of quietly.
+The first build takes a while (JUCE clone, wgpu, the NDI crate); later ones are incremental.
+
+**4a. Install it like a release** (what to test on a show machine):
+```bat
+npm run package
+```
+It downloads the redistributables, OpenCV and the MediaPipe models (`prepack:assets` — internet needed),
+re-checks every packaged resource, and writes `release\ArtLux-<version>-x64.exe`. Run it: it **replaces** the
+installed ArtLux (same app id, same prefs and projects); reinstall a stable release to go back.
+`npm run package:dir` is the quicker unpacked variant: `release\win-unpacked\ArtLux.exe`, nothing installed.
+
+**4b. Or run from the source**, without installing (slower — dev mode serves the UI module by module, so do
+not judge frame rates from it):
+```bat
+npm run dev -- -- --native-engine
+```
+
+**5. Run with the engine** — the flag is off by default; nothing changes without it. A shortcut whose
+**Target** ends with ` --native-engine` (after the closing quote of the exe path), or
+`"C:\Program Files\ArtLux\ArtLux.exe" --native-engine`, or `set ARTLUX_NATIVE_ENGINE=1` before launching.
+
+**6. Check that the engine has the show** — in the log (`%APPDATA%\artlux\logs\`, see [LOGGING.md](LOGGING.md)):
+`[engine] owns the wire (document N)` means the engine is sending; `[engine] the app keeps the wire: <reason>`
+names the one thing it would not take. With an NDI surface, `…has no NDI (built without the NDI SDK)` means
+step 3 ran with NDI off; an error about the NDI *runtime* means step 1's NDI Tools are missing.
 
 ### Audio engine (`native/audio-engine`) — mandatory to ship, optional to develop
 JUCE + libspatialaudio, built with **cmake-js**, not cargo. `plugins/audio` **graceful-degrades**: if
