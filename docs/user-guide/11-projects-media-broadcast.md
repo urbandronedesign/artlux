@@ -16,7 +16,9 @@ scenes, cue banks, the 3D scene, the timeline, the media library, and projector 
   imported and recorded media always has a home.
 - **Open…** (**Ctrl/Cmd+O**) opens a `.artlux` file; **Open Project Folder…** (**Ctrl/Cmd+Shift+O**)
   opens a folder. **Open Recent** lists your last projects.
-- **Save** (**Ctrl/Cmd+S**), **Save All** (**Ctrl/Cmd+Alt+S**), **Save As…** (**Ctrl/Cmd+Shift+S**).
+- **Save** (**Ctrl/Cmd+S**) saves everything — the look of the scene you are editing (3D scene included)
+  and the project file; see *Not losing work* below. **Save All** (**Ctrl/Cmd+Alt+S**) is the same command
+  under its older name. **Save As…** (**Ctrl/Cmd+Shift+S**) does the same into a new file.
 
 Asset paths inside the folder are stored **relative**, so you can zip or move the whole folder and it
 stays self‑contained.
@@ -28,7 +30,7 @@ stays self‑contained.
 Two different things can be un‑saved, and only one of them is about the file.
 
 **The project file.** The document name sits in the middle of the title bar. An **amber dot** means
-what you have on screen is ahead of what is on disk; click it to Save All. Closing the window with a
+what you have on screen is ahead of what is on disk; click it to save. Closing the window with a
 dot showing now asks — **Save all & close**, **Close without saving**, or **Keep editing** — instead
 of discarding the work silently, which is what it used to do.
 
@@ -40,8 +42,9 @@ adds **· look not stored**, and hovering it names exactly what (surfaces, fixtu
 Recalling another scene by hand now stops to ask first: **Update scene & continue**, **Discard &
 continue**, or **Stay here**.
 
-**Save All** (**Ctrl/Cmd+Alt+S**) does both in order: it stores the live look into the scene you are
-editing, then writes the project. It only ever touches the **active** scene — the one bound to the
+**Save** (**Ctrl/Cmd+S**) does both in order: it stores the live look into the scene you are editing —
+surfaces, fixtures, the 3D scene, brightness — then writes the project. It is the one Save in ArtLux:
+the 3D panel, the timeline and the 3D workbench no longer have Save buttons of their own. It only ever touches the **active** scene — the one bound to the
 editor — because the live look is a single snapshot, and spreading it across every scene would
 overwrite your whole show with what happens to be on screen right now.
 

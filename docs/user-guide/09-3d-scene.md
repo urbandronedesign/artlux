@@ -186,7 +186,7 @@ Lists everything in the scene under **OBJECTS** and **FIXTURES**:
 - **Load a venue model** (`.glb` / `.gltf`) via the Media library or the outliner, then position/scale
   it.
 - Toggle each item's **visibility** (the eye), select it to edit, or remove it.
-- **Save** the scene layout from the outliner header.
+- The scene layout is saved with the project — **Save** (**Ctrl/Cmd+S**).
 
 ---
 

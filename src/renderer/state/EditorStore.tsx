@@ -57,7 +57,6 @@ export interface EditorData {
   displays: DisplayInfo[];
   scene3D: Scene3D;
   modelNaturalSizes: Record<string, number>;
-  sceneSaved: boolean;
   // media
   assets: AssetEntry[];
   currentProjectPath: string | null;
@@ -160,7 +159,6 @@ export interface EditorActions {
   commitModel(id: string, t: ModelTransform): void;
   modelNaturalSize(id: string, maxDim: number): void;
   sceneConfig(patch: Partial<Scene3D>): void;
-  saveScene(): void;
   // media
   importAssets(type: AssetType): void;
   /** Adopt media copied into assets/ by hand → how many entries were added. */
@@ -225,8 +223,6 @@ export interface EditorActions {
   setAudioMix(m: AudioMix): void;
   /** The author strip: bind a scene's timeline, or null = the Global timeline. */
   authorSelect(sceneId: string | null): void;
-  /** Save to State: re-capture the bound scene's look. */
-  saveState(): void;
   /** ◂ Prev / Next ▸ state. */
   authorStep(dir: 1 | -1): void;
   /** ＋ New state (an empty timeline). */

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronDown, Film, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { defaultOscTrackConfig, Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
 // The transport through a seam (the detached timeline): services/timeline in the editor, the live channel
 // (the editor's clock anchors + its transport calls) when the timeline is in a panel window.
@@ -155,7 +155,6 @@ export interface AuthorContext {
   total: number;                                // number of scenes (for "State N of M")
   scenes: { id: string; name: string; accent?: string; clipCount?: number }[];
   onSelect: (sceneId: string | null) => void;   // enter author for a scene, or null → global
-  onSave: () => void;                           // Save to State (re-capture look)
   onPrev: () => void;                           // ◂ Prev state
   onNext: () => void;                           // Next ▸ state
   onNew: () => void;                            // ＋ New state (empty timeline)
@@ -2077,15 +2076,12 @@ const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onSta
             ? <span className="text-micro text-fg-3">its own timeline · {timeline.clips.length} clip{timeline.clips.length === 1 ? '' : 's'}</span>
             : <span className="text-micro text-fg-3">the SHOW's timeline — its lanes drive underneath every scene</span>}
 
-          {/* Author strip — the trigger→build→save→continue loop (only while authoring a state). */}
+          {/* Author strip — step between states while authoring. Storing the look is Save (Ctrl+S): one Save
+              for everything (owner, 2026-11-23), so the strip no longer carries its own. */}
           {authoring && (
             <div className="ml-auto flex items-center gap-1.5">
               <button onClick={author.onPrev} title="Previous state" className="p-1 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><ChevronLeft size={14} /></button>
               <span className="text-micro text-fg-3 tabular-nums">State {author.index + 1} of {author.total}</span>
-              <Tooltip id="timeline.save-state">
-                <button onClick={author.onSave} {...help('timeline.save-state')} title="Save to State (re-capture look)"
-                  className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Save size={12} /> Save</button>
-              </Tooltip>
               <button onClick={author.onNext} title="Next state" className="p-1 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><ChevronRight size={14} /></button>
             </div>
           )}

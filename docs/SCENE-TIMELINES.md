@@ -247,7 +247,7 @@ choice therefore lives in the **state's own look**, and the loop is:
 1. Enter the state (`◆ Editing:` pill, or **Edit timeline** on its node in the state graph).
 2. Add the tracks that state needs and drop content on them.
 3. Point each surface at its track (content **Layer** → **Track**).
-4. **Save** the state (author strip → *Save*).
+4. **Save** (**Ctrl/Cmd+S**) — it stores the state's look, then writes the project.
 
 Step 4 is the one to remember. The tracks and clips are stored the moment you make them, but the
 **surface routing is part of the look** — skip the save and the next GO onto that state restores the
@@ -267,9 +267,10 @@ fresh timeline to fill.
   `◆ Editing: [ <scene> ▾ ]` with the scene's accent; the dropdown lists **Global timeline** + every
   scene (accent swatch + a Film icon if it owns a timeline, else an `↩ global` hint) + **＋ New state…**.
   The whole panel gets an accent top-border while a scene is current.
-- **Author strip** (only while authoring a scene): `◂ Prev · State N of M · Save · Next ▸` — the
-  trigger→build→save→continue loop. *Save* re-captures look tweaks; the timeline is already stored via
-  `onChange`.
+- **Author strip** (only while authoring a scene): `◂ Prev · State N of M · Next ▸` — steps between
+  states. It had its own *Save* (re-capture the look, no file write) until one Save covered everything
+  (owner, 2026-11-23): Ctrl+S now stores the bound scene's look, then writes the file; the timeline is
+  already stored via `onChange`.
 - **Empty-timeline CTA:** a fresh state's timeline shows a friendly drop target ("…is empty · drag
   media here · ＋ Track"), never a blank/broken lane.
 - **Identity everywhere:** one accent per state across the graph node, pill, panel border, author strip,

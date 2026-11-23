@@ -210,14 +210,6 @@ export const timelineExtraHelp: HelpEntry[] = [
     group: 'Timeline',
     keywords: ['scene', 'state', 'timeline', 'editing', 'recall', 'global'],
   },
-  {
-    id: 'timeline.save-state',
-    title: 'Save to state',
-    short: 'Re-capture the current look into this state.',
-    body: 'Saves the current look back into the active state (scene), so what is on stage now becomes what that state recalls.',
-    group: 'Timeline',
-    keywords: ['save', 'state', 'scene', 'capture', 'look'],
-  },
   // ── ruler: region handles + markers ──────────────────────────────────────────────────────────────
   {
     id: 'timeline.region-in',

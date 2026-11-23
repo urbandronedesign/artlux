@@ -99,7 +99,7 @@ export const PanelEditorStore: React.FC<{ children: React.ReactNode; fallback: R
       selection: buildSelection(session.selectedSurfaceId, session.selectedFixtureId, session.selectedFixtureIds,
         session.selectedModelId, extras.selectedFixtureKinds as SelectedKinds),
       projectorOutputs: doc.projectorOutputs, displays: extras.displays as EditorData['displays'],
-      scene3D: doc.scene3D, modelNaturalSizes: extras.modelNaturalSizes, sceneSaved: extras.sceneSaved,
+      scene3D: doc.scene3D, modelNaturalSizes: extras.modelNaturalSizes,
       assets: doc.assets, currentProjectPath: extras.currentProjectPath, projectRefs,
       timeline: activeScene?.timeline ?? doc.timeline, globalTimeline: doc.timeline,
       scenes: doc.scenes, cueBanks: doc.cueBanks, stateMachine: doc.stateMachine, activeSceneId: session.activeSceneId,

@@ -45,7 +45,6 @@ export interface EditorExtras {
   displays: unknown[];
   settings: unknown;
   modelNaturalSizes: Record<string, number>;
-  sceneSaved: boolean;
   currentProjectPath: string | null;
   selectedFixtureKinds: string;
   autoKeyArmed: boolean;

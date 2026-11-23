@@ -76,14 +76,6 @@ export const scene3dHelp: HelpEntry[] = [
     group: '3D Scene',
     keywords: ['glb', 'gltf', 'mesh', 'import', 'model'],
   },
-  {
-    id: 'scene3d.save-scene',
-    title: 'Save project',
-    short: 'Save the project, including the 3D scene.',
-    body: 'Persists the current scene layout, transforms and lighting along with the rest of the project. Shows a brief Saved confirmation.',
-    group: '3D Scene',
-    keywords: ['save', 'persist', 'project'],
-  },
 
   // ── Selected-model transform ────────────────────────────────────────────────────────────────
   {

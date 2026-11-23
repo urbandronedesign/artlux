@@ -123,7 +123,7 @@ the timeline, reads as correctly configured, and drives nothing.
 > look; `handleUpdateScene` is the ONLY writer of it into a scene. So a look changed since the scene was
 > stored is destroyed by the next recall — no save, no quit, no warning. App now derives
 > `sceneLookDiff` (surfaces / fixtures / brightness) and shows it in the title bar, asks before an
-> **operator** recall replaces it, and **Save All** (`Ctrl+Alt+S`) commits it before writing the file.
+> **operator** recall replaces it, and **Save** (`Ctrl+S`, also `Ctrl+Alt+S` / Save All) commits it before writing the file.
 >
 > Two boundaries in that derivation were found by measurement, not taste, and both matter:
 > - fixtures are compared through **`sceneLook.fixtureLookEqual`**, the inverse of `mergeFixtureLook`.

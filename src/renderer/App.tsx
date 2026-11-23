@@ -944,9 +944,6 @@ const App: React.FC = () => {
   };
   const handleUpdateModel = (id: string, patch: Partial<SceneModel>) => { setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...patch } : m) })); };
   const handleRemoveModel = (id: string) => { recordHistory(); setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
-  const [sceneSaved, setSceneSaved] = useState(false);
-  const sceneSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleSceneSave = () => { handleSaveProject().then((path) => { if (path) { setSceneSaved(true); if (sceneSavedTimer.current) clearTimeout(sceneSavedTimer.current); sceneSavedTimer.current = setTimeout(() => setSceneSaved(false), 1500); } }); };
   // Maximize the 3D pane: shrink the 2D stage to a sliver so the 3D view + panel nearly fill the
   // area (recovers the old detached-window's near-fullscreen editing). Toggles back to the prior split.
   const MAX_3D_RATIO = 0.12;
@@ -2147,7 +2144,6 @@ const App: React.FC = () => {
     for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: scene.timeline });
   };
   // Save the state: re-capture look tweaks (the timeline already lives in the scene via onChange).
-  const handleSaveState = () => { if (activeSceneId) handleUpdateScene(activeSceneId); };
   // Step to the adjacent state (scene order), recalling + rebinding — the "continue" step.
   const authorStep = (dir: 1 | -1) => {
     if (!scenes.length) return;
@@ -2998,10 +2994,11 @@ const App: React.FC = () => {
   // saves in the same tick, and React has not committed by then — so buildProjectData() would write
   // the scenes as they were BEFORE the look was stored, quietly saving the old version of the very
   // thing the operator pressed the button to keep. The caller passes what it just set.
-  const handleSaveProject = async (override?: Partial<ReturnType<typeof buildProjectData>>) => {
+  // `asNew` = Save As: no path, so main asks where. The file is then signed exactly like a Save.
+  const handleSaveProject = async (override?: Partial<ReturnType<typeof buildProjectData>>, asNew = false) => {
       try {
           const data = override ? { ...buildProjectData(), ...override } : buildProjectData();
-          const path = await window.artlux?.saveProject?.(data, currentProjectPath ?? undefined);
+          const path = await window.artlux?.saveProject?.(data, asNew ? undefined : currentProjectPath ?? undefined);
           if (path) {
               setCurrentProjectPath(path); refreshRecents(); toast.success('Project saved');
               // Signed from THE PAYLOAD THAT WAS WRITTEN, not from current state — with an override in
@@ -3015,23 +3012,28 @@ const App: React.FC = () => {
           return null;
       }
   };
-  // ── SAVE ALL ────────────────────────────────────────────────────────────────────────────────
-  // Two verbs, not one: commit the bound scene's pending look, THEN write the file. It exists because
-  // "Update Scene, then Ctrl+S" is two things to remember in the middle of editing, and forgetting
-  // the first one loses work that Ctrl+S would happily write the old version of.
+  // ── SAVE = SAVE EVERYTHING (owner, 2026-11-23) ──────────────────────────────────────────────────
+  // Two verbs, not one: commit the bound scene's pending look (surfaces, fixtures, the 3D scene,
+  // brightness), THEN write the file. The timeline needs no step — its edits are written into the
+  // bound scene as they are made. This used to be "Save All" only, beside a plain Save that wrote the
+  // file and kept the OLD look, a timeline "Save to State" that stored the look and wrote nothing, and
+  // two file-only Save buttons in the 3D workbench: four buttons for one intention, and the commonest
+  // one (Ctrl+S) the one that quietly lost the look. Every save door now comes here — Ctrl+S, File ▸
+  // Save / Save All / Save As, the title-bar dot, the close guard, a panel window's Ctrl+S, and the
+  // "save first" before a relaunch or a hand-off.
   //
   // It updates the ACTIVE scene only — never every scene. `buildSceneSnapshot` is the live look, so
   // spreading it across all of them would overwrite every scene in the show with whatever is on
   // screen. Only the bound scene can have a pending look at all (see sceneLookDirty).
-  const handleSaveAll = async () => {
+  const handleSaveAll = async (asNew = false) => {
       const scene = activeSceneId ? scenes.find(s => s.id === activeSceneId) : undefined;
-      if (!scene || !sceneLookDirty) return handleSaveProject(); // nothing pending — a plain save
+      if (!scene || !sceneLookDirty) return handleSaveProject(undefined, asNew); // nothing pending — a plain save
       recordHistory();
       const nextScenes = scenes.map(s => s.id === scene.id ? sceneWithLook(s) : s);
       setScenes(nextScenes);
-      const path = await handleSaveProject({ scenes: nextScenes });
+      const path = await handleSaveProject({ scenes: nextScenes }, asNew);
       // Said out loud, because the whole point is that you did not have to remember the first step.
-      if (path) toast.success('Saved all', `Look stored into “${scene.name}”, then the project was written.`);
+      if (path) toast.success('Saved', `Look stored into “${scene.name}”, then the project was written.`);
       return path;
   };
 
@@ -3097,14 +3099,7 @@ const App: React.FC = () => {
   const confirmRef = useRef(confirm); confirmRef.current = confirm;
   const saveAllRef = useRef(handleSaveAll); saveAllRef.current = handleSaveAll;
 
-  const handleSaveAs = async () => {
-      try {
-          const path = await window.artlux?.saveProject?.(buildProjectData(), undefined);
-          if (path) { setCurrentProjectPath(path); refreshRecents(); toast.success('Project saved'); }
-      } catch (err) {
-          toast.error('Save failed', String((err as Error)?.message ?? err));
-      }
-  };
+  const handleSaveAs = () => handleSaveAll(true);
   const handleOpenProject = async () => {
       try {
           const res = await window.artlux?.openProject?.();
@@ -3660,7 +3655,7 @@ const App: React.FC = () => {
 
   // Save the current project, then relaunch into broadcast (show) mode with it.
   const handleLaunchBroadcast = async () => {
-      const path = await handleSaveProject();
+      const path = await handleSaveAll();
       if (path) window.artlux?.relaunchBroadcast?.(path);
       else toast.warn('Save first', 'Save the project to a file, then launch broadcast mode.');
   };
@@ -3684,13 +3679,13 @@ const App: React.FC = () => {
       // "the calibration file the show plays is older than the calibration". The sign-off's hand-off
       // button runs the same ones.
       if (!(await beforeHandOff({ confirm, toast }))) return;
-      const path = await handleSaveProject();
+      const path = await handleSaveAll();
       if (!path) { toast.warn('Save first', `Save the project to a file, then open it in ${other.name}.`); return; }
       window.artlux?.openInOtherApp?.(path, exeHint);
   };
 
   const handleToggleCalibration = async () => {
-      const path = await handleSaveProject();
+      const path = await handleSaveAll();
       if (!path) { toast.warn('Save first', 'Save the project to a file, then switch to calibration.'); return; }
       window.artlux?.relaunchWithCalibration?.(!CALIBRATION_ENABLED, path);
   };
@@ -3713,7 +3708,7 @@ const App: React.FC = () => {
           case 'new-project-folder': handleNewProject(); break; // legacy menu id → folder flow
           case 'open': handleOpenProject(); break;
           case 'open-project-folder': handleOpenProjectFolder(); break;
-          case 'save': handleSaveProject(); break;
+          case 'save': handleSaveAll(); break;
           case 'save-all': handleSaveAll(); break;
           case 'save-as': handleSaveAs(); break;
           // MAIN IS ASKING WHETHER IT MAY CLOSE (main/closeGuard.ts). It cannot know — only this
@@ -5314,8 +5309,8 @@ const App: React.FC = () => {
       return () => setLiveActionRunner(null);
   }, []);
   useEffect(() => {
-      publishEditorExtras({ fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds, autoKeyArmed });
-  }, [fixtureProfiles, displays, settings, modelNaturalSizes, sceneSaved, currentProjectPath, selectedFixtureKinds, autoKeyArmed]);
+      publishEditorExtras({ fixtureProfiles, displays, settings, modelNaturalSizes, currentProjectPath, selectedFixtureKinds, autoKeyArmed });
+  }, [fixtureProfiles, displays, settings, modelNaturalSizes, currentProjectPath, selectedFixtureKinds, autoKeyArmed]);
 
   // MEMOIZED ON ITS FIELDS, NOT REBUILT PER RENDER — this is load-bearing, not tidiness.
   //
@@ -5329,14 +5324,14 @@ const App: React.FC = () => {
     surfaces, fixtures, groups, controllers, templates, fixtureProfiles,
     selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId,
     selection: editorSelection,
-    projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
+    projectorOutputs, displays, scene3D, modelNaturalSizes,
     assets, currentProjectPath, projectRefs,
     timeline: activeTimeline, globalTimeline: timeline, scenes, cueBanks, stateMachine, activeSceneId,
     settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed, colorPalette, audioMix,
   }), [
     surfaces, fixtures, groups, controllers, templates, fixtureProfiles,
     selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, editorSelection,
-    projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
+    projectorOutputs, displays, scene3D, modelNaturalSizes,
     assets, currentProjectPath, projectRefs,
     activeTimeline, timeline, scenes, cueBanks, stateMachine, activeSceneId,
     settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying, autoKeyArmed, colorPalette, audioMix,
@@ -5460,7 +5455,6 @@ const App: React.FC = () => {
     commitModel: handleCommitModel,
     modelNaturalSize: handleModelNaturalSize,
     sceneConfig: handleSceneConfig,
-    saveScene: handleSceneSave,
     importAssets: handleImportAssets,
     scanAssets: handleScanAssets,
     adoptTakes: handleAdoptTakes,
@@ -5490,14 +5484,13 @@ const App: React.FC = () => {
     saveColor: (value, name, id) => handleSaveColor(value, name, id),
     setAudioMix: (m) => setAudioMix(normalizeAudioMix(m)),
     authorSelect: (sid) => { if (sid) void enterAuthor(sid); else exitToGlobal(); },
-    saveState: handleSaveState,
     authorStep: (dir) => authorStep(dir),
     createState: handleCreateState,
     recordHistory,
     writeAutomationKeys,
     copySelection: handleCopySelection,
     pasteClipboard: handlePasteClipboard,
-    saveProject: () => { void handleSaveProject(); },
+    saveProject: () => { void handleSaveAll(); },
     menuAction: (a) => dispatchMenuRef.current(a),
   };
 

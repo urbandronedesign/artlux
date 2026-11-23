@@ -286,7 +286,6 @@ export function registerCoreWorkspace(): void {
       fr: 'Le lieu et le kit en 3D — placez les fixtures, visez, suivez les blobs, et enregistrez des takes depuis les docks Takes.',
     },
     actions: [
-      { id: 'save', label: 'Save Project', icon: <Save size={13} />, menuAction: 'save' },
       // Arm the lighting recorder without hunting for the Takes bin: busk a look on the selected heads
       // and it lands in the bin, ready to place on a lighting lane. See services/lightingRecorder.
       // The two capture verbs, side by side, because they are the same gesture at two time scales:

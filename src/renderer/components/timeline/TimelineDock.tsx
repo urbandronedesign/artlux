@@ -45,7 +45,6 @@ export const TimelineDock: React.FC<Props> = ({ maximized, onToggleMax, onDetach
       total: d.scenes.length,
       scenes: d.scenes.map((s) => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop })),
       onSelect: (sid: string | null) => a.authorSelect(sid),
-      onSave: () => a.saveState(),
       onPrev: () => a.authorStep(-1),
       onNext: () => a.authorStep(1),
       onNew: () => a.createState(),

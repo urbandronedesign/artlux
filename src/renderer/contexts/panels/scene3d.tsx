@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, Radar } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, MonitorPlay, Radar } from 'lucide-react';
 import { panelRegistry } from '../../host/registries';
 import { PROGRAM_LAYER_ID } from '../../services/programLayer';
 import { modelScaleXYZ } from '../../../../shared/protocol';
@@ -126,10 +126,9 @@ const ScreenRows: React.FC<{ modelId: string }> = ({ modelId }) => {
   );
 };
 
-// Add-object buttons plus the scene Save — Save lives here rather than on the action bar because it
-// carries transient "Saved" feedback, which a static ContextAction label cannot show.
+// Add-object buttons. The scene Save that sat here went with "one Save" (owner, 2026-11-23): it wrote
+// the file only, which Ctrl+S / File ▸ Save already does — and they now store the 3D look as well.
 export const ModelsHeaderActions: React.FC = () => {
-  const { sceneSaved } = useEditorPick('sceneSaved');
   const a = useEditorActions();
   return (
     <>
@@ -138,16 +137,6 @@ export const ModelsHeaderActions: React.FC = () => {
       </Tooltip>
       <Tooltip id="scene3d.add-model">
         <button onClick={a.addModel} title="Add GLB mesh" className="text-fg-2 hover:text-fg-1" {...help('scene3d.add-model')}><Plus size={14} /></button>
-      </Tooltip>
-      <Tooltip id="scene3d.save-scene">
-        <button
-          onClick={a.saveScene}
-          title="Save the project (includes the 3D scene)"
-          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-micro transition-colors ${sceneSaved ? 'bg-ok/20 text-ok' : 'bg-accent text-black hover:bg-accent-hover'}`}
-          {...help('scene3d.save-scene')}
-        >
-          {sceneSaved ? <Check size={12} /> : <Save size={12} />} {sceneSaved ? 'Saved' : 'Save'}
-        </button>
       </Tooltip>
     </>
   );
