@@ -169,6 +169,8 @@ export const IPC = {
   PANEL_WINDOW_TREE: 'panel-window:tree',
   /** Main → panel window: bring this panel's tab to the front (it was asked for while already here). */
   PANEL_WINDOW_REVEAL: 'panel-window:reveal',
+  /** Main → editor: every panel now out in a panel window (sent on each change). Invoke = ask for it now. */
+  PANEL_WINDOWS_OUT: 'panel-window:out',
   /** Window → main (invoke): a tab drag is OUTSIDE this window — 'move' / 'drop' / 'end' (E5/W5l). Main
    *  reads the cursor itself and routes to the window under it. 'drop' resolves to { ok }. */
   DOCK_DRAG: 'dock-drag:at',
@@ -2043,6 +2045,10 @@ export interface ArtluxApi {
   panelWindowTree(tree: unknown): void;
   /** In a panel window: main asks to show one of its panels. Returns the unsubscribe. */
   onPanelWindowReveal(cb: (panelId: string) => void): () => void;
+  /** In the editor: the panels out in panel windows now (the detached timeline hides the drawer's copy). */
+  panelWindowsOut(): Promise<string[]>;
+  /** In the editor: called with that list whenever it changes. Returns the unsubscribe. */
+  onPanelWindowsOut(cb: (ids: string[]) => void): () => void;
   /** A tab dragged out of this window (E5/W5l): main routes it to the window under the cursor. */
   dockDrag(phase: 'move' | 'drop' | 'end', panelId: string): Promise<{ ok: boolean }>;
   /** A tab from another window is over this one (client px), or left it (null). */

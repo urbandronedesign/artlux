@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle, Snowflake, ChevronDown } from 'lucide-react';
+import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, ExternalLink, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle, Snowflake, ChevronDown } from 'lucide-react';
 import { fmtClock } from './geometry';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -60,6 +60,11 @@ interface Props {
   onEditLogic: () => void;
   maximized: boolean;
   onToggleMax: () => void;
+  /** False in a panel window: the window IS the room (and has no overlay to grow into). */
+  canMaximize: boolean;
+  /** Offered in the editor only (in a panel window it is already out). */
+  canDetach: boolean;
+  onDetach: () => void;
 }
 
 // `helpId`, when given, opts the button into the rich help system: it gains a hoverable tooltip with a
@@ -161,7 +166,7 @@ const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-
 // Memoized for the same reason as the ruler: none of what it draws changes while a clip is being dragged,
 // yet it was re-rendering on every pointer move at ~61 ms/s of the gesture. Its callbacks come from
 // Timeline.tsx as one stable bag (useStableHandlers), because thirty inline arrows would defeat this.
-const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, onOpenAddMenu, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, onOpenAddMenu, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax, canMaximize, canDetach, onDetach }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" helpId="timeline.play" onClick={onTogglePlay}>
@@ -251,7 +256,8 @@ const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, t
           <ChevronDown size={12} />
         </button>
       </div>
-      <TBtn title={maximized ? 'Restore (F)' : 'Maximize (F)'} helpId="timeline.maximize" onClick={onToggleMax}>{maximized ? <Minimize size={13} /> : <Maximize size={13} />}</TBtn>
+      {canDetach && <TBtn title="Open in its own window" helpId="timeline.window" onClick={onDetach}><ExternalLink size={13} /></TBtn>}
+      {canMaximize && <TBtn title={maximized ? 'Restore (F)' : 'Maximize (F)'} helpId="timeline.maximize" onClick={onToggleMax}>{maximized ? <Minimize size={13} /> : <Maximize size={13} />}</TBtn>}
     </div>
   </div>
 );

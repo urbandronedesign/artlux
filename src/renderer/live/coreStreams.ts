@@ -21,6 +21,12 @@ import { takeDensity } from '../services/takeDensity';
 import { settingsSectionRegistry } from '../host/registries';
 import { livePreview } from '../services/livePreview';
 import { docStore } from '../state/docStore';
+import { transportView } from '../services/transportView';
+import { peaksView } from '../services/peaksView';
+import { oscTrackView } from '../services/oscTrackView';
+import { allTrackStats } from '../services/oscOut';
+import { showEditorContext } from '../services/editorShell';
+import type { OscTrackConfig } from '../types';
 
 let installed = false;
 
@@ -162,6 +168,40 @@ export function installCoreLiveStreams(): void {
 
   // The editor's timeline drawer, for the state graph's "edit this state's timeline" from a window.
   registerLiveCall('shell.revealBottom', () => revealEditorBottom());
+  // The editor's workbench, for the timeline's "Edit logic" from a window.
+  registerLiveCall('shell.goToContext', (id) => showEditorContext(String(id)));
+
+  // ── THE TIMELINE IN A PANEL WINDOW (E5 — the detached timeline; live/transportRemote.ts) ──────────
+  // Its playhead and the bed's clock are the CLOCK ANCHORS (W4 — extrapolated there, no message per
+  // frame). What is left crosses here: the transport's two nudges, the bound scene's "held at end"
+  // badge, an OSC track's counters and buttons, and an imported file's first length estimate. Through the
+  // seams the editor installed (live/editorAccess.ts), so this is exactly what the docked timeline does.
+  registerLiveCall('transport.seek', (t) => { const n = Number(t); if (Number.isFinite(n)) transportView.seek(n); });
+  registerLiveCall('transport.stop', () => transportView.stop());
+  // Held is a badge read at 4 Hz by the docked lane (StateLane); sampled at the same rate here and sent
+  // only when it flips.
+  registerLiveStream('transport.held', {
+    watch(onNew) {
+      let held = transportView.isBoundHeld();
+      const t = setInterval(() => { const h = transportView.isBoundHeld(); if (h !== held) { held = h; onNew(); } }, 250);
+      return () => clearInterval(t);
+    },
+    read: () => ({ value: transportView.isBoundHeld() }),
+  });
+  // An OSC track's last value and message count. The docked gutter reads them every frame; a window shows
+  // the same text, so a 4 Hz sample sent only when something moved is plenty (a count climbing at 30 Hz
+  // reads the same at 4).
+  registerLiveStream('osc.stats', {
+    watch(onNew) {
+      let sig = '';
+      const t = setInterval(() => { const s = JSON.stringify(allTrackStats()); if (s !== sig) { sig = s; onNew(); } }, 250);
+      return () => clearInterval(t);
+    },
+    read: () => ({ value: allTrackStats() }),
+  });
+  registerLiveCall('osc.resend', (p) => oscTrackView.resend(String(p)));
+  registerLiveCall('osc.test', (cfg, v) => oscTrackView.sendTest(cfg as OscTrackConfig, Number(v)));
+  registerLiveCall('audio.probeDuration', (p) => peaksView.probeDuration(String(p)));
 
   // THE CAMERA INSPECTOR in a panel window (services/cameraAccess.ts, live/cameraRemote.ts). The capture
   // is not observable, so this polls at the inspector's own rate (500 ms) — but only while a window is

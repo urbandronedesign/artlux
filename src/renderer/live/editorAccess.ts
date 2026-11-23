@@ -10,7 +10,7 @@ import { uiPerfMonitor } from '../services/uiPerfMonitor';
 import { timeline } from '../services/timeline';
 import { setViewerCapture } from '../services/viewerView';
 import { captureViewerViewProj } from '../components/Simulator3D/viewerCamera';
-import { setRevealBottom } from '../services/editorShell';
+import { setRevealBottom, setShowContext } from '../services/editorShell';
 import { setShowMachineLive } from '../services/showMachineLive';
 import { setTakesAccess, type TakeKind } from '../services/takesAccess';
 import { setTakeDensitySource } from '../services/takeDensity';
@@ -24,7 +24,7 @@ import { getThumb, onThumb } from '../services/thumbnailCache';
 import * as takeRecorder from '../services/takeRecorder';
 import * as orphanTakes from '../services/orphanTakes';
 import { trackingStore, trackingTake } from '@artlux/plugin-lidar-tracking';
-import { revealBottom } from '../contexts/nav';
+import { goToContext, revealBottom } from '../contexts/nav';
 
 type Packet = Parameters<Parameters<typeof dmxSignal.subscribe>[0]>[0];
 
@@ -62,6 +62,8 @@ export function installEditorAccess(): void {
   setViewerCapture(async () => captureViewerViewProj());
   // The timeline drawer, for the state graph's "edit this state's timeline".
   setRevealBottom(() => revealBottom());
+  // The workbench, for the timeline's "Edit logic".
+  setShowContext((id) => goToContext(id));
   // The take recorder, for the takes docks — the recorder itself, as they always read it.
   const by = <T,>(kind: TakeKind, l: T, t: T): T => (kind === 'lighting' ? l : t);
   setTakesAccess({

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { keymap } from '../../../shortcuts/keymapStore';
 import { eventToChord } from '../../../shortcuts/chord';
+import { isPanelWindow } from '../../../services/windowRole';
 
 // DaVinci-style keyboard shortcuts, scoped to when the timeline panel is hovered or focused, and
 // suppressed while typing in an input. Handlers are read from a ref so the listener attaches once.
@@ -39,7 +40,9 @@ export function useTimelineKeys(handlers: TimelineKeyHandlers, isActive: () => b
       const h = ref.current;
       const m = (id: string) => keymap.matches(e, id);
       // Escape still forces the select tool regardless of any rebinding — it is the universal "cancel".
-      if (m('timeline.togglePlay')) { e.preventDefault(); h.togglePlay(); }
+      // IN A PANEL WINDOW Play/pause is the WINDOW's key (panel.tsx forwards it from anywhere in the window,
+      // as the editor's transport): answering it here as well would toggle twice — play, then pause.
+      if (m('timeline.togglePlay')) { e.preventDefault(); if (!isPanelWindow()) h.togglePlay(); }
       else if (m('timeline.play')) h.play();
       else if (m('timeline.toggleLoop')) h.toggleLoop();
       else if (m('timeline.toggleMax')) h.toggleMax();

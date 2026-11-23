@@ -9,3 +9,11 @@ let reveal: () => void = () => {};
 export function setRevealBottom(fn: () => void): void { reveal = fn; }
 /** Open the editor's timeline drawer (moving to a context that has one if the current does not). */
 export function revealEditorBottom(): void { reveal(); }
+
+// THE EDITOR'S WORKBENCH, by context (E5 — the detached timeline): the timeline's "Edit logic" goes to the
+// Show Machine context. In a panel window there is no workbench to switch — the EDITOR's goes there, on
+// the editor's screen. The editor installs contexts/nav's goToContext; a window, a call ('shell.goToContext').
+let showContext: (id: string) => void = () => {};
+export function setShowContext(fn: (id: string) => void): void { showContext = fn; }
+/** Switch the EDITOR's workbench to a context (contexts/nav goToContext there). */
+export function showEditorContext(id: string): void { showContext(id); }

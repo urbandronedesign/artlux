@@ -19,7 +19,7 @@
 // the monitors — Timing, DMX Monitor, Performance — whose live readings come through seams.
 
 import React from 'react';
-import { Activity, Box, Cable, Gauge, Grid3x3, Hash, Image as ImageIcon, Layers, Library, Lightbulb, Move3d, Network, Radar, Route, SlidersHorizontal, Timer, Users } from 'lucide-react';
+import { Activity, Box, Cable, Film, Gauge, Grid3x3, Hash, Image as ImageIcon, Layers, Library, Lightbulb, Move3d, Network, Radar, Route, SlidersHorizontal, Timer, Users } from 'lucide-react';
 import type { PanelContribution } from '@artlux/sdk/renderer';
 import {
   SurfacesPanel, SurfacesHeaderActions, FixturesPanel, FixturesHeaderActions,
@@ -41,6 +41,18 @@ import {
   SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
 } from './panels/scene3d';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
+import { TimelineDock } from '../components/timeline/TimelineDock';
+
+/**
+ * THE TIMELINE'S id when it is out in a panel window. NOT the drawer's viewport id (contexts/index.tsx
+ * VIEWPORT_TIMELINE): the drawer is one persistent element at one fixed place in the editor, and this is
+ * the copy a window mounts. The editor never registers this id (it is `mount: 'dock'`, and the editor
+ * registers this list's entries one by one), so nothing there can dock a second timeline; while it is
+ * out the drawer shows where it went (App.tsx, services/panelsOut).
+ */
+export const TIMELINE_WINDOW_PANEL = 'core.timeline';
+// No maximise in a window (the window IS the room), and no "open in window" (it is in one).
+const TimelineWindowPanel: React.FC = () => <TimelineDock />;
 
 export const DETACHABLE_PANELS: PanelContribution[] = [
   { id: 'core.browser.surfaces', mount: 'browser', detachable: true, title: 'Surfaces', icon: <Layers size={12} />, grow: true, Component: SurfacesPanel, HeaderActions: SurfacesHeaderActions },
@@ -103,6 +115,11 @@ export const DETACHABLE_PANELS: PanelContribution[] = [
   // are the UI halves'; the editor window's own settings show disabled with a pointer (EditorOnly). The
   // id is contexts/index.tsx's VIEWPORT_PREFERENCES (not imported: that file imports this one).
   { id: 'core.viewport.preferences', mount: 'viewport', detachable: true, menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport },
+  // THE TIMELINE. Its transport, waveforms, stills and OSC sender are the editor's, through seams
+  // (services/transportView, peaksView, thumbView, oscTrackView): the playhead here is the editor's clock
+  // extrapolated from its anchors, and a seek or a Stop runs there. Its props come from the editor store
+  // (components/timeline/TimelineDock — the same adapter the drawer mounts).
+  { id: TIMELINE_WINDOW_PANEL, mount: 'dock', detachable: true, title: 'Timeline', icon: <Film size={13} />, Component: TimelineWindowPanel },
 ];
 
 /** One entry, for the editor's registration (contexts/index.tsx). Throws on an id that is not here. */

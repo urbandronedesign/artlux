@@ -727,7 +727,17 @@ check(
     // process. In the editor's tree it is App's, in one file — and nothing renders the bare <Timeline> but
     // the adapter.
     const tl = walk('src/renderer').filter((f) => /<TimelineDock[\s/>]/.test(read(f)));
-    if (tl.length !== 1) return `<TimelineDock> appears in ${tl.length} files: ${tl.join(', ')}`;
+    // contexts/detachable.tsx is the PANEL WINDOW's mount (the detached timeline). It must never reach the
+    // editor's own registry: its entry is `mount: 'dock'` (the editor registers only the browser ones by
+    // the loop) and contexts/index.tsx must not register it by id — or the editor's "+" menu would offer
+    // a second timeline beside the drawer.
+    const DET = 'src/renderer/contexts/detachable.tsx';
+    const editorSide = tl.filter((f) => f.split(path.sep).join('/') !== DET);
+    if (editorSide.length !== 1) return `<TimelineDock> appears in ${editorSide.length} editor files: ${editorSide.join(', ')}`;
+    const det = read(DET);
+    const entry = det.match(/\{ id: TIMELINE_WINDOW_PANEL,[^\n]*/);
+    if (!entry || !/mount: 'dock'/.test(entry[0])) return `the window timeline's entry in ${DET} is missing or no longer mount: 'dock'`;
+    if (/TIMELINE_WINDOW_PANEL|'core\.timeline'/.test(read('src/renderer/contexts/index.tsx'))) return 'contexts/index.tsx registers the window timeline in the editor';
     const bare = walk('src/renderer').filter((f) => /\.tsx$/.test(f) && /<Timeline[\s/>]/.test(read(f)) && !/TimelineDock\.tsx$/.test(f));
     return bare.length ? `the bare <Timeline> is rendered outside its adapter: ${bare.join(', ')}` : null;
   },

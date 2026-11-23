@@ -147,6 +147,14 @@ export const timelineExtraHelp: HelpEntry[] = [
     shortcut: 'F',
   },
   {
+    id: 'timeline.window',
+    title: 'Open in its own window',
+    short: 'Move the timeline to a window of its own — on another screen, say.',
+    body: 'Opens the timeline in a separate window you can put on any screen; it comes back where you left it next time. The window plays, seeks and edits exactly like the docked timeline (the transport still runs in the editor), and the drawer shows a pointer to it while it is out. To bring it back, use Back to the editor in that window.',
+    group: 'Timeline',
+    keywords: ['window', 'detach', 'second screen', 'monitor', 'undock', 'pop out'],
+  },
+  {
     id: 'timeline.add-automation',
     title: 'Add automation lane',
     short: 'Add a keyframe-automation lane for a parameter.',

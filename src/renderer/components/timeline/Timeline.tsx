@@ -14,7 +14,8 @@ const engine = {
   stop: () => transportView.stop(),
   triggerSmTransition: (id: string) => showMachineLive().triggerTransition(id),
 };
-import { goToContext } from '../../contexts/nav';
+// "Edit logic" switches the EDITOR's workbench — this one's in the editor, the editor's from a panel window.
+import { showEditorContext } from '../../services/editorShell';
 import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { Tooltip } from '../ui/Tooltip';
@@ -109,7 +110,10 @@ interface Props {
   playing: boolean;
   onTogglePlay: () => void;
   maximized?: boolean;
+  /** Absent = no maximise (a panel window: the window IS the room). */
   onToggleMax?: () => void;
+  /** Open in a window of its own (the editor's drawer only). */
+  onDetach?: () => void;
   projectPath?: string | null; // when set, recorded takes are copied into the project's assets/tracking
   onRegisterAsset?: (entry: AssetEntry) => void; // a file dropped onto a lane is imported + added to the library
   scenes?: { id: string; name: string }[]; // for the FSM 'recallScene' action picker
@@ -192,7 +196,7 @@ const AddRow: React.FC<{
 // React.memo'd (E5/W2): App hands this stable props (useStableHandlers / useMemo), so an App render
 // that changes nothing the timeline shows no longer reconciles it. Its live state (playhead, colour
 // swatches, lane readouts) arrives through its own engine/signal subscriptions, never a parent render.
-const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
+const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, onDetach, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [], colorPalette = [], onSaveColor }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const toast = useToast();
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
@@ -2007,8 +2011,9 @@ const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onSta
     onOpenAddMenu: (anchor: { x: number; y: number }) => setAddMenu(anchor),
     onToggleLoop: toggleLoop, onToggleHold: toggleHold, onEndStateHere: endStateHere,
     onToggleSm: toggleSm,
-    onEditLogic: () => goToContext('machine'),
+    onEditLogic: () => showEditorContext('machine'),
     onToggleMax: () => onToggleMax?.(),
+    onDetach: () => onDetach?.(),
   });
 
   // GROUP COLOUR LANES — resolved to a representative member (for the live swatch and the seed) plus
@@ -2152,7 +2157,7 @@ const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onSta
         loop={!!timeline.loop}
         holdAtEnd={!!timeline.holdAtEnd}
         smEnabled={sm.enabled}
-        maximized={maximized}
+        maximized={maximized} canMaximize={!!onToggleMax} canDetach={!!onDetach}
         {...toolbarHandlers}
       />
 
@@ -2205,7 +2210,7 @@ const TimelineImpl: React.FC<Props> = ({ timeline, onChange, stateMachine, onSta
 
           {/* always-present state-machine control lane */}
           <StateLane sm={sm} pxPerSec={pxPerSec} width={Math.max(width, 100)}
-            onTrigger={(id) => engine.triggerSmTransition(id)} onEdit={() => goToContext('machine')} onToggle={toggleSm} />
+            onTrigger={(id) => engine.triggerSmTransition(id)} onEdit={() => showEditorContext('machine')} onToggle={toggleSm} />
 
           {layers.length === 0 && (
             <div className="flex">

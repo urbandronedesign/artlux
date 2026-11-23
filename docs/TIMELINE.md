@@ -24,6 +24,19 @@ It also means `TimelinePanel` **never remounts on a context switch** (it did, ev
 timeline was a context of its own — losing zoom, scroll and clip selection). Canonical:
 [WORKSPACE.md → the full-width bottom drawer](WORKSPACE.md#the-full-width-bottom-drawer-workspacecontextbottom).
 
+### In its own window — on another screen
+
+The timeline's toolbar button **Open in its own window** moves the timeline to a window of its own,
+which you can put on any screen. It reopens in the same place next time, and comes back with the editor.
+While it is out, the drawer folds and says where the timeline went. **Show the timeline window** brings
+the window to the front. **Back to the editor** in the window puts the timeline back in the drawer.
+
+The window does everything the drawer does: play, pause and Stop, seek, edit clips and keys, waveforms
+and filmstrips. Space plays and pauses from anywhere in that window. **Edit logic** switches the
+**editor** to the Show Machine. Playback still runs in the editor, so the window is only a second place
+to work from, and closing it never stops the show. The one thing missing in the window is **Maximize**,
+because the window is already the whole room. Resize the window instead.
+
 > **Scope invariant (clips):** clip editing is **UX-only** — the track header flags
 > (`muted/solo/locked/enabled`) are visual aids, never engine inputs, and the engine still samples
 > the **topmost clip per track** under the playhead (gaps → black). Multiple clips per track sequence

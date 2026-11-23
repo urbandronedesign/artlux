@@ -73,6 +73,19 @@ function remember(entry: SavedPanelWindow | null): void {
   setPrefs({ panelWindows: [...rest, entry] });
 }
 
+// WHAT IS OUT, told to the editor. A panel the editor draws itself in a fixed place (the timeline drawer)
+// must not also draw it while it is out: two timelines would both edit the one document from two screens,
+// and the drawer's copy is the one the operator moved away. Sent on every change of any window's members.
+function outIds(): string[] {
+  const out = new Set<string>();
+  for (const [a, w] of windows) if (!w.isDestroyed()) for (const id of members.get(a) ?? [a]) out.add(id);
+  return [...out];
+}
+function announceOut(): void {
+  const ed = getEditor();
+  if (ed && !ed.isDestroyed()) ed.webContents.send(IPC.PANEL_WINDOWS_OUT, outIds());
+}
+
 function setOpenList(update: (ids: string[]) => string[]): void {
   setPrefs({ openPanelWindows: update(getPrefs().openPanelWindows ?? []) });
 }
@@ -141,6 +154,7 @@ export function openPanelWindow(panelId: string): void {
   windows.set(panelId, win);
   members.set(panelId, treePanels(savedTree(panelId)).length ? treePanels(savedTree(panelId)) : [panelId]);
   setOpenList((ids) => (ids.includes(panelId) ? ids : [...ids, panelId]));
+  announceOut();
 
   // Its document comes from the Show Host, like the editor's (a reload needs a fresh port: every load).
   win.webContents.on('did-finish-load', () => { if (!win.isDestroyed()) connectShowHost(win); });
@@ -160,6 +174,7 @@ export function openPanelWindow(panelId: string): void {
     if (t) clearTimeout(t);
     remember(last);
     if (windows.get(panelId) === win) { windows.delete(panelId); members.delete(panelId); }
+    announceOut();
     // Closed by the operator: it should not come back next time. Closed with the editor: it should.
     if (!editorClosing) setOpenList((ids) => ids.filter((x) => x !== panelId));
   });
@@ -176,6 +191,8 @@ export function registerPanelWindows(editor: BrowserWindow, getEditorWindow: () 
   trackStacking(editor);
   registerDockDrag();
   ipcMain.on(IPC.PANEL_WINDOW_OPEN, (_e, panelId: unknown) => { if (typeof panelId === 'string') openPanelWindow(panelId); });
+  // Asked for by the editor on load (a reload would otherwise miss every change before it).
+  ipcMain.handle(IPC.PANEL_WINDOWS_OUT, () => outIds());
   // A panel window's own arrangement (W5b-2): asked for on load, reported on every change. Kept per
   // anchor in the prefs, so reopening the window brings back its tabs and splits, not just its place.
   ipcMain.handle(IPC.PANEL_WINDOW_STATE, (e) => {
@@ -187,6 +204,7 @@ export function registerPanelWindows(editor: BrowserWindow, getEditorWindow: () 
     if (!anchor || !tree || typeof tree !== 'object') return;
     const ids = treePanels(tree).filter((id) => ID_RE.test(id));
     members.set(anchor, ids);
+    announceOut();
     // A tree is a few hundred bytes; a corrupt or hostile one is capped rather than trusted.
     if (JSON.stringify(tree).length > 32_000) return;
     setPrefs({ panelWindowTrees: { ...(getPrefs().panelWindowTrees ?? {}), [anchor]: tree } });

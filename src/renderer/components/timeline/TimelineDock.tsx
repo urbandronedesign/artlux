@@ -24,9 +24,11 @@ interface Props {
   /** The editor's full-window timeline (App's own toggle). Absent in a panel window: the window IS the room. */
   maximized?: boolean;
   onToggleMax?: () => void;
+  /** Open the timeline in a window of its own (the editor's). Absent in a panel window: it is in one. */
+  onDetach?: () => void;
 }
 
-export const TimelineDock: React.FC<Props> = ({ maximized, onToggleMax }) => {
+export const TimelineDock: React.FC<Props> = ({ maximized, onToggleMax, onDetach }) => {
   const d = useEditorPick('timeline', 'globalTimeline', 'stateMachine', 'isVideoPlaying', 'currentProjectPath', 'scenes', 'cueBanks',
     'groups', 'fixtures', 'fixtureProfiles', 'selectedFixtureIds', 'activeSceneId', 'audioMix', 'colorPalette');
   const a = useEditorActions();
@@ -108,7 +110,7 @@ export const TimelineDock: React.FC<Props> = ({ maximized, onToggleMax }) => {
       timeline={d.timeline} onChange={a.setTimeline} author={author}
       stateMachine={d.stateMachine} onStateMachineChange={a.setStateMachine}
       playing={d.isVideoPlaying} onTogglePlay={a.togglePlay}
-      maximized={maximized} onToggleMax={onToggleMax}
+      maximized={maximized} onToggleMax={onToggleMax} onDetach={onDetach}
       projectPath={d.currentProjectPath} onRegisterAsset={a.registerAsset}
       scenes={d.scenes} cues={cues} fixtureGroups={d.groups} rigFixtures={d.fixtures} rigProfiles={d.fixtureProfiles}
       selectedFixtureIds={d.selectedFixtureIds} audio={audio} baseAutomation={baseAutomation}

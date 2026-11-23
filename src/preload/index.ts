@@ -132,6 +132,12 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.PANEL_WINDOW_REVEAL, listener);
         return () => { ipcRenderer.removeListener(IPC.PANEL_WINDOW_REVEAL, listener); };
     },
+    panelWindowsOut: () => ipcRenderer.invoke(IPC.PANEL_WINDOWS_OUT),
+    onPanelWindowsOut: (cb: (ids: string[]) => void) => {
+        const listener = (_e: unknown, ids: string[]) => cb(Array.isArray(ids) ? ids : []);
+        ipcRenderer.on(IPC.PANEL_WINDOWS_OUT, listener);
+        return () => { ipcRenderer.removeListener(IPC.PANEL_WINDOWS_OUT, listener); };
+    },
     // A TAB DRAGGED BETWEEN WINDOWS (E5/W5l, main/panelWindows.ts): the source reports, main routes.
     dockDrag: (phase: 'move' | 'drop' | 'end', panelId: string) => ipcRenderer.invoke(IPC.DOCK_DRAG, phase, panelId),
     onDockDragHover: (cb: (h: { panelId: string; x: number; y: number } | null) => void) => {

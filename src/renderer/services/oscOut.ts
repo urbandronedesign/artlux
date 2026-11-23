@@ -127,6 +127,13 @@ export function trackStats(path: string): { sent: number; count: number } | null
   return rt ? { sent: rt.sent, count: rt.count } : null;
 }
 
+/** Every track's, for a timeline in a panel window ('osc.stats', live/coreStreams.ts). */
+export function allTrackStats(): Record<string, { sent: number; count: number }> {
+  const out: Record<string, { sent: number; count: number }> = {};
+  for (const [p, rt] of tracks) out[p] = { sent: rt.sent, count: rt.count };
+  return out;
+}
+
 export const oscAutomationProvider: AutomationTargetProvider = {
   namespaces: [OSC_NAMESPACE],
   // Empty ON PURPOSE: an OSC track is not a parameter you pick from the target picker, it is a lane you

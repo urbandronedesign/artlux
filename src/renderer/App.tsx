@@ -47,7 +47,9 @@ import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
 } from './contexts';
-import { contextLayoutOf, goToContext } from './contexts/nav';
+import { contextLayoutOf, goToContext, revealBottom } from './contexts/nav';
+import { TIMELINE_WINDOW_PANEL } from './contexts/detachable';
+import { usePanelOut } from './services/panelsOut';
 import {
   ensureTree, findGroupOf, addPanel, setActive, toggleCollapsed, groups as dockGroups,
   type DockManifest,
@@ -5365,7 +5367,17 @@ const App: React.FC = () => {
   const timelineHandlers = useStableHandlers({
     onMaximize: () => setTimelineMax(true),
     onRestore: () => setTimelineMax(false),
+    // THE DETACHED TIMELINE (E5): out to a window of its own, on whatever screen it was last on. The drawer
+    // folds to its strip — the operator moved the timeline away to get this room back — and shows where
+    // it went while it is out (below). Leaving full-window first: the overlay is the editor's, not the window's.
+    onDetach: () => {
+      if (!window.artlux?.openPanelWindow) return;
+      layoutStore.set({ timelineMax: false, bottomOpen: false });
+      window.artlux.openPanelWindow(TIMELINE_WINDOW_PANEL);
+    },
   });
+  // Out in a panel window? Then the drawer shows a pointer to it, not a second timeline (services/panelsOut).
+  const timelineOut = usePanelOut(TIMELINE_WINDOW_PANEL);
   const sim3dHandlers = useStableHandlers({
     onSelectFixture: (id: string) => handleSelectFixture(id || null),
     onSelectFixtures: handleSelectFixtures,
@@ -5466,7 +5478,8 @@ const App: React.FC = () => {
     pushProjectorBrightness: (v) => pushProjectorBrightnessRef.current(v),
     setVideoPlaying: setIsVideoPlaying,
     togglePlay: () => setIsVideoPlaying((p) => !p),
-    dockPanel: (panelId) => dockIntoActiveContext(panelId),
+    // The timeline's way back from its window is the drawer — a fixed place, not a dock tab.
+    dockPanel: (panelId) => { if (panelId !== TIMELINE_WINDOW_PANEL) return dockIntoActiveContext(panelId); revealBottom(); return true; },
     updateSettings,
     updatePatchPolicy: (p) => setPatchPolicy(prev => ({ ...prev, ...p })),
     setStateMachine,
@@ -5612,10 +5625,20 @@ const App: React.FC = () => {
           // than a second copy — exactly the rule the old dock-XOR-overlay branch enforced.
           [VIEWPORT_TIMELINE]: (
                   <UiProfiler id="viewport:timeline">
-                    {timelineMax ? (
+                    {timelineOut ? (
+                        // THE TIMELINE IS IN ITS OWN WINDOW. Not a second copy here: two would edit the one
+                        // document from two screens, and this is the one the operator moved away. The way
+                        // back is the window's own "Back to the editor".
+                        <div className="h-full flex flex-col items-center justify-center gap-2 text-fg-3 text-mini">
+                          <span>The timeline is open in its own window.</span>
+                          <button className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 text-mini"
+                            onClick={() => window.artlux?.openPanelWindow?.(TIMELINE_WINDOW_PANEL)}>Show the timeline window</button>
+                          <span className="text-micro">To bring it back here, use Back to the editor in that window.</span>
+                        </div>
+                    ) : timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelineDock onToggleMax={timelineHandlers.onMaximize} />
+                        <TimelineDock onToggleMax={timelineHandlers.onMaximize} onDetach={timelineHandlers.onDetach} />
                     )}
                   </UiProfiler>
           ),
@@ -5703,9 +5726,9 @@ const App: React.FC = () => {
       />
       {/* The editor's full-window timeline. Inside the store (TimelineDock reads it); a fixed overlay, so
           where it sits in the tree changes nothing on screen. */}
-      {timelineMax && (
+      {timelineMax && !timelineOut && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelineDock maximized onToggleMax={timelineHandlers.onRestore} />
+          <TimelineDock maximized onToggleMax={timelineHandlers.onRestore} onDetach={timelineHandlers.onDetach} />
         </div>
       )}
       </EditorStore>

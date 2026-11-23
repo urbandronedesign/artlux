@@ -29,6 +29,7 @@ import { remoteEditorHealth } from './live/healthRemote';
 import { installSceneRemote } from './live/sceneRemote';
 import { installOscRemote } from './live/oscRemote';
 import { installTakesRemote } from './live/takesRemote';
+import { installTransportRemote } from './live/transportRemote';
 import { layoutStore, disableLayoutPersistence, LAYOUT_PREF_KEY } from './services/layoutStore';
 import { markPanelWindow } from './services/windowRole';
 
@@ -74,6 +75,8 @@ installSceneRemote();
 installOscRemote();
 // …and the takes docks drive the editor's recorder (and read their sparklines from it).
 installTakesRemote();
+// …and the timeline reads the editor's transport, waveforms and OSC sender (its stills come from above).
+installTransportRemote();
 // Looked up AFTER the UI halves registered theirs. Only a detachable one: the registry is the whole list.
 const panel = ((p) => (p?.detachable ? p : undefined))(panelRegistry.get(panelId));
 const titleFor = (ids: string[]) =>
