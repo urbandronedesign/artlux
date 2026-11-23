@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { solveGridFrame, setGridFrame, cellDivFor } from './gridScale';
+import { solveGridFrame, setGridFrame, gridFamilies } from './gridScale';
 import { gridCamera } from './gridSpace';
 
 // THE FLOOR — drawn as LINES, not as a shader plane, and SCALED rather than rebuilt.
@@ -42,99 +42,104 @@ import { gridCamera } from './gridSpace';
 // grid is visible, and it publishes before the gnomon and the labels read (r3f runs equal-priority
 // useFrame subscribers in mount order) — so all three agree about the section by construction rather
 // than by three separate derivations that can drift.
-const GRID_EXTENT = 15;        // sections from the centre, each way (the old grid's 30×30 at 1 m)
-const FADE = 12;               // distance, in sections, at which a line has faded to nothing
-const SECTION_COLOR = new THREE.Color('#d8d8d8');
-const CELL_COLOR = new THREE.Color('#b0b0b0');
+// ── 2026-11-23: CONTINUOUS, NOT STEPPED (owner: "blinking when I rotate", "should be smooth, no popping",
+// "light grey not white") ─────────────────────────────────────────────────────────────────────────────
+// The grid was ONE lattice re-stepped along a 1-2-5 ladder: each step swapped every line at once (a pop),
+// orbiting moved the reference point across the step's band (a blink), and its fade ring jumped a whole
+// section each time the lattice re-snapped. It is now THREE DECADE FAMILIES (gridScale.gridFamilies):
+// each is the same unit lattice scaled to its own spacing, snapped to its OWN spacing (so the finest
+// one follows the view in fine steps), with an opacity from its own on-screen spacing. Zooming only
+// changes opacities. The coarser families' lines lie on the finer ones' and draw over them — that is
+// what makes them the major lines; nothing else marks them.
+const EXTENT = 24;             // spacings from the centre, each way, per family
+const FADE = 20;               // distance, in that family's spacings, at which a line has faded out
+const LINE_COLOR = new THREE.Color('#a4a4a4');   // light grey — a reference, not a feature
+const LINE_OPACITY = 0.55;     // a family at full strength; overlapping majors build up from there
 // The fade needs the line SUBDIVIDED — a single segment can only fade between its two ends, so a
-// line through the centre would be brightest at the rim. One vertex per section is plenty.
-const STEP = 1;
+// line through the centre would be brightest at the rim. Two spacings per vertex is plenty.
+const STEP = 2;
 
-// How far the fine lines reach, per subdivision ratio — chosen so the number of fine lines on screen
-// stays roughly constant across rungs. The original was a flat 0.25 m out to 6 m (24 cells each way)
-// with the reason recorded: 0.25 m lines out to 15 m is 14k segments of visual noise. Holding the CELL
-// COUNT constant rather than the distance is what makes the grid look the same at every scale, which
-// is the whole point of a grid that re-steps.
-const CELL_EXTENT: Record<number, number> = { 4: 6, 5: 5, 10: 3 };
-
-function build(cellDiv: number): THREE.BufferGeometry {
+function build(): THREE.BufferGeometry {
   const pos: number[] = [];
   const col: number[] = [];
   const c = new THREE.Color();
-  const cellExtent = CELL_EXTENT[cellDiv] ?? 4;
-
   // Brightness at a point, from its distance to the centre. Squared falloff so the middle of the
   // grid stays readable while the edge dissolves rather than ending on a hard rectangle.
   const fade = (x: number, z: number): number => {
     const d = Math.hypot(x, z) / FADE;
     return d >= 1 ? 0 : (1 - d) * (1 - d);
   };
-
-  const push = (x1: number, z1: number, x2: number, z2: number, base: THREE.Color) => {
+  const push = (x1: number, z1: number, x2: number, z2: number) => {
     const a = fade(x1, z1), b = fade(x2, z2);
     if (a <= 0.001 && b <= 0.001) return;   // wholly outside the fade — never built, never drawn
     // Very slightly above the floor plane — see note 1 in the header. In normalised units this is
-    // 0.001 SECTIONS, and because the group's Y scale stays 1 it is 1 mm on screen at every rung.
+    // 0.001 SPACINGS, and because the group's Y scale stays 1 it is 1 mm on screen at every scale.
     pos.push(x1, 0.001, z1, x2, 0.001, z2);
-    c.copy(base).multiplyScalar(a); col.push(c.r, c.g, c.b);
-    c.copy(base).multiplyScalar(b); col.push(c.r, c.g, c.b);
+    c.copy(LINE_COLOR).multiplyScalar(a); col.push(c.r, c.g, c.b);
+    c.copy(LINE_COLOR).multiplyScalar(b); col.push(c.r, c.g, c.b);
   };
-
-  // One family of lines, along both axes, subdivided by STEP so the fade has somewhere to happen.
-  const family = (spacing: number, extent: number, base: THREE.Color, skipSections: boolean) => {
-    for (let i = -extent; i <= extent + 1e-6; i += spacing) {
-      // A cell line that lands exactly on a section line would double-draw it, brighter.
-      if (skipSections && Math.abs(i - Math.round(i)) < 1e-6) continue;
-      for (let t = -extent; t < extent - 1e-6; t += STEP) {
-        const t2 = Math.min(t + STEP, extent);
-        push(i, t, i, t2, base);   // along Z
-        push(t, i, t2, i, base);   // along X
-      }
+  for (let i = -EXTENT; i <= EXTENT; i++) {
+    for (let t = -EXTENT; t < EXTENT; t += STEP) {
+      const t2 = Math.min(t + STEP, EXTENT);
+      push(i, t, i, t2);   // along Z
+      push(t, i, t2, i);   // along X
     }
-  };
-
-  family(1 / cellDiv, cellExtent, CELL_COLOR, true);
-  family(1, GRID_EXTENT, SECTION_COLOR, false);
-
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   return g;
 }
 
-// One geometry per subdivision ratio, built lazily and kept for the life of the app — the same
-// lifetime the single geometry had before, for the same reason (nothing about them depends on the
-// scene). There are at most three, they are a few hundred KB together, and they are SHARED, so they
-// are deliberately not disposed when this unmounts: a remount would then get a disposed buffer.
-const geometries = new Map<number, THREE.BufferGeometry>();
-function geometryFor(cellDiv: number): THREE.BufferGeometry {
-  let g = geometries.get(cellDiv);
-  if (!g) { g = build(cellDiv); geometries.set(cellDiv, g); }
-  return g;
+// ONE unit lattice, shared by the three families and kept for the life of the app (nothing about it
+// depends on the scene). Deliberately not disposed on unmount: a remount would get a disposed buffer.
+let lattice: THREE.BufferGeometry | null = null;
+const latticeGeometry = (): THREE.BufferGeometry => (lattice ??= build());
+
+// THE LIVE GRID, solvable for ANY camera (plans/3d-workbench.md Phase 2): the multi-view renderer
+// re-solves it for each view right before drawing that view, so every pane gets a ruler scaled to ITS
+// camera and lying on ITS plane. A single view calls it once per frame from GroundGrid's own useFrame —
+// exactly what it did inline before. One grid exists (one <Simulator3D>, guarded), so module state is safe.
+let liveLines: THREE.Group | null = null;
+// Last solve's section, for the hysteresis band that stops a slow dolly blinking the whole floor between
+// two decades. Module state, not React: this changes at pointer rate and must never re-render.
+let liveSection = 0;
+
+export function applyGrid(camera: THREE.Camera, heightPx: number): void {
+  const g = liveLines;
+  if (!g) return;
+  // Solved in GRID space: on a flat side view the grid lies on that view's plane (gridSpace.ts).
+  const f = solveGridFrame(gridCamera(camera), heightPx, liveSection);
+  if (!f) { setGridFrame(null); g.visible = false; return; }
+  g.visible = true;
+  liveSection = f.section;
+  setGridFrame(f);
+  const fams = gridFamilies(f.pxPerMetre);
+  g.children.forEach((child, i) => {
+    const line = child as THREE.LineSegments;
+    const fam = fams[i];
+    const mat = line.material as THREE.LineBasicMaterial;
+    if (!fam || fam.alpha <= 0.002) { line.visible = false; return; }
+    line.visible = true;
+    mat.opacity = LINE_OPACITY * fam.alpha;
+    line.scale.set(fam.spacing, 1, fam.spacing);        // NEVER setScalar — see note 1 in the header
+    // Follows the view, snapped to a whole spacing OF THIS FAMILY: every line stays on a round world
+    // coordinate, and the finest family re-snaps in fine steps.
+    line.position.set(Math.round(f.refX / fam.spacing) * fam.spacing, 0, Math.round(f.refZ / fam.spacing) * fam.spacing);
+  });
 }
 
 export const GroundGrid: React.FC = () => {
-  const ref = useRef<THREE.LineSegments>(null);
-  // Last frame's section, for the hysteresis band that stops a slow dolly blinking the whole floor
-  // between two decades. A ref, not state: this changes at pointer rate and must never re-render.
-  const section = useRef(0);
+  const ref = useRef<THREE.Group>(null);
+  useEffect(() => {
+    liveLines = ref.current;
+    return () => { if (liveLines === ref.current) liveLines = null; };
+  }, []);
 
   useFrame(({ camera, size }) => {
-    const g = ref.current;
-    if (!g) return;
-    // Solved in GRID space: on a flat side view the grid lies on that view's plane (gridSpace.ts).
-    const f = solveGridFrame(gridCamera(camera), size.height, section.current);
-    if (!f) { setGridFrame(null); return; }
-    section.current = f.section;
-    setGridFrame(f);
-
-    // Swapping the geometry is a direct write, not React state: a rung change is rare (a few times
-    // across a whole zoom) but routing it through a re-render would put React in the frame loop for
-    // something that is one property assignment.
-    const geo = geometryFor(f.cellDiv);
-    if (g.geometry !== geo) g.geometry = geo;
-    g.scale.set(f.section, 1, f.section);        // NEVER setScalar — see note 1 in the header
-    g.position.set(f.originX, 0, f.originZ);     // follows the view, snapped to a whole section
+    if (!ref.current) return;
+    liveLines = ref.current;
+    applyGrid(camera, size.height);
   });
 
   // Stop the labels the moment the grid does. Without this the numbers freeze over a live viewport,
@@ -144,10 +149,14 @@ export const GroundGrid: React.FC = () => {
   return (
     // Never a pick target: it is a reference, and a full-floor pick plane would swallow every click
     // meant for the rig standing on it — the failure PlacementPlane's header describes.
-    // `frustumCulled={false}` was already right and is now load-bearing: the group MOVES, so three's
-    // cached bounding sphere would be tested against stale world bounds.
-    <lineSegments ref={ref} geometry={geometryFor(cellDivFor(1))} raycast={() => null} frustumCulled={false}>
-      <lineBasicMaterial vertexColors transparent opacity={0.85} depthWrite={false} toneMapped={false} />
-    </lineSegments>
+    // `frustumCulled={false}` was already right and is load-bearing: the families MOVE, so three's
+    // cached bounding spheres would be tested against stale world bounds.
+    <group ref={ref}>
+      {[0, 1, 2].map((i) => (
+        <lineSegments key={i} geometry={latticeGeometry()} raycast={() => null} frustumCulled={false}>
+          <lineBasicMaterial vertexColors transparent opacity={0} depthWrite={false} toneMapped={false} />
+        </lineSegments>
+      ))}
+    </group>
   );
 };

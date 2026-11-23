@@ -192,7 +192,8 @@ export const FrameController: React.FC<{ fixtures: Fixture[]; selectedFixtureIds
       const dir = _v.copy(cam.position).sub(ctl.target);
       if (dir.lengthSq() < 1e-12) dir.set(0, 0.4, 1);
       dir.normalize();
-      const dist = perspFitDistance(sphere.radius, cam.fov, size.height > 0 ? size.width / size.height : 1);
+      // The camera's OWN aspect: in four views it is the Perspective pane's, not the canvas's.
+      const dist = perspFitDistance(sphere.radius, cam.fov, cam.aspect > 0 ? cam.aspect : 1);
       cam.position.copy(center).addScaledVector(dir, dist);
     }
     ctl.target.copy(center);

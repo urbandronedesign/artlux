@@ -66,3 +66,13 @@ export function gridCamera(cam: THREE.Camera): THREE.Camera {
   proxy.matrixWorld.decompose(proxy.position, proxy.quaternion, proxy.scale);
   return proxy;
 }
+
+// The groups the grid and its numbers are drawn in (Simulator3D's GridPlaneGroup). Registered so the
+// four-view renderer can turn them onto each pane's plane right before drawing that pane — a per-frame
+// copy (GridPlaneGroup's own useFrame) would only ever show the last pane's plane.
+const groups = new Set<THREE.Object3D>();
+export function registerGridGroup(g: THREE.Object3D): () => void { groups.add(g); return () => { groups.delete(g); }; }
+/** Apply the current grid plane to every registered group now (and refresh their world matrices). */
+export function syncGridGroups(): void {
+  for (const g of groups) { g.quaternion.copy(quat); g.updateMatrixWorld(true); }
+}

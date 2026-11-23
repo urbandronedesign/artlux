@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import type { HtmlPosition } from '@artlux/sdk/renderer';
 import { PolyLine } from '@/components/Simulator3D/PolyLine'; // host module — one line impl for both backends
 import * as THREE from 'three';
 import { Scene3D } from '../../../shared/protocol';
@@ -76,7 +77,8 @@ const rect = (points: [number, number, number][]): [number, number, number][] =>
 // zone is drawn on the camera panel, never dropped onto the LiDAR floor because its key is unknown here.
 type Place = (surface: string, u: number, v: number) => [number, number, number] | null;
 export const LIDAR_SURFACES = new Set(['SOL', 'MUR', 'SOL_MUR']);
-const ZoneOutlines: React.FC<{ place: Place; only: (surface: string) => boolean }> = ({ place, only }) => {
+// `htmlPosition` (host, SDK SceneVizContribution): where a label goes — keeps it in the right pane in four views.
+const ZoneOutlines: React.FC<{ place: Place; only: (surface: string) => boolean; htmlPosition?: HtmlPosition }> = ({ place, only, htmlPosition }) => {
   const [tick, setTick] = useState(0);
   const list = zones.getZones().filter((z) => only(z.surface));
   // Occupancy is a low-rate event (a person arriving), so a 4 Hz poll is plenty and keeps the r3f
@@ -122,7 +124,7 @@ const ZoneOutlines: React.FC<{ place: Place; only: (surface: string) => boolean 
                 is bigger than the word inside it and hides the corner of the zone it sits in. Legibility
                 over an arbitrary venue model comes from a 1px dark outline instead, which costs no area. */}
             <group position={centre}>
-              <Html center zIndexRange={[18, 0]} prepend>
+              <Html center zIndexRange={[18, 0]} prepend calculatePosition={htmlPosition}>
                 <div style={{
                   pointerEvents: 'none', whiteSpace: 'nowrap', fontSize: '9px', lineHeight: 1,
                   letterSpacing: '0.02em', textAlign: 'center',
@@ -194,7 +196,7 @@ const VenueFraming: React.FC<{ dims: Dims }> = ({ dims }) => {
   return null;
 };
 
-const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
+const TrackingViz: React.FC<{ scene3D: Scene3D; htmlPosition?: HtmlPosition }> = ({ scene3D, htmlPosition }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const color = useMemo(() => new THREE.Color(), []);
@@ -306,7 +308,7 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
       </mesh>
 
       {/* Trigger zones — dashed while empty, solid + thick while occupied. */}
-      <ZoneOutlines place={placeLidar} only={isLidar} />
+      <ZoneOutlines place={placeLidar} only={isLidar} htmlPosition={htmlPosition} />
 
       {/* Live blob markers — unlit + bright (per-surface instanceColor) so they read at any lighting. */}
       <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_BLOBS]} frustumCulled={false}>
@@ -318,7 +320,7 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
           by moving each label's parent group (render-free). */}
       {showLabels && labels.map((l) => (
         <group key={l.key} ref={(g) => { if (g) groupRefs.current.set(l.key, g); else groupRefs.current.delete(l.key); }}>
-          <Html center distanceFactor={9} zIndexRange={[20, 0]} prepend>
+          <Html center distanceFactor={9} zIndexRange={[20, 0]} prepend calculatePosition={htmlPosition}>
             <div
               ref={(el) => { if (el) labelEls.current.set(l.key, el); else labelEls.current.delete(l.key); }}
               style={{
@@ -352,9 +354,9 @@ const isLidar = (surface: string): boolean => LIDAR_SURFACES.has(surface);
 // the zones and their state are ours. Mounted on its own (not inside TrackingViz), so camera zones show
 // without switching on the LiDAR venue. A provider returns null while its own overlay is off, and then
 // nothing is drawn: a zone floating on a panel that is not there would be worse than none.
-export const ProviderZonesViz: React.FC<{ scene3D: Scene3D }> = () => {
+export const ProviderZonesViz: React.FC<{ scene3D: Scene3D; htmlPosition?: HtmlPosition }> = ({ htmlPosition }) => {
   const place = useMemo<Place>(() => (surface, u, v) => providerSurface(surface)?.toWorld?.(u, v) ?? null, []);
-  return <ZoneOutlines place={place} only={notLidar} />;
+  return <ZoneOutlines place={place} only={notLidar} htmlPosition={htmlPosition} />;
 };
 const notLidar = (surface: string): boolean => !LIDAR_SURFACES.has(surface);
 

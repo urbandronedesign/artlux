@@ -1,8 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { AxisArms } from './AxisTriad';
-import { getGridFrame } from './gridScale';
+import { getGridFrame, GNOMON_PX } from './gridScale';
 
 // WHERE (0,0,0) IS — and, at the same time, how long one grid cell is.
 //
@@ -36,16 +36,27 @@ import { getGridFrame } from './gridScale';
 // land, so this is a good deal slimmer, and carries no sphere caps at all.
 const RADIUS_FRAC = 0.012;
 
+// ONE SIZE ON SCREEN (2026-11-23). Its arms were ONE SECTION long, so the gnomon jumped whenever the
+// grid stepped — the same pop the grid had. They are now a constant on-screen length, from the same
+// px-per-metre the grid fades by, so it grows and shrinks smoothly with the zoom. The grid lines and the
+// numbers are the ruler now; this marks where the origin is and which way the axes run.
+let liveGnomon: THREE.Group | null = null;
+/** Size the gnomon for a given density — the four-view renderer calls this per pane. */
+export function applyGnomon(pxPerMetre: number | null): void {
+  if (!liveGnomon) return;
+  liveGnomon.scale.setScalar(pxPerMetre && pxPerMetre > 0 ? GNOMON_PX / pxPerMetre : 0);
+}
+
 export const OriginGnomon: React.FC = () => {
   const ref = useRef<THREE.Group>(null);
+  useEffect(() => { liveGnomon = ref.current; return () => { if (liveGnomon === ref.current) liveGnomon = null; }; }, []);
 
   useFrame(() => {
-    const g = ref.current;
-    if (!g) return;
-    const f = getGridFrame();
+    if (!ref.current) return;
+    liveGnomon = ref.current;
     // No frame published this tick (the grid solved nothing) — collapse rather than sit at a stale
     // size. A gnomon a hundred metres long across a 20 cm prop is worse than no gnomon.
-    g.scale.setScalar(f ? f.section : 0);
+    applyGnomon(getGridFrame()?.pxPerMetre ?? null);
   });
 
   // Starts collapsed, not at unit scale: the first useFrame is a frame away, and a 1-unit gnomon for

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { getGridFrame } from './gridScale';
+import { getGridFrame, labelFamilies, LABEL_PX } from './gridScale';
 import { gridCamera, gridLabelSigns } from './gridSpace';
 
 // THE NUMBERS ON THE FLOOR — painted ON the floor, along the axis lines they measure, the way Houdini's
@@ -30,38 +30,20 @@ import { gridCamera, gridLabelSigns } from './gridSpace';
 // (projectorDepth.ts, projectorBake.ts) — never see it. The look-through-a-projector view shows it,
 // exactly as it shows the grid.
 //
-// ── WHY THERE IS NO COLLISION THINNING ANY MORE ────────────────────────────────────────────────────
-// The text is sized as a fraction of ONE SECTION and runs along the same axis its neighbours are spaced
-// on. Perspective shrinks the spacing and the text by exactly the same factor, so two numbers on a run
-// can never overlap on screen at any camera — the screen-space stride ladder the overlay needed is gone.
-// Far numbers dissolve with the same squared fade as the grid lines instead.
+// ── WHY THERE IS NO COLLISION THINNING ─────────────────────────────────────────────────────────────
+// The text height is fixed in pixels at the reference point, and a family only shows once its spacing
+// is ≥ LABEL_GONE_PX there (gridScale.labelFamilies). Text and spacing then shrink together with
+// perspective along the run, so two numbers never overlap on screen.
 //
 // ── COST ───────────────────────────────────────────────────────────────────────────────────────────
 // One draw call. The atlas is drawn and uploaded ONCE per session. The geometry (a few hundred quads)
-// is rewritten only when the grid frame changes — a zoom rung or a pan across a section — or the camera
-// crosses an axis (the text flips to stay readable). Every other frame is two comparisons.
+// is rewritten only when its quantised key changes (zoom, pan, an axis crossed — see the useFrame).
+// A still camera costs one string comparison per frame.
 
 // ── Style ──────────────────────────────────────────────────────────────────────────────────────────
-const INK = new THREE.Color('#d0d0d0');    // a shade under the section lines' #d8d8d8 — a caption, not a feature
+const INK = new THREE.Color('#b4b4b4');    // light grey, a shade over the lines' #a4a4a4 — a caption, not a feature
 const X_INK = new THREE.Color('#ff6b7f');
 const Z_INK = new THREE.Color('#6fa8f8');
-/**
- * Text height. Numbers sit only on WHOLE METRES, so neighbours are max(1 m, one section) apart — much
- * further than one section when the grid is finer than a metre — and the text is sized against THAT
- * spacing (H_OF_SPACING), capped by H_OF_SECTION so zooming in close does not blow a "1" up to a
- * third of the screen. Flat text on a floor seen at a grazing angle needs every bit of height it can
- * get, and the spacing is what says how much it can have.
- */
-const H_OF_SPACING = 0.3;
-const H_OF_SECTION = 0.4;
-/** The widest a label may be, as a fraction of the spacing, so it never reaches its neighbour. */
-const MAX_W = 0.86;
-/** Gap between the line and the top of its numbers, in sections — they caption the line, not sit on it. */
-const GAP = 0.06;
-/** Sections each way that get a number. The grid lines have faded to ~2% by here (GroundGrid FADE). */
-const EXT = 11;
-/** Same falloff as GroundGrid's lines, so a number dissolves exactly where its line does. */
-const FADE = 12;
 /** 2 mm up: above the grid lines' 1 mm lift, so the two never z-fight. */
 const Y = 0.002;
 
@@ -152,53 +134,71 @@ function layString(geo: THREE.BufferGeometry, q: number, text: string, at: THREE
   return q;
 }
 
-/**
- * Linear falloff with distance from the grid centre, in sections, reaching zero where GroundGrid's lines
- * do. Linear, not the lines' squared curve: a thin line can afford to go dim early, flat text cannot —
- * with the squared curve the second number out was already at 40% and unreadable at a working angle.
- */
-const fadeAt = (k: number) => { const d = Math.abs(k) / FADE; return d >= 1 ? 0 : 1 - d; };
+// ── 2026-11-23: NO POP, NO BLINK (owner) ─────────────────────────────────────────────────────────
+// The numbers used to be laid out per SECTION: their size, spacing and run line all stepped with the
+// grid's rung (a pop), and the run line re-snapped as orbiting nudged the reference point (a blink).
+// Now (gridScale.labelFamilies): a CONSTANT on-screen size; whole metres in DECADE families (1, 10,
+// 100 m …), each number drawn by the coarsest family it belongs to and faded by THAT family's on-screen
+// spacing, so zooming out dims the 1 m numbers while the 10 m ones stay; a fade by distance from the
+// UNSNAPPED reference point; and a run line that only moves once the view is well past it.
+const L_EXT = 9;          // numbers each way per family, in that family's spacings
+const L_FADE = 10;        // distance (in the family's spacings) at which a number has faded out
+const RUN_STICK = 1.25;   // the run line moves only once the reference is this many spacings from it
+
+interface Layout { px: number; refX: number; refZ: number; runX: number; runZ: number; tilt: number }
+/** The widest a number may be, as a fraction of its family's spacing, so it never reaches its neighbour. */
+const MAX_W = 0.8;
 
 /**
  * Rebuild both runs. `sideX`/`sideZ` say which side of each axis line the camera is on (+1 / -1), which
  * decides which way the text faces so it is never read mirrored or upside down.
  */
-function rebuild(geo: THREE.BufferGeometry, section: number, ox: number, oz: number, sideX: number, sideZ: number, signX = 1, signZ = 1): void {
+function rebuild(geo: THREE.BufferGeometry, L: Layout, sideX: number, sideZ: number, signX = 1, signZ = 1): void {
   let q = 0;
-  // Whole metres only ⇒ neighbours are 1 m apart on sub-metre rungs, one section apart otherwise
-  // (the ≥ 1 m rungs — 1, 2, 5, 10… — are themselves whole metres).
-  const spacing = Math.max(1, section);
-  const h = Math.min(H_OF_SPACING * spacing, H_OF_SECTION * section), gap = GAP * section;
+  const fams = labelFamilies(L.px);
+  // LABEL_PX on screen at the reference point — divided by the tilt, because text lying FLAT on a floor
+  // seen at a low angle is squashed in depth by about the sine of that angle (measured: 12 px came out
+  // as 3 px at a working angle). The reading direction is not squashed, so MAX_W still caps the width.
+  const h0 = LABEL_PX / L.px / L.tilt;
   for (const axis of ['x', 'z'] as const) {
     // v = the text's "up", pointing AWAY from the viewer; u = v × Y, the reading direction.
     if (axis === 'x') _v.set(0, 0, -sideX); else _v.set(-sideZ, 0, 0);
     _u.set(-_v.z, 0, _v.x);
-    let endK = -Infinity;
-    for (let k = -EXT; k <= EXT; k++) {
-      if (axis === 'z' && k === 0) continue;   // the X run already prints the shared "0"
-      const f = fadeAt(k);
-      if (f < 0.02) continue;
-      const value = (axis === 'x' ? ox : oz) + k * section;
-      // WHOLE METRES ONLY, as a bare integer (owner's decision, 2026-10-22: the floor is read in metres,
-      // so no unit and no decimals). A line between whole metres simply carries no number.
-      // The WORLD coordinate: on a side view's grid a local axis can run along a world axis reversed
-      // (gridSpace.ts) — the Front view's vertical run is height, not minus local z.
-      const metres = Math.round(value) * (axis === 'x' ? signX : signZ);
-      if (Math.abs(value - metres) > 1e-6) continue;
-      if (axis === 'x') _at.set(value, Y, oz); else _at.set(ox, Y, value);
-      const text = String(metres === 0 ? 0 : metres);   // never "-0"
-      // Shrink only the long ones ("-120"): a label wider than its spacing would touch the next.
-      const hk = Math.min(h, (MAX_W * spacing) / (text.length * cellAspect));
-      q = layString(geo, q, text, _at, _u, _v, hk, gap, _ink.copy(INK).multiplyScalar(f));
-      if (k > endK) endK = k;
+    const ref = axis === 'x' ? L.refX : L.refZ;          // where we are along the run
+    const across = axis === 'x' ? L.runZ : L.runX;       // the line the run sits on
+    const done = new Set<number>();
+    // Coarse to fine: a number belongs to the coarsest family it is a multiple of.
+    for (let i = fams.length - 1; i >= 0; i--) {
+      const { spacing: S, alpha } = fams[i];
+      if (alpha < 0.02) continue;
+      const c = Math.round(ref / S);
+      for (let k = c - L_EXT; k <= c + L_EXT; k++) {
+        const metres = Math.round(k * S);   // S is a whole number of metres (labelFamilies), so exact
+        if (done.has(metres)) continue;
+        done.add(metres);
+        if (axis === 'z' && metres === 0 && Math.abs(across) < 1e-6) continue;  // the X run prints the shared "0"
+        const d = Math.abs(metres - ref) / (S * L_FADE);
+        const f = alpha * (d >= 1 ? 0 : 1 - d);
+        if (f < 0.02) continue;
+        if (axis === 'x') _at.set(metres, Y, across); else _at.set(across, Y, metres);
+        // The WORLD coordinate: on a side view's grid a local axis can run along a world axis reversed
+        // (gridSpace.ts) — the Front view's vertical run is height, not minus local z.
+        const shown = metres * (axis === 'x' ? signX : signZ);
+        const text = String(shown === 0 ? 0 : shown);   // never "-0"
+        const h = Math.min(h0, (MAX_W * S) / (text.length * cellAspect));
+        q = layString(geo, q, text, _at, _u, _v, h, 0.45 * h, _ink.copy(INK).multiplyScalar(f));
+      }
     }
-    // The axis letter under the positive end of the run, so the figures say what they measure and which
-    // way the axis grows.
-    if (endK > -Infinity) {
-      const value = (axis === 'x' ? ox : oz) + endK * section;
-      if (axis === 'x') _at.set(value, Y, oz); else _at.set(ox, Y, value);
-      q = layString(geo, q, axis === 'x' ? 'X' : 'Z', _at, _u, _v, h, gap + h * 1.35,
-        _ink.copy(axis === 'x' ? X_INK : Z_INK).multiplyScalar(fadeAt(endK)));
+    // The axis letter a few full-strength spacings out on the positive side, so the figures say what
+    // they measure and which way the axis grows. Between two numbers, so it never sits on one.
+    const full = fams.find((x) => x.alpha > 0.98) ?? fams[fams.length - 1];
+    if (full) {
+      const value = (Math.round(ref / full.spacing) + 2.5) * full.spacing;
+      const d = Math.abs(value - ref) / (full.spacing * L_FADE);
+      if (axis === 'x') _at.set(value, Y, across); else _at.set(across, Y, value);
+      const h = Math.min(h0, (MAX_W * full.spacing) / cellAspect);
+      q = layString(geo, q, axis === 'x' ? 'X' : 'Z', _at, _u, _v, h, 0.45 * h,
+        _ink.copy(axis === 'x' ? X_INK : Z_INK).multiplyScalar(d >= 1 ? 0 : 1 - d));
     }
   }
   geo.attributes.position.needsUpdate = true;
@@ -207,12 +207,26 @@ function rebuild(geo: THREE.BufferGeometry, section: number, ox: number, oz: num
   geo.setDrawRange(0, q * 6);
 }
 
+/** The run line: stays put until the reference is RUN_STICK spacings away, then moves to the nearest
+ *  multiple — so orbiting, which nudges the reference, never makes the numbers jump a row. */
+function stickRun(prev: number | null, ref: number, S: number): number {
+  const onLattice = prev !== null && Math.abs(Math.round(prev / S) * S - prev) < 1e-6;
+  if (onLattice && Math.abs(ref - prev!) < RUN_STICK * S) return prev!;
+  return Math.round(ref / S) * S;
+}
+
 /**
  * Mounted inside the Canvas, after GroundGrid (the single writer of the grid frame) and after
  * ProjectorView — equal-priority useFrame subscribers run in mount order, so this reads this frame's
  * section, never last frame's. Priority stays 0: a positive priority hands r3f's whole render loop to
  * this subscriber and the viewport stops drawing (projectorDepth.ts records the same trap).
  */
+// The label mesh, so the four-view renderer can show the numbers in the Perspective pane only: their
+// geometry is laid out for ONE camera (reading side, decimation), and rebuilding it per pane per frame
+// would cost far more than the flat panes need from a ruler. One <GridLabels> (one Simulator3D, guarded).
+let liveLabels: THREE.Object3D | null = null;
+export function setGridLabelsVisible(v: boolean): void { if (liveLabels) liveLabels.visible = v; }
+
 const _away = new THREE.Vector3();
 
 export const GridLabels: React.FC = () => {
@@ -224,6 +238,8 @@ export const GridLabels: React.FC = () => {
   }), []);
   const meshRef = useRef<THREE.Mesh>(null);
   const keyRef = useRef('');
+  const sideRef = useRef({ x: 0, z: 0 });
+  const runRef = useRef<{ x: number | null; z: number | null }>({ x: null, z: null });
 
   useEffect(() => () => { geometry.dispose(); material.dispose(); }, [geometry, material]);
 
@@ -240,16 +256,34 @@ export const GridLabels: React.FC = () => {
     // Top view (3d-workbench Phase 1) stands exactly above its target, where "which side of the origin"
     // is a coin toss — measured: the numbers came out upside down. Looking straight down there is no
     // floor direction to look along, so the screen's up (the camera's Y column) says which way is away.
-    _away.set(0, 0, -1).transformDirection(camera.matrixWorld); _away.y = 0;
+    _away.set(0, 0, -1).transformDirection(camera.matrixWorld);
+    const tilt = Math.min(1, Math.max(0.3, Math.abs(_away.y)));   // how steeply we look down at the floor
+    _away.y = 0;
     if (_away.lengthSq() < 0.0025) { _away.setFromMatrixColumn(camera.matrixWorld, 1); _away.y = 0; }
-    const sideX = _away.z <= 0 ? 1 : -1;   // which side of the X line we look from
-    const sideZ = _away.x <= 0 ? 1 : -1;   // which side of the Z line
+    // SIDE WITH A DEAD BAND: looking along an axis, the look direction wobbles across it while orbiting
+    // and the text flipped back and forth (a blink). It now flips only once the view is clearly over.
+    const len = Math.hypot(_away.x, _away.z) || 1;
+    const az = _away.z / len, ax = _away.x / len;
+    const side = sideRef.current;
+    if (side.x === 0 || Math.abs(az) > 0.3) side.x = az <= 0 ? 1 : -1;   // which side of the X line we look from
+    if (side.z === 0 || Math.abs(ax) > 0.3) side.z = ax <= 0 ? 1 : -1;   // which side of the Z line
     const sg = gridLabelSigns();
-    const key = `${f.section}|${f.originX}|${f.originZ}|${sideX}|${sideZ}|${sg.x}|${sg.z}`;
+    const fams = labelFamilies(f.pxPerMetre);
+    if (!fams.length) { mesh.visible = false; keyRef.current = ''; return; }
+    const R = (fams.find((x) => x.alpha > 0.98) ?? fams[fams.length - 1]).spacing;
+    const run = runRef.current;
+    run.x = stickRun(run.x, f.refX, R);
+    run.z = stickRun(run.z, f.refZ, R);
+    // Rebuilt only when something visible changed: the density (to 1/32 of an octave), the reference
+    // (to 1/16 of the finest label spacing), the run lines, the sides. A still camera costs a compare.
+    const fine = fams[0].spacing;
+    const key = `${Math.round(Math.log2(f.pxPerMetre) * 32)}|${Math.round((f.refX / fine) * 16)}|${Math.round((f.refZ / fine) * 16)}|${run.x}|${run.z}|${side.x}|${side.z}|${sg.x}|${sg.z}|${Math.round(tilt * 40)}`;
     if (key === keyRef.current) return;                      // the common case: nothing to do
     keyRef.current = key;
-    rebuild(geometry, f.section, f.originX, f.originZ, sideX, sideZ, sg.x, sg.z);
+    rebuild(geometry, { px: f.pxPerMetre, refX: f.refX, refZ: f.refZ, runX: run.x!, runZ: run.z!, tilt: Math.round(tilt * 40) / 40 }, side.x, side.z, sg.x, sg.z);
   });
+
+  useEffect(() => { liveLabels = meshRef.current; return () => { if (liveLabels === meshRef.current) liveLabels = null; }; }, []);
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={material}

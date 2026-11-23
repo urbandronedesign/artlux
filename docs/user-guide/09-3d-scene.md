@@ -39,6 +39,21 @@ things at the same height line up on screen.
 - While you **look through a calibrated projector** the picker is greyed: the projector owns the camera.
   Choose **Editor camera** first.
 
+### Four views at once
+
+The **four-view button** in the 3D header (or **Ctrl+Alt+Q** over the 3D view) splits the view into
+**Top**, **Perspective**, **Front** and **Right** — the layout Rhino opens with — and back to one view. The
+choice is kept on this machine.
+
+- **Perspective** (top right, outlined) is where you work: orbit, move things with the gizmo, frame with
+  **Home** / **F**. Everything that works in one view works there.
+- **Top, Front and Right** are live references of the same scene: **wheel** to zoom about the pointer,
+  **right‑ or middle‑drag** to pan, **click** to select. Each has a ruler on its own plane.
+- **Double‑click a pane's title** to make it the only view (Top as a plan, for instance); the four‑view
+  button brings the four back.
+- While four views are up the view picker is greyed — the panes *are* the views. Looking through a
+  calibrated projector always shows one view.
+
 ### Saved views
 
 Save where you are looking from and come back to it in one click — "FOH", "truss from stage left", "plan".
@@ -86,21 +101,25 @@ window** — the outliner's sections, the fixture panels, the Media Library and 
 
 ## Read the scale
 
-The floor grid is a ruler. It **re-scales as you zoom** — counted lines a metre apart when you are
-looking at the whole venue, ten centimetres apart when you are down on a single fixture — and it
+The floor grid is a ruler. Its **density follows the zoom, smoothly** — zoom out and the fine lines
+fade away while the ten-times-coarser ones take over; zoom in and finer lines fade in between them, so
+there is never a jump from one scale to the next. Lines a metre apart when you are looking at the whole
+venue, ten centimetres apart when you are down on a single fixture. It
 **follows what you are looking at**, so there is always a floor under the thing you are working on even
 when that is a long way from the centre of the world. Whatever it re-scales to, its lines land on round
 coordinates, and **Grid numbers** prints the **whole metres** — `1`, `2`, `3`, no unit, because the floor
 is always read in metres — **on the floor**, along the X and Z lines they measure. A line between two
-whole metres carries no number. They lie in the floor's perspective like the lines do, turn round when you walk the camera
+whole metres carries no number, and the figures thin out the same way the lines do: zoomed out, the
+`1`, `2`, `3` fade and the `10`, `20`, `30` stay. They keep the same size on screen at any zoom. They lie in the floor's perspective like the lines do, turn round when you walk the camera
 to the other side so they always read the right way, and are **hidden by anything standing in front of
 them** — a screen or a model covers the figures behind it, just as it covers the grid.
 
 The three coloured arms standing on the floor — red **X**, green **Y**, blue **Z** — mark the **world
 origin**, the point `(0, 0, 0)` that every position you type into an inspector is measured from. They
-are exactly **one grid cell long**, which makes them a ruler you can hold up against anything.
+keep the **same size on screen** at any zoom, so the origin is always easy to find; for real sizes, read
+the grid lines and their numbers.
 
-That is what to reach for when an imported model looks wrong. A `.glb` arrives at whatever unit the
+The grid is what to reach for when an imported model looks wrong. A `.glb` arrives at whatever unit the
 program that exported it was using, and a model built in millimetres comes in a thousand times too
 small — or a thousand times too big — with nothing to say so. Drop it in, look at it against the floor,
 and if it does not match, select it and use **Fit** in the Model panel to give it a real size in metres.

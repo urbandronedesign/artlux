@@ -111,6 +111,15 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['view', 'named view', 'saved view', 'bookmark', 'camera', 'viewpoint'],
   },
 
+  {
+    id: 'scene3d.layout',
+    title: 'Four views',
+    short: 'Top, Perspective, Front and Right at once — or back to one view.',
+    body: 'Rhino’s four-view layout. Perspective (top right) is where you work: orbit, the gizmo and the view picker act there. The three flat views are live references: wheel to zoom about the pointer, right- or middle-drag to pan, click to select. Double-click a pane’s title to make it the only view. Ctrl+Alt+Q switches between one view and four; the choice is kept on this machine.',
+    group: '3D Scene',
+    keywords: ['quad', 'four views', 'multi view', 'layout', 'split', 'viewports', 'rhino'],
+  },
+
   // ── Selected-model transform ────────────────────────────────────────────────────────────────
   {
     id: 'scene3d.model-layer',

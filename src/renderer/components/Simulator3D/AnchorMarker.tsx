@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { worldPerPixel } from './screenScale';
+import { htmlPosition } from './htmlPosition';
 import { getSnapHover } from './vertexSnap';
 
 // One numbered calibration anchor (a board pose pick or an Auto-Align correspondence) drawn in the
@@ -73,7 +74,7 @@ export const AnchorMarker: React.FC<Props> = ({ world, index, selected, onSelect
         <sphereGeometry args={[1, 16, 16]} />
         <meshBasicMaterial color={col} depthTest={false} transparent opacity={0.95} />
       </mesh>
-      <Html center style={{ pointerEvents: 'none' }}>
+      <Html center style={{ pointerEvents: 'none' }} calculatePosition={htmlPosition}>
         <div style={{ transform: 'translateY(-15px)', font: 'bold 11px sans-serif', color: col, textShadow: '0 0 3px #000,0 0 3px #000', whiteSpace: 'nowrap' }}>{index + 1}</div>
       </Html>
     </group>

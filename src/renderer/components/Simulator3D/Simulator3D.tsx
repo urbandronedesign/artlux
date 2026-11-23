@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEf
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid, LayoutGrid } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -35,9 +35,11 @@ import { ProjectorDepthPass } from './projectorDepth';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { OrthoCamera, ViewController, FrameController, DisplayModeController } from './ViewControls';
-import { setGridPlane, gridQuaternion } from './gridSpace';
-import { MULTIVIEW_SPIKE, MultiViewSpike, multiViewEvents } from './MultiViewSpike';
-import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, type ViewKind } from '../../services/view3d';
+import { setGridPlane, gridQuaternion, registerGridGroup } from './gridSpace';
+import { GizmoOrbitGuard } from './GizmoOrbitGuard';
+import { MultiView, multiViewEvents } from './MultiView';
+import { htmlPosition } from './htmlPosition';
+import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, getLayout, setLayout, subscribeLayout, maximisePane, QUAD_PANES, type ViewKind } from '../../services/view3d';
 import { usePrompt } from '../ui/feedback';
 import { nextNumberedName } from '@artlux/sdk/renderer';
 import { OriginGnomon } from './OriginGnomon';
@@ -259,6 +261,7 @@ const VIEW_KEYS: Array<[string, ViewKind]> = [
 // than passed as a prop: it changes with the view, and a direct write keeps React out of it.
 const GridPlaneGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const ref = useRef<THREE.Group>(null);
+  useEffect(() => (ref.current ? registerGridGroup(ref.current) : undefined), []);
   useFrame(() => { ref.current?.quaternion.copy(gridQuaternion()); });
   return <group ref={ref}>{children}</group>;
 };
@@ -340,6 +343,7 @@ const Simulator3D: React.FC<Props> = ({
       else if (keymap.matches(e, 'scene3d.zoomExtents')) { e.preventDefault(); requestFrame('extents'); }
       else if (keymap.matches(e, 'scene3d.zoomSelected')) { e.preventDefault(); requestFrame('selected'); }
       else if (keymap.matches(e, 'scene3d.cycleDisplay')) { e.preventDefault(); cycleDisplayMode(); }
+      else if (keymap.matches(e, 'scene3d.toggleQuad')) { e.preventDefault(); setLayout(getLayout() === 'quad' ? 'single' : 'quad'); }
       else {
         // NUDGE. One press = one commit and one history entry, exactly like the projector's warp
         // nudge — holding a key repeats, and each repeat is its own undo step, which is the behaviour
@@ -485,7 +489,11 @@ const Simulator3D: React.FC<Props> = ({
   // projector drives the camera from the calibration, so it wins: an ortho choice waits underneath and
   // comes back when the look-through ends.
   const chosenView = useSyncExternalStore(subscribeView, getView);
-  const shownView: ViewKind = viewFrom ? 'persp' : chosenView;
+  // FOUR VIEWS (Phase 2): the working pane is the perspective camera; the flat panes have their own.
+  // A projector look-through owns the camera, so it keeps one view.
+  const layout = useSyncExternalStore(subscribeLayout, getLayout);
+  const quad = layout === 'quad' && !viewFrom;
+  const shownView: ViewKind = viewFrom || quad ? 'persp' : chosenView;
   const ortho = isOrtho(shownView);
   // The ruler lies on the plane the view looks at (Front → the XY wall plane…), before the grid solves.
   useLayoutEffect(() => { setGridPlane(shownView); }, [shownView]);
@@ -594,12 +602,14 @@ const Simulator3D: React.FC<Props> = ({
         <div className="w-px h-4 bg-line-1 mx-1" />
         <ToolBtn active={mode === 'select'} title={`Box select${keyHint('scene3d.modeSelect')} — drag to select fixtures; hold Shift to add`} helpId="scene3d.gizmo-select" onClick={() => setMode('select')}><BoxSelect size={14} /></ToolBtn>
         <div className="w-px h-4 bg-line-1 mx-1" />
+        {/* ONE VIEW ⇄ FOUR (Phase 2) — Rhino's Top / Perspective / Front / Right. Per machine. */}
+        <ToolBtn active={quad} title={`${quad ? 'Back to one view' : 'Four views — Top, Perspective, Front, Right'}${keyHint('scene3d.toggleQuad')}`} helpId="scene3d.layout" onClick={() => setLayout(layout === 'quad' ? 'single' : 'quad')}><LayoutGrid size={14} /></ToolBtn>
         {/* THE VIEW. One compact select rather than seven buttons — the header must not grow (36 px,
             gizmo-precision constraint) — and the keys are the fast way (numpad 1/3/7, Ctrl = opposite). */}
         <Tooltip id="scene3d.view">
           <select
             value={shownView}
-            disabled={!!viewFrom}
+            disabled={!!viewFrom || quad}
             onChange={(e) => { void onPickView(e.target.value); }}
             title={viewFrom ? 'Looking through a projector — choose "Editor camera" to pick a view' : 'View — numpad 1 Front · 3 Right · 7 Top (Ctrl = opposite side) · 5 Perspective'}
             className={`bg-surface-0 border rounded px-1 py-0.5 text-micro focus:outline-none disabled:opacity-40 ${ortho ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
@@ -704,9 +714,9 @@ const Simulator3D: React.FC<Props> = ({
         // r3f awaits so `renderer.init()` can complete. See renderer3d.ts for the flag and the why.
         gl={glConfig}
         camera={{ position: [0, 1.2, 3], fov: 50 }}
-        // PHASE 2 SPIKE (MultiViewSpike.tsx), off unless `artlux.multiview` is set on this machine: picks
-        // go through the camera of the quarter under the pointer.
-        {...(MULTIVIEW_SPIKE ? { events: multiViewEvents } : {})}
+        // FOUR VIEWS (MultiView.tsx): picks go through the camera of the pane under the pointer. Only while
+        // the layout is up — a single view keeps r3f's own mapping.
+        {...(quad ? { events: multiViewEvents } : {})}
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}
       >
         <color attach="background" args={['#0d0d0d']} />
@@ -751,7 +761,7 @@ const Simulator3D: React.FC<Props> = ({
             the rest of the scene keeps rendering, instead of taking the canvas with it. */}
         {sceneVizRegistry.all().map((v) => (v.enabled?.(scene3D) ?? true)
           ? <ErrorBoundary key={v.id} scope={`plugin:${v.id}`} pluginId={v.id} silent>
-              <v.Component scene3D={scene3D} />
+              <v.Component scene3D={scene3D} htmlPosition={htmlPosition} />
             </ErrorBoundary>
           : null)}
         {/* Renders the projector depth maps that make projected mapping occlude, once per frame and
@@ -876,9 +886,10 @@ const Simulator3D: React.FC<Props> = ({
             while looking through a projector, whose camera is driven from the calibration. */}
         {/* An orthographic view only pans and zooms — rotation locked, as in Rhino (owner, 2026-11-23). */}
         <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select' && !ortho} />
+        <GizmoOrbitGuard />
         <ViewBridge />
         <DisplayModeController mode={displayMode} />
-        {MULTIVIEW_SPIKE && <MultiViewSpike />}
+        {quad && <MultiView orbitEnabled={dragPick == null && !viewFrom} />}
         <FrameController fixtures={fixtures} selectedFixtureIds={gizmoFixtures.map((f) => f.id)} selectedModelId={selectedModelId ?? null} view={shownView} />
         {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,
             which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that
@@ -887,9 +898,10 @@ const Simulator3D: React.FC<Props> = ({
         {/* THE CORNER WIDGET SWITCHES VIEW (3d-workbench Phase 1, item 4): an axis end → the flat view
             looking along it. On WebGL drei's own head click is DISABLED (it would tween the perspective
             camera instead of switching view) and the click is taken here as it bubbles from the head. */}
-        {/* renderPriority: drei's HUD at priority 1 RE-RENDERS THE WHOLE SCENE full-canvas before drawing
-            the widget — which would wipe the multi-view spike's quarters. At 2 it only draws the widget. */}
-        <GizmoHelper alignment="bottom-right" margin={[64, 64]} renderPriority={MULTIVIEW_SPIKE ? 2 : 1}>
+        {/* NOT IN FOUR VIEWS: drei's HUD at its default priority RE-RENDERS THE WHOLE SCENE full-canvas
+            before drawing the widget (measured — it wiped the panes), and its corner would sit in the
+            Right pane while showing the Perspective camera. The pane titles carry the views there. */}
+        {!quad && <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
           {webgpuSpike
             ? <ClickableAxisTriad onPick={(d) => setView(viewAlong(d))} />
             : (
@@ -897,13 +909,31 @@ const Simulator3D: React.FC<Props> = ({
                 <GizmoViewport labelColor="white" axisHeadScale={1} disabled />
               </group>
             )}
-        </GizmoHelper>
+        </GizmoHelper>}
         {/* No Glow (bloom) — removed 2026-10-22. It was @react-three/postprocessing's EffectComposer,
             a WebGL library, so it was already skipped on the WebGPU renderer this scene defaults to:
             the toggle did nothing on any venue machine, and on the WebGL fallback it cost a full-screen
             pass plus a blur chain every frame. A bloom for this viewport would be three's own
             PostProcessing + a TSL bloom node. Scene3D.glow is still read from old projects and ignored. */}
       </Canvas>
+
+      {/* FOUR-VIEW CHROME: a title per pane (double-click → that view, maximised) and the dividers. DOM over
+          the canvas, pointer-transparent except the titles, so it never steals a pick. */}
+      {quad && (
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-2" />
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-line-2" />
+          {QUAD_PANES.map((p) => (
+            <button
+              key={p.id}
+              onDoubleClick={() => maximisePane(p)}
+              title={`${viewLabel(p.view)} — double-click to make it the only view`}
+              className={`pointer-events-auto absolute px-1.5 py-0.5 rounded-sm text-micro bg-surface-1/80 border ${p.view === 'persp' ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
+              style={{ left: `calc(${p.col * 50}% + 6px)`, top: `calc(${p.row * 50}% + 6px)` }}
+            >{viewLabel(p.view)}</button>
+          ))}
+        </div>
+      )}
 
       {marquee && (
         <div

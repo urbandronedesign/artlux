@@ -4186,10 +4186,11 @@ check(
 // ── 3D: the ruler tells the truth ─────────────────────────────────────────────────────────────
 check(
   'the floor grid, its numbers and the gnomon read one ladder',
-  'The floor re-steps as you zoom (a 1-2-5 metre ladder), and three separate things have to agree ' +
-  'about which rung is live: the lines that are drawn, the numbers printed beside them, and the ' +
-  'origin gnomon, whose arms are ONE SECTION long so it doubles as a ruler. If any of them derives ' +
-  'the rung independently they can disagree by a frame or by a whole decade, and the failure is ' +
+  'The floor fades between decade families as you zoom (gridScale.gridFamilies / labelFamilies), ' +
+  'and three separate things have to agree on the zoom they read: the lines that are drawn, the ' +
+  'numbers printed beside them, and the origin gnomon (screen-constant, sized from the same ' +
+  'pixels-per-metre). If any of them derives the scale independently they can disagree by a frame ' +
+  'or by a whole decade, and the failure is ' +
   'silent and actively harmful: a "2 m" printed over a line that is 1 m away is not a cosmetic bug, ' +
   'it is a wrong measurement an operator will scale an imported model by. Nothing throws. So the ' +
   'ladder lives in gridScale.ts, GroundGrid is the single writer of the solved frame, and the other ' +
@@ -4209,6 +4210,33 @@ check(
     for (const f of ['GridLabels.tsx', 'OriginGnomon.tsx'])
       if (exists(S + f) && /setGridFrame\(/.test(read(S + f)))
         problems.push(`${f} writes the grid frame — there must be exactly ONE writer, or which one wins depends on mount order`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'grabbing a gizmo never moves the camera',
+  'drei TransformControls switches the orbit off from its OWN pointerdown, and OrbitControls hears the ' +
+  'same press — whichever listener registered first wins, so the camera could start rotating as the ' +
+  'operator grabbed a move/rotate/scale handle. In four views it was certain: MultiView re-enables the ' +
+  'orbit on every pointermove to hold it off over the flat panes, which undid the switch-off for the ' +
+  'whole drag (owner, 2026-11-23: "when I move, scale or rotate, the cam moves"). Nothing throws; the ' +
+  'object AND the view move together. GizmoOrbitGuard turns the orbit off in a window CAPTURE listener ' +
+  'before the canvas sees the press, and anything else that writes controls.enabled must ask gizmoHeld().',
+  () => {
+    const S = 'src/renderer/components/Simulator3D/';
+    const problems = [];
+    const g = S + 'GizmoOrbitGuard.tsx';
+    if (!exists(g)) return `${g} is gone`;
+    const gs = read(g);
+    if (!/addEventListener\('pointerdown',\s*onDown,\s*true\)/.test(gs)) problems.push('GizmoOrbitGuard no longer listens to pointerdown in the CAPTURE phase — the orbit would hear the press first');
+    if (!/<GizmoOrbitGuard\s*\/>/.test(read(S + 'Simulator3D.tsx'))) problems.push('Simulator3D no longer mounts <GizmoOrbitGuard />');
+    for (const f of ['MultiView.tsx', 'ViewControls.tsx', 'Simulator3D.tsx']) {
+      if (!exists(S + f)) continue;
+      const src = read(S + f);
+      if (/\.enabled\s*=(?!=)/.test(src) && !/gizmoHeld\(\)/.test(src))
+        problems.push(`${f} writes controls.enabled without asking gizmoHeld() — it can turn the orbit back on mid-drag`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

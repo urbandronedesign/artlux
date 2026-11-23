@@ -34,6 +34,10 @@ export interface GridFrame {
   originZ: number;
   /** css px one world metre subtends at the reference point. The labels reuse it for decimation. */
   pxPerMetre: number;
+  /** The reference point itself (where the view meets the floor), UNSNAPPED — what the continuous grid,
+   *  the numbers and the gnomon follow, so nothing about them steps when the view moves. */
+  refX: number;
+  refZ: number;
 }
 
 // A 1·2·5 ladder rather than pure decades: decades alone jump 10x and spend most of a zoom at the
@@ -186,6 +190,8 @@ export function solveGridFrame(cam: THREE.Camera, heightPx: number, prevSection?
     // what lets the labels tell the truth.
     originX: Math.round(_at.x / section) * section,
     originZ: Math.round(_at.z / section) * section,
+    refX: _at.x,
+    refZ: _at.z,
   };
 }
 
@@ -200,3 +206,46 @@ export function setGridFrame(f: GridFrame | null): void { frame = f; }
 
 /** This frame's grid, or null when no grid is being drawn (hidden, or no 3D viewport mounted). */
 export function getGridFrame(): GridFrame | null { return frame; }
+
+// ── THE CONTINUOUS GRID (owner, 2026-11-23: "smooth, no popping, no blinking") ───────────────────────
+// The rung ladder above picks ONE section and swaps every line when it steps — a pop, however good the
+// hysteresis, and a blink whenever orbiting moved the reference point across the band. The grid is now
+// drawn as DECADE FAMILIES (1, 10, 100… × 10ⁿ m): each family fades with its OWN spacing on screen, so
+// zooming only ever changes opacities, never which lines exist. Lines of a coarser family coincide with a
+// finer one's and draw over them, which is what makes them read as the major lines. Fades run in LOG px
+// (a zoom is multiplicative), through a smoothstep so a family eases in and out rather than ramping.
+// The ladder lives HERE, in one place, for the reason the 'one source of truth' check records.
+
+/** A family is invisible below this on-screen spacing and fully drawn from FAMILY_FULL_PX up. */
+export const FAMILY_GONE_PX = 7;
+export const FAMILY_FULL_PX = 46;
+/** Numbers: a run of whole metres is invisible below this on-screen spacing, fully drawn above the next. */
+export const LABEL_GONE_PX = 38;
+export const LABEL_FULL_PX = 80;
+/** On-screen sizes, in css px — constant at every zoom, so nothing grows or shrinks in steps. */
+export const LABEL_PX = 13;
+export const GNOMON_PX = 28;   // the origin arms — halved from 56 (owner, 2026-11-23: too big)
+
+function logFade(px: number, gone: number, full: number): number {
+  if (!(px > 0)) return 0;
+  const t = Math.min(1, Math.max(0, (Math.log(px) - Math.log(gone)) / (Math.log(full) - Math.log(gone))));
+  return t * t * (3 - 2 * t);
+}
+
+export interface GridFamily { spacing: number; alpha: number }
+
+/** The three decades of lines in view at this density, finest first, each with its opacity (0..1). */
+export function gridFamilies(pxPerMetre: number): GridFamily[] {
+  if (!(pxPerMetre > 0) || !Number.isFinite(pxPerMetre)) return [];
+  let s = decadeOf(FAMILY_GONE_PX / pxPerMetre);
+  if (s * pxPerMetre < FAMILY_GONE_PX) s *= 10;
+  return [s, s * 10, s * 100].map((spacing) => ({ spacing, alpha: logFade(spacing * pxPerMetre, FAMILY_GONE_PX, FAMILY_FULL_PX) }));
+}
+
+/** The decades of WHOLE-METRE numbers in view (1, 10, 100 m…), finest first, each with its opacity. */
+export function labelFamilies(pxPerMetre: number): GridFamily[] {
+  if (!(pxPerMetre > 0) || !Number.isFinite(pxPerMetre)) return [];
+  let s = Math.max(1, decadeOf(LABEL_GONE_PX / pxPerMetre));
+  if (s * pxPerMetre < LABEL_GONE_PX && s >= 1) s *= 10;
+  return [s, s * 10, s * 100].map((spacing) => ({ spacing, alpha: logFade(spacing * pxPerMetre, LABEL_GONE_PX, LABEL_FULL_PX) }));
+}

@@ -64,7 +64,43 @@ export function registerFrameHandler(h: (t: FrameTarget) => void): () => void {
   frameHandler = h;
   return () => { if (frameHandler === h) frameHandler = null; };
 }
-export const requestFrame = (t: FrameTarget): boolean => { if (!frameHandler) return false; frameHandler(t); return true; };
+export const requestFrame = (t: FrameTarget): boolean => { frameListeners.forEach((f) => f(t)); if (!frameHandler) return false; frameHandler(t); return true; };
+
+// ── Layout (Phase 2) ────────────────────────────────────────────────────────────────────────────
+// One view, or Rhino's four: Top (top-left), Perspective (top-right), Front (bottom-left), Right (bottom-
+// right). Per MACHINE (owner decision 3d-workbench §6.5 — it is how this operator works, like the dock
+// tree), kept in localStorage and read guarded: a blocked origin simply starts with one view.
+export type Layout3D = 'single' | 'quad';
+export interface Pane { id: string; view: ViewKind; col: 0 | 1; row: 0 | 1 }
+export const QUAD_PANES: Pane[] = [
+  { id: 'top', view: 'top', col: 0, row: 0 },
+  { id: 'persp', view: 'persp', col: 1, row: 0 },
+  { id: 'front', view: 'front', col: 0, row: 1 },
+  { id: 'right', view: 'right', col: 1, row: 1 },
+];
+/** A pane's rectangle in css px, canvas-relative (origin top-left). */
+export const paneRect = (p: Pane, w: number, h: number) => ({ x: p.col * (w / 2), y: p.row * (h / 2), w: w / 2, h: h / 2 });
+/** The pane under a canvas-relative point. */
+export const paneAt = (x: number, y: number, w: number, h: number): Pane =>
+  QUAD_PANES.find((p) => p.col === (x < w / 2 ? 0 : 1) && p.row === (y < h / 2 ? 0 : 1))!;
+
+const LAYOUT_KEY = 'artlux.view3d.layout';
+let layout: Layout3D = (() => { try { return localStorage.getItem(LAYOUT_KEY) === 'quad' ? 'quad' : 'single'; } catch { return 'single'; } })();
+const layoutSubs = new Set<() => void>();
+export const getLayout = (): Layout3D => layout;
+export function setLayout(l: Layout3D): void {
+  if (l === layout) return;
+  layout = l;
+  try { localStorage.setItem(LAYOUT_KEY, l); } catch { /* per-machine convenience only */ }
+  layoutSubs.forEach((f) => f());
+}
+export function subscribeLayout(f: () => void): () => void { layoutSubs.add(f); return () => { layoutSubs.delete(f); }; }
+/** Maximise a pane: back to one view, showing that pane's view. */
+export function maximisePane(p: Pane): void { setView(p.view); setLayout('single'); }
+
+// Extra listeners for framing requests (the four-view renderer frames its flat panes too).
+const frameListeners = new Set<(t: FrameTarget) => void>();
+export function onFrameRequest(f: (t: FrameTarget) => void): () => void { frameListeners.add(f); return () => { frameListeners.delete(f); }; }
 
 // ── Display mode (item 6) ───────────────────────────────────────────────────────────────────────
 // How the VENUE (models and screens) is drawn. Fixtures, LEDs and beams always draw as they are — the

@@ -233,6 +233,20 @@ document state; a named view save **is**).
 > - **drei's GizmoHelper HUD re-renders the whole scene** full-canvas at its default `renderPriority` 1,
 >   which wiped the quarters — it must run at 2 (widget only) under multi-view.
 >
+> **Increment 1 built 2026-11-23 — the four-view layout** (`Simulator3D/MultiView.tsx`, replacing the
+> spike). Header button / **Ctrl+Alt+Q**, per machine (`view3d` layout store, localStorage). Perspective
+> (top-right) is the WORKING pane — the default camera, OrbitControls, the gizmos, framing — and the three
+> flat panes are live references with their own ortho cameras (wheel zooms about the cursor, right/middle
+> drag pans, click selects through them, framed on Home). Spike items 1–2 are done: the grid is re-solved
+> per pane (`GroundGrid.applyGrid`, `gridSpace.syncGridGroups`; numbers in the Perspective pane only), and
+> DOM labels go through `htmlPosition` (new SDK prop on SceneVizContribution) so they land in the
+> Perspective pane. The gizmos' `getPointer` is re-pointed at the Perspective pane while four views are up;
+> orbit is held off while the pointer is over a flat pane; the corner widget is hidden in four views (its
+> HUD re-renders the whole scene). Checked on WebGPU and WebGL: pick in Front, wheel/pan the Top pane
+> without moving the perspective camera, gizmo re-pointed, double-click title → maximised Top; Phase 1
+> tests still pass. **Next (increment 2):** make ANY pane the working pane (spike item 3) and per-pane view
+> kind / display mode (item 4).
+>
 > **What the real Phase 2 must add (found by the spike):**
 > 1. **The grid per view** — `gridSpace` is set once per frame, so only Top/Perspective got a ruler; set the
 >    plane (and re-solve the frame) before each quarter's pass. GridLabels' geometry is per plane, so keep

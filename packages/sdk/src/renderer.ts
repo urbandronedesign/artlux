@@ -769,8 +769,17 @@ export interface ProjectorPanelRegistry {
 export interface SceneVizContribution<Scene = unknown> {
   id: string;
   enabled?(scene3D: Scene): boolean;
-  Component: ComponentType<{ scene3D: Scene }>;
+  Component: ComponentType<{ scene3D: Scene; htmlPosition?: HtmlPosition }>;
 }
+
+/**
+ * Where a DOM label goes — pass it to drei `<Html calculatePosition={htmlPosition}>`. The host hands it to
+ * every scene overlay: with one 3D view it is drei's default projection; in the four-view layout it places
+ * the label in the Perspective pane (where the default camera draws) and parks it off-screen elsewhere.
+ * Without it a label is laid out over the whole canvas and floats over the other panes. Parameters are
+ * three.js `Object3D`, `Camera` and the canvas size.
+ */
+export type HtmlPosition = (object: never, camera: never, size: { width: number; height: number }) => number[];
 
 export interface SceneVizRegistry<Scene = unknown> {
   register(v: SceneVizContribution<Scene>): void;
