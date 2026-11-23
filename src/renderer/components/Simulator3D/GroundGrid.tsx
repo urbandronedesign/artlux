@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { solveGridFrame, setGridFrame, cellDivFor } from './gridScale';
+import { gridCamera } from './gridSpace';
 
 // THE FLOOR — drawn as LINES, not as a shader plane, and SCALED rather than rebuilt.
 //
@@ -121,7 +122,8 @@ export const GroundGrid: React.FC = () => {
   useFrame(({ camera, size }) => {
     const g = ref.current;
     if (!g) return;
-    const f = solveGridFrame(camera, size.height, section.current);
+    // Solved in GRID space: on a flat side view the grid lies on that view's plane (gridSpace.ts).
+    const f = solveGridFrame(gridCamera(camera), size.height, section.current);
     if (!f) { setGridFrame(null); return; }
     section.current = f.section;
     setGridFrame(f);

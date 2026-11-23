@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { getGridFrame } from './gridScale';
+import { gridCamera, gridLabelSigns } from './gridSpace';
 
 // THE NUMBERS ON THE FLOOR — painted ON the floor, along the axis lines they measure, the way Houdini's
 // reference plane does it. Each number is a row of flat glyph quads lying at y = 2 mm, running in the
@@ -162,7 +163,7 @@ const fadeAt = (k: number) => { const d = Math.abs(k) / FADE; return d >= 1 ? 0 
  * Rebuild both runs. `sideX`/`sideZ` say which side of each axis line the camera is on (+1 / -1), which
  * decides which way the text faces so it is never read mirrored or upside down.
  */
-function rebuild(geo: THREE.BufferGeometry, section: number, ox: number, oz: number, sideX: number, sideZ: number): void {
+function rebuild(geo: THREE.BufferGeometry, section: number, ox: number, oz: number, sideX: number, sideZ: number, signX = 1, signZ = 1): void {
   let q = 0;
   // Whole metres only ⇒ neighbours are 1 m apart on sub-metre rungs, one section apart otherwise
   // (the ≥ 1 m rungs — 1, 2, 5, 10… — are themselves whole metres).
@@ -180,7 +181,9 @@ function rebuild(geo: THREE.BufferGeometry, section: number, ox: number, oz: num
       const value = (axis === 'x' ? ox : oz) + k * section;
       // WHOLE METRES ONLY, as a bare integer (owner's decision, 2026-10-22: the floor is read in metres,
       // so no unit and no decimals). A line between whole metres simply carries no number.
-      const metres = Math.round(value);
+      // The WORLD coordinate: on a side view's grid a local axis can run along a world axis reversed
+      // (gridSpace.ts) — the Front view's vertical run is height, not minus local z.
+      const metres = Math.round(value) * (axis === 'x' ? signX : signZ);
       if (Math.abs(value - metres) > 1e-6) continue;
       if (axis === 'x') _at.set(value, Y, oz); else _at.set(ox, Y, value);
       const text = String(metres === 0 ? 0 : metres);   // never "-0"
@@ -224,7 +227,9 @@ export const GridLabels: React.FC = () => {
 
   useEffect(() => () => { geometry.dispose(); material.dispose(); }, [geometry, material]);
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera: viewCam }) => {
+    // In GRID space — see gridSpace.ts (a flat side view puts the grid on its own plane).
+    const camera = gridCamera(viewCam);
     const mesh = meshRef.current;
     if (!mesh) return;
     const f = getGridFrame();
@@ -239,10 +244,11 @@ export const GridLabels: React.FC = () => {
     if (_away.lengthSq() < 0.0025) { _away.setFromMatrixColumn(camera.matrixWorld, 1); _away.y = 0; }
     const sideX = _away.z <= 0 ? 1 : -1;   // which side of the X line we look from
     const sideZ = _away.x <= 0 ? 1 : -1;   // which side of the Z line
-    const key = `${f.section}|${f.originX}|${f.originZ}|${sideX}|${sideZ}`;
+    const sg = gridLabelSigns();
+    const key = `${f.section}|${f.originX}|${f.originZ}|${sideX}|${sideZ}|${sg.x}|${sg.z}`;
     if (key === keyRef.current) return;                      // the common case: nothing to do
     keyRef.current = key;
-    rebuild(geometry, f.section, f.originX, f.originZ, sideX, sideZ);
+    rebuild(geometry, f.section, f.originX, f.originZ, sideX, sideZ, sg.x, sg.z);
   });
 
   return (

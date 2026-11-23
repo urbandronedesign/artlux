@@ -31,6 +31,11 @@ things at the same height line up on screen.
 - **A flat view pans and zooms; it does not rotate.** Left‑drag does nothing there — that keeps Top a true
   plan. To look around, go back to Perspective.
 - The view you switch to keeps what you were looking at in the middle, at the same size on screen.
+- **The corner axis widget** (bottom-right of the view) switches too: click an axis end and the view looks
+  along it — red X → Right, green Y → Top, blue Z → Front, the small grey ends → the opposite side.
+- **The grid follows the view's plane**: in Front and Back it stands on the wall plane (X across, height
+  up), in Right and Left on the side plane — a ruler for heights and depths, not just the floor. Its numbers
+  are still whole metres along the world axis they measure.
 - While you **look through a calibrated projector** the picker is greyed: the projector owns the camera.
   Choose **Editor camera** first.
 

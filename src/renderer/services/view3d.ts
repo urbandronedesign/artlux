@@ -32,6 +32,19 @@ export const VIEW_ORDER: ViewKind[] = ['persp', 'top', 'front', 'right', 'back',
 export const viewLabel = (v: ViewKind): string => (v === 'persp' ? 'Perspective' : ORTHO_VIEWS[v].label);
 export const isOrtho = (v: ViewKind): v is OrthoView => v !== 'persp';
 
+/**
+ * The flat view that looks ALONG a clicked axis end, toward the scene: the +X end puts the camera on +X
+ * (Right), +Y → Top, +Z → Front, the negative ends their opposites. The dominant component decides, so a
+ * slightly off-axis direction still lands on its view.
+ */
+export function viewAlong(dir: Vec3): OrthoView {
+  const [x, y, z] = dir;
+  const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
+  if (ay >= ax && ay >= az) return y >= 0 ? 'top' : 'bottom';
+  if (ax >= az) return x >= 0 ? 'right' : 'left';
+  return z >= 0 ? 'front' : 'back';
+}
+
 // ── The current view (one per window) ───────────────────────────────────────────────────────────
 let current: ViewKind = 'persp';
 const subs = new Set<() => void>();

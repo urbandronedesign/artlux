@@ -92,3 +92,39 @@ export const AxisArms: React.FC<ArmsProps> = ({ len, radius, head = 0, segments 
 
 /** The corner orientation widget, inside <GizmoHelper>. Proportions unchanged from when it shipped. */
 export const AxisTriad: React.FC = () => <AxisArms len={0.8} radius={0.035} head={0.13} />;
+
+// THE CORNER WIDGET AS A VIEW SWITCHER (plans/3d-workbench.md Phase 1, item 4). Click an axis end and the
+// view looks ALONG it at the scene: +X → Right, +Y → Top, +Z → Front, the small grey ends → the opposite
+// side — Blender's navigation gizmo. The arms stay unpickable (see above); only the six end spheres are
+// targets, and they live inside GizmoHelper's own viewport, so they never compete with the scene's picks.
+const ENDS: Array<{ dir: [number, number, number]; color: string; neg: boolean }> = [
+  ...AXES.map((a) => ({ ...a, neg: false })),
+  ...AXES.map((a) => ({ dir: [-a.dir[0], -a.dir[1], -a.dir[2]] as [number, number, number], color: '#8a8a8a', neg: true })),
+];
+
+// ⚠ SCALED ×40, LIKE drei's GizmoViewport. GizmoHelper does not scale its children — its HUD camera works
+// in PIXELS — so the bare <AxisTriad> above (0.8 long) has been drawing under one pixel on the WebGPU path
+// since it shipped: the corner widget was effectively invisible there. GizmoViewport sets `scale: 40`
+// itself; this does the same, so both renderers show the same ~32 px arms.
+const CORNER_SCALE = 40;
+
+export const ClickableAxisTriad: React.FC<{ onPick: (dir: [number, number, number]) => void }> = ({ onPick }) => {
+  const len = 0.8;
+  return (
+    <group scale={CORNER_SCALE}>
+      <AxisArms len={len} radius={0.035} />
+      {ENDS.map(({ dir, color, neg }, i) => (
+        <mesh
+          key={i}
+          position={[dir[0] * len, dir[1] * len, dir[2] * len]}
+          onPointerDown={(e) => { e.stopPropagation(); onPick(dir); }}
+          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+          onPointerOut={() => { document.body.style.cursor = ''; }}
+        >
+          <sphereGeometry args={[neg ? 0.09 : 0.13, 12, 10]} />
+          <meshBasicMaterial color={color} toneMapped={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+};

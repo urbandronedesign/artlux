@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useMemo, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
@@ -35,7 +35,8 @@ import { ProjectorDepthPass } from './projectorDepth';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { OrthoCamera, ViewController, FrameController } from './ViewControls';
-import { getView, setView, subscribeView, isOrtho, viewLabel, VIEW_ORDER, requestFrame, type ViewKind } from '../../services/view3d';
+import { setGridPlane, gridQuaternion } from './gridSpace';
+import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, type ViewKind } from '../../services/view3d';
 import { OriginGnomon } from './OriginGnomon';
 import { GridLabels } from './GridLabels';
 import { Lighting } from './Lighting';
@@ -46,7 +47,7 @@ import {
 } from '../../services/scene3dQuality';
 import { FrameRateCap } from './FrameRateCap';
 import { glProp, wantsWebGPU, SCENE3D_LOST_EVENT } from './renderer3d';
-import { AxisTriad } from './AxisTriad';
+import { ClickableAxisTriad } from './AxisTriad';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -250,6 +251,14 @@ const VIEW_KEYS: Array<[string, ViewKind]> = [
   ['scene3d.viewTop', 'top'], ['scene3d.viewBottom', 'bottom'],
   ['scene3d.viewPersp', 'persp'],
 ];
+
+// Carries the grid-space rotation (gridSpace.ts). Copied each frame from the module's quaternion rather
+// than passed as a prop: it changes with the view, and a direct write keeps React out of it.
+const GridPlaneGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => { ref.current?.quaternion.copy(gridQuaternion()); });
+  return <group ref={ref}>{children}</group>;
+};
 
 const AdaptiveClipping: React.FC<{ off?: boolean }> = ({ off }) => {
   useFrame(({ camera, controls }) => {
@@ -474,6 +483,8 @@ const Simulator3D: React.FC<Props> = ({
   const chosenView = useSyncExternalStore(subscribeView, getView);
   const shownView: ViewKind = viewFrom ? 'persp' : chosenView;
   const ortho = isOrtho(shownView);
+  // The ruler lies on the plane the view looks at (Front → the XY wall plane…), before the grid solves.
+  useLayoutEffect(() => { setGridPlane(shownView); }, [shownView]);
   // Model gizmos only understand the three transform modes. 'select' is a fixture-marquee tool, so
   // models fall back to translate rather than the mode type leaking into their props.
   const transformMode = mode === 'select' ? 'translate' : mode;
@@ -684,9 +695,11 @@ const Simulator3D: React.FC<Props> = ({
             grid no longer marks (the grid follows the view now), so they are one idea. */}
         {scene3D.gridVisible !== false && (
           <>
-            <GroundGrid />
+            {/* Grid + numbers in GRID space (gridSpace.ts): on a flat side view they lie on its plane.
+                The gnomon stays in the world — it marks the world's own axes and is never turned. */}
+            <GridPlaneGroup><GroundGrid /></GridPlaneGroup>
             <OriginGnomon />
-            {scene3D.gridLabels !== false && <GridLabels />}
+            {scene3D.gridLabels !== false && <GridPlaneGroup><GridLabels /></GridPlaneGroup>}
           </>
         )}
         {/* Mounted ONLY while armed: an always-present pick plane would sit in front of the venue and
@@ -830,8 +843,17 @@ const Simulator3D: React.FC<Props> = ({
             which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that
             happens inside the Canvas it takes the whole viewport down rather than just the widget. The
             GizmoHelper frame itself is fine on both, so only the viewport contents are swapped. */}
+        {/* THE CORNER WIDGET SWITCHES VIEW (3d-workbench Phase 1, item 4): an axis end → the flat view
+            looking along it. On WebGL drei's own head click is DISABLED (it would tween the perspective
+            camera instead of switching view) and the click is taken here as it bubbles from the head. */}
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
-          {webgpuSpike ? <AxisTriad /> : <GizmoViewport labelColor="white" axisHeadScale={1} />}
+          {webgpuSpike
+            ? <ClickableAxisTriad onPick={(d) => setView(viewAlong(d))} />
+            : (
+              <group onPointerDown={(e) => { e.stopPropagation(); const p = e.object.position; setView(viewAlong([Math.sign(p.x), Math.sign(p.y), Math.sign(p.z)])); }}>
+                <GizmoViewport labelColor="white" axisHeadScale={1} disabled />
+              </group>
+            )}
         </GizmoHelper>
         {/* No Glow (bloom) — removed 2026-10-22. It was @react-three/postprocessing's EffectComposer,
             a WebGL library, so it was already skipped on the WebGPU renderer this scene defaults to:

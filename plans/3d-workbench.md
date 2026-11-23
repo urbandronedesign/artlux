@@ -155,8 +155,20 @@ commits (the documentation rule), and keeps the listed invariants green.
 >   from the direction the camera LOOKS, falling back to the screen's up when looking straight down.
 > - `screenScale.worldPerPixel` answers for an orthographic camera too, so the anchor markers and the snap
 >   cursor no longer skip one. `window.__artluxView3d()` reports the live camera (read-only diagnostic).
-> - Items 4–7 (clickable axis gizmo, named views, display modes, grid on the view plane — a side view shows
->   the floor grid edge-on today) are next.
+> - **Item 4 built:** the corner widget switches view (an axis end → the flat view along it). On WebGL drei's
+>   own head click (a perspective tween) is disabled and the click taken as it bubbles. Found on the way:
+>   **the WebGPU corner triad had been drawing under one pixel since it shipped** — GizmoHelper does not
+>   scale its children (its HUD camera works in pixels) and `AxisTriad` is 0.8 units long; the clickable
+>   version carries drei GizmoViewport's ×40.
+> - **Item 7 built:** the grid lies on the view's plane (`Simulator3D/gridSpace.ts`): GroundGrid and
+>   GridLabels keep their floor maths in a local space ROTATED onto the plane (local up → the camera, local
+>   −Z → the screen's up, i.e. every flat view sees its grid as Top sees the floor) and solve against the
+>   camera expressed in that space; each label run prints the WORLD coordinate (a sign per run). The origin
+>   gnomon stays in the world. Perspective / Top / Bottom keep the floor exactly as before.
+> - Both checked in the packaged Show on WebGPU and WebGL (widget clicks +X → Right, +Y → Top, +Z → Front).
+>   Test-harness lesson: start each run from a FRESH scratch profile — a WebGL run's switch survived into
+>   the next "WebGPU" run, which then clicked WebGPU offsets on the WebGL widget.
+> - Items 5–6 (named views, display modes) are next.
 1. **Orthographic views** Top / Bottom / Front / Back / Right / Left + Perspective, toggle ortho↔persp.
    - r3f: an `OrthographicCamera` swapped in as default; ortho zoom = half-height, not distance.
    - ⚠ `AdaptiveClipping` derives near/far from *orbit distance*, which means nothing in ortho — needs an
