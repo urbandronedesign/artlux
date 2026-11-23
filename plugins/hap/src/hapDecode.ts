@@ -9,25 +9,35 @@ import type { HapInfo, HapFrame } from './types';
 export const isHapCandidate = (path: string): boolean => /\.mov$/i.test(path);
 
 const infos = new Map<string, HapInfo | null>(); // resolved: HapInfo (is HAP) or null (not HAP)
-const probing = new Set<string>();
+// The probe IN FLIGHT per path, shared. It used to be a Set, and a second caller during the probe got
+// `null` ("in flight — re-check next frame"). But null is also the answer "not HAP", and hapPlayer.open
+// cannot tell them apart: two surfaces opening the SAME .mov in one sync (a HAP file on two walls, or a
+// scene that reuses one) made the second surface fall back to a <video>, which cannot play HAP, so it
+// stayed black for good while the first played. Every caller awaits the one probe instead.
+const probing = new Map<string, Promise<HapInfo | null>>();
 
 // Probe + open a path. Resolves to its HapInfo, or null if it isn't HAP. Idempotent; the
 // result is cached so later calls are synchronous via getInfo()/isHap().
-export async function ensureOpen(path: string): Promise<HapInfo | null> {
-  if (infos.has(path)) return infos.get(path)!;
-  if (probing.has(path)) return null; // in flight — caller re-checks next frame
-  if (typeof window === 'undefined' || !window.artlux?.pluginInvoke) return null;
-  probing.add(path);
-  try {
-    const info = ((await window.artlux.pluginInvoke('hap:open', path)) as HapInfo | null) ?? null;
-    infos.set(path, info);
-    return info;
-  } catch {
-    infos.set(path, null);
-    return null;
-  } finally {
-    probing.delete(path);
-  }
+export function ensureOpen(path: string): Promise<HapInfo | null> {
+  if (infos.has(path)) return Promise.resolve(infos.get(path)!);
+  const inFlight = probing.get(path);
+  if (inFlight) return inFlight; // the same answer the first caller gets — never a premature "not HAP"
+  if (typeof window === 'undefined' || !window.artlux?.pluginInvoke) return Promise.resolve(null);
+  const probe = (async (): Promise<HapInfo | null> => {
+    try {
+      const info = ((await window.artlux.pluginInvoke('hap:open', path)) as HapInfo | null) ?? null;
+      infos.set(path, info);
+      return info;
+    } catch {
+      infos.set(path, null);
+      return null;
+    } finally {
+      // Only our own entry: a release() mid-probe followed by a new open has already put a newer one there.
+      if (probing.get(path) === probe) probing.delete(path);
+    }
+  })();
+  probing.set(path, probe);
+  return probe;
 }
 
 // Synchronous: HapInfo if known-HAP, else null (not HAP or not yet probed).

@@ -1410,6 +1410,23 @@ check(
   },
 );
 
+check(
+  'one HAP file on two surfaces opens on both — a probe in flight is shared, never answered "not HAP"',
+  'ensureOpen() used to answer null to a second caller while the first probe was in flight ("re-check ' +
+  'next frame"). null also means "not HAP", and hapPlayer.open() cannot tell them apart, so the second ' +
+  'surface to open the same .mov in one sync was handed to a <video>, which cannot play HAP: black for ' +
+  'good, no error, the first surface playing. Found on the RTX box (2026-11-23) with one HAP on two walls.',
+  () => {
+    const dec = read('plugins/hap/src/hapDecode.ts');
+    const problems = [];
+    if (/probing\.has\([^)]*\)\)\s*return\s+null/.test(dec)) problems.push('ensureOpen must not answer null while a probe is in flight');
+    if (!/probing\.get\(path\)/.test(dec) || !/new Map<string,\s*Promise</.test(dec)) {
+      problems.push('ensureOpen must keep the in-flight probe PROMISE per path and hand it to every caller');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Cold start: cosmetic decoding must never race the show ────────────────────────────────────
 check(
   'filmstrips and waveforms yield to the cold-start gate',
