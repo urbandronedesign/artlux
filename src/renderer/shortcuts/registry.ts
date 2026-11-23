@@ -91,6 +91,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'scene3d.viewPersp',  label: 'Perspective view', category: 'View', scope: 'scene3d', defaultBinding: ['5', '0'], description: 'Back to the perspective camera, where you left it.' },
   { id: 'scene3d.zoomExtents',  label: 'Zoom extents',      category: 'View', scope: 'scene3d', defaultBinding: ['Home'], description: 'Frames every model and fixture, in the current view.' },
   { id: 'scene3d.zoomSelected', label: 'Zoom to selection', category: 'View', scope: 'scene3d', defaultBinding: ['.', 'F'], description: 'Frames the selected fixtures or model (everything when nothing is selected).' },
+  { id: 'scene3d.cycleDisplay', label: 'Venue display mode', category: 'View', scope: 'scene3d', defaultBinding: ['Z'], description: 'Steps Shaded → Wireframe → X-ray. Models and screens only; fixtures and LEDs always draw as they are.' },
 
   // NUDGE — the precise half of placing a fixture. A rigger works in round numbers, and a 12mm LED on
   // a big venue is not a target you hit by eye; these move the whole selection by the snap step, so

@@ -22,8 +22,8 @@ import * as THREE from 'three';
 import type { Fixture } from '../../types';
 import { effectivePos } from '../../services/led3dLayout';
 import {
-  ORTHO_VIEWS, isOrtho, registerFrameHandler, perspFitDistance, orthoFitZoom, orthoZoomMatchingPersp,
-  type OrthoView, type ViewKind, type FrameTarget,
+  ORTHO_VIEWS, isOrtho, registerFrameHandler, registerPoseIO, perspFitDistance, orthoFitZoom, orthoZoomMatchingPersp,
+  type OrthoView, type ViewKind, type FrameTarget, type Pose3D, type DisplayMode,
 } from '../../services/view3d';
 
 // The ortho camera's near/far, SYMMETRIC around it: an orthographic projection has no perspective divide,
@@ -74,14 +74,34 @@ export const ViewController: React.FC<{ view: ViewKind }> = ({ view }) => {
     applied.current = view;
   }, [view]);
 
+  // NAMED VIEWS (item 5): capture the live viewpoint; apply a saved one. applyPose() has already switched
+  // the view, so the pose waits (like `pending`) until the camera of ITS kind is the live one.
+  const posePending = useRef<Pose3D | null>(null);
+  const viewRef = useRef(view); viewRef.current = view;
+  useEffect(() => registerPoseIO({
+    capture: () => {
+      const { camera: c, controls: k } = get();
+      const t = (k as unknown as Controls | null)?.target;
+      if (!t) return null;
+      const o = c as THREE.OrthographicCamera;
+      return {
+        kind: viewRef.current, target: t.toArray() as Pose3D['target'], position: c.position.toArray() as Pose3D['position'],
+        ...(o.isOrthographicCamera ? { zoom: o.zoom } : {}),
+      };
+    },
+    apply: (pose) => { posePending.current = pose; },
+  }), [get]);
+
   // ONE PER-FRAME PASS, after OrbitControls' own update (its useFrame runs at -1, this at the default 0).
   //
-  // ⚠ AN ORTHO VIEW IS ENFORCED EVERY FRAME, not placed once. Placing it once from an effect was measured
-  // to lose the FIRST Perspective → Top switch on the packaged app: the camera kept the new up and zoom but
-  // ended at the perspective camera's exact position and direction (an oblique "Top" — the wall showed its
-  // face), while ortho → ortho switches held. Re-deriving the position from the orbit target along the
-  // view's axis each frame makes the axis a property of the view rather than of whoever wrote the camera
-  // last; it costs one vector copy and a lookAt, and panning still works because pan moves the target.
+  // ⚠ AN ORTHO VIEW IS ENFORCED EVERY FRAME, not placed once. Placing it once lost the FIRST Perspective →
+  // Top switch on the packaged app: the camera kept the new up and zoom but ended at an elevated perspective
+  // framing (an oblique "Top" — the wall showed its face), while ortho → ortho switches held. The writer was
+  // found later: the lidar-tracking plugin's VenueFraming framed every NEW camera once, and each switch from
+  // Perspective mounts a new orthographic one (fixed there: it frames perspective cameras only). The
+  // per-frame placement stays regardless — re-deriving the position from the orbit target along the view's
+  // axis makes the axis a property of the view rather than of whoever wrote the camera last; it costs one
+  // vector copy and a lookAt, and panning still works because pan moves the target.
   useFrame(() => {
     if (!controls?.target || controls.object !== camera) return;
     if (isOrtho(view)) {
@@ -99,6 +119,12 @@ export const ViewController: React.FC<{ view: ViewKind }> = ({ view }) => {
           }
         }
       }
+      const pose = posePending.current;
+      if (pose && pose.kind === view) {
+        posePending.current = null;
+        controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+        if (pose.zoom && pose.zoom > 0) { cam.zoom = pose.zoom; cam.updateProjectionMatrix(); }
+      }
       placeOrtho(cam, view, controls.target);
       return;
     }
@@ -111,6 +137,13 @@ export const ViewController: React.FC<{ view: ViewKind }> = ({ view }) => {
       controls.target.copy(perspTarget.current);
       controls.update();
       return;
+    }
+    const pose = posePending.current;
+    if (pose && pose.kind === 'persp') {
+      posePending.current = null;
+      c.position.set(pose.position[0], pose.position[1], pose.position[2]);
+      controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+      controls.update();
     }
     perspTarget.current.copy(controls.target);
     perspCam.current = c;
@@ -179,3 +212,51 @@ function boundsOf(scene: THREE.Object3D, fixtures: Fixture[], only: { fixtureIds
   });
   return box;
 }
+
+// ── DISPLAY MODE (3d-workbench Phase 1, item 6) ───────────────────────────────────────────────────────
+// Wireframe / X-ray apply to the VENUE only: every mesh under a group tagged `userData.modelId` (models
+// and screen planes). Fixtures, LEDs and beams are untouched — seeing the rig through the room is the point.
+//
+// WHY A WALK OVER THE SCENE AND NOT A PROP ON EACH MODEL: a model's materials are SWAPPED at run time
+// (screen content, projected mapping — assignContentMaterials) and clones of one GLB SHARE theirs. So the
+// controller adjusts whatever material is on a mesh right now, remembers each material's own settings the
+// first time it touches it, and puts every one back exactly on the way to Shaded. It walks only while a
+// non-shaded mode is on (a newly swapped material is caught the next frame); in Shaded it costs nothing.
+type Saved = { wireframe: boolean; transparent: boolean; opacity: number; depthWrite: boolean };
+const XRAY_OPACITY = 0.22;
+
+export const DisplayModeController: React.FC<{ mode: DisplayMode }> = ({ mode }) => {
+  const saved = useRef(new Map<THREE.Material, Saved>());
+  const scene = useThree((s) => s.scene);
+  const restore = () => {
+    for (const [m, o] of saved.current) {
+      const w = m as THREE.Material & { wireframe?: boolean };
+      if ('wireframe' in w) w.wireframe = o.wireframe;
+      m.transparent = o.transparent; m.opacity = o.opacity; m.depthWrite = o.depthWrite;
+      m.needsUpdate = true;
+    }
+    saved.current.clear();
+  };
+  // Leaving a mode, or the view going away: every touched material back as it was.
+  useEffect(() => restore, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useFrame(() => {
+    if (mode === 'shaded') return;
+    scene.traverse((o) => {
+      if (!o.userData?.modelId) return;
+      o.traverse((c) => {
+        const mesh = c as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          if (!m || saved.current.has(m)) continue;
+          const w = m as THREE.Material & { wireframe?: boolean };
+          saved.current.set(m, { wireframe: !!w.wireframe, transparent: m.transparent, opacity: m.opacity, depthWrite: m.depthWrite });
+          if (mode === 'wireframe') { if ('wireframe' in w) w.wireframe = true; }
+          else { m.transparent = true; m.opacity = Math.min(m.opacity, XRAY_OPACITY); m.depthWrite = false; }
+          m.needsUpdate = true;
+        }
+      });
+    });
+  });
+  return null;
+};

@@ -2,7 +2,7 @@ import React, { Suspense, useState, useMemo, useCallback, useEffect, useLayoutEf
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import type * as THREE from 'three';
-import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan } from 'lucide-react';
+import { Move3d, Rotate3d, Maximize, BoxSelect, Video, Globe, Box, Magnet, Scan, Cuboid } from 'lucide-react';
 import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
@@ -34,9 +34,11 @@ import { PlaneObject } from './PlaneObject';
 import { ProjectorDepthPass } from './projectorDepth';
 import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
-import { OrthoCamera, ViewController, FrameController } from './ViewControls';
+import { OrthoCamera, ViewController, FrameController, DisplayModeController } from './ViewControls';
 import { setGridPlane, gridQuaternion } from './gridSpace';
-import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, type ViewKind } from '../../services/view3d';
+import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, type ViewKind } from '../../services/view3d';
+import { usePrompt } from '../ui/feedback';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import { OriginGnomon } from './OriginGnomon';
 import { GridLabels } from './GridLabels';
 import { Lighting } from './Lighting';
@@ -336,6 +338,7 @@ const Simulator3D: React.FC<Props> = ({
       else if (VIEW_KEYS.some(([id, v]) => keymap.matches(e, id) && (setView(v), true))) e.preventDefault();
       else if (keymap.matches(e, 'scene3d.zoomExtents')) { e.preventDefault(); requestFrame('extents'); }
       else if (keymap.matches(e, 'scene3d.zoomSelected')) { e.preventDefault(); requestFrame('selected'); }
+      else if (keymap.matches(e, 'scene3d.cycleDisplay')) { e.preventDefault(); cycleDisplayMode(); }
       else {
         // NUDGE. One press = one commit and one history entry, exactly like the projector's warp
         // nudge — holding a key repeats, and each repeat is its own undo step, which is the behaviour
@@ -485,6 +488,29 @@ const Simulator3D: React.FC<Props> = ({
   const ortho = isOrtho(shownView);
   // The ruler lies on the plane the view looks at (Front → the XY wall plane…), before the grid solves.
   useLayoutEffect(() => { setGridPlane(shownView); }, [shownView]);
+  // NAMED VIEWS (3d-workbench Phase 1, item 5) — saved in the project (Scene3D.views), picked from the
+  // same select as the standard views. Saving is a document edit, so it is one undo step.
+  const prompt = usePrompt();
+  const savedViews = scene3D.views ?? [];
+  // How the venue is drawn (item 6): Shaded / Wireframe / X-ray. Fixtures always draw as they are.
+  const displayMode = useSyncExternalStore(subscribeDisplayMode, getDisplayMode);
+  const onPickView = async (value: string) => {
+    if (value === '__save') {
+      const pose = capturePose();
+      if (!pose || !onSceneConfig) return;
+      const name = await prompt({ title: 'Save view', initial: nextNumberedName('View', savedViews), confirmLabel: 'Save' });
+      if (!name) return;
+      const id = `view_${Date.now().toString(36)}`;
+      onSceneConfig({ views: [...savedViews, { id, name, ...pose }] });
+      return;
+    }
+    if (value.startsWith('named:')) {
+      const v = savedViews.find((x) => x.id === value.slice(6));
+      if (v) applyPose(v);
+      return;
+    }
+    setView(value as ViewKind);
+  };
   // Model gizmos only understand the three transform modes. 'select' is a fixture-marquee tool, so
   // models fall back to translate rather than the mode type leaking into their props.
   const transformMode = mode === 'select' ? 'translate' : mode;
@@ -573,14 +599,23 @@ const Simulator3D: React.FC<Props> = ({
           <select
             value={shownView}
             disabled={!!viewFrom}
-            onChange={(e) => setView(e.target.value as ViewKind)}
+            onChange={(e) => { void onPickView(e.target.value); }}
             title={viewFrom ? 'Looking through a projector — choose "Editor camera" to pick a view' : 'View — numpad 1 Front · 3 Right · 7 Top (Ctrl = opposite side) · 5 Perspective'}
             className={`bg-surface-0 border rounded px-1 py-0.5 text-micro focus:outline-none disabled:opacity-40 ${ortho ? 'border-accent text-fg-1' : 'border-line-1 text-fg-2'}`}
             {...help('scene3d.view')}
           >
             {VIEW_ORDER.map((v) => <option key={v} value={v}>{viewLabel(v)}</option>)}
+            {savedViews.length > 0 && (
+              <optgroup label="Saved views">
+                {savedViews.map((v) => <option key={v.id} value={`named:${v.id}`}>{v.name}</option>)}
+              </optgroup>
+            )}
+            {onSceneConfig && <option value="__save">Save current view…</option>}
           </select>
         </Tooltip>
+        {/* DISPLAY MODE — the label is the mode it is IN, like World/Object; a click (or the key) steps on. */}
+        <ToolBtn active={displayMode !== 'shaded'} title={`Venue display: ${displayLabel(displayMode)}${keyHint('scene3d.cycleDisplay')} — Shaded → Wireframe → X-ray (models and screens only; fixtures always draw)`} helpId="scene3d.display-mode" onClick={cycleDisplayMode}><Cuboid size={14} /></ToolBtn>
+        <span className="text-micro text-fg-3 -ml-0.5 mr-0.5 select-none">{displayLabel(displayMode)}</span>
         <ToolBtn active={false} title={`Zoom extents${keyHint('scene3d.zoomExtents')} — frame every model and fixture (zoom to the selection: ${keymap.resolve('scene3d.zoomSelected').map(formatChord).join(' / ')})`} helpId="scene3d.zoom-extents" onClick={() => requestFrame('extents')}><Scan size={14} /></ToolBtn>
         {/* LOOK THROUGH A PROJECTOR. Only calibrated outputs can offer a viewpoint, so the control
             appears once one exists rather than sitting there empty. The choice is stored on the
@@ -838,6 +873,7 @@ const Simulator3D: React.FC<Props> = ({
         {/* An orthographic view only pans and zooms — rotation locked, as in Rhino (owner, 2026-11-23). */}
         <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select' && !ortho} />
         <ViewBridge />
+        <DisplayModeController mode={displayMode} />
         <FrameController fixtures={fixtures} selectedFixtureIds={gizmoFixtures.map((f) => f.id)} selectedModelId={selectedModelId ?? null} view={shownView} />
         {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,
             which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that

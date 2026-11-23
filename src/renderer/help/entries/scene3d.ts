@@ -94,6 +94,23 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['zoom', 'extents', 'frame', 'fit', 'home', 'focus', 'selected'],
   },
 
+  {
+    id: 'scene3d.display-mode',
+    title: 'Venue display',
+    short: 'Shaded, Wireframe or X-ray — how the venue models and screens are drawn.',
+    body: 'Wireframe draws the venue as its edges; X-ray makes it see-through, so fixtures and LEDs behind a wall or a screen stay visible while you place them. The rig itself always draws as it is. Z steps through the three. It only changes this view — not the project, not the projectors.',
+    group: '3D Scene',
+    keywords: ['wireframe', 'x-ray', 'xray', 'shaded', 'display', 'transparent', 'see through', 'shading'],
+  },
+  {
+    id: 'scene3d.views-panel',
+    title: 'Saved views',
+    short: 'Viewpoints of this venue, saved with the project.',
+    body: 'Save where you are looking from — a flat view or a perspective — under a name, and come back to it from the view picker or this list. Rename or delete them here. They travel with the project and a scene recall never changes them.',
+    group: '3D Scene',
+    keywords: ['view', 'named view', 'saved view', 'bookmark', 'camera', 'viewpoint'],
+  },
+
   // ── Selected-model transform ────────────────────────────────────────────────────────────────
   {
     id: 'scene3d.model-layer',

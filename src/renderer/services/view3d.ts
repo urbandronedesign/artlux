@@ -66,6 +66,44 @@ export function registerFrameHandler(h: (t: FrameTarget) => void): () => void {
 }
 export const requestFrame = (t: FrameTarget): boolean => { if (!frameHandler) return false; frameHandler(t); return true; };
 
+// ── Display mode (item 6) ───────────────────────────────────────────────────────────────────────
+// How the VENUE (models and screens) is drawn. Fixtures, LEDs and beams always draw as they are — the
+// point of Wireframe and X-ray is to see the rig through the room, not to change the rig. Per window and
+// per session, like the view; in Phase 2 it becomes per viewport.
+export type DisplayMode = 'shaded' | 'wireframe' | 'xray';
+export const DISPLAY_MODES: DisplayMode[] = ['shaded', 'wireframe', 'xray'];
+export const displayLabel = (m: DisplayMode): string => (m === 'shaded' ? 'Shaded' : m === 'wireframe' ? 'Wireframe' : 'X-ray');
+let display: DisplayMode = 'shaded';
+const displaySubs = new Set<() => void>();
+export const getDisplayMode = (): DisplayMode => display;
+export function setDisplayMode(m: DisplayMode): void {
+  if (m === display) return;
+  display = m;
+  displaySubs.forEach((f) => f());
+}
+export const cycleDisplayMode = (): void => setDisplayMode(DISPLAY_MODES[(DISPLAY_MODES.indexOf(display) + 1) % DISPLAY_MODES.length]);
+export function subscribeDisplayMode(f: () => void): () => void { displaySubs.add(f); return () => { displaySubs.delete(f); }; }
+
+// ── Poses (named views, item 5) ─────────────────────────────────────────────────────────────────
+// A full viewpoint: which view, where the camera orbits around, where it sits, and (flat views) the zoom.
+// Captured and applied inside the canvas — the only place the camera is — through this seam, exactly as
+// framing is. The document stores these in Scene3D.views (shared/protocol.ts NamedView3D).
+export interface Pose3D { kind: ViewKind; target: Vec3; position: Vec3; zoom?: number }
+let poseIO: { capture(): Pose3D | null; apply(p: Pose3D): void } | null = null;
+export function registerPoseIO(io: { capture(): Pose3D | null; apply(p: Pose3D): void }): () => void {
+  poseIO = io;
+  return () => { if (poseIO === io) poseIO = null; };
+}
+/** The live viewpoint, or null when no 3D view is mounted. */
+export const capturePose = (): Pose3D | null => poseIO?.capture() ?? null;
+/** Go to a saved viewpoint (switches view first if it was taken in another). False when no 3D view. */
+export function applyPose(p: Pose3D): boolean {
+  if (!poseIO) return false;
+  setView(p.kind);
+  poseIO.apply(p);
+  return true;
+}
+
 // ── Framing maths ───────────────────────────────────────────────────────────────────────────────
 /** Breathing room around a framed thing: 1 = touching the edges. */
 export const FRAME_MARGIN = 1.15;

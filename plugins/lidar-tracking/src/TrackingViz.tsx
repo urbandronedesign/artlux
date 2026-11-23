@@ -168,6 +168,12 @@ const FRAME_PITCH = (24 * Math.PI) / 180; // look down at the floor by this much
 const VenueFraming: React.FC<{ dims: Dims }> = ({ dims }) => {
   useFrame(({ camera, controls }) => {
     if (camera.userData.venueFramed) return;
+    // THE EDITOR'S PERSPECTIVE CAMERA ONLY. The flat views (Top, Front… — plans/3d-workbench.md) swap in a
+    // NEW orthographic camera on every switch from Perspective, and this framing — perspective maths, `fov`
+    // — used to take each one as "a new canvas": it parked the ortho camera at the elevated perspective
+    // framing (an oblique "Top") and reset the orbit target, overwriting a saved view's target a frame
+    // after it was applied. A flat view frames itself (services/view3d); this has nothing to add there.
+    if (!(camera as THREE.PerspectiveCamera).isPerspectiveCamera) return;
     const orbit = controls as { target?: THREE.Vector3; update?: () => void } | null;
     if (!orbit?.target) return; // controls not registered yet — try next frame
     const cam = camera as THREE.PerspectiveCamera;

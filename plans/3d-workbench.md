@@ -168,7 +168,26 @@ commits (the documentation rule), and keeps the listed invariants green.
 > - Both checked in the packaged Show on WebGPU and WebGL (widget clicks +X → Right, +Y → Top, +Z → Front).
 >   Test-harness lesson: start each run from a FRESH scratch profile — a WebGL run's switch survived into
 >   the next "WebGPU" run, which then clicked WebGPU offsets on the WebGL widget.
-> - Items 5–6 (named views, display modes) are next.
+> - **Item 5 built — named views.** `Scene3D.views` (`NamedView3D`: kind, target, position, ortho zoom),
+>   saved/applied through `view3d.capturePose/applyPose` (the adapter captures and applies inside the
+>   canvas). In the project and undoable (`sceneConfig` records history); listed in `SCENE3D_NOT_A_LOOK`
+>   so a scene recall never replaces them. UI: the view picker's "Saved views" + "Save current view…", and
+>   a **Views** section in the 3D workbench's parameter column (go / rename / delete) — editor-only, since
+>   going to a view moves the editor's camera (`layoutRev` 5). Default names use `nextNumberedName` (an
+>   invariant caught `View ${n + 1}`).
+> - **Item 6 built — venue display: Shaded / Wireframe / X-ray** (header cube button, **Z**). A controller
+>   in the canvas walks the meshes under `userData.modelId` groups while a non-shaded mode is on, saves each
+>   material's own settings on first touch and restores them exactly on the way back (materials are swapped
+>   at run time and shared by clones, so a prop per model could not do it). Fixtures, LEDs, beams untouched.
+> - **Root cause of the oblique Top, found while testing item 5:** the lidar-tracking plugin's
+>   `VenueFraming` framed every NEW camera once with perspective maths; each Perspective → flat switch
+>   mounts a new orthographic camera, so it parked it at the perspective framing and reset the orbit target
+>   a frame after a saved view was applied (found by trapping writes to the target's `y` with a stack
+>   trace). Fixed in the plugin (perspective cameras only) and guarded by `verify:invariants` (mutation-
+>   tested); the per-frame ortho placement stays as defence.
+> - All checked in the packaged Show on WebGPU and WebGL: a saved Top view returns exactly from Perspective
+>   and from a flat view; Z cycles the three modes; widget and key tests still pass; no console errors.
+> - **Phase 1 is complete.** Next: Phase 2 (multi-view), starting with its WebGPU scissor spike.
 1. **Orthographic views** Top / Bottom / Front / Back / Right / Left + Perspective, toggle ortho↔persp.
    - r3f: an `OrthographicCamera` swapped in as default; ortho zoom = half-height, not distance.
    - ⚠ `AdaptiveClipping` derives near/far from *orbit distance*, which means nothing in ortho — needs an

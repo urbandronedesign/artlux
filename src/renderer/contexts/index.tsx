@@ -10,12 +10,13 @@
 
 import React from 'react';
 import {
-  Layers, Box, Boxes, Users, SlidersHorizontal, Film, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Cable, Play, Move3d, Diamond, Bookmark, Library, FolderInput,
+  Layers, Box, Boxes, Camera, Users, SlidersHorizontal, Film, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Cable, Play, Move3d, Diamond, Bookmark, Library, FolderInput,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry as coreContextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
 import { goToContext, revealBottom } from './nav';
 import { DETACHABLE_PANELS, detachablePanel } from './detachable';
+import { SceneViewsPanel } from './panels/scene3d';
 // Content is in its own file: it reaches plugin content sources and the cameras (see the file).
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { CALIBRATION_ENABLED } from '../services/runProfile';
@@ -97,6 +98,9 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register(detachablePanel('core.inspector.scene.lighting'));
   // Also no appliesTo — the tracking overlays are a property of the SCENE, not of a selection.
   panelRegistry.register(detachablePanel('core.inspector.scene.tracking'));
+  // Saved views (3d-workbench Phase 1, item 5). NOT detachable: going to a view moves the editor's
+  // camera, and a panel window has no 3D view to move.
+  panelRegistry.register({ id: 'core.inspector.scene.views', mount: 'inspector', title: 'Views', icon: <Camera size={12} />, defaultOpen: false, Component: SceneViewsPanel });
 
   // ── Dock panels ────────────────────────────────────────────────────────────────────────────
   // The seven-card Fixture Editor is gone: five of its cards were a second rendering of controls
@@ -270,7 +274,7 @@ export function registerCoreWorkspace(): void {
       'core.inspector.fixture.patch', 'core.inspector.fixture.routing',
       'core.inspector.fixture.position',
       'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
-      'core.inspector.scene.lighting', 'core.inspector.scene.tracking',
+      'core.inspector.scene.views', 'core.inspector.scene.lighting', 'core.inspector.scene.tracking',
     ],
     // BOTH recorders live here — this is the workbench where you can SEE the heads you are busking and
     // the blobs you are capturing, and they are what you want open WHILE aiming, not in a drawer you
@@ -280,7 +284,8 @@ export function registerCoreWorkspace(): void {
     layout: { showLeft: true, showRight: true, dockOpen: false, splitView: false, bottomOpen: false },
     // 3: gained patch + routing + position, so the light loop is one workbench.
     // 4: the two take panels arrived and the default dock tab changed with them.
-    layoutRev: 4,
+    // 5: the Views panel (saved viewpoints, 3d-workbench Phase 1) joined the parameter column.
+    layoutRev: 5,
     hint: {
       en: 'The venue and the rig in 3D — place fixtures, aim them, track live blobs, and record takes from the Takes docks.',
       fr: 'Le lieu et le kit en 3D — placez les fixtures, visez, suivez les blobs, et enregistrez des takes depuis les docks Takes.',

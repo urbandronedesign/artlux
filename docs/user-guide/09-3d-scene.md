@@ -39,6 +39,33 @@ things at the same height line up on screen.
 - While you **look through a calibrated projector** the picker is greyed: the projector owns the camera.
   Choose **Editor camera** first.
 
+### Saved views
+
+Save where you are looking from and come back to it in one click — "FOH", "truss from stage left", "plan".
+
+- **Save:** in the view picker choose **Save current view…**, or press **Save current view…** in the **Views**
+  section of the 3D workbench's parameter column, and give it a name. A flat view keeps its zoom; a
+  perspective keeps the camera's place and what it looks at.
+- **Go back:** pick it under **Saved views** in the view picker, or click its name in the **Views** section.
+- **Rename / delete** from the **Views** section (the pencil and the bin).
+
+Saved views are part of the **project** — they travel with the show file to the venue PC, and **Undo**
+takes a save, rename or delete back. They belong to the room, not to a scene: recalling a scene never
+changes them.
+
+### Venue display — Shaded, Wireframe, X-ray
+
+The cube button next to the view picker (or **Z** over the 3D view) steps through how the **venue** is
+drawn:
+
+- **Shaded** — as it is.
+- **Wireframe** — the models and screens as their edges.
+- **X-ray** — the models and screens see-through, so a LED bar behind a wall or a fixture behind a screen
+  stays visible while you place it.
+
+Only the venue changes: fixtures, LEDs and beams always draw as they are. It changes this view only — not
+the project, not the projector outputs.
+
 ### Frame what you are working on
 
 - **Zoom extents** (the frame button next to the view picker, or **Home**) fits every model and fixture in

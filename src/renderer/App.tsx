@@ -169,6 +169,9 @@ const SCENE3D_NOT_A_LOOK = [
   // before calibrating put the old quad back, and every camera zone then sat on the wrong patch of wall.
   'mediapipeFloor',
   'mediapipeArea',
+  // SAVED VIEWPOINTS of the venue (3d-workbench Phase 1, item 5) — where an operator looks FROM, like
+  // 'viewFrom'. A GO must not hand back a scene's stale copy of the list, or a view saved since vanishes.
+  'views',
 ] as const;
 
 // Strip them on the way INTO a scene snapshot: a scene must not carry a copy at all.

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, MonitorPlay, Radar } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, MonitorPlay, Radar, Pencil, Camera } from 'lucide-react';
+import { applyPose, capturePose, viewLabel } from '../../services/view3d';
+import { usePrompt } from '../../components/ui/feedback';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import { panelRegistry } from '../../host/registries';
 import { PROGRAM_LAYER_ID } from '../../services/programLayer';
 import { modelScaleXYZ } from '../../../../shared/protocol';
@@ -605,6 +608,51 @@ export const ModelTransformPanel: React.FC = () => {
 };
 
 // ── Lighting ────────────────────────────────────────────────────────────────────────────────
+// SAVED VIEWS (plans/3d-workbench.md Phase 1, item 5) — the list behind the view picker's "Saved views":
+// go to one, rename it, delete it, or save where you are looking from now. The views live in the project
+// (Scene3D.views), so every change here is a document edit and one undo step. Editor-only: going to a view
+// moves the EDITOR's camera, which a panel window does not have (contexts/index.tsx registers it there).
+export const SceneViewsPanel: React.FC = () => {
+  const { scene3D } = useEditorPick('scene3D');
+  const a = useEditorActions();
+  const prompt = usePrompt();
+  const views = scene3D.views ?? [];
+  const save = async () => {
+    const pose = capturePose();
+    if (!pose) return;
+    const name = await prompt({ title: 'Save view', initial: nextNumberedName('View', views), confirmLabel: 'Save' });
+    if (!name) return;
+    a.sceneConfig({ views: [...views, { id: `view_${Date.now().toString(36)}`, name, ...pose }] });
+  };
+  const rename = async (id: string) => {
+    const v = views.find((x) => x.id === id);
+    if (!v) return;
+    const name = await prompt({ title: 'Rename view', initial: v.name, confirmLabel: 'Rename' });
+    if (!name) return;
+    a.sceneConfig({ views: views.map((x) => (x.id === id ? { ...x, name } : x)) });
+  };
+  return (
+    <div className="space-y-2">
+      {views.length === 0 ? (
+        <p className="text-mini text-fg-2">No saved views yet. Frame the venue the way you want to see it again, then save it — it travels with the project.</p>
+      ) : (
+        <div className="border border-line-1 rounded-sm divide-y divide-line-2">
+          {views.map((v) => (
+            <div key={v.id} className="group flex items-center gap-1.5 px-2 py-1">
+              <button onClick={() => applyPose(v)} title={`Go to “${v.name}” (${viewLabel(v.kind)})`}
+                      className="flex-1 min-w-0 text-left text-xs text-fg-1 truncate">{v.name}</button>
+              <span className="text-micro text-fg-3 shrink-0">{viewLabel(v.kind)}</span>
+              <button onClick={() => { void rename(v.id); }} title="Rename" aria-label={`Rename ${v.name}`} className="p-0.5 text-fg-3 hover:text-fg-1"><Pencil size={11} /></button>
+              <button onClick={() => a.sceneConfig({ views: views.filter((x) => x.id !== v.id) })} title="Delete" aria-label={`Delete ${v.name}`} className="p-0.5 text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <Button variant="tonal" size="sm" className="w-full" onClick={() => { void save(); }}><Camera size={12} /> Save current view…</Button>
+    </div>
+  );
+};
+
 export const SceneLightingPanel: React.FC = () => {
   const { scene3D } = useEditorPick('scene3D');
   const a = useEditorActions();

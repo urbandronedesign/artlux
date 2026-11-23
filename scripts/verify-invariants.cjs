@@ -1427,6 +1427,24 @@ check(
   },
 );
 
+check(
+  'a flat 3D view owns its camera — nothing re-frames a new orthographic camera',
+  'Each switch from Perspective to Top/Front/… mounts a NEW orthographic camera (Simulator3D/ViewControls). ' +
+  'The lidar-tracking plugin framed every new camera once with perspective maths, so it parked the ortho ' +
+  'camera at an elevated perspective framing (an oblique "Top") and reset the orbit target a frame after a ' +
+  'saved view was applied — the view came back shifted, nothing thrown (found 2026-11-23 by trapping the ' +
+  'writes to the target). A camera-framing pass must skip non-perspective cameras, and the view must keep ' +
+  're-deriving the ortho camera from its target every frame rather than placing it once.',
+  () => {
+    const problems = [];
+    const viz = read('plugins/lidar-tracking/src/TrackingViz.tsx');
+    if (/venueFramed/.test(viz) && !/isPerspectiveCamera\)\s*return/.test(viz)) problems.push('TrackingViz VenueFraming no longer skips non-perspective cameras');
+    const vc = read('src/renderer/components/Simulator3D/ViewControls.tsx');
+    if (!/useFrame\([\s\S]{0,2500}?placeOrtho\(cam, view, controls\.target\)/.test(vc)) problems.push('ViewControls no longer re-places the ortho camera from its target every frame');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Cold start: cosmetic decoding must never race the show ────────────────────────────────────
 check(
   'filmstrips and waveforms yield to the cold-start gate',

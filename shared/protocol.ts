@@ -1118,6 +1118,20 @@ export interface TrackingZone {
   parts?: string[];
 }
 
+/**
+ * A saved viewpoint of the 3D scene (Scene3D.views). `kind` is the view it was taken in — 'persp', or a
+ * flat one ('top' | 'front' | …, services/view3d) — with the orbit `target`, the camera `position`, and
+ * for a flat view its `zoom` (pixels per metre). Positions are world metres.
+ */
+export interface NamedView3D {
+  id: string;
+  name: string;
+  kind: 'persp' | 'top' | 'bottom' | 'front' | 'back' | 'right' | 'left';
+  position: [number, number, number];
+  target: [number, number, number];
+  zoom?: number;
+}
+
 export interface Scene3D {
   models: SceneModel[];
   lightIntensity: number;             // per-fixture venue light gain
@@ -1170,6 +1184,10 @@ export interface Scene3D {
   // without a physical projector switched on. Persisted with the scene because it is a saved
   // VIEWPOINT of this venue, not a transient UI mode; it survives reopening the project.
   viewFrom?: string;
+  // NAMED VIEWS (plans/3d-workbench.md Phase 1, item 5) — Rhino's NamedView, Blender's camera bookmarks.
+  // Saved viewpoints of THIS VENUE ("FOH", "Truss from stage left"), so they travel with the show and
+  // are the room, not the look: listed in App's SCENE3D_NOT_A_LOOK, a scene recall never replaces them.
+  views?: NamedView3D[];
   trackingViz?: boolean;              // overlay the LiDAR SOL/MUR zones + live blob markers
   trackingSmoothing?: number;         // 0 = raw, 1 = heavy (One-Euro min-cutoff)
   trackingPredictMs?: number;         // blob prediction horizon, ms (0 = off)
