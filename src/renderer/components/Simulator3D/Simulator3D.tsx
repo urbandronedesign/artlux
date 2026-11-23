@@ -36,6 +36,7 @@ import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { OrthoCamera, ViewController, FrameController, DisplayModeController } from './ViewControls';
 import { setGridPlane, gridQuaternion } from './gridSpace';
+import { MULTIVIEW_SPIKE, MultiViewSpike, multiViewEvents } from './MultiViewSpike';
 import { getView, setView, subscribeView, isOrtho, viewLabel, viewAlong, VIEW_ORDER, requestFrame, capturePose, applyPose, getDisplayMode, subscribeDisplayMode, cycleDisplayMode, displayLabel, type ViewKind } from '../../services/view3d';
 import { usePrompt } from '../ui/feedback';
 import { nextNumberedName } from '@artlux/sdk/renderer';
@@ -703,6 +704,9 @@ const Simulator3D: React.FC<Props> = ({
         // r3f awaits so `renderer.init()` can complete. See renderer3d.ts for the flag and the why.
         gl={glConfig}
         camera={{ position: [0, 1.2, 3], fov: 50 }}
+        // PHASE 2 SPIKE (MultiViewSpike.tsx), off unless `artlux.multiview` is set on this machine: picks
+        // go through the camera of the quarter under the pointer.
+        {...(MULTIVIEW_SPIKE ? { events: multiViewEvents } : {})}
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}
       >
         <color attach="background" args={['#0d0d0d']} />
@@ -874,6 +878,7 @@ const Simulator3D: React.FC<Props> = ({
         <OrbitControls makeDefault enabled={dragPick == null && !viewFrom} enableRotate={mode !== 'select' && !ortho} />
         <ViewBridge />
         <DisplayModeController mode={displayMode} />
+        {MULTIVIEW_SPIKE && <MultiViewSpike />}
         <FrameController fixtures={fixtures} selectedFixtureIds={gizmoFixtures.map((f) => f.id)} selectedModelId={selectedModelId ?? null} view={shownView} />
         {/* drei's GizmoViewport builds its axis-head sprites through `gl.capabilities.getMaxAnisotropy()`,
             which only a WebGLRenderer has — on the WebGPU path it throws during render, and because that
@@ -882,7 +887,9 @@ const Simulator3D: React.FC<Props> = ({
         {/* THE CORNER WIDGET SWITCHES VIEW (3d-workbench Phase 1, item 4): an axis end → the flat view
             looking along it. On WebGL drei's own head click is DISABLED (it would tween the perspective
             camera instead of switching view) and the click is taken here as it bubbles from the head. */}
-        <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
+        {/* renderPriority: drei's HUD at priority 1 RE-RENDERS THE WHOLE SCENE full-canvas before drawing
+            the widget — which would wipe the multi-view spike's quarters. At 2 it only draws the widget. */}
+        <GizmoHelper alignment="bottom-right" margin={[64, 64]} renderPriority={MULTIVIEW_SPIKE ? 2 : 1}>
           {webgpuSpike
             ? <ClickableAxisTriad onPick={(d) => setView(viewAlong(d))} />
             : (

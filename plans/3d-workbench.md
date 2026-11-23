@@ -214,6 +214,38 @@ plane, both backends, memoized props, history (a view change is **not** an undo 
 document state; a named view save **is**).
 
 ### Phase 2 — Multi-view (Rhino four-view) · ~3–4 wk, starts with a spike
+
+> **Spike done 2026-11-23 — the approach holds.** `Simulator3D/MultiViewSpike.tsx`, experimental and off
+> unless `localStorage artlux.multiview = '1'` on that machine. Four views of the ONE scene in the ONE
+> canvas (Top / Perspective / Front / Right), our own render loop (`useFrame` priority 1) with
+> `setViewport`/`setScissor` per quarter, and r3f's pointer mapping overridden (`events` → `compute`) to
+> raycast through the camera of the quarter under the pointer. Checked in the packaged Show:
+> - **(a) Scissored views work on WebGPU and WebGL.** Two backend facts the real thing must keep:
+>   **WebGPU clears a whole attachment, not a scissor** — clear ONCE, then render every quarter with
+>   `autoClear` off (and `scene.background` off for the passes); and **the viewport origin differs** —
+>   WebGLRenderer counts y from the bottom, WebGPURenderer from the top (one formula swapped the rows).
+> - **(b) Picks route per view.** A click in the Front quarter raycasts through the Front camera, one in the
+>   Perspective quarter through the editor camera, and both select the wall screen. The Perspective quarter
+>   must raycast with the QUARTER's aspect, not the canvas's (a first try skewed the ray).
+> - **(c) It is cheap.** All four views cost **~1.1 ms CPU per frame on WebGPU** (one view ~0.5 ms; the
+>   extra three ~0.15 ms each — the flat views draw little) and ~2.3 ms on WebGL, on the RTX 5090 with the
+>   interactive-show example. GPU time not measured; a 1M-triangle venue is the next number to take.
+> - **drei's GizmoHelper HUD re-renders the whole scene** full-canvas at its default `renderPriority` 1,
+>   which wiped the quarters — it must run at 2 (widget only) under multi-view.
+>
+> **What the real Phase 2 must add (found by the spike):**
+> 1. **The grid per view** — `gridSpace` is set once per frame, so only Top/Perspective got a ruler; set the
+>    plane (and re-solve the frame) before each quarter's pass. GridLabels' geometry is per plane, so keep
+>    one label mesh per view rather than rebuilding per pass.
+> 2. **DOM overlays per view** — the tracking zones' text labels (drei `Html`, positioned with the default
+>    camera over the whole canvas) float in the wrong place in the other quarters: draw them in the active
+>    view only, or project them per quarter.
+> 3. **Controls and the gizmo follow the ACTIVE view** (the one last clicked): OrbitControls and
+>    TransformControls both read the default camera and the whole canvas, so the active quarter's camera
+>    becomes r3f's default on pointer-down, and the controls work in that quarter's rectangle.
+> 4. **Per-view state** from Phase 1 (view kind, display mode, saved views) moves from `view3d`'s single
+>    value to one per quarter; the layout (single / 2 / 4, which is maximised) is per machine (§6.5).
+> 5. **The 3D frame cap and render scale** apply to the whole canvas — unchanged.
 1. **Layouts:** single / two side-by-side / two stacked / four (Top, Front, Right, Perspective — Rhino's
    default). Maximise/restore one view (double-click its title, or a key). Active view = the one under the
    last click; it receives shortcuts.
