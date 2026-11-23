@@ -55,6 +55,12 @@
 //      window lets go), from the editor into a panel window (likewise), and a non-detachable tab dragged
 //      out goes nowhere. Main reads the REAL cursor, so this step moves it (Windows: Forms.Cursor) while
 //      the page under test is driven by CDP — it runs only on win32, and moves the operator's pointer.
+//  21. THE TIMELINE in a window (the detached timeline): the docked timeline's own button opens it, the
+//      editor's drawer folds to a pointer instead of a second timeline; the window produces nothing;
+//      its playhead is the editor's clock (extrapolated anchors, not a message per frame); Play, Stop
+//      and Space are the editor's transport, once per press; an edit lands in the editor's document; a
+//      waveform comes from the editor's decode; Edit logic switches the EDITOR; Back to the editor
+//      closes it and the drawer has its timeline again.
 //   7. Its place is remembered: reopened after a close it comes back at the same bounds; a window
 //      pushed off every screen comes back ON one.
 // Restores the whole prefs file, like every harness here (panel positions are written to it).
@@ -82,6 +88,7 @@ const KEEP = process.argv.includes('--keep');
 // off, a panel window says it cannot show the project (instead of "Connecting…" forever).
 const NOHOST = process.env.ARTLUX_NO_SHOW_HOST === '1';
 const WORK = path.join(os.tmpdir(), 'artlux-panel-window-test');
+const BED_WAV = path.join(ROOT, 'examples', 'audio', 'assets', 'audio', 'bed-count.wav');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const get = (u) => new Promise((res, rej) => {
   http.get(u, (r) => { let b = ''; r.on('data', (d) => (b += d)); r.on('end', () => res(b)); }).on('error', rej);
@@ -135,6 +142,10 @@ function buildProject() {
     scene3D: { models: [], lightIntensity: 1, environment: true, exposure: 1, gridVisible: true, reflectiveFloor: false, trackingViz: false, trackingZones: [ZONE] },
     timeline: { layers: [], clips: [], duration: 30, fps: 30, markers: [], inPoint: null, outPoint: null, loop: false, trackingTakes: [], lightingTakes: [], lightingSequences: [], automation: [] },
     schedule: [], assets: [], projectorOutputs: [], projectorFpsCap: 0, projectorBrightness: 1,
+    // A BED CLIP (step 21: its waveform in a timeline window is the editor's decode). On a muted track —
+    // the test makes no sound.
+    audio: { tracks: [{ id: 'atr_bed', name: 'Bed', gain: 1, mute: true }],
+      clips: [{ id: 'acl_bed', trackId: 'atr_bed', name: 'bed-count', path: BED_WAV, start: 0, duration: 36, inPoint: 0, sourceDuration: 36, gain: 1, mute: false }], buses: [] },
   }, null, 2));
   return file;
 }
@@ -148,8 +159,11 @@ function launch(project) {
     { cwd: ROOT, env, stdio: ['ignore', ...(() => { const fd = fs.openSync(MAIN_LOG, 'w'); return [fd, fd]; })()], shell: process.platform === 'win32' });
 }
 async function stop(child) {
+  // ITS OWN TREE, never every electron.exe: the owner's own dev session may be open beside the test.
+  // The tree kill goes FIRST: `child` is the npm shell, and killing it alone orphans electron-vite and the
+  // app — the tree walk then finds nothing, and the relaunch (step 7) hits the single-instance lock.
+  try { execSync(process.platform === 'win32' ? `taskkill /PID ${child.pid} /F /T` : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
   try { child.kill('SIGKILL'); } catch { /* gone */ }
-  try { execSync(process.platform === 'win32' ? 'taskkill /IM electron.exe /F /T' : 'pkill -f electron', { stdio: 'ignore' }); } catch { /* none */ }
   await sleep(2000);
 }
 
@@ -1037,6 +1051,91 @@ const until = async (fn, ms = 8000, step = 200) => {
       await pw2.evaluate(() => window.close()).catch(() => {});
     }
 
+    console.log('\n21. the timeline in its own window: the editor\'s transport, from another screen');
+    {
+      const drawerBtn = () => E(() => document.querySelector('button[aria-controls="workspace-bottom"]')?.getAttribute('aria-expanded'));
+      const TOOLBAR = 'button[title="Play / Pause (Space)"]';
+      // The drawer open (Ctrl+T's state), so the docked timeline's toolbar is on screen.
+      await E(() => { const b = document.querySelector('button[aria-controls="workspace-bottom"]'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click(); });
+      await sleep(1200);
+      const clicked = await until(() => E(() => { const b = document.querySelector('button[title="Open in its own window"]'); if (b) b.click(); return !!b; }), 8000);
+      note(!!clicked, 'the docked timeline has "Open in its own window"');
+      const tt = await browser.waitForTarget((x) => x.url().includes('panel.html?panel=core.timeline'), { timeout: 20000 });
+      const pw = await tt.page();
+      const W = (fn, ...a) => pw.evaluate(fn, ...a);
+      const pwLog = [];
+      pw.on('console', (m) => { if (['error', 'warn', 'warning'].includes(m.type())) pwLog.push(m.text()); });
+      pw.on('pageerror', (e) => pwLog.push(`pageerror ${e.message}`));
+      const edLog0 = edLog.length;
+      const ready = await until(() => W((sel) => !!window.__showHost && window.__showHost.ready() && !!document.querySelector(sel), TOOLBAR), 30000);
+      note(!!ready, 'the window shows the timeline');
+      const chrome = await W(() => ({ max: !!document.querySelector('button[title^="Maximize"]'), det: !!document.querySelector('button[title="Open in its own window"]'), title: document.title }));
+      note(!chrome.max && !chrome.det && /^Timeline/.test(chrome.title), 'no Maximize and no Open-in-window there; titled Timeline', JSON.stringify(chrome));
+      const pointer = await until(() => E(() => (/The timeline is open in its own window/.test(document.body.innerText) ? 1 : null)), 5000);
+      const edTimelines = await E((sel) => document.querySelectorAll(sel).length, TOOLBAR);
+      const folded = await drawerBtn();
+      note(!!pointer && folded === 'false' && edTimelines === 0, 'the editor\'s drawer folds to a pointer, not a second timeline',
+        `pointer ${!!pointer}, drawer expanded ${folded}, timelines in the editor ${edTimelines}`);
+      note(!Object.values(await W(prints)).some(Boolean), 'the window produces nothing (no transport, thumbnail cache, broker, three.js)', JSON.stringify(await W(prints)));
+
+      // THE CLOCK. The broker's truth is the editor's transport; the window's readout is HH:MM:SS:FF.
+      const truth = () => E(() => window.__liveBroker.truth());
+      const readout = () => W(() => {
+        const s = [...document.querySelectorAll('span.num')].find((x) => /\d\d:\d\d:\d\d:\d\d \//.test(x.textContent || ''));
+        const m = s && /(\d\d):(\d\d):(\d\d):(\d\d)/.exec(s.textContent);
+        return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4]) / 30 : null;
+      });
+      const playBtn = () => W((sel) => document.querySelector(sel).click(), TOOLBAR);
+      // The project may be playing (the app opens playing): pause from the window first.
+      if ((await truth()).playing) { await playBtn(); await until(async () => !(await truth()).playing, 5000); }
+      await playBtn();
+      note(!!(await until(async () => (await truth()).playing, 5000)), 'Play in the window plays the editor\'s transport');
+      await sleep(2500);
+      const r0 = await readout(); const tr = await truth();
+      await sleep(1000);
+      const r1 = await readout();
+      note(r0 != null && r1 != null && r1 - r0 > 0.8 && r1 - r0 < 1.2 && Math.abs(r0 - tr.playhead) < 0.25,
+        'the window\'s readout runs with the editor\'s playhead', `window ${r0?.toFixed(2)} → ${r1?.toFixed(2)} s; editor ${tr.playhead.toFixed(2)} s`);
+      const anchors = await W(() => window.__liveClient.received().clock || 0);
+      note(anchors < 20, '…from clock anchors, not a message per frame', `${anchors} anchors in total`);
+      await W(() => document.querySelector('button[title^="Stop"]').click());
+      const stopped = await until(async () => { const x = await truth(); return !x.playing && x.playhead < 0.05 ? x : null; }, 5000);
+      await sleep(500);
+      const rz = await readout();
+      note(!!stopped && rz != null && rz < 0.05, 'Stop in the window pauses and rewinds the editor, and the window says 0', `${JSON.stringify(await truth())}; window ${rz}`);
+      // Space: panel.tsx forwards it to the editor, and the timeline's own key hook must NOT toggle too.
+      const tb = await (await pw.$(TOOLBAR)).boundingBox();
+      await pw.mouse.move(tb.x + 300, tb.y + 120);     // over the timeline, so its own keys are live as well
+      await pw.keyboard.press('Space'); await sleep(1200);
+      const sp1 = (await truth()).playing;
+      await pw.keyboard.press('Space'); await sleep(1200);
+      const sp2 = (await truth()).playing;
+      note(sp1 === true && sp2 === false, 'Space plays, Space pauses — one toggle per press, not two', `after the 1st ${sp1}, after the 2nd ${sp2}`);
+
+      const markers = () => E(() => (window.__showHost.get('doc', 'timeline').markers || []).length);
+      const m0 = await markers();
+      await W(() => document.querySelector('button[title^="Add marker"]').click());
+      const m1 = await until(async () => ((await markers()) === m0 + 1 ? m0 + 1 : null), 5000);
+      note(!!m1, 'Add marker in the window: one more marker in the editor\'s document', `${m0} → ${m1 ?? await markers()}`);
+      const peaks = await until(() => W(() => ((window.__liveClient.received().peaks || 0) > 0 ? window.__liveClient.received().peaks : null)), 20000);
+      note(!!peaks, 'the bed\'s waveform is the editor\'s decode (asked over the live channel)', `${peaks} answers`);
+
+      const ctx = () => E(() => document.querySelector('[role="tablist"] [aria-selected="true"]')?.textContent?.trim());
+      const ctx0 = await ctx();
+      await W(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === 'Edit logic'); if (b) b.click(); });
+      const ctx1 = await until(async () => { const c = await ctx(); return c && c !== ctx0 ? c : null; }, 5000);
+      note(!!ctx1 && /machine|show/i.test(ctx1), 'Edit logic in the window switches the EDITOR to the Show Machine', `${ctx0} → ${ctx1}`);
+
+      await W(() => document.querySelector('button[title="Back to the editor"]').click());
+      const gone = await until(async () => !(await browser.targets()).some((x) => x.url().includes('panel=core.timeline')), 6000);
+      const back = await until(() => E((sel) => (document.querySelectorAll(sel).length === 1 && !/open in its own window/.test(document.body.innerText) ? 1 : null), TOOLBAR), 6000);
+      const reopened = await drawerBtn();
+      note(!!gone && !!back && reopened === 'true', 'Back to the editor: the window closes, the drawer opens with its timeline',
+        `window gone ${!!gone}, timeline back ${!!back}, drawer ${reopened}`);
+      const noise = /DevTools|Autofill|Electron Security|source map|React DevTools|THREE\.Clock: This module has been deprecated/;
+      const warn = [...pwLog, ...edLog.slice(edLog0)].filter((x) => !noise.test(x));
+      note(warn.length === 0, 'no warnings or errors in either window meanwhile', warn.slice(0, 6).join(' || '));
+    }
     console.log('\n7. its place is remembered, it reopens with the editor, and never off-screen');
     const readPrefs = () => JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8'));
     note(['core.browser.fixtures', 'core.browser.globals'].every((id) => (readPrefs().openPanelWindows || []).includes(id)),
