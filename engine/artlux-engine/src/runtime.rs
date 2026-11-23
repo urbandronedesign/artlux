@@ -491,6 +491,13 @@ impl Runtime {
         Ok(())
     }
 
+    /// The SENDER's own counters (packets/s, frames/s incl. keep-alive, universes in the last frame) — the same
+    /// numbers the app's output engine reports, from the same core. Reported with each `sent`, so while the
+    /// engine owns the wire the operator's LIVE / pps readout is the wire's truth and not the muted app's zeros.
+    pub fn wire_stats(&self) -> (u32, u32, u32) {
+        self.out.as_ref().map(|o| { let s = o.stats(); (s.pps, s.fps, s.universes) }).unwrap_or((0, 0, 0))
+    }
+
     pub fn close(&mut self) {
         if let Some(o) = self.out.take() { o.close(); }
         if let Some((proxy, _)) = &self.outputs { let _ = proxy.send_event(crate::outputs::Cmd::Quit); }

@@ -70,6 +70,19 @@ let lastWhy = '';
 // engine's synchronous start-up — see plans/native-engine.md E1f-1.)
 const SENT_FRESH_MS = 250;
 let lastSentAt = 0;
+// WHAT THE ENGINE PUT ON THE WIRE, for the operator. While the engine owns the wire the app's own sender is
+// muted, so its stats (the status bar's LIVE, the Prometheus pps gauge) read zero packets on a show that is
+// running perfectly — the bar said READY, which an operator reads as "no output". Each `sent` carries the
+// engine sender's own counters (the same output core as the app's, so the same meaning: packets/s, frames/s
+// including keep-alive, universes) plus the running totals of frames drawn and ticks dropped by coalescing.
+let sentFrames = 0, sentDropped = 0;
+let sentWire = { pps: 0, fps: 0, universes: 0 };
+let dropLog = { at: 0, dropped: 0, frames: 0 };
+const DROP_LOG_MS = 60_000;
+// A dropped tick is a frame the host asked for and the engine never drew (it was replaced by a newer one
+// while the previous frame was still rendering). A few percent is jitter (measured ~5% at the default 30 Hz
+// engineFps on the RTX box); beyond this share of a minute's ticks the engine is genuinely too slow.
+const DROP_LOG_SHARE = 0.1;
 
 function setOwns(next: { rev: number; pid: number | null } | null, why: string): void {
   const was = !!owns;
@@ -92,6 +105,22 @@ export function engineOwnsWire(): boolean {
     && Date.now() - lastSentAt < SENT_FRESH_MS;
 }
 let answeredRev = -1;
+
+/** The engine sender's throughput while the engine owns the wire (null otherwise: the app's sender is the
+ *  truth then). Called once a second by the stats poll, which also gives the drop check its clock. */
+export function engineWireStats(): { fps: number; universes: number; pps: number } | null {
+  const now = Date.now();
+  if (now - dropLog.at >= DROP_LOG_MS) {
+    // The counters restart with every engine process — a lower count is a new engine, not negative frames.
+    const d = sentDropped - dropLog.dropped, f = sentFrames - dropLog.frames;
+    if (dropLog.at && d > 0 && f >= 0 && d / (d + f) > DROP_LOG_SHARE) {
+      logger.log('warn', 'engine', 'ticks-dropped', { dropped: d, frames: f, seconds: Math.round((now - dropLog.at) / 1000) });
+      console.warn(`[engine] dropped ${d} of ${d + f} tick(s) in the last minute — frames take longer than the tick interval`);
+    }
+    dropLog = { at: now, dropped: sentDropped, frames: sentFrames };
+  }
+  return engineOwnsWire() ? { ...sentWire } : null;
+}
 
 // Item 3: CALIBRATION MAPS as files. The renderer sends each map once (~10 MB); main writes it where the engine
 // can read it and the document names it by key — so a document change never re-ships a map.
@@ -223,7 +252,7 @@ function spawnEngine(): void {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
       if (!line) continue;
-      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; rev?: number; owns?: boolean; why?: string };
+      let m: { type?: string; adapter?: string; version?: string; backend?: string; pid?: number; n?: number; u?: number; d?: number; pps?: number; fps?: number; rev?: number; owns?: boolean; why?: string };
       try { m = JSON.parse(line); } catch { console.log(`[engine] ${line}`); continue; }
       if (m.type === 'hello') {
         if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
@@ -261,6 +290,9 @@ function spawnEngine(): void {
         lastPong = Date.now();
       } else if (m.type === 'sent') {
         lastSentAt = Date.now();
+        if (typeof m.n === 'number') sentFrames = m.n;
+        if (typeof m.d === 'number') sentDropped = m.d;
+        if (typeof m.pps === 'number') sentWire = { pps: m.pps, fps: m.fps ?? 0, universes: m.u ?? 0 };
       } else if (m.type === 'projOwns') {
         if (m.rev !== lastDocRev) continue;
         setProjOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');

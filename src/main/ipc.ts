@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type OscOutPacket, type AssetType, type WindowCommand, type RendererFault, type LogRecord, type BlendWatchEntry } from '../../shared/protocol';
 import * as output from './transport/outputManager';
-import { noteOutputConfig, noteDoc, noteTick, engineEnabled, noteBakedMap } from './engineHost';
+import { noteOutputConfig, noteDoc, noteTick, engineEnabled, noteBakedMap, engineWireStats } from './engineHost';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as osc from './transport/oscManager';
@@ -430,7 +430,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.
     setInterval(() => {
-        const stats = output.getStats();
+        const base = output.getStats();
+        // While the native engine owns the wire the app's sender is muted and reports no packets, so the
+        // engine's own numbers stand in (engineHost.engineWireStats) — for the status bar's LIVE, the
+        // Prometheus gauges and the watchdog's output-down detector alike. Back to the app's the moment the
+        // engine stops sending (engineOwnsWire's freshness), so a dead engine still reads as a dead wire.
+        const eng = engineWireStats();
+        const stats = base && eng ? { ...base, ...eng } : base;
         if (stats) getWindow()?.webContents.send(IPC.STATS, stats);
         metrics.updateEngineStats(stats);
         watchdog.noteEngineStats(stats); // output-down detector (only acts after the wire was live)

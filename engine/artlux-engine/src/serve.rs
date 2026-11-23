@@ -8,7 +8,9 @@
 //!   main → engine   {"quit":true}          a clean stop
 //!   main → engine   {"type":"output"|"doc"|"tick", …}   E1f: the live document and its frames (runtime.rs)
 //!   engine → main   {"type":"owns","rev":r,"owns":b,"why":"…"}   whether the engine drives the wire
-//!   engine → main   {"type":"sent","n":N}  a frame went to the wire (the liveness main mutes the app on)
+//!   engine → main   {"type":"sent","n":N,"d":D,"pps":P,"fps":F,"u":U}  a frame went to the wire (the liveness main
+//!                   mutes the app on); N frames drawn so far, D ticks dropped by coalescing so far, and the sender's
+//!                   own counters (packets/s, frames/s incl. keep-alive, universes) — the app output engine's numbers
 //!   engine → main   {"type":"projOwns","rev":r,"owns":b,"why":"...","open":n}   E1f-3: whether the engine's
 //!                                          own windows now show the projector outputs (main covers the app's)
 //! stdin closing (main gone, crashed or quit) also ends it: the engine never outlives the app.
@@ -90,10 +92,14 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                 if let Some(proxy) = windows.and_then(|w| w.attach(shared.clone(), report)) { rt.set_outputs(proxy, shared); }
             }
             let mut warned = false;
+            // Ticks REPLACED by a newer one before they were drawn (the coalescing above). Reported with each
+            // `sent` as a running total: main turns it into a rate, so a wire running below the host's frame
+            // rate says whether the engine was too slow (drops) or was simply not asked (no drops).
+            let mut dropped: u64 = 0;
             while let Ok(first) = rx.recv() {
                 let mut tick: Option<serde_json::Value> = None;
-                let handle = |rt: &mut crate::runtime::Runtime, m: serde_json::Value, tick: &mut Option<serde_json::Value>| match m["type"].as_str() {
-                    Some("tick") => *tick = Some(m),
+                let handle = |rt: &mut crate::runtime::Runtime, m: serde_json::Value, tick: &mut Option<serde_json::Value>, dropped: &mut u64| match m["type"].as_str() {
+                    Some("tick") => { if tick.is_some() { *dropped += 1; } *tick = Some(m) }
                     Some("doc") => {
                         let (rev, owns, why) = rt.doc(&m["doc"]);
                         let line = format!(r#"{{"type":"owns","rev":{rev},"owns":{owns},"why":{}}}"#, json_str(&why));
@@ -110,13 +116,13 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                     Some("output") => rt.output(&m),
                     _ => {}
                 };
-                handle(&mut rt, first, &mut tick);
-                while let Ok(m) = rx.try_recv() { handle(&mut rt, m, &mut tick); }
+                handle(&mut rt, first, &mut tick, &mut dropped);
+                while let Ok(m) = rx.try_recv() { handle(&mut rt, m, &mut tick, &mut dropped); }
                 // Item 2d step 5: a twin camera was resolved by picture during the last tick — answer the SAME
                 // document again (main takes a later answer for the current revision), as if it had just come.
                 if rt.redo {
                     rt.redo = false;
-                    if let Some(d) = rt.last_doc.clone() { handle(&mut rt, serde_json::json!({ "type": "doc", "doc": d }), &mut tick); }
+                    if let Some(d) = rt.last_doc.clone() { handle(&mut rt, serde_json::json!({ "type": "doc", "doc": d }), &mut tick, &mut dropped); }
                 }
                 if let Some(t) = tick {
                     let before = rt.frames;
@@ -127,7 +133,8 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                         // back within ~250 ms. (A killed engine is seen sooner, by its exit: 23 ms measured.)
                         Ok(()) if rt.frames != before => {
                             let mut o = std::io::stdout().lock();
-                            let _ = writeln!(o, r#"{{"type":"sent","n":{}}}"#, rt.frames).and_then(|_| o.flush());
+                            let (pps, fps, uni) = rt.wire_stats();
+                            let _ = writeln!(o, r#"{{"type":"sent","n":{},"d":{},"pps":{},"fps":{},"u":{}}}"#, rt.frames, dropped, pps, fps, uni).and_then(|_| o.flush());
                         }
                         Ok(()) => {}
                         Err(e) => { if !warned { eprintln!("artlux-engine: frame failed: {e}"); warned = true; } }
