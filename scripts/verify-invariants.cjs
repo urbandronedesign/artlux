@@ -9343,6 +9343,27 @@ check(
   },
 );
 
+check(
+  'a click in the engine\'s 3D view selects in the editor',
+  'E4b: the engine window picks the fixture under a click (view3d.rs pick) and writes a view3dPick line; main ' +
+  'relays it to the renderer and Simulator3D applies it to the EDITOR\'s selection, which then flows back to the ' +
+  'engine with the scene. Each hop is a string match on a message type in another process — drop one and a ' +
+  'click does nothing, with nothing failing. The engine must also keep telling a click from an orbit by travel, ' +
+  'or every orbit drag ends in a pick that throws the operator\'s selection away.',
+  () => {
+    const problems = [];
+    const O = 'engine/artlux-engine/src/outputs.rs', H = 'src/main/engineHost.ts', P = 'src/preload/index.ts', S = 'src/renderer/components/Simulator3D/Simulator3D.tsx';
+    for (const f of [O, H, P, S]) if (!exists(f)) return `${f} is gone`;
+    const o = read(O), h = read(H), p = read(P), s = read(S);
+    if (!o.includes('"type":"view3dPick"')) problems.push('the engine no longer writes view3dPick');
+    if (!/v\.travel <= CLICK_PX/.test(o)) problems.push('the engine no longer tells a click from an orbit drag');
+    if (!/m\.type === 'view3dPick'[\s\S]{0,400}IPC\.NATIVE_ENGINE_VIEW3D_PICK/.test(h)) problems.push('main no longer relays view3dPick to the renderer');
+    if (!p.includes('IPC.NATIVE_ENGINE_VIEW3D_PICK')) problems.push('the preload no longer exposes the pick');
+    if (!s.includes('onNativeEngineView3dPick')) problems.push('Simulator3D no longer applies the pick');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 

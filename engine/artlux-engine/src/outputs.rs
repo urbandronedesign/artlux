@@ -66,7 +66,13 @@ pub enum Cmd { Set(Vec<Spec>), View3d(bool), Quit }
 struct View {
     window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>>,
     cursor: Option<(f64, f64)>, orbit: bool, pan: bool,
+    /// E4b: where the left button went down and how far the cursor has travelled since — a press that ends
+    /// within CLICK_PX of where it started is a CLICK (a pick), anything further was an orbit.
+    press: Option<(f64, f64)>, travel: f64,
+    /// Shift or Ctrl held: a click ADDS to (or takes from) the editor's selection.
+    additive: bool,
 }
+const CLICK_PX: f64 = 4.0;
 
 struct Out { spec: Spec, window: Arc<Window>, stop: Arc<AtomicBool>, thread: Option<std::thread::JoinHandle<()>> }
 
@@ -81,8 +87,9 @@ struct App {
     view: Option<View>,
     view_shared: Arc<Mutex<crate::view3d::Shared>>,
     view_open: Arc<AtomicBool>,
-    /// Called when the operator closes the view from its title bar (main relays it to the editor).
-    view_closed: Box<dyn Fn() + Send>,
+    /// Tells main what the operator did in the window: `{"type":"view3d","open":false}` (closed from its title
+    /// bar) or `{"type":"view3dPick",…}` (a click — E4b). Main relays both to the editor.
+    view_event: Box<dyn Fn(String) + Send>,
     /// Presenters of closed views, reaped like the outputs'.
     view_closing: Vec<View>,
 }
@@ -133,7 +140,7 @@ impl App {
         let thread = std::thread::Builder::new().name("present:view3d".into()).spawn(move || crate::view3d::present(gpu, w2, surface, st, sh)).ok();
         eprintln!("artlux-engine: 3D view open");
         self.view_open.store(true, Ordering::SeqCst);
-        self.view = Some(View { window, stop, thread, cursor: None, orbit: false, pan: false });
+        self.view = Some(View { window, stop, thread, cursor: None, orbit: false, pan: false, press: None, travel: 0.0, additive: false });
     }
     fn close_view(&mut self) {
         if self.view.is_some() { eprintln!("artlux-engine: 3D view closed"); }
@@ -172,14 +179,34 @@ impl ApplicationHandler<Cmd> for App {
         let Some(v) = self.view.as_mut().filter(|v| v.window.id() == id) else { return };
         use winit::event::{ElementState, MouseButton, MouseScrollDelta};
         match e {
-            WindowEvent::CloseRequested => { self.close_view(); (self.view_closed)(); }
+            WindowEvent::CloseRequested => { self.close_view(); (self.view_event)(r#"{"type":"view3d","open":false}"#.to_string()); }
+            WindowEvent::ModifiersChanged(m) => { v.additive = m.state().shift_key() || m.state().control_key(); }
             WindowEvent::MouseInput { state, button, .. } => {
                 let down = state == ElementState::Pressed;
                 match button { MouseButton::Left => v.orbit = down, MouseButton::Right | MouseButton::Middle => v.pan = down, _ => {} }
+                if button == MouseButton::Left {
+                    if down { v.press = v.cursor; v.travel = 0.0; }
+                    else if let (Some((x, y)), true) = (v.press.take(), v.travel <= CLICK_PX) {
+                        // A click: the fixture under it, from the camera as it is now. None = empty space, which
+                        // clears the editor's selection — what a click on nothing does in the editor's view.
+                        let size = v.window.inner_size();
+                        let s = self.view_shared.lock().unwrap();
+                        let picked = s.scene.as_ref().and_then(|(_, sc)| {
+                            let (o, d) = s.cam.ray(x as f32, y as f32, size.width as f32, size.height as f32);
+                            let px = 2.0 * (s.cam.fov.to_radians() / 2.0).tan() / (size.height as f32).max(1.0);
+                            crate::view3d::pick(sc, o, d, px)
+                        });
+                        drop(s);
+                        eprintln!("artlux-engine: 3D view pick: {}{}", picked.as_deref().unwrap_or("(nothing)"), if v.additive { " (add)" } else { "" });
+                        let id = picked.map_or("null".to_string(), |p| serde_json::to_string(&p).unwrap_or_else(|_| "null".into()));
+                        (self.view_event)(format!(r#"{{"type":"view3dPick","id":{id},"add":{}}}"#, v.additive));
+                    }
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 if let Some((x, y)) = v.cursor {
                     let (dx, dy) = ((position.x - x) as f32, (position.y - y) as f32);
+                    if v.press.is_some() { v.travel += ((dx * dx + dy * dy) as f64).sqrt(); }
                     if v.orbit || v.pan {
                         let h = v.window.inner_size().height as f32;
                         let mut s = self.view_shared.lock().unwrap();
@@ -205,7 +232,7 @@ impl ApplicationHandler<Cmd> for App {
 /// What the render thread hands the windows thread once it is ready: the outputs' shared state and report,
 /// and (E4a) the 3D view's shared state, its open flag and the "closed from its title bar" callback.
 type Go = (Arc<Mutex<Shared>>, Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>,
-           Arc<Mutex<crate::view3d::Shared>>, Arc<AtomicBool>, Box<dyn Fn() + Send>);
+           Arc<Mutex<crate::view3d::Shared>>, Arc<AtomicBool>, Box<dyn Fn(String) + Send>);
 
 /// The windows thread OPENS THE GPU. Measured: a device opened on another thread (the stdin thread) made
 /// surfaces that were valid when created and "Invalid surface" when the presenter configured them — the
@@ -230,9 +257,9 @@ pub fn prepare(policy: crate::AdapterPolicy) -> Result<Pending, Option<crate::En
         let display: crate::Display = Box::new(el.owned_display_handle());
         let gpu = match Gpu::open_with(policy, Some(display)) { Ok(g) => Arc::new(g), Err(e) => { let _ = tx.send(Err(Some(e))); return; } };
         let _ = tx.send(Ok((el.create_proxy(), gpu.clone())));
-        let Ok((shared, report, view_shared, view_open, view_closed)) = go_rx.recv() else { return };
+        let Ok((shared, report, view_shared, view_open, view_event)) = go_rx.recv() else { return };
         let mut app = App { gpu, shared, outs: HashMap::new(), closing: Vec::new(), report,
-            view: None, view_shared, view_open, view_closed, view_closing: Vec::new() };
+            view: None, view_shared, view_open, view_event, view_closing: Vec::new() };
         let _ = el.run_app(&mut app);
     }).map_err(|_| None)?;
     let (proxy, gpu) = rx.recv().map_err(|_| None)??;
@@ -242,8 +269,8 @@ pub fn prepare(policy: crate::AdapterPolicy) -> Result<Pending, Option<crate::En
 impl Pending {
     /// Start the outputs; returns the proxy the render thread sends `Cmd`s through.
     pub fn attach(mut self, shared: Arc<Mutex<Shared>>, report: Box<dyn Fn(Vec<String>, Vec<(String, String)>) + Send>,
-                  view: Arc<Mutex<crate::view3d::Shared>>, view_open: Arc<AtomicBool>, view_closed: Box<dyn Fn() + Send>) -> Option<EventLoopProxy<Cmd>> {
-        self.go.send((shared, report, view, view_open, view_closed)).ok()?;
+                  view: Arc<Mutex<crate::view3d::Shared>>, view_open: Arc<AtomicBool>, view_event: Box<dyn Fn(String) + Send>) -> Option<EventLoopProxy<Cmd>> {
+        self.go.send((shared, report, view, view_open, view_event)).ok()?;
         self.proxy.take()
     }
 }

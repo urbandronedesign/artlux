@@ -376,6 +376,24 @@ const Simulator3D: React.FC<Props> = ({
     const off = window.artlux?.onNativeEngineView3dClosed?.(() => setEngineView(false));
     return () => { alive = false; off?.(); };
   }, []);
+  // E4b: a click in the engine's window selects HERE — the editor owns the selection, and everything that
+  // follows it (inspector, channel strip, the beams' full diagram, the engine window's own highlight, which
+  // comes back with the scene) follows from this one call. The same rules as a click in this view: a fixture
+  // replaces the selection, Shift / Ctrl toggles it in or out, empty space clears it (and the model selection,
+  // as onPointerMissed does).
+  const pickRef = useRef({ selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel });
+  pickRef.current = { selectedFixtureIds, onSelectFixture, onSelectFixtures, onSelectModel };
+  useEffect(() => window.artlux?.onNativeEngineView3dPick?.((id, add) => {
+    const p = pickRef.current;
+    if (!id) { if (!add) { p.onSelectFixture(''); p.onSelectModel?.(null); } return; }
+    if (add && p.onSelectFixtures) {
+      const cur = p.selectedFixtureIds;
+      p.onSelectFixtures(cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+    } else {
+      p.onSelectFixture(id);
+      p.onSelectModel?.(null);
+    }
+  }), []);
   const toggleEngineView = useCallback(() => {
     setEngineView((on) => {
       const next = !on;

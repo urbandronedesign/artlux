@@ -12,7 +12,12 @@
 //   - its 3D view drew FIVE beam volumes (the dark head none) and a diagram: 5 rings of 32 segments, plus the
 //     selected head's axis and eight edge rays = 169 segments;
 //   - the window, captured from the screen, holds the beams' colours: the red wash's red and the blue wash's
-//     blue both present where the beams are (saved as engine-beams.png for a look).
+//     blue both present where the beams are (saved as engine-beams.png for a look);
+//   - PICKING (E4b): real mouse clicks IN THE ENGINE WINDOW, at the screen position of a head's housing (projected
+//     with the window's own camera): the engine logs the pick, the EDITOR's selection follows (its inspector
+//     shows the head), and the selection comes back to the engine — the full diagram moves to the picked head;
+//     a click on empty sky clears it (160 segments: rings only); Shift-click adds a second head (178);
+//   - the Rendered look: solid shafts, no diagram.
 // Own processes only; nothing of the owner's is read or written.
 'use strict';
 const { spawn, execSync } = require('node:child_process');
@@ -94,6 +99,72 @@ Write-Output "OK $w x $hh"
   return execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps}"`).toString().trim();
 }
 
+/** Real mouse clicks in the engine window, at CLIENT pixels; `shift` holds Shift. Returns the client size. */
+function clickEngineWindow(points) {
+  const ps = path.join(WORK, 'click.ps1');
+  const body = points.map(([x, y, shift]) => `Click ${Math.round(x)} ${Math.round(y)} ${shift ? '$true' : '$false'}`).join('\n');
+  fs.writeFileSync(ps, `
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class C { [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string c, string t);
+  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref P p);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(int f, int x, int y, int d, int e);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, int f, int e);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  public struct R { public int L, T, Rt, B; } public struct P { public int X, Y; } }
+"@
+[C]::SetProcessDPIAware() | Out-Null
+$h = [C]::FindWindow([NullString]::Value, "ArtLux $([char]0x2014) 3D view (engine)")
+if ($h -eq [IntPtr]::Zero) { Write-Output "NOWINDOW"; exit 0 }
+[C]::SetForegroundWindow($h) | Out-Null
+Start-Sleep -Milliseconds 500
+function Click($x, $y, $shift) {
+  $p = New-Object C+P; $p.X = $x; $p.Y = $y; [C]::ClientToScreen($h, [ref]$p) | Out-Null
+  [C]::SetCursorPos($p.X, $p.Y) | Out-Null; Start-Sleep -Milliseconds 150
+  if ($shift) { [C]::keybd_event(0x10, 0, 0, 0); Start-Sleep -Milliseconds 100 }
+  [C]::mouse_event(0x02, 0, 0, 0, 0); Start-Sleep -Milliseconds 60; [C]::mouse_event(0x04, 0, 0, 0, 0)
+  if ($shift) { Start-Sleep -Milliseconds 100; [C]::keybd_event(0x10, 0, 2, 0) }
+  Start-Sleep -Milliseconds 1500
+}
+${body}
+Write-Output "OK"
+`);
+  return execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps}"`).toString().trim();
+}
+function engineClientSize() {
+  const ps = path.join(WORK, 'size.ps1');
+  fs.writeFileSync(ps, `
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class S { [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string c, string t);
+  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  public struct R { public int L, T, Rt, B; } }
+"@
+[S]::SetProcessDPIAware() | Out-Null
+$h = [S]::FindWindow([NullString]::Value, "ArtLux $([char]0x2014) 3D view (engine)")
+$r = New-Object S+R; [S]::GetClientRect($h, [ref]$r) | Out-Null
+Write-Output "$($r.Rt) $($r.B)"
+`);
+  const [w, h] = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${ps}"`).toString().trim().split(/\s+/).map(Number);
+  return { w, h };
+}
+/** view3d.rs Cam: a world point → client pixels, for a camera at `eye` looking at `target` with vertical `fov`. */
+function toClient(eye, target, fov, p, w, h) {
+  const sub = (a, b) => a.map((x, i) => x - b[i]), dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+  const norm = (a) => { const l = Math.hypot(...a); return a.map((x) => x / l); };
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const f = norm(sub(target, eye)), r = norm(cross(f, [0, 1, 0])), u = cross(r, f), v = sub(p, eye);
+  const z = dot(v, f), t = Math.tan((fov * Math.PI / 180) / 2);
+  const x = dot(v, r) / z / t / (w / h), y = dot(v, u) / z / t;
+  return [(x + 1) / 2 * w, (1 - y) / 2 * h];
+}
+const beamLines = (logf) => fs.readFileSync(logf, 'utf8').split(/\r?\n/).filter((l) => /3D view beams:/.test(l));
+const segmentsNow = (logf) => { const l = beamLines(logf); const m = /(\d+) diagram segment/.exec(l[l.length - 1] || ''); return m ? +m[1] : -1; };
+
 (async () => {
   for (let i = 0; ; i++) { try { fs.rmSync(WORK, { recursive: true, force: true }); break; } catch (e) { if (i >= 20) throw e; await sleep(500); } }
   fs.mkdirSync(PROFILE, { recursive: true });
@@ -168,6 +239,36 @@ Write-Output "OK $w x $hh"
       note(blue > 400, 'blue beams in the window', `${blue} px`);
       console.log(`   screenshot: ${shot}`);
     }
+
+    // PICKING (E4b): the engine camera looks along the row of movers, so the three clicks are well apart.
+    const EYE = [1, 5.6, 5], TARGET = [0, 5, -4], FOV = 55;
+    await page.evaluate((e, t, f) => window.artlux.nativeEngineView3d(true, { position: e, target: t, fov: f }), EYE, TARGET, FOV);
+    await sleep(1500);
+    const { w, h } = engineClientSize();
+    const at = (p) => toClient(EYE, TARGET, FOV, p, w, h);
+    const m3 = at([1, 5, -4]), m2 = at([-1, 5, -4]);
+    console.log(`   engine window ${w} x ${h}; Mover 3 at ${m3.map(Math.round)}, Mover 2 at ${m2.map(Math.round)}`);
+    const inspector = () => page.evaluate(() => [...document.querySelectorAll('div[role="button"]')]
+      .filter((d) => /bg-accent|selected|active/i.test(d.className) || d.getAttribute('aria-selected') === 'true')
+      .map((d) => (d.textContent || '').trim()).filter((t) => /^(Mover|Wash) \d$/.test(t)));
+    clickEngineWindow([[m3[0], m3[1], false]]);
+    await sleep(1200);
+    let logNow = fs.readFileSync(logf, 'utf8');
+    note(/3D view pick: fx_m3\b/.test(logNow), 'a click on Mover 3 in the engine window picks it');
+    note(JSON.stringify(await inspector()) === '["Mover 3"]', 'the editor\'s selection follows: Mover 3', JSON.stringify(await inspector()));
+    note(segmentsNow(logf) === 169, 'the full diagram moved to the picked head', `${segmentsNow(logf)} segments`);
+    clickEngineWindow([[w * 0.5, h * 0.06, false]]);
+    await sleep(1200);
+    logNow = fs.readFileSync(logf, 'utf8');
+    note(/3D view pick: \(nothing\)/.test(logNow), 'a click on empty sky picks nothing');
+    note(JSON.stringify(await inspector()) === '[]', 'the editor\'s selection is cleared', JSON.stringify(await inspector()));
+    note(segmentsNow(logf) === 160, 'rings only, no head aimed', `${segmentsNow(logf)} segments`);
+    clickEngineWindow([[m3[0], m3[1], false], [m2[0], m2[1], true]]);
+    await sleep(1200);
+    note(/3D view pick: fx_m2 \(add\)/.test(fs.readFileSync(logf, 'utf8')), 'Shift-click adds Mover 2');
+    note(JSON.stringify((await inspector()).sort()) === '["Mover 2","Mover 3"]', 'the editor holds both', JSON.stringify(await inspector()));
+    note(segmentsNow(logf) === 178, 'both heads get the full diagram', `${segmentsNow(logf)} segments`);
+    captureEngineWindow(path.join(WORK, 'engine-pick.png'));
 
     // THE RENDERED LOOK follows the editor's display mode: the button flips it, the scene (≤ 4 Hz) carries it, the
     // engine logs the look it draws in and its window shows solid shafts (no diagram: Rendered is a picture).

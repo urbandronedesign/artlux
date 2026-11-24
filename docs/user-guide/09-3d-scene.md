@@ -123,6 +123,10 @@ ordinary window: drag it to any screen, resize it, maximise it — moving it cos
 
 - It opens looking from where the editor's 3D view looks. In it, **left‑drag** orbits, **right‑ or
   middle‑drag** pans and the **wheel** zooms; its camera is its own from then on.
+- **Click a fixture there to select it** — in the editor, so its inspector and channel strip open there
+  as if you had clicked it in the editor's own view. **Shift‑ or Ctrl‑click** adds a fixture to the
+  selection or takes it out; a click on empty space clears it. A light is picked by its housing, an LED
+  strip anywhere along its length. Selected fixtures show in the accent colour in both windows.
 - It shows the **venue models**, the **screens with their live pictures**, **every LED in its live
   colour**, the **light fixtures** (as housings) and the floor grid, and follows every change you make in
   the editor within a quarter of a second.
@@ -139,7 +143,8 @@ ordinary window: drag it to any screen, resize it, maximise it — moving it cos
   calibrated ones and the projectors placed in the model file.
 - Close it with its own close button or the same header button.
 
-It does not yet draw labels, the gizmo or the rest of the Rendered look (the lit room), and content the engine
+It does not yet draw labels, the gizmo (move and turn fixtures in the editor's view) or the rest of the
+Rendered look (the lit room), and content the engine
 does not draw yet (a video in a format no ArtLux decoder plays, a tracking surface with its calibration overlay…) stays dark there — those stay in the editor's 3D
 view for now.
 

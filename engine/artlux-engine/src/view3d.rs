@@ -158,11 +158,80 @@ impl Cam {
     }
     /// Wheel: dolly toward the target, multiplicatively (each notch the same fraction at any distance).
     pub fn zoom(&mut self, notches: f32) { self.dist = (self.dist * 0.88f32.powf(notches)).clamp(0.05, 5000.0); }
+    /// E4b: the ray under a window pixel (x, y from the top-left, in a w × h window): origin, unit direction.
+    pub fn ray(&self, x: f32, y: f32, w: f32, h: f32) -> ([f32; 3], [f32; 3]) {
+        let eye = self.eye();
+        let f = norm(sub(self.target, eye));
+        let (right, up) = self.basis();
+        let t = (self.fov.to_radians() / 2.0).tan();
+        let nx = (2.0 * x / w.max(1.0) - 1.0) * t * (w / h.max(1.0));
+        let ny = (1.0 - 2.0 * y / h.max(1.0)) * t;
+        (eye, norm(add(f, add(scale(right, nx), scale(up, ny)))))
+    }
     fn basis(&self) -> ([f32; 3], [f32; 3]) {
         let f = norm(sub(self.target, self.eye()));
         let right = norm(cross(f, [0.0, 1.0, 0.0]));
         (right, cross(right, f))
     }
+}
+
+// ── Picking (E4b) ───────────────────────────────────────────────────────────────────────────────────
+//
+// A click in the engine window SELECTS IN THE EDITOR: the engine finds the fixture under the cursor and tells
+// main, which hands it to the editor's own selection (so the inspector, the channel strip, the beams' full
+// diagram and this window's highlight all follow from the one selection the editor owns). A ray, not a GPU id
+// buffer: a pick happens on a click, never per frame, and a rig is tens to hundreds of fixtures — the ray is
+// microseconds and needs no extra pass. As in the editor (CLAUDE.md "a fixture in 3D is picked by its BODY"),
+// what is hit is the fixture's BODY, not a 12 mm LED: a light's housing box, a pixel fixture's whole strip — a
+// generous tube along its LED line, at least a few pixels wide however far away it is.
+
+/// Distance along the ray to an axis-aligned box (centre c, half-size e), if it is hit in front of the eye.
+fn ray_box(o: [f32; 3], d: [f32; 3], c: [f32; 3], e: f32) -> Option<f32> {
+    let (mut t0, mut t1) = (f32::NEG_INFINITY, f32::INFINITY);
+    for i in 0..3 {
+        let (lo, hi) = (c[i] - e - o[i], c[i] + e - o[i]);
+        if d[i].abs() < 1e-9 { if lo > 0.0 || hi < 0.0 { return None; } continue; }
+        let (a, b) = (lo / d[i], hi / d[i]);
+        t0 = t0.max(a.min(b)); t1 = t1.min(a.max(b));
+    }
+    (t1 >= t0.max(0.0)).then_some(t0.max(0.0))
+}
+/// The ray's closest approach to segment a–b: (distance along the ray, gap between them).
+fn ray_segment(o: [f32; 3], d: [f32; 3], a: [f32; 3], b: [f32; 3]) -> (f32, f32) {
+    // d is a unit vector. The unclamped closest points, then the segment parameter clamped to [0, 1] and the
+    // ray parameter re-solved for that point (≥ 0: behind the eye is not a hit).
+    let u = sub(b, a);
+    let cc = dot(u, u);
+    let w0 = sub(o, a);
+    let (bb, dd, ee) = (dot(d, u), dot(d, w0), dot(u, w0));
+    let den = cc - bb * bb;
+    let v = if cc < 1e-12 { 0.0 } else if den.abs() < 1e-9 { (ee / cc).clamp(0.0, 1.0) } else { ((ee - bb * dd) / den).clamp(0.0, 1.0) };
+    let q = add(a, scale(u, v));
+    let s = dot(sub(q, o), d).max(0.0);
+    let p = add(o, scale(d, s));
+    (s, len(sub(p, q)))
+}
+
+/// The fixture under the cursor: the NEAREST body the ray meets. `px` is world units per pixel at 1 m (the
+/// presenter's own figure), so a strip stays pickable — HALF_PX pixels either side — however far away it is.
+pub fn pick(sc: &Scene, o: [f32; 3], d: [f32; 3], px: f32) -> Option<String> {
+    const HOUSING: f32 = 0.15;     // the drawn housing is a 0.3 m box
+    const STRIP: f32 = 0.03;       // a strip's body: 3 cm either side of its LED line…
+    const HALF_PX: f32 = 6.0;      // …or six pixels, whichever is wider at that distance
+    let mut best: Option<(f32, &str)> = None;
+    for l in &sc.lights {
+        if l.id.is_empty() { continue; }
+        if let Some(t) = ray_box(o, d, l.pos, HOUSING) { if best.is_none_or(|b| t < b.0) { best = Some((t, &l.id)); } }
+    }
+    for f in &sc.leds {
+        let pts: Vec<[f32; 3]> = f.pos.chunks_exact(3).map(|p| [p[0], p[1], p[2]]).collect();
+        let segs: Vec<([f32; 3], [f32; 3])> = if pts.len() == 1 { vec![(pts[0], pts[0])] } else { pts.windows(2).map(|w| (w[0], w[1])).collect() };
+        for (a, b) in segs {
+            let (t, gap) = ray_segment(o, d, a, b);
+            if gap <= STRIP.max(t * px * HALF_PX) && best.is_none_or(|bb| t < bb.0) { best = Some((t, &f.id)); }
+        }
+    }
+    best.map(|(_, id)| id.to_string())
 }
 
 // ── What the render thread publishes and the presenter reads ─────────────────────────────────────────
@@ -480,6 +549,8 @@ const DEPTH_SIZE: u32 = 1024;   // as the editor's (projectorDepth.ts)
 const GL_TO_WGPU: [f32; 16] = [1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.5, 1.];
 
 const SAMPLES: u32 = 4;
+/// The selection accent (FixtureBodies' SELECTED, #27b6c4), in linear.
+const ACCENT: [f32; 3] = [0.0203, 0.4678, 0.5520];
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// One open 3D view: draw `shared` into `window` until `stop`. Never returns early on a missing file or
@@ -727,10 +798,12 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     }
                 }
                 // Light housings: 0.3 m boxes at each light.
-                lights = sc.lights.iter().map(|l| l.pos).map(|p| {
+                // Light housings: 0.3 m boxes at each light — in the ACCENT when the editor has it selected
+                // (E4b; FixtureBodies' #27b6c4, linear), so a click here shows what it picked.
+                lights = sc.lights.iter().map(|l| (l.pos, sc.look.selected.contains(&l.id))).map(|(p, sel)| {
                     let ub = obj_ub();
                     let m = [0.3, 0., 0., 0., 0., 0.3, 0., 0., 0., 0., 0.3, 0., p[0], p[1], p[2], 1.];
-                    write_obj(&ub, &m, [0.16, 0.16, 0.17, 1.0], [0.0; 4]);
+                    write_obj(&ub, &m, if sel { [ACCENT[0], ACCENT[1], ACCENT[2], 1.0] } else { [0.16, 0.16, 0.17, 1.0] }, [0.0; 4]);
                     let b = obj_bind(&ub, &white_view);
                     (ub, b)
                 }).collect();
@@ -744,7 +817,14 @@ pub fn present(gpu: Arc<Gpu>, window: Arc<Window>, surface: wgpu::Surface<'stati
                     Some((pb, cb, n))
                 };
                 // Overlay lines (projector frustums): x y z r g b → the line pipeline's x y z r g b a.
-                let ov: Vec<f32> = sc.lines.chunks_exact(6).flat_map(|v| [v[0], v[1], v[2], v[3], v[4], v[5], 1.0]).collect();
+                let mut ov: Vec<f32> = sc.lines.chunks_exact(6).flat_map(|v| [v[0], v[1], v[2], v[3], v[4], v[5], 1.0]).collect();
+                // A SELECTED pixel fixture: its LED line traced in the accent (the editor tints its body).
+                for f in sc.leds.iter().filter(|f| sc.look.selected.contains(&f.id)) {
+                    let pts: Vec<&[f32]> = f.pos.chunks_exact(3).collect();
+                    for w in pts.windows(2) {
+                        for q in [w[0], w[1]] { ov.extend_from_slice(&[q[0], q[1], q[2], ACCENT[0], ACCENT[1], ACCENT[2], 1.0]); }
+                    }
+                }
                 overlay = if ov.is_empty() { None } else { Some((buf_init(&gpu, "overlay", &bytes(&ov), wgpu::BufferUsages::VERTEX), (ov.len() / 7) as u32)) };
                 colors_gen = u64::MAX;
                 planes.retain(|id, _| sc.models.iter().any(|m| &m.id == id));
@@ -1036,4 +1116,41 @@ fn tex_rgba(gpu: &Gpu, w: u32, h: u32, px: &[u8]) -> wgpu::Texture {
     gpu.queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &t, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All }, px,
         wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) }, wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 });
     t
+}
+
+#[cfg(test)]
+mod pick_tests {
+    use super::*;
+    fn scene() -> Scene {
+        Scene {
+            models: Vec::new(),
+            // A strip along X at y = 2, z = 0, and a light housing in front of it (nearer the camera at +Z).
+            leds: vec![LedFix { id: "strip".into(), pos: (0..10).flat_map(|i| [i as f32 * 0.1 - 0.5, 2.0, 0.0]).collect() }],
+            lights: vec![LightFix { id: "head".into(), pos: [0.2, 2.0, 2.0], beam: None }],
+            lines: Vec::new(), look: BeamLook::default(),
+        }
+    }
+    #[test]
+    fn a_click_picks_the_nearest_body() {
+        let sc = scene();
+        let cam = Cam::from_pose([0.0, 2.0, 10.0], [0.0, 2.0, 0.0], 50.0);
+        let (w, h) = (1000.0, 600.0);
+        let px = 2.0 * (25f32).to_radians().tan() / h;
+        // Through the middle: the strip (the housing sits 0.2 m to the right).
+        let (o, d) = cam.ray(500.0, 300.0, w, h);
+        assert_eq!(pick(&sc, o, d, px).as_deref(), Some("strip"));
+        // Aimed at the housing: it is NEARER than the strip behind it, so it wins.
+        let (o, d) = (cam.eye(), norm(sub([0.2, 2.0, 2.0], cam.eye())));
+        assert_eq!(pick(&sc, o, d, px).as_deref(), Some("head"));
+        // Well above both: nothing.
+        let (o, d) = cam.ray(500.0, 40.0, w, h);
+        assert_eq!(pick(&sc, o, d, px), None);
+    }
+    #[test]
+    fn the_ray_under_the_centre_is_the_view_axis() {
+        let cam = Cam::from_pose([3.0, 4.0, 5.0], [0.0, 1.0, 0.0], 40.0);
+        let (o, d) = cam.ray(400.0, 300.0, 800.0, 600.0);
+        let f = norm(sub([0.0, 1.0, 0.0], cam.eye()));
+        assert!(len(sub(o, cam.eye())) < 1e-5 && len(sub(d, f)) < 1e-5);
+    }
 }

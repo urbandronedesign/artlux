@@ -296,6 +296,9 @@ export const IPC = {
   NATIVE_ENGINE_SCENE3D: 'native-engine:scene3d',
   NATIVE_ENGINE_VIEW3D: 'native-engine:view3d',
   NATIVE_ENGINE_VIEW3D_CLOSED: 'native-engine:view3d-closed',
+  /** E4b — main → renderer: a click in the engine's 3D view picked this fixture (null: empty space), `add` when
+   *  Shift / Ctrl was held. The editor applies it to its own selection. */
+  NATIVE_ENGINE_VIEW3D_PICK: 'native-engine:view3d-pick',
   /**
    * Main → renderer: this window's end of a MessagePort to the Show Host (src/showhost, E5/W3), the
    * process that holds the authoritative project document. Sent on every load; the preload relays it
@@ -1970,6 +1973,8 @@ export interface ArtluxApi {
   nativeEngineView3d?(open: boolean, camera: { position: number[]; target: number[]; fov: number } | null): void;
   /** E4a: the operator closed the engine's 3D view window from its title bar. */
   onNativeEngineView3dClosed?(cb: () => void): () => void;
+  /** E4b: a click in the engine's 3D view window picked a fixture (null: empty space); `add` = Shift / Ctrl. */
+  onNativeEngineView3dPick?(cb: (id: string | null, add: boolean) => void): () => void;
   /**
    * Renderer → main: an uncaught renderer error. ALWAYS audited (even with the watchdog disabled);
    * in an armed broadcast install a root/stage fault also triggers the relaunch ladder. Fire-and-

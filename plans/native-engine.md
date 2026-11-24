@@ -2089,8 +2089,21 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   and its window shows the solid shafts. A guard compares Beams.tsx's constants with beams.rs's. **Trap found on
 >   the way:** a plain `cargo build` drops the `ndi` feature, and `test:native-takeover` (an NDI surface) then fails
 >   6 checks with "this engine build has no NDI" — build with `npm run build:engine`, which turns it on.
-> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), labels, selection / picking (the GPU id buffer, body
->   before LEDs) and the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
+> - ✅ **E4b-2 2026-11-24 — PICKING.** A click in the engine window selects IN THE EDITOR: the window thread
+>   tells a click from an orbit (≤ 4 px of travel), casts the window camera's ray (`Cam::ray`) and takes the
+>   NEAREST body it meets (`view3d::pick`) — a light's housing box, a pixel fixture's whole strip (a tube along
+>   its LED line, 3 cm or six pixels wide, whichever is wider at that distance); it writes
+>   `{"type":"view3dPick","id","add"}` (Shift / Ctrl → add), main relays it (`native-engine:view3d-pick`) and
+>   Simulator3D applies it with the editor's own rules (replace; toggle on add; empty space clears fixtures and
+>   the model). The selection comes back with the scene, so the engine draws picked housings / strips in the
+>   accent and gives picked heads the full beam diagram. A CPU ray, not the GPU id buffer this plan named: a pick
+>   is one per click over tens to hundreds of fixtures — microseconds, no extra pass. **Proof:** two unit tests
+>   (the nearest body wins — a housing in front of a strip; the centre ray is the view axis); `test:engine-beams`
+>   now CLICKS the engine window (real OS mouse events at the housings' projected pixels): Mover 3 → engine log
+>   and the editor's 3D list both say Mover 3, the diagram follows (169 segments); empty sky → nothing selected
+>   (160); Shift-click Mover 2 → both (178). A pixel strip's pick is covered by the unit test only.
+> - **Not yet (E4b…):** the rest of the Rendered look (the lit room), labels, picking venue models and screens,
+>   the gizmo, sources the engine does not draw (timeline video clips, a tracking overlay…) on screens
 >   and venue meshes, the four-view layout, saving the window's place, macOS / Linux.
 
 ## 10. Open questions

@@ -93,9 +93,10 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
                 // the mouse) and its presenter. Closing the window from its title bar tells main.
                 let view = std::sync::Arc::new(std::sync::Mutex::new(crate::view3d::Shared::default()));
                 let view_open = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-                let closed = Box::new(|| {
+                // …and a click in it (E4b: `view3dPick`). One line of JSON each, as every message to main.
+                let closed = Box::new(|line: String| {
                     let mut o = std::io::stdout().lock();
-                    let _ = writeln!(o, r#"{{"type":"view3d","open":false}}"#).and_then(|_| o.flush());
+                    let _ = writeln!(o, "{line}").and_then(|_| o.flush());
                 });
                 if let Some(proxy) = windows.and_then(|w| w.attach(shared.clone(), report, view.clone(), view_open.clone(), closed)) { rt.set_outputs(proxy, shared); }
                 rt.set_view(view, view_open);
