@@ -15,6 +15,7 @@
 import { ipcMain, type BrowserWindow } from 'electron';
 import type { MainPlugin, MainPluginContext, MainPluginIpc, PluginStatus } from '@artlux/sdk/main';
 import * as bootReport from '../bootReport';
+import { audioCall, engineAudioEnabled } from '../engineHost';
 import { plugin as ndi } from '@artlux/plugin-ndi/main';
 import { plugin as calibration } from '@artlux/plugin-calibration/main';
 import { plugin as spout } from '@artlux/plugin-spout/main';
@@ -46,7 +47,8 @@ function makeContext(getWindow: () => BrowserWindow | null): MainPluginContext {
   };
   // Same window `ipc.send` targets — for the Electron APIs that need the window itself rather than a
   // message (handing over a GPU shared texture, which is not clonable and so cannot use `ipc`).
-  return { ipc, window: () => getWindow() };
+  // E3m: sound from the native engine, when the app was started for it (engineHost.engineAudioEnabled).
+  return { ipc, window: () => getWindow(), ...(engineAudioEnabled() ? { engineAudio: { call: audioCall } } : {}) };
 }
 
 export function activateMainPlugins(getWindow: () => BrowserWindow | null): void {

@@ -136,13 +136,57 @@ function loadNative(): NativeAudio | null {
   return null;
 }
 
-const native = loadNative();
-export const available = !!native;
+// The addon. `native` is what every call below goes through: the addon, or — E3m, sound from the native engine —
+// the engine relay (useEngineAudio), offline renders included.
+const addon = loadNative();
+let native: NativeAudio | null = addon;
+export let available = !!native;
 console.log(
   native
     ? `[audio] native engine loaded (JUCE ${(() => { try { return native.juceVersion(); } catch { return '?'; } })()})`
     : '[audio] native engine unavailable — audio disabled',
 );
+
+/**
+ * E3m — PLAY THROUGH THE NATIVE ENGINE. Every live call from here on is relayed (by the addon's own method name and
+ * arguments) to the JUCE inside the engine process — the same core as the addon (native/audio-engine/src/core.h,
+ * built as artlux_audio.dll) — so the sound comes out of the process that draws and drives the wire. Called once,
+ * at activation, before the driver's first call; the addon's device is then never opened.
+ */
+export function useEngineAudio(relay: { call(op: string, args: unknown[], answer: boolean): Promise<unknown> | void }): void {
+  const ask = <T>(op: string, args: unknown[]): Promise<T> => relay.call(op, args, true) as Promise<T>;
+  const tell = (op: string, args: unknown[]): void => { relay.call(op, args, false); };
+  native = {
+    juceVersion: () => 'in the native engine',
+    configure: (cfg) => ask<OpenedCfg>('configure', [cfg]),
+    getDevices: () => ask<DeviceEntry[]>('getDevices', []),
+    loadClip: (id, path) => ask<ClipMeta>('loadClip', [id, path]),
+    unloadClip: (id) => tell('unloadClip', [id]),
+    playClip: (id, seekSec, gain) => tell('playClip', [id, seekSec, gain]),
+    stopClip: (id) => tell('stopClip', [id]),
+    setClipGain: (id, gain) => tell('setClipGain', [id, gain]),
+    setClipSpatial: (id, x, y, z, omni) => tell('setClipSpatial', [id, x, y, z, omni === true]),
+    clearClipSpatial: (id) => tell('clearClipSpatial', [id]),
+    setClipEffects: (id, effects) => tell('setClipEffects', [id, effects]),
+    setMasterEffects: (effects) => tell('setMasterEffects', [effects]),
+    setMasterGain: (gain) => tell('setMasterGain', [gain]),
+    setTestTone: (ch, gain) => tell('setTestTone', [ch, gain]),
+    stopAll: () => tell('stopAll', []),
+    getMeters: () => ask<Meters>('getMeters', []),
+    getSpectrum: () => ask<number[]>('getSpectrum', []).then((a) => Float32Array.from(a ?? [])),
+    close: () => tell('close', []),
+    // A bake renders offline on the SAME engine — the clips it plays are loaded there. Samples travel as base64
+    // of the raw float32s (interleaved), exact where a decimal rendering would not be.
+    offlineBegin: (cfg) => ask<{ ok: boolean; error?: string }>('offlineBegin', [cfg]),
+    offlinePull: (frames) => ask<string>('offlinePull', [frames]).then((b64) => {
+      const b = Buffer.from(b64 ?? '', 'base64');
+      return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+    }),
+    offlineEnd: () => ask<void>('offlineEnd', []),
+  };
+  available = true;
+  console.log('[audio] playing through the native engine (E3m)');
+}
 
 // Thin, null-safe wrappers. Every call is a no-op (sensible default) when the engine is absent.
 const NO_DEVICE: OpenedCfg = { deviceName: '', deviceType: '', sampleRate: 0, bufferSize: 0, channels: 0 };

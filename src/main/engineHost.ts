@@ -35,6 +35,10 @@ import type { OutputConfig, EngineView3dPlace } from '../../shared/protocol';
 // A restarted engine is handed the last output settings and document at once.
 
 const FLAG = process.argv.includes('--native-engine') || process.env.ARTLUX_NATIVE_ENGINE === '1';
+// E3m: the SOUND from the engine too (its JUCE, artlux_audio.dll) — only with the engine, and only when asked.
+const AUDIO_FLAG = FLAG && (process.argv.includes('--engine-audio') || process.env.ARTLUX_ENGINE_AUDIO === '1');
+/** Does plugins/audio play through the native engine (E3m) rather than its own addon? */
+export function engineAudioEnabled(): boolean { return AUDIO_FLAG; }
 const RESTART_DELAY_MS = 200;
 const RESTART_LIMIT = 5;
 const HELLO_TIMEOUT_MS = 10_000;   // opening the GPU device on a cold machine can take a few seconds
@@ -321,6 +325,7 @@ function spawnEngine(): void {
         if (lastOutput) write(lastOutput);
         for (const r of rasterMsgs.values()) write(r.msg);   // E2: the pictures before the document naming them
         if (lastDoc) write(`{"type":"doc","doc":${lastDoc}}`);
+        flushAudio();   // E3m: the audio calls made while it started
         // E4a: the 3D view's scene, and the window if it was open.
         if (lastScene3d) write(`{"type":"scene3d",${lastScene3d.slice(1)}`);
         if (view3dOpen) write(view3dMessage(true, view3dOpen.camera));
@@ -373,6 +378,11 @@ function spawnEngine(): void {
       } else if (m.type === 'projOwns') {
         if (m.rev !== lastDocRev) continue;
         setProjOwns(m.owns ? { rev: m.rev, pid: proc.pid ?? null } : null, m.why ?? '');
+      } else if (m.type === 'audio') {
+        // E3m: the answer to a relayed audio call.
+        const a = m as { req?: number; ok?: boolean; value?: unknown; error?: string };
+        const p = a.req !== undefined ? audioPending.get(a.req) : undefined;
+        if (p) { audioPending.delete(a.req!); if (a.ok) p.resolve(a.value); else p.reject(new Error(a.error ?? 'audio call failed')); }
       } else if (m.type === 'owns') {
         if (m.rev !== lastDocRev) continue;   // an answer about a document already replaced
         answeredRev = m.rev;
@@ -400,6 +410,7 @@ function spawnEngine(): void {
     // THE WIRE GOES BACK TO THE APP FIRST — before anything else is decided about this death.
     if (owns && owns.pid === (proc.pid ?? null)) setOwns(null, 'the engine exited');
     if (projOwns && projOwns.pid === (proc.pid ?? null)) setProjOwns(null, 'the engine exited');
+    failAudio('the engine exited');   // E3m: an answer that will never come
     const what = signal ? `signal ${signal}` : `code ${code}`;
     if (stopping) { status.state = 'off'; status.pid = null; return; }
     if (code === EXIT_REFUSED) {
@@ -430,6 +441,30 @@ function onDeath(pid: number | null, what: string): void {
   logger.log('warn', 'engine', 'exited', { pid, exit: what, restartInMs: RESTART_DELAY_MS });
   console.warn(`[engine] exited (${what}) — restarting in ${RESTART_DELAY_MS} ms`);
   setTimeout(() => { if (!stopping && !child) spawnEngine(); }, RESTART_DELAY_MS);
+}
+
+// ── E3m: SOUND FROM THE ENGINE ─────────────────────────────────────────────────────────────────────────────
+// plugins/audio's calls, relayed to the engine's audio thread (engine audio.rs `serve` → artlux_audio.dll, the same
+// JUCE core the addon is) instead of audio_engine.node — so the sound comes out of the process that also draws and
+// puts DMX on the wire. A call made before the engine says hello is QUEUED (the driver configures the device at boot,
+// while the engine is still starting); an answering call is a promise settled by the engine's `audio` line, and
+// rejected if the engine dies first.
+let audioReq = 0;
+const audioPending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+const audioQueue: string[] = [];
+/** Relay one audio call to the engine. `answer`: a promise of its answer; otherwise fire-and-forget, in order. */
+export function audioCall(op: string, args: unknown[], answer: boolean): Promise<unknown> | void {
+  const req = answer ? ++audioReq : undefined;
+  const line = JSON.stringify({ type: 'audio', op, args, ...(req ? { req } : {}) });
+  const p = req ? new Promise<unknown>((resolve, reject) => audioPending.set(req, { resolve, reject })) : undefined;
+  if (status.state === 'up') write(line);
+  else if (audioQueue.length < 10_000) audioQueue.push(line);
+  return p;
+}
+function flushAudio(): void { for (const l of audioQueue.splice(0)) write(l); }
+function failAudio(why: string): void {
+  for (const [, p] of audioPending) p.reject(new Error(why));
+  audioPending.clear();
 }
 
 /** Start the engine if the flag asks for it. Safe to call once at startup in any mode. */

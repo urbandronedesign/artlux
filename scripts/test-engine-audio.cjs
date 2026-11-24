@@ -40,5 +40,14 @@ if (!j) {
   check('the audio clock advanced by rate × seconds', Math.abs(j.samples - expected) < j.rate * 0.1, `${j.samples} samples in ${j.seconds} s (${expected} expected)`);
   check('the audio clock runs at a crystal\'s rate against the wall', Math.abs(j.driftPpm) < 500, `${j.driftPpm.toFixed(1)} ppm over ${j.readings} readings — ${(j.driftPpm * 3.6).toFixed(1)} ms an hour`);
 }
+// E3m: THE OFFLINE RENDER (a bake's sound) through the same door the relay uses — no device: non-silent, and two
+// renders of the same second BYTE-IDENTICAL (base64 of raw float32s; the addon's test-offline.js proves the same).
+const o = spawnSync(ENGINE, ['--audio-offline', '--clip', path.join(ROOT, 'native', 'audio-engine', 'tone-100.wav')], { env, encoding: 'utf8', timeout: 120000 });
+const oj = (() => { try { const t = o.stdout ?? ''; return JSON.parse(t.slice(t.indexOf('{'))); } catch { return null; } })();
+if (!oj) { console.log((o.stderr ?? '').trim()); check('the offline render ran in the engine', false, `exit ${o.status}`); }
+else {
+  check('the offline render is the clip, not silence', oj.nonSilent > oj.samples / 2, `${oj.nonSilent} of ${oj.samples} samples, peak ${oj.peak}`);
+  check('two offline renders are byte-identical', oj.differing === 0, `${oj.differing} differing samples`);
+}
 console.log(failed ? `\nengine audio: ${failed} FAILED` : '\nengine audio OK');
 process.exit(failed ? 1 : 0);

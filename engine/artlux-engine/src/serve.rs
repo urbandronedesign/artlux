@@ -69,6 +69,9 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
     // queueing them.
     // (already an Arc: the windows thread opened it — see above)
     let (tx, rx) = std::sync::mpsc::channel::<serde_json::Value>();
+    // E3m: sound — its own thread (a device open takes seconds; no frame may wait for it). audio.rs `serve`.
+    let (atx, arx) = std::sync::mpsc::channel::<serde_json::Value>();
+    let audio = std::thread::Builder::new().name("audio".into()).spawn(move || crate::audio::serve(arx)).expect("audio thread");
     let render = {
         let gpu = gpu.clone();
         std::thread::Builder::new().name("render".into()).spawn(move || {
@@ -162,7 +165,11 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
         // The quit MESSAGE, not the word: a document can carry "quit" anywhere (a surface called so).
         if line.starts_with("{\"quit\"") { break; }
         if line.starts_with("{\"type\":") {
-            match serde_json::from_str::<serde_json::Value>(&line) { Ok(v) => { let _ = tx.send(v); } Err(e) => eprintln!("artlux-engine: bad message: {e}") }
+            match serde_json::from_str::<serde_json::Value>(&line) {
+                Ok(v) if v["type"] == "audio" => { let _ = atx.send(v); }
+                Ok(v) => { let _ = tx.send(v); }
+                Err(e) => eprintln!("artlux-engine: bad message: {e}"),
+            }
             continue;
         }
         if let Some(n) = field_u64(&line, "ping") {
@@ -175,6 +182,8 @@ pub fn run(policy: AdapterPolicy) -> ExitCode {
         }
     }
     drop(tx);
+    drop(atx);
+    let _ = audio.join();   // the device closed before the process goes
     let _ = render.join();
     drop(gpu);
     ExitCode::SUCCESS

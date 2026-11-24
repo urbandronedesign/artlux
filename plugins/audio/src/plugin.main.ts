@@ -24,6 +24,9 @@ export const plugin: MainPlugin = {
 
   activate(ctx: MainPluginContext): void {
     const { ipc } = ctx;
+    // E3m: the app was started to play its sound from the native engine — relay every call there, before the
+    // driver's first one (plans/native-engine.md: JUCE in the engine process).
+    if (ctx.engineAudio) engine.useEngineAudio(ctx.engineAudio);
 
     // Reply channels (renderer invoke). configure/loadClip may throw in the addon → the invoke rejects.
     // configure(cfg) — the WHOLE setup in one object (type, device, channels, rate, buffer, mode, layout).

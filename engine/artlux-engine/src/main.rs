@@ -35,6 +35,12 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     // E3: JUCE in the engine process — the audio library loaded, a device opened, the audio clock measured.
+    if has("--audio-offline") {
+        return match artlux_engine::audio::offline_check(&args) {
+            Ok(v) => { println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default()); ExitCode::SUCCESS }
+            Err(e) => { eprintln!("audio offline: {e}"); ExitCode::from(1) }
+        };
+    }
     if has("--audio-selftest") {
         return match artlux_engine::audio::selftest(&args) {
             Ok(v) => { println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default()); ExitCode::SUCCESS }

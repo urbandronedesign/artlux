@@ -2172,6 +2172,31 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   anchor's origin re-based on audio samples, not the wall), and the driver's clip plays move into the engine
 >   (`plugins/audio` sends the bed and clips as document, not as per-frame play / re-seek calls) — then the app's
 >   re-seek loop has nothing left to correct.
+>
+> ✅ **E3m done 2026-11-25 — A SHOW'S SOUND FROM THE ENGINE (stage 2, part 1: the relay; opt-in).** Started with
+> `--native-engine --engine-audio` (or the two env variables), the audio plugin relays EVERY call of its engine —
+> configure, devices, clips, gains, spatial, effect chains, test tone, meters, spectrum, and the offline render a
+> bake uses — to the JUCE inside the engine process, and never opens the addon's device:
+> - **App:** the SDK's main context gains `engineAudio` (core main: `engineHost.audioCall`), present only under the
+>   flag; `audioManager.useEngineAudio` swaps the addon for a relay with the addon's own method names. engineHost
+>   queues calls made before the engine's hello (the driver configures at boot), settles answers by request id, and
+>   rejects them if the engine dies.
+> - **Engine:** an `audio` thread (`audio.rs serve`; a device open takes seconds, no frame waits for it) loads the
+>   library on the first call and forwards each through ONE door, `artlux_audio_call({op, args})` (ABI 2) — every
+>   live method of the addon plus offlineBegin / offlinePull (base64 of the raw float32s: exact) / offlineEnd. While
+>   a device is open it logs the audio clock and the output level every 2 s (read without clearing the clip latch
+>   the app's own poll reports).
+> - **Proof:** `test:engine-audio-show` — a looping show playing a bed on a scratch profile: the plugin plays through
+>   the engine, the engine loads its library and OPENS THE DEVICE ITSELF, its audio clock advances exactly at the
+>   device rate (12.02 s of audio between the first and last report), the bed on its output (peak 0.05 = the bed's
+>   gain × the tone), no relayed call fails; the same show WITHOUT the flag keeps the addon and the engine opens no
+>   device. `test:engine-audio` adds the offline render through the relay's door: 95 852 of 96 256 samples sound,
+>   two renders byte-identical.
+> - `verify:invariants`: every op the relay sends has its case in artlux_audio_call (mutation-tested), the plugin
+>   switches on the context's `engineAudio`, a pending call is failed when the engine exits.
+> - **Not yet:** an engine RESTART does not replay the loaded clips (the driver believes them loaded — the show is
+>   silent until its next reload), so the flag stays opt-in; the transport on the audio clock; the plays themselves
+>   as document (the driver still decides every play and re-seek per frame).
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

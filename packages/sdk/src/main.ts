@@ -35,6 +35,14 @@ export interface MainPluginContext {
    * surface; callers cast to `BrowserWindow`.
    */
   window(): unknown;
+  /**
+   * E3m — SOUND FROM THE NATIVE ENGINE. Present only when the app was started to play its audio from the native
+   * engine (`--native-engine --engine-audio`, or ARTLUX_NATIVE_ENGINE=1 with ARTLUX_ENGINE_AUDIO=1): relays one
+   * call of the audio engine — by the addon's own method name and arguments — to the JUCE inside the engine
+   * process. `answer`: a promise of the engine's answer; otherwise fire-and-forget, in call order. Absent: the
+   * audio plugin plays through its own addon, as always.
+   */
+  engineAudio?: { call(op: string, args: unknown[], answer: boolean): Promise<unknown> | void };
 }
 
 export interface MainPlugin {

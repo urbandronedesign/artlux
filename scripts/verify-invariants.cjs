@@ -4452,6 +4452,14 @@ check(
     if (!/set\(SOURCE_FILES src\/engine\.cpp\)/.test(m) || !/add_library\(artlux_audio SHARED src\/capi\.cpp\)/.test(m)) problems.push('CMakeLists no longer builds the two front doors from their own files');
     const abiC = (a.match(/artlux_audio_abi\(\) \{ return (\d+); \}/) ?? [])[1], abiR = (r.match(/Ok\(f\) if unsafe \{ f\(\) \} == (\d+)/) ?? [])[1];
     if (!abiC || abiC !== abiR) problems.push(`the C API's ABI (${abiC}) is not the one audio.rs speaks (${abiR})`);
+    // E3m: every call the relay sends (audioManager.useEngineAudio: tell / ask by the addon's own names) has its case
+    // in artlux_audio_call — an op without one is answered "no such call" and that feature goes silent in the engine.
+    const am = read('plugins/audio/src/audioManager.ts');
+    const ops = [...am.matchAll(/(?:tell|ask<[^>]*>)\('(\w+)'/g)].map((x) => x[1]);
+    if (ops.length < 15) problems.push(`useEngineAudio no longer relays the addon's calls (${ops.length} found)`);
+    for (const op of ops) if (!a.includes(`op == "${op}"`)) problems.push(`the relay sends '${op}' but artlux_audio_call has no case for it`);
+    if (!/if \(ctx\.engineAudio\) engine\.useEngineAudio\(ctx\.engineAudio\);/.test(read('plugins/audio/src/plugin.main.ts'))) problems.push('the audio plugin no longer switches to the engine when the app asks');
+    if (!/failAudio\('the engine exited'\)/.test(read('src/main/engineHost.ts'))) problems.push('an audio call pending when the engine dies would never settle');
     const pkg = JSON.parse(raw('package.json'));
     const win = pkg.build?.win?.extraResources ?? [];
     if (!win.some((x) => x.from === 'native/audio-engine/artlux_audio.dll' && x.to === 'engine/artlux_audio.dll')) problems.push('the Windows package no longer ships artlux_audio.dll next to the engine');
