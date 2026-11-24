@@ -4392,6 +4392,32 @@ check(
 );
 
 check(
+  'the native engine evaluates the light show with the app\'s own rules',
+  'E3e: the engine evaluates lighting clips and colour lanes (engine light.rs, a port of lightingTake / ' +
+  'lightingSequence / lightingPlayback / colorSample / colorPlayback) and checks them against the app\'s players ' +
+  'every frame. Two tables are copied, not computed, and nothing else would notice them drift: which roles ' +
+  'combine HIGHEST-takes-precedence across clips (lightingOverlay HTP_ROLES — a role moved between HTP and LTP ' +
+  'changes which of two overlapping clips wins), and the warm / cold white the temperature colour is made of ' +
+  '(fixtureSignal EMITTERS). test:light-eval-parity holds the numbers; this holds the tables.',
+  () => {
+    const problems = [];
+    const O = 'src/renderer/services/lightingOverlay.ts', L = 'engine/artlux-engine/src/light.rs', S = 'src/renderer/services/fixtureSignal.ts';
+    if (![O, L, S].every(exists)) return 'lightingOverlay.ts / light.rs / fixtureSignal.ts is gone';
+    const list = (s) => [...(s ?? '').matchAll(/'(\w+)'|"(\w+)"/g)].map((m) => m[1] ?? m[2]).sort().join(',');
+    const app = list((read(O).match(/HTP_ROLES[^=]*=\s*new Set<ChannelRole>\(\[([\s\S]*?)\]\)/) ?? [])[1]);
+    const eng = list((read(L).match(/const HTP_ROLES: &\[&str\] = &\[([^\]]*)\]/) ?? [])[1]);
+    if (!app || app !== eng) problems.push(`HTP roles differ — app [${app}], engine [${eng}]`);
+    const em = (name) => { const s = read(S), i = s.indexOf(`${name}: [`); return i < 0 ? undefined : s.slice(i + name.length + 3, s.indexOf(']', i)).replace(/\s/g, ''); };
+    const lt = read(L);
+    const warm = (lt.match(/const WARM: Rgb = \[([\d., ]+)\]/) ?? [])[1]?.replace(/\s/g, '').replace(/\.0(?=,|$)/g, '');
+    const cold = (lt.match(/const COLD: Rgb = \[([\d., ]+)\]/) ?? [])[1]?.replace(/\s/g, '').replace(/\.0(?=,|$)/g, '');
+    if (!em('warmWhite') || em('warmWhite') !== warm) problems.push(`warm white differs — app ${em('warmWhite')}, engine ${warm}`);
+    if (!em('coldWhite') || em('coldWhite') !== cold) problems.push(`cold white differs — app ${em('coldWhite')}, engine ${cold}`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'a 3-channel fixture keeps full RGB, in the app and in the engine',
   'The RGBW mode defaults to SUBTRACT (W = min(r,g,b), taken out of r, g and b) and the inspector shows the ' +
   'White control on 4-channel fixtures only. So an RGB strip whose mode was never set had the neutral part ' +

@@ -1936,6 +1936,35 @@ fallback until a source/output is proven byte-identical — risk 2):
 >   fade. Clock / timeline / video / shader / text wire, eval parity and the runtime test unchanged.
 > - **Not yet:** a scene-fade-over-a-lane run on the wire, colour lanes and lighting takes in the engine, and
 >   the playhead from the audio clock.
+>
+> ✅ **E3e done 2026-11-24 — THE LIGHT SHOW EVALUATED BY THE ENGINE, and checked on the show.** `light.rs` ports
+> lightingTake (`sampleRole` — take / generated effect / pose sequence, phase spread in all four modes, scale,
+> offset, mirror, wrap; `rolesOf`; `centreOf`), lightingSequence (`compile` — inline slots, `poseRef`,
+> `roleCurves`), the lightingPlayback loop (active clips in timeline order, a group's fixtures in the group's
+> order, **HTP** for intensity / colour roles and LTP for the rest — lightingOverlay), colorSample + colorEngine
+> (`sampleColorLane`, rgb / hsv / oklab paths, temperature colour, palette refs that resolve to NOTHING when
+> missing) and the colorPlayback loop.
+> - **Found on the way:** the `random` spread mode hashes through `sin(n·127.1)·43758.5453`, which multiplies a
+>   one-ulp difference between V8's sin and the C runtime's by 43758 — 15 cases apart by ~1.5e-9. The engine
+>   already carries fdlibm (`libm`, added in E1b for the LED layout's cos/sin); with it the worst case is 7.9e-12.
+>   eval.rs now uses it for its pow / sin / cos / log / exp too.
+> - **Offline:** `test:light-eval-parity` — the app's own lightingTake / lightingSequence / colorSample /
+>   colorEngine bundled from source against `--light-cases`: 79k cases (every spread mode over totals 1–24, 160
+>   random take / effect / sequence clips per fixture across and past the take, 160 random colour lanes with refs
+>   and every path, 2000 mixes, the example projects' lighting clip) — identical role sets, worst 7.9e-12.
+> - **On the show:** the document carries what the two players read (`lightingDoc`: lighting clips, the takes and
+>   sequences they name, poses, groups, the rig's ids, colour lanes, palette) and the tick the overlays' values
+>   (`lroles`, `lcolors`); the engine evaluates at the playhead and CHECKS — same fixtures, same roles, every value
+>   within 1e-9, or `lighting: differs`. `test:light-show-parity`: the recorded-busk example plus a wing-spread
+>   sine on the washes, a pose sequence (block spread, scale, offset, mirror) over the take's movers and a square
+>   strobe on the same dimmers, two colour lanes (block-spread rgb → cct → palette → rgb; a fixture lane in hsv):
+>   721 ticks, up to 18 role values and 3 colours a tick, **0 differing**. Mutation: dimmer taken out of HTP →
+>   caught at 5.0 s, where the strobe meets the sequence.
+> - `verify:invariants`: the HTP role list and the warm / cold white match the app's (mutation-tested).
+> - **Still the app's:** the light BYTES — the packer solves roles and colours into DMX per profile and mode,
+>   under the precedence stack (profile default < authored < lighting clip < pose cue < automation < live). That
+>   solve (colorEngine `realiseColor` / `solveEmitters`, frameEngine `packLight`) is the next port, checked
+>   byte-for-byte against the `lights` the tick already carries.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

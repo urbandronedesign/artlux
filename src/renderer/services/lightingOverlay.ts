@@ -78,6 +78,13 @@ export function get(fixtureId: string, role: ChannelRole): number | undefined {
 /** True when any clip is driving anything — lets the packer skip the lookup entirely. */
 export function isActive(): boolean { return active; }
 
+/** E3e: every fixture's role values this frame, for the native engine to check its own evaluation against. */
+export function snapshot(): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const [id, roles] of current) if (roles.size) out[id] = Object.fromEntries(roles);
+  return out;
+}
+
 /** Drop everything (project load, transport stop). */
 export function clear(): void {
   current.clear();

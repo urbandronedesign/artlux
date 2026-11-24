@@ -88,6 +88,8 @@
     "test:eval-parity": "node scripts/test-eval-parity.cjs",
     "test:clock-parity": "node scripts/test-clock-parity.cjs",
     "test:automation-parity": "node scripts/test-automation-parity.cjs",
+    "test:light-eval-parity": "node scripts/test-light-eval-parity.cjs",
+    "test:light-show-parity": "node scripts/test-light-show-parity.cjs",
     "test:showctl": "node scripts/test-show-control.cjs",
     "test:showctl:ui": "node scripts/test-show-control-ui.cjs"
   },

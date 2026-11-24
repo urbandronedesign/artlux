@@ -40,6 +40,11 @@ function cursorFor(laneId: string, slot: number): { i: number } {
 
 export function setData(t: Timeline | null): void { data = t; }
 
+/** E3e: what this player evaluates — for the native engine, which evaluates the same (engine light.rs). */
+export function nativeState(): { data: Timeline | null; fixtures: Fixture[]; groups: FixtureGroup[]; palette: readonly NamedColor[]; started: boolean } {
+  return { data, fixtures, groups, palette, started };
+}
+
 /**
  * The rig a GROUP lane resolves against. Kept fresh rather than captured, because a lane names a
  * group and the group's membership — and its ORDER, which is the spread axis — is edited live.

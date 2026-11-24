@@ -5,6 +5,35 @@ import { isLight } from '../services/fixtureKind';
 import * as contentSource from '../services/contentSource';
 import { timeline } from '../services/timeline';
 import * as automationOverlay from '../services/automationOverlay';
+import * as lightingPlayback from '../services/lightingPlayback';
+import * as colorPlayback from '../services/colorPlayback';
+import * as lightingOverlay from '../services/lightingOverlay';
+import * as colorOverlay from '../services/colorOverlay';
+
+/**
+ * E3e — THE LIGHT SHOW AS THE ENGINE EVALUATES IT (engine light.rs): the active timeline's lighting clips with
+ * the takes and sequences they name, the named poses, the groups (their fixtures in the group's order), the rig's
+ * fixture ids, the colour lanes and the palette — exactly what lightingPlayback and colorPlayback read.
+ */
+function lightingDoc(): unknown {
+  const L = lightingPlayback.nativeState(), C = colorPlayback.nativeState();
+  const clips = (L.data?.clips ?? []).filter((c) => c.kind === 'lighting' && c.lighting);
+  const takeIds = new Set(clips.map((c) => c.lighting!.takeId).filter(Boolean));
+  const seqIds = new Set(clips.map((c) => c.lighting!.sequenceId).filter(Boolean));
+  const groupsOf = (gs: { id: string; fixtureIds: string[] }[]) => Object.fromEntries(gs.map((g) => [g.id, g.fixtureIds]));
+  return {
+    on: L.started && C.started,
+    clips: clips.map((c) => ({ id: c.id, start: c.start, duration: c.duration, inPoint: c.inPoint, lighting: c.lighting })),
+    takes: (L.data?.lightingTakes ?? []).filter((t) => takeIds.has(t.id)),
+    sequences: (L.data?.lightingSequences ?? []).filter((s) => seqIds.has(s.id)),
+    poses: L.poses, groups: groupsOf(L.groups), fixtures: L.fixtures.map((f) => f.id),
+    colorLanes: C.data?.colorLanes ?? [], colorGroups: groupsOf(C.groups), colorFixtures: C.fixtures.map((f) => f.id), palette: C.palette,
+  };
+}
+function lightingRefs(): unknown[] {
+  const L = lightingPlayback.nativeState(), C = colorPlayback.nativeState();
+  return [L.data, L.fixtures, L.groups, L.poses, L.started, C.data, C.fixtures, C.groups, C.palette, C.started];
+}
 
 // E1f — THE NATIVE ENGINE'S LIVE LINK, renderer half (plans/native-engine.md; main half src/main/engineHost.ts,
 // engine half engine/artlux-engine/src/runtime.rs).
@@ -185,7 +214,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   shipRasters(surfaces, sources);   // E2: before the document that names them
   for (const [key, content] of layerContent) if (sources[key]?.kind === 'raster') shipRaster(key, contentSource.nativeRaster(key, content));
   const sourcesKey = JSON.stringify(sources);
-  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq];
+  const refs = [surfaces, fixtures, inputs.controllers, inputs.protocol, inputs.targetIp, inputs.broadcast, inputs.gamma, inputs.artNetPort, inputs.outputEnabled, projOutputs, bakedSeq, ...lightingRefs()];
   if (sourcesKey !== lastSources || lanesKey !== lastLanes || refs.length !== lastRefs.length || refs.some((r, i) => r !== lastRefs[i])) {
     lastRefs = refs; lastSources = sourcesKey; lastLanes = lanesKey; rev++;
     const ln = lanesView ? timeline.nativeLanes(engineLane) : { gen: 0, lanes: [] };
@@ -193,7 +222,7 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
     const doc = {
       rev, fixtures, surfaces, controllers: inputs.controllers,
       defaults: { protocol: inputs.protocol, ip: inputs.targetIp, broadcast: inputs.broadcast },
-      gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources, lanes: ln,
+      gamma: inputs.gamma, port: inputs.artNetPort, outputEnabled: inputs.outputEnabled, sources, lanes: ln, lighting: lightingDoc(),
       lights: fixtures.filter((f) => isLight(f)).map((f) => f.id),
       // E1f-3: main adds each output's display as PHYSICAL bounds (engineHost.ts) — it owns the screen.
       projectors: projOutputs.filter((o) => o.enabled).map((o) => projectorEntry(o, surfaces, sources)),
@@ -275,5 +304,8 @@ export function frame(inputs: LinkInputs, surfaces: Surface[], fixtures: Fixture
   // E3d: `auto` — the value each engine-evaluated lane holds in the app this frame, for the engine to CHECK.
   const auto: Record<string, number> = {};
   for (const p of lanePaths) { const v = automationOverlay.value(p); if (v !== undefined) auto[p] = v; }
-  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), auto, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
+  // E3e: the role values and colours the app's players published this frame, for the engine to CHECK.
+  const lroles = lightingOverlay.isActive() ? lightingOverlay.snapshot() : {};
+  const lcolors = colorOverlay.isActive() ? colorOverlay.snapshot() : {};
+  window.artlux?.nativeEngineTick?.(JSON.stringify({ rev, t: timeline.getShowTime(), ph: timeline.getPlayhead(), auto, lroles, lcolors, brightness, hap, mp4, ndi, camfp, shader, blobs, comp, times, lights, proj: { brightness: projBrightness, booting: projBooting } }));
 }

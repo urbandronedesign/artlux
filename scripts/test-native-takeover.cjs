@@ -11,7 +11,9 @@
 //   C. kill the engine: the app's frames reach the wire again at once (the fallback), the engine is
 //      restarted by main's watchdog and takes the wire back;
 //   D. the machine log says so (category `engine`: owns-wire / app-has-wire).
-// The operator's prefs are backed up and restored, including after a failure.
+// SCRATCH PROFILE (--user-data-dir): the test's prefs (the Art-Net target) live in its own profile and the
+// operator's is never opened — it used to be backed up, rewritten and restored, which still launched ArtLux on
+// the owner's profile (its logs, its localStorage; see the 2026-11-23 WebGL incident).
 
 const { spawn, execSync, execFileSync } = require('node:child_process');
 const dgram = require('node:dgram');
@@ -22,10 +24,11 @@ const path = require('node:path');
 if (process.platform !== 'win32') { console.log('Windows only — skipped'); process.exit(0); }
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 6483;
-const PREFS = path.join(process.env.APPDATA, 'ArtLux', 'artlux-prefs.json');
 const WORK = path.join(os.tmpdir(), 'artlux-native-takeover');
-const PREFS_BAK = path.join(WORK, 'prefs.backup.json');
+const PROFILE = path.join(WORK, 'profile');
+const PREFS = path.join(PROFILE, 'artlux-prefs.json');
 fs.mkdirSync(WORK, { recursive: true });
+fs.rmSync(PROFILE, { recursive: true, force: true }); fs.mkdirSync(PROFILE, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pk = process.argv.indexOf('--packaged');
 const PACKAGED = pk > 0 ? path.resolve(process.argv[pk + 1]) : null;
@@ -151,7 +154,7 @@ const settle = () => sleep(800);
 
 function launch(native) {
   const env = { ...process.env, ARTLUX_ENGINE_DOC_DUMP: path.join(WORK, 'doc.json') }; delete env.ELECTRON_RUN_AS_NODE;
-  const args = ['--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
+  const args = [`--user-data-dir=${PROFILE}`, '--headless', `--project=${project}`, ...(native ? ['--native-engine'] : [])];
   const child = PACKAGED
     ? spawn(PACKAGED, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
     : spawn('npm.cmd', ['run', 'dev', '--', '--', ...args], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], shell: true });
@@ -175,8 +178,6 @@ async function waitUntil(pred, ms) { const t0 = Date.now(); while (Date.now() - 
 (async () => {
   let fails = 0;
   const ok = (c, m) => { if (!c) fails++; console.log(`${c ? 'ok  ' : 'FAIL'} ${m}`); };
-  const hadPrefs = fs.existsSync(PREFS);
-  if (hadPrefs) fs.copyFileSync(PREFS, PREFS_BAK);
   await new Promise((r) => sock.bind(PORT, '127.0.0.1', r));
   // The sender runs from a COPY under another name: the clean-up between runs kills artlux-engine.exe by name.
   const SENDER_EXE = path.join(WORK, 'spout-sender.exe');
@@ -198,9 +199,7 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
   ndiSender.on('exit', (c) => { if (c) console.log(`NDI SENDER DIED (${c}): ${ndiErr.trim().slice(0, 300)}`); });
   const sender = spawn(SENDER_EXE, ['--spout-send', SPOUT_NAME, '--image', spoutPic, '--seconds', '600'], { stdio: 'ignore' });
   try {
-    const prefs = hadPrefs ? JSON.parse(fs.readFileSync(PREFS, 'utf8')) : {};
-    prefs.appSettings = { ...(prefs.appSettings || {}), outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: PORT, broadcast: false, protocol: 'artnet' };
-    fs.writeFileSync(PREFS, JSON.stringify(prefs, null, 2));
+    fs.writeFileSync(PREFS, JSON.stringify({ appSettings: { outputEnabled: true, artNetIp: '127.0.0.1', artNetPort: PORT, broadcast: false, protocol: 'artnet' } }, null, 2));
     console.log(`project ${project} · Art-Net 127.0.0.1:${PORT} · ${PACKAGED ? `packaged ${PACKAGED}` : 'dev (npm run dev)'}`);
 
     // ── A. the app alone ───────────────────────────────────────────────────────────────────────────────
@@ -335,8 +334,6 @@ setInterval(() => a.sendFrame('t', w, h, px), 33);`);
     fails++; console.log(`FAIL ${e.stack || e}`);
     await stop();
   } finally {
-    if (hadPrefs) fs.copyFileSync(PREFS_BAK, PREFS); else { try { fs.unlinkSync(PREFS); } catch { /* */ } }
-    console.log('prefs restored');
     sock.close();
     polling = false;
     try { sender.kill(); } catch { /* gone */ }

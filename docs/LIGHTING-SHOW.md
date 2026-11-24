@@ -181,6 +181,14 @@ back to its authored values instead of latching on the final pose.
 A take shorter than its clip **repeats**, which is what makes a two-second movement usable as a
 thirty-second look — and is required anyway, since a phase-delayed fixture is sampled past the end.
 
+**With the native engine** (`--native-engine`), the engine evaluates the same show itself — every lighting
+clip's roles (takes, generated effects, pose sequences, the spread, scale, offset and mirror, HTP against LTP
+across clips) and every colour lane — from the playhead, with a port of these players
+([engine light.rs](../engine/artlux-engine/src/light.rs)). For now it **checks** its answer against the
+players' on every frame and logs `lighting: differs` if the two ever disagree; the bytes on the wire are still
+solved by the app's packer from the players' values. `test:light-eval-parity` (the evaluators, offline, on the
+app's own code) and `test:light-show-parity` (a playing show) hold the two together.
+
 ## Pose cues — firing a look with no timeline involved
 
 Keyframes are the **storage** of a light show: scrubbable, seekable, spreadable. What they cannot do

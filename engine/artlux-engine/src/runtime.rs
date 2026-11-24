@@ -135,6 +135,10 @@ pub struct Runtime {
     auto_fx: HashMap<String, (Option<f64>, Option<f64>)>,
     auto_diffs: u64,
     auto_ticks: u64,
+    /// E3e: the light show as the engine evaluates it, and the check's counters.
+    show: crate::light::Show,
+    light_diffs: u64,
+    light_ticks: u64,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -152,7 +156,7 @@ impl Runtime {
             #[cfg(feature = "ndi")] ndis: HashMap::new(),
             #[cfg(windows)] mp4s: HashMap::new(), conv: None,
             #[cfg(windows)] cams: HashMap::new(), resolved: HashMap::new(), pending_cams: HashMap::new(), last_doc: None, redo: false,
-            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0 }
+            view: None, view_scene_ver: 0, view_published: HashMap::new(), view_colors_gen: 0, view_last_summary: String::new(), clock_diffs: 0, clock_rev: 0, lanes: Vec::new(), auto_fx: HashMap::new(), auto_diffs: 0, auto_ticks: 0, show: Default::default(), light_diffs: 0, light_ticks: 0 }
     }
 
     /// E4a: the 3D view's shared state and its open flag (serve.rs makes them; the windows thread shares them).
@@ -446,6 +450,9 @@ impl Runtime {
         let mut doc = Doc { rev, lfix, surfaces, pfix, controllers, defaults, lut: pack::gamma_lut(d["gamma"].as_f64().unwrap_or(1.0)),
             port: d["port"].as_u64().unwrap_or(6454) as u16, sources, base_opacity: opacity.clone(), opacity, owns: false, lights: Vec::new() };
         self.load_lanes(&d["lanes"]);
+        let show = crate::light::Show::from_json(&d["lighting"]);
+        if !show.is_empty() && self.show.is_empty() { eprintln!("artlux-engine: lighting: the light show is evaluated by the engine and checked against the app's"); }
+        self.show = show;
         let light_ids: Vec<&str> = d["lights"].as_array().into_iter().flatten().filter_map(|v| v.as_str()).collect();
         doc.lights = doc.pfix.iter().enumerate().filter(|(_, f)| light_ids.contains(&f.id.as_str())).map(|(i, _)| i).collect();
         for &i in &doc.lights { doc.pfix[i].light = true; }
@@ -593,6 +600,7 @@ impl Runtime {
     pub fn tick(&mut self, v: &Value) -> Result<(), String> {
         let Some(mut doc) = self.doc.take() else { return Ok(()) };
         self.evaluate_lanes(&mut doc, v);
+        if v["rev"].as_u64() == Some(doc.rev) { self.evaluate_lighting(v); }   // the app's overlays are THIS document's
         let ev = self.evaluate_clock(&doc, v);
         let r = self.tick_with(&mut doc, ev.as_ref().unwrap_or(v));
         self.doc = Some(doc);
@@ -654,6 +662,52 @@ impl Runtime {
         doc.opacity = opacity;
         self.auto_ticks += 1;
         if self.auto_ticks % 120 == 1 { eprintln!("artlux-engine: automation: {} tick(s) sampled, {} difference(s) from the app so far (document {})", self.auto_ticks, self.auto_diffs, doc.rev); }
+    }
+
+    /// E3e — THE ENGINE EVALUATES THE LIGHT SHOW (plans/native-engine.md §4): every active lighting clip's roles
+    /// on its group's fixtures and every colour lane's colour (light.rs, the port of the app's two players), at
+    /// the playhead — and CHECKS them against what the app's players published this frame (`lroles`, `lcolors`):
+    /// the same fixtures, the same roles, every value within 1e-9, or `lighting: differs` is logged. The light
+    /// bytes on the wire are still the app's (its packer solves roles and colours into DMX); this is the parity
+    /// harness on the show before that moves.
+    fn evaluate_lighting(&mut self, v: &Value) {
+        if !self.show.on || self.show.is_empty() { return; }
+        let Some(ph) = v["ph"].as_f64() else { return };
+        let (roles, colors) = (self.show.roles(ph), self.show.colors(ph));
+        let n = |x: &Value| x.as_f64().unwrap_or(f64::NAN);   // the app's NaN arrives as null
+        let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 || (a.is_nan() && b.is_nan());
+        let mut why: Vec<String> = Vec::new();
+        let app_roles = v["lroles"].as_object().cloned().unwrap_or_default();
+        for (f, m) in &roles {
+            for (r, x) in m {
+                let a = &app_roles.get(f).map(|o| o[r].clone()).unwrap_or(Value::Null);
+                if a.is_null() && !x.is_nan() { why.push(format!("{f}.{r}: app none, engine {x}")); } else if !close(n(a), *x) { why.push(format!("{f}.{r}: app {a}, engine {x}")); }
+            }
+        }
+        for (f, o) in &app_roles {
+            for r in o.as_object().into_iter().flatten().map(|(k, _)| k) {
+                if !roles.get(f).is_some_and(|m| m.contains_key(r)) { why.push(format!("{f}.{r}: app {}, engine none", o[r])); }
+            }
+        }
+        let app_colors = v["lcolors"].as_object().cloned().unwrap_or_default();
+        for (f, c) in &colors {
+            let ok = match (app_colors.get(f), c) {
+                (Some(a), crate::light::Color::Rgb(x)) => a["kind"] == "rgb" && (0..3).all(|i| close(n(&a["rgb"][i]), x[i])),
+                (Some(a), crate::light::Color::Cct(t)) => a["kind"] == "cct" && close(n(&a["t"]), *t),
+                (None, _) => false,
+            };
+            if !ok { why.push(format!("{f} colour: app {}, engine {}", app_colors.get(f).cloned().unwrap_or(Value::Null), c.to_json())); }
+        }
+        for f in app_colors.keys() { if !colors.contains_key(f) { why.push(format!("{f} colour: app {}, engine none", app_colors[f])); } }
+        self.light_ticks += 1;
+        if !why.is_empty() {
+            self.light_diffs += 1;
+            if self.light_diffs <= 20 { eprintln!("artlux-engine: lighting: differs at playhead {ph} — {}", why.iter().take(4).cloned().collect::<Vec<_>>().join("; ")); }
+        }
+        if self.light_ticks % 120 == 1 {
+            let nr: usize = roles.values().map(|m| m.len()).sum();
+            eprintln!("artlux-engine: lighting: {} tick(s) evaluated ({} role value(s), {} colour(s) this tick), {} tick(s) differing from the app so far", self.light_ticks, nr, colors.len(), self.light_diffs);
+        }
     }
 
     /// E3c — THE ENGINE EVALUATES THE TIMELINE'S TIME (plans/native-engine.md §4). From the playhead (`ph`) and

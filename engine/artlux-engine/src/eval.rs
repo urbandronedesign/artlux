@@ -65,14 +65,14 @@ fn bounce_out(mut x: f64) -> f64 {
     n * x * x + 0.984375
 }
 fn pin(x: f64, f: impl Fn(f64) -> f64) -> f64 { if x <= 0.0 { 0.0 } else if x >= 1.0 { 1.0 } else { f(x) } }
-fn pw(a: f64, b: f64) -> f64 { a.powf(b) }
+fn pw(a: f64, b: f64) -> f64 { libm::pow(a, b) }   // fdlibm, as V8
 
 /// The classic easing set (automation.ts EASE_FN), by name. None for a name the app does not know either.
 pub fn named_ease(name: &str, x: f64) -> Option<f64> {
     Some(match name {
-        "easeInSine" => 1.0 - ((x * PI) / 2.0).cos(),
-        "easeOutSine" => ((x * PI) / 2.0).sin(),
-        "easeInOutSine" => -((PI * x).cos() - 1.0) / 2.0,
+        "easeInSine" => 1.0 - libm::cos((x * PI) / 2.0),
+        "easeOutSine" => libm::sin((x * PI) / 2.0),
+        "easeInOutSine" => -(libm::cos(PI * x) - 1.0) / 2.0,
         "easeInQuad" => x * x,
         "easeOutQuad" => 1.0 - (1.0 - x) * (1.0 - x),
         "easeInOutQuad" => if x < 0.5 { 2.0 * x * x } else { 1.0 - pw(-2.0 * x + 2.0, 2.0) / 2.0 },
@@ -98,12 +98,12 @@ pub fn named_ease(name: &str, x: f64) -> Option<f64> {
         } else {
             (pw(2.0 * x - 2.0, 2.0) * ((B2 + 1.0) * (x * 2.0 - 2.0) + B2) + 2.0) / 2.0
         },
-        "easeInElastic" => pin(x, |v| -pw(2.0, 10.0 * v - 10.0) * ((v * 10.0 - 10.75) * E4).sin()),
-        "easeOutElastic" => pin(x, |v| pw(2.0, -10.0 * v) * ((v * 10.0 - 0.75) * E4).sin() + 1.0),
+        "easeInElastic" => pin(x, |v| -pw(2.0, 10.0 * v - 10.0) * libm::sin((v * 10.0 - 10.75) * E4)),
+        "easeOutElastic" => pin(x, |v| pw(2.0, -10.0 * v) * libm::sin((v * 10.0 - 0.75) * E4) + 1.0),
         "easeInOutElastic" => pin(x, |v| if v < 0.5 {
-            -(pw(2.0, 20.0 * v - 10.0) * ((20.0 * v - 11.125) * E5).sin()) / 2.0
+            -(pw(2.0, 20.0 * v - 10.0) * libm::sin((20.0 * v - 11.125) * E5)) / 2.0
         } else {
-            (pw(2.0, -20.0 * v + 10.0) * ((20.0 * v - 11.125) * E5).sin()) / 2.0 + 1.0
+            (pw(2.0, -20.0 * v + 10.0) * libm::sin((20.0 * v - 11.125) * E5)) / 2.0 + 1.0
         }),
         "easeInBounce" => 1.0 - bounce_out(1.0 - x),
         "easeOutBounce" => bounce_out(x),
@@ -169,7 +169,7 @@ pub fn sample_lane(keys: &[Key], t: f64, log: bool) -> f64 {
     if a.curve.kind.as_deref() == Some("hold") { return a.v; }
     let u = (t - a.t) / span;
     let e = segment_ease(&a.curve, u);
-    if log { (a.v.ln() + (b.v.ln() - a.v.ln()) * e).exp() } else { a.v + (b.v - a.v) * e }
+    if log { libm::exp(libm::log(a.v) + (libm::log(b.v) - libm::log(a.v)) * e) } else { a.v + (b.v - a.v) * e }
 }
 
 /// What the engine needs of a timeline clip to evaluate it in time.

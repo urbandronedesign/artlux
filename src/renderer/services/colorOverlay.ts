@@ -69,6 +69,9 @@ export function get(fixtureId: string): ColorValue | undefined {
 /** True when any lane is driving anything — lets the packer skip the lookup entirely. */
 export function isActive(): boolean { return active; }
 
+/** E3e: every fixture's colour this frame, for the native engine to check its own evaluation against. */
+export function snapshot(): Record<string, ColorValue> { return Object.fromEntries(current); }
+
 /** Drop everything (project load, transport stop). */
 export function clear(): void {
   current.clear();

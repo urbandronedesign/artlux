@@ -39,6 +39,7 @@ pub mod shader;
 pub mod blobs;
 pub mod comp;
 pub mod eval;
+pub mod light;
 #[cfg(feature = "ndi")]
 pub mod ndi;
 pub mod windows;

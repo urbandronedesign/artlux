@@ -47,6 +47,11 @@ function cursorFor(clipId: string, fixtureId: string, role: string): { i: number
 }
 
 export function setData(t: Timeline | null): void { data = t; }
+
+/** E3e: what this player evaluates — for the native engine, which evaluates the same (engine light.rs). */
+export function nativeState(): { data: Timeline | null; fixtures: Fixture[]; groups: FixtureGroup[]; poses: NamedPose[]; started: boolean } {
+  return { data, fixtures, groups, poses, started };
+}
 export function setRig(f: Fixture[], g: FixtureGroup[], p: NamedPose[] = poses): void { fixtures = f; groups = g; poses = p; }
 
 /** Every lighting clip covering time `t`. Unlike video, clips LAYER — later ones win per role. */
