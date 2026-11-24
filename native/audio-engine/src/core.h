@@ -1,0 +1,1458 @@
+// The audio engine CORE — everything but the bindings: the bus, the clips, the device, metering and the
+// control thread. Included by engine.cpp (the N-API addon, audio_engine.node) and capi.cpp (the C API the
+// native engine loads, artlux_audio.dll — E3, JUCE in the engine process). One source, two front doors.
+#pragma once
+// ArtLux native audio engine (Wave 3). JUCE playback + libspatialaudio ambisonic spatialisation.
+//
+// Signal chain:
+//   spatial clips → downmix → CLIP FX (1ch) → AmbisonicEncoder(position) → ProcessAccumul ↘
+//                                                                     B-format → Binauralizer(HRTF) ↘
+//   non-spatial clips → CLIP FX (2ch) ────────────────────────────────────────────────────────────→ (+)
+//                                        → MASTER FX (Nch) → master gain → MeteringAudioSource → device
+//
+// A plain MixerAudioSource can't be used for the spatial path: ambisonic encoding needs each source's
+// signal SEPARATELY (a mixer has already summed them), so SpatialBus pulls every clip itself. That same
+// constraint is why effects live on the CLIP (pre-encode) and on the MASTER (post-decode), and nowhere
+// else — see effects.h.
+//
+// The engine is "dumb": JS (the plugins/audio playhead-driver) decides which bed clips are active for
+// the current transport playhead and calls playClip/stopClip/gain/spatial/effects. Disk reads happen on
+// a shared read-ahead thread, never on the audio callback.
+#include <cstring>
+#include <juce_core/juce_core.h>
+#include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_audio_devices/juce_audio_devices.h>
+#include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_dsp/juce_dsp.h>
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cmath>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <deque>
+#include <functional>
+#include <future>
+#include <mutex>
+#include <thread>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <objbase.h>
+#endif
+#include "effects.h"
+#include "spectrum.h"
+
+// libspatialaudio — ambisonic encode (per source position) → B-format → binaural decode (built-in MIT
+// HRTF, no SOFA file needed). Namespace `spaudio`.
+#include <AmbisonicEncoder.h>
+#include <AmbisonicBinauralizer.h>
+#include <AmbisonicDecoder.h>
+#include <BFormat.h>
+
+namespace {
+
+// 1st-order: a 4-channel B-format. Cheap, and ample for <= 8 speakers / headphone binaural.
+constexpr unsigned kAmbiOrder = 1;
+constexpr float    kPosFadeMs = 20.0f; // encoder crossfades coefficients over a move (no zipper noise)
+
+// The commissioning blip. A repeating transient rather than a continuous tone — see the test-tone block
+// in getNextAudioBlock for why that matters when two speakers are close together. Mirrored in the
+// renderer's generated test source (plugins/audio/src/testSource.main.ts) so the two speaker tests sound
+// identical and the only thing an ear has to judge is WHICH BOX it came from.
+constexpr double kToneHz        = 660.0;   // clear of most room modes, and easy to hear over a rig's noise floor
+constexpr double kToneBpm       = 90.0;    // ~0.6 s of silence between blips: the room stops ringing in between
+constexpr double kToneAttackSec = 0.005;   // a real transient, but not a click on a tweeter
+constexpr double kToneDecaySec  = 0.050;   // short enough that each blip is unambiguously one event
+
+juce::AudioFormatManager& formats() {
+  static juce::AudioFormatManager fm;
+  static bool inited = false;
+  if (!inited) { fm.registerBasicFormats(); inited = true; } // wav/aiff + flac/ogg (build flags)
+  return fm;
+}
+
+// Our Cartesian convention (listener at origin: +x right, +y up, +z forward) → the ambisonic polar
+// convention verified from libspatialaudio's own coefficients (W=1, Y=sin(az)cos(el)=LEFT,
+// Z=sin(el)=UP, X=cos(az)cos(el)=FRONT): azimuth is anticlockwise from front, POSITIVE = LEFT.
+// Hence atan2(-x, z) — our +x is right, so it must map to a negative azimuth.
+spaudio::PolarPosition<float> toPolar(float x, float y, float z) {
+  const float dist = std::sqrt(x * x + y * y + z * z);
+  spaudio::PolarPosition<float> p;
+  p.distance = dist;
+  p.elevation = dist > 1.0e-6f ? std::asin(juce::jlimit(-1.0f, 1.0f, y / dist)) : 0.0f;
+  p.azimuth = std::atan2(-x, z);
+  return p;
+}
+
+// How the ambisonic B-format is rendered to the device.
+enum class OutMode { Binaural, Speakers };
+
+// The speaker layouts we expose (name → libspatialaudio preset). Binaural is headphones-only, so a
+// multichannel install decodes the SAME B-format to a real speaker ring/cube instead.
+spaudio::Amblib_SpeakerSetUps layoutFromName(const juce::String& n) {
+  using S = spaudio::Amblib_SpeakerSetUps;
+  if (n == "quad")    return S::kAmblib_Quad;
+  if (n == "5.0")     return S::kAmblib_50;
+  if (n == "5.1")     return S::kAmblib_51;
+  if (n == "7.0")     return S::kAmblib_70;
+  if (n == "7.1")     return S::kAmblib_71;
+  if (n == "hexagon") return S::kAmblib_Hexagon;
+  if (n == "octagon") return S::kAmblib_Octagon;
+  if (n == "cube")    return S::kAmblib_Cube;      // 3D, 8 speakers
+  return S::kAmblib_Stereo;
+}
+
+using artlux::EffectSpec;
+using artlux::EffectChain;
+
+struct Clip {
+  std::unique_ptr<juce::AudioFormatReaderSource> reader;
+  std::unique_ptr<juce::AudioTransportSource> transport;
+  double sampleRate = 0.0;
+  double lengthSec = 0.0;
+  int channels = 0;
+  bool spatial = false;
+  // OMNIDIRECTIONAL: the source is EVERYWHERE rather than somewhere — equal in every speaker.
+  //
+  // This is not a position and not a level, which is why it is a flag beside `pos` rather than a value
+  // inside it. In ambisonics "everywhere" is order 0: W alone, with the directional components zeroed.
+  // A first-order B-format of [W, 0, 0, 0] decodes to the same gain in every speaker of any layout,
+  // which is exactly what an operator means by "put it in the middle of the room".
+  bool omni = false;
+  std::unique_ptr<spaudio::AmbisonicEncoder> encoder;   // only when spatial
+  spaudio::PolarPosition<float> pos {};
+  // The authored chain (the truth — it outlives a device re-open and a spatial flip) and the prepared
+  // DSP built from it (nullptr ⇒ dry). A spatial clip's chain is MONO, a flat one's is stereo, so
+  // flipping `spatial` invalidates the chain and forces a rebuild.
+  std::vector<EffectSpec> specs;
+  std::unique_ptr<EffectChain> chain;
+  /** Stopped DURING A RENDER — see SpatialBus::stopClip for why this is a flag and not a stop(). */
+  bool silencedOffline = false;
+};
+
+// Pulls every clip, encodes the spatial ones into one shared B-format, binaurally decodes that, and
+// sums the non-spatial ones straight through. `lock` is held by the AUDIO thread for the whole block
+// (the same discipline JUCE's own MixerAudioSource uses), so control calls that mutate clips/encoders
+// are safe as long as they take it too.
+class SpatialBus : public juce::AudioSource {
+public:
+  juce::CriticalSection lock;
+  /**
+   * True while a non-realtime render owns the graph and the device is detached.
+   *
+   * ⚠ IT CHANGES WHAT `stop()` COSTS, and that is not a micro-optimisation.
+   * AudioTransportSource::stop() sets playing=false and then SPINS — up to 500 x 2 ms — waiting for
+   * the audio callback to stop using the source. Offline there IS no audio callback, so nothing ever
+   * signals it and every stop pays the full second. Measured on a real show: two stopClip calls per
+   * rendered frame, 2.5 s per frame, ~99% of the entire render. Rendering twenty frames took 52 s, of
+   * which 52 s was this.
+   */
+  std::atomic<bool> renderingOffline { false };
+  std::unordered_map<std::string, std::unique_ptr<Clip>> clips;
+
+  // Called from Engine::configure's stack (the JS thread), with our audio callback NOT yet registered —
+  // so allocating here is safe, and it already does (bformat/binaural/scratch).
+  void prepareToPlay(int blockSize, double sr) override {
+    const juce::ScopedLock sl(lock);
+    sampleRate = sr;
+    maxBlock = blockSize;
+    prepared = true;
+    scratch.setSize(2, blockSize);
+    mono.assign((size_t) blockSize, 0.0f);
+    decodeL.assign((size_t) blockSize, 0.0f);
+    decodeR.assign((size_t) blockSize, 0.0f);
+    bformat.Configure(kAmbiOrder, true, (unsigned) blockSize);
+    unsigned tail = 0;
+    binauralOk = binaural.Configure(kAmbiOrder, true, (unsigned) sr, (unsigned) blockSize, tail);
+    // Build + install back-to-back, under this lock: safe here (and necessary — see the invariant note on
+    // setMode below) because this runs OFF the audio thread with the callback not yet attached. setMode,
+    // which runs WHILE the callback IS attached, builds outside the lock instead.
+    installDecode(buildDecode(layout, blockSize, sr));
+
+    // Every chain is rebuilt from its specs: sample rate and block size may both have changed, and the
+    // filter/delay/reverb states are sized from them.
+    const juce::dsp::ProcessSpec mspec {
+      sr, (juce::uint32) juce::jmax(1, blockSize), (juce::uint32) juce::jmax(1, outChannels)
+    };
+    masterGain.prepare(mspec);
+    masterGain.setRampDurationSeconds(0.02); // ONCE — setRampDurationSeconds() resets + snaps the value
+    masterGain.setGainLinear(masterGainTarget);
+    masterGain.reset(); // snap to it: a prepared dsp::Gain sits at ZERO, so without this the whole output
+                        // would fade in from silence every time the device opens (see GainFx::setParams)
+    masterChain = EffectChain::build(masterSpecs, sr, blockSize, juce::jmax(1, outChannels), false);
+    for (auto& kv : clips) {
+      kv.second->transport->prepareToPlay(blockSize, sr);
+      if (kv.second->spatial) configureEncoder(*kv.second);
+      kv.second->chain = EffectChain::build(kv.second->specs, sr, blockSize, chanFor(*kv.second), true);
+    }
+  }
+
+  // Switch how the B-format is rendered (binaural HRTF ↔ speaker-layout decode). Live: only the decoder
+  // is reconfigured, so changing it never reopens the device or interrupts playback.
+  //
+  // Three phases, same shape as applyEffects below (read that function's comment — the order IS the
+  // design): decide under the lock, BUILD OUTSIDE it, swap under it again.
+  //
+  // ⚠ THE CHANGE-GUARD IS HALF THE VALUE ON ITS OWN. configure()'s idempotence guard calls
+  // bus.setMode(c.mode, c.layout) on EVERY call — including ones that change nothing about the device at
+  // all (an operator re-picking the same device/layout in Preferences, or any redundant configure()). Mode
+  // and layout are now a routine operator gesture (the P6 device picker), not a one-off — so without this
+  // guard, EVERY such call rebuilt the decoder (Configure() allocates internally, and speakerBuf.assign()
+  // below is a real heap allocation) WHILE HOLDING THE SAME LOCK the audio callback takes for the whole
+  // block, on every call, whether or not anything actually changed. Only an ACTUAL change proceeds past it.
+  void setMode(OutMode m, const juce::String& layoutName) {
+    int block = 0;
+    double sr = 0.0;
+    {
+      const juce::ScopedLock sl(lock);
+      if (prepared && m == mode && layoutName == layout) return; // nothing changed — no rebuild, no allocation
+      mode = m;
+      layout = layoutName;
+      if (!prepared) return; // no device yet — prepareToPlay will build the decoder when one opens
+      block = maxBlock;
+      sr = sampleRate;
+    }
+    // OUTSIDE the lock: build the new decoder + speaker buffers for the (now-live) layout. `layout` is not
+    // re-read here on purpose — nothing else on this single N-API thread can change it before the swap
+    // below runs, so the value just written above is still exactly what was requested.
+    DecodeBuild built = buildDecode(layoutName, block, sr); // ← the expensive part, OUTSIDE the lock
+    DecodeBuild old;                                        // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      old = installDecode(std::move(built));
+    }
+  }
+  int speakerCount() { const juce::ScopedLock sl(lock); return nSpeakers; }
+
+  // Decoder speaker index → DEVICE CHANNEL. A venue's ring is almost never wired 1:1, and there is no
+  // ladder in the audio callback. Sanitised on the way in: an out-of-range OR DUPLICATED entry (two
+  // speakers CAN be pointed at the same channel — persisted prefs can be hand-edited, and the per-speaker
+  // channel dropdowns in Preferences let an operator pick the same channel twice) is never silently
+  // dropped — every slot is guaranteed a distinct device channel, so the result is ALWAYS a full
+  // permutation of [0..kMaxSpeakers).
+  void setPatch(const std::vector<int>& p) {
+    const juce::ScopedLock sl(lock);
+    patch.assign(kMaxSpeakers, -1);
+    patchUsed.assign(kMaxSpeakers, false);   // member, not a local — see the declaration: no allocation
+                                              // under `lock` once the vector has grown to size once
+    for (int s = 0; s < kMaxSpeakers; ++s) {
+      const int v = s < (int) p.size() ? p[(size_t) s] : s;
+      if (v >= 0 && v < kMaxSpeakers && !patchUsed[(size_t) v]) { patch[(size_t) s] = v; patchUsed[(size_t) v] = true; }
+    }
+    // Anything still unfilled here was REJECTED by the pass above — out of range, or a duplicate whose
+    // value an earlier slot already claimed. It must still land on SOME device channel: leaving it at -1
+    // silently drops that decoder speaker (the write site skips a -1, so it's memory-safe, but the speaker
+    // goes SILENT with no diagnostic) and breaks the "always a valid permutation" guarantee above.
+    //
+    // This can NOT fall back to `patch[s] = s` (a slot's own index) — that index may already be claimed by
+    // a slot the pass above legitimately honoured. E.g. input [2, 2]: slot 0 claims channel 2 first, so
+    // when slot 2 is considered its own index (2) is already taken; `patch[2] = 2` would just be rejected
+    // again by `used[2]`, and the old code left it at -1 there — that was the bug. Instead walk a cursor
+    // forward over the channels the pass above left genuinely FREE and hand out the next one. This always
+    // terminates with every slot filled and the whole array a permutation: the pass above claims at most
+    // one channel per slot, there are exactly kMaxSpeakers slots and kMaxSpeakers channels, so a still-
+    // unfilled slot always means an as-yet-unclaimed channel exists for the cursor to find.
+    int freeCh = 0;
+    for (int s = 0; s < kMaxSpeakers; ++s) {
+      if (patch[(size_t) s] >= 0) continue;
+      while (freeCh < kMaxSpeakers && patchUsed[(size_t) freeCh]) ++freeCh;
+      patch[(size_t) s] = freeCh;
+      patchUsed[(size_t) freeCh] = true;
+    }
+  }
+
+  // ⚠ THE TONE BYPASSES THE DECODER, AND THAT IS THE ENTIRE POINT. It is written straight onto a DEVICE
+  // CHANNEL, after the decode and after the master chain. A tone routed through the ambisonic encoder
+  // would prove the DECODER works — which we already know — and prove nothing about the PATCH, which is
+  // the thing being commissioned. A test tone that routes through the thing under test is not a test.
+  //
+  // It is written BEFORE metering (the metering source wraps this bus), so the operator sees the channel
+  // light up in Preferences — which is how the rig is verified with no hardware at all.
+  // Switching on RESTARTS the pattern, so the first blip is immediate. Without that, toggling a speaker
+  // on could wait most of a beat before making a sound — which reads as "this speaker is dead".
+  void setTestTone(int deviceChannel, float g) {
+    const juce::ScopedLock sl(lock);
+    // Restart the pattern on a real switch-on only. Re-asserting the SAME channel (the renderer re-sends
+    // on a settings change) must not retrigger, or a held toggle would stutter its beat every time
+    // anything else in the panel moved.
+    if (deviceChannel >= 0 && (toneCh != deviceChannel || toneGain <= 0.0f)) tonePos = 0;
+    toneCh = deviceChannel; toneGain = g;
+  }
+
+  void releaseResources() override {
+    const juce::ScopedLock sl(lock);
+    prepared = false;
+    for (auto& kv : clips) kv.second->transport->releaseResources();
+  }
+
+  void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
+    // Reverb tails, delay feedback and filter states all decay towards zero and WILL denormal. Left
+    // alone, the audio thread's cost climbs 10–100× minutes into a show, then drops out, with no code
+    // change to blame. This must be the first line.
+    const juce::ScopedNoDenormals noDenormals;
+    info.clearActiveBufferRegion();
+    const int n = info.numSamples;
+    if (n <= 0 || info.buffer == nullptr) return;
+
+    const juce::ScopedLock sl(lock);
+    const int outCh = info.buffer->getNumChannels();
+    observedCh.store(outCh); // so a chain built for the wrong channel count can't hide (see getMeters)
+    bool anySpatial = false;
+    bformat.Reset();
+
+    for (auto& kv : clips) {
+      Clip& c = *kv.second;
+      // Stopped during a render: contributes nothing and is not pulled at all (see stopClip).
+      if (c.silencedOffline) continue;
+      scratch.clear();
+      juce::AudioSourceChannelInfo si(&scratch, 0, n);
+      // The transport applies the clip's gain, so the chain below is POST-FADER: riding a clip's gain
+      // moves the signal through its own compressor's threshold. Correct for a bed player, but worth
+      // knowing before you automate both at once.
+      c.transport->getNextAudioBlock(si); // silent while stopped — but the chain still runs, so tails ring out
+
+      if (c.spatial && c.encoder != nullptr) {
+        // Ambisonic encoding is inherently mono-per-source. Fold the clip down FIRST, then run its
+        // chain on the mono signal, then place it: a 2-channel reverb here would decorrelate L/R only
+        // for this downmix to comb them back together. See effects.h.
+        const float* l = scratch.getReadPointer(0);
+        const float* r = scratch.getNumChannels() > 1 ? scratch.getReadPointer(1) : l;
+        for (int i = 0; i < n; ++i) mono[(size_t) i] = 0.5f * (l[i] + r[i]);
+        if (c.chain != nullptr) {
+          float* mp[1] = { mono.data() };
+          juce::dsp::AudioBlock<float> mb(mp, 1, (size_t) n); // named lvalue: ProcessContextReplacing can't bind a temporary
+          c.chain->process(mb);
+        }
+        c.encoder->ProcessAccumul(mono.data(), (unsigned) n, &bformat, 0, 1.0f);
+        anySpatial = true;
+      } else {
+        if (c.chain != nullptr) {
+          juce::dsp::AudioBlock<float> sb(scratch);
+          auto b = sb.getSubBlock(0, (size_t) n);
+          c.chain->process(b);
+        }
+        for (int ch = 0; ch < outCh; ++ch) {
+          const int src = juce::jmin(ch, scratch.getNumChannels() - 1);
+          info.buffer->addFrom(ch, info.startSample, scratch, src, 0, n);
+        }
+      }
+    }
+
+    // NB: this used to be `if (!anySpatial) return;` — which would have skipped the master stage below
+    // entirely whenever the bed had no spatial clip (i.e. the common case). Master effects would have
+    // been wired, metered, and silently inert.
+    if (anySpatial) {
+      if (mode == OutMode::Binaural && binauralOk) {
+        std::fill(decodeL.begin(), decodeL.begin() + n, 0.0f);
+        std::fill(decodeR.begin(), decodeR.begin() + n, 0.0f);
+        float* out[2] = { decodeL.data(), decodeR.data() };
+        binaural.Process(&bformat, out, (unsigned) n);
+        if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
+        if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
+      } else if (mode == OutMode::Speakers && decoderOk && decoder != nullptr && nSpeakers > 0) {
+        for (int s = 0; s < nSpeakers; ++s)
+          std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
+        decoder->Process(&bformat, (unsigned) n, speakerPtrs.data());
+        for (int s = 0; s < nSpeakers; ++s) {
+          const int dst = (s < (int) patch.size()) ? patch[(size_t) s] : s;   // decoder speaker → device channel
+          if (dst >= 0 && dst < outCh)                                        // never write past the device
+            info.buffer->addFrom(dst, info.startSample, speakerBuf[(size_t) s].data(), n);
+        }
+      }
+    }
+
+    // ── Master: post-decode, PRE-metering (so the meters show what actually leaves the machine) ──
+    juce::dsp::AudioBlock<float> full(*info.buffer);
+    auto mblock = full.getSubBlock((size_t) info.startSample, (size_t) n);
+    if (masterChain != nullptr) masterChain->process(mblock);
+    juce::dsp::ProcessContextReplacing<float> mctx(mblock);
+    masterGain.process(mctx); // post-insert fader, SmoothedValue-ramped ⇒ click-free
+
+    // ── TEST TONE: post-everything, straight onto a device channel ──────────────────────────────────
+    // Deliberately AFTER the master fader: a commissioning tone that the house fader can silence is a tone
+    // that will have you checking a speaker cable while the software is muting it.
+    //
+    // ⚠ A PULSE, NOT A CONTINUOUS SOUND, AND THAT IS THE WHOLE POINT ON A REAL RIG.
+    //
+    // This was pink noise, on the reasoning that broadband is easier to localise than a sine. True in the
+    // open, and wrong in the room this tool is actually used in: two speakers a metre apart both playing
+    // continuous hiss are very hard to tell apart, because there is no onset to compare. A repeating
+    // TRANSIENT is what the ear localises — the attack is the cue — so a short 660 Hz blip at a walking
+    // tempo lets an operator stand between two boxes and hear which one starts first.
+    //
+    // 90 BPM leaves ~0.6 s of silence between blips: long enough for a room to stop ringing, so what you
+    // hear is the speaker and not its reverb tail. The 5 ms attack is fast enough to be a real transient
+    // and slow enough not to click on a tweeter; the 50 ms decay keeps each blip clearly one event.
+    if (toneCh >= 0 && toneCh < outCh && toneGain > 0.0f && sampleRate > 0.0) {
+      float* d = info.buffer->getWritePointer(toneCh, info.startSample);
+      const double period = 60.0 / kToneBpm;
+      for (int i = 0; i < n; ++i) {
+        // Phase within the beat, from a sample counter reset when the tone was switched on — so the
+        // first blip lands immediately rather than wherever a free-running clock happened to be.
+        const double t = (double) tonePos / sampleRate;
+        const double beat = std::fmod(t, period);
+        float env = 0.0f;
+        if (beat < kToneAttackSec) {
+          env = (float) (beat / kToneAttackSec);
+        } else if (beat < kToneAttackSec + kToneDecaySec) {
+          env = (float) (1.0 - (beat - kToneAttackSec) / kToneDecaySec);
+        }
+        if (env > 0.0f) {
+          d[i] += (float) std::sin(juce::MathConstants<double>::twoPi * kToneHz * t) * env * 0.5f * toneGain;
+        }
+        ++tonePos;
+      }
+    }
+  }
+
+  // ── Control (all take the lock, so they can't race the audio thread) ──────────────────────────
+  //
+  // ── Adding: PREPARE NEVER UNDER THE LOCK ──────────────────────────────────────────────────────
+  // The same disease as stop() below, and the same cure — and the rule was already written down, in
+  // capitals, THREE LINES FURTHER ON. Somebody diagnosed it exactly, fixed stop(), and left addClip.
+  //
+  // AudioTransportSource::prepareToPlay() does not merely set a few fields. It asks its
+  // BufferingAudioSource to PREFILL THE READ-AHEAD BUFFER — 0.25 s of audio, decoded FROM DISK on the
+  // background reader thread — and then SPINS, Thread::sleep(5) at a time, until that thread reports
+  // ready. The audio callback reaches getNextAudioBlock ONLY by taking `lock`, so for the whole prefill
+  // it cannot produce one sample: the device gets silence, and the signal then resumes at whatever value
+  // it had reached. A step discontinuity is broadband. That is the CLICK.
+  //
+  // At 48 kHz / 512 the audio thread's deadline is 10.7 ms. A WARM, page-cached read already blows it
+  // (~12 ms, one block missed); a typical read misses three; a cold read off a spinning disk or a network
+  // share misses eleven. And this is the HOTTER of the two paths: the driver has no audio preload tier
+  // (plugin.renderer.ts says so in as many words), so a scene's sting is decoded ON ENTRY, EVERY ENTRY —
+  // one blocking prepare under the audio lock ON EVERY GO, all night, in an unattended install.
+  //
+  // The clip is not in `clips` yet, so the audio thread cannot reach it: PREPARING IT NEEDS NO LOCK AT
+  // ALL. Only the snapshot and the insert do, and both are O(1) with no I/O.
+  //
+  // ⚠ AND THE OBVIOUS FIX OPENS A RACE THAT MUST BE CLOSED. prepareToPlay() above re-prepares every clip
+  // IN THE MAP (:140) — and a device re-open (a USB bump, a driver reload, an output-mode change) lands
+  // exactly there. Fire it while we are preparing outside the lock and OUR CLIP IS NOT IN THE MAP YET, so
+  // it is missed; we would then insert a clip prepared for 512@48k into an engine now running 256@44.1k.
+  // So the insert RE-CHECKS the device and prepares again if it moved. It compares the SETTINGS, not a
+  // generation counter, deliberately: a re-open that lands on the same block size and sample rate leaves
+  // our preparation perfectly valid, and there is nothing to redo.
+  void addClip(const std::string& id, std::unique_ptr<Clip> clip) {
+    for (;;) {
+      bool wasPrepared; int block; double rate;
+      {
+        const juce::ScopedLock sl(lock);
+        wasPrepared = prepared; block = maxBlock; rate = sampleRate;
+      }
+      // ⚠ THE BLOCKING CALL, WITH NO LOCK HELD. This line is the entire fix. Do not hoist it into a
+      // ScopedLock scope "for symmetry with the other control calls" — the symmetry is the bug.
+      if (wasPrepared) clip->transport->prepareToPlay(block, rate);
+      {
+        const juce::ScopedLock sl(lock);
+        if (prepared == wasPrepared && maxBlock == block && sampleRate == rate) {
+          clips[id] = std::move(clip);   // the device did not move under us — commit
+          return;
+        }
+      }
+      // It did move. Drop the lock and prepare again against its new settings.
+    }
+  }
+  // ── Stopping: NEVER under the lock ────────────────────────────────────────────────────────────
+  // AudioTransportSource::stop() BLOCKS. It sets playing=false and then spins — up to 500 × 2 ms —
+  // waiting for the audio thread to acknowledge by setting `stopped`, which it can only do from inside
+  // AudioTransportSource::getNextAudioBlock. Our audio thread reaches that only by taking `lock`. So
+  // calling stop() while holding `lock` is a deadlock that resolves by TIMEOUT: the audio callback is
+  // starved for the full second. Measured on the real device: 1250 ms per stopped clip, 3750 ms for
+  // three. The driver calls stopAll() on every pause, so this was a >1 s dropout every time.
+  //
+  // Every stop() therefore happens OUTSIDE the lock. That is safe because the clip map is mutated only
+  // from the single N-API thread, so a Clip* obtained under the lock cannot be freed underneath us by
+  // another control call — and with the lock released the audio thread runs, acknowledges, and stop()
+  // returns within one block.
+  void removeClip(const std::string& id) {
+    std::unique_ptr<Clip> dead; // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      auto it = clips.find(id);
+      if (it == clips.end()) return;
+      dead = std::move(it->second);
+      clips.erase(it); // the audio thread can no longer reach it, so the rest needs no lock
+    }
+    // Same reason as stopClip: offline, stop() would spin for a second waiting on a callback that is
+    // not running.
+    // Not while rendering: stop() would spin for a second on a callback that is not running (see
+    // stopClip). The clip is already out of `clips`, so the mix loop can no longer reach it anyway.
+    if (!renderingOffline.load()) dead->transport->stop();
+    dead->transport->setSource(nullptr);
+  }
+  /** Undo every render-time silence, and really stop those transports now a callback exists again. */
+  void clearOfflineSilence() {
+    std::vector<juce::AudioTransportSource*> toStop;
+    {
+      const juce::ScopedLock sl(lock);
+      for (auto& kv : clips) {
+        if (!kv.second->silencedOffline) continue;
+        kv.second->silencedOffline = false;
+        toStop.push_back(kv.second->transport.get());
+      }
+    }
+    for (auto* t : toStop) t->stop();   // OUTSIDE the lock: stop() blocks, and the audio thread needs it
+  }
+
+  void stopClip(const std::string& id) {
+    Clip* c = nullptr;
+    { const juce::ScopedLock sl(lock); c = find(id); }
+    if (c == nullptr) return;
+    if (renderingOffline.load()) {
+      // ⚠ DO NOT CALL stop() HERE — and taking the lock first does not help, which was the first
+      // attempt and changed nothing. AudioTransportSource::stop() sets playing=false and then SPINS up
+      // to 500 x 2 ms waiting for `stopped`, which is only ever set inside getNextAudioBlock. Offline,
+      // the thing that calls getNextAudioBlock is the render loop — THIS THREAD, currently stuck inside
+      // stop(). Nobody can acknowledge it, so every stop pays the full second. Measured on a real show:
+      // two stops per rendered frame, 2.5 s per frame, 52 s of a 52 s render.
+      //
+      // So during a render a stop is a FLAG the mix loop honours by skipping the clip outright. That is
+      // instant, and cheaper than a stopped transport — which is still pulled every block so effect
+      // tails can ring out, behaviour a render does not need from a clip that has ended. The real stop
+      // happens at offlineEnd, when there is a callback again to acknowledge it.
+      const juce::ScopedLock sl(lock);
+      c->silencedOffline = true;
+      return;
+    }
+    c->transport->stop();
+  }
+  Clip* find(const std::string& id) { // caller must hold the lock
+    auto it = clips.find(id);
+    return it == clips.end() ? nullptr : it->second.get();
+  }
+  // First enable builds the encoder OUTSIDE the lock — same shape as applyEffects/setMode (decide under
+  // the lock, build outside it, swap under it again): AmbisonicEncoder::Configure() allocates, and dragging
+  // a source in the positioner UI can flip a clip's `spatial` on as a routine gesture, not a one-off. A
+  // MOVE (spatial already on) stays on the cheap SetPosition/Refresh path, entirely under one lock, exactly
+  // as before.
+  void setSpatial(const std::string& id, float x, float y, float z, bool omni) {
+    const spaudio::PolarPosition<float> pos = toPolar(x, y, z);
+    double sr = 0.0;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = find(id);
+      if (c == nullptr) return;
+      c->pos = pos;
+      // Stored even on the rebuild path below, because configureEncoder (prepareToPlay, i.e. every device
+      // re-open) builds from the CLIP rather than from this call's arguments. A source left omni that lost
+      // its omni-ness the next time the operator changed the buffer size would be a lovely bug to chase.
+      const bool wasOmni = c->omni;
+      c->omni = omni;
+      if (!c->spatial || c->encoder == nullptr) {
+        c->spatial = true; // set now, under the lock — see the comment on the swap below for the brief
+                            // window this opens (spatial==true, encoder still null) and why it's benign
+        sr = sampleRate;
+      } else {
+        // A move: just re-aim, and re-weight if the source crossed between everywhere and somewhere.
+        // applyOmni FIRST — SetPosition is what refreshes the coefficients (see applyOmni's note).
+        if (omni != wasOmni) applyOmni(*c->encoder, omni);
+        c->encoder->SetPosition(c->pos);   // the fade smooths both
+        c->encoder->Refresh();
+        return;
+      }
+    }
+    // Reached only on first enable, with no lock held.
+    std::unique_ptr<spaudio::AmbisonicEncoder> enc = buildEncoder(pos, sr, omni); // ← the allocation, OUTSIDE the lock
+    std::unique_ptr<spaudio::AmbisonicEncoder> old; // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      // Re-find: the clip may have been removed by another control call while we were building. (It cannot
+      // have been swapped by a SECOND setSpatial on the same id — control calls all run on the single
+      // N-API thread — so there is no encoder here to race with, only removeClip to guard against.)
+      if (Clip* c = find(id)) {
+        c->spatial = true;
+        old = std::move(c->encoder);
+        c->encoder = std::move(enc);
+      }
+      // Between the lock above and this one, the audio thread could see spatial==true with encoder still
+      // null — getNextAudioBlock's `c.spatial && c.encoder != nullptr` guard then takes the non-spatial
+      // branch for at most one block (the clip plays un-spatialised, not silent), which is the same kind
+      // of brief, benign transient applyEffects accepts while its own swap is in flight.
+    }
+  }
+  void clearSpatial(const std::string& id) {
+    const juce::ScopedLock sl(lock);
+    if (Clip* c = find(id)) c->spatial = false;
+  }
+
+  // ── Effect chains ─────────────────────────────────────────────────────────────────────────────
+  int chanFor(const Clip& c) const noexcept { return c.spatial ? 1 : 2; } // spatial ⇒ mono-first
+
+  // RE-POINT EVERY LOADED CLIP AT A BUFFERED OR UNBUFFERED READER.
+  //
+  // ⚠ THIS IS THE OTHER HALF OF THE OFFLINE SWITCH, AND WITHOUT IT THE ENGINE DEADLOCKS.
+  // loadClip decides buffering when a clip is created, but entering a render changes the answer for
+  // clips that already exist. The first build stopped the read thread and then called prepareToPlay,
+  // and every clip still holding a BufferingAudioSource sat waiting on a thread that was never coming
+  // back: prepareToPlay never returned, the main process blocked forever, and the whole application
+  // read as hung. Measured on a real show, 180 s with no progress.
+  //
+  // Called off the audio thread with no callback attached (offlineBegin/offlineEnd), so allocating and
+  // taking the lock here is safe.
+  void rebuildClipSources(bool buffered, juce::TimeSliceThread* thread) {
+    const juce::ScopedLock sl(lock);
+    for (auto& kv : clips) {
+      auto& c = *kv.second;
+      if (!c.transport || !c.reader) continue;
+      const double pos = c.transport->getCurrentPosition();
+      const bool wasPlaying = c.transport->isPlaying();
+      c.transport->stop();
+      c.transport->setSource(nullptr);   // release the old (possibly buffering) source first
+      c.transport->setSource(c.reader.get(), buffered ? 32768 : 0, buffered ? thread : nullptr, c.sampleRate);
+      c.transport->setPosition(pos);
+      if (wasPlaying) c.transport->start();
+    }
+  }
+
+  void setOutputChannels(int ch) {
+    const juce::ScopedLock sl(lock);
+    outChannels = juce::jmax(1, ch);
+  }
+  void setMasterGain(float g) {
+    const juce::ScopedLock sl(lock);
+    masterGainTarget = juce::jlimit(0.0f, 4.0f, g);
+    masterGain.setGainLinear(masterGainTarget); // NEVER setRampDurationSeconds here — it resets + snaps
+  }
+
+  // Replace an effect chain (empty clipId ⇒ the master chain).
+  //
+  // Three phases, and the order IS the design: decide under the lock, BUILD OUTSIDE it, swap under it.
+  // build() allocates (a reverb's HeapBlocks, a 2 s delay line) and the audio thread holds this lock for
+  // the whole block — so building under it would steal an audio block and click on every effect edit.
+  // `old` is declared before the lock scope so the discarded chain's destructor (a free()) also lands
+  // outside. When nothing structural changed, the params update in place: no malloc, no reset, no click.
+  void applyEffects(const std::string& clipId, std::vector<EffectSpec> specs) {
+    const bool isMaster = clipId.empty();
+    std::unique_ptr<EffectChain> old; // FIRST → destroyed LAST, outside the lock
+    double sr = 48000.0;
+    int mb = 512, nch = 2;
+    bool ready = false;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = isMaster ? nullptr : find(clipId);
+      if (!isMaster && c == nullptr) return; // clip already gone
+      sr = sampleRate;
+      mb = maxBlock;
+      ready = prepared;
+      nch = isMaster ? juce::jmax(1, outChannels) : chanFor(*c);
+      std::vector<EffectSpec>* curSpecs = isMaster ? &masterSpecs : &c->specs;
+      std::unique_ptr<EffectChain>* curChain = isMaster ? &masterChain : &c->chain;
+      if (ready && *curChain != nullptr && (*curChain)->channels() == nch && sameStructure(*curSpecs, specs)) {
+        (*curChain)->updateParams(specs);
+        *curSpecs = std::move(specs);
+        return;
+      }
+      *curSpecs = specs; // remembered: prepareToPlay rebuilds every chain from its specs
+    }
+    if (!ready) return; // no device yet — prepareToPlay will build it from the specs we just stored
+    auto next = EffectChain::build(specs, sr, mb, nch, !isMaster); // ← the expensive part, OUTSIDE the lock
+    {
+      const juce::ScopedLock sl(lock);
+      if (isMaster) { old = std::move(masterChain); masterChain = std::move(next); }
+      else if (Clip* c = find(clipId)) { old = std::move(c->chain); c->chain = std::move(next); }
+    }
+  }
+
+  // A spatial flip changes the chain's channel count (2 ⇔ 1), which invalidates it — an un-rebuilt chain
+  // would hit EffectChain::process's guard and go silently dry. Rebuild only when the shape really moved
+  // (so dragging a source around the pad, which calls setSpatial every frame, costs nothing).
+  void refreshClipChain(const std::string& id) {
+    std::vector<EffectSpec> specs;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = find(id);
+      if (c == nullptr || c->specs.empty()) return;
+      if (c->chain != nullptr && c->chain->channels() == chanFor(*c)) return; // shape unchanged
+      specs = c->specs;
+    }
+    applyEffects(id, std::move(specs));
+  }
+
+  int masterChainChannels() {
+    const juce::ScopedLock sl(lock);
+    return masterChain != nullptr ? masterChain->channels() : 0;
+  }
+  int observedChannels() const noexcept { return observedCh.load(); }
+
+  void stopAll() {
+    std::vector<Clip*> cs;
+    {
+      const juce::ScopedLock sl(lock);
+      cs.reserve(clips.size());
+      for (auto& kv : clips) cs.push_back(kv.second.get());
+    }
+    for (Clip* c : cs) c->transport->stop(); // outside the lock — see removeClip
+  }
+  void clear() {
+    std::unordered_map<std::string, std::unique_ptr<Clip>> dead;
+    { const juce::ScopedLock sl(lock); dead.swap(clips); }
+    for (auto& kv : dead) { kv.second->transport->stop(); kv.second->transport->setSource(nullptr); }
+  }
+
+  double sampleRate = 48000.0;
+
+private:
+  // The pure builder behind setSpatial's first-enable path (see that function). Takes no lock and touches
+  // no member — everything it needs is a parameter — so it is safe to call with the lock released.
+  // configureEncoder() below (prepareToPlay's path, already safe to allocate under its lock) is just this
+  // plus an assignment.
+  static std::unique_ptr<spaudio::AmbisonicEncoder> buildEncoder(spaudio::PolarPosition<float> pos, double sr, bool omni) {
+    auto enc = std::make_unique<spaudio::AmbisonicEncoder>();
+    enc->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sr), kPosFadeMs);
+    applyOmni(*enc, omni);
+    enc->SetPosition(pos);
+    enc->Refresh();
+    return enc;
+  }
+
+  // ⚠ ORDER WEIGHTS ONLY REACH THE COEFFICIENTS THROUGH A Refresh(), AND SetPosition DOES ONE.
+  //
+  // AmbisonicSource::Refresh multiplies each order's spherical-harmonic terms by m_pfOrderWeights[order]
+  // (AmbisonicSource.cpp: `m_pfCoeff[1] = (fSinAzim * fCosElev) * m_pfOrderWeights[1]` and so on), so a
+  // weight set AFTER the last Refresh does nothing at all until the next one. libspatialaudio has this
+  // bug itself in ConfigureDecoderMatrix's 3D branch, where the cube's weights are set and never
+  // refreshed. So this must be called BEFORE SetPosition, which refreshes on the caller's behalf.
+  //
+  // Zeroing order 1 leaves [W, 0, 0, 0] — the omnidirectional encoding. It travels through the SAME
+  // GainInterp as a position change (AmbisonicEncoder::SetPosition pushes the new coefficients into
+  // m_coeffInterp with m_fadingSamples), so toggling a source between everywhere and somewhere fades
+  // over kPosFadeMs instead of clicking.
+  static void applyOmni(spaudio::AmbisonicEncoder& enc, bool omni) {
+    for (unsigned o = 1; o <= kAmbiOrder; ++o) enc.SetOrderWeight(o, omni ? 0.0f : 1.0f);
+  }
+
+  void configureEncoder(Clip& c) { // caller holds the lock — only prepareToPlay calls this (off the audio
+                                    // thread, callback not yet attached, so allocating here is fine)
+    c.encoder = buildEncoder(c.pos, sampleRate, c.omni);
+  }
+
+  // Everything a freshly-built decoder needs. AmbisonicDecoder cannot be rebuilt in place with the lock
+  // released and swapped in by value: it owns a raw `AmbisonicSpeaker*` array freed in its OWN destructor
+  // (see AmbisonicDecoder.h/.cpp), has NO move constructor (a user-declared destructor suppresses the
+  // implicit one), and its only copy constructor is the compiler-generated one — which would shallow-copy
+  // that pointer, leaving two decoders to `delete[]` the same array on destruction. So it is held here by
+  // pointer and swapped by pointer via installDecode(), never copied and never move-assigned in place.
+  struct DecodeBuild {
+    std::unique_ptr<spaudio::AmbisonicDecoder> decoder;
+    bool decoderOk = false;
+    int nSpeakers = 0;
+    std::vector<std::vector<float>> speakerBuf;
+    std::vector<float*> speakerPtrs;
+  };
+
+  // The pure builder behind setMode's rebuild path (see that function). No lock, no member read or write —
+  // everything it needs is a parameter, so it is safe to call with the lock released. This is also what
+  // prepareToPlay calls (build immediately followed by installDecode, back-to-back under ITS lock — safe
+  // there because it runs off the audio thread with the callback not yet attached).
+  static DecodeBuild buildDecode(const juce::String& layoutName, int maxBlockSamples, double sr) {
+    DecodeBuild b;
+    b.decoder = std::make_unique<spaudio::AmbisonicDecoder>();
+    b.decoderOk = b.decoder->Configure(kAmbiOrder, true, (unsigned) maxBlockSamples, (unsigned) sr, layoutFromName(layoutName));
+    b.nSpeakers = b.decoderOk ? (int) b.decoder->GetSpeakerCount() : 0;
+    b.speakerBuf.assign((size_t) juce::jmax(0, b.nSpeakers), std::vector<float>((size_t) maxBlockSamples, 0.0f));
+    b.speakerPtrs.assign((size_t) juce::jmax(0, b.nSpeakers), nullptr);
+    for (int i = 0; i < b.nSpeakers; ++i) b.speakerPtrs[(size_t) i] = b.speakerBuf[(size_t) i].data();
+    return b;
+  }
+
+  // Swaps `b` into the live decoder/buffers. Caller holds the lock. Returns whatever was displaced —
+  // callers that need the discard to happen OUTSIDE the lock (setMode) capture the return value in a
+  // holder declared before their lock scope; prepareToPlay just discards it (fine there — see buildDecode).
+  DecodeBuild installDecode(DecodeBuild&& b) { // caller holds the lock
+    DecodeBuild old;
+    old.decoder = std::move(decoder);
+    old.decoderOk = decoderOk;
+    old.nSpeakers = nSpeakers;
+    old.speakerBuf = std::move(speakerBuf);
+    old.speakerPtrs = std::move(speakerPtrs);
+    decoder = std::move(b.decoder);
+    decoderOk = b.decoderOk;
+    nSpeakers = b.nSpeakers;
+    speakerBuf = std::move(b.speakerBuf);
+    speakerPtrs = std::move(b.speakerPtrs);
+    return old;
+  }
+
+  bool prepared = false;
+  int maxBlock = 512;
+  juce::AudioBuffer<float> scratch;
+  std::vector<float> mono, decodeL, decodeR;
+  spaudio::BFormat bformat;
+  spaudio::AmbisonicBinauralizer binaural;
+  bool binauralOk = false;
+  OutMode mode = OutMode::Binaural;
+  juce::String layout { "stereo" };
+  std::unique_ptr<spaudio::AmbisonicDecoder> decoder; // see DecodeBuild, above, for why this is a pointer
+  bool decoderOk = false;
+  int nSpeakers = 0;
+  std::vector<std::vector<float>> speakerBuf;
+  std::vector<float*> speakerPtrs;
+
+  static constexpr int kMaxSpeakers = 64;   // configure() clamps channels to 64; the patch must cover it
+  std::vector<int> patch;                   // decoder speaker → device channel (identity by default)
+  std::vector<bool> patchUsed;               // setPatch's scratch "which device channels are claimed" —
+                                              // a MEMBER so it's grown once and reset (not reallocated) on
+                                              // every setPatch call, same discipline as `patch` itself; a
+                                              // local here would malloc on every call while `lock` is held
+                                              // (the same disease addClip/stop's comments are about)
+  int toneCh = -1;                          // -1 = off
+  float toneGain = 0.0f;
+  // Samples since the tone was switched on. Drives BOTH the beat phase and the oscillator phase, so the
+  // blip always starts at the top of a beat and the sine is continuous within it. `long long` because a
+  // toggle can be left on: an int overflows after ~13 hours at 48 kHz, and the resulting negative time
+  // would make fmod misbehave rather than merely wrap.
+  long long tonePos = 0;
+
+  // Master insert chain + fader, applied post-decode. `outChannels` is what the device ACTUALLY opened
+  // with (Engine::configure reads it back from the device — asking for 8 on a stereo card gives 2), and
+  // the master chain is built for exactly that. `observedCh` is what the audio thread really sees: if it
+  // ever disagrees with the chain's channel count, the chain has gone silently dry and getMeters() will
+  // say so rather than letting it hide.
+  int outChannels = 2;
+  std::vector<EffectSpec> masterSpecs;
+  std::unique_ptr<EffectChain> masterChain;
+  juce::dsp::Gain<float> masterGain;
+  float masterGainTarget = 1.0f;
+  std::atomic<int> observedCh { 0 };
+};
+
+constexpr int kMaxMeterCh = 8;
+
+// Taps the mixed output for the UI meters. PER-CHANNEL peaks are what make spatialisation verifiable
+// rather than assumed: a hard-left source must give ch0 >> ch1 (a flipped azimuth shows up instantly),
+// and under speaker decode the energy must land on the speakers nearest the source.
+class MeteringAudioSource : public juce::AudioSource {
+public:
+  MeteringAudioSource(juce::AudioSource& s, std::atomic<float>& peak, std::atomic<float>& rms,
+                      std::array<std::atomic<float>, kMaxMeterCh>& chPeaks, std::atomic<bool>& clipped,
+                      SpectrumAnalyser& spec)
+    : src(s), peakOut(peak), rmsOut(rms), chOut(chPeaks), clipOut(clipped), analyser(spec) {}
+  void prepareToPlay(int n, double sr) override { src.prepareToPlay(n, sr); }
+  void releaseResources() override { src.releaseResources(); }
+  // E3 — THE AUDIO CLOCK: every sample the output has been handed, counted where the device pulls them. Read
+  // from any thread (Engine::renderedSamples); an offline render counts too, which nobody reads it for.
+  std::atomic<int64_t> rendered { 0 };
+  void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
+    src.getNextAudioBlock(info);
+    rendered.fetch_add(info.numSamples, std::memory_order_relaxed);
+    float peak = 0.0f, sumSq = 0.0f;
+    int count = 0;
+    std::array<float, kMaxMeterCh> ch {};
+    if (info.buffer != nullptr) {
+      for (int c = 0; c < info.buffer->getNumChannels(); ++c) {
+        const float* d = info.buffer->getReadPointer(c, info.startSample);
+        float cp = 0.0f;
+        for (int i = 0; i < info.numSamples; ++i) {
+          const float a = std::abs(d[i]);
+          cp = juce::jmax(cp, a);
+          sumSq += d[i] * d[i];
+          ++count;
+        }
+        peak = juce::jmax(peak, cp);
+        if (c < kMaxMeterCh) ch[(size_t) c] = cp;
+      }
+    }
+    peakOut.store(peak);
+    rmsOut.store(count > 0 ? std::sqrt(sumSq / (float) count) : 0.0f);
+    for (int c = 0; c < kMaxMeterCh; ++c) chOut[(size_t) c].store(ch[(size_t) c]);
+    // Clipping is LATCHED, not sampled. `peak` is one block's peak and the UI polls at ~10 Hz, so nine
+    // blocks in ten are never seen — a clip indicator built on that would miss most of what it exists to
+    // catch, which is worse than not having one. This sticks until getMeters() reads and clears it.
+    if (peak >= 1.0f) clipOut.store(true);
+
+    // THE SAME TAP THE METERS USE — post master FX and master gain, so the analyser hears what the room
+    // hears rather than what the clips started as. Mono fold + memcpy only; the transform runs on
+    // whoever calls getSpectrum(). See spectrum.h.
+    if (info.buffer != nullptr) analyser.push(*info.buffer, info.startSample, info.numSamples);
+  }
+private:
+  juce::AudioSource& src;
+  std::atomic<float>& peakOut;
+  std::atomic<float>& rmsOut;
+  std::array<std::atomic<float>, kMaxMeterCh>& chOut;
+  std::atomic<bool>& clipOut;
+  SpectrumAnalyser& analyser;
+};
+
+class Engine {
+public:
+  Engine() : metering(bus, meterPeak, meterRms, meterCh, meterClipped, analyser) {}
+  ~Engine() { closeDevice(); }
+
+  struct DeviceCfg {
+    juce::String type;    // '' = keep the current device type
+    juce::String name;    // '' = that type's default device
+    int channels = 2;
+    double sampleRate = 0; // 0 = the device's default
+    int bufferSize = 0;    // 0 = the device's default
+    OutMode mode = OutMode::Binaural;
+    juce::String layout { "stereo" };
+    std::vector<int> patch;   // decoder speaker → device channel (empty ⇒ identity)
+  };
+
+  struct OpenedCfg { juce::String deviceName, deviceType; double sampleRate = 0; int bufferSize = 0; int channels = 0; };
+
+  // The current type's default output device, BY NAME. JUCE resolves "" to the default with the private
+  // insertDefaultDeviceNames() — which initialise() used to call for us and we cannot reach — so an empty
+  // outputDeviceName does not mean "the default" here, it means "create nothing". Name it explicitly.
+  juce::String defaultOutputName() {
+    for (auto* t : deviceManager.getAvailableDeviceTypes()) {
+      if (t->getTypeName() != deviceManager.getCurrentAudioDeviceType()) continue;
+      const auto names = t->getDeviceNames(false);
+      const int di = t->getDefaultDeviceIndex(false);
+      return juce::isPositiveAndBelow(di, names.size()) ? names[di] : juce::String();
+    }
+    return {};
+  }
+
+  juce::String configure(const DeviceCfg& c, OpenedCfg& out) {
+    // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device, so this
+    // MUST run before every guard below: none of them (dead-device check, idempotence guard, the
+    // snapshot block) is about the decoder, and a mode/layout-only change (same device, different
+    // mode/layout) has to take effect even when — ESPECIALLY when — one of those guards ends this call
+    // early without touching the device at all. That is deliberate and load-bearing; do not "clean up"
+    // this ordering by moving it after the guards.
+    //
+    // ⚠ BUT THAT MEANS IT MUST BE ROLLED BACK, TOO. bus.setMode() rebuilds the ambisonic decoder — speaker
+    // count, speakerBuf/speakerPtrs — for the REQUESTED layout immediately, SYNCHRONOUSLY, before we know
+    // whether the requested DEVICE below will even open. If the open fails and the rollback block further
+    // down puts the OLD device back, the decoder must be put back to the OLD mode/layout as well — or the
+    // restored device plays through a decode built for the layout that just failed to open (wrong speaker
+    // count, content routed to the wrong channels). Nothing else catches this: `opened`/`deviceLive` only
+    // know about the device, and the masterFxChannels/deviceChannels diagnostic in GetMeters only checks
+    // the POST-decode chain's width against the device — never the decode's mode/layout itself. See the
+    // rollback block below, where prevMode/prevLayout are applied via a second bus.setMode() call.
+    bus.setMode(c.mode, c.layout);
+    bus.setPatch(c.patch);   // live, decoder-only — changing the patch never reopens the device
+    const int ch = juce::jlimit(1, 64, c.channels);
+
+    // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW. Nothing sets it false when the HARDWARE
+    // goes away — a bumped USB cable, a driver reload, a Windows power-management cycle. JUCE knows
+    // (getCurrentAudioDevice() returns nullptr); the engine simply never asked. Without this line the
+    // Reconnect button takes the early return below and does nothing, and the only way back is a restart.
+    if (deviceManager.getCurrentAudioDevice() == nullptr) opened = false;
+
+    // ⚠ THE GUARD KEYS ON THE WHOLE SETUP, NOT JUST THE CHANNEL COUNT. It used to compare `ch` alone —
+    // so SWITCHING DEVICE at the same channel count (the entire point of a device picker) would have hit
+    // this early return and CHANGED NOTHING. The picker would have looked wired and been inert.
+    if (opened && ch == openedChannels && c.type == openedType && c.name == openedName
+        && c.sampleRate == openedRate && c.bufferSize == openedBuffer) {
+      // The device didn't change, but bus.setMode() above may have — this is exactly how a mode/layout-only
+      // change takes effect (see the comment above it). Record it, or a later rollback would read a STALE
+      // openedMode/openedLayout (from before THIS call) instead of the one now actually live.
+      openedMode = c.mode; openedLayout = c.layout;
+      out = lastOpened;
+      return {}; // already open on exactly this config — don't interrupt playback
+    }
+
+    // ⚠ A FAILED RECONFIGURE MUST NOT LEAVE THE ROOM SILENT. Task 3 made this reachable: configure() used
+    // to only ever open the OS default (which essentially never errors); pinning a named device/type/rate/
+    // buffer is exactly what makes "the operator asked for a combination the device won't grant" something
+    // that gets clicked — a buffer size WASAPI Exclusive won't grant at the requested rate, an unsupported
+    // sample rate, a device that vanished between enumeration and open. So before tearing down a device
+    // that IS working, snapshot exactly what "working" means — the live driver type and the live
+    // AudioDeviceSetup — so a failed open below can put the OLD one straight back instead of leaving
+    // `opened` false with nothing registered to the callback. This MUST be captured before any mutation:
+    // setCurrentAudioDeviceType() a few lines down changes what getCurrentAudioDeviceType() reports, and
+    // closeAudioDevice() does not preserve it for us. Only meaningful when a device was actually open —
+    // `opened` is already the corrected ground truth for that (the dead-device check above ran first).
+    const bool hadGoodDevice = opened;
+    juce::String prevType;
+    juce::AudioDeviceManager::AudioDeviceSetup prevSetup;
+    int prevActualChannels = 0;
+    OutMode prevMode = OutMode::Binaural;
+    juce::String prevLayout { "stereo" };
+    if (hadGoodDevice) {
+      prevType = deviceManager.getCurrentAudioDeviceType();
+      deviceManager.getAudioDeviceSetup(prevSetup);
+      prevActualChannels = lastOpened.channels; // what the bus was ACTUALLY configured for, not what was asked
+      // prevMode/prevLayout come from openedMode/openedLayout, NOT from the bus: bus.setMode(c.mode,
+      // c.layout) at the very top of this call has ALREADY overwritten the bus's mode/layout with the
+      // REQUESTED (possibly-failing) values, so by the time we get here the bus itself can no longer tell
+      // us what was live. openedMode/openedLayout are the engine's own record of the last mode/layout a
+      // successful bus.setMode() call left in place — tracked in lockstep with openedType/openedName
+      // (both here and at the idempotence-guard's early return above), and, like them, deliberately left
+      // untouched on the rollback path below so they keep describing whatever ends up actually live.
+      prevMode = openedMode;
+      prevLayout = openedLayout;
+    }
+
+    if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
+    liveSampleRate.store(0.0);
+
+    // ⚠ SCAN, DO NOT OPEN. This was `deviceManager.initialise(0, ch, nullptr, true)`, and the name hid
+    // what it did: initialise() does not merely build the device-type list — it OPENS THE PLATFORM
+    // DEFAULT DEVICE, before we have said one word about the device the operator actually chose. So
+    // every cold start opened a device we did not want, threw it away, and opened the right one.
+    //
+    // On this rig that is the entire cold start. Opening the onboard Realtek endpoint in WASAPI SHARED
+    // mode — which is the platform default — costs ~5.4 s (measured; exclusive mode is 1.0 s, DirectSound
+    // 0.37 s, ASIO 0.05 s on the same speakers), and `configure` is synchronous on the main process's JS
+    // thread, so for that whole time main serves nothing: no byte over artlux-media://, no prefs read, no
+    // audio conform, no metrics scrape, no tablet request. Measured in the app, with ASIO selected:
+    //     initialise 5471ms + switch-to-ASIO 1817ms + open-ASIO 54ms  =  7342 ms
+    //     scan 62ms          + switch-to-ASIO  288ms + open-ASIO 53ms =   403 ms
+    // and end to end on a 10-scene project, 3 runs: cold open 7806 ms -> 706 ms.
+    //
+    // getAvailableDeviceTypes() does the half we actually need — it scans (39 ms for all five types
+    // here) and populates the list setCurrentAudioDeviceType() reads — and opens nothing.
+    //
+    // ⚠ IT ALSO TOOK A SAFETY NET AWAY, AND THAT IS THE HALF THAT IS EASY TO MISS. The `true` in the old
+    // call was `selectDefaultDeviceOnFailure`: a first-ever configure naming a device that will not open
+    // still left the DEFAULT one open, so the room made sound even though this function returned an
+    // error. Nothing else provided that. The `!hadGoodDevice` branch below now provides it explicitly.
+    if (!initialised) {
+      deviceManager.getAvailableDeviceTypes();   // scan only — opens no device
+      initialised = true;
+    }
+    if (c.type.isNotEmpty() && c.type != deviceManager.getCurrentAudioDeviceType())
+      deviceManager.setCurrentAudioDeviceType(c.type, true);
+
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup(setup);
+    setup.outputDeviceName = c.name;      // '' ⇒ the type's default device
+    setup.inputDeviceName = {};
+    setup.sampleRate = c.sampleRate;      // 0 ⇒ device default
+    setup.bufferSize = c.bufferSize;      // 0 ⇒ device default
+    setup.useDefaultInputChannels = false;
+    setup.inputChannels.clear();
+    setup.useDefaultOutputChannels = false;
+    setup.outputChannels.clear();
+    setup.outputChannels.setRange(0, ch, true);
+    juce::String err = deviceManager.setAudioDeviceSetup(setup, true);
+    // ⚠ NO ERROR IS NOT THE SAME AS A DEVICE. Asked for an empty device name — which is every machine
+    // that has never chosen one, i.e. a fresh install — JUCE reports SUCCESS and creates nothing. The
+    // engine then took the success path, set `opened = true`, and reported an OpenedCfg with an empty
+    // device name over a silent machine. initialise() used to hide this by having already opened the
+    // default. Caught by testing configure({type:'', name:''}) and reading deviceLive back: false.
+    const auto deviceOrNull = [this] { return deviceManager.getCurrentAudioDevice(); };
+    if (err.isEmpty() && deviceOrNull() == nullptr) err = "no audio device was opened";
+    // A caller that named NO device is asking for the default, so resolve it and try once more. That
+    // keeps the ordinary unconfigured-machine path on the SUCCESS path below (it is not an error), and
+    // leaves the failure branch for a device that was actually named and actually could not open.
+    if (err.isNotEmpty() && c.name.isEmpty()) {
+      const auto defName = defaultOutputName();
+      if (defName.isNotEmpty()) {
+        setup.outputDeviceName = defName;
+        err = deviceManager.setAudioDeviceSetup(setup, true);
+        if (err.isEmpty() && deviceOrNull() == nullptr) err = "no audio device was opened";
+      }
+    }
+    if (err.isNotEmpty()) {
+      // Nothing was open before this call (first-ever configure, or the previous device had already died —
+      // see the dead-device invalidation above) — there is no "last known good" to roll back to.
+      //
+      // ⚠ SO FALL BACK TO THE DEFAULT, WHICH IS WHAT initialise(..., selectDefaultDeviceOnFailure=true)
+      // USED TO DO FOR US. It is gone (see the scan above), and without this line a venue whose sound
+      // card is named wrong in the project — a renamed interface, a different machine, a typo — comes up
+      // SILENT instead of coming up on the built-in output. The error is still returned either way, so
+      // Preferences still says the requested device failed; the difference is whether the room can hear
+      // anything while somebody fixes it.
+      if (!hadGoodDevice) {
+        const auto defName = defaultOutputName();   // explicitly — see defaultOutputName()
+        if (defName.isEmpty()) return err;     // this type has no devices at all — nothing to fall back to
+        juce::AudioDeviceManager::AudioDeviceSetup fb;
+        deviceManager.getAudioDeviceSetup(fb);
+        fb.outputDeviceName = defName;
+        fb.inputDeviceName = {};
+        fb.sampleRate = 0; fb.bufferSize = 0;  // 0 ⇒ whatever the device prefers
+        fb.useDefaultInputChannels = false;
+        fb.inputChannels.clear();
+        fb.useDefaultOutputChannels = true;
+        if (deviceManager.setAudioDeviceSetup(fb, false).isNotEmpty()) return err; // nothing opened at all
+        int fbActual = 2;
+        if (auto* dev = deviceManager.getCurrentAudioDevice())
+          fbActual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+        bus.setOutputChannels(fbActual);       // BEFORE setSource — same order as the success path
+        // The decode was already rebuilt for the layout that just failed to open; the fallback device is
+        // not that device. Put it back to something the channel count can carry, exactly as the rollback
+        // branch below does with prevMode/prevLayout.
+        bus.setMode(openedMode, openedLayout);
+        if (!readThread.isThreadRunning()) readThread.startThread();
+        player.setSource(&metering);
+        deviceManager.addAudioCallback(&player);
+        opened = true;
+        // openedType/openedName/... are deliberately NOT updated — same reasoning as the rollback branch:
+        // the requested setup is not live, and recording it would make the idempotence guard believe it is,
+        // so the operator's next attempt to fix the name would take the early return and do nothing.
+        return err;
+      }
+
+      // ⚠ ROLL BACK, NOT DOWN. Put the previous type + setup straight back — the SAME open sequence the
+      // success path below uses, just with the OLD numbers — so the show keeps making sound. None of this
+      // runs under `bus.lock`: it is JS/native-thread work, exactly like the open attempt above and the
+      // teardown before it. See SpatialBus::addClip's comment block for why a blocking device open under
+      // the audio lock is the one bug this engine cannot afford to repeat.
+      if (deviceManager.getCurrentAudioDeviceType() != prevType)
+        deviceManager.setCurrentAudioDeviceType(prevType, true);
+      const juce::String rollbackErr = deviceManager.setAudioDeviceSetup(prevSetup, true);
+      if (rollbackErr.isNotEmpty())
+        return "requested device failed to open (" + err + ") AND the previous device could not be "
+               "restored (" + rollbackErr + ") — audio is now silent, a restart is required";
+
+      int restoredActual = prevActualChannels;
+      if (auto* dev = deviceManager.getCurrentAudioDevice())
+        restoredActual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+      bus.setOutputChannels(restoredActual);   // BEFORE setSource — see the success path below
+      // Put the DECODE back too. bus.setMode(c.mode, c.layout) at the top of this call already rebuilt the
+      // ambisonic decoder for the layout that just failed to open — the device being restored above was
+      // never opened with that layout; it was opened (and is being put back) with prevMode/prevLayout. Skip
+      // this and the restored device would be live and audible but decoding into the WRONG mode/layout —
+      // looks wired, meters normally (masterFxChannels/deviceChannels only check the POST-decode chain's
+      // width against the device, never the decode itself), and is silently wrong. Decoder-only, so — like
+      // the call at the top of configure() — this cannot fail and does not touch the device.
+      bus.setMode(prevMode, prevLayout);
+      if (!readThread.isThreadRunning()) readThread.startThread();
+      player.setSource(&metering);
+      deviceManager.addAudioCallback(&player);
+      opened = true;
+      // openedType/openedName/openedChannels/openedRate/openedBuffer/openedMode/openedLayout/lastOpened
+      // are DELIBERATELY left untouched here: the failed attempt never reached the point (below) where
+      // they get overwritten, so they still describe exactly the setup — and now, the decode — we just put
+      // back. Rewriting them to the REQUESTED (failed) setup would make the guard above believe that setup
+      // is live — the operator's next attempt to fix it would then take the early return and do nothing,
+      // the same trap the dead-device invalidation above exists to avoid.
+      return err; // the requested setup still failed — the caller (and the Preferences panel) must know
+    }
+
+    // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2), and at a
+    // different rate/buffer than requested. The master chain must be built for what we ACTUALLY got, or it
+    // sees a channel-count mismatch every block and passes dry. Push it BEFORE addAudioCallback — that is
+    // what triggers prepareToPlay, which builds it.
+    int actual = ch;
+    if (auto* dev = deviceManager.getCurrentAudioDevice()) {
+      actual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+      out.deviceName = dev->getName();
+      out.sampleRate = dev->getCurrentSampleRate();
+      liveSampleRate.store(out.sampleRate);   // E3: the audio clock's rate
+      out.bufferSize = dev->getCurrentBufferSizeSamples();
+    }
+    out.deviceType = deviceManager.getCurrentAudioDeviceType();
+    out.channels = actual;
+    bus.setOutputChannels(actual);
+    if (!readThread.isThreadRunning()) readThread.startThread();
+    player.setSource(&metering);
+    deviceManager.addAudioCallback(&player);
+    opened = true;
+    openedChannels = ch; openedType = c.type; openedName = c.name;
+    openedRate = c.sampleRate; openedBuffer = c.bufferSize;
+    openedMode = c.mode; openedLayout = c.layout;
+    lastOpened = out;
+    return {};
+  }
+
+  // ⚠ IS THERE A DEVICE — WHICH IS NOT THE SAME QUESTION AS "DID THE ADDON LOAD".
+  //
+  // The UI's only probe was `audio:available`, and it reports ONLY whether the .node loaded. The addon is
+  // still perfectly loaded when the interface is unplugged, so Preferences went on printing
+  //     "Native JUCE + ambisonic engine active · output device: Focusrite Scarlett 2i2"
+  // over a silent room, NAMING A DEVICE THAT WAS PHYSICALLY GONE. That is the same self-reporting-healthy
+  // failure the missing-engine notice fixed in Session 0 — fixed once, in one place, and the lesson never
+  // reached the device layer.
+  //
+  // Rides the meters poll, which already runs at 10 Hz and already crosses IPC (see GetMeters). No new
+  // channel, no new timer.
+  bool deviceLive() { return deviceManager.getCurrentAudioDevice() != nullptr; }
+
+  struct DeviceEntry { juce::String type, name; bool isDefault; };
+
+  // ⚠ NO NAME-LEVEL DEDUPE. One physical interface is enumerated under FOUR driver types — WASAPI shared,
+  // WASAPI exclusive, WASAPI shared-low-latency, DirectSound — all under the SAME NAME. The old dedupe
+  // collapsed them into one row and threw away the only thing that told them apart, which is why EXCLUSIVE
+  // MODE — the thing that delivers discrete 8-channel output on Windows — was already compiled in, already
+  // enumerated, and completely unreachable.
+  std::vector<DeviceEntry> listOutputDevices() {
+    std::vector<DeviceEntry> out;
+    juce::OwnedArray<juce::AudioIODeviceType> types;
+    deviceManager.createAudioDeviceTypes(types);
+    for (auto* t : types) {
+      t->scanForDevices();
+      const auto names = t->getDeviceNames(false);
+      const int def = t->getDefaultDeviceIndex(false);
+      for (int i = 0; i < names.size(); ++i)
+        out.push_back({ t->getTypeName(), names[i], i == def });
+    }
+    return out;
+  }
+
+  bool loadClip(const std::string& id, const juce::String& path, Clip*& out, juce::String& err) {
+    juce::File f(path);
+    if (!f.existsAsFile()) { err = "file not found: " + path; return false; }
+    auto* rawReader = formats().createReaderFor(f);
+    if (rawReader == nullptr) { err = "no decoder for " + path; return false; }
+    auto clip = std::make_unique<Clip>();
+    clip->sampleRate = rawReader->sampleRate;
+    clip->channels = (int) rawReader->numChannels;
+    clip->lengthSec = rawReader->sampleRate > 0 ? (double) rawReader->lengthInSamples / rawReader->sampleRate : 0.0;
+    clip->reader = std::make_unique<juce::AudioFormatReaderSource>(rawReader, true);
+    clip->transport = std::make_unique<juce::AudioTransportSource>();
+    // READ-AHEAD, EXCEPT WHEN RENDERING OFF THE CLOCK.
+    //
+    // Live, a BufferingAudioSource on a background thread is what keeps the audio callback off the
+    // disk: prefill 0.25 s, stream the rest, and on an underrun return SILENCE rather than block —
+    // correct for a show, where a dropout is better than a stall.
+    //
+    // A non-realtime render pulls faster than any disk, so that underrun is not an edge case, it is
+    // the normal case: the render would be peppered with silence that differs run to run, which is the
+    // one thing a render must never be. With readAheadSize 0 and no thread, getNextAudioBlock reads
+    // synchronously on the calling thread and simply takes as long as it takes.
+    if (offline)
+      clip->transport->setSource(clip->reader.get(), 0, nullptr, rawReader->sampleRate);
+    else
+      clip->transport->setSource(clip->reader.get(), 32768, &readThread, rawReader->sampleRate);
+    out = clip.get();
+    bus.removeClip(id); // replace any existing source under this id
+    bus.addClip(id, std::move(clip));
+    return true;
+  }
+
+  void unloadClip(const std::string& id) { bus.removeClip(id); }
+
+  // A CLIP'S GAIN IS BOUNDED HERE, exactly as the master's is in setMasterGain — this is the last door
+  // before the amplifier and it is the one door a number cannot be typed past. The persisted
+  // AudioClip.gain / AudioTrack.gain are coerced for FINITENESS only on the JS side (sanitizeAudioClip),
+  // so a hand-edited or tool-generated project carrying "gain": 20 used to arrive here verbatim and play
+  // at 20×. The renderer now bounds it to the target's declared range (0..1.5) before it is sent; this is
+  // the belt to that pair of braces, and it holds even for a caller that has not read the contract.
+  static float boundedGain(float g) noexcept {
+    return std::isfinite(g) ? juce::jlimit(0.0f, 4.0f, g) : 1.0f;
+  }
+  void playClip(const std::string& id, double seekSec, float gain) {
+    const juce::ScopedLock sl(bus.lock);
+    if (Clip* c = bus.find(id)) {
+      // Playing a clip clears any render-time silence (see SpatialBus::stopClip).
+      c->silencedOffline = false;
+      c->transport->setGain(boundedGain(gain));
+      c->transport->setPosition(juce::jmax(0.0, seekSec));
+      c->transport->start();
+    }
+  }
+  void stopClip(const std::string& id) { bus.stopClip(id); } // stops OUTSIDE the lock — see SpatialBus::removeClip
+  void setClipGain(const std::string& id, float gain) {
+    const juce::ScopedLock sl(bus.lock);
+    if (Clip* c = bus.find(id)) c->transport->setGain(boundedGain(gain));
+  }
+  // Flipping `spatial` changes the clip chain's channel count (2 ⇔ 1), so the chain is rebuilt after —
+  // refreshClipChain is a no-op when the shape didn't actually move, so dragging the positioner is free.
+  void setClipSpatial(const std::string& id, float x, float y, float z, bool omni) {
+    bus.setSpatial(id, x, y, z, omni);
+    bus.refreshClipChain(id);
+  }
+  void clearClipSpatial(const std::string& id) {
+    bus.clearSpatial(id);
+    bus.refreshClipChain(id);
+  }
+  void setClipEffects(const std::string& id, std::vector<EffectSpec> specs) { bus.applyEffects(id, std::move(specs)); }
+  void setMasterEffects(std::vector<EffectSpec> specs) { bus.applyEffects({}, std::move(specs)); } // {} ⇒ master
+  void setMasterGain(float g) { bus.setMasterGain(g); }
+  void setTestTone(int ch, float g) { bus.setTestTone(ch, g); }
+  void stopAll() { bus.stopAll(); }
+
+  // The transform runs HERE, on whoever polls — not on the audio thread. See spectrum.h.
+  void spectrum(float* out) {
+    // Ask the DEVICE, not a cached number: the analyser converts bins to hertz, so a stale rate does
+    // not blur the answer, it moves every band to the wrong frequency. 0 when there is no device,
+    // which read() treats as silence.
+    auto* dev = deviceManager.getCurrentAudioDevice();
+    analyser.read(out, dev != nullptr ? dev->getCurrentSampleRate() : 0.0);
+  }
+  float peak() const { return meterPeak.load(); }
+  float rms() const { return meterRms.load(); }
+  float chPeak(int i) const { return (i >= 0 && i < kMaxMeterCh) ? meterCh[(size_t) i].load() : 0.0f; }
+  int speakerCount() { return bus.speakerCount(); }
+  int masterFxChannels() { return bus.masterChainChannels(); }
+  int deviceChannels() const { return bus.observedChannels(); }
+  // E3: the audio clock — samples rendered to the device, and the rate they play at (0 with no device open).
+  int64_t renderedSamples() const { return metering.rendered.load(std::memory_order_relaxed); }
+  double liveRate() const { return liveSampleRate.load(); }
+  std::atomic<double> liveSampleRate { 0.0 };
+  bool takeClipped() { return meterClipped.exchange(false); } // read-and-clear: "has it clipped since you last asked"
+
+  void closeDevice() {
+    if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
+    bus.clear();
+    if (readThread.isThreadRunning()) readThread.stopThread(2000);
+  }
+
+  // ---- NON-REALTIME RENDERING ------------------------------------------------------------------
+  //
+  // The DSP graph was already device-independent and nothing here changes it: SpatialBus is a plain
+  // juce::AudioSource, and prepareToPlay(block, sr) rebuilds every buffer, the BFormat, the
+  // binauralizer, the speaker decode, the master gain + chain and every clip's transport/encoder/chain
+  // for an arbitrary rate without touching AudioDeviceManager. All that was missing was a way in.
+  //
+  // Three calls rather than one render(): the caller has to be able to evaluate automation, fades and
+  // scene recalls BETWEEN blocks, exactly as the live driver does per frame. A one-shot bounce would
+  // have to own the show's timeline, which belongs in the renderer.
+  bool offlineBegin(double sr, int block, int channels, juce::String& err) {
+    if (offline) { err = "already rendering"; return false; }
+    if (!(sr >= 8000.0) || block < 16 || channels < 1) { err = "bad offline config"; return false; }
+    // Detach the device first. Two pullers on one graph would interleave blocks and the render would
+    // get every other one.
+    if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
+    if (readThread.isThreadRunning()) readThread.stopThread(2000);
+
+    offline = true;
+    bus.renderingOffline.store(true);
+    // Every ALREADY-LOADED clip still has a buffering source pointed at the thread just stopped. Give
+    // them synchronous readers before anything asks them to prepare, or prepareToPlay blocks forever
+    // waiting on a prefill that cannot happen. See SpatialBus::rebuildClipSources.
+    bus.rebuildClipSources(false, nullptr);
+    // BEFORE prepareToPlay, not after: the master chain is BUILT at this width, and a chain whose
+    // width does not match the block it is handed passes DRY (effects.h) — every master insert would
+    // silently do nothing, which is a bug you hear only by comparing against the live show.
+    bus.setOutputChannels(channels);
+    bus.prepareToPlay(block, sr);
+    offlineBlock = block;
+    offlineChannels = channels;
+    offlineBuf.setSize(channels, block);
+    return true;
+  }
+
+  // Pull exactly `frames` sample frames, interleaved, into `dst` (frames * channels floats).
+  // Returns the number of frames written, which is `frames` unless we are not rendering.
+  int offlinePull(float* dst, int frames) {
+    if (!offline || dst == nullptr || frames <= 0) return 0;
+    int done = 0;
+    while (done < frames) {
+      const int n = juce::jmin(offlineBlock, frames - done);
+      if (offlineBuf.getNumSamples() < n) offlineBuf.setSize(offlineChannels, n, false, false, true);
+      offlineBuf.clear();
+      juce::AudioSourceChannelInfo info(&offlineBuf, 0, n);
+      bus.getNextAudioBlock(info);
+      // Interleave: WebCodecs' AudioData and every WAV writer want frames, not planes.
+      for (int i = 0; i < n; ++i)
+        for (int c = 0; c < offlineChannels; ++c)
+          dst[(done + i) * offlineChannels + c] = offlineBuf.getReadPointer(c)[i];
+      done += n;
+    }
+    return done;
+  }
+
+  void offlineEnd() {
+    if (!offline) return;
+    offline = false;
+    bus.renderingOffline.store(false);
+    bus.clearOfflineSilence();   // or every clip stopped during the render stays mute for the show
+    bus.releaseResources();
+    offlineBuf.setSize(0, 0);
+    // Hand the clips back their read-ahead. Leaving them synchronous would move every disk read onto
+    // the audio thread for the rest of the session — which is the one thing that must never happen
+    // there, and it would be heard as clicks rather than seen as anything.
+    if (!readThread.isThreadRunning()) readThread.startThread();
+    bus.rebuildClipSources(true, &readThread);
+    offlineBuf.setSize(0, 0);
+  }
+
+  bool isOffline() const { return offline; }
+  int offlineChannelCount() const { return offlineChannels; }
+
+private:
+  juce::AudioDeviceManager deviceManager;
+  juce::AudioSourcePlayer player;
+  SpatialBus bus;
+  std::atomic<float> meterPeak { 0.0f };
+  std::atomic<float> meterRms { 0.0f };
+  std::array<std::atomic<float>, kMaxMeterCh> meterCh {};
+  std::atomic<bool> meterClipped { false };
+  // Declared before , which holds a reference to it: member init order is declaration
+  // order, and binding a reference to a not-yet-constructed member is how this crashes on the first
+  // block rather than at startup.
+  SpectrumAnalyser analyser;
+  MeteringAudioSource metering;                 // declared after bus + meters + analyser
+  juce::TimeSliceThread readThread { "artlux-audio-read" };
+  bool opened = false;
+  // Non-realtime render state. `offline` also changes how loadClip builds a transport (see there).
+  bool offline = false;
+  int offlineBlock = 512;
+  int offlineChannels = 2;
+  juce::AudioBuffer<float> offlineBuf;
+  int openedChannels = 0;
+  bool initialised = false;
+  juce::String openedType, openedName;
+  double openedRate = 0;
+  int openedBuffer = 0;
+  // The last mode/layout a SUCCESSFUL bus.setMode() call left in place — i.e. the decode that matches
+  // whatever device is actually live. Tracked the same way as openedType/openedName (updated at the same
+  // two sites: the idempotence-guard early return and the full open-success path; deliberately untouched
+  // on the rollback path) so configure()'s rollback block has somewhere safe to read a PREVIOUS mode/layout
+  // from — the bus's own mode/layout members are not safe to read there, because the unconditional
+  // bus.setMode(c.mode, c.layout) at the top of configure() has already overwritten them with the
+  // REQUESTED (possibly-failing) values by the time the rollback block runs.
+  OutMode openedMode = OutMode::Binaural;
+  juce::String openedLayout { "stereo" };
+  OpenedCfg lastOpened;
+};
+
+// A RAW, DELIBERATELY-LEAKED POINTER — NOT a unique_ptr, and that is the whole point.
+//
+// As a std::unique_ptr this is a namespace-scope object with a non-trivial destructor, so the C++
+// runtime registers it with __cxa_finalize and destroys it during exit() — AFTER JUCE's own statics
+// have gone. ~AudioDeviceManager then unhooks its MIDI device-list connection from a list that no
+// longer exists, and the process dies with SIGSEGV in the middle of shutting down. On macOS that was
+// every single quit (EXC_BAD_ACCESS in ArtLux's crash reports, faulting thread CrBrowserMain,
+// __cxa_finalize_ranges → ~AudioDeviceManager → MidiDeviceListConnection).
+//
+// A raw pointer has a TRIVIAL destructor: nothing is registered, nothing runs at exit, and a process
+// that ends without calling close() simply leaks an engine it was about to stop owning anyway. The
+// orderly teardown still happens — the audio plugin's deactivate() calls close() below while the
+// process is alive (src/main/host/plugins.ts) — but it is no longer the only thing standing between
+// a quit and a crash report.
+Engine* gEngine = nullptr;
+Engine& ensureEngine() { if (!gEngine) gEngine = new Engine(); return *gEngine; }
+
+} // namespace
+
+#if defined(_WIN32)
+#define ARTLUX_AUDIO_CONTROL_THREAD 1
+#endif
+
+namespace control {
+#ifdef ARTLUX_AUDIO_CONTROL_THREAD
+std::mutex m;
+std::deque<std::function<void()>> q;
+bool stopping = false;
+HANDLE wake = nullptr;      // auto-reset: a task was posted
+std::thread th;
+
+void post(std::function<void()> f) {
+  { std::lock_guard<std::mutex> lk(m); q.push_back(std::move(f)); }
+  SetEvent(wake);
+}
+
+void loop(std::promise<void>* ready) {
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);   // an STA, as Electron's main thread is
+  juce::MessageManager::getInstance();                  // THIS thread is JUCE's message thread
+  ready->set_value();
+  for (;;) {
+    std::deque<std::function<void()>> batch;
+    { std::lock_guard<std::mutex> lk(m); batch.swap(q); if (stopping && batch.empty()) break; }
+    for (auto& f : batch) {
+      try { f(); } catch (...) { /* a task's own finisher reports; never let one take the thread down */ }
+    }
+    // Pump whatever is waiting for the message thread, then sleep until a task or a message arrives.
+    MSG msg;
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&msg); DispatchMessage(&msg); }
+    if (!batch.empty()) continue;
+    MsgWaitForMultipleObjectsEx(1, &wake, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+  }
+  CoUninitialize();
+}
+
+void start() {
+  wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+  std::promise<void> ready;
+  auto f = ready.get_future();
+  th = std::thread(loop, &ready);
+  f.wait();   // the message manager exists before any engine call is posted
+}
+#endif
+} // namespace control

@@ -6,6 +6,8 @@ publish = false
 description = "ArtLux native render engine (E0 skeleton)"
 
 [dependencies]
+# E3: the app's JUCE audio engine as a C library (native/audio-engine/src/capi.cpp), loaded at run time (audio.rs).
+libloading = "0.8"
 # E4b: the 3D view's floor numbers, rasterised from a system monospace font (labels.rs). Already in the lock via winit.
 ab_glyph = "0.2.32"
 # PINNED EXACTLY (plan §8 risk 4): the zero-copy imports lean on wgpu-hal APIs that are not stable

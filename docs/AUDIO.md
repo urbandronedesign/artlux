@@ -39,9 +39,14 @@ tutorial.
 
 ```
 native/audio-engine/
-  src/engine.cpp        the transport + the bus: SpatialBus (ambisonic encode → binaural/speaker decode),
-                        Clip (transport + encoder + chain), the master fader, metering, device
-                        management, and the N-API surface
+  src/core.h            THE ENGINE: the transport + the bus: SpatialBus (ambisonic encode → binaural/speaker
+                        decode), Clip (transport + encoder + chain), the master fader, metering (and the
+                        audio clock — samples handed to the device), device management, the control thread
+  src/engine.cpp        front door 1: the N-API surface → audio_engine.node (what the app plays through)
+  src/capi.cpp          front door 2: the SAME core as a C library → artlux_audio.dll, loaded at run time by the
+                        native engine (engine/artlux-engine/src/audio.rs — plans/native-engine.md E3, "JUCE in
+                        the engine process"). One `npm run build:audio` builds both; `npm run test:engine-audio`
+                        runs it inside the engine and measures the audio clock against the wall
   src/effects.h         the DSP: GainFx / FilterFx / ReverbFx / DelayFx / CompFx, and EffectChain.
                         build() ALLOCATES (the control thread, never under the lock); setParams()/process() are
                         allocation-free and run under it. `buildable()` is where a master reverb is

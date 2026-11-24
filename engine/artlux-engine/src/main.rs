@@ -9,6 +9,7 @@
 //!   artlux-engine --eval-cases <in.json>   the time evaluators on a list of cases (E3c parity)
 //!   artlux-engine --light-cases <in.json>  the lighting evaluators on a list of cases (E3e parity)
 //!   artlux-engine --pack-cases <in.json>   the light byte solve on a list of cases (E3f parity)
+//!   artlux-engine --audio-selftest [--seconds N] [--clip f.wav] [--gain g]   JUCE in this process: the audio clock vs the wall (E3)
 //!   artlux-engine --serve                     ArtLux main's child: hello / ping / pong / quit on stdio (E1a)
 //!   artlux-engine --info                      every adapter the native API offers, best first
 //!   artlux-engine --selftest                  the headless test on the best HARDWARE adapter
@@ -32,6 +33,13 @@ fn main() -> ExitCode {
         let cases: serde_json::Value = match std::fs::read_to_string(inp).ok().and_then(|s| serde_json::from_str(&s).ok()) { Some(v) => v, None => { eprintln!("unreadable {inp}"); return ExitCode::from(2); } };
         println!("{}", artlux_engine::lightpack::run_cases(&cases));
         return ExitCode::SUCCESS;
+    }
+    // E3: JUCE in the engine process — the audio library loaded, a device opened, the audio clock measured.
+    if has("--audio-selftest") {
+        return match artlux_engine::audio::selftest(&args) {
+            Ok(v) => { println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default()); ExitCode::SUCCESS }
+            Err(e) => { eprintln!("audio selftest: {e}"); ExitCode::from(1) }
+        };
     }
     // E3e parity: the lighting evaluators (light.rs) on a list of cases.
     if let Some(i) = args.iter().position(|a| a == "--light-cases") {

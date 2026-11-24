@@ -178,3 +178,15 @@ if (!fs.existsSync(src)) {
 }
 fs.copyFileSync(src, dest);
 console.log(`[build-audio] ${path.basename(src)} -> ${path.relative(process.cwd(), dest)}`);
+
+// E3: the same engine as a C library, for the native engine (native/audio-engine/src/capi.cpp — JUCE in the
+// engine process). Built by the same cmake-js pass; a missing one only warns, because the addon above is what the
+// app plays through today and the native engine degrades without it.
+const libName = process.platform === 'win32' ? 'artlux_audio.dll' : process.platform === 'darwin' ? 'libartlux_audio.dylib' : 'libartlux_audio.so';
+const libSrc = [path.join(base, 'build', 'Release', libName), path.join(base, 'build', libName)].find((p) => fs.existsSync(p));
+if (libSrc) {
+  fs.copyFileSync(libSrc, path.join(base, libName));
+  console.log(`[build-audio] ${libName} -> ${path.relative(process.cwd(), path.join(base, libName))}`);
+} else {
+  console.warn(`[build-audio] WARNING: no ${libName} was built — the native engine will run without sound.`);
+}

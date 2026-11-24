@@ -2147,6 +2147,31 @@ fallback until a source/output is proven byte-identical — risk 2):
 > - **Not covered:** a shader / text / live source as the next clip (held until the app's document arrives), and a
 >   4K film (none on this machine in BT.709). **Next: JUCE in the engine process** — the clock it runs is then the
 >   audio clock.
+>
+> ✅ **E3l done 2026-11-24 — JUCE IN THE ENGINE PROCESS (stage 1: the library, and the audio clock measured).**
+> native/audio-engine had one file doing two jobs: the engine (bus, clips, device, metering) and its N-API
+> surface. It is now ONE CORE BEHIND TWO FRONT DOORS: `core.h` (the engine, moved verbatim, plus the control thread),
+> `engine.cpp` (the N-API addon the app plays through — unchanged behaviour) and `capi.cpp` (the same core as a C
+> library, `artlux_audio.dll`: configure, load / play / stop a clip, gains, meters, close — answering calls block on
+> the control thread, the rest queue in order). One `npm run build:audio` builds both; the package ships the library
+> next to the engine. The engine loads it at run time (`audio.rs`, libloading — absent, the engine runs silent as
+> before).
+> - **The audio clock:** `MeteringAudioSource` — where the device pulls samples — now counts them, and
+>   `artlux_audio_clock` reads the count and the open rate from any thread (two atomics, no control-thread trip).
+> - **Measured** (`test:engine-audio`, the packaged layout): JUCE 8.0.14 inside the engine, the default output
+>   opened (48 kHz, 480-sample buffer), the test tone on the output meter, 480 000 samples in 10 s exactly, and the
+>   sound card's clock **−8 to −10 ppm** from the wall over ~1900 readings — ~35 ms an hour. That is the drift the
+>   app's driver corrects today by re-seeking a sounding clip whenever it parts 50 ms from the show clock.
+> - The addon is unchanged by the split: test-audio-offline (Node and Electron) and the effects suite (16/16) pass
+>   on the rebuilt addon. `verify:invariants`: one core behind both doors (no engine class in either front door, no
+>   N-API in the core), the clock counted at the device pull, the ABI matched, the library packaged (mutation-
+>   tested); the two older audio checks now read the core where the code moved.
+> - **Found on the way:** cmake-js's own Visual Studio detection fails in this shell although the configured build
+>   works — documented in DEVELOPMENT.md with the direct `cmake --build` route.
+> - **Next (stage 2):** the engine's transport takes its time from the audio clock while a device is open (the
+>   anchor's origin re-based on audio samples, not the wall), and the driver's clip plays move into the engine
+>   (`plugins/audio` sends the bed and clips as document, not as per-frame play / re-seek calls) — then the app's
+>   re-seek loop has nothing left to correct.
 
 ## 9d. E4 started early — the 3D view in the engine (owner, 2026-11-24)
 

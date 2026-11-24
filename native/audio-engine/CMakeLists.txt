@@ -51,7 +51,8 @@ if(NOT spatialaudio_POPULATED)
 endif()
 
 # ── The addon target ────────────────────────────────────────────────────────────────────────────
-file(GLOB SOURCE_FILES "src/*.cpp")
+# engine.cpp ONLY: capi.cpp is the other front door (artlux_audio, below) — the same core, a C surface.
+set(SOURCE_FILES src/engine.cpp)
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${CMAKE_JS_SRC})
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "" SUFFIX ".node")
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -155,3 +156,25 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 if(MSVC AND CMAKE_JS_NODELIB_DEF AND CMAKE_JS_NODELIB_TARGET)
   execute_process(COMMAND ${CMAKE_AR} /def:${CMAKE_JS_NODELIB_DEF} /out:${CMAKE_JS_NODELIB_TARGET} ${CMAKE_STATIC_LINKER_FLAGS})
 endif()
+
+# ── artlux_audio: THE SAME ENGINE AS A C LIBRARY, for the native engine (E3: JUCE in the engine process) ──
+# capi.cpp includes the same core.h; the addon above is untouched. Same JUCE config (every compile definition the
+# addon has, ASIO included), same modules, no Node. The native engine loads it at run time and degrades without it.
+add_library(artlux_audio SHARED src/capi.cpp)
+target_include_directories(artlux_audio PRIVATE ${spatialaudio_SOURCE_DIR}/include ${spatialaudio_BINARY_DIR})
+get_target_property(ARTLUX_AUDIO_DEFS ${PROJECT_NAME} COMPILE_DEFINITIONS)
+target_compile_definitions(artlux_audio PRIVATE ${ARTLUX_AUDIO_DEFS})
+if(ARTLUX_ENABLE_ASIO AND ARTLUX_ASIO_USE_EXTERNAL AND ASIO_SDK_DIR)
+  target_include_directories(artlux_audio PRIVATE ${ASIO_SDK_DIR})
+endif()
+target_link_libraries(artlux_audio PRIVATE
+  spatialaudio
+  juce::juce_audio_devices
+  juce::juce_audio_formats
+  juce::juce_audio_basics
+  juce::juce_dsp
+  juce::juce_core
+  juce::juce_events
+  juce::juce_recommended_config_flags
+  juce::juce_recommended_warning_flags
+)

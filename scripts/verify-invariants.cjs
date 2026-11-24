@@ -4432,6 +4432,34 @@ check(
 );
 
 check(
+  'the audio engine has ONE core behind its two front doors (the addon and the native engine\'s library)',
+  'E3 (JUCE in the engine process): native/audio-engine builds the same core.h twice — engine.cpp as the N-API ' +
+  'addon the app plays through, capi.cpp as artlux_audio, the C library the native engine loads (audio.rs). A ' +
+  'second copy of the bus, the clips or the device code in either front door would be two audio engines that drift ' +
+  'apart the first time one is fixed. And the library must ship next to the engine (where audio.rs looks first), ' +
+  'speak the ABI audio.rs expects, and count the audio clock where the device pulls samples.',
+  () => {
+    const problems = [];
+    const C = 'native/audio-engine/src/core.h', E = 'native/audio-engine/src/engine.cpp', A = 'native/audio-engine/src/capi.cpp', R = 'engine/artlux-engine/src/audio.rs', M = 'native/audio-engine/CMakeLists.txt';
+    if (![C, E, A, R, M].every(exists)) return 'core.h / engine.cpp / capi.cpp / audio.rs / CMakeLists.txt is gone';
+    const c = read(C), e = read(E), a = read(A), r = read(R), m = read(M);
+    for (const [n, s] of [['engine.cpp', e], ['capi.cpp', a]]) {
+      if (!/#include "core\.h"/.test(s)) problems.push(`${n} does not include core.h`);
+      if (/class (Engine|SpatialBus|MeteringAudioSource)\b|struct Clip\b/.test(s)) problems.push(`${n} defines engine classes of its own — they belong in core.h`);
+    }
+    if (/#include <napi\.h>/.test(c)) problems.push('core.h includes N-API — the C library would need Node');
+    if (!/rendered\.fetch_add\(info\.numSamples/.test(c)) problems.push('the audio clock is no longer counted where the device pulls samples (MeteringAudioSource)');
+    if (!/set\(SOURCE_FILES src\/engine\.cpp\)/.test(m) || !/add_library\(artlux_audio SHARED src\/capi\.cpp\)/.test(m)) problems.push('CMakeLists no longer builds the two front doors from their own files');
+    const abiC = (a.match(/artlux_audio_abi\(\) \{ return (\d+); \}/) ?? [])[1], abiR = (r.match(/Ok\(f\) if unsafe \{ f\(\) \} == (\d+)/) ?? [])[1];
+    if (!abiC || abiC !== abiR) problems.push(`the C API's ABI (${abiC}) is not the one audio.rs speaks (${abiR})`);
+    const pkg = JSON.parse(raw('package.json'));
+    const win = pkg.build?.win?.extraResources ?? [];
+    if (!win.some((x) => x.from === 'native/audio-engine/artlux_audio.dll' && x.to === 'engine/artlux_audio.dll')) problems.push('the Windows package no longer ships artlux_audio.dll next to the engine');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the automation lanes the native engine evaluates are exactly the ones it applies, and never under a scene fade',
   'E3d: nativeLink.engineLane names the lanes the engine samples itself (a surface\'s content opacity, an effect\'s ' +
   'speed and intensity); the document then carries the surfaces WITHOUT those values (overlay applyExcept). A path ' +
@@ -6259,7 +6287,7 @@ check(
   'as a device existing — asked for an empty name it returns success and creates nothing, which is ' +
   'every machine that has never chosen a device.',
   () => {
-    const f = 'native/audio-engine/src/engine.cpp';
+    const f = 'native/audio-engine/src/core.h';   // the engine's core since E3 (engine.cpp is its N-API front door)
     if (!exists(f)) return `${f} is missing`;
     const src = read(f);
     const bad = [];
@@ -9096,7 +9124,8 @@ check(
   'back onto the JS thread compiles, runs and stalls the show again.',
   () => {
     const problems = [];
-    const c = raw('native/audio-engine/src/engine.cpp');
+    // The control thread lives in core.h since E3 (shared with the C library); the N-API surface in engine.cpp.
+    const c = raw('native/audio-engine/src/core.h') + '\n' + raw('native/audio-engine/src/engine.cpp');
     if (!/#if defined\(_WIN32\)\s*\n#define ARTLUX_AUDIO_CONTROL_THREAD 1/.test(c)) problems.push('engine.cpp no longer enables the audio control thread on Windows');
     if (!/control::start\(\);/.test(c)) problems.push('Init no longer starts the control thread');
     if (!/juce::MessageManager::getInstance\(\);\s+\/\/ THIS thread is JUCE's message thread/.test(c)) problems.push('the control thread is no longer JUCE\'s message thread (driver messages would race the engine)');

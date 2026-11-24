@@ -47,9 +47,16 @@ so there is no separate window or bridge. Separate **projector output** windows
 npm install
 npm run build:native   # 3 Rust crates (output-engine + spout-receiver + hap) → native/*/*.node
                        # (gitignored), then the audio engine (optional, warns)
-npm run build:audio    # just the JUCE audio engine — REQUIRED for sound
+npm run build:audio    # just the JUCE audio engine — REQUIRED for sound. Builds the addon AND
+                       # native/audio-engine/artlux_audio.dll (the same engine for the native engine, E3)
 npm run dev            # launch the Electron app (electron-vite dev)
 ```
+
+> **`build:audio` says "There is no Visual C++ compiler installed" although Visual Studio is there?** cmake-js's
+> own Visual Studio detection can fail in a shell where the configured build still works. With the build folder
+> already configured, build it directly with the CMake Visual Studio ships —
+> `cmake --build native/audio-engine/build --config Release` — then copy `build/Release/audio_engine.node` and
+> `artlux_audio.dll` up one level, as the script does (measured 2026-11-24, VS 2022's bundled CMake).
 
 The other three native crates have their own opt-in scripts (not run by `build:native`): **`build:ndi`**
 (the NDI addon; a prebuilt `native/ndi/ndi.node` is committed, so you rarely rebuild it), **`build:calib`**

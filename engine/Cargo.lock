@@ -108,6 +108,7 @@ dependencies = [
  "gltf",
  "grafton-ndi",
  "image",
+ "libloading",
  "libm",
  "naga",
  "pollster",

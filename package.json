@@ -100,7 +100,8 @@
     "test:showctl": "node scripts/test-show-control.cjs",
     "test:showctl:ui": "node scripts/test-show-control-ui.cjs",
     "test:transport-clock": "node scripts/test-transport-clock.cjs",
-    "test:video-frame-clock": "node scripts/test-video-frame-clock.cjs"
+    "test:video-frame-clock": "node scripts/test-video-frame-clock.cjs",
+    "test:engine-audio": "node scripts/test-engine-audio.cjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -215,6 +216,10 @@
         {
           "from": "engine/target/release/artlux-engine.exe",
           "to": "engine/artlux-engine.exe"
+        },
+        {
+          "from": "native/audio-engine/artlux_audio.dll",
+          "to": "engine/artlux_audio.dll"
         },
         {
           "from": "native/ndi/ndi.node",

@@ -1,6 +1,10 @@
 node_modules/
 build/
 *.node
+# the same engine as a C library for the native engine (E3) — built, never committed
+*.dll
+*.dylib
+*.so
 # vendored deps (fetched by CMake / git submodule during build)
 third_party/
 # generated spike artifacts
